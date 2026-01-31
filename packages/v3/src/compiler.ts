@@ -2,6 +2,8 @@ import * as oxc from "oxc-transform";
 
 interface CompileOptions {
   uiLibCode?: string;
+  /** Whether the source is TSX (contains JSX). Defaults to true for backward compatibility. */
+  isTsx?: boolean;
 }
 
 interface CompileResult {
@@ -13,7 +15,7 @@ export const compileCode = async (
   sourceCode: string,
   options: CompileOptions = {}
 ): Promise<CompileResult> => {
-  const { uiLibCode = "" } = options;
+  const { uiLibCode = "", isTsx = true } = options;
 
   try {
     // Remove CSS imports
@@ -24,9 +26,13 @@ export const compileCode = async (
 
     console.log('sourceWithLibs', sourceWithLibs);
 
+    // Use .tsx for JSX files, .ts for pure TypeScript
+    // Using .tsx causes the parser to interpret <T> as JSX, breaking pure TS files with generics
+    const filename = isTsx ? 'source.tsx' : 'source.ts';
+
     // Use oxc-transform with automatic JSX runtime
     const result = oxc.transform(
-      'source.tsx',
+      filename,
       sourceWithLibs,
       {
         typescript: {}
@@ -48,3 +54,4 @@ export const compileCode = async (
     return { code: "", error: err.message };
   }
 };
+

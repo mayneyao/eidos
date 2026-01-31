@@ -7,16 +7,20 @@ import { GlobalSecuritySettings } from "./global/global-security-settings"
 import { GlobalStorageSettings } from "./global/global-storage-settings"
 import { GlobalSyncSettings } from "./global/global-sync-settings"
 import { DocumentSettings } from "./space/document-settings"
+import { ExtensionSettings } from "./space/extension-settings"
 import { FileHandlersSettings } from "./space/file-handlers-settings"
 import { GeneralSettings } from "./space/general-settings"
 import { MountSettings } from "./space/mount-settings"
 import { SpaceSyncSettings } from "./space/space-sync-settings"
+import { NewTabSettings } from "./space/new-tab-settings"
 
 type SettingsSection =
   | "space-general"
   | "space-document"
   | "space-mounts"
   | "space-file-handlers"
+  | "space-extensions"
+  | "space-newtab"
   | "space-sync"
   | "general"
   | "ai"
@@ -42,6 +46,10 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return t("space.settings.mounts")
       case "space-file-handlers":
         return "File Handlers"
+      case "space-extensions":
+        return "Extensions"
+      case "space-newtab":
+        return "New Tab"
       case "space-sync":
         return t("space.settings.sync")
       case "general":
@@ -71,6 +79,10 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return <MountSettings />
       case "space-file-handlers":
         return <FileHandlersSettings />
+      case "space-extensions":
+        return <ExtensionSettings />
+      case "space-newtab":
+        return <NewTabSettings />
       case "space-sync":
         return <SpaceSyncSettings />
       case "general":

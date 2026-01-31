@@ -3,21 +3,25 @@ import React, { useEffect, useRef } from "react"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 
-import { TabContainer } from "./tab-container"
-import { Nav } from "../nav"
+import { SplitPanelManager } from "./split-panel-manager"
 
 export function TabManager({ children }: { children: React.ReactNode }) {
   const {
     tabs,
-    activeTabId,
+    panels,
+    activePanelId,
     openTab,
     closeTab,
     setActiveTab,
     reopenLastClosedTab,
+    getActiveTabId,
   } = useTabStore()
   const { location } = useRouterAdapter()
   const goInTabHistory = useTabStore((state) => state.goInTabHistory)
   const initGuardRef = useRef(false)
+
+  // Get the active tab ID from the active panel
+  const activeTabId = getActiveTabId()
 
   // Initialize with current route if no tabs exist, avoid duplicate Home (StrictMode)
   useEffect(() => {
@@ -37,6 +41,8 @@ export function TabManager({ children }: { children: React.ReactNode }) {
   // while TabManager is rendered once globally.
   useEffect(() => {
     const handleGlobalShortcut = (_event: any, action: { id: string }) => {
+      const currentActiveTabId = useTabStore.getState().getActiveTabId()
+
       switch (action.id) {
         case "new-tab":
           openTab("/", "New Tab")
@@ -45,10 +51,11 @@ export function TabManager({ children }: { children: React.ReactNode }) {
           reopenLastClosedTab()
           break
         case "close-current-tab": {
-          if (!activeTabId) break
+          if (!currentActiveTabId) break
 
+          const { tabs: currentTabs } = useTabStore.getState()
           const shouldHideWindow =
-            tabs.length <= 1 &&
+            currentTabs.length <= 1 &&
             typeof window !== "undefined" &&
             window.eidos?.closeWindow
 
@@ -57,25 +64,34 @@ export function TabManager({ children }: { children: React.ReactNode }) {
             break
           }
 
-          closeTab(activeTabId)
+          closeTab(currentActiveTabId)
           break
         }
         case "next-tab":
           {
-            const currentIndex = tabs.findIndex((t) => t.id === activeTabId)
-            const nextIndex = (currentIndex + 1) % tabs.length
-            if (tabs[nextIndex]) {
-              setActiveTab(tabs[nextIndex].id)
+            const { tabs: currentTabs, panels: currentPanels, activePanelId: currentPanelId } = useTabStore.getState()
+            const currentPanel = currentPanels.find((p) => p.id === currentPanelId)
+            if (!currentPanel) break
+
+            const panelTabs = currentPanel.tabIds
+            const currentIndex = panelTabs.indexOf(currentPanel.activeTabId || "")
+            const nextIndex = (currentIndex + 1) % panelTabs.length
+            if (panelTabs[nextIndex]) {
+              setActiveTab(panelTabs[nextIndex])
             }
           }
           break
         case "previous-tab":
           {
-            const currentIndex = tabs.findIndex((t) => t.id === activeTabId)
-            const prevIndex =
-              currentIndex <= 0 ? tabs.length - 1 : currentIndex - 1
-            if (tabs[prevIndex]) {
-              setActiveTab(tabs[prevIndex].id)
+            const { panels: currentPanels, activePanelId: currentPanelId } = useTabStore.getState()
+            const currentPanel = currentPanels.find((p) => p.id === currentPanelId)
+            if (!currentPanel) break
+
+            const panelTabs = currentPanel.tabIds
+            const currentIndex = panelTabs.indexOf(currentPanel.activeTabId || "")
+            const prevIndex = currentIndex <= 0 ? panelTabs.length - 1 : currentIndex - 1
+            if (panelTabs[prevIndex]) {
+              setActiveTab(panelTabs[prevIndex])
             }
           }
           break
@@ -95,23 +111,24 @@ export function TabManager({ children }: { children: React.ReactNode }) {
         }
       }
     }
-  }, [tabs, activeTabId, openTab, closeTab, setActiveTab, reopenLastClosedTab])
+  }, [openTab, closeTab, setActiveTab, reopenLastClosedTab])
 
   // Handle mouse side buttons for back/forward within the active tab
   useEffect(() => {
     let lastHandled = 0
     const handleMouseButton = (e: MouseEvent) => {
-      if (!activeTabId) return
+      const currentActiveTabId = useTabStore.getState().getActiveTabId()
+      if (!currentActiveTabId) return
       // Deduplicate if the same event fires across multiple mouse event types
       if (lastHandled === e.timeStamp) return
 
       if (e.button === 3) {
         e.preventDefault()
-        goInTabHistory(activeTabId, -1)
+        goInTabHistory(currentActiveTabId, -1)
         lastHandled = e.timeStamp
       } else if (e.button === 4) {
         e.preventDefault()
-        goInTabHistory(activeTabId, 1)
+        goInTabHistory(currentActiveTabId, 1)
         lastHandled = e.timeStamp
       }
     }
@@ -130,22 +147,11 @@ export function TabManager({ children }: { children: React.ReactNode }) {
         capture: true,
       } as any)
     }
-  }, [activeTabId, goInTabHistory])
+  }, [goInTabHistory])
 
   return (
-    <div className="relative flex-1 min-h-0">
-      {/* TabSwitcher UI temporarily disabled - using default Chrome behavior */}
-      {/* <TabSwitcher /> */}
-      {tabs.map((tab) => (
-        <TabContainer
-          key={tab.id}
-          tabId={tab.id}
-          initialUrl={tab.url}
-          isActive={activeTabId === tab.id}
-        >
-          {children}
-        </TabContainer>
-      ))}
+    <div className="relative flex-1 min-h-0 flex flex-col">
+      <SplitPanelManager>{children}</SplitPanelManager>
     </div>
   )
 }

@@ -207,6 +207,7 @@ export const ExtensionPreview = forwardRef<
               env={{}}
               bindings={{}}
               height={height}
+              slug={script.slug}
             />
           )}
 

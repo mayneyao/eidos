@@ -1,10 +1,10 @@
 import { getColumnIndexName } from "@/lib/utils"
 
-import type { DataSpace } from "../data-space"
+import type { DataSpaceWithTable } from "../data-space/table"
 import type { TableManager } from "./table"
 
 export class IndexManager {
-  dataSpace: DataSpace
+  dataSpace: DataSpaceWithTable
 
   tableManager: TableManager
 

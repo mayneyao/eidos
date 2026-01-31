@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react"
 import type { IBindings } from "@/packages/core/types/IExtension"
-import { makeSdkInjectScript } from "@eidos.space/sandbox"
+import { makeSdkInjectScript } from "@eidos.space/ext-server"
 import {
   generateImportMap,
   getAllLibs,
@@ -41,6 +41,7 @@ interface BlockRendererProps {
   defaultProps?: Record<string, any>
   rerenderOnDefaultPropsChange?: boolean
   hash?: string
+  slug?: string
 }
 
 export const BlockRenderer = React.forwardRef<
@@ -59,6 +60,7 @@ export const BlockRenderer = React.forwardRef<
       bindings = {},
       rerenderOnDefaultPropsChange,
       hash,
+      slug,
     },
     ref
   ) => {
@@ -106,7 +108,8 @@ export const BlockRenderer = React.forwardRef<
               cssLibs,
               localLibs,
             },
-            space
+            space,
+            slug
           ).then(({ importMapScript }) => {
             setImportMap(importMapScript)
             setIsLoading(false)

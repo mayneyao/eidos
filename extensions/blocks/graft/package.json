@@ -1,0 +1,14 @@
+{
+  "name": "@eidos.space/ext-graft",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.tsx",
+  "dependencies": {
+    "@eidos.space/react": "workspace:*",
+    "ahooks": "^3.8.4",
+    "lucide-react": "^0.400.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  }
+}

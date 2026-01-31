@@ -1,20 +1,22 @@
 "use client"
 
 import { detectDirective } from "@eidos.space/v3"
+import { useTranslation } from "react-i18next"
 
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
-import { useCurrentSpaceId } from "@/hooks/use-current-space"
+import { useCurrentSpace, useCurrentSpaceId } from "@/hooks/use-current-space"
 import { DEFAULT_TABS } from "@/hooks/use-tabs-kv"
+import { getToday } from "@/lib/utils"
 import { useMblock } from "@/apps/web-app/hooks/use-mblock"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useExtensionStore } from "@/apps/web-app/store/extension-store"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 
 import { BlockApp } from "../block-renderer/block-app"
+import { BuiltInSidebarBlockRenderer } from "../block-renderer/builtin-extension-renderer"
 import FileTree from "../file-tree"
 import { ExtensionSidebarHeader } from "./extensions/extension-sidebar-header"
 import { FilesSidebar } from "./files"
-import { GraftSidebar } from "./graft/graft-sidebar"
-import { JournalsSidebar } from "./journals/journals-sidebar"
 import { SearchResults } from "./nodes/search-results"
 import { TreeSidebarHeader } from "./nodes/tree-sidebar-header"
 import { useTreeSidebarStore } from "./nodes/tree-sidebar-store"
@@ -109,6 +111,39 @@ const BlockContent = ({ block }: { block: any }) => {
   return <BlockApp url={`block://${block.id}@${space}`} height={"100%"} />
 }
 
+const JournalsContent = () => {
+  const { params } = useRouterAdapter()
+  const { i18n } = useTranslation()
+  const space = useCurrentSpaceId() || ""
+  const currentDay = (params.day as string) || getToday()
+  const locale = i18n.language || "en"
+  return (
+    <BuiltInSidebarBlockRenderer
+      extensionSlug="journal"
+      space={space}
+      currentDay={currentDay}
+      locale={locale}
+    />
+  )
+}
+
+const GraftContent = () => {
+  const { i18n } = useTranslation()
+  const { currentSpace } = useCurrentSpace()
+  const space = useCurrentSpaceId() || ""
+  const locale = i18n.language || "en"
+  const syncEnabled = currentSpace?.sync?.enabled ?? false
+  return (
+    <BuiltInSidebarBlockRenderer
+      extensionSlug="graft"
+      space={space}
+      currentDay={getToday()}
+      locale={locale}
+      syncEnabled={syncEnabled}
+    />
+  )
+}
+
 export const SidebarContent = () => {
   const { currentApp } = useSidebarStore()
   const block = useMblock(currentApp || "")
@@ -120,11 +155,11 @@ export const SidebarContent = () => {
       case "nodes":
         return <NodesContent />
       case "today":
-        return <JournalsSidebar />
+        return <JournalsContent />
       case "files":
         return <FilesContent />
       case "graft":
-        return <GraftSidebar />
+        return <GraftContent />
       default:
         // Check if currentApp is a block ID with 'use sidebar' directive
         if (

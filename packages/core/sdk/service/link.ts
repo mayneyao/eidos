@@ -4,7 +4,8 @@ import { ColumnTableName } from "../../sqlite/const"
 import type { IField } from "../../types/IField"
 import { getTableIdByRawTableName } from "@/lib/utils"
 
-import type { DataSpace, EidosDatabase } from "../../data-space"
+import type { EidosDatabase } from "../../data-space"
+import type { DataSpaceWithTable } from "../../data-space/table"
 import type { TableManager } from "../table"
 
 interface IRelation {
@@ -14,7 +15,7 @@ interface IRelation {
 }
 
 export class LinkFieldService {
-  dataSpace: DataSpace
+  dataSpace: DataSpaceWithTable
   db: EidosDatabase
   constructor(private table: TableManager) {
     this.dataSpace = this.table.dataSpace

@@ -7,10 +7,12 @@ import {
   Folder,
   Info,
   KeyRound,
+  Package,
   Palette,
   Settings as SettingsIcon,
   Shield,
   FileType,
+  LayoutTemplate,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -23,6 +25,8 @@ type SettingsSection =
   | "space-document"
   | "space-mounts"
   | "space-file-handlers"
+  | "space-extensions"
+  | "space-newtab"
   | "space-sync"
   | "general"
   | "ai"
@@ -65,6 +69,20 @@ export function SettingsSidebar({
       category: "space",
     },
     {
+      id: "space-extensions",
+      title: "Extensions",
+      description: "Manage installed extensions for this space",
+      icon: <Package className="h-5 w-5" />,
+      category: "space",
+    },
+    {
+      id: "space-newtab",
+      title: "New Tab",
+      description: "Customize your new tab page",
+      icon: <LayoutTemplate className="h-5 w-5" />,
+      category: "space",
+    },
+    {
       id: "space-document",
       title: t("space.settings.document"),
       description: t("space.settings.documentDescription"),
@@ -86,13 +104,6 @@ export function SettingsSidebar({
       disabled: !isSyncEnabled,
       category: "space",
     },
-    // {
-    //   id: "space-file-handlers",
-    //   title: "File Handlers",
-    //   description: "Manage default applications for file types",
-    //   icon: <FileType className="h-5 w-5" />,
-    //   category: "space",
-    // },
     // Global Settings
     {
       id: "general",

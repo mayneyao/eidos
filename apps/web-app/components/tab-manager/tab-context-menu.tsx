@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { FileHandlerMeta } from "@/packages/core/types/IExtension"
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 import {
@@ -11,11 +11,14 @@ import {
   MailIcon,
   MoveHorizontal,
   PanelRightIcon,
+  SplitSquareHorizontal,
+  SplitSquareVertical,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { isDayPageId } from "@/lib/utils"
-import { useFileHandlers } from "@/hooks/use-file-handlers"
+// import { getFileExtension } from "@/hooks/use-file-handlers"
+import { getFileExtension, useFileHandlers } from "@/hooks/use-file-handlers"
 import { useFileItemActions } from "@/hooks/use-file-item-actions"
 import { useSqlite } from "@/hooks/use-sqlite"
 import {
@@ -56,7 +59,7 @@ import { useNodeMap } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useHnsw } from "@/apps/web-app/hooks/use-hnsw"
 import { useVCardEmail } from "@/apps/web-app/hooks/use-vcard-email"
-import { useFilePathFromHash } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-file-path-from-hash"
+// import { useFilePathFromHash } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-file-path-from-hash"
 import { useHandlerSelection } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-handler-selection"
 import {
   useAppsStore,
@@ -94,9 +97,13 @@ export function TabContextMenu({
 }: TabContextMenuProps) {
   const { t } = useTranslation()
   const tabs = useTabStore((state) => state.tabs)
+  const panels = useTabStore((state) => state.panels)
+  const splitTab = useTabStore((state) => state.splitTab)
   const [open, setOpen] = useState(false)
 
   const isOnlyTab = totalTabs === 1
+  // Check if we can split (max 4 panels)
+  const canSplit = panels.length < 4
   const isLastTab = tabIndex >= totalTabs - 1
 
   // Get current tab and parse its URL for route parameters
@@ -147,11 +154,38 @@ export function TabContextMenu({
 
   // Check if we're on file-handler page and get current handler
   const isFileHandlerPage = location.pathname.includes("/file-handler")
-  const { filePath, fileExtension } = useFilePathFromHash()
+  // const { filePath, fileExtension } = useFilePathFromHash()
+
+  const { filePath, fileExtension } = useMemo(() => {
+    try {
+      if (tabUrl.includes("/file-handler") && tabUrl.includes("#")) {
+        const hashIndex = tabUrl.indexOf("#")
+        const rawPath = tabUrl.substring(hashIndex + 1)
+        const path = decodeURIComponent(rawPath)
+        return {
+          filePath: path,
+          fileExtension: getFileExtension(path),
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to parse file path from tab URL:", e)
+    }
+    return { filePath: "", fileExtension: "" }
+  }, [tabUrl])
+
   const { selectedHandler, isLoadingHandlers, isLoadingDefault } =
     useHandlerSelection(isFileHandlerPage ? fileExtension : "")
   const { handlers: allHandlers, isLoading: isLoadingAllHandlers } =
     useFileHandlers(fileExtension)
+
+  // Use refs to store the latest values for stable callback in native context menu
+  // This prevents stale closure issues where the menu handler captures old values
+  const filePathRef = useRef(filePath)
+  const allHandlersRef = useRef(allHandlers)
+  useEffect(() => {
+    filePathRef.current = filePath
+    allHandlersRef.current = allHandlers
+  }, [filePath, allHandlers])
 
   // Check if we're on blocks page and get current block ID
   const isBlocksPage = location.pathname.includes("/blocks")
@@ -171,8 +205,16 @@ export function TabContextMenu({
     : t("nav.dropdown.menu.viewBlock", "View Block Extension")
 
   // Show "Open with" submenu if we're on file-handler page and have multiple handlers
+  // Extra check: verify handlers actually exist and support this extension (guards against stale state)
   const showOpenWith =
-    isFileHandlerPage && !isLoadingAllHandlers && allHandlers.length > 1
+    fileExtension &&
+    isFileHandlerPage &&
+    !isLoadingAllHandlers &&
+    allHandlers.length > 1 &&
+    // Double-check at least one handler supports this extension (guards against stale allHandlers)
+    allHandlers.some((h) =>
+      h.meta?.fileHandler?.extensions?.includes(fileExtension)
+    )
 
   const { sqlite, deleteNode, toggleNodeFullWidth, toggleNodeLock } =
     useSqlite()
@@ -279,6 +321,22 @@ export function TabContextMenu({
   const { openInFileManager, openWith, viewExtension } =
     useFileItemActions(fileActionsContext)
 
+  // Create a stable openWith wrapper that reads from ref to avoid stale closures
+  // This is critical for native context menus where handlers are registered via useEffect
+  const stableOpenWith = useCallback(
+    (handler: Parameters<typeof openWith>[0]) => {
+      const currentFilePath = filePathRef.current
+      if (handler._builtIn) {
+        tabNavigate(
+          `/file-handler?handler=${handler.id}&builtin=true#${currentFilePath}`
+        )
+      } else {
+        tabNavigate(`/file-handler?handler=${handler.id}#${currentFilePath}`)
+      }
+    },
+    [tabNavigate]
+  )
+
   const handleAddToPanel = () => {
     if (!node) return
     // Create node app URL in the format node://<nodeid>@<space>
@@ -294,7 +352,8 @@ export function TabContextMenu({
 
   return (
     <>
-      <ContextMenu>
+      {/* Key forces remount when tab or file type changes, ensuring fresh menu registrations */}
+      <ContextMenu key={`${tabId}-${tabUrl}`}>
         <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
         <ContextMenuContent className="w-56">
           {/* Tab Operations */}
@@ -313,6 +372,25 @@ export function TabContextMenu({
 
           <ContextMenuItem onClick={onCloseAll}>Close All</ContextMenuItem>
 
+          {/* Split View Options */}
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            onClick={() => splitTab(tabId, "right")}
+            disabled={!canSplit}
+          >
+            <SplitSquareHorizontal className="mr-2 h-4 w-4" />
+            {t("tab.menu.splitRight", "Split Right")}
+          </ContextMenuItem>
+          {/* Split Down hidden for now
+          <ContextMenuItem
+            onClick={() => splitTab(tabId, "down")}
+            disabled={!canSplit}
+          >
+            <SplitSquareVertical className="mr-2 h-4 w-4" />
+            {t("tab.menu.splitDown", "Split Down")}
+          </ContextMenuItem>
+          */}
+
           {/* Open with submenu (file-handler page with multiple handlers) */}
           {showOpenWith && (
             <>
@@ -328,7 +406,7 @@ export function TabContextMenu({
                     return (
                       <ContextMenuItem
                         key={handler.id}
-                        onClick={() => openWith(handler)}
+                        onClick={() => stableOpenWith(handler)}
                       >
                         {meta.fileHandler.icon && (
                           <span className="mr-2">{meta.fileHandler.icon}</span>

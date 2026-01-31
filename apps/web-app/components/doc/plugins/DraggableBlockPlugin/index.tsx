@@ -37,6 +37,7 @@ import {
 
 import { CustomBlockMenu } from "../../blocks/custom/menu"
 import { FileMenu } from "../../blocks/file/menu"
+import { ImageMenu } from "../../blocks/image/menu"
 import { isHTMLElement } from "../../utils/guard"
 import { $moveNode } from "./$moveNode"
 import {
@@ -347,6 +348,9 @@ function useDraggableBlockMenu(
             )} */}
             {currentNode?.__type == "file" && (
               <FileMenu nodeKey={currentNodeKey} editor={editor} />
+            )}
+            {currentNode?.__type == "image" && (
+              <ImageMenu nodeKey={currentNodeKey} editor={editor} />
             )}
             {currentNode?.__type == "custom" && (
               <CustomBlockMenu nodeKey={currentNodeKey} editor={editor} />

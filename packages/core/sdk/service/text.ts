@@ -1,4 +1,4 @@
-import type { DataSpace } from "../../data-space"
+import type { DataSpaceWithTable } from "../../data-space/table"
 import type { TableManager } from "../table"
 import type { IField } from "../../types/IField"
 import type { TextProperty } from "../../fields/text"
@@ -10,7 +10,7 @@ export interface IVecMeta {
 }
 
 export class TextFieldService {
-    dataSpace: DataSpace
+    dataSpace: DataSpaceWithTable
     constructor(private table: TableManager) {
         this.dataSpace = this.table.dataSpace
     }

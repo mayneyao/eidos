@@ -1,0 +1,41 @@
+{
+  "name": "@eidos.space/headless",
+  "version": "0.1.0",
+  "description": "Headless Eidos server with Graft sync support",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "postinstall": "node scripts/postinstall-sqlite-ext.cjs",
+    "download-libsimple": "node scripts/download-libsimple.cjs",
+    "setup": "npm run download-libsimple && npm run postinstall",
+    "prebuild": "pnpm --filter @eidos.space/client build && pnpm --filter @eidos.space/ext-server run build:assets",
+    "predev": "pnpm --filter @eidos.space/client build && pnpm --filter @eidos.space/ext-server run build:assets",
+    "dev": "vite-node --watch src/index.ts",
+    "build": "vite build",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.800.0",
+    "@eidos.space/better-sqlite3": "^11.9.3",
+    "@eidos.space/core": "^0.28.1",
+    "@eidos.space/client": "workspace:*",
+    "@eidos.space/ext-server": "workspace:*",
+    "@eidos.space/v3": "workspace:*",
+    "@hono/node-server": "^1.13.7",
+    "aws4fetch": "^1.0.20",
+    "dotenv": "^16.4.7",
+    "hono": "^4.6.15",
+    "oxc-parser": "^0.74.0",
+    "oxc-transform": "^0.74.0",
+    "sqlite-graft": "^0.2.1",
+    "sqlite-vec": "0.1.7-alpha.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.12",
+    "typescript": "^5.7.3",
+    "vite": "^6.3.5",
+    "vite-node": "^3.1.4"
+  }
+}
+
+

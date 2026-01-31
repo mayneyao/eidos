@@ -4,11 +4,11 @@ import type { IField } from "../../types/IField"
 import type { SelectProperty } from "../../fields/select";
 import { SelectField } from "../../fields/select"
 
-import type { DataSpace } from "../../data-space"
+import type { DataSpaceWithTable } from "../../data-space/table"
 import type { TableManager } from "../table"
 
 export class SelectFieldService {
-  dataSpace: DataSpace
+  dataSpace: DataSpaceWithTable
   constructor(private table: TableManager) {
     this.dataSpace = this.table.dataSpace
   }

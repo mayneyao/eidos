@@ -6,15 +6,34 @@ import {
 } from "@/lib/utils"
 import { TableManager } from "../sdk/table"
 import { RowsManager } from "../sdk/rows"
+import { TableClient } from "../sdk/table-client"
 import { TreeNodeType } from "../types/ITreeNode"
 import { DataSpaceWithDoc } from "./doc"
 import type { IField } from "../types/IField"
 
 // Extension class to add table-related methods
 export class DataSpaceWithTable extends DataSpaceWithDoc {
-    // table factory method
-    public table(id: string) {
+    /**
+     * @deprecated Use table() instead. This is the legacy API that returns TableManager.
+     * Kept for internal use and backward compatibility.
+     */
+    public _table(id: string) {
         return new TableManager(id, this)
+    }
+
+    /**
+     * Prisma-style Table SDK client for CRUD operations
+     * Operates directly on database column names for simplified usage
+     * 
+     * @example
+     * ```typescript
+     * const Users = eidos.currentSpace.table("users")
+     * await Users.create({ data: { cl_name: "张三" } })
+     * await Users.findMany({ where: { cl_age: { gte: 18 } } })
+     * ```
+     */
+    public table(id: string) {
+        return new TableClient(getRawTableNameById(id), this)
     }
 
     // table full text search
@@ -39,7 +58,7 @@ export class DataSpaceWithTable extends DataSpaceWithDoc {
 
     public async getLookupContext(tableName: string, columnName: string) {
         const tableId = getTableIdByRawTableName(tableName)
-        const tableManager = this.table(tableId)
+        const tableManager = this._table(tableId)
         return tableManager.fields.lookup.getLookupContext(tableName, columnName)
     }
 
@@ -49,7 +68,7 @@ export class DataSpaceWithTable extends DataSpaceWithDoc {
         option: string
     ): Promise<void> => {
         const tableId = getTableIdByRawTableName(field.table_name)
-        const tableManager = this.table(tableId)
+        const tableManager = this._table(tableId)
         if (field.type === FieldType.Select) {
             return await tableManager.fields.select.deleteSelectOption(field, option)
         } else if (field.type === FieldType.MultiSelect) {
@@ -71,7 +90,7 @@ export class DataSpaceWithTable extends DataSpaceWithDoc {
             return
         }
         const tableId = getTableIdByRawTableName(field.table_name)
-        const tableManager = this.table(tableId)
+        const tableManager = this._table(tableId)
         if (field.type === FieldType.Select) {
             return await tableManager.fields.select.updateSelectOptionName(
                 field,
@@ -108,7 +127,7 @@ export class DataSpaceWithTable extends DataSpaceWithDoc {
 
     public updateLookupColumn(tableName: string, columnName: string) {
         const tableId = getTableIdByRawTableName(tableName)
-        const tableManager = this.table(tableId)
+        const tableManager = this._table(tableId)
         return tableManager.fields.lookup.updateColumn({
             tableName,
             tableColumnName: columnName,
@@ -117,7 +136,7 @@ export class DataSpaceWithTable extends DataSpaceWithDoc {
 
     // index methods
     public createTableIndex(tableId: string, column: string) {
-        this.table(tableId).index.createIndex(
+        this._table(tableId).index.createIndex(
             column,
             () => {
                 this.blockUIMsg(
@@ -133,7 +152,7 @@ export class DataSpaceWithTable extends DataSpaceWithDoc {
 
     // row operations
     public async setRow(tableId: string, rowId: string, data: any) {
-        return await this.table(tableId).rows.update(rowId, data, {
+        return await this._table(tableId).rows.update(rowId, data, {
             useFieldId: true,
         })
     }
@@ -144,11 +163,11 @@ export class DataSpaceWithTable extends DataSpaceWithDoc {
         fieldId: string
         value: any
     }) {
-        const tableManager = this.table(data.tableId)
+        const tableManager = this._table(data.tableId)
         const row = await tableManager.rows.get(data.rowId, { raw: true })
         const oldValue = row?.[data.fieldId]
         if (oldValue !== data.value) {
-            await this.table(data.tableId).rows.update(
+            await this._table(data.tableId).rows.update(
                 data.rowId,
                 {
                     [data.fieldId]: data.value,
@@ -160,7 +179,7 @@ export class DataSpaceWithTable extends DataSpaceWithDoc {
     }
 
     public async getRow(tableId: string, rowId: string) {
-        const tableManager = this.table(tableId)
+        const tableManager = this._table(tableId)
         const row = await tableManager.rows.query(
             {
                 _id: rowId,
@@ -185,7 +204,7 @@ export class DataSpaceWithTable extends DataSpaceWithDoc {
      */
     public async deleteRowsByIds(ids: string[], tableName: string) {
         const tableId = getTableIdByRawTableName(tableName)
-        const tableManager = this.table(tableId)
+        const tableManager = this._table(tableId)
         await tableManager.rows.batchDelete(ids)
         this.undoRedoManager.event()
     }
@@ -263,22 +282,22 @@ export class DataSpaceWithTable extends DataSpaceWithDoc {
     }
 
     public async fixTable(tableId: string) {
-        const tableManager = this.table(tableId)
+        const tableManager = this._table(tableId)
         return await tableManager.fixTable(tableId)
     }
 
     public async hasSystemColumn(tableId: string, column: string) {
-        const tableManager = this.table(tableId)
+        const tableManager = this._table(tableId)
         return await tableManager.hasSystemColumn(tableId, column)
     }
 
     public async isTableExist(id: string) {
-        const tableManager = this.table(id)
+        const tableManager = this._table(id)
         return await tableManager.isExist(id)
     }
 
     public async deleteTable(id: string) {
-        await this.table(id).del(id)
+        await this._table(id).del(id)
     }
 
     // FTS methods for tables
@@ -310,7 +329,7 @@ export class DataSpaceWithTable extends DataSpaceWithDoc {
      * @returns Migration statistics
      */
     public async migrateTableFilePaths(tableId: string): Promise<{ migrated: number; errors: number }> {
-        return await this.table(tableId).migrateFilePaths()
+        return await this._table(tableId).migrateFilePaths()
     }
 
     /**
@@ -319,6 +338,6 @@ export class DataSpaceWithTable extends DataSpaceWithDoc {
      * @returns True if migration is needed
      */
     public async needsTableFilePathMigration(tableId: string): Promise<boolean> {
-        return await this.table(tableId).needsFilePathMigration()
+        return await this._table(tableId).needsFilePathMigration()
     }
 }

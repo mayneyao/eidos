@@ -11,10 +11,13 @@ export interface EidosTable<T = Record<string, string>> {
 /**
  * eidos is the entry of the sdk
  *
- * `eidos.currentSpace.table("tableId").rows.query()`
+ * `eidos.currentSpace.table("tableId").findMany()`
  */
 export interface Eidos {
-    space(spaceName: string): DataSpace
+    /**
+     * Simplified accessor for currentSpace
+     */
+    space: DataSpace
     currentSpace: DataSpace
 
     /**

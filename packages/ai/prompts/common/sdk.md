@@ -5,36 +5,57 @@
 You can directly call the global object `eidos`, which provides many APIs to fetch data. For example:
 
 ```jsx
-// Basic query with where condition
+// Get a table client (tableId is a UUIDv7 without dashes)
+const Users = eidos.currentSpace.table("01935b4c9d2e7f8a0b1c2d3e4f5a6b7c")
+
+// Basic query - get all rows
+const rows = await Users.findMany()
+
+// Query with where condition
 // Note: Use Database Column Names (not Field Names) in the where clause
-const rows = await eidos.currentSpace.table("tableId").rows.findMany({
+const filteredRows = await Users.findMany({
   where: {
-    title_col: "123"  // title_col is the database column name
+    title: "123"  // title is the database column name
   }
 })
 
 // Advanced query with ordering, pagination and field selection
-const advancedRows = await eidos.currentSpace.table("tableId").rows.findMany({
+const advancedRows = await Users.findMany({
   where: {
-    status_field: "active"  // status_field is the database column name
+    status: "active"  // status is the database column name
   },
   orderBy: {
     _created_time: "desc"  // _created_time is the database column name
   },
   skip: 10,
-  take: 20,
-  select: ["title_col", "status_field", "_created_time"]  // Use database column names
+  take: 20
 })
 
 // Count rows matching a condition
-const count = await eidos.currentSpace.table("tableId").rows.count({
+const count = await Users.count({
   where: {
-    status_field: "active"  // status_field is the database column name
+    status: "active"  // status is the database column name
   }
+})
+
+// Create a new row
+const newUser = await Users.create({
+  data: { name: "张三", status: "active" }
+})
+
+// Update a row by _id
+await Users.update({
+  where: { _id: "rowId" },
+  data: { status: "inactive" }
+})
+
+// Delete a row by _id
+await Users.delete({
+  where: { _id: "rowId" }
 })
 ```
 
-NOTE: don't use `eidos.currentSpace.<table>.rows.findMany` to query data unless you have been told that the table is available.
+NOTE: don't use `eidos.currentSpace.table(...).findMany` to query data unless you have been told that the table is available.
 
 ### Table
 
@@ -42,9 +63,9 @@ NOTE: don't use `eidos.currentSpace.<table>.rows.findMany` to query data unless 
 
 **Important**: There are two naming systems in Eidos:
 - **Field Name**: The human-readable name shown in the UI (e.g., "Title", "Status")
-- **Database Column Name**: The internal database column name (e.g., "title_col", "status_field")
+- **Database Column Name**: The internal database column name (e.g., "title", "status")
 
-When using `findMany`, `count`, or other query methods, you must use **Database Column Names** in the `where` clause and `select` array, not Field Names.
+When using `findMany`, `count`, or other query methods, you must use **Database Column Names** in the `where` clause, not Field Names.
 
 {{bindings}}
 
@@ -52,26 +73,60 @@ When using `findMany`, `count`, or other query methods, you must use **Database 
 
 ```ts
 /**
+ * Get a table client
+ * @param tableId Table ID (UUIDv7 without dashes)
+ * @returns TableClient instance
+ */
+table(tableId: string): TableClient;
+
+/**
  * Find many rows with advanced query options
- * @param options Query options including where, orderBy, skip, take, select
- * @returns Array of transformed rows
+ * @param options Query options including where, orderBy, skip, take
+ * @returns Array of rows
  */
 findMany(options?: {
   where?: Record<string, any>;
   orderBy?: Record<string, 'asc' | 'desc'>;
   skip?: number;
   take?: number;
-  select?: string[];
 }): Promise<Record<string, any>[]>;
 
 /**
- * Count rows with advanced query options
- * @param options Query options excluding select, orderBy, skip, take
+ * Count rows matching a condition
+ * @param options Query options with where clause
  * @returns Count of matching rows
  */
 count(options?: {
   where?: Record<string, any>;
 }): Promise<number>;
+
+/**
+ * Create a new row
+ * @param args Object with data property
+ * @returns Created row with _id
+ */
+create(args: {
+  data: Record<string, any>;
+}): Promise<Record<string, any>>;
+
+/**
+ * Update a row by _id
+ * @param args Object with where and data properties
+ * @returns Updated row or null
+ */
+update(args: {
+  where: { _id: string };
+  data: Record<string, any>;
+}): Promise<Record<string, any> | null>;
+
+/**
+ * Delete a row by _id
+ * @param args Object with where property
+ * @returns Deleted row or null
+ */
+delete(args: {
+  where: { _id: string };
+}): Promise<Record<string, any> | null>;
 ```
 
 ### File

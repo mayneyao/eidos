@@ -6,7 +6,7 @@ import type { IView } from "../types/IView"
 import type { IField } from "../types/IField"
 
 import { rewriteQueryWithOffsetAndLimit } from "../sqlite/sql-view-query"
-import type { DataSpace } from "../data-space"
+import type { DataSpaceWithTable } from "../data-space/table"
 import type { TableManager } from "./table"
 import { getFieldInstance } from "../fields"
 import { workerStore } from "../rpc"
@@ -14,7 +14,7 @@ import { SqlQueryBuilder, type FindManyOptions } from "../sqlite/sql-query-build
 import { EIDOS_RESERVED_FIELDS } from "@/lib/utils"
 
 export class RowsManager {
-  dataSpace: DataSpace
+  dataSpace: DataSpaceWithTable
   fieldMap?: {
     fieldRawColumnNameFieldMap: Record<string, IField>
     fieldNameRawColumnNameMap: Record<string, string>

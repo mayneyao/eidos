@@ -640,6 +640,9 @@ export const EditorArea = ({
 
       editor.setModel(model)
       currentModelRef.current = model
+
+      // Setup plugin listeners for the initial file model
+      setupPluginListeners(model, currentFile.path)
     }
 
     setIsEditorReady(true)

@@ -28,6 +28,7 @@ import { useSyncExtNodes } from "@/apps/web-app/hooks/use-all-ext-nodes"
 import { useSyncMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
 import { useDocPropertyTypes } from "@/components/doc-property-global/property-type-hook"
 import { useSyncFileActions } from "@/apps/web-app/hooks/use-all-file-actions"
+import { createEidos, useEidosStore } from "@eidos.space/react"
 
 const mainServiceWorkerChannel = new BroadcastChannel(EidosSharedEnvChannelName)
 export const useCurrentDomain = () => {
@@ -149,6 +150,7 @@ export const useLayoutInit = () => {
   }, [database, lastOpenedDatabase, setLastOpenedDatabase, sqlite])
 
   const { id: userId } = useCurrentUser()
+  const { setEidos } = useEidosStore()
   useEffect(() => {
     let clearFunc: () => void = () => { }
     if (!isInitialized) {
@@ -157,6 +159,9 @@ export const useLayoutInit = () => {
     const sqlWorker = getSqliteProxy(database, userId || "")
 
     setSqlWorker(sqlWorker)
+    // Set Eidos instance for useEidos hook (built-in extensions)
+    setEidos(createEidos(sqlWorker))
+    
     if (isDesktopMode) {
       const readonlySqlite = getSqliteProxy(database, userId || "", {
         isReadonly: true,
@@ -164,7 +169,7 @@ export const useLayoutInit = () => {
       setReadSqliteProxy(readonlySqlite)
     }
     return clearFunc
-  }, [database, setSqlWorker, isInitialized, initWorker, userId])
+  }, [database, setSqlWorker, setEidos, isInitialized, initWorker, userId])
 
   useEffect(() => {
     setLastOpenedDatabase(database)

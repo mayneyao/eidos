@@ -39,6 +39,7 @@ export const callJavaScript = (
         id: string
         bindings?: Record<string, any>
         space: string
+        hash?: string
     },
     scriptContainerRef: any
 ): Promise<any> => {
@@ -89,6 +90,16 @@ export const callPythonScript = (props: IPythonScriptCallProps): Promise<any> =>
     })
 }
 
+const simpleHash = (str: string) => {
+    let hash = 0
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i)
+        hash = (hash << 5) - hash + char
+        hash = hash & hash // Convert to 32bit integer
+    }
+    return hash
+}
+
 export const callScriptById = async (id: string, input: Record<string, any>, sqlite: DataSpace, scriptContainerRef: any, cmd?: string) => {
     const script = await sqlite.extension.getExtensionBySlugOrId(id)
 
@@ -104,6 +115,8 @@ export const callScriptById = async (id: string, input: Record<string, any>, sql
         return acc
     }, {} as Record<string, string>)
 
+    const hash = simpleHash(script.code || "")
+
     return callJavaScript({
         input,
         code: script.code,
@@ -113,6 +126,7 @@ export const callScriptById = async (id: string, input: Record<string, any>, sql
         },
         command: cmd ?? 'default',
         space: spaceName,
-        bindings: script.bindings
+        bindings: script.bindings,
+        hash: String(hash)
     }, scriptContainerRef)
 }

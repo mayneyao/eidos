@@ -36,7 +36,12 @@ export const meta = {
 
 **URL**: Extract `tableId` and `viewId` from `window.location.pathname` (format: `/<tableid>/<viewid>`)
 
-**Data**: `eidos.currentSpace.table(tableId).rows.query({}, { viewId })`
+**Data**:
+
+```javascript
+const Table = eidos.currentSpace.table(tableId)
+const rows = await Table.findMany()
+```
 
 ### 2. Extension Node Types (`type: "extNode"`)
 

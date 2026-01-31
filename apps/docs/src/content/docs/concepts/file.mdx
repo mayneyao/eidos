@@ -1,5 +1,5 @@
 ---
-title: Files
+title: File
 description: File management in Eidos
 sidebar:
   order: 4
@@ -7,27 +7,60 @@ sidebar:
 
 import { FileTree } from "@astrojs/starlight/components"
 
-In Eidos, dynamic data (such as tables and documents) is stored in a SQLite database, while static assets (such as images, audio, videos, etc.) are handled via three different mechanisms. This article explains these three file management approaches.
+In Eidos, while dynamic data (like tables and documents) lives in a SQLite database, static assets (images, audio, video) are handled more flexibly. This article introduces file management in Eidos through two lenses: **File Storage & Paths** and **Extension Support**.
 
-## Default handling
+## File Storage & Paths
+
+Eidos uses distinct path prefixes (such as `/files/`, `/@/`, and `/~/`) to categorize files from different sources.
+
+These paths serve several key purposes:
+- **Reference & Display**: You can insert these paths into documents to reference assets like images or audio, or use them within a "File" type field in tables.
+- **Extension Environment Access**: In programming environments like Blocks, these paths can be used directly as the `src` attribute for native Web tags (e.g., `<img />`, `<video />`).
+- **API Read/Write**: For scenarios requiring lower-level control, you can use these paths with the `eidos.space.fs` API to read from or write to the file system.
+
+You can see a unified view of these locations in the Eidos file browser:
+
+<FileTree>
+
+- my-awesome-space/ (Project Root `/~/`)
+  - .eidos/
+    - db.sqlite3
+    - files/ (Internal Files `/files/`)
+      - screenshot.png
+  - src/
+    - main.js
+  - .gitignore
+  - docs/
+    - api.md
+  - readme.md
+- @audio/ (Mounted Folder)
+  - song.mp3
+- @books/ (Mounted Folder)
+  - programming-guide.pdf
+  - design-principles.pdf
+  - api-reference.pdf
+
+</FileTree>
+
+### 1. Default Storage (Internal Files)
 
 <FileTree>
 
 - my-project/
   - .eidos/
     - db.sqlite3 ← dynamic data storage
-    - files/ ← internal files accessible at the /files/ path
+    - files/ ← /files/ path for internal assets
       - screenshot.png
-      - document.pdf
-  - readme.md ← project file accessible at /~/readme.md
 
 </FileTree>
 
-By default, when you load local files into Eidos or paste screenshots, Eidos copies those static assets from the clipboard or original disk location into the `.eidos/files/` directory. These files are then managed centrally by Eidos.
+By default, when you load local files or paste screenshots into Eidos, these assets are copied from the clipboard or disk location to the `.eidos/files/` directory.
 
-You can access these files through the image/file picker components. Eidos already supports basic file storage and management, and future versions will add enhancements such as OCR text extraction and semantic search. All files are stored under `.eidos/files/` for easier management and synchronization.
+You can access these internal files via the `/files/` path, which is equivalent to accessing them via the project path at `/~/.eidos/files/`.
 
-## Mounted folders
+Eidos already supports basic file storage and management, with future versions planned to include enhancements like OCR text extraction and semantic search. All files are managed centrally by Eidos and bundled for easy synchronization.
+
+### 2. Mounted Folders (External Files `/@/`)
 
 <FileTree>
 
@@ -40,37 +73,26 @@ You can access these files through the image/file picker components. Eidos alrea
 
 </FileTree>
 
-Data inside the `.eidos` directory is typically synchronized. Large files may not be suitable to place there, yet you may still want to reference them in Eidos. In such cases, use mounted folders.
+Since data within the `.eidos` directory is synchronized, large files (such as audio libraries or ebook collections) may not be suitable to store there. In such cases, use the Mount feature.
 
-Mount a directory with the following command:
+Once mounted, you can see the mounted items in the Eidos file picker and reference files using the `/@/<mount-name>/filename` syntax.
 
-```bash
-eidos mount <mount-name> <actual-directory-path>
-```
+- **Command Line**: Use `eidos mount <mount-name> <actual-directory-path>`
+- **UI**: Add via the "Mounts" tab in "Space Settings" by choosing a local directory and providing a name.
 
-After mounting, you can reference files from that external directory in Eidos. The file picker will show mounted folders so you can select files to reference. You can also construct paths directly to display them as a `file` field in tables:
-
-```
-/@/<mount-name>/filename
-```
-
-For example, to mount a local music folder:
+**Example:**
 
 ```bash
+# Mount local music
 eidos mount audio /Users/eidos/Music
-# Then access /Users/eidos/Music/song.mp3 via /@/audio/song.mp3
-```
+# Then access via /@/audio/song.mp3
 
-Or to mount a books folder:
-
-```bash
+# Mount ebooks
 eidos mount books /Users/eidos/Documents/Books
-# Then access book files via /@/books/programming-guide.pdf
+# Then access via /@/books/design.pdf
 ```
 
-Besides the command line, you can add mounted folders directly in Space settings: in the "Mounts" tab, click "Add Mount", choose a local directory, provide a name, and save. This lets you complete the mount via the UI without using commands.
-
-## Project folder
+### 3. Project Folder (Contextual Path `/~/`)
 
 <FileTree>
 
@@ -80,7 +102,6 @@ Besides the command line, you can add mounted folders directly in Space settings
     - files/
   - src/
     - main.js ← /~/src/main.js
-    - utils.js
   - .gitignore ← /~/.gitignore
   - docs/
     - api.md ← /~/docs/api.md
@@ -88,13 +109,9 @@ Besides the command line, you can add mounted folders directly in Space settings
 
 </FileTree>
 
-The project folder is a special concept. Each space creates a `.eidos` directory within a specific location; the folder containing that directory is called the project folder. This could be a code project, a design project, or any other working directory.
+The project folder is a special concept. Each Space creates a `.eidos` directory within a specific location; the folder containing that directory is called the **Project Folder**. This could be a code repository, a design project, or any other working directory.
 
-You do not need a mount to access the project folder. Eidos provides a simplified path syntax:
-
-`/~/readme.md` points to the `readme.md` file under the project folder.
-
-For example, in a code project you can reference project files like this:
+You do not need a manual mount to access the project folder. Eidos provides a simplified syntax: `/~/` points directly to the root of the project folder. This is ideal for referencing documentation, configuration files, or media assets within your current working project:
 
 ```
 /~/src/main.js
@@ -102,4 +119,24 @@ For example, in a code project you can reference project files like this:
 /~/docs/api.md
 ```
 
-This syntax provides a convenient mechanism to reference external files from the project folder in your notes. It is often used to reference multimedia assets such as images, audio, videos, and more.
+---
+
+## Extension & Interaction Support
+
+Beyond basic referencing, Eidos allows you to use standard web technologies to customize how you interact with different file formats.
+
+### File Handlers
+
+Leveraging [Block Extensions](/extensions/block/#43-file-handler-extensions), you can build custom interfaces for files using React, CSS, and HTML.
+
+This acts like an "Open With" feature. You can register specialized Handlers for specific extensions (e.g., `.excalidraw`, `.md`). When you click a file in the directory tree, the system launches the associated Block. Extensions can directly read from and write to the raw local files using the `eidos.space.fs` API.
+
+### File Actions
+
+With [Script Extensions](/extensions/script/#24-file-action-script), you can define background tasks for files that don't require a UI.
+
+Integrated into the right-click context menu, File Actions enable one-click operations like "Compress Image," "Convert Format," or "Generate PDF." Scripts run in the background and provide feedback via system notifications, making them perfect for batch processing or automated workflows.
+
+For more details, see:
+- [Block Extension Documentation](/extensions/block/)
+- [Script Extension Documentation](/extensions/script/)

@@ -1,5 +1,6 @@
 import * as monaco from 'monaco-editor'
 import type { MonacoIntegrationService, TypeDefinition, ImportSuggestion } from '../interfaces'
+import { esmMonacoDebug as debug } from '../utils/debug'
 
 /**
  * Monaco integration service implementation
@@ -12,7 +13,7 @@ export class MonacoIntegration implements MonacoIntegrationService {
    * Register type definitions with Monaco Editor
    */
   registerTypeDefinitions(types: TypeDefinition[]): void {
-    console.log(`📝 Registering ${types.length} type definitions with Monaco Editor`)
+    debug.log(`Registering ${types.length} type definitions with Monaco Editor`)
 
     types.forEach(typeDef => {
       try {
@@ -25,10 +26,10 @@ export class MonacoIntegration implements MonacoIntegrationService {
         const disposable = this.addExtraLib(typeDef.content, nodeModulesPath)
         this.registeredLibs.set(nodeModulesPath, disposable)
 
-        console.log(`✅ Registered types for ${typeDef.packageName}`)
-        console.log(`   - Node modules: ${nodeModulesPath}`)
+        debug.log(`Registered types for ${typeDef.packageName}`)
+        debug.log(`   - Node modules: ${nodeModulesPath}`)
       } catch (error) {
-        console.error(`❌ Failed to register types for ${typeDef.packageName}:`, error)
+        debug.error(`Failed to register types for ${typeDef.packageName}:`, error)
       }
     })
 
@@ -48,9 +49,9 @@ export class MonacoIntegration implements MonacoIntegrationService {
         ...options
       })
 
-      console.log('✅ Updated Monaco TypeScript compiler options')
+      debug.log('Updated Monaco TypeScript compiler options')
     } catch (error) {
-      console.error('❌ Failed to update compiler options:', error)
+      debug.error('Failed to update compiler options:', error)
     }
   }
 
@@ -59,7 +60,7 @@ export class MonacoIntegration implements MonacoIntegrationService {
    */
   private updatePathMappings(pathMappings: Record<string, string[]>): void {
     try {
-      console.log('🗺️ Updating TypeScript path mappings:', pathMappings)
+      debug.log('Updating TypeScript path mappings:', pathMappings)
 
       // Get current compiler options
       const currentOptions = monaco.languages.typescript.typescriptDefaults.getCompilerOptions()
@@ -81,9 +82,9 @@ export class MonacoIntegration implements MonacoIntegrationService {
       }
 
       this.updateCompilerOptions(newOptions)
-      console.log('✅ Updated TypeScript path mappings')
+      debug.log('Updated TypeScript path mappings')
     } catch (error) {
-      console.error('❌ Failed to update path mappings:', error)
+      debug.error('Failed to update path mappings:', error)
     }
   }
 
@@ -91,8 +92,8 @@ export class MonacoIntegration implements MonacoIntegrationService {
    * Add extra library to Monaco Editor
    */
   addExtraLib(content: string, filePath: string): monaco.IDisposable {
-    console.log(`📚 Adding extra lib: ${filePath}`)
-    console.log(`📄 Content preview: ${content.substring(0, 200)}...`)
+    debug.log(`Adding extra lib: ${filePath}`)
+    debug.log(`Content preview: ${content.substring(0, 200)}...`)
 
     // Only add to TypeScript defaults to avoid duplicate suggestions
     // TypeScript language service handles both .ts and .js files
@@ -102,7 +103,7 @@ export class MonacoIntegration implements MonacoIntegrationService {
     )
 
     this.disposables.push(tsDisposable)
-    console.log(`✅ Successfully added extra lib: ${filePath}`)
+    debug.log(`Added extra lib: ${filePath}`)
     return tsDisposable
   }
 
@@ -111,7 +112,7 @@ export class MonacoIntegration implements MonacoIntegrationService {
    */
   createDiagnosticsProvider(): void {
     // Diagnostics are handled automatically by Monaco's TypeScript service
-    console.log('📊 Diagnostics provider ready (handled by Monaco TypeScript service)')
+    debug.log('Diagnostics provider ready (handled by Monaco TypeScript service)')
   }
 
   /**
@@ -119,7 +120,7 @@ export class MonacoIntegration implements MonacoIntegrationService {
    */
   createCompletionProvider(): monaco.IDisposable {
     // Completions are handled automatically by Monaco's TypeScript service
-    console.log('🔍 Completion provider ready (handled by Monaco TypeScript service)')
+    debug.log('Completion provider ready (handled by Monaco TypeScript service)')
     return { dispose: () => { } }
   }
 
@@ -128,7 +129,7 @@ export class MonacoIntegration implements MonacoIntegrationService {
    */
   createHoverProvider(): monaco.IDisposable {
     // Hover is handled automatically by Monaco's TypeScript service
-    console.log('🔍 Hover provider ready (handled by Monaco TypeScript service)')
+    debug.log('Hover provider ready (handled by Monaco TypeScript service)')
     return { dispose: () => { } }
   }
 
@@ -137,7 +138,7 @@ export class MonacoIntegration implements MonacoIntegrationService {
    */
   createDefinitionProvider(): monaco.IDisposable {
     // Go-to-definition is handled automatically by Monaco's TypeScript service
-    console.log('🔍 Definition provider ready (handled by Monaco TypeScript service)')
+    debug.log('Definition provider ready (handled by Monaco TypeScript service)')
     return { dispose: () => { } }
   }
 
@@ -146,14 +147,14 @@ export class MonacoIntegration implements MonacoIntegrationService {
    */
   updateImportSuggestions(_imports: ImportSuggestion[]): void {
     // Import suggestions are handled by the completion provider
-    console.log('📝 Import suggestions updated')
+    debug.log('Import suggestions updated')
   }
 
   /**
    * Clear all registered types
    */
   clearRegisteredTypes(): void {
-    console.log('🧹 Clearing all registered type definitions')
+    debug.log('Clearing all registered type definitions')
 
     // Dispose all registered libs
     this.registeredLibs.forEach(disposable => disposable.dispose())
@@ -163,7 +164,7 @@ export class MonacoIntegration implements MonacoIntegrationService {
     this.disposables.forEach(disposable => disposable.dispose())
     this.disposables.length = 0
 
-    console.log('✅ All type definitions cleared')
+    debug.log('All type definitions cleared')
   }
 
   /**
@@ -171,7 +172,7 @@ export class MonacoIntegration implements MonacoIntegrationService {
    */
   getTypeScriptService(): monaco.languages.typescript.TypeScriptWorker | null {
     // This would require more complex implementation to access the worker
-    console.log('🔧 TypeScript service access not implemented')
+    debug.log('TypeScript service access not implemented')
     return null
   }
 
@@ -224,7 +225,7 @@ declare module "${packageName}/*" {
    */
   private triggerTypeScriptRecompilation(): void {
     try {
-      console.log('🔄 Triggering TypeScript language service recompilation...')
+      debug.log('Triggering TypeScript language service recompilation...')
 
       // Use a safer approach - just trigger diagnostics update
       setTimeout(() => {
@@ -235,10 +236,10 @@ declare module "${packageName}/*" {
             monaco.editor.setModelMarkers(model, 'typescript', [])
           }
         })
-        console.log(`✅ Triggered diagnostics update for ${models.length} TypeScript models`)
+        debug.log(`Triggered diagnostics update for ${models.length} TypeScript models`)
       }, 100)
     } catch (error) {
-      console.error('❌ Failed to trigger TypeScript recompilation:', error)
+      debug.error('Failed to trigger TypeScript recompilation:', error)
     }
   }
 

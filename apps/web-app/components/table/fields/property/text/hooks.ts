@@ -93,7 +93,7 @@ export const usePreview = (
         const rawQueryBase = `SELECT * FROM tb_${tableId} WHERE ${fieldId} IS NOT NULL AND (${vectorMetaColumnName} IS NULL OR json_extract(${vectorMetaColumnName}, '$.outOfDate') = 1)`
 
         const countQuery = `SELECT COUNT(*) FROM (${rawQueryBase})`
-        const countResult = await sqlite?.table(tableId).rows.query({}, {
+        const countResult = await sqlite?._table(tableId).rows.query({}, {
             raw: true,
             rawQuery: countQuery
         })
@@ -112,7 +112,7 @@ export const usePreview = (
                 const query = `${rawQueryBase} LIMIT ${batchSize}`
                 console.log("Querying next batch:", query)
 
-                const rows = await sqlite?.table(tableId).rows.query({}, {
+                const rows = await sqlite?._table(tableId).rows.query({}, {
                     raw: true,
                     rawQuery: query
                 })

@@ -20,7 +20,9 @@ if (!monacoInitPromise) {
 
 export interface ResolvedFile {
   id: string
+  slug: string
   content: string
+  ext?: string
   imports: string[]
 }
 
@@ -90,10 +92,13 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
       if (getDeps) {
         const deps = await getDeps(code)
         const depsFiles = (deps || []).map((dp) => {
+          const extension = dp.ext || 'ts'
+          const path = dp.slug.endsWith(`.${extension}`) ? dp.slug : `${dp.slug}.${extension}`
+          
           return {
             id: dp.id,
-            name: `${dp.id}.ts`,
-            path: `${dp.id}.ts`,
+            name: path,
+            path: path,
             content: dp.content,
             language: "typescript" as const,
             type: FileType.File,

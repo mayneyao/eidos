@@ -5,10 +5,10 @@ sidebar:
   order: 1
 ---
 
-`eidos.currentSpace` 对象提供对所有数据空间功能的访问，包括导航、文档管理和扩展节点操作。
+`eidos.space` 对象提供对所有数据空间功能的访问，包括导航、文档管理和扩展节点操作。
 
 :::tip
-`eidos.currentSpace` 暴露了比文档中多得多的接口。但是为了稳定性，请尽量使用文档中提到的接口，我们会逐步评估可暴露的方法。
+`eidos.space` 暴露了比文档中多得多的接口。但是为了稳定性，请尽量使用文档中提到的接口，我们会逐步评估可暴露的方法。
 :::
 
 ## 通用方法
@@ -38,32 +38,32 @@ navigate(path: string): void
 
 ```typescript
 // 导航到特定表格
-eidos.currentSpace.navigate("/table_123")
+eidos.space.navigate("/table_123")
 
 // 导航到文档
-eidos.currentSpace.navigate("/doc_456")
+eidos.space.navigate("/doc_456")
 
 // 导航到文档的特定标题
-eidos.currentSpace.navigate("/doc_456#我的标题")
+eidos.space.navigate("/doc_456#我的标题")
 
 // 导航到今日页面
 const today = new Date().toISOString().split("T")[0]
-eidos.currentSpace.navigate(`/${today}`)
+eidos.space.navigate(`/${today}`)
 
 // 导航到扩展
-eidos.currentSpace.navigate("/extensions/my-extension")
+eidos.space.navigate("/extensions/my-extension")
 
 // 导航到块
-eidos.currentSpace.navigate("/blocks/block_789")
+eidos.space.navigate("/blocks/block_789")
 
 // 导航到文件处理器（打开项目文件夹中的文件）
-eidos.currentSpace.navigate("/file-handler/#~/readme.md")
+eidos.space.navigate("/file-handler/#~/readme.md")
 
 // 导航到文件处理器（打开挂载文件夹中的文件）
-eidos.currentSpace.navigate("/file-handler/#@/music/song.mp3")
+eidos.space.navigate("/file-handler/#@/music/song.mp3")
 ```
 
-### `notify(msg: string | { title: string; description: string; actions?: Array<{ label: string; action: "reload" | "dismiss"; variant?: "primary" | "secondary" }> })`
+### `notify(msg: string)`
 
 向用户显示支持 markdown 的通知。支持通过按钮进行高级交互。
 
@@ -99,16 +99,16 @@ notify(msg: {
 
 ```typescript
 // 简单模式 - 快速显示通知
-eidos.currentSpace.notify("操作已完成")
+eidos.space.notify("操作已完成")
 
 // 完整模式 - 自定义标题和内容
-eidos.currentSpace.notify({
+eidos.space.notify({
   title: "任务完成",
   description: "成功处理了 **100 条记录** 并更新了数据库。",
 })
 
 // 带有交互按钮
-eidos.currentSpace.notify({
+eidos.space.notify({
   title: "发现更新",
   description: "新版本已准备就绪。是否现在刷新页面？",
   actions: [
@@ -120,9 +120,288 @@ eidos.currentSpace.notify({
 
 ---
 
+## 表格 API
+
+`eidos.space.table()` 方法提供了类似 Prisma 风格的 CRUD（增删改查）操作 API。这是与表格数据交互的推荐方式。
+
+:::note
+列名会自动从显示名称转换为符合 SQL 规范的数据库列名。保留字段包括 `_id`、`title`、`_created_time`、`_last_edited_time` 等。
+:::
+
+### 基本用法
+
+```typescript
+// 获取表格客户端（tableId 是不带连字符的 UUIDv7）
+const Users = eidos.space.table("01935b4c9d2e7f8a0b1c2d3e4f5a6b7c")
+
+// CRUD 操作
+await Users.create({ data: { name: "张三", age: 25 } })
+await Users.findMany({ where: { age: { gte: 18 } } })
+await Users.update({ where: { _id: "xxx" }, data: { age: 30 } })
+await Users.delete({ where: { _id: "xxx" } })
+```
+
+### `create(args)`
+
+创建单条记录。如果未提供 `_id`，将自动生成。
+
+```typescript
+async create(args: {
+  data: Record<string, any>
+}): Promise<Record<string, any> & { _id: string }>
+```
+
+**示例:**
+
+```typescript
+const user = await Users.create({
+  data: { name: "张三", email: "zhang@example.com" }
+})
+console.log(user._id) // 自动生成的 uuid
+```
+
+### `createMany(args)`
+
+批量创建多条记录。
+
+```typescript
+async createMany(args: {
+  data: Record<string, any>[]
+  skipDuplicates?: boolean
+}): Promise<{ count: number }>
+```
+
+**示例:**
+
+```typescript
+const result = await Users.createMany({
+  data: [
+    { name: "用户1" },
+    { name: "用户2" },
+    { name: "用户3" }
+  ]
+})
+console.log(`创建了 ${result.count} 条记录`)
+```
+
+### `findUnique(args)`
+
+通过 `_id` 查找单条记录。
+
+```typescript
+async findUnique(args: {
+  where: { _id: string }
+}): Promise<Record<string, any> | null>
+```
+
+**示例:**
+
+```typescript
+const user = await Users.findUnique({ where: { _id: "019xxx" } })
+if (user) {
+  console.log(user.name)
+}
+```
+
+### `findFirst(args)`
+
+查找符合条件的第一条记录。
+
+```typescript
+async findFirst(args: {
+  where?: Record<string, any>
+  orderBy?: Record<string, 'asc' | 'desc'>
+}): Promise<Record<string, any> | null>
+```
+
+**示例:**
+
+```typescript
+const oldest = await Users.findFirst({
+  where: { status: "active" },
+  orderBy: { _created_time: "asc" }
+})
+```
+
+### `findMany(args)`
+
+查询多条记录，支持过滤、排序和分页。
+
+```typescript
+async findMany(args?: {
+  where?: Record<string, any>
+  orderBy?: Record<string, 'asc' | 'desc'>
+  skip?: number
+  take?: number
+  select?: Record<string, boolean>
+}): Promise<Record<string, any>[]>
+```
+
+**参数:**
+
+- `where` (object): 可选的过滤条件
+- `orderBy` (object): 可选的排序方式，如 `{ name: 'asc' }`
+- `skip` (number): 可选，跳过的记录数（用于分页）
+- `take` (number): 可选，返回的记录数（用于分页）
+- `select` (object): 可选的字段选择，键为列名，值为 `true`（包含）或 `false`（排除）。使用 select 时，只有设置为 `true` 的列会在结果中返回。
+
+**Where 子句运算符:**
+
+| 运算符 | 描述 | 示例 |
+|--------|------|------|
+| `equals` | 精确匹配 | `{ name: { equals: "张三" } }` 或 `{ name: "张三" }` |
+| `not` | 不等于 | `{ status: { not: "deleted" } }` |
+| `gt` | 大于 | `{ age: { gt: 18 } }` |
+| `gte` | 大于等于 | `{ age: { gte: 18 } }` |
+| `lt` | 小于 | `{ age: { lt: 65 } }` |
+| `lte` | 小于等于 | `{ age: { lte: 65 } }` |
+| `contains` | 包含子字符串 | `{ name: { contains: "张" } }` |
+| `startsWith` | 以...开头 | `{ email: { startsWith: "admin" } }` |
+| `endsWith` | 以...结尾 | `{ email: { endsWith: "@gmail.com" } }` |
+| `in` | 在数组中 | `{ status: { in: ["active", "pending"] } }` |
+| `notIn` | 不在数组中 | `{ status: { notIn: ["deleted"] } }` |
+
+**示例:**
+
+```typescript
+// 简单查询
+const allUsers = await Users.findMany()
+
+// 带过滤条件
+const adults = await Users.findMany({
+  where: { age: { gte: 18 } }
+})
+
+// 多条件查询
+const filtered = await Users.findMany({
+  where: {
+    age: { gte: 18, lte: 65 },
+    status: "active"
+  }
+})
+
+// 带排序
+const sorted = await Users.findMany({
+  orderBy: { name: "asc" }
+})
+
+// 带分页
+const page2 = await Users.findMany({
+  skip: 20,
+  take: 10,
+  orderBy: { _created_time: "desc" }
+})
+
+// 使用 select（只返回指定列）
+const userNames = await Users.findMany({
+  select: { _id: true, name: true }
+})
+```
+
+### `count(args)`
+
+统计符合条件的记录数。
+
+```typescript
+async count(args?: {
+  where?: Record<string, any>
+}): Promise<number>
+```
+
+**示例:**
+
+```typescript
+const total = await Users.count()
+const activeCount = await Users.count({ where: { status: "active" } })
+```
+
+### `update(args)`
+
+通过 `_id` 更新单条记录。
+
+```typescript
+async update(args: {
+  where: { _id: string }
+  data: Record<string, any>
+}): Promise<Record<string, any> | null>
+```
+
+**示例:**
+
+```typescript
+const updated = await Users.update({
+  where: { _id: "019xxx" },
+  data: { age: 30, status: "verified" }
+})
+```
+
+### `updateMany(args)`
+
+批量更新符合条件的记录。
+
+```typescript
+async updateMany(args: {
+  where: Record<string, any>
+  data: Record<string, any>
+}): Promise<{ count: number }>
+```
+
+**示例:**
+
+```typescript
+// 将所有 65 岁以上的用户设为非活跃
+const result = await Users.updateMany({
+  where: { age: { gt: 65 } },
+  data: { status: "inactive" }
+})
+console.log(`更新了 ${result.count} 条记录`)
+```
+
+### `delete(args)`
+
+通过 `_id` 删除单条记录。
+
+```typescript
+async delete(args: {
+  where: { _id: string }
+}): Promise<Record<string, any> | null>
+```
+
+**示例:**
+
+```typescript
+const deleted = await Users.delete({ where: { _id: "019xxx" } })
+```
+
+### `deleteMany(args)`
+
+批量删除符合条件的记录。
+
+```typescript
+async deleteMany(args?: {
+  where?: Record<string, any>
+}): Promise<{ count: number }>
+```
+
+**示例:**
+
+```typescript
+// 删除所有非活跃用户
+const result = await Users.deleteMany({
+  where: { status: "inactive" }
+})
+
+// 删除所有记录（谨慎使用！）
+await Users.deleteMany()
+```
+
+---
+
+---
+
 ## 文档 API
 
-`eidos.currentSpace.doc` 对象提供文档管理功能。
+`eidos.space.doc` 对象提供文档管理功能。
 
 ### `getMarkdown(id: string)`
 
@@ -135,7 +414,7 @@ async getMarkdown(id: string): Promise<string>
 **示例:**
 
 ```typescript
-const markdown = await eidos.currentSpace.doc.getMarkdown("doc_123")
+const markdown = await eidos.space.doc.getMarkdown("doc_123")
 console.log("Markdown 内容:", markdown)
 ```
 
@@ -150,7 +429,7 @@ async getProperties(id: string): Promise<Record<string, any>>
 **示例:**
 
 ```typescript
-const allProps = await eidos.currentSpace.doc.getProperties("doc_123")
+const allProps = await eidos.space.doc.getProperties("doc_123")
 console.log("所有属性:", allProps)
 ```
 
@@ -165,7 +444,7 @@ async setProperties(id: string, properties: Record<string, any>): Promise<{ succ
 **示例:**
 
 ```typescript
-const result = await eidos.currentSpace.doc.setProperties("doc_123", {
+const result = await eidos.space.doc.setProperties("doc_123", {
   title: "我的文档",
   author: "张三",
   tags: "重要,工作",
@@ -187,7 +466,7 @@ async deleteProperty(propertyName: string): Promise<void>
 **示例:**
 
 ```typescript
-await eidos.currentSpace.doc.deleteProperty("old_property")
+await eidos.space.doc.deleteProperty("old_property")
 console.log("属性已删除")
 ```
 
@@ -195,7 +474,7 @@ console.log("属性已删除")
 
 ## 扩展节点 API
 
-`eidos.currentSpace.extNode` 对象提供扩展节点数据存储功能。
+`eidos.space.extNode` 对象提供扩展节点数据存储功能。
 
 ### `getText(id: string)`
 
@@ -208,7 +487,7 @@ async getText(id: string): Promise<string | null>
 **示例:**
 
 ```typescript
-const textContent = await eidos.currentSpace.extNode.getText("node_123")
+const textContent = await eidos.space.extNode.getText("node_123")
 if (textContent) {
   const data = JSON.parse(textContent)
   console.log("解析的数据:", data)
@@ -227,7 +506,7 @@ async setText(id: string, text: string): Promise<boolean>
 
 ```typescript
 const data = { elements: [], appState: {} }
-await eidos.currentSpace.extNode.setText("node_123", JSON.stringify(data))
+await eidos.space.extNode.setText("node_123", JSON.stringify(data))
 ```
 
 ### `getBlob(id: string)`
@@ -241,7 +520,7 @@ async getBlob(id: string): Promise<Buffer | null>
 **示例:**
 
 ```typescript
-const blobData = await eidos.currentSpace.extNode.getBlob("node_123")
+const blobData = await eidos.space.extNode.getBlob("node_123")
 if (blobData) {
   // 处理二进制数据
   console.log("二进制数据大小:", blobData.length)
@@ -260,7 +539,7 @@ async setBlob(id: string, blob: Buffer): Promise<boolean>
 
 ```typescript
 const buffer = Buffer.from("some binary data")
-await eidos.currentSpace.extNode.setBlob("node_123", buffer)
+await eidos.space.extNode.setBlob("node_123", buffer)
 ```
 
 ---
@@ -310,15 +589,15 @@ readdir(path: string, options?: {
 
 ```typescript
 // 列出项目根目录
-const files = await eidos.currentSpace.fs.readdir("~/")
+const files = await eidos.space.fs.readdir("~/")
 console.log(files)
 // ["package.json", "src", "README.md"]
 
 // 列出项目子目录
-const srcFiles = await eidos.currentSpace.fs.readdir("~/src")
+const srcFiles = await eidos.space.fs.readdir("~/src")
 
 // 获取带类型信息的条目
-const entries = await eidos.currentSpace.fs.readdir("~/", {
+const entries = await eidos.space.fs.readdir("~/", {
   withFileTypes: true,
 })
 entries.forEach((entry) => {
@@ -329,21 +608,21 @@ entries.forEach((entry) => {
 // README.md: 文件
 
 // 递归列出所有文件（包括子目录）
-const allFiles = await eidos.currentSpace.fs.readdir("~/", { recursive: true })
+const allFiles = await eidos.space.fs.readdir("~/", { recursive: true })
 console.log(allFiles)
 // ["package.json", "src", "src/index.js", "src/utils.js", "README.md"]
 
 // 递归列出并获取类型信息
-const allEntries = await eidos.currentSpace.fs.readdir("~/", {
+const allEntries = await eidos.space.fs.readdir("~/", {
   withFileTypes: true,
   recursive: true,
 })
 
 // 列出挂载的文件夹
-const musicFiles = await eidos.currentSpace.fs.readdir("@/music")
+const musicFiles = await eidos.space.fs.readdir("@/music")
 
 // 递归列出挂载文件夹的所有文件
-const allMusicFiles = await eidos.currentSpace.fs.readdir("@/music", {
+const allMusicFiles = await eidos.space.fs.readdir("@/music", {
   recursive: true,
 })
 ```
@@ -376,10 +655,10 @@ mkdir(path: string, options?: { recursive?: boolean }): Promise<string | undefin
 
 ```typescript
 // 在挂载文件夹中创建目录
-await eidos.currentSpace.fs.mkdir("@/work/projects")
+await eidos.space.fs.mkdir("@/work/projects")
 
 // 递归创建嵌套目录
-await eidos.currentSpace.fs.mkdir("@/work/2024/Q1", { recursive: true })
+await eidos.space.fs.mkdir("@/work/2024/Q1", { recursive: true })
 ```
 
 **常见用例:**
@@ -389,15 +668,15 @@ await eidos.currentSpace.fs.mkdir("@/work/2024/Q1", { recursive: true })
 const today = new Date()
 const year = today.getFullYear()
 const month = String(today.getMonth() + 1).padStart(2, "0")
-await eidos.currentSpace.fs.mkdir(`@/archive/${year}/${month}`, {
+await eidos.space.fs.mkdir(`@/archive/${year}/${month}`, {
   recursive: true,
 })
 
 // 检查目录是否存在，不存在则创建
 try {
-  await eidos.currentSpace.fs.readdir("@/work/temp")
+  await eidos.space.fs.readdir("@/work/temp")
 } catch {
-  await eidos.currentSpace.fs.mkdir("@/work/temp")
+  await eidos.space.fs.mkdir("@/work/temp")
 }
 ```
 
@@ -430,24 +709,24 @@ readFile(path: string, options?: {
 
 ```typescript
 // 读取文本文件
-const text = await eidos.currentSpace.fs.readFile("~/readme.md", "utf8")
+const text = await eidos.space.fs.readFile("~/readme.md", "utf8")
 console.log(text) // "# 我的项目\n这是一个示例项目..."
 
 // 读取 JSON 文件
-const configText = await eidos.currentSpace.fs.readFile("~/config.json", "utf8")
+const configText = await eidos.space.fs.readFile("~/config.json", "utf8")
 const config = JSON.parse(configText)
 
 // 使用选项对象读取
-const content = await eidos.currentSpace.fs.readFile("~/data.txt", {
+const content = await eidos.space.fs.readFile("~/data.txt", {
   encoding: "utf8",
 })
 
 // 读取二进制文件（图片、视频等）
-const imageData = await eidos.currentSpace.fs.readFile("~/image.png")
+const imageData = await eidos.space.fs.readFile("~/image.png")
 console.log(imageData) // Uint8Array(1234) [137, 80, 78, 71, ...]
 
 // 读取挂载文件夹中的文件
-const musicData = await eidos.currentSpace.fs.readFile("@/music/song.mp3")
+const musicData = await eidos.space.fs.readFile("@/music/song.mp3")
 ```
 
 **常见用例:**
@@ -455,20 +734,20 @@ const musicData = await eidos.currentSpace.fs.readFile("@/music/song.mp3")
 ```typescript
 // 读取并解析 JSON 配置文件
 async function loadConfig(path: string) {
-  const content = await eidos.currentSpace.fs.readFile(path, "utf8")
+  const content = await eidos.space.fs.readFile(path, "utf8")
   return JSON.parse(content)
 }
 
 // 读取图片并转换为 base64
 async function imageToBase64(path: string) {
-  const data = await eidos.currentSpace.fs.readFile(path)
+  const data = await eidos.space.fs.readFile(path)
   const base64 = btoa(String.fromCharCode(...data))
   return `data:image/png;base64,${base64}`
 }
 
 // 读取文本文件并按行处理
 async function processTextFile(path: string) {
-  const content = await eidos.currentSpace.fs.readFile(path, "utf8")
+  const content = await eidos.space.fs.readFile(path, "utf8")
   const lines = content.split("\n")
   return lines.filter((line) => line.trim().length > 0)
 }
@@ -505,11 +784,11 @@ writeFile(
 
 ```typescript
 // 写入文本文件
-await eidos.currentSpace.fs.writeFile("~/hello.txt", "Hello, World!")
+await eidos.space.fs.writeFile("~/hello.txt", "Hello, World!")
 
 // 写入 JSON 数据
 const config = { theme: "dark", language: "zh-CN" }
-await eidos.currentSpace.fs.writeFile(
+await eidos.space.fs.writeFile(
   "~/config.json",
   JSON.stringify(config, null, 2),
   "utf8"
@@ -517,16 +796,16 @@ await eidos.currentSpace.fs.writeFile(
 
 // 写入二进制数据
 const imageData = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
-await eidos.currentSpace.fs.writeFile("~/image.png", imageData)
+await eidos.space.fs.writeFile("~/image.png", imageData)
 
 // 使用选项对象写入
-await eidos.currentSpace.fs.writeFile("~/data.txt", "内容", {
+await eidos.space.fs.writeFile("~/data.txt", "内容", {
   encoding: "utf8",
   mode: 0o644,
 })
 
 // 写入到挂载文件夹
-await eidos.currentSpace.fs.writeFile(
+await eidos.space.fs.writeFile(
   "@/backup/data.json",
   JSON.stringify(data)
 )
@@ -538,14 +817,14 @@ await eidos.currentSpace.fs.writeFile(
 // 保存用户配置
 async function saveConfig(config: object) {
   const content = JSON.stringify(config, null, 2)
-  await eidos.currentSpace.fs.writeFile("~/config.json", content, "utf8")
-  eidos.currentSpace.notify("配置已保存")
+  await eidos.space.fs.writeFile("~/config.json", content, "utf8")
+  eidos.space.notify("配置已保存")
 }
 
 // 导出数据到文件
 async function exportData(data: any[], filename: string) {
   const csv = data.map((row) => Object.values(row).join(",")).join("\n")
-  await eidos.currentSpace.fs.writeFile(`@/exports/${filename}`, csv, "utf8")
+  await eidos.space.fs.writeFile(`@/exports/${filename}`, csv, "utf8")
 }
 
 // 保存 Canvas 截图
@@ -555,7 +834,7 @@ async function saveCanvasToFile(canvas: HTMLCanvasElement, path: string) {
   )
   const arrayBuffer = await blob!.arrayBuffer()
   const data = new Uint8Array(arrayBuffer)
-  await eidos.currentSpace.fs.writeFile(path, data)
+  await eidos.space.fs.writeFile(path, data)
 }
 
 // 创建日志文件（追加模式）
@@ -563,10 +842,10 @@ async function appendLog(message: string) {
   const timestamp = new Date().toISOString()
   const logEntry = `[${timestamp}] ${message}\n`
   try {
-    const existing = await eidos.currentSpace.fs.readFile("~/app.log", "utf8")
-    await eidos.currentSpace.fs.writeFile("~/app.log", existing + logEntry)
+    const existing = await eidos.space.fs.readFile("~/app.log", "utf8")
+    await eidos.space.fs.writeFile("~/app.log", existing + logEntry)
   } catch {
-    await eidos.currentSpace.fs.writeFile("~/app.log", logEntry)
+    await eidos.space.fs.writeFile("~/app.log", logEntry)
   }
 }
 ```
@@ -609,13 +888,13 @@ interface IStats {
 
 ```typescript
 // 获取文件信息
-const stats = await eidos.currentSpace.fs.stat("~/readme.md")
+const stats = await eidos.space.fs.stat("~/readme.md")
 console.log(`文件大小: ${stats.size} 字节`)
 console.log(`是否为文件: ${stats.isFile}`)
 console.log(`最后修改时间: ${new Date(stats.mtimeMs)}`)
 
 // 检查是文件还是目录
-const stats = await eidos.currentSpace.fs.stat("~/src")
+const stats = await eidos.space.fs.stat("~/src")
 if (stats.isDirectory) {
   console.log("这是一个目录")
 } else if (stats.isFile) {
@@ -623,7 +902,7 @@ if (stats.isDirectory) {
 }
 
 // 获取挂载文件夹中的文件信息
-const musicStats = await eidos.currentSpace.fs.stat("@/music/song.mp3")
+const musicStats = await eidos.space.fs.stat("@/music/song.mp3")
 console.log(`歌曲大小: ${(musicStats.size / 1024 / 1024).toFixed(2)} MB`)
 ```
 
@@ -633,7 +912,7 @@ console.log(`歌曲大小: ${(musicStats.size / 1024 / 1024).toFixed(2)} MB`)
 // 检查文件是否存在
 async function fileExists(path: string): Promise<boolean> {
   try {
-    await eidos.currentSpace.fs.stat(path)
+    await eidos.space.fs.stat(path)
     return true
   } catch {
     return false
@@ -642,7 +921,7 @@ async function fileExists(path: string): Promise<boolean> {
 
 // 获取文件大小（人类可读格式）
 async function getFileSize(path: string): Promise<string> {
-  const stats = await eidos.currentSpace.fs.stat(path)
+  const stats = await eidos.space.fs.stat(path)
   const bytes = stats.size
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
@@ -653,11 +932,11 @@ async function getFileSize(path: string): Promise<string> {
 
 // 列出目录中的文件及其大小
 async function listFilesWithSize(dirPath: string) {
-  const files = await eidos.currentSpace.fs.readdir(dirPath)
+  const files = await eidos.space.fs.readdir(dirPath)
   const filesWithSize = await Promise.all(
     files.map(async (file) => {
       const filePath = `${dirPath}/${file}`
-      const stats = await eidos.currentSpace.fs.stat(filePath)
+      const stats = await eidos.space.fs.stat(filePath)
       return {
         name: file,
         size: stats.size,
@@ -671,13 +950,13 @@ async function listFilesWithSize(dirPath: string) {
 
 // 查找最近修改的文件
 async function findRecentlyModified(dirPath: string, days: number = 7) {
-  const files = await eidos.currentSpace.fs.readdir(dirPath)
+  const files = await eidos.space.fs.readdir(dirPath)
   const now = Date.now()
   const cutoff = now - days * 24 * 60 * 60 * 1000
 
   const recentFiles = []
   for (const file of files) {
-    const stats = await eidos.currentSpace.fs.stat(`${dirPath}/${file}`)
+    const stats = await eidos.space.fs.stat(`${dirPath}/${file}`)
     if (stats.isFile && stats.mtimeMs > cutoff) {
       recentFiles.push({
         name: file,
@@ -690,8 +969,8 @@ async function findRecentlyModified(dirPath: string, days: number = 7) {
 
 // 比较两个文件的修改时间
 async function isNewer(file1: string, file2: string): Promise<boolean> {
-  const stats1 = await eidos.currentSpace.fs.stat(file1)
-  const stats2 = await eidos.currentSpace.fs.stat(file2)
+  const stats1 = await eidos.space.fs.stat(file1)
+  const stats2 = await eidos.space.fs.stat(file2)
   return stats1.mtimeMs > stats2.mtimeMs
 }
 ```
@@ -727,25 +1006,25 @@ rename(oldPath: string, newPath: string): Promise<void>
 
 ```typescript
 // 重命名文件
-await eidos.currentSpace.fs.rename("~/old-name.md", "~/new-name.md")
+await eidos.space.fs.rename("~/old-name.md", "~/new-name.md")
 
 // 重命名目录
-await eidos.currentSpace.fs.rename("~/old-folder", "~/new-folder")
+await eidos.space.fs.rename("~/old-folder", "~/new-folder")
 
 // 移动文件到不同目录
-await eidos.currentSpace.fs.rename("~/src/old.js", "~/lib/new.js")
+await eidos.space.fs.rename("~/src/old.js", "~/lib/new.js")
 
 // 重命名挂载文件夹中的文件
-await eidos.currentSpace.fs.rename("@/music/old-song.mp3", "@/music/new-song.mp3")
+await eidos.space.fs.rename("@/music/old-song.mp3", "@/music/new-song.mp3")
 
 // 重命名节点（虚拟路径）
-await eidos.currentSpace.fs.rename(
+await eidos.space.fs.rename(
   "~/.eidos/__NODES__/node-id",
   "~/.eidos/__NODES__/New Name"
 )
 
 // 重命名扩展（虚拟路径）
-await eidos.currentSpace.fs.rename(
+await eidos.space.fs.rename(
   "~/.eidos/__EXTENSIONS__/ext-id",
   "~/.eidos/__EXTENSIONS__/new-slug.ts"
 )
@@ -760,34 +1039,34 @@ async function renameFiles(files: string[], prefix: string) {
     const dir = file.substring(0, file.lastIndexOf("/"))
     const name = file.substring(file.lastIndexOf("/") + 1)
     const newName = `${prefix}-${name}`
-    await eidos.currentSpace.fs.rename(file, `${dir}/${newName}`)
+    await eidos.space.fs.rename(file, `${dir}/${newName}`)
   }
 }
 
 // 整理文件到按日期组织的目录
 async function organizeByDate(filePath: string) {
-  const stats = await eidos.currentSpace.fs.stat(filePath)
+  const stats = await eidos.space.fs.stat(filePath)
   const date = new Date(stats.mtimeMs)
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, "0")
   const dir = `@/archive/${year}/${month}`
   
   // 确保目录存在
-  await eidos.currentSpace.fs.mkdir(dir, { recursive: true })
+  await eidos.space.fs.mkdir(dir, { recursive: true })
   
   // 移动文件
   const fileName = filePath.substring(filePath.lastIndexOf("/") + 1)
-  await eidos.currentSpace.fs.rename(filePath, `${dir}/${fileName}`)
+  await eidos.space.fs.rename(filePath, `${dir}/${fileName}`)
 }
 
 // 重命名并备份原文件
 async function renameWithBackup(oldPath: string, newPath: string) {
   const backupPath = `${oldPath}.backup`
   // 先复制文件（通过读取和写入）
-  const content = await eidos.currentSpace.fs.readFile(oldPath)
-  await eidos.currentSpace.fs.writeFile(backupPath, content)
+  const content = await eidos.space.fs.readFile(oldPath)
+  await eidos.space.fs.writeFile(backupPath, content)
   // 然后重命名原文件
-  await eidos.currentSpace.fs.rename(oldPath, newPath)
+  await eidos.space.fs.rename(oldPath, newPath)
 }
 ```
 
@@ -831,12 +1110,12 @@ interface IWatchEvent {
 
 ```typescript
 // 监听节点目录的变化
-for await (const event of eidos.currentSpace.fs.watch("~/.eidos/__NODES__/")) {
+for await (const event of eidos.space.fs.watch("~/.eidos/__NODES__/")) {
   console.log(`节点 ${event.filename} ${event.eventType === 'rename' ? '创建/删除' : '内容变化'}`)
 }
 
 // 监听扩展目录的变化
-for await (const event of eidos.currentSpace.fs.watch("~/.eidos/__EXTENSIONS__/")) {
+for await (const event of eidos.space.fs.watch("~/.eidos/__EXTENSIONS__/")) {
   if (event.eventType === 'rename') {
     console.log(`扩展 ${event.filename} 已创建或删除`)
   } else {
@@ -845,7 +1124,7 @@ for await (const event of eidos.currentSpace.fs.watch("~/.eidos/__EXTENSIONS__/"
 }
 
 // 递归监听目录及其子目录
-for await (const event of eidos.currentSpace.fs.watch("~/src", {
+for await (const event of eidos.space.fs.watch("~/src", {
   recursive: true
 })) {
   console.log(`文件 ${event.filename} 发生变化`)
@@ -858,7 +1137,7 @@ const { signal } = controller
 // 5 秒后自动停止监听
 setTimeout(() => controller.abort(), 5000)
 
-for await (const event of eidos.currentSpace.fs.watch("~/", {
+for await (const event of eidos.space.fs.watch("~/", {
   recursive: true,
   signal
 })) {
@@ -866,7 +1145,7 @@ for await (const event of eidos.currentSpace.fs.watch("~/", {
 }
 
 // 监听挂载文件夹
-for await (const event of eidos.currentSpace.fs.watch("@/music", {
+for await (const event of eidos.space.fs.watch("@/music", {
   recursive: true
 })) {
   console.log(`音乐文件 ${event.filename} 发生变化`)
@@ -878,7 +1157,7 @@ for await (const event of eidos.currentSpace.fs.watch("@/music", {
 ```typescript
 // 监听文件变化并自动重新加载
 async function watchAndReload(filePath: string, callback: () => void) {
-  for await (const event of eidos.currentSpace.fs.watch(filePath)) {
+  for await (const event of eidos.space.fs.watch(filePath)) {
     if (event.eventType === 'change') {
       console.log(`文件 ${filePath} 已更新，重新加载...`)
       callback()
@@ -888,14 +1167,14 @@ async function watchAndReload(filePath: string, callback: () => void) {
 
 // 监听目录变化并同步到数据库
 async function syncDirectoryChanges(dirPath: string) {
-  for await (const event of eidos.currentSpace.fs.watch(dirPath, {
+  for await (const event of eidos.space.fs.watch(dirPath, {
     recursive: true
   })) {
     if (event.eventType === 'rename') {
       // 文件创建或删除
       const fullPath = `${dirPath}/${event.filename}`
       try {
-        await eidos.currentSpace.fs.stat(fullPath)
+        await eidos.space.fs.stat(fullPath)
         // 文件存在，说明是创建
         console.log(`新文件: ${fullPath}`)
         // 同步到数据库...
@@ -918,7 +1197,7 @@ async function watchWithTimeout(path: string, timeoutMs: number) {
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   
   try {
-    for await (const event of eidos.currentSpace.fs.watch(path, {
+    for await (const event of eidos.space.fs.watch(path, {
       signal: controller.signal
     })) {
       console.log(`变化: ${event.filename}`)
@@ -937,7 +1216,7 @@ async function watchWithTimeout(path: string, timeoutMs: number) {
 // 监听多个目录
 async function watchMultipleDirs(paths: string[]) {
   const watchers = paths.map(path => 
-    eidos.currentSpace.fs.watch(path, { recursive: true })
+    eidos.space.fs.watch(path, { recursive: true })
   )
   
   // 使用 Promise.race 监听所有目录
@@ -982,3 +1261,138 @@ async function* mergeAsyncIterables<T>(...iterables: AsyncIterable<T>[]): AsyncI
 - `~/.eidos/__EXTENSIONS__/` - 扩展目录（虚拟路径，仅支持根目录）
 - `@/music` - 挂载文件夹根目录
 - `@/music/albums` - 挂载文件夹子目录
+
+---
+
+## Graft (版本控制) API
+
+`eidos.space.graft` 对象提供了对 Graft 的访问，Graft 是一个用于 SQLite 数据库的分布式版本控制系统。你可以把它想象成 **"数据库界的 Git"**：它允许你跟踪更改、与远程仓库同步，并管理数据空间的不同版本。
+
+:::note
+这些方法是 [Graft SQLite PRAGMAs](https://graft.rs/docs/sqlite/pragmas/) 的高级封装。
+:::
+
+### `status()`
+
+获取当前同步状态，包括领先（ahead）和落后（behind）的提交数量。
+
+```typescript
+async status(): Promise<{ 
+  ahead: number        // 尚未推送到远程的本地提交数量
+  behind: number       // 尚未拉取到本地的远程提交数量
+  last_pushed_at: string 
+  last_pulled_at: string 
+}>
+```
+
+**示例:**
+
+```typescript
+const status = await eidos.space.graft.status()
+if (status.behind > 0) {
+  console.log(`你落后了 ${status.behind} 个提交。正在拉取...`)
+  await eidos.space.graft.pull()
+}
+```
+
+### `fetch()`
+
+从远程服务器获取最新状态而不应用它。这会更新本地对远程状态的了解（例如更新状态中的 `behind` 计数），但不会修改你的数据。
+
+```typescript
+async fetch(): Promise<void>
+```
+
+### `pull()`
+
+从远程服务器拉取更改并应用到本地空间。
+- 首先执行 `fetch`。
+- 将远程更改合并到本地数据库。
+- 如果应用了更改，会自动触发页面重新加载。
+
+```typescript
+async pull(): Promise<void>
+```
+
+### `push()`
+
+将本地更改推送到远程服务器。
+
+```typescript
+async push(): Promise<void>
+```
+
+### `tags()`
+
+获取此空间可用的所有标签（快照）列表。
+
+```typescript
+async tags(): Promise<Array<{ 
+  tag: string         // 标签名称
+  log_id: string      // 日志/提交的唯一 ID
+  created_at: string  // 创建时间戳
+}>>
+```
+
+**示例:**
+
+```typescript
+const tags = await eidos.space.graft.tags()
+tags.forEach(tag => console.log(`快照: ${tag.tag} (${tag.created_at})`))
+```
+
+### `clone(remoteLogId?)`
+
+重置本地空间以匹配远程状态或特定快照。
+
+:::danger
+**破坏性操作**: 这将用远程或指定快照的数据替换你当前的本地数据。任何未推送的本地更改都将丢失。
+:::
+
+```typescript
+async clone(remoteLogId?: string): Promise<void>
+```
+
+**参数:**
+
+- `remoteLogId` (string, 可选): 要克隆的特定日志 ID。如果省略，则从默认分支的头部（最新）克隆。
+
+### `hydrate()`
+
+从快照填充（Hydrate）本地数据库。这用于将数据库恢复到从 Graft 存储的数据中提取的一致状态。
+
+```typescript
+async hydrate(): Promise<void>
+```
+
+### `info()`
+
+获取有关 Graft 状态的详细信息，例如快照大小、页计数和版本信息。
+
+```typescript
+async info(): Promise<any>
+```
+
+### `audit()`
+
+根据远程状态审计本地数据库，以检查一致性和完整性问题。
+
+```typescript
+async audit(): Promise<any>
+```
+
+### `volumes()`
+
+列出与此空间关联的卷（Volumes）。卷在 Graft 中代表一个独特的存储单元或分支。
+
+```typescript
+async volumes(): Promise<any[]>
+```
+
+### `version()`
+
+获取正在使用的 Graft 扩展和协议的版本。
+
+```typescript
+async version(): Promise<{ graft_version: string }>
+```

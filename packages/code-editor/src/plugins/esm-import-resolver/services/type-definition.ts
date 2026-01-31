@@ -7,6 +7,8 @@ import type {
   TypeFetchResponse,
   TypeDefinitionMetadata
 } from '../interfaces'
+import { esmTypesDebug as debug } from '../utils/debug'
+import { typeCacheStorage } from '../utils/type-cache-storage'
 
 /**
  * HTTP client for fetching type definitions
@@ -117,13 +119,13 @@ export class TypeDefinitionManager implements TypeDefinitionService {
   async fetchTypes(packageUrl: string): Promise<TypeDefinition | null> {
     // Early validation: skip empty URLs or local file paths
     if (!packageUrl || packageUrl.trim() === '') {
-      console.log(`⚠️ Skipping empty package URL`)
+      debug.log(`Skipping empty package URL`)
       return null
     }
 
     // Skip local file paths (relative imports)
     if (this.isLocalFilePath(packageUrl)) {
-      console.log(`⚠️ Skipping local file path: ${packageUrl}`)
+      debug.log(`Skipping local file path: ${packageUrl}`)
       return null
     }
 
@@ -138,39 +140,63 @@ export class TypeDefinitionManager implements TypeDefinitionService {
     this.stats.misses++
     this.updateHitRate()
 
+    // Check persistent cache
     try {
-      console.log(`🔍 Attempting to fetch types for: ${packageUrl}`)
+      const stored = await typeCacheStorage.get(packageUrl)
+      if (stored) {
+        const { definition, metadata } = stored
+        // Check TTL based on metadata
+        if (metadata && !this.isExpired(metadata)) {
+          this.cache.set(packageUrl, definition)
+          this.metadata.set(packageUrl, metadata)
+          this.stats.hits++ // Correct to hit since we found it locally
+          this.stats.misses-- // Revert miss count logic (or maybe stats should track memory vs disk hits?)
+          this.updateHitRate()
+          debug.log(`Restored types from persistent cache for ${packageUrl}`)
+          return definition
+        } else {
+          // Expired
+          debug.log(`Persistent cache expired for ${packageUrl}`)
+          await typeCacheStorage.delete(packageUrl)
+        }
+      }
+    } catch (err) {
+      debug.warn('Error reading from persistent cache:', err)
+    }
+
+    try {
+      debug.log(`Fetching types for: ${packageUrl}`)
 
       // Try to fetch real types from esm.sh with retry logic
       const typeDefinition = await this.fetchTypesWithRetry(packageUrl, 1)
 
       if (typeDefinition) {
         this.cacheTypes(packageUrl, typeDefinition)
-        console.log(`✅ Successfully fetched types for ${typeDefinition.packageName}`)
+        debug.log(`Fetched types for ${typeDefinition.packageName}`)
         return typeDefinition
       } else {
         // Fallback to mock types for demo purposes
-        console.log(`⚠️ Failed to fetch real types, falling back to mock for: ${packageUrl}`)
+        debug.log(`Falling back to mock for: ${packageUrl}`)
         const mockTypeDefinition = await this.createMockTypeDefinition(packageUrl)
         if (mockTypeDefinition) {
           this.cacheTypes(packageUrl, mockTypeDefinition)
-          console.log(`✅ Successfully created mock types for ${mockTypeDefinition.packageName}`)
+          debug.log(`Created mock types for ${mockTypeDefinition.packageName}`)
           return mockTypeDefinition
         }
       }
     } catch (error) {
-      console.warn(`Failed to fetch types for ${packageUrl}:`, error)
+      debug.warn(`Failed to fetch types for ${packageUrl}:`, error)
 
       // Try mock types as final fallback
       try {
         const mockTypeDefinition = await this.createMockTypeDefinition(packageUrl)
         if (mockTypeDefinition) {
           this.cacheTypes(packageUrl, mockTypeDefinition)
-          console.log(`✅ Using mock types as fallback for ${mockTypeDefinition.packageName}`)
+          debug.log(`Using mock types as fallback for ${mockTypeDefinition.packageName}`)
           return mockTypeDefinition
         }
       } catch (mockError) {
-        console.warn(`Failed to create mock types for ${packageUrl}:`, mockError)
+        debug.warn(`Failed to create mock types for ${packageUrl}:`, mockError)
       }
     }
 
@@ -355,6 +381,14 @@ export function createHash(algorithm: string): Hash;`
     }
 
     this.metadata.set(packageUrl, metadata)
+    
+    // Save to persistent cache
+    typeCacheStorage.set({
+      packageUrl,
+      definition: types,
+      metadata
+    }).catch(err => debug.warn('Failed to save types to persistent cache:', err))
+
     this.updateStats()
   }
 
@@ -364,6 +398,7 @@ export function createHash(algorithm: string): Hash;`
   clearCache(): void {
     this.cache.clear()
     this.metadata.clear()
+    typeCacheStorage.clear().catch(err => debug.warn('Failed to clear persistent cache:', err))
     this.resetStats()
   }
 
@@ -420,8 +455,8 @@ export function createHash(algorithm: string): Hash;`
    * Prefetch types for multiple packages (simulated for demo)
    */
   async prefetchTypes(packageUrls: string[]): Promise<void> {
-    console.log('📝 Simulating type prefetching for demo purposes')
-    console.log('📦 Packages that would be fetched:', packageUrls)
+    debug.log('Simulating type prefetching for demo purposes')
+    debug.log('Packages that would be fetched:', packageUrls)
 
     // In a real implementation, this would fetch from esm.sh
     // For demo purposes, we just simulate the process
@@ -431,7 +466,7 @@ export function createHash(algorithm: string): Hash;`
       message: 'Would fetch type definitions from esm.sh'
     }))
 
-    console.log('✅ Simulated type prefetching completed:', simulatedResults)
+    debug.log('Simulated type prefetching completed:', simulatedResults)
 
     // Simulate async operation
     await new Promise(resolve => setTimeout(resolve, 100))
@@ -445,16 +480,16 @@ export function createHash(algorithm: string): Hash;`
 
     for (let currentAttempt = attempt; currentAttempt <= maxAttempts; currentAttempt++) {
       try {
-        console.log(`🔄 Attempt ${currentAttempt}/${maxAttempts} for ${packageUrl}`)
+        debug.log(`Attempt ${currentAttempt}/${maxAttempts} for ${packageUrl}`)
 
         // First try to resolve the type URL
         const typeUrl = await this.resolveTypeUrl(packageUrl)
         if (!typeUrl) {
-          console.log(`❌ Could not resolve type URL for ${packageUrl}`)
+          debug.log(`Could not resolve type URL for ${packageUrl}`)
           return null
         }
 
-        console.log(`🔍 Fetching types from: ${typeUrl}`)
+        debug.log(`Fetching types from: ${typeUrl}`)
 
         // Fetch the type definition
         const response = await this.httpClient.fetch(typeUrl, {
@@ -466,7 +501,7 @@ export function createHash(algorithm: string): Hash;`
           throw new Error(`HTTP ${response.status}: ${response.url}`)
         }
 
-        console.log(`✅ Successfully fetched types from ${typeUrl}`)
+        debug.log(`Fetched types from ${typeUrl}`)
 
         return {
           url: typeUrl,
@@ -476,16 +511,16 @@ export function createHash(algorithm: string): Hash;`
           packageName: this.extractPackageName(packageUrl)
         }
       } catch (error) {
-        console.log(`❌ Attempt ${currentAttempt} failed for ${packageUrl}:`, error)
+        debug.log(`Attempt ${currentAttempt} failed for ${packageUrl}:`, error)
 
         if (currentAttempt === maxAttempts) {
-          console.log(`❌ All ${maxAttempts} attempts failed for ${packageUrl}`)
+          debug.log(`All ${maxAttempts} attempts failed for ${packageUrl}`)
           throw error
         }
 
         // Wait before retrying with exponential backoff
         const delay = this.retryDelay * Math.pow(2, currentAttempt - 1)
-        console.log(`⏳ Waiting ${delay}ms before retry...`)
+        debug.log(`Waiting ${delay}ms before retry...`)
         await this.delay(delay)
       }
     }
@@ -498,11 +533,11 @@ export function createHash(algorithm: string): Hash;`
    */
   private async resolveTypeUrl(packageUrl: string): Promise<string | null> {
     try {
-      console.log(`🔍 Resolving type URL for: ${packageUrl}`)
+      debug.log(`Resolving type URL for: ${packageUrl}`)
 
       // Early validation: skip empty URLs or local file paths
       if (!packageUrl || packageUrl.trim() === '' || this.isLocalFilePath(packageUrl)) {
-        console.log(`⚠️ Skipping invalid or local package URL: ${packageUrl}`)
+        debug.log(`Skipping invalid or local package URL: ${packageUrl}`)
         return null
       }
 
@@ -530,7 +565,7 @@ export function createHash(algorithm: string): Hash;`
 
         if (response.ok && response.headers['x-typescript-types']) {
           const typeUrl = response.headers['x-typescript-types']
-          console.log(`📝 Found X-TypeScript-Types header: ${typeUrl}`)
+          debug.log(`Found X-TypeScript-Types header: ${typeUrl}`)
 
           // Handle relative URLs
           if (typeUrl.startsWith('/')) {
@@ -544,14 +579,14 @@ export function createHash(algorithm: string): Hash;`
           return typeUrl
         }
       } catch (headerError) {
-        console.log(`❌ Failed to check X-TypeScript-Types header: ${headerError}`)
+        debug.log(`Failed to check X-TypeScript-Types header: ${headerError}`)
       }
 
       // Fallback: try common type definition patterns
-      console.log(`🔄 Trying common type patterns for: ${packageUrl}`)
+      debug.log(`Trying common type patterns for: ${packageUrl}`)
       return this.tryCommonTypePatterns(packageUrl)
     } catch (error) {
-      console.warn(`❌ Failed to resolve type URL for ${packageUrl}:`, error)
+      debug.warn(`Failed to resolve type URL for ${packageUrl}:`, error)
       return null
     }
   }
@@ -561,11 +596,11 @@ export function createHash(algorithm: string): Hash;`
    */
   private tryCommonTypePatterns(packageUrl: string): string | null {
     const packageName = this.extractPackageName(packageUrl)
-    console.log(`🔍 Trying common patterns for package: ${packageName}`)
+    debug.log(`Trying common patterns for package: ${packageName}`)
 
     // Validate package name is not empty
     if (!packageName || packageName.trim() === '') {
-      console.log(`❌ Empty package name, skipping type patterns`)
+      debug.log(`Empty package name, skipping type patterns`)
       return null
     }
 
@@ -576,18 +611,18 @@ export function createHash(algorithm: string): Hash;`
         : `@types/${packageName}`
 
       const typesUrl = `https://esm.sh/${typesPackage}?dts`
-      console.log(`📝 Trying DefinitelyTyped pattern: ${typesUrl}`)
+      debug.log(`Trying DefinitelyTyped pattern: ${typesUrl}`)
       return typesUrl
     }
 
     // If it's already a @types package, try to get its .d.ts directly
     if (packageName.startsWith('@types/')) {
       const dtsUrl = `${packageUrl}?dts`
-      console.log(`📝 Trying @types package dts: ${dtsUrl}`)
+      debug.log(`Trying @types package dts: ${dtsUrl}`)
       return dtsUrl
     }
 
-    console.log(`❌ No common pattern found for: ${packageName}`)
+    debug.log(`No common pattern found for: ${packageName}`)
     return null
   }
 

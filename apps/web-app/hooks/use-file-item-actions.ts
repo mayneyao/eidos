@@ -53,10 +53,14 @@ export function useFileItemActions(context: FileItemActionsContext) {
   /**
    * Open file with specific handler
    */
-  const handleOpenWith = (handler: IExtension<FileHandlerMeta>) => {
-    // Navigate to file handler page with handler ID in query parameter
-    // This is a temporary selection, not saved as default handler
-    navigate(`/file-handler?handler=${handler.id}#${filePath}`)
+  const handleOpenWith = (handler: IExtension<FileHandlerMeta> & { _builtIn?: boolean }) => {
+    // Navigate to file handler page
+    // For built-in handlers, add builtin=true query param to render directly (no iframe)
+    if (handler._builtIn) {
+      navigate(`/file-handler?handler=${handler.id}&builtin=true#${filePath}`)
+    } else {
+      navigate(`/file-handler?handler=${handler.id}#${filePath}`)
+    }
   }
 
   /**

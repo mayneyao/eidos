@@ -16,7 +16,7 @@ export async function toggleChecked(
   }
 ) {
   const { tableId, viewId, rowId } = ctx
-  await eidos.currentSpace.table(tableId).rows.update(rowId, {
+  await eidos.currentSpace._table(tableId).rows.update(rowId, {
     checked: !input.checked,
   })
   return {

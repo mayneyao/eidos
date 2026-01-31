@@ -1,10 +1,10 @@
 import { getTableIdByRawTableName } from "@/lib/utils"
 
-import type { DataSpace } from "../../data-space"
+import type { DataSpaceWithTable } from "../../data-space/table"
 import { TableManager } from "../table"
 
 export class ComputeService {
-  constructor(private dataSpace: DataSpace) {}
+  constructor(private dataSpace: DataSpaceWithTable) {}
 
   updateEffectCells = async (signal: {
     table: string

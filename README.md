@@ -83,3 +83,6 @@ For more details, visit https://docs.eidos.space/
 This project is licensed under AGPL. Specific packages are released under MIT to facilitate integration and ecosystem growth:
 
 - `@eidos.space/core`: [MIT](./packages/core/LICENSE)
+- `@eidos.space/react`: [MIT](./packages/react/LICENSE)
+
+Additionally, all extensions under the [extensions/](./extensions/) directory are released under the MIT License.

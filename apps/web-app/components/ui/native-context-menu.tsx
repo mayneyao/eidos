@@ -100,6 +100,9 @@ const useMenuCollector = () => {
   }, [])
 
   const registerItem = React.useCallback((id: string, item: NativeMenuItem, onClick?: () => void) => {
+    // Ensure stale registrations are removed before adding the latest one
+    removeById(id)
+
     const dedupeKey = getDedupeKey(item)
     if (dedupeKey) {
       const existingId = labelIndexRef.current.get(dedupeKey)
@@ -109,8 +112,6 @@ const useMenuCollector = () => {
       labelIndexRef.current.set(dedupeKey, id)
     }
 
-    // Ensure stale registrations are removed before adding the latest one
-    removeById(id)
     itemsRef.current.set(id, item)
     if (!orderRef.current.includes(id)) {
       orderRef.current.push(id)
@@ -122,6 +123,8 @@ const useMenuCollector = () => {
   }, [removeById])
 
   const registerSubmenu = React.useCallback((triggerId: string, trigger: NativeMenuItem, items: NativeMenuItem[]) => {
+    removeById(triggerId)
+
     const dedupeKey = getDedupeKey(trigger)
     if (dedupeKey) {
       const existingId = labelIndexRef.current.get(dedupeKey)
@@ -131,7 +134,6 @@ const useMenuCollector = () => {
       labelIndexRef.current.set(dedupeKey, triggerId)
     }
 
-    removeById(triggerId)
     submenusRef.current.set(triggerId, { trigger, items })
     if (!orderRef.current.includes(triggerId)) {
       orderRef.current.push(triggerId)
@@ -165,12 +167,39 @@ const useMenuCollector = () => {
     }).filter(isNativeMenuItem)
   }, [])
 
-  return { registerItem, unregisterItem, registerSubmenu, getMenuItems }
+  // Clear all registered items - useful for refreshing menu state
+  const clearAll = React.useCallback(() => {
+    itemsRef.current.clear()
+    submenusRef.current.clear()
+    orderRef.current = []
+    labelIndexRef.current.clear()
+  }, [])
+
+  return { registerItem, unregisterItem, registerSubmenu, getMenuItems, clearAll }
 }
 
 // Context to collect menu items
 const NativeMenuContext = React.createContext<ReturnType<typeof useMenuCollector> | null>(null)
 const NativeMenuModeContext = React.createContext<{ useNative: boolean }>({ useNative: true })
+
+// Global click handler registry - singleton pattern to avoid memory leak
+// Each menu component registers its handlers here, and a single IPC listener dispatches to them
+const globalClickHandlerRegistry = new Map<string, () => void>()
+
+// Singleton IPC listener - only initialized once
+let globalListenerInitialized = false
+const initGlobalMenuClickListener = () => {
+  if (globalListenerInitialized) return
+  if (typeof window === 'undefined' || !window.eidos?.on) return
+  
+  globalListenerInitialized = true
+  window.eidos.on('native-menu-click', (_: any, itemId: string) => {
+    const clickHandler = globalClickHandlerRegistry.get(itemId)
+    if (clickHandler) {
+      clickHandler()
+    }
+  })
+}
 
 // Main Native Context Menu component - only for desktop
 interface NativeContextMenuProps {
@@ -197,45 +226,49 @@ const NativeContextMenu: React.FC<NativeContextMenuProps> = ({
     setUseNativeMenu(detectNativeMenu())
   }, [detectNativeMenu])
 
-  const clickHandlersRef = React.useRef<Map<string, () => void>>(new Map())
   const menuCollector = useMenuCollector()
+  // Track registered handler IDs for cleanup
+  const registeredHandlerIds = React.useRef<Set<string>>(new Set())
 
   const menuContextValue = React.useMemo(() => ({
     registerItem: (id: string, item: NativeMenuItem, onClick?: () => void) => {
       menuCollector.registerItem(id, item)
       if (onClick) {
-        clickHandlersRef.current.set(id, onClick)
+        globalClickHandlerRegistry.set(id, onClick)
+        registeredHandlerIds.current.add(id)
       }
     },
     unregisterItem: (id: string) => {
       menuCollector.unregisterItem(id)
-      clickHandlersRef.current.delete(id)
+      globalClickHandlerRegistry.delete(id)
+      registeredHandlerIds.current.delete(id)
     },
     registerSubmenu: menuCollector.registerSubmenu,
     getMenuItems: menuCollector.getMenuItems,
+    clearAll: () => {
+      menuCollector.clearAll()
+      // Clean up only handlers registered by this component
+      registeredHandlerIds.current.forEach(id => {
+        globalClickHandlerRegistry.delete(id)
+      })
+      registeredHandlerIds.current.clear()
+    },
     registerClickHandler: (id: string, handler: () => void) => {
-      clickHandlersRef.current.set(id, handler)
+      globalClickHandlerRegistry.set(id, handler)
+      registeredHandlerIds.current.add(id)
     },
   }), [menuCollector])
 
-  // Listen for menu click events from main process
+  // Initialize global listener once
   React.useEffect(() => {
-    const handleMenuClick = (_: any, itemId: string) => {
-      const clickHandler = clickHandlersRef.current.get(itemId)
-      if (clickHandler) {
-        clickHandler()
-      }
-    }
-
-    let listenerId: string | undefined
-    if (window.eidos?.on) {
-      listenerId = window.eidos.on('native-menu-click', handleMenuClick)
-    }
-
+    initGlobalMenuClickListener()
+    
+    // Cleanup handlers registered by this component when unmounting
     return () => {
-      if (window.eidos?.off && listenerId) {
-        window.eidos.off('native-menu-click', listenerId)
-      }
+      registeredHandlerIds.current.forEach(id => {
+        globalClickHandlerRegistry.delete(id)
+      })
+      registeredHandlerIds.current.clear()
     }
   }, [])
 
@@ -869,6 +902,7 @@ const NativeContextMenuSubContent = React.forwardRef<
     unregisterItem: submenuContext?.unregisterItem || (() => {}),
     registerSubmenu: () => {}, // Submenus don't support nested submenus
     getMenuItems: submenuContext?.getItems || (() => []),
+    clearAll: () => {}, // Submenus don't need clearAll
     registerClickHandler: (parentContext as any)?.registerClickHandler || (() => {}),
   }), [submenuContext, parentContext])
 

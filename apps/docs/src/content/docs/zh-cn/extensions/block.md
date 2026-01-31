@@ -114,13 +114,14 @@ export function MyListView() {
   const viewId = pathParts[pathParts.length - 1]
 
   useEffect(() => {
-    eidos.currentSpace.table(tableId).rows.query({}, { viewId }).then(setRows)
+    const Table = eidos.currentSpace.table(tableId)
+    Table.findMany().then(setRows)
   }, [tableId, viewId])
 
   return (
     <div>
       {rows.map((row) => (
-        <div key={row.id}>{row.title}</div>
+        <div key={row._id}>{row.title}</div>
       ))}
     </div>
   )
@@ -385,7 +386,9 @@ const stats = await eidos.currentSpace.fs.stat(filePath)
 
 ## 5. 指令系统
 
-Block 支持特殊的指令来控制组件的行为和渲染方式。这些指令通过字符串字面量在代码顶部声明。
+Block 支持一套指令系统，专为无需复杂 `meta` 配置对象的轻量级扩展设计。通过在文件顶部添加特定的字符串字面量，你可以轻松定义 Block 的行为和渲染方式。
+
+这些指令简化了开发流程，让你无需额外的 API 开销即可开启特定的系统集成功能（如侧边栏渲染或新标签页）。
 
 ### 5.1 use sidebar 指令
 
@@ -474,6 +477,34 @@ export function MyNavigation() {
 - 快速操作面板
 - 状态显示组件
 - 侧边栏工具
+
+### 5.2 use newtab 指令
+
+`use newtab` 指令允许将 Block 组件配置为自定义的新标签页（New Tab）。
+
+#### 配置方法
+
+1. 在 Block 文件顶部添加 `"use newtab"`。
+2.前往 **设置** -> **空间设置** -> **新标签页**。
+3. 从列表中选择你的 Block。
+
+```tsx
+"use newtab"
+
+export function MyNewTab() {
+  return (
+    <div className="p-8">
+      <h1>早上好！</h1>
+      {/* 自定义仪表盘内容 */}
+    </div>
+  )
+}
+```
+
+#### 行为说明
+
+- 配置完成后，打开新标签页（或主页）将渲染此 Block，而不是默认的 Eidos 仪表盘。
+- 你可以随时在设置中恢复为默认仪表盘。
 
 ## 6. 安全注意事项
 
