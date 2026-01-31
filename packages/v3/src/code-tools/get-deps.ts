@@ -1,4 +1,5 @@
 import { parseSync, type Program } from 'oxc-parser';
+import { getCoreImportMap, REACT_VERSION, ESM_SERVER, getPackageVersion } from './importmap-config';
 
 
 export function getImportsFromCode(code: string): string[] {
@@ -83,20 +84,8 @@ export async function generateImportMap(
     spaceId: string,
     slug?: string
 ) {
-    const REACT_VERSION = '18.3.1';
-
-    const ESM_SERVER = 'esm.sh';
     const imports: Record<string, string> = {
-        'react': `https://${ESM_SERVER}/stable/react@${REACT_VERSION}`,
-        'react/jsx-runtime': `https://${ESM_SERVER}/stable/react@${REACT_VERSION}/jsx-runtime`,
-        'react-dom': `https://${ESM_SERVER}/stable/react-dom@${REACT_VERSION}`,
-        'react-dom/client': `https://${ESM_SERVER}/stable/react-dom@${REACT_VERSION}/client`,
-        'clsx': `https://${ESM_SERVER}/clsx@2.1.1`,
-        "tailwind-merge": `https://${ESM_SERVER}/tailwind-merge`,
-        "zustand": `https://${ESM_SERVER}/zustand@5?external=react`,
-        "@eidos.space/react": `https://${ESM_SERVER}/@eidos.space/react@0.27.0?external=react,zustand`,
-        "@radix-ui/react-icons": `https://${ESM_SERVER}/@radix-ui/react-icons@1.3.2?external=react,react-dom`,
-        "@radix-ui/react-toast": `https://${ESM_SERVER}/@radix-ui/react-toast@1.2.14?external=react,react-dom`,
+        ...getCoreImportMap(),
         "@/lib/utils": `${HOST_URL}/compiled-ui/utils.js`,
     };
     // map localLibs to sandbox.<spaceId>.eidos.localhost:13127/<lib>.js
@@ -132,8 +121,10 @@ export async function generateImportMap(
         //     imports[dep] = `https://${ESM_SERVER}/${dep}?deps=react@${REACT_VERSION}`;
         // }
         // all third party libs use external react and react-dom. avoid multiple versions of react and react-dom
-        if (!imports[dep]){
-            imports[dep] = `https://${ESM_SERVER}/${dep}?external=react,react-dom`;
+        if (!imports[dep]) {
+            const version = getPackageVersion(dep);
+            const versionSuffix = version ? `@${version}` : '';
+            imports[dep] = `https://${ESM_SERVER}/${dep}${versionSuffix}?external=react,react-dom`;
         }
     });
 
