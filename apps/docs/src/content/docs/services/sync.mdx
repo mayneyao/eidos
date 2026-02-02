@@ -1,0 +1,92 @@
+---
+title: Sync
+description: Synchronize your spaces across devices with Eidos
+tableOfContents:
+  maxHeadingLevel: 4
+sidebar:
+  order: 6
+---
+
+import { FileTree } from "@astrojs/starlight/components"
+
+Eidos follows the **Local-First** principle. Your data is stored on your local device by default, and sync is treated as an optional tool for backup and collaboration.
+
+## Architecture Overview
+
+Eidos synchronizes data across devices using a centralized S3-compatible bucket as a relay. The core of synchronization is the `.eidos` folder within the space's physical directory, which contains the complete database version history (`.graft`) and all static asset files (`files`).
+
+This design ensures that the directory structure you see on any device is consistent, with the remote bucket serving as a complete cloud mirror of your local physical directory.
+
+```
+                ┌────────────────────────┐
+                │    Remote S3 Bucket    │
+                │  s3://bucket/my-space/ │
+                │ └── .eidos/            │
+                │     ├── .graft/        │
+                │     └── files/         │
+                └──────────┬─────────────┘
+                           │
+           ┌───────────────┴────────────────┐
+           │              Sync              │
+┌──────────┴─────────────┐      ┌───────────┴────────────┐
+│         macOS          │      │        Windows         │
+│ /Users/mayne/my-space/ │      │ D:\Eidos\my-space\     │
+│ └── .eidos/            │      │ └── .eidos\            │
+│     ├── .graft/        │      │     ├── .graft\        │
+│     └── files/         │      │     └── files\         │
+└────────────────────────┘      └────────────────────────┘
+```
+
+## Storage Structure Changes
+
+The physical storage structure of a Space differs depending on whether sync is enabled. When enabled, Eidos converts the single-file `db.sqlite3` into an objectified [Graft](https://graft.rs/) storage format (`.graft` directory) to achieve:
+- **Streaming Sync**: Only changed data blocks are synchronized, avoiding the need to upload the entire database file.
+- **Version Management**: Maintains historical snapshots locally, facilitating merging, rollbacks, and conflict detection across devices.
+
+#### Sync Disabled
+<FileTree>
+- my-space/
+  - .eidos/
+    - db.sqlite3 (Database file)
+    - files/ (Static assets)
+</FileTree>
+
+#### Sync Enabled
+<FileTree>
+- my-space/
+  - .eidos/
+    - .graft/ (VFS storage directory)
+    - files/ (Static assets)
+</FileTree>
+
+## Conflict Handling
+
+Eidos's synchronization mechanism is based on [Graft](https://graft.rs/), and its workflow is very similar to **Git**. The sync solution is primarily designed for single-user, multi-device switching scenarios and does not have the automatic conflict resolution capabilities of real-time collaborative systems like CRDT.
+
+To reduce conflicts, it is recommended to follow the **Pull → Edit → Push** pattern when switching devices:
+
+```
+      Device A                 Cloud                  Device B
+       (Work)                  (S3)                   (Idle)
+        │                       │                       │
+     [ Edit ]                   │                       │
+        │         Push          │                       │
+        └──────────────────────▶│                       │
+                                │         Pull          │
+        │                       │──────────────────────▶│
+        │                       │                    [ Edit ]
+        │                       │         Push          │
+        │                       │◀──────────────────────┘
+```
+
+- **Pull → Edit**: Before starting work, ensure you have pulled the latest changes from other devices.
+- **Edit → Push**: After finishing work, promptly push your changes to the cloud.
+- **Manual Conflict Resolution**: If multiple devices modify the same data simultaneously, Graft will identify the conflict and prompt you for manual arbitration.
+
+## Sync Providers
+
+Eidos supports custom sync providers, which you can choose based on your needs:
+
+- **eidos.space (Official Managed)**: Zero configuration, just log in to your account. Data is stored in an encrypted S3 bucket provided officially, suitable for users seeking convenience.
+- **Custom S3-Compatible Service**: You can use your own S3 storage (such as AWS S3, Cloudflare R2, MinIO, etc.). This gives you full control over your data, suitable for users with self-hosting needs or existing cloud storage resources.
+

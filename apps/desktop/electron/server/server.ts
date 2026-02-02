@@ -3,6 +3,7 @@ import aiHandler, { pathname as aiPath } from '@/worker/service-worker/ai';
 import { createProxyMiddleware } from '@eidos.space/proxy';
 import { containsBinaryData, parseMultipartFormData, processBinaryDataForResponse, restoreBinaryData } from '@eidos.space/client';
 import { createExtensionMiddleware, createDesktopConfig } from '@eidos.space/ext-server/desktop';
+import { createBucketBrowserMiddleware } from '@eidos.space/sync';
 import { serve } from '@hono/node-server';
 import { BrowserWindow } from 'electron';
 import { log } from 'electron-log';
@@ -177,6 +178,29 @@ const handleStaticFile = async (c: any) => {
 }
 
 export function startServer({ dist, port }: { dist: string, port: number }) {
+
+    // Bucket browser middleware: handles storage.eidos.localhost
+    // Provides a simple web UI for browsing S3-compatible buckets
+    app.use('*', createBucketBrowserMiddleware({
+        getCredentials: async () => {
+            const configManager = getConfigManager();
+            const defaultProviderId = configManager.getDefaultSyncProvider();
+            if (!defaultProviderId) return null;
+            
+            const credentials = await CredentialsManager.getSyncCredentials(defaultProviderId);
+            const providerConfig = configManager.getSyncProvider(defaultProviderId);
+            
+            if (!credentials || !providerConfig) return null;
+            
+            return {
+                endpoint: credentials.endpoint,
+                accessKeyId: credentials.accessKeyId,
+                secretAccessKey: credentials.secretAccessKey,
+                bucketName: credentials.bucketName,
+                region: providerConfig.region || 'auto',
+            };
+        },
+    }));
 
     // Proxy middleware: handles *.proxy.eidos.localhost subdomains
     // Pattern: <target-host>.proxy.eidos.localhost/<path> -> https://<target-host>/<path>

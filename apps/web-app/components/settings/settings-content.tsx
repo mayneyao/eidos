@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next"
 
+import { GlobalAccountSettings } from "./global/global-account-settings"
 import { GlobalAISettings } from "./global/global-ai-settings"
 import { GlobalAPISettings } from "./global/global-api-settings"
 import { GlobalGeneralSettings } from "./global/global-general-settings"
@@ -23,6 +24,7 @@ type SettingsSection =
   | "space-newtab"
   | "space-sync"
   | "general"
+  | "account"
   | "ai"
   | "api"
   | "storage"
@@ -54,6 +56,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return t("space.settings.sync")
       case "general":
         return t("settings.general")
+      case "account":
+        return t("settings.account.title", "Account")
       case "ai":
         return t("settings.ai")
       case "api":
@@ -87,6 +91,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return <SpaceSyncSettings />
       case "general":
         return <GlobalGeneralSettings />
+      case "account":
+        return <GlobalAccountSettings />
       case "ai":
         return <GlobalAISettings />
       case "api":

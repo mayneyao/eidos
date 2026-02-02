@@ -4,9 +4,11 @@ export interface SpaceInfo {
   path: string
   sync?: {
     enabled: boolean
-    // just like git remote url
-    // https://eidos.space/username/volume.graft
+    // Remote storage path format: <provider-id>/<bucket-name>/<space-name>
+    // e.g., 'eidos.space/mayne/my-space' or 'my-s3/my-bucket/my-space'
     remote: string
+    // The sync provider ID used when sync was enabled (e.g., 'eidos.space', 'my-s3')
+    provider?: string
   }
 }
 

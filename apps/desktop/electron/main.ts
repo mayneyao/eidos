@@ -421,6 +421,67 @@ ipcMain.handle("has-sync-credentials", async (event, providerId) => {
   return CredentialsManager.hasSyncCredentials(providerId)
 })
 
+// Get all available sync providers (including eidos.space if connected)
+ipcMain.handle("get-sync-providers", async () => {
+  try {
+    const configManager = getConfigManager()
+    const syncConfig = configManager.getSyncConfig()
+    const accountUser = configManager.getAccountUser()
+    
+    // Build list of providers with their credential status
+    const providers: Array<{
+      id: string
+      name: string
+      endpoint?: string
+      bucketName?: string
+      hasCredentials: boolean
+      isBuiltIn: boolean
+    }> = []
+    
+    // Check if eidos.space should be shown:
+    // 1. User is logged in, OR
+    // 2. eidos.space is set as default provider, OR
+    // 3. eidos.space has credentials
+    const hasEidosSpaceCreds = await CredentialsManager.hasSyncCredentials("eidos.space")
+    const showEidosSpace = accountUser || syncConfig.defaultProvider === "eidos.space" || hasEidosSpaceCreds
+    
+    if (showEidosSpace) {
+      // For eidos.space, bucketName comes from credentials, not config
+      const credentials = hasEidosSpaceCreds 
+        ? await CredentialsManager.getSyncCredentials("eidos.space")
+        : null
+      providers.push({
+        id: "eidos.space",
+        name: "eidos.space",
+        bucketName: credentials?.bucketName,  // Get bucketName from credentials
+        hasCredentials: hasEidosSpaceCreds,
+        isBuiltIn: true,
+      })
+    }
+    
+    // Add custom providers from config (bucketName comes from config)
+    for (const [id, provider] of Object.entries(syncConfig.providers)) {
+      const hasCreds = await CredentialsManager.hasSyncCredentials(id)
+      providers.push({
+        id,
+        name: provider.name || id,
+        endpoint: provider.endpoint,
+        bucketName: provider.bucketName,  // Get bucketName from config
+        hasCredentials: hasCreds,
+        isBuiltIn: false,
+      })
+    }
+    
+    return { success: true, providers, defaultProvider: syncConfig.defaultProvider }
+  } catch (error) {
+    console.error("Failed to get sync providers:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    }
+  }
+})
+
 ipcMain.handle("list-remote-spaces", async (event, providerId: string) => {
   try {
     // Get sync credentials for the provider
@@ -449,6 +510,124 @@ ipcMain.handle("list-remote-spaces", async (event, providerId: string) => {
     }
   }
 })
+
+// Test sync connection with provided credentials
+ipcMain.handle(
+  "test-sync-connection",
+  async (
+    event,
+    config: {
+      endpoint: string
+      bucketName: string
+      region?: string
+      accessKeyId: string
+      secretAccessKey: string
+    }
+  ) => {
+    try {
+      // Create S3 client with the provided credentials
+      const s3Client = new BucketClient({
+        endpoint: config.endpoint,
+        region: config.region,
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+        bucketName: config.bucketName,
+      })
+
+      // Try to list root folders to verify connection
+      // This will fail if credentials are invalid or bucket doesn't exist
+      await s3Client.listRootFolders(config.bucketName)
+
+      return {
+        success: true,
+        message: "Connection successful! Bucket is accessible.",
+      }
+    } catch (error) {
+      console.error("Failed to test sync connection:", error)
+
+      // Provide more user-friendly error messages
+      let errorMessage =
+        error instanceof Error ? error.message : "Unknown error"
+
+      // Parse common S3 errors
+      if (errorMessage.includes("InvalidAccessKeyId")) {
+        errorMessage = "Invalid Access Key ID. Please check your credentials."
+      } else if (errorMessage.includes("SignatureDoesNotMatch")) {
+        errorMessage =
+          "Invalid Secret Access Key. Please check your credentials."
+      } else if (errorMessage.includes("NoSuchBucket")) {
+        errorMessage = `Bucket "${config.bucketName}" does not exist. Please check the bucket name.`
+      } else if (errorMessage.includes("Forbidden") || errorMessage.includes("403")) {
+        errorMessage =
+          "Access denied. Please check your permissions or credentials."
+      } else if (errorMessage.includes("ENOTFOUND") || errorMessage.includes("ECONNREFUSED")) {
+        errorMessage =
+          "Cannot connect to the endpoint. Please check the endpoint URL."
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+      }
+    }
+  }
+)
+
+// Clone a space from remote
+ipcMain.handle(
+  "clone-space",
+  async (
+    _,
+    {
+      localPath,
+      remoteUrl,
+      providerId,
+      spaceName,
+    }: {
+      localPath: string
+      remoteUrl: string
+      providerId: string
+      spaceName?: string
+    }
+  ) => {
+    try {
+      const registry = getSpaceRegistry()
+      
+      // 1. Register the space first
+      const space = registry.registerSpace(localPath, {
+        customName: spaceName,
+        remoteUrl,
+      })
+
+      // 2. Get or initialize DataSpace with sync enabled
+      // This will automatically initialize the database and set up graft
+      const dataSpace = await getOrSetDataSpace(space.id, {
+        enabled: true,
+        remote: remoteUrl,
+      })
+
+      // 3. Pull data from remote
+      try {
+        await dataSpace.pull()
+      } catch (pullError) {
+        console.warn("Initial pull failed (remote may be empty):", pullError)
+        // Don't fail clone if pull fails - remote might be new/empty
+      }
+
+      return {
+        success: true,
+        space,
+        message: "Space cloned successfully",
+      }
+    } catch (error) {
+      console.error("Failed to clone space:", error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
+    }
+  }
+)
 
 app.on("before-quit", () => {
   cleanupPlaygroundWatchers()
@@ -801,6 +980,68 @@ app.whenReady().then(async () => {
           return { success: false, error: "Space not found" }
         }
       } catch (error: any) {
+        return { success: false, error: error.message }
+      }
+    }
+  )
+
+  // Toggle space sync on/off
+  ipcMain.handle(
+    "toggle-space-sync",
+    async (_, spaceId: string, enabled: boolean, remote?: string, provider?: "eidos.space" | "custom") => {
+      try {
+        const registry = getSpaceRegistry()
+        const space = registry.getSpace(spaceId)
+        if (!space) {
+          return { success: false, error: "Space not found" }
+        }
+
+        const dataSpace = getDataSpace()
+        if (!dataSpace) {
+          return { success: false, error: "Data space not initialized" }
+        }
+
+        // Use provided provider, fallback to space's current provider, then default
+        const configManager = getConfigManager()
+        const effectiveProvider = provider || space.sync?.provider || configManager.getDefaultSyncProvider() || 'eidos.space'
+
+        if (enabled) {
+          // Enable sync: convert to graft
+          if (!remote) {
+            return { success: false, error: "Remote URL is required to enable sync" }
+          }
+          
+          // Check if credentials exist for selected provider
+          const credentials = await CredentialsManager.getSyncCredentials(effectiveProvider)
+          if (!credentials) {
+            return { success: false, error: `No sync credentials found for ${effectiveProvider}. Please configure sync settings first.` }
+          }
+
+          await dataSpace.convertToGraft(remote)
+          
+          // Update space registry
+          registry.setSpaceSync(spaceId, {
+            enabled: true,
+            remote: remote,
+            provider: effectiveProvider,
+          })
+          
+          return { success: true }
+        } else {
+          // Disable sync: export to sqlite
+          await dataSpace.exportToSqlite()
+          
+          // Update space registry
+          registry.setSpaceSync(spaceId, {
+            enabled: false,
+            remote: space.sync?.remote || "",
+            provider: space.sync?.provider,
+          })
+          
+          return { success: true }
+        }
+      } catch (error: any) {
+        console.error("Failed to toggle space sync:", error)
         return { success: false, error: error.message }
       }
     }

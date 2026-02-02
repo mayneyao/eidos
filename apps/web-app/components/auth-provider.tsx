@@ -12,6 +12,7 @@ import { isDesktopMode } from "@/lib/env"
 
 export interface AuthUser {
   id: string
+  sub: string
   email?: string
   name?: string
   picture?: string
@@ -148,10 +149,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Poll for auth status (check both user and token)
     // Check every 3 minutes to ensure token refresh happens before expiration
     // Backend refreshes tokens 5 minutes before they expire
-    const interval = setInterval(async () => {
-      await fetchUser()
-      await fetchAccessToken()
-    }, 3 * 60 * 1000) // 3 minutes
+    const interval = setInterval(
+      async () => {
+        await fetchUser()
+        await fetchAccessToken()
+      },
+      3 * 60 * 1000
+    ) // 3 minutes
 
     // Listen for auth state changes from main process (OAuth callback / logout)
     let unsubscribe: (() => void) | undefined

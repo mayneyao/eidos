@@ -5,6 +5,7 @@ import type { DataSpace } from "@/packages/core/data-space"
 import log from "electron-log"
 
 import { CredentialsManager } from "../credentials"
+import { getConfigManager } from "../config"
 import { getSpacePath } from "../file-system/space"
 import { getResourcePath } from "../helper"
 import { getSpaceRegistry } from "../space-registry"
@@ -93,16 +94,21 @@ export class DataSpaceManager {
       const graftLibPath = getResourcePath("dist-sqlite-ext/libgraft")
       const vecLibPath = getResourcePath("dist-sqlite-ext/libvec")
 
-      const credentials =
-        await CredentialsManager.getSyncCredentials("eidos.space")
-      if (!credentials) {
-        // throw new Error(`Credentials for eidos.space not found`)
-        // Keep existing logic, maybe it works without credentials for local?
-      }
-
+      // Get current sync provider from config
+      const configManager = getConfigManager()
       const spaceInfo = getSpaceRegistry().getSpace(spaceId)
       if (!spaceInfo) {
         throw new Error(`Space not found: ${spaceId}`)
+      }
+      
+      // Use space's provider if set, otherwise use default
+      const providerId = spaceInfo.sync?.provider || configManager.getDefaultSyncProvider() || 'eidos.space'
+
+      const credentials =
+        await CredentialsManager.getSyncCredentials(providerId)
+      if (!credentials) {
+        // throw new Error(`Credentials for ${providerId} not found`)
+        // Keep existing logic, maybe it works without credentials for local?
       }
 
       const initData: WorkerInitData = {
@@ -116,6 +122,7 @@ export class DataSpaceManager {
             enabled: syncOptions?.enabled ?? spaceInfo.sync?.enabled ?? false,
             remote: syncOptions?.remote ?? spaceInfo.sync?.remote ?? "",
             credentials,
+            provider: providerId,
           },
         },
       }
@@ -265,9 +272,12 @@ export function getCurrentSpaceId(): string | null {
   return DataSpaceManager.getInstance().getCurrentSpaceId()
 }
 
-export function getOrSetDataSpace(spaceId: string): Promise<DataSpace> {
+export function getOrSetDataSpace(
+  spaceId: string,
+  syncOptions?: { enabled: boolean; remote?: string }
+): Promise<DataSpace> {
   // We can just proxy to the manager
-  return DataSpaceManager.getInstance().getOrSetDataSpace(spaceId)
+  return DataSpaceManager.getInstance().getOrSetDataSpace(spaceId, syncOptions)
 }
 
 export function reloadDataSpace(): Promise<{ success: boolean }> {

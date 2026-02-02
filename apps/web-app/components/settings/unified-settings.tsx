@@ -22,6 +22,24 @@ export function UnifiedSettings({
     setActiveSection(initialSection)
   }, [initialSection])
 
+  // Listen for navigation events from child components
+  useEffect(() => {
+    const handleNavigate = (event: CustomEvent<SettingsSection>) => {
+      setActiveSection(event.detail)
+    }
+
+    window.addEventListener(
+      "settings-navigate",
+      handleNavigate as EventListener
+    )
+    return () => {
+      window.removeEventListener(
+        "settings-navigate",
+        handleNavigate as EventListener
+      )
+    }
+  }, [])
+
   return (
     <div className="flex flex-col lg:flex-row h-[85vh]">
       <SettingsSidebar

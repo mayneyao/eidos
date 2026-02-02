@@ -78,6 +78,9 @@ importers:
       '@eidos.space/space-manager':
         specifier: workspace:*
         version: link:../../packages/space-manager
+      '@eidos.space/sync':
+        specifier: workspace:*
+        version: link:../../packages/sync
       '@hono/node-server':
         specifier: ^1.12.2
         version: 1.14.4(hono@4.8.3)

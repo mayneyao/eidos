@@ -45,6 +45,10 @@ export default defineConfig({
           autogenerate: { directory: "extensions" },
         },
         {
+          label: "Services",
+          autogenerate: { directory: "services" },
+        },
+        {
           label: "API Reference",
           autogenerate: { directory: "api-reference" },
         },

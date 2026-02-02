@@ -10,6 +10,7 @@ export interface SpaceInfo {
   sync?: {
     enabled: boolean
     remote: string
+    provider?: string
   }
 }
 

@@ -361,6 +361,7 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
       registry.setSpaceSync(spaceInfo.id, {
         enabled: true,
         remote: remote,
+        provider: this.graftOptions?.provider || "eidos.space",
       })
     } catch (e) {
       console.error("Failed to update space registry:", e)

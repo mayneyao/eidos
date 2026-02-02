@@ -86,7 +86,7 @@ export class SpaceRegistry {
 
   public setSpaceSync(
     spaceId: string,
-    sync: { enabled: boolean; remote: string; volumeId?: string }
+    sync: { enabled: boolean; remote: string; volumeId?: string; provider?: string }
   ): void {
     const space = this.getSpace(spaceId)
     if (!space) {
