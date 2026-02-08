@@ -11,6 +11,22 @@ import { FileTree } from "@astrojs/starlight/components"
 
 Eidos follows the **Local-First** principle. Your data is stored on your local device by default, and sync is treated as an optional tool for backup and collaboration.
 
+## Evolution of Sync Solutions
+
+Eidos offers a progressive sync strategy, allowing you to choose the most suitable method based on your needs:
+
+### 1. Manual Copy
+The most straightforward way is to **directly copy the `.eidos` directory** and paste it into the same location on another device. Since all Eidos content (database and files) is fully contained within this directory, manual copying achieves a primitive form of "sync."
+
+### 2. Third-party Sync Tools (e.g., Git)
+Placing your Space's physical directory in a Git repository or on a cloud drive (e.g., iCloud, Dropbox) is an acceptable transitional solution, but it is not optimal:
+- **Lack of Version Control**: SQLite is a binary file, not text, so tools like Git cannot perform fine-grained version comparisons or merges.
+- **Repository Size Explosion**: Every change to the SQLite file results in Git creating a full historical record of the binary, causing the repository size to explode over time.
+- **Low Sync Efficiency**: Each sync involves transferring the entire large file. As the database grows, sync speeds will continuously decline.
+
+### 3. Eidos Native Sync (Graft)
+To overcome these limitations, Eidos employs a native sync solution based on [Graft](https://graft.rs/). It transforms the single `db.sqlite3` file into an objectified storage format, enabling more efficient incremental synchronization.
+
 ## Architecture Overview
 
 Eidos synchronizes data across devices using a centralized S3-compatible bucket as a relay. The core of synchronization is the `.eidos` folder within the space's physical directory, which contains the complete database version history (`.graft`) and all static asset files (`files`).
@@ -28,18 +44,18 @@ This design ensures that the directory structure you see on any device is consis
                            │
            ┌───────────────┴────────────────┐
            │              Sync              │
-┌──────────┴─────────────┐      ┌───────────┴────────────┐
-│         macOS          │      │        Windows         │
-│ /Users/mayne/my-space/ │      │ D:\Eidos\my-space\     │
-│ └── .eidos/            │      │ └── .eidos\            │
-│     ├── .graft/        │      │     ├── .graft\        │
-│     └── files/         │      │     └── files\         │
-└────────────────────────┘      └────────────────────────┘
+ ┌──────────┴─────────────┐      ┌───────────┴────────────┐
+ │         macOS          │      │        Windows         │
+ │ /Users/mayne/my-space/ │      │ D:\Eidos\my-space\     │
+ │ └── .eidos/            │      │ └── .eidos\            │
+ │     ├── .graft/        │      │     ├── .graft\        │
+ │     └── files/         │      │     └── files\         │
+ └────────────────────────┘      └────────────────────────┘
 ```
 
 ## Storage Structure Changes
 
-The physical storage structure of a Space differs depending on whether sync is enabled. When enabled, Eidos converts the single-file `db.sqlite3` into an objectified [Graft](https://graft.rs/) storage format (`.graft` directory) to achieve:
+The physical storage structure of a Space differs depending on whether sync is enabled. When enabled, Eidos converts the single-file `db.sqlite3` into an objectified storage format (stored in the `.graft` directory) to achieve:
 - **Streaming Sync**: Only changed data blocks are synchronized, avoiding the need to upload the entire database file.
 - **Version Management**: Maintains historical snapshots locally, facilitating merging, rollbacks, and conflict detection across devices.
 
@@ -89,4 +105,8 @@ Eidos supports custom sync providers, which you can choose based on your needs:
 
 - **eidos.space (Official Managed)**: Zero configuration, just log in to your account. Data is stored in an encrypted S3 bucket provided officially, suitable for users seeking convenience.
 - **Custom S3-Compatible Service**: You can use your own S3 storage (such as AWS S3, Cloudflare R2, MinIO, etc.). This gives you full control over your data, suitable for users with self-hosting needs or existing cloud storage resources.
+
+## Next Steps
+
+- Learn how to build a [Publish Service](/services/publish) based on synchronized data.
 
