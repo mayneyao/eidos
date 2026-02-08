@@ -41,6 +41,7 @@
     "file-uri-to-path": "^2.0.0",
     "hono": "^4.5.11",
     "native-file-system-adapter": "^3.0.1",
+    "node-machine-id": "^1.1.12",
     "oxc-parser": "^0.74.0",
     "oxc-transform": "^0.74.0",
     "sqlite-graft": "^0.2.1",

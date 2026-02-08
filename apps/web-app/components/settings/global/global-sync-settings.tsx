@@ -1,14 +1,25 @@
 import { useEffect, useState } from "react"
-import { Check, ExternalLink, Save, Server, Trash2, Plus, Cloud, AlertTriangle } from "lucide-react"
+import {
+  AlertTriangle,
+  Check,
+  Cloud,
+  ExternalLink,
+  Lock,
+  Plus,
+  Save,
+  Server,
+  Trash2,
+} from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import { useAuthOptional } from "@/components/auth-provider"
+import { isDesktopMode } from "@/lib/env"
+import { useActivation } from "@/hooks/use-activation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
-import { isDesktopMode } from "@/lib/env"
+import { useAuthOptional } from "@/components/auth-provider"
 
 // Provider config for custom S3 providers (eidos.space is built-in, not stored here)
 interface ProviderConfig {
@@ -52,6 +63,8 @@ const SYNC_INTERNAL_URL = "https://eidos.space/api/sync/init"
 export function GlobalSyncSettings() {
   const { t } = useTranslation()
   const auth = useAuthOptional()
+  const { license, isLoading: isLicenseLoading } = useActivation()
+  const hasValidLicense = license !== null
 
   // Sync config state (only contains custom providers, eidos.space is built-in)
   const [syncConfig, setSyncConfig] = useState<SyncConfig>({
@@ -61,7 +74,9 @@ export function GlobalSyncSettings() {
   const [isInitializing, setIsInitializing] = useState(false)
   // Track credentials for all providers including built-in eidos.space
   const [eidosSpaceCredentials, setEidosSpaceCredentials] = useState(false)
-  const [customProviderCredentials, setCustomProviderCredentials] = useState<Record<string, boolean>>({})
+  const [customProviderCredentials, setCustomProviderCredentials] = useState<
+    Record<string, boolean>
+  >({})
 
   // New provider form state (name is auto-generated from id)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -105,7 +120,8 @@ export function GlobalSyncSettings() {
         }
 
         // Check eidos.space credentials (built-in)
-        const eidosCreds = await window.eidos.credentials.hasSyncCredentials("eidos.space")
+        const eidosCreds =
+          await window.eidos.credentials.hasSyncCredentials("eidos.space")
         setEidosSpaceCredentials(eidosCreds)
 
         // Check credentials for custom providers
@@ -209,6 +225,17 @@ export function GlobalSyncSettings() {
 
   // Add new S3 provider
   const handleAddProvider = async () => {
+    // Check license for custom provider feature
+    if (!hasValidLicense) {
+      toast({
+        title: "License Required",
+        description:
+          "Adding custom sync providers requires an active license. Please activate your license in Account settings.",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (!newProviderForm.id) {
       toast({
         title: "Error",
@@ -366,38 +393,14 @@ export function GlobalSyncSettings() {
     }
   }
 
-  // Set default provider
-  const handleSetDefault = async (id: string) => {
-    try {
-      const newConfig: SyncConfig = {
-        ...syncConfig,
-        defaultProvider: id,
-      }
-      await window.eidos.config.set("sync", newConfig)
-      setSyncConfig(newConfig)
-
-      const providerName = id === "eidos.space" ? "eidos.space" : syncConfig.providers[id]?.name || id
-      toast({
-        title: "Default Provider Updated",
-        description: `"${providerName}" is now the default.`,
-      })
-    } catch (error) {
-      console.error("Failed to set default provider:", error)
-      toast({
-        title: "Error",
-        description: "Failed to update default provider.",
-        variant: "destructive",
-      })
-    }
-  }
-
   // Test S3 connection
   const handleTestConnection = async (providerId: string) => {
     const provider = syncConfig.providers[providerId]
     if (!provider) return
 
     try {
-      const credentials = await window.eidos.credentials.getSyncCredentials(providerId)
+      const credentials =
+        await window.eidos.credentials.getSyncCredentials(providerId)
       if (!credentials) {
         toast({
           title: "No Credentials",
@@ -449,6 +452,35 @@ export function GlobalSyncSettings() {
 
   return (
     <div className="space-y-6">
+      {/* License Required Banner */}
+      {!hasValidLicense && !isLicenseLoading && isDesktopMode && (
+        <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+          <div className="flex items-start gap-3">
+            <Lock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium text-amber-800 dark:text-amber-200">
+                License Required
+              </p>
+              <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                Custom sync providers require an active license.
+              </p>
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-amber-700 dark:text-amber-300 mt-2"
+                onClick={() =>
+                  window.dispatchEvent(
+                    new CustomEvent("settings-navigate", { detail: "account" })
+                  )
+                }
+              >
+                Go to Account Settings →
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Providers List */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -456,7 +488,12 @@ export function GlobalSyncSettings() {
           <Button
             size="sm"
             onClick={() => setShowAddForm(true)}
-            disabled={showAddForm}
+            disabled={showAddForm || !hasValidLicense}
+            title={
+              !hasValidLicense
+                ? "License required to add custom providers"
+                : undefined
+            }
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Custom Provider
@@ -464,71 +501,50 @@ export function GlobalSyncSettings() {
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Configure sync providers. eidos.space is available by default. Add custom S3-compatible providers as needed.
+          Configure sync providers. Add custom S3-compatible providers as
+          needed.
         </p>
 
-        {/* Built-in: eidos.space */}
-        <div
-          className={`p-4 rounded-lg border ${
-            isEidosSpaceDefault
-              ? "border-primary bg-primary/5"
-              : "border-border"
-          }`}
-        >
+        {/* Built-in: eidos.space - Temporarily Disabled */}
+        <div className="p-4 rounded-lg border border-muted bg-muted/30 opacity-60">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <Cloud className="h-5 w-5 text-blue-500 shrink-0" />
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-medium">eidos.space</span>
                   <Badge variant="secondary">Built-in</Badge>
-                  {isEidosSpaceDefault && (
-                    <Badge variant="default">Default</Badge>
-                  )}
                   {eidosSpaceCredentials ? (
                     <Badge variant="secondary" className="text-green-600">
                       <Check className="h-3 w-3 mr-1" />
-                      Ready
+                      {t("settings.sync.ready", "Ready")}
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="text-orange-600">
-                      Not Connected
-                    </Badge>
+                    <>
+                      <Badge variant="outline" className="text-orange-600">
+                        {t("settings.sync.notConnected", "Not Connected")}
+                      </Badge>
+                      <Badge variant="outline" className="text-muted-foreground">
+                        {t("settings.sync.temporarilyUnavailable", "Temporarily unavailable")}
+                      </Badge>
+                    </>
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Managed cloud storage by eidos.space
+                  {t("settings.sync.managedCloudStorageBy", "Managed cloud storage by eidos.space")}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              {!isEidosSpaceDefault && (
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => handleSetDefault("eidos.space")}
-                  className="h-7 px-2 text-xs whitespace-nowrap"
-                >
-                  Set Default
-                </Button>
-              )}
-              {!eidosSpaceCredentials && (
-                <Button
-                  size="xs"
-                  onClick={initializeEidosSync}
-                  disabled={isInitializing || !isAuthenticated}
-                  className="h-7 px-2 text-xs whitespace-nowrap"
-                >
-                  {isInitializing ? "Connecting..." : "Connect"}
-                </Button>
-              )}
+              <Button
+                size="xs"
+                disabled
+                className="h-7 px-2 text-xs whitespace-nowrap"
+              >
+                {eidosSpaceCredentials ? t("settings.sync.connected", "Connected") : t("settings.sync.connect", "Connect")}
+              </Button>
             </div>
           </div>
-          {!isAuthenticated && !eidosSpaceCredentials && (
-            <p className="text-sm text-orange-600 mt-2">
-              Please login to eidos.space in Account settings first.
-            </p>
-          )}
         </div>
 
         {/* Custom Provider Cards */}
@@ -561,7 +577,7 @@ export function GlobalSyncSettings() {
                       </Badge>
                     )}
                   </div>
-                  <p 
+                  <p
                     className="text-sm text-muted-foreground truncate"
                     title={provider.endpoint}
                   >
@@ -578,16 +594,6 @@ export function GlobalSyncSettings() {
                 >
                   Test
                 </Button>
-                {syncConfig.defaultProvider !== provider.id && (
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => handleSetDefault(provider.id)}
-                    className="h-7 px-2 text-xs"
-                  >
-                    Set Default
-                  </Button>
-                )}
                 <Button
                   variant="ghost"
                   size="xs"
@@ -633,7 +639,8 @@ export function GlobalSyncSettings() {
               }
             />
             <p className="text-xs text-muted-foreground">
-              Unique identifier for this provider (lowercase, no spaces). This will be used as the display name.
+              Unique identifier for this provider (lowercase, no spaces). This
+              will be used as the display name.
             </p>
           </div>
 
@@ -752,14 +759,18 @@ export function GlobalSyncSettings() {
 
             <p className="text-sm text-muted-foreground mb-4">
               Are you sure you want to delete provider{" "}
-              <strong>"{deleteDialog.providerName}"</strong>? This action cannot be
-              undone. All sync data will remain in the bucket, but the provider
-              configuration will be removed.
+              <strong>"{deleteDialog.providerName}"</strong>? This action cannot
+              be undone. All sync data will remain in the bucket, but the
+              provider configuration will be removed.
             </p>
 
             <div className="space-y-2 mb-4">
               <Label htmlFor="confirm-provider-id">
-                Type <code className="bg-muted px-1 rounded">{deleteDialog.providerId}</code> to confirm
+                Type{" "}
+                <code className="bg-muted px-1 rounded">
+                  {deleteDialog.providerId}
+                </code>{" "}
+                to confirm
               </Label>
               <Input
                 id="confirm-provider-id"

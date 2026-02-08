@@ -203,6 +203,11 @@ function main() {
       testSyncConnection: (config: { endpoint: string; bucketName: string; region?: string; accessKeyId: string; secretAccessKey: string }) => 
         ipcRenderer.invoke('test-sync-connection', config),
     },
+    // License management
+    license: {
+      activate: (licenseKey: string, token?: string) => ipcRenderer.invoke('activate-license', licenseKey, token),
+      getInfo: () => ipcRenderer.invoke('get-license-info'),
+    },
 
     // AI helper functions
     fetchAvailableModels: (apiKey: string, providerType: string, baseUrl?: string) =>

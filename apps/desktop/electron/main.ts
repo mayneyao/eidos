@@ -39,6 +39,7 @@ import { getSpaceRegistry, migrateFromLegacyConfig } from "./space-registry"
 import { AppUpdater } from "./updater"
 import { createWindow } from "./window-manager/createWindow"
 import { convertToElectronMenuTemplateWithIds } from "./window-manager/menu-utils"
+import { LicenseManager } from "./license"
 
 process.on("uncaughtException", (error) => {
   console.error("Unhandled Exception:", error) // Also log to console
@@ -438,23 +439,18 @@ ipcMain.handle("get-sync-providers", async () => {
       isBuiltIn: boolean
     }> = []
     
-    // Check if eidos.space should be shown:
-    // 1. User is logged in, OR
-    // 2. eidos.space is set as default provider, OR
-    // 3. eidos.space has credentials
+    // Check if eidos.space should be shown
+    // Only show if user has configured eidos.space credentials
     const hasEidosSpaceCreds = await CredentialsManager.hasSyncCredentials("eidos.space")
-    const showEidosSpace = accountUser || syncConfig.defaultProvider === "eidos.space" || hasEidosSpaceCreds
     
-    if (showEidosSpace) {
+    if (hasEidosSpaceCreds) {
       // For eidos.space, bucketName comes from credentials, not config
-      const credentials = hasEidosSpaceCreds 
-        ? await CredentialsManager.getSyncCredentials("eidos.space")
-        : null
+      const credentials = await CredentialsManager.getSyncCredentials("eidos.space")
       providers.push({
         id: "eidos.space",
         name: "eidos.space",
         bucketName: credentials?.bucketName,  // Get bucketName from credentials
-        hasCredentials: hasEidosSpaceCreds,
+        hasCredentials: true,
         isBuiltIn: true,
       })
     }
@@ -628,6 +624,68 @@ ipcMain.handle(
     }
   }
 )
+
+// License management
+ipcMain.handle("get-machine-id", async () => {
+  return LicenseManager.getMachineId();
+});
+
+ipcMain.handle("activate-license", async (event, licenseKey: string, token?: string) => {
+  try {
+    const hwId = await LicenseManager.getMachineId();
+    const deviceName = LicenseManager.getDeviceName();
+    const baseUrl = app.isPackaged ? "https://eidos.space" : "https://local-dev.eidos.space";
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    const response = await fetch(`${baseUrl}/api/license/activate`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        licenseKey,
+        hardwareId: hwId,
+        deviceName,
+        deviceInfo: {
+          os: process.platform,
+          arch: process.arch,
+          version: app.getVersion(),
+        },
+      }),
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      await LicenseManager.saveLicense(licenseKey, result.certificate);
+      const payload = await LicenseManager.verifyCertificate(result.certificate);
+      return { success: true, payload };
+    } else {
+      return { success: false, error: result.error };
+    }
+  } catch (error) {
+    console.error("Activation error:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+  }
+});
+
+ipcMain.handle("get-license-info", async () => {
+  const stored = await LicenseManager.getLicense();
+  if (!stored) return null;
+
+  const payload = await LicenseManager.verifyCertificate(stored.certificate);
+  if (!payload) return null;
+
+  return {
+    licenseKey: stored.licenseKey,
+    plan: payload.plan,
+    expiresAt: payload.expiresAt,
+  };
+});
+
+ipcMain.handle("clear-license", async () => {
+  await LicenseManager.clearLicense();
+  return { success: true };
+});
 
 app.on("before-quit", () => {
   cleanupPlaygroundWatchers()

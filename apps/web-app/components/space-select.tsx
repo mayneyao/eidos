@@ -447,14 +447,12 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
               <div className="space-y-3">
                 <Label>Select Sync Provider</Label>
                 {loadingProviders ? (
-                  <div className="text-sm text-muted-foreground">Loading providers...</div>
-                ) : !hasAnySyncProvider ? (
+                  <div className="text-sm text-muted-foreground">{t("space.createSync.loadingProviders", "Loading providers...")}</div>
+                ) : providers.filter(p => p.hasCredentials).length === 0 ? (
                   <div className="text-sm text-muted-foreground text-center py-4 bg-muted/30 rounded-lg">
-                    <p className="font-medium mb-1">No sync providers available</p>
+                    <p className="font-medium mb-1">{t("space.createSync.noProvidersAvailable", "No sync providers available")}</p>
                     <p className="text-xs">
-                      Go to <strong>Settings → Sync</strong> to add S3-compatible storage
-                      <br />
-                      or <strong>Settings → Account</strong> to connect eidos.space
+                      {t("space.createSync.goToSettings", "Go to Settings → Sync to add S3-compatible storage")}
                     </p>
                   </div>
                 ) : (
@@ -463,78 +461,58 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                     onValueChange={handleProviderSelectForCreate}
                     className="space-y-2"
                   >
-                    {/* Built-in providers (eidos.space) */}
-                    {builtInProviders.map((provider) => (
+                    {/* Built-in providers (eidos.space) - only show if has credentials */}
+                    {builtInProviders.filter(p => p.hasCredentials).map((provider) => (
                       <div key={provider.id}>
                         <div
                           className={cn(
-                            "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer",
-                            !provider.hasCredentials && "opacity-50"
+                            "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
                           )}
                         >
                           <RadioGroupItem
                             value={provider.id}
                             id={provider.id}
-                            disabled={!provider.hasCredentials}
                           />
                           <label
                             htmlFor={provider.id}
-                            className={cn(
-                              "flex-1 cursor-pointer",
-                              !provider.hasCredentials && "cursor-not-allowed"
-                            )}
+                            className="flex-1 cursor-pointer"
                           >
                             <div className="flex items-center gap-2">
                               <Cloud className="h-4 w-4 text-primary" />
                               <span className="font-medium">{provider.id}</span>
                               <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                                Built-in
+                                {t("settings.sync.builtIn", "Built-in")}
                               </span>
                             </div>
-                            {!provider.hasCredentials && (
-                              <p className="text-xs text-destructive mt-1 ml-6">
-                                Login required
-                              </p>
-                            )}
                           </label>
                         </div>
                       </div>
                     ))}
 
-                    {/* Custom S3 providers */}
-                    {customProviders.length > 0 && builtInProviders.length > 0 && (
+                    {/* Custom S3 providers - only show if has credentials */}
+                    {customProviders.filter(p => p.hasCredentials).length > 0 && builtInProviders.filter(p => p.hasCredentials).length > 0 && (
                       <Separator className="my-2" />
                     )}
                     
-                    {customProviders.map((provider) => (
+                    {customProviders.filter(p => p.hasCredentials).map((provider) => (
                       <div key={provider.id}>
                         <div
                           className={cn(
-                            "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer",
-                            !provider.hasCredentials && "opacity-50"
+                            "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
                           )}
                         >
                           <RadioGroupItem
                             value={provider.id}
                             id={provider.id}
-                            disabled={!provider.hasCredentials}
                           />
                           <label
                             htmlFor={provider.id}
-                            className={cn(
-                              "flex-1 cursor-pointer",
-                              !provider.hasCredentials && "cursor-not-allowed"
-                            )}
+                            className="flex-1 cursor-pointer"
                           >
                             <div className="flex items-center gap-2">
-                              <Cloud className="h-4 w-4 text-muted-foreground" />
+                              <Server className="h-4 w-4 text-muted-foreground" />
                               <span className="font-medium">{provider.id}</span>
                             </div>
-                            {!provider.hasCredentials && (
-                              <p className="text-xs text-destructive mt-1 ml-6">
-                                Credentials not configured
-                              </p>
-                            )}
                           </label>
                         </div>
                       </div>
@@ -548,14 +526,14 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
 
             <div className="flex gap-2 pt-2">
               <Button variant="outline" onClick={handleBack} className="flex-1">
-                Back
+                {t("common.back", "Back")}
               </Button>
               <Button
                 onClick={handleCreateSpace}
                 disabled={loading || (enableSync && !selectedProvider)}
                 className="flex-1"
               >
-                {loading ? "Creating..." : enableSync ? "Create & Enable Sync" : "Create Space"}
+                {loading ? t("common.creating", "Creating...") : enableSync ? t("space.createSync.createAndEnable", "Create & Enable Sync") : t("space.createSpace", "Create Space")}
               </Button>
             </div>
           </div>
@@ -568,15 +546,15 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         return (
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Select the provider where your remote space is stored.
+              {t("space.clone.selectProviderDescription", "Select the provider where your remote space is stored.")}
             </p>
             {loadingProviders ? (
-              <div className="text-sm text-muted-foreground">Loading providers...</div>
-            ) : providers.length === 0 ? (
+              <div className="text-sm text-muted-foreground">{t("space.clone.loadingProviders", "Loading providers...")}</div>
+            ) : providers.filter(p => p.hasCredentials).length === 0 ? (
               <div className="text-sm text-muted-foreground text-center py-4">
-                No sync providers configured.
+                {t("space.clone.noProvidersConfigured", "No sync providers with credentials configured.")}
                 <br />
-                Go to Settings → Sync to add providers.
+                {t("space.clone.goToSettings", "Go to Settings → Sync to add providers.")}
               </div>
             ) : (
               <RadioGroup
@@ -584,78 +562,59 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                 onValueChange={handleProviderSelectForClone}
                 className="space-y-2"
               >
-                {/* Built-in providers */}
-                {cloneBuiltInProviders.map((provider) => (
+                {/* Built-in providers - only show if has credentials */}
+                {cloneBuiltInProviders.filter(p => p.hasCredentials).map((provider) => (
                   <div key={provider.id}>
                     <div
                       className={cn(
-                        "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer",
-                        !provider.hasCredentials && "opacity-50"
+                        "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
                       )}
                     >
                       <RadioGroupItem
                         value={provider.id}
                         id={provider.id}
-                        disabled={!provider.hasCredentials}
                       />
                       <label
                         htmlFor={provider.id}
-                        className={cn(
-                          "flex-1 cursor-pointer",
-                          !provider.hasCredentials && "cursor-not-allowed"
-                        )}
+                        className="flex-1 cursor-pointer"
                       >
                         <div className="flex items-center gap-2">
                           <Cloud className="h-4 w-4 text-primary" />
                           <span className="font-medium">{provider.name}</span>
                           <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                            Built-in
+                            {t("settings.sync.builtIn", "Built-in")}
                           </span>
                         </div>
-                        {!provider.hasCredentials && (
-                          <p className="text-xs text-destructive mt-1 ml-6">
-                            Login required
-                          </p>
-                        )}
                       </label>
                     </div>
                   </div>
                 ))}
 
                 {/* Custom providers */}
-                {cloneCustomProviders.length > 0 && cloneBuiltInProviders.length > 0 && (
+                {cloneCustomProviders.length > 0 && cloneBuiltInProviders.filter(p => p.hasCredentials).length > 0 && (
                   <Separator className="my-2" />
                 )}
                 
-                {cloneCustomProviders.map((provider) => (
+                {/* Custom providers - only show if has credentials */}
+                {cloneCustomProviders.filter(p => p.hasCredentials).map((provider) => (
                   <div key={provider.id}>
                     <div
                       className={cn(
-                        "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer",
-                        !provider.hasCredentials && "opacity-50"
+                        "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
                       )}
                     >
                       <RadioGroupItem
                         value={provider.id}
                         id={provider.id}
-                        disabled={!provider.hasCredentials}
                       />
                       <label
                         htmlFor={provider.id}
-                        className={cn(
-                          "flex-1 cursor-pointer",
-                          !provider.hasCredentials && "cursor-not-allowed"
-                        )}
+                        className="flex-1 cursor-pointer"
                       >
                         <div className="flex items-center gap-2">
-                          <Cloud className="h-4 w-4 text-muted-foreground" />
+                          <Server className="h-4 w-4 text-muted-foreground" />
                           <span className="font-medium">{provider.name}</span>
                         </div>
-                        {!provider.hasCredentials && (
-                          <p className="text-xs text-destructive mt-1 ml-6">
-                            Credentials not configured
-                          </p>
-                        )}
                       </label>
                     </div>
                   </div>
@@ -663,7 +622,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
               </RadioGroup>
             )}
             <Button variant="outline" onClick={handleBack} className="w-full">
-              Back
+              {t("common.back", "Back")}
             </Button>
           </div>
         )
