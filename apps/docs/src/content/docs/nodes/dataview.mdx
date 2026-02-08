@@ -5,15 +5,11 @@ sidebar:
   order: 3
 ---
 
-I recently realized that almost every productivity tool forces you to make a choice that shouldn't exist in the first place.
+Often, we find ourselves struggling with how to organize content: Should it go in a folder, or be classified by category? Should we manage it with tags, or build bi-directional links? Does this piece of information belong in a freeform document or a structured table?
 
-When you're taking notes, you'll always hit this moment: should this piece of information go in a freeform document or a structured table? It's like being asked: "Do you want flexibility or do you want organization?" But the question itself is wrong. Why can't I have both?
+These dilemmas usually arise because software "outsources" the responsibility of organizing information to the user. We are forced to decide the final destination of information at the very moment we record it, trying to predict future retrieval needs with limited classification rules.
 
-Think about librarians in the real world. They don't tell you: "Sorry, this book can either go in the fiction section or the history section, but it can't be categorized in both places." Libraries have sophisticated classification systems where the same book can be found through multiple approaches. But digital tools are still stuck in the "one thing can only go in one place" mindset.
-
-This is why Notion feels awkward. It gives you documents and databases, but they're like two neighbors who don't talk to each other. Obsidian is slightly better—it stores everything as markdown files and has dataview plugins to query data. But markdown has too many limitations; it's like trying to write an academic paper within Twitter's character limit.
-
-I've seen too many people waste time on this problem. They'll spend hours agonizing over where a piece of information should go, or worse, they'll duplicate the same information in different places. This isn't productivity—this is fighting with your tools.
+**Dataviews** are designed to solve this problem. They shift the focus from "pre-classification" to "dynamic retrieval." Since Eidos stores all data in a powerful SQLite database, you don't have to agonize over the physical location of information. Instead, you can use powerful retrieval mechanisms to aggregate scattered information whenever you need it.
 
 ## Why traditional approaches don't work
 
@@ -177,14 +173,12 @@ You can add column type annotations directly in your SQL queries using this form
 
 ## Why this matters
 
-Dataviews change your relationship with information. You no longer need to decide where information will ultimately belong when you're recording it. You can record in the most natural way, then organize and reorganize through queries.
+Dataviews change your relationship with information. You no longer need to decide where information will ultimately belong when you're recording it. You can record in the most natural way, and then organize and reorganize through queries.
 
-It's like shifting from "pre-classification" to "post-classification." Traditional tools require you to know upfront where information should go, but in reality, we often don't know the most useful way to organize information until we need it.
+It's like shifting from "pre-organization" to "post-organization." In reality, we often only know the most useful way to organize information at the moment we actually need it.
 
-Dataviews let you organize data in the most meaningful way for each specific question, rather than forcing everything into rigid categories upfront. You dynamically organize information based on the specific questions you're trying to answer.
+Dataviews let you dynamically organize data in the most meaningful way for the specific question at hand. They no longer force content to be locked into rigid categories but instead reconnect information that was originally scattered across documents, tables, or even different extensions, based on your current needs.
 
-This is a more human-aligned approach. We don't think in strict classifications—we connect and reconnect information based on current needs. Dataviews let tools adapt to how we think, rather than forcing us to adapt to tool limitations.
-
-Technically, dataviews are read-only tables powered by SQL queries. You write queries, and Eidos presents results using all the regular table functionality—sorting, filtering, different view types, custom display options. But the real value lies in the ability to aggregate across data sources.
+This is a more human-intuitive approach: we think through associations rather than rigid classifications. Dataviews let the tool truly serve your flow of thought, rather than forcing you to interrupt your thinking to adapt to the tool.
 
 This isn't just a technical feature—it's a new way of thinking about information organization.

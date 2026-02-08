@@ -9,6 +9,7 @@ import {
   HardDrive,
   PlusCircle,
   RefreshCw,
+  Server,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
