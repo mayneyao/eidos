@@ -3,6 +3,7 @@ import aiHandler, { pathname as aiPath } from '@/worker/service-worker/ai';
 import { createProxyMiddleware } from '@eidos.space/proxy';
 import { containsBinaryData, parseMultipartFormData, processBinaryDataForResponse, restoreBinaryData } from '@eidos.space/client';
 import { createExtensionMiddleware, createDesktopConfig } from '@eidos.space/ext-server/desktop';
+import { createBucketBrowserMiddleware } from '@eidos.space/sync';
 import { serve } from '@hono/node-server';
 import { BrowserWindow } from 'electron';
 import { log } from 'electron-log';
@@ -48,11 +49,11 @@ const app = new Hono();
  */
 function extractSpaceIdFromHostname(hostname: string): string | null {
     // Pattern: <extId>.block.<spaceId>.eidos.localhost
-    const blockPattern = /^[\w-]+\.block\.(\w+)\.eidos\.localhost$/;
+    const blockPattern = /^[\w-]+\.block\.([\w-]+)\.eidos\.localhost$/;
     // Pattern: sandbox.<spaceId>.eidos.localhost
-    const sandboxPattern = /^sandbox\.(\w+)\.eidos\.localhost$/;
+    const sandboxPattern = /^sandbox\.([\w-]+)\.eidos\.localhost$/;
     // Pattern: <spaceId>.eidos.localhost
-    const standardPattern = /^(\w+)\.eidos\.localhost$/;
+    const standardPattern = /^([\w-]+)\.eidos\.localhost$/;
 
     const blockMatch = hostname.match(blockPattern);
     if (blockMatch) {
@@ -177,6 +178,29 @@ const handleStaticFile = async (c: any) => {
 }
 
 export function startServer({ dist, port }: { dist: string, port: number }) {
+
+    // Bucket browser middleware: handles storage.eidos.localhost
+    // Provides a simple web UI for browsing S3-compatible buckets
+    app.use('*', createBucketBrowserMiddleware({
+        getCredentials: async () => {
+            const configManager = getConfigManager();
+            const defaultProviderId = configManager.getDefaultSyncProvider();
+            if (!defaultProviderId) return null;
+            
+            const credentials = await CredentialsManager.getSyncCredentials(defaultProviderId);
+            const providerConfig = configManager.getSyncProvider(defaultProviderId);
+            
+            if (!credentials || !providerConfig) return null;
+            
+            return {
+                endpoint: credentials.endpoint,
+                accessKeyId: credentials.accessKeyId,
+                secretAccessKey: credentials.secretAccessKey,
+                bucketName: credentials.bucketName,
+                region: providerConfig.region || 'auto',
+            };
+        },
+    }));
 
     // Proxy middleware: handles *.proxy.eidos.localhost subdomains
     // Pattern: <target-host>.proxy.eidos.localhost/<path> -> https://<target-host>/<path>

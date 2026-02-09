@@ -1,0 +1,197 @@
+---
+title: Setup Custom Sync Provider
+description: Configure your own S3-compatible storage for syncing spaces
+tableOfContents:
+  maxHeadingLevel: 4
+sidebar:
+  order: 1
+---
+
+import { Steps } from "@astrojs/starlight/components"
+import { Aside } from "@astrojs/starlight/components"
+
+By default, Eidos uses **eidos.space** as the sync provider. However, you can also configure your own S3-compatible storage service (such as AWS S3, Cloudflare R2, MinIO, etc.) to have full control over your data.
+
+<Aside type="note">
+  Custom sync providers require an **active license**. Please activate your license in **Settings → Account** before proceeding.
+</Aside>
+
+## Supported Storage Services
+
+Any S3-compatible storage service can be used as a sync provider:
+
+| Service | Example Endpoint | Notes |
+|---------|-----------------|-------|
+| **AWS S3** | `https://s3.amazonaws.com` | Standard S3 service |
+| **Cloudflare R2** | `https://{account}.r2.cloudflarestorage.com` | Free tier includes 10GB storage |
+| **MinIO** | `http://localhost:9000` | Self-hosted, free and open-source |
+
+Other S3-compatible services like Backblaze B2, DigitalOcean Spaces, Alibaba Cloud OSS, and Tencent Cloud COS are also supported.
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+1. **Desktop App**: Custom sync providers are only available in the Eidos desktop application
+2. **Active License**: Go to **Settings → Account** to activate your license
+3. **S3 Storage Account**: Create a bucket and obtain access credentials
+
+## Configuration Steps
+
+<Steps>
+
+1. **Open Global Sync Settings**
+
+   Click on **Settings** in the sidebar, then select **Sync** from the global settings menu.
+
+2. **Add a New Provider**
+
+   Click the **Add** button in the top-right corner of the Providers section.
+
+3. **Fill in Provider Information**
+
+   | Field | Description | Example |
+   |-------|-------------|---------|
+   | **Provider ID** | A unique identifier (lowercase, no spaces) | `my-s3`, `minio`, `r2` |
+   | **Endpoint URL** | Your S3 service endpoint | `https://s3.amazonaws.com` |
+   | **Bucket Name** | The name of your S3 bucket | `my-eidos-sync` |
+   | **Region** | (Optional) The region of your bucket | `us-east-1` |
+
+4. **Enter Credentials**
+
+   Enter your S3 access credentials:
+   - **Access Key ID**: Your S3 access key
+   - **Secret Access Key**: Your S3 secret key
+
+   <Aside type="caution">
+     Your credentials are encrypted and stored locally using your operating system's secure storage. They are never sent to any third-party servers.
+   </Aside>
+
+5. **Test the Connection**
+
+   After filling in all fields, click the **Test** button to verify that Eidos can connect to your storage service.
+
+6. **Save the Provider**
+
+   If the test is successful, click **Add** to save the provider configuration.
+
+</Steps>
+
+## Using Sync When Creating a Space
+
+Sync can only be enabled when creating a new space. Once a space is created, you cannot enable or disable sync for it.
+
+### Create a New Space with Sync
+
+<Steps>
+
+1. **Open Space Selector**
+
+   Click on the space selector in the sidebar, then click **"Create New"**.
+
+2. **Select Local Folder**
+
+   Choose a local folder where your space data will be stored.
+
+3. **Enable Sync**
+
+   In the sync options step:
+   - Toggle **"Enable Sync"** to turn on synchronization
+   - Select your custom provider from the list
+   - Click **"Create & Enable Sync"**
+
+
+
+</Steps>
+
+### Clone an Existing Space
+
+If you have a space already synced to your custom provider, you can clone it to another device:
+
+<Steps>
+
+1. **Open Space Selector**
+
+   Click on the space selector in the sidebar, then click **"Create New"**.
+
+2. **Choose Clone Option**
+
+   Select **"Clone Space"** to clone an existing remote space.
+
+3. **Select Provider**
+
+   Choose the custom provider where your space is stored.
+
+4. **Select Remote Space**
+
+   Pick the space you want to clone from the list of available spaces.
+
+5. **Select Local Folder**
+
+   Choose a local folder to store the cloned space data.
+
+6. **Clone**
+
+   Click **"Clone Space"** to download and set up the space locally.
+
+   <Aside type="tip">
+     The clone time depends on the size of your space. Larger spaces with many files will take longer to download.
+   </Aside>
+
+</Steps>
+
+## Managing Providers
+
+### View Provider Status
+
+In the Global Sync Settings, you can see the status of each provider:
+
+- **Ready** (green): Connection test passed, ready to use
+- **Credentials Set** (blue): Credentials saved but not tested
+- **No Credentials** (orange): Missing credentials
+
+### Test Connection
+
+You can retest the connection at any time by clicking the **Test** button next to a provider.
+
+### Delete a Provider
+
+To remove a provider:
+
+1. Click the **trash icon** next to the provider
+2. Type the provider ID to confirm deletion
+3. Click **Delete Provider**
+
+<Aside type="danger">
+  Deleting a provider only removes the configuration from Eidos. Your data remains in the S3 bucket. To completely delete the data, you need to manually delete it from your S3 service.
+</Aside>
+
+## Troubleshooting
+
+### "License Required" Error
+
+Custom sync providers require an active license. Go to **Settings → Account** to activate your license.
+
+### "No Sync Providers Available"
+
+When creating a space, if you see this message:
+1. Make sure you've added at least one custom provider in **Settings → Sync**
+2. Verify the provider has valid credentials
+3. Test the connection to ensure it's working
+
+### Connection Test Fails
+
+Common issues and solutions:
+
+| Error | Solution |
+|-------|----------|
+| Invalid Access Key ID | Check your access key for typos |
+| Invalid Secret Access Key | Verify your secret key is correct |
+| Bucket does not exist | Ensure the bucket name is spelled correctly |
+| Access denied | Check your IAM permissions (needs `s3:ListBucket`, `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`) |
+| Cannot connect | Verify the endpoint URL and your network connection |
+
+## Next Steps
+
+- Learn about [Conflict Handling](/services/sync/#conflict-handling) when syncing across devices
+- Read the [Sync Architecture](/services/sync/#architecture-overview) to understand how data is synchronized

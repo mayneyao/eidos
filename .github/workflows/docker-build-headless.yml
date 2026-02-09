@@ -3,8 +3,7 @@ name: Build Headless Docker Image
 on:
   push:
     branches:
-      - main
-      - refactor/extensions
+      - dev
     paths:
       - 'apps/headless/**'
       - 'packages/**'
@@ -12,9 +11,11 @@ on:
       - '.github/workflows/docker-build-headless.yml'
   pull_request:
     branches:
-      - main
+      - dev
     paths:
       - 'apps/headless/**'
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       push_image:
@@ -59,13 +60,14 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=sha,prefix=
+            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: apps/headless/Dockerfile
-          push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/refactor/extensions') || github.event.inputs.push_image == 'true' }}
+          push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/refactor/extensions' || github.event_name == 'release') || github.event.inputs.push_image == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64,linux/arm64

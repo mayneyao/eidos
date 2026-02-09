@@ -37,15 +37,22 @@ export function useGlobalSearch(sqlite: any, isGlobalSearchOpen: boolean) {
           return null
         }
 
-        const parts = entry.path.split("/").filter(Boolean)
-        const id = parts[parts.length - 1]
+        // For extensions, use nodeId from metadata (real ID), not the slug from path
+        // For nodes/files, extract ID from path
+        const id = type === "extension" 
+          ? entry.metadata?.nodeId 
+          : entry.path.split("/").filter(Boolean).pop()
 
         if (!id) {
           console.warn(`Could not extract ${type} ID from path:`, entry.path)
           return null
         }
 
-        const displayPath = entry.metadata?.namePath || entry.path
+        // For extensions, show the virtual path (slug-based path)
+        // For nodes, show namePath or path
+        const displayPath = type === "extension"
+          ? entry.path
+          : (entry.metadata?.namePath || entry.path)
 
         return {
           type,
@@ -81,9 +88,10 @@ export function useGlobalSearch(sqlite: any, isGlobalSearchOpen: boolean) {
         console.timeEnd("readdir nodes")
         setAllNodes(nodesEntries)
 
-        // Load extensions
+        // Load extensions recursively to handle hierarchical slugs
         const extensionsEntries = await fs.readdir("~/.eidos/__EXTENSIONS__", {
           withFileTypes: true,
+          recursive: true,
         })
         setAllExtensions(extensionsEntries)
       } catch (error) {
@@ -200,11 +208,18 @@ export function useGlobalSearch(sqlite: any, isGlobalSearchOpen: boolean) {
     }
 
     // Filter extensions based on search term
+    // Search in both name (filename) and path (full slug path)
     const term = searchTerm.toLowerCase()
     allExtensions.forEach((entry) => {
       const result = entryToSearchResult(entry, "extension")
-      if (result && result.name.toLowerCase().includes(term)) {
-        results.push(result)
+      if (result) {
+        const nameMatch = result.name.toLowerCase().includes(term)
+        const pathMatch = result.path.toLowerCase().includes(term)
+        const slugMatch = entry.metadata?.slug?.toLowerCase().includes(term) || false
+        
+        if (nameMatch || pathMatch || slugMatch) {
+          results.push(result)
+        }
       }
     })
 

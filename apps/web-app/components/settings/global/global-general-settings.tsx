@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import * as z from "zod"
 
-import { SYNC_INTERNAL_URL, URLS } from "@/lib/const"
+import { URLS } from "@/lib/const"
 import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -14,7 +14,6 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
-import { useAuthOptional } from "@/components/auth-provider"
 import {
   Form,
   FormControl,
@@ -25,28 +24,6 @@ import {
 import { useTheme } from "@/components/theme-provider"
 import { useDesktopClient } from "@/apps/web-app/hooks/use-desktop-client"
 import { useUpdateStatus } from "@/apps/web-app/hooks/use-update-status"
-
-interface SyncBucketCredentials {
-  bucketName: string
-  accessKeyId: string
-  secretAccessKey: string
-  tokenId: string
-  endpoint: string
-}
-
-interface SyncBucketError {
-  success: false
-  message: string
-  details?: any
-  statusCode: number
-}
-
-interface SyncBucketResult {
-  success: true
-  data: SyncBucketCredentials
-}
-
-type SyncInitResponse = SyncBucketResult | SyncBucketError
 
 const appearanceFormSchema = z.object({
   theme: z.enum(["light", "dark"], {
@@ -97,27 +74,6 @@ export function GlobalGeneralSettings() {
   const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true)
   const [isLoadingConfig, setIsLoadingConfig] = useState(true)
 
-  // Sync state
-  const [syncEnabled, setSyncEnabled] = useState(false)
-  const [isInitializingSync, setIsInitializingSync] = useState(false)
-  const [syncConfigured, setSyncConfigured] = useState(false)
-  const [isLoadingSyncConfig, setIsLoadingSyncConfig] = useState(true)
-
-  // Auth from provider
-  const auth = useAuthOptional()
-
-  // Helper to get auth headers - similar to extension marketplace
-  const getAuthHeaders = (): Record<string, string> => {
-    if (auth?.accessToken) {
-      return { Authorization: `Bearer ${auth.accessToken}` }
-    }
-    return {}
-  }
-
-  // Check if authenticated
-  const isAuthenticated = auth?.isAuthenticated ?? false
-  const user = auth?.user
-
   // Load appearance preferences
   useEffect(() => {
     const savedPreferences = localStorage.getItem("appearancePreferences")
@@ -136,11 +92,10 @@ export function GlobalGeneralSettings() {
     return () => subscription.unsubscribe()
   }, [appearanceForm])
 
-  // Load desktop configs (auto update and sync)
+  // Load desktop configs (auto update)
   useEffect(() => {
     if (!isDesktop) {
       setIsLoadingConfig(false)
-      setIsLoadingSyncConfig(false)
       return
     }
 
@@ -154,27 +109,6 @@ export function GlobalGeneralSettings() {
         setAutoUpdateEnabled(true)
       } finally {
         setIsLoadingConfig(false)
-      }
-
-      try {
-        // Load sync config
-        const syncConfig = await window.eidos.config.get("sync")
-        const credentials =
-          await window.eidos.credentials.getSyncCredentials("eidos.space")
-
-        // syncEnabled reflects the config setting
-        const enabled = syncConfig?.enabled ?? false
-        setSyncEnabled(enabled)
-
-        // syncConfigured indicates if credentials are available for the enabled sync
-        const isConfigured = enabled && !!credentials
-        setSyncConfigured(isConfigured)
-      } catch (error) {
-        console.error("Failed to load sync config:", error)
-        setSyncConfigured(false)
-        setSyncEnabled(false)
-      } finally {
-        setIsLoadingSyncConfig(false)
       }
     }
 
@@ -199,129 +133,6 @@ export function GlobalGeneralSettings() {
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       })
-    }
-  }
-
-  const handleToggleSync = async (enabled: boolean) => {
-    if (enabled) {
-      // If credentials exist, just enable sync without full initialization
-      const credentials = isDesktop
-        ? await window.eidos.credentials.getSyncCredentials("eidos.space")
-        : null
-      if (credentials) {
-        try {
-          await window.eidos.config.set("sync", { enabled: true })
-          setSyncEnabled(true)
-          setSyncConfigured(true)
-          return
-        } catch (error) {
-          console.error("Failed to enable sync config:", error)
-        }
-      }
-
-      const success = await handleInitializeSync()
-      setSyncEnabled(success)
-    } else {
-      setSyncEnabled(false)
-      if (isDesktop) {
-        try {
-          await window.eidos.config.set("sync", {
-            enabled: false,
-          })
-          setSyncConfigured(false)
-        } catch (error) {
-          console.error("Failed to disable sync config:", error)
-        }
-      }
-    }
-  }
-
-  const handleInitializeSync = async () => {
-    if (!isAuthenticated) {
-      toast({
-        title: "Authentication Required",
-        description: "Please login first to initialize sync.",
-        variant: "destructive",
-      })
-      return false
-    }
-
-    if (!isDesktop) {
-      toast({
-        title: "Sync Not Available",
-        description: "Sync is only available in the desktop application.",
-        variant: "destructive",
-      })
-      return false
-    }
-
-    setIsInitializingSync(true)
-    try {
-      const response = await fetch(SYNC_INTERNAL_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-      })
-
-      let data: SyncInitResponse
-      try {
-        data = await response.json()
-        console.log("Sync initialization response:", data)
-      } catch (jsonError) {
-        console.error("Failed to parse response JSON:", jsonError)
-        throw new Error(
-          `Invalid response format: ${response.status} ${response.statusText}`
-        )
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          data.success === false
-            ? data.message
-            : `HTTP error! status: ${response.status}`
-        )
-      }
-
-      // Store credentials and config if initialization was successful
-      if (data.success && isDesktop) {
-        try {
-          await window.eidos.credentials.setSyncCredentials(
-            data.data,
-            "eidos.space"
-          )
-          await window.eidos.config.set("sync", { enabled: true })
-          setSyncConfigured(true)
-          console.log("Sync credentials and config stored successfully")
-        } catch (storageError) {
-          console.error(
-            "Failed to store sync credentials/config:",
-            storageError
-          )
-          // Don't fail the whole operation if storage fails, just log it
-        }
-      }
-
-      toast({
-        title: "Sync Initialized",
-        description: `Initialization completed successfully. Credentials ${isDesktop ? "stored" : "retrieved"}.`,
-        variant: "default",
-      })
-      return true
-    } catch (error) {
-      console.error("Failed to initialize sync:", error)
-      const errorMessage =
-        error instanceof Error ? error.message : String(error)
-      console.error("Error details:", { message: errorMessage, error })
-      toast({
-        title: "Sync Initialization Failed",
-        description: errorMessage || "Unknown error occurred",
-        variant: "destructive",
-      })
-      return false
-    } finally {
-      setIsInitializingSync(false)
     }
   }
 
@@ -573,68 +384,6 @@ export function GlobalGeneralSettings() {
             </div>
           </form>
         </Form>
-      </div>
-      {/* Account Section */}
-      <div className="py-4">
-        <h3 className="text-lg font-medium">
-          {t("settings.account.title", "Account")}
-        </h3>
-      </div>
-
-      <hr className="border-border" />
-
-      <p className="text-sm text-muted-foreground py-2">
-        {t("settings.account.description")}
-      </p>
-
-      <div className="py-6">
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>{t("settings.account.user", "User")}</Label>
-              <p className="text-sm text-muted-foreground">
-                {isAuthenticated && user
-                  ? user.name || user.email
-                  : t("settings.account.notLoggedIn", "Not logged in")}
-              </p>
-            </div>
-            {isAuthenticated ? (
-              <Button variant="outline" onClick={() => auth?.logout()}>
-                {t("settings.account.logout", "Logout")}
-              </Button>
-            ) : (
-              <Button onClick={() => auth?.login()}>
-                {t("settings.account.login", "Login")}
-              </Button>
-            )}
-          </div>
-
-          {isDesktop && (
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Enable Sync</Label>
-                <p className="text-sm text-muted-foreground">
-                  {isLoadingSyncConfig
-                    ? "Loading sync configuration..."
-                    : isInitializingSync
-                      ? "Initializing sync service..."
-                      : !isAuthenticated
-                        ? "Login required to enable synchronization"
-                        : syncConfigured
-                          ? "Synchronization is configured and ready"
-                          : "Enable synchronization for your data"}
-                </p>
-              </div>
-              <Switch
-                checked={syncEnabled}
-                disabled={
-                  isLoadingSyncConfig || isInitializingSync || !isAuthenticated
-                }
-                onCheckedChange={handleToggleSync}
-              />
-            </div>
-          )}
-        </div>
       </div>
     </div>
   )

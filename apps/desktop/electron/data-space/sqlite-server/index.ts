@@ -25,6 +25,7 @@ interface NodeServerDatabaseOptions {
     libPath: string
     enabled?: boolean
     remote?: string
+    provider?: string
     credentials?: SyncBucketCredentials
     isVFSInitialized?: boolean
     remoteLogId?: string

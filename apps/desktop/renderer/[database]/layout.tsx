@@ -23,7 +23,6 @@ import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 import { TabManager } from "@/apps/web-app/components/tab-manager"
 import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
-import { useActivation } from "@/apps/web-app/hooks/use-activation"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { ScriptBreadcrumb } from "@/apps/web-app/pages/[database]/extensions/components/extension-breadcrumb"
@@ -46,9 +45,7 @@ function TabContentLayout() {
         id="main-content"
         className="z-[1] flex w-full grow flex-col overflow-y-auto min-w-0"
       >
-        <TabErrorBoundary tabId={tabId}>
-          {element}
-        </TabErrorBoundary>
+        <TabErrorBoundary tabId={tabId}>{element}</TabErrorBoundary>
       </div>
     </div>
   )
@@ -59,7 +56,6 @@ export function DesktopSpaceLayout() {
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const { isRightPanelOpen, currentApp, resetCurrentApp, tempPanelNode } =
     useSpaceAppStore()
-  const { isActivated } = useActivation()
   const isBlocksPath = isStandaloneBlocksPath(window.location.pathname)
 
   const rightPanelRef = useRef<HTMLDivElement>(null)
@@ -93,12 +89,6 @@ export function DesktopSpaceLayout() {
   }, [])
 
   const isCurrentAppABlock = currentApp?.startsWith("block://")
-
-  useEffect(() => {
-    if (!isActivated) {
-      window.location.href = "/my-license"
-    }
-  }, [isActivated])
 
   if (!isShareMode && !sqlite) {
     return (

@@ -39,6 +39,7 @@ export interface PathConfig {
     enabled: boolean
     remote: string
     credentials?: any
+    provider?: string
   }
 }
 

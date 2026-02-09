@@ -200,6 +200,13 @@ function main() {
       getSyncCredentials: (providerId?: string) => ipcRenderer.invoke('get-sync-credentials', providerId),
       clearSyncCredentials: (providerId?: string) => ipcRenderer.invoke('clear-sync-credentials', providerId),
       hasSyncCredentials: (providerId?: string) => ipcRenderer.invoke('has-sync-credentials', providerId),
+      testSyncConnection: (config: { endpoint: string; bucketName: string; region?: string; accessKeyId: string; secretAccessKey: string }) => 
+        ipcRenderer.invoke('test-sync-connection', config),
+    },
+    // License management
+    license: {
+      activate: (licenseKey: string, token?: string) => ipcRenderer.invoke('activate-license', licenseKey, token),
+      getInfo: () => ipcRenderer.invoke('get-license-info'),
     },
 
     // AI helper functions

@@ -33,6 +33,17 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
 
   /**
    * Initialize file watcher for .eidos/files/
+   * 
+   * NOTE: File watcher is now disabled for database updates.
+   * 
+   * Design change: To maintain consistency between database and file sync,
+   * we no longer automatically update the eidos__files table when local files change.
+   * 
+   * - Files are still auto-synced to cloud via FileSynchronizer
+   * - Database records are only updated through explicit API calls (upload, etc.)
+   * - This ensures database (Graft) remains the source of truth
+   * 
+   * The watcher loop is kept for debugging/observability but does not modify database state.
    */
   public async initFileWatcher() {
     const fileDir = "~/.eidos/files/"
@@ -51,7 +62,7 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
     // Create new controller for this watcher
     this.fileWatcherController = new AbortController()
 
-    // Watch for changes
+    // Watch for changes (observability only, no database updates)
     this.watchLoop(fileDir, this.fileWatcherController.signal)
   }
 
@@ -77,11 +88,12 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
         const exists = await this.fs.exists(fullPath)
 
         if (exists) {
-          await this.syncFile(fullPath)
+          // Log for observability but DO NOT auto-update database
+          // Files are synced via FileSynchronizer, database updates are explicit
+          console.log("[FileWatcher] File changed (synced to cloud):", fullPath)
         } else {
-          // remove .eidos/ prefix
-          const path = fullPath.replace("~/.eidos/", "")
-          await this.delFileByPath(path)
+          // Log for observability but DO NOT auto-update database
+          console.log("[FileWatcher] File deleted:", fullPath)
         }
       }
     } catch (error) {
@@ -93,17 +105,20 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
     }
   }
 
-  private async syncFile(path: string) {
+  /**
+   * Sync file metadata to database
+   * This is now an explicit operation, not triggered by file system events
+   * Called when files are uploaded through the API
+   */
+  public async syncFileToDatabase(path: string): Promise<IFile | null> {
     try {
+      // remove .eidos/ prefix if present
+      const normalizedPath = path.startsWith("~/.eidos/") ? path : `~/.eidos/${path}`
+      const stats = await this.fs.stat(normalizedPath)
+      if (stats.isDirectory) return null
 
-      // remove .eidos/ prefix
-      const stats = await this.fs.stat(path)
-      if (stats.isDirectory) return
-
-      const filename = path.split("/").pop()!
-      // Try to find existing file by path
-
-      const filePathInSpace = path.replace("~/.eidos/", "")
+      const filename = normalizedPath.split("/").pop()!
+      const filePathInSpace = normalizedPath.replace("~/.eidos/", "")
       const existing = await this.getFileByPath(filePathInSpace)
 
       // Get mime type from filename
@@ -111,8 +126,8 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
       const mime = (typeof mimeResult === 'string' ? mimeResult : null) || 'application/octet-stream'
 
       const fileInfo: IFile = {
-        id: existing ? existing.id : getUuid(), // Keep existing ID or generate new
-        name: filename, // Use filename as name
+        id: existing ? existing.id : getUuid(),
+        name: filename,
         path: filePathInSpace,
         size: stats.size,
         mime: mime,
@@ -121,10 +136,6 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
 
       if (existing) {
         // Update
-        // BaseFileTable doesn't have update method exposed easily, but we can use SQL
-        // Or we can delete and add? No, ID preservation is important.
-        // Let's use exec directly or add update method to FileTable.
-        // For now, I'll use a direct SQL update
         await this.db.exec({
           sql: `UPDATE ${this.file.name} SET size = ?, updated_at = ? WHERE id = ?`,
           bind: [fileInfo.size, fileInfo.updated_at, fileInfo.id]
@@ -133,8 +144,26 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
         // Insert
         await this.file.add(fileInfo)
       }
+
+      return fileInfo
     } catch (error) {
-      console.error("Sync file error:", error)
+      console.error("Sync file to database error:", error)
+      return null
+    }
+  }
+
+  /**
+   * Remove file metadata from database
+   * Explicit operation for when files are deleted through the API
+   */
+  public async removeFileFromDatabase(path: string): Promise<void> {
+    try {
+      const filePathInSpace = path.startsWith("~/.eidos/") 
+        ? path.replace("~/.eidos/", "") 
+        : path
+      await this.delFileByPath(filePathInSpace)
+    } catch (error) {
+      console.error("Remove file from database error:", error)
     }
   }
 

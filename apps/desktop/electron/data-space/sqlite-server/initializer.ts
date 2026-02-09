@@ -34,6 +34,7 @@ interface NodeServerDatabaseOptions {
     remote?: string
     credentials?: SyncBucketCredentials
     isVFSInitialized?: boolean
+    provider?: string
   }
   // vec extension
   vec?: {

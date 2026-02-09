@@ -7,6 +7,27 @@ import type { AIFormValues } from '@/packages/ai/config';
 import type { CustomTheme } from '@/apps/web-app/store/theme-store';
 import { getSpaceRegistry } from '../space-registry';
 
+// Account configuration (eidos.space only)
+export interface AccountConfig {
+    user?: any;  // eidos.space user info
+}
+
+// Sync provider configuration (all providers are S3-compatible, including eidos.space)
+export interface SyncProviderConfig {
+    id: string;           // Unique identifier (e.g., 'eidos.space', 'my-minio')
+    name: string;         // Display name
+    endpoint: string;     // S3 endpoint URL
+    bucketName: string;   // Bucket name
+    region?: string;      // Optional region
+}
+
+// Sync configuration - supports multiple providers like git remotes
+export interface SyncConfig {
+    // Multiple providers, keyed by provider ID
+    providers: Record<string, SyncProviderConfig>;
+    // Default provider to use when not specified
+    defaultProvider?: string;
+}
 
 export interface AppConfig {
     // the folder where the data is stored (deprecated, use space registry instead)
@@ -22,11 +43,8 @@ export interface AppConfig {
         webSecurity: boolean;
         crossOriginDomains: string[];
     };
-    // Sync configuration
-    sync: {
-        enabled: boolean;
-        // Future sync-related settings can go here
-    };
+    // Sync configuration (independent from account)
+    sync: SyncConfig;
     // Auto-update configuration
     autoUpdate: {
         enabled: boolean;
@@ -37,8 +55,10 @@ export interface AppConfig {
     };
     // Last opened workspace ID
     lastOpenedSpace?: string;
-    // User info
+    // User info (legacy, kept for backward compatibility)
     user?: any;
+    // Account configuration (eidos.space login)
+    account?: AccountConfig;
     // Persisted window state for desktop shell
     windowState?: {
         width: number;
@@ -69,7 +89,8 @@ const emptyConfig: AppConfig = {
         crossOriginDomains: [],
     },
     sync: {
-        enabled: false,
+        providers: {},
+        defaultProvider: undefined,
     },
     autoUpdate: {
         enabled: true,
@@ -80,6 +101,7 @@ const emptyConfig: AppConfig = {
     },
     lastOpenedSpace: undefined,
     user: undefined,
+    account: undefined,
     windowState: undefined,
 };
 
@@ -95,6 +117,8 @@ export class ConfigManager extends EventEmitter {
         this.config = this.loadConfig();
         // Ensure AI config has version field for synchronization
         this.ensureDefaultAIConfig();
+        // Migrate legacy config to new structure
+        this.migrateLegacyConfig();
     }
 
     private loadConfig(): AppConfig {
@@ -104,13 +128,17 @@ export class ConfigManager extends EventEmitter {
                 const rawData = fs.readFileSync(this.configPath, 'utf-8');
                 const parsedData = JSON.parse(rawData);
 
-                // Deep merge ensuring 'sync' exists
+                // Deep merge ensuring 'sync' and 'account' exists
                 loadedConfig = {
                     ...loadedConfig, // Start with defaults
                     ...parsedData,   // Overlay saved config
                     sync: {          // Merge the sync object explicitly
                         ...(loadedConfig.sync || {}), // Start with default sync object structure
                         ...(parsedData.sync || {}),   // Overlay saved sync settings
+                    },
+                    account: {       // Merge the account object explicitly
+                        ...(loadedConfig.account || {}), // Start with default account object structure
+                        ...(parsedData.account || {}),   // Overlay saved account settings
                     },
                 };
             } catch (error) {
@@ -143,6 +171,82 @@ export class ConfigManager extends EventEmitter {
         }
     }
 
+    // Migrate legacy config to new structure
+    private migrateLegacyConfig(): void {
+        let needsSave = false;
+
+        // Migrate legacy 'user' to 'account.user' if account doesn't exist
+        if (this.config.user !== undefined && this.config.account === undefined) {
+            console.log("Migrating legacy 'user' to 'account.user'");
+            this.config.account = {
+                user: this.config.user,
+            };
+            // Keep legacy 'user' for backward compatibility
+            needsSave = true;
+        }
+
+        // Remove old 'provider' field from account if exists (new design doesn't have it)
+        if (this.config.account && 'provider' in this.config.account) {
+            console.log("Removing legacy 'provider' from account config");
+            delete (this.config.account as any).provider;
+            needsSave = true;
+        }
+
+        // Migrate legacy sync config to new multi-provider structure
+        if (this.config.sync) {
+            const oldSync = this.config.sync as any;
+            
+            // Check if this is old format (has 'provider' string field)
+            if (oldSync.provider && typeof oldSync.provider === 'string' && !oldSync.providers) {
+                console.log("Migrating legacy sync config to new multi-provider structure");
+                
+                const providers: Record<string, SyncProviderConfig> = {};
+                let defaultProvider: string | undefined;
+                
+                // Migrate old provider to new structure
+                // Note: eidos.space is built-in and not stored in config
+                if (oldSync.provider === 'eidos.space') {
+                    // eidos.space is built-in, not stored in config
+                    // Just set it as default, credentials come from OAuth
+                    defaultProvider = 'eidos.space';
+                } else if (oldSync.provider === 'custom' && oldSync.customConfig) {
+                    // Create a default custom provider
+                    providers['custom'] = {
+                        id: 'custom',
+                        name: 'Custom S3',
+                        endpoint: oldSync.customConfig.endpoint,
+                        bucketName: oldSync.customConfig.bucketName,
+                        region: oldSync.customConfig.region,
+                    };
+                    defaultProvider = 'custom';
+                }
+                
+                this.config.sync = {
+                    providers,
+                    defaultProvider,
+                };
+                needsSave = true;
+            }
+        }
+
+        // Ensure sync object exists
+        if (!this.config.sync) {
+            this.config.sync = JSON.parse(JSON.stringify(emptyConfig.sync));
+            needsSave = true;
+        }
+
+        // Ensure sync.providers exists
+        if (!this.config.sync.providers) {
+            this.config.sync.providers = {};
+            needsSave = true;
+        }
+
+        if (needsSave) {
+            this.saveConfig();
+            console.log('Config migration completed');
+        }
+    }
+
     private saveConfig(): void {
         try {
             const rawData = JSON.stringify(this.config, null, 2);
@@ -170,27 +274,6 @@ export class ConfigManager extends EventEmitter {
         }
     }
 
-
-    // Getter for sync enabled status
-    public isSyncEnabled(): boolean {
-        // Ensure sync exists before accessing, falling back to default if necessary
-        return this.config.sync?.enabled ?? emptyConfig.sync.enabled;
-    }
-
-    // Setter for sync enabled status
-    public setSyncEnabled(enabled: boolean): void {
-        // Ensure sync object exists
-        if (!this.config.sync) {
-            this.config.sync = JSON.parse(JSON.stringify(emptyConfig.sync));
-        }
-        const oldValue = this.config.sync.enabled;
-        if (oldValue !== enabled) {
-            this.config.sync.enabled = enabled;
-            this.saveConfig();
-            console.log('Sync enabled status changed:', { oldValue, newValue: enabled });
-            this.emit('configChanged', { key: 'sync.enabled', oldValue, newValue: enabled });
-        }
-    }
 
     // Getter for auto-update enabled status
     public isAutoUpdateEnabled(): boolean {
@@ -237,6 +320,135 @@ export class ConfigManager extends EventEmitter {
             this.saveConfig();
             console.log('User changed:', { oldValue, newValue: user });
             this.emit('configChanged', { key: 'user', oldValue, newValue: user });
+        }
+    }
+
+    // ==================== Account Configuration (eidos.space only) ====================
+
+    // Getter for account user
+    public getAccountUser(): any {
+        return this.config.account?.user;
+    }
+
+    // Setter for account user
+    public setAccountUser(user: any): void {
+        if (!this.config.account) {
+            this.config.account = { user: undefined };
+        }
+        const oldValue = this.config.account.user;
+        if (JSON.stringify(oldValue) !== JSON.stringify(user)) {
+            this.config.account.user = user;
+            this.saveConfig();
+            console.log('Account user changed:', { oldValue, newValue: user });
+            this.emit('configChanged', { key: 'account.user', oldValue, newValue: user });
+        }
+    }
+
+    // Get full account config
+    public getAccountConfig(): AccountConfig | undefined {
+        return this.config.account;
+    }
+
+    // Set full account config
+    public setAccountConfig(config: AccountConfig | undefined): void {
+        const oldValue = this.config.account;
+        if (JSON.stringify(oldValue) !== JSON.stringify(config)) {
+            this.config.account = config;
+            this.saveConfig();
+            console.log('Account config changed:', { oldValue, newValue: config });
+            this.emit('configChanged', { key: 'account', oldValue, newValue: config });
+        }
+    }
+
+    // ==================== Sync Configuration (Multi-Provider) ====================
+
+    // Get all configured providers
+    public getSyncProviders(): Record<string, SyncProviderConfig> {
+        return this.config.sync?.providers ?? {};
+    }
+
+    // Get a specific provider by ID
+    public getSyncProvider(id: string): SyncProviderConfig | undefined {
+        return this.config.sync?.providers?.[id];
+    }
+
+    // Add or update a provider
+    public setSyncProvider(config: SyncProviderConfig): void {
+        if (!this.config.sync) {
+            this.config.sync = JSON.parse(JSON.stringify(emptyConfig.sync));
+        }
+        if (!this.config.sync.providers) {
+            this.config.sync.providers = {};
+        }
+        
+        const oldValue = this.config.sync.providers[config.id];
+        this.config.sync.providers[config.id] = config;
+        
+        // If this is the first provider, set it as default
+        if (!this.config.sync.defaultProvider) {
+            this.config.sync.defaultProvider = config.id;
+        }
+        
+        this.saveConfig();
+        console.log('Sync provider added/updated:', { id: config.id, oldValue, newValue: config });
+        this.emit('configChanged', { key: `sync.providers.${config.id}`, oldValue, newValue: config });
+    }
+
+    // Remove a provider
+    public removeSyncProvider(id: string): boolean {
+        if (!this.config.sync?.providers?.[id]) {
+            return false;
+        }
+        
+        const oldValue = this.config.sync.providers[id];
+        delete this.config.sync.providers[id];
+        
+        // If removing default provider, clear default
+        if (this.config.sync.defaultProvider === id) {
+            const remainingProviders = Object.keys(this.config.sync.providers);
+            this.config.sync.defaultProvider = remainingProviders[0];
+        }
+        
+        this.saveConfig();
+        console.log('Sync provider removed:', { id, oldValue });
+        this.emit('configChanged', { key: `sync.providers.${id}`, oldValue, newValue: undefined });
+        return true;
+    }
+
+    // Get default provider ID
+    public getDefaultSyncProvider(): string | undefined {
+        return this.config.sync?.defaultProvider;
+    }
+
+    // Set default provider
+    public setDefaultSyncProvider(id: string): void {
+        if (!this.config.sync) {
+            this.config.sync = JSON.parse(JSON.stringify(emptyConfig.sync));
+        }
+        if (!this.config.sync.providers?.[id]) {
+            throw new Error(`Provider ${id} does not exist`);
+        }
+        
+        const oldValue = this.config.sync.defaultProvider;
+        this.config.sync.defaultProvider = id;
+        this.saveConfig();
+        console.log('Default sync provider changed:', { oldValue, newValue: id });
+        this.emit('configChanged', { key: 'sync.defaultProvider', oldValue, newValue: id });
+    }
+
+    // Get full sync config
+    public getSyncConfig(): SyncConfig {
+        return this.config.sync ?? JSON.parse(JSON.stringify(emptyConfig.sync));
+    }
+
+    // Set full sync config
+    public setSyncConfig(config: SyncConfig): void {
+        const oldValue = this.config.sync;
+        if (JSON.stringify(oldValue) !== JSON.stringify(config)) {
+            this.config.sync = config;
+            this.saveConfig();
+            console.log('Sync config changed:', { oldValue, newValue: config });
+            this.emit('configChanged', { key: 'sync', oldValue, newValue: config });
         }
     }
 }

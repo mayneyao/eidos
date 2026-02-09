@@ -13,8 +13,11 @@ import {
   Shield,
   FileType,
   LayoutTemplate,
+  User,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
+
+import { useEffect, useState } from "react"
 
 import { isDesktopMode } from "@/lib/env"
 import { useCurrentSpace } from "@/hooks/use-current-space"
@@ -29,6 +32,7 @@ type SettingsSection =
   | "space-newtab"
   | "space-sync"
   | "general"
+  | "account"
   | "ai"
   | "api"
   | "sync"
@@ -58,6 +62,44 @@ export function SettingsSidebar({
   const { t } = useTranslation()
   const { currentSpace: spaceInfo } = useCurrentSpace()
   const isSyncEnabled = spaceInfo?.sync?.enabled || false
+  const [hasSyncCredentials, setHasSyncCredentials] = useState(false)
+
+  // Check if any provider has credentials (including built-in eidos.space)
+  useEffect(() => {
+    async function checkCredentials() {
+      if (!isDesktopMode || !window.eidos?.credentials) {
+        setHasSyncCredentials(false)
+        return
+      }
+      try {
+        // Check eidos.space (built-in)
+        const eidosCreds = await window.eidos.credentials.hasSyncCredentials("eidos.space")
+        if (eidosCreds) {
+          setHasSyncCredentials(true)
+          return
+        }
+        
+        // Check custom providers
+        if (window.eidos?.config) {
+          const syncConfig = await window.eidos.config.get("sync")
+          const providerIds = Object.keys(syncConfig?.providers || {})
+          
+          for (const id of providerIds) {
+            const hasCreds = await window.eidos.credentials.hasSyncCredentials(id)
+            if (hasCreds) {
+              setHasSyncCredentials(true)
+              return
+            }
+          }
+        }
+        setHasSyncCredentials(false)
+      } catch (error) {
+        console.error("Failed to check sync credentials:", error)
+        setHasSyncCredentials(false)
+      }
+    }
+    checkCredentials()
+  }, [])
 
   const settingsSections: SettingsItem[] = [
     // Space Settings
@@ -96,14 +138,15 @@ export function SettingsSidebar({
       icon: <Folder className="h-5 w-5" />,
       category: "space",
     },
-    {
-      id: "space-sync",
-      title: t("space.settings.sync"),
-      description: t("space.settings.syncDescription"),
-      icon: <Cloud className="h-5 w-5" />,
-      disabled: !isSyncEnabled,
-      category: "space",
-    },
+    // Space sync settings hidden for now (unstable)
+    // {
+    //   id: "space-sync",
+    //   title: t("space.settings.sync"),
+    //   description: t("space.settings.syncDescription"),
+    //   icon: <Cloud className="h-5 w-5" />,
+    //   disabled: !hasSyncCredentials && !isSyncEnabled,
+    //   category: "space",
+    // },
     // Global Settings
     {
       id: "general",
@@ -113,38 +156,47 @@ export function SettingsSidebar({
       category: "global",
     },
     {
+      id: "account",
+      title: t("settings.account.title", "Account"),
+      description: t("settings.account.description", "Manage your account and sync provider"),
+      icon: <User className="h-5 w-5" />,
+      category: "global",
+    },
+    {
       id: "ai",
       title: t("settings.ai"),
       description: t("settings.aiDescription"),
       icon: <Bot className="h-5 w-5" />,
       category: "global",
     },
-    {
-      id: "api",
-      title: t("settings.api"),
-      description: t("settings.apiDescription"),
-      icon: <Cable className="h-5 w-5" />,
-      isAlpha: true,
-      category: "global",
-      disabled: !isDesktopMode,
-    },
+    // API settings hidden for now (unstable)
     // {
-    //   id: "sync",
-    //   title: t("settings.sync"),
-    //   description: t("settings.syncDescription"),
-    //   icon: <Cloud className="h-5 w-5" />,
-    //   disabled: !isDesktopMode,
+    //   id: "api",
+    //   title: t("settings.api"),
+    //   description: t("settings.apiDescription"),
+    //   icon: <Cable className="h-5 w-5" />,
     //   isAlpha: true,
-    //   category: "global"
+    //   category: "global",
+    //   disabled: !isDesktopMode,
     // },
     {
-      id: "security",
-      title: t("settings.security"),
-      description: t("settings.securityDescription"),
-      icon: <Shield className="h-5 w-5" />,
+      id: "sync",
+      title: t("settings.sync"),
+      description: t("settings.syncDescription", "Configure sync provider and credentials"),
+      icon: <Cloud className="h-5 w-5" />,
       disabled: !isDesktopMode,
+      isAlpha: true,
       category: "global",
     },
+    // Security settings hidden for now (unstable)
+    // {
+    //   id: "security",
+    //   title: t("settings.security"),
+    //   description: t("settings.securityDescription"),
+    //   icon: <Shield className="h-5 w-5" />,
+    //   disabled: !isDesktopMode,
+    //   category: "global",
+    // },
   ]
 
   const spaceSections = settingsSections.filter((s) => s.category === "space")

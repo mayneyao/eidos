@@ -66,6 +66,11 @@ interface Window {
             getSyncCredentials: (providerId: string = 'eidos.space') => Promise<SyncBucketCredentials | null>
             clearSyncCredentials: (providerId: string = 'eidos.space') => Promise<void>
             hasSyncCredentials: (providerId: string = 'eidos.space') => Promise<boolean>
+            testSyncConnection: (config: { endpoint: string; bucketName: string; region?: string; accessKeyId: string; secretAccessKey: string }) => Promise<{ success: boolean; message?: string; error?: string }>
+        }
+        license: {
+            activate: (licenseKey: string, token?: string|null) => Promise<any>
+            getInfo: () => Promise<any>
         }
     }
 

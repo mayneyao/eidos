@@ -19,7 +19,7 @@ importers:
         version: 7.0.0-dev.20251210.1
       '@vitejs/plugin-react':
         specifier: ^4.7.0
-        version: 4.7.0(vite@6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.21.0)(yaml@2.8.2))
+        version: 4.7.0(vite@5.4.19(@types/node@20.19.1)(lightningcss@1.30.1)(terser@5.43.1))
       oxlint:
         specifier: ^1.3.0
         version: 1.3.0
@@ -59,7 +59,7 @@ importers:
     devDependencies:
       '@types/bun':
         specifier: latest
-        version: 1.3.5
+        version: 1.3.8
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
@@ -78,6 +78,9 @@ importers:
       '@eidos.space/space-manager':
         specifier: workspace:*
         version: link:../../packages/space-manager
+      '@eidos.space/sync':
+        specifier: workspace:*
+        version: link:../../packages/sync
       '@hono/node-server':
         specifier: ^1.12.2
         version: 1.14.4(hono@4.8.3)
@@ -123,6 +126,9 @@ importers:
       native-file-system-adapter:
         specifier: ^3.0.1
         version: 3.0.1
+      node-machine-id:
+        specifier: ^1.1.12
+        version: 1.1.12
       oxc-parser:
         specifier: ^0.74.0
         version: 0.74.0
@@ -226,6 +232,9 @@ importers:
       sharp:
         specifier: ^0.34.2
         version: 0.34.2
+      starlight-sidebar-topics:
+        specifier: ^0.6.2
+        version: 0.6.2(@astrojs/starlight@0.34.4(astro@5.16.0(@types/node@24.10.1)(aws4fetch@1.0.20)(idb-keyval@6.2.2)(jiti@2.6.1)(lightningcss@1.30.1)(rollup@4.44.1)(terser@5.43.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)))
       starlight-theme-flexoki:
         specifier: ^0.1.0
         version: 0.1.0(@astrojs/starlight@0.34.4(astro@5.16.0(@types/node@24.10.1)(aws4fetch@1.0.20)(idb-keyval@6.2.2)(jiti@2.6.1)(lightningcss@1.30.1)(rollup@4.44.1)(terser@5.43.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)))
@@ -425,7 +434,7 @@ importers:
         version: 0.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@lobehub/icons':
         specifier: ^1.96.0
-        version: 1.98.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 1.98.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@monaco-editor/react':
         specifier: ^4.6.0
         version: 4.7.0(monaco-editor@0.52.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -6261,8 +6270,8 @@ packages:
   '@types/body-parser@1.19.6':
     resolution: {integrity: sha512-HLFeCYgz89uk22N5Qg3dvGvsv46B8GLvKKo1zKG4NybA8U2DiEO3w9lqGg29t/tfLRJpJ6iQxnVw4OnB7MoM9g==}
 
-  '@types/bun@1.3.5':
-    resolution: {integrity: sha512-RnygCqNrd3srIPEWBd5LFeUYG7plCoH2Yw9WaZGyNmdTEei+gWaHqydbaIRkIkcbXwhBT94q78QljxN0Sk838w==}
+  '@types/bun@1.3.8':
+    resolution: {integrity: sha512-3LvWJ2q5GerAXYxO2mffLTqOzEu5qnhEAlh48Vnu8WQfnmSwbgagjGZV6BoHKJztENYEDn6QmVd949W4uESRJA==}
 
   '@types/cacheable-request@6.0.3':
     resolution: {integrity: sha512-IQ3EbTzGxIigb1I3qPZc1rWJnH0BmSKv5QYTalEwweFvyBDLSAe24zP0le/hyi7ecGfZVlIVAg4BZqb8WBwKqw==}
@@ -7003,6 +7012,7 @@ packages:
   aws-sdk@2.1692.0:
     resolution: {integrity: sha512-x511uiJ/57FIsbgUe5csJ13k3uzu25uWQE+XqfBis/sB0SFoiElJWXRkgEAUh0U6n40eT3ay5Ue4oPkRMu1LYw==}
     engines: {node: '>= 10.0.0'}
+    deprecated: The AWS SDK for JavaScript (v2) has reached end-of-support, and no longer receives updates. Please migrate your code to use AWS SDK for JavaScript (v3). More info https://a.co/cUPnyil
 
   aws4fetch@1.0.20:
     resolution: {integrity: sha512-/djoAN709iY65ETD6LKCtyyEI04XIBP5xVvfmNxsEP0uJB5tyaGBztSryRr4HqMStr9R06PisQE7m9zDTXKu6g==}
@@ -7195,8 +7205,8 @@ packages:
   builder-util@24.13.1:
     resolution: {integrity: sha512-NhbCSIntruNDTOVI9fdXz0dihaqX2YuE1D6zZMrwiErzH4ELZHE6mdiB40wEgZNprDia+FghRFgKoAqMZRRjSA==}
 
-  bun-types@1.3.5:
-    resolution: {integrity: sha512-inmAYe2PFLs0SUbFOWSVD24sg1jFlMPxOjOSSCYqUgn4Hsc3rDc7dFvfVYjFPNHtov6kgUeulV4SxbuIV/stPw==}
+  bun-types@1.3.8:
+    resolution: {integrity: sha512-fL99nxdOWvV4LqjmC+8Q9kW3M4QTtTR1eePs94v5ctGqU8OeceWrSUaRw3JYb7tU3FkMIAjkueehrHPPPGKi5Q==}
 
   bytes@3.1.2:
     resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
@@ -8613,11 +8623,12 @@ packages:
 
   glob@10.4.5:
     resolution: {integrity: sha512-7Bv8RF0k6xjo7d4A/PxYLbUCfb6c+Vpd2/mB2yRDlew7Jb5hEXiCD9ibfO7wpk8i4sevK6DFny9h7EYbM3/sHg==}
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
     hasBin: true
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Glob versions prior to v9 are no longer supported
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   global-agent@3.0.0:
     resolution: {integrity: sha512-PT6XReJ+D07JvGoxQMkT6qji/jVNfX/h364XHZOWeRzy64sSFr+xJ5OX7LI3b4MPQzdL4H8Y8M0xzPpsVMwA8Q==}
@@ -10041,6 +10052,9 @@ packages:
   node-gyp-build@4.8.4:
     resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
     hasBin: true
+
+  node-machine-id@1.1.12:
+    resolution: {integrity: sha512-QNABxbrPa3qEIfrE6GOJ7BYIuignnJw7iQ2YPbc3Nla1HzRJjXzZOiikfF8m7eAMfichLt3M4VgLOetqgDmgGQ==}
 
   node-mock-http@1.0.3:
     resolution: {integrity: sha512-jN8dK25fsfnMrVsEhluUTPkBFY+6ybu7jSB1n+ri/vOGjJxU8J9CZhpSGkHXSkFjtUhbmoncG/YG9ta5Ludqog==}
@@ -11738,6 +11752,7 @@ packages:
   sitemap@8.0.0:
     resolution: {integrity: sha512-+AbdxhM9kJsHtruUF39bwS/B0Fytw6Fr1o4ZAIAEqA6cke2xcoO2GleBw9Zw7nRzILVEgz7zBM5GiTJjie1G9A==}
     engines: {node: '>=14.0.0', npm: '>=6.0.0'}
+    deprecated: 'SECURITY: Multiple vulnerabilities fixed in 8.0.1 (XML injection, path traversal, command injection, protocol injection). Upgrade immediately: npm install sitemap@8.0.1'
     hasBin: true
 
   slice-ansi@3.0.0:
@@ -11882,6 +11897,12 @@ packages:
 
   stacktracey@2.1.8:
     resolution: {integrity: sha512-Kpij9riA+UNg7TnphqjH7/CzctQ/owJGNbFkfEeve4Z4uxT5+JapVLFXcsurIfN34gnTWZNJ/f7NMG0E8JDzTw==}
+
+  starlight-sidebar-topics@0.6.2:
+    resolution: {integrity: sha512-SNCTUZS/hcVor0ZcaXbaSVU37+V+qtvzNirkvnOg3Mqu/awuGpthkH5+uKpiZqWxLffp6TrOlsv5E5QsxrndNg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@astrojs/starlight': '>=0.32.0'
 
   starlight-theme-flexoki@0.1.0:
     resolution: {integrity: sha512-GVuzDN1UJLf6fIb5okqQ2t//DfN0+xWsFeFT3asf6waRvFxdyCFNfVHX9NxOr5fTb2EJmH0LCFlT8rxjB56uKg==}
@@ -14333,17 +14354,6 @@ snapshots:
       regexpu-core: 6.2.0
       semver: 6.3.1
 
-  '@babel/helper-define-polyfill-provider@0.6.4(@babel/core@7.27.7)':
-    dependencies:
-      '@babel/core': 7.27.7
-      '@babel/helper-compilation-targets': 7.27.2
-      '@babel/helper-plugin-utils': 7.27.1
-      debug: 4.4.3
-      lodash.debounce: 4.0.8
-      resolve: 1.22.10
-    transitivePeerDependencies:
-      - supports-color
-
   '@babel/helper-define-polyfill-provider@0.6.4(@babel/core@7.28.0)':
     dependencies:
       '@babel/core': 7.28.0
@@ -14834,14 +14844,14 @@ snapshots:
       '@babel/core': 7.28.0
       '@babel/helper-plugin-utils': 7.27.1
 
-  '@babel/plugin-transform-runtime@7.27.4(@babel/core@7.27.7)':
+  '@babel/plugin-transform-runtime@7.27.4(@babel/core@7.28.0)':
     dependencies:
-      '@babel/core': 7.27.7
+      '@babel/core': 7.28.0
       '@babel/helper-module-imports': 7.27.1
       '@babel/helper-plugin-utils': 7.27.1
-      babel-plugin-polyfill-corejs2: 0.4.13(@babel/core@7.27.7)
-      babel-plugin-polyfill-corejs3: 0.11.1(@babel/core@7.27.7)
-      babel-plugin-polyfill-regenerator: 0.6.4(@babel/core@7.27.7)
+      babel-plugin-polyfill-corejs2: 0.4.13(@babel/core@7.28.0)
+      babel-plugin-polyfill-corejs3: 0.11.1(@babel/core@7.28.0)
+      babel-plugin-polyfill-regenerator: 0.6.4(@babel/core@7.28.0)
       semver: 6.3.1
     transitivePeerDependencies:
       - supports-color
@@ -16410,10 +16420,10 @@ snapshots:
 
   '@lobehub/emojilib@1.0.0': {}
 
-  '@lobehub/fluent-emoji@2.0.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@lobehub/fluent-emoji@2.0.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@lobehub/emojilib': 1.0.0
-      '@lobehub/ui': 2.22.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@lobehub/ui': 2.22.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       antd: 5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       antd-style: 3.7.1(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       emoji-regex: 10.4.0
@@ -16434,9 +16444,9 @@ snapshots:
       - supports-color
       - vue
 
-  '@lobehub/icons@1.98.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@lobehub/icons@1.98.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@lobehub/ui': 2.22.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@lobehub/ui': 2.22.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       antd: 5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       antd-style: 3.7.1(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       lucide-react: 0.469.0(react@18.3.1)
@@ -16455,9 +16465,9 @@ snapshots:
       - supports-color
       - vue
 
-  '@lobehub/icons@2.45.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@lobehub/icons@2.45.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@lobehub/ui': 2.22.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@lobehub/ui': 2.22.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       antd: 5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       antd-style: 3.7.1(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       lucide-react: 0.469.0(react@18.3.1)
@@ -16476,7 +16486,7 @@ snapshots:
       - supports-color
       - vue
 
-  '@lobehub/ui@2.22.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@lobehub/ui@2.22.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@ant-design/cssinjs': 1.24.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@dnd-kit/core': 6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -16487,8 +16497,8 @@ snapshots:
       '@emoji-mart/react': 1.1.1(emoji-mart@5.6.0)(react@18.3.1)
       '@floating-ui/react': 0.27.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@giscus/react': 3.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@lobehub/fluent-emoji': 2.0.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@lobehub/icons': 2.45.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@lobehub/fluent-emoji': 2.0.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@lobehub/icons': 2.45.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@mdx-js/mdx': 3.1.1
       '@mdx-js/react': 3.1.1(@types/react@18.3.23)(react@18.3.1)
       '@radix-ui/react-slot': 1.2.4(@types/react@18.3.23)(react@18.3.1)
@@ -16521,7 +16531,7 @@ snapshots:
       rc-menu: 9.16.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       re-resizable: 6.11.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react: 18.3.1
-      react-avatar-editor: 13.0.2(@babel/core@7.27.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react-avatar-editor: 13.0.2(@babel/core@7.28.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react-dom: 18.3.1(react@18.3.1)
       react-error-boundary: 6.0.0(react@18.3.1)
       react-hotkeys-hook: 5.2.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -19134,9 +19144,9 @@ snapshots:
       '@types/connect': 3.4.38
       '@types/node': 20.19.1
 
-  '@types/bun@1.3.5':
+  '@types/bun@1.3.8':
     dependencies:
-      bun-types: 1.3.5
+      bun-types: 1.3.8
 
   '@types/cacheable-request@6.0.3':
     dependencies:
@@ -19589,7 +19599,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@vitejs/plugin-react@4.7.0(vite@6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.21.0)(yaml@2.8.2))':
+  '@vitejs/plugin-react@4.7.0(vite@5.4.19(@types/node@20.19.1)(lightningcss@1.30.1)(terser@5.43.1))':
     dependencies:
       '@babel/core': 7.28.0
       '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.28.0)
@@ -19597,7 +19607,7 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-beta.27
       '@types/babel__core': 7.20.5
       react-refresh: 0.17.0
-      vite: 6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.21.0)(yaml@2.8.2)
+      vite: 5.4.19(@types/node@20.19.1)(lightningcss@1.30.1)(terser@5.43.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -20209,15 +20219,6 @@ snapshots:
       cosmiconfig: 7.1.0
       resolve: 1.22.10
 
-  babel-plugin-polyfill-corejs2@0.4.13(@babel/core@7.27.7):
-    dependencies:
-      '@babel/compat-data': 7.27.7
-      '@babel/core': 7.27.7
-      '@babel/helper-define-polyfill-provider': 0.6.4(@babel/core@7.27.7)
-      semver: 6.3.1
-    transitivePeerDependencies:
-      - supports-color
-
   babel-plugin-polyfill-corejs2@0.4.13(@babel/core@7.28.0):
     dependencies:
       '@babel/compat-data': 7.27.7
@@ -20227,26 +20228,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  babel-plugin-polyfill-corejs3@0.11.1(@babel/core@7.27.7):
-    dependencies:
-      '@babel/core': 7.27.7
-      '@babel/helper-define-polyfill-provider': 0.6.4(@babel/core@7.27.7)
-      core-js-compat: 3.43.0
-    transitivePeerDependencies:
-      - supports-color
-
   babel-plugin-polyfill-corejs3@0.11.1(@babel/core@7.28.0):
     dependencies:
       '@babel/core': 7.28.0
       '@babel/helper-define-polyfill-provider': 0.6.4(@babel/core@7.28.0)
       core-js-compat: 3.43.0
-    transitivePeerDependencies:
-      - supports-color
-
-  babel-plugin-polyfill-regenerator@0.6.4(@babel/core@7.27.7):
-    dependencies:
-      '@babel/core': 7.27.7
-      '@babel/helper-define-polyfill-provider': 0.6.4(@babel/core@7.27.7)
     transitivePeerDependencies:
       - supports-color
 
@@ -20468,7 +20454,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  bun-types@1.3.5:
+  bun-types@1.3.8:
     dependencies:
       '@types/node': 20.19.1
 
@@ -23906,6 +23892,8 @@ snapshots:
 
   node-gyp-build@4.8.4: {}
 
+  node-machine-id@1.1.12: {}
+
   node-mock-http@1.0.3: {}
 
   node-releases@2.0.19: {}
@@ -25036,9 +25024,9 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  react-avatar-editor@13.0.2(@babel/core@7.27.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  react-avatar-editor@13.0.2(@babel/core@7.28.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
-      '@babel/plugin-transform-runtime': 7.27.4(@babel/core@7.27.7)
+      '@babel/plugin-transform-runtime': 7.27.4(@babel/core@7.28.0)
       '@babel/runtime': 7.28.4
       prop-types: 15.8.1
       react: 18.3.1
@@ -26359,6 +26347,11 @@ snapshots:
     dependencies:
       as-table: 1.0.55
       get-source: 2.0.12
+
+  starlight-sidebar-topics@0.6.2(@astrojs/starlight@0.34.4(astro@5.16.0(@types/node@24.10.1)(aws4fetch@1.0.20)(idb-keyval@6.2.2)(jiti@2.6.1)(lightningcss@1.30.1)(rollup@4.44.1)(terser@5.43.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2))):
+    dependencies:
+      '@astrojs/starlight': 0.34.4(astro@5.16.0(@types/node@24.10.1)(aws4fetch@1.0.20)(idb-keyval@6.2.2)(jiti@2.6.1)(lightningcss@1.30.1)(rollup@4.44.1)(terser@5.43.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2))
+      picomatch: 4.0.3
 
   starlight-theme-flexoki@0.1.0(@astrojs/starlight@0.34.4(astro@5.16.0(@types/node@24.10.1)(aws4fetch@1.0.20)(idb-keyval@6.2.2)(jiti@2.6.1)(lightningcss@1.30.1)(rollup@4.44.1)(terser@5.43.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2))):
     dependencies:

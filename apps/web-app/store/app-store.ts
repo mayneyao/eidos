@@ -25,7 +25,7 @@ interface AppState {
 export const useAppStoreBase = create<AppState>()(
   persist(
     (set) => ({
-      isSidebarOpen: false,
+      isSidebarOpen: true,
       setSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
 
       isFileManagerOpen: false,

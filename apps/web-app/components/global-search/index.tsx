@@ -268,9 +268,17 @@ export function GlobalSearch() {
                         onSelect={() => handleSelect(result)}
                       >
                         {getNodeIcon(result)}
-                        <span className="truncate">
-                          {highlightText(result.name || "Untitled", searchTerm)}
-                        </span>
+                        <div className="flex items-center justify-between flex-1 min-w-0 gap-2">
+                          <span className="truncate">
+                            {highlightText(result.name || "Untitled", searchTerm)}
+                          </span>
+                          <span className="text-xs text-muted-foreground truncate">
+                            {highlightText(
+                              getDirectoryPath(result.path),
+                              searchTerm
+                            )}
+                          </span>
+                        </div>
                       </CommandItem>
                     ))}
                     {extensionResults.length > 50 && (
