@@ -7,6 +7,7 @@ import {
   Cloud,
   FolderOpen,
   HardDrive,
+  Loader2,
   PlusCircle,
   RefreshCw,
   Server,
@@ -565,8 +566,8 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                 onValueChange={handleProviderSelectForClone}
                 className="space-y-2"
               >
-                {/* Built-in providers - only show if has credentials */}
-                {cloneBuiltInProviders.filter(p => p.hasCredentials).map((provider) => (
+                {/* All providers - mixed with built-in tag */}
+                {providers.filter(p => p.hasCredentials).map((provider) => (
                   <div key={provider.id}>
                     <div
                       className={cn(
@@ -582,41 +583,17 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                         className="flex-1 cursor-pointer"
                       >
                         <div className="flex items-center gap-2">
-                          <Cloud className="h-4 w-4 text-primary" />
+                          {provider.isBuiltIn ? (
+                            <Cloud className="h-4 w-4 text-primary" />
+                          ) : (
+                            <Server className="h-4 w-4 text-muted-foreground" />
+                          )}
                           <span className="font-medium">{provider.name}</span>
-                          <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                            {t("settings.sync.builtIn", "Built-in")}
-                          </span>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Custom providers */}
-                {cloneCustomProviders.length > 0 && cloneBuiltInProviders.filter(p => p.hasCredentials).length > 0 && (
-                  <Separator className="my-2" />
-                )}
-                
-                {/* Custom providers - only show if has credentials */}
-                {cloneCustomProviders.filter(p => p.hasCredentials).map((provider) => (
-                  <div key={provider.id}>
-                    <div
-                      className={cn(
-                        "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
-                      )}
-                    >
-                      <RadioGroupItem
-                        value={provider.id}
-                        id={provider.id}
-                      />
-                      <label
-                        htmlFor={provider.id}
-                        className="flex-1 cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Server className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{provider.name}</span>
+                          {provider.isBuiltIn && (
+                            <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                              {t("settings.sync.builtIn", "Built-in")}
+                            </span>
+                          )}
                         </div>
                       </label>
                     </div>
@@ -637,7 +614,10 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
               Select a space to clone from {providers.find(p => p.id === selectedProvider)?.name}.
             </p>
             {loadingRemoteSpaces ? (
-              <div className="text-sm text-muted-foreground">Loading remote spaces...</div>
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin mb-2" />
+                <span className="text-sm">Loading remote spaces...</span>
+              </div>
             ) : remoteSpaces.length === 0 ? (
               <div className="text-sm text-muted-foreground text-center py-8">
                 No remote spaces found.

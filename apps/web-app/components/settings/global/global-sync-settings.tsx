@@ -5,6 +5,7 @@ import {
   Cloud,
   ExternalLink,
   Lock,
+  Loader2,
   Plus,
   Save,
   Server,
@@ -76,6 +77,10 @@ export function GlobalSyncSettings() {
   const [eidosSpaceCredentials, setEidosSpaceCredentials] = useState(false)
   const [customProviderCredentials, setCustomProviderCredentials] = useState<
     Record<string, boolean>
+  >({})
+  // Track test status for providers: 'untested' | 'testing' | 'success' | 'error'
+  const [providerTestStatus, setProviderTestStatus] = useState<
+    Record<string, 'untested' | 'testing' | 'success' | 'error'>
   >({})
 
   // New provider form state (name is auto-generated from id)
@@ -398,10 +403,13 @@ export function GlobalSyncSettings() {
     const provider = syncConfig.providers[providerId]
     if (!provider) return
 
+    setProviderTestStatus(prev => ({ ...prev, [providerId]: 'testing' }))
+
     try {
       const credentials =
         await window.eidos.credentials.getSyncCredentials(providerId)
       if (!credentials) {
+        setProviderTestStatus(prev => ({ ...prev, [providerId]: 'error' }))
         toast({
           title: "No Credentials",
           description: "Credentials not found for this provider.",
@@ -419,11 +427,13 @@ export function GlobalSyncSettings() {
       })
 
       if (result.success) {
+        setProviderTestStatus(prev => ({ ...prev, [providerId]: 'success' }))
         toast({
           title: "Success",
           description: "Connection successful!",
         })
       } else {
+        setProviderTestStatus(prev => ({ ...prev, [providerId]: 'error' }))
         toast({
           title: "Connection Failed",
           description: result.error,
@@ -431,6 +441,7 @@ export function GlobalSyncSettings() {
         })
       }
     } catch (error) {
+      setProviderTestStatus(prev => ({ ...prev, [providerId]: 'error' }))
       toast({
         title: "Error",
         description: "Failed to test connection.",
@@ -548,64 +559,76 @@ export function GlobalSyncSettings() {
         </div>
 
         {/* Custom Provider Cards */}
-        {customProviders.map((provider) => (
-          <div
-            key={provider.id}
-            className={`p-4 rounded-lg border ${
-              syncConfig.defaultProvider === provider.id
-                ? "border-primary bg-primary/5"
-                : "border-border"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <Server className="h-5 w-5 text-muted-foreground shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{provider.name}</span>
-                    {syncConfig.defaultProvider === provider.id && (
-                      <Badge variant="default">Default</Badge>
-                    )}
-                    {customProviderCredentials[provider.id] ? (
-                      <Badge variant="secondary" className="text-green-600">
-                        <Check className="h-3 w-3 mr-1" />
-                        Ready
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-orange-600">
-                        No Credentials
-                      </Badge>
-                    )}
+        {customProviders.map((provider) => {
+          const testStatus = providerTestStatus[provider.id] || 'untested'
+          const hasCredentials = customProviderCredentials[provider.id]
+          const isTesting = testStatus === 'testing'
+          const isTestSuccess = testStatus === 'success'
+          
+          return (
+            <div
+              key={provider.id}
+              className="p-4 rounded-lg border border-border"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <Server className="h-5 w-5 text-muted-foreground shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{provider.name}</span>
+                      {isTestSuccess ? (
+                        <Badge variant="secondary" className="text-green-600">
+                          <Check className="h-3 w-3 mr-1" />
+                          Ready
+                        </Badge>
+                      ) : hasCredentials ? (
+                        <Badge variant="outline" className="text-blue-600">
+                          Credentials Set
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-orange-600">
+                          No Credentials
+                        </Badge>
+                      )}
+                    </div>
+                    <p
+                      className="text-sm text-muted-foreground truncate"
+                      title={provider.endpoint}
+                    >
+                      {provider.endpoint}
+                    </p>
                   </div>
-                  <p
-                    className="text-sm text-muted-foreground truncate"
-                    title={provider.endpoint}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => handleTestConnection(provider.id)}
+                    disabled={isTesting}
+                    className="h-7 px-2 text-xs whitespace-nowrap"
                   >
-                    {provider.endpoint}
-                  </p>
+                    {isTesting ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Testing
+                      </>
+                    ) : (
+                      'Test'
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => openDeleteDialog(provider.id, provider.name)}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
                 </div>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => handleTestConnection(provider.id)}
-                  className="h-7 px-2 text-xs whitespace-nowrap"
-                >
-                  Test
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => openDeleteDialog(provider.id, provider.name)}
-                  className="h-7 w-7 p-0"
-                >
-                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                </Button>
-              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
 
         {customProviders.length === 0 && !showAddForm && (
           <div className="p-8 text-center border border-dashed rounded-lg">
