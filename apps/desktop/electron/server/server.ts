@@ -49,11 +49,11 @@ const app = new Hono();
  */
 function extractSpaceIdFromHostname(hostname: string): string | null {
     // Pattern: <extId>.block.<spaceId>.eidos.localhost
-    const blockPattern = /^[\w-]+\.block\.(\w+)\.eidos\.localhost$/;
+    const blockPattern = /^[\w-]+\.block\.([\w-]+)\.eidos\.localhost$/;
     // Pattern: sandbox.<spaceId>.eidos.localhost
-    const sandboxPattern = /^sandbox\.(\w+)\.eidos\.localhost$/;
+    const sandboxPattern = /^sandbox\.([\w-]+)\.eidos\.localhost$/;
     // Pattern: <spaceId>.eidos.localhost
-    const standardPattern = /^(\w+)\.eidos\.localhost$/;
+    const standardPattern = /^([\w-]+)\.eidos\.localhost$/;
 
     const blockMatch = hostname.match(blockPattern);
     if (blockMatch) {
