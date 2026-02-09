@@ -462,59 +462,64 @@ export function GlobalSyncSettings() {
   const isEidosSpaceDefault = syncConfig.defaultProvider === "eidos.space"
 
   return (
-    <div className="space-y-6">
-      {/* License Required Banner */}
-      {!hasValidLicense && !isLicenseLoading && isDesktopMode && (
-        <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
-          <div className="flex items-start gap-3">
-            <Lock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-medium text-amber-800 dark:text-amber-200">
-                License Required
-              </p>
-              <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                Custom sync providers require an active license.
-              </p>
-              <Button
-                variant="link"
-                size="sm"
-                className="h-auto p-0 text-amber-700 dark:text-amber-300 mt-2"
-                onClick={() =>
-                  window.dispatchEvent(
-                    new CustomEvent("settings-navigate", { detail: "account" })
-                  )
-                }
-              >
-                Go to Account Settings →
-              </Button>
+    <div className="space-y-0">
+      {/* Providers Section */}
+      <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h3 className="text-lg font-medium">{t("settings.sync.provider", "Provider")}</h3>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowAddForm(true)}
+          disabled={showAddForm || !hasValidLicense}
+          title={
+            !hasValidLicense
+              ? "License required to add custom providers"
+              : undefined
+          }
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          {t("common.button.add", "Add")}
+        </Button>
+      </div>
+
+      <hr className="border-border" />
+
+      <div className="py-4 lg:py-6">
+        <div className="space-y-4">
+          {/* License Required Banner */}
+          {!hasValidLicense && !isLicenseLoading && isDesktopMode && (
+            <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+              <div className="flex items-start gap-3">
+                <Lock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-amber-800 dark:text-amber-200">
+                    {t("settings.sync.licenseRequired", "License Required")}
+                  </p>
+                  <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                    {t("settings.sync.licenseRequiredDescription", "Custom sync providers require an active license.")}
+                  </p>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-amber-700 dark:text-amber-300 mt-2"
+                    onClick={() =>
+                      window.dispatchEvent(
+                        new CustomEvent("settings-navigate", { detail: "account" })
+                      )
+                    }
+                  >
+                    {t("settings.sync.goToAccountSettings", "Go to Account Settings →")}
+                  </Button>
+                </div>
+              </div>
             </div>
+          )}
+
+          <div className="space-y-0.5">
+            <p className="text-sm text-muted-foreground">
+              {t("settings.sync.providerDescription")}
+            </p>
           </div>
-        </div>
-      )}
-
-      {/* Providers List */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-medium">Sync Providers</h3>
-          <Button
-            size="sm"
-            onClick={() => setShowAddForm(true)}
-            disabled={showAddForm || !hasValidLicense}
-            title={
-              !hasValidLicense
-                ? "License required to add custom providers"
-                : undefined
-            }
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Custom Provider
-          </Button>
-        </div>
-
-        <p className="text-sm text-muted-foreground">
-          Configure sync providers. Add custom S3-compatible providers as
-          needed.
-        </p>
 
         {/* Built-in: eidos.space - Temporarily Disabled */}
         <div className="p-4 rounded-lg border border-muted bg-muted/30 opacity-60">
@@ -577,16 +582,16 @@ export function GlobalSyncSettings() {
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{provider.name}</span>
                       {isTestSuccess ? (
-                        <Badge variant="secondary" className="text-green-600">
+                        <Badge variant="secondary" className="text-green-600 shrink-0">
                           <Check className="h-3 w-3 mr-1" />
                           Ready
                         </Badge>
                       ) : hasCredentials ? (
-                        <Badge variant="outline" className="text-blue-600">
+                        <Badge variant="outline" className="text-blue-600 shrink-0">
                           Credentials Set
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-orange-600">
+                        <Badge variant="outline" className="text-orange-600 shrink-0">
                           No Credentials
                         </Badge>
                       )}
@@ -605,12 +610,11 @@ export function GlobalSyncSettings() {
                     size="xs"
                     onClick={() => handleTestConnection(provider.id)}
                     disabled={isTesting}
-                    className="h-7 px-2 text-xs whitespace-nowrap"
+                    className="h-7 w-16 px-2 text-xs whitespace-nowrap"
                   >
                     {isTesting ? (
                       <>
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        Testing
+                        <Loader2 className="h-3 w-3 animate-spin" />
                       </>
                     ) : (
                       'Test'
@@ -633,18 +637,19 @@ export function GlobalSyncSettings() {
         {customProviders.length === 0 && !showAddForm && (
           <div className="p-8 text-center border border-dashed rounded-lg">
             <Server className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-            <p className="text-muted-foreground">No custom providers</p>
+            <p className="text-muted-foreground">{t("settings.sync.noProviders", "No providers")}</p>
             <p className="text-sm text-muted-foreground">
-              Add a custom S3-compatible provider if needed
+              {t("settings.sync.addProviderIfNeeded", "Add a provider if needed")}
             </p>
           </div>
         )}
+        </div>
       </div>
 
       {/* Add Provider Form */}
       {showAddForm && (
         <div className="p-4 rounded-lg border space-y-4">
-          <h4 className="font-medium">Add S3-Compatible Provider</h4>
+          <h4 className="font-medium">{t("settings.sync.addProvider", "Add Provider")}</h4>
 
           <div className="space-y-2">
             <Label htmlFor="provider-id">
@@ -765,7 +770,7 @@ export function GlobalSyncSettings() {
             </Button>
             <Button onClick={handleAddProvider}>
               <Save className="h-4 w-4 mr-2" />
-              Add Provider
+              {t("common.button.add", "Add")}
             </Button>
           </div>
         </div>
