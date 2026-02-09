@@ -225,20 +225,6 @@ class DataSpaceManager {
     })
 
     this.dataSpace.initFileWatcher()
-    if (isInit && spaceInfo.sync?.enabled) {
-      this.dataSpace.notify({
-        title: "Notification",
-        description:
-          "Space initialized successfully, refresh page to see changes",
-        actions: [
-          {
-            label: "Reload",
-            action: "reload",
-            variant: "primary",
-          },
-        ],
-      })
-    }
     return this.dataSpace
   }
 

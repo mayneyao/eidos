@@ -322,7 +322,7 @@ ipcMain.handle(MsgType.CreateSpace, async (event, args) => {
 
 ipcMain.handle("select-folder", async () => {
   const result = await dialog.showOpenDialog({
-    properties: ["openDirectory"],
+    properties: ["openDirectory", "createDirectory"],
   })
 
   if (result.canceled) {

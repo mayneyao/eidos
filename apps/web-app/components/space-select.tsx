@@ -51,6 +51,7 @@ import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group"
 import { Separator } from "./ui/separator"
+import { Progress } from "@/components/ui/progress"
 
 interface ISpaceSelectProps {
   spaces: SpaceInfo[]
@@ -106,6 +107,14 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
   const [loadingProviders, setLoadingProviders] = React.useState(false)
   const [loadingRemoteSpaces, setLoadingRemoteSpaces] = React.useState(false)
 
+  // Clone progress dialog state
+  const [showCloneProgressDialog, setShowCloneProgressDialog] = React.useState(false)
+  const [cloneProgress, setCloneProgress] = React.useState(0)
+  const [cloneStep, setCloneStep] = React.useState<string>("")
+  const [cloneError, setCloneError] = React.useState<string | null>(null)
+  const [clonedSpace, setClonedSpace] = React.useState<SpaceInfo | null>(null)
+  const [cloneComplete, setCloneComplete] = React.useState(false)
+
   const resetWizard = () => {
     setCurrentStep("choose-action")
     setSelectedAction(null)
@@ -116,6 +125,13 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
     setSpaceName("")
     setEnableSync(false)
     setLoading(false)
+    // Reset clone progress state
+    setShowCloneProgressDialog(false)
+    setCloneProgress(0)
+    setCloneStep("")
+    setCloneError(null)
+    setClonedSpace(null)
+    setCloneComplete(false)
   }
 
   // Load providers when needed
@@ -239,6 +255,13 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
     if (!localPath || !selectedProvider || !selectedRemoteSpace) return
 
     setLoading(true)
+    setShowNewSpaceDialog(false)
+    setShowCloneProgressDialog(true)
+    setCloneProgress(0)
+    setCloneStep(t("space.clone.step.init", "Initializing..."))
+    setCloneError(null)
+    setCloneComplete(false)
+
     try {
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
         // Build remote URL
@@ -249,6 +272,9 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         const remoteSpaceName = selectedRemoteSpace.replace(/\/$/, "").split("/").pop() || selectedRemoteSpace
         const remoteUrl = `${provider?.id}/${bucketName}/${remoteSpaceName}`
 
+        setCloneProgress(15)
+        setCloneStep(t("space.clone.step.register", "Registering local space..."))
+
         // Use clone-space IPC to properly clone with sync
         const result = await window.eidos.invoke("clone-space", {
           localPath,
@@ -258,8 +284,32 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         })
 
         if (result.success && result.space) {
+          setCloneProgress(60)
+          setCloneStep(t("space.clone.step.initDatabase", "Initializing database..."))
+          
+          // Simulate the internal steps for better UX
+          await new Promise(resolve => setTimeout(resolve, 300))
+          
+          setCloneProgress(75)
+          setCloneStep(t("space.clone.step.setupSync", "Setting up sync configuration..."))
+          
+          await new Promise(resolve => setTimeout(resolve, 200))
+          
+          setCloneProgress(85)
+          setCloneStep(t("space.clone.step.pullData", "Pulling data from remote..."))
+          
+          await new Promise(resolve => setTimeout(resolve, 300))
+          
+          setCloneProgress(95)
+          setCloneStep(t("space.clone.step.finalize", "Finalizing setup..."))
+          
+          await new Promise(resolve => setTimeout(resolve, 200))
+
+          setCloneProgress(100)
+          setCloneStep(t("space.clone.completed", "Space cloned successfully!"))
+          setCloneComplete(true)
+          setClonedSpace(result.space as SpaceInfo)
           await updateSpaceList()
-          await handleSelect(result.space.id as string)
         } else {
           throw new Error(result.error || "Failed to clone space")
         }
@@ -267,12 +317,22 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
     } catch (error) {
       console.error("Error cloning space:", error)
       const errorMessage = error instanceof Error ? error.message : "Unknown error"
-      alert(`Failed to clone space: ${errorMessage}`)
+      setCloneError(errorMessage)
+      setCloneStep(t("space.clone.failed", "Clone failed"))
     } finally {
       setLoading(false)
-      setShowNewSpaceDialog(false)
-      resetWizard()
     }
+  }
+
+  const handleCloneComplete = async () => {
+    if (clonedSpace) {
+      await handleSelect(clonedSpace.id as string)
+    }
+    resetWizard()
+  }
+
+  const handleCloneErrorClose = () => {
+    resetWizard()
   }
 
   // Navigation handlers
@@ -841,6 +901,74 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
           </div>
         )}
       </DialogContent>
+
+      {/* Clone Progress Dialog */}
+      <Dialog
+        open={showCloneProgressDialog}
+        onOpenChange={(open) => {
+          if (!open && cloneComplete) {
+            handleCloneComplete()
+          } else if (!open && cloneError) {
+            handleCloneErrorClose()
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[400px]" onPointerDownOutside={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>
+              {cloneError
+                ? t("space.clone.failed", "Clone Failed")
+                : cloneComplete
+                ? t("space.clone.success", "Clone Complete")
+                : t("space.clone.inProgress", "Cloning Space...")}
+            </DialogTitle>
+            <DialogDescription>
+              {cloneError
+                ? t("space.clone.errorDescription", "An error occurred while cloning the space.")
+                : cloneComplete
+                ? t("space.clone.successDescription", "The space has been cloned successfully.")
+                : t("space.clone.progressDescription", "Please wait while we clone the space to your local machine.")}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-6 space-y-4">
+            {cloneError ? (
+              <div className="flex items-start gap-3 p-3 bg-destructive/10 rounded-lg">
+                <div className="text-destructive text-sm">
+                  <p className="font-medium">{t("space.clone.error", "Error:")}</p>
+                  <p className="mt-1">{cloneError}</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{cloneStep}</span>
+                  <span className="font-medium">{cloneProgress}%</span>
+                </div>
+                <Progress value={cloneProgress} className="h-2" />
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            {cloneError ? (
+              <Button onClick={handleCloneErrorClose} className="w-full">
+                {t("common.close", "Close")}
+              </Button>
+            ) : cloneComplete ? (
+              <Button onClick={handleCloneComplete} className="w-full">
+                <Check className="mr-2 h-4 w-4" />
+                {t("space.clone.goToSpace", "Go to Space")}
+              </Button>
+            ) : (
+              <Button disabled className="w-full">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {t("space.clone.cloning", "Cloning...")}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }
