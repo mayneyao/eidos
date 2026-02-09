@@ -1,10 +1,10 @@
+import { EIDOS_PROXY_URL } from "@/lib/const"
 import { getFilePreviewImage, getFileType } from "@/lib/mime/mime"
 
 import { BaseField } from "./base"
 import { CompareOperator, FieldType, GridCellKind } from "./const"
-import { EIDOS_PROXY_URL } from "@/lib/const"
-import type { FileCell } from "./interface"
 import { smartSplitFilePaths } from "./helper"
+import type { FileCell } from "./interface"
 
 export type FileProperty = {
   proxyUrl?: string
@@ -33,6 +33,11 @@ export class FileField extends BaseField<FileCell, FileProperty, string> {
   getProxyData = (data: string[]) => {
     if (this.column.property?.proxyUrl) {
       const proxyUrl = this.column.property?.proxyUrl
+
+      const isLocalProxy = new URL(proxyUrl).hostname.endsWith(
+        ".eidos.localhost"
+      )
+      const proxyPort = new URL(proxyUrl).port
       return data.map((_d) => {
         const d = _d.trim()
         const fileType = getFileType(d)
@@ -41,6 +46,15 @@ export class FileField extends BaseField<FileCell, FileProperty, string> {
           return getFilePreviewImage(d)
         }
         if (d.startsWith("http")) {
+          if (isLocalProxy) {
+            const url = new URL(d)
+            url.protocol = 'http:'
+            url.hostname = `${url.hostname}.proxy.eidos.localhost`
+            if (proxyPort) {
+              url.port = proxyPort
+            }
+            return url.toString()
+          }
           return proxyUrl + d
         }
         return d
