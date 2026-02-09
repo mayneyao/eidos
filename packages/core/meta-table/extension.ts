@@ -204,26 +204,22 @@ export class ExtensionTable
   }
 
   /**
-   * Build the ID-based virtual path for an extension (~/ .eidos/__EXTENSIONS__/prefix/id)
+   * Build the virtual path for an extension (~/ .eidos/__EXTENSIONS__/slug.ts)
    * Returns null if the extension does not exist.
-   * For hierarchical slugs like "ejected/journals/index", returns "~/.eidos/__EXTENSIONS__/ejected/journals/{id}"
+   * For hierarchical slugs like "ejected/journals/index", returns "~/.eidos/__EXTENSIONS__/ejected/journals/index.ts"
    */
   async getIdPath(extensionId: string): Promise<string | null> {
     const rows = await this.dataSpace.exec2(
-      `SELECT id, slug FROM ${this.name} WHERE id = ?`,
+      `SELECT id, slug, type FROM ${this.name} WHERE id = ?`,
       [extensionId]
     )
     if (rows.length === 0) return null
     
-    const row = rows[0] as { id: string; slug: string }
-    // If slug contains '/', build hierarchical path
-    if (row.slug && row.slug.includes("/")) {
-      // slug: "ejected/journals/index" -> path: "~/.eidos/__EXTENSIONS__/ejected/journals/{id}"
-      const slugPrefix = row.slug.substring(0, row.slug.lastIndexOf("/"))
-      return `~/.eidos/__EXTENSIONS__/${slugPrefix}/${row.id}`
-    }
-    
-    return `~/.eidos/__EXTENSIONS__/${row.id}`
+    const row = rows[0] as { id: string; slug: string; type: string }
+    // Use slug as the filename with extension
+    const slug = row.slug || row.id
+    const ext = row.type === "script" ? "ts" : "tsx"
+    return `~/.eidos/__EXTENSIONS__/${slug}.${ext}`
   }
 
   async updateBindings(id: string, bindings: IBindings) {

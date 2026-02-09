@@ -738,24 +738,30 @@ export class VirtualFsAdapter implements IExternalFileSystem {
    * @param hierarchicalMode - Whether in hierarchical mode (affects display name)
    */
   private extensionToEntry(ext: IExtension, parentSubPath: string = "", hierarchicalMode = true): IDirectoryEntry {
-    let displayName: string
+    const slug = ext.slug || ext.id
+    const slugParts = slug.split("/")
+    const filename = `${slugParts[slugParts.length - 1]}.${ext.type === "script" ? "ts" : "tsx"}`
+    
+    // For display name, show full slug in flat mode, just filename in hierarchical mode
+    const displayName = hierarchicalMode ? filename : `${slug}.${ext.type === "script" ? "ts" : "tsx"}`
 
-    if (hierarchicalMode) {
-      // Hierarchical mode: use the last part of the slug + extension
-      const slugParts = ext.slug?.split("/") || [ext.id]
-      const lastSlugPart = slugParts[slugParts.length - 1]
-      displayName = `${lastSlugPart}.${ext.type === "script" ? "ts" : "tsx"}`
+    // Build the path:
+    // - When parentSubPath is provided (non-recursive or subfolder view), use it as prefix
+    // - When parentSubPath is empty (recursive root view), use full slug to preserve hierarchy
+    let relativePath: string
+    if (parentSubPath) {
+      // We're in a specific subfolder, just append the filename
+      relativePath = filename
     } else {
-      // Flat mode: use full slug as filename + extension
-      displayName = `${ext.slug}.${ext.type === "script" ? "ts" : "tsx"}`
+      // We're at root (recursive mode), use full slug path
+      relativePath = `${slug}.${ext.type === "script" ? "ts" : "tsx"}`
     }
 
-    // Build the path using the full slug structure for navigation
     const pathPrefix = parentSubPath ? `~/.eidos/__EXTENSIONS__/${parentSubPath}` : "~/.eidos/__EXTENSIONS__"
     
     return {
       name: displayName,
-      path: `${pathPrefix}/${ext.id}`,
+      path: `${pathPrefix}/${relativePath}`,
       parentPath: pathPrefix,
       kind: "file",
       metadata: {
@@ -992,54 +998,46 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
   /**
    * Rename/move an extension in the eidos__extensions table
-   * Supports hierarchical slug paths like "ejected/journals/index"
+   * The virtual path uses slug as filename: ~/.eidos/__EXTENSIONS__/{slug}.ts
    * 
-   * When moving (drag & drop):
-   * - oldPath: ~/.eidos/__EXTENSIONS__/{old-prefix}/{uuid}
-   * - newPath: ~/.eidos/__EXTENSIONS__/{new-prefix}/{uuid}
-   * - We need to preserve the extension name and only change the path prefix
+   * When renaming:
+   * - oldPath: ~/.eidos/__EXTENSIONS__/old-slug.ts
+   * - newPath: ~/.eidos/__EXTENSIONS__/new-slug.ts
+   * - Simply update the slug to "new-slug"
+   * 
+   * When moving (drag & drop between folders):
+   * - oldPath: ~/.eidos/__EXTENSIONS__/folder/old-slug.ts
+   * - newPath: ~/.eidos/__EXTENSIONS__/new-folder/old-slug.ts
+   * - Update the slug prefix to "new-folder/old-slug"
    */
   private async renameExtension(oldPath: string, newPath: string): Promise<void> {
-    // Extract extension ID from old path
-    // oldPath format: ~/.eidos/__EXTENSIONS__/sub/path/{uuid} (where uuid is the extension ID)
-    const pathWithoutPrefix = oldPath.replace("~/.eidos/__EXTENSIONS__", "").replace(/^\//, "")
-    const pathParts = pathWithoutPrefix.split("/").filter(Boolean)
+    // Extract old slug from old path
+    // oldPath format: ~/.eidos/__EXTENSIONS__/{slug}.ts (slug may contain "/" for hierarchical paths)
+    const oldPathWithoutPrefix = oldPath.replace("~/.eidos/__EXTENSIONS__", "").replace(/^\//, "")
+    // Remove file extension to get the full slug (including any folder prefix)
+    const oldSlug = oldPathWithoutPrefix.replace(/\.(ts|tsx)$/, "")
     
-    // The last part should be the extension ID (UUID)
-    const extensionId = pathParts[pathParts.length - 1]
-    if (!extensionId) {
-      throw new Error("Invalid extension path")
+    if (!oldSlug) {
+      throw new Error("Invalid extension path: cannot extract slug from old path")
     }
 
-    // Get current extension to extract the name part of the slug
+    // Find the extension by slug
     const extension = await this.db.selectObjects(
-      `SELECT slug FROM eidos__extensions WHERE id = ?`,
-      [extensionId]
-    ) as Array<{ slug: string }>
+      `SELECT id, slug FROM eidos__extensions WHERE slug = ?`,
+      [oldSlug]
+    ) as Array<{ id: string; slug: string }>
 
     if (!extension || extension.length === 0) {
-      throw new Error(`Extension not found: ${extensionId}`)
+      throw new Error(`Extension not found with slug: ${oldSlug}`)
     }
 
-    const currentSlug = extension[0].slug
-    // If no slug exists, use the extension ID as the name (fallback)
-    const effectiveSlug = currentSlug || extensionId
-    // Extract the extension name (last part of the slug)
-    const slugParts = effectiveSlug.split("/")
-    const extensionName = slugParts[slugParts.length - 1]
+    const extensionId = extension[0].id
 
-    // Extract new path prefix from newPath
-    // newPath format: ~/.eidos/__EXTENSIONS__/{new-prefix}/{uuid}
-    const newPathWithoutPrefix = newPath.replace("~/.eidos/__EXTENSIONS__/", "").replace(/^\//, "")
-    const newPathParts = newPathWithoutPrefix.split("/").filter(Boolean)
-    
-    // Remove the UUID from the path to get the folder prefix
-    // The UUID is always the last segment
-    const newPrefixParts = newPathParts.slice(0, -1)
-    const newPrefix = newPrefixParts.join("/")
-
-    // Build new slug: new-prefix + extension-name
-    const newSlug = newPrefix ? `${newPrefix}/${extensionName}` : extensionName
+    // Extract new slug from new path
+    // newPath format: ~/.eidos/__EXTENSIONS__/{new-slug}.ts or ~/.eidos/__EXTENSIONS__/folder/{new-slug}.ts
+    const newPathWithoutPrefix = newPath.replace("~/.eidos/__EXTENSIONS__", "").replace(/^\//, "")
+    // Remove file extension to get the new slug (including any folder prefix)
+    const newSlug = newPathWithoutPrefix.replace(/\.(ts|tsx)$/, "")
 
     if (!newSlug) {
       throw new Error("Invalid new path: slug cannot be empty")
