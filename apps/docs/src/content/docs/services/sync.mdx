@@ -99,6 +99,12 @@ To reduce conflicts, it is recommended to follow the **Pull → Edit → Push** 
 - **Edit → Push**: After finishing work, promptly push your changes to the cloud.
 - **Manual Conflict Resolution**: If multiple devices modify the same data simultaneously, Graft will identify the conflict and prompt you for manual arbitration.
 
+:::caution[Current Limitation]
+Currently, Eidos does not have a diff mechanism. When a conflict occurs, local updates will be discarded in favor of the remote state. We recommend following the **Pull → Edit → Push** workflow strictly to avoid conflicts.
+
+In future updates, we will provide diff and automatic merge capabilities to better handle conflicts.
+:::
+
 ## Sync Providers
 
 Eidos supports custom sync providers, which you can choose based on your needs:
