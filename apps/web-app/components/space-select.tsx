@@ -325,10 +325,12 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         break
       case "clone-select-space":
         setCurrentStep("clone-choose-provider")
+        setSelectedProvider(null)
         setSelectedRemoteSpace(null)
         break
       case "clone-local-path":
         setCurrentStep("clone-select-space")
+        setSelectedRemoteSpace(null)
         break
     }
   }
