@@ -40,10 +40,14 @@ export class SpaceRegistry {
 
   /**
    * Save global configuration
+   * Merges with existing config to preserve other settings (e.g., sync, ai, theme)
    */
   protected saveGlobalConfig(config: GlobalConfig): void {
     this.ensureEidosDir()
-    fs.writeFileSync(this.globalConfigPath, JSON.stringify(config, null, 2))
+    // Load existing config to preserve other settings
+    const existingConfig = this.loadGlobalConfig()
+    const mergedConfig = { ...existingConfig, ...config }
+    fs.writeFileSync(this.globalConfigPath, JSON.stringify(mergedConfig, null, 2))
   }
 
   protected loadSpacesConfig(): SpacesConfig {
