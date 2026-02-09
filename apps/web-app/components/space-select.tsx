@@ -789,30 +789,14 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
             role="combobox"
             size="sm"
             aria-expanded={open}
-            className="w-full min-w-[180px] justify-between h-auto py-2"
+            className="w-full min-w-[180px] justify-start h-auto py-2 gap-2"
           >
             {space ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-80" />
-                <div className="flex items-center justify-between w-full overflow-hidden text-left">
-                  <span className="truncate shrink-0 font-medium mr-2">
-                    {spaces.find((s) => s.id === space)?.name || space}
-                  </span>
-                  {(() => {
-                    const currentSpaceInfo = spaces.find((s) => s.id === space)
-                    if (
-                      currentSpaceInfo?.sync?.enabled &&
-                      currentSpaceInfo.sync.remote
-                    ) {
-                      return (
-                        <span className="text-[10px] text-muted-foreground truncate">
-                          {getRemotePathname(currentSpaceInfo.sync.remote)}
-                        </span>
-                      )
-                    }
-                    return null
-                  })()}
-                </div>
+                <span className="truncate font-medium">
+                  {spaces.find((s) => s.id === space)?.name || space}
+                </span>
               </div>
             ) : (
               t("space.select.selectDatabase")
