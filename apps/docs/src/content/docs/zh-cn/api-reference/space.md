@@ -125,7 +125,7 @@ eidos.space.notify({
 `eidos.space.table()` 方法提供了类似 Prisma 风格的 CRUD（增删改查）操作 API。这是与表格数据交互的推荐方式。
 
 :::note
-列名会自动从显示名称转换为符合 SQL 规范的数据库列名。保留字段包括 `_id`、`title`、`_created_time`、`_last_edited_time` 等。
+Eidos 的表格存在两种字段名称：**展示名称**（UI 中显示的列名）和 **数据库名称**（SQLite 中实际的列名）。Table API 使用的是**数据库真实列名**。例如，一个显示为 "Created At" 的列，其数据库名称可能是 `created_at` 或者是类似 `cfbwxeq` 的生成名称。保留字段包括 `_id`、`title`、`_created_time`、`_last_edited_time` 等。
 :::
 
 ### 基本用法

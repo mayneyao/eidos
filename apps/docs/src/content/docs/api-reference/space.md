@@ -129,7 +129,7 @@ eidos.space.notify({
 The `eidos.space.table()` method provides a Prisma-style API for CRUD (Create, Read, Update, Delete) operations on tables. This is the recommended way to interact with table data.
 
 :::note
-Column names are automatically converted from display names to SQL-compliant database column names. Reserved fields include `_id`, `title`, `_created_time`, `_last_edited_time`, etc.
+Eidos tables have two types of field names: **display names** (shown in the UI) and **database names** (actual column names in SQLite). The Table API uses the **actual database column names**. For example, a column displayed as "Created At" might have the database name `created_at` or a generated name like `cfbwxeq`. Reserved fields include `_id`, `title`, `_created_time`, `_last_edited_time`, etc.
 :::
 
 ### Basic Usage
