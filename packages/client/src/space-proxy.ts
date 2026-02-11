@@ -51,6 +51,7 @@ export function createSpaceProxy(config: TransportConfig) {
       const namespaces = [
         'doc',
         'action', 
+        'schema',
         'graft',
         'script',
         'extension',

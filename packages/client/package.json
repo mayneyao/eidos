@@ -1,6 +1,6 @@
 {
   "name": "@eidos.space/client",
-  "version": "0.3.0",
+  "version": "0.5.0",
   "description": "Eidos RPC client for Node.js and browser",
   "keywords": [
     "eidos",
@@ -44,7 +44,7 @@
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
-    "@eidos.space/core": "^0.28.0"
+    "@eidos.space/core": "^0.28.3"
   },
   "devDependencies": {
     "tsdown": "0.20.0-beta.3",
