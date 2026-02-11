@@ -61,7 +61,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
 `
   JSONFields: string[] = ["property"]
 
-  static getColumnTypeByFieldType(type: FieldType) {
+  static getColumnTypeByFieldType(type: FieldType | `${FieldType}`) {
     const typeMap: any = {
       [FieldType.Checkbox]: "BOOLEAN",
       [FieldType.Number]: "REAL",
@@ -86,7 +86,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
 
   async add(data: IField): Promise<IField> {
     const { name, type, table_name, table_column_name, property } = data
-    const columnType = ColumnTable.getColumnTypeByFieldType(type)
+    const columnType = ColumnTable.getColumnTypeByFieldType(type as FieldType)
     const tableId = getTableIdByRawTableName(table_name)
 
     try {
@@ -328,7 +328,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
     tableName: string
     tableColumnName: string
     property: any
-    type: FieldType
+    type: FieldType | `${FieldType}`
   }) {
     const { tableName, tableColumnName, property, type } = data
 
@@ -425,8 +425,8 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
     )
     if (!field) return
 
-    const oldColumnType = ColumnTable.getColumnTypeByFieldType(field.type)
-    const newColumnType = ColumnTable.getColumnTypeByFieldType(newType)
+    const oldColumnType = ColumnTable.getColumnTypeByFieldType(field.type as FieldType)
+    const newColumnType = ColumnTable.getColumnTypeByFieldType(newType as FieldType)
     const isColumnTypeChanged = oldColumnType !== newColumnType
 
     await this.dataSpace.db.transaction(async (db) => {

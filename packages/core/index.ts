@@ -1,6 +1,7 @@
 import { DataSpace } from "./data-space"
 
 export { DataSpace }
+export { FieldType } from  "./fields/const"
 
 export interface EidosTable<T = Record<string, string>> {
     id: string

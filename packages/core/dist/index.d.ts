@@ -45,7 +45,7 @@ declare enum BinaryOperator {
 //#region types/IField.d.ts
 type IField<T = any> = {
   name: string;
-  type: FieldType;
+  type: FieldType | `${FieldType}`;
   table_column_name: string;
   table_name: string;
   property: T;
@@ -101,11 +101,11 @@ declare enum ViewTypeEnum {
   DocList = "doc_list",
   Kanban = "kanban",
 }
-type ViewType = ViewTypeEnum | `ext__${string}`;
+type ViewType = ViewTypeEnum | `${ViewTypeEnum}` | `ext__${string}`;
 interface IView<T = any> {
   id: string;
   name: string;
-  type: ViewTypeEnum | `ext__${string}`;
+  type: ViewTypeEnum | `${ViewTypeEnum}` | `ext__${string}`;
   table_id: string;
   query: string;
   fieldIds?: string[];
@@ -115,6 +115,161 @@ interface IView<T = any> {
   hidden_fields?: string[];
   position?: number;
 }
+//#endregion
+//#region sdk/schema.d.ts
+interface CreateTableInput {
+  /** Table display name */
+  name: string;
+  /** Field definitions (system fields like _id, title, timestamps are auto-created) */
+  fields: CreateFieldInput[];
+}
+interface CreateFieldInput {
+  /** Field display name */
+  name: string;
+  /** Database column name (required, must be valid SQLite identifier) */
+  columnName: string;
+  /** Field type */
+  type: FieldType | `${FieldType}`;
+  /** Field-type-specific properties (e.g., select options, link config) */
+  property?: Record<string, any>;
+}
+interface UpdateTableInput {
+  /** New table display name */
+  name?: string;
+}
+interface UpdateFieldInput {
+  /** New display name */
+  name?: string;
+  /** Updated field-type-specific properties */
+  property?: Record<string, any>;
+}
+interface CreateViewInput {
+  /** View display name */
+  name: string;
+  /** View type */
+  type: ViewType;
+}
+interface TableInfo {
+  id: string;
+  name: string;
+  fields: FieldInfo[];
+  views: ViewInfo[];
+}
+interface FieldInfo {
+  /** Display name */
+  name: string;
+  /** Database column name */
+  columnName: string;
+  /** Field type */
+  type: FieldType | `${FieldType}`;
+  /** Field-type-specific properties */
+  property?: Record<string, any>;
+}
+interface ViewInfo {
+  id: string;
+  name: string;
+  type: ViewType;
+}
+interface TableListItem {
+  id: string;
+  name: string;
+}
+/**
+ * Schema management client for table/field/view lifecycle operations.
+ *
+ * Access via `eidos.currentSpace.schema.*`
+ *
+ * @example
+ * ```typescript
+ * // Create a table
+ * const table = await eidos.currentSpace.schema.createTable({
+ *   name: "Tasks",
+ *   fields: [
+ *     { name: "Status", columnName: "status", type: "select" },
+ *     { name: "Due Date", columnName: "due_date", type: "date" },
+ *     { name: "Priority", columnName: "priority", type: "number" },
+ *   ]
+ * })
+ *
+ * // Then use Prisma-style CRUD
+ * const Tasks = eidos.currentSpace.table(table.id)
+ * await Tasks.create({ data: { title: "Design API", status: "In Progress" } })
+ * ```
+ */
+declare class SchemaClient {
+  private dataSpace;
+  constructor(dataSpace: DataSpaceWithTable);
+  /**
+   * Create a new table with the given fields.
+   * System fields (_id, title, _created_time, etc.) are auto-created.
+   *
+   * @param input Table name and field definitions
+   * @returns Created table info including generated id, fields, and default view
+   */
+  createTable(input: CreateTableInput): Promise<TableInfo>;
+  /**
+   * Get full table info including fields and views.
+   * @param tableId Table ID
+   */
+  getTable(tableId: string): Promise<TableInfo>;
+  /**
+   * List all tables in the current space.
+   */
+  listTables(): Promise<TableListItem[]>;
+  /**
+   * Update table metadata (e.g., rename).
+   * @param tableId Table ID
+   * @param input Fields to update
+   */
+  updateTable(tableId: string, input: UpdateTableInput): Promise<TableInfo>;
+  /**
+   * Delete a table and all associated data (fields, views, records).
+   * @param tableId Table ID
+   */
+  deleteTable(tableId: string): Promise<boolean>;
+  /**
+   * Add a field to an existing table.
+   * @param tableId Table ID
+   * @param input Field definition
+   */
+  addField(tableId: string, input: CreateFieldInput): Promise<FieldInfo>;
+  /**
+   * Update field metadata (display name, properties).
+   * @param tableId Table ID
+   * @param columnName Database column name of the field to update
+   * @param input Fields to update
+   */
+  updateField(tableId: string, columnName: string, input: UpdateFieldInput): Promise<FieldInfo>;
+  /**
+   * Delete a field from a table.
+   * @param tableId Table ID
+   * @param columnName Database column name of the field to delete
+   */
+  deleteField(tableId: string, columnName: string): Promise<boolean>;
+  /**
+   * List all fields in a table.
+   * @param tableId Table ID
+   */
+  listFields(tableId: string): Promise<FieldInfo[]>;
+  /**
+   * Create a new view for a table.
+   * @param tableId Table ID
+   * @param input View definition
+   */
+  createView(tableId: string, input: CreateViewInput): Promise<ViewInfo>;
+  /**
+   * List all views for a table.
+   * @param tableId Table ID
+   */
+  listViews(tableId: string): Promise<ViewInfo[]>;
+  /**
+   * Delete a view.
+   * @param tableId Table ID (for validation)
+   * @param viewId View ID
+   */
+  deleteView(tableId: string, viewId: string): Promise<boolean>;
+}
+//# sourceMappingURL=schema.d.ts.map
 //#endregion
 //#region sdk/index-manager.d.ts
 declare class IndexManager {
@@ -1058,7 +1213,7 @@ declare class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   name: string;
   createTableSql: string;
   JSONFields: string[];
-  static getColumnTypeByFieldType(type: FieldType): any;
+  static getColumnTypeByFieldType(type: FieldType | `${FieldType}`): any;
   addPureUIColumn(data: IField): Promise<void>;
   updatePureUIColumn(data: Partial<IField>): Promise<void>;
   add(data: IField): Promise<IField>;
@@ -1084,7 +1239,7 @@ declare class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
     tableName: string;
     tableColumnName: string;
     property: any;
-    type: FieldType;
+    type: FieldType | `${FieldType}`;
   }): Promise<void>;
   list(q: {
     table_name: string;
@@ -1533,8 +1688,9 @@ declare class ExtensionTable extends BaseTableImpl<IExtension> implements BaseTa
   enable(id: string): Promise<boolean>;
   disable(id: string): Promise<boolean>;
   /**
-   * Build the ID-based virtual path for an extension (~/ .eidos/__EXTENSIONS__/id)
+   * Build the virtual path for an extension (~/ .eidos/__EXTENSIONS__/slug.ts)
    * Returns null if the extension does not exist.
+   * For hierarchical slugs like "ejected/journals/index", returns "~/.eidos/__EXTENSIONS__/ejected/journals/index.ts"
    */
   getIdPath(extensionId: string): Promise<string | null>;
   updateBindings(id: string, bindings: IBindings): Promise<boolean>;
@@ -2063,6 +2219,10 @@ interface IDirectoryEntry {
     namePath?: string;
     /** ID-based virtual path (rooted at ~/.eidos/__NODES__) */
     idPath?: string;
+    /** Original slug for extension entries (for hierarchical display) */
+    slug?: string;
+    /** Whether this is a virtual folder created from slug prefix */
+    isVirtualFolder?: boolean;
   };
 }
 /**
@@ -2602,6 +2762,17 @@ declare class DataSpaceWithFile extends DataSpaceWithDatabase {
   get fs(): FSManager;
   /**
    * Initialize file watcher for .eidos/files/
+   *
+   * NOTE: File watcher is now disabled for database updates.
+   *
+   * Design change: To maintain consistency between database and file sync,
+   * we no longer automatically update the eidos__files table when local files change.
+   *
+   * - Files are still auto-synced to cloud via FileSynchronizer
+   * - Database records are only updated through explicit API calls (upload, etc.)
+   * - This ensures database (Graft) remains the source of truth
+   *
+   * The watcher loop is kept for debugging/observability but does not modify database state.
    */
   initFileWatcher(): Promise<void>;
   /**
@@ -2609,7 +2780,17 @@ declare class DataSpaceWithFile extends DataSpaceWithDatabase {
    */
   unwatchFileWatcher(): void;
   private watchLoop;
-  private syncFile;
+  /**
+   * Sync file metadata to database
+   * This is now an explicit operation, not triggered by file system events
+   * Called when files are uploaded through the API
+   */
+  syncFileToDatabase(path: string): Promise<IFile | null>;
+  /**
+   * Remove file metadata from database
+   * Explicit operation for when files are deleted through the API
+   */
+  removeFileFromDatabase(path: string): Promise<void>;
 }
 //# sourceMappingURL=file.d.ts.map
 //#endregion
@@ -2662,6 +2843,21 @@ declare class DataSpaceWithDoc extends DataSpaceWithFile {
 //#endregion
 //#region data-space/table.d.ts
 declare class DataSpaceWithTable extends DataSpaceWithDoc {
+  /**
+   * Schema management client for table/field/view lifecycle operations.
+   *
+   * @example
+   * ```typescript
+   * const table = await eidos.currentSpace.schema.createTable({
+   *   name: "Tasks",
+   *   fields: [
+   *     { name: "Status", columnName: "status", type: "select" },
+   *     { name: "Due Date", columnName: "due_date", type: "date" },
+   *   ]
+   * })
+   * ```
+   */
+  get schema(): SchemaClient;
   /**
    * @deprecated Use table() instead. This is the legacy API that returns TableManager.
    * Kept for internal use and backward compatibility.
@@ -2900,5 +3096,5 @@ interface Eidos {
 //# sourceMappingURL=index.d.ts.map
 
 //#endregion
-export { DataSpace, Eidos, EidosTable };
+export { DataSpace, Eidos, EidosTable, FieldType };
 //# sourceMappingURL=index.d.ts.map
