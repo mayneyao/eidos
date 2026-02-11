@@ -1,0 +1,92 @@
+---
+title: Use Semantic Search
+description: Enable vector embeddings on text fields to perform semantic search.
+---
+
+import { Aside } from "@astrojs/starlight/components"
+
+Semantic search allows you to find content based on *meaning* rather than exact keyword matches. By converting text into vector embeddings, you can search with natural language queries like "machine learning tutorials" and find relevant items even if they don't contain those exact words.
+
+This guide shows you how to enable semantic search on a text field and use it to search through data. We'll use Hacker News stories as a practical example.
+
+## Prerequisites
+
+1.  **Eidos Desktop**: The desktop app is required for embedding generation.
+2.  **AI Provider**: Configure an embedding model in **Settings → AI**.
+
+## Setup
+
+### 1. Enable Embedding on a Text Field
+
+Semantic search works on any **Text** field. Here's how to enable it:
+
+1. Open your table
+2. Click the **Text** field header → **Edit Property**
+3. Expand **AI Enhancement** section
+4. Toggle **Enable Embedding**
+5. (Optional) Enable **Color Hint** to see vectorization status
+
+<Aside type="note">
+  If you followed the [Hacker News ingestion guide](/how-to/interact-with-desktop-app-via-api/), your table already has a `Content` field that you can enable embedding on.
+</Aside>
+
+<Aside type="note">
+  Only **Text** fields support embedding. Title, URL, and other field types cannot be embedded.
+</Aside>
+
+### 2. Process Embeddings
+
+Once data is added, Eidos automatically generates embeddings for the enabled field. You can check progress in field properties:
+- **Green cells** = Up-to-date vectors
+- **Yellow cells** = Outdated (text was edited)
+
+Click **Process** to manually trigger embedding generation if needed.
+
+## Using Semantic Search
+
+### In the Table View
+
+1. Open your table
+2. Click the search/filter icon
+3. Select **Semantic Search**
+4. Enter your query in natural language
+
+For example, if you're searching through Hacker News stories:
+
+| Query | Finds stories about... |
+|-------|------------------------|
+| "AI and machine learning" | Neural networks, LLMs, deep learning |
+| "web development tools" | Frameworks, build tools, CSS libraries |
+| "database optimization" | Query performance, indexing, caching |
+| "career advice" | Hiring, interviews, work culture |
+| "debugging techniques" | Troubleshooting, logging, observability |
+
+## Troubleshooting
+
+### "No embedding model configured"
+
+Go to **Settings → AI** and add an embedding provider. You can use cloud-based providers (OpenAI, etc.) or local models that run offline.
+
+### Slow search performance
+
+- Check if all vectors are generated (green cells)
+- Reduce `limit` parameter (e.g., 10 instead of 100)
+- Ensure your device has sufficient RAM for the embedding model
+
+### Model mismatch
+
+If you switch embedding models, existing vectors become invalid:
+
+1. Open the field properties
+2. Click **Reset Vectors** to clear old embeddings
+3. Click **Process** to regenerate with the new model
+
+<Aside type="danger">
+  Resetting vectors requires re-processing all data. For large tables, this may take several minutes.
+</Aside>
+
+## Next Steps
+
+- Learn about [Table API](/api-reference/table/sdk/) for more query options
+- Build a [Block Extension](/extensions/block/) with a custom search UI
+- Combine with [Script Extensions](/extensions/script/) for automated data ingestion

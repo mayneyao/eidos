@@ -31,6 +31,10 @@ export default defineConfig({
           lang: "zh-CN",
         },
       },
+      tableOfContents: {
+        minHeadingLevel: 2,
+        maxHeadingLevel: 4,
+      },
       plugins: [
         starlightThemeFlexoki(),
         starlightSidebarTopics([
@@ -87,8 +91,38 @@ export default defineConfig({
             link: "/api-reference/space/",
             items: [
               {
-                label: "API Reference",
-                autogenerate: { directory: "api-reference" },
+                label: "Space API",
+                link: "/api-reference/space/",
+              },
+              {
+                label: "Table API",
+                collapsed: false,
+                items: [
+                  {
+                    label: "SDK (CRUD)",
+                    link: "/api-reference/table/sdk/",
+                  },
+                  {
+                    label: "Schema Management",
+                    link: "/api-reference/table/schema/",
+                  },
+                  {
+                    label: "Field Objects",
+                    link: "/api-reference/table/fields/",
+                  },
+                  {
+                    label: "View Objects",
+                    link: "/api-reference/table/views/",
+                  },
+                ],
+              },
+              {
+                label: "AI API",
+                link: "/api-reference/ai/",
+              },
+              {
+                label: "Extension API",
+                link: "/api-reference/extension/",
               },
             ],
           },

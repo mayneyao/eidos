@@ -1,0 +1,154 @@
+---
+title: Interact with Desktop App via API
+description: Learn how to use @eidos.space/client to automate data ingestion into the Eidos desktop application.
+---
+
+Eidos provides a powerful RPC-based API through its desktop application. By using `@eidos.space/client` with **Bun**, you can quickly automate data ingestion with built-in TypeScript support and superior performance.
+
+This guide demonstrates how to fetch the top stories from Hacker News and ingest them into an Eidos table using Bun. The example includes story content for semantic search capabilities.
+
+## Prerequisites
+
+1.  **Eidos Desktop**: Ensure the Eidos desktop application is running.
+2.  **Bun**: Ensure you have [Bun](https://bun.sh/) installed on your machine.
+
+## Setup
+
+Initialize a new project and install the Eidos RPC client:
+
+```bash
+# Initialize a new Bun project
+mkdir hn-ingestor && cd hn-ingestor
+bun init -y
+
+# Install the Eidos RPC client
+bun add @eidos.space/client
+```
+
+## Example: Hacker News Ingestor
+
+Create a file named `index.ts` and add the following code. This script will:
+1.  Connect to your Eidos desktop instance using `createEidosClient`.
+2.  Check if a table named "Hacker News" exists, and create it if it doesn't.
+3.  Fetch the top 10 stories from Hacker News, including their content.
+4.  **Upsert** the data: If a story (indexed by its HN ID) already exists, update its score; otherwise, create a new record.
+
+```typescript
+import { createEidosClient } from '@eidos.space/client';
+
+// Your Space ID can be found in the Eidos Desktop app (dashboard or URL)
+const SPACE_ID = 'your_space_id'; 
+const EIDOS_PORT = 13127; // Default Eidos Desktop RPC port
+
+// 1. Initialize the Eidos Client
+const client = createEidosClient({
+  endpoint: `http://${SPACE_ID}.eidos.localhost:${EIDOS_PORT}/rpc`,
+});
+
+const space = client.space;
+const TABLE_NAME = 'Hacker News';
+
+// 2. Check and Create Table
+const tables = await space.schema.listTables();
+let table = tables.find(t => t.name === TABLE_NAME);
+
+if (!table) {
+  console.log(`Creating table "${TABLE_NAME}"...`);
+  table = await space.schema.createTable({
+    name: TABLE_NAME,
+    fields: [
+      { name: 'Content', columnName: 'content', type: 'text' },
+      { name: 'HN ID', columnName: 'hn_id', type: 'number' },
+      { name: 'URL', columnName: 'url', type: 'url' },
+      { name: 'HN Link', columnName: 'hn_link', type: 'url' },
+      { name: 'Author', columnName: 'author', type: 'text' },
+      { name: 'Score', columnName: 'score', type: 'number' },
+      { 
+        name: 'Type', 
+        columnName: 'type', 
+        type: 'select',
+        property: {
+          options: [
+            { id: 'self', name: 'self', color: 'blue' },
+            { id: 'link', name: 'link', color: 'green' },
+          ],
+        },
+      },
+    ],
+  });
+}
+
+const hnTable = space.table(table.id);
+
+// 3. Fetch Hacker News Top Stories
+console.log('Fetching top stories...');
+const topIds = (await fetch('https://hacker-news.firebaseio.com/v0/topstories.json')
+  .then(res => res.json())) as string[];
+
+// Process top 10
+for (const id of topIds.slice(0, 10)) {
+  const item = (await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)
+    .then(res => res.json())) as {
+      type: string;
+      title: string;
+      url: string;
+      text?: string;
+      by: string;
+      score: number;
+    };
+
+  if (item?.type === 'story') {
+    // Extract content: 'text' exists for self-posts (Ask HN, Show HN)
+    // For external links, content will be empty
+    const content = item.text ? item.text.replace(/<[^>]+>/g, '') : '';
+    const postType = item.text ? 'self' : 'link';
+
+    const data = {
+      content: content,
+      url: item.url,
+      hn_link: `https://news.ycombinator.com/item?id=${id}`,
+      author: item.by,
+      score: item.score,
+      type: postType,
+    };
+
+    // 4. Ingest/Update into Eidos
+    // Check if record already exists using the custom hn_id field
+    const existing = await hnTable.findFirst({
+      where: { hn_id: id }
+    });
+
+    if (existing) {
+      console.log(`Updating: ${item.title}`);
+      await hnTable.update({
+        where: { _id: existing._id },
+        data
+      });
+    } else {
+      console.log(`Creating: ${item.title}`);
+      await hnTable.create({
+        data: {
+          hn_id: id,
+          ...data
+        },
+      });
+    }
+  }
+}
+
+console.log('Done!');
+```
+
+## Run the Script
+
+Execute the script directly using Bun:
+
+```bash
+bun index.ts
+```
+
+## Next Steps
+
+- Learn how to [use semantic search](/how-to/use-semantic-search/) on your ingested data
+- Explore the [Table API reference](/api-reference/table/sdk/) for more operations
+- Build custom [Script Extensions](/extensions/script/) for automated workflows
