@@ -3,6 +3,7 @@
 import sitemap from "@astrojs/sitemap"
 import starlight from "@astrojs/starlight"
 import { defineConfig } from "astro/config"
+import starlightLlmsTxt from "starlight-llms-txt"
 import starlightSidebarTopics from "starlight-sidebar-topics"
 import starlightThemeFlexoki from "starlight-theme-flexoki"
 
@@ -36,6 +37,10 @@ export default defineConfig({
         maxHeadingLevel: 4,
       },
       plugins: [
+        starlightLlmsTxt({
+          description:
+            "Eidos is a local-first, malleable software framework for personal data management. It transforms SQLite into an extensible pocket database, empowering you to build your personal data center with AI-powered capabilities.",
+        }),
         starlightThemeFlexoki(),
         starlightSidebarTopics([
           {
