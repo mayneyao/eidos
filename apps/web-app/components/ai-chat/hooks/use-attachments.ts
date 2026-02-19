@@ -1,7 +1,13 @@
 import { useState, useRef } from 'react'
-import type { Attachment } from 'ai'
 import { useToast } from '@/components/ui/use-toast'
 import { useFileUpload } from '@/apps/web-app/hooks/use-file-upload'
+
+// Define local Attachment interface since it's not exported from ai in v6
+interface Attachment {
+  name: string;
+  contentType: string;
+  url: string;
+}
 
 export function useAttachments() {
   const [attachments, setAttachments] = useState<Attachment[]>([])
@@ -56,4 +62,4 @@ export function useAttachments() {
     fileInputRef,
     handleFileChange
   }
-} 
+}

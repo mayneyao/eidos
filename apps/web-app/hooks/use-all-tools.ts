@@ -36,9 +36,9 @@ export const useAllTools = (): Record<string, Tool> => {
                 const tool = extension.meta.tool
                 acc[tool.name] = {
                     description: tool.description,
-                    parameters: tool.inputJSONSchema,
+                    inputSchema: tool.inputJSONSchema || {},
                     id: `${extension.id}.${extension.meta.funcName}` as `${string}.${string}`,
-                }
+                } as unknown as Tool
             }
             return acc
         }, {} as Record<string, Tool>)

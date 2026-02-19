@@ -13,6 +13,8 @@ interface ConfigState {
   addLLMProvider: (provider: LLMProvider) => void
   updateLLMProvider: (provider: LLMProvider) => void
   removeLLMProvider: (name: string) => void
+  updateTelegramIntegration: (config: Partial<NonNullable<NonNullable<AIFormValues["integrations"]>["telegram"]>>) => void
+  updateDiscordIntegration: (config: Partial<NonNullable<NonNullable<AIFormValues["integrations"]>["discord"]>>) => void
 }
 
 // Define the default state for the AI configuration
@@ -81,6 +83,39 @@ export const useAIConfigStore = create<ConfigState>()(
             llmProviders: state.aiConfig.llmProviders.filter(
               (p) => p.name !== name
             ),
+          },
+        })),
+      updateTelegramIntegration: (config) =>
+        set((state) => ({
+          aiConfig: {
+            ...state.aiConfig,
+            integrations: {
+              sessionTimeoutMinutes: state.aiConfig.integrations?.sessionTimeoutMinutes ?? 30,
+              systemPrompt: state.aiConfig.integrations?.systemPrompt,
+              discord: state.aiConfig.integrations?.discord,
+              telegram: {
+                enabled: state.aiConfig.integrations?.telegram?.enabled ?? false,
+                botToken: state.aiConfig.integrations?.telegram?.botToken,
+                ...config,
+              },
+            },
+          },
+        })),
+      updateDiscordIntegration: (config) =>
+        set((state) => ({
+          aiConfig: {
+            ...state.aiConfig,
+            integrations: {
+              sessionTimeoutMinutes: state.aiConfig.integrations?.sessionTimeoutMinutes ?? 30,
+              systemPrompt: state.aiConfig.integrations?.systemPrompt,
+              telegram: state.aiConfig.integrations?.telegram,
+              discord: {
+                enabled: state.aiConfig.integrations?.discord?.enabled ?? false,
+                botToken: state.aiConfig.integrations?.discord?.botToken,
+                clientId: state.aiConfig.integrations?.discord?.clientId,
+                ...config,
+              },
+            },
           },
         })),
     }),

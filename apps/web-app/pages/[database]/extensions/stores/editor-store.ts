@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Message } from 'ai'
+import type { UIMessage } from 'ai'
 
 type EditorTab = 'preview' | 'editor'
 
@@ -27,9 +27,9 @@ interface EditorStore {
 
     chatId: string
     setChatId: (id: string) => void
-    chatHistory: Array<Message>
-    setChatHistory: (history: Array<Message>) => void
-    addChatMessage: (message: Message) => void
+    chatHistory: Array<UIMessage>
+    setChatHistory: (history: Array<UIMessage>) => void
+    addChatMessage: (message: UIMessage) => void
     clearChatHistory: () => void
 
     isRemixMode: boolean
@@ -38,8 +38,8 @@ interface EditorStore {
     layoutMode: LayoutMode
     setLayoutMode: (mode: LayoutMode) => void
 
-    chatHistoryMap: Map<string, Message[]>
-    setChatHistoryMap: (map: Map<string, Message[]>) => void
+    chatHistoryMap: Map<string, UIMessage[]>
+    setChatHistoryMap: (map: Map<string, UIMessage[]>) => void
 
     chatTitles: Map<string, string>
     setChatTitles: (titles: Map<string, string>) => void
@@ -69,27 +69,17 @@ export const useEditorStore = create<EditorStore>((set) => ({
         })),
     chatHistory: [],
     setChatHistory: (history) => set((state) => {
-        const processedHistory = history.map(msg => ({
-            ...msg,
-            createdAt: msg.createdAt ? (msg.createdAt instanceof Date ? msg.createdAt : new Date(msg.createdAt)) : new Date()
-        }))
-
         const newChatHistoryMap = new Map(state.chatHistoryMap)
         if (state.chatId) {
-            newChatHistoryMap.set(state.chatId, processedHistory)
+            newChatHistoryMap.set(state.chatId, history)
         }
         return {
-            chatHistory: processedHistory,
+            chatHistory: history,
             chatHistoryMap: newChatHistoryMap
         }
     }),
     addChatMessage: (message) => set((state) => {
-        const processedMessage = {
-            ...message,
-            createdAt: message.createdAt ? (message.createdAt instanceof Date ? message.createdAt : new Date(message.createdAt)) : new Date()
-        }
-        
-        const newHistory = [...state.chatHistory, processedMessage]
+        const newHistory = [...state.chatHistory, message]
         const newChatHistoryMap = new Map(state.chatHistoryMap)
         if (state.chatId) {
             newChatHistoryMap.set(state.chatId, newHistory)

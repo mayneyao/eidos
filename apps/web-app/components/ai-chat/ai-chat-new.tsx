@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useChat } from "@/packages/ai"
+import { useChat, type UIMessage, type CreateUIMessage } from "@/packages/ai"
 import type { IEmbedding } from "@/packages/core/meta-table/embedding"
 import { Paintbrush, PauseIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -88,27 +88,23 @@ export default function Chat() {
     }
   }, [aiModel, getConfigByModel])
 
-  const { messages, setMessages, reload, append, isLoading, stop } = useChat({
-    initialMessages: chatMessages,
-    onToolCall: async (thisCall) => {
-      const { toolCall } = thisCall
-      console.log("thisCall", thisCall)
+  const {
+    messages,
+    setMessages,
+    regenerate,
+    sendMessage: sendMessageInternal,
+    status,
+    stop,
+  } = useChat({
+    messages: chatMessages,
+    onToolCall: async ({ toolCall }) => {
       console.log("toolCall", toolCall)
-      const res = await handleToolsCall(toolCall.toolName, toolCall.args)
-      console.log("toolCall", toolCall, res)
+      // In v6, toolCall.args is the parsed input object
+      const args = toolCall.input as Record<string, unknown>
+      const res = await handleToolsCall(toolCall.toolName, args)
+      console.log("toolCall result", toolCall, res)
       return res
     },
-    experimental_prepareRequestBody: (body) => ({
-      message: body.messages.at(-1),
-      ...config,
-      systemPrompt,
-      model: aiModel,
-      tools: filteredTools,
-      id: chatId,
-      projectId: EIDOS_CHAT_PROJECT_ID,
-      space,
-      textModel: textModelConfig,
-    }),
     // onFinish(message) {},
     onError(error) {
       console.log("error:", error)
@@ -117,14 +113,35 @@ export default function Chat() {
         description: t("common.error.modelLimitation"),
       })
     },
-    maxSteps,
     experimental_throttle: 100,
-    sendExtraMessageFields: true,
     generateId: uuidv7,
   })
 
+  // Wrapper to convert from old API (content) to new v6 API (parts)
+  const sendMessage = useCallback(
+    async (
+      message: {
+        role: UIMessage["role"]
+        content: string
+      },
+      options?: any
+    ): Promise<string | null | undefined> => {
+      await sendMessageInternal(
+        {
+          role: message.role,
+          parts: [{ type: "text" as const, text: message.content }],
+        },
+        options
+      )
+      return null
+    },
+    [sendMessageInternal]
+  )
+
+  const isLoading = status === "streaming" || status === "submitted"
+
   const handleReload = async () => {
-    await reload()
+    await regenerate()
   }
 
   useEffect(() => {
@@ -357,7 +374,7 @@ export default function Chat() {
             enableRAG={withSpaceData}
             disabled={disableInput}
             setContextEmbeddings={setContextEmbeddings}
-            append={append}
+            sendMessage={sendMessage}
             appendHiddenMessage={appendHiddenMessage}
             isLoading={isLoading}
             attachments={attachments}

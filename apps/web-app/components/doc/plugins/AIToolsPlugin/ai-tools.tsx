@@ -2,7 +2,7 @@ import type { Transformer } from "@lexical/markdown";
 import { $convertFromMarkdownString } from "@lexical/markdown";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useClickAway, useKeyPress } from "ahooks";
-import { useChat } from "ai/react";
+import { useChat } from "@ai-sdk/react";
 import type {
   LexicalNode,
   RangeSelection
@@ -35,6 +35,19 @@ import { useGenerateChartConfig } from "./hooks/use-generate-chart";
 import { useUpdateLocation } from "./hooks/use-update-location";
 import { PromptList } from "./prompt-list";
 import { useEditorInstance } from "../../hooks/editor-instance-context";
+
+// Helper function to extract text content from message parts
+function getMessageContent(message: any): string {
+  if (!message) return "";
+  if (message.content) return message.content;
+  if (message.parts) {
+    return message.parts
+      .filter((part: any) => part.type === "text")
+      .map((part: any) => part.text)
+      .join("");
+  }
+  return "";
+}
 
 export function AITools({
   cancelAIAction,
@@ -132,7 +145,8 @@ export function AITools({
       return {}
     }
   }, [currentModel, getConfigByModel])
-  const { messages, setMessages, reload, isLoading, stop } = useChat({
+
+  const { messages, setMessages, regenerate, status, stop } = useChat({
     onError(error) {
       console.log("error:", error)
       toast({
@@ -141,17 +155,12 @@ export function AITools({
       })
     },
     onFinish(message) {
-      setAiResult(message.content)
+      setAiResult(getMessageContent(message))
       setActionOpen(true)
     },
-    body: {
-      ...config,
-      model: currentModel,
-      useTools: false,
-      // use word chunking for
-      chunking: "word",
-    },
   })
+
+  const isLoading = status === 'streaming' || status === 'submitted'
 
   const handleAction = useCallback(
     async (action: AIActionEnum) => {
@@ -273,7 +282,7 @@ export function AITools({
           resetState()
           break
         case AIActionEnum.TRY_AGAIN:
-          reload()
+          regenerate()
           return
       }
       cancelAIAction()
@@ -283,7 +292,7 @@ export function AITools({
       aiResult,
       cancelAIAction,
       editor,
-      reload,
+      regenerate,
       isGenerateChartRef.current,
     ]
   )
@@ -308,31 +317,31 @@ export function AITools({
         setMessages([
           {
             id: uuidv7(),
-            content: `You serve as an assistant, tasked with transforming user inputs, and the current directive is *${prompt}*，user's input will
-be between <content-begin> and <content-end>. you just output the transformed content without any other information.`,
             role: "system",
+            parts: [{ type: "text" as const, text: `You serve as an assistant, tasked with transforming user inputs, and the current directive is *${prompt}*，user's input will
+be between <content-begin> and <content-end>. you just output the transformed content without any other information.` }],
           },
           {
             id: uuidv7(),
-            content: `<content-begin>\n${content}\n<content-end>`,
             role: "user",
+            parts: [{ type: "text" as const, text: `<content-begin>\n${content}\n<content-end>` }],
           },
         ])
       } else {
         setMessages([
           {
             id: uuidv7(),
-            content: prompt,
             role: "system",
+            parts: [{ type: "text" as const, text: prompt }],
           },
           {
             id: uuidv7(),
-            content: content,
             role: "user",
+            parts: [{ type: "text" as const, text: content }],
           },
         ])
       }
-      reload()
+      regenerate()
       setPromptListOpen(false)
     }, 100)
   }
@@ -356,11 +365,16 @@ be between <content-begin> and <content-end>. you just output the transformed co
     boxRef,
     ["touchstart", "mousedown"]
   )
-  const regenerate = () => {
-    reload()
+  const handleRegenerate = () => {
+    regenerate()
   }
 
   const { editorWidth } = useUpdateLocation(editor, selectionRef, boxRef)
+
+  // Extract content from the third message (index 2) using parts
+  const assistantMessageContent = useMemo(() => {
+    return getMessageContent(messages[2])
+  }, [messages])
 
   return (
     <div className="fixed z-50" ref={boxRef} id="ai-tools-box">
@@ -386,7 +400,7 @@ be between <content-begin> and <content-end>. you just output the transformed co
               </div>
             )}
             {!isGenerateChartRef.current && (
-              <AIContentEditor markdown={messages[2]?.content} />
+              <AIContentEditor markdown={assistantMessageContent} />
             )}
             <div className="flex  w-full items-center justify-end opacity-50">
               {isLoading && (
@@ -396,7 +410,7 @@ be between <content-begin> and <content-end>. you just output the transformed co
               )}
               <Button
                 variant="ghost"
-                onClick={regenerate}
+                onClick={handleRegenerate}
                 size="sm"
                 disabled={isLoading}
               >

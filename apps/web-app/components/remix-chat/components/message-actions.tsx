@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { applyCode } from "@/packages/ai/generate"
-import type { Message } from "ai"
+import type { UIMessage } from "ai"
 import { Loader2, PlayIcon, RefreshCwIcon } from "lucide-react"
 import { useSWRConfig } from "swr"
 import { useCopyToClipboard } from "usehooks-ts"
@@ -29,7 +29,7 @@ export function MessageActions({
 }: {
   chatId: string
   projectId: string
-  message: Message
+  message: UIMessage
   vote: Vote | undefined
   isLoading: boolean
   onRegenerate?: () => void
@@ -56,7 +56,7 @@ export function MessageActions({
   if (isLoading) return null
   if (message.role === "user") return null
 
-  const codeBlocks = getCodeFromMarkdown(content || message.content)
+  const codeBlocks = getCodeFromMarkdown(content || "")
 
   const handleApply = async () => {
     const indexJsxCode = codeBlocks.find(
@@ -136,7 +136,7 @@ export function MessageActions({
           className="py-1 px-2 h-fit text-muted-foreground"
           variant="outline"
           onClick={async () => {
-            await copyToClipboard(message.content as string)
+            await copyToClipboard(content || "")
             toast({
               title: "Copied to clipboard!",
             })

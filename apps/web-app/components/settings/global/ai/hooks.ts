@@ -1,7 +1,7 @@
 import { toast } from "@/components/ui/use-toast"
 import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 import { getProvider } from "@/packages/ai/helper"
-import type { LanguageModelV1 } from "ai";
+import type { LanguageModel } from "ai";
 import { embedMany, generateText } from "ai"
 import { useState } from "react"
 
@@ -72,7 +72,7 @@ export const useModelTest = () => {
                     const translationText = async (text: string, targetLanguage: string) => {
                         if (!model) return []
                         const res = await generateText({
-                            model: modelProvider(config.modelId) as LanguageModelV1,
+                            model: modelProvider(config.modelId) as LanguageModel,
                             prompt: `Translate the following text to ${targetLanguage}: ${text}`,
                         });
                         return res.text
@@ -99,7 +99,7 @@ export const useModelTest = () => {
 
                     try {
                         const code = await generateText({
-                            model: modelProvider(config.modelId) as LanguageModelV1,
+                            model: modelProvider(config.modelId) as LanguageModel,
                             prompt: `just write a function that takes a list of numbers and returns the sum of the numbers. don't include any other text.`,
                         })
                         console.log(code)
@@ -121,7 +121,7 @@ export const useModelTest = () => {
 
                     try {
                         const patchCode = await generateText({
-                            model: modelProvider(config.modelId) as LanguageModelV1,
+                            model: modelProvider(config.modelId) as LanguageModel,
                             prompt: `You are a code patching assistant. Apply the following edit to the given code:
 
 <code>

@@ -12,7 +12,7 @@ import {
 } from "react"
 import { sanitizeUIMessages } from "@/packages/ai/utils"
 import type { IExtension } from "@/packages/core/meta-table/extension"
-import type { Attachment, ChatRequestOptions, CreateMessage, Message } from "ai"
+import type { ChatRequestOptions, CreateUIMessage, UIMessage } from "ai"
 import { useLocalStorage, useWindowSize } from "usehooks-ts"
 
 import { cn } from "@/lib/utils"
@@ -26,6 +26,13 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { ArrowUpIcon, PaperclipIcon, StopIcon } from "./icons"
 import { PreviewAttachment } from "./preview-attachment"
 import { PromptSelector } from "./prompt-selector"
+
+// Define local Attachment interface since it's not exported from ai in v6
+interface Attachment {
+  name: string;
+  contentType: string;
+  url: string;
+}
 
 // Add helper function to generate random file names
 const generateRandomFileName = (extension: string) => {
@@ -61,10 +68,10 @@ export function MultimodalInput({
   stop: () => void
   attachments: Array<Attachment>
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>
-  messages: Array<Message>
-  setMessages: Dispatch<SetStateAction<Array<Message>>>
+  messages: Array<UIMessage>
+  setMessages: Dispatch<SetStateAction<Array<UIMessage>>>
   append: (
-    message: Message | CreateMessage,
+    message: UIMessage | CreateUIMessage<any>,
     chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>
   handleSubmit: (
@@ -132,24 +139,8 @@ export function MultimodalInput({
 
   const submitForm = useCallback(() => {
     // window.history.replaceState({}, "", `/chat/${chatId}`)
-    // Convert attachments to FileList
-    const dataTransfer = new DataTransfer()
-
-    attachments.forEach(async (attachment) => {
-      try {
-        const response = await fetch(attachment.url)
-        const blob = await response.blob()
-        const file = new File([blob], attachment.name ?? "untitled", {
-          type: attachment.contentType,
-        })
-        dataTransfer.items.add(file)
-      } catch (error) {
-        console.error("Error converting attachment to file:", error)
-      }
-    })
-    handleSubmit(undefined, {
-      experimental_attachments: dataTransfer.files,
-    })
+    // experimental_attachments removed - not supported in AI SDK v6
+    handleSubmit()
 
     setAttachments([])
     setLocalStorageInput("")

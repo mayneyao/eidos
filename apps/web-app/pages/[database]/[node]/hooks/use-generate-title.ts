@@ -1,4 +1,4 @@
-import { useChat } from "ai/react"
+import { useChat } from "@ai-sdk/react"
 import { useTranslation } from "react-i18next"
 import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 import { toast } from "@/components/ui/use-toast"
@@ -21,7 +21,7 @@ export function useGenerateTitle() {
         }
     }, [model])
 
-    const { setMessages, reload, isLoading } = useChat({
+    const { setMessages, regenerate, status } = useChat({
         onError(error) {
             toast({
                 title: error.message || t("common.error.tryAgainLater"),
@@ -29,13 +29,11 @@ export function useGenerateTitle() {
             })
             resolveRef.current?.("")
         },
-        body: {
-            ...config,
-            model,
-            useTools: false,
-        },
+        // Note: `body` is removed in v6, config should be handled via provider setup
         onFinish(message) {
-            const generatedTitle = message.content.trim()
+            // Extract text from parts array instead of content
+            const textPart = message.parts?.find(part => part.type === 'text')
+            const generatedTitle = textPart?.text?.trim() || ''
             setTitle(generatedTitle)
             resolveRef.current?.(generatedTitle)
         },
@@ -56,30 +54,36 @@ export function useGenerateTitle() {
             setMessages([
                 {
                     id: uuidv7(),
-                    content: `You are a helpful assistant that generates concise and descriptive titles. Analyze the given content and generate a short, meaningful title (no more than 6 words) in the SAME LANGUAGE as the input content. Only output the title without any additional explanation or punctuation.
+                    role: "system",
+                    // Use parts array instead of content
+                    parts: [{ type: 'text', text: `You are a helpful assistant that generates concise and descriptive titles. Analyze the given content and generate a short, meaningful title (no more than 6 words) in the SAME LANGUAGE as the input content. Only output the title without any additional explanation or punctuation.
 
 For example:
 If the content is in English: "The process of brewing coffee involves several steps...", output: How to Make Perfect Coffee
 If the content is in Chinese: "咖啡的冲泡过程包含以下步骤...", output: How to brew perfect coffee
 If the content is in Japanese: "コーヒーの淹れ方について説明します...", output: How to brew perfect coffee
 
-Content:`,
-                    role: "system",
+Content:` }],
                 },
                 {
                     id: uuidv7(),
-                    content: content,
                     role: "user",
+                    // Use parts array instead of content
+                    parts: [{ type: 'text', text: content }],
                 },
             ])
 
-            reload()
+            // reload() -> regenerate()
+            regenerate()
         })
-    }, [model, setMessages, reload])
+    }, [model, setMessages, regenerate])
+
+    // Convert status to isLoading boolean for backward compatibility
+    const isLoading = status === 'submitted' || status === 'streaming'
 
     return {
         generateTitle,
         isLoading,
         title,
     }
-} 
+}

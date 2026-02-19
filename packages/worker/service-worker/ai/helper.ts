@@ -1,4 +1,4 @@
-import type { CoreAssistantMessage, CoreToolMessage, LanguageModelV1, UIMessage, CoreMessage } from '@/packages/ai/index';
+import type { LanguageModel, UIMessage, ModelMessage, AssistantModelMessage, ToolModelMessage } from '@/packages/ai/index';
 import { generateText } from '@/packages/ai/index';
 
 
@@ -7,7 +7,7 @@ import type { DataSpace } from "@/packages/core/data-space";
 import type { ChatMessage } from '@/packages/core/meta-table/message';
 
 
-export function getMostRecentUserMessage(messages: Array<CoreMessage>) {
+export function getMostRecentUserMessage(messages: Array<ModelMessage>) {
     const userMessages = messages.filter((message) => message.role === 'user');
     return userMessages.at(-1);
 }
@@ -25,7 +25,7 @@ export async function getMessagesByChatId(id: string, dataspace: DataSpace) {
     return messages
 }
 
-type ResponseMessageWithoutId = CoreToolMessage | CoreAssistantMessage;
+type ResponseMessageWithoutId = ToolModelMessage | AssistantModelMessage;
 type ResponseMessage = ResponseMessageWithoutId & { id: string };
 
 export function getTrailingMessageId({
@@ -37,7 +37,7 @@ export function getTrailingMessageId({
 
     if (!trailingMessage) return null;
 
-    return trailingMessage.id;
+    return (trailingMessage as any).id;
 }
 
 
@@ -80,10 +80,10 @@ export const combineAssistantMessage = (
 } => {
     if (uiMessage.role === 'assistant' && message.role === 'assistant') {
         return {
-            id: uiMessage.id,
+            id: (uiMessage as any).id,
             role: uiMessage.role,
-            content: uiMessage.content,
-            parts: [...uiMessage.parts, ...message.content],
+            content: (uiMessage as any).content,
+            parts: [...(uiMessage as any).parts || [], ...((message as any).content || [])],
         }
     }
     throw new Error('Invalid message role')
@@ -136,11 +136,11 @@ export async function generateTitleFromUserMessage({
     model,
 }: {
     message: UIMessage;
-    model: LanguageModelV1;
+    model: LanguageModel;
 }) {
     const { text: title } = await generateText({
         model: model,
-        system: `\n
+        system: `
     - you will generate a short title based on the first message a user begins a conversation with
     - ensure it is not more than 80 characters long
     - the title should be a summary of the user's message
@@ -152,13 +152,13 @@ export async function generateTitleFromUserMessage({
 }
 
 export function sanitizeResponseMessages(
-    messages: Array<CoreToolMessage | CoreAssistantMessage>,
-): Array<CoreToolMessage | CoreAssistantMessage> {
+    messages: Array<ToolModelMessage | AssistantModelMessage>,
+): Array<ToolModelMessage | AssistantModelMessage> {
     const toolResultIds: Array<string> = [];
 
     for (const message of messages) {
         if (message.role === 'tool') {
-            for (const content of message.content) {
+            for (const content of (message as any).content) {
                 if (content.type === 'tool-result') {
                     toolResultIds.push(content.toolCallId);
                 }
@@ -169,9 +169,10 @@ export function sanitizeResponseMessages(
     const messagesBySanitizedContent = messages.map((message) => {
         if (message.role !== 'assistant') return message;
 
-        if (typeof message.content === 'string') return message;
+        const msgContent = (message as any).content;
+        if (typeof msgContent === 'string') return message;
 
-        const sanitizedContent = message.content.filter((content) =>
+        const sanitizedContent = msgContent.filter((content: any) =>
             content.type === 'tool-call'
                 ? toolResultIds.includes(content.toolCallId)
                 : content.type === 'text'
@@ -186,6 +187,6 @@ export function sanitizeResponseMessages(
     });
 
     return messagesBySanitizedContent.filter(
-        (message) => message.content.length > 0,
+        (message) => (message as any).content.length > 0,
     );
 }

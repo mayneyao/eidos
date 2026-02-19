@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { mergeRegister } from "@lexical/utils"
-import { useCompletion } from "ai/react"
+import { useCompletion } from "@ai-sdk/react"
 import type {
   TextNode} from "lexical";
 import {
@@ -52,12 +52,7 @@ export default function AutocompletePlugin(): JSX.Element | null {
   const clearSuggestion = () => setSuggestion(null)
   const { complete, isLoading, stop } = useCompletion({
     api: "/api/completion",
-    body: {
-      // token: aiConfig.token,
-      // baseUrl: aiConfig.baseUrl,
-      systemPrompt:
-        defaultSysPrompt || localStorage.getItem("completeSystemPrompt") || "",
-    },
+    // Note: `body` is removed in v6, systemPrompt should be handled server-side or via query params
   })
 
   useEffect(() => {

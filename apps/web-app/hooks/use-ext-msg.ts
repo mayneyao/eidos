@@ -109,8 +109,9 @@ export const useExtMsg = (source: ExtensionSourceType) => {
                   const { object } = await window.eidos.AI.generateObject({
                     model: payload.model || textModel,
                     prompt: payload.prompt,
+                    output: 'object',
                     schema: jsonSchema(payload.schema),
-                  })
+                  } as any)
                   console.log("generate object", object)
                   event.ports[0].postMessage({
                     type: ExtMsgType.scriptCallMainResp,
@@ -120,8 +121,9 @@ export const useExtMsg = (source: ExtensionSourceType) => {
                   const { object } = await generateObject({
                     model: llmodel,
                     prompt: payload.prompt,
+                    output: 'object',
                     schema: jsonSchema(payload.schema),
-                  })
+                  } as any)
                   console.log("generate object", object)
                   event.ports[0].postMessage({
                     type: ExtMsgType.scriptCallMainResp,

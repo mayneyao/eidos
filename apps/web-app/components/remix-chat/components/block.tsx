@@ -5,7 +5,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react"
-import type { Attachment, ChatRequestOptions, CreateMessage, Message } from "ai"
+import type { ChatRequestOptions, CreateUIMessage, UIMessage } from "ai"
 import { formatDistance } from "date-fns"
 import { AnimatePresence, motion } from "framer-motion"
 import { toast } from "sonner"
@@ -28,6 +28,13 @@ import type { Document, Suggestion, Vote } from "../interface"
 import { CopyIcon, CrossIcon, DeltaIcon, RedoIcon, UndoIcon } from "./icons"
 import { Toolbar } from "./toolbar"
 import { useScrollToBottom } from "./use-scroll-to-bottom"
+
+// Define local Attachment interface since it's not exported from ai in v6
+interface Attachment {
+  name: string;
+  contentType: string;
+  url: string;
+}
 
 export interface UIBlock {
   title: string
@@ -68,11 +75,11 @@ export function Block({
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>
   block: UIBlock
   setBlock: Dispatch<SetStateAction<UIBlock>>
-  messages: Array<Message>
-  setMessages: Dispatch<SetStateAction<Array<Message>>>
+  messages: Array<UIMessage>
+  setMessages: Dispatch<SetStateAction<Array<UIMessage>>>
   votes: Array<Vote> | undefined
   append: (
-    message: Message | CreateMessage,
+    message: UIMessage | CreateUIMessage<any>,
     chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>
   handleSubmit: (

@@ -4,7 +4,7 @@ import type { Chat } from "@/packages/core/meta-table/chat"
 import type { ChatMessage } from "@/packages/core/meta-table/message"
 import { useCallback, useEffect, useMemo } from "react"
 import { create } from "zustand"
-import type { Message } from "@ai-sdk/react"
+import type { UIMessage } from "ai"
 import { uuidv7 } from "@/lib/utils"
 
 const useAIChatDataStore = create<{
@@ -71,12 +71,12 @@ export const useAIChatData = () => {
         const messages = currentChat?.messages.map(m => ({
             id: m.id,
             content: m.content,
-            role: m.role as Message["role"],
+            role: m.role as UIMessage["role"],
             createdAt: new Date(m.created_at + 'Z'),
             chat_id: m.chat_id,
             parts: m.parts
         })) || []
-        return messages as Message[]
+        return messages as UIMessage[]
     }, [currentChat])
 
 

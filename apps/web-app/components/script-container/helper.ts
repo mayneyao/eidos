@@ -43,6 +43,9 @@ export const callJavaScript = (
     },
     scriptContainerRef: any
 ): Promise<any> => {
+    console.log(`[callJavaScript] Starting execution for id: ${props.id}`)
+    console.log(`[callJavaScript] Code:\n${props.code.substring(0, 500)}${props.code.length > 500 ? '...' : ''}`)
+    
     const channel = new MessageChannel()
 
     scriptContainerRef?.current?.contentWindow?.postMessage(
@@ -53,13 +56,19 @@ export const callJavaScript = (
         "*",
         [channel.port2]
     )
+    console.log(`[callJavaScript] Message posted to sandbox`)
 
     return new Promise((resolve, reject) => {
         channel.port1.onmessage = (event) => {
             const { type, data } = event.data
+            console.log(`[callJavaScript] Received message type: ${type}`)
+            console.log(`[callJavaScript] Received data:`, JSON.stringify(data, null, 2).substring(0, 2000))
+            
             if (type === "ScriptFunctionCallResponse") {
+                console.log(`[callJavaScript] Resolving with data`)
                 resolve(data)
             } else if (type === "ScriptFunctionCallError") {
+                console.error(`[callJavaScript] Rejecting with error:`, data)
                 reject(data)
             }
         }

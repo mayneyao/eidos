@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type Dispatch, type SetStateAction } from "react"
-import type { Message } from "ai"
+import type { UIMessage } from "ai"
 import { motion } from "framer-motion"
 
 import { cn } from "@/lib/utils"
@@ -29,7 +29,7 @@ export const PreviewMessage = ({
 }: {
   chatId: string
   projectId: string
-  message: Message
+  message: UIMessage
   block: UIBlock
   setBlock: Dispatch<SetStateAction<UIBlock>>
   vote: Vote | undefined
@@ -76,13 +76,13 @@ export const PreviewMessage = ({
                 <MessageReasoning
                   key={key}
                   isLoading={isLoading}
-                  reasoning={part.reasoning}
+                  reasoning={(part as any).reasoning}
                 />
               )
             }
 
             if (type === "tool-invocation") {
-              const { toolInvocation } = part
+              const toolInvocation = (part as any).toolInvocation
               const { toolName, toolCallId, state } = toolInvocation
 
               if (state === "call") {
@@ -130,16 +130,7 @@ export const PreviewMessage = ({
               )
             }
           })}
-          {message.experimental_attachments && (
-            <div className="flex flex-row gap-2">
-              {message.experimental_attachments.map((attachment) => (
-                <PreviewAttachment
-                  key={attachment.url}
-                  attachment={attachment}
-                />
-              ))}
-            </div>
-          )}
+          {/* experimental_attachments removed - not supported in AI SDK v6 */}
 
           <MessageActions
             key={`action-${message.id}`}

@@ -17,8 +17,8 @@ import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary"
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
-import type { Attachment, ChatRequestOptions, CreateMessage } from "ai"
-import type { Message } from "ai/react"
+import type { ChatRequestOptions, CreateUIMessage } from "ai"
+import type { UIMessage } from "ai"
 import {
   $getRoot,
   $getSelection,
@@ -45,6 +45,13 @@ import { AutoEditable } from "./plugins/auto-editable"
 import { DragDropPlugin } from "./plugins/drag-drop"
 import { SwitchPromptPlugin } from "./plugins/switch-prompt"
 
+// Define local Attachment interface since it's not exported from ai in v6
+interface Attachment {
+  name: string;
+  contentType: string;
+  url: string;
+}
+
 const theme = {
   // Theme styling goes here
 }
@@ -52,11 +59,14 @@ const theme = {
 interface InputEditorProps {
   disabled?: boolean
   enableRAG?: boolean
-  append: (
-    message: Message | CreateMessage,
-    chatRequestOptions?: ChatRequestOptions
+  sendMessage: (
+    message: {
+      role: UIMessage["role"]
+      content: string
+    },
+    options?: ChatRequestOptions
   ) => Promise<string | null | undefined>
-  appendHiddenMessage: (messages: Message) => void
+  appendHiddenMessage: (messages: UIMessage) => void
   isLoading?: boolean
   setContextEmbeddings?: (embeddings: IEmbedding[]) => void
   attachments?: Attachment[]
@@ -137,7 +147,7 @@ export const AIInputEditor = React.forwardRef<
   (
     {
       disabled,
-      append,
+      sendMessage,
       enableRAG,
       appendHiddenMessage,
       isLoading,
@@ -246,15 +256,12 @@ export const AIInputEditor = React.forwardRef<
           )
 
           setTimeout(() => {
-            append(
+            sendMessage(
               {
-                id: crypto.randomUUID(),
                 role: "user",
                 content: markdown,
-              },
-              {
-                experimental_attachments: processedAttachments,
               }
+              // experimental_attachments removed - not supported in AI SDK v6
             )
           }, 100)
 

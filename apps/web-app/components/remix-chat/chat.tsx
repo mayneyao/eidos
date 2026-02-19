@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useChat } from "@ai-sdk/react"
-import type { Attachment, ChatRequestOptions, Message } from "ai"
+import type { ChatRequestOptions, UIMessage, CreateUIMessage } from "ai"
 import { AnimatePresence } from "framer-motion"
 import { useSWRConfig } from "swr"
 import { useWindowSize } from "usehooks-ts"
@@ -23,6 +23,13 @@ import { Overview } from "./components/overview"
 import { useScrollToBottom } from "./components/use-scroll-to-bottom"
 import type { Vote } from "./interface"
 
+// Define local Attachment interface since it's not exported from ai in v6
+interface Attachment {
+  name: string;
+  contentType: string;
+  url: string;
+}
+
 export function Chat({
   id,
   scriptId,
@@ -31,7 +38,7 @@ export function Chat({
 }: {
   id: string
   scriptId: string
-  initialMessages: Array<Message>
+  initialMessages: Array<UIMessage>
   selectedModelId: string
 }) {
   const { mutate } = useSWRConfig()
@@ -50,6 +57,9 @@ export function Chat({
   >(null)
   const { setChatHistory } = useEditorStore()
   const { toast } = useToast()
+
+  // Local state for input since useChat no longer provides input/setInput
+  const [input, setInput] = useState("")
 
   useEffect(() => {
     // Custom prompts are no longer supported, always use default prompt
@@ -87,26 +97,12 @@ export function Chat({
   const {
     messages,
     setMessages,
-    handleSubmit,
-    input,
-    setInput,
-    append,
-    isLoading,
+    sendMessage,
+    status,
     stop,
-    data: streamingData,
-    reload,
+    regenerate,
   } = useChat({
-    body: {
-      ...config,
-      systemPrompt: remixPrompt,
-      id,
-      model: aiModel,
-      space,
-      projectId: scriptId,
-      useTools: false,
-      textModel: textModelConfig,
-    },
-    initialMessages,
+    messages: initialMessages,
     onFinish: () => {
       setMessages((currentMessages) => {
         console.log("messages:", currentMessages)
@@ -114,7 +110,7 @@ export function Chat({
         return currentMessages
       })
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error("Chat error:", error)
       toast({
         title: "Error",
@@ -122,13 +118,12 @@ export function Chat({
         variant: "destructive",
       })
     },
-    onResponse: (response) => {
-      if (!response.ok) {
-        console.error("Response not ok:", response.statusText)
-      }
-    },
   })
 
+  // Compute isLoading from status
+  const isLoading = status === "submitted" || status === "streaming"
+
+  // Handle submit using sendMessage
   const myHandleSubmit = useCallback(
     (
       event?: {
@@ -136,9 +131,19 @@ export function Chat({
       },
       chatRequestOptions?: ChatRequestOptions
     ) => {
-      handleSubmit(event, chatRequestOptions)
+      event?.preventDefault?.()
+      if (!input.trim()) return
+
+      sendMessage(
+        {
+          role: "user",
+          parts: [{ type: "text" as const, text: input }],
+        },
+        chatRequestOptions
+      )
+      setInput("")
     },
-    [handleSubmit]
+    [input, sendMessage]
   )
 
   const { width: windowWidth = 1920, height: windowHeight = 1080 } =
@@ -167,8 +172,22 @@ export function Chat({
   const [attachments, setAttachments] = useState<Array<Attachment>>([])
 
   const handleRegenerate = useCallback(async () => {
-    await reload()
-  }, [reload])
+    await regenerate()
+  }, [regenerate])
+
+  // Wrapper for append to match the expected signature
+  const append = useCallback(
+    async (message: any, options?: ChatRequestOptions): Promise<string | null | undefined> => {
+      // Convert message to v6 format with parts
+      const parts = message.parts || [{ type: "text" as const, text: message.content || "" }];
+      await sendMessage({
+        role: message.role,
+        parts,
+      }, options)
+      return null
+    },
+    [sendMessage]
+  )
 
   return (
     <>
@@ -230,7 +249,7 @@ export function Chat({
         </form>
       </div>
 
-      <BlockStreamHandler streamingData={streamingData} setBlock={setBlock} />
+      <BlockStreamHandler setBlock={setBlock} streamingData={undefined} />
     </>
   )
 }

@@ -2,7 +2,7 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useEditorStore } from "../stores/editor-store"
 import { useEffect } from "react"
 import type { DataSpace } from "@eidos.space/core/data-space"
-import type { Message } from "ai"
+import type { UIMessage } from "ai"
 import { uuidv7 } from "@/lib/utils"
 
 const getChatIds = async (sqlite: DataSpace, scriptId: string) => {
@@ -21,7 +21,7 @@ const listChatHistory = async (sqlite: DataSpace, chatId: string) => {
         id: m.id,
         content: m.content,
         createdAt: new Date(m.created_at!.replace(' ', 'T')),
-        role: m.role as Message["role"],
+        role: m.role as UIMessage["role"],
     }))
 }
 
@@ -33,7 +33,7 @@ export function useExtensionChatHistory(scriptId: string) {
         setChatHistory,
         setChatId,
         chatId,
-        chatHistoryMap = new Map<string, Message[]>(),
+        chatHistoryMap = new Map<string, UIMessage[]>(),
         setChatHistoryMap,
         setChatTitles = () => { },
     } = useEditorStore()

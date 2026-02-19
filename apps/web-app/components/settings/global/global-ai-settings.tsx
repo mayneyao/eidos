@@ -26,6 +26,7 @@ import { useAIConfigStore } from "@/components/settings/stores"
 
 import { AIProviderModal } from "./ai/ai-provider-modal"
 import { AITaskConfigForm } from "./ai/ai-task-form"
+import { AIIntegrationSettings } from "./ai/ai-integration-settings"
 
 // lazy import ProviderIcon
 const ProviderIcon = lazy(
@@ -307,6 +308,19 @@ export function GlobalAISettings() {
 
       <div className="py-4 lg:py-6">
         <AITaskConfigForm onDirtyChange={setIsFormDirty} />
+      </div>
+
+      {/* Integration Section */}
+      <div className="py-4 lg:py-6">
+        <h3 className="text-lg font-medium mb-4">
+          {t("settings.ai.integrations", "消息平台集成")}
+        </h3>
+      </div>
+
+      <hr className="border-border" />
+
+      <div className="py-4 lg:py-6">
+        <AIIntegrationSettings />
       </div>
 
       {/* Provider Configuration Modal */}

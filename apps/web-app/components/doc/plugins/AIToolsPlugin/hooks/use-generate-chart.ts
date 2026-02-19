@@ -1,6 +1,6 @@
 import { useAiConfig } from '@/apps/web-app/hooks/use-ai-config';
 import { getProvider } from '@/packages/ai/helper';
-import type { LanguageModelV1} from 'ai';
+import type { LanguageModel } from 'ai';
 import { generateObject } from 'ai';
 import { useState } from 'react';
 import { z } from 'zod';
@@ -68,11 +68,10 @@ const chartConfigSchema = z.object({
 export const generateChartConfig = async (prompt: string, config: any) => {
     const provider = getProvider(config)
     const modelId = config.modelId
-    const llmodel = provider(modelId) as LanguageModelV1
+    const llmodel = provider(modelId) as LanguageModel
     const res = await generateObject({
         model: llmodel,
         schema: chartConfigSchema,
-        mode: "json",
         prompt: `You are a data visualization expert. Based on the user's input, generate a chart configuration. The user's input is enclosed in <user_input> tags. There are some rules:
         1. Always try to provide themeConfig with a consistent and readable color scheme.
         2. if generate pie chart, please ensure to provide xAxis.dataKey

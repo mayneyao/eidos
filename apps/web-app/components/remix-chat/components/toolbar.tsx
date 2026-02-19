@@ -8,7 +8,7 @@ import {
   type SetStateAction,
 } from "react"
 import { sanitizeUIMessages } from "@/packages/ai/utils"
-import type { ChatRequestOptions, CreateMessage, Message } from "ai"
+import type { ChatRequestOptions, CreateUIMessage, UIMessage } from "ai"
 import {
   AnimatePresence,
   motion,
@@ -43,7 +43,7 @@ type ToolProps = {
   setIsToolbarVisible?: Dispatch<SetStateAction<boolean>>
   isAnimating: boolean
   append: (
-    message: Message | CreateMessage,
+    message: UIMessage | CreateUIMessage<any>,
     chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>
 }
@@ -85,16 +85,20 @@ const Tool = ({
       if (type === "final-polish") {
         append({
           role: "user",
-          content:
-            "Please add final polish and check for grammar, add section titles for better structure, and ensure everything reads smoothly.",
+          parts: [{
+            type: "text",
+            text: "Please add final polish and check for grammar, add section titles for better structure, and ensure everything reads smoothly.",
+          }],
         })
 
         setSelectedTool(null)
       } else if (type === "request-suggestions") {
         append({
           role: "user",
-          content:
-            "Please add suggestions you have that could improve the writing.",
+          parts: [{
+            type: "text",
+            text: "Please add suggestions you have that could improve the writing.",
+          }],
         })
 
         setSelectedTool(null)
@@ -157,7 +161,7 @@ const ReadingLevelSelector = ({
   setSelectedTool: Dispatch<SetStateAction<string | null>>
   isAnimating: boolean
   append: (
-    message: Message | CreateMessage,
+    message: UIMessage | CreateUIMessage<any>,
     chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>
 }) => {
@@ -235,7 +239,10 @@ const ReadingLevelSelector = ({
                 if (currentLevel !== 2 && hasUserSelectedLevel) {
                   append({
                     role: "user",
-                    content: `Please adjust the reading level to ${LEVELS[currentLevel]} level.`,
+                    parts: [{
+                      type: "text",
+                      text: `Please adjust the reading level to ${LEVELS[currentLevel]} level.`,
+                    }],
                   })
 
                   setSelectedTool(null)
@@ -270,7 +277,7 @@ export const Tools = ({
   selectedTool: string | null
   setSelectedTool: Dispatch<SetStateAction<string | null>>
   append: (
-    message: Message | CreateMessage,
+    message: UIMessage | CreateUIMessage<any>,
     chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>
   isAnimating: boolean
@@ -336,11 +343,11 @@ export const Toolbar = ({
   setIsToolbarVisible: Dispatch<SetStateAction<boolean>>
   isLoading: boolean
   append: (
-    message: Message | CreateMessage,
+    message: UIMessage | CreateUIMessage<any>,
     chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>
   stop: () => void
-  setMessages: Dispatch<SetStateAction<Message[]>>
+  setMessages: Dispatch<SetStateAction<UIMessage[]>>
 }) => {
   const toolbarRef = useRef<HTMLDivElement>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>()

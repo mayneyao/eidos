@@ -3,7 +3,7 @@ import { useCallback, useMemo } from "react"
 import { useAIConfigStore } from "@/components/settings/stores"
 import { TaskType } from "@/components/settings/global/ai/hooks"
 import { getProvider } from "@/packages/ai/helper"
-import type { LanguageModelV1 } from "ai"
+import type { LanguageModel } from "ai"
 
 
 export const useAiConfig = () => {
@@ -59,7 +59,7 @@ export const useAiConfig = () => {
       baseUrl: config.baseUrl,
       type: config.type,
     })
-    return provider(config.modelId) as LanguageModelV1
+    return provider(config.modelId) as LanguageModel
   }, [getConfigByModel])
 
   const hasAvailableModels = useMemo(() => {

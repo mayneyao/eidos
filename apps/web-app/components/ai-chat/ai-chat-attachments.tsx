@@ -1,4 +1,10 @@
-import type { Attachment } from 'ai'
+// Define local Attachment interface since it's not exported from ai in v6
+interface Attachment {
+  name: string;
+  contentType: string;
+  url: string;
+}
+
 import { PreviewAttachment } from '../remix-chat/components/preview-attachment'
 
 interface AIChatAttachmentsProps {
@@ -29,4 +35,4 @@ export function AIChatAttachments({ attachments, uploadQueue }: AIChatAttachment
       ))}
     </div>
   )
-} 
+}
