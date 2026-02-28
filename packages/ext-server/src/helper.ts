@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss"
 
 import { sdkInjectScriptHtml } from "./generated/assets"
-import { IBindings } from "./types"
+import type { IBindings } from "./types"
 
 export const makeSdkInjectScript = ({
   bindings,

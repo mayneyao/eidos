@@ -11,7 +11,7 @@ import {
   createEidosDependencies,
 } from "@eidos.space/ext-server/eidos"
 import { handleFunctionCall } from "../rpc"
-import { HeadlessConfig } from "../config/env"
+import type { HeadlessConfig } from "../config/env"
 import { getDataSpace } from "../data-space"
 import fs from "node:fs"
 import path from "node:path"

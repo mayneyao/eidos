@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { IExtension } from "@/packages/core/types/IExtension"
+import type { IExtension } from "@/packages/core/types/IExtension"
 import { detectDirective } from "@eidos.space/v3"
 import {
   ExternalLinkIcon,

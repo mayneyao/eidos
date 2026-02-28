@@ -8,7 +8,8 @@ import fs from "node:fs"
 import path from "node:path"
 import { DataSpace } from "@eidos.space/core"
 
-import { HeadlessConfig, applyGraftEnv, generateGraftToml } from "../config/env"
+import type { HeadlessConfig} from "../config/env";
+import { applyGraftEnv, generateGraftToml } from "../config/env"
 import { getExtensionPaths, validateExtensions } from "../utils/extensions"
 import { NodeServerDatabase, initializeDatabase } from "./node-server-db"
 

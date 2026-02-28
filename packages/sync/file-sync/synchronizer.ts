@@ -1,7 +1,7 @@
 import { createReadStream, existsSync } from "fs"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Readable } from "stream"
+import type { Readable } from "stream"
 import * as crypto from "crypto"
 import {
   DeleteObjectCommand,
@@ -13,9 +13,11 @@ import {
   _Object,
 } from "@aws-sdk/client-s3"
 import { Upload } from "@aws-sdk/lib-storage"
-import { FSWatcher, watch } from "chokidar"
+import type { FSWatcher} from "chokidar";
+import { watch } from "chokidar"
 
-import { FileMetadata, SyncConfig } from "./types"
+import type { SyncConfig } from "./types";
+import { FileMetadata } from "./types"
 import { debounce, isEmpty } from "./utils"
 
 const DEBOUNCE_MS = 500

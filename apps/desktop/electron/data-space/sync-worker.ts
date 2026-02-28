@@ -1,5 +1,6 @@
 import { parentPort, workerData } from "worker_threads"
-import { FileSynchronizer, SyncConfig } from "@/packages/sync"
+import type { SyncConfig } from "@/packages/sync";
+import { FileSynchronizer } from "@/packages/sync"
 
 if (!parentPort) {
   throw new Error("Must be run as a worker thread")

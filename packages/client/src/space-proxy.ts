@@ -4,7 +4,8 @@
  * Extracted and adapted from packages/sandbox/src/sdk-inject-script.html
  */
 
-import { createHttpTransport, onCallBack, TransportConfig } from "./transport"
+import type { TransportConfig } from "./transport";
+import { createHttpTransport, onCallBack } from "./transport"
 
 /**
  * Create space proxy with Prisma-style API
