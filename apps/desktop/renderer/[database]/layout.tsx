@@ -32,6 +32,7 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useLayoutInit } from "../../../web-app/pages/[database]/hook"
 import { useSpaceAppStore } from "../../../web-app/pages/[database]/store"
 import { TabErrorBoundary } from "../TabErrorBoundary"
+import { AgentBridge } from "@/components/agent-bridge"
 
 const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 
@@ -118,6 +119,7 @@ export function DesktopSpaceLayout() {
       <KeyboardShortCuts />
       <div className={cn("relative flex w-full overflow-hidden")}>
         <ScriptContainer />
+        <AgentBridge />
         <SideBar />
         <main className="flex min-w-0 grow">
           <ResizablePanelGroup

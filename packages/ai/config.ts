@@ -26,6 +26,7 @@ const providerTypes: [LLMProviderType, ...LLMProviderType[]] = [
     "ollama",
     // "luma",
     "openai-compatible",
+    "anthropic-compatible",
 ];
 
 export const llmProviderSchema = z.object({

@@ -12,6 +12,7 @@ import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 import { TempPanel } from "@/components/nav/temp-panel"
 import { NodeAppPanel } from "@/components/nav/node-app-panel"
+import { AgentBridge } from "@/components/agent-bridge"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppStore } from "@/apps/web-app/store/app-store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
@@ -59,6 +60,7 @@ export function DatabaseLayoutBase({
         ></iframe>
       )}
       <ScriptContainer />
+      <AgentBridge />
       <div className="flex h-screen w-full">
         <SideBar />
         <div className="flex h-screen flex-col min-w-0 grow">

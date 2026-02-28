@@ -30,7 +30,12 @@ Block extensions are lightweight, single-file UI components. They support three 
 export const meta = {
   type: "tableView",
   componentName: "MyListView",
-  tableView: { title: "List View", type: "list", description: "..." },
+  tableView: { 
+    title: "List View", 
+    type: "list", 
+    description: "...",
+    bindTableNames: ["users"] // Optional: Bind this view to specific tables
+  },
 }
 ```
 

@@ -95,8 +95,13 @@
   window.addEventListener("message", async (event) => {
     const { type, data } = event.data
     const port = event.ports[0]
+    console.log(`[Sandbox] Received message type: ${type}`)
+    
     if (type === "ScriptFunctionCall") {
-      const { input, context, id, hash, command, bindings } = data
+      const { input, context, id, hash, command, code, bindings } = data
+      console.log(`[Sandbox] Executing code for id: ${id || 'agent-session'}`)
+      console.log(`[Sandbox] Code:\n${code ? code.substring(0, 500) : 'N/A'}${code && code.length > 500 ? '...' : ''}`)
+      
       window.__EIDOS_BINDINGS__ = bindings || {}
 
       const env = Object.entries(bindings || {}).reduce((acc, [key, binding]) => {
@@ -108,11 +113,62 @@
       context.env = env
 
       try {
-        const module = await import(`/${id}.js?t=${hash || Date.now()}`)
-        const res = await module[command](input, context)
+        let res;
+        if (code) {
+          // Direct execution of code string
+          const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+          // Construct 'repl' helper locally to avoid DataCloneError
+          const repl = {
+            save: async (filename, content) => {
+              const path = filename.startsWith('.') ? filename : `.eidos/scripts/${filename}`;
+              await window.eidos.currentSpace.fs.writeFile(path, content);
+              return `✅ Saved to ${path}`;
+            },
+            load: async (filename) => {
+              const path = filename.startsWith('.') ? filename : `.eidos/scripts/${filename}`;
+              return await window.eidos.currentSpace.fs.readFile(path);
+            },
+            ls: async () => {
+              const result = await window.eidos.currentSpace.fs.listFiles('.eidos/scripts');
+              return (result && result.files) || [];
+            }
+          };
+
+          const fn = new AsyncFunction('input', 'context', 'eidos', 'database', 'repl', code);
+          console.log(`[Sandbox] Executing AsyncFunction...`)
+          res = await fn(input, context, window.eidos, context.database, repl);
+          console.log(`[Sandbox] Execution completed. Result type: ${typeof res}`)
+          console.log(`[Sandbox] Result:`, JSON.stringify(res, null, 2).substring(0, 1000))
+        } else {
+          // Existing import-based execution
+          console.log(`[Sandbox] Importing module: ${id}`)
+          const module = await import(`/${id}.js?t=${hash || Date.now()}`)
+          res = await module[command](input, context)
+        }
+        
+        // 如果用户代码返回 Error 对象，转换为可序列化的对象
+        if (res instanceof Error) {
+          console.log(`[Sandbox] Result is Error instance, converting...`)
+          res = {
+            error: {
+              name: res.name,
+              message: res.message,
+              stack: res.stack
+            }
+          }
+        }
+        
+        console.log(`[Sandbox] Sending ScriptFunctionCallResponse`)
         port.postMessage({ type: "ScriptFunctionCallResponse", data: res })
       } catch (error) {
-        port.postMessage({ type: "ScriptFunctionCallError", data: error })
+        console.error(`[Sandbox] Execution error:`, error)
+        const errorDetails = error instanceof Error ? {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        } : { message: String(error) }
+        console.log(`[Sandbox] Sending ScriptFunctionCallError:`, errorDetails)
+        port.postMessage({ type: "ScriptFunctionCallError", data: errorDetails })
       }
     }
   })

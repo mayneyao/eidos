@@ -43,7 +43,8 @@ export type LLMProviderType =
   "perplexity" |
   "ollama" |
   // "luma" |
-  "openai-compatible"
+  "openai-compatible" |
+  "anthropic-compatible"
 
 
 export const ALL_PROVIDERS_RAW = [
@@ -68,6 +69,7 @@ export const ALL_PROVIDERS_RAW = [
   "ollama",
   // "luma",
   "openai-compatible",
+  "anthropic-compatible",
 ]
 
 
@@ -162,6 +164,11 @@ export const LLM_PROVIDER_INFO: Record<LLMProviderType, {
   "openai-compatible": {
     name: "OpenAI Compatible",
     baseUrl: "YOUR_COMPATIBLE_ENDPOINT", // User specific
+  },
+  "anthropic-compatible": {
+    name: "Anthropic Compatible",
+    baseUrl: "YOUR_COMPATIBLE_ENDPOINT", // User specific
+    urlForGettingApiKey: "https://console.anthropic.com/settings/keys",
   },
 }
 
@@ -298,6 +305,14 @@ export function getProvider(data: {
       return createCerebras(config)
     // case 'luma':
     //   return createLuma(config)
+    case 'anthropic-compatible':
+      if (!baseUrl) {
+        console.warn(`Base URL is missing for Anthropic compatible provider type: ${type}. Falling back to Anthropic default.`);
+      }
+      return createAnthropic({
+        baseURL: baseUrl,
+        apiKey,
+      })
     case 'openai-compatible':
     case 'ollama':
     default:

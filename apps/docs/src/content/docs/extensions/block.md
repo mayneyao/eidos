@@ -73,6 +73,7 @@ interface TableViewMeta {
     title: string
     type: string // Built-in types: grid, gallery, kanban
     description: string
+    bindTableNames?: string[] // Optional array of raw table names to bind this view to specific tables
   }
 }
 ```
@@ -102,6 +103,7 @@ export const meta = {
     title: "List View",
     type: "list",
     description: "This is a list view",
+    bindTableNames: ["users"] // Optional: Only show for 'users' table
   },
 }
 

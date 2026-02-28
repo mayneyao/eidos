@@ -19,15 +19,17 @@ interface AddViewDropdownProps {
   onAddView: (viewType: ViewTypeEnum | `ext__${string}`) => void
   isView: boolean
   isReadOnly?: boolean
+  tableName?: string
 }
 
 export const AddViewDropdown = ({
   onAddView,
   isView,
   isReadOnly,
+  tableName,
 }: AddViewDropdownProps) => {
   const { t } = useTranslation()
-  const { tableViews } = useCustomTableViews()
+  const { tableViews } = useCustomTableViews(tableName)
 
   if (isReadOnly) {
     return null

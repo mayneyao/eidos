@@ -73,6 +73,7 @@ interface TableViewMeta {
     title: string
     type: string // 内置类型: grid, gallery, kanban
     description: string
+    bindTableNames?: string[] // 可选的表名数组，用于将此视图绑定到特定表格
   }
 }
 ```
@@ -102,6 +103,7 @@ export const meta = {
     title: "列表视图",
     type: "list",
     description: "这是一个列表视图",
+    bindTableNames: ["users"] // 可选：仅在名为 'users' 的表格中显示
   },
 }
 

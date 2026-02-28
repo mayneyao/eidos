@@ -40,6 +40,7 @@ import { AppUpdater } from "./updater"
 import { createWindow } from "./window-manager/createWindow"
 import { convertToElectronMenuTemplateWithIds } from "./window-manager/menu-utils"
 import { LicenseManager } from "./license"
+import { agentManager } from "./agent-manager"
 
 process.on("uncaughtException", (error) => {
   console.error("Unhandled Exception:", error) // Also log to console
@@ -71,6 +72,36 @@ let forceQuit = false
 export const PORT = 13127
 
 process.env["ELECTRON_DISABLE_SECURITY_WARNINGS"] = "true"
+
+// ========== Development Mode: Process Lifecycle Management ==========
+// When running in development mode (via `pnpm dev:desktop`), Vite is the parent
+// process of Electron. If the user terminates the Vite process (Ctrl+C), the
+// Electron app may become an orphan process and remain running.
+// This code ensures the Electron app exits gracefully when its parent is gone.
+// ===================================================================
+if (!app.isPackaged) {
+  // Handle parent process (Vite) disconnection
+  process.on("disconnect", () => {
+    electronLog.info("[Dev] Parent process disconnected, quitting app...")
+    app.quit()
+    process.exit(0)
+  })
+
+  // Handle SIGINT/SIGTERM signals (Ctrl+C or kill command)
+  process.on("SIGINT", () => {
+    electronLog.info("[Dev] Received SIGINT, quitting app...")
+    app.quit()
+    process.exit(0)
+  })
+
+  process.on("SIGTERM", () => {
+    electronLog.info("[Dev] Received SIGTERM, quitting app...")
+    app.quit()
+    process.exit(0)
+  })
+}
+// ===================================================================
+
 // The built directory structure
 //
 // ├─┬ dist
@@ -130,6 +161,42 @@ ipcMain.handle("get-ai-config", () => {
 ipcMain.handle("get-user-config-path", () => {
   return path.join(app.getPath("userData"), "config.json")
 })
+
+ipcMain.handle("execute-js-in-renderer", async (event, code) => {
+  return executeJsInRenderer(code)
+})
+
+/**
+ * Execute JavaScript in the focused or main renderer window
+ */
+export async function executeJsInRenderer(code: string): Promise<any> {
+  const requestId = Date.now().toString()
+  const activeWin = BrowserWindow.getFocusedWindow() || win
+  
+  if (!activeWin) {
+    throw new Error("No active window found to execute JS")
+  }
+
+  electronLog.info(`[Agent IPC] Forwarding JS execution to renderer (request: ${requestId})`)
+  electronLog.info(`[Agent IPC] Code:\n${code.substring(0, 500)}${code.length > 500 ? '...' : ''}`)
+  activeWin.webContents.send("agent-execute-code", { code, requestId })
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      ipcMain.removeHandler(`agent-execute-result-${requestId}`)
+      electronLog.error(`[Agent IPC] Execution timed out (request: ${requestId})`)
+      reject(new Error("JS execution timed out in renderer"))
+    }, 30000)
+
+    ipcMain.once(`agent-execute-result-${requestId}`, (event, result) => {
+      clearTimeout(timeout)
+      electronLog.info(`[Agent IPC] Received result (request: ${requestId}):`)
+      electronLog.info(`[Agent IPC] Result type: ${typeof result}`)
+      electronLog.info(`[Agent IPC] Result: ${JSON.stringify(result, null, 2).substring(0, 1000)}`)
+      resolve(result)
+    })
+  })
+}
 
 ipcMain.handle("sqlite-msg", async (event, payload) => {
   try {
@@ -381,9 +448,10 @@ ipcMain.handle("reload-app", () => {
   win?.reload()
 })
 
-app.on("window-all-closed", () => {
+app.on("window-all-closed", async () => {
   cleanupPlaygroundWatchers()
   getDataSpace()?.close()
+  await agentManager.stop()
   globalShortcutManager?.destroy()
   globalShortcutManager = null
   win = null
@@ -687,8 +755,9 @@ ipcMain.handle("clear-license", async () => {
   return { success: true };
 });
 
-app.on("before-quit", () => {
+app.on("before-quit", async () => {
   cleanupPlaygroundWatchers()
+  await agentManager.stop()
   forceQuit = true
 })
 
@@ -914,8 +983,34 @@ app.whenReady().then(async () => {
   appUpdater.checkForUpdates()
   initApiAgent()
 
+  // Initialize agent with AI config
+  try {
+    const aiConfig = configManager.get("ai")
+    electronLog.info("Read AI config from configManager:", {
+      hasConfig: !!aiConfig,
+      hasIntegrations: !!aiConfig?.integrations,
+      hasTelegram: !!aiConfig?.integrations?.telegram,
+    });
+    
+    // Register space manager with agent manager
+    const spaceRegistry = getSpaceRegistry()
+    agentManager.setSpaceManager(spaceRegistry)
+    
+    if (aiConfig) {
+      await agentManager.start(aiConfig)
+    } else {
+      electronLog.warn("No AI config found, agent manager will not start");
+    }
+  } catch (error) {
+    electronLog.error("Failed to initialize agent:", error)
+  }
+
   ipcMain.handle("get-api-agent-status", () => {
     return getApiAgentStatus()
+  })
+
+  ipcMain.handle("get-agent-status", () => {
+    return agentManager.getStatus()
   })
 
   ipcMain.handle("list-spaces", () => {

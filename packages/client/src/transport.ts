@@ -63,7 +63,16 @@ export function createHttpTransport(config: TransportConfig) {
         clearTimeout(timeoutId)
         
         if (!response.ok) {
-          throw new Error(`HTTP error: ${response.status}`)
+          let errorMessage = `HTTP error: ${response.status}`
+          try {
+            const errorData = await response.text()
+            if (errorData) {
+              errorMessage += ` - ${errorData}`
+            }
+          } catch (e) {
+            // Ignore error reading response body
+          }
+          throw new Error(errorMessage)
         }
         
         const contentType = response.headers.get('content-type')

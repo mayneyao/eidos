@@ -118,9 +118,20 @@ export class SchemaClient {
    * @returns Created table info including generated id, fields, and default view
    */
   async createTable(input: CreateTableInput): Promise<TableInfo> {
-    // Validate field column names
+    // Separate system fields and user fields from input
+    const fieldsInput = input.fields || []
+    const systemFieldsInput = fieldsInput.filter(
+      (f) => f.columnName?.toLowerCase() === "title" || f.type === FieldType.Title
+    )
+    const titleFieldInput = systemFieldsInput[0]
+
+    const userFields = fieldsInput.filter(
+      (f) => f.columnName?.toLowerCase() !== "title" && f.type !== FieldType.Title
+    )
+
+    // Validate user field column names
     const existingColumns = [...EIDOS_RESERVED_FIELDS]
-    for (const field of input.fields) {
+    for (const field of userFields) {
       const validation = validateSqliteColumnName(field.columnName, existingColumns)
       if (!validation.isValid) {
         throw new Error(`Invalid column name "${field.columnName}": ${validation.error}`)
@@ -131,11 +142,6 @@ export class SchemaClient {
     // Generate table ID and raw table name
     const tableId = uuidv4().split("-").join("")
     const rawTableName = getRawTableNameById(tableId)
-
-    // Filter out title field from user fields (title is a system field)
-    const userFields = input.fields.filter(
-      (f) => f.columnName.toLowerCase() !== "title" && f.type !== FieldType.Title
-    )
 
     // Build CREATE TABLE SQL
     let createTableSql = `
@@ -154,13 +160,20 @@ CREATE TABLE ${rawTableName} (
     })
     createTableSql += `);`
 
+    // Configure title field properties
+    const defaultTitleProperty = allFieldTypesMap[FieldType.Title].getDefaultFieldProperty()
+    const titleProperty = titleFieldInput?.property 
+      ? { ...defaultTitleProperty, ...titleFieldInput.property } 
+      : defaultTitleProperty
+    const titleName = titleFieldInput?.name ? titleFieldInput.name.replace(/'/g, "''") : 'title'
+
     // Insert field metadata into column meta-table
     createTableSql += `
     INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('_id', 'row-id', '${rawTableName}', '_id');
-    INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('title', 'title', '${rawTableName}', 'title');
+    INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name, property) VALUES ('${titleName}', 'title', '${rawTableName}', 'title', '${JSON.stringify(titleProperty)}');
 `
     for (const field of userFields) {
-      const defaultProperty = allFieldTypesMap[field.type].getDefaultFieldProperty()
+      const defaultProperty = allFieldTypesMap[field.type as FieldType].getDefaultFieldProperty()
       const mergedProperty = field.property
         ? { ...defaultProperty, ...field.property }
         : defaultProperty

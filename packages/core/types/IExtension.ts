@@ -69,6 +69,7 @@ export interface TableViewMeta {
         // the type of the view. built-in types are: grid, gallery, kanban.
         type: string
         description: string
+        bindTableNames?: string[]
     }
 }
 

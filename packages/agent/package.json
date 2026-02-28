@@ -1,0 +1,45 @@
+{
+  "name": "@eidos.space/agent",
+  "version": "0.1.0",
+  "description": "AI agent for Eidos with Telegram integration",
+  "main": "src/index.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit"
+  },
+  "keywords": [
+    "eidos",
+    "agent",
+    "telegram",
+    "ai",
+    "bot"
+  ],
+  "author": "mayneyao",
+  "license": "ISC",
+  "dependencies": {
+    "@eidos.space/space-manager": "workspace:*",
+    "@mariozechner/pi-agent-core": "^0.52.8",
+    "@mariozechner/pi-ai": "^0.50.9",
+    "@sinclair/typebox": "^0.34.15",
+    "ai": "^4.3.16",
+    "discord.js": "^14.18.0",
+    "dotenv": "^16.4.1",
+    "grammy": "^1.40.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.4.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.8.3"
+  }
+}

@@ -11,6 +11,7 @@ import {
 
 import { Loading } from "@/components/loading"
 import { ScriptContainer } from "@/components/script-container"
+import { AgentBridge } from "@/components/agent-bridge"
 import { TempPanel } from "@/components/nav/temp-panel"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
@@ -42,6 +43,7 @@ export function DatabasePWALayoutBase({
   return (
     <div className={cn("relative  flex h-screen", className)}>
       <ScriptContainer />
+      <AgentBridge />
       <div className="flex h-screen w-full">
         <div className="flex h-screen flex-col min-w-0 grow">
           <ResizablePanelGroup direction="horizontal">

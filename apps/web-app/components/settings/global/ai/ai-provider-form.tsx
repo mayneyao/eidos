@@ -77,7 +77,7 @@ export function AIProviderForm({
   const llmProviderSchema = useMemo(() => {
     return baseLlmProviderSchema.refine(
       (data) => {
-        if (data.type !== "openai-compatible" && data.type !== "ollama") {
+        if (data.type !== "openai-compatible" && data.type !== "anthropic-compatible" && data.type !== "ollama") {
           return true
         }
         const isEditing = !!provider
@@ -229,7 +229,7 @@ export function AIProviderForm({
     // Fetch models automatically for ollama or other providers when apiKey is present
     if (
       providerType === "ollama" ||
-      (providerType !== "openai-compatible" && apiKey)
+      (providerType !== "openai-compatible" && providerType !== "anthropic-compatible" && apiKey)
     ) {
       fetchModels()
     }
@@ -272,8 +272,9 @@ export function AIProviderForm({
             />
           </div>
 
-          {/* Name Field (for openai-compatible and ollama) */}
+          {/* Name Field (for openai-compatible, anthropic-compatible and ollama) */}
           {(form.watch("type") === "openai-compatible" ||
+            form.watch("type") === "anthropic-compatible" ||
             form.watch("type") === "ollama") && (
             <div className="space-y-4">
               <div className="space-y-0.5">
@@ -300,8 +301,9 @@ export function AIProviderForm({
             </div>
           )}
 
-          {/* Base URL Field (for openai-compatible and ollama) */}
+          {/* Base URL Field (for openai-compatible, anthropic-compatible and ollama) */}
           {(form.watch("type") === "openai-compatible" ||
+            form.watch("type") === "anthropic-compatible" ||
             form.watch("type") === "ollama") && (
             <div className="space-y-4">
               <div className="space-y-0.5">
@@ -326,6 +328,8 @@ export function AIProviderForm({
               />
             </div>
           )}
+
+
 
           {/* API Key Field (for non-ollama providers) */}
           {form.watch("type") !== "ollama" && (
@@ -377,6 +381,7 @@ export function AIProviderForm({
               </div>
               <div className="flex items-center space-x-2">
                 {(form.watch("type") === "openai-compatible" ||
+                  form.watch("type") === "anthropic-compatible" ||
                   form.watch("type") === "ollama") && (
                   <>
                     <span className="text-xs text-muted-foreground">

@@ -25,7 +25,7 @@ export const useTableViewInfoByExtType = (type?: string) => {
     return tableViews[0] || null
 }
 
-export const useCustomTableViews = () => {
+export const useCustomTableViews = (tableName?: string) => {
     const [tableViews, setTableViews] = useState<IExtension<TableViewMeta>[]>([])
     const { sqlite } = useSqlite()
 
@@ -33,13 +33,20 @@ export const useCustomTableViews = () => {
         const fetchTableViews = async () => {
             // Get all block extensions and filter for table views
             const allBlockExtensions = await sqlite?.extension.getBlockExtensions("enabled")
-            const tableViewExtensions = allBlockExtensions?.filter(ext =>
-                ext.meta?.type === "tableView"
-            ) as IExtension<TableViewMeta>[] || []
+            const tableViewExtensions = allBlockExtensions?.filter(ext => {
+                if (ext.meta?.type !== "tableView") return false
+                
+                const bindTableNames = ext.meta?.tableView?.bindTableNames
+                if (tableName && bindTableNames && bindTableNames.length > 0) {
+                    return bindTableNames.includes(tableName)
+                }
+                
+                return true
+            }) as IExtension<TableViewMeta>[] || []
             setTableViews(tableViewExtensions)
         }
         fetchTableViews()
-    }, [sqlite])
+    }, [sqlite, tableName])
 
     return { tableViews }
 }

@@ -149,13 +149,13 @@ export class GlobalShortcutManager {
     if (!this.mainWindow) return;
 
     this.mainWindow.on('focus', () => {
-      console.log('Window gained focus, registering global shortcuts');
+      // console.log('Window gained focus, registering global shortcuts');
       this.isWindowFocused = true;
       this.registerShortcuts();
     });
 
     this.mainWindow.on('blur', () => {
-      console.log('Window lost focus, unregistering global shortcuts');
+      // console.log('Window lost focus, unregistering global shortcuts');
       this.isWindowFocused = false;
       this.unregisterShortcuts();
     });
@@ -200,7 +200,7 @@ export class GlobalShortcutManager {
       }
 
       this.isRegistered = true;
-      console.log('Global shortcuts registered successfully');
+      // console.log('Global shortcuts registered successfully');
       return true;
     } catch (error) {
       console.error('Failed to register global shortcuts:', error);
