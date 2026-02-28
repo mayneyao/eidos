@@ -16,7 +16,6 @@ import { useMblock } from "@/apps/web-app/hooks/use-mblock"
 import { useNode } from "@/apps/web-app/hooks/use-nodes"
 import { getDragFileInfo } from "@/lib/file"
 
-
 export const NodeCover = (props: { node: ITreeNode }) => {
   const { node } = props
   const [open, setOpen] = useState(false)

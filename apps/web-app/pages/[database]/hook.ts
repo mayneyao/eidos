@@ -52,7 +52,7 @@ export const useLastOpened = () => {
   const { database, tableId: table } = useCurrentPathInfo()
   const { lastOpenedTable, setLastOpenedTable } = useAppStore()
 
-  useEffect(() => { }, [isShareMode, setLastOpenedTable, table])
+  useEffect(() => {}, [isShareMode, setLastOpenedTable, table])
   useEffect(() => {
     if (!isShareMode && database) {
       setLastOpenedDatabase(database)
@@ -120,15 +120,17 @@ export const useLayoutInit = () => {
     if (isDesktopMode && database) {
       if (lastOpenedDatabase === database) return
       const switchDdMsgId = uuidv7()
-      window.eidos.invoke(MsgType.SwitchDatabase, {
-        databaseName: database,
-        id: switchDdMsgId,
-      }).then((response: any) => {
-        const { id: returnId, data } = response
-        if (returnId === switchDdMsgId) {
-          setLastOpenedDatabase(data.dbName)
-        }
-      })
+      window.eidos
+        .invoke(MsgType.SwitchDatabase, {
+          databaseName: database,
+          id: switchDdMsgId,
+        })
+        .then((response: any) => {
+          const { id: returnId, data } = response
+          if (returnId === switchDdMsgId) {
+            setLastOpenedDatabase(data.dbName)
+          }
+        })
     } else if (!isInkServiceMode && database && sqlite) {
       if (lastOpenedDatabase === database) return
       const switchDdMsgId = uuidv7()
@@ -152,7 +154,7 @@ export const useLayoutInit = () => {
   const { id: userId } = useCurrentUser()
   const { setEidos } = useEidosStore()
   useEffect(() => {
-    let clearFunc: () => void = () => { }
+    let clearFunc: () => void = () => {}
     if (!isInitialized) {
       clearFunc = initWorker()
     }
@@ -161,7 +163,7 @@ export const useLayoutInit = () => {
     setSqlWorker(sqlWorker)
     // Set Eidos instance for useEidos hook (built-in extensions)
     setEidos(createEidos(sqlWorker))
-    
+
     if (isDesktopMode) {
       const readonlySqlite = getSqliteProxy(database, userId || "", {
         isReadonly: true,
@@ -190,5 +192,4 @@ export const useLayoutInit = () => {
       sqlite?.onTableChange(database, tableName)
     }
   }, [database, tableName, sqlite])
-
 }

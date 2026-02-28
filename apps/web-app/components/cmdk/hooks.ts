@@ -37,7 +37,13 @@ export const useInput = () => {
   const isActionMode = input.startsWith("/")
   const isSystemMode = input.startsWith("!")
   const isEmbeddingMode = input.startsWith("@")
-  const mode = isActionMode ? "action" : isSystemMode ? "syscall" : isEmbeddingMode ? "embedding" : "search"
+  const mode = isActionMode
+    ? "action"
+    : isSystemMode
+      ? "syscall"
+      : isEmbeddingMode
+        ? "embedding"
+        : "search"
   return {
     input,
     setInput,

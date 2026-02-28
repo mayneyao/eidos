@@ -99,21 +99,23 @@ export class LinkFieldService {
     )
     const effectRows: Record<string, string[]> = {}
 
-    await Promise.all(allLinkRelationTableNames.map(async (relationTableName) => {
-      const sql = `SELECT self FROM ${relationTableName} WHERE ref IN (${rowIds
-        .map(() => "?")
-        .join(",")})`
-      const bind = [...rowIds]
-      const res = await db.selectObjects(sql, bind)
-      const effectTableName = relationTableName
-        .replace(`__${table_name}`, "")
-        .replace("lk_", "")
-      const rows = res.map((item: any) => item.self)
-      if (!effectRows[effectTableName]) {
-        effectRows[effectTableName] = []
-      }
-      effectRows[effectTableName] = [...effectRows[effectTableName], ...rows]
-    }))
+    await Promise.all(
+      allLinkRelationTableNames.map(async (relationTableName) => {
+        const sql = `SELECT self FROM ${relationTableName} WHERE ref IN (${rowIds
+          .map(() => "?")
+          .join(",")})`
+        const bind = [...rowIds]
+        const res = await db.selectObjects(sql, bind)
+        const effectTableName = relationTableName
+          .replace(`__${table_name}`, "")
+          .replace("lk_", "")
+        const rows = res.map((item: any) => item.self)
+        if (!effectRows[effectTableName]) {
+          effectRows[effectTableName] = []
+        }
+        effectRows[effectTableName] = [...effectRows[effectTableName], ...rows]
+      })
+    )
 
     return effectRows
   }
@@ -160,8 +162,9 @@ export class LinkFieldService {
       return null
     }
     const rowIds = value?.split(",") || []
-    const sql = `SELECT _id,title FROM ${property.linkTableName
-      } WHERE _id IN (${rowIds.map(() => "?").join(",")})`
+    const sql = `SELECT _id,title FROM ${
+      property.linkTableName
+    } WHERE _id IN (${rowIds.map(() => "?").join(",")})`
     const bind = [...rowIds]
     const rows = await this.dataSpace.exec2(sql, bind)
     // map id to title, avoid order change
@@ -311,7 +314,7 @@ export class LinkFieldService {
         ALTER TABLE ${table_name} ADD COLUMN ${table_column_name}__title TEXT;
         ALTER TABLE ${pairedField.table_name} ADD COLUMN ${pairedField.table_column_name} TEXT;
         ALTER TABLE ${pairedField.table_name} ADD COLUMN ${pairedField.table_column_name}__title TEXT;
-        `,
+        `
     )
 
     /**
@@ -394,7 +397,7 @@ export class LinkFieldService {
         BEGIN
             SELECT eidos_data_event_insert('${reverseRelationTableName}', json_object('self',NEW.self,'ref',NEW.ref,'link_field_id',NEW.link_field_id));
         END;
-        `,
+        `
     )
     return db
   }

@@ -1,19 +1,23 @@
 import { useEffect, useState, useCallback } from "react"
 import { useSqlite } from "./use-sqlite"
 import type { EidosDataEventChannelMsg } from "@/lib/const"
-import { DataUpdateSignalType, EidosDataEventChannelMsgType, EidosDataEventChannelName } from "@/lib/const"
+import {
+  DataUpdateSignalType,
+  EidosDataEventChannelMsgType,
+  EidosDataEventChannelName,
+} from "@/lib/const"
 import { KVTableName } from "@/packages/core/sqlite/const"
 
 export interface MountConfig {
   name: string
   path: string
-  type: 'directory'
+  type: "directory"
   createdAt: string
   updatedAt: string
 }
 
 export interface MountMeta {
-  type: 'directory'
+  type: "directory"
   createdAt: string
   updatedAt: string
 }
@@ -31,15 +35,15 @@ export const useMounts = () => {
 
       // Query all mount records from KV table
       const mountRecords = await sqlite.kv.listWithPrefix({
-        prefix: 'eidos:space:files:mount:'
+        prefix: "eidos:space:files:mount:",
       })
 
-      const mountsData: MountConfig[] = mountRecords.map(record => {
-        const mountName = record.key.replace('eidos:space:files:mount:', '')
+      const mountsData: MountConfig[] = mountRecords.map((record) => {
+        const mountName = record.key.replace("eidos:space:files:mount:", "")
         return {
           name: mountName,
           path: record.value,
-          type: record.meta?.type || 'directory',
+          type: record.meta?.type || "directory",
           createdAt: record.meta?.createdAt || record.created_at,
           updatedAt: record.meta?.updatedAt || record.updated_at,
         }
@@ -47,7 +51,7 @@ export const useMounts = () => {
 
       setMounts(mountsData)
     } catch (error) {
-      console.error('Failed to load mounts:', error)
+      console.error("Failed to load mounts:", error)
     } finally {
       setIsLoading(false)
     }
@@ -69,13 +73,18 @@ export const useMounts = () => {
         const { table, _new, _old, type: updateType } = payload
         if (table !== KVTableName) return
         // Listen for INSERT, UPDATE, and DELETE events for KV table
-        if (updateType !== DataUpdateSignalType.Update && 
-            updateType !== DataUpdateSignalType.Insert && 
-            updateType !== DataUpdateSignalType.Delete) return
+        if (
+          updateType !== DataUpdateSignalType.Update &&
+          updateType !== DataUpdateSignalType.Insert &&
+          updateType !== DataUpdateSignalType.Delete
+        )
+          return
         // Check if the changed key is a mount key
-        if (_new?.key && !_new.key.startsWith('eidos:space:files:mount:')) return
-        if (_old?.key && !_old.key.startsWith('eidos:space:files:mount:')) return
-        
+        if (_new?.key && !_new.key.startsWith("eidos:space:files:mount:"))
+          return
+        if (_old?.key && !_old.key.startsWith("eidos:space:files:mount:"))
+          return
+
         // Reload mounts when mount-related KV entries change
         await loadMounts()
       }
@@ -87,73 +96,86 @@ export const useMounts = () => {
     }
   }, [sqlite, loadMounts])
 
-  const addMount = useCallback(async (name: string, path: string) => {
-    if (!sqlite) throw new Error('Database not available')
+  const addMount = useCallback(
+    async (name: string, path: string) => {
+      if (!sqlite) throw new Error("Database not available")
 
-    // Check if mount name already exists
-    const existingMount = mounts.find(mount => mount.name === name)
-    if (existingMount) {
-      throw new Error(`Mount name already exists: ${name}`)
-    }
-
-    try {
-      // Create mount metadata
-      const mountMeta: MountMeta = {
-        type: 'directory',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+      // Check if mount name already exists
+      const existingMount = mounts.find((mount) => mount.name === name)
+      if (existingMount) {
+        throw new Error(`Mount name already exists: ${name}`)
       }
 
-      // Add mount to KV table
-      await sqlite.kv.put(`eidos:space:files:mount:${name}`, path, { meta: mountMeta })
+      try {
+        // Create mount metadata
+        const mountMeta: MountMeta = {
+          type: "directory",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
 
-      // Mounts will be automatically reloaded by the reactive listener
-    } catch (error) {
-      console.error('Failed to add mount:', error)
-      throw error
-    }
-  }, [sqlite, mounts, loadMounts])
+        // Add mount to KV table
+        await sqlite.kv.put(`eidos:space:files:mount:${name}`, path, {
+          meta: mountMeta,
+        })
 
-  const removeMount = useCallback(async (name: string) => {
-    if (!sqlite) throw new Error('Database not available')
-
-    try {
-      // Remove mount from KV table
-      await sqlite.kv.delete(`eidos:space:files:mount:${name}`)
-
-      // Mounts will be automatically reloaded by the reactive listener
-    } catch (error) {
-      console.error('Failed to remove mount:', error)
-      throw error
-    }
-  }, [sqlite, loadMounts])
-
-  const updateMount = useCallback(async (name: string, path: string) => {
-    if (!sqlite) throw new Error('Database not available')
-
-    try {
-      // Get existing mount
-      const existingMount = mounts.find(mount => mount.name === name)
-      if (!existingMount) {
-        throw new Error(`Mount not found: ${name}`)
+        // Mounts will be automatically reloaded by the reactive listener
+      } catch (error) {
+        console.error("Failed to add mount:", error)
+        throw error
       }
+    },
+    [sqlite, mounts, loadMounts]
+  )
 
-      // Update mount metadata
-      const mountMeta: MountMeta = {
-        type: 'directory',
-        createdAt: existingMount.createdAt,
-        updatedAt: new Date().toISOString(),
+  const removeMount = useCallback(
+    async (name: string) => {
+      if (!sqlite) throw new Error("Database not available")
+
+      try {
+        // Remove mount from KV table
+        await sqlite.kv.delete(`eidos:space:files:mount:${name}`)
+
+        // Mounts will be automatically reloaded by the reactive listener
+      } catch (error) {
+        console.error("Failed to remove mount:", error)
+        throw error
       }
+    },
+    [sqlite, loadMounts]
+  )
 
-      // Update mount in KV table
-      await sqlite.kv.put(`eidos:space:files:mount:${name}`, path, { meta: mountMeta })
+  const updateMount = useCallback(
+    async (name: string, path: string) => {
+      if (!sqlite) throw new Error("Database not available")
 
-      // Mounts will be automatically reloaded by the reactive listener
-    } catch (error) {
-      console.error('Failed to update mount:', error)
-      throw error
-    }
-  }, [sqlite, mounts, loadMounts])
+      try {
+        // Get existing mount
+        const existingMount = mounts.find((mount) => mount.name === name)
+        if (!existingMount) {
+          throw new Error(`Mount not found: ${name}`)
+        }
+
+        // Update mount metadata
+        const mountMeta: MountMeta = {
+          type: "directory",
+          createdAt: existingMount.createdAt,
+          updatedAt: new Date().toISOString(),
+        }
+
+        // Update mount in KV table
+        await sqlite.kv.put(`eidos:space:files:mount:${name}`, path, {
+          meta: mountMeta,
+        })
+
+        // Mounts will be automatically reloaded by the reactive listener
+      } catch (error) {
+        console.error("Failed to update mount:", error)
+        throw error
+      }
+    },
+    [sqlite, mounts, loadMounts]
+  )
 
   return {
     mounts,

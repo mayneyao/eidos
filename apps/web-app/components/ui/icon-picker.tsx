@@ -26,11 +26,10 @@ import {
 
 import type { IconData } from "./icons-data"
 
-interface IconPickerProps
-  extends Omit<
-    React.ComponentPropsWithoutRef<typeof PopoverTrigger>,
-    "onSelect" | "onOpenChange"
-  > {
+interface IconPickerProps extends Omit<
+  React.ComponentPropsWithoutRef<typeof PopoverTrigger>,
+  "onSelect" | "onOpenChange"
+> {
   value?: IconName
   defaultValue?: IconName
   onValueChange?: (value: IconName) => void

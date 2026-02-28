@@ -63,14 +63,14 @@ function getPlatformInfo(pkgConfig) {
 
 function findWorkspaceRoot() {
   let currentDir = __dirname
-  
+
   while (currentDir !== path.dirname(currentDir)) {
     const packageJsonPath = path.join(currentDir, "package.json")
     const pnpmWorkspacePath = path.join(currentDir, "pnpm-workspace.yaml")
-    
+
     if (fs.existsSync(packageJsonPath)) {
       try {
-        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"))
         if (packageJson.workspaces || fs.existsSync(pnpmWorkspacePath)) {
           return currentDir
         }
@@ -78,11 +78,13 @@ function findWorkspaceRoot() {
         // Continue searching
       }
     }
-    
+
     currentDir = path.dirname(currentDir)
   }
-  
-  console.warn("Could not find workspace root, falling back to current working directory")
+
+  console.warn(
+    "Could not find workspace root, falling back to current working directory"
+  )
   return process.cwd()
 }
 
@@ -91,25 +93,33 @@ function findSourcePath(basePackageName, packageName, extension) {
   const pnpmDir = path.join(workspaceRoot, "node_modules", ".pnpm")
   let packageVersionDir = ""
 
-  console.log(`postinstall-${basePackageName}: Using workspace root: ${workspaceRoot}`)
-  console.log(`postinstall-${basePackageName}: Searching for ${packageName}@ in ${pnpmDir}`)
+  console.log(
+    `postinstall-${basePackageName}: Using workspace root: ${workspaceRoot}`
+  )
+  console.log(
+    `postinstall-${basePackageName}: Searching for ${packageName}@ in ${pnpmDir}`
+  )
 
   try {
     const pnpmEntries = fs.readdirSync(pnpmDir)
     const prefix = `${packageName}@`
-    const matchingEntries = pnpmEntries.filter((entry) => entry.startsWith(prefix))
+    const matchingEntries = pnpmEntries.filter((entry) =>
+      entry.startsWith(prefix)
+    )
 
     if (matchingEntries.length === 0) {
-      console.error(`postinstall-${basePackageName}: Could not find ${prefix} in ${pnpmDir}`)
+      console.error(
+        `postinstall-${basePackageName}: Could not find ${prefix} in ${pnpmDir}`
+      )
       return null
     }
 
     // Sort by version to get latest
     matchingEntries.sort((a, b) => {
-      const versionA = a.split('@')[1] || '0.0.0'
-      const versionB = b.split('@')[1] || '0.0.0'
-      const partsA = versionA.split('.').map(Number)
-      const partsB = versionB.split('.').map(Number)
+      const versionA = a.split("@")[1] || "0.0.0"
+      const versionB = b.split("@")[1] || "0.0.0"
+      const partsA = versionA.split(".").map(Number)
+      const partsB = versionB.split(".").map(Number)
 
       for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
         const a = partsA[i] || 0
@@ -121,36 +131,61 @@ function findSourcePath(basePackageName, packageName, extension) {
     })
 
     packageVersionDir = matchingEntries[0]
-    console.log(`postinstall-${basePackageName}: Found ${matchingEntries.length} versions, using: ${packageVersionDir}`)
+    console.log(
+      `postinstall-${basePackageName}: Found ${matchingEntries.length} versions, using: ${packageVersionDir}`
+    )
   } catch (e) {
     if (e.code === "ENOENT") {
-      console.error(`postinstall-${basePackageName}: .pnpm directory not found. Run pnpm install first.`)
+      console.error(
+        `postinstall-${basePackageName}: .pnpm directory not found. Run pnpm install first.`
+      )
     } else {
-      console.error(`postinstall-${basePackageName}: Failed to read .pnpm directory:`, e)
+      console.error(
+        `postinstall-${basePackageName}: Failed to read .pnpm directory:`,
+        e
+      )
     }
     return null
   }
 
-  const packageDir = path.join(pnpmDir, packageVersionDir, "node_modules", packageName)
-  console.log(`postinstall-${basePackageName}: Searching for *.${extension} in ${packageDir}`)
+  const packageDir = path.join(
+    pnpmDir,
+    packageVersionDir,
+    "node_modules",
+    packageName
+  )
+  console.log(
+    `postinstall-${basePackageName}: Searching for *.${extension} in ${packageDir}`
+  )
 
   try {
     const packageFiles = fs.readdirSync(packageDir)
-    const targetFiles = packageFiles.filter((file) => file.endsWith(`.${extension}`))
+    const targetFiles = packageFiles.filter((file) =>
+      file.endsWith(`.${extension}`)
+    )
 
     if (targetFiles.length === 1) {
       const fullSourcePath = path.join(packageDir, targetFiles[0])
-      console.log(`postinstall-${basePackageName}: Found source file: ${targetFiles[0]}`)
+      console.log(
+        `postinstall-${basePackageName}: Found source file: ${targetFiles[0]}`
+      )
       return fullSourcePath
     } else if (targetFiles.length === 0) {
-      console.error(`postinstall-${basePackageName}: No .${extension} file found in ${packageDir}`)
+      console.error(
+        `postinstall-${basePackageName}: No .${extension} file found in ${packageDir}`
+      )
       return null
     } else {
-      console.error(`postinstall-${basePackageName}: Multiple .${extension} files found: ${targetFiles.join(", ")}`)
+      console.error(
+        `postinstall-${basePackageName}: Multiple .${extension} files found: ${targetFiles.join(", ")}`
+      )
       return null
     }
   } catch (e) {
-    console.error(`postinstall-${basePackageName}: Failed to read package directory:`, e)
+    console.error(
+      `postinstall-${basePackageName}: Failed to read package directory:`,
+      e
+    )
     return null
   }
 }
@@ -166,15 +201,23 @@ packagesToProcess.forEach((pkgConfig) => {
   const platformInfo = getPlatformInfo(pkgConfig)
 
   if (!platformInfo) {
-    console.log(`postinstall-${pkgConfig.basePackageName}: Skipping due to unsupported platform.`)
+    console.log(
+      `postinstall-${pkgConfig.basePackageName}: Skipping due to unsupported platform.`
+    )
     return
   }
 
   const { packageName, destFileName, extension, basePackageName } = platformInfo
-  const nestedSourceFilePath = findSourcePath(basePackageName, packageName, extension)
-  
+  const nestedSourceFilePath = findSourcePath(
+    basePackageName,
+    packageName,
+    extension
+  )
+
   if (!nestedSourceFilePath) {
-    console.log(`postinstall-${basePackageName}: Source file not found. Skipping.`)
+    console.log(
+      `postinstall-${basePackageName}: Source file not found. Skipping.`
+    )
     return
   }
 

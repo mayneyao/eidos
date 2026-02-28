@@ -1,13 +1,9 @@
 import type {
   ExprRef,
   SelectFromStatement,
-  SelectedColumn
-} from "pgsql-ast-parser";
-import {
-  astMapper,
-  parseFirst,
-  toSql
+  SelectedColumn,
 } from "pgsql-ast-parser"
+import { astMapper, parseFirst, toSql } from "pgsql-ast-parser"
 
 import { FieldType } from "../fields/const"
 import type { IField } from "../types/IField"
@@ -59,7 +55,7 @@ export const transformQuery = (sql: string, fields: IField[]) => {
 
 export const transformFormula2VirtualGeneratedField = (
   columnName: string,
-  fields: IField[],
+  fields: IField[]
 ) => {
   // add system field _id
   fields.push({
@@ -70,9 +66,11 @@ export const transformFormula2VirtualGeneratedField = (
     property: {},
   })
   // Check for circular dependencies first
-  const circularCheck = detectCircularDependencies(fields);
+  const circularCheck = detectCircularDependencies(fields)
   if (circularCheck.hasCycle) {
-    throw new Error(`Circular dependency detected in formula fields: ${circularCheck.cycle.join(' → ')}`);
+    throw new Error(
+      `Circular dependency detected in formula fields: ${circularCheck.cycle.join(" → ")}`
+    )
   }
 
   const formulaFields = fields.filter((f) => f.type === FieldType.Formula)
@@ -178,64 +176,70 @@ export const transformQueryWithFormulaFields2Sql = (
  */
 export const detectCircularDependencies = (fields: IField[]) => {
   // Only consider formula fields as they become generated columns
-  const formulaFields = fields.filter((f) => f.type === FieldType.Formula);
+  const formulaFields = fields.filter((f) => f.type === FieldType.Formula)
 
   // Create a dependency graph
-  const dependencyGraph: Record<string, string[]> = {};
-  const fieldNameMap: Record<string, string> = {};
+  const dependencyGraph: Record<string, string[]> = {}
+  const fieldNameMap: Record<string, string> = {}
 
   // Initialize the graph and field name mapping
   formulaFields.forEach((field) => {
-    dependencyGraph[field.table_column_name] = [];
-    fieldNameMap[field.name.toLowerCase()] = field.table_column_name;
-  });
+    dependencyGraph[field.table_column_name] = []
+    fieldNameMap[field.name.toLowerCase()] = field.table_column_name
+  })
 
   // Build the dependency graph
   formulaFields.forEach((field) => {
     try {
       // Parse the formula to find dependencies
-      const ast = parseFirst(`SELECT ${field.property.formula}`);
-      const dependencies: string[] = [];
+      const ast = parseFirst(`SELECT ${field.property.formula}`)
+      const dependencies: string[] = []
 
       // Extract all column references from the formula
       const refVisitor = astMapper((map) => ({
         ref: (t) => {
-          const columnName = fieldNameMap[t.name.toLowerCase()];
-          if (columnName && formulaFields.some(f => f.table_column_name === columnName)) {
-            dependencies.push(columnName);
+          const columnName = fieldNameMap[t.name.toLowerCase()]
+          if (
+            columnName &&
+            formulaFields.some((f) => f.table_column_name === columnName)
+          ) {
+            dependencies.push(columnName)
           }
-          return map.super().ref(t);
+          return map.super().ref(t)
         },
         expr: (t) => {
           // Handle props() function calls
           if (t && t.type === "call" && t.function.name === "props") {
-            const param = t.args[0] as ExprRef;
-            const columnName = fieldNameMap[param.name.toLowerCase()];
-            if (columnName && formulaFields.some(f => f.table_column_name === columnName)) {
-              dependencies.push(columnName);
+            const param = t.args[0] as ExprRef
+            const columnName = fieldNameMap[param.name.toLowerCase()]
+            if (
+              columnName &&
+              formulaFields.some((f) => f.table_column_name === columnName)
+            ) {
+              dependencies.push(columnName)
             }
           }
-          return map.super().expr(t);
-        }
-      }));
+          return map.super().expr(t)
+        },
+      }))
 
-      refVisitor.statement(ast);
-      dependencyGraph[field.table_column_name] = dependencies;
+      refVisitor.statement(ast)
+      dependencyGraph[field.table_column_name] = dependencies
     } catch (error) {
-      console.error(`Error parsing formula for field ${field.name}:`, error);
+      console.error(`Error parsing formula for field ${field.name}:`, error)
     }
-  });
+  })
 
   // Detect cycles using DFS
-  const visited: Record<string, boolean> = {};
-  const recStack: Record<string, boolean> = {};
-  const cycle: string[] = [];
+  const visited: Record<string, boolean> = {}
+  const recStack: Record<string, boolean> = {}
+  const cycle: string[] = []
 
   const isCyclicUtil = (node: string, path: string[] = []): boolean => {
     // Mark current node as visited and part of recursion stack
-    visited[node] = true;
-    recStack[node] = true;
-    path.push(node);
+    visited[node] = true
+    recStack[node] = true
+    path.push(node)
 
     // Visit all the vertices adjacent to this vertex
     for (const dependency of dependencyGraph[node]) {
@@ -243,52 +247,54 @@ export const detectCircularDependencies = (fields: IField[]) => {
       if (!visited[dependency]) {
         if (isCyclicUtil(dependency, [...path])) {
           // If we found a cycle, record it
-          const cycleStart = path.indexOf(dependency);
+          const cycleStart = path.indexOf(dependency)
           if (cycleStart !== -1) {
-            cycle.push(...path.slice(cycleStart), dependency);
+            cycle.push(...path.slice(cycleStart), dependency)
           }
-          return true;
+          return true
         }
       } else if (recStack[dependency]) {
         // If the vertex is already in the recursion stack, we found a cycle
-        const cycleStart = path.indexOf(dependency);
+        const cycleStart = path.indexOf(dependency)
         if (cycleStart !== -1) {
-          cycle.push(...path.slice(cycleStart), dependency);
+          cycle.push(...path.slice(cycleStart), dependency)
         }
-        return true;
+        return true
       }
     }
 
     // Remove the vertex from recursion stack
-    recStack[node] = false;
-    return false;
-  };
+    recStack[node] = false
+    return false
+  }
 
   // Check each unvisited vertex
-  let hasCycle = false;
+  let hasCycle = false
   for (const node in dependencyGraph) {
     if (!visited[node]) {
       if (isCyclicUtil(node)) {
-        hasCycle = true;
-        break;
+        hasCycle = true
+        break
       }
     }
   }
 
   // Map column names back to field names for better readability
-  const reverseFieldNameMap: Record<string, string> = {};
-  fields.forEach(field => {
-    reverseFieldNameMap[field.table_column_name] = field.name;
-  });
+  const reverseFieldNameMap: Record<string, string> = {}
+  fields.forEach((field) => {
+    reverseFieldNameMap[field.table_column_name] = field.name
+  })
 
-  const readableCycle = cycle.map(columnName => reverseFieldNameMap[columnName] || columnName);
+  const readableCycle = cycle.map(
+    (columnName) => reverseFieldNameMap[columnName] || columnName
+  )
 
   return {
     hasCycle,
     cycle: hasCycle ? readableCycle : [],
-    dependencyGraph
-  };
-};
+    dependencyGraph,
+  }
+}
 
 /**
  * Finds all formula fields that depend on a given column
@@ -301,51 +307,51 @@ export const findDependentFormulaFields = (
   fields: IField[]
 ) => {
   // Get the field name from column name for easier reference
-  const targetField = fields.find(f => f.table_column_name === columnName);
-  if (!targetField) return [];
+  const targetField = fields.find((f) => f.table_column_name === columnName)
+  if (!targetField) return []
 
   // Build dependency graph
-  const { dependencyGraph } = detectCircularDependencies(fields);
+  const { dependencyGraph } = detectCircularDependencies(fields)
 
   // Create reverse dependency map
-  const reverseDependencies: Record<string, string[]> = {};
+  const reverseDependencies: Record<string, string[]> = {}
   Object.entries(dependencyGraph).forEach(([field, dependencies]) => {
-    dependencies.forEach(dep => {
+    dependencies.forEach((dep) => {
       if (!reverseDependencies[dep]) {
-        reverseDependencies[dep] = [];
+        reverseDependencies[dep] = []
       }
-      reverseDependencies[dep].push(field);
-    });
-  });
+      reverseDependencies[dep].push(field)
+    })
+  })
 
   // Find all fields that depend on the target column (directly or indirectly)
-  const dependentFields: string[] = [];
-  const visited: Record<string, boolean> = {};
+  const dependentFields: string[] = []
+  const visited: Record<string, boolean> = {}
 
   const findAllDependents = (col: string) => {
-    if (visited[col]) return;
-    visited[col] = true;
+    if (visited[col]) return
+    visited[col] = true
 
-    const directDependents = reverseDependencies[col] || [];
-    directDependents.forEach(dep => {
-      dependentFields.push(dep);
-      findAllDependents(dep);
-    });
-  };
+    const directDependents = reverseDependencies[col] || []
+    directDependents.forEach((dep) => {
+      dependentFields.push(dep)
+      findAllDependents(dep)
+    })
+  }
 
-  findAllDependents(columnName);
+  findAllDependents(columnName)
 
   // Map column names back to field names for better readability
-  const reverseFieldNameMap: Record<string, string> = {};
-  fields.forEach(field => {
-    reverseFieldNameMap[field.table_column_name] = field.name;
-  });
+  const reverseFieldNameMap: Record<string, string> = {}
+  fields.forEach((field) => {
+    reverseFieldNameMap[field.table_column_name] = field.name
+  })
 
-  return dependentFields.map(col => ({
+  return dependentFields.map((col) => ({
     columnName: col,
-    fieldName: reverseFieldNameMap[col] || col
-  }));
-};
+    fieldName: reverseFieldNameMap[col] || col,
+  }))
+}
 
 /**
  * Gets the order in which formula fields should be deleted to respect dependencies
@@ -358,45 +364,47 @@ export const getFormulaFieldDeletionOrder = (
   fields: IField[]
 ) => {
   // Build dependency graph
-  const { dependencyGraph } = detectCircularDependencies(fields);
+  const { dependencyGraph } = detectCircularDependencies(fields)
 
   // Create a subgraph with only the columns we want to delete
-  const subgraph: Record<string, string[]> = {};
-  columnNames.forEach(col => {
+  const subgraph: Record<string, string[]> = {}
+  columnNames.forEach((col) => {
     if (dependencyGraph[col]) {
-      subgraph[col] = dependencyGraph[col].filter(dep => columnNames.includes(dep));
+      subgraph[col] = dependencyGraph[col].filter((dep) =>
+        columnNames.includes(dep)
+      )
     }
-  });
+  })
 
   // Topological sort to get deletion order
-  const visited: Record<string, boolean> = {};
-  const temp: Record<string, boolean> = {};
-  const order: string[] = [];
+  const visited: Record<string, boolean> = {}
+  const temp: Record<string, boolean> = {}
+  const order: string[] = []
 
   const visit = (node: string) => {
     if (temp[node]) {
-      throw new Error('Circular dependency detected');
+      throw new Error("Circular dependency detected")
     }
     if (!visited[node] && subgraph[node]) {
-      temp[node] = true;
+      temp[node] = true
 
       for (const dependency of subgraph[node]) {
-        visit(dependency);
+        visit(dependency)
       }
 
-      temp[node] = false;
-      visited[node] = true;
-      order.push(node);
+      temp[node] = false
+      visited[node] = true
+      order.push(node)
     }
-  };
+  }
 
   // Visit each node
-  columnNames.forEach(col => {
+  columnNames.forEach((col) => {
     if (!visited[col]) {
-      visit(col);
+      visit(col)
     }
-  });
+  })
 
   // Reverse to get correct deletion order (dependencies first)
-  return order.reverse();
-};
+  return order.reverse()
+}

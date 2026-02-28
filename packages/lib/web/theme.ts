@@ -1,54 +1,54 @@
 export type ThemeVariables = {
-  background: string;
-  foreground: string;
-  muted: string;
-  'muted-foreground': string;
-  popover: string;
-  'popover-foreground': string;
-  border: string;
-  input: string;
-  card: string;
-  'card-foreground': string;
-  primary: string;
-  'primary-foreground': string;
-  secondary: string;
-  'secondary-foreground': string;
-  accent: string;
-  'accent-foreground': string;
-  destructive: string;
-  'destructive-foreground': string;
-  ring: string;
-  radius: string;
-  [key: string]: string;
-};
+  background: string
+  foreground: string
+  muted: string
+  "muted-foreground": string
+  popover: string
+  "popover-foreground": string
+  border: string
+  input: string
+  card: string
+  "card-foreground": string
+  primary: string
+  "primary-foreground": string
+  secondary: string
+  "secondary-foreground": string
+  accent: string
+  "accent-foreground": string
+  destructive: string
+  "destructive-foreground": string
+  ring: string
+  radius: string
+  [key: string]: string
+}
 
 export type ExtendedThemeVariables = ThemeVariables & {
-  'chart-1': string;
-  'chart-2': string;
-  'chart-3': string;
-  'chart-4': string;
-  'chart-5': string;
-  'sidebar': string;
-  'sidebar-foreground': string;
-  'sidebar-primary': string;
-  'sidebar-primary-foreground': string;
-  'sidebar-accent': string;
-  'sidebar-accent-foreground': string;
-  'sidebar-border': string;
-  'sidebar-ring': string;
-  'font-sans': string;
-  'font-serif': string;
-  'font-mono': string;
-  'shadow-2xs': string;
-  'shadow-xs': string;
-  'shadow-sm': string;
-  'shadow': string;
-  'shadow-md': string;
-  'shadow-lg': string;
-  'shadow-xl': string;
-  'shadow-2xl': string;
-  'tracking-normal': string;
-};
+  "chart-1": string
+  "chart-2": string
+  "chart-3": string
+  "chart-4": string
+  "chart-5": string
+  sidebar: string
+  "sidebar-foreground": string
+  "sidebar-primary": string
+  "sidebar-primary-foreground": string
+  "sidebar-accent": string
+  "sidebar-accent-foreground": string
+  "sidebar-border": string
+  "sidebar-ring": string
+  "font-sans": string
+  "font-serif": string
+  "font-mono": string
+  "shadow-2xs": string
+  "shadow-xs": string
+  "shadow-sm": string
+  shadow: string
+  "shadow-md": string
+  "shadow-lg": string
+  "shadow-xl": string
+  "shadow-2xl": string
+  "tracking-normal": string
+}
 
 /**
  * Set a single CSS variable in :root
@@ -56,7 +56,7 @@ export type ExtendedThemeVariables = ThemeVariables & {
  * @param value CSS variable value
  */
 export function setCSSVariable(name: string, value: string): void {
-  document.documentElement.style.setProperty(`--${name}`, value);
+  document.documentElement.style.setProperty(`--${name}`, value)
 }
 
 /**
@@ -65,10 +65,10 @@ export function setCSSVariable(name: string, value: string): void {
  */
 export function setThemeVariables(variables: Partial<ThemeVariables>): void {
   Object.entries(variables).forEach(([name, value]) => {
-    if (typeof value === 'string') {
-      setCSSVariable(name, value);
+    if (typeof value === "string") {
+      setCSSVariable(name, value)
     }
-  });
+  })
 }
 
 /**
@@ -79,7 +79,7 @@ export function setThemeVariables(variables: Partial<ThemeVariables>): void {
 export function getCSSVariable(name: string): string {
   return getComputedStyle(document.documentElement)
     .getPropertyValue(`--${name}`)
-    .trim();
+    .trim()
 }
 
 /**
@@ -87,61 +87,65 @@ export function getCSSVariable(name: string): string {
  * @returns Object containing all theme variables and their values
  */
 export function getAllThemeVariables(): ThemeVariables {
-  const style = getComputedStyle(document.documentElement);
-  const variables: ThemeVariables = {} as ThemeVariables;
+  const style = getComputedStyle(document.documentElement)
+  const variables: ThemeVariables = {} as ThemeVariables
 
   for (const key in defaultTheme) {
-    const value = style.getPropertyValue(`--${key}`).trim();
-    variables[key] = value || defaultTheme[key];
+    const value = style.getPropertyValue(`--${key}`).trim()
+    variables[key] = value || defaultTheme[key]
   }
 
-  return variables;
+  return variables
 }
 
 // Default theme values based on your globals.css
 export const defaultTheme: ThemeVariables = {
-  background: '0 0% 100%',
-  foreground: '224 71.4% 4.1%',
-  muted: '220 14.3% 95.9%',
-  'muted-foreground': '220 8.9% 46.1%',
-  popover: '0 0% 100%',
-  'popover-foreground': '224 71.4% 4.1%',
-  border: '220 13% 91%',
-  input: '220 13% 91%',
-  card: '0 0% 100%',
-  'card-foreground': '224 71.4% 4.1%',
-  primary: '220.9 39.3% 11%',
-  'primary-foreground': '210 20% 98%',
-  secondary: '220 14.3% 95.9%',
-  'secondary-foreground': '220.9 39.3% 11%',
-  accent: '220 14.3% 95.9%',
-  'accent-foreground': '220.9 39.3% 11%',
-  destructive: '0 84.2% 60.2%',
-  'destructive-foreground': '210 20% 98%',
-  ring: '224 71.4% 4.1%',
-  radius: '0.5rem'
-};
+  background: "0 0% 100%",
+  foreground: "224 71.4% 4.1%",
+  muted: "220 14.3% 95.9%",
+  "muted-foreground": "220 8.9% 46.1%",
+  popover: "0 0% 100%",
+  "popover-foreground": "224 71.4% 4.1%",
+  border: "220 13% 91%",
+  input: "220 13% 91%",
+  card: "0 0% 100%",
+  "card-foreground": "224 71.4% 4.1%",
+  primary: "220.9 39.3% 11%",
+  "primary-foreground": "210 20% 98%",
+  secondary: "220 14.3% 95.9%",
+  "secondary-foreground": "220.9 39.3% 11%",
+  accent: "220 14.3% 95.9%",
+  "accent-foreground": "220.9 39.3% 11%",
+  destructive: "0 84.2% 60.2%",
+  "destructive-foreground": "210 20% 98%",
+  ring: "224 71.4% 4.1%",
+  radius: "0.5rem",
+}
 
 /**
  * Parse and set CSS variables from a theme configuration
  * @param theme Theme configuration object
  * @param selector CSS selector to apply the theme to (default: ':root')
  */
-export function setThemeConfig(theme: Partial<ExtendedThemeVariables>, selector: string = ':root'): void {
-  const targetElement = selector === ':root'
-    ? document.documentElement
-    : document.querySelector(selector) as HTMLElement;
+export function setThemeConfig(
+  theme: Partial<ExtendedThemeVariables>,
+  selector: string = ":root"
+): void {
+  const targetElement =
+    selector === ":root"
+      ? document.documentElement
+      : (document.querySelector(selector) as HTMLElement)
 
   if (!targetElement) {
-    console.warn(`Target element with selector "${selector}" not found`);
-    return;
+    console.warn(`Target element with selector "${selector}" not found`)
+    return
   }
 
   Object.entries(theme).forEach(([key, value]) => {
-    if (typeof value === 'string') {
-      targetElement.style.setProperty(`--${key}`, value);
+    if (typeof value === "string") {
+      targetElement.style.setProperty(`--${key}`, value)
     }
-  });
+  })
 }
 
 export function parseCSSVariables(css: string): Record<string, string> {
@@ -163,7 +167,6 @@ export function parseCSSVariables(css: string): Record<string, string> {
   return themeVariables
 }
 
-
 export const getThemeVariables = (rawCss: string, isDarkMode: boolean) => {
   try {
     // Parse both light and dark mode variables
@@ -183,6 +186,5 @@ export const getThemeVariables = (rawCss: string, isDarkMode: boolean) => {
       const lightVariables = parseCSSVariables(lightMatch[1])
       return lightVariables
     }
-  } catch (err) {
-  }
+  } catch (err) {}
 }

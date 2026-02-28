@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $insertNodeToNearestRoot } from "@lexical/utils"
-import type { LexicalCommand} from "lexical";
+import type { LexicalCommand } from "lexical"
 import { COMMAND_PRIORITY_EDITOR, createCommand } from "lexical"
 
 import { $createSyncBlockNode, SyncBlockNode } from "./node"
@@ -28,4 +28,4 @@ export const SyncBlockPlugin = () => {
   }, [editor])
 
   return null
-} 
+}

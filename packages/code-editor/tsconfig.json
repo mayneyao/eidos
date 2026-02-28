@@ -8,13 +8,6 @@
     "noEmit": false,
     "emitDeclarationOnly": true
   },
-  "include": [
-    "./**/*.ts",
-    "./**/*.tsx"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "example"
-  ]
+  "include": ["./**/*.ts", "./**/*.tsx"],
+  "exclude": ["node_modules", "dist", "example"]
 }

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { LexicalEditor, NodeKey } from "lexical";
+import type { LexicalEditor, NodeKey } from "lexical"
 import { $getNodeByKey } from "lexical"
 import { AudioWaveform } from "lucide-react"
 

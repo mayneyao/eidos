@@ -510,7 +510,9 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
         await fs.access(mount.path)
         validMounts.push(mount)
       } catch {
-        console.warn(`[Search] Skipping unavailable mount path: ${mount.name} -> ${mount.path}`)
+        console.warn(
+          `[Search] Skipping unavailable mount path: ${mount.name} -> ${mount.path}`
+        )
       }
     }
 
@@ -535,7 +537,9 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
         for (const mount of validMounts) {
           if (absolutePath.startsWith(mount.path)) {
             // Normalize path separators to forward slashes (Windows compatibility)
-            const relative = path.relative(mount.path, absolutePath).replace(/\\/g, "/")
+            const relative = path
+              .relative(mount.path, absolutePath)
+              .replace(/\\/g, "/")
             virtualPath = relative
               ? `@/${mount.name}/${relative}`
               : `@/${mount.name}`
@@ -547,7 +551,9 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
         // If not in a mount, check if it's in project root
         if (!foundInMount && absolutePath.startsWith(projectRoot)) {
           // Normalize path separators to forward slashes (Windows compatibility)
-          const relative = path.relative(projectRoot, absolutePath).replace(/\\/g, "/")
+          const relative = path
+            .relative(projectRoot, absolutePath)
+            .replace(/\\/g, "/")
           virtualPath = `~/${relative}`
         }
 

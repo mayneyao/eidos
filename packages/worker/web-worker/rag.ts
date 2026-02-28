@@ -1,6 +1,5 @@
-import type { FeatureExtractionPipeline } from "@xenova/transformers";
+import type { FeatureExtractionPipeline } from "@xenova/transformers"
 import { env, pipeline } from "@xenova/transformers"
-
 
 let instance: FeatureExtractionPipeline | null = null
 

@@ -3,10 +3,13 @@ import type { ITreeNode } from "../../types/ITreeNode"
 import { createTriggersForFields } from "../../sqlite/sql-meta-table-trigger"
 import { extractIdFromShortId, getRawTableNameById, uuidv7 } from "@/lib/utils"
 
-import type { BaseTable } from "../base";
+import type { BaseTable } from "../base"
 import { BaseTableImpl } from "../base"
 
-export class BaseTreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
+export class BaseTreeTable
+  extends BaseTableImpl
+  implements BaseTable<ITreeNode>
+{
   name = TreeTableName
   createTableSql = `
   CREATE TABLE IF NOT EXISTS ${TreeTableName} (
@@ -26,12 +29,26 @@ export class BaseTreeTable extends BaseTableImpl implements BaseTable<ITreeNode>
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
   
-  ${createTriggersForFields(TreeTableName, [
-    'id', 'name', 'type', 'parent_id', 'is_pinned',
-    'is_full_width', 'is_locked', 'icon', 'cover',
-    'is_deleted', 'hide_properties', 'position',
-    'created_at', 'updated_at'
-  ], 'all')}
+  ${createTriggersForFields(
+    TreeTableName,
+    [
+      "id",
+      "name",
+      "type",
+      "parent_id",
+      "is_pinned",
+      "is_full_width",
+      "is_locked",
+      "icon",
+      "cover",
+      "is_deleted",
+      "hide_properties",
+      "position",
+      "created_at",
+      "updated_at",
+    ],
+    "all"
+  )}
   `
 
   getNextRowId = async () => {
@@ -45,7 +62,14 @@ export class BaseTreeTable extends BaseTableImpl implements BaseTable<ITreeNode>
     const nextPosition = await this.getNextRowId()
     this.dataSpace.exec(
       `INSERT INTO ${TreeTableName} (id,name,type,parent_id,position,hide_properties) VALUES (? , ? , ? , ?,?,?);`,
-      [data.id, data.name, data.type, data.parent_id, nextPosition, data.hide_properties ?? 0]
+      [
+        data.id,
+        data.name,
+        data.type,
+        data.parent_id,
+        nextPosition,
+        data.hide_properties ?? 0,
+      ]
     )
     return Promise.resolve({
       ...data,

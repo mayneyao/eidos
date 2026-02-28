@@ -6,21 +6,28 @@
  *
  */
 import { $isAtNodeEnd } from "@lexical/selection"
-import type { ElementNode, RangeSelection, TextNode, LexicalNode } from "lexical"
+import type {
+  ElementNode,
+  RangeSelection,
+  TextNode,
+  LexicalNode,
+} from "lexical"
 
 export function findFirstBlockElement(node: LexicalNode): ElementNode | null {
-  let current: LexicalNode | null = node;
+  let current: LexicalNode | null = node
   while (current) {
-    if (current.getType() === 'paragraph' ||
-      current.getType() === 'heading' ||
-      current.getType() === 'list' ||
-      current.getType() === 'listitem' ||
-      current.getType() === 'quote') {
-      return current as ElementNode;
+    if (
+      current.getType() === "paragraph" ||
+      current.getType() === "heading" ||
+      current.getType() === "list" ||
+      current.getType() === "listitem" ||
+      current.getType() === "quote"
+    ) {
+      return current as ElementNode
     }
-    current = current.getParent();
+    current = current.getParent()
   }
-  return null;
+  return null
 }
 
 export function getSelectedNode(

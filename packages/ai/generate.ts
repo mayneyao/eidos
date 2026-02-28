@@ -25,8 +25,6 @@ export const generateText = async ({
   return res.text
 }
 
-
-
 export const applyCode = async ({
   originalCode,
   updateSnippet,
@@ -38,7 +36,12 @@ export const applyCode = async ({
 }) => {
   const res = await _generateText({
     model,
-    messages: [{ role: "user", content: `<code>${originalCode}</code><update>${updateSnippet}</update>` }],
+    messages: [
+      {
+        role: "user",
+        content: `<code>${originalCode}</code><update>${updateSnippet}</update>`,
+      },
+    ],
   })
   return res.text
 }

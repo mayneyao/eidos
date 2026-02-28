@@ -1,5 +1,5 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import type { NodeKey } from "lexical";
+import type { NodeKey } from "lexical"
 import { $getNodeByKey } from "lexical"
 
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-import type { BookmarkPayload } from "./node";
+import type { BookmarkPayload } from "./node"
 import { $isBookmarkNode } from "./node"
 import "./style.css"
 import { useRef, useState } from "react"

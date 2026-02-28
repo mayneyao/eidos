@@ -4,7 +4,7 @@ import { BaseField } from "./base"
 import {
   FieldType,
   GridCellKind,
-  NUMBER_BASED_COMPARE_OPERATORS
+  NUMBER_BASED_COMPARE_OPERATORS,
 } from "./const"
 
 interface RangeCellProps {
@@ -28,7 +28,11 @@ export type NumberProperty = {
   showNumber: boolean
 }
 
-export class NumberField extends BaseField<NumberCell | RangeCell, NumberProperty, number> {
+export class NumberField extends BaseField<
+  NumberCell | RangeCell,
+  NumberProperty,
+  number
+> {
   static type = FieldType.Number
 
   get compareOperators() {
@@ -58,7 +62,7 @@ export class NumberField extends BaseField<NumberCell | RangeCell, NumberPropert
           max: this.column.property?.divideBy || 100,
           step: 1,
           label: this.column.property?.showNumber
-            ? rawData?.toString() ?? ""
+            ? (rawData?.toString() ?? "")
             : "",
           value: rawData ?? 0,
           color: this.column.property?.color,
@@ -78,7 +82,7 @@ export class NumberField extends BaseField<NumberCell | RangeCell, NumberPropert
   cellData2RawData(cell: NumberCell | RangeCell) {
     if (cell.kind === GridCellKind.Custom) {
       return {
-        rawData: cell.data.value
+        rawData: cell.data.value,
       }
     }
     return {

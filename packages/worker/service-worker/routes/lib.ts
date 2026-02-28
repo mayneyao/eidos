@@ -1,4 +1,3 @@
-
 declare var self: ServiceWorkerGlobalScope
 
 export async function queryEmbedding(data: {

@@ -9,12 +9,6 @@
     "emitDeclarationOnly": true,
     "paths": {}
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
 }

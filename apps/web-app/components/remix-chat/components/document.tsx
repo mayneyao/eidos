@@ -1,26 +1,26 @@
-import type { SetStateAction } from 'react';
+import type { SetStateAction } from "react"
 
-import type { UIBlock } from './block';
-import { FileIcon, LoaderIcon, MessageIcon, PencilEditIcon } from './icons';
+import type { UIBlock } from "./block"
+import { FileIcon, LoaderIcon, MessageIcon, PencilEditIcon } from "./icons"
 
-const getActionText = (type: 'create' | 'update' | 'request-suggestions') => {
+const getActionText = (type: "create" | "update" | "request-suggestions") => {
   switch (type) {
-    case 'create':
-      return 'Creating';
-    case 'update':
-      return 'Updating';
-    case 'request-suggestions':
-      return 'Adding suggestions';
+    case "create":
+      return "Creating"
+    case "update":
+      return "Updating"
+    case "request-suggestions":
+      return "Adding suggestions"
     default:
-      return null;
+      return null
   }
-};
+}
 
 interface DocumentToolResultProps {
-  type: 'create' | 'update' | 'request-suggestions';
-  result: { id: string; title: string };
-  block: UIBlock;
-  setBlock: (value: SetStateAction<UIBlock>) => void;
+  type: "create" | "update" | "request-suggestions"
+  result: { id: string; title: string }
+  block: UIBlock
+  setBlock: (value: SetStateAction<UIBlock>) => void
 }
 
 export function DocumentToolResult({
@@ -34,31 +34,31 @@ export function DocumentToolResult({
       type="button"
       className="bg-background cursor-pointer border py-2 px-3 rounded-xl w-fit flex flex-row gap-3 items-start"
       onClick={(event) => {
-        const rect = event.currentTarget.getBoundingClientRect();
+        const rect = event.currentTarget.getBoundingClientRect()
 
         const boundingBox = {
           top: rect.top,
           left: rect.left,
           width: rect.width,
           height: rect.height,
-        };
+        }
 
         setBlock({
           documentId: result.id,
-          content: '',
+          content: "",
           title: result.title,
           isVisible: true,
-          status: 'idle',
+          status: "idle",
           boundingBox,
-        });
+        })
       }}
     >
       <div className="text-muted-foreground mt-1">
-        {type === 'create' ? (
+        {type === "create" ? (
           <FileIcon />
-        ) : type === 'update' ? (
+        ) : type === "update" ? (
           <PencilEditIcon />
-        ) : type === 'request-suggestions' ? (
+        ) : type === "request-suggestions" ? (
           <MessageIcon />
         ) : null}
       </div>
@@ -66,12 +66,12 @@ export function DocumentToolResult({
         {getActionText(type)} {result.title}
       </div>
     </button>
-  );
+  )
 }
 
 interface DocumentToolCallProps {
-  type: 'create' | 'update' | 'request-suggestions';
-  args: { title: string };
+  type: "create" | "update" | "request-suggestions"
+  args: { title: string }
 }
 
 export function DocumentToolCall({ type, args }: DocumentToolCallProps) {
@@ -79,11 +79,11 @@ export function DocumentToolCall({ type, args }: DocumentToolCallProps) {
     <div className="w-fit border py-2 px-3 rounded-xl flex flex-row items-start justify-between gap-3">
       <div className="flex flex-row gap-3 items-start">
         <div className="text-zinc-500 mt-1">
-          {type === 'create' ? (
+          {type === "create" ? (
             <FileIcon />
-          ) : type === 'update' ? (
+          ) : type === "update" ? (
             <PencilEditIcon />
-          ) : type === 'request-suggestions' ? (
+          ) : type === "request-suggestions" ? (
             <MessageIcon />
           ) : null}
         </div>
@@ -95,5 +95,5 @@ export function DocumentToolCall({ type, args }: DocumentToolCallProps) {
 
       <div className="animate-spin mt-1">{<LoaderIcon />}</div>
     </div>
-  );
+  )
 }

@@ -16,7 +16,9 @@ export const StatusBar: React.FC = () => {
 
   // Statistics
   const totalFiles = files.filter((f) => f.type === FileType.File).length
-  const totalDirectories = files.filter((f) => f.type === FileType.Directory).length
+  const totalDirectories = files.filter(
+    (f) => f.type === FileType.Directory
+  ).length
   const openFileCount = openFiles.length
 
   return (
@@ -26,13 +28,13 @@ export const StatusBar: React.FC = () => {
         {activeFile && (
           <div className="flex items-center space-x-2">
             <span className="font-medium text-white">{activeFile.name}</span>
-            <span className="text-blue-200 opacity-70">{'>'}</span>
-            <span className="text-blue-100 capitalize">{activeFile.language}</span>
+            <span className="text-blue-200 opacity-70">{">"}</span>
+            <span className="text-blue-100 capitalize">
+              {activeFile.language}
+            </span>
           </div>
         )}
-        {!activeFile && (
-          <span className="text-blue-200">No file selected</span>
-        )}
+        {!activeFile && <span className="text-blue-200">No file selected</span>}
       </div>
 
       <div className="flex items-center space-x-2 sm:space-x-4">
@@ -57,9 +59,7 @@ export const StatusBar: React.FC = () => {
         </div>
 
         {/* Editor info */}
-        <div className="text-blue-200 hidden md:block">
-          Multi-file Editor
-        </div>
+        <div className="text-blue-200 hidden md:block">Multi-file Editor</div>
       </div>
     </div>
   )

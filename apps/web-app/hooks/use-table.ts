@@ -66,10 +66,13 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
   const updateViews = useCallback(async () => {
     if (!sqlite) return
 
-    const res = await sqlite.view.list({ table_id: tableId }, {
-      order: 'ASC',
-      orderBy: 'position'
-    })
+    const res = await sqlite.view.list(
+      { table_id: tableId },
+      {
+        order: "ASC",
+        orderBy: "position",
+      }
+    )
     setViews(tableId, res)
   }, [setViews, sqlite, tableId])
 
@@ -166,7 +169,9 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     }
   ) => {
     if (sqlite) {
-      return await sqlite.addRow(tableId, { _id: _uuid || uuidv7(), ...data },
+      return await sqlite.addRow(
+        tableId,
+        { _id: _uuid || uuidv7(), ...data },
         options
       )
     }
@@ -235,15 +240,23 @@ export const useTableOperation = (tableName: string, databaseName: string) => {
     [rowMap]
   )
 
-  const updateViewColumn = useCallback(async (tableName: string, tableColumnName: string, type: FieldType, property: any) => {
-    if (!sqlite) return
-    await sqlite.dataView.updateViewColumn({
-      tableName,
-      tableColumnName,
-      type,
-      property,
-    })
-  }, [sqlite])
+  const updateViewColumn = useCallback(
+    async (
+      tableName: string,
+      tableColumnName: string,
+      type: FieldType,
+      property: any
+    ) => {
+      if (!sqlite) return
+      await sqlite.dataView.updateViewColumn({
+        tableName,
+        tableColumnName,
+        type,
+        property,
+      })
+    },
+    [sqlite]
+  )
 
   return {
     deleteRowsByIds,

@@ -5,28 +5,27 @@
 export class FileNotFoundError extends Error {
   constructor(message: string) {
     super(message)
-    this.name = 'FileNotFoundError'
+    this.name = "FileNotFoundError"
   }
 }
 
 export class FileSystemError extends Error {
   constructor(message: string) {
     super(message)
-    this.name = 'FileSystemError'
+    this.name = "FileSystemError"
   }
 }
 
 export class FileUploadError extends Error {
   constructor(message: string) {
     super(message)
-    this.name = 'FileUploadError'
+    this.name = "FileUploadError"
   }
 }
 
 export class PathMigrationError extends Error {
   constructor(message: string) {
     super(message)
-    this.name = 'PathMigrationError'
+    this.name = "PathMigrationError"
   }
 }
-

@@ -37,20 +37,23 @@ export const useTreeSidebarStore = create<TreeSidebarState>()(
       setSearchTerm: (term: string) => set({ searchTerm: term }),
       sortField: "name",
       sortOrder: "ASC",
-      setSort: (field: TreeSortField, order: TreeSortOrder) => 
+      setSort: (field: TreeSortField, order: TreeSortOrder) =>
         set({ sortField: field, sortOrder: order }),
       focusedNodeId: null,
       setFocusedNodeId: (id: string | null) => set({ focusedNodeId: id }),
       searchResults: [],
-      setSearchResults: (results: ISearchNodes[]) => set({ searchResults: results, selectedIndex: 0 }),
+      setSearchResults: (results: ISearchNodes[]) =>
+        set({ searchResults: results, selectedIndex: 0 }),
       isSearchMode: false,
       setIsSearchMode: (isSearchMode: boolean) => set({ isSearchMode }),
       selectedIndex: 0,
       setSelectedIndex: (index: number) => set({ selectedIndex: index }),
       isNodesExpanded: true,
-      setIsNodesExpanded: (expanded: boolean) => set({ isNodesExpanded: expanded }),
+      setIsNodesExpanded: (expanded: boolean) =>
+        set({ isNodesExpanded: expanded }),
       isContentExpanded: true,
-      setIsContentExpanded: (expanded: boolean) => set({ isContentExpanded: expanded }),
+      setIsContentExpanded: (expanded: boolean) =>
+        set({ isContentExpanded: expanded }),
     }),
     {
       name: "tree-sidebar-state",

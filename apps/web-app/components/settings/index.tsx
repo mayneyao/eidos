@@ -7,15 +7,14 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { Button } from "../ui/button"
 import { UnifiedSettings } from "./unified-settings"
-import { onSettingsOpen, onSettingsClose, type SettingsSection } from "./settings-events"
+import {
+  onSettingsOpen,
+  onSettingsClose,
+  type SettingsSection,
+} from "./settings-events"
 
 export function Settings() {
-  return (
-    <UnifiedSettings 
-      initialSection="general" 
-      showSpaceSettings={true} 
-    />
-  )
+  return <UnifiedSettings initialSection="general" showSpaceSettings={true} />
 }
 
 export const SpaceSettings = () => {
@@ -23,25 +22,26 @@ export const SpaceSettings = () => {
   const { isSpaceSettingsOpen, setSpaceSettingsOpen } = useAppRuntimeStore()
   const [activeSection, setActiveSection] = useState<SettingsSection>("general")
   const [showSpaceSettings, setShowSpaceSettings] = useState(true)
-  
+
   useEffect(() => {
     const unsubscribeOpen = onSettingsOpen((event) => {
-      const { section = "general", showSpaceSettings: showSpace = true } = event.detail
+      const { section = "general", showSpaceSettings: showSpace = true } =
+        event.detail
       setActiveSection(section)
       setShowSpaceSettings(showSpace)
       setSpaceSettingsOpen(true)
     })
-    
+
     const unsubscribeClose = onSettingsClose(() => {
       setSpaceSettingsOpen(false)
     })
-    
+
     return () => {
       unsubscribeOpen()
       unsubscribeClose()
     }
   }, [setSpaceSettingsOpen])
-  
+
   return (
     <Dialog open={isSpaceSettingsOpen} onOpenChange={setSpaceSettingsOpen}>
       <DialogTrigger asChild>
@@ -55,7 +55,7 @@ export const SpaceSettings = () => {
         </Button>
       </DialogTrigger>
       <DialogContent className="h-[85vh] w-[75vw] max-w-6xl p-0">
-        <UnifiedSettings 
+        <UnifiedSettings
           initialSection={activeSection}
           showSpaceSettings={showSpaceSettings}
         />

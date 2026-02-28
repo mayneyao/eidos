@@ -40,10 +40,13 @@ export const useNodeStore = create<NodeState>()((set, get) => ({
   setAllNodes: (nodes) =>
     set(() => {
       const nodeIds = nodes.map((node) => node.id)
-      const nodeMap = nodes.reduce((acc, cur) => {
-        acc[cur.id] = cur
-        return acc
-      }, {} as Record<string, ITreeNode>)
+      const nodeMap = nodes.reduce(
+        (acc, cur) => {
+          acc[cur.id] = cur
+          return acc
+        },
+        {} as Record<string, ITreeNode>
+      )
       return { nodeIds, nodeMap }
     }),
 
@@ -106,9 +109,10 @@ export const useNodeStore = create<NodeState>()((set, get) => ({
     const types = Array.isArray(type) ? type : [type]
     return nodeIds
       .map((id) => nodeMap[id])
-      .filter((node): node is ITreeNode =>
-        node !== undefined &&
-        (types.includes(node.type) || node.type.startsWith('ext__'))
+      .filter(
+        (node): node is ITreeNode =>
+          node !== undefined &&
+          (types.includes(node.type) || node.type.startsWith("ext__"))
       )
   },
 
@@ -116,9 +120,9 @@ export const useNodeStore = create<NodeState>()((set, get) => ({
     const { nodeIds, nodeMap } = get()
     return nodeIds
       .map((id) => nodeMap[id])
-      .filter((node): node is ITreeNode =>
-        node !== undefined &&
-        node.parent_id === parentId
+      .filter(
+        (node): node is ITreeNode =>
+          node !== undefined && node.parent_id === parentId
       )
   },
 
@@ -126,9 +130,8 @@ export const useNodeStore = create<NodeState>()((set, get) => ({
     const { nodeIds, nodeMap } = get()
     return nodeIds
       .map((id) => nodeMap[id])
-      .filter((node): node is ITreeNode =>
-        node !== undefined &&
-        !node.parent_id
+      .filter(
+        (node): node is ITreeNode => node !== undefined && !node.parent_id
       )
   },
 }))

@@ -65,7 +65,7 @@ export function PropertyNavigationPlugin(props: PropertyNavigationPluginProps) {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Only handle up arrow key
       if (event.key !== "ArrowUp") return
-      
+
       editor.getEditorState().read(() => {
         if ($isAtDocumentStart()) {
           // Dispatch custom event to activate property editing

@@ -32,8 +32,8 @@ export const useAIChatStore = create<Store>()(
         set((state) => ({
           enabledTools: {
             ...state.enabledTools,
-            [space]: tools
-          }
+            [space]: tools,
+          },
         }))
       },
       toggleTool: (space: string, toolName: string) => {
@@ -44,9 +44,9 @@ export const useAIChatStore = create<Store>()(
               ...state.enabledTools,
               [space]: {
                 ...spaceTools,
-                [toolName]: !spaceTools[toolName]
-              }
-            }
+                [toolName]: !spaceTools[toolName],
+              },
+            },
           }
         })
       },
@@ -58,8 +58,8 @@ export const useAIChatStore = create<Store>()(
         set((state) => ({
           maxSteps: {
             ...state.maxSteps,
-            [space]: steps
-          }
+            [space]: steps,
+          },
         }))
       },
       contextNodes: [],
@@ -72,7 +72,7 @@ export const useAIChatStore = create<Store>()(
           console.warn("Invalid node provided to addContextNode:", node)
           return
         }
-        
+
         set((state) => {
           // Check if the node already exists to avoid duplicates
           const exists = state.contextNodes.some((n) => n.id === node.id)
@@ -80,10 +80,10 @@ export const useAIChatStore = create<Store>()(
             console.log("Context node already exists:", node.name, node.id)
             return state
           }
-          
+
           console.log("Adding new context node:", node.name, node.id)
           return {
-            contextNodes: [...state.contextNodes, node]
+            contextNodes: [...state.contextNodes, node],
           }
         })
       },
@@ -92,23 +92,27 @@ export const useAIChatStore = create<Store>()(
           console.warn("Invalid nodeId provided to removeContextNode:", nodeId)
           return
         }
-        
+
         set((state) => {
-          const nodeExists = state.contextNodes.some(node => node.id === nodeId)
+          const nodeExists = state.contextNodes.some(
+            (node) => node.id === nodeId
+          )
           if (!nodeExists) {
             console.log("Context node not found for removal:", nodeId)
             return state
           }
-          
+
           console.log("Removing context node:", nodeId)
           return {
-            contextNodes: state.contextNodes.filter((node) => node.id !== nodeId)
+            contextNodes: state.contextNodes.filter(
+              (node) => node.id !== nodeId
+            ),
           }
         })
       },
       clearContextNodes: () => {
         set(() => ({ contextNodes: [] }))
-      }
+      },
     }),
     {
       name: "ai-chat-store",
@@ -116,9 +120,8 @@ export const useAIChatStore = create<Store>()(
       partialize: (state) => ({
         enabledTools: state.enabledTools,
         maxSteps: state.maxSteps,
-        contextNodes: state.contextNodes
-      })
+        contextNodes: state.contextNodes,
+      }),
     }
   )
 )
-

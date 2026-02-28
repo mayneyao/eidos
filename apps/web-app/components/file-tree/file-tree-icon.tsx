@@ -1,4 +1,10 @@
-import { BlocksIcon, File, FileSpreadsheet, Folder, ViewIcon } from "lucide-react"
+import {
+  BlocksIcon,
+  File,
+  FileSpreadsheet,
+  Folder,
+  ViewIcon,
+} from "lucide-react"
 
 import { IconRenderer } from "@/components/ui/icon-picker"
 

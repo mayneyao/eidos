@@ -61,7 +61,9 @@ export const NodeRestore = ({ node }: { node: ITreeNode | null }) => {
             <AlertDialogTrigger></AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{t("common.areYouAbsolutelySure")}</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {t("common.areYouAbsolutelySure")}
+                </AlertDialogTitle>
                 <AlertDialogDescription>
                   {t("doc.permanentDeleteWarning")}
                 </AlertDialogDescription>

@@ -1,8 +1,4 @@
-import {
-  FormControl,
-  FormItem,
-  FormLabel,
-} from "@/components/ui/form"
+import { FormControl, FormItem, FormLabel } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 
 interface ColorSelectProps {
@@ -27,4 +23,4 @@ export function ColorSelect({ value, onChange, label }: ColorSelectProps) {
       </FormControl>
     </FormItem>
   )
-} 
+}

@@ -8,24 +8,24 @@ class MockDataSpace {
 
   async exec2(sql: string, params: any[] = []): Promise<any[]> {
     // Mock implementation for testing slug uniqueness
-    if (sql.includes('SELECT COUNT(*) as count')) {
+    if (sql.includes("SELECT COUNT(*) as count")) {
       // Handle slugExists query
       const slug = params[0]
-      const count = this.extensions.filter(ext => ext.slug === slug).length
+      const count = this.extensions.filter((ext) => ext.slug === slug).length
       return [{ count }]
     }
-    
-    if (sql.includes('SELECT * FROM') && sql.includes('WHERE slug = ?')) {
+
+    if (sql.includes("SELECT * FROM") && sql.includes("WHERE slug = ?")) {
       // Handle getExtensionBySlug query
       const slug = params[0]
-      const extension = this.extensions.find(ext => ext.slug === slug)
+      const extension = this.extensions.find((ext) => ext.slug === slug)
       return extension ? [extension] : []
     }
-    
-    if (sql.includes('GROUP_CONCAT(id)')) {
+
+    if (sql.includes("GROUP_CONCAT(id)")) {
       // Handle fixDuplicateSlugs query
       const slugGroups: { [key: string]: string[] } = {}
-      this.extensions.forEach(ext => {
+      this.extensions.forEach((ext) => {
         if (ext.slug) {
           if (!slugGroups[ext.slug]) {
             slugGroups[ext.slug] = []
@@ -33,37 +33,37 @@ class MockDataSpace {
           slugGroups[ext.slug].push(ext.id)
         }
       })
-      
+
       return Object.entries(slugGroups)
         .filter(([, ids]) => ids.length > 1)
         .map(([slug, ids]) => ({
           slug,
           count: ids.length,
-          ids: ids.join(',')
+          ids: ids.join(","),
         }))
     }
-    
-    if (sql.includes('UPDATE') && sql.includes('SET slug = ?')) {
+
+    if (sql.includes("UPDATE") && sql.includes("SET slug = ?")) {
       // Handle slug update
       const [newSlug, id] = params
-      const extension = this.extensions.find(ext => ext.id === id)
+      const extension = this.extensions.find((ext) => ext.id === id)
       if (extension) {
         extension.slug = newSlug
       }
       return []
     }
-    
+
     return []
   }
 
   syncExec2(sql: string, params: any[] = []): void {
     // Handle INSERT operations
-    if (sql.includes('INSERT INTO')) {
+    if (sql.includes("INSERT INTO")) {
       const extension = {
         id: `ext-${this.idCounter++}`,
         slug: params[1], // Assuming slug is the second parameter
-        name: params[2] || 'Test Extension',
-        type: 'script'
+        name: params[2] || "Test Extension",
+        type: "script",
       }
       this.extensions.push(extension)
     }
@@ -94,7 +94,7 @@ describe("ExtensionTable Slug Uniqueness", () => {
     await extensionTable.add({
       id: "test-1",
       slug: "test-slug",
-      name: "Test Extension"
+      name: "Test Extension",
     } as IExtension)
 
     const exists = await extensionTable.slugExists("test-slug")
@@ -111,7 +111,7 @@ describe("ExtensionTable Slug Uniqueness", () => {
     await extensionTable.add({
       id: "test-1",
       slug: "duplicate-slug",
-      name: "Test Extension 1"
+      name: "Test Extension 1",
     } as IExtension)
 
     const uniqueSlug = await extensionTable.generateUniqueSlug("duplicate-slug")
@@ -123,17 +123,18 @@ describe("ExtensionTable Slug Uniqueness", () => {
     await extensionTable.add({
       id: "test-1",
       slug: "multi-duplicate",
-      name: "Test Extension 1"
+      name: "Test Extension 1",
     } as IExtension)
 
     // Manually add to mock the scenario where -1 already exists
-    mockDataSpace['extensions'].push({
+    mockDataSpace["extensions"].push({
       id: "test-2",
       slug: "multi-duplicate-1",
-      name: "Test Extension 2"
+      name: "Test Extension 2",
     })
 
-    const uniqueSlug = await extensionTable.generateUniqueSlug("multi-duplicate")
+    const uniqueSlug =
+      await extensionTable.generateUniqueSlug("multi-duplicate")
     expect(uniqueSlug).toBe("multi-duplicate-2")
   })
 
@@ -142,14 +143,14 @@ describe("ExtensionTable Slug Uniqueness", () => {
     await extensionTable.add({
       id: "test-1",
       slug: "auto-unique",
-      name: "Test Extension 1"
+      name: "Test Extension 1",
     } as IExtension)
 
     // Add second extension with same slug - should get unique slug
     await extensionTable.add({
       id: "test-2",
       slug: "auto-unique",
-      name: "Test Extension 2"
+      name: "Test Extension 2",
     } as IExtension)
 
     // Verify the second extension got a unique slug
@@ -162,7 +163,7 @@ describe("ExtensionTable Slug Uniqueness", () => {
     await extensionTable.add({
       id: "test-1",
       slug: "find-me",
-      name: "Findable Extension"
+      name: "Findable Extension",
     } as IExtension)
 
     const found = await extensionTable.getExtensionBySlug("find-me")

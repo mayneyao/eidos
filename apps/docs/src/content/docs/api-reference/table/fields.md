@@ -7,28 +7,29 @@ Each field in an Eidos table consists of a `name`, a unique `columnName`, a `typ
 
 ## Supported Field Types
 
-| Type | Description | Property |
-| :--- | :--- | :--- |
-| `title` | The primary display name for the record. | - |
-| `text` | Multi-line text with optional AI embeddings. | [Text Property](#text) |
-| `number` | Numeric values with formatting and visualizers. | [Number Property](#number) |
-| `select` | Single-choice selection from a list of options. | [Select Property](#select--multi-select) |
-| `multi-select` | Multiple-choice selection from a list of options. | [Select Property](#select--multi-select) |
-| `date` | Date and time picker. | - |
-| `checkbox` | Boolean (true/false) toggle. | - |
-| `url` | Formatted web URL. | - |
-| `file` | File uploads and attachments. | [File Property](#file) |
-| `rating` | Visual star rating. | - |
-| `formula` | Read-only calculated field. | [Formula Property](#formula) |
-| `link` | Relationship to another table. | [Link Property](#link) |
-| `created-by` | User who created the record. | - |
-| `last-edited-by` | User who last modified the record. | - |
-| `created-time`| Automatic record creation timestamp. | - |
-| `last-edited-time`| Automatic record last update timestamp. | - |
+| Type               | Description                                       | Property                                 |
+| :----------------- | :------------------------------------------------ | :--------------------------------------- |
+| `title`            | The primary display name for the record.          | -                                        |
+| `text`             | Multi-line text with optional AI embeddings.      | [Text Property](#text)                   |
+| `number`           | Numeric values with formatting and visualizers.   | [Number Property](#number)               |
+| `select`           | Single-choice selection from a list of options.   | [Select Property](#select--multi-select) |
+| `multi-select`     | Multiple-choice selection from a list of options. | [Select Property](#select--multi-select) |
+| `date`             | Date and time picker.                             | -                                        |
+| `checkbox`         | Boolean (true/false) toggle.                      | -                                        |
+| `url`              | Formatted web URL.                                | -                                        |
+| `file`             | File uploads and attachments.                     | [File Property](#file)                   |
+| `rating`           | Visual star rating.                               | -                                        |
+| `formula`          | Read-only calculated field.                       | [Formula Property](#formula)             |
+| `link`             | Relationship to another table.                    | [Link Property](#link)                   |
+| `created-by`       | User who created the record.                      | -                                        |
+| `last-edited-by`   | User who last modified the record.                | -                                        |
+| `created-time`     | Automatic record creation timestamp.              | -                                        |
+| `last-edited-time` | Automatic record last update timestamp.           | -                                        |
 
 ---
 
 ## Text
+
 Used for long-form content. Supports AI-powered semantic search.
 
 **Property Settings:**
@@ -40,6 +41,7 @@ Used for long-form content. Supports AI-powered semantic search.
 ---
 
 ## Number
+
 Used for integers, decimals, percentages, and currency.
 
 **Property Settings:**
@@ -54,12 +56,14 @@ Used for integers, decimals, percentages, and currency.
 ---
 
 ## File
+
 Used for storing references to local files, remote URLs, or data URIs. Multiple files can be stored as a comma-separated string.
 
 **Storage Format:**
 A string containing path(s) or URL(s), separated by commas. Eidos uses "smart splitting" to ensure that commas within a single filename or data URI are preserved.
 
 **Supported Formats:**
+
 - **Local Paths**: Paths within the Eidos workspace starting with `/files/` (e.g., `/files/019c47e80f477b41a5e954bca31cdfa8.jpeg`). These are workspace-relative, not physical system paths.
 - **Web URLs**: Remote resources starting with `http://` or `https://`.
 - **Data URIs**: Inline data starting with `data:` (e.g., `data:image/png;base64,...`).
@@ -72,6 +76,7 @@ A string containing path(s) or URL(s), separated by commas. Eidos uses "smart sp
 ---
 
 ## Select & Multi-select
+
 Used for categorizing records using tags.
 
 **Property Settings:**
@@ -92,6 +97,7 @@ Used for categorizing records using tags.
 ---
 
 ## Formula
+
 Used to perform calculations based on other fields in the record.
 
 **Property Settings:**
@@ -103,6 +109,7 @@ Used to perform calculations based on other fields in the record.
 ---
 
 ## Link
+
 Used to create relationships between records in different tables.
 
 **Property Settings:**

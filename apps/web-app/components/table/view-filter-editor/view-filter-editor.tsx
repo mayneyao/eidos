@@ -170,7 +170,12 @@ export const ViewFilterEditor = ({
           </div>
           {AddFilterComponent}
           <hr />
-          <Button variant="ghost" size="sm" onClick={clearFilter} className="h-6 text-xs">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearFilter}
+            className="h-6 text-xs"
+          >
             {t("table.view.deleteFilter")}
           </Button>
         </div>

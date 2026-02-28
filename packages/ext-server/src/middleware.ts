@@ -10,7 +10,12 @@ import type { Context } from "hono"
 import type { BlankEnv } from "hono/types"
 
 import { getIndexHtml, type ExtensionContext } from "./ext-html"
-import { appWrapperJs, eidosClientJs, swJs, tailwindRawJs } from "./generated/assets"
+import {
+  appWrapperJs,
+  eidosClientJs,
+  swJs,
+  tailwindRawJs,
+} from "./generated/assets"
 import { presetThemes, twConfig } from "./helper"
 import type {
   ExtServerConfig,
@@ -40,8 +45,6 @@ function getEnvMap(bindings?: IBindings): Record<string, string> {
   })
   return envMap
 }
-
-
 
 /**
  * Render extension to HTML
@@ -100,7 +103,9 @@ async function renderExtension(
     try {
       const result = await provider.dataSpace.runServerAction(
         `(${serverActionCode})(context)`,
-        { url }
+        {
+          url,
+        }
       )
       serverSideProps = result?.props || {}
     } catch (error) {

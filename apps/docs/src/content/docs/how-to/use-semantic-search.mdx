@@ -5,7 +5,7 @@ description: Enable vector embeddings on text fields to perform semantic search.
 
 import { Aside } from "@astrojs/starlight/components"
 
-Semantic search allows you to find content based on *meaning* rather than exact keyword matches. By converting text into vector embeddings, you can search with natural language queries like "machine learning tutorials" and find relevant items even if they don't contain those exact words.
+Semantic search allows you to find content based on _meaning_ rather than exact keyword matches. By converting text into vector embeddings, you can search with natural language queries like "machine learning tutorials" and find relevant items even if they don't contain those exact words.
 
 This guide shows you how to enable semantic search on a text field and use it to search through data. We'll use Hacker News stories as a practical example.
 
@@ -27,16 +27,20 @@ Semantic search works on any **Text** field. Here's how to enable it:
 5. (Optional) Enable **Color Hint** to see vectorization status
 
 <Aside type="note">
-  If you followed the [Hacker News ingestion guide](/how-to/interact-with-desktop-app-via-api/), your table already has a `Content` field that you can enable embedding on.
+  If you followed the [Hacker News ingestion
+  guide](/how-to/interact-with-desktop-app-via-api/), your table already has a
+  `Content` field that you can enable embedding on.
 </Aside>
 
 <Aside type="note">
-  Only **Text** fields support embedding. Title, URL, and other field types cannot be embedded.
+  Only **Text** fields support embedding. Title, URL, and other field types
+  cannot be embedded.
 </Aside>
 
 ### 2. Process Embeddings
 
 Once data is added, Eidos automatically generates embeddings for the enabled field. You can check progress in field properties:
+
 - **Green cells** = Up-to-date vectors
 - **Yellow cells** = Outdated (text was edited)
 
@@ -53,13 +57,13 @@ Click **Process** to manually trigger embedding generation if needed.
 
 For example, if you're searching through Hacker News stories:
 
-| Query | Finds stories about... |
-|-------|------------------------|
-| "AI and machine learning" | Neural networks, LLMs, deep learning |
-| "web development tools" | Frameworks, build tools, CSS libraries |
-| "database optimization" | Query performance, indexing, caching |
-| "career advice" | Hiring, interviews, work culture |
-| "debugging techniques" | Troubleshooting, logging, observability |
+| Query                     | Finds stories about...                  |
+| ------------------------- | --------------------------------------- |
+| "AI and machine learning" | Neural networks, LLMs, deep learning    |
+| "web development tools"   | Frameworks, build tools, CSS libraries  |
+| "database optimization"   | Query performance, indexing, caching    |
+| "career advice"           | Hiring, interviews, work culture        |
+| "debugging techniques"    | Troubleshooting, logging, observability |
 
 ## Troubleshooting
 
@@ -82,7 +86,8 @@ If you switch embedding models, existing vectors become invalid:
 3. Click **Process** to regenerate with the new model
 
 <Aside type="danger">
-  Resetting vectors requires re-processing all data. For large tables, this may take several minutes.
+  Resetting vectors requires re-processing all data. For large tables, this may
+  take several minutes.
 </Aside>
 
 ## Next Steps

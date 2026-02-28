@@ -1,9 +1,6 @@
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store";
-import type { IScriptContext, IScriptInput } from "./helper";
-import { callJavaScript } from "./helper";
-
-
-
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import type { IScriptContext, IScriptInput } from "./helper"
+import { callJavaScript } from "./helper"
 
 export const useScriptFunction = () => {
   const { scriptContainerRef, setRunningCommand } = useAppRuntimeStore()
@@ -36,7 +33,6 @@ export const useScriptFunction = () => {
     callFunction,
   }
 }
-
 
 export const useCallScript = () => {
   const { callFunction } = useScriptFunction()

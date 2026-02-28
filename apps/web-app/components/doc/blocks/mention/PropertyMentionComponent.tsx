@@ -58,15 +58,12 @@ export const PropertyMentionComponent = (
 
   return (
     <span
-      className={cn(
-        "inline-flex shrink-0 items-baseline rounded-sm px-1",
-        {
-          "text-red-500": isError,
-          "text-blue-500": !isError,
-          "ring-1 ring-ring": isNodeSelected,
-          "bg-secondary": isNodeSelected,
-        }
-      )}
+      className={cn("inline-flex shrink-0 items-baseline rounded-sm px-1", {
+        "text-red-500": isError,
+        "text-blue-500": !isError,
+        "ring-1 ring-ring": isNodeSelected,
+        "bg-secondary": isNodeSelected,
+      })}
       id={id}
     >
       <span>{displayValue}</span>

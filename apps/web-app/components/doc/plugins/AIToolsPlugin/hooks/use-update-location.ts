@@ -6,14 +6,8 @@ import {
   useState,
 } from "react"
 import { createDOMRange, createRectsFromDOMRange } from "@lexical/selection"
-import type {
-  LexicalEditor,
-  RangeSelection
-} from "lexical";
-import {
-  $getSelection,
-  $isRangeSelection
-} from "lexical"
+import type { LexicalEditor, RangeSelection } from "lexical"
+import { $getSelection, $isRangeSelection } from "lexical"
 import { useEditorInstance } from "../../../hooks/editor-instance-context"
 
 export const useUpdateLocation = (
@@ -135,4 +129,4 @@ export const useUpdateLocation = (
   return {
     editorWidth,
   }
-} 
+}

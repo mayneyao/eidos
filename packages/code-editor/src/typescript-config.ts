@@ -80,7 +80,8 @@ export function configureTypeScriptLanguage(
       "@/*": ["file:///*"],
       "@/components/ui/*": ["file:///components/ui/*"],
     },
-    moduleResolution: monacoInstance.languages.typescript.ModuleResolutionKind.NodeJs,
+    moduleResolution:
+      monacoInstance.languages.typescript.ModuleResolutionKind.NodeJs,
     module: monacoInstance.languages.typescript.ModuleKind.ESNext,
     esModuleInterop: true,
     allowSyntheticDefaultImports: true,
@@ -98,7 +99,9 @@ export function configureTypeScriptLanguage(
   }
 
   console.log("Setting TypeScript compiler options:", compilerOptions)
-  monacoInstance.languages.typescript.typescriptDefaults.setCompilerOptions(compilerOptions)
+  monacoInstance.languages.typescript.typescriptDefaults.setCompilerOptions(
+    compilerOptions
+  )
 
   // Add global type definitions
   if (globalTypes) {
@@ -110,7 +113,8 @@ export function configureTypeScriptLanguage(
 
   // Debug: Check all added extra libraries
   setTimeout(() => {
-    const extraLibs = monacoInstance.languages.typescript.typescriptDefaults.getExtraLibs()
+    const extraLibs =
+      monacoInstance.languages.typescript.typescriptDefaults.getExtraLibs()
     console.log("All extra libs after setup:", Object.keys(extraLibs))
   }, 200)
 

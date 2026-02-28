@@ -5,10 +5,12 @@ This directory contains modular property editor components for different propert
 ## Architecture
 
 ### Base Components
+
 - **`base-editor.tsx`**: Provides common wrapper components and utilities
 - **`types.ts`**: TypeScript interfaces and types for all editors
 
 ### Editor Components
+
 Each property type has its own dedicated editor component:
 
 - **`text-editor.tsx`**: Text input with inline editing
@@ -18,16 +20,17 @@ Each property type has its own dedicated editor component:
 - **`tags-editor.tsx`**: Comma-separated tags with visual formatting
 
 ### Factory System
+
 - **`editor-factory.tsx`**: Registry and factory for creating appropriate editors
 - **`index.ts`**: Main export file for the module
 
 ## Usage
 
 ### Basic Usage
+
 ```tsx
 import { PropertyEditorFactory } from "./property-editors"
-
-<PropertyEditorFactory
+;<PropertyEditorFactory
   propertyType="text"
   value={currentValue}
   onChange={handleChange}
@@ -38,10 +41,10 @@ import { PropertyEditorFactory } from "./property-editors"
 ```
 
 ### Direct Editor Usage
+
 ```tsx
 import { TextEditor } from "./property-editors"
-
-<TextEditor
+;<TextEditor
   propertyType="text"
   value={currentValue}
   onChange={handleChange}
@@ -52,6 +55,7 @@ import { TextEditor } from "./property-editors"
 ## Features
 
 ### Common Features (All Editors)
+
 - ✅ Display mode with click-to-edit
 - ✅ Empty value handling with placeholder
 - ✅ Readonly mode support
@@ -63,25 +67,30 @@ import { TextEditor } from "./property-editors"
 ### Type-Specific Features
 
 #### Text Editor
+
 - Inline text editing
 - Auto-select on focus
 
 #### Number Editor
+
 - Input validation (numbers only)
 - Locale-aware display formatting
 - Decimal support
 
 #### Boolean Editor
+
 - Direct checkbox interaction
 - No edit mode (always interactive)
 - Visual state feedback
 
 #### Date Editor
+
 - Native date picker
 - Proper date formatting for display
 - ISO date storage format
 
 #### Tags Editor
+
 - Comma-separated input
 - Visual tag chips in display mode
 - Tag parsing and cleanup

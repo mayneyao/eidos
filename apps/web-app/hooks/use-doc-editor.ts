@@ -10,7 +10,7 @@ import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
 } from "@lexical/markdown"
-import type { LexicalEditor } from "lexical";
+import type { LexicalEditor } from "lexical"
 import { $getRoot, $insertNodes, $nodesOfType } from "lexical"
 import { zip } from "@/lib/lodash"
 
@@ -32,7 +32,7 @@ export const getHeadlessEditor = () => {
   if (!editor) {
     editor = createHeadlessEditor({
       nodes: getAllNodes(),
-      onError: () => { },
+      onError: () => {},
     })
   }
   return editor
@@ -95,8 +95,8 @@ export const _convertEmail2State = async (
       // Generate file path
       const fileId = getUuid()
       const fileName = file.filename ?? `attachment-${fileId}`
-      const ext = fileName.includes('.') ? fileName.split('.').pop() : ''
-      const filePath = `~/.eidos/files/${fileId}${ext ? '.' + ext : ''}`
+      const ext = fileName.includes(".") ? fileName.split(".").pop() : ""
+      const filePath = `~/.eidos/files/${fileId}${ext ? "." + ext : ""}`
 
       // Save file using fs
       await sqlite.fs.writeFile(filePath, uint8Array)
@@ -114,7 +114,7 @@ export const _convertHtml2State = async (html: string): Promise<string> => {
   return new Promise((resolve) => {
     const editor = createHeadlessEditor({
       nodes: getAllNodes(),
-      onError: () => { },
+      onError: () => {},
     })
 
     editor.update(
@@ -157,7 +157,7 @@ export const _convertMarkdown2State = async (
   return new Promise((resolve) => {
     const editor = createHeadlessEditor({
       nodes: getAllNodes(),
-      onError: () => { },
+      onError: () => {},
     })
 
     editor.update(

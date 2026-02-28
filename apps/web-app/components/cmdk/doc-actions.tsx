@@ -88,7 +88,7 @@ export const DocActionCommandItems = () => {
         code: script.code,
         id: script.id,
         space: params.database,
-        bindings: script.bindings
+        bindings: script.bindings,
       })
       setCmdkOpen(false)
     } catch (error) {

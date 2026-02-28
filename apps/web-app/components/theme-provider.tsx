@@ -142,17 +142,17 @@ export function ThemeProvider({
     [themeSetting, resolvedTheme, forcedTheme, setTheme]
   )
 
-  return (
-    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
-  )
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }
 
 export function useTheme(): ThemeContextValue {
-  return useContext(ThemeContext) ?? {
-    theme: "light",
-    resolvedTheme: "light",
-    forcedTheme: undefined,
-    setTheme: () => {},
-    rawTheme: "light",
-  }
+  return (
+    useContext(ThemeContext) ?? {
+      theme: "light",
+      resolvedTheme: "light",
+      forcedTheme: undefined,
+      setTheme: () => {},
+      rawTheme: "light",
+    }
+  )
 }

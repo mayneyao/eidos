@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { extractUDF, validateUDFCode } from './get-udf';
+import { describe, it, expect } from "vitest"
+import { extractUDF, validateUDFCode } from "./get-udf"
 
-describe('extractUDF', () => {
-  it('should extract UDF from valid TypeScript code', () => {
+describe("extractUDF", () => {
+  it("should extract UDF from valid TypeScript code", () => {
     const code = `
 export const meta = {
   type: "udf",
@@ -15,28 +15,28 @@ export const meta = {
 
 function myAdd(a: number, b: number) {
   return a + b
-}`;
+}`
 
-    const result = extractUDF(code);
+    const result = extractUDF(code)
     console.log(result)
 
-    expect(result).not.toBeNull();
-    expect(result!.meta.type).toBe('udf');
-    expect(result!.meta.funcName).toBe('myAdd');
-    expect(result!.meta.udf.name).toBe('add');
-    expect(result!.meta.udf.deterministic).toBe(true);
+    expect(result).not.toBeNull()
+    expect(result!.meta.type).toBe("udf")
+    expect(result!.meta.funcName).toBe("myAdd")
+    expect(result!.meta.udf.name).toBe("add")
+    expect(result!.meta.udf.deterministic).toBe(true)
 
-    expect(result!.jsFunction).not.toContain(': number');
+    expect(result!.jsFunction).not.toContain(": number")
 
-    expect(result!.createFunctionConfig.name).toBe('add');
-    expect(result!.createFunctionConfig.deterministic).toBe(true);
-    expect(typeof result!.createFunctionConfig.xFunc).toBe('function');
+    expect(result!.createFunctionConfig.name).toBe("add")
+    expect(result!.createFunctionConfig.deterministic).toBe(true)
+    expect(typeof result!.createFunctionConfig.xFunc).toBe("function")
 
-    const func = result!.createFunctionConfig.xFunc;
-    expect(func(2, 3)).toBe(5);
-  });
+    const func = result!.createFunctionConfig.xFunc
+    expect(func(2, 3)).toBe(5)
+  })
 
-  it('should handle complex function with multiple parameters', () => {
+  it("should handle complex function with multiple parameters", () => {
     const code = `
 export const meta = {
   type: "udf",
@@ -54,26 +54,26 @@ function calculateArea(width: number, height: number, shape: string) {
     return (width * height) / 2;
   }
   return 0;
-}`;
+}`
 
-    const result = extractUDF(code);
+    const result = extractUDF(code)
 
-    expect(result).not.toBeNull();
-    expect(result!.createFunctionConfig.xFunc(10, 5, 'rectangle')).toBe(50);
-    expect(result!.createFunctionConfig.xFunc(10, 5, 'triangle')).toBe(25);
-  });
+    expect(result).not.toBeNull()
+    expect(result!.createFunctionConfig.xFunc(10, 5, "rectangle")).toBe(50)
+    expect(result!.createFunctionConfig.xFunc(10, 5, "triangle")).toBe(25)
+  })
 
-  it('should return null for invalid code', () => {
+  it("should return null for invalid code", () => {
     const code = `
 const notAUDF = {
   type: "other",
-}`;
+}`
 
-    const result = extractUDF(code);
-    expect(result).toBeNull();
-  });
+    const result = extractUDF(code)
+    expect(result).toBeNull()
+  })
 
-  it('should return null when function is missing', () => {
+  it("should return null when function is missing", () => {
     const code = `
 export const meta = {
   type: "udf",
@@ -82,15 +82,15 @@ export const meta = {
     name: "missing",
     deterministic: true,
   },
-}`;
+}`
 
-    const result = extractUDF(code);
-    expect(result).toBeNull();
-  });
-});
+    const result = extractUDF(code)
+    expect(result).toBeNull()
+  })
+})
 
-describe('validateUDFCode', () => {
-  it('should validate correct UDF code', () => {
+describe("validateUDFCode", () => {
+  it("should validate correct UDF code", () => {
     const code = `
 export const meta = {
   type: "udf",
@@ -103,25 +103,25 @@ export const meta = {
 
 function myAdd(a: number, b: number) {
   return a + b
-}`;
+}`
 
-    const result = validateUDFCode(code);
-    expect(result.valid).toBe(true);
-    expect(result.errors).toHaveLength(0);
-  });
+    const result = validateUDFCode(code)
+    expect(result.valid).toBe(true)
+    expect(result.errors).toHaveLength(0)
+  })
 
-  it('should detect missing meta', () => {
+  it("should detect missing meta", () => {
     const code = `
 function myAdd(a: number, b: number) {
   return a + b
-}`;
+}`
 
-    const result = validateUDFCode(code);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Missing meta export');
-  });
+    const result = validateUDFCode(code)
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContain("Missing meta export")
+  })
 
-  it('should detect wrong meta type', () => {
+  it("should detect wrong meta type", () => {
     const code = `
 export const meta = {
   type: "other",
@@ -130,14 +130,14 @@ export const meta = {
 
 function myAdd(a: number, b: number) {
   return a + b
-}`;
+}`
 
-    const result = validateUDFCode(code);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toContain('meta.type must be "udf"');
-  });
+    const result = validateUDFCode(code)
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContain('meta.type must be "udf"')
+  })
 
-  it('should detect missing function', () => {
+  it("should detect missing function", () => {
     const code = `
 export const meta = {
   type: "udf",
@@ -146,14 +146,14 @@ export const meta = {
     name: "missing",
     deterministic: true,
   },
-}`;
+}`
 
-    const result = validateUDFCode(code);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Function missingFunction not found');
-  });
+    const result = validateUDFCode(code)
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContain("Function missingFunction not found")
+  })
 
-  it('should detect missing required fields', () => {
+  it("should detect missing required fields", () => {
     const code = `
 export const meta = {
   type: "udf",
@@ -161,11 +161,11 @@ export const meta = {
 
 function myAdd(a: number, b: number) {
   return a + b
-}`;
+}`
 
-    const result = validateUDFCode(code);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toContain('meta.funcName is required');
-    expect(result.errors).toContain('meta.udf.name is required');
-  });
-});
+    const result = validateUDFCode(code)
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContain("meta.funcName is required")
+    expect(result.errors).toContain("meta.udf.name is required")
+  })
+})

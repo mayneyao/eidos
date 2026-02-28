@@ -3,7 +3,7 @@ import { BaseField } from "./base"
 import {
   FieldType,
   GridCellKind,
-  NUMBER_BASED_COMPARE_OPERATORS
+  NUMBER_BASED_COMPARE_OPERATORS,
 } from "./const"
 
 type RatingProperty = {}
@@ -14,7 +14,6 @@ interface RatingCellProps {
 }
 
 export type RatingCell = CustomCell<RatingCellProps>
-
 
 export class RatingField extends BaseField<RatingCell, RatingProperty, number> {
   static type = FieldType.Rating

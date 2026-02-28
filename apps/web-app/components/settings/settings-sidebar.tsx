@@ -50,7 +50,9 @@ interface SettingsItem {
 
 interface SettingsSidebarProps {
   activeSection: SettingsSection
-  onSectionChange: (section: SettingsSection | ((prev: SettingsSection) => SettingsSection)) => void
+  onSectionChange: (
+    section: SettingsSection | ((prev: SettingsSection) => SettingsSection)
+  ) => void
   showSpaceSettings?: boolean
 }
 
@@ -73,19 +75,21 @@ export function SettingsSidebar({
       }
       try {
         // Check eidos.space (built-in)
-        const eidosCreds = await window.eidos.credentials.hasSyncCredentials("eidos.space")
+        const eidosCreds =
+          await window.eidos.credentials.hasSyncCredentials("eidos.space")
         if (eidosCreds) {
           setHasSyncCredentials(true)
           return
         }
-        
+
         // Check custom providers
         if (window.eidos?.config) {
           const syncConfig = await window.eidos.config.get("sync")
           const providerIds = Object.keys(syncConfig?.providers || {})
-          
+
           for (const id of providerIds) {
-            const hasCreds = await window.eidos.credentials.hasSyncCredentials(id)
+            const hasCreds =
+              await window.eidos.credentials.hasSyncCredentials(id)
             if (hasCreds) {
               setHasSyncCredentials(true)
               return
@@ -158,7 +162,10 @@ export function SettingsSidebar({
     {
       id: "account",
       title: t("settings.account.title", "Account"),
-      description: t("settings.account.description", "Manage your account and sync provider"),
+      description: t(
+        "settings.account.description",
+        "Manage your account and sync provider"
+      ),
       icon: <User className="h-5 w-5" />,
       category: "global",
     },
@@ -182,7 +189,10 @@ export function SettingsSidebar({
     {
       id: "sync",
       title: t("settings.sync"),
-      description: t("settings.syncDescription", "Configure sync provider and credentials"),
+      description: t(
+        "settings.syncDescription",
+        "Configure sync provider and credentials"
+      ),
       icon: <Cloud className="h-5 w-5" />,
       disabled: !isDesktopMode,
       isAlpha: true,
@@ -224,11 +234,7 @@ export function SettingsSidebar({
                     activeSection === section.id
                       ? "bg-background shadow-sm border-border"
                       : "border-transparent hover:bg-muted"
-                  } ${
-                    section.disabled
-                      ? "opacity-50 cursor-not-allowed"
-                      : "cursor-pointer"
-                  }`}
+                  } ${section.disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                 >
                   <div
                     className={`${
@@ -262,17 +268,15 @@ export function SettingsSidebar({
                 {spaceSections.map((section) => (
                   <button
                     key={section.id}
-                    onClick={() => !section.disabled && onSectionChange(section.id)}
+                    onClick={() =>
+                      !section.disabled && onSectionChange(section.id)
+                    }
                     disabled={section.disabled}
                     className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm whitespace-nowrap transition-all duration-200 border ${
                       activeSection === section.id
                         ? "bg-background shadow-sm border-border"
                         : "border-transparent hover:bg-muted"
-                    } ${
-                      section.disabled
-                        ? "opacity-50 cursor-not-allowed"
-                        : "cursor-pointer"
-                    }`}
+                    } ${section.disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
                     <div
                       className={`${
@@ -298,79 +302,26 @@ export function SettingsSidebar({
     <>
       <MobileTopNav />
       <div className="w-56 border-r bg-muted/30 hidden lg:flex lg:flex-col">
-      <div className="p-3 overflow-y-auto flex-1">
-        <div className="space-y-4">
-          {/* Global Settings Section */}
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              {t("settings.title")}
-            </h3>
-            <div className="space-y-0.5">
-              {globalSections.map((section) => (
-                <button
-                  key={section.id}
-                  onClick={() =>
-                    !section.disabled && onSectionChange(section.id)
-                  }
-                  disabled={section.disabled}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-left transition-all duration-200 border ${
-                    activeSection === section.id
-                      ? "bg-background shadow-sm border-border"
-                      : "border-transparent hover:bg-muted"
-                  } ${
-                    section.disabled
-                      ? "opacity-50 cursor-not-allowed"
-                      : "cursor-pointer"
-                  }`}
-                >
-                  <div className="flex items-center space-x-2.5 min-h-[1rem]">
-                    <div
-                      className={`${
-                        activeSection === section.id
-                          ? "text-primary"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      {section.icon}
-                    </div>
-                    <div className="flex-1 min-h-[1rem] flex flex-col justify-center">
-                      <div className="font-medium text-sm leading-tight flex items-center gap-1.5">
-                        {section.title}
-                        {section.isAlpha && (
-                          <span className="px-1.5 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">
-                            {t("common.badge.alpha")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Space Settings Section */}
-          {showSpaceSettings && (
+        <div className="p-3 overflow-y-auto flex-1">
+          <div className="space-y-4">
+            {/* Global Settings Section */}
             <div className="space-y-2">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {t("space.settings.title")}
+                {t("settings.title")}
               </h3>
               <div className="space-y-0.5">
-                {spaceSections.map((section) => (
+                {globalSections.map((section) => (
                   <button
                     key={section.id}
-                    onClick={() => !section.disabled && onSectionChange(section.id)}
+                    onClick={() =>
+                      !section.disabled && onSectionChange(section.id)
+                    }
                     disabled={section.disabled}
                     className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-left transition-all duration-200 border ${
                       activeSection === section.id
                         ? "bg-background shadow-sm border-border"
                         : "border-transparent hover:bg-muted"
-                    } ${
-                      section.disabled
-                        ? "opacity-50 cursor-not-allowed"
-                        : "cursor-pointer"
-                    }`}
+                    } ${section.disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
                     <div className="flex items-center space-x-2.5 min-h-[1rem]">
                       <div
@@ -383,8 +334,13 @@ export function SettingsSidebar({
                         {section.icon}
                       </div>
                       <div className="flex-1 min-h-[1rem] flex flex-col justify-center">
-                        <div className="font-medium text-sm leading-tight">
+                        <div className="font-medium text-sm leading-tight flex items-center gap-1.5">
                           {section.title}
+                          {section.isAlpha && (
+                            <span className="px-1.5 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">
+                              {t("common.badge.alpha")}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -393,17 +349,59 @@ export function SettingsSidebar({
                 ))}
               </div>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* External Links */}
-      <div className="p-3 border-t">
-        <div className="flex justify-start">
-          <SettingsExternalLinks />
+            {/* Space Settings Section */}
+            {showSpaceSettings && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  {t("space.settings.title")}
+                </h3>
+                <div className="space-y-0.5">
+                  {spaceSections.map((section) => (
+                    <button
+                      key={section.id}
+                      onClick={() =>
+                        !section.disabled && onSectionChange(section.id)
+                      }
+                      disabled={section.disabled}
+                      className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-left transition-all duration-200 border ${
+                        activeSection === section.id
+                          ? "bg-background shadow-sm border-border"
+                          : "border-transparent hover:bg-muted"
+                      } ${section.disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                    >
+                      <div className="flex items-center space-x-2.5 min-h-[1rem]">
+                        <div
+                          className={`${
+                            activeSection === section.id
+                              ? "text-primary"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {section.icon}
+                        </div>
+                        <div className="flex-1 min-h-[1rem] flex flex-col justify-center">
+                          <div className="font-medium text-sm leading-tight">
+                            {section.title}
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* External Links */}
+        <div className="p-3 border-t">
+          <div className="flex justify-start">
+            <SettingsExternalLinks />
+          </div>
         </div>
       </div>
-    </div>
     </>
   )
 }

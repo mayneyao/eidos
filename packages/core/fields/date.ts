@@ -1,4 +1,3 @@
-
 import { BaseField } from "./base"
 import { CompareOperator, FieldType, GridCellKind } from "./const"
 import type { DatePickerCell } from "./interface"

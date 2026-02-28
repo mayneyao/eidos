@@ -33,7 +33,9 @@ export function ClipboardPanel({ isVisible, onClose }: ClipboardPanelProps) {
               <h2 className="text-lg font-bold text-white">
                 Clipboard Inspector
               </h2>
-              <p className="text-xs text-gray-400">Inspect clipboard contents</p>
+              <p className="text-xs text-gray-400">
+                Inspect clipboard contents
+              </p>
             </div>
           </div>
           <button

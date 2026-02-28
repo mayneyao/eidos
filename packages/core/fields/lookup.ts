@@ -98,7 +98,7 @@ export class LookupField extends BaseField<
     }
     let cellData: any
 
-    if ('getCellContentViaLookup' in field) {
+    if ("getCellContentViaLookup" in field) {
       cellData = (field as any).getCellContentViaLookup(rawData)
     } else {
       cellData = field?.getCellContent(rawData as never, context)

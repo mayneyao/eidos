@@ -29,7 +29,10 @@ export const inferType = (value: any, key?: string): PropertyType => {
   //   return "tags"
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
     // Check if it's a datetime string (has time component)
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value) || /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(value)) {
+    if (
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value) ||
+      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(value)
+    ) {
       return "datetime"
     }
     return "date"
@@ -53,14 +56,14 @@ export const formatPropertyValue = (value: any, type: PropertyType): string => {
         .join(" ")
     case "boolean":
       // Handle both boolean and numeric (0/1) representations
-      return (value === true || value === 1) ? "✓" : "✗"
+      return value === true || value === 1 ? "✓" : "✗"
     case "date":
       try {
         const date = new Date(value)
         if (!isNaN(date.getTime())) {
           return date.toLocaleDateString()
         }
-      } catch { }
+      } catch {}
       return String(value)
     case "datetime":
       try {
@@ -68,7 +71,7 @@ export const formatPropertyValue = (value: any, type: PropertyType): string => {
         if (!isNaN(date.getTime())) {
           return date.toLocaleString()
         }
-      } catch { }
+      } catch {}
       return String(value)
     default:
       return String(value)
@@ -108,11 +111,12 @@ export const isSystemProperty = (propertyName: string): boolean => {
   return SYSTEM_PROPERTY_NAMES.includes(propertyName as any)
 }
 
-
 /**
  * Convert FieldType from database schema to PropertyType for display
  */
-export const convertFieldTypeToPropertyType = (fieldType: FieldType): string => {
+export const convertFieldTypeToPropertyType = (
+  fieldType: FieldType
+): string => {
   switch (fieldType) {
     case FieldType.Text:
     case FieldType.Title:

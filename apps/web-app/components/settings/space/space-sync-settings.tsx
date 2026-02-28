@@ -40,14 +40,19 @@ export function SpaceSyncSettings() {
   const [isToggling, setIsToggling] = useState(false)
   // Track credentials for built-in eidos.space + custom providers
   const [eidosSpaceCredentials, setEidosSpaceCredentials] = useState(false)
-  const [customProviderCredentials, setCustomProviderCredentials] = useState<Record<string, boolean>>({})
+  const [customProviderCredentials, setCustomProviderCredentials] = useState<
+    Record<string, boolean>
+  >({})
 
   const isSyncEnabled = spaceInfo?.sync?.enabled || false
 
   // Current effective provider for this space
-  const currentProviderId = spaceInfo?.sync?.provider || globalConfig.defaultProvider || "eidos.space"
+  const currentProviderId =
+    spaceInfo?.sync?.provider || globalConfig.defaultProvider || "eidos.space"
   const isEidosSpace = currentProviderId === "eidos.space"
-  const currentProvider = isEidosSpace ? null : globalConfig.providers[currentProviderId]
+  const currentProvider = isEidosSpace
+    ? null
+    : globalConfig.providers[currentProviderId]
 
   // Build the actual remote URL based on provider
   const remoteAddress = (() => {
@@ -79,7 +84,8 @@ export function SpaceSyncSettings() {
         }
 
         // Check eidos.space credentials (built-in)
-        const eidosCreds = await window.eidos.credentials.hasSyncCredentials("eidos.space")
+        const eidosCreds =
+          await window.eidos.credentials.hasSyncCredentials("eidos.space")
         setEidosSpaceCredentials(eidosCreds)
 
         // Check credentials for custom providers
@@ -137,14 +143,16 @@ export function SpaceSyncSettings() {
       return
     }
 
-    const providerId = spaceInfo.sync?.provider || globalConfig.defaultProvider || "eidos.space"
+    const providerId =
+      spaceInfo.sync?.provider || globalConfig.defaultProvider || "eidos.space"
     const isCustomProvider = providerId !== "eidos.space"
 
     // Check license for custom provider
     if (enabled && isCustomProvider && !hasValidLicense) {
       toast({
         title: "License Required",
-        description: "Custom sync providers require an active license. Please activate your license in Account settings.",
+        description:
+          "Custom sync providers require an active license. Please activate your license in Account settings.",
         variant: "destructive",
       })
       return
@@ -152,7 +160,10 @@ export function SpaceSyncSettings() {
 
     // Check if selected provider has credentials
     if (enabled && !hasCredentialsForProvider(providerId)) {
-      const providerName = providerId === "eidos.space" ? "eidos.space" : globalConfig.providers[providerId]?.name || providerId
+      const providerName =
+        providerId === "eidos.space"
+          ? "eidos.space"
+          : globalConfig.providers[providerId]?.name || providerId
       toast({
         title: "Credentials Required",
         description: `Please configure credentials for "${providerName}" in Global Settings first.`,
@@ -222,38 +233,44 @@ export function SpaceSyncSettings() {
   }
 
   const customProviders = Object.values(globalConfig.providers)
-  const effectiveProviderId = spaceInfo?.sync?.provider || globalConfig.defaultProvider || "eidos.space"
+  const effectiveProviderId =
+    spaceInfo?.sync?.provider || globalConfig.defaultProvider || "eidos.space"
 
   return (
     <div className="space-y-6">
       {/* License Required Banner for Custom Providers */}
-      {!hasValidLicense && !isLicenseLoading && isDesktopMode && customProviders.length > 0 && (
-        <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
-          <div className="flex items-start gap-3">
-            <Lock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-medium text-amber-800 dark:text-amber-200">
-                License Required for Custom Providers
-              </p>
-              <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                To sync with custom providers, an active license is required.
-              </p>
-              <Button
-                variant="link"
-                size="sm"
-                className="h-auto p-0 text-amber-700 dark:text-amber-300 mt-2"
-                onClick={() =>
-                  window.dispatchEvent(
-                    new CustomEvent("settings-navigate", { detail: "account" })
-                  )
-                }
-              >
-                Go to Account Settings →
-              </Button>
+      {!hasValidLicense &&
+        !isLicenseLoading &&
+        isDesktopMode &&
+        customProviders.length > 0 && (
+          <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+            <div className="flex items-start gap-3">
+              <Lock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-medium text-amber-800 dark:text-amber-200">
+                  License Required for Custom Providers
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                  To sync with custom providers, an active license is required.
+                </p>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-amber-700 dark:text-amber-300 mt-2"
+                  onClick={() =>
+                    window.dispatchEvent(
+                      new CustomEvent("settings-navigate", {
+                        detail: "account",
+                      })
+                    )
+                  }
+                >
+                  Go to Account Settings →
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Provider Selection */}
       <div className="p-4 rounded-lg bg-muted/50 border space-y-4">
@@ -292,34 +309,54 @@ export function SpaceSyncSettings() {
                   ? "border-primary bg-primary/5"
                   : "border-border hover:border-border/80"
               }`}
-              onClick={() => handleProviderChange(globalConfig.defaultProvider || "eidos.space")}
+              onClick={() =>
+                handleProviderChange(
+                  globalConfig.defaultProvider || "eidos.space"
+                )
+              }
             >
               <div className="mt-0.5">
-                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                  !spaceInfo?.sync?.provider ? "border-primary" : "border-muted-foreground"
-                }`}>
-                  {!spaceInfo?.sync?.provider && <div className="w-2 h-2 rounded-full bg-primary" />}
+                <div
+                  className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    !spaceInfo?.sync?.provider
+                      ? "border-primary"
+                      : "border-muted-foreground"
+                  }`}
+                >
+                  {!spaceInfo?.sync?.provider && (
+                    <div className="w-2 h-2 rounded-full bg-primary" />
+                  )}
                 </div>
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  {(globalConfig.defaultProvider || "eidos.space") === "eidos.space" ? (
+                  {(globalConfig.defaultProvider || "eidos.space") ===
+                  "eidos.space" ? (
                     <Cloud className="h-4 w-4 text-blue-500" />
                   ) : (
                     <Server className="h-4 w-4 text-muted-foreground" />
                   )}
                   <span className="font-medium">Use Default</span>
-                  {(globalConfig.defaultProvider || "eidos.space") === "eidos.space" ? (
+                  {(globalConfig.defaultProvider || "eidos.space") ===
+                  "eidos.space" ? (
                     <span className="text-sm text-muted-foreground">
                       (eidos.space)
                     </span>
                   ) : (
                     <span className="text-sm text-muted-foreground">
-                      ({globalConfig.providers[globalConfig.defaultProvider || ""]?.name})
+                      (
+                      {
+                        globalConfig.providers[
+                          globalConfig.defaultProvider || ""
+                        ]?.name
+                      }
+                      )
                     </span>
                   )}
                 </div>
-                {!hasCredentialsForProvider(globalConfig.defaultProvider || "eidos.space") && (
+                {!hasCredentialsForProvider(
+                  globalConfig.defaultProvider || "eidos.space"
+                ) && (
                   <p className="text-sm text-orange-600 mt-1">
                     Credentials not configured
                   </p>
@@ -327,57 +364,65 @@ export function SpaceSyncSettings() {
               </div>
             </div>
 
-
-
             {/* Custom Providers */}
             {customProviders.map((provider) => {
               const isDisabled = !hasValidLicense
               return (
-              <div
-                key={provider.id}
-                className={`flex items-start space-x-3 rounded-md border p-3 transition-colors ${
-                  isDisabled
-                    ? "opacity-50 cursor-not-allowed bg-muted/50"
-                    : "cursor-pointer hover:border-border/80"
-                } ${
-                  spaceInfo?.sync?.provider === provider.id && !isDisabled
-                    ? "border-primary bg-primary/5"
-                    : "border-border"
-                }`}
-                onClick={() => !isDisabled && handleProviderChange(provider.id)}
-              >
-                <div className="mt-0.5">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                    spaceInfo?.sync?.provider === provider.id && !isDisabled ? "border-primary" : "border-muted-foreground"
-                  }`}>
-                    {spaceInfo?.sync?.provider === provider.id && !isDisabled && <div className="w-2 h-2 rounded-full bg-primary" />}
+                <div
+                  key={provider.id}
+                  className={`flex items-start space-x-3 rounded-md border p-3 transition-colors ${
+                    isDisabled
+                      ? "opacity-50 cursor-not-allowed bg-muted/50"
+                      : "cursor-pointer hover:border-border/80"
+                  } ${
+                    spaceInfo?.sync?.provider === provider.id && !isDisabled
+                      ? "border-primary bg-primary/5"
+                      : "border-border"
+                  }`}
+                  onClick={() =>
+                    !isDisabled && handleProviderChange(provider.id)
+                  }
+                >
+                  <div className="mt-0.5">
+                    <div
+                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        spaceInfo?.sync?.provider === provider.id && !isDisabled
+                          ? "border-primary"
+                          : "border-muted-foreground"
+                      }`}
+                    >
+                      {spaceInfo?.sync?.provider === provider.id &&
+                        !isDisabled && (
+                          <div className="w-2 h-2 rounded-full bg-primary" />
+                        )}
+                    </div>
                   </div>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <Server className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{provider.name}</span>
-                    {customProviderCredentials[provider.id] && (
-                      <Check className="h-3 w-3 text-green-600" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Server className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">{provider.name}</span>
+                      {customProviderCredentials[provider.id] && (
+                        <Check className="h-3 w-3 text-green-600" />
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {provider.endpoint}/{provider.bucketName}
+                    </p>
+                    {!customProviderCredentials[provider.id] && !isDisabled && (
+                      <p className="text-sm text-orange-600 mt-1">
+                        Credentials not configured
+                      </p>
+                    )}
+                    {isDisabled && (
+                      <p className="text-sm text-amber-600 mt-1 flex items-center gap-1">
+                        <Lock className="h-3 w-3" />
+                        License required
+                      </p>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {provider.endpoint}/{provider.bucketName}
-                  </p>
-                  {!customProviderCredentials[provider.id] && !isDisabled && (
-                    <p className="text-sm text-orange-600 mt-1">
-                      Credentials not configured
-                    </p>
-                  )}
-                  {isDisabled && (
-                    <p className="text-sm text-amber-600 mt-1 flex items-center gap-1">
-                      <Lock className="h-3 w-3" />
-                      License required
-                    </p>
-                  )}
                 </div>
-              </div>
-            )})}
+              )
+            })}
           </div>
         )}
       </div>
@@ -390,14 +435,19 @@ export function SpaceSyncSettings() {
             <p className="text-sm text-muted-foreground">
               {isSyncEnabled
                 ? `Syncing with "${effectiveProviderId === "eidos.space" ? "eidos.space" : globalConfig.providers[effectiveProviderId]?.name || effectiveProviderId}"`
-                : effectiveProviderId && hasCredentialsForProvider(effectiveProviderId)
+                : effectiveProviderId &&
+                    hasCredentialsForProvider(effectiveProviderId)
                   ? `Will sync using "${effectiveProviderId === "eidos.space" ? "eidos.space" : globalConfig.providers[effectiveProviderId]?.name || effectiveProviderId}"`
                   : "Configure a provider first"}
             </p>
           </div>
           <Switch
             checked={isSyncEnabled}
-            disabled={isToggling || !effectiveProviderId || !hasCredentialsForProvider(effectiveProviderId)}
+            disabled={
+              isToggling ||
+              !effectiveProviderId ||
+              !hasCredentialsForProvider(effectiveProviderId)
+            }
             onCheckedChange={handleToggleSync}
           />
         </div>

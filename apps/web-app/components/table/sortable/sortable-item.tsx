@@ -58,11 +58,7 @@ export function SortableItem({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div
-        {...attributes}
-        {...listeners}
-        className={dragHandleClassName}
-      >
+      <div {...attributes} {...listeners} className={dragHandleClassName}>
         {children}
       </div>
     </div>

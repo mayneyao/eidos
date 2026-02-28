@@ -19,7 +19,6 @@ interface AppState {
 
   isFileManagerOpen: boolean
   setFileManagerOpen: (isOpen: boolean) => void
-
 }
 
 export const useAppStoreBase = create<AppState>()(
@@ -51,7 +50,6 @@ export const useAppStore = () => {
   const store = useAppStoreBase()
   const { open, setOpen, openMobile, setOpenMobile, isMobile } = useSidebar()
 
-
   return {
     ...store,
     // In mobile mode, use openMobile state; in desktop mode, use open state
@@ -63,6 +61,6 @@ export const useAppStore = () => {
       } else {
         setOpen(isOpen)
       }
-    }
+    },
   }
 }

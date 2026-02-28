@@ -46,19 +46,19 @@ export default function DragDropPaste(): null {
         DRAG_DROP_PASTE,
         (files) => {
           console.log("files", files)
-            ; (async () => {
-              const _files = await addFiles(files)
-              const fileZip = zip(_files, files)
-              for (const [meta, file] of fileZip) {
-                const path = "/" + meta?.path
-                if (isMimeType(file!, ACCEPTABLE_IMAGE_TYPES)) {
-                  editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
-                    altText: file!.name,
-                    src: path,
-                  })
-                }
+          ;(async () => {
+            const _files = await addFiles(files)
+            const fileZip = zip(_files, files)
+            for (const [meta, file] of fileZip) {
+              const path = "/" + meta?.path
+              if (isMimeType(file!, ACCEPTABLE_IMAGE_TYPES)) {
+                editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
+                  altText: file!.name,
+                  src: path,
+                })
               }
-            })()
+            }
+          })()
           return true
         },
         COMMAND_PRIORITY_LOW

@@ -1,15 +1,14 @@
 export const logger = {
   log: (...args: any[]) => {
-    console.log('✓', ...args);
+    console.log("✓", ...args)
   },
   error: (...args: any[]) => {
-    console.error('✗', ...args);
+    console.error("✗", ...args)
   },
   warn: (...args: any[]) => {
-    console.warn('⚠', ...args);
+    console.warn("⚠", ...args)
   },
   info: (...args: any[]) => {
-    console.info('ℹ', ...args);
+    console.info("ℹ", ...args)
   },
-};
-
+}

@@ -83,7 +83,9 @@ export const useFileTreeData = ({
         // Inject path into entries
         const entriesWithPaths = entries.map((entry) => ({
           ...entry,
-          path: entry.path || `${path.endsWith("/") ? path : path + "/"}${entry.name}`,
+          path:
+            entry.path ||
+            `${path.endsWith("/") ? path : path + "/"}${entry.name}`,
         }))
 
         const sortedEntries = sortEntries(entriesWithPaths)
@@ -117,7 +119,9 @@ export const useFileTreeData = ({
 
     try {
       // Check if this is an extensions directory to pass viewPrefixesAsDirectories option
-      const isExtensionsPath = normalizedRootDir.startsWith("~/.eidos/__EXTENSIONS__")
+      const isExtensionsPath = normalizedRootDir.startsWith(
+        "~/.eidos/__EXTENSIONS__"
+      )
       const entries = await sqlite.fs.readdir(normalizedRootDir, {
         withFileTypes: true,
         ...(isExtensionsPath && { viewPrefixesAsDirectories }),
@@ -126,7 +130,9 @@ export const useFileTreeData = ({
       // Inject path into entries
       const entriesWithPaths = entries.map((entry) => ({
         ...entry,
-        path: entry.path || `${normalizedRootDir.endsWith("/") ? normalizedRootDir : normalizedRootDir + "/"}${entry.name}`,
+        path:
+          entry.path ||
+          `${normalizedRootDir.endsWith("/") ? normalizedRootDir : normalizedRootDir + "/"}${entry.name}`,
       }))
 
       const sortedEntries = sortEntries(entriesWithPaths)
@@ -238,7 +244,7 @@ export const useFileTreeData = ({
         pendingReloadsRef.current.add(targetPathToReload)
 
         try {
-        if (targetPathToReload === normalizedRootDir) {
+          if (targetPathToReload === normalizedRootDir) {
             await loadRootDirectory()
           } else {
             await loadSubDirectory(targetPathToReload)
@@ -409,13 +415,7 @@ export const useFileTreeData = ({
       })
       mountTimeoutsRef.current.clear()
     }
-  }, [
-    sqlite,
-    isNodesMode,
-    initialNodes,
-    expandedNodes,
-    loadSubDirectory,
-  ])
+  }, [sqlite, isNodesMode, initialNodes, expandedNodes, loadSubDirectory])
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -476,7 +476,11 @@ export const useFileTreeData = ({
           }
         }
 
-        if (!rootNodeFound && normalizedRootDir && path.startsWith(normalizedRootDir)) {
+        if (
+          !rootNodeFound &&
+          normalizedRootDir &&
+          path.startsWith(normalizedRootDir)
+        ) {
           rootNodePath = normalizedRootDir
           rootNodeFound = true
         }
@@ -539,12 +543,20 @@ export const useFileTreeData = ({
         setTimeout(() => {
           onScrollToNode?.(path)
         }, 100)
-
       } catch (e) {
         console.error(`[FileTree] expandTo failed for ${path}`, e)
       }
     },
-    [sqlite, rootNodes, normalizedRootDir, expandedNodes, dirContent, loadSubDirectory, setExpandedNodes, onScrollToNode]
+    [
+      sqlite,
+      rootNodes,
+      normalizedRootDir,
+      expandedNodes,
+      dirContent,
+      loadSubDirectory,
+      setExpandedNodes,
+      onScrollToNode,
+    ]
   )
 
   // Listen for custom event to trigger expandTo
@@ -568,6 +580,6 @@ export const useFileTreeData = ({
     loadingNodes,
     loadRootDirectory,
     loadSubDirectory,
-    expandTo
+    expandTo,
   }
 }

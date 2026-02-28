@@ -1,35 +1,35 @@
-import type { Tooltip} from "@codemirror/view";
-import { showTooltip, EditorView } from "@codemirror/view";
-import type { EditorState } from "@codemirror/state";
-import { StateField } from "@codemirror/state";
-import { syntaxTree } from "@codemirror/language";
+import type { Tooltip } from "@codemirror/view"
+import { showTooltip, EditorView } from "@codemirror/view"
+import type { EditorState } from "@codemirror/state"
+import { StateField } from "@codemirror/state"
+import { syntaxTree } from "@codemirror/language"
 
 export type TooltipDirectionary = Record<
   string,
   { syntax: string; description: string }
->;
+>
 
 function getCursorTooltips(
   state: EditorState,
   dict: TooltipDirectionary
 ): readonly Tooltip[] {
-  const tree = syntaxTree(state);
-  const pos = state.selection.main.head;
-  const node = tree.resolveInner(state.selection.main.head, -1);
+  const tree = syntaxTree(state)
+  const pos = state.selection.main.head
+  const node = tree.resolveInner(state.selection.main.head, -1)
 
-  const parent = node.parent;
-  if (!parent) return [];
-  if (parent.type.name !== "Parens") return [];
+  const parent = node.parent
+  if (!parent) return []
+  if (parent.type.name !== "Parens") return []
 
-  if (!parent.prevSibling) return [];
-  if (!["Keyword", "Type"].includes(parent.prevSibling.type.name)) return [];
+  if (!parent.prevSibling) return []
+  if (!["Keyword", "Type"].includes(parent.prevSibling.type.name)) return []
 
   const keywordString = state.doc
     .slice(parent.prevSibling.from, parent.prevSibling.to)
     .toString()
-    .toLowerCase();
+    .toLowerCase()
 
-  const dictItem = dict[keywordString];
+  const dictItem = dict[keywordString]
 
   if (dictItem) {
     return [
@@ -38,37 +38,37 @@ function getCursorTooltips(
         above: true,
         arrow: true,
         create: () => {
-          const dom = document.createElement("div");
-          dom.className = "cm-tooltip-cursor";
+          const dom = document.createElement("div")
+          dom.className = "cm-tooltip-cursor"
           dom.innerHTML = `
             <div style="max-width:700px; padding:5px; font-size:14px;">
               <p style='font-size:16px;'><strong>${dictItem.syntax}</strong></p>
               <div class="code-tooltip">${dictItem.description}</div>
             </div>
-            `;
-          return { dom };
+            `
+          return { dom }
         },
       },
-    ];
+    ]
   }
 
-  return [];
+  return []
 }
 
 const functionTooltipField = (dict: TooltipDirectionary) => {
   return StateField.define<readonly Tooltip[]>({
     create(state) {
-      return getCursorTooltips(state, dict);
+      return getCursorTooltips(state, dict)
     },
 
     update(tooltips, tr) {
-      if (!tr.docChanged && !tr.selection) return tooltips;
-      return getCursorTooltips(tr.state, dict);
+      if (!tr.docChanged && !tr.selection) return tooltips
+      return getCursorTooltips(tr.state, dict)
     },
 
     provide: (f) => showTooltip.computeN([f], (state) => state.field(f)),
-  });
-};
+  })
+}
 
 const functionTooltipBaseTheme = EditorView.baseTheme({
   ".cm-tooltip.cm-tooltip-cursor": {
@@ -92,8 +92,8 @@ const functionTooltipBaseTheme = EditorView.baseTheme({
     color: "white",
     textDecoration: "none",
   },
-});
+})
 
 export function functionTooltip(dict: TooltipDirectionary) {
-  return [functionTooltipField(dict), functionTooltipBaseTheme];
+  return [functionTooltipField(dict), functionTooltipBaseTheme]
 }

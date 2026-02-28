@@ -1,5 +1,5 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import type { LexicalCommand} from "lexical";
+import type { LexicalCommand } from "lexical"
 import { COMMAND_PRIORITY_EDITOR, createCommand } from "lexical"
 import { useEffect } from "react"
 
@@ -12,7 +12,9 @@ export function ChartPlugin(): JSX.Element | null {
   const [editor] = useLexicalComposerContext()
   useEffect(() => {
     if (!editor.hasNodes([ChartNode])) {
-      throw new Error("ChartPlugin: ChartNode not registered on editor (initialConfig.nodes)")
+      throw new Error(
+        "ChartPlugin: ChartNode not registered on editor (initialConfig.nodes)"
+      )
     }
     return editor.registerCommand<string>(
       INSERT_CHART_COMMAND,
@@ -25,4 +27,4 @@ export function ChartPlugin(): JSX.Element | null {
     )
   }, [editor])
   return null
-} 
+}

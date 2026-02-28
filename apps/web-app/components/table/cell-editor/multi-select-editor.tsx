@@ -172,7 +172,7 @@ export const MultiSelectEditor = ({
             })}
           </div>
         ) : (
-          <div 
+          <div
             className="flex h-full w-full items-center px-2"
             onKeyDown={handleKeyDown}
             onClick={() => setIsPopoverOpen(true)}

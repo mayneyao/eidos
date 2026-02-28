@@ -17,7 +17,9 @@ export type SupportedLanguage = "typescript" | ""
  * Determine file extension based on extension type
  * script → .ts, block → .tsx
  */
-export function getFileExtensionFromType(extensionType: "script" | "block"): string {
+export function getFileExtensionFromType(
+  extensionType: "script" | "block"
+): string {
   return extensionType === "block" ? ".tsx" : ".ts"
 }
 
@@ -26,7 +28,7 @@ export function getFileExtensionFromType(extensionType: "script" | "block"): str
  */
 export function getLanguageFromPath(filePath: string): SupportedLanguage {
   // Always return typescript - JSX support is handled by file extension
-  return 'typescript'
+  return "typescript"
 }
 
 /**

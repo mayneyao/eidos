@@ -26,7 +26,7 @@ export class CsvImportAndExport extends BaseImportAndExport {
     const records = parse(content, {
       columns: true,
       skip_empty_lines: true,
-      to: 1000
+      to: 1000,
     })
 
     const sampleSize = Math.min(10, records.length)
@@ -75,7 +75,10 @@ export class CsvImportAndExport extends BaseImportAndExport {
     return columnTypes
   }
 
-  async import(file: { name: string; content: string }, dataSpace: DataSpace): Promise<string> {
+  async import(
+    file: { name: string; content: string },
+    dataSpace: DataSpace
+  ): Promise<string> {
     dataSpace.blockUIMsg("Starting import...")
     const nodeName = file.name?.replace(/\.[^/.]+$/, "")
     const tableId = uuidv4().split("-").join("")
@@ -91,23 +94,23 @@ export class CsvImportAndExport extends BaseImportAndExport {
       const firstParseResult = parse(file.content, {
         columns: (headers: string[]) => {
           return headers.map((header, index) => {
-            const cleaned = (header || '').trim()
+            const cleaned = (header || "").trim()
             return cleaned || `unknown${index}`
           })
         },
         skip_empty_lines: true,
-        to: 1
+        to: 1,
       })
 
-      console.log('Parse result:', firstParseResult)
-      console.log('Header row:', firstParseResult[0])
+      console.log("Parse result:", firstParseResult)
+      console.log("Header row:", firstParseResult[0])
 
       if (!Array.isArray(firstParseResult) || firstParseResult.length === 0) {
         throw new Error("Failed to parse CSV header")
       }
 
       const headerRow = firstParseResult[0]
-      if (!headerRow || typeof headerRow !== 'object') {
+      if (!headerRow || typeof headerRow !== "object") {
         throw new Error("Invalid CSV header format")
       }
 
@@ -116,11 +119,11 @@ export class CsvImportAndExport extends BaseImportAndExport {
         throw new Error("No columns found in CSV")
       }
 
-      const previewContent = file.content.split('\n').slice(0, 1001).join('\n')
+      const previewContent = file.content.split("\n").slice(0, 1001).join("\n")
       dataSpace.blockUIMsg("Analyzing file structure...")
       const types = await this.guessColumnType(previewContent)
 
-      const lines = file.content.split('\n').filter(line => line.trim())
+      const lines = file.content.split("\n").filter((line) => line.trim())
       if (lines.length < 2) {
         throw new Error("CSV file must contain at least one data row")
       }
@@ -177,7 +180,7 @@ CREATE TABLE ${rawTableName} (
       await dataSpace.db.exec("PRAGMA locking_mode = EXCLUSIVE;")
       await dataSpace.db.exec("PRAGMA temp_store = MEMORY;")
 
-      console.log('locksInfo:', await dataSpace.sql`PRAGMA locking_mode`)
+      console.log("locksInfo:", await dataSpace.sql`PRAGMA locking_mode`)
 
       const dataLines = lines.slice(1)
       const totalRows = dataLines.length
@@ -189,13 +192,13 @@ CREATE TABLE ${rawTableName} (
 
       for (let i = 0; i < dataLines.length; i += batchSize) {
         const batchLines = [header, ...dataLines.slice(i, i + batchSize)]
-        const batchContent = batchLines.join('\n')
+        const batchContent = batchLines.join("\n")
         let records
         try {
           records = parse(batchContent, {
             columns: (headers: string[]) => {
               return headers.map((header, index) => {
-                const cleaned = (header || '').trim()
+                const cleaned = (header || "").trim()
                 return cleaned || `unknown${index}`
               })
             },
@@ -205,9 +208,12 @@ CREATE TABLE ${rawTableName} (
 
           records.shift()
           records = records.filter((record: any) => {
-            return record && typeof record === 'object' &&
+            return (
+              record &&
+              typeof record === "object" &&
               Object.keys(record).length > 0 &&
-              !Object.keys(record).includes('')
+              !Object.keys(record).includes("")
+            )
           })
           if (records.length > 0) {
             await tm.rows.batchSyncCreate(records, fieldMap)
@@ -224,11 +230,11 @@ CREATE TABLE ${rawTableName} (
             progress: (processedRows / totalRows) * 100,
           })
           lastUIUpdate = now
-          await new Promise(resolve => setTimeout(resolve, 0))
+          await new Promise((resolve) => setTimeout(resolve, 0))
         }
 
         if (i % (batchSize * 5) === 0) {
-          await new Promise(resolve => setTimeout(resolve, 50))
+          await new Promise((resolve) => setTimeout(resolve, 50))
         }
       }
 
@@ -236,7 +242,6 @@ CREATE TABLE ${rawTableName} (
       console.log("import csv file done", end - start)
       dataSpace.blockUIMsg(null)
       return tableId
-
     } catch (error) {
       console.error("CSV import error:", error)
       dataSpace.blockUIMsg(null)
@@ -264,12 +269,12 @@ CREATE TABLE ${rawTableName} (
       return csv
     } else {
       return new Promise((resolve, reject) => {
-        const chunks: string[] = [];
-        (csv as Stringifier)
-          .on('data', (chunk) => chunks.push(chunk.toString()))
-          .on('error', reject)
-          .on('end', () => resolve(chunks.join('')));
-      });
+        const chunks: string[] = []
+        ;(csv as Stringifier)
+          .on("data", (chunk) => chunks.push(chunk.toString()))
+          .on("error", reject)
+          .on("end", () => resolve(chunks.join("")))
+      })
     }
   }
 }

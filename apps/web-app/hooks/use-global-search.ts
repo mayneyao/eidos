@@ -39,9 +39,10 @@ export function useGlobalSearch(sqlite: any, isGlobalSearchOpen: boolean) {
 
         // For extensions, use nodeId from metadata (real ID), not the slug from path
         // For nodes/files, extract ID from path
-        const id = type === "extension" 
-          ? entry.metadata?.nodeId 
-          : entry.path.split("/").filter(Boolean).pop()
+        const id =
+          type === "extension"
+            ? entry.metadata?.nodeId
+            : entry.path.split("/").filter(Boolean).pop()
 
         if (!id) {
           console.warn(`Could not extract ${type} ID from path:`, entry.path)
@@ -50,9 +51,10 @@ export function useGlobalSearch(sqlite: any, isGlobalSearchOpen: boolean) {
 
         // For extensions, show the virtual path (slug-based path)
         // For nodes, show namePath or path
-        const displayPath = type === "extension"
-          ? entry.path
-          : (entry.metadata?.namePath || entry.path)
+        const displayPath =
+          type === "extension"
+            ? entry.path
+            : entry.metadata?.namePath || entry.path
 
         return {
           type,
@@ -144,7 +146,6 @@ export function useGlobalSearch(sqlite: any, isGlobalSearchOpen: boolean) {
     debouncedSearch(searchTerm)
   }, [searchTerm, debouncedSearch])
 
-
   // Filter node results based on search term
   const nodeResults = useMemo(() => {
     const results: SearchResult[] = []
@@ -215,8 +216,9 @@ export function useGlobalSearch(sqlite: any, isGlobalSearchOpen: boolean) {
       if (result) {
         const nameMatch = result.name.toLowerCase().includes(term)
         const pathMatch = result.path.toLowerCase().includes(term)
-        const slugMatch = entry.metadata?.slug?.toLowerCase().includes(term) || false
-        
+        const slugMatch =
+          entry.metadata?.slug?.toLowerCase().includes(term) || false
+
         if (nameMatch || pathMatch || slugMatch) {
           results.push(result)
         }

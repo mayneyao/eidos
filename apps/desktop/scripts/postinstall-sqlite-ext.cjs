@@ -75,15 +75,15 @@ function getPlatformInfo(pkgConfig) {
 // Function to find workspace root
 function findWorkspaceRoot() {
   let currentDir = __dirname
-  
+
   while (currentDir !== path.dirname(currentDir)) {
     // Check for workspace indicators
     const packageJsonPath = path.join(currentDir, "package.json")
     const pnpmWorkspacePath = path.join(currentDir, "pnpm-workspace.yaml")
-    
+
     if (fs.existsSync(packageJsonPath)) {
       try {
-        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"))
         // Check if it has workspaces property or if pnpm-workspace.yaml exists
         if (packageJson.workspaces || fs.existsSync(pnpmWorkspacePath)) {
           return currentDir
@@ -92,12 +92,14 @@ function findWorkspaceRoot() {
         // Continue searching if package.json is malformed
       }
     }
-    
+
     currentDir = path.dirname(currentDir)
   }
-  
+
   // Fallback to current working directory if no workspace root found
-  console.warn("Could not find workspace root, falling back to current working directory")
+  console.warn(
+    "Could not find workspace root, falling back to current working directory"
+  )
   return process.cwd()
 }
 
@@ -120,7 +122,9 @@ function findSourcePath(basePackageName, packageName, extension) {
     const prefix = `${packageName}@`
 
     // Find all entries that match the prefix
-    const matchingEntries = pnpmEntries.filter((entry) => entry.startsWith(prefix))
+    const matchingEntries = pnpmEntries.filter((entry) =>
+      entry.startsWith(prefix)
+    )
 
     if (matchingEntries.length === 0) {
       // Add basePackageName to logs
@@ -137,18 +141,18 @@ function findSourcePath(basePackageName, packageName, extension) {
     // Sort by version (semver) to get the latest version
     matchingEntries.sort((a, b) => {
       // Extract version from entries like "sqlite-vec-darwin-arm64@0.1.1-alpha.2"
-      const versionA = a.split('@')[1] || '0.0.0'
-      const versionB = b.split('@')[1] || '0.0.0'
+      const versionA = a.split("@")[1] || "0.0.0"
+      const versionB = b.split("@")[1] || "0.0.0"
 
       // Simple semver comparison (can be improved for more complex cases)
-      const partsA = versionA.split('.').map(Number)
-      const partsB = versionB.split('.').map(Number)
+      const partsA = versionA.split(".").map(Number)
+      const partsB = versionB.split(".").map(Number)
 
       for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
         const a = partsA[i] || 0
         const b = partsB[i] || 0
         if (a > b) return -1 // a is newer
-        if (a < b) return 1  // b is newer
+        if (a < b) return 1 // b is newer
       }
       return 0 // same version
     })

@@ -7,20 +7,10 @@
     "noEmit": false,
     "emitDeclarationOnly": true,
     "paths": {
-      "@/lib/*": [
-        "../lib/*"
-      ],
-      "@/packages/core/*": [
-        "../core/*"
-      ]
+      "@/lib/*": ["../lib/*"],
+      "@/packages/core/*": ["../core/*"]
     }
   },
-  "include": [
-    "./**/*.ts",
-    "./**/*.tsx"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "include": ["./**/*.ts", "./**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
 }

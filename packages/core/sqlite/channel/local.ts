@@ -1,5 +1,5 @@
 import { MsgType } from "@/lib/const"
-import type { IpcRenderer } from 'electron';
+import type { IpcRenderer } from "electron"
 
 export interface ISqlite<T, D> {
   connector: T
@@ -24,7 +24,10 @@ export interface ILocalSendData {
   id: string
 }
 
-export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData> {
+export class LocalSqlite implements ISqlite<
+  Worker | IpcRenderer,
+  ILocalSendData
+> {
   connector: Worker | IpcRenderer
   channel: MessageChannel
   channelMap: Map<string, MessageChannel>
@@ -32,9 +35,12 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
   options?: {
     readonly?: boolean
   }
-  constructor(connector: Worker | IpcRenderer, options?: {
-    readonly?: boolean
-  }) {
+  constructor(
+    connector: Worker | IpcRenderer,
+    options?: {
+      readonly?: boolean
+    }
+  ) {
     this.connector = connector
     this.channel = new MessageChannel()
     this.channelMap = new Map()
@@ -64,9 +70,9 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
       // For Electron, use invoke for regular calls
       // For iterator functions, the channel will be used in onIterator
       if (this.options?.readonly) {
-        return this.connector.invoke('sqlite-msg-read', data)
+        return this.connector.invoke("sqlite-msg-read", data)
       }
-      return this.connector.invoke('sqlite-msg', data)
+      return this.connector.invoke("sqlite-msg", data)
     }
   }
   onCallBack(thisCallId: string) {
@@ -77,21 +83,21 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
         reject(new Error(`Channel not found for call: ${thisCallId}`))
         return
       }
-      
+
       // Set up timeout to prevent hanging
       const timeout = setTimeout(() => {
         this.destroyChannel(thisCallId)
         reject(new Error(`Timeout waiting for response: ${thisCallId}`))
       }, 30000) // 30 second timeout
-      
+
       channel.port1.onmessage = (e) => {
         const { id: returnId, type, data } = e.data
-        
+
         // Only process messages for this call
         if (returnId !== thisCallId) {
           return
         }
-        
+
         switch (type) {
           case MsgType.Error:
             clearTimeout(timeout)
@@ -121,7 +127,11 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
             clearTimeout(timeout)
             this.channel.port1.close()
             this.destroyChannel(thisCallId)
-            reject(new Error("Received iterator message in onCallBack - use onIterator instead"))
+            reject(
+              new Error(
+                "Received iterator message in onCallBack - use onIterator instead"
+              )
+            )
             break
           default:
             break
@@ -140,11 +150,21 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
       // For Electron, use IPC events to receive iterator messages
       const iteratorChannel = `sqlite-iterator-${thisCallId}`
       const self = this
-      
+
       return {
         [Symbol.asyncIterator]: async function* () {
-          const messageQueue: Array<{ value?: TValue; done: boolean; error?: Error }> = []
-          let resolveNext: ((value: { value?: TValue; done: boolean; error?: Error }) => void) | null = null
+          const messageQueue: Array<{
+            value?: TValue
+            done: boolean
+            error?: Error
+          }> = []
+          let resolveNext:
+            | ((value: {
+                value?: TValue
+                done: boolean
+                error?: Error
+              }) => void)
+            | null = null
           let isDone = false
 
           const messageHandler = (_event: any, message: any) => {
@@ -174,8 +194,14 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
                   messageQueue.push({ done: true })
                 }
                 // Remove listener when done
-                if (self.connector && typeof (self.connector as any).removeListener === 'function') {
-                  (self.connector as any).removeListener(iteratorChannel, messageHandler)
+                if (
+                  self.connector &&
+                  typeof (self.connector as any).removeListener === "function"
+                ) {
+                  ;(self.connector as any).removeListener(
+                    iteratorChannel,
+                    messageHandler
+                  )
                 }
                 break
 
@@ -187,8 +213,14 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
                 } else {
                   messageQueue.push({ done: true, error })
                 }
-                if (self.connector && typeof (self.connector as any).removeListener === 'function') {
-                  (self.connector as any).removeListener(iteratorChannel, messageHandler)
+                if (
+                  self.connector &&
+                  typeof (self.connector as any).removeListener === "function"
+                ) {
+                  ;(self.connector as any).removeListener(
+                    iteratorChannel,
+                    messageHandler
+                  )
                 }
                 break
 
@@ -198,8 +230,11 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
           }
 
           // Listen for iterator messages via IPC
-          if (self.connector && typeof (self.connector as any).on === 'function') {
-            (self.connector as any).on(iteratorChannel, messageHandler)
+          if (
+            self.connector &&
+            typeof (self.connector as any).on === "function"
+          ) {
+            ;(self.connector as any).on(iteratorChannel, messageHandler)
           }
 
           try {
@@ -216,7 +251,11 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
                 continue
               }
 
-              const next = await new Promise<{ value?: TValue; done: boolean; error?: Error }>((resolve) => {
+              const next = await new Promise<{
+                value?: TValue
+                done: boolean
+                error?: Error
+              }>((resolve) => {
                 resolveNext = resolve
               })
 
@@ -230,11 +269,17 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
             }
           } finally {
             // Clean up
-            if (self.connector && typeof (self.connector as any).removeListener === 'function') {
-              (self.connector as any).removeListener(iteratorChannel, messageHandler)
+            if (
+              self.connector &&
+              typeof (self.connector as any).removeListener === "function"
+            ) {
+              ;(self.connector as any).removeListener(
+                iteratorChannel,
+                messageHandler
+              )
             }
           }
-        }
+        },
       }
     }
 
@@ -247,8 +292,14 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
     const self = this
     return {
       [Symbol.asyncIterator]: async function* () {
-        const messageQueue: Array<{ value?: TValue; done: boolean; error?: Error }> = []
-        let resolveNext: ((value: { value?: TValue; done: boolean; error?: Error }) => void) | null = null
+        const messageQueue: Array<{
+          value?: TValue
+          done: boolean
+          error?: Error
+        }> = []
+        let resolveNext:
+          | ((value: { value?: TValue; done: boolean; error?: Error }) => void)
+          | null = null
         let isDone = false
         let shouldCleanup = false
 
@@ -298,7 +349,9 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
 
             case MsgType.Error:
               // General error
-              const generalError = new Error(data.message || "SQLite operation failed")
+              const generalError = new Error(
+                data.message || "SQLite operation failed"
+              )
               if (resolveNext) {
                 resolveNext({ done: true, error: generalError })
                 resolveNext = null
@@ -314,7 +367,7 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
           }
         }
 
-        channel.port1.addEventListener('message', messageHandler)
+        channel.port1.addEventListener("message", messageHandler)
 
         try {
           while (!isDone) {
@@ -332,7 +385,11 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
             }
 
             // Wait for next message
-            const next = await new Promise<{ value?: TValue; done: boolean; error?: Error }>((resolve) => {
+            const next = await new Promise<{
+              value?: TValue
+              done: boolean
+              error?: Error
+            }>((resolve) => {
               resolveNext = resolve
             })
 
@@ -346,14 +403,13 @@ export class LocalSqlite implements ISqlite<Worker | IpcRenderer, ILocalSendData
           }
         } finally {
           // Clean up
-          channel.port1.removeEventListener('message', messageHandler)
+          channel.port1.removeEventListener("message", messageHandler)
           if (shouldCleanup) {
             // Clean up channel when iterator is done
             self.destroyChannel(thisCallId)
           }
         }
-      }
+      },
     }
   }
 }
-

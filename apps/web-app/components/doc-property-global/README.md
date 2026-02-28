@@ -82,13 +82,13 @@ The component maintains the same external API:
 
 ```tsx
 import { DocPropertyGlobal } from "./doc-property-global"
-
 ;<DocPropertyGlobal docId="your-doc-id" />
 ```
 
 ### Hooks Usage
 
 #### useDocProperty (Document-specific)
+
 ```tsx
 import { useDocProperty } from "./hooks"
 
@@ -107,6 +107,7 @@ const MyComponent = ({ docId }) => {
 ```
 
 #### useDocPropertyTypes (Global - Now with Zustand State Management)
+
 ```tsx
 import { useDocPropertyTypes } from "./hooks"
 
@@ -130,6 +131,7 @@ const PropertyTypeManager = () => {
 ## Hook Responsibilities
 
 ### useDocProperty
+
 - **Scope**: Document-specific
 - **Purpose**: Manage properties and display settings for individual documents
 - **Key Features**:
@@ -138,9 +140,10 @@ const PropertyTypeManager = () => {
   - Real-time updates via broadcast channel
   - Optimistic UI updates
 
-### useDocPropertyTypes  
-- **Scope**: Global (entire eidos__docs table)
-- **Purpose**: Manage property types and schema for the docs table  
+### useDocPropertyTypes
+
+- **Scope**: Global (entire eidos\_\_docs table)
+- **Purpose**: Manage property types and schema for the docs table
 - **Optimization**: Now uses Zustand for global state management to reduce frequent API calls
 - **Key Features**:
   - Get all property types for the table

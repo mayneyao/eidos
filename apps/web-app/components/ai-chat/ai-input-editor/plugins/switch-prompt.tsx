@@ -15,7 +15,7 @@ import {
 } from "@lexical/react/LexicalTypeaheadMenuPlugin"
 import type { TextNode } from "lexical"
 
-import { useAIChatStore, } from "../../store"
+import { useAIChatStore } from "../../store"
 
 // At most, 5 suggestions are shown in the popup.
 const SUGGESTION_LIST_LENGTH_LIMIT = 7

@@ -6,23 +6,12 @@ import type {
   EditableGridCell,
   GridCell,
   Item,
-  Rectangle
-} from "@glideapps/glide-data-grid";
-import {
-  CompactSelection,
-  GridCellKind
+  Rectangle,
 } from "@glideapps/glide-data-grid"
+import { CompactSelection, GridCellKind } from "@glideapps/glide-data-grid"
 import { chunk, range } from "@/lib/lodash"
-import type {
-  MutableRefObject
-} from "react";
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react"
+import type { MutableRefObject } from "react"
+import { useCallback, useContext, useEffect, useRef, useState } from "react"
 
 import { useAutoIndex } from "@/components/table/hooks/use-auto-index"
 import { useViewCount } from "@/components/table/hooks/use-view-count"
@@ -130,11 +119,13 @@ export function useAsyncData<TRowType>(data: {
   const getCellContent = useCallback<DataEditorProps["getCellContent"]>(
     (cell) => {
       const [col, row] = cell
-      const rowUuid = isView ? row + '' : dataRef.current[row]
+      const rowUuid = isView ? row + "" : dataRef.current[row]
       const rowData = rowUuid && getRowDataById(rowUuid)
       if (rowUuid !== undefined && rowData) {
         const cell = toCell(rowData, col)
-        const isFileCell = cell.kind === GridCellKind.Custom && (cell.data as any).kind === "file-cell"
+        const isFileCell =
+          cell.kind === GridCellKind.Custom &&
+          (cell.data as any).kind === "file-cell"
         const isUrlCell = cell.kind === GridCellKind.Uri
         if (!isReadOnly) {
           return cell
@@ -174,7 +165,7 @@ export function useAsyncData<TRowType>(data: {
     (index: number) => {
       if (isView) {
         console.log("getRowDataByIndex", { index, isView })
-        return getRowDataById(index + '')
+        return getRowDataById(index + "")
       }
       const rowUuid = dataRef.current[index]
       if (!rowUuid) {
@@ -193,11 +184,13 @@ export function useAsyncData<TRowType>(data: {
       const d = await sqlite.sql4mainThread2(sql)
       setRows(tableId, d, startIndex)
       const vr = visiblePagesRef.current
-      rowIdsRef.current = isView ? Array.from({ length: d.length }, (_, i) => i + '') : d.map((r: any) => r._id)
+      rowIdsRef.current = isView
+        ? Array.from({ length: d.length }, (_, i) => i + "")
+        : d.map((r: any) => r._id)
       const data = dataRef.current
       const damageList: { cell: [number, number] }[] = []
       for (const [i, element] of d.entries()) {
-        data[i + startIndex] = isView ? i + startIndex + '' : element._id
+        data[i + startIndex] = isView ? i + startIndex + "" : element._id
         for (let col = vr.x; col <= vr.x + vr.width; col++) {
           damageList.push({
             cell: [col, i + startIndex],
@@ -251,10 +244,7 @@ export function useAsyncData<TRowType>(data: {
     refreshData()
     loadPage(0)
   }, [tableName, qs, loadPage])
-  const {
-    setBlockUIMsg,
-    setBlockUIData,
-  } = useAppRuntimeStore()
+  const { setBlockUIMsg, setBlockUIData } = useAppRuntimeStore()
 
   const getViewSortedSqliteRowIds = useCallback(async () => {
     if (!qs || !sqlite) return
@@ -262,7 +252,7 @@ export function useAsyncData<TRowType>(data: {
     let allRowIds: string[] = []
     const batchSize = 150000
     if (count > batchSize) {
-      setBlockUIMsg('loading')
+      setBlockUIMsg("loading")
     }
     const start = performance.now()
     const queries = rewriteQuery2getSortedSqliteRowIds(qs, count, batchSize)
@@ -336,7 +326,9 @@ export function useAsyncData<TRowType>(data: {
       sql = rewriteQueryWithSortedQuery(sql, qs)
       const d = await sqlite?.sql4mainThread2(sql)
       setRows(tableId, d, startIndex)
-      const rowIds = isView ? Array.from({ length: d.length }, (_, i) => i + '') : d.map((r: any) => r._id)
+      const rowIds = isView
+        ? Array.from({ length: d.length }, (_, i) => i + "")
+        : d.map((r: any) => r._id)
       const vr = visiblePagesRef.current
       const damageList: { cell: [number, number] }[] = []
       const data = dataRef.current
@@ -362,7 +354,9 @@ export function useAsyncData<TRowType>(data: {
       const d = await sqlite?.sql4mainThread2(sql)
       console.log("loadDataWithOffsetAndLimit", { d, isView, sql })
       setRows(tableId, d, startIndex)
-      const rowIds = isView ? Array.from({ length: d.length }, (_, i) => i + '') : d.map((r: any) => r._id)
+      const rowIds = isView
+        ? Array.from({ length: d.length }, (_, i) => i + "")
+        : d.map((r: any) => r._id)
       const vr = visiblePagesRef.current
       const damageList: { cell: [number, number] }[] = []
       const data = dataRef.current
@@ -378,7 +372,6 @@ export function useAsyncData<TRowType>(data: {
     },
     [gridRef, qs, setRows, sqlite, tableId, tableName, pageSize, isView]
   )
-
 
   const loadDataWithOffsetAndLimitInVisible = useCallback(() => {
     if (!sqlite || !tableName || !tableId) return
@@ -401,7 +394,10 @@ export function useAsyncData<TRowType>(data: {
     }
   }, [loadData, pageSize, sqlite, tableId, tableName, visiblePages])
 
-  const { run: loadDataWithOffsetAndLimitDebounced } = useDebounceFn(loadDataWithOffsetAndLimitInVisible, { wait: 100, leading: true, trailing: true })
+  const { run: loadDataWithOffsetAndLimitDebounced } = useDebounceFn(
+    loadDataWithOffsetAndLimitInVisible,
+    { wait: 100, leading: true, trailing: true }
+  )
 
   useEffect(() => {
     if (isDesktopMode) {
@@ -412,7 +408,16 @@ export function useAsyncData<TRowType>(data: {
       // less data, no flash, but blank page
       loadDataWithOffsetAndLimitDebounced()
     }
-  }, [loadData, pageSize, sqlite, tableId, tableName, visiblePages, loadDataWithOffsetAndLimitDebounced, loadDataWithOffsetAndLimitInVisible])
+  }, [
+    loadData,
+    pageSize,
+    sqlite,
+    tableId,
+    tableName,
+    visiblePages,
+    loadDataWithOffsetAndLimitDebounced,
+    loadDataWithOffsetAndLimitInVisible,
+  ])
 
   // When count changes (e.g., due to insert/delete from another tab via shared store),
   // we need to reload data to stay in sync

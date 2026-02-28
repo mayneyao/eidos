@@ -3,13 +3,17 @@ import React, { lazy, Suspense, useCallback } from "react"
 // lazy import markdown
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useToast } from "@/components/ui/use-toast"
-import { EidosMessageChannelName, MsgType, WORKER_INIT_MESSAGES, WORKER_MESSAGE_TYPES } from "@/lib/const"
+import {
+  EidosMessageChannelName,
+  MsgType,
+  WORKER_INIT_MESSAGES,
+  WORKER_MESSAGE_TYPES,
+} from "@/lib/const"
 import { ToastAction } from "@/components/ui/toast"
 import { buttonVariants } from "@/components/ui/button"
 import { getEmbeddingWorker } from "@/lib/embedding/worker"
 import { isDesktopMode, isInkServiceMode } from "@/lib/env"
 import { getWorker } from "@/packages/core/sqlite/worker"
-
 
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useThemeStore } from "@/apps/web-app/store/theme-store"
@@ -22,8 +26,9 @@ import {
 } from "./use-doc-editor"
 import { useCurrentUser } from "./user-current-user"
 
-const Markdown = lazy(() => import("@/components/remix-chat/components/markdown"))
-
+const Markdown = lazy(
+  () => import("@/components/remix-chat/components/markdown")
+)
 
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
@@ -35,13 +40,19 @@ export const useWorker = () => {
     setBlockUIData,
     setEmbeddingModeLoaded,
   } = useAppRuntimeStore()
-  const { setCurrentThemeName, listThemes, setCustomTheme, getCustomTheme, applyTheme } = useThemeStore()
+  const {
+    setCurrentThemeName,
+    listThemes,
+    setCustomTheme,
+    getCustomTheme,
+    applyTheme,
+  } = useThemeStore()
 
   const { toast, dismiss } = useToast()
   const initWorker = useCallback(() => {
     if (isInkServiceMode) {
       setInitialized(true)
-      return () => { }
+      return () => {}
     }
     const handle = async (event: MessageEvent) => {
       if (event.data === WORKER_INIT_MESSAGES.INIT) {
@@ -87,7 +98,8 @@ export const useWorker = () => {
                     key: index,
                     altText: action.label,
                     className: buttonVariants({
-                      variant: action.variant === "primary" ? "default" : "outline",
+                      variant:
+                        action.variant === "primary" ? "default" : "outline",
                       size: "sm",
                     }),
                     onClick: () => {

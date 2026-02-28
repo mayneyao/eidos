@@ -10,21 +10,20 @@ import { useSqlite } from "./use-sqlite"
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import type { SpaceInfo } from "./use-current-space"
 
-
 export const useSpace = () => {
   const { setSpaceList, spaceList } = useSqliteStore()
   const { sqlite } = useSqlite()
   const { setLastOpenedDatabase } = useLastOpened()
 
   const updateSpaceList = useCallback(async () => {
-    if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
+    if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
       // In desktop mode, use IPC to get workspace list
       try {
-        const spaces: SpaceInfo[] = await window.eidos.invoke('list-spaces')
-        console.log('spaces', spaces)
+        const spaces: SpaceInfo[] = await window.eidos.invoke("list-spaces")
+        console.log("spaces", spaces)
         setSpaceList(spaces)
       } catch (error) {
-        console.error('Failed to get spaces from Electron:', error)
+        console.error("Failed to get spaces from Electron:", error)
       }
     }
     // Web mode will only support single space, no multi-space management needed
@@ -36,15 +35,15 @@ export const useSpace = () => {
 
   const deleteSpace = useCallback(
     async (spaceId: string) => {
-      if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
+      if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
         // In desktop mode, use IPC to delete workspace
         try {
-          const result = await window.eidos.invoke('remove-space', spaceId)
+          const result = await window.eidos.invoke("remove-space", spaceId)
           if (result.success) {
             setLastOpenedDatabase("")
             await updateSpaceList()
           } else {
-            throw new Error('Failed to remove space')
+            throw new Error("Failed to remove space")
           }
         } catch (error) {
           console.error("Error deleting space:", error)
@@ -58,13 +57,15 @@ export const useSpace = () => {
 
   const renameSpace = useCallback(
     async (spaceId: string, newName: string) => {
-      if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
+      if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
         try {
-          const result = await window.eidos.invoke('update-space', spaceId, { name: newName })
+          const result = await window.eidos.invoke("update-space", spaceId, {
+            name: newName,
+          })
           if (result.success) {
             await updateSpaceList()
           } else {
-            throw new Error(result.error || 'Failed to rename space')
+            throw new Error(result.error || "Failed to rename space")
           }
         } catch (error) {
           console.error("Error renaming space:", error)
@@ -79,58 +80,68 @@ export const useSpace = () => {
   const rebuildIndex = useCallback(async () => {
     // Rebuild doc trigram index (no longer uses FTS)
     await sqlite?.doc.rebuildIndex({
-      refillNullMarkdown: true
+      refillNullMarkdown: true,
     })
 
-
-    console.log('Rebuilt all indexes')
+    console.log("Rebuilt all indexes")
   }, [sqlite])
 
-  const createSpace = useCallback(async (spaceName: string, enableSync: boolean = false, volumeId?: string) => {
-    if (isDesktopMode && typeof window !== 'undefined' && window.eidos) {
-      // In desktop mode, use new IPC interface
-      try {
-        const result = await window.eidos.invoke('register-space', spaceName, {
-          customName: spaceName,
-          remoteUrl: enableSync ? volumeId : undefined,
-        })
-        if (result.success) {
-          await updateSpaceList()
-          return result
-        } else {
-          throw new Error(result.error || 'Failed to create space')
-        }
-      } catch (error) {
-        console.error("Error creating space:", error)
-        throw error
-      }
-    } else {
-      // Web mode: create space using worker
-      const msgId = uuidv7()
-      const worker = getWorker()
-
-      const channel = new MessageChannel()
-      worker.postMessage(
-        {
-          type: MsgType.CreateSpace,
-          data: {
+  const createSpace = useCallback(
+    async (
+      spaceName: string,
+      enableSync: boolean = false,
+      volumeId?: string
+    ) => {
+      if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
+        // In desktop mode, use new IPC interface
+        try {
+          const result = await window.eidos.invoke(
+            "register-space",
             spaceName,
-          },
-          id: msgId,
-        },
-        [channel.port2]
-      )
-      return new Promise((resolve) => {
-        channel.port1.onmessage = (e) => {
-          if (e.data.id === msgId) {
-            resolve(e.data.data)
+            {
+              customName: spaceName,
+              remoteUrl: enableSync ? volumeId : undefined,
+            }
+          )
+          if (result.success) {
+            await updateSpaceList()
+            return result
+          } else {
+            throw new Error(result.error || "Failed to create space")
           }
-          // close the channel
-          channel.port1.close()
+        } catch (error) {
+          console.error("Error creating space:", error)
+          throw error
         }
-      })
-    }
-  }, [updateSpaceList])
+      } else {
+        // Web mode: create space using worker
+        const msgId = uuidv7()
+        const worker = getWorker()
+
+        const channel = new MessageChannel()
+        worker.postMessage(
+          {
+            type: MsgType.CreateSpace,
+            data: {
+              spaceName,
+            },
+            id: msgId,
+          },
+          [channel.port2]
+        )
+        return new Promise((resolve) => {
+          channel.port1.onmessage = (e) => {
+            if (e.data.id === msgId) {
+              resolve(e.data.data)
+            }
+            // close the channel
+            channel.port1.close()
+          }
+        })
+      }
+    },
+    [updateSpaceList]
+  )
 
   return {
     spaceList,

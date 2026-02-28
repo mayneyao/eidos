@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react"
 import Prism from "prismjs"
-import type { Components } from "react-markdown";
+import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 

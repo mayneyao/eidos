@@ -1,50 +1,45 @@
-
-
-import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createAzure } from "@ai-sdk/azure";
-import { createCerebras } from "@ai-sdk/cerebras";
-import { createCohere } from "@ai-sdk/cohere";
-import { createDeepInfra } from "@ai-sdk/deepinfra";
-import { createDeepSeek } from '@ai-sdk/deepseek';
-import { createFireworks } from "@ai-sdk/fireworks";
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createGroq } from '@ai-sdk/groq';
-import { createMistral } from "@ai-sdk/mistral";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createPerplexity } from "@ai-sdk/perplexity";
-import { createTogetherAI } from "@ai-sdk/togetherai";
-import { createXai } from '@ai-sdk/xai';
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { OpenAI } from "openai";
+import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock"
+import { createAnthropic } from "@ai-sdk/anthropic"
+import { createAzure } from "@ai-sdk/azure"
+import { createCerebras } from "@ai-sdk/cerebras"
+import { createCohere } from "@ai-sdk/cohere"
+import { createDeepInfra } from "@ai-sdk/deepinfra"
+import { createDeepSeek } from "@ai-sdk/deepseek"
+import { createFireworks } from "@ai-sdk/fireworks"
+import { createGoogleGenerativeAI } from "@ai-sdk/google"
+import { createGroq } from "@ai-sdk/groq"
+import { createMistral } from "@ai-sdk/mistral"
+import { createOpenAI } from "@ai-sdk/openai"
+import { createPerplexity } from "@ai-sdk/perplexity"
+import { createTogetherAI } from "@ai-sdk/togetherai"
+import { createXai } from "@ai-sdk/xai"
+import { createOpenRouter } from "@openrouter/ai-sdk-provider"
+import { OpenAI } from "openai"
 
 // export type Model = (typeof WEB_LLM_MODELS)[0]
 
-
-
 export type LLMProviderType =
-  "openai" |
-  "google" |
-  "deepseek" |
-  "groq" |
-  "xai" |
-  "openrouter" |
-  "anthropic" |
-  "azure" |
-  "amazon-bedrock" |
+  | "openai"
+  | "google"
+  | "deepseek"
+  | "groq"
+  | "xai"
+  | "openrouter"
+  | "anthropic"
+  | "azure"
+  | "amazon-bedrock"
   // "fal" |
-  "deepinfra" |
-  "mistral" |
-  "togetherai" |
-  "cohere" |
-  "fireworks" |
-  "cerebras" |
+  | "deepinfra"
+  | "mistral"
+  | "togetherai"
+  | "cohere"
+  | "fireworks"
+  | "cerebras"
   // "replicate" |
-  "perplexity" |
-  "ollama" |
+  | "perplexity"
+  | "ollama"
   // "luma" |
-  "openai-compatible"
-
+  | "openai-compatible"
 
 export const ALL_PROVIDERS_RAW = [
   "openai",
@@ -70,12 +65,14 @@ export const ALL_PROVIDERS_RAW = [
   "openai-compatible",
 ]
 
-
-export const LLM_PROVIDER_INFO: Record<LLMProviderType, {
-  name: string
-  baseUrl: string
-  urlForGettingApiKey?: string
-}> = {
+export const LLM_PROVIDER_INFO: Record<
+  LLMProviderType,
+  {
+    name: string
+    baseUrl: string
+    urlForGettingApiKey?: string
+  }
+> = {
   openai: {
     name: "OpenAI",
     baseUrl: "https://api.openai.com/v1",
@@ -83,7 +80,7 @@ export const LLM_PROVIDER_INFO: Record<LLMProviderType, {
   google: {
     name: "Google AI",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta", // Or Vertex AI endpoint
-    urlForGettingApiKey: "https://aistudio.google.com/apikey"
+    urlForGettingApiKey: "https://aistudio.google.com/apikey",
   },
   deepseek: {
     name: "DeepSeek",
@@ -96,7 +93,7 @@ export const LLM_PROVIDER_INFO: Record<LLMProviderType, {
   xai: {
     name: "xAI (Grok)",
     baseUrl: "https://api.x.ai/v1",
-    urlForGettingApiKey: "https://docs.x.ai/docs/overview"
+    urlForGettingApiKey: "https://docs.x.ai/docs/overview",
   },
   openrouter: {
     name: "OpenRouter",
@@ -166,7 +163,9 @@ export const LLM_PROVIDER_INFO: Record<LLMProviderType, {
 }
 
 // order by name alphabetically
-export const ALL_PROVIDERS = Object.keys(LLM_PROVIDER_INFO).sort() as LLMProviderType[]
+export const ALL_PROVIDERS = Object.keys(
+  LLM_PROVIDER_INFO
+).sort() as LLMProviderType[]
 
 export interface AvailableModel {
   id: string
@@ -185,24 +184,25 @@ export async function fetchAvailableModels(
   const _baseUrl = baseUrl || providerInfo.baseUrl
 
   // Special handling for Google's API
-  if (providerType === 'google') {
+  if (providerType === "google") {
     try {
       const endpoint = `${_baseUrl}/models?key=${apiKey}`
-      const response = await fetch(endpoint);
+      const response = await fetch(endpoint)
       if (!response.ok) {
-        throw new Error(`Failed to fetch Google models: ${response.statusText}`);
+        throw new Error(`Failed to fetch Google models: ${response.statusText}`)
       }
-      const data = await response.json();
-      return data.models.map((model: { name: string; displayName: string }) => ({
-        id: model.name.split('/').pop() || model.name,
-        label: model.name.split('/').pop() || model.displayName || model.name,
-      }));
+      const data = await response.json()
+      return data.models.map(
+        (model: { name: string; displayName: string }) => ({
+          id: model.name.split("/").pop() || model.name,
+          label: model.name.split("/").pop() || model.displayName || model.name,
+        })
+      )
     } catch (error) {
-      console.error('Failed to fetch Google models:', error);
-      return [];
+      console.error("Failed to fetch Google models:", error)
+      return []
     }
   }
-
 
   const openai = new OpenAI({
     apiKey: apiKey,
@@ -217,7 +217,7 @@ export async function fetchAvailableModels(
       label: model.id,
     }))
   } catch (error) {
-    console.error('Failed to fetch models:', error)
+    console.error("Failed to fetch models:", error)
     return []
   }
 }
@@ -246,63 +246,64 @@ interface ModelFileList {
   }[]
 }
 
-
 export function getProvider(data: {
-  apiKey?: string,
-  baseUrl?: string,
+  apiKey?: string
+  baseUrl?: string
   type?: LLMProviderType
 }) {
-  const { apiKey, baseUrl, type = 'openai' } = data
+  const { apiKey, baseUrl, type = "openai" } = data
   const config: any = {
-    apiKey
+    apiKey,
   }
   if (baseUrl) {
     config.baseURL = baseUrl
   }
   switch (type) {
-    case 'openai':
+    case "openai":
       return createOpenAI(config)
-    case 'google':
+    case "google":
       return createGoogleGenerativeAI(config)
-    case 'deepseek':
+    case "deepseek":
       return createDeepSeek(config)
-    case 'groq':
+    case "groq":
       return createGroq(config)
-    case 'xai':
+    case "xai":
       return createXai(config)
-    case 'anthropic':
+    case "anthropic":
       return createAnthropic(config)
-    case 'azure':
+    case "azure":
       return createAzure(config)
-    case 'amazon-bedrock':
+    case "amazon-bedrock":
       return createAmazonBedrock(config)
-    case 'mistral':
+    case "mistral":
       return createMistral(config)
-    case 'cohere':
+    case "cohere":
       return createCohere(config)
     // case 'replicate':
     //   return createReplicate(config)
-    case 'perplexity':
+    case "perplexity":
       return createPerplexity(config)
-    case 'openrouter':
+    case "openrouter":
       return createOpenRouter(config)
     // case 'fal':
     //   return createFal(config)
-    case 'deepinfra':
+    case "deepinfra":
       return createDeepInfra(config)
-    case 'togetherai':
+    case "togetherai":
       return createTogetherAI(config)
-    case 'fireworks':
+    case "fireworks":
       return createFireworks(config)
-    case 'cerebras':
+    case "cerebras":
       return createCerebras(config)
     // case 'luma':
     //   return createLuma(config)
-    case 'openai-compatible':
-    case 'ollama':
+    case "openai-compatible":
+    case "ollama":
     default:
       if (!baseUrl) {
-        console.warn(`Base URL is missing for OpenAI compatible provider type: ${type}. Falling back to OpenAI default or OpenAICompatible with potentially incorrect base URL.`);
+        console.warn(
+          `Base URL is missing for OpenAI compatible provider type: ${type}. Falling back to OpenAI default or OpenAICompatible with potentially incorrect base URL.`
+        )
       }
       return createOpenAI({
         baseURL: baseUrl,

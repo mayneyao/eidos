@@ -270,11 +270,13 @@ export default function ImageComponent({
           {src.length == 0 ? (
             <ImagePlaceholder nodeKey={nodeKey} />
           ) : (
-            <div className={cn("flex items-center", {
-              "justify-start": imageAlign === 'left',
-              "justify-center": imageAlign === 'center',
-              "justify-end": imageAlign === 'right',
-            })}>
+            <div
+              className={cn("flex items-center", {
+                "justify-start": imageAlign === "left",
+                "justify-center": imageAlign === "center",
+                "justify-end": imageAlign === "right",
+              })}
+            >
               <LazyImage
                 className={""}
                 src={src}

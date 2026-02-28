@@ -13,11 +13,9 @@ export class FieldsManager {
     this.table = table
   }
 
-
-
   all() {
     const fields = this.dataSpace.column.list({
-      table_name: this.table.rawTableName
+      table_name: this.table.rawTableName,
     })
     return fields
   }
@@ -41,5 +39,4 @@ export class FieldsManager {
   get text() {
     return new TextFieldService(this.table)
   }
-
 }

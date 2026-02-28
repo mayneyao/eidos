@@ -150,7 +150,7 @@ describe("transformQueryWithFormulaFields2Sql", () => {
     ]
 
     const res = transformFormula2VirtualGeneratedField("cl_xxx3", fields)
-    expect(res).toEqual("(\"_id\" || cl_xxx1)")
+    expect(res).toEqual('("_id" || cl_xxx1)')
   })
 })
 
@@ -162,14 +162,14 @@ describe("detectCircularDependencies", () => {
         type: FieldType.Number,
         table_column_name: "cl_id",
         table_name: "test_table",
-        property: {}
+        property: {},
       },
       {
         name: "name",
         type: FieldType.Text,
         table_column_name: "cl_name",
         table_name: "test_table",
-        property: {}
+        property: {},
       },
       {
         name: "fullName",
@@ -177,15 +177,15 @@ describe("detectCircularDependencies", () => {
         table_column_name: "cl_full_name",
         table_name: "test_table",
         property: {
-          formula: "name || ' Smith'"
-        }
+          formula: "name || ' Smith'",
+        },
       },
       {
         name: "age",
         type: FieldType.Number,
         table_column_name: "cl_age",
         table_name: "test_table",
-        property: {}
+        property: {},
       },
       {
         name: "isAdult",
@@ -193,9 +193,9 @@ describe("detectCircularDependencies", () => {
         table_column_name: "cl_is_adult",
         table_name: "test_table",
         property: {
-          formula: "age >= 18"
-        }
-      }
+          formula: "age >= 18",
+        },
+      },
     ]
 
     const result = detectCircularDependencies(fields)
@@ -211,8 +211,8 @@ describe("detectCircularDependencies", () => {
         table_column_name: "cl_field1",
         table_name: "test_table",
         property: {
-          formula: "field2 + 1"
-        }
+          formula: "field2 + 1",
+        },
       },
       {
         name: "field2",
@@ -220,9 +220,9 @@ describe("detectCircularDependencies", () => {
         table_column_name: "cl_field2",
         table_name: "test_table",
         property: {
-          formula: "field1 * 2"
-        }
-      }
+          formula: "field1 * 2",
+        },
+      },
     ]
 
     const result = detectCircularDependencies(fields)
@@ -240,7 +240,7 @@ describe("detectCircularDependencies", () => {
         type: FieldType.Number,
         table_column_name: "cl_base",
         table_name: "test_table",
-        property: {}
+        property: {},
       },
       {
         name: "fieldA",
@@ -248,8 +248,8 @@ describe("detectCircularDependencies", () => {
         table_column_name: "cl_field_a",
         table_name: "test_table",
         property: {
-          formula: "fieldB + 10"
-        }
+          formula: "fieldB + 10",
+        },
       },
       {
         name: "fieldB",
@@ -257,8 +257,8 @@ describe("detectCircularDependencies", () => {
         table_column_name: "cl_field_b",
         table_name: "test_table",
         property: {
-          formula: "fieldC * 2"
-        }
+          formula: "fieldC * 2",
+        },
       },
       {
         name: "fieldC",
@@ -266,8 +266,8 @@ describe("detectCircularDependencies", () => {
         table_column_name: "cl_field_c",
         table_name: "test_table",
         property: {
-          formula: "fieldA / 5"
-        }
+          formula: "fieldA / 5",
+        },
       },
       {
         name: "independent",
@@ -275,9 +275,9 @@ describe("detectCircularDependencies", () => {
         table_column_name: "cl_independent",
         table_name: "test_table",
         property: {
-          formula: "base * 3"
-        }
-      }
+          formula: "base * 3",
+        },
+      },
     ]
 
     const result = detectCircularDependencies(fields)
@@ -298,7 +298,7 @@ describe("detectCircularDependencies", () => {
         type: FieldType.Number,
         table_column_name: "cl_field_spaces",
         table_name: "test_table",
-        property: {}
+        property: {},
       },
       {
         name: "formula1",
@@ -306,8 +306,8 @@ describe("detectCircularDependencies", () => {
         table_column_name: "cl_formula1",
         table_name: "test_table",
         property: {
-          formula: "props(\"field with spaces\") * 2"
-        }
+          formula: 'props("field with spaces") * 2',
+        },
       },
       {
         name: "formula2",
@@ -315,8 +315,8 @@ describe("detectCircularDependencies", () => {
         table_column_name: "cl_formula2",
         table_name: "test_table",
         property: {
-          formula: "props(\"formula1\") + props(\"field with spaces\")"
-        }
+          formula: 'props("formula1") + props("field with spaces")',
+        },
       },
       {
         name: "circular",
@@ -324,9 +324,9 @@ describe("detectCircularDependencies", () => {
         table_column_name: "cl_circular",
         table_name: "test_table",
         property: {
-          formula: "props(\"formula2\") + props(\"circular\")"
-        }
-      }
+          formula: 'props("formula2") + props("circular")',
+        },
+      },
     ]
 
     const result = detectCircularDependencies(fields)
@@ -343,8 +343,8 @@ describe("detectCircularDependencies", () => {
         table_column_name: "cl_constant",
         table_name: "test_table",
         property: {
-          formula: "42"
-        }
+          formula: "42",
+        },
       },
       {
         name: "expression",
@@ -352,9 +352,9 @@ describe("detectCircularDependencies", () => {
         table_column_name: "cl_expression",
         table_name: "test_table",
         property: {
-          formula: "5 * 10 + 2"
-        }
-      }
+          formula: "5 * 10 + 2",
+        },
+      },
     ]
 
     const result = detectCircularDependencies(fields)
@@ -369,15 +369,15 @@ describe("detectCircularDependencies", () => {
         type: FieldType.Number,
         table_column_name: "cl_id",
         table_name: "test_table",
-        property: {}
+        property: {},
       },
       {
         name: "name",
         type: FieldType.Text,
         table_column_name: "cl_name",
         table_name: "test_table",
-        property: {}
-      }
+        property: {},
+      },
     ]
 
     const result = detectCircularDependencies(fields)

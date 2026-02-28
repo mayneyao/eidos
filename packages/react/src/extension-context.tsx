@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useContext, type ReactNode } from "react"
 
 /**
  * Base context interface shared by all extension types
@@ -13,7 +13,7 @@ export interface BaseExtensionContext {
  * Context for ExtNode type extensions
  */
 export interface ExtNodeContext extends BaseExtensionContext {
-  type: 'extNode'
+  type: "extNode"
   nodeId: string
 }
 
@@ -21,7 +21,7 @@ export interface ExtNodeContext extends BaseExtensionContext {
  * Context for TableView type extensions
  */
 export interface TableViewContext extends BaseExtensionContext {
-  type: 'tableView'
+  type: "tableView"
   tableId: string
   viewId: string
 }
@@ -30,7 +30,7 @@ export interface TableViewContext extends BaseExtensionContext {
  * Context for FileHandler type extensions
  */
 export interface FileHandlerContext extends BaseExtensionContext {
-  type: 'fileHandler'
+  type: "fileHandler"
   filePath: string
 }
 
@@ -38,7 +38,7 @@ export interface FileHandlerContext extends BaseExtensionContext {
  * Context for SidebarBlock type extensions
  */
 export interface SidebarBlockContext extends BaseExtensionContext {
-  type: 'sidebarBlock'
+  type: "sidebarBlock"
   /** Current selected day from URL params.day, format YYYY-MM-DD */
   currentDay: string
   /** Whether sync is enabled for this space (optional, used by graft) */
@@ -48,12 +48,18 @@ export interface SidebarBlockContext extends BaseExtensionContext {
 /**
  * Union of all extension context types
  */
-export type ExtensionContextType = ExtNodeContext | TableViewContext | FileHandlerContext | SidebarBlockContext
+export type ExtensionContextType =
+  | ExtNodeContext
+  | TableViewContext
+  | FileHandlerContext
+  | SidebarBlockContext
 
 /**
  * React context for extension props (first-party extensions)
  */
-export const ExtensionReactContext = createContext<ExtensionContextType | null>(null)
+export const ExtensionReactContext = createContext<ExtensionContextType | null>(
+  null
+)
 
 /**
  * Provider component for extension context
@@ -81,7 +87,7 @@ export function ExtensionContextProvider<T extends ExtensionContextType>({
  * - FileHandler: #<filePath>
  */
 function parseContextFromLocation(): ExtensionContextType | null {
-  if (typeof window === 'undefined') return null
+  if (typeof window === "undefined") return null
 
   const pathname = window.location.pathname
   const hash = window.location.hash
@@ -89,26 +95,26 @@ function parseContextFromLocation(): ExtensionContextType | null {
 
   // Extract space from hostname: <extId>.block.<space>.eidos.localhost
   const hostMatch = hostname.match(/\.block\.(.+)\.eidos\.localhost/)
-  const space = hostMatch?.[1] || ''
+  const space = hostMatch?.[1] || ""
 
   // FileHandler: uses hash for file path
   if (hash) {
     return {
-      type: 'fileHandler',
+      type: "fileHandler",
       space,
-      locale: 'en', // Default locale for third-party extensions
+      locale: "en", // Default locale for third-party extensions
       filePath: decodeURIComponent(hash.slice(1)), // Remove leading #
     }
   }
 
-  const parts = pathname.split('/').filter(Boolean)
+  const parts = pathname.split("/").filter(Boolean)
 
   // TableView: /<tableId>/<viewId>
   if (parts.length === 2) {
     return {
-      type: 'tableView',
+      type: "tableView",
       space,
-      locale: 'en', // Default locale for third-party extensions
+      locale: "en", // Default locale for third-party extensions
       tableId: parts[0],
       viewId: parts[1],
     }
@@ -117,9 +123,9 @@ function parseContextFromLocation(): ExtensionContextType | null {
   // ExtNode: /<nodeId>
   if (parts.length === 1) {
     return {
-      type: 'extNode',
+      type: "extNode",
       space,
-      locale: 'en', // Default locale for third-party extensions
+      locale: "en", // Default locale for third-party extensions
       nodeId: parts[0],
     }
   }
@@ -129,26 +135,28 @@ function parseContextFromLocation(): ExtensionContextType | null {
 
 /**
  * Generic hook to get extension context with type inference
- * 
+ *
  * @example ExtNode extension
  * ```tsx
  * const ctx = useExtensionContext<ExtNodeContext>()
  * console.log(ctx.nodeId) // Type-safe!
  * ```
- * 
+ *
  * @example TableView extension
  * ```tsx
  * const ctx = useExtensionContext<TableViewContext>()
  * console.log(ctx.tableId, ctx.viewId) // Type-safe!
  * ```
- * 
+ *
  * @example FileHandler extension
  * ```tsx
  * const ctx = useExtensionContext<FileHandlerContext>()
  * console.log(ctx.filePath) // Type-safe!
  * ```
  */
-export function useExtensionContext<T extends ExtensionContextType = ExtensionContextType>(): T {
+export function useExtensionContext<
+  T extends ExtensionContextType = ExtensionContextType,
+>(): T {
   // 1. Try React Context first (first-party extensions)
   const reactContext = useContext(ExtensionReactContext)
   if (reactContext) {
@@ -162,36 +170,44 @@ export function useExtensionContext<T extends ExtensionContextType = ExtensionCo
   }
 
   throw new Error(
-    'useExtensionContext: No context available. ' +
-    'First-party extensions should be wrapped with ExtensionContextProvider. ' +
-    'Third-party extensions should run in the correct URL structure.'
+    "useExtensionContext: No context available. " +
+      "First-party extensions should be wrapped with ExtensionContextProvider. " +
+      "Third-party extensions should run in the correct URL structure."
   )
 }
 
 /**
  * Type guard to check if context is ExtNodeContext
  */
-export function isExtNodeContext(ctx: ExtensionContextType): ctx is ExtNodeContext {
-  return ctx.type === 'extNode'
+export function isExtNodeContext(
+  ctx: ExtensionContextType
+): ctx is ExtNodeContext {
+  return ctx.type === "extNode"
 }
 
 /**
  * Type guard to check if context is TableViewContext
  */
-export function isTableViewContext(ctx: ExtensionContextType): ctx is TableViewContext {
-  return ctx.type === 'tableView'
+export function isTableViewContext(
+  ctx: ExtensionContextType
+): ctx is TableViewContext {
+  return ctx.type === "tableView"
 }
 
 /**
  * Type guard to check if context is FileHandlerContext
  */
-export function isFileHandlerContext(ctx: ExtensionContextType): ctx is FileHandlerContext {
-  return ctx.type === 'fileHandler'
+export function isFileHandlerContext(
+  ctx: ExtensionContextType
+): ctx is FileHandlerContext {
+  return ctx.type === "fileHandler"
 }
 
 /**
  * Type guard to check if context is SidebarBlockContext
  */
-export function isSidebarBlockContext(ctx: ExtensionContextType): ctx is SidebarBlockContext {
-  return ctx.type === 'sidebarBlock'
+export function isSidebarBlockContext(
+  ctx: ExtensionContextType
+): ctx is SidebarBlockContext {
+  return ctx.type === "sidebarBlock"
 }

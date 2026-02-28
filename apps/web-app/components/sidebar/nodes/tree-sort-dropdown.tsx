@@ -13,10 +13,7 @@ import type { TreeSortField, TreeSortOrder } from "./tree-sidebar-store"
 export const TreeSortDropdown = () => {
   const { sortField, sortOrder, setSort } = useTreeSidebarStore()
 
-  const handleSortChange = (
-    field: TreeSortField,
-    order: TreeSortOrder
-  ) => {
+  const handleSortChange = (field: TreeSortField, order: TreeSortOrder) => {
     setSort(field, order)
   }
 
@@ -75,9 +72,7 @@ export const TreeSortDropdown = () => {
         <DropdownMenuItem
           onClick={() => handleSortChange("created_at", "DESC")}
           className={cn(
-            sortField === "created_at" &&
-              sortOrder === "DESC" &&
-              "bg-accent"
+            sortField === "created_at" && sortOrder === "DESC" && "bg-accent"
           )}
         >
           <span className="flex-1 whitespace-nowrap">Newest First</span>
@@ -88,9 +83,7 @@ export const TreeSortDropdown = () => {
         <DropdownMenuItem
           onClick={() => handleSortChange("created_at", "ASC")}
           className={cn(
-            sortField === "created_at" &&
-              sortOrder === "ASC" &&
-              "bg-accent"
+            sortField === "created_at" && sortOrder === "ASC" && "bg-accent"
           )}
         >
           <span className="flex-1 whitespace-nowrap">Oldest First</span>

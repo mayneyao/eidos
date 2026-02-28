@@ -19,44 +19,49 @@ function sanitizeSearchQuery(query: string): string {
 export const useQueryExtension = () => {
   const { sqlite } = useSqlite()
 
-  const queryExtensions = useCallback(async (q: string): Promise<ISearchExtensions[]> => {
-    if (!sqlite) return []
+  const queryExtensions = useCallback(
+    async (q: string): Promise<ISearchExtensions[]> => {
+      if (!sqlite) return []
 
-    // Search by slug, name, and description
-    const extensions = await sqlite.extension.findMany({
-      where: {
-        OR: [
-          { slug: { contains: q } },
-        ]
-      }
-    })
+      // Search by slug, name, and description
+      const extensions = await sqlite.extension.findMany({
+        where: {
+          OR: [{ slug: { contains: q } }],
+        },
+      })
 
-    return extensions.map(ext => ({
-      ...ext,
-      mode: "extension" as const
-    }))
-  }, [sqlite])
-
-  const fullTextSearchExtensions = useCallback(async (q: string): Promise<ISearchExtensions[]> => {
-    if (!sqlite) return []
-
-    try {
-      // Sanitize query to prevent FTS5 syntax errors
-      const sanitizedQuery = sanitizeSearchQuery(q)
-      if (!sanitizedQuery) return []
-
-      const results = await sqlite.extension.fullTextSearchExtensions(sanitizedQuery)
-
-      return results.map(ext => ({
+      return extensions.map((ext) => ({
         ...ext,
-        mode: "fts" as const
+        mode: "extension" as const,
       }))
-    } catch (error) {
-      // If FTS search fails (e.g., due to syntax error), log and return empty array
-      console.warn('FTS search failed, falling back to empty results:', error)
-      return []
-    }
-  }, [sqlite])
+    },
+    [sqlite]
+  )
+
+  const fullTextSearchExtensions = useCallback(
+    async (q: string): Promise<ISearchExtensions[]> => {
+      if (!sqlite) return []
+
+      try {
+        // Sanitize query to prevent FTS5 syntax errors
+        const sanitizedQuery = sanitizeSearchQuery(q)
+        if (!sanitizedQuery) return []
+
+        const results =
+          await sqlite.extension.fullTextSearchExtensions(sanitizedQuery)
+
+        return results.map((ext) => ({
+          ...ext,
+          mode: "fts" as const,
+        }))
+      } catch (error) {
+        // If FTS search fails (e.g., due to syntax error), log and return empty array
+        console.warn("FTS search failed, falling back to empty results:", error)
+        return []
+      }
+    },
+    [sqlite]
+  )
 
   return { queryExtensions, fullTextSearchExtensions }
 }

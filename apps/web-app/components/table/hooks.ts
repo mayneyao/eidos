@@ -1,4 +1,4 @@
-import type { SelectFromStatement } from "pgsql-ast-parser";
+import type { SelectFromStatement } from "pgsql-ast-parser"
 import { parseFirst, toSql } from "pgsql-ast-parser"
 import {
   createContext,
@@ -6,14 +6,17 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useState
+  useState,
 } from "react"
 
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
-import { useTableFields, useTableOperation } from "@/apps/web-app/hooks/use-table"
+import {
+  useTableFields,
+  useTableOperation,
+} from "@/apps/web-app/hooks/use-table"
 import { FieldType } from "@/packages/core/fields/const"
-import type { IView, ViewType } from "@/packages/core/types/IView";
+import type { IView, ViewType } from "@/packages/core/types/IView"
 import { ViewTypeEnum } from "@/packages/core/types/IView"
 import type { IField } from "@/packages/core/types/IField"
 import { getTableIdByRawTableName } from "@/lib/utils"
@@ -22,8 +25,6 @@ import { isInkServiceMode } from "@/lib/env"
 import { getFieldInstance } from "@/packages/core/fields"
 import { getShowColumns } from "./helper"
 import { useLookupContext } from "./views/grid/hooks/use-lookup-context"
-
-
 
 interface TableContextType {
   tableName: string
@@ -56,22 +57,26 @@ export const useTableContext = () => {
 }
 
 export const useUDFs = () => {
-  const [udfs, setUdfs] = useState<{
-    id: string
-    name: string
-    code: string
-  }[]>([])
+  const [udfs, setUdfs] = useState<
+    {
+      id: string
+      name: string
+      code: string
+    }[]
+  >([])
   const { sqlite } = useSqlite()
   useEffect(() => {
     if (sqlite) {
-      sqlite.extension.getUDFExtensions('enabled').then((udfs) => {
-        setUdfs(udfs.map(udf => {
-          return {
-            id: udf.id,
-            name: udf.meta!.udf!.name,
-            code: udf.code,
-          }
-        }))
+      sqlite.extension.getUDFExtensions("enabled").then((udfs) => {
+        setUdfs(
+          udfs.map((udf) => {
+            return {
+              id: udf.id,
+              name: udf.meta!.udf!.name,
+              code: udf.code,
+            }
+          })
+        )
       })
     }
   }, [sqlite])
@@ -85,13 +90,16 @@ export const useViewOperation = () => {
   const { setView } = useSqliteStore()
   const { sqlite } = useSqlite()
 
-  const addView = useCallback(async (type: ViewType = ViewTypeEnum.Grid) => {
-    if (tableId && sqlite) {
-      const view = await sqlite.view.createDefaultView(tableName, type)
-      await updateViews()
-      return view
-    }
-  }, [tableId, sqlite, updateViews])
+  const addView = useCallback(
+    async (type: ViewType = ViewTypeEnum.Grid) => {
+      if (tableId && sqlite) {
+        const view = await sqlite.view.createDefaultView(tableName, type)
+        await updateViews()
+        return view
+      }
+    },
+    [tableId, sqlite, updateViews]
+  )
 
   const delView = useCallback(
     async (viewId: string) => {
@@ -115,17 +123,20 @@ export const useViewOperation = () => {
     [sqlite, updateViews]
   )
 
-  const freezeColumn = useCallback(async (viewId: string, colIndex: number) => {
-    if (sqlite) {
-      const view = await sqlite.view.get(viewId)
-      updateView(viewId, {
-        properties: {
-          ...(view?.properties || {}),
-          freezeColumns: colIndex
-        }
-      })
-    }
-  }, [sqlite, updateView])
+  const freezeColumn = useCallback(
+    async (viewId: string, colIndex: number) => {
+      if (sqlite) {
+        const view = await sqlite.view.get(viewId)
+        updateView(viewId, {
+          properties: {
+            ...(view?.properties || {}),
+            freezeColumns: colIndex,
+          },
+        })
+      }
+    },
+    [sqlite, updateView]
+  )
 
   const addSort = useCallback(
     (view: IView, column: string, direction: "ASC" | "DESC") => {
@@ -176,7 +187,6 @@ export const useViewOperation = () => {
     [sqlite, tableId, updateViews]
   )
 
-
   return {
     addView,
     delView,
@@ -200,7 +210,6 @@ export const useCurrentView = <T = any>() => {
     return views[0]
   }, [views, viewId])
 
-
   return {
     currentView: currentView as IView<T>,
   }
@@ -214,7 +223,6 @@ export const useShowColumns = (uiColumns: IField[], view: IView) => {
     })
   }, [uiColumns, view?.hidden_fields, view?.order_map])
 }
-
 
 export const useView = <T = any>(viewId?: string) => {
   const { tableName, space } = useContext(TableContext)
@@ -233,7 +241,6 @@ export const useFileFields = () => {
   const { tableName, space } = useContext(TableContext)
   const { fields } = useTableFields(tableName)
   const { contextMap } = useLookupContext(tableName, space)
-
 
   const getFieldContext = useCallback(
     (field: IField) => {

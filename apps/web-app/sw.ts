@@ -18,7 +18,6 @@ self.addEventListener("activate", (event) => {
   console.log("Service worker activated")
 })
 
-
 self.addEventListener("fetch", async (event) => {
   const url = new URL(event.request.url)
   routes.forEach((route) => {

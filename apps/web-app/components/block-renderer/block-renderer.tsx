@@ -314,7 +314,11 @@ export const BlockRenderer = React.forwardRef<
     useEffect(() => {
       if (!iframeRef.current) return
       iframeRef.current.contentWindow?.postMessage(
-        { type: "theme-change", theme: resolvedTheme, variables: themeVariables },
+        {
+          type: "theme-change",
+          theme: resolvedTheme,
+          variables: themeVariables,
+        },
         "*"
       )
     }, [resolvedTheme, themeVariables])

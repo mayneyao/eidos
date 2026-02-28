@@ -55,7 +55,11 @@ export const Nav = ({ children }: { children?: React.ReactNode }) => {
       {/* TabBar in Nav when single panel, otherwise just drag region */}
       <div
         className="flex-1 min-w-0 overflow-hidden flex items-center gap-2"
-        style={!showSingleTabBar ? { WebkitAppRegion: "drag" } as React.CSSProperties : undefined}
+        style={
+          !showSingleTabBar
+            ? ({ WebkitAppRegion: "drag" } as React.CSSProperties)
+            : undefined
+        }
         id="drag-region"
       >
         {showSingleTabBar && <TabBar />}

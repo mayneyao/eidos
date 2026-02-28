@@ -13,8 +13,8 @@ export interface TextProperty {
 
 // Define an interface for the context object
 interface CellContext {
-  row: Record<string, any>;
-  theme?: 'dark' | 'light'; // Optional theme property
+  row: Record<string, any>
+  theme?: "dark" | "light" // Optional theme property
 }
 
 export class TextField extends BaseField<TextCell, TextProperty> {
@@ -31,13 +31,16 @@ export class TextField extends BaseField<TextCell, TextProperty> {
   // Update the method signature to use CellContext
   getCellContent(rawData: string | null, context?: CellContext): TextCell {
     // Access the theme from context, default to 'light' if not provided
-    const theme = context?.theme ?? 'light';
+    const theme = context?.theme ?? "light"
 
     // Define theme-based colors
-    const outdatedColor = theme === 'dark' ? '#664D03' : '#FFFBE6'; // Example dark/light yellow
-    const upToDateColor = theme === 'dark' ? '#1F4B2D' : '#E6FFEC'; // Example dark/light green
+    const outdatedColor = theme === "dark" ? "#664D03" : "#FFFBE6" // Example dark/light yellow
+    const upToDateColor = theme === "dark" ? "#1F4B2D" : "#E6FFEC" // Example dark/light green
 
-    if (!this.column.property?.enableEmbedding || !this.column.property?.enableColorHint) {
+    if (
+      !this.column.property?.enableEmbedding ||
+      !this.column.property?.enableColorHint
+    ) {
       return {
         kind: GridCellKind.Text,
         data: rawData ? rawData + "" : "",
@@ -47,7 +50,9 @@ export class TextField extends BaseField<TextCell, TextProperty> {
     }
     const fieldId = this.column.table_column_name
     const vecMetaFieldId = `${fieldId}__vec_meta`
-    const vecMeta = context?.row?.[vecMetaFieldId] ? JSON.parse(context.row[vecMetaFieldId]) as IVecMeta : null
+    const vecMeta = context?.row?.[vecMetaFieldId]
+      ? (JSON.parse(context.row[vecMetaFieldId]) as IVecMeta)
+      : null
     const isCellOutOfDate = vecMeta?.outOfDate
 
     if (isCellOutOfDate) {

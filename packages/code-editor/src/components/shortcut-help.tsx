@@ -40,7 +40,10 @@ export const ShortcutHelp: React.FC = () => {
               <table className="w-full">
                 <tbody>
                   {shortcuts.map((shortcut, index) => (
-                    <tr key={index} className="border-b border-gray-100 dark:border-gray-700 last:border-0">
+                    <tr
+                      key={index}
+                      className="border-b border-gray-100 dark:border-gray-700 last:border-0"
+                    >
                       <td className="py-2 pr-4">
                         <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-sm font-mono">
                           {shortcut.key}

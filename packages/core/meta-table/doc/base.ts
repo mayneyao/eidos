@@ -1,8 +1,7 @@
-import { DocTableName } from "../../sqlite/const";
+import { DocTableName } from "../../sqlite/const"
 
-import type { BaseTable } from "../base";
-import { BaseTableImpl } from "../base";
-
+import type { BaseTable } from "../base"
+import { BaseTableImpl } from "../base"
 
 export interface IDoc {
   id: string
@@ -20,8 +19,10 @@ export interface DocMeta {
   [key: string]: any // Allow for future extensions
 }
 
-
-export class BaseDocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc> {
+export class BaseDocTable
+  extends BaseTableImpl<IDoc>
+  implements BaseTable<IDoc>
+{
   name = DocTableName
 
   createTableSql = `
@@ -44,5 +45,4 @@ export class BaseDocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc>
 
   CREATE INDEX IF NOT EXISTS idx_${this.name}_markdown_trigram ON ${this.name}(markdown) WHERE markdown IS NOT NULL;
 `
-
 }

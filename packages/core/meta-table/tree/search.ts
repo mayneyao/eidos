@@ -1,24 +1,26 @@
-import type { BaseTreeTable } from "./base";
+import type { BaseTreeTable } from "./base"
 
 // Mixin to add tree search functionality
-type Constructor<T = {}> = new (...args: any[]) => T & BaseTreeTable;
+type Constructor<T = {}> = new (...args: any[]) => T & BaseTreeTable
 
 export function WithTreeSearch<T extends Constructor>(Base: T) {
-    return class TreeSearchMixin extends Base {
-        /**
-         * Search tree nodes using recursive path-based search
-         * @param searchTerm search term to match in the full path
-         * @returns array of matching tree nodes with their full paths
-         */
-        public async searchTreeByPath(searchTerm: string): Promise<Array<{
-            id: string;
-            name: string;
-            full_path: string;
-            depth: number;
-            position: number;
-            type: string;
-        }>> {
-            const sql = `
+  return class TreeSearchMixin extends Base {
+    /**
+     * Search tree nodes using recursive path-based search
+     * @param searchTerm search term to match in the full path
+     * @returns array of matching tree nodes with their full paths
+     */
+    public async searchTreeByPath(searchTerm: string): Promise<
+      Array<{
+        id: string
+        name: string
+        full_path: string
+        depth: number
+        position: number
+        type: string
+      }>
+    > {
+      const sql = `
                 WITH RECURSIVE tree_path AS (
                     -- 基础情况：选择根节点（parent_id 为 NULL）
                     SELECT 
@@ -61,19 +63,19 @@ export function WithTreeSearch<T extends Constructor>(Base: T) {
                 FROM tree_path
                 WHERE full_path LIKE ?
                 ORDER BY sort_path
-            `;
+            `
 
-            const results = await this.dataSpace.exec2(sql, [`%${searchTerm}%`]);
-            return results;
-        }
+      const results = await this.dataSpace.exec2(sql, [`%${searchTerm}%`])
+      return results
+    }
 
-        /**
-         * Get the full path of a specific node
-         * @param nodeId the ID of the node
-         * @returns the full path string or null if not found
-         */
-        public async getNodeFullPath(nodeId: string): Promise<string | null> {
-            const sql = `
+    /**
+     * Get the full path of a specific node
+     * @param nodeId the ID of the node
+     * @returns the full path string or null if not found
+     */
+    public async getNodeFullPath(nodeId: string): Promise<string | null> {
+      const sql = `
                 WITH RECURSIVE tree_path AS (
                     -- 基础情况：选择根节点（parent_id 为 NULL）
                     SELECT 
@@ -105,25 +107,27 @@ export function WithTreeSearch<T extends Constructor>(Base: T) {
                 SELECT full_path
                 FROM tree_path
                 WHERE id = ?
-            `;
+            `
 
-            const results = await this.dataSpace.exec2(sql, [nodeId]);
-            return results.length > 0 ? results[0].full_path : null;
-        }
+      const results = await this.dataSpace.exec2(sql, [nodeId])
+      return results.length > 0 ? results[0].full_path : null
+    }
 
-        /**
-         * Get all tree nodes with their full paths (for debugging or display)
-         * @returns array of all tree nodes with their full paths
-         */
-        public async getAllTreePaths(): Promise<Array<{
-            id: string;
-            name: string;
-            full_path: string;
-            depth: number;
-            position: number;
-            type: string;
-        }>> {
-            const sql = `
+    /**
+     * Get all tree nodes with their full paths (for debugging or display)
+     * @returns array of all tree nodes with their full paths
+     */
+    public async getAllTreePaths(): Promise<
+      Array<{
+        id: string
+        name: string
+        full_path: string
+        depth: number
+        position: number
+        type: string
+      }>
+    > {
+      const sql = `
                 WITH RECURSIVE tree_path AS (
                     -- 基础情况：选择根节点（parent_id 为 NULL）
                     SELECT 
@@ -165,10 +169,10 @@ export function WithTreeSearch<T extends Constructor>(Base: T) {
                     type
                 FROM tree_path
                 ORDER BY sort_path
-            `;
+            `
 
-            const results = await this.dataSpace.exec2(sql);
-            return results;
-        }
-    };
+      const results = await this.dataSpace.exec2(sql)
+      return results
+    }
+  }
 }

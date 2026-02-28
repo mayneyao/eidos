@@ -233,7 +233,7 @@ export const KanbanViewProperties = ({ viewId }: { viewId: string }) => {
             </FormItem>
           )}
         />
-        {/* 
+        {/*
         <FormField
           control={form.control}
           name="collapseAll"

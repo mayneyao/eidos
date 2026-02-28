@@ -84,7 +84,8 @@ export const NodeContextMenu = ({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const isPinned = node.metadata?.isPinned
-  const isFolder = node.kind === "directory" || node.metadata?.nodeType === "folder"
+  const isFolder =
+    node.kind === "directory" || node.metadata?.nodeType === "folder"
 
   // Calculate which menu items to show
   const hasRename = !!onRename && !isMultiSelection
@@ -180,7 +181,7 @@ export const NodeContextMenu = ({
                 {t("node.menu.addToChat", "Add to Chat")}
               </ContextMenuItem>
             )}
-             {node.metadata?.nodeId && (
+            {node.metadata?.nodeId && (
               <ContextMenuItem
                 onClick={() => {
                   if (node.metadata?.nodeId) {
@@ -210,7 +211,9 @@ export const NodeContextMenu = ({
             {hasRename && (
               <ContextMenuItem onClick={() => onRename(node)}>
                 <PencilLineIcon className="mr-2 h-4 w-4" />
-                <span className="flex-1">{t("node.menu.rename", "Rename")}</span>
+                <span className="flex-1">
+                  {t("node.menu.rename", "Rename")}
+                </span>
                 <NativeContextMenuShortcut>F2</NativeContextMenuShortcut>
               </ContextMenuItem>
             )}
@@ -263,7 +266,10 @@ export const NodeContextMenu = ({
                 return (
                   base +
                   " " +
-                  t("node.menu.deleteRecoverable", "You can restore them from Trash.")
+                  t(
+                    "node.menu.deleteRecoverable",
+                    "You can restore them from Trash."
+                  )
                 )
               })()}
             </AlertDialogDescription>
@@ -286,4 +292,3 @@ export const NodeContextMenu = ({
     </ContextMenu>
   )
 }
-

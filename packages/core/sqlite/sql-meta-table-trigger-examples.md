@@ -10,11 +10,21 @@ This module provides utility functions to generate standardized meta table trigg
 import { createTriggersForFields } from "./sql-meta-table-trigger"
 
 // Generate complete INSERT and UPDATE triggers
-const triggers = createTriggersForFields('tree_table', [
-  'id', 'name', 'type', 'parent_id', 'is_pinned',
-  'is_full_width', 'is_locked', 'icon', 'cover',
-  'is_deleted', 'hide_properties', 'position',
-  'created_at', 'updated_at'
+const triggers = createTriggersForFields("tree_table", [
+  "id",
+  "name",
+  "type",
+  "parent_id",
+  "is_pinned",
+  "is_full_width",
+  "is_locked",
+  "icon",
+  "cover",
+  "is_deleted",
+  "hide_properties",
+  "position",
+  "created_at",
+  "updated_at",
 ])
 
 // Use in createTableSql
@@ -36,16 +46,22 @@ Suitable for tables that only need to listen to insert operations, such as Chat 
 ```typescript
 import { createInsertTriggerForFields } from "./sql-meta-table-trigger"
 
-const insertTrigger = createInsertTriggerForFields('chat_table', [
-  'id', 'title', 'user_id', 'project_id', 'created_at'
+const insertTrigger = createInsertTriggerForFields("chat_table", [
+  "id",
+  "title",
+  "user_id",
+  "project_id",
+  "created_at",
 ])
 
 // Or use operation parameter
 import { createTriggersForFields } from "./sql-meta-table-trigger"
 
-const insertTrigger = createTriggersForFields('chat_table', [
-  'id', 'title', 'user_id', 'project_id', 'created_at'
-], 'insert')
+const insertTrigger = createTriggersForFields(
+  "chat_table",
+  ["id", "title", "user_id", "project_id", "created_at"],
+  "insert"
+)
 ```
 
 ### 3. Generate UPDATE Trigger Only
@@ -55,14 +71,19 @@ Suitable for tables that only need to listen to update operations:
 ```typescript
 import { createUpdateTriggerForFields } from "./sql-meta-table-trigger"
 
-const updateTrigger = createUpdateTriggerForFields('settings_table', [
-  'id', 'key', 'value', 'updated_at'
+const updateTrigger = createUpdateTriggerForFields("settings_table", [
+  "id",
+  "key",
+  "value",
+  "updated_at",
 ])
 
 // Or use operation parameter
-const updateTrigger = createTriggersForFields('settings_table', [
-  'id', 'key', 'value', 'updated_at'
-], 'update')
+const updateTrigger = createTriggersForFields(
+  "settings_table",
+  ["id", "key", "value", "updated_at"],
+  "update"
+)
 ```
 
 ## Advanced Usage
@@ -73,22 +94,18 @@ const updateTrigger = createTriggersForFields('settings_table', [
 import { generateMetaTableTriggers } from "./sql-meta-table-trigger"
 
 const customTriggers = generateMetaTableTriggers({
-  tableName: 'custom_table',
-  fields: [
-    { name: 'id' },
-    { name: 'name' },
-    { name: 'status' }
-  ],
-  operations: 'insert', // 'insert' | 'update' | 'both'
+  tableName: "custom_table",
+  fields: [{ name: "id" }, { name: "name" }, { name: "status" }],
+  operations: "insert", // 'insert' | 'update' | 'both'
   temporary: false, // Generate permanent triggers instead of temporary ones
   triggerSuffix: {
-    insert: 'on_create',
-    update: 'on_modify'
+    insert: "on_create",
+    update: "on_modify",
   },
   eventFunctions: {
-    insert: 'custom_insert_handler',
-    update: 'custom_update_handler'
-  }
+    insert: "custom_insert_handler",
+    update: "custom_update_handler",
+  },
 })
 ```
 
@@ -117,10 +134,20 @@ export class TreeTable extends BaseTableImpl implements BaseTable<ITreeNode> {
     );
     
     ${createTriggersForFields(TreeTableName, [
-      'id', 'name', 'type', 'parent_id', 'is_pinned',
-      'is_full_width', 'is_locked', 'icon', 'cover',
-      'is_deleted', 'hide_properties', 'position',
-      'created_at', 'updated_at'
+      "id",
+      "name",
+      "type",
+      "parent_id",
+      "is_pinned",
+      "is_full_width",
+      "is_locked",
+      "icon",
+      "cover",
+      "is_deleted",
+      "hide_properties",
+      "position",
+      "created_at",
+      "updated_at",
     ])}
   `
 }
@@ -139,7 +166,11 @@ export class MessageTable extends BaseTableImpl<ChatMessage> {
     );
 
     ${createInsertTriggerForFields(MessageTableName, [
-      'id', 'chat_id', 'role', 'content', 'created_at'
+      "id",
+      "chat_id",
+      "role",
+      "content",
+      "created_at",
     ])}
   `
 }
@@ -156,9 +187,7 @@ export class ScriptTable extends BaseTableImpl<IScript> {
       -- other fields...
     );
 
-    ${createUpdateTriggerForFields(ScriptTableName, [
-      'id', 'type', 'name', 'code', 'enabled'
-    ])}
+    ${createUpdateTriggerForFields(ScriptTableName, ["id", "type", "name", "code", "enabled"])}
   `
 }
 ```
@@ -175,11 +204,11 @@ export class ScriptTable extends BaseTableImpl<IScript> {
 ### Type Definitions
 
 ```typescript
-type TriggerOperation = 'insert' | 'update' | 'both'
+type TriggerOperation = "insert" | "update" | "both"
 
 interface TriggerField {
   name: string
-  type?: 'TEXT' | 'INTEGER' | 'REAL' | 'BOOLEAN' | 'TIMESTAMP'
+  type?: "TEXT" | "INTEGER" | "REAL" | "BOOLEAN" | "TIMESTAMP"
 }
 
 interface TriggerOptions {
@@ -235,11 +264,15 @@ createTableSql = `
 createTableSql = `
   CREATE TABLE IF NOT EXISTS tree_table (...);
   
-  ${createTriggersForFields('tree_table', [
-    'id', 'name', 'type', 'parent_id', 'is_pinned'
+  ${createTriggersForFields("tree_table", [
+    "id",
+    "name",
+    "type",
+    "parent_id",
+    "is_pinned",
     // other fields...
   ])}
 `
 ```
 
-This approach significantly reduces boilerplate code, improves maintainability, and ensures trigger consistency. 
+This approach significantly reduces boilerplate code, improves maintainability, and ensures trigger consistency.

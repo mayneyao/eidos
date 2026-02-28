@@ -1,4 +1,4 @@
-import type { MutableRefObject} from "react";
+import type { MutableRefObject } from "react"
 import { useCallback, useContext } from "react"
 import { DataChangeEventHandler } from "@/packages/core/data-pipeline/DataChangeEventHandler"
 import type {
@@ -176,7 +176,6 @@ export const useDataMutation = ({
       setCount(rowIdsRef.current.length)
     }
   }, [addAddedRowId, addRow, dataRef, increaseCount, rowIdsRef, setCount])
-
 
   useTableRowEvent({
     tableName,

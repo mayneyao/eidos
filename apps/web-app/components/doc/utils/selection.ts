@@ -1,8 +1,19 @@
 import { createHeadlessEditor } from "@lexical/headless"
 import { $convertToMarkdownString } from "@lexical/markdown"
-import type { BaseSelection} from "lexical";
-import { $createParagraphNode, $createRangeSelection, $createTextNode, $getRoot, $getSelection, $isParagraphNode, $isRangeSelection, $setSelection, RootNode, $isTextNode } from "lexical"
-import type { ListItemNode} from "@lexical/list";
+import type { BaseSelection } from "lexical"
+import {
+  $createParagraphNode,
+  $createRangeSelection,
+  $createTextNode,
+  $getRoot,
+  $getSelection,
+  $isParagraphNode,
+  $isRangeSelection,
+  $setSelection,
+  RootNode,
+  $isTextNode,
+} from "lexical"
+import type { ListItemNode } from "@lexical/list"
 import { $isListItemNode, $isListNode, ListNode } from "@lexical/list"
 
 import { _getDocMarkdown } from "@/apps/web-app/hooks/use-doc-editor"
@@ -10,17 +21,13 @@ import { _getDocMarkdown } from "@/apps/web-app/hooks/use-doc-editor"
 import { getAllNodes } from "../nodes"
 import { allTransformers } from "../plugins/const"
 
-
-
 export function $duplicateParagraph(isUp: boolean) {
   const selection = $getSelection()
   const nodes = selection?.getNodes()
 
   if (nodes?.length === 1) {
     const node = nodes[0]
-    const paragraph = $isParagraphNode(node) ?
-      node :
-      node.getParent()
+    const paragraph = $isParagraphNode(node) ? node : node.getParent()
 
     if ($isParagraphNode(paragraph)) {
       const clone = $createParagraphNode()
@@ -44,11 +51,10 @@ export function $duplicateParagraph(isUp: boolean) {
   }
 }
 
-
 /**
- * 
- * @param selection 
- * @returns 
+ *
+ * @param selection
+ * @returns
  */
 export function getMarkdownFromSelection(selection: BaseSelection | null) {
   if (selection === null) {
@@ -59,7 +65,7 @@ export function getMarkdownFromSelection(selection: BaseSelection | null) {
 
   const editor = createHeadlessEditor({
     nodes: getAllNodes(),
-    onError: () => { },
+    onError: () => {},
   })
   const _nodes = nodes.map((node) => node.exportJSON())
 
@@ -101,7 +107,7 @@ export function getMarkdownFromSelection(selection: BaseSelection | null) {
         discrete: true,
       }
     )
-  } catch (error) { }
+  } catch (error) {}
 }
 
 /**
@@ -124,7 +130,7 @@ export function $findListItemNode(anchorNode: any): ListItemNode | null {
     parent = parent.getParent()
     depth++
   }
-  
+
   return null
 }
 
@@ -133,18 +139,21 @@ export function $findListItemNode(anchorNode: any): ListItemNode | null {
  * @param listItemNode The target list item node
  * @param currentOffset The original cursor offset
  */
-export function $restoreCursorInListItem(listItemNode: ListItemNode, currentOffset: number) {
+export function $restoreCursorInListItem(
+  listItemNode: ListItemNode,
+  currentOffset: number
+) {
   const firstChild = listItemNode.getFirstChild()
   if (firstChild) {
     const newSelection = $createRangeSelection()
     if ($isTextNode(firstChild)) {
       const textLength = firstChild.getTextContent().length
       const newOffset = Math.min(currentOffset, textLength)
-      newSelection.anchor.set(firstChild.getKey(), newOffset, 'text')
-      newSelection.focus.set(firstChild.getKey(), newOffset, 'text')
+      newSelection.anchor.set(firstChild.getKey(), newOffset, "text")
+      newSelection.focus.set(firstChild.getKey(), newOffset, "text")
     } else {
-      newSelection.anchor.set(listItemNode.getKey(), 0, 'element')
-      newSelection.focus.set(listItemNode.getKey(), 0, 'element')
+      newSelection.anchor.set(listItemNode.getKey(), 0, "element")
+      newSelection.focus.set(listItemNode.getKey(), 0, "element")
     }
     $setSelection(newSelection)
   }
@@ -163,20 +172,22 @@ export function $moveListItem(isUp: boolean): boolean {
 
   const anchorNode = selection.anchor.getNode()
   const listItemNode = $findListItemNode(anchorNode)
-  
+
   if (!listItemNode) {
     return false
   }
 
   // Get the sibling to swap with
-  const sibling = isUp ? listItemNode.getPreviousSibling() : listItemNode.getNextSibling()
+  const sibling = isUp
+    ? listItemNode.getPreviousSibling()
+    : listItemNode.getNextSibling()
   if (!sibling || !$isListItemNode(sibling)) {
     return false
   }
 
   // Store current selection info before moving
   const currentOffset = selection.anchor.offset
-  
+
   // Move the list item
   listItemNode.remove()
   if (isUp) {
@@ -184,10 +195,10 @@ export function $moveListItem(isUp: boolean): boolean {
   } else {
     sibling.insertAfter(listItemNode)
   }
-  
+
   // Restore cursor position
   $restoreCursorInListItem(listItemNode, currentOffset)
-  
+
   return true
 }
 
@@ -198,17 +209,17 @@ export function $moveListItem(isUp: boolean): boolean {
 export function $toggleCheckList(): boolean {
   const selection = $getSelection()
   const nodes = selection?.getNodes()
-  
+
   if (nodes?.length !== 1) {
     return false
   }
 
   const node = nodes[0]
-  
+
   if ($isListItemNode(node)) {
     const parent = node.getParent()
     if ($isListNode(parent) && parent.getListType() === "check") {
-      (node as ListItemNode).toggleChecked()
+      ;(node as ListItemNode).toggleChecked()
       return true
     }
   } else if ($isListItemNode(node.getParent())) {
@@ -219,6 +230,6 @@ export function $toggleCheckList(): boolean {
       return true
     }
   }
-  
+
   return false
 }

@@ -21,9 +21,9 @@ export const TagsEditor: React.FC<PropertyEditorProps> = ({
 }) => {
   const [editingValue, setEditingValue] = useState<string>("")
   const inputRef = useRef<HTMLInputElement>(null)
-  
+
   const isEmpty = propIsEmpty ?? isPropertyEmpty(value)
-  
+
   // Convert value to string for editing
   const valueToString = (val: any): string => {
     if (val === null || val === undefined) return ""
@@ -33,16 +33,19 @@ export const TagsEditor: React.FC<PropertyEditorProps> = ({
   // Parse tags from string
   const parseTags = (str: string): string[] => {
     if (!str) return []
-    return str.split(",").map(tag => tag.trim()).filter(tag => tag.length > 0)
+    return str
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0)
   }
 
   // Format tags for display
   const formatTagsForDisplay = (val: any): React.ReactNode => {
     const tagsString = valueToString(val)
     const tags = parseTags(tagsString)
-    
+
     if (tags.length === 0) return ""
-    
+
     return (
       <div className="flex flex-wrap gap-1 items-center">
         {tags.map((tag, index) => (
@@ -102,7 +105,11 @@ export const TagsEditor: React.FC<PropertyEditorProps> = ({
 
   if (isEditing) {
     return (
-      <BaseEditor readonly={readonly} isSystemProperty={isSystemProperty} isEditing={isEditing}>
+      <BaseEditor
+        readonly={readonly}
+        isSystemProperty={isSystemProperty}
+        isEditing={isEditing}
+      >
         <input
           ref={inputRef}
           type="text"
@@ -119,7 +126,7 @@ export const TagsEditor: React.FC<PropertyEditorProps> = ({
 
   if (isEmpty) {
     return (
-      <EmptyValue 
+      <EmptyValue
         onClick={handleStartEdit}
         readonly={readonly}
         isSystemProperty={isSystemProperty}
@@ -128,7 +135,7 @@ export const TagsEditor: React.FC<PropertyEditorProps> = ({
   }
 
   return (
-    <BaseEditor 
+    <BaseEditor
       onClick={handleStartEdit}
       readonly={readonly}
       isSystemProperty={isSystemProperty}

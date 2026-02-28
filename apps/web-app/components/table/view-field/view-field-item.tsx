@@ -31,9 +31,8 @@ export const FieldItemCard: FC<CardProps> = ({
   field,
   onToggleHidden,
 }) => {
-  const { setIsFieldPropertiesEditorOpen, setCurrentUiColumn } =
-    useTableStore()
-  
+  const { setIsFieldPropertiesEditorOpen, setCurrentUiColumn } = useTableStore()
+
   const {
     attributes,
     listeners,
@@ -41,15 +40,17 @@ export const FieldItemCard: FC<CardProps> = ({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id })
+  } = useSortable({
+    id,
+  })
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
     // 确保拖拽时不会超出容器边界
-    position: 'relative' as const,
-    zIndex: isDragging ? 1000 : 'auto',
+    position: "relative" as const,
+    zIndex: isDragging ? 1000 : "auto",
   }
   const handleToggleHidden = (e: MouseEvent, id: any) => {
     e.stopPropagation()

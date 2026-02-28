@@ -7,14 +7,9 @@ import { useTranslation } from "react-i18next"
 import * as z from "zod"
 
 import type { LLMProvider } from "@/packages/ai/config"
-import {
-  llmProviderSchema as baseLlmProviderSchema,
-} from "@/packages/ai/config"
+import { llmProviderSchema as baseLlmProviderSchema } from "@/packages/ai/config"
 import type { AvailableModel } from "@/packages/ai/helper"
-import {
-  LLM_PROVIDER_INFO,
-  fetchAvailableModels,
-} from "@/packages/ai/helper"
+import { LLM_PROVIDER_INFO, fetchAvailableModels } from "@/packages/ai/helper"
 import { isDesktopMode } from "@/lib/env"
 import {
   AlertDialog,
@@ -182,12 +177,14 @@ export function AIProviderForm({
       setAvailableModels([])
 
       try {
-        const models = isDesktopMode 
-          ? await window.eidos.fetchAvailableModels(
-              apiKey || "key for ollama",
-              providerType,
-              baseUrl
-            ).then(result => result.success ? (result.models || []) : [])
+        const models = isDesktopMode
+          ? await window.eidos
+              .fetchAvailableModels(
+                apiKey || "key for ollama",
+                providerType,
+                baseUrl
+              )
+              .then((result) => (result.success ? result.models || [] : []))
           : await fetchAvailableModels(
               apiKey || "key for ollama",
               providerType,
@@ -255,10 +252,7 @@ export function AIProviderForm({
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <select
-                      className="w-full p-1 border rounded-md"
-                      {...field}
-                    >
+                    <select className="w-full p-1 border rounded-md" {...field}>
                       {Object.entries(LLM_PROVIDER_INFO).map(([type, info]) => (
                         <option key={type} value={type}>
                           {info.name}
@@ -315,9 +309,11 @@ export function AIProviderForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormControl>
-                      <Input 
-                        {...field} 
-                        placeholder={providerInfo?.baseUrl || "https://api.openai.com/v1"} 
+                      <Input
+                        {...field}
+                        placeholder={
+                          providerInfo?.baseUrl || "https://api.openai.com/v1"
+                        }
                       />
                     </FormControl>
                     <FormMessage />
@@ -432,7 +428,9 @@ export function AIProviderForm({
                           <Input
                             placeholder={t("settings.ai.enterModelName")}
                             value={manualModelInput}
-                            onChange={(e) => setManualModelInput(e.target.value)}
+                            onChange={(e) =>
+                              setManualModelInput(e.target.value)
+                            }
                             onKeyDown={handleManualInputKeyDown}
                             className="flex-1"
                           />
@@ -460,13 +458,18 @@ export function AIProviderForm({
                           ))}
                         </TagsTrigger>
                         <TagsContent>
-                          <TagsInput placeholder={t("settings.ai.searchModels")} />
+                          <TagsInput
+                            placeholder={t("settings.ai.searchModels")}
+                          />
                           <TagsList>
-                            <TagsEmpty>{t("settings.ai.noModelsFound")}</TagsEmpty>
+                            <TagsEmpty>
+                              {t("settings.ai.noModelsFound")}
+                            </TagsEmpty>
                             <TagsGroup>
                               {availableModels
                                 .filter(
-                                  (model) => !selectedModelIds.includes(model.id)
+                                  (model) =>
+                                    !selectedModelIds.includes(model.id)
                                 )
                                 .map((model) => (
                                   <TagsItem
@@ -519,10 +522,7 @@ export function AIProviderForm({
               >
                 {t("common.reset")}
               </Button>
-              <Button
-                type="submit"
-                disabled={!isDirty || isSubmitting}
-              >
+              <Button type="submit" disabled={!isDirty || isSubmitting}>
                 {isSubmitting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}

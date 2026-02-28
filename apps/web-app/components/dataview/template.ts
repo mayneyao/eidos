@@ -12,7 +12,7 @@ SELECT
     *,
     '/' || path AS path_display
 FROM eidos__files
-    `
+    `,
   },
   {
     name: "queryAllImages",
@@ -27,7 +27,7 @@ SELECT
     *,
     '/' || path AS path_display
 FROM eidos__files WHERE mime LIKE 'image/%'
-    `
+    `,
   },
   {
     name: "queryAllBookmarksInDocs",
@@ -60,8 +60,9 @@ FROM valid_docs d,
     json_tree(d.content, '$.root.children') AS j
 WHERE j.type = 'object'
 AND json_extract(j.value, '$.type') = 'bookmark';
-`
-  }, {
+`,
+  },
+  {
     name: "queryAllChecklistsInDocs",
     i18nKey: "dataview.template.queryAllChecklistsInDocs",
     descriptionKey: "dataview.template.queryAllChecklistsInDocs.description",
@@ -100,7 +101,7 @@ WHERE
   AND json_extract(j.value, '$.type') = 'listitem'
   AND json_extract(j.value, '$.children[0].text') IS NOT NULL
   AND trim(json_extract(j.value, '$.children[0].text')) != ''
-        `
+        `,
   },
   {
     name: "queryRecentChecklistsInDocs",
@@ -146,12 +147,13 @@ WHERE
   AND trim(json_extract(j.value, '$.children[0].text')) != ''
 ORDER BY
   d.created_at DESC
-        `
+        `,
   },
   {
     name: "queryAllMermaidDiagramsInDocs",
     i18nKey: "dataview.template.queryAllMermaidDiagramsInDocs",
-    descriptionKey: "dataview.template.queryAllMermaidDiagramsInDocs.description",
+    descriptionKey:
+      "dataview.template.queryAllMermaidDiagramsInDocs.description",
     tags: ["doc", "mermaid"],
     category: "doc",
     difficulty: "intermediate",
@@ -177,7 +179,7 @@ FROM
 WHERE
   j.type = 'object'
   AND json_extract(j.value, '$.type') = 'mermaid'
-    `
+    `,
   },
   {
     name: "queryAllUrlsInDocs",
@@ -243,7 +245,7 @@ FROM (
   SELECT * FROM bookmark_urls
 )
 ORDER BY created_at DESC
-    `
+    `,
   },
   {
     name: "queryEidosTables",
@@ -260,7 +262,7 @@ FROM
 WHERE
     type = 'table'
     AND name LIKE 'eidos__%'
-    `
+    `,
   },
   {
     name: "queryAllTriggers",
@@ -281,7 +283,7 @@ WHERE
     type = 'trigger'
 ORDER BY
     name
-    `
+    `,
   },
   {
     name: "queryAllIndexes",
@@ -303,7 +305,7 @@ WHERE
     AND name NOT LIKE 'sqlite_%'
 ORDER BY
     tbl_name, name
-    `
+    `,
   },
   {
     name: "queryAllViews",
@@ -323,7 +325,7 @@ WHERE
     type = 'view'
 ORDER BY
     name
-    `
+    `,
   },
   {
     name: "queryTableSchema",
@@ -345,7 +347,7 @@ WHERE
     AND name NOT LIKE 'fts_%'
 ORDER BY
     name
-    `
+    `,
   },
   {
     name: "queryDatabaseStats",
@@ -369,7 +371,7 @@ GROUP BY
     type
 ORDER BY
     type
-    `
+    `,
   },
   {
     name: "queryAllDocs",
@@ -388,7 +390,7 @@ FROM
   JOIN eidos__docs d ON t.id = d.id
 ORDER BY
   d.created_at DESC
-    `
+    `,
   },
   {
     name: "queryAllUserTables",
@@ -410,7 +412,7 @@ WHERE
   AND sm.type = 'table' AND t.is_deleted = 0
 ORDER BY
   t.created_at DESC
-    `
+    `,
   },
   {
     name: "queryDocNodeReferences",
@@ -447,6 +449,6 @@ WHERE
   j.type = 'object'
   AND json_extract(j.value, '$.type') = 'mention'
   AND json_extract(j.value, '$.id') IS NOT NULL
-    `
-  }
+    `,
+  },
 ]

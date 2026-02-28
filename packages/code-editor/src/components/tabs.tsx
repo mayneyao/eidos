@@ -128,9 +128,7 @@ export const Tabs: React.FC = () => {
             aria-selected={isActive}
           >
             {/* File name */}
-            <span className="truncate text-sm font-medium">
-              {file.name}
-            </span>
+            <span className="truncate text-sm font-medium">{file.name}</span>
 
             {/* Close button */}
             <button

@@ -32,11 +32,7 @@
  */
 
 // Context and hooks
-export {
-  useEidos,
-  useEidosStore,
-  createEidos,
-} from "./context"
+export { useEidos, useEidosStore, createEidos } from "./context"
 
 // Extension context with type inference
 export {

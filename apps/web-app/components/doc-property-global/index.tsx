@@ -45,7 +45,9 @@ export const DocPropertyGlobal: React.FC<DocPropertyGlobalProps> = ({
   const [showAddInput, setShowAddInput] = useState(false)
   const [showPropertyDropdown, setShowPropertyDropdown] = useState(false)
   const [autoEditProperty, setAutoEditProperty] = useState<string | null>(null)
-  const [newPropertyInitialValue, setNewPropertyInitialValue] = useState<string | undefined>(undefined)
+  const [newPropertyInitialValue, setNewPropertyInitialValue] = useState<
+    string | undefined
+  >(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Optimistic update state for drag sorting
@@ -54,7 +56,7 @@ export const DocPropertyGlobal: React.FC<DocPropertyGlobalProps> = ({
 
   // Get existing property names for validation
   const existingPropertyNames = useMemo(() => {
-    return propertyTypes.map(prop => prop.name)
+    return propertyTypes.map((prop) => prop.name)
   }, [propertyTypes])
 
   // Use optimistic state or original state

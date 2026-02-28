@@ -8,8 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import type {
-  Placement} from "@floating-ui/react";
+import type { Placement } from "@floating-ui/react"
 import {
   FloatingPortal,
   flip,
@@ -22,7 +21,7 @@ import {
   LexicalTypeaheadMenuPlugin,
   useBasicTypeaheadTriggerMatch,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin"
-import type { RangeSelection, TextNode } from "lexical";
+import type { RangeSelection, TextNode } from "lexical"
 import { $getSelection, $insertNodes } from "lexical"
 
 import { shortenId, uuidv7 } from "@/lib/utils"
@@ -135,10 +134,7 @@ export default function NewMentionsPlugin(
         }
         const selection = $getSelection()
         const selectedNode = (selection as RangeSelection).anchor.getNode()
-        const mentionNode = $createMentionNode(
-          nodeId, 
-          selectedOption.name
-        )
+        const mentionNode = $createMentionNode(nodeId, selectedOption.name)
         $insertNodes([mentionNode])
         selectedNode.insertAfter(mentionNode)
         nodeToReplace?.remove()

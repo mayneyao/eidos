@@ -9,12 +9,6 @@
     "noEmit": false,
     "emitDeclarationOnly": true
   },
-  "include": [
-    "./**/*.ts",
-    "./**/*.tsx"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ],
+  "include": ["./**/*.ts", "./**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
 }

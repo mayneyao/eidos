@@ -221,10 +221,10 @@ File paths are passed through hash:
 
 **Supported file path formats:**
 
-| Path Format            | Description                          | Example                    |
-| ---------------------- | ------------------------------------- | -------------------------- |
-| `~/path/to/file`       | Project folder (.eidos directory)     | `~/readme.md`              |
-| `@/mount/path/file`    | Mounted folder (requires authorization) | `@/music/song.mp3`         |
+| Path Format         | Description                             | Example            |
+| ------------------- | --------------------------------------- | ------------------ |
+| `~/path/to/file`    | Project folder (.eidos directory)       | `~/readme.md`      |
+| `@/mount/path/file` | Mounted folder (requires authorization) | `@/music/song.mp3` |
 
 **URL Examples:**
 
@@ -299,7 +299,10 @@ export function MarkdownEditor() {
       .readFile(filePath, "utf8")
       .then(setContent)
       .catch((err) => {
-        eidos.currentSpace.notify({ title: "Error", description: `Failed to read file: ${err.message}` })
+        eidos.currentSpace.notify({
+          title: "Error",
+          description: `Failed to read file: ${err.message}`,
+        })
       })
   }, [filePath])
 
@@ -308,7 +311,10 @@ export function MarkdownEditor() {
       await eidos.currentSpace.fs.writeFile(filePath, content, "utf8")
       eidos.currentSpace.notify("File saved")
     } catch (err) {
-      eidos.currentSpace.notify({ title: "Error", description: `Failed to save: ${err.message}` })
+      eidos.currentSpace.notify({
+        title: "Error",
+        description: `Failed to save: ${err.message}`,
+      })
     }
   }
 
@@ -411,6 +417,7 @@ export function MyDashboard() {
 ```
 
 This default behavior applies to:
+
 - Dashboard components
 - Data visualization
 - Detailed content pages
@@ -464,11 +471,13 @@ export function MyNavigation() {
 ```
 
 **Directive Behavior Explanation:**
+
 - Blocks containing the `use sidebar` directive will render component content directly in the sidebar when clicked
 - Blocks without this directive will navigate to the main area's independent Block page when clicked
 - The directive must appear as a string literal at the top of the file
 
 **Applicable Scenarios:**
+
 - Navigation bar components
 - Toolbar components
 - Quick action panels

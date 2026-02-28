@@ -6,10 +6,7 @@
     "declarationMap": true,
     "noEmit": false,
     "emitDeclarationOnly": true,
-    "types": [
-      "vite/client",
-      "@types/wicg-file-system-access"
-    ]
+    "types": ["vite/client", "@types/wicg-file-system-access"]
   },
   "include": [
     "./**/*.ts",

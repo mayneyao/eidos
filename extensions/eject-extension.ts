@@ -11,12 +11,12 @@
 import type { ExtensionMeta } from "@eidos.space/core/types/IExtension"
 
 export interface EjectRecord {
-  slug: string        // e.g., "ejected/journal" or "ejected/journal/utils"
+  slug: string // e.g., "ejected/journal" or "ejected/journal/utils"
   name: string
   description: string
-  ts_code: string     // Source code for this file
+  ts_code: string // Source code for this file
   meta?: ExtensionMeta // Only the main entry has meta
-  icon?: string       // Data URI of the extension icon
+  icon?: string // Data URI of the extension icon
   type: "block" | "script"
   isMainEntry: boolean
 }
@@ -131,7 +131,7 @@ export function ejectBuiltInExtension(slug: string): EjectResult {
       ts_code: source,
       meta: isMain ? builtIn.meta : undefined,
       icon: isMain ? builtIn.icon : undefined,
-      type: filename.endsWith('.tsx') ? "block" : "script",
+      type: filename.endsWith(".tsx") ? "block" : "script",
       isMainEntry: isMain,
     }
 
@@ -144,14 +144,14 @@ export function ejectBuiltInExtension(slug: string): EjectResult {
   if (!mainEntry) {
     // Fallback: use the first file if no index.tsx found (should not happen for built-ins)
     if (records.length > 0) {
-       mainEntry = records[0]
-       mainEntry.isMainEntry = true;
-       // Also update the meta/description if we fell back
-       mainEntry.name = builtIn.name;
-       mainEntry.description = description;
-       mainEntry.meta = builtIn.meta;
+      mainEntry = records[0]
+      mainEntry.isMainEntry = true
+      // Also update the meta/description if we fell back
+      mainEntry.name = builtIn.name
+      mainEntry.description = description
+      mainEntry.meta = builtIn.meta
     } else {
-       throw new Error(`No source files found for extension: ${slug}`)
+      throw new Error(`No source files found for extension: ${slug}`)
     }
   }
 
@@ -173,5 +173,7 @@ export function canEjectExtension(slug: string): boolean {
  * Get list of ejectible extension slugs
  */
 export function getEjectibleExtensionSlugs(): string[] {
-  return Object.keys(extensionInfoMap).filter((slug) => !!extensionSources[slug])
+  return Object.keys(extensionInfoMap).filter(
+    (slug) => !!extensionSources[slug]
+  )
 }

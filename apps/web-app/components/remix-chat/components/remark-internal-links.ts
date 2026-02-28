@@ -1,9 +1,9 @@
-import { visit } from 'unist-util-visit'
-import type { Plugin } from 'unified'
-import type { Root, Text, Parent } from 'mdast'
+import { visit } from "unist-util-visit"
+import type { Plugin } from "unified"
+import type { Root, Text, Parent } from "mdast"
 
 interface InternalLinkNode {
-  type: 'internalLink'
+  type: "internalLink"
   id: string
   title: string
   data?: {
@@ -17,12 +17,12 @@ const INTERNAL_LINK_REGEX = /\[\[\s*([^\|\]]+)\s*\|\s*([^\]]+)\s*\]\]/g
 
 const remarkInternalLinks: Plugin<[], Root> = () => {
   return (tree: Root) => {
-    visit(tree, 'text', (node: Text, index?: number, parent?: Parent) => {
+    visit(tree, "text", (node: Text, index?: number, parent?: Parent) => {
       if (!parent || index === undefined) return
 
       const { value } = node
       const matches = Array.from(value.matchAll(INTERNAL_LINK_REGEX))
-      
+
       if (matches.length === 0) return
 
       const newNodes: any[] = []
@@ -35,23 +35,23 @@ const remarkInternalLinks: Plugin<[], Root> = () => {
         // Add text before the match
         if (startIndex > lastIndex) {
           newNodes.push({
-            type: 'text',
-            value: value.slice(lastIndex, startIndex)
+            type: "text",
+            value: value.slice(lastIndex, startIndex),
           })
         }
 
         // Add the internal link node
         newNodes.push({
-          type: 'internalLink',
+          type: "internalLink",
           id: id.trim(),
           title: title.trim(),
           data: {
-            hName: 'internal-link',
+            hName: "internal-link",
             hProperties: {
-              'data-id': id.trim(),
-              'data-title': title.trim()
-            }
-          }
+              "data-id": id.trim(),
+              "data-title": title.trim(),
+            },
+          },
         } as InternalLinkNode)
 
         lastIndex = startIndex + fullMatch.length
@@ -60,8 +60,8 @@ const remarkInternalLinks: Plugin<[], Root> = () => {
       // Add remaining text after the last match
       if (lastIndex < value.length) {
         newNodes.push({
-          type: 'text',
-          value: value.slice(lastIndex)
+          type: "text",
+          value: value.slice(lastIndex),
         })
       }
 
@@ -71,4 +71,4 @@ const remarkInternalLinks: Plugin<[], Root> = () => {
   }
 }
 
-export default remarkInternalLinks 
+export default remarkInternalLinks

@@ -42,7 +42,7 @@ export const useFileTreeOperations = (rootDir?: string) => {
       if (!sqlite) return
 
       const nodeId = node.metadata?.nodeId
-      
+
       // Handle virtual folder deletion (for extensions) - delete all extensions inside
       if (node.metadata?.isVirtualFolder && isVirtualExtensionsPath) {
         try {
@@ -61,7 +61,7 @@ export const useFileTreeOperations = (rootDir?: string) => {
         }
         return
       }
-      
+
       if (!nodeId) {
         console.warn("Cannot delete node without nodeId")
         return
@@ -98,7 +98,14 @@ export const useFileTreeOperations = (rootDir?: string) => {
         })
       }
     },
-    [sqlite, isVirtualNodesPath, isVirtualExtensionsPath, deleteNode, navigate, toast]
+    [
+      sqlite,
+      isVirtualNodesPath,
+      isVirtualExtensionsPath,
+      deleteNode,
+      navigate,
+      toast,
+    ]
   )
 
   /**
@@ -382,7 +389,6 @@ export const useFileTreeOperations = (rootDir?: string) => {
     [sqlite, toast]
   )
 
-
   /**
    * Open extension in standalone window (block only)
    */
@@ -409,7 +415,7 @@ export const useFileTreeOperations = (rootDir?: string) => {
 
       const url = getExtensionUrl(nodeId, space)
       if (isDesktopMode && (window as any)?.eidos?.openUrl) {
-        ; (window as any).eidos.openUrl(url)
+        ;(window as any).eidos.openUrl(url)
       } else {
         window.open(url, "_blank")
       }
@@ -434,4 +440,3 @@ export const useFileTreeOperations = (rootDir?: string) => {
     handleOpenExtensionDefaultBrowser,
   }
 }
-

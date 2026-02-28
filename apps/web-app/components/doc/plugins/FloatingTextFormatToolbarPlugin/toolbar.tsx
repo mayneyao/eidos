@@ -199,11 +199,11 @@ export function TextFormatFloatingToolbar({
     >
       {editor.isEditable() && (
         <div className="flex items-center gap-0.5 p-1">
-            <div
-              className={cn(
-                "flex cursor-pointer items-center justify-center gap-1 px-2 py-1.5 rounded-md",
-                "text-primary hover:bg-primary/10 transition-colors"
-              )}
+          <div
+            className={cn(
+              "flex cursor-pointer items-center justify-center gap-1 px-2 py-1.5 rounded-md",
+              "text-primary hover:bg-primary/10 transition-colors"
+            )}
             onMouseDownCapture={(e) => {
               e.preventDefault()
               e.stopPropagation()

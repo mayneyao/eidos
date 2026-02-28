@@ -370,19 +370,18 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
     return { success: true }
   }
 
-
   /**
    * Export the current database to a standard SQLite db.sqlite3 file.
    * This is the reverse operation of convertToGraft.
-   * 
+   *
    * If the database is in Graft sync mode:
    * - Uses graft_export pragma to export to a regular SQLite file
    * - Creates a snapshot before exporting to ensure data consistency
-   * 
+   *
    * If the database is already in regular SQLite mode:
    * - Performs a WAL checkpoint to ensure all data is persisted
    * - Optionally copies the database to a custom output path using VACUUM INTO
-   * 
+   *
    * @param outputPath - Optional custom path for the exported database file.
    *                     If not provided, defaults to .eidos/db.sqlite3 in the space directory.
    * @returns Promise resolving to {success: true, path: string} on success
@@ -396,14 +395,15 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
     }
 
     // Determine output path
-    const dbPath = outputPath || path.join(spaceInfo.path, ".eidos", "db.sqlite3")
-    
+    const dbPath =
+      outputPath || path.join(spaceInfo.path, ".eidos", "db.sqlite3")
+
     console.log(`Exporting database to: ${dbPath}`)
 
     if (this.isSyncEnabled) {
       // Export from Graft mode to regular SQLite
       console.log("Exporting from Graft mode...")
-      
+
       // 1. Checkpoint to ensure all data is persisted
       try {
         this.db.pragma("graft_snapshot")
@@ -431,7 +431,7 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
     } else {
       // Already in regular SQLite mode, just copy/checkpoint
       console.log("Already in regular SQLite mode...")
-      
+
       // 1. Checkpoint WAL to ensure all data is in the main db file
       try {
         this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -441,9 +441,12 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
       }
 
       // 2. If a custom output path is specified, copy the file
-      if (outputPath && outputPath !== path.join(spaceInfo.path, ".eidos", "db.sqlite3")) {
+      if (
+        outputPath &&
+        outputPath !== path.join(spaceInfo.path, ".eidos", "db.sqlite3")
+      ) {
         const currentDbPath = path.join(spaceInfo.path, ".eidos", "db.sqlite3")
-        
+
         if (!fs.existsSync(currentDbPath)) {
           throw new Error(`Source database not found: ${currentDbPath}`)
         }

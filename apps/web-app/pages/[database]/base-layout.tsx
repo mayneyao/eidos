@@ -21,7 +21,6 @@ import { useSpaceAppStore } from "./store"
 
 const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 
-
 export function DatabaseLayoutBase({
   children,
   className,
@@ -32,15 +31,19 @@ export function DatabaseLayoutBase({
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const { isSidebarOpen } = useAppStore()
-  const { isRightPanelOpen, isExtAppOpen, currentAppIndex, apps, tempPanelNode } =
-    useSpaceAppStore()
+  const {
+    isRightPanelOpen,
+    isExtAppOpen,
+    currentAppIndex,
+    apps,
+    tempPanelNode,
+  } = useSpaceAppStore()
   const currentApp = apps[currentAppIndex]
 
   // Check if Nav is visible (only for single panel mode)
   const panels = useTabStore((state) => state.panels)
   const isNavVisible = panels.length <= 1
   const contentHeight = isNavVisible ? "calc(100vh - 38px)" : "100vh"
-
 
   if (!isShareMode && !sqlite) {
     return (
@@ -63,41 +66,44 @@ export function DatabaseLayoutBase({
         <SideBar />
         <div className="flex h-screen flex-col min-w-0 grow">
           <Nav />
-          <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
+          <ResizablePanelGroup
+            direction="horizontal"
+            className="flex-1 min-h-0"
+          >
             <ResizablePanel minSize={50}>
               <div className={cn("flex h-full w-full flex-col")}>
                 {children}
               </div>
             </ResizablePanel>
-              {isRightPanelOpen && (
-                <>
-                  <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
-                  <ResizablePanel
-                    className={cn("min-w-[400px]")}
-                    defaultSize={isRightPanelOpen ? 20 : 0}
-                    minSize={20}
-                    maxSize={50}
-                  >
-                    <div className={cn("h-full shrink-0 overflow-x-hidden")}>
-                      {tempPanelNode ? (
-                        <TempPanel />
-                      ) : (
-                        <>
-                          {currentApp === "chat" && (
-                            <Suspense fallback={<Loading />}>
-                              <AIChat />
-                            </Suspense>
-                          )}
-                          {currentApp && currentApp.startsWith("node://") && (
-                            <NodeAppPanel />
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </ResizablePanel>
-                </>
-              )}
-              {/* {isExtAppOpen && (
+            {isRightPanelOpen && (
+              <>
+                <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
+                <ResizablePanel
+                  className={cn("min-w-[400px]")}
+                  defaultSize={isRightPanelOpen ? 20 : 0}
+                  minSize={20}
+                  maxSize={50}
+                >
+                  <div className={cn("h-full shrink-0 overflow-x-hidden")}>
+                    {tempPanelNode ? (
+                      <TempPanel />
+                    ) : (
+                      <>
+                        {currentApp === "chat" && (
+                          <Suspense fallback={<Loading />}>
+                            <AIChat />
+                          </Suspense>
+                        )}
+                        {currentApp && currentApp.startsWith("node://") && (
+                          <NodeAppPanel />
+                        )}
+                      </>
+                    )}
+                  </div>
+                </ResizablePanel>
+              </>
+            )}
+            {/* {isExtAppOpen && (
                   <>
                     <ResizableHandle withHandle />
                     <ResizablePanel

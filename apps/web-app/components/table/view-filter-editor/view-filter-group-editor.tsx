@@ -13,7 +13,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-import type { IFilterValue, IGroupFilterValue } from "../../../../../packages/core/types/IViewFilter"
+import type {
+  IFilterValue,
+  IGroupFilterValue,
+} from "../../../../../packages/core/types/IViewFilter"
 import { ViewFilterEditor } from "./view-filter-editor"
 
 interface IViewFilterGroupEditorProps {
@@ -56,7 +59,11 @@ export const ViewFilterGroupEditor = ({
       {_value?.operands.map((operand, index) => {
         return (
           <React.Fragment key={index}>
-            {index === 0 && <div className="text-xs text-muted-foreground">{t("table.view.where")}</div>}
+            {index === 0 && (
+              <div className="text-xs text-muted-foreground">
+                {t("table.view.where")}
+              </div>
+            )}
             {index === 1 && (
               <OpSelector
                 value={parentOperator}
@@ -64,7 +71,9 @@ export const ViewFilterGroupEditor = ({
               />
             )}
             {index > 1 && (
-              <div className="text-center text-xs text-muted-foreground">{parentOperator}</div>
+              <div className="text-center text-xs text-muted-foreground">
+                {parentOperator}
+              </div>
             )}
             <ViewFilterEditor
               value={operand as IFilterValue}

@@ -9,8 +9,7 @@
 import { useEffect } from "react"
 import { $getListDepth, $isListItemNode, $isListNode } from "@lexical/list"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import type {
-  ElementNode} from "lexical";
+import type { ElementNode } from "lexical"
 import {
   $getSelection,
   $isElementNode,

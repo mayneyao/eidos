@@ -143,8 +143,8 @@ export function AIModelSelect({
                       No local model found.
                       <br />
                       Add some models in the{" "}
-                      <button 
-                        onClick={() => openSettingsModal("ai")} 
+                      <button
+                        onClick={() => openSettingsModal("ai")}
                         className="text-blue-500 underline cursor-pointer"
                       >
                         settings

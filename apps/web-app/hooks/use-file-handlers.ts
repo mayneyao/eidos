@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSqlite } from "./use-sqlite"
-import type { IExtension, FileHandlerMeta } from "@/packages/core/types/IExtension"
+import type {
+  IExtension,
+  FileHandlerMeta,
+} from "@/packages/core/types/IExtension"
 import { useFileHandlerStore } from "@/apps/web-app/store/file-handler-store"
 import { useAllFileHandlers } from "./use-all-file-handlers"
 
@@ -14,7 +17,7 @@ export const useFileHandlers = (fileExtension: string) => {
   // Filter handlers that support this file extension
   const handlers = useMemo(() => {
     if (!fileExtension) return []
-    
+
     return fileHandlers.filter((handler) => {
       const meta = handler.meta as FileHandlerMeta
       return meta.fileHandler?.extensions?.includes(fileExtension) ?? false
@@ -30,15 +33,21 @@ export const useFileHandlers = (fileExtension: string) => {
  */
 export const useDefaultHandler = (fileExtension: string) => {
   const { sqlite } = useSqlite()
-  const getDefaultHandler = useFileHandlerStore((state) => state.getDefaultHandler)
-  const setDefaultHandlerCache = useFileHandlerStore((state) => state.setDefaultHandler)
-  const clearDefaultHandlerCache = useFileHandlerStore((state) => state.clearDefaultHandlerCache)
-  
+  const getDefaultHandler = useFileHandlerStore(
+    (state) => state.getDefaultHandler
+  )
+  const setDefaultHandlerCache = useFileHandlerStore(
+    (state) => state.setDefaultHandler
+  )
+  const clearDefaultHandlerCache = useFileHandlerStore(
+    (state) => state.clearDefaultHandlerCache
+  )
+
   // Subscribe to cache changes for this file extension
   const cachedDefaultHandlerId = useFileHandlerStore((state) => {
     return state.defaultHandlerCache[fileExtension]
   })
-  
+
   const [defaultHandlerId, setDefaultHandlerId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -69,7 +78,7 @@ export const useDefaultHandler = (fileExtension: string) => {
       try {
         setIsLoading(true)
         const key = `eidos:space:file:handler:default:${fileExtension}`
-        const handlerId = await sqlite.kv.get(key, 'text')
+        const handlerId = await sqlite.kv.get(key, "text")
         // Update cache
         setDefaultHandlerCache(fileExtension, handlerId)
         setDefaultHandlerId(handlerId)
@@ -86,19 +95,22 @@ export const useDefaultHandler = (fileExtension: string) => {
     loadDefaultHandler()
   }, [sqlite, fileExtension, getDefaultHandler, setDefaultHandlerCache])
 
-  const setDefaultHandler = useCallback(async (handlerId: string) => {
-    if (!sqlite || !fileExtension) return
+  const setDefaultHandler = useCallback(
+    async (handlerId: string) => {
+      if (!sqlite || !fileExtension) return
 
-    try {
-      const key = `eidos:space:file:handler:default:${fileExtension}`
-      await sqlite.kv.put(key, handlerId)
-      // Update cache in store - this will automatically notify all subscribers
-      setDefaultHandlerCache(fileExtension, handlerId)
-      setDefaultHandlerId(handlerId)
-    } catch (error) {
-      console.error("Error setting default handler:", error)
-    }
-  }, [sqlite, fileExtension, setDefaultHandlerCache])
+      try {
+        const key = `eidos:space:file:handler:default:${fileExtension}`
+        await sqlite.kv.put(key, handlerId)
+        // Update cache in store - this will automatically notify all subscribers
+        setDefaultHandlerCache(fileExtension, handlerId)
+        setDefaultHandlerId(handlerId)
+      } catch (error) {
+        console.error("Error setting default handler:", error)
+      }
+    },
+    [sqlite, fileExtension, setDefaultHandlerCache]
+  )
 
   const clearDefaultHandler = useCallback(async () => {
     if (!sqlite || !fileExtension) return
@@ -126,14 +138,13 @@ export const useDefaultHandler = (fileExtension: string) => {
  * Utility function to get file extension from a file path
  */
 export const getFileExtension = (filePath: string): string => {
-  const parts = filePath.split('/')
+  const parts = filePath.split("/")
   const fileName = parts[parts.length - 1]
-  const dotIndex = fileName.lastIndexOf('.')
+  const dotIndex = fileName.lastIndexOf(".")
 
   if (dotIndex === -1 || dotIndex === 0) {
-    return ''
+    return ""
   }
 
   return fileName.substring(dotIndex).toLowerCase()
 }
-

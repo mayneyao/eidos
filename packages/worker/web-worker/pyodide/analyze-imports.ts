@@ -1,8 +1,11 @@
-import type { PyodideInterface } from 'pyodide';
+import type { PyodideInterface } from "pyodide"
 
-export async function analyzePythonImports(pyodide: PyodideInterface, code: string) {
-    // Add this code to analyze Python imports
-    const analyzeScript = `
+export async function analyzePythonImports(
+  pyodide: PyodideInterface,
+  code: string
+) {
+  // Add this code to analyze Python imports
+  const analyzeScript = `
 import ast
 
 def analyze_imports(code):
@@ -29,13 +32,13 @@ def analyze_imports(code):
     }
     `
 
-    await pyodide.runPythonAsync(analyzeScript)
-    const analyzeImports = pyodide.globals.get('analyze_imports')
-    const result = analyzeImports(code)
-    analyzeImports.destroy()
-    
-    return {
-        stdlib: result.get('stdlib').toJs(),
-        thirdParty: result.get('thirdParty').toJs()
-    }
-} 
+  await pyodide.runPythonAsync(analyzeScript)
+  const analyzeImports = pyodide.globals.get("analyze_imports")
+  const result = analyzeImports(code)
+  analyzeImports.destroy()
+
+  return {
+    stdlib: result.get("stdlib").toJs(),
+    thirdParty: result.get("thirdParty").toJs(),
+  }
+}

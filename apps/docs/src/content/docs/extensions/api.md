@@ -19,7 +19,7 @@ const Users = eidos.currentSpace.table("01935b4c9d2e7f8a0b1c2d3e4f5a6b7c")
 // CRUD operations
 const users = await Users.findMany()
 const newUser = await Users.create({
-  data: { name: "New Record", status: "active" }
+  data: { name: "New Record", status: "active" },
 })
 ```
 

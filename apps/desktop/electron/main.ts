@@ -143,7 +143,6 @@ ipcMain.handle("sqlite-msg", async (event, payload) => {
 
     const currentSpaceId = getCurrentSpaceId()
     if (!dataSpace || !currentSpaceId) {
-
       dataSpace = await getOrSetDataSpace(spaceId)
     } else if (spaceId !== currentSpaceId) {
       electronLog.info("switching to data space", spaceId)
@@ -208,7 +207,6 @@ ipcMain.handle("sqlite-msg-read", async (event, payload) => {
 
     const currentSpaceId = getCurrentSpaceId()
     if (!dataSpace || !currentSpaceId) {
-
       dataSpace = await getOrSetDataSpace(spaceId)
     } else if (spaceId !== currentSpaceId) {
       electronLog.info("switching to data space", spaceId)
@@ -428,7 +426,7 @@ ipcMain.handle("get-sync-providers", async () => {
     const configManager = getConfigManager()
     const syncConfig = configManager.getSyncConfig()
     const accountUser = configManager.getAccountUser()
-    
+
     // Build list of providers with their credential status
     const providers: Array<{
       id: string
@@ -438,23 +436,25 @@ ipcMain.handle("get-sync-providers", async () => {
       hasCredentials: boolean
       isBuiltIn: boolean
     }> = []
-    
+
     // Check if eidos.space should be shown
     // Only show if user has configured eidos.space credentials
-    const hasEidosSpaceCreds = await CredentialsManager.hasSyncCredentials("eidos.space")
-    
+    const hasEidosSpaceCreds =
+      await CredentialsManager.hasSyncCredentials("eidos.space")
+
     if (hasEidosSpaceCreds) {
       // For eidos.space, bucketName comes from credentials, not config
-      const credentials = await CredentialsManager.getSyncCredentials("eidos.space")
+      const credentials =
+        await CredentialsManager.getSyncCredentials("eidos.space")
       providers.push({
         id: "eidos.space",
         name: "eidos.space",
-        bucketName: credentials?.bucketName,  // Get bucketName from credentials
+        bucketName: credentials?.bucketName, // Get bucketName from credentials
         hasCredentials: true,
         isBuiltIn: true,
       })
     }
-    
+
     // Add custom providers from config (bucketName comes from config)
     for (const [id, provider] of Object.entries(syncConfig.providers)) {
       const hasCreds = await CredentialsManager.hasSyncCredentials(id)
@@ -462,13 +462,17 @@ ipcMain.handle("get-sync-providers", async () => {
         id,
         name: provider.name || id,
         endpoint: provider.endpoint,
-        bucketName: provider.bucketName,  // Get bucketName from config
+        bucketName: provider.bucketName, // Get bucketName from config
         hasCredentials: hasCreds,
         isBuiltIn: false,
       })
     }
-    
-    return { success: true, providers, defaultProvider: syncConfig.defaultProvider }
+
+    return {
+      success: true,
+      providers,
+      defaultProvider: syncConfig.defaultProvider,
+    }
   } catch (error) {
     console.error("Failed to get sync providers:", error)
     return {
@@ -553,10 +557,16 @@ ipcMain.handle(
           "Invalid Secret Access Key. Please check your credentials."
       } else if (errorMessage.includes("NoSuchBucket")) {
         errorMessage = `Bucket "${config.bucketName}" does not exist. Please check the bucket name.`
-      } else if (errorMessage.includes("Forbidden") || errorMessage.includes("403")) {
+      } else if (
+        errorMessage.includes("Forbidden") ||
+        errorMessage.includes("403")
+      ) {
         errorMessage =
           "Access denied. Please check your permissions or credentials."
-      } else if (errorMessage.includes("ENOTFOUND") || errorMessage.includes("ECONNREFUSED")) {
+      } else if (
+        errorMessage.includes("ENOTFOUND") ||
+        errorMessage.includes("ECONNREFUSED")
+      ) {
         errorMessage =
           "Cannot connect to the endpoint. Please check the endpoint URL."
       }
@@ -588,7 +598,7 @@ ipcMain.handle(
   ) => {
     try {
       const registry = getSpaceRegistry()
-      
+
       // 1. Register the space first
       const space = registry.registerSpace(localPath, {
         customName: spaceName,
@@ -627,65 +637,77 @@ ipcMain.handle(
 
 // License management
 ipcMain.handle("get-machine-id", async () => {
-  return LicenseManager.getMachineId();
-});
+  return LicenseManager.getMachineId()
+})
 
-ipcMain.handle("activate-license", async (event, licenseKey: string, token?: string) => {
-  try {
-    const hwId = await LicenseManager.getMachineId();
-    const deviceName = LicenseManager.getDeviceName();
-    const baseUrl = app.isPackaged ? "https://eidos.space" : "https://local-dev.eidos.space";
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-    const response = await fetch(`${baseUrl}/api/license/activate`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        licenseKey,
-        hardwareId: hwId,
-        deviceName,
-        deviceInfo: {
-          os: process.platform,
-          arch: process.arch,
-          version: app.getVersion(),
-        },
-      }),
-    });
+ipcMain.handle(
+  "activate-license",
+  async (event, licenseKey: string, token?: string) => {
+    try {
+      const hwId = await LicenseManager.getMachineId()
+      const deviceName = LicenseManager.getDeviceName()
+      const baseUrl = app.isPackaged
+        ? "https://eidos.space"
+        : "https://local-dev.eidos.space"
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      }
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+      const response = await fetch(`${baseUrl}/api/license/activate`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          licenseKey,
+          hardwareId: hwId,
+          deviceName,
+          deviceInfo: {
+            os: process.platform,
+            arch: process.arch,
+            version: app.getVersion(),
+          },
+        }),
+      })
 
-    const result = await response.json();
-    if (result.success) {
-      await LicenseManager.saveLicense(licenseKey, result.certificate);
-      const payload = await LicenseManager.verifyCertificate(result.certificate);
-      return { success: true, payload };
-    } else {
-      return { success: false, error: result.error };
+      const result = await response.json()
+      if (result.success) {
+        await LicenseManager.saveLicense(licenseKey, result.certificate)
+        const payload = await LicenseManager.verifyCertificate(
+          result.certificate
+        )
+        return { success: true, payload }
+      } else {
+        return { success: false, error: result.error }
+      }
+    } catch (error) {
+      console.error("Activation error:", error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
     }
-  } catch (error) {
-    console.error("Activation error:", error);
-    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
   }
-});
+)
 
 ipcMain.handle("get-license-info", async () => {
-  const stored = await LicenseManager.getLicense();
-  if (!stored) return null;
+  const stored = await LicenseManager.getLicense()
+  if (!stored) return null
 
-  const payload = await LicenseManager.verifyCertificate(stored.certificate);
-  if (!payload) return null;
+  const payload = await LicenseManager.verifyCertificate(stored.certificate)
+  if (!payload) return null
 
   return {
     licenseKey: stored.licenseKey,
     plan: payload.plan,
     expiresAt: payload.expiresAt,
-  };
-});
+  }
+})
 
 ipcMain.handle("clear-license", async () => {
-  await LicenseManager.clearLicense();
-  return { success: true };
-});
+  await LicenseManager.clearLicense()
+  return { success: true }
+})
 
 app.on("before-quit", () => {
   cleanupPlaygroundWatchers()
@@ -1046,7 +1068,13 @@ app.whenReady().then(async () => {
   // Toggle space sync on/off
   ipcMain.handle(
     "toggle-space-sync",
-    async (_, spaceId: string, enabled: boolean, remote?: string, provider?: "eidos.space" | "custom") => {
+    async (
+      _,
+      spaceId: string,
+      enabled: boolean,
+      remote?: string,
+      provider?: "eidos.space" | "custom"
+    ) => {
       try {
         const registry = getSpaceRegistry()
         const space = registry.getSpace(spaceId)
@@ -1061,41 +1089,52 @@ app.whenReady().then(async () => {
 
         // Use provided provider, fallback to space's current provider, then default
         const configManager = getConfigManager()
-        const effectiveProvider = provider || space.sync?.provider || configManager.getDefaultSyncProvider() || 'eidos.space'
+        const effectiveProvider =
+          provider ||
+          space.sync?.provider ||
+          configManager.getDefaultSyncProvider() ||
+          "eidos.space"
 
         if (enabled) {
           // Enable sync: convert to graft
           if (!remote) {
-            return { success: false, error: "Remote URL is required to enable sync" }
+            return {
+              success: false,
+              error: "Remote URL is required to enable sync",
+            }
           }
-          
+
           // Check if credentials exist for selected provider
-          const credentials = await CredentialsManager.getSyncCredentials(effectiveProvider)
+          const credentials =
+            await CredentialsManager.getSyncCredentials(effectiveProvider)
           if (!credentials) {
-            return { success: false, error: `No sync credentials found for ${effectiveProvider}. Please configure sync settings first.` }
+            return {
+              success: false,
+              error: `No sync credentials found for ${effectiveProvider}. Please configure sync settings first.`,
+            }
           }
 
           await dataSpace.convertToGraft(remote)
-          
+
           // Update space registry
           registry.setSpaceSync(spaceId, {
             enabled: true,
             remote: remote,
             provider: effectiveProvider,
           })
-          
+
           return { success: true }
         } else {
           // Disable sync: export to sqlite
           await dataSpace.exportToSqlite()
-          
+
           // Update space registry
           registry.setSpaceSync(spaceId, {
             enabled: false,
             remote: space.sync?.remote || "",
             provider: space.sync?.provider,
           })
-          
+
           return { success: true }
         }
       } catch (error: any) {

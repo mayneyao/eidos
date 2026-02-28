@@ -39,8 +39,6 @@ interface IViewItemProps {
   isDragging?: boolean
 }
 
-
-
 export const ViewItem = ({
   view,
   isActive,
@@ -60,13 +58,13 @@ export const ViewItem = ({
   const { isReadOnly: contextIsReadOnly } = useContext(TableContext)
   const isReadOnly = propIsReadOnly ?? contextIsReadOnly
 
-  const { 
-    attributes, 
-    listeners, 
-    setNodeRef, 
-    transform, 
-    transition, 
-    isDragging 
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
   } = useSortable({
     id: view.id,
     // Don't set animateLayoutChanges, let @dnd-kit handle it automatically
@@ -76,9 +74,9 @@ export const ViewItem = ({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 1000 : 'auto',
+    zIndex: isDragging ? 1000 : "auto",
     // Add visual hint for non-dragging items when global drag state is active
-    filter: globalIsDragging && !isDragging ? 'blur(0.5px)' : 'none',
+    filter: globalIsDragging && !isDragging ? "blur(0.5px)" : "none",
   }
 
   const handleOpen = () => {
@@ -99,7 +97,7 @@ export const ViewItem = ({
       <>
         <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <div ref={setNodeRef} style={style} className="w-full group">
-            <div 
+            <div
               className={cn(
                 "flex items-center gap-2 w-full rounded-sm px-2 py-1 group-hover:bg-accent/50 transition-all duration-200",
                 {
@@ -115,19 +113,19 @@ export const ViewItem = ({
                 {...listeners}
                 className="flex items-center cursor-grab active:cursor-grabbing hover:bg-accent/30 rounded p-0.5 transition-colors duration-150"
               >
-                <ViewIcon 
-                  viewType={view.type} 
+                <ViewIcon
+                  viewType={view.type}
                   className="h-4 w-4"
                   showCursor={false}
                 />
               </div>
-              <span 
+              <span
                 className="select-none flex-1 text-left truncate cursor-pointer"
                 onClick={() => jump2View(view.id)}
               >
                 {view.name}
               </span>
-              
+
               {!isReadOnly && (
                 <DropdownMenu onOpenChange={handleOpen} open={open}>
                   <DropdownMenuTrigger asChild>
@@ -141,7 +139,10 @@ export const ViewItem = ({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={handleEdit} disabled={isReadOnly}>
+                    <DropdownMenuItem
+                      onSelect={handleEdit}
+                      disabled={isReadOnly}
+                    >
                       {t("table.view.edit")}
                     </DropdownMenuItem>
                     <DropdownMenuItem disabled={disabledDelete || isReadOnly}>
@@ -203,8 +204,8 @@ export const ViewItem = ({
                       {...listeners}
                       className="flex items-center hover:bg-accent/30 rounded p-0.5 transition-colors duration-150"
                     >
-                      <ViewIcon 
-                        viewType={view.type} 
+                      <ViewIcon
+                        viewType={view.type}
                         className="h-4 w-4 cursor-grab active:cursor-grabbing"
                         showCursor={true}
                       />
@@ -260,13 +261,13 @@ export const ViewItem = ({
             })}
           >
             <div className="flex items-center gap-1">
-              <div 
-                {...attributes} 
-                {...listeners} 
+              <div
+                {...attributes}
+                {...listeners}
                 className="flex items-center hover:bg-accent/30 rounded p-0.5 transition-colors duration-150"
               >
-                <ViewIcon 
-                  viewType={view.type} 
+                <ViewIcon
+                  viewType={view.type}
                   className="h-4 w-4 cursor-grab active:cursor-grabbing"
                   showCursor={true}
                 />

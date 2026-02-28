@@ -28,7 +28,8 @@ export function DatabasePWALayoutBase({
 }) {
   const { sqlite } = useSqlite()
   const { isShareMode } = useAppRuntimeStore()
-  const { isRightPanelOpen, currentAppIndex, apps, tempPanelNode } = useSpaceAppStore()
+  const { isRightPanelOpen, currentAppIndex, apps, tempPanelNode } =
+    useSpaceAppStore()
   const currentApp = apps[currentAppIndex]
 
   if (!isShareMode && !sqlite) {

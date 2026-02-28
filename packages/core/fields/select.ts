@@ -1,9 +1,7 @@
-
 import { BaseField } from "./base"
 import { CompareOperator, FieldType, GridCellKind } from "./const"
 import { MultiSelectField } from "./multi-select"
 import type { CustomCell } from "@glideapps/glide-data-grid"
-
 
 interface SelectCellProps {
   readonly kind: "select-cell"
@@ -23,7 +21,6 @@ interface MultiSelectCellProps {
 }
 
 export type MultiSelectCell = CustomCell<MultiSelectCellProps>
-
 
 export type SelectOption = {
   id: string
@@ -137,14 +134,20 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
   static defaultColor = SelectField.colors.light[0].name
 
   static colorNameValueMap = {
-    light: SelectField.colors.light.reduce((acc, color) => {
-      acc[color.name] = color.value
-      return acc
-    }, {} as Record<string, string>),
-    dark: SelectField.colors.dark.reduce((acc, color) => {
-      acc[color.name] = color.value
-      return acc
-    }, {} as Record<string, string>),
+    light: SelectField.colors.light.reduce(
+      (acc, color) => {
+        acc[color.name] = color.value
+        return acc
+      },
+      {} as Record<string, string>
+    ),
+    dark: SelectField.colors.dark.reduce(
+      (acc, color) => {
+        acc[color.name] = color.value
+        return acc
+      },
+      {} as Record<string, string>
+    ),
   }
 
   /**
@@ -152,11 +155,15 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
    * @param theme theme of the color. eg "light" | "dark"
    * @returns hex value of the color. eg "#cccccc"
    */
-  static getColorValue(colorName: string, theme: "light" | "dark" = "light", opacity: number = 1) {
+  static getColorValue(
+    colorName: string,
+    theme: "light" | "dark" = "light",
+    opacity: number = 1
+  ) {
     const colorValue = SelectField.colorNameValueMap[theme][colorName]
     // Convert opacity (0-1) to hex (00-FF)
     const alpha = Math.round(opacity * 255)
-    return `#${colorValue}${alpha.toString(16).padStart(2, '0')}`
+    return `#${colorValue}${alpha.toString(16).padStart(2, "0")}`
   }
 
   get compareOperators() {
@@ -193,10 +200,10 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
   }
 
   /**
-   * getCellContentViaLookup is used when the field is used as a lookup target field. 
-   * lookup will convert the raw data to a multi-select cell, value split by comma. 
-   * @param rawData 
-   * @returns 
+   * getCellContentViaLookup is used when the field is used as a lookup target field.
+   * lookup will convert the raw data to a multi-select cell, value split by comma.
+   * @param rawData
+   * @returns
    */
   getCellContentViaLookup(rawData: string): MultiSelectCell {
     const multiSelectField = new MultiSelectField(this.column)
@@ -265,20 +272,19 @@ export class SelectField extends BaseField<SelectCell, SelectProperty> {
   }
 
   static getNextAvailableColor(existingOptions: SelectOption[]): string {
-    const allColors = SelectField.colors.light.map(c => c.name)
-    const usedColors = new Set(existingOptions.map(o => o.color))
-    return allColors.find(color => !usedColors.has(color)) ||
+    const allColors = SelectField.colors.light.map((c) => c.name)
+    const usedColors = new Set(existingOptions.map((o) => o.color))
+    return (
+      allColors.find((color) => !usedColors.has(color)) ||
       allColors[existingOptions.length % allColors.length]
+    )
   }
 
   addOption(name: string) {
     const options = this.column.property?.options ?? []
     const nextColor = SelectField.getNextAvailableColor(options)
 
-    const newOptions = [
-      { id: name, name, color: nextColor },
-      ...options,
-    ]
+    const newOptions = [{ id: name, name, color: nextColor }, ...options]
     this.column.property.options = newOptions
     return newOptions
   }

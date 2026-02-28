@@ -11,13 +11,12 @@ import { $isCodeHighlightNode } from "@lexical/code"
 import { $isLinkNode } from "@lexical/link"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { mergeRegister } from "@lexical/utils"
-import type {
-  LexicalEditor} from "lexical";
+import type { LexicalEditor } from "lexical"
 import {
   $getSelection,
   $isParagraphNode,
   $isRangeSelection,
-  $isTextNode
+  $isTextNode,
 } from "lexical"
 import { createPortal } from "react-dom"
 

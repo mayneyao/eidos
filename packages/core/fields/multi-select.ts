@@ -1,7 +1,7 @@
 import type { CustomCell } from "@glideapps/glide-data-grid"
 import { BaseField } from "./base"
 import { CompareOperator, FieldType, GridCellKind } from "./const"
-import type { SelectOption, SelectProperty } from "./select";
+import type { SelectOption, SelectProperty } from "./select"
 import { SelectField } from "./select"
 
 type MultiSelectProperty = SelectProperty
@@ -15,7 +15,6 @@ interface MultiSelectCellProps {
 }
 
 export type MultiSelectCell = CustomCell<MultiSelectCellProps>
-
 
 export class MultiSelectField extends BaseField<
   MultiSelectCell,
@@ -45,17 +44,14 @@ export class MultiSelectField extends BaseField<
   addOption(name: string) {
     const options = this.column.property?.options ?? []
     const nextColorName = SelectField.getNextAvailableColor(options)
-    const newOptions = [
-      { id: name, name, color: nextColorName },
-      ...options,
-    ]
+    const newOptions = [{ id: name, name, color: nextColorName }, ...options]
     this.column.property.options = newOptions
     return newOptions
   }
 
   rawData2JSON(rawData: string | null): string[] {
     const options = this.column.property?.options ?? []
-    const ids = rawData ? rawData.split(",").map(s => s.trim()) : []
+    const ids = rawData ? rawData.split(",").map((s) => s.trim()) : []
     const names = ids.map((id) => {
       const option = options.find((i) => i.id === id)
       return option?.name || ""
@@ -65,7 +61,7 @@ export class MultiSelectField extends BaseField<
 
   /**
    * in database we store the tags as a string, so we need to convert it to an array of strings
-   * e.g. 
+   * e.g.
    * "tag1,tag2,tag3" => ["tag1", "tag2", "tag3"]
    * "tag1, tag2 with space" => ["tag1", "tag2 with space"]
    * @param rawData
@@ -77,7 +73,7 @@ export class MultiSelectField extends BaseField<
       data: {
         kind: "multi-select-cell",
         allowedValues: this.column.property?.options ?? [],
-        values: rawData ? rawData.split(",").map(s => s.trim()) : [],
+        values: rawData ? rawData.split(",").map((s) => s.trim()) : [],
       },
       copyData: rawData,
       allowOverlay: true,

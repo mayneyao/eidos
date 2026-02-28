@@ -1,5 +1,8 @@
 import { useState } from "react"
-import type { FileHandlerMeta, IExtension } from "@/packages/core/types/IExtension"
+import type {
+  FileHandlerMeta,
+  IExtension,
+} from "@/packages/core/types/IExtension"
 
 import { Button } from "@/components/ui/button"
 import {

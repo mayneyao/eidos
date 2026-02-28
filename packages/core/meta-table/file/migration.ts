@@ -11,7 +11,7 @@ export function WithMigration<T extends Constructor>(Base: T) {
      * This method only updates the database records, it does not move actual files
      * @returns Promise<{ migrated: number, errors: number }> - Number of files migrated and errors encountered
      */
-    async migrateFilePaths(): Promise<{ migrated: number, errors: number }> {
+    async migrateFilePaths(): Promise<{ migrated: number; errors: number }> {
       let migrated = 0
       let errors = 0
 
@@ -21,22 +21,30 @@ export function WithMigration<T extends Constructor>(Base: T) {
           `SELECT * FROM ${this.name} WHERE path LIKE 'spaces/%/files/%';`
         )
 
-        console.log(`Found ${oldPathFiles.length} files with old path format to migrate`)
+        console.log(
+          `Found ${oldPathFiles.length} files with old path format to migrate`
+        )
 
         for (const file of oldPathFiles) {
           try {
             const oldPath = file.path as string
-            const pathParts = oldPath.split('/')
+            const pathParts = oldPath.split("/")
 
             // Extract filename from old path: spaces/{space}/files/{filename}
-            if (pathParts.length >= 4 && pathParts[0] === 'spaces' && pathParts[2] === 'files') {
-              const filename = pathParts.slice(3).join('/') // Handle subdirectories
+            if (
+              pathParts.length >= 4 &&
+              pathParts[0] === "spaces" &&
+              pathParts[2] === "files"
+            ) {
+              const filename = pathParts.slice(3).join("/") // Handle subdirectories
               const newPath = `files/${filename}`
 
               // Check if file already exists with new path
               const existingFile = await this.getFileByPath(newPath)
               if (existingFile) {
-                console.warn(`File already exists with new path: ${newPath}, skipping migration for ${oldPath}`)
+                console.warn(
+                  `File already exists with new path: ${newPath}, skipping migration for ${oldPath}`
+                )
                 // Delete the old record to avoid duplicates
                 await this.del(file.id)
                 migrated++
@@ -61,10 +69,12 @@ export function WithMigration<T extends Constructor>(Base: T) {
           }
         }
 
-        console.log(`Migration completed: ${migrated} files migrated, ${errors} errors`)
+        console.log(
+          `Migration completed: ${migrated} files migrated, ${errors} errors`
+        )
         return { migrated, errors }
       } catch (error) {
-        console.error('Error during file path migration:', error)
+        console.error("Error during file path migration:", error)
         throw new PathMigrationError(`Migration failed: ${error}`)
       }
     }
@@ -80,10 +90,9 @@ export function WithMigration<T extends Constructor>(Base: T) {
         )
         return oldPathCount[0].count > 0
       } catch (error) {
-        console.error('Error checking migration status:', error)
+        console.error("Error checking migration status:", error)
         return false
       }
     }
   }
 }
-

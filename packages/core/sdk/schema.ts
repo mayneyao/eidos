@@ -121,9 +121,14 @@ export class SchemaClient {
     // Validate field column names
     const existingColumns = [...EIDOS_RESERVED_FIELDS]
     for (const field of input.fields) {
-      const validation = validateSqliteColumnName(field.columnName, existingColumns)
+      const validation = validateSqliteColumnName(
+        field.columnName,
+        existingColumns
+      )
       if (!validation.isValid) {
-        throw new Error(`Invalid column name "${field.columnName}": ${validation.error}`)
+        throw new Error(
+          `Invalid column name "${field.columnName}": ${validation.error}`
+        )
       }
       existingColumns.push(field.columnName)
     }
@@ -134,7 +139,8 @@ export class SchemaClient {
 
     // Filter out title field from user fields (title is a system field)
     const userFields = input.fields.filter(
-      (f) => f.columnName.toLowerCase() !== "title" && f.type !== FieldType.Title
+      (f) =>
+        f.columnName.toLowerCase() !== "title" && f.type !== FieldType.Title
     )
 
     // Build CREATE TABLE SQL
@@ -148,7 +154,9 @@ CREATE TABLE ${rawTableName} (
   _last_edited_by TEXT DEFAULT 'unknown'${userFields.length > 0 ? "," : ""}
 `
     userFields.forEach((field, index) => {
-      const sqlType = ColumnTable.getColumnTypeByFieldType(field.type as FieldType)
+      const sqlType = ColumnTable.getColumnTypeByFieldType(
+        field.type as FieldType
+      )
       const isLast = index === userFields.length - 1
       createTableSql += `  ${field.columnName} ${sqlType} NULL${isLast ? "\n" : ",\n"}`
     })
@@ -160,7 +168,8 @@ CREATE TABLE ${rawTableName} (
     INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('title', 'title', '${rawTableName}', 'title');
 `
     for (const field of userFields) {
-      const defaultProperty = allFieldTypesMap[field.type].getDefaultFieldProperty()
+      const defaultProperty =
+        allFieldTypesMap[field.type].getDefaultFieldProperty()
       const mergedProperty = field.property
         ? { ...defaultProperty, ...field.property }
         : defaultProperty
@@ -169,7 +178,11 @@ CREATE TABLE ${rawTableName} (
     }
 
     // Execute: create tree node + run SQL + create default view
-    await this.dataSpace.createTableViaSchema(tableId, input.name, createTableSql)
+    await this.dataSpace.createTableViaSchema(
+      tableId,
+      input.name,
+      createTableSql
+    )
 
     // Return full table info
     return await this.getTable(tableId)
@@ -189,7 +202,9 @@ CREATE TABLE ${rawTableName} (
     }
 
     // Get fields
-    const rawFields = await this.dataSpace.column.list({ table_name: rawTableName })
+    const rawFields = await this.dataSpace.column.list({
+      table_name: rawTableName,
+    })
     const fields: FieldInfo[] = rawFields
       .filter((f) => f.table_column_name !== "_id") // exclude _id meta-field
       .map((f) => ({
@@ -237,7 +252,10 @@ CREATE TABLE ${rawTableName} (
    * @param tableId Table ID
    * @param input Fields to update
    */
-  async updateTable(tableId: string, input: UpdateTableInput): Promise<TableInfo> {
+  async updateTable(
+    tableId: string,
+    input: UpdateTableInput
+  ): Promise<TableInfo> {
     if (input.name) {
       await this.dataSpace.tree.updateNodeName(tableId, input.name)
     }
@@ -264,14 +282,22 @@ CREATE TABLE ${rawTableName} (
     const rawTableName = getRawTableNameById(tableId)
 
     // Validate column name against existing columns
-    const existingFields = await this.dataSpace.column.list({ table_name: rawTableName })
+    const existingFields = await this.dataSpace.column.list({
+      table_name: rawTableName,
+    })
     const existingColumns = existingFields.map((f) => f.table_column_name)
-    const validation = validateSqliteColumnName(input.columnName, existingColumns)
+    const validation = validateSqliteColumnName(
+      input.columnName,
+      existingColumns
+    )
     if (!validation.isValid) {
-      throw new Error(`Invalid column name "${input.columnName}": ${validation.error}`)
+      throw new Error(
+        `Invalid column name "${input.columnName}": ${validation.error}`
+      )
     }
 
-    const defaultProperty = allFieldTypesMap[input.type].getDefaultFieldProperty()
+    const defaultProperty =
+      allFieldTypesMap[input.type].getDefaultFieldProperty()
     const mergedProperty = input.property
       ? { ...defaultProperty, ...input.property }
       : defaultProperty
@@ -307,7 +333,10 @@ CREATE TABLE ${rawTableName} (
   ): Promise<FieldInfo> {
     const rawTableName = getRawTableNameById(tableId)
 
-    const existingField = await this.dataSpace.column.getColumn(rawTableName, columnName)
+    const existingField = await this.dataSpace.column.getColumn(
+      rawTableName,
+      columnName
+    )
     if (!existingField) {
       throw new Error(`Field not found: ${columnName} in table ${tableId}`)
     }
@@ -339,7 +368,10 @@ CREATE TABLE ${rawTableName} (
     }
 
     // Return updated field info
-    const updatedField = await this.dataSpace.column.getColumn(rawTableName, columnName)
+    const updatedField = await this.dataSpace.column.getColumn(
+      rawTableName,
+      columnName
+    )
     return {
       name: updatedField!.name,
       columnName: updatedField!.table_column_name,
@@ -365,7 +397,9 @@ CREATE TABLE ${rawTableName} (
    */
   async listFields(tableId: string): Promise<FieldInfo[]> {
     const rawTableName = getRawTableNameById(tableId)
-    const rawFields = await this.dataSpace.column.list({ table_name: rawTableName })
+    const rawFields = await this.dataSpace.column.list({
+      table_name: rawTableName,
+    })
     return rawFields
       .filter((f) => f.table_column_name !== "_id")
       .map((f) => ({

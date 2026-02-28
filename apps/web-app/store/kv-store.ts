@@ -12,7 +12,7 @@ export const useKVStore = create<KVState>((set, get) => ({
     // Skip update if value is the same (prevents infinite loops)
     if (currentValue === value) return
     if (JSON.stringify(currentValue) === JSON.stringify(value)) return
-    
+
     set((state) => ({ cache: { ...state.cache, [key]: value } }))
   },
 }))

@@ -4,10 +4,9 @@ import type {
   LexicalNode,
   NodeKey,
   SerializedLexicalNode,
-  Spread} from "lexical";
-import {
-  DecoratorNode
+  Spread,
 } from "lexical"
+import { DecoratorNode } from "lexical"
 
 import { SQLComponent } from "./component"
 

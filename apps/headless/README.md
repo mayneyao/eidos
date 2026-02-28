@@ -84,34 +84,38 @@ cp -r ../desktop/dist-sqlite-ext ./extensions
 ## SQLite Extensions
 
 The server requires SQLite extensions for full functionality:
+
 - `libsimple` - Full-text search (required)
 - `libvec` - Vector search (optional)
 - `libgraft` - Graft sync support (optional, required for sync)
 
 Extensions are loaded from `SQLITE_EXTENSIONS_DIR` or auto-detected from:
+
 - `/app/extensions` (Docker)
 - `./extensions` or `./dist-sqlite-ext` (local)
 - `apps/desktop/dist-sqlite-ext` (development)
 
 ## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check |
-| POST | `/rpc` | RPC API |
-| GET | `/files/*` | File access |
-| GET | `/graft/status` | Sync status |
-| POST | `/graft/pull` | Pull from remote |
-| POST | `/graft/push` | Push to remote |
-| GET | `*` (Match Pattern) | Extension Rendering (Server-side) |
+| Method | Path                | Description                       |
+| ------ | ------------------- | --------------------------------- |
+| GET    | `/health`           | Health check                      |
+| POST   | `/rpc`              | RPC API                           |
+| GET    | `/files/*`          | File access                       |
+| GET    | `/graft/status`     | Sync status                       |
+| POST   | `/graft/pull`       | Pull from remote                  |
+| POST   | `/graft/push`       | Push to remote                    |
+| GET    | `*` (Match Pattern) | Extension Rendering (Server-side) |
 
 ## Extension Rendering
 
 Headless server supports rendering Eidos blocks directly. It intercepts requests based on the hostnames:
+
 - Default: `<extId>.block.<spaceId>.eidos.localhost`
 - Production: Configurable via `EXTENSION_HOSTNAME_PATTERN`
 
 When a request matches, the server handles:
+
 1. Server-side rendering of the Extension HTML.
 2. Serving `/app.js` (the compiled extension code).
 3. Serving `/compiled-ui/*.js` (shared UI components).
@@ -119,7 +123,7 @@ When a request matches, the server handles:
 
 ## RPC Usage
 
-```bash
+````bash
 # Query table data
 curl -X POST http://localhost:3000/rpc \
   -H "Content-Type: application/json" \
@@ -155,7 +159,8 @@ curl -X POST http://localhost:3000/rpc \
 curl -X POST http://localhost:3000/rpc \
   -H "Content-Type: application/json" \
   -d '{"method": "db.info", "params": []}'
-```
+````
+
 ```
 
 ## Environment Variables
@@ -184,3 +189,4 @@ curl -X POST http://localhost:3000/rpc \
 
 *Required for Graft sync
 
+```

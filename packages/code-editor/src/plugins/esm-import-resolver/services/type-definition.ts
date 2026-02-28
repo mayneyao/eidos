@@ -5,24 +5,30 @@ import type {
   TypeHttpClient,
   TypeFetchOptions,
   TypeFetchResponse,
-  TypeDefinitionMetadata
-} from '../interfaces'
-import { esmTypesDebug as debug } from '../utils/debug'
-import { typeCacheStorage } from '../utils/type-cache-storage'
+  TypeDefinitionMetadata,
+} from "../interfaces"
+import { esmTypesDebug as debug } from "../utils/debug"
+import { typeCacheStorage } from "../utils/type-cache-storage"
 
 /**
  * HTTP client for fetching type definitions
  */
 export class TypeHttpClientImpl implements TypeHttpClient {
   private defaultHeaders: Record<string, string> = {
-    'Accept': 'application/typescript, text/plain, */*',
-    'User-Agent': 'ESM-Import-Resolver/1.0.0'
+    Accept: "application/typescript, text/plain, */*",
+    "User-Agent": "ESM-Import-Resolver/1.0.0",
   }
   private timeout = 10000 // 10 seconds
 
-  async fetch(url: string, options: TypeFetchOptions = {}): Promise<TypeFetchResponse> {
+  async fetch(
+    url: string,
+    options: TypeFetchOptions = {}
+  ): Promise<TypeFetchResponse> {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), options.timeout || this.timeout)
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      options.timeout || this.timeout
+    )
 
     try {
       const headers = { ...this.defaultHeaders, ...options.headers }
@@ -30,7 +36,7 @@ export class TypeHttpClientImpl implements TypeHttpClient {
       const response = await fetch(url, {
         headers,
         signal: controller.signal,
-        redirect: options.followRedirects !== false ? 'follow' : 'manual'
+        redirect: options.followRedirects !== false ? "follow" : "manual",
       })
 
       const body = await response.text()
@@ -46,11 +52,13 @@ export class TypeHttpClientImpl implements TypeHttpClient {
         body,
         url: response.url,
         ok: response.ok,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       }
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Request timeout after ${options.timeout || this.timeout}ms`)
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error(
+          `Request timeout after ${options.timeout || this.timeout}ms`
+        )
       }
       throw error
     } finally {
@@ -64,9 +72,9 @@ export class TypeHttpClientImpl implements TypeHttpClient {
       const timeoutId = setTimeout(() => controller.abort(), this.timeout)
 
       const response = await fetch(url, {
-        method: 'HEAD',
+        method: "HEAD",
         headers: this.defaultHeaders,
-        signal: controller.signal
+        signal: controller.signal,
       })
 
       clearTimeout(timeoutId)
@@ -102,8 +110,8 @@ export class TypeDefinitionManager implements TypeDefinitionService {
     entriesByStatus: {
       valid: 0,
       expired: 0,
-      failed: 0
-    }
+      failed: 0,
+    },
   }
   private cacheTTL = 24 * 60 * 60 * 1000 // 24 hours
   private maxRetries = 3
@@ -118,7 +126,7 @@ export class TypeDefinitionManager implements TypeDefinitionService {
    */
   async fetchTypes(packageUrl: string): Promise<TypeDefinition | null> {
     // Early validation: skip empty URLs or local file paths
-    if (!packageUrl || packageUrl.trim() === '') {
+    if (!packageUrl || packageUrl.trim() === "") {
       debug.log(`Skipping empty package URL`)
       return null
     }
@@ -161,7 +169,7 @@ export class TypeDefinitionManager implements TypeDefinitionService {
         }
       }
     } catch (err) {
-      debug.warn('Error reading from persistent cache:', err)
+      debug.warn("Error reading from persistent cache:", err)
     }
 
     try {
@@ -177,7 +185,8 @@ export class TypeDefinitionManager implements TypeDefinitionService {
       } else {
         // Fallback to mock types for demo purposes
         debug.log(`Falling back to mock for: ${packageUrl}`)
-        const mockTypeDefinition = await this.createMockTypeDefinition(packageUrl)
+        const mockTypeDefinition =
+          await this.createMockTypeDefinition(packageUrl)
         if (mockTypeDefinition) {
           this.cacheTypes(packageUrl, mockTypeDefinition)
           debug.log(`Created mock types for ${mockTypeDefinition.packageName}`)
@@ -189,10 +198,13 @@ export class TypeDefinitionManager implements TypeDefinitionService {
 
       // Try mock types as final fallback
       try {
-        const mockTypeDefinition = await this.createMockTypeDefinition(packageUrl)
+        const mockTypeDefinition =
+          await this.createMockTypeDefinition(packageUrl)
         if (mockTypeDefinition) {
           this.cacheTypes(packageUrl, mockTypeDefinition)
-          debug.log(`Using mock types as fallback for ${mockTypeDefinition.packageName}`)
+          debug.log(
+            `Using mock types as fallback for ${mockTypeDefinition.packageName}`
+          )
           return mockTypeDefinition
         }
       } catch (mockError) {
@@ -206,7 +218,9 @@ export class TypeDefinitionManager implements TypeDefinitionService {
   /**
    * Create mock type definition for demo purposes
    */
-  private async createMockTypeDefinition(packageUrl: string): Promise<TypeDefinition | null> {
+  private async createMockTypeDefinition(
+    packageUrl: string
+  ): Promise<TypeDefinition | null> {
     const packageName = this.extractPackageName(packageUrl)
 
     // Create mock type definitions for common packages
@@ -218,9 +232,9 @@ export class TypeDefinitionManager implements TypeDefinitionService {
     return {
       url: `${packageUrl}/index.d.ts`,
       content: mockTypes,
-      headers: { 'content-type': 'application/typescript' },
+      headers: { "content-type": "application/typescript" },
       timestamp: Date.now(),
-      packageName
+      packageName,
     }
   }
 
@@ -229,7 +243,7 @@ export class TypeDefinitionManager implements TypeDefinitionService {
    */
   private getMockTypeContent(packageName: string): string | null {
     const mockTypes: Record<string, string> = {
-      'react': `// React type definitions
+      react: `// React type definitions
 export interface Component<P = {}, S = {}> {}
 
 export function useState<T>(initialState: T | (() => T)): [T, (value: T | ((prev: T) => T)) => void];
@@ -263,7 +277,7 @@ declare global {
     }
   }
 }`,
-      'lodash': `// Lodash type definitions
+      lodash: `// Lodash type definitions
 export function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T;
 export function throttle<T extends (...args: any[]) => any>(func: T, wait: number): T;
 export function cloneDeep<T>(obj: T): T;
@@ -277,7 +291,7 @@ declare const _: {
 };
 
 export default _;`,
-      'axios': `// Axios type definitions
+      axios: `// Axios type definitions
 export interface AxiosResponse<T = any> {
   data: T;
   status: number;
@@ -301,7 +315,7 @@ declare const axios: {
 };
 
 export default axios;`,
-      '@babel/core': `// Babel Core type definitions
+      "@babel/core": `// Babel Core type definitions
 export interface TransformResult {
   code?: string | null;
   map?: any;
@@ -313,23 +327,23 @@ export interface TransformOptions {
 }
 
 export function transform(code: string, options?: TransformOptions): Promise<TransformResult | null>;`,
-      'fs': `// Node.js fs module type definitions
+      fs: `// Node.js fs module type definitions
 export function readFile(path: string, encoding: string): Promise<string>;
 export function writeFile(path: string, data: string): Promise<void>;
 export function existsSync(path: string): boolean;`,
-      'path': `// Node.js path module type definitions
+      path: `// Node.js path module type definitions
 export function join(...paths: string[]): string;
 export function resolve(...paths: string[]): string;
 export function dirname(path: string): string;
 export function basename(path: string): string;
 export function extname(path: string): string;`,
-      'crypto': `// Node.js crypto module type definitions
+      crypto: `// Node.js crypto module type definitions
 export interface Hash {
   update(data: string): Hash;
   digest(encoding: string): string;
 }
 
-export function createHash(algorithm: string): Hash;`
+export function createHash(algorithm: string): Hash;`,
     }
 
     return mockTypes[packageName] || null
@@ -376,18 +390,22 @@ export function createHash(algorithm: string): Hash;`
       accessCount: 1,
       size: types.content.length,
       hash: this.generateHash(types.content),
-      isDefinitelyTyped: types.url.includes('@types/'),
-      qualityScore: this.calculateQualityScore(types)
+      isDefinitelyTyped: types.url.includes("@types/"),
+      qualityScore: this.calculateQualityScore(types),
     }
 
     this.metadata.set(packageUrl, metadata)
-    
+
     // Save to persistent cache
-    typeCacheStorage.set({
-      packageUrl,
-      definition: types,
-      metadata
-    }).catch(err => debug.warn('Failed to save types to persistent cache:', err))
+    typeCacheStorage
+      .set({
+        packageUrl,
+        definition: types,
+        metadata,
+      })
+      .catch((err) =>
+        debug.warn("Failed to save types to persistent cache:", err)
+      )
 
     this.updateStats()
   }
@@ -398,7 +416,9 @@ export function createHash(algorithm: string): Hash;`
   clearCache(): void {
     this.cache.clear()
     this.metadata.clear()
-    typeCacheStorage.clear().catch(err => debug.warn('Failed to clear persistent cache:', err))
+    typeCacheStorage
+      .clear()
+      .catch((err) => debug.warn("Failed to clear persistent cache:", err))
     this.resetStats()
   }
 
@@ -455,30 +475,37 @@ export function createHash(algorithm: string): Hash;`
    * Prefetch types for multiple packages (simulated for demo)
    */
   async prefetchTypes(packageUrls: string[]): Promise<void> {
-    debug.log('Simulating type prefetching for demo purposes')
-    debug.log('Packages that would be fetched:', packageUrls)
+    debug.log("Simulating type prefetching for demo purposes")
+    debug.log("Packages that would be fetched:", packageUrls)
 
     // In a real implementation, this would fetch from esm.sh
     // For demo purposes, we just simulate the process
-    const simulatedResults = packageUrls.map(url => ({
+    const simulatedResults = packageUrls.map((url) => ({
       url,
-      status: 'simulated',
-      message: 'Would fetch type definitions from esm.sh'
+      status: "simulated",
+      message: "Would fetch type definitions from esm.sh",
     }))
 
-    debug.log('Simulated type prefetching completed:', simulatedResults)
+    debug.log("Simulated type prefetching completed:", simulatedResults)
 
     // Simulate async operation
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await new Promise((resolve) => setTimeout(resolve, 100))
   }
 
   /**
    * Fetch types with retry logic
    */
-  private async fetchTypesWithRetry(packageUrl: string, attempt: number): Promise<TypeDefinition | null> {
+  private async fetchTypesWithRetry(
+    packageUrl: string,
+    attempt: number
+  ): Promise<TypeDefinition | null> {
     const maxAttempts = this.maxRetries
 
-    for (let currentAttempt = attempt; currentAttempt <= maxAttempts; currentAttempt++) {
+    for (
+      let currentAttempt = attempt;
+      currentAttempt <= maxAttempts;
+      currentAttempt++
+    ) {
       try {
         debug.log(`Attempt ${currentAttempt}/${maxAttempts} for ${packageUrl}`)
 
@@ -494,7 +521,7 @@ export function createHash(algorithm: string): Hash;`
         // Fetch the type definition
         const response = await this.httpClient.fetch(typeUrl, {
           timeout: 15000, // 15 seconds for type fetching
-          noDts: packageUrl.includes('no-dts=true')
+          noDts: packageUrl.includes("no-dts=true"),
         })
 
         if (!response.ok) {
@@ -508,7 +535,7 @@ export function createHash(algorithm: string): Hash;`
           content: response.body,
           headers: response.headers,
           timestamp: response.timestamp,
-          packageName: this.extractPackageName(packageUrl)
+          packageName: this.extractPackageName(packageUrl),
         }
       } catch (error) {
         debug.log(`Attempt ${currentAttempt} failed for ${packageUrl}:`, error)
@@ -536,7 +563,11 @@ export function createHash(algorithm: string): Hash;`
       debug.log(`Resolving type URL for: ${packageUrl}`)
 
       // Early validation: skip empty URLs or local file paths
-      if (!packageUrl || packageUrl.trim() === '' || this.isLocalFilePath(packageUrl)) {
+      if (
+        !packageUrl ||
+        packageUrl.trim() === "" ||
+        this.isLocalFilePath(packageUrl)
+      ) {
         debug.log(`Skipping invalid or local package URL: ${packageUrl}`)
         return null
       }
@@ -560,20 +591,20 @@ export function createHash(algorithm: string): Hash;`
       // Try to get the X-TypeScript-Types header from the package URL
       try {
         const response = await this.httpClient.fetch(packageUrl, {
-          timeout: 10000
+          timeout: 10000,
         })
 
-        if (response.ok && response.headers['x-typescript-types']) {
-          const typeUrl = response.headers['x-typescript-types']
+        if (response.ok && response.headers["x-typescript-types"]) {
+          const typeUrl = response.headers["x-typescript-types"]
           debug.log(`Found X-TypeScript-Types header: ${typeUrl}`)
 
           // Handle relative URLs
-          if (typeUrl.startsWith('/')) {
+          if (typeUrl.startsWith("/")) {
             const baseUrl = new URL(packageUrl).origin
             return `${baseUrl}${typeUrl}`
           }
-          if (!typeUrl.startsWith('http')) {
-            const baseUrl = packageUrl.substring(0, packageUrl.lastIndexOf('/'))
+          if (!typeUrl.startsWith("http")) {
+            const baseUrl = packageUrl.substring(0, packageUrl.lastIndexOf("/"))
             return `${baseUrl}/${typeUrl}`
           }
           return typeUrl
@@ -599,15 +630,15 @@ export function createHash(algorithm: string): Hash;`
     debug.log(`Trying common patterns for package: ${packageName}`)
 
     // Validate package name is not empty
-    if (!packageName || packageName.trim() === '') {
+    if (!packageName || packageName.trim() === "") {
       debug.log(`Empty package name, skipping type patterns`)
       return null
     }
 
     // Try DefinitelyTyped pattern
-    if (!packageName.startsWith('@types/')) {
-      const typesPackage = packageName.startsWith('@')
-        ? `@types/${packageName.substring(1).replace('/', '__')}`
+    if (!packageName.startsWith("@types/")) {
+      const typesPackage = packageName.startsWith("@")
+        ? `@types/${packageName.substring(1).replace("/", "__")}`
         : `@types/${packageName}`
 
       const typesUrl = `https://esm.sh/${typesPackage}?dts`
@@ -616,7 +647,7 @@ export function createHash(algorithm: string): Hash;`
     }
 
     // If it's already a @types package, try to get its .d.ts directly
-    if (packageName.startsWith('@types/')) {
+    if (packageName.startsWith("@types/")) {
       const dtsUrl = `${packageUrl}?dts`
       debug.log(`Trying @types package dts: ${dtsUrl}`)
       return dtsUrl
@@ -631,18 +662,27 @@ export function createHash(algorithm: string): Hash;`
    */
   private isLocalFilePath(packageUrl: string): boolean {
     // Check for relative paths
-    if (packageUrl.startsWith('./') || packageUrl.startsWith('../')) {
+    if (packageUrl.startsWith("./") || packageUrl.startsWith("../")) {
       return true
     }
 
     // Check for absolute file paths
-    if (packageUrl.startsWith('/') || packageUrl.startsWith('file://')) {
+    if (packageUrl.startsWith("/") || packageUrl.startsWith("file://")) {
       return true
     }
 
     // Check for local file extensions
-    const localFileExtensions = ['.ts', '.tsx', '.js', '.jsx', '.json', '.css', '.scss', '.less']
-    if (localFileExtensions.some(ext => packageUrl.endsWith(ext))) {
+    const localFileExtensions = [
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx",
+      ".json",
+      ".css",
+      ".scss",
+      ".less",
+    ]
+    if (localFileExtensions.some((ext) => packageUrl.endsWith(ext))) {
       return true
     }
 
@@ -650,10 +690,10 @@ export function createHash(algorithm: string): Hash;`
     try {
       const url = new URL(packageUrl)
       // If it's not http/https, consider it local
-      return !['http:', 'https:'].includes(url.protocol)
+      return !["http:", "https:"].includes(url.protocol)
     } catch {
       // If URL parsing fails and it doesn't look like a package name, consider it local
-      return packageUrl.includes('/') || packageUrl.includes('\\')
+      return packageUrl.includes("/") || packageUrl.includes("\\")
     }
   }
 
@@ -666,9 +706,9 @@ export function createHash(algorithm: string): Hash;`
       const pathname = url.pathname
 
       // Remove leading slash and extract package name
-      const parts = pathname.substring(1).split('/')
+      const parts = pathname.substring(1).split("/")
 
-      if (parts[0].startsWith('@')) {
+      if (parts[0].startsWith("@")) {
         // Scoped package
         return `${parts[0]}/${parts[1]}`
       }
@@ -693,7 +733,7 @@ export function createHash(algorithm: string): Hash;`
     let hash = 0
     for (let i = 0; i < content.length; i++) {
       const char = content.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
+      hash = (hash << 5) - hash + char
       hash = hash & hash // Convert to 32-bit integer
     }
     return hash.toString(36)
@@ -706,7 +746,7 @@ export function createHash(algorithm: string): Hash;`
     let score = 0.5 // Base score
 
     // Bonus for DefinitelyTyped packages
-    if (types.url.includes('@types/')) {
+    if (types.url.includes("@types/")) {
       score += 0.3
     }
 
@@ -717,7 +757,8 @@ export function createHash(algorithm: string): Hash;`
 
     // Bonus for recent timestamps
     const age = Date.now() - types.timestamp
-    if (age < 7 * 24 * 60 * 60 * 1000) { // Less than a week old
+    if (age < 7 * 24 * 60 * 60 * 1000) {
+      // Less than a week old
       score += 0.1
     }
 
@@ -729,8 +770,10 @@ export function createHash(algorithm: string): Hash;`
    */
   private updateStats(): void {
     this.stats.totalEntries = this.cache.size
-    this.stats.totalSize = Array.from(this.metadata.values())
-      .reduce((total, meta) => total + meta.size, 0)
+    this.stats.totalSize = Array.from(this.metadata.values()).reduce(
+      (total, meta) => total + meta.size,
+      0
+    )
 
     this.stats.entriesByStatus.valid = this.cache.size
     this.updateHitRate()
@@ -758,8 +801,8 @@ export function createHash(algorithm: string): Hash;`
       entriesByStatus: {
         valid: 0,
         expired: 0,
-        failed: 0
-      }
+        failed: 0,
+      },
     }
   }
 
@@ -767,6 +810,6 @@ export function createHash(algorithm: string): Hash;`
    * Delay utility for retry logic
    */
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms))
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 }

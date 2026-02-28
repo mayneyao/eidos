@@ -26,7 +26,7 @@ export const AIContextNodes = ({
 
   const handleNodeClick = (node: ITreeNode) => {
     // Check if this is a path-based node (starts with ~ or @/)
-    const isPathNode = node.id.startsWith('~') || node.id.startsWith('@/')
+    const isPathNode = node.id.startsWith("~") || node.id.startsWith("@/")
 
     if (isPathNode) {
       // Navigate to file handler with the path as hash

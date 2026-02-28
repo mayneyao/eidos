@@ -4,7 +4,7 @@ import { chunk } from "@/lib/lodash"
 import type { BaseLoader } from "./base"
 
 export class DocLoader implements BaseLoader {
-  constructor(private dataSpace: DataSpace) { }
+  constructor(private dataSpace: DataSpace) {}
   async load(docId: string) {
     const markdown = await this.dataSpace.getDocMarkdown(docId)
     // split markdown into pages,every 100 lines is a page

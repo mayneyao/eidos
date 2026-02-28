@@ -3,7 +3,7 @@
  */
 
 export class PathHelper {
-  static readonly ROOT_DIR = 'files'
+  static readonly ROOT_DIR = "files"
 
   /**
    * Normalize path by removing empty segments
@@ -11,7 +11,7 @@ export class PathHelper {
    * @returns Normalized path
    */
   static normalize(path: string): string {
-    return path.split('/').filter(Boolean).join('/')
+    return path.split("/").filter(Boolean).join("/")
   }
 
   /**
@@ -20,7 +20,7 @@ export class PathHelper {
    * @returns Joined path
    */
   static join(...parts: string[]): string {
-    return parts.filter(Boolean).join('/')
+    return parts.filter(Boolean).join("/")
   }
 
   /**
@@ -29,7 +29,7 @@ export class PathHelper {
    * @returns Array of path segments
    */
   static toArray(path: string): string[] {
-    return path.split('/').filter(Boolean)
+    return path.split("/").filter(Boolean)
   }
 
   /**
@@ -38,7 +38,7 @@ export class PathHelper {
    * @returns True if external path
    */
   static isExternalPath(path: string): boolean {
-    return path.startsWith('/@/')
+    return path.startsWith("/@/")
   }
 
   /**
@@ -50,11 +50,10 @@ export class PathHelper {
     folderName: string
     relativePath: string[]
   } {
-    const parts = decodeURIComponent(path).split('/').filter(Boolean)
+    const parts = decodeURIComponent(path).split("/").filter(Boolean)
     return {
       folderName: parts[1], // After /@/
-      relativePath: parts.slice(2)
+      relativePath: parts.slice(2),
     }
   }
 }
-

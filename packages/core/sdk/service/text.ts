@@ -3,22 +3,20 @@ import type { TableManager } from "../table"
 import type { IField } from "../../types/IField"
 import type { TextProperty } from "../../fields/text"
 
-
 export interface IVecMeta {
-    updateAt: number
-    outOfDate: boolean
+  updateAt: number
+  outOfDate: boolean
 }
 
 export class TextFieldService {
-    dataSpace: DataSpaceWithTable
-    constructor(private table: TableManager) {
-        this.dataSpace = this.table.dataSpace
-    }
+  dataSpace: DataSpaceWithTable
+  constructor(private table: TableManager) {
+    this.dataSpace = this.table.dataSpace
+  }
 
-
-    queryEmbedding = async (fieldId: string, query: string, limit = 10) => {
-        const vectorColumnName = `${fieldId}__vec`
-        const sql = `
+  queryEmbedding = async (fieldId: string, query: string, limit = 10) => {
+    const vectorColumnName = `${fieldId}__vec`
+    const sql = `
 select
   _id,
   ${fieldId},
@@ -27,15 +25,18 @@ select
 from ${this.table.rawTableName} where ${vectorColumnName} is not null
 order by distance limit ${limit};`
 
-        const result = await this.dataSpace.exec2(sql)
-        return result
-    }
+    const result = await this.dataSpace.exec2(sql)
+    return result
+  }
 
-    updateEmbedding = async (fieldId: string, data: { recordId: string, value: string }[]) => {
-        const vectorColumnName = `${fieldId}__vec`
-        const vectorMetaColumnName = `${fieldId}__vec_meta`
+  updateEmbedding = async (
+    fieldId: string,
+    data: { recordId: string; value: string }[]
+  ) => {
+    const vectorColumnName = `${fieldId}__vec`
+    const vectorMetaColumnName = `${fieldId}__vec_meta`
 
-        const stmt = this.dataSpace.db.prepare(`
+    const stmt = this.dataSpace.db.prepare(`
             update ${this.table.rawTableName} 
             set 
                 ${vectorColumnName} = vec_f32(?),
@@ -45,84 +46,92 @@ order by distance limit ${limit};`
                 )
             where _id = ?
         `)
-        for (const item of data) {
-            try {
-                stmt.run([item.value, item.recordId])
-            } catch (error) {
-                console.error('Error updating embedding:', error)
-                console.log('Data:', {
-                    recordId: item.recordId,
-                })
-                throw error
-            }
-        }
+    for (const item of data) {
+      try {
+        stmt.run([item.value, item.recordId])
+      } catch (error) {
+        console.error("Error updating embedding:", error)
+        console.log("Data:", {
+          recordId: item.recordId,
+        })
+        throw error
+      }
     }
+  }
 
-    resetEmbedding = async (fieldId: string) => {
-        const vectorColumnName = `${fieldId}__vec`
-        const vectorMetaColumnName = `${fieldId}__vec_meta`
+  resetEmbedding = async (fieldId: string) => {
+    const vectorColumnName = `${fieldId}__vec`
+    const vectorMetaColumnName = `${fieldId}__vec_meta`
 
-        // Clear the vector data in the table
-        const sql = `
+    // Clear the vector data in the table
+    const sql = `
             UPDATE ${this.table.rawTableName}
             SET 
                 ${vectorColumnName} = NULL,
                 ${vectorMetaColumnName} = NULL
         `
-        await this.dataSpace.exec(sql)
+    await this.dataSpace.exec(sql)
 
-        // Clear the model property from the field definition
-        const currentField = await this.dataSpace.column.getColumn(this.table.rawTableName, fieldId);
-        if (currentField && currentField.property?.model) {
-            const updatedProperty = { ...currentField.property, model: null };
-            await this.dataSpace.column.updateProperty({
-                tableName: this.table.rawTableName,
-                tableColumnName: fieldId,
-                property: updatedProperty,
-                type: currentField.type
-            });
-        }
+    // Clear the model property from the field definition
+    const currentField = await this.dataSpace.column.getColumn(
+      this.table.rawTableName,
+      fieldId
+    )
+    if (currentField && currentField.property?.model) {
+      const updatedProperty = { ...currentField.property, model: null }
+      await this.dataSpace.column.updateProperty({
+        tableName: this.table.rawTableName,
+        tableColumnName: fieldId,
+        property: updatedProperty,
+        type: currentField.type,
+      })
+    }
+  }
+
+  // ... existing code ...
+  onPropertyChange = async (
+    oldField: IField<TextProperty>,
+    property: TextProperty
+  ) => {
+    const { table_column_name, table_name } = oldField
+    const vectorColumnName = `${table_column_name}__vec`
+    const vectorMetaColumnName = `${table_column_name}__vec_meta`
+    const isEnableEmbedding =
+      property.enableEmbedding && !oldField.property?.enableEmbedding
+
+    if (!isEnableEmbedding) {
+      return
     }
 
-    // ... existing code ...
-    onPropertyChange = async (oldField: IField<TextProperty>, property: TextProperty) => {
-        const { table_column_name, table_name } = oldField
-        const vectorColumnName = `${table_column_name}__vec`
-        const vectorMetaColumnName = `${table_column_name}__vec_meta`
-        const isEnableEmbedding = property.enableEmbedding && !oldField.property?.enableEmbedding
-
-        if (!isEnableEmbedding) {
-            return
-        }
-
-        // Check if vector columns exist
-        const checkColumnsSql = `
+    // Check if vector columns exist
+    const checkColumnsSql = `
         SELECT name FROM pragma_table_info('${table_name}') 
         WHERE name IN ('${vectorColumnName}', '${vectorMetaColumnName}')
     `
-        const existingColumns = await this.dataSpace.exec2(checkColumnsSql)
-        const existingColumnNames = existingColumns.map((col: any) => col.name)
+    const existingColumns = await this.dataSpace.exec2(checkColumnsSql)
+    const existingColumnNames = existingColumns.map((col: any) => col.name)
 
-        // Create vector column if it doesn't exist
-        if (!existingColumnNames.includes(vectorColumnName)) {
-            await this.dataSpace.exec(`
+    // Create vector column if it doesn't exist
+    if (!existingColumnNames.includes(vectorColumnName)) {
+      await this.dataSpace.exec(`
             ALTER TABLE ${table_name} 
             ADD COLUMN ${vectorColumnName} BLOB
         `)
-        }
+    }
 
-        // Create vector meta column if it doesn't exist
-        if (!existingColumnNames.includes(vectorMetaColumnName)) {
-            await this.dataSpace.exec(`
+    // Create vector meta column if it doesn't exist
+    if (!existingColumnNames.includes(vectorMetaColumnName)) {
+      await this.dataSpace.exec(`
             ALTER TABLE ${table_name} 
             ADD COLUMN ${vectorMetaColumnName} TEXT
         `)
-        }
+    }
 
-        // Create or replace trigger for updating vec_meta
-        const triggerName = `${table_name}_${table_column_name}_update_trigger`
-        this.dataSpace.db.exec(`DROP TRIGGER IF EXISTS ${triggerName};`)
-        this.dataSpace.db.prepare(`
+    // Create or replace trigger for updating vec_meta
+    const triggerName = `${table_name}_${table_column_name}_update_trigger`
+    this.dataSpace.db.exec(`DROP TRIGGER IF EXISTS ${triggerName};`)
+    this.dataSpace.db
+      .prepare(`
             CREATE TRIGGER ${triggerName}
             AFTER UPDATE OF ${table_column_name} ON ${table_name}
             BEGIN
@@ -141,71 +150,72 @@ order by distance limit ${limit};`
                     END
                 WHERE _id = NEW._id;
             END;
-        `).run()
-    }
+        `)
+      .run()
+  }
 
-    /**
- * when user delete a link field, we also need to delete the paired link field and delete relation data
- */
-    async beforeDeleteColumn(
-        tableName: string,
-        columnName: string,
-        db = this.dataSpace.db
-    ) {
-        const field = await this.dataSpace.column.getColumn(tableName, columnName)
-        if (!field) return
-        const vectorColumnName = `${columnName}__vec`
-        const vectorMetaColumnName = `${columnName}__vec_meta`
+  /**
+   * when user delete a link field, we also need to delete the paired link field and delete relation data
+   */
+  async beforeDeleteColumn(
+    tableName: string,
+    columnName: string,
+    db = this.dataSpace.db
+  ) {
+    const field = await this.dataSpace.column.getColumn(tableName, columnName)
+    if (!field) return
+    const vectorColumnName = `${columnName}__vec`
+    const vectorMetaColumnName = `${columnName}__vec_meta`
 
-        // Check if vector columns exist before attempting to drop them
-        const checkColumnsSql = `
+    // Check if vector columns exist before attempting to drop them
+    const checkColumnsSql = `
             SELECT name FROM pragma_table_info('${tableName}') 
             WHERE name IN ('${vectorColumnName}', '${vectorMetaColumnName}')
         `
-        const existingColumns = await this.dataSpace.exec2(checkColumnsSql)
-        const existingColumnNames = existingColumns.map((col: any) => col.name)
+    const existingColumns = await this.dataSpace.exec2(checkColumnsSql)
+    const existingColumnNames = existingColumns.map((col: any) => col.name)
 
-        // Drop the vector column if it exists
-        if (existingColumnNames.includes(vectorColumnName)) {
-            try {
-                db.exec(`ALTER TABLE ${tableName} DROP COLUMN ${vectorColumnName}`);
-            } catch (error: any) {
-                console.error(`Error dropping vector column: ${error.message}`);
-            }
-        }
-
-        // Drop the vector meta column if it exists
-        if (existingColumnNames.includes(vectorMetaColumnName)) {
-            try {
-                db.exec(`ALTER TABLE ${tableName} DROP COLUMN ${vectorMetaColumnName}`);
-            } catch (error: any) {
-                console.error(`Error dropping vector meta column: ${error.message}`);
-            }
-        }
-
-        // Drop the trigger if it exists
-        const triggerName = `${tableName}_${columnName}_update_trigger`
-        db.exec(`DROP TRIGGER IF EXISTS ${triggerName};`)
+    // Drop the vector column if it exists
+    if (existingColumnNames.includes(vectorColumnName)) {
+      try {
+        db.exec(`ALTER TABLE ${tableName} DROP COLUMN ${vectorColumnName}`)
+      } catch (error: any) {
+        console.error(`Error dropping vector column: ${error.message}`)
+      }
     }
 
-    /**
-     * Get statistics about the embedding status for a text field
-     * @param fieldId The field ID to get statistics for
-     * @returns Statistics about vectorization status
-     */
-    async getEmbeddingStats(fieldId: string): Promise<{
-        total: number
-        vectorized: number
-        outdated: number
-        upToDate: number
-        vectorizedPercentage: number
-        outdatedPercentage: number
-        upToDatePercentage: number
-    }> {
-        const vectorColumnName = `${fieldId}__vec`
-        const vectorMetaColumnName = `${fieldId}__vec_meta`
+    // Drop the vector meta column if it exists
+    if (existingColumnNames.includes(vectorMetaColumnName)) {
+      try {
+        db.exec(`ALTER TABLE ${tableName} DROP COLUMN ${vectorMetaColumnName}`)
+      } catch (error: any) {
+        console.error(`Error dropping vector meta column: ${error.message}`)
+      }
+    }
 
-        const sql = `
+    // Drop the trigger if it exists
+    const triggerName = `${tableName}_${columnName}_update_trigger`
+    db.exec(`DROP TRIGGER IF EXISTS ${triggerName};`)
+  }
+
+  /**
+   * Get statistics about the embedding status for a text field
+   * @param fieldId The field ID to get statistics for
+   * @returns Statistics about vectorization status
+   */
+  async getEmbeddingStats(fieldId: string): Promise<{
+    total: number
+    vectorized: number
+    outdated: number
+    upToDate: number
+    vectorizedPercentage: number
+    outdatedPercentage: number
+    upToDatePercentage: number
+  }> {
+    const vectorColumnName = `${fieldId}__vec`
+    const vectorMetaColumnName = `${fieldId}__vec_meta`
+
+    const sql = `
         WITH stats AS (
             SELECT 
                 COUNT(*) as total,
@@ -233,7 +243,7 @@ order by distance limit ${limit};`
             ROUND(CAST(upToDate AS FLOAT) / CAST(vectorized AS FLOAT) * 100, 2) as upToDatePercentage
         FROM stats;`
 
-        const result = await this.dataSpace.exec2(sql)
-        return result[0]
-    }
+    const result = await this.dataSpace.exec2(sql)
+    return result[0]
+  }
 }

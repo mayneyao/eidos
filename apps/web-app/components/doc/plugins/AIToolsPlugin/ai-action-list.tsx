@@ -14,13 +14,16 @@ export enum AIActionEnum {
   TRY_AGAIN = "try_again",
 }
 
-const AIActionDisplay = Object.values(AIActionEnum).reduce((acc, key) => {
-  acc[key] = key
-    .split("_")
-    .join(" ")
-    .replace(/\b\w/g, (l) => l.toUpperCase())
-  return acc
-}, {} as Record<string, string>)
+const AIActionDisplay = Object.values(AIActionEnum).reduce(
+  (acc, key) => {
+    acc[key] = key
+      .split("_")
+      .join(" ")
+      .replace(/\b\w/g, (l) => l.toUpperCase())
+    return acc
+  },
+  {} as Record<string, string>
+)
 
 interface AIActionListProps {
   onSelect: (action: AIActionEnum) => void

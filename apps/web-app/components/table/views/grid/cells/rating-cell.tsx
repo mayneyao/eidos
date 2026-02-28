@@ -1,10 +1,9 @@
 import type {
   CustomCell,
   CustomRenderer,
-  Item} from "@glideapps/glide-data-grid";
-import {
-  GridCellKind
+  Item,
 } from "@glideapps/glide-data-grid"
+import { GridCellKind } from "@glideapps/glide-data-grid"
 
 import { cn } from "@/lib/utils"
 

@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react"
 
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
-import type { ITreeNode } from "@/packages/core/types/ITreeNode";
+import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 import { getWeek, getWeekInfo, isDayPageId, isWeekNodeId } from "@/lib/utils"
 
@@ -37,15 +37,14 @@ export const useCurrentExtension = () => {
   return extension
 }
 
-
 export const useCurrentExtNodeHandleBlockId = () => {
   const node = useCurrentNode()
   const { extNodes } = useAllExtNodes()
   if (!node) return null
   if (!node.type.startsWith("ext__")) return null
-  const nodeType = node.type.split('ext__')[1]
-  const extNode = extNodes.find((extNode) =>
-    extNode.meta?.extNode?.type === nodeType
+  const nodeType = node.type.split("ext__")[1]
+  const extNode = extNodes.find(
+    (extNode) => extNode.meta?.extNode?.type === nodeType
   )
   if (!extNode) return null
   return extNode.id
@@ -124,7 +123,7 @@ export const useCurrentNodePath = ({
   if (isDayPageId(nodeId)) {
     const { week, year } = getWeekInfo(nodeId)
     const formattedWeek = week.toString().padStart(2, "0")
- 
+
     return [
       {
         id: year.toString(),

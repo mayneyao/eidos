@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from "react"
 
 interface Props {
   title: string
@@ -6,7 +6,11 @@ interface Props {
   onUpdate?: (value: number) => void
 }
 
-export const TestComponent: React.FC<Props> = ({ title, count = 0, onUpdate }) => {
+export const TestComponent: React.FC<Props> = ({
+  title,
+  count = 0,
+  onUpdate,
+}) => {
   const [value, setValue] = useState(count)
   const [isVisible, setIsVisible] = useState(true)
 
@@ -17,11 +21,11 @@ export const TestComponent: React.FC<Props> = ({ title, count = 0, onUpdate }) =
   }, [value, onUpdate])
 
   const handleIncrement = () => {
-    setValue(prev => prev + 1)
+    setValue((prev) => prev + 1)
   }
 
   const handleDecrement = () => {
-    setValue(prev => prev - 1)
+    setValue((prev) => prev - 1)
   }
 
   if (!isVisible) {
@@ -36,9 +40,7 @@ export const TestComponent: React.FC<Props> = ({ title, count = 0, onUpdate }) =
         <span>{value}</span>
         <button onClick={handleIncrement}>+</button>
       </div>
-      <button onClick={() => setIsVisible(false)}>
-        Hide Component
-      </button>
+      <button onClick={() => setIsVisible(false)}>Hide Component</button>
     </div>
   )
 }

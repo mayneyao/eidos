@@ -15,43 +15,43 @@ const rows = await Users.findMany()
 // Note: Use Database Column Names (not Field Names) in the where clause
 const filteredRows = await Users.findMany({
   where: {
-    title: "123"  // title is the database column name
-  }
+    title: "123", // title is the database column name
+  },
 })
 
 // Advanced query with ordering, pagination and field selection
 const advancedRows = await Users.findMany({
   where: {
-    status: "active"  // status is the database column name
+    status: "active", // status is the database column name
   },
   orderBy: {
-    _created_time: "desc"  // _created_time is the database column name
+    _created_time: "desc", // _created_time is the database column name
   },
   skip: 10,
-  take: 20
+  take: 20,
 })
 
 // Count rows matching a condition
 const count = await Users.count({
   where: {
-    status: "active"  // status is the database column name
-  }
+    status: "active", // status is the database column name
+  },
 })
 
 // Create a new row
 const newUser = await Users.create({
-  data: { name: "张三", status: "active" }
+  data: { name: "张三", status: "active" },
 })
 
 // Update a row by _id
 await Users.update({
   where: { _id: "rowId" },
-  data: { status: "inactive" }
+  data: { status: "inactive" },
 })
 
 // Delete a row by _id
 await Users.delete({
-  where: { _id: "rowId" }
+  where: { _id: "rowId" },
 })
 ```
 
@@ -62,6 +62,7 @@ NOTE: don't use `eidos.currentSpace.table(...).findMany` to query data unless yo
 - every table has a `_id` field, you can use it to identify a record.
 
 **Important**: There are two naming systems in Eidos:
+
 - **Field Name**: The human-readable name shown in the UI (e.g., "Title", "Status")
 - **Database Column Name**: The internal database column name (e.g., "title", "status")
 

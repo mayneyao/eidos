@@ -74,9 +74,11 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
 }) => {
   const [isInitialized, setIsInitialized] = useState(false)
   const dynamicPluginManager = useRef<DynamicPluginManager | null>(null)
-  
+
   // Debug: Log component lifecycle
-  console.log(`🔍 SimpleCodeEditor render - fileName: ${fileName}, initialized: ${isInitialized}`)
+  console.log(
+    `🔍 SimpleCodeEditor render - fileName: ${fileName}, initialized: ${isInitialized}`
+  )
 
   // Internal state to manage dynamically discovered dependencies
   const [dependencies, setDependencies] = useState<FileModel[]>([])
@@ -92,9 +94,11 @@ export const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
       if (getDeps) {
         const deps = await getDeps(code)
         const depsFiles = (deps || []).map((dp) => {
-          const extension = dp.ext || 'ts'
-          const path = dp.slug.endsWith(`.${extension}`) ? dp.slug : `${dp.slug}.${extension}`
-          
+          const extension = dp.ext || "ts"
+          const path = dp.slug.endsWith(`.${extension}`)
+            ? dp.slug
+            : `${dp.slug}.${extension}`
+
           return {
             id: dp.id,
             name: path,

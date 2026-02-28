@@ -19,7 +19,6 @@ export class CheckboxField extends BaseField<
       CompareOperator.NotEqual,
       CompareOperator.IsEmpty,
       CompareOperator.IsNotEmpty,
-
     ]
   }
   rawData2JSON(rawData: number) {

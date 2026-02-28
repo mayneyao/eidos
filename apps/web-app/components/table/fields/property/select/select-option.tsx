@@ -49,7 +49,9 @@ export const SelectOption = ({
   }
 
   const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id: option.id })
+    useSortable({
+      id: option.id,
+    })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -75,10 +77,7 @@ export const SelectOption = ({
           <div
             className="cursor-pointer rounded-sm px-[6px]"
             style={{
-              background: `${SelectField.getColorValue(
-                option.color,
-                resolvedTheme as any
-              )}`,
+              background: `${SelectField.getColorValue(option.color, resolvedTheme as any)}`,
             }}
           >
             {option.name}

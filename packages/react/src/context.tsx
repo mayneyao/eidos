@@ -29,9 +29,7 @@ export const useEidosStore = create<EidosState>()((set) => ({
  * @param dataSpace - The DataSpace worker proxy (accepts any to avoid type mismatch between source/dist)
  * @returns Eidos interface
  */
-export function createEidos(
-  dataSpace: any
-): Eidos {
+export function createEidos(dataSpace: any): Eidos {
   return {
     currentSpace: dataSpace as DataSpace,
 

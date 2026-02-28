@@ -1,5 +1,5 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import type { LexicalCommand} from "lexical";
+import type { LexicalCommand } from "lexical"
 import { COMMAND_PRIORITY_EDITOR, createCommand } from "lexical"
 import { useEffect } from "react"
 

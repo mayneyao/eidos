@@ -5,23 +5,23 @@ on:
     branches:
       - dev
     paths:
-      - 'apps/headless/**'
-      - 'packages/**'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/docker-build-headless.yml'
+      - "apps/headless/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/docker-build-headless.yml"
   pull_request:
     branches:
       - dev
     paths:
-      - 'apps/headless/**'
+      - "apps/headless/**"
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       push_image:
-        description: 'Push image to registry'
+        description: "Push image to registry"
         required: false
-        default: 'false'
+        default: "false"
         type: boolean
 
 env:

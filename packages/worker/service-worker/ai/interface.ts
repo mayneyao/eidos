@@ -14,13 +14,13 @@ export interface IData {
   space: string // dataspace name
   projectId?: string
   useTools?: boolean
-  type?: LLMProvider['type']
+  type?: LLMProvider["type"]
   textModel?: {
-    baseUrl: string;
-    apiKey: string;
-    modelId: string;
-    type?: undefined;
+    baseUrl: string
+    apiKey: string
+    modelId: string
+    type?: undefined
   }
-  chunking?: 'word' | 'line' | RegExp;
-  tools?: Record<string, Tool>;
+  chunking?: "word" | "line" | RegExp
+  tools?: Record<string, Tool>
 }

@@ -8,7 +8,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { useExtensionSidebarStore } from "@/apps/web-app/store/extension-store"
-import type { ExtensionSortField, ExtensionSortOrder } from "@/apps/web-app/store/extension-store"
+import type {
+  ExtensionSortField,
+  ExtensionSortOrder,
+} from "@/apps/web-app/store/extension-store"
 
 export const ExtensionSortDropdown = () => {
   const { sortField, sortOrder, setSort } = useExtensionSidebarStore()
@@ -53,9 +56,7 @@ export const ExtensionSortDropdown = () => {
         <DropdownMenuItem
           onClick={() => handleSortChange("created_at", "DESC")}
           className={cn(
-            sortField === "created_at" &&
-              sortOrder === "DESC" &&
-              "bg-accent"
+            sortField === "created_at" && sortOrder === "DESC" && "bg-accent"
           )}
         >
           <span className="flex-1 whitespace-nowrap">Newest First</span>
@@ -66,9 +67,7 @@ export const ExtensionSortDropdown = () => {
         <DropdownMenuItem
           onClick={() => handleSortChange("created_at", "ASC")}
           className={cn(
-            sortField === "created_at" &&
-              sortOrder === "ASC" &&
-              "bg-accent"
+            sortField === "created_at" && sortOrder === "ASC" && "bg-accent"
           )}
         >
           <span className="flex-1 whitespace-nowrap">Oldest First</span>
@@ -79,14 +78,10 @@ export const ExtensionSortDropdown = () => {
         <DropdownMenuItem
           onClick={() => handleSortChange("updated_at", "DESC")}
           className={cn(
-            sortField === "updated_at" &&
-              sortOrder === "DESC" &&
-              "bg-accent"
+            sortField === "updated_at" && sortOrder === "DESC" && "bg-accent"
           )}
         >
-          <span className="flex-1 whitespace-nowrap">
-            Recently Updated
-          </span>
+          <span className="flex-1 whitespace-nowrap">Recently Updated</span>
           {sortField === "updated_at" && sortOrder === "DESC" && (
             <CheckIcon className="h-4 w-4" />
           )}
@@ -94,14 +89,10 @@ export const ExtensionSortDropdown = () => {
         <DropdownMenuItem
           onClick={() => handleSortChange("updated_at", "ASC")}
           className={cn(
-            sortField === "updated_at" &&
-              sortOrder === "ASC" &&
-              "bg-accent"
+            sortField === "updated_at" && sortOrder === "ASC" && "bg-accent"
           )}
         >
-          <span className="flex-1 whitespace-nowrap">
-            Least Updated
-          </span>
+          <span className="flex-1 whitespace-nowrap">Least Updated</span>
           {sortField === "updated_at" && sortOrder === "ASC" && (
             <CheckIcon className="h-4 w-4" />
           )}

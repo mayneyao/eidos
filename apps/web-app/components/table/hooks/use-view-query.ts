@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import type { SelectFromStatement} from "pgsql-ast-parser";
+import type { SelectFromStatement } from "pgsql-ast-parser"
 import { parseFirst, toSql } from "pgsql-ast-parser"
 
 import type { IView } from "@/packages/core/types/IView"

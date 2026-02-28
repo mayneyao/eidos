@@ -19,9 +19,7 @@ describe("buildSQl", () => {
 
   test("buildSQl with table name and number/string var", () => {
     expect(
-      buildSql`select * from ${Symbol(
-        "books"
-      )} where id = ${42} and name = ${"hello"}`
+      buildSql`select * from ${Symbol("books")} where id = ${42} and name = ${"hello"}`
     ).toStrictEqual({
       sql: "select * from books where id = ? and name = ?",
       bind: [42, "hello"],

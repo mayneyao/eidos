@@ -53,26 +53,28 @@ export const usePersistFolderStore = create<{
   folders: Record<string, boolean>
   toggleFolder: (id: string) => void
   closeFolder: (id: string) => void
-}>()(persist(
-  (set) => ({
-
-    folders: {},
-    toggleFolder: (id: string) =>
-      set((state) => ({
-        folders: {
-          ...state.folders,
-          [id]: !state.folders[id],
-        },
-      })),
-    closeFolder: (id: string) =>
-      set((state) => ({
-        folders: {
-          ...state.folders,
-          [id]: false,
-        },
-      })),
-  }), {
-  name: "folder-persist",
-  getStorage: () => localStorage,
-  }
-))
+}>()(
+  persist(
+    (set) => ({
+      folders: {},
+      toggleFolder: (id: string) =>
+        set((state) => ({
+          folders: {
+            ...state.folders,
+            [id]: !state.folders[id],
+          },
+        })),
+      closeFolder: (id: string) =>
+        set((state) => ({
+          folders: {
+            ...state.folders,
+            [id]: false,
+          },
+        })),
+    }),
+    {
+      name: "folder-persist",
+      getStorage: () => localStorage,
+    }
+  )
+)

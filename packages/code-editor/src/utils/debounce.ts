@@ -4,14 +4,11 @@ export interface DebounceOptions {
   maxWait?: number
 }
 
-
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
   options: DebounceOptions | number
 ): (...args: Parameters<T>) => void {
-  const config = typeof options === 'number'
-    ? { delay: options }
-    : options
+  const config = typeof options === "number" ? { delay: options } : options
 
   let timeout: NodeJS.Timeout | null = null
   let maxTimeout: NodeJS.Timeout | null = null
@@ -74,14 +71,12 @@ export const EditorDebounceConfig = {
   },
 } as const
 
-
 export function createEditorDebounce<T extends (...args: any[]) => any>(
   func: T,
   type: keyof typeof EditorDebounceConfig
 ): (...args: Parameters<T>) => void {
   return debounce(func, EditorDebounceConfig[type])
 }
-
 
 export function throttle<T extends (...args: any[]) => any>(
   func: T,
@@ -109,7 +104,6 @@ export function throttle<T extends (...args: any[]) => any>(
     }
   }
 }
-
 
 export function debounceThrottle<T extends (...args: any[]) => any>(
   func: T,

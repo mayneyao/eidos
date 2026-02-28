@@ -10,7 +10,6 @@ import { isDesktopMode } from "@/lib/env"
 import { getSqliteChannel } from "@/packages/core/sqlite/channel"
 import { generateObject, generateText, jsonSchema } from "ai"
 
-
 export enum ExtMsgType {
   // incoming msg
   loadExtension = "loadExtension",
@@ -62,7 +61,6 @@ export const useExtMsg = (source: ExtensionSourceType) => {
       }
       const { type, name } = event.data
       switch (type) {
-
         case ExtMsgType.scriptCallMain:
           // script container => main thread, does not include database operation
           console.log("receive script call main", event.data)

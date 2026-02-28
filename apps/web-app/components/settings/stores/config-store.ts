@@ -21,10 +21,10 @@ export interface ProfileFormValues {
 }
 
 export interface ApiKey {
-  id: string;
-  name: string;
-  value: string;
-  createdAt: string; // Optional: for sorting or display
+  id: string
+  name: string
+  value: string
+  createdAt: string // Optional: for sorting or display
 }
 
 interface ConfigState {
@@ -33,7 +33,6 @@ interface ConfigState {
 
   backupServer: BackupServerFormValues
   setBackupServer: (backupServer: BackupServerFormValues) => void
-
 }
 
 export const useConfigStore = create<ConfigState>()(

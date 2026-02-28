@@ -11,6 +11,7 @@ Implemented `eidos graft init` command in the CLI to convert Eidos spaces to use
 **Main Function:** `graftInitCommand(options: GraftInitOptions)`
 
 **Key Features:**
+
 - Validates the space exists and has a valid database
 - Accepts credentials via command-line options or environment variables
 - Loads the graft SQLite extension
@@ -20,6 +21,7 @@ Implemented `eidos graft init` command in the CLI to convert Eidos spaces to use
 - Updates `~/.eidos/spaces.json` with volumeId
 
 **Process Flow:**
+
 ```
 1. Validate space path and database existence
 2. Get S3 credentials (from options or env vars)
@@ -36,11 +38,13 @@ Implemented `eidos graft init` command in the CLI to convert Eidos spaces to use
 ### 2. CLI Integration: `src/index.ts`
 
 Added graft command with subcommand structure:
+
 ```bash
 eidos graft init [path] [options]
 ```
 
 **Options:**
+
 - `-r, --remote <url>` - Remote graft URL
 - `--access-key-id <key>` - AWS access key ID
 - `--secret-access-key <key>` - AWS secret access key
@@ -50,12 +54,14 @@ eidos graft init [path] [options]
 ### 3. Package Dependencies: `package.json`
 
 Added required dependencies:
+
 - Bun's built-in SQLite (`bun:sqlite`) - For SQLite database operations with extension support
 - `@eidos.space/sync` - For graft helper functions (parseGraftNew)
 
 ### 4. Documentation: `README.md`
 
 Added comprehensive documentation including:
+
 - Command usage examples
 - Credential configuration options
 - What the command does
@@ -76,6 +82,7 @@ prefix = "space-id"
 ### Space Registry Update
 
 The command updates `~/.eidos/spaces.json` with:
+
 ```json
 {
   "spaces": [
@@ -96,6 +103,7 @@ The command updates `~/.eidos/spaces.json` with:
 ### Environment Variables
 
 The command sets these environment variables during execution:
+
 - `GRAFT_CONFIG` - Path to graft.toml
 - `AWS_ACCESS_KEY_ID` - S3 access key
 - `AWS_SECRET_ACCESS_KEY` - S3 secret key
@@ -105,6 +113,7 @@ The command sets these environment variables during execution:
 ### Error Handling
 
 The implementation includes comprehensive error handling for:
+
 - Invalid or non-existent space paths
 - Missing database files
 - Missing credentials
@@ -153,10 +162,12 @@ eidos graft init /path/to/space \
 ## Comparison with Desktop App
 
 The desktop app's `GraftDb.convertToGraft()` method has a different purpose:
+
 - **Desktop App**: Converts an existing space to use graft storage on next open (uses `@eidos.space/better-sqlite3`)
 - **CLI Command**: Immediately converts the space and initializes graft storage (uses Bun's built-in SQLite)
 
 The CLI implementation follows the pattern used in the desktop app's `NodeServerDatabase` initialization (sqlite-server/index.ts), which:
+
 1. Calls `PRAGMA graft_new` to create a volume
 2. Calls `PRAGMA graft_import` to import existing data
 3. Stores the volumeId in the space configuration
@@ -166,9 +177,11 @@ The CLI implementation follows the pattern used in the desktop app's `NodeServer
 ## Files Modified/Created
 
 ### Created:
+
 - `/workspace/apps/cli/src/commands/graft.ts` - Main graft command implementation
 
 ### Modified:
+
 - `/workspace/apps/cli/src/index.ts` - Added graft command registration
 - `/workspace/apps/cli/package.json` - Added dependencies
 - `/workspace/apps/cli/README.md` - Added documentation
@@ -176,6 +189,7 @@ The CLI implementation follows the pattern used in the desktop app's `NodeServer
 ## Future Enhancements
 
 Potential future additions to the graft command:
+
 - `eidos graft status` - Check sync status
 - `eidos graft push` - Push local changes to remote
 - `eidos graft pull` - Pull remote changes
@@ -185,6 +199,7 @@ Potential future additions to the graft command:
 ## Testing Checklist
 
 To test the implementation:
+
 - [ ] Run `eidos graft init` in a valid Eidos space
 - [ ] Verify `graft.toml` is created in `.eidos/` directory
 - [ ] Verify `.graft/` directory is created

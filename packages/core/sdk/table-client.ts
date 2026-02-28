@@ -1,5 +1,8 @@
 import { uuidv7 } from "uuidv7"
-import { SqlQueryBuilder, type FindManyOptions } from "../sqlite/sql-query-builder"
+import {
+  SqlQueryBuilder,
+  type FindManyOptions,
+} from "../sqlite/sql-query-builder"
 import { workerStore } from "../rpc"
 
 /**
@@ -18,24 +21,24 @@ interface ITableClientDataSpace {
 
 /**
  * Prisma-style Table SDK client for CRUD operations
- * 
+ *
  * This client operates directly on database column names (e.g., `cl_xxx`)
  * rather than UI display field names for simplicity and performance.
- * 
+ *
  * @example
  * ```typescript
  * const Users = eidos.currentSpace.tableClient("users")
- * 
+ *
  * // Create
  * await Users.create({ data: { cl_name: "张三", cl_email: "z@example.com" } })
- * 
+ *
  * // Read
  * const user = await Users.findUnique({ where: { _id: "rec123" } })
  * const users = await Users.findMany({ where: { cl_age: { gte: 18 } }, take: 50 })
- * 
+ *
  * // Update
  * await Users.update({ where: { _id: "rec123" }, data: { cl_age: 30 } })
- * 
+ *
  * // Delete
  * await Users.delete({ where: { _id: "rec123" } })
  * ```
@@ -83,7 +86,7 @@ export class TableClient<T extends Record<string, any> = Record<string, any>> {
     const createDatas = args.data.map((data) => this.getCreateData(data))
     const keys = Object.keys(createDatas[0])
     const placeholders = keys.map(() => "?").join(", ")
-    
+
     const insertKeyword = args.skipDuplicates ? "INSERT OR IGNORE" : "INSERT"
     const sql = `${insertKeyword} INTO ${this.rawTableName} (${keys.join(", ")}) VALUES (${placeholders})`
 
@@ -115,10 +118,12 @@ export class TableClient<T extends Record<string, any> = Record<string, any>> {
    * @param args.orderBy Optional ordering
    * @returns First matching record or null
    */
-  async findFirst(args: {
-    where?: FindManyOptions<T>["where"]
-    orderBy?: FindManyOptions<T>["orderBy"]
-  } = {}): Promise<T | null> {
+  async findFirst(
+    args: {
+      where?: FindManyOptions<T>["where"]
+      orderBy?: FindManyOptions<T>["orderBy"]
+    } = {}
+  ): Promise<T | null> {
     const { sql, params } = SqlQueryBuilder.buildFindMany(this.rawTableName, {
       where: args.where,
       orderBy: args.orderBy,
@@ -135,7 +140,10 @@ export class TableClient<T extends Record<string, any> = Record<string, any>> {
    * @returns Array of matching records
    */
   async findMany(args: FindManyOptions<T> = {}): Promise<T[]> {
-    const { sql, params } = SqlQueryBuilder.buildFindMany(this.rawTableName, args)
+    const { sql, params } = SqlQueryBuilder.buildFindMany(
+      this.rawTableName,
+      args
+    )
     const rows = await this.dataSpace.exec2(sql, params)
     return rows as T[]
   }
@@ -145,10 +153,14 @@ export class TableClient<T extends Record<string, any> = Record<string, any>> {
    * @param args.where Optional where conditions
    * @returns Count of matching records
    */
-  async count(args: { where?: FindManyOptions<T>["where"] } = {}): Promise<number> {
+  async count(
+    args: { where?: FindManyOptions<T>["where"] } = {}
+  ): Promise<number> {
     const { countSql, countParams } = SqlQueryBuilder.buildFindMany(
       this.rawTableName,
-      { where: args.where }
+      {
+        where: args.where,
+      }
     )
     const result = await this.dataSpace.exec2(countSql, countParams)
     return result[0]?.count || 0
@@ -168,7 +180,7 @@ export class TableClient<T extends Record<string, any> = Record<string, any>> {
   }): Promise<T | null> {
     const updateData = this.getUpdateData(args.data)
     const keys = Object.keys(updateData)
-    
+
     if (keys.length === 0) {
       return await this.findUnique({ where: args.where })
     }
@@ -195,13 +207,15 @@ export class TableClient<T extends Record<string, any> = Record<string, any>> {
   }): Promise<{ count: number }> {
     const updateData = this.getUpdateData(args.data)
     const keys = Object.keys(updateData)
-    
+
     if (keys.length === 0) {
       return { count: 0 }
     }
 
     const setClause = keys.map((key) => `${key} = ?`).join(", ")
-    const { whereClause, params: whereParams } = this.buildWhereFromOptions(args.where)
+    const { whereClause, params: whereParams } = this.buildWhereFromOptions(
+      args.where
+    )
 
     let sql = `UPDATE ${this.rawTableName} SET ${setClause}`
     if (whereClause) {
@@ -247,7 +261,7 @@ export class TableClient<T extends Record<string, any> = Record<string, any>> {
   }): Promise<{ count: number }> {
     // Get count before deletion
     const count = await this.count({ where: args.where })
-    
+
     if (count === 0) {
       return { count: 0 }
     }
@@ -267,7 +281,9 @@ export class TableClient<T extends Record<string, any> = Record<string, any>> {
 
   // ============ PRIVATE HELPERS ============
 
-  private getCreateData(data: T): T & { _id: string; _created_by?: string; _last_edited_by?: string } {
+  private getCreateData(
+    data: T
+  ): T & { _id: string; _created_by?: string; _last_edited_by?: string } {
     return {
       _id: uuidv7(),
       _created_by: workerStore.currentCallUserId,
@@ -276,7 +292,9 @@ export class TableClient<T extends Record<string, any> = Record<string, any>> {
     } as T & { _id: string; _created_by?: string; _last_edited_by?: string }
   }
 
-  private getUpdateData(data: Partial<T>): Partial<T> & { _last_edited_time: string; _last_edited_by?: string } {
+  private getUpdateData(
+    data: Partial<T>
+  ): Partial<T> & { _last_edited_time: string; _last_edited_by?: string } {
     const { _id, _created_by, _created_time, ...restData } = data as any
     return {
       ...restData,
@@ -288,18 +306,23 @@ export class TableClient<T extends Record<string, any> = Record<string, any>> {
     }
   }
 
-  private buildWhereFromOptions(where: FindManyOptions<T>["where"]): { whereClause: string; params: any[] } {
+  private buildWhereFromOptions(where: FindManyOptions<T>["where"]): {
+    whereClause: string
+    params: any[]
+  } {
     if (!where || Object.keys(where).length === 0) {
       return { whereClause: "", params: [] }
     }
 
     // Use SqlQueryBuilder's where clause building
-    const { sql, params } = SqlQueryBuilder.buildFindMany(this.rawTableName, { where })
-    
+    const { sql, params } = SqlQueryBuilder.buildFindMany(this.rawTableName, {
+      where,
+    })
+
     // Extract WHERE clause from the full SQL
     const whereMatch = sql.match(/WHERE (.+?)(ORDER BY|LIMIT|OFFSET|;|$)/i)
     const whereClause = whereMatch ? whereMatch[1].trim() : ""
-    
+
     return { whereClause, params }
   }
 }

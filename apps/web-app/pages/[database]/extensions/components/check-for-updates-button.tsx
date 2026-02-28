@@ -49,7 +49,9 @@ export const CheckForUpdatesButton = ({
     setRemoteCode(null)
     setNewVersionString(null)
     setPendingVersionUpdate(script.id, null) // Clear any previous pending version
-    setUpdateMessage(t("extension.checkForUpdates.checking", "Checking for updates..."))
+    setUpdateMessage(
+      t("extension.checkForUpdates.checking", "Checking for updates...")
+    )
     setDialogOpen(true) // Open dialog when checking starts
 
     try {
@@ -65,7 +67,9 @@ export const CheckForUpdatesButton = ({
           ? t(
               "extension.checkForUpdates.currentVersion",
               "(current: {{version}})",
-              { version: script.version }
+              {
+                version: script.version,
+              }
             )
           : ""
 
@@ -177,8 +181,8 @@ export const CheckForUpdatesButton = ({
               {isChecking
                 ? t("common.loading", "Loading...")
                 : remoteCode
-                ? t("extension.checkForUpdates.viewChanges", "View Changes")
-                : t("common.ok", "OK")}
+                  ? t("extension.checkForUpdates.viewChanges", "View Changes")
+                  : t("common.ok", "OK")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

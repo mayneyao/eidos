@@ -1,7 +1,7 @@
 import { ColumnTableName, ReferenceTableName } from "../sqlite/const"
 import type { IField } from "../types/IField"
 
-import type { BaseTable} from "./base";
+import type { BaseTable } from "./base"
 import { BaseTableImpl } from "./base"
 
 export interface IReference {

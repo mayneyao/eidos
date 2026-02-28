@@ -91,4 +91,3 @@ export function needsDocumentPathMigration(content: string): boolean {
     return false
   }
 }
-

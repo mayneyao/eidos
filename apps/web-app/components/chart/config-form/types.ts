@@ -17,7 +17,10 @@ export type DataScriptConfig = {
   scriptId: string
 }
 
-export type DataSourceConfig = DataRawConfig | DataTableConfig | DataScriptConfig
+export type DataSourceConfig =
+  | DataRawConfig
+  | DataTableConfig
+  | DataScriptConfig
 
 export interface DataTransform {
   type: "filter" | "sort" | "aggregate"
@@ -30,4 +33,4 @@ export interface DataTransform {
     aggregateFunction?: "sum" | "avg" | "count"
     groupByColumn?: string
   }
-} 
+}

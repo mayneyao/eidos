@@ -51,7 +51,10 @@ class TableRequestManager {
     // Create a new request
     const request = this.executeRequestInternal(tableId, requestFn)
     // Convert Promise<T> to Promise<void> for storage
-    this.setPendingRequest(tableId, request.then(() => {}))
+    this.setPendingRequest(
+      tableId,
+      request.then(() => {})
+    )
 
     try {
       const result = await request

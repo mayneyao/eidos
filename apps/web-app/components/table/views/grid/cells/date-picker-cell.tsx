@@ -1,11 +1,6 @@
 import * as React from "react"
-import type {
-  CustomCell,
-  CustomRenderer} from "@glideapps/glide-data-grid";
-import {
-  GridCellKind,
-  drawTextCell,
-} from "@glideapps/glide-data-grid"
+import type { CustomCell, CustomRenderer } from "@glideapps/glide-data-grid"
+import { GridCellKind, drawTextCell } from "@glideapps/glide-data-grid"
 
 import { Calendar } from "@/components/ui/calendar"
 

@@ -1,4 +1,4 @@
-import type { LimitStatement, SelectFromStatement} from "pgsql-ast-parser";
+import type { LimitStatement, SelectFromStatement } from "pgsql-ast-parser"
 import { astMapper, parseFirst, toSql } from "pgsql-ast-parser"
 import { getFilterColumns } from "./sql-filter-parser"
 import { getSortColumns } from "./sql-sort-parser"
@@ -13,7 +13,6 @@ export const isFieldsInQuery = (query: string, fields: string[]) => {
   const queryFields = getQueryFields(query)
   return fields.some((f) => queryFields?.includes(f))
 }
-
 
 export const rewriteQueryWithRowId = (query: string) => {
   const ast = parseFirst(query) as SelectFromStatement
@@ -34,7 +33,11 @@ export const rewriteQueryWithRowId = (query: string) => {
   return toSql.statement(modified)
 }
 
-export const rewriteQueryWithOffsetAndLimit = (query: string, offset?: number, limit?: number) => {
+export const rewriteQueryWithOffsetAndLimit = (
+  query: string,
+  offset?: number,
+  limit?: number
+) => {
   const ast = parseFirst(query) as SelectFromStatement
   const _limit: LimitStatement = {}
   if (offset != null) {
@@ -52,8 +55,11 @@ export const rewriteQueryWithOffsetAndLimit = (query: string, offset?: number, l
 
   ast.limit = _limit
   let sql = toSql.statement(ast)
-  sql = sql.replace(/OFFSET\s*\((\d+)\)/g, 'OFFSET $1')
-  sql = sql.replace(/LIMIT\s*\((\d+)\)/g, 'LIMIT $1')
-  sql = sql.replace(/(.+?)\s*OFFSET\s*(\d+)\s*LIMIT\s*(\d+)(.*?)$/i, '$1 LIMIT $3 OFFSET $2$4')
+  sql = sql.replace(/OFFSET\s*\((\d+)\)/g, "OFFSET $1")
+  sql = sql.replace(/LIMIT\s*\((\d+)\)/g, "LIMIT $1")
+  sql = sql.replace(
+    /(.+?)\s*OFFSET\s*(\d+)\s*LIMIT\s*(\d+)(.*?)$/i,
+    "$1 LIMIT $3 OFFSET $2$4"
+  )
   return sql
 }

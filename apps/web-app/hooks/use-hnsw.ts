@@ -27,8 +27,8 @@ export class EmbeddingManager {
   async filterEmbeddings(model: string, source: string) {
     const res = await this.dataSpace
       .sql2`SELECT id, raw_content,source,source_type FROM ${Symbol(
-        EmbeddingTableName
-      )} WHERE model = ${model} AND source = ${source}`
+      EmbeddingTableName
+    )} WHERE model = ${model} AND source = ${source}`
 
     const embeddingIndexMap = new Map<number, IEmbedding>()
     const embeddings: number[][] = []
@@ -46,12 +46,15 @@ export class EmbeddingManager {
   async getMetadata(ids: string[]) {
     const res = await this.dataSpace
       .sql2`SELECT id, raw_content,source,source_type FROM ${Symbol(
-        EmbeddingTableName
-      )} WHERE id IN ${ids}`
-    const resMap = res.reduce((acc: any, row: any) => {
-      acc[row.id] = row
-      return acc
-    }, {} as Record<string, IEmbedding>)
+      EmbeddingTableName
+    )} WHERE id IN ${ids}`
+    const resMap = res.reduce(
+      (acc: any, row: any) => {
+        acc[row.id] = row
+        return acc
+      },
+      {} as Record<string, IEmbedding>
+    )
     return ids.map((id) => resMap[id])
   }
 

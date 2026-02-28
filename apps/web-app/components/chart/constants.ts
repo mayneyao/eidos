@@ -55,12 +55,16 @@ export const PRESET_COLORS = {
   //   fill: 'hsl(var(--chart-5))',
   //   stroke: 'hsl(var(--chart-5))',
   // },
-} as const;
+} as const
 
-export type PresetColor = keyof typeof PRESET_COLORS;
+export type PresetColor = keyof typeof PRESET_COLORS
 
 // Helper to get all fill colors
-export const PRESET_FILL_COLORS = Object.values(PRESET_COLORS).map(color => color.fill);
+export const PRESET_FILL_COLORS = Object.values(PRESET_COLORS).map(
+  (color) => color.fill
+)
 
 // Helper to get all stroke colors
-export const PRESET_STROKE_COLORS = Object.values(PRESET_COLORS).map(color => color.stroke);
+export const PRESET_STROKE_COLORS = Object.values(PRESET_COLORS).map(
+  (color) => color.stroke
+)

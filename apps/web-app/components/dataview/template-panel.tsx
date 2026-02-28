@@ -25,40 +25,50 @@ export const TemplatePanel = ({
   const templates = useMemo(() => getTemplates(), [])
 
   // Template categorization and filtering logic (memoized)
-  const templateCategories = useMemo(() => ({
-    all: { label: "All", icon: "🔍", count: templates.length },
-    doc: {
-      label: "Doc",
-      icon: "📄",
-      count: templates.filter((t) => t.category === "doc").length,
-    },
-    file: {
-      label: "File",
-      icon: "📁",
-      count: templates.filter((t) => t.category === "file").length,
-    },
-    system: {
-      label: "System",
-      icon: "⚙️",
-      count: templates.filter((t) => t.category === "system").length,
-    },
-  }), [templates])
+  const templateCategories = useMemo(
+    () => ({
+      all: { label: "All", icon: "🔍", count: templates.length },
+      doc: {
+        label: "Doc",
+        icon: "📄",
+        count: templates.filter((t) => t.category === "doc").length,
+      },
+      file: {
+        label: "File",
+        icon: "📁",
+        count: templates.filter((t) => t.category === "file").length,
+      },
+      system: {
+        label: "System",
+        icon: "⚙️",
+        count: templates.filter((t) => t.category === "system").length,
+      },
+    }),
+    [templates]
+  )
 
-  const filteredTemplates = useMemo(() => 
-    templates.filter((template) => {
-      const matchesSearch =
-        template.name.toLowerCase().includes(templateSearchQuery.toLowerCase()) ||
-        template.tags.some((tag) =>
-          tag.toLowerCase().includes(templateSearchQuery.toLowerCase())
-        ) ||
-        template.i18nKey.toLowerCase().includes(templateSearchQuery.toLowerCase())
+  const filteredTemplates = useMemo(
+    () =>
+      templates.filter((template) => {
+        const matchesSearch =
+          template.name
+            .toLowerCase()
+            .includes(templateSearchQuery.toLowerCase()) ||
+          template.tags.some((tag) =>
+            tag.toLowerCase().includes(templateSearchQuery.toLowerCase())
+          ) ||
+          template.i18nKey
+            .toLowerCase()
+            .includes(templateSearchQuery.toLowerCase())
 
-      if (selectedCategory === null || selectedCategory === "all") {
-        return matchesSearch
-      }
+        if (selectedCategory === null || selectedCategory === "all") {
+          return matchesSearch
+        }
 
-      return matchesSearch && template.category === selectedCategory
-    }), [templates, templateSearchQuery, selectedCategory])
+        return matchesSearch && template.category === selectedCategory
+      }),
+    [templates, templateSearchQuery, selectedCategory]
+  )
 
   if (isCollapsed) {
     return null

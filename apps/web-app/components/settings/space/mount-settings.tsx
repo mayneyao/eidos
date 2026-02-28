@@ -54,8 +54,12 @@ export function MountSettings() {
       setNewMountPath("")
       setIsDialogOpen(false)
     } catch (error) {
-      console.error('Failed to add mount:', error)
-      toast.error(error instanceof Error ? error.message : t("space.settings.mounts.addError"))
+      console.error("Failed to add mount:", error)
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t("space.settings.mounts.addError")
+      )
     }
   }
 
@@ -64,7 +68,7 @@ export function MountSettings() {
       await removeMount(mountName)
       toast.success(t("space.settings.mounts.removeSuccess"))
     } catch (error) {
-      console.error('Failed to remove mount:', error)
+      console.error("Failed to remove mount:", error)
       toast.error(t("space.settings.mounts.removeError"))
     }
   }
@@ -77,17 +81,20 @@ export function MountSettings() {
       }
     } catch (error) {
       // User cancelled the picker
-      console.log('Directory selection cancelled')
+      console.log("Directory selection cancelled")
     }
   }
 
   const handleOpenFolder = async (mountPath: string) => {
     try {
-      if (typeof window.eidos !== "undefined" && window.eidos.showInFileManager) {
+      if (
+        typeof window.eidos !== "undefined" &&
+        window.eidos.showInFileManager
+      ) {
         window.eidos.showInFileManager(mountPath)
       }
     } catch (error) {
-      console.error('Failed to open folder:', error)
+      console.error("Failed to open folder:", error)
     }
   }
 
@@ -127,7 +134,9 @@ export function MountSettings() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>{t("space.settings.mounts.addMount")}</DialogTitle>
+                  <DialogTitle>
+                    {t("space.settings.mounts.addMount")}
+                  </DialogTitle>
                   <DialogDescription>
                     {t("space.settings.mounts.addMountDescription")}
                   </DialogDescription>
@@ -141,7 +150,9 @@ export function MountSettings() {
                       id="mount-name"
                       value={newMountName}
                       onChange={(e) => setNewMountName(e.target.value)}
-                      placeholder={t("space.settings.mounts.mountNamePlaceholder")}
+                      placeholder={t(
+                        "space.settings.mounts.mountNamePlaceholder"
+                      )}
                     />
                   </div>
                   <div className="space-y-2">
@@ -153,7 +164,9 @@ export function MountSettings() {
                         id="mount-path"
                         value={newMountPath}
                         onChange={(e) => setNewMountPath(e.target.value)}
-                        placeholder={t("space.settings.mounts.mountPathPlaceholder")}
+                        placeholder={t(
+                          "space.settings.mounts.mountPathPlaceholder"
+                        )}
                         className="flex-1"
                       />
                       <Button
@@ -207,9 +220,7 @@ export function MountSettings() {
                           <FolderOpen className="h-4 w-4" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="font-medium truncate">
-                            {mount.name}
-                          </p>
+                          <p className="font-medium truncate">{mount.name}</p>
                           <p className="text-sm text-muted-foreground truncate">
                             {mount.path}
                           </p>
@@ -224,7 +235,9 @@ export function MountSettings() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleOpenFolder(mount.path)}>
+                        <DropdownMenuItem
+                          onClick={() => handleOpenFolder(mount.path)}
+                        >
                           <FolderOpen className="h-4 w-4 mr-2" />
                           {t("common.open")}
                         </DropdownMenuItem>
@@ -244,10 +257,13 @@ export function MountSettings() {
                                 {t("space.settings.mounts.confirmRemove")}
                               </AlertDialogTitle>
                               <AlertDialogDescription>
-                                {t("space.settings.mounts.confirmRemoveDescription", {
-                                  name: mount.name,
-                                  path: mount.path,
-                                })}
+                                {t(
+                                  "space.settings.mounts.confirmRemoveDescription",
+                                  {
+                                    name: mount.name,
+                                    path: mount.path,
+                                  }
+                                )}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>

@@ -4,10 +4,17 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { usePlayground } from "@/apps/desktop/renderer/hooks/usePlayground"
 
 interface UseOpenInPlaygroundProps {
-  onPlaygroundChange: (filename: string, content: string, space: string, blockId: string) => void
+  onPlaygroundChange: (
+    filename: string,
+    content: string,
+    space: string,
+    blockId: string
+  ) => void
 }
 
-export const useOpenInPlayground = ({ onPlaygroundChange }: UseOpenInPlaygroundProps) => {
+export const useOpenInPlayground = ({
+  onPlaygroundChange,
+}: UseOpenInPlaygroundProps) => {
   const { space } = useCurrentPathInfo()
   const { sqlite } = useSqlite()
 
@@ -42,4 +49,4 @@ export const useOpenInPlayground = ({ onPlaygroundChange }: UseOpenInPlaygroundP
   return {
     openInPlayground,
   }
-} 
+}

@@ -30,10 +30,10 @@ function MyExtension() {
 
 ### Signature
 
-| Property                | Type        | Description                              |
-| ----------------------- | ----------- | ---------------------------------------- |
+| Property                   | Type        | Description                              |
+| -------------------------- | ----------- | ---------------------------------------- |
 | [`currentSpace`](../space) | `DataSpace` | Current space data access                |
-| `space`                 | `DataSpace` | Alias for `currentSpace`                 |
+| `space`                    | `DataSpace` | Alias for `currentSpace`                 |
 | [`AI`](../ai)              | `object`    | AI capabilities (text/object generation) |
 
 ---

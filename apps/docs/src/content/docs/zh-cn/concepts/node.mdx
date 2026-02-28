@@ -43,22 +43,22 @@ CREATE TABLE IF NOT EXISTS eidos__tree (
 
 ### 字段说明
 
-| 字段 | 类型 | 描述 |
-|-----|------|------|
-| id | TEXT | 节点唯一标识符 |
-| name | TEXT | 节点名称 |
-| type | TEXT | 节点类型（doc/table/dataview/folder） |
-| parent_id | TEXT | 父节点 ID |
-| icon | TEXT | 节点图标 |
-| cover | TEXT | 节点封面 |
-| is_pinned | BOOLEAN | 是否置顶 |
-| is_full_width | BOOLEAN | 是否全宽显示 |
-| is_locked | BOOLEAN | 是否锁定 |
-| is_deleted | BOOLEAN | 是否已删除 |
-| hide_properties | BOOLEAN | 是否隐藏属性 |
-| position | REAL | 节点位置 |
-| created_at | TIMESTAMP | 创建时间 |
-| updated_at | TIMESTAMP | 更新时间 |
+| 字段            | 类型      | 描述                                  |
+| --------------- | --------- | ------------------------------------- |
+| id              | TEXT      | 节点唯一标识符                        |
+| name            | TEXT      | 节点名称                              |
+| type            | TEXT      | 节点类型（doc/table/dataview/folder） |
+| parent_id       | TEXT      | 父节点 ID                             |
+| icon            | TEXT      | 节点图标                              |
+| cover           | TEXT      | 节点封面                              |
+| is_pinned       | BOOLEAN   | 是否置顶                              |
+| is_full_width   | BOOLEAN   | 是否全宽显示                          |
+| is_locked       | BOOLEAN   | 是否锁定                              |
+| is_deleted      | BOOLEAN   | 是否已删除                            |
+| hide_properties | BOOLEAN   | 是否隐藏属性                          |
+| position        | REAL      | 节点位置                              |
+| created_at      | TIMESTAMP | 创建时间                              |
+| updated_at      | TIMESTAMP | 更新时间                              |
 
 ## 扩展节点
 
@@ -77,16 +77,17 @@ CREATE TABLE IF NOT EXISTS eidos__extnodes (
 
 ### 扩展节点字段
 
-| 字段 | 类型 | 描述 |
-|-----|------|------|
-| id | TEXT | 节点唯一标识符 |
-| type | TEXT | 扩展节点类型，如 `excalidraw` |
-| blob | BLOB | 二进制数据（图片、音频、视频等） |
-| text | TEXT | 文本数据（JSON、Markdown 等） |
-| created_at | TIMESTAMP | 创建时间 |
-| updated_at | TIMESTAMP | 更新时间 |
+| 字段       | 类型      | 描述                             |
+| ---------- | --------- | -------------------------------- |
+| id         | TEXT      | 节点唯一标识符                   |
+| type       | TEXT      | 扩展节点类型，如 `excalidraw`    |
+| blob       | BLOB      | 二进制数据（图片、音频、视频等） |
+| text       | TEXT      | 文本数据（JSON、Markdown 等）    |
+| created_at | TIMESTAMP | 创建时间                         |
+| updated_at | TIMESTAMP | 更新时间                         |
 
 扩展节点根据数据类型选择存储字段：
+
 - `blob` 用于存储二进制数据
 - `text` 用于存储文本数据
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import type { Expr, SelectFromStatement} from "pgsql-ast-parser";
+import type { Expr, SelectFromStatement } from "pgsql-ast-parser"
 import { parseFirst, toSql } from "pgsql-ast-parser"
 import { create } from "zustand"
 

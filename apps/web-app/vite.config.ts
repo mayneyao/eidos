@@ -1,4 +1,4 @@
-import type { UserConfig} from "vite";
+import type { UserConfig } from "vite"
 import { defineConfig, mergeConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
 import { sharedConfig } from "../../packages/shared/vite/base.config"
@@ -7,7 +7,7 @@ import iconJson from "./icons.json"
 
 const webAppConfig: UserConfig = mergeConfig(sharedConfig, {
   plugins: [
-    createHtmlPlugin('/pages/index.tsx'),
+    createHtmlPlugin("/pages/index.tsx"),
     VitePWA({
       srcDir: ".",
       filename: "sw.ts",
@@ -20,7 +20,8 @@ const webAppConfig: UserConfig = mergeConfig(sharedConfig, {
       manifest: {
         name: "Eidos",
         short_name: "Eidos",
-        description: "An extensible framework for managing your personal data throughout your lifetime in one place",
+        description:
+          "An extensible framework for managing your personal data throughout your lifetime in one place",
         theme_color: "#ffffff",
         icons: iconJson.icons,
         display_override: ["window-controls-overlay"],
@@ -39,17 +40,16 @@ const webAppConfig: UserConfig = mergeConfig(sharedConfig, {
   ],
   resolve: {
     alias: {
-      'csv-parse/sync': 'csv-parse/browser/esm',
-      'csv-stringify/sync': 'csv-stringify/browser/esm',
-    }
+      "csv-parse/sync": "csv-parse/browser/esm",
+      "csv-stringify/sync": "csv-stringify/browser/esm",
+    },
   },
   server: {
     headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-    }
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp",
+    },
   },
 })
-
 
 export default defineConfig(webAppConfig)

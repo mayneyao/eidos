@@ -56,8 +56,9 @@ export class SQLiteUndoRedo {
     if (this.undo.freeze >= 0)
       throw new Error("recursive call to SQLiteUndoRedo.freeze")
 
-    const result = await this.db
-      ?.execute("SELECT coalesce(max(seq),0) FROM undolog")
+    const result = await this.db?.execute(
+      "SELECT coalesce(max(seq),0) FROM undolog"
+    )
     this.undo.freeze = result.fetchone()[0]
   }
 
@@ -86,8 +87,9 @@ export class SQLiteUndoRedo {
       return
     }
 
-    const result = await this.db
-      .execute("SELECT coalesce(max(seq),0) FROM undolog")
+    const result = await this.db.execute(
+      "SELECT coalesce(max(seq),0) FROM undolog"
+    )
     const end = result.fetchone()[0]
 
     this.undo.undostack.push({
@@ -190,8 +192,9 @@ export class SQLiteUndoRedo {
   }
 
   private async _start_interval(): Promise<void> {
-    const result = await this.db
-      .execute("SELECT coalesce(max(seq),0)+1 FROM undolog")
+    const result = await this.db.execute(
+      "SELECT coalesce(max(seq),0)+1 FROM undolog"
+    )
     const begin = result.fetchone()[0]
     if (begin > this.undo.firstlog) {
       this.undo.firstlog = begin
@@ -202,8 +205,9 @@ export class SQLiteUndoRedo {
     if (from.length === 0) return
     const { begin, end } = from.pop()!
 
-    const beginResult = await this.db
-      .execute("SELECT coalesce(max(seq),0)+1 FROM undolog")
+    const beginResult = await this.db.execute(
+      "SELECT coalesce(max(seq),0)+1 FROM undolog"
+    )
     const newBegin = beginResult.fetchone()[0]
 
     const q1 = `SELECT sql FROM undolog WHERE seq>=${begin} AND seq<=${end} ORDER BY seq DESC`
@@ -214,8 +218,9 @@ export class SQLiteUndoRedo {
     // use exec wont trigger event
     this.db.exec(sql)
 
-    const endResult = await this.db
-      .execute("SELECT coalesce(max(seq),0) FROM undolog")
+    const endResult = await this.db.execute(
+      "SELECT coalesce(max(seq),0) FROM undolog"
+    )
     const newEnd = endResult.fetchone()[0]
 
     to.push({

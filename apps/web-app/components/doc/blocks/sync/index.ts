@@ -9,10 +9,11 @@ export default {
   plugin: SyncBlockPlugin,
   icon: "Link",
   keywords: ["sync", "block", "reference"],
-  onSelect: (editor: LexicalEditor) => editor.dispatchCommand(INSERT_SYNC_BLOCK_COMMAND, ''),
+  onSelect: (editor: LexicalEditor) =>
+    editor.dispatchCommand(INSERT_SYNC_BLOCK_COMMAND, ""),
   command: {
     create: INSERT_SYNC_BLOCK_COMMAND,
   },
   createNode: $createSyncBlockNode,
   hiddenInMenu: true,
-} as DocBlock 
+} as DocBlock

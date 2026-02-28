@@ -39,4 +39,4 @@ This isn't meant to disparage Obsidian's base feature. For lightweight structure
 
 ## Summary
 
-Obsidian is a markdown-centric knowledge management tool. Eidos is a database-centric data management tool. For structured data management, Eidos has the advantage. Eidos focuses on data management rather than knowledge management. 
+Obsidian is a markdown-centric knowledge management tool. Eidos is a database-centric data management tool. For structured data management, Eidos has the advantage. Eidos focuses on data management rather than knowledge management.

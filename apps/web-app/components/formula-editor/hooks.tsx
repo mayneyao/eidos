@@ -250,11 +250,11 @@ export function useEditor({
               setTimeout(() => {
                 console.log("focusing")
                 if (view && !isDestroyedRef.current) {
-                  view.focus();
+                  view.focus()
                 }
-              }, 10);
+              }, 10)
             } catch (error) {
-              console.error("Error restoring focus:", error);
+              console.error("Error restoring focus:", error)
             }
           }
         }

@@ -95,20 +95,20 @@ export function UpdateStatusComponent() {
           </span>
         </DropdownMenuItem>
       )}
-      {updateStatus !== "checking" && 
-        updateStatus !== "progress" && 
-        updateStatus !== "downloaded" && 
+      {updateStatus !== "checking" &&
+        updateStatus !== "progress" &&
+        updateStatus !== "downloaded" &&
         updateStatus !== "available" && (
-        <DropdownMenuItem
-          onSelect={handleCheckForUpdates}
-          className="flex items-center"
-        >
-          <RefreshCw className="mr-2 h-4 w-4 flex-shrink-0" />
-          <span className="whitespace-nowrap">
-            {t("nav.status.checkForUpdates")}
-          </span>
-        </DropdownMenuItem>
-      )}
+          <DropdownMenuItem
+            onSelect={handleCheckForUpdates}
+            className="flex items-center"
+          >
+            <RefreshCw className="mr-2 h-4 w-4 flex-shrink-0" />
+            <span className="whitespace-nowrap">
+              {t("nav.status.checkForUpdates")}
+            </span>
+          </DropdownMenuItem>
+        )}
     </>
   )
 }

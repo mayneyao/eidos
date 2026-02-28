@@ -5,8 +5,7 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 import { useViewSort } from "@/apps/web-app/hooks/use-view-sort"
-import type {
-  EidosDataEventChannelMsg} from "@/lib/const";
+import type { EidosDataEventChannelMsg } from "@/lib/const"
 import {
   DataUpdateSignalType,
   EidosDataEventChannelMsgType,
@@ -43,12 +42,10 @@ export const useGalleryViewData = (view: IView) => {
         console.log("useGalleryViewData", { data, tableId })
         if (isView) {
           setRows(tableId, data, 0, true)
-          setData(Array.from({ length: data.length }, (_, i) => i + ''))
+          setData(Array.from({ length: data.length }, (_, i) => i + ""))
         } else {
           setRows(tableId, data)
-          setData(
-            data.map((d: any) => d._id)
-          )
+          setData(data.map((d: any) => d._id))
         }
         setList(data as any[])
         setLoading(false)

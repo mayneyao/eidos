@@ -203,7 +203,9 @@ export const DocAction: React.FC<DocActionProps> = ({ docId }) => {
                       name={(script.icon as any) || "zap"}
                       className="h-3.5 w-3.5 mr-1"
                     />
-                    <span className="flex-1 truncate">{script.meta!.docAction.name}</span>
+                    <span className="flex-1 truncate">
+                      {script.meta!.docAction.name}
+                    </span>
                     <Button
                       size="sm"
                       variant="ghost"

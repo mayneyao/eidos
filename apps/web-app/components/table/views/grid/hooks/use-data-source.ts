@@ -1,5 +1,5 @@
 import React, { useCallback } from "react"
-import type { GridCell} from "@glideapps/glide-data-grid";
+import type { GridCell } from "@glideapps/glide-data-grid"
 import { GridCellKind } from "@glideapps/glide-data-grid"
 
 import { getFieldInstance } from "@/packages/core/fields"
@@ -32,13 +32,20 @@ export const useDataSource = (tableName: string, databaseName: string) => {
 
   const { resolvedTheme } = useTheme()
 
-  const findRowIndexInView = useCallback((rowId: string) => {
-    if (!sqlite) {
-      return Promise.resolve(-1)
-    }
-    const rowIndex = sqlite?.view.findRowIndexInQuery(getTableIdByRawTableName(tableName), rowId, currentView.query)
-    return rowIndex
-  }, [currentView, tableName])
+  const findRowIndexInView = useCallback(
+    (rowId: string) => {
+      if (!sqlite) {
+        return Promise.resolve(-1)
+      }
+      const rowIndex = sqlite?.view.findRowIndexInQuery(
+        getTableIdByRawTableName(tableName),
+        rowId,
+        currentView.query
+      )
+      return rowIndex
+    },
+    [currentView, tableName]
+  )
 
   const getFieldContext = useCallback(
     (field: IField) => {
@@ -151,6 +158,6 @@ export const useDataSource = (tableName: string, databaseName: string) => {
   return {
     toCell,
     onEdited,
-    findRowIndexInView
+    findRowIndexInView,
   }
 }

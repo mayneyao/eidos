@@ -3,7 +3,7 @@
  * Plugin-specific type definitions
  */
 
-import type { BasePluginProps } from '../base-types'
+import type { BasePluginProps } from "../base-types"
 
 /**
  * Props for TailwindCSS Plugin
@@ -14,7 +14,12 @@ export interface TailwindCSSPluginProps extends BasePluginProps {
     theme?: {
       colors?: Record<string, string | Record<string, string>>
       spacing?: Record<string, string>
-      fontSize?: Record<string, string | [string, string] | [string, { lineHeight: string; letterSpacing?: string }]>
+      fontSize?: Record<
+        string,
+        | string
+        | [string, string]
+        | [string, { lineHeight: string; letterSpacing?: string }]
+      >
       fontFamily?: Record<string, string[]>
       screens?: Record<string, string>
       borderRadius?: Record<string, string>
@@ -22,7 +27,12 @@ export interface TailwindCSSPluginProps extends BasePluginProps {
       extend?: {
         colors?: Record<string, string | Record<string, string>>
         spacing?: Record<string, string>
-        fontSize?: Record<string, string | [string, string] | [string, { lineHeight: string; letterSpacing?: string }]>
+        fontSize?: Record<
+          string,
+          | string
+          | [string, string]
+          | [string, { lineHeight: string; letterSpacing?: string }]
+        >
         fontFamily?: Record<string, string[]>
         screens?: Record<string, string>
         borderRadius?: Record<string, string>

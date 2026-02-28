@@ -67,7 +67,13 @@ export const FormulaPropertyEditor = (props: IFieldPropertyEditorProps) => {
             align="start"
             alignOffset={20}
           >
-            <Suspense fallback={<div className="flex items-center justify-center p-4">Loading Formula Editor...</div>}>
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center p-4">
+                  Loading Formula Editor...
+                </div>
+              }
+            >
               <FormulaEditor
                 editorRef={editorRef}
                 closeEditor={() => setIsOpen(false)}

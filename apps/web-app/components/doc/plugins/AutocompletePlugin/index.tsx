@@ -2,8 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { mergeRegister } from "@lexical/utils"
 import { useCompletion } from "ai/react"
-import type {
-  TextNode} from "lexical";
+import type { TextNode } from "lexical"
 import {
   $createTextNode,
   $getNodeByKey,

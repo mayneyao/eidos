@@ -6,7 +6,13 @@ interface InlineEditProps {
   /** Whether the element is in edit mode */
   isEditing: boolean
   /** Optional node type to determine selection behavior */
-  nodeType?: "extension" | "table" | "doc" | "folder" | "dataview" | `ext__${string}`
+  nodeType?:
+    | "extension"
+    | "table"
+    | "doc"
+    | "folder"
+    | "dataview"
+    | `ext__${string}`
   /** Callback when edit is confirmed (Enter or Blur) */
   onConfirm: (newValue: string) => void
   /** Callback when edit is cancelled (Esc) */

@@ -48,10 +48,13 @@ const getFieldMappings = (
     label: string
   }[]
 ) => {
-  return fields.reduce((acc, field) => {
-    acc[field.name] = field.label
-    return acc
-  }, {} as Record<string, string>)
+  return fields.reduce(
+    (acc, field) => {
+      acc[field.name] = field.label
+      return acc
+    },
+    {} as Record<string, string>
+  )
 }
 
 export function TableDataSource({

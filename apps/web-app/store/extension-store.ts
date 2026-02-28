@@ -38,25 +38,30 @@ export const useExtensionStore = create<ExtensionState>()(
       setSidebarOpen: (isOpen: boolean) => set({ isSidebarOpen: isOpen }),
       toggleSidebar: () => set({ isSidebarOpen: !get().isSidebarOpen }),
       focusedExtensionId: null,
-      setFocusedExtensionId: (id: string | null) => set({ focusedExtensionId: id }),
+      setFocusedExtensionId: (id: string | null) =>
+        set({ focusedExtensionId: id }),
       sortField: "created_at",
       sortOrder: "ASC",
-      setSort: (field: ExtensionSortField, order: ExtensionSortOrder) => 
+      setSort: (field: ExtensionSortField, order: ExtensionSortOrder) =>
         set({ sortField: field, sortOrder: order }),
       searchTerm: "",
       setSearchTerm: (term: string) => set({ searchTerm: term }),
       searchResults: [],
-      setSearchResults: (results: ISearchExtensions[]) => set({ searchResults: results, selectedIndex: 0 }),
+      setSearchResults: (results: ISearchExtensions[]) =>
+        set({ searchResults: results, selectedIndex: 0 }),
       isSearchMode: false,
       setIsSearchMode: (isSearchMode: boolean) => set({ isSearchMode }),
       selectedIndex: 0,
       setSelectedIndex: (index: number) => set({ selectedIndex: index }),
       isExtensionsExpanded: true,
-      setIsExtensionsExpanded: (expanded: boolean) => set({ isExtensionsExpanded: expanded }),
+      setIsExtensionsExpanded: (expanded: boolean) =>
+        set({ isExtensionsExpanded: expanded }),
       isContentExpanded: true,
-      setIsContentExpanded: (expanded: boolean) => set({ isContentExpanded: expanded }),
+      setIsContentExpanded: (expanded: boolean) =>
+        set({ isContentExpanded: expanded }),
       viewPrefixesAsDirectories: true,
-      setViewPrefixesAsDirectories: (enabled: boolean) => set({ viewPrefixesAsDirectories: enabled }),
+      setViewPrefixesAsDirectories: (enabled: boolean) =>
+        set({ viewPrefixesAsDirectories: enabled }),
     }),
     {
       name: "extension-state",

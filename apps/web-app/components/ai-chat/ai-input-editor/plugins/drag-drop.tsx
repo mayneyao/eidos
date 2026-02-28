@@ -36,7 +36,10 @@ export function DragDropPlugin({
       event.stopPropagation()
       // Only hide drag over state if leaving the editor entirely
       const editorElement = editor.getRootElement()
-      if (editorElement && !editorElement.contains(event.relatedTarget as Node)) {
+      if (
+        editorElement &&
+        !editorElement.contains(event.relatedTarget as Node)
+      ) {
         setIsDragOver(false)
       }
     }
@@ -45,7 +48,7 @@ export function DragDropPlugin({
       event.preventDefault()
       event.stopPropagation()
       setIsDragOver(false)
-      
+
       try {
         const nodeId = event.dataTransfer?.getData("text/plain")
         if (!nodeId) return
@@ -69,12 +72,15 @@ export function DragDropPlugin({
           if ($isRangeSelection(selection)) {
             const mentionNode = $createMentionNode(treeNode.id, treeNode.name)
             $insertNodes([mentionNode])
-            
+
             // Add to context nodes using the centralized management
             addNode(treeNode)
             onNodeInsert?.(treeNode)
-            
-            console.log("Successfully inserted mention node for:", treeNode.name)
+
+            console.log(
+              "Successfully inserted mention node for:",
+              treeNode.name
+            )
           }
         })
       } catch (error) {
@@ -118,4 +124,4 @@ export function DragDropPlugin({
   }, [editor, isDragOver])
 
   return null
-} 
+}

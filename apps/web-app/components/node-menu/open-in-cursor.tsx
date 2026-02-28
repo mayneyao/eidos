@@ -10,7 +10,10 @@ interface NodeOpenInCursorProps {
   openInPlayground: (docId: string, filename?: string) => Promise<void>
 }
 
-export const NodeOpenInCursor = ({ node, openInPlayground }: NodeOpenInCursorProps) => {
+export const NodeOpenInCursor = ({
+  node,
+  openInPlayground,
+}: NodeOpenInCursorProps) => {
   const { t } = useTranslation()
 
   if (!isDesktopMode || node.type !== "doc") {

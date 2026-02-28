@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { SqlDataView } from './sql-data-view'
-import type { DataSpace } from '../data-space'
-import { FieldType } from '../fields/const'
+import { describe, it, expect, beforeEach, vi } from "vitest"
+import { SqlDataView } from "./sql-data-view"
+import type { DataSpace } from "../data-space"
+import { FieldType } from "../fields/const"
 
 // Mock DataSpace
 const mockDataSpace = {
@@ -26,7 +26,7 @@ const mockDataSpace = {
   },
 } as unknown as DataSpace
 
-describe('SqlDataView', () => {
+describe("SqlDataView", () => {
   let sqlDataView: SqlDataView
 
   beforeEach(() => {
@@ -34,9 +34,9 @@ describe('SqlDataView', () => {
     sqlDataView = new SqlDataView(mockDataSpace)
   })
 
-  describe('createDataView', () => {
-    it('should create view with column metadata from comments', async () => {
-      const viewId = 'test-view-123'
+  describe("createDataView", () => {
+    it("should create view with column metadata from comments", async () => {
+      const viewId = "test-view-123"
       const createViewSql = `
         -- [id:number]
         -- [name:text]
@@ -52,56 +52,56 @@ describe('SqlDataView', () => {
       `
 
       // Mock getViewColumns to return the actual columns
-      vi.spyOn(sqlDataView, 'getViewColumns').mockResolvedValue([
-        { name: 'id', type: 'INTEGER' },
-        { name: 'name', type: 'TEXT' },
-        { name: 'is_active', type: 'BOOLEAN' },
-        { name: 'created_at', type: 'TIMESTAMP' },
+      vi.spyOn(sqlDataView, "getViewColumns").mockResolvedValue([
+        { name: "id", type: "INTEGER" },
+        { name: "name", type: "TEXT" },
+        { name: "is_active", type: "BOOLEAN" },
+        { name: "created_at", type: "TIMESTAMP" },
       ])
 
       await sqlDataView.createDataView(viewId, createViewSql)
 
       // Verify view creation
       expect(mockDataSpace.db.prepare).toHaveBeenCalledWith(
-        expect.stringContaining('CREATE VIEW IF NOT EXISTS vw_test-view-123')
+        expect.stringContaining("CREATE VIEW IF NOT EXISTS vw_test-view-123")
       )
 
       // Verify column metadata creation
       expect(mockDataSpace.column.addPureUIColumn).toHaveBeenCalledWith({
-        name: 'id',
+        name: "id",
         type: FieldType.Number,
-        table_name: 'vw_test-view-123',
-        table_column_name: 'id',
+        table_name: "vw_test-view-123",
+        table_column_name: "id",
         property: expect.any(Object),
       })
 
       expect(mockDataSpace.column.addPureUIColumn).toHaveBeenCalledWith({
-        name: 'name',
+        name: "name",
         type: FieldType.Text,
-        table_name: 'vw_test-view-123',
-        table_column_name: 'name',
+        table_name: "vw_test-view-123",
+        table_column_name: "name",
         property: expect.any(Object),
       })
 
       expect(mockDataSpace.column.addPureUIColumn).toHaveBeenCalledWith({
-        name: 'is_active',
+        name: "is_active",
         type: FieldType.Checkbox,
-        table_name: 'vw_test-view-123',
-        table_column_name: 'is_active',
+        table_name: "vw_test-view-123",
+        table_column_name: "is_active",
         property: expect.any(Object),
       })
 
       expect(mockDataSpace.column.addPureUIColumn).toHaveBeenCalledWith({
-        name: 'created_at',
+        name: "created_at",
         type: FieldType.DateTime,
-        table_name: 'vw_test-view-123',
-        table_column_name: 'created_at',
+        table_name: "vw_test-view-123",
+        table_column_name: "created_at",
         property: expect.any(Object),
       })
     })
 
-    it('should not create any column metadata when no comments are provided', async () => {
-      const viewId = 'test-view-456'
+    it("should not create any column metadata when no comments are provided", async () => {
+      const viewId = "test-view-456"
       const createViewSql = `
         SELECT 
           id,
@@ -117,8 +117,8 @@ describe('SqlDataView', () => {
       expect(mockDataSpace.column.addPureUIColumn).not.toHaveBeenCalled()
     })
 
-    it('should handle mixed comments and non-commented columns', async () => {
-      const viewId = 'test-view-789'
+    it("should handle mixed comments and non-commented columns", async () => {
+      const viewId = "test-view-789"
       const createViewSql = `
         -- [id:number]
         -- [name:text]
@@ -135,13 +135,16 @@ describe('SqlDataView', () => {
 
       // Verify only commented columns are created with metadata
       expect(mockDataSpace.column.addPureUIColumn).toHaveBeenCalledTimes(4)
-      
+
       // Check specific column types
       const calls = (mockDataSpace.column.addPureUIColumn as any).mock.calls
-      const columnTypes = calls.reduce((acc: Record<string, FieldType>, call: any[]) => {
-        acc[call[0].name] = call[0].type
-        return acc
-      }, {} as Record<string, FieldType>)
+      const columnTypes = calls.reduce(
+        (acc: Record<string, FieldType>, call: any[]) => {
+          acc[call[0].name] = call[0].type
+          return acc
+        },
+        {} as Record<string, FieldType>
+      )
 
       expect(columnTypes.id).toBe(FieldType.Number)
       expect(columnTypes.name).toBe(FieldType.Text)
@@ -149,8 +152,8 @@ describe('SqlDataView', () => {
       expect(columnTypes.is_active).toBe(FieldType.Checkbox)
     })
 
-    it('should not create column metadata for temporary views', async () => {
-      const viewId = 'temp-view-123'
+    it("should not create column metadata for temporary views", async () => {
+      const viewId = "temp-view-123"
       const createViewSql = `
         -- [id:number]
         SELECT id FROM users
@@ -160,7 +163,7 @@ describe('SqlDataView', () => {
 
       // Verify view creation
       expect(mockDataSpace.db.prepare).toHaveBeenCalledWith(
-        expect.stringContaining('CREATE TEMPORARY VIEW')
+        expect.stringContaining("CREATE TEMPORARY VIEW")
       )
 
       // Verify no column metadata is created for temp views

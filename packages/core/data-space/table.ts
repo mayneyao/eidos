@@ -363,9 +363,8 @@ export class DataSpaceWithTable extends DataSpaceWithDoc {
 
   // AI generated SQL execution
   public async runAIgeneratedSQL(sql: string, tableName: string) {
-    const { getTableNameFromSql, transformQuery } = await import(
-      "../sqlite/sql-formula-parser"
-    )
+    const { getTableNameFromSql, transformQuery } =
+      await import("../sqlite/sql-formula-parser")
     const _tableName = getTableNameFromSql(sql) || tableName
     const fields = await this.column.list({ table_name: _tableName })
     const _sql = transformQuery(sql, fields)

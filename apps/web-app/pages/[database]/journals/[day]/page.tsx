@@ -34,10 +34,11 @@ export function EverydayPageContent({
   const { navigate } = useRouterAdapter()
   const { days } = useDays()
   const { isCmdkOpen } = useAppRuntimeStore()
-  const { week: weekNumber, year: weekYear } = day ? getWeekInfo(day) : { week: null, year: null }
-  const formattedWeek = weekNumber !== null
-    ? weekNumber.toString().padStart(2, "0")
-    : null
+  const { week: weekNumber, year: weekYear } = day
+    ? getWeekInfo(day)
+    : { week: null, year: null }
+  const formattedWeek =
+    weekNumber !== null ? weekNumber.toString().padStart(2, "0") : null
   const weekNodeId =
     day && formattedWeek ? `${weekYear}-w${formattedWeek}` : null
   useTabTitle(day)

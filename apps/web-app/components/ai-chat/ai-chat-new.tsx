@@ -254,8 +254,6 @@ export default function Chat() {
     e.stopPropagation()
   }, [])
 
-
-
   return (
     <div
       className="relative flex h-full w-full flex-col overflow-hidden"
@@ -271,7 +269,9 @@ export default function Chat() {
               <span className="text-2xl">📎</span>
               Drop to add to context
             </div>
-            <div className="text-sm opacity-75">Add this item as context for AI chat</div>
+            <div className="text-sm opacity-75">
+              Add this item as context for AI chat
+            </div>
           </div>
         </div>
       )}

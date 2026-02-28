@@ -42,12 +42,9 @@ const getExts = async () => {
 }
 
 export const useGithubStore = () => {
-  const [exts, setExts] = useLocalStorageState<IStoreExtItem[]>(
-    "eidos-store",
-    {
-      defaultValue: [],
-    }
-  )
+  const [exts, setExts] = useLocalStorageState<IStoreExtItem[]>("eidos-store", {
+    defaultValue: [],
+  })
 
   useEffect(() => {
     getExts().then(setExts)

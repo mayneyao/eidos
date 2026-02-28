@@ -1,5 +1,11 @@
 import React, { useCallback } from "react"
-import { ChevronLeft, ChevronRight, PanelRightIcon, Plus, X } from "lucide-react"
+import {
+  ChevronLeft,
+  ChevronRight,
+  PanelRightIcon,
+  Plus,
+  X,
+} from "lucide-react"
 
 import { isDesktopMode } from "@/lib/env"
 import { cn, isDayPageId } from "@/lib/utils"
@@ -20,7 +26,11 @@ interface TabBarProps {
   isLastPanel?: boolean
 }
 
-export function TabBar({ panelId, isFirstPanel = false, isLastPanel = false }: TabBarProps) {
+export function TabBar({
+  panelId,
+  isFirstPanel = false,
+  isLastPanel = false,
+}: TabBarProps) {
   const {
     tabs,
     panels,
@@ -54,7 +64,8 @@ export function TabBar({ panelId, isFirstPanel = false, isLastPanel = false }: T
 
   // For right panel toggle button
   const { isSidebarOpen } = useAppStore()
-  const { isRightPanelOpen, setIsRightPanelOpen, currentAppIndex } = useSpaceAppStore()
+  const { isRightPanelOpen, setIsRightPanelOpen, currentAppIndex } =
+    useSpaceAppStore()
 
   const handleAppChange = (index: number) => {
     if (index === currentAppIndex) {
@@ -166,7 +177,11 @@ export function TabBar({ panelId, isFirstPanel = false, isLastPanel = false }: T
         "flex items-center gap-0 shrink-0 min-w-0 px-1 h-[38px] border-b border-border/60 bg-muted/60",
         {
           // First panel: add left padding for macOS traffic lights when sidebar is closed
-          "!pl-[72px]": isFirstPanel && (isDesktopMode || navigator.windowControlsOverlay?.visible) && isMac() && !isSidebarOpen,
+          "!pl-[72px]":
+            isFirstPanel &&
+            (isDesktopMode || navigator.windowControlsOverlay?.visible) &&
+            isMac() &&
+            !isSidebarOpen,
           // Windows: add right padding when on last panel
           "pr-[112px]": isLastPanel && isWindowsDesktop && !isRightPanelOpen,
         }
@@ -176,7 +191,7 @@ export function TabBar({ panelId, isFirstPanel = false, isLastPanel = false }: T
     >
       {/* Tabs container - can compress with overflow hidden */}
       <div className="flex items-center gap-0 min-w-0 overflow-hidden">
-      {panelTabs.map((tab, index) => {
+        {panelTabs.map((tab, index) => {
           const isActive = activeTabId === tab.id
           return (
             <TabContextMenu
@@ -302,7 +317,11 @@ export function TabBar({ panelId, isFirstPanel = false, isLastPanel = false }: T
             </Button>
           )}
           {!isDesktopMode && (
-            <Button size="xs" variant="ghost" onClick={() => handleAppChange(0)}>
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => handleAppChange(0)}
+            >
               <PanelRightIcon className="h-4 w-4" />
             </Button>
           )}

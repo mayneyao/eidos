@@ -1,20 +1,16 @@
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
 
-
-import { uuidv7 } from "uuidv7";
-export { uuidv7 } from "uuidv7";
+import { uuidv7 } from "uuidv7"
+export { uuidv7 } from "uuidv7"
 import { v4 as uuidv4 } from "uuid"
-import { EIDOS_PROXY_URL } from "./const";
+import { EIDOS_PROXY_URL } from "./const"
 
 export { uuidv4 }
-
-
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
-
 
 export const isUuidv4 = (id: string) => {
   // for performance, we only check the 15th character which is the version number
@@ -22,15 +18,14 @@ export const isUuidv4 = (id: string) => {
 }
 
 export const isUuid = (id: string) => {
-  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id)
+  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+    id
+  )
 }
-
 
 export function nonNullable<T>(value: T): value is NonNullable<T> {
   return value != null
 }
-
-
 
 export const hashText = (text: string) => {
   let hash = 0
@@ -62,7 +57,6 @@ export const getRawTableNameById = (id: string, isView: boolean = false) => {
   return isView ? `vw_${id}` : `tb_${id}`
 }
 
-
 export const getTableIdByRawTableName = (rawTableName: string) => {
   if (rawTableName.startsWith("tb_")) {
     return rawTableName.replace("tb_", "")
@@ -72,7 +66,6 @@ export const getTableIdByRawTableName = (rawTableName: string) => {
   }
   return rawTableName
 }
-
 
 export const getColumnIndexName = (tableName: string, columnName: string) => {
   return `idx__${tableName}__${columnName}`
@@ -87,28 +80,158 @@ export const generateColumnName = () => {
  * SQLite reserved keywords that cannot be used as column names
  * Source: https://www.sqlite.org/lang_keywords.html
  * Total: 147 keywords (as of 2022-11-26)
- * 
+ *
  * Note: SQLite supports Unicode identifiers including Chinese characters, emojis, etc.
  * The only restriction is that identifiers cannot start with a digit.
  */
 export const SQLITE_RESERVED_KEYWORDS = [
-  'ABORT', 'ACTION', 'ADD', 'AFTER', 'ALL', 'ALTER', 'ALWAYS', 'ANALYZE', 'AND', 'AS', 'ASC', 'ATTACH', 'AUTOINCREMENT',
-  'BEFORE', 'BEGIN', 'BETWEEN', 'BY', 'CASCADE', 'CASE', 'CAST', 'CHECK', 'COLLATE', 'COLUMN', 'COMMIT', 'CONFLICT', 'CONSTRAINT', 'CREATE', 'CROSS', 'CURRENT', 'CURRENT_DATE', 'CURRENT_TIME', 'CURRENT_TIMESTAMP',
-  'DATABASE', 'DEFAULT', 'DEFERRABLE', 'DEFERRED', 'DELETE', 'DESC', 'DETACH', 'DISTINCT', 'DO', 'DROP',
-  'EACH', 'ELSE', 'END', 'ESCAPE', 'EXCEPT', 'EXCLUDE', 'EXCLUSIVE', 'EXISTS', 'EXPLAIN',
-  'FAIL', 'FILTER', 'FIRST', 'FOLLOWING', 'FOR', 'FOREIGN', 'FROM', 'FULL', 'GENERATED', 'GLOB', 'GROUP', 'GROUPS',
-  'HAVING',
-  'IF', 'IGNORE', 'IMMEDIATE', 'IN', 'INDEX', 'INDEXED', 'INITIALLY', 'INNER', 'INSERT', 'INSTEAD', 'INTERSECT', 'INTO', 'IS', 'ISNULL',
-  'JOIN',
-  'KEY',
-  'LAST', 'LEFT', 'LIKE', 'LIMIT',
-  'MATCH', 'MATERIALIZED', 'NATURAL', 'NO', 'NOT', 'NOTHING', 'NOTNULL', 'NULL', 'NULLS',
-  'OF', 'OFFSET', 'ON', 'OR', 'ORDER', 'OTHERS', 'OUTER', 'OVER',
-  'PARTITION', 'PLAN', 'PRAGMA', 'PRECEDING', 'PRIMARY', 'QUERY', 'RAISE', 'RANGE', 'RECURSIVE', 'REFERENCES', 'REGEXP', 'REINDEX', 'RELEASE', 'RENAME', 'REPLACE', 'RESTRICT', 'RETURNING', 'RIGHT', 'ROLLBACK', 'ROW', 'ROWS',
-  'SAVEPOINT', 'SELECT', 'SET', 'TABLE', 'TEMP', 'TEMPORARY', 'THEN', 'TIES', 'TO', 'TRANSACTION', 'TRIGGER',
-  'UNBOUNDED', 'UNION', 'UNIQUE', 'UPDATE', 'USING',
-  'VACUUM', 'VALUES', 'VIEW', 'VIRTUAL',
-  'WHEN', 'WHERE', 'WINDOW', 'WITH', 'WITHOUT'
+  "ABORT",
+  "ACTION",
+  "ADD",
+  "AFTER",
+  "ALL",
+  "ALTER",
+  "ALWAYS",
+  "ANALYZE",
+  "AND",
+  "AS",
+  "ASC",
+  "ATTACH",
+  "AUTOINCREMENT",
+  "BEFORE",
+  "BEGIN",
+  "BETWEEN",
+  "BY",
+  "CASCADE",
+  "CASE",
+  "CAST",
+  "CHECK",
+  "COLLATE",
+  "COLUMN",
+  "COMMIT",
+  "CONFLICT",
+  "CONSTRAINT",
+  "CREATE",
+  "CROSS",
+  "CURRENT",
+  "CURRENT_DATE",
+  "CURRENT_TIME",
+  "CURRENT_TIMESTAMP",
+  "DATABASE",
+  "DEFAULT",
+  "DEFERRABLE",
+  "DEFERRED",
+  "DELETE",
+  "DESC",
+  "DETACH",
+  "DISTINCT",
+  "DO",
+  "DROP",
+  "EACH",
+  "ELSE",
+  "END",
+  "ESCAPE",
+  "EXCEPT",
+  "EXCLUDE",
+  "EXCLUSIVE",
+  "EXISTS",
+  "EXPLAIN",
+  "FAIL",
+  "FILTER",
+  "FIRST",
+  "FOLLOWING",
+  "FOR",
+  "FOREIGN",
+  "FROM",
+  "FULL",
+  "GENERATED",
+  "GLOB",
+  "GROUP",
+  "GROUPS",
+  "HAVING",
+  "IF",
+  "IGNORE",
+  "IMMEDIATE",
+  "IN",
+  "INDEX",
+  "INDEXED",
+  "INITIALLY",
+  "INNER",
+  "INSERT",
+  "INSTEAD",
+  "INTERSECT",
+  "INTO",
+  "IS",
+  "ISNULL",
+  "JOIN",
+  "KEY",
+  "LAST",
+  "LEFT",
+  "LIKE",
+  "LIMIT",
+  "MATCH",
+  "MATERIALIZED",
+  "NATURAL",
+  "NO",
+  "NOT",
+  "NOTHING",
+  "NOTNULL",
+  "NULL",
+  "NULLS",
+  "OF",
+  "OFFSET",
+  "ON",
+  "OR",
+  "ORDER",
+  "OTHERS",
+  "OUTER",
+  "OVER",
+  "PARTITION",
+  "PLAN",
+  "PRAGMA",
+  "PRECEDING",
+  "PRIMARY",
+  "QUERY",
+  "RAISE",
+  "RANGE",
+  "RECURSIVE",
+  "REFERENCES",
+  "REGEXP",
+  "REINDEX",
+  "RELEASE",
+  "RENAME",
+  "REPLACE",
+  "RESTRICT",
+  "RETURNING",
+  "RIGHT",
+  "ROLLBACK",
+  "ROW",
+  "ROWS",
+  "SAVEPOINT",
+  "SELECT",
+  "SET",
+  "TABLE",
+  "TEMP",
+  "TEMPORARY",
+  "THEN",
+  "TIES",
+  "TO",
+  "TRANSACTION",
+  "TRIGGER",
+  "UNBOUNDED",
+  "UNION",
+  "UNIQUE",
+  "UPDATE",
+  "USING",
+  "VACUUM",
+  "VALUES",
+  "VIEW",
+  "VIRTUAL",
+  "WHEN",
+  "WHERE",
+  "WINDOW",
+  "WITH",
+  "WITHOUT",
 ] // Total: 147 keywords (verified against https://www.sqlite.org/lang_keywords.html)
 
 /**
@@ -116,12 +239,12 @@ export const SQLITE_RESERVED_KEYWORDS = [
  * These are system fields that are automatically created and managed by Eidos
  */
 export const EIDOS_RESERVED_FIELDS = [
-  '_id',                    // Primary key field
-  '_created_time',          // Creation timestamp
-  '_last_edited_time',      // Last edit timestamp  
-  '_created_by',            // Creator user
-  '_last_edited_by',        // Last editor user
-  'title'                   // Default title field
+  "_id", // Primary key field
+  "_created_time", // Creation timestamp
+  "_last_edited_time", // Last edit timestamp
+  "_created_by", // Creator user
+  "_last_edited_by", // Last editor user
+  "title", // Default title field
 ]
 
 /**
@@ -139,39 +262,53 @@ export const validateSqliteColumnName = (
   reservedFields: string[] = EIDOS_RESERVED_FIELDS
 ): { isValid: boolean; error?: string } => {
   // Check if empty
-  if (!columnName || columnName.trim() === '') {
-    return { isValid: false, error: 'Column name cannot be empty' }
+  if (!columnName || columnName.trim() === "") {
+    return { isValid: false, error: "Column name cannot be empty" }
   }
 
   // Check if it's a SQLite reserved keyword (case-insensitive)
   if (SQLITE_RESERVED_KEYWORDS.includes(columnName.toUpperCase())) {
-    return { isValid: false, error: `Column name cannot be a SQLite reserved keyword: ${columnName}` }
+    return {
+      isValid: false,
+      error: `Column name cannot be a SQLite reserved keyword: ${columnName}`,
+    }
   }
 
   // Check if it's a reserved field name (case-sensitive)
   if (reservedFields.includes(columnName)) {
-    return { isValid: false, error: `Column name cannot be a reserved field: ${columnName}` }
+    return {
+      isValid: false,
+      error: `Column name cannot be a reserved field: ${columnName}`,
+    }
   }
 
   // Check if column name contains spaces in the middle
   if (/\s/.test(columnName)) {
-    return { isValid: false, error: 'Column name cannot contain spaces' }
+    return { isValid: false, error: "Column name cannot contain spaces" }
   }
 
   // Check if column name already exists (case-insensitive)
-  if (existingColumns && existingColumns.some(col => col.toLowerCase() === columnName.toLowerCase())) {
-    return { isValid: false, error: `Column name already exists: ${columnName}` }
+  if (
+    existingColumns &&
+    existingColumns.some(
+      (col) => col.toLowerCase() === columnName.toLowerCase()
+    )
+  ) {
+    return {
+      isValid: false,
+      error: `Column name already exists: ${columnName}`,
+    }
   }
 
   // Check length (SQLite has a limit of 63 characters for identifiers)
   if (columnName.length > 63) {
-    return { isValid: false, error: 'Column name cannot exceed 63 characters' }
+    return { isValid: false, error: "Column name cannot exceed 63 characters" }
   }
 
   // SQLite supports Unicode identifiers, so we don't need strict character restrictions
   // Just ensure it's not empty and doesn't start with a digit
   if (/^\d/.test(columnName)) {
-    return { isValid: false, error: 'Column name cannot start with a digit' }
+    return { isValid: false, error: "Column name cannot start with a digit" }
   }
 
   return { isValid: true }
@@ -183,7 +320,9 @@ export const validateSqliteColumnName = (
  * @param prefix Optional prefix for the column name
  * @returns A valid column name that doesn't conflict with reserved keywords or reserved fields
  */
-export const generateValidSqliteColumnName = (prefix: string = 'cl'): string => {
+export const generateValidSqliteColumnName = (
+  prefix: string = "cl"
+): string => {
   let attempts = 0
   const maxAttempts = 100
 
@@ -215,7 +354,7 @@ export const generateColumnNameFromFieldName = (
   existingColumns?: string[],
   reservedFields: string[] = EIDOS_RESERVED_FIELDS
 ): string => {
-  if (!fieldName || fieldName.trim() === '') {
+  if (!fieldName || fieldName.trim() === "") {
     return generateValidSqliteColumnName()
   }
 
@@ -223,9 +362,9 @@ export const generateColumnNameFromFieldName = (
   let columnName = fieldName
     .toLowerCase()
     .trim()
-    .replace(/[\s\-\.\,\;\:\!\?\@\#\$\%\^\&\*\(\)\[\]\{\}\|\/\\]/g, '_') // Replace special chars with underscores
-    .replace(/_{2,}/g, '_') // Replace multiple underscores with single
-    .replace(/^_+|_+$/g, '') // Remove leading/trailing underscores
+    .replace(/[\s\-\.\,\;\:\!\?\@\#\$\%\^\&\*\(\)\[\]\{\}\|\/\\]/g, "_") // Replace special chars with underscores
+    .replace(/_{2,}/g, "_") // Replace multiple underscores with single
+    .replace(/^_+|_+$/g, "") // Remove leading/trailing underscores
 
   // Ensure it starts with a letter or underscore
   if (/^\d/.test(columnName)) {
@@ -239,12 +378,14 @@ export const generateColumnNameFromFieldName = (
 
   // Truncate if too long (SQLite limit is 63 characters)
   if (columnName.length > 63) {
-    columnName = columnName.substring(0, 60) + '_'
+    columnName = columnName.substring(0, 60) + "_"
   }
 
   // Ensure it's not a reserved keyword or reserved field
-  if (SQLITE_RESERVED_KEYWORDS.includes(columnName.toUpperCase()) ||
-    reservedFields.includes(columnName)) {
+  if (
+    SQLITE_RESERVED_KEYWORDS.includes(columnName.toUpperCase()) ||
+    reservedFields.includes(columnName)
+  ) {
     columnName = `f_${columnName}`
   }
 
@@ -253,7 +394,11 @@ export const generateColumnNameFromFieldName = (
     let finalColumnName = columnName
     let counter = 1
 
-    while (existingColumns.some(col => col.toLowerCase() === finalColumnName.toLowerCase())) {
+    while (
+      existingColumns.some(
+        (col) => col.toLowerCase() === finalColumnName.toLowerCase()
+      )
+    ) {
       finalColumnName = `${columnName}_${counter}`
       counter++
 
@@ -276,20 +421,25 @@ export const generateColumnNameFromFieldName = (
  * @param fieldName The field name to validate
  * @returns An object with validation result and error message if invalid
  */
-export const validateEidosFieldName = (fieldName: string): { isValid: boolean; error?: string } => {
+export const validateEidosFieldName = (
+  fieldName: string
+): { isValid: boolean; error?: string } => {
   // Check if empty
-  if (!fieldName || fieldName.trim() === '') {
-    return { isValid: false, error: 'Field name cannot be empty' }
+  if (!fieldName || fieldName.trim() === "") {
+    return { isValid: false, error: "Field name cannot be empty" }
   }
 
   // Check if it's an Eidos reserved field name (case-sensitive)
   if (EIDOS_RESERVED_FIELDS.includes(fieldName)) {
-    return { isValid: false, error: `Field name cannot be an Eidos reserved field: ${fieldName}` }
+    return {
+      isValid: false,
+      error: `Field name cannot be an Eidos reserved field: ${fieldName}`,
+    }
   }
 
   // Check length (reasonable limit for display names)
   if (fieldName.length > 100) {
-    return { isValid: false, error: 'Field name cannot exceed 100 characters' }
+    return { isValid: false, error: "Field name cannot exceed 100 characters" }
   }
 
   return { isValid: true }
@@ -344,16 +494,23 @@ export const getWeekInfo = (day: string) => {
   if (isWeekNodeId(day)) {
     return {
       week: parseInt(day.split("-w")[1]),
-      year: parseInt(day.split("-w")[0])
+      year: parseInt(day.split("-w")[0]),
     }
   }
   const date = new Date(day)
   date.setHours(0, 0, 0, 0)
   // Thursday in current week decides the year.
-  date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7)
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7))
   const year = date.getFullYear()
   const week1 = new Date(year, 0, 4)
-  const week = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7)
+  const week =
+    1 +
+    Math.round(
+      ((date.getTime() - week1.getTime()) / 86400000 -
+        3 +
+        ((week1.getDay() + 6) % 7)) /
+        7
+    )
   return { week, year }
 }
 
@@ -451,7 +608,6 @@ export const proxyURL = (url?: string) => {
   return EIDOS_PROXY_URL + url
 }
 
-
 export const getBlockUrl = (blockId: string, props?: Record<string, any>) => {
   const url = new URL(`block://${blockId}`)
   if (props) {
@@ -464,15 +620,18 @@ export const getBlockUrl = (blockId: string, props?: Record<string, any>) => {
 
 export const getBlockIdFromUrl = (url: string) => {
   try {
-    const blockId = url.replace('block://', '')
-    return blockId.split('?')[0]
+    const blockId = url.replace("block://", "")
+    return blockId.split("?")[0]
   } catch (error) {
     console.error(error)
     return ""
   }
 }
 
-export const getBlockUrlWithParams = (id: string, params: Record<string, any>) => {
+export const getBlockUrlWithParams = (
+  id: string,
+  params: Record<string, any>
+) => {
   const blockUrl = getBlockUrl(id)
   const blockUrlWithParams = new URL(blockUrl)
   Object.entries(params).forEach(([key, value]) => {
@@ -491,19 +650,21 @@ export const isExtensionURL = (url: string) => {
   // 287c3686-f1e1-4b10-965e-2daa35a422fc.block.25-w19.eidos.localhost:13127
   try {
     const urlObj = new URL(url)
-    const hostnameParts = urlObj.hostname.split('.')
-    return hostnameParts.length === 5 &&
-      hostnameParts[1] === 'block' &&
-      hostnameParts[3] === 'eidos' &&
-      hostnameParts[4] === 'localhost' &&
-      urlObj.port === '13127'
+    const hostnameParts = urlObj.hostname.split(".")
+    return (
+      hostnameParts.length === 5 &&
+      hostnameParts[1] === "block" &&
+      hostnameParts[3] === "eidos" &&
+      hostnameParts[4] === "localhost" &&
+      urlObj.port === "13127"
+    )
   } catch {
     return false
   }
 }
 
 /**
- * 
+ *
  * @param url http://287c3686-f1e1-4b10-965e-2daa35a422fc.block.25-w19.eidos.localhost:13127
  * return {
  *  id: '287c3686-f1e1-4b10-965e-2daa35a422fc',
@@ -512,15 +673,19 @@ export const isExtensionURL = (url: string) => {
  */
 export const getInfoFromExtensionUrl = (url: string) => {
   const urlObj = new URL(url)
-  const id = urlObj.hostname.split('.')[0]
-  const space = urlObj.hostname.split('.')[2]
+  const id = urlObj.hostname.split(".")[0]
+  const space = urlObj.hostname.split(".")[2]
   return {
     id,
     space,
   }
 }
 
-export const getExtensionUrl = (id: string, space: string, searchParams?: Record<string, string>) => {
+export const getExtensionUrl = (
+  id: string,
+  space: string,
+  searchParams?: Record<string, string>
+) => {
   const standaloneBlockUrl = new URL(
     `http://${id}.block.${space}.eidos.localhost:13127`
   )
@@ -535,45 +700,55 @@ export const isFilesPath = (pathname: string) => {
   // /files/* - default files path
   // /@/* - mount files path
   // /~/* - project files path
-  return /^\/files\/.*$/.test(pathname) || /^\/@\/.*$/.test(pathname) || /^\/~\/.*$/.test(pathname)
+  return (
+    /^\/files\/.*$/.test(pathname) ||
+    /^\/@\/.*$/.test(pathname) ||
+    /^\/~\/.*$/.test(pathname)
+  )
 }
 
-
 interface ApplicationError extends Error {
-  info: string;
-  status: number;
+  info: string
+  status: number
 }
 
 export const fetcher = async (url: string) => {
-  const res = await fetch(url);
+  const res = await fetch(url)
 
   if (!res.ok) {
     const error = new Error(
-      'An error occurred while fetching the data.',
-    ) as ApplicationError;
+      "An error occurred while fetching the data."
+    ) as ApplicationError
 
-    error.info = await res.json();
-    error.status = res.status;
+    error.info = await res.json()
+    error.status = res.status
 
-    throw error;
+    throw error
   }
 
-  return res.json();
-};
+  return res.json()
+}
 
-export const serializePropsToUrl = (props: Record<string, any>, url: string) => {
+export const serializePropsToUrl = (
+  props: Record<string, any>,
+  url: string
+) => {
   const urlObj = new URL(url)
   Object.entries(props).forEach(([key, value]) => {
     if (value === null || value === undefined) {
-      urlObj.searchParams.set(key, '')
+      urlObj.searchParams.set(key, "")
       return
     }
 
     const valueType = typeof value
 
-    if (valueType === 'string' || valueType === 'number' || valueType === 'boolean') {
+    if (
+      valueType === "string" ||
+      valueType === "number" ||
+      valueType === "boolean"
+    ) {
       urlObj.searchParams.set(key, String(value))
-    } else if (valueType === 'object' || Array.isArray(value)) {
+    } else if (valueType === "object" || Array.isArray(value)) {
       // Add a prefix to indicate this is JSON data
       urlObj.searchParams.set(key, `__JSON__:${JSON.stringify(value)}`)
     } else {
@@ -584,8 +759,10 @@ export const serializePropsToUrl = (props: Record<string, any>, url: string) => 
   return urlObj.toString()
 }
 
-export const deserializePropsFromUrl = (url: string | URL): Record<string, any> => {
-  const urlObj = typeof url === 'string' ? new URL(url) : url
+export const deserializePropsFromUrl = (
+  url: string | URL
+): Record<string, any> => {
+  const urlObj = typeof url === "string" ? new URL(url) : url
   const props: Record<string, any> = {}
 
   urlObj.searchParams.forEach((value, key) => {
@@ -595,7 +772,7 @@ export const deserializePropsFromUrl = (url: string | URL): Record<string, any> 
     }
 
     // Check if the value has our JSON prefix
-    if (value.startsWith('__JSON__:')) {
+    if (value.startsWith("__JSON__:")) {
       const jsonString = value.substring(9) // Remove '__JSON__:' prefix
       try {
         props[key] = JSON.parse(jsonString)
@@ -606,15 +783,19 @@ export const deserializePropsFromUrl = (url: string | URL): Record<string, any> 
       }
     } else {
       // Try to automatically detect and parse common data types
-      if (value === 'true') {
+      if (value === "true") {
         props[key] = true
-      } else if (value === 'false') {
+      } else if (value === "false") {
         props[key] = false
-      } else if (value === 'null') {
+      } else if (value === "null") {
         props[key] = null
-      } else if (value === 'undefined') {
+      } else if (value === "undefined") {
         props[key] = undefined
-      } else if (!isNaN(Number(value)) && value.trim() !== '' && !isNaN(parseFloat(value))) {
+      } else if (
+        !isNaN(Number(value)) &&
+        value.trim() !== "" &&
+        !isNaN(parseFloat(value))
+      ) {
         // Check if it's a number (integer or float)
         const numValue = Number(value)
         props[key] = Number.isInteger(numValue) ? parseInt(value, 10) : numValue

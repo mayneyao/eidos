@@ -412,7 +412,7 @@ const SidebarRail = React.forwardRef<
       // Restore pointer events for iframes and webviews
       const iframes = document.querySelectorAll("iframe, webview")
       iframes.forEach((el) => {
-        ; (el as HTMLElement).style.pointerEvents = ""
+        ;(el as HTMLElement).style.pointerEvents = ""
       })
 
       document.removeEventListener("mousemove", handleMouseMove)
@@ -443,7 +443,7 @@ const SidebarRail = React.forwardRef<
       // Disable pointer events for iframes and webviews to prevent them from capturing mouse events
       const iframes = document.querySelectorAll("iframe, webview")
       iframes.forEach((el) => {
-        ; (el as HTMLElement).style.pointerEvents = "none"
+        ;(el as HTMLElement).style.pointerEvents = "none"
       })
 
       document.addEventListener("mousemove", handleMouseMove)
@@ -471,7 +471,7 @@ const SidebarRail = React.forwardRef<
         // Restore pointer events for iframes and webviews
         const iframes = document.querySelectorAll("iframe, webview")
         iframes.forEach((el) => {
-          ; (el as HTMLElement).style.pointerEvents = ""
+          ;(el as HTMLElement).style.pointerEvents = ""
         })
       }
     }
@@ -570,7 +570,7 @@ SidebarFooter.displayName = "SidebarFooter"
 
 const SidebarSeparator: React.ForwardRefExoticComponent<
   React.ComponentProps<typeof Separator> &
-  React.RefAttributes<React.ElementRef<typeof Separator>>
+    React.RefAttributes<React.ElementRef<typeof Separator>>
 > = React.forwardRef<
   React.ElementRef<typeof Separator>,
   React.ComponentProps<typeof Separator>
@@ -806,7 +806,7 @@ const SidebarMenuAction = React.forwardRef<
         "peer-data-[size=lg]/menu-button:top-2.5",
         "group-data-[collapsible=icon]:hidden",
         showOnHover &&
-        "group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground md:opacity-0",
+          "group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground md:opacity-0",
         className
       )}
       {...props}

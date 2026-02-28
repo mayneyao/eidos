@@ -65,17 +65,20 @@ export function DataSourceConfigComponent({
                 ? 1
                 : -1
               : aVal < bVal
-              ? 1
-              : -1
+                ? 1
+                : -1
           })
         case "aggregate":
           if (!transform.config.groupByColumn) return result
-          const groups = result.reduce((acc, item) => {
-            const key = item[transform.config.groupByColumn!]
-            if (!acc[key]) acc[key] = []
-            acc[key].push(item)
-            return acc
-          }, {} as Record<string, any[]>)
+          const groups = result.reduce(
+            (acc, item) => {
+              const key = item[transform.config.groupByColumn!]
+              if (!acc[key]) acc[key] = []
+              acc[key].push(item)
+              return acc
+            },
+            {} as Record<string, any[]>
+          )
 
           return (Object.entries(groups) as [string, any[]][]).map(
             ([key, group]) => {
@@ -87,12 +90,12 @@ export function DataSourceConfigComponent({
                       0
                     )
                   : transform.config.aggregateFunction === "avg"
-                  ? group.reduce(
-                      (sum: number, item: any) =>
-                        sum + Number(item[transform.config.aggregateColumn!]),
-                      0
-                    ) / group.length
-                  : group.length
+                    ? group.reduce(
+                        (sum: number, item: any) =>
+                          sum + Number(item[transform.config.aggregateColumn!]),
+                        0
+                      ) / group.length
+                    : group.length
 
               return {
                 [transform.config.groupByColumn!]: key,

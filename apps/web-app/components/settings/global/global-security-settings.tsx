@@ -28,7 +28,8 @@ type SecurityFormValues = z.infer<typeof securityFormSchema>
 export function GlobalSecuritySettings() {
   const { t } = useTranslation()
   const [isInitialized, setIsInitialized] = useState(false)
-  const [originalValues, setOriginalValues] = useState<SecurityFormValues | null>(null)
+  const [originalValues, setOriginalValues] =
+    useState<SecurityFormValues | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
 
   const form = useForm<SecurityFormValues>({
@@ -42,8 +43,11 @@ export function GlobalSecuritySettings() {
 
     const subscription = watch((value) => {
       // Check if current values are different from original values
-      const hasWebSecurityChanged = value.webSecurity !== originalValues.webSecurity
-      const hasDomainsChanged = JSON.stringify(value.crossOriginDomains) !== JSON.stringify(originalValues.crossOriginDomains)
+      const hasWebSecurityChanged =
+        value.webSecurity !== originalValues.webSecurity
+      const hasDomainsChanged =
+        JSON.stringify(value.crossOriginDomains) !==
+        JSON.stringify(originalValues.crossOriginDomains)
       setHasChanges(hasWebSecurityChanged || hasDomainsChanged)
     })
 
@@ -51,9 +55,12 @@ export function GlobalSecuritySettings() {
   }, [watch, isInitialized, originalValues])
 
   const onSubmit = async (value: SecurityFormValues) => {
-    await window.eidos.config.set("security", { 
+    await window.eidos.config.set("security", {
       webSecurity: value.webSecurity ?? true,
-      crossOriginDomains: value.crossOriginDomains?.filter((domain): domain is string => typeof domain === 'string') || []
+      crossOriginDomains:
+        value.crossOriginDomains?.filter(
+          (domain): domain is string => typeof domain === "string"
+        ) || [],
     })
     setOriginalValues(value)
     setHasChanges(false)
@@ -66,9 +73,9 @@ export function GlobalSecuritySettings() {
   useEffect(() => {
     const loadConfig = async () => {
       const securityConfig = await window.eidos.config.get("security")
-      const values = { 
+      const values = {
         webSecurity: securityConfig?.webSecurity ?? true,
-        crossOriginDomains: securityConfig?.crossOriginDomains || []
+        crossOriginDomains: securityConfig?.crossOriginDomains || [],
       }
       reset(values)
       setOriginalValues(values)
@@ -86,14 +93,9 @@ export function GlobalSecuritySettings() {
     <div className="space-y-0">
       {/* Security Section */}
       <div className="py-4 flex items-center justify-between">
-        <h3 className="text-lg font-medium">
-          {t("settings.security.title")}
-        </h3>
+        <h3 className="text-lg font-medium">{t("settings.security.title")}</h3>
         {hasChanges && (
-          <Button 
-            type="button"
-            onClick={() => form.handleSubmit(onSubmit)()}
-          >
+          <Button type="button" onClick={() => form.handleSubmit(onSubmit)()}>
             {t("common.save")}
           </Button>
         )}
@@ -160,7 +162,9 @@ export function GlobalSecuritySettings() {
                             type="button"
                             variant="destructive"
                             onClick={() => {
-                              const newDomains = field.value.filter((_, i) => i !== index)
+                              const newDomains = field.value.filter(
+                                (_, i) => i !== index
+                              )
                               field.onChange(newDomains)
                             }}
                           >

@@ -36,19 +36,19 @@ export const FieldDelete = ({
       <DialogTrigger className="w-full">{children}</DialogTrigger>
       <DialogContent className="click-outside-ignore max-w-[300px]">
         <DialogHeader>
-          <DialogTitle>{t('table.field.deleteConfirmTitle')}</DialogTitle>
+          <DialogTitle>{t("table.field.deleteConfirmTitle")}</DialogTitle>
           <DialogDescription>
             {field.type === FieldType.Link
-              ? t('table.field.deleteLinkFieldWarning')
-              : t('common.thisActionCannotBeUndone')}
+              ? t("table.field.deleteLinkFieldWarning")
+              : t("common.thisActionCannotBeUndone")}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)}>
-            {t('common.cancel')}
+            {t("common.cancel")}
           </Button>
           <Button variant="destructive" onClick={handleDeleteFieldConfirm}>
-            {t('common.delete')}
+            {t("common.delete")}
           </Button>
         </DialogFooter>
       </DialogContent>

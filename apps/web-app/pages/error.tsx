@@ -39,9 +39,7 @@ export function ErrorBoundary() {
 
     const systemInfo = `
 ### Environment
-- App Version: ${
-      isDesktopMode ? "Desktop App" : "Web Browser"
-    }(${EIDOS_VERSION})
+- App Version: ${isDesktopMode ? "Desktop App" : "Web Browser"}(${EIDOS_VERSION})
 - Window Size: ${window.innerWidth}x${window.innerHeight}
 ${!isDesktopMode ? `- Browser: ${navigator.userAgent}` : ""}
 - Platform: ${navigator.platform}
@@ -85,10 +83,7 @@ ${errorStack}
           <>
             <p>{t("common.error.storagePermissionBlocked")}</p>
             <p>
-              <Button 
-                size="xs" 
-                onClick={() => openSettingsModal("general")}
-              >
+              <Button size="xs" onClick={() => openSettingsModal("general")}>
                 {t("settings.storage.grantPermission")}
               </Button>
               <span>{t("common.error.willFixIssue")}</span>

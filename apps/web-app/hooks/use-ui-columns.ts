@@ -30,7 +30,7 @@ export const useUiColumns = (
       if (!sqlite || !_tableName) return
       const res = await sqlite.listUiColumns(_tableName)
       // order by created_at
-      if (!tableName?.startsWith('vw_')) {
+      if (!tableName?.startsWith("vw_")) {
         res.sort((a, b) => {
           return (a.created_at || 0) > (b.created_at || 0) ? 1 : -1
         })
@@ -41,7 +41,8 @@ export const useUiColumns = (
   )
 
   const fieldMap = useMemo(() => {
-    return dataStore.tableMap[getTableIdByRawTableName(tableName || "")]?.fieldMap
+    return dataStore.tableMap[getTableIdByRawTableName(tableName || "")]
+      ?.fieldMap
   }, [dataStore.tableMap, tableName])
 
   const checkAndFetchTable = useCallback(
@@ -49,12 +50,16 @@ export const useUiColumns = (
       if (!sqlite || !_tableName) return
 
       const tableId = getTableIdByRawTableName(_tableName)
-      
+
       // Use request manager to wrap the entire check logic, ensuring atomicity
       await tableRequestManager.executeRequest(tableId, async () => {
         const tableExists = dataStore.tableMap[tableId]
-        
-        if (!tableExists || !tableExists.fieldMap || Object.keys(tableExists.fieldMap).length === 0) {
+
+        if (
+          !tableExists ||
+          !tableExists.fieldMap ||
+          Object.keys(tableExists.fieldMap).length === 0
+        ) {
           console.log(`Table ${_tableName} not found in dataStore, fetching...`)
           await updateUiColumns(_tableName)
         }
@@ -92,10 +97,13 @@ export const useUiColumns = (
   }, [uiColumns])
 
   const fieldRawColumnNameFieldMap = useMemo(() => {
-    return uiColumns.reduce((acc, cur) => {
-      acc[cur.table_column_name] = cur
-      return acc
-    }, {} as Record<string, IField>)
+    return uiColumns.reduce(
+      (acc, cur) => {
+        acc[cur.table_column_name] = cur
+        return acc
+      },
+      {} as Record<string, IField>
+    )
   }, [uiColumns])
 
   return {

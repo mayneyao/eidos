@@ -23,7 +23,6 @@ export const useAIFunctions = () => {
   // FIXME: now ai-chat is global, maybe not in table page
   const { runQuery } = useTableOperation(table ?? "", database)
 
-
   const handleRunSql = useCallback(
     async (sql: string) => {
       if (sql.includes("UUID()")) {
@@ -60,9 +59,9 @@ export const useAIFunctions = () => {
     const { msgIndex, width } = context
 
     try {
-      ; (window as any)._CANVAS_ID_ = `#chart-${msgIndex}`
-        ; (window as any)._CHART_WIDTH_ = width - 50
-        ; (window as any)._CHART_HEIGHT_ = width - 50
+      ;(window as any)._CANVAS_ID_ = `#chart-${msgIndex}`
+      ;(window as any)._CHART_WIDTH_ = width - 50
+      ;(window as any)._CHART_HEIGHT_ = width - 50
       eval(code)
     } catch (error) {
       console.log(code)
@@ -107,7 +106,6 @@ export const useAIFunctions = () => {
     parameters: any,
     isAuto: boolean = true
   ) => {
-
     const functionId = (tools[name] as any)?.id
     if (functionId) {
       const [scriptId, commandName] = functionId.split(".")
@@ -117,9 +115,9 @@ export const useAIFunctions = () => {
     switch (name) {
       case "createRecords":
         return "not supported"
-        // const { table_id, records } = parameters
-        // const res1 = await sqlite?.createRecords(table_id, records)
-        // return res1
+      // const { table_id, records } = parameters
+      // const res1 = await sqlite?.createRecords(table_id, records)
+      // return res1
       case "sqlQuery":
         const { sql } = parameters
         const scope = "SQL." + sql?.trim().toUpperCase().split(" ")[0]
@@ -146,19 +144,22 @@ export const useAIFunctions = () => {
         const fileId = getUuid()
         // Infer filename from URL or default
         const fileName = fileUrl.split("/").pop() || `file-${fileId}`
-        const ext = fileName.split('.').pop() || ''
+        const ext = fileName.split(".").pop() || ""
         const path = `~/.eidos/files/${fileId}.${ext}`
 
         await sqlite?.fs.writeFile(path, uint8Array)
 
-        return (
-          window.location.origin + "/" + path
-        )
+        return window.location.origin + "/" + path
       }
       case "createDoc":
         const { markdown, title } = parameters
         const docId = getUuid()
-        const doc = await sqlite?.createOrUpdateDocWithMarkdown(docId, markdown, undefined, title)
+        const doc = await sqlite?.createOrUpdateDocWithMarkdown(
+          docId,
+          markdown,
+          undefined,
+          title
+        )
         const url = `/${docId}`
         console.log(doc, url)
         return url

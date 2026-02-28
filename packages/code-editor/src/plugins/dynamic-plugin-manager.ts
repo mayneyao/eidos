@@ -3,9 +3,9 @@
  * Uses plugin registry for decoupled plugin management
  */
 
-import type * as monaco from 'monaco-editor'
-import type { EditorPlugin } from './base-types'
-import { pluginRegistry } from './plugin-registry'
+import type * as monaco from "monaco-editor"
+import type { EditorPlugin } from "./base-types"
+import { pluginRegistry } from "./plugin-registry"
 
 export interface DynamicPluginConfig {
   [pluginId: string]: {
@@ -22,26 +22,27 @@ export class DynamicPluginManager {
   private currentConfig: DynamicPluginConfig = {}
   private initialized = false
 
-  constructor() { }
+  constructor() {}
 
   /**
    * Update plugin configuration and reinitialize affected plugins
    */
   async updateConfiguration(config: DynamicPluginConfig): Promise<void> {
-    console.log('🔄 Updating plugin configuration:', config)
+    console.log("🔄 Updating plugin configuration:", config)
 
     // Compare with current config to see what changed
     const changes = this.detectConfigChanges(this.currentConfig, config)
 
-    console.log('📋 Configuration changes detected:', {
+    console.log("📋 Configuration changes detected:", {
       toDispose: changes.toDispose,
       toInitialize: changes.toInitialize,
-      hasChanges: changes.toDispose.length > 0 || changes.toInitialize.length > 0
+      hasChanges:
+        changes.toDispose.length > 0 || changes.toInitialize.length > 0,
     })
 
     // Skip if no changes needed
     if (changes.toDispose.length === 0 && changes.toInitialize.length === 0) {
-      console.log('✅ No plugin configuration changes needed, skipping update')
+      console.log("✅ No plugin configuration changes needed, skipping update")
       return
     }
 
@@ -59,7 +60,7 @@ export class DynamicPluginManager {
 
     this.currentConfig = { ...config }
     this.initialized = true
-    console.log('✅ Plugin configuration update complete')
+    console.log("✅ Plugin configuration update complete")
   }
 
   /**
@@ -68,14 +69,14 @@ export class DynamicPluginManager {
   private detectConfigChanges(
     oldConfig: DynamicPluginConfig,
     newConfig: DynamicPluginConfig
-  ): { toDispose: string[], toInitialize: string[] } {
+  ): { toDispose: string[]; toInitialize: string[] } {
     const toDispose: string[] = []
     const toInitialize: string[] = []
 
     // Get all plugin IDs from both configs
     const allPluginIds = new Set([
       ...Object.keys(oldConfig),
-      ...Object.keys(newConfig)
+      ...Object.keys(newConfig),
     ])
 
     for (const pluginId of allPluginIds) {
@@ -83,12 +84,18 @@ export class DynamicPluginManager {
       const newPluginConfig = newConfig[pluginId]
 
       // Check if plugin should be disposed
-      if (oldPluginConfig && (!newPluginConfig || newPluginConfig.enabled === false)) {
+      if (
+        oldPluginConfig &&
+        (!newPluginConfig || newPluginConfig.enabled === false)
+      ) {
         toDispose.push(pluginId)
       }
       // Check if plugin should be initialized/reconfigured
       else if (newPluginConfig && newPluginConfig.enabled !== false) {
-        if (!oldPluginConfig || !this.deepEqual(oldPluginConfig, newPluginConfig)) {
+        if (
+          !oldPluginConfig ||
+          !this.deepEqual(oldPluginConfig, newPluginConfig)
+        ) {
           // Dispose first if it exists, then initialize with new config
           if (oldPluginConfig) {
             toDispose.push(pluginId)
@@ -118,7 +125,7 @@ export class DynamicPluginManager {
       return false
     }
 
-    if (typeof obj1 !== 'object') {
+    if (typeof obj1 !== "object") {
       return obj1 === obj2
     }
 
@@ -162,12 +169,17 @@ export class DynamicPluginManager {
   /**
    * Initialize a specific plugin based on its configuration
    */
-  private async initializePlugin(pluginId: string, allConfigs: DynamicPluginConfig): Promise<void> {
+  private async initializePlugin(
+    pluginId: string,
+    allConfigs: DynamicPluginConfig
+  ): Promise<void> {
     try {
       // Ensure any existing plugin is disposed first
       const existingPlugin = this.plugins.get(pluginId)
       if (existingPlugin) {
-        console.log(`🔄 Disposing existing ${pluginId} plugin before reinitializing`)
+        console.log(
+          `🔄 Disposing existing ${pluginId} plugin before reinitializing`
+        )
         existingPlugin.dispose()
         this.plugins.delete(pluginId)
       }
@@ -181,7 +193,9 @@ export class DynamicPluginManager {
       // Create plugin using registry
       const plugin = pluginRegistry.createPlugin(pluginId, pluginConfig)
       if (!plugin) {
-        console.error(`❌ Failed to create plugin: ${pluginId} (not registered?)`)
+        console.error(
+          `❌ Failed to create plugin: ${pluginId} (not registered?)`
+        )
         return
       }
 
@@ -190,7 +204,9 @@ export class DynamicPluginManager {
       this.plugins.set(pluginId, plugin)
 
       const pluginInfo = pluginRegistry.getPluginInfo(pluginId)
-      console.log(`✅ ${pluginInfo?.displayName || pluginId} plugin initialized`)
+      console.log(
+        `✅ ${pluginInfo?.displayName || pluginId} plugin initialized`
+      )
     } catch (error) {
       console.error(`❌ Failed to initialize ${pluginId} plugin:`, error)
     }
@@ -233,12 +249,12 @@ export class DynamicPluginManager {
    * Dispose all plugins
    */
   dispose(): void {
-    console.log('🔌 Disposing Dynamic Plugin Manager')
-    this.plugins.forEach(plugin => plugin.dispose())
+    console.log("🔌 Disposing Dynamic Plugin Manager")
+    this.plugins.forEach((plugin) => plugin.dispose())
     this.plugins.clear()
     this.initialized = false
     this.currentConfig = {}
-    console.log('✅ Dynamic Plugin Manager disposed')
+    console.log("✅ Dynamic Plugin Manager disposed")
   }
 
   /**
@@ -247,9 +263,12 @@ export class DynamicPluginManager {
   setupModelListeners(model: monaco.editor.ITextModel): void {
     this.plugins.forEach((plugin, name) => {
       // Check if plugin has setupModelListeners method (like ESM plugin)
-      if ('setupModelListeners' in plugin && typeof plugin.setupModelListeners === 'function') {
+      if (
+        "setupModelListeners" in plugin &&
+        typeof plugin.setupModelListeners === "function"
+      ) {
         console.log(`🔗 Setting up model listeners for ${name} plugin`)
-          ; (plugin as any).setupModelListeners(model)
+        ;(plugin as any).setupModelListeners(model)
       }
     })
   }

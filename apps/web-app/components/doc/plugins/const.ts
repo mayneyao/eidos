@@ -1,5 +1,4 @@
-import type {
-  Transformer} from "@lexical/markdown";
+import type { Transformer } from "@lexical/markdown"
 import {
   CHECK_LIST,
   CODE,
@@ -9,10 +8,8 @@ import {
   LINK,
   ORDERED_LIST,
   QUOTE,
-  TRANSFORMERS
+  TRANSFORMERS,
 } from "@lexical/markdown"
-
-
 
 import { BuiltInBlocks } from "../blocks"
 import type { BookmarkPayload } from "../blocks/bookmark/node"

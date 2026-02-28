@@ -21,9 +21,9 @@ export const TextEditor: React.FC<PropertyEditorProps> = ({
 }) => {
   const [editingValue, setEditingValue] = useState<string>("")
   const inputRef = useRef<HTMLInputElement>(null)
-  
+
   const isEmpty = propIsEmpty ?? isPropertyEmpty(value)
-  
+
   // Update editing value when entering edit mode
   useEffect(() => {
     if (isEditing) {
@@ -66,7 +66,11 @@ export const TextEditor: React.FC<PropertyEditorProps> = ({
 
   if (isEditing) {
     return (
-      <BaseEditor readonly={readonly} isSystemProperty={isSystemProperty} isEditing={isEditing}>
+      <BaseEditor
+        readonly={readonly}
+        isSystemProperty={isSystemProperty}
+        isEditing={isEditing}
+      >
         <input
           ref={inputRef}
           type="text"
@@ -83,7 +87,7 @@ export const TextEditor: React.FC<PropertyEditorProps> = ({
 
   if (isEmpty) {
     return (
-      <EmptyValue 
+      <EmptyValue
         onClick={handleStartEdit}
         readonly={readonly}
         isSystemProperty={isSystemProperty}
@@ -92,7 +96,7 @@ export const TextEditor: React.FC<PropertyEditorProps> = ({
   }
 
   return (
-    <BaseEditor 
+    <BaseEditor
       onClick={handleStartEdit}
       readonly={readonly}
       isSystemProperty={isSystemProperty}

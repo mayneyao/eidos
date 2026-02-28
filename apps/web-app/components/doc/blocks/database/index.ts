@@ -19,4 +19,4 @@ export default {
     create: INSERT_DATABASE_TABLE_COMMAND,
   },
   createNode: $createDatabaseTableNode,
-} as DocBlock 
+} as DocBlock

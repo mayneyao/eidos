@@ -100,9 +100,12 @@ export class DataSpaceManager {
       if (!spaceInfo) {
         throw new Error(`Space not found: ${spaceId}`)
       }
-      
+
       // Use space's provider if set, otherwise use default
-      const providerId = spaceInfo.sync?.provider || configManager.getDefaultSyncProvider() || 'eidos.space'
+      const providerId =
+        spaceInfo.sync?.provider ||
+        configManager.getDefaultSyncProvider() ||
+        "eidos.space"
 
       const credentials =
         await CredentialsManager.getSyncCredentials(providerId)

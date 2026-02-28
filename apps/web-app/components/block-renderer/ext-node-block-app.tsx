@@ -2,8 +2,15 @@ import { forwardRef, Suspense } from "react"
 import { useTranslation } from "react-i18next"
 
 import { isDesktopMode } from "@/lib/env"
-import { useMblock, isMblockBuiltIn, type ExtensionWithBuiltIn } from "@/apps/web-app/hooks/use-mblock"
-import { ExtensionContextProvider, type ExtNodeContext } from "@eidos.space/react"
+import {
+  useMblock,
+  isMblockBuiltIn,
+  type ExtensionWithBuiltIn,
+} from "@/apps/web-app/hooks/use-mblock"
+import {
+  ExtensionContextProvider,
+  type ExtNodeContext,
+} from "@eidos.space/react"
 
 import { type BlockRendererRef } from "./block-renderer"
 import { WebViewBlock } from "./webview-block"
@@ -18,7 +25,7 @@ export const ExtNodeBlockApp = forwardRef<
 >(({ space, blockId, nodeId }, ref) => {
   const { t } = useTranslation()
   const block = useMblock(blockId || undefined)
-  
+
   if (!blockId) {
     // extnode need an enabled handle block to work
     return (
@@ -29,7 +36,7 @@ export const ExtNodeBlockApp = forwardRef<
       </div>
     )
   }
-  
+
   if (!block) {
     return (
       <div className="flex justify-center items-center h-full w-full">
@@ -44,17 +51,19 @@ export const ExtNodeBlockApp = forwardRef<
   if (isMblockBuiltIn(block) && block._builtInComponent) {
     const Component = block._builtInComponent
     const context: ExtNodeContext = {
-      type: 'extNode',
+      type: "extNode",
       space,
       nodeId,
     }
 
     return (
-      <Suspense fallback={
-        <div className="flex justify-center items-center h-full w-full">
-          <div className="text-sm text-gray-500">Loading extension...</div>
-        </div>
-      }>
+      <Suspense
+        fallback={
+          <div className="flex justify-center items-center h-full w-full">
+            <div className="text-sm text-gray-500">Loading extension...</div>
+          </div>
+        }
+      >
         <ExtensionContextProvider context={context}>
           <Component />
         </ExtensionContextProvider>

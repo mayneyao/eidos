@@ -3,24 +3,24 @@
  * Provides ESM import resolution and autocompletion for external packages
  */
 
-import * as monaco from 'monaco-editor'
-import { ImportParser } from './services/import-parser'
-import { URLResolver } from './services/url-resolver'
-import { TypeDefinitionManager } from './services/type-definition'
-import { MonacoIntegration } from './services/monaco-integration'
+import * as monaco from "monaco-editor"
+import { ImportParser } from "./services/import-parser"
+import { URLResolver } from "./services/url-resolver"
+import { TypeDefinitionManager } from "./services/type-definition"
+import { MonacoIntegration } from "./services/monaco-integration"
 
 // Re-export all services and interfaces for external use
-export * from './services'
-export * from './interfaces'
+export * from "./services"
+export * from "./interfaces"
 
 // Import interfaces from the proper location
-import type { EditorPlugin } from '../base-types'
-import type { ESMImportResolverProps, ImportSuggestion } from './types'
+import type { EditorPlugin } from "../base-types"
+import type { ESMImportResolverProps, ImportSuggestion } from "./types"
 
 // Re-export the props interface for convenience
 export type { ESMImportResolverProps, ImportSuggestion }
 
-import { esmPluginDebug as debug } from './utils/debug'
+import { esmPluginDebug as debug } from "./utils/debug"
 
 // Global state to prevent duplicate Monaco service registrations
 let globalESMProviderRegistered = false
@@ -31,8 +31,8 @@ let globalESMDisposables: monaco.IDisposable[] = []
  * Migrated from plugin-manager.ts and enhanced with new architecture
  */
 export class ESMImportResolverPlugin implements EditorPlugin {
-  name = 'esm-import-resolver'
-  version = '1.0.0'
+  name = "esm-import-resolver"
+  version = "1.0.0"
   private instanceId = Math.random().toString(36).substr(2, 9)
 
   private enabled = false
@@ -44,17 +44,19 @@ export class ESMImportResolverPlugin implements EditorPlugin {
   private customImportSuggestions: ImportSuggestion[] = []
 
   constructor(private config: ESMImportResolverProps = {}) {
-    debug.log(`Creating new ESMImportResolverPlugin instance [${this.instanceId}]`)
+    debug.log(
+      `Creating new ESMImportResolverPlugin instance [${this.instanceId}]`
+    )
 
     // Set default config
     this.config = {
       enabled: true,
-      esmServerUrl: 'https://esm.sh',
+      esmServerUrl: "https://esm.sh",
       enableAutoTypeResolution: true,
       packageWhitelist: [],
       packageBlacklist: [],
       customImportSuggestions: [],
-      ...config
+      ...config,
     } as ESMImportResolverProps
 
     this.importParser = new ImportParser()
@@ -68,11 +70,15 @@ export class ESMImportResolverPlugin implements EditorPlugin {
     }
 
     if (this.config.packageWhitelist) {
-      this.config.packageWhitelist.forEach(pkg => this.urlResolver.addToWhitelist(pkg))
+      this.config.packageWhitelist.forEach((pkg) =>
+        this.urlResolver.addToWhitelist(pkg)
+      )
     }
 
     if (this.config.packageBlacklist) {
-      this.config.packageBlacklist.forEach(pkg => this.urlResolver.addToBlacklist(pkg))
+      this.config.packageBlacklist.forEach((pkg) =>
+        this.urlResolver.addToBlacklist(pkg)
+      )
     }
 
     // Store custom import suggestions
@@ -83,7 +89,9 @@ export class ESMImportResolverPlugin implements EditorPlugin {
 
   async initialize(): Promise<void> {
     if (this.enabled) {
-      debug.log(`${this.name} [${this.instanceId}] already enabled, skipping initialization`)
+      debug.log(
+        `${this.name} [${this.instanceId}] already enabled, skipping initialization`
+      )
       return
     }
 
@@ -92,9 +100,11 @@ export class ESMImportResolverPlugin implements EditorPlugin {
     try {
       // Check if global provider is already registered
       if (globalESMProviderRegistered) {
-        debug.log(`${this.name} provider already registered globally, disposing previous instance`)
+        debug.log(
+          `${this.name} provider already registered globally, disposing previous instance`
+        )
         // Dispose previous global registrations
-        globalESMDisposables.forEach(disposable => disposable.dispose())
+        globalESMDisposables.forEach((disposable) => disposable.dispose())
         globalESMDisposables = []
         globalESMProviderRegistered = false
       }
@@ -103,50 +113,54 @@ export class ESMImportResolverPlugin implements EditorPlugin {
       this.dispose()
 
       // Register completion provider for ESM imports
-      const completionProvider = monaco.languages.registerCompletionItemProvider(
-        ['typescript'],
-        {
-          triggerCharacters: ['"', "'", '/'],
+      const completionProvider =
+        monaco.languages.registerCompletionItemProvider(["typescript"], {
+          triggerCharacters: ['"', "'", "/"],
           provideCompletionItems: async (model, position) => {
             return this.provideImportCompletions(model, position)
-          }
-        }
-      )
+          },
+        })
 
       // Track both locally and globally
       this.disposables.push(completionProvider)
       globalESMDisposables.push(completionProvider)
-      debug.log(`Registered completion provider for ${this.name} [${this.instanceId}]`)
+      debug.log(
+        `Registered completion provider for ${this.name} [${this.instanceId}]`
+      )
 
       // Register hover provider for import information
       const hoverProvider = monaco.languages.registerHoverProvider(
-        ['typescript'],
+        ["typescript"],
         {
           provideHover: async (model, position) => {
             return this.provideImportHover(model, position)
-          }
+          },
         }
       )
 
       // Track both locally and globally
       this.disposables.push(hoverProvider)
       globalESMDisposables.push(hoverProvider)
-      debug.log(`Registered hover provider for ${this.name} [${this.instanceId}]`)
+      debug.log(
+        `Registered hover provider for ${this.name} [${this.instanceId}]`
+      )
 
       // Register code action provider for import resolution
       const codeActionProvider = monaco.languages.registerCodeActionProvider(
-        ['typescript'],
+        ["typescript"],
         {
           provideCodeActions: async (model, range, context) => {
             return this.provideImportCodeActions(model, range, context)
-          }
+          },
         }
       )
 
       // Track both locally and globally
       this.disposables.push(codeActionProvider)
       globalESMDisposables.push(codeActionProvider)
-      debug.log(`Registered code action provider for ${this.name} [${this.instanceId}]`)
+      debug.log(
+        `Registered code action provider for ${this.name} [${this.instanceId}]`
+      )
 
       // Mark global provider as registered
       globalESMProviderRegistered = true
@@ -158,7 +172,10 @@ export class ESMImportResolverPlugin implements EditorPlugin {
       debug.log(`${this.name} [${this.instanceId}] initialized successfully`)
       debug.log(`Global ESM disposables count: ${globalESMDisposables.length}`)
     } catch (error) {
-      debug.error(`Failed to initialize ${this.name} [${this.instanceId}]:`, error)
+      debug.error(
+        `Failed to initialize ${this.name} [${this.instanceId}]:`,
+        error
+      )
       throw error
     }
   }
@@ -170,12 +187,12 @@ export class ESMImportResolverPlugin implements EditorPlugin {
     const disposablesToRemove = [...this.disposables]
 
     // Remove from global tracking
-    globalESMDisposables = globalESMDisposables.filter(disposable =>
-      !disposablesToRemove.includes(disposable)
+    globalESMDisposables = globalESMDisposables.filter(
+      (disposable) => !disposablesToRemove.includes(disposable)
     )
 
     // Dispose local disposables
-    disposablesToRemove.forEach(disposable => disposable.dispose())
+    disposablesToRemove.forEach((disposable) => disposable.dispose())
     this.disposables = []
     this.enabled = false
 
@@ -221,16 +238,20 @@ export class ESMImportResolverPlugin implements EditorPlugin {
    */
   setupModelListeners(model: monaco.editor.ITextModel): void {
     if (!this.enabled) {
-      debug.log('ESM plugin not enabled, skipping model listeners')
+      debug.log("ESM plugin not enabled, skipping model listeners")
       return
     }
 
-    debug.log(`Setting up ESM plugin listeners for model: ${model.uri.toString()}`)
+    debug.log(
+      `Setting up ESM plugin listeners for model: ${model.uri.toString()}`
+    )
 
     // Listen for content changes on this specific model
     const disposable = model.onDidChangeContent(async () => {
       if (this.config?.enableAutoTypeResolution) {
-        debug.log(`Content changed in ${model.uri.toString()}, analyzing imports...`)
+        debug.log(
+          `Content changed in ${model.uri.toString()}, analyzing imports...`
+        )
         await this.analyzeAndResolveImports(model)
       }
     })
@@ -272,9 +293,10 @@ export class ESMImportResolverPlugin implements EditorPlugin {
     )
 
     // Use custom import suggestions if provided, otherwise use default suggestions
-    const baseSuggestions = this.customImportSuggestions.length > 0
-      ? this.customImportSuggestions
-      : this.getDefaultImportSuggestions()
+    const baseSuggestions =
+      this.customImportSuggestions.length > 0
+        ? this.customImportSuggestions
+        : this.getDefaultImportSuggestions()
 
     const suggestions: monaco.languages.CompletionItem[] = baseSuggestions
       .filter((item: ImportSuggestion) => item.label.includes(partialImport))
@@ -284,11 +306,11 @@ export class ESMImportResolverPlugin implements EditorPlugin {
         insertText: item.insertText,
         detail: item.detail,
         documentation: item.documentation,
-        range: range
+        range: range,
       }))
 
     return {
-      suggestions
+      suggestions,
     }
   }
 
@@ -298,26 +320,26 @@ export class ESMImportResolverPlugin implements EditorPlugin {
   private getDefaultImportSuggestions(): ImportSuggestion[] {
     return [
       {
-        label: 'react',
-        insertText: 'react',
-        detail: 'React library',
-        documentation: 'A JavaScript library for building user interfaces',
-        kind: monaco.languages.CompletionItemKind.Module
+        label: "react",
+        insertText: "react",
+        detail: "React library",
+        documentation: "A JavaScript library for building user interfaces",
+        kind: monaco.languages.CompletionItemKind.Module,
       },
       {
-        label: 'lodash',
-        insertText: 'lodash',
-        detail: 'Lodash utility library',
-        documentation: 'A modern JavaScript utility library',
-        kind: monaco.languages.CompletionItemKind.Module
+        label: "lodash",
+        insertText: "lodash",
+        detail: "Lodash utility library",
+        documentation: "A modern JavaScript utility library",
+        kind: monaco.languages.CompletionItemKind.Module,
       },
       {
-        label: 'axios',
-        insertText: 'axios',
-        detail: 'HTTP client library',
-        documentation: 'Promise based HTTP client for the browser and node.js',
-        kind: monaco.languages.CompletionItemKind.Module
-      }
+        label: "axios",
+        insertText: "axios",
+        detail: "HTTP client library",
+        documentation: "Promise based HTTP client for the browser and node.js",
+        kind: monaco.languages.CompletionItemKind.Module,
+      },
     ]
   }
 
@@ -342,28 +364,32 @@ export class ESMImportResolverPlugin implements EditorPlugin {
 
     const contents: monaco.IMarkdownString[] = [
       {
-        value: `**Import:** \`${importPath}\``
+        value: `**Import:** \`${importPath}\``,
       },
       {
-        value: `**Resolved URL:** \`${resolvedUrl}\``
-      }
+        value: `**Resolved URL:** \`${resolvedUrl}\``,
+      },
     ]
 
-    if (!metadata.isNodeBuiltin && !metadata.isRelative && !metadata.isLocalPathMapping) {
+    if (
+      !metadata.isNodeBuiltin &&
+      !metadata.isRelative &&
+      !metadata.isLocalPathMapping
+    ) {
       contents.push({
-        value: `**Type:** Third-party package`
+        value: `**Type:** Third-party package`,
       })
     }
 
     if (metadata.isNodeBuiltin) {
       contents.push({
-        value: `**Type:** Node.js builtin module`
+        value: `**Type:** Node.js builtin module`,
       })
     }
 
     if (metadata.version) {
       contents.push({
-        value: `**Version:** \`${metadata.version}\``
+        value: `**Version:** \`${metadata.version}\``,
       })
     }
 
@@ -374,7 +400,7 @@ export class ESMImportResolverPlugin implements EditorPlugin {
         position.lineNumber,
         word.endColumn
       ),
-      contents
+      contents,
     }
   }
 
@@ -390,28 +416,30 @@ export class ESMImportResolverPlugin implements EditorPlugin {
 
     // Add action to resolve all imports in the file
     actions.push({
-      title: 'Resolve all ESM imports',
-      kind: 'quickfix',
+      title: "Resolve all ESM imports",
+      kind: "quickfix",
       edit: {
-        edits: []
+        edits: [],
       },
       command: {
-        id: 'esm-resolver.resolve-all-imports',
-        title: 'Resolve all ESM imports',
-        arguments: [model.uri.toString()]
-      }
+        id: "esm-resolver.resolve-all-imports",
+        title: "Resolve all ESM imports",
+        arguments: [model.uri.toString()],
+      },
     })
 
     return {
       actions,
-      dispose: () => { }
+      dispose: () => {},
     }
   }
 
   /**
    * Analyze and resolve imports in a model
    */
-  private async analyzeAndResolveImports(model: monaco.editor.ITextModel): Promise<void> {
+  private async analyzeAndResolveImports(
+    model: monaco.editor.ITextModel
+  ): Promise<void> {
     try {
       const content = model.getValue()
       const filePath = model.uri.path
@@ -432,11 +460,13 @@ export class ESMImportResolverPlugin implements EditorPlugin {
       // Fetch and register type definitions for third-party packages
       try {
         const thirdPartyImports = imports
-          .filter(imp => imp.isThirdParty && !imp.isNodeBuiltin)
-          .map(imp => imp.resolved)
+          .filter((imp) => imp.isThirdParty && !imp.isNodeBuiltin)
+          .map((imp) => imp.resolved)
 
         if (thirdPartyImports.length > 0) {
-          debug.log(`Fetching types for ${thirdPartyImports.length} packages...`)
+          debug.log(
+            `Fetching types for ${thirdPartyImports.length} packages...`
+          )
 
           // Fetch type definitions
           const typeDefinitions = await Promise.all(
@@ -451,15 +481,17 @@ export class ESMImportResolverPlugin implements EditorPlugin {
           )
 
           // Filter out null results and register with Monaco
-          const validTypes = typeDefinitions.filter(type => type !== null)
+          const validTypes = typeDefinitions.filter((type) => type !== null)
           if (validTypes.length > 0) {
-            debug.log(`Registering ${validTypes.length} type definitions with Monaco...`)
+            debug.log(
+              `Registering ${validTypes.length} type definitions with Monaco...`
+            )
             this.monacoIntegration.registerTypeDefinitions(validTypes)
-            debug.log('Type definitions registered successfully!')
+            debug.log("Type definitions registered successfully!")
           }
         }
       } catch (typeError) {
-        debug.warn('Error in type fetching and registration:', typeError)
+        debug.warn("Error in type fetching and registration:", typeError)
       }
 
       debug.log(`Import analysis completed for ${filePath}`)
@@ -473,7 +505,7 @@ export class ESMImportResolverPlugin implements EditorPlugin {
    * Configure TypeScript compiler options for ESM support
    */
   private configureCompilerOptions(): void {
-    debug.log('Configuring TypeScript compiler options for ESM support')
+    debug.log("Configuring TypeScript compiler options for ESM support")
 
     const compilerOptions: monaco.languages.typescript.CompilerOptions = {
       target: monaco.languages.typescript.ScriptTarget.ES2020,
@@ -491,15 +523,15 @@ export class ESMImportResolverPlugin implements EditorPlugin {
       isolatedModules: true,
       noEmit: true,
       // Enable type checking for imports
-      typeRoots: ['node_modules/@types'],
+      typeRoots: ["node_modules/@types"],
       // Allow importing from node_modules
-      baseUrl: '.',
+      baseUrl: ".",
       paths: {
-        '*': ['node_modules/*', 'node_modules/@types/*']
-      }
+        "*": ["node_modules/*", "node_modules/@types/*"],
+      },
     }
 
     this.monacoIntegration.updateCompilerOptions(compilerOptions)
-    debug.log('TypeScript compiler options configured')
+    debug.log("TypeScript compiler options configured")
   }
 }

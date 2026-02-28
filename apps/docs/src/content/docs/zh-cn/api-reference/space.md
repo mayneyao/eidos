@@ -539,10 +539,7 @@ await eidos.space.fs.writeFile("~/data.txt", "内容", {
 })
 
 // 写入到挂载文件夹
-await eidos.space.fs.writeFile(
-  "@/backup/data.json",
-  JSON.stringify(data)
-)
+await eidos.space.fs.writeFile("@/backup/data.json", JSON.stringify(data))
 ```
 
 **常见用例:**
@@ -784,10 +781,10 @@ async function organizeByDate(filePath: string) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, "0")
   const dir = `@/archive/${year}/${month}`
-  
+
   // 确保目录存在
   await eidos.space.fs.mkdir(dir, { recursive: true })
-  
+
   // 移动文件
   const fileName = filePath.substring(filePath.lastIndexOf("/") + 1)
   await eidos.space.fs.rename(filePath, `${dir}/${fileName}`)
@@ -845,12 +842,14 @@ interface IWatchEvent {
 ```typescript
 // 监听节点目录的变化
 for await (const event of eidos.space.fs.watch("~/.eidos/__NODES__/")) {
-  console.log(`节点 ${event.filename} ${event.eventType === 'rename' ? '创建/删除' : '内容变化'}`)
+  console.log(
+    `节点 ${event.filename} ${event.eventType === "rename" ? "创建/删除" : "内容变化"}`
+  )
 }
 
 // 监听扩展目录的变化
 for await (const event of eidos.space.fs.watch("~/.eidos/__EXTENSIONS__/")) {
-  if (event.eventType === 'rename') {
+  if (event.eventType === "rename") {
     console.log(`扩展 ${event.filename} 已创建或删除`)
   } else {
     console.log(`扩展 ${event.filename} 内容已更新`)
@@ -859,7 +858,7 @@ for await (const event of eidos.space.fs.watch("~/.eidos/__EXTENSIONS__/")) {
 
 // 递归监听目录及其子目录
 for await (const event of eidos.space.fs.watch("~/src", {
-  recursive: true
+  recursive: true,
 })) {
   console.log(`文件 ${event.filename} 发生变化`)
 }
@@ -873,14 +872,14 @@ setTimeout(() => controller.abort(), 5000)
 
 for await (const event of eidos.space.fs.watch("~/", {
   recursive: true,
-  signal
+  signal,
 })) {
   console.log(`变化: ${event.filename}`)
 }
 
 // 监听挂载文件夹
 for await (const event of eidos.space.fs.watch("@/music", {
-  recursive: true
+  recursive: true,
 })) {
   console.log(`音乐文件 ${event.filename} 发生变化`)
 }
@@ -892,7 +891,7 @@ for await (const event of eidos.space.fs.watch("@/music", {
 // 监听文件变化并自动重新加载
 async function watchAndReload(filePath: string, callback: () => void) {
   for await (const event of eidos.space.fs.watch(filePath)) {
-    if (event.eventType === 'change') {
+    if (event.eventType === "change") {
       console.log(`文件 ${filePath} 已更新，重新加载...`)
       callback()
     }
@@ -902,9 +901,9 @@ async function watchAndReload(filePath: string, callback: () => void) {
 // 监听目录变化并同步到数据库
 async function syncDirectoryChanges(dirPath: string) {
   for await (const event of eidos.space.fs.watch(dirPath, {
-    recursive: true
+    recursive: true,
   })) {
-    if (event.eventType === 'rename') {
+    if (event.eventType === "rename") {
       // 文件创建或删除
       const fullPath = `${dirPath}/${event.filename}`
       try {
@@ -929,16 +928,16 @@ async function syncDirectoryChanges(dirPath: string) {
 async function watchWithTimeout(path: string, timeoutMs: number) {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
-  
+
   try {
     for await (const event of eidos.space.fs.watch(path, {
-      signal: controller.signal
+      signal: controller.signal,
     })) {
       console.log(`变化: ${event.filename}`)
     }
   } catch (error) {
-    if (error.name === 'AbortError') {
-      console.log('监听已超时')
+    if (error.name === "AbortError") {
+      console.log("监听已超时")
     } else {
       throw error
     }
@@ -949,17 +948,17 @@ async function watchWithTimeout(path: string, timeoutMs: number) {
 
 // 监听多个目录
 async function watchMultipleDirs(paths: string[]) {
-  const watchers = paths.map(path => 
+  const watchers = paths.map((path) =>
     eidos.space.fs.watch(path, { recursive: true })
   )
-  
+
   // 使用 Promise.race 监听所有目录
   const events = watchers.map(async function* (watcher) {
     for await (const event of watcher) {
       yield event
     }
   })
-  
+
   // 合并所有事件流
   for await (const event of mergeAsyncIterables(...events)) {
     console.log(`变化: ${event.filename}`)
@@ -967,15 +966,17 @@ async function watchMultipleDirs(paths: string[]) {
 }
 
 // 辅助函数：合并多个 AsyncIterable
-async function* mergeAsyncIterables<T>(...iterables: AsyncIterable<T>[]): AsyncIterable<T> {
-  const iterators = iterables.map(it => it[Symbol.asyncIterator]())
-  const nextPromises = iterators.map(it => it.next())
-  
+async function* mergeAsyncIterables<T>(
+  ...iterables: AsyncIterable<T>[]
+): AsyncIterable<T> {
+  const iterators = iterables.map((it) => it[Symbol.asyncIterator]())
+  const nextPromises = iterators.map((it) => it.next())
+
   while (nextPromises.length > 0) {
     const { value, done } = await Promise.race(
-      nextPromises.map((p, i) => p.then(result => ({ ...result, index: i })))
+      nextPromises.map((p, i) => p.then((result) => ({ ...result, index: i })))
     )
-    
+
     if (done) {
       nextPromises.splice(value.index, 1)
       iterators.splice(value.index, 1)
@@ -1011,11 +1012,11 @@ async function* mergeAsyncIterables<T>(...iterables: AsyncIterable<T>[]): AsyncI
 获取当前同步状态，包括领先（ahead）和落后（behind）的提交数量。
 
 ```typescript
-async status(): Promise<{ 
+async status(): Promise<{
   ahead: number        // 尚未推送到远程的本地提交数量
   behind: number       // 尚未拉取到本地的远程提交数量
-  last_pushed_at: string 
-  last_pulled_at: string 
+  last_pushed_at: string
+  last_pulled_at: string
 }>
 ```
 
@@ -1040,6 +1041,7 @@ async fetch(): Promise<void>
 ### `pull()`
 
 从远程服务器拉取更改并应用到本地空间。
+
 - 首先执行 `fetch`。
 - 将远程更改合并到本地数据库。
 - 如果应用了更改，会自动触发页面重新加载。
@@ -1061,7 +1063,7 @@ async push(): Promise<void>
 获取此空间可用的所有标签（快照）列表。
 
 ```typescript
-async tags(): Promise<Array<{ 
+async tags(): Promise<Array<{
   tag: string         // 标签名称
   log_id: string      // 日志/提交的唯一 ID
   created_at: string  // 创建时间戳
@@ -1072,7 +1074,7 @@ async tags(): Promise<Array<{
 
 ```typescript
 const tags = await eidos.space.graft.tags()
-tags.forEach(tag => console.log(`快照: ${tag.tag} (${tag.created_at})`))
+tags.forEach((tag) => console.log(`快照: ${tag.tag} (${tag.created_at})`))
 ```
 
 ### `clone(remoteLogId?)`

@@ -192,14 +192,23 @@ export const Card: FC<CardProps> = ({
         </DropdownMenuTrigger>
         {/* z-index 10000 > gdg editor 9999 */}
         <DropdownMenuContent className="click-outside-ignore z-[10000]">
-          <DropdownMenuItem onClick={() => setCurrentPreviewIndex(index)} className="text-xs">
+          <DropdownMenuItem
+            onClick={() => setCurrentPreviewIndex(index)}
+            className="text-xs"
+          >
             Fullscreen
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleClickViewOriginal} className="text-xs">
+          <DropdownMenuItem
+            onClick={handleClickViewOriginal}
+            className="text-xs"
+          >
             View Original
           </DropdownMenuItem>
           {!isView && (
-            <DropdownMenuItem onClick={() => deleteByUrl(index)} className="text-xs">
+            <DropdownMenuItem
+              onClick={() => deleteByUrl(index)}
+              className="text-xs"
+            >
               Delete
             </DropdownMenuItem>
           )}

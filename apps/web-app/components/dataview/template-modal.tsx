@@ -29,7 +29,7 @@ export const TemplateModal = ({
   const [isOpen, setIsOpen] = useState(false)
   const [focusedIndex, setFocusedIndex] = useState(-1)
   const { t } = useTranslation()
-  
+
   const searchInputRef = useRef<HTMLInputElement>(null)
   const templateRefs = useRef<(HTMLButtonElement | null)[]>([])
 
@@ -37,40 +37,50 @@ export const TemplateModal = ({
   const templates = useMemo(() => getTemplates(), [])
 
   // Template categorization and filtering logic (memoized)
-  const templateCategories = useMemo(() => ({
-    all: { label: "All", icon: "🔍", count: templates.length },
-    doc: {
-      label: "Doc",
-      icon: "📄",
-      count: templates.filter((t) => t.category === "doc").length,
-    },
-    file: {
-      label: "File",
-      icon: "📁",
-      count: templates.filter((t) => t.category === "file").length,
-    },
-    system: {
-      label: "System",
-      icon: "⚙️",
-      count: templates.filter((t) => t.category === "system").length,
-    },
-  }), [templates])
+  const templateCategories = useMemo(
+    () => ({
+      all: { label: "All", icon: "🔍", count: templates.length },
+      doc: {
+        label: "Doc",
+        icon: "📄",
+        count: templates.filter((t) => t.category === "doc").length,
+      },
+      file: {
+        label: "File",
+        icon: "📁",
+        count: templates.filter((t) => t.category === "file").length,
+      },
+      system: {
+        label: "System",
+        icon: "⚙️",
+        count: templates.filter((t) => t.category === "system").length,
+      },
+    }),
+    [templates]
+  )
 
-  const filteredTemplates = useMemo(() => 
-    templates.filter((template) => {
-      const matchesSearch =
-        template.name.toLowerCase().includes(templateSearchQuery.toLowerCase()) ||
-        template.tags.some((tag) =>
-          tag.toLowerCase().includes(templateSearchQuery.toLowerCase())
-        ) ||
-        template.i18nKey.toLowerCase().includes(templateSearchQuery.toLowerCase())
+  const filteredTemplates = useMemo(
+    () =>
+      templates.filter((template) => {
+        const matchesSearch =
+          template.name
+            .toLowerCase()
+            .includes(templateSearchQuery.toLowerCase()) ||
+          template.tags.some((tag) =>
+            tag.toLowerCase().includes(templateSearchQuery.toLowerCase())
+          ) ||
+          template.i18nKey
+            .toLowerCase()
+            .includes(templateSearchQuery.toLowerCase())
 
-      if (selectedCategory === null || selectedCategory === "all") {
-        return matchesSearch
-      }
+        if (selectedCategory === null || selectedCategory === "all") {
+          return matchesSearch
+        }
 
-      return matchesSearch && template.category === selectedCategory
-    }), [templates, templateSearchQuery, selectedCategory])
+        return matchesSearch && template.category === selectedCategory
+      }),
+    [templates, templateSearchQuery, selectedCategory]
+  )
 
   const handleTemplateSelect = (templateSql: string) => {
     onTemplateSelect(templateSql)
@@ -99,12 +109,13 @@ export const TemplateModal = ({
       // Arrow keys - navigate through templates
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault()
-        
+
         if (filteredTemplates.length === 0) return
 
-        const newIndex = event.key === "ArrowDown" 
-          ? Math.min(focusedIndex + 1, filteredTemplates.length - 1)
-          : Math.max(focusedIndex - 1, -1)
+        const newIndex =
+          event.key === "ArrowDown"
+            ? Math.min(focusedIndex + 1, filteredTemplates.length - 1)
+            : Math.max(focusedIndex - 1, -1)
 
         setFocusedIndex(newIndex)
 
@@ -138,14 +149,12 @@ export const TemplateModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
+      <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{t("common.templates")}</DialogTitle>
         </DialogHeader>
-        
+
         <div className="flex flex-col gap-4 flex-1 min-h-0">
           {/* Search box */}
           <div className="relative px-1">
@@ -206,7 +215,9 @@ export const TemplateModal = ({
                   onFocus={() => setFocusedIndex(index)}
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <div className="font-medium text-sm">{t(template.i18nKey)}</div>
+                    <div className="font-medium text-sm">
+                      {t(template.i18nKey)}
+                    </div>
                     <div className="flex items-center gap-1">
                       <Badge
                         variant={"secondary"}

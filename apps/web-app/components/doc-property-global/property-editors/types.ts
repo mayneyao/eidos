@@ -21,7 +21,10 @@ export interface BasePropertyEditorProps {
 /**
  * Props for display-only mode
  */
-export interface PropertyDisplayProps extends Omit<BasePropertyEditorProps, 'onChange'> {
+export interface PropertyDisplayProps extends Omit<
+  BasePropertyEditorProps,
+  "onChange"
+> {
   /** Whether the value is empty */
   isEmpty?: boolean
   /** Callback when user clicks to start editing */

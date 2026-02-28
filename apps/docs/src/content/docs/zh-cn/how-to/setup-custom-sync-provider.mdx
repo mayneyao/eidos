@@ -20,11 +20,11 @@ import { Aside } from "@astrojs/starlight/components"
 
 任何兼容 S3 协议的存储服务都可以作为同步服务提供商：
 
-| 服务 | 端点示例 | 说明 |
-|------|---------|------|
-| **AWS S3** | `https://s3.amazonaws.com` | 标准 S3 服务 |
+| 服务              | 端点示例                                     | 说明                   |
+| ----------------- | -------------------------------------------- | ---------------------- |
+| **AWS S3**        | `https://s3.amazonaws.com`                   | 标准 S3 服务           |
 | **Cloudflare R2** | `https://{account}.r2.cloudflarestorage.com` | 免费额度包含 10GB 存储 |
-| **MinIO** | `http://localhost:9000` | 自托管，免费开源 |
+| **MinIO**         | `http://localhost:9000`                      | 自托管，免费开源       |
 
 其他 S3 兼容服务如 Backblaze B2、DigitalOcean Spaces、阿里云 OSS、腾讯云 COS 等也同样支持。
 
@@ -50,12 +50,12 @@ import { Aside } from "@astrojs/starlight/components"
 
 3. **填写服务提供商信息**
 
-   | 字段 | 说明 | 示例 |
-   |------|------|------|
-   | **服务提供商 ID** | 唯一标识符（小写，无空格）| `my-s3`、`minio`、`r2` |
-   | **端点 URL** | 你的 S3 服务端点 | `https://s3.amazonaws.com` |
-   | **存储桶名称** | 你的 S3 存储桶名称 | `my-eidos-sync` |
-   | **区域** | （可选）存储桶所在区域 | `us-east-1` |
+   | 字段              | 说明                       | 示例                       |
+   | ----------------- | -------------------------- | -------------------------- |
+   | **服务提供商 ID** | 唯一标识符（小写，无空格） | `my-s3`、`minio`、`r2`     |
+   | **端点 URL**      | 你的 S3 服务端点           | `https://s3.amazonaws.com` |
+   | **存储桶名称**    | 你的 S3 存储桶名称         | `my-eidos-sync`            |
+   | **区域**          | （可选）存储桶所在区域     | `us-east-1`                |
 
 4. **输入凭证**
 
@@ -99,8 +99,6 @@ import { Aside } from "@astrojs/starlight/components"
    - 打开**"启用同步"**开关来开启同步
    - 从列表中选择你的自定义服务提供商
    - 点击**"创建并启用同步"**
-
-
 
 </Steps>
 
@@ -163,7 +161,8 @@ import { Aside } from "@astrojs/starlight/components"
 3. 点击**删除服务提供商**
 
 <Aside type="danger">
-  删除服务提供商只会从 Eidos 中移除配置。你的数据仍然保留在 S3 存储桶中。要完全删除数据，你需要手动从 S3 服务中删除。
+  删除服务提供商只会从 Eidos 中移除配置。你的数据仍然保留在 S3
+  存储桶中。要完全删除数据，你需要手动从 S3 服务中删除。
 </Aside>
 
 ## 故障排除
@@ -175,6 +174,7 @@ import { Aside } from "@astrojs/starlight/components"
 ### "没有可用的同步服务提供商"
 
 创建空间时如果看到此消息：
+
 1. 确保你已在**设置 → 同步**中添加了至少一个自定义服务提供商
 2. 验证服务提供商有有效的凭证
 3. 测试连接确保它正常工作
@@ -183,13 +183,13 @@ import { Aside } from "@astrojs/starlight/components"
 
 常见问题及解决方案：
 
-| 错误 | 解决方案 |
-|------|---------|
-| 访问密钥 ID 无效 | 检查访问密钥是否有拼写错误 |
-| 秘密访问密钥无效 | 确认秘密密钥是否正确 |
-| 存储桶不存在 | 确保存储桶名称拼写正确 |
-| 访问被拒绝 | 检查 IAM 权限（需要 `s3:ListBucket`、`s3:GetObject`、`s3:PutObject`、`s3:DeleteObject`）|
-| 无法连接 | 验证端点 URL 和你的网络连接 |
+| 错误             | 解决方案                                                                                 |
+| ---------------- | ---------------------------------------------------------------------------------------- |
+| 访问密钥 ID 无效 | 检查访问密钥是否有拼写错误                                                               |
+| 秘密访问密钥无效 | 确认秘密密钥是否正确                                                                     |
+| 存储桶不存在     | 确保存储桶名称拼写正确                                                                   |
+| 访问被拒绝       | 检查 IAM 权限（需要 `s3:ListBucket`、`s3:GetObject`、`s3:PutObject`、`s3:DeleteObject`） |
+| 无法连接         | 验证端点 URL 和你的网络连接                                                              |
 
 ## 下一步
 

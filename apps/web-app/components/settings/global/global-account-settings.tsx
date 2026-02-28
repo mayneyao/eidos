@@ -8,13 +8,24 @@ import { Input } from "@/components/ui/input"
 import { useAuthOptional } from "@/components/auth-provider"
 import { useActivation } from "@/hooks/use-activation"
 import { useState, useEffect } from "react"
-import { ShieldCheck, CreditCard, Loader2, RefreshCw, AlertTriangle } from "lucide-react"
+import {
+  ShieldCheck,
+  CreditCard,
+  Loader2,
+  RefreshCw,
+  AlertTriangle,
+} from "lucide-react"
 import { toast } from "sonner"
 
 export function GlobalAccountSettings() {
   const { t } = useTranslation()
   const auth = useAuthOptional()
-  const { license, activate, refresh, isLoading: activationLoading } = useActivation()
+  const {
+    license,
+    activate,
+    refresh,
+    isLoading: activationLoading,
+  } = useActivation()
   const [licenseKey, setLicenseKey] = useState("")
   const [loading, setLoading] = useState(false)
 
@@ -35,8 +46,6 @@ export function GlobalAccountSettings() {
     }
   }
 
-
-
   const isAuthenticated = auth?.isAuthenticated ?? false
   const user = auth?.user
 
@@ -54,7 +63,9 @@ export function GlobalAccountSettings() {
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-lg font-medium truncate">{user?.name}</p>
-              <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
+              <p className="text-sm text-muted-foreground truncate">
+                {user?.email}
+              </p>
             </div>
             <Button variant="outline" onClick={() => auth?.logout()}>
               {t("settings.account.logout", "Log out")}
@@ -135,7 +146,9 @@ export function GlobalAccountSettings() {
                       {licenseInfo.plan}
                     </span>
                     <span className="text-sm font-medium font-mono">
-                      {licenseInfo.licenseKey.slice(0, 4) + "*".repeat(licenseInfo.licenseKey.length - 8) + licenseInfo.licenseKey.slice(-4)}
+                      {licenseInfo.licenseKey.slice(0, 4) +
+                        "*".repeat(licenseInfo.licenseKey.length - 8) +
+                        licenseInfo.licenseKey.slice(-4)}
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -173,7 +186,10 @@ export function GlobalAccountSettings() {
                   className="font-mono"
                   disabled={loading || !isAuthenticated}
                 />
-                <Button onClick={handleActivate} disabled={loading || !licenseKey || !isAuthenticated}>
+                <Button
+                  onClick={handleActivate}
+                  disabled={loading || !licenseKey || !isAuthenticated}
+                >
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {t("settings.license.activate", "Activate")}
                 </Button>

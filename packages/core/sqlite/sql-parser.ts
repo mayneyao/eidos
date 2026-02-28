@@ -1,13 +1,5 @@
-import type {
-  SelectFromStatement,
-  Statement} from "pgsql-ast-parser";
-import {
-  astMapper,
-  parse,
-  parseFirst,
-  toSql,
-} from "pgsql-ast-parser"
-
+import type { SelectFromStatement, Statement } from "pgsql-ast-parser"
+import { astMapper, parse, parseFirst, toSql } from "pgsql-ast-parser"
 
 export const getRawTableNameFromQuery = (sql?: string) => {
   if (!sql) return ""

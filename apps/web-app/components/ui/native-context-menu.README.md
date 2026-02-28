@@ -22,7 +22,7 @@ import {
   NativeContextMenuContent,
   NativeContextMenuItem,
   NativeContextMenuSeparator,
-} from '@/components/ui/native-context-menu'
+} from "@/components/ui/native-context-menu"
 
 function MyComponent() {
   return (
@@ -32,13 +32,13 @@ function MyComponent() {
       </NativeContextMenuTrigger>
 
       <NativeContextMenuContent>
-        <NativeContextMenuItem onSelect={() => console.log('Item clicked')}>
+        <NativeContextMenuItem onSelect={() => console.log("Item clicked")}>
           Menu Item
         </NativeContextMenuItem>
 
         <NativeContextMenuSeparator />
 
-        <NativeContextMenuItem onSelect={() => console.log('Another item')}>
+        <NativeContextMenuItem onSelect={() => console.log("Another item")}>
           Another Item
         </NativeContextMenuItem>
       </NativeContextMenuContent>
@@ -54,7 +54,7 @@ function MyComponent() {
 The root component that provides the context menu functionality.
 
 ```tsx
-<NativeContextMenu onOpenChange={(open) => console.log('Menu opened:', open)}>
+<NativeContextMenu onOpenChange={(open) => console.log("Menu opened:", open)}>
   {/* children */}
 </NativeContextMenu>
 ```
@@ -74,9 +74,7 @@ The element that triggers the context menu when right-clicked.
 Contains the menu items. This component doesn't render anything visually - it just collects the menu items.
 
 ```tsx
-<NativeContextMenuContent>
-  {/* menu items */}
-</NativeContextMenuContent>
+<NativeContextMenuContent>{/* menu items */}</NativeContextMenuContent>
 ```
 
 ### NativeContextMenuItem
@@ -84,10 +82,7 @@ Contains the menu items. This component doesn't render anything visually - it ju
 A basic menu item.
 
 ```tsx
-<NativeContextMenuItem
-  onSelect={() => handleAction()}
-  disabled={false}
->
+<NativeContextMenuItem onSelect={() => handleAction()} disabled={false}>
   Menu Item Text
 </NativeContextMenuItem>
 ```
@@ -128,11 +123,11 @@ A separator line between menu items.
 ### With State Management
 
 ```tsx
-import { useState } from 'react'
+import { useState } from "react"
 
 function MyComponent() {
   const [isVisible, setIsVisible] = useState(true)
-  const [theme, setTheme] = useState('light')
+  const [theme, setTheme] = useState("light")
 
   return (
     <NativeContextMenu>
@@ -151,8 +146,12 @@ function MyComponent() {
         <NativeContextMenuSeparator />
 
         <NativeContextMenuRadioGroup value={theme} onValueChange={setTheme}>
-          <NativeContextMenuRadioItem value="light">Light</NativeContextMenuRadioItem>
-          <NativeContextMenuRadioItem value="dark">Dark</NativeContextMenuRadioItem>
+          <NativeContextMenuRadioItem value="light">
+            Light
+          </NativeContextMenuRadioItem>
+          <NativeContextMenuRadioItem value="dark">
+            Dark
+          </NativeContextMenuRadioItem>
         </NativeContextMenuRadioGroup>
       </NativeContextMenuContent>
     </NativeContextMenu>
@@ -191,7 +190,7 @@ import {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
-} from '@/components/ui/context-menu'
+} from "@/components/ui/context-menu"
 
 // After
 import {
@@ -199,7 +198,7 @@ import {
   NativeContextMenuTrigger,
   NativeContextMenuContent,
   NativeContextMenuItem,
-} from '@/components/ui/native-context-menu'
+} from "@/components/ui/native-context-menu"
 ```
 
 The component usage remains exactly the same!

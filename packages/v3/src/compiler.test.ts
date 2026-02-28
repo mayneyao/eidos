@@ -1,22 +1,22 @@
-import { compileCode } from './compiler';
+import { compileCode } from "./compiler"
 
-describe('compiler', () => {
-  describe('compileCode', () => {
-    it('should compile basic JSX without React import', async () => {
+describe("compiler", () => {
+  describe("compileCode", () => {
+    it("should compile basic JSX without React import", async () => {
       const input = `
         function Component() {
           return <div>Hello World</div>;
         }
-      `;
+      `
 
-      const result = await compileCode(input);
+      const result = await compileCode(input)
 
-      expect(result.error).toBeNull();
-      expect(result.code).toContain('jsx');
-      expect(result.code).toContain('react/jsx-runtime');
-    });
+      expect(result.error).toBeNull()
+      expect(result.code).toContain("jsx")
+      expect(result.code).toContain("react/jsx-runtime")
+    })
 
-    it('should compile TypeScript JSX', async () => {
+    it("should compile TypeScript JSX", async () => {
       const input = `
         interface Props {
           message: string;
@@ -25,15 +25,15 @@ describe('compiler', () => {
         function Component({ message }: Props) {
           return <div>{message}</div>;
         }
-      `;
+      `
 
-      const result = await compileCode(input);
+      const result = await compileCode(input)
 
-      expect(result.error).toBeNull();
-      expect(result.code).toBeTruthy();
-    });
+      expect(result.error).toBeNull()
+      expect(result.code).toBeTruthy()
+    })
 
-    it('should remove CSS imports', async () => {
+    it("should remove CSS imports", async () => {
       const input = `
         import './styles.css';
         import "global.css";
@@ -41,33 +41,33 @@ describe('compiler', () => {
         function Component() {
           return <div>Hello</div>;
         }
-      `;
+      `
 
-      const result = await compileCode(input);
+      const result = await compileCode(input)
 
-      expect(result.error).toBeNull();
-      expect(result.code).not.toContain('styles.css');
-      expect(result.code).not.toContain('global.css');
-    });
+      expect(result.error).toBeNull()
+      expect(result.code).not.toContain("styles.css")
+      expect(result.code).not.toContain("global.css")
+    })
 
-    it('should include uiLibCode when provided', async () => {
+    it("should include uiLibCode when provided", async () => {
       const input = `
         function Component() {
           return <Button>Click me</Button>;
         }
-      `;
+      `
 
       const uiLibCode = `
         const Button = ({ children }) => <button>{children}</button>;
-      `;
+      `
 
-      const result = await compileCode(input, { uiLibCode });
+      const result = await compileCode(input, { uiLibCode })
 
-      expect(result.error).toBeNull();
-      expect(result.code).toContain('Button');
-    });
+      expect(result.error).toBeNull()
+      expect(result.code).toContain("Button")
+    })
 
-    it('should handle complex JSX with props', async () => {
+    it("should handle complex JSX with props", async () => {
       const input = `
         function App() {
           const items = ['a', 'b', 'c'];
@@ -80,15 +80,15 @@ describe('compiler', () => {
             </div>
           );
         }
-      `;
+      `
 
-      const result = await compileCode(input);
+      const result = await compileCode(input)
 
-      expect(result.error).toBeNull();
-      expect(result.code).toBeTruthy();
-    });
+      expect(result.error).toBeNull()
+      expect(result.code).toBeTruthy()
+    })
 
-    it('should handle TypeScript types and interfaces', async () => {
+    it("should handle TypeScript types and interfaces", async () => {
       const input = `
         type Color = 'red' | 'blue' | 'green';
         
@@ -100,15 +100,15 @@ describe('compiler', () => {
         const Button: React.FC<ButtonProps> = ({ color, onClick }) => {
           return <button style={{ color }} onClick={onClick}>Click</button>;
         };
-      `;
+      `
 
-      const result = await compileCode(input);
+      const result = await compileCode(input)
 
-      expect(result.error).toBeNull();
-      expect(result.code).toBeTruthy();
-    });
+      expect(result.error).toBeNull()
+      expect(result.code).toBeTruthy()
+    })
 
-    it('should handle React hooks', async () => {
+    it("should handle React hooks", async () => {
       const input = `
         import { useState, useEffect } from 'react';
         
@@ -125,36 +125,36 @@ describe('compiler', () => {
             </button>
           );
         }
-      `;
+      `
 
-      const result = await compileCode(input);
+      const result = await compileCode(input)
 
-      expect(result.error).toBeNull();
-      expect(result.code).toContain('useState');
-      expect(result.code).toContain('useEffect');
-    });
+      expect(result.error).toBeNull()
+      expect(result.code).toContain("useState")
+      expect(result.code).toContain("useEffect")
+    })
 
-    it('should return error for invalid syntax', async () => {
+    it("should return error for invalid syntax", async () => {
       const input = `
         function Component() {
           return <div>unclosed div
         }
-      `;
+      `
 
-      const result = await compileCode(input);
+      const result = await compileCode(input)
 
-      expect(result.error).not.toBeNull();
-      expect(result.code).toBe('');
-    });
+      expect(result.error).not.toBeNull()
+      expect(result.code).toBe("")
+    })
 
-    it('should handle empty input', async () => {
-      const result = await compileCode('');
+    it("should handle empty input", async () => {
+      const result = await compileCode("")
 
-      expect(result.error).toBeNull();
-      expect(result.code).toBeTruthy();
-    });
+      expect(result.error).toBeNull()
+      expect(result.code).toBeTruthy()
+    })
 
-    it('should handle regular JavaScript without JSX', async () => {
+    it("should handle regular JavaScript without JSX", async () => {
       const input = `
         function add(a, b) {
           return a + b;
@@ -162,16 +162,16 @@ describe('compiler', () => {
         
         const result = add(2, 3);
         console.log(result);
-      `;
+      `
 
-      const result = await compileCode(input);
+      const result = await compileCode(input)
 
-      expect(result.error).toBeNull();
-      expect(result.code).toContain('add');
-      expect(result.code).toContain('console.log');
-    });
+      expect(result.error).toBeNull()
+      expect(result.code).toContain("add")
+      expect(result.code).toContain("console.log")
+    })
 
-    it('should handle JSX fragments', async () => {
+    it("should handle JSX fragments", async () => {
       const input = `
         function Component() {
           return (
@@ -181,12 +181,12 @@ describe('compiler', () => {
             </>
           );
         }
-      `;
+      `
 
-      const result = await compileCode(input);
+      const result = await compileCode(input)
 
-      expect(result.error).toBeNull();
-      expect(result.code).toBeTruthy();
-    });
-  });
-}); 
+      expect(result.error).toBeNull()
+      expect(result.code).toBeTruthy()
+    })
+  })
+})

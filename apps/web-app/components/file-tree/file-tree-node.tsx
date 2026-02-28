@@ -127,17 +127,23 @@ export const FileTreeNode = ({
             : undefined
         }
         onCreateDoc={
-          hasChildren && node.metadata?.nodeType === "folder" && !node.metadata?.isVirtualFolder
+          hasChildren &&
+          node.metadata?.nodeType === "folder" &&
+          !node.metadata?.isVirtualFolder
             ? onCreateDoc
             : undefined
         }
         onCreateTable={
-          hasChildren && node.metadata?.nodeType === "folder" && !node.metadata?.isVirtualFolder
+          hasChildren &&
+          node.metadata?.nodeType === "folder" &&
+          !node.metadata?.isVirtualFolder
             ? onCreateTable
             : undefined
         }
         onCreateFolder={
-          hasChildren && node.metadata?.nodeType === "folder" && !node.metadata?.isVirtualFolder
+          hasChildren &&
+          node.metadata?.nodeType === "folder" &&
+          !node.metadata?.isVirtualFolder
             ? onCreateFolder
             : undefined
         }

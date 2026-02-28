@@ -57,7 +57,7 @@ export const Table = ({
     // First try to get from global state
     const globalViewId = getTableCurrentViewId(tableId)
     const currentViewId = viewId || globalViewId
-    
+
     if (currentViewId) {
       return views.find((v) => v.id === currentViewId)
     }

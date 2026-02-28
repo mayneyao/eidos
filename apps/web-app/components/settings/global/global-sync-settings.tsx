@@ -80,7 +80,7 @@ export function GlobalSyncSettings() {
   >({})
   // Track test status for providers: 'untested' | 'testing' | 'success' | 'error'
   const [providerTestStatus, setProviderTestStatus] = useState<
-    Record<string, 'untested' | 'testing' | 'success' | 'error'>
+    Record<string, "untested" | "testing" | "success" | "error">
   >({})
 
   // New provider form state (name is auto-generated from id)
@@ -403,13 +403,13 @@ export function GlobalSyncSettings() {
     const provider = syncConfig.providers[providerId]
     if (!provider) return
 
-    setProviderTestStatus(prev => ({ ...prev, [providerId]: 'testing' }))
+    setProviderTestStatus((prev) => ({ ...prev, [providerId]: "testing" }))
 
     try {
       const credentials =
         await window.eidos.credentials.getSyncCredentials(providerId)
       if (!credentials) {
-        setProviderTestStatus(prev => ({ ...prev, [providerId]: 'error' }))
+        setProviderTestStatus((prev) => ({ ...prev, [providerId]: "error" }))
         toast({
           title: "No Credentials",
           description: "Credentials not found for this provider.",
@@ -427,13 +427,13 @@ export function GlobalSyncSettings() {
       })
 
       if (result.success) {
-        setProviderTestStatus(prev => ({ ...prev, [providerId]: 'success' }))
+        setProviderTestStatus((prev) => ({ ...prev, [providerId]: "success" }))
         toast({
           title: "Success",
           description: "Connection successful!",
         })
       } else {
-        setProviderTestStatus(prev => ({ ...prev, [providerId]: 'error' }))
+        setProviderTestStatus((prev) => ({ ...prev, [providerId]: "error" }))
         toast({
           title: "Connection Failed",
           description: result.error,
@@ -441,7 +441,7 @@ export function GlobalSyncSettings() {
         })
       }
     } catch (error) {
-      setProviderTestStatus(prev => ({ ...prev, [providerId]: 'error' }))
+      setProviderTestStatus((prev) => ({ ...prev, [providerId]: "error" }))
       toast({
         title: "Error",
         description: "Failed to test connection.",
@@ -465,7 +465,9 @@ export function GlobalSyncSettings() {
     <div className="space-y-0">
       {/* Providers Section */}
       <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h3 className="text-lg font-medium">{t("settings.sync.provider", "Provider")}</h3>
+        <h3 className="text-lg font-medium">
+          {t("settings.sync.provider", "Provider")}
+        </h3>
         <Button
           variant="outline"
           size="sm"
@@ -496,7 +498,10 @@ export function GlobalSyncSettings() {
                     {t("settings.sync.licenseRequired", "License Required")}
                   </p>
                   <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                    {t("settings.sync.licenseRequiredDescription", "Custom sync providers require an active license.")}
+                    {t(
+                      "settings.sync.licenseRequiredDescription",
+                      "Custom sync providers require an active license."
+                    )}
                   </p>
                   <Button
                     variant="link"
@@ -504,11 +509,16 @@ export function GlobalSyncSettings() {
                     className="h-auto p-0 text-amber-700 dark:text-amber-300 mt-2"
                     onClick={() =>
                       window.dispatchEvent(
-                        new CustomEvent("settings-navigate", { detail: "account" })
+                        new CustomEvent("settings-navigate", {
+                          detail: "account",
+                        })
                       )
                     }
                   >
-                    {t("settings.sync.goToAccountSettings", "Go to Account Settings →")}
+                    {t(
+                      "settings.sync.goToAccountSettings",
+                      "Go to Account Settings →"
+                    )}
                   </Button>
                 </div>
               </div>
@@ -521,135 +531,164 @@ export function GlobalSyncSettings() {
             </p>
           </div>
 
-        {/* Built-in: eidos.space - Temporarily Disabled */}
-        <div className="p-4 rounded-lg border border-muted bg-muted/30 opacity-60">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <Cloud className="h-5 w-5 text-blue-500 shrink-0" />
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium">eidos.space</span>
-                  <Badge variant="secondary">Built-in</Badge>
-                  {eidosSpaceCredentials ? (
-                    <Badge variant="secondary" className="text-green-600">
-                      <Check className="h-3 w-3 mr-1" />
-                      {t("settings.sync.ready", "Ready")}
-                    </Badge>
-                  ) : (
-                    <>
-                      <Badge variant="outline" className="text-orange-600">
-                        {t("settings.sync.notConnected", "Not Connected")}
+          {/* Built-in: eidos.space - Temporarily Disabled */}
+          <div className="p-4 rounded-lg border border-muted bg-muted/30 opacity-60">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <Cloud className="h-5 w-5 text-blue-500 shrink-0" />
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium">eidos.space</span>
+                    <Badge variant="secondary">Built-in</Badge>
+                    {eidosSpaceCredentials ? (
+                      <Badge variant="secondary" className="text-green-600">
+                        <Check className="h-3 w-3 mr-1" />
+                        {t("settings.sync.ready", "Ready")}
                       </Badge>
-                      <Badge variant="outline" className="text-muted-foreground">
-                        {t("settings.sync.temporarilyUnavailable", "Temporarily unavailable")}
-                      </Badge>
-                    </>
-                  )}
+                    ) : (
+                      <>
+                        <Badge variant="outline" className="text-orange-600">
+                          {t("settings.sync.notConnected", "Not Connected")}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className="text-muted-foreground"
+                        >
+                          {t(
+                            "settings.sync.temporarilyUnavailable",
+                            "Temporarily unavailable"
+                          )}
+                        </Badge>
+                      </>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {t(
+                      "settings.sync.managedCloudStorageBy",
+                      "Managed cloud storage by eidos.space"
+                    )}
+                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {t("settings.sync.managedCloudStorageBy", "Managed cloud storage by eidos.space")}
-                </p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  size="xs"
+                  disabled
+                  className="h-7 px-2 text-xs whitespace-nowrap"
+                >
+                  {eidosSpaceCredentials
+                    ? t("settings.sync.connected", "Connected")
+                    : t("settings.sync.connect", "Connect")}
+                </Button>
               </div>
             </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <Button
-                size="xs"
-                disabled
-                className="h-7 px-2 text-xs whitespace-nowrap"
-              >
-                {eidosSpaceCredentials ? t("settings.sync.connected", "Connected") : t("settings.sync.connect", "Connect")}
-              </Button>
-            </div>
           </div>
-        </div>
 
-        {/* Custom Provider Cards */}
-        {customProviders.map((provider) => {
-          const testStatus = providerTestStatus[provider.id] || 'untested'
-          const hasCredentials = customProviderCredentials[provider.id]
-          const isTesting = testStatus === 'testing'
-          const isTestSuccess = testStatus === 'success'
-          
-          return (
-            <div
-              key={provider.id}
-              className="p-4 rounded-lg border border-border"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <Server className="h-5 w-5 text-muted-foreground shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{provider.name}</span>
-                      {isTestSuccess ? (
-                        <Badge variant="secondary" className="text-green-600 shrink-0">
-                          <Check className="h-3 w-3 mr-1" />
-                          Ready
-                        </Badge>
-                      ) : hasCredentials ? (
-                        <Badge variant="outline" className="text-blue-600 shrink-0">
-                          Credentials Set
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-orange-600 shrink-0">
-                          No Credentials
-                        </Badge>
-                      )}
+          {/* Custom Provider Cards */}
+          {customProviders.map((provider) => {
+            const testStatus = providerTestStatus[provider.id] || "untested"
+            const hasCredentials = customProviderCredentials[provider.id]
+            const isTesting = testStatus === "testing"
+            const isTestSuccess = testStatus === "success"
+
+            return (
+              <div
+                key={provider.id}
+                className="p-4 rounded-lg border border-border"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <Server className="h-5 w-5 text-muted-foreground shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{provider.name}</span>
+                        {isTestSuccess ? (
+                          <Badge
+                            variant="secondary"
+                            className="text-green-600 shrink-0"
+                          >
+                            <Check className="h-3 w-3 mr-1" />
+                            Ready
+                          </Badge>
+                        ) : hasCredentials ? (
+                          <Badge
+                            variant="outline"
+                            className="text-blue-600 shrink-0"
+                          >
+                            Credentials Set
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-orange-600 shrink-0"
+                          >
+                            No Credentials
+                          </Badge>
+                        )}
+                      </div>
+                      <p
+                        className="text-sm text-muted-foreground truncate"
+                        title={provider.endpoint}
+                      >
+                        {provider.endpoint}
+                      </p>
                     </div>
-                    <p
-                      className="text-sm text-muted-foreground truncate"
-                      title={provider.endpoint}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => handleTestConnection(provider.id)}
+                      disabled={isTesting}
+                      className="h-7 w-16 px-2 text-xs whitespace-nowrap"
                     >
-                      {provider.endpoint}
-                    </p>
+                      {isTesting ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        </>
+                      ) : (
+                        "Test"
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() =>
+                        openDeleteDialog(provider.id, provider.name)
+                      }
+                      className="h-7 w-7 p-0"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => handleTestConnection(provider.id)}
-                    disabled={isTesting}
-                    className="h-7 w-16 px-2 text-xs whitespace-nowrap"
-                  >
-                    {isTesting ? (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      </>
-                    ) : (
-                      'Test'
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => openDeleteDialog(provider.id, provider.name)}
-                    className="h-7 w-7 p-0"
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
-                </div>
               </div>
-            </div>
-          )
-        })}
+            )
+          })}
 
-        {customProviders.length === 0 && !showAddForm && (
-          <div className="p-8 text-center border border-dashed rounded-lg">
-            <Server className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-            <p className="text-muted-foreground">{t("settings.sync.noProviders", "No providers")}</p>
-            <p className="text-sm text-muted-foreground">
-              {t("settings.sync.addProviderIfNeeded", "Add a provider if needed")}
-            </p>
-          </div>
-        )}
+          {customProviders.length === 0 && !showAddForm && (
+            <div className="p-8 text-center border border-dashed rounded-lg">
+              <Server className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+              <p className="text-muted-foreground">
+                {t("settings.sync.noProviders", "No providers")}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {t(
+                  "settings.sync.addProviderIfNeeded",
+                  "Add a provider if needed"
+                )}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Add Provider Form */}
       {showAddForm && (
         <div className="p-4 rounded-lg border space-y-4">
-          <h4 className="font-medium">{t("settings.sync.addProvider", "Add Provider")}</h4>
+          <h4 className="font-medium">
+            {t("settings.sync.addProvider", "Add Provider")}
+          </h4>
 
           <div className="space-y-2">
             <Label htmlFor="provider-id">

@@ -1,18 +1,16 @@
-import { useEffect } from "react";
+import { useEffect } from "react"
 
-import type {
-  EidosDataEventChannelMsg
-} from "@/lib/const";
+import type { EidosDataEventChannelMsg } from "@/lib/const"
 import {
   DataUpdateSignalType,
   EidosDataEventChannelMsgType,
   EidosDataEventChannelName,
-} from "@/lib/const";
-import { ExtensionTableName, TreeTableName } from "@/packages/core/sqlite/const";
-import type { ITreeNode } from "@/packages/core/types/ITreeNode";
+} from "@/lib/const"
+import { ExtensionTableName, TreeTableName } from "@/packages/core/sqlite/const"
+import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 
-import { useNodeStore } from "@/apps/web-app/store/node-store";
-import { useEngine } from "./use-engine";
+import { useNodeStore } from "@/apps/web-app/store/node-store"
+import { useEngine } from "./use-engine"
 
 export const useSqliteMetaTableSubscribe = () => {
   const { addNode, setNode, delNode } = useNodeStore()
@@ -45,16 +43,16 @@ export const useSqliteMetaTableSubscribe = () => {
             break
         }
         if (table === ExtensionTableName) {
-          if (_new.type !== 'script') {
+          if (_new.type !== "script") {
             return
           }
-          if (JSON.parse(_new.meta).type !== 'udf') {
+          if (JSON.parse(_new.meta).type !== "udf") {
             return
           }
           const diff = Object.keys(_new).filter((key) => {
             return _new[key] !== _old[key]
           })
-          if (diff.includes('enabled') || diff.includes('code')) {
+          if (diff.includes("enabled") || diff.includes("code")) {
             reload()
           }
         }

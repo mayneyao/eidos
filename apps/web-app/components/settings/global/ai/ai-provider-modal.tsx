@@ -35,8 +35,8 @@ export function AIProviderModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const isEditing = !!provider
-  const title = isEditing 
-    ? t("settings.ai.editProvider") 
+  const title = isEditing
+    ? t("settings.ai.editProvider")
     : t("settings.ai.addProvider")
 
   const handleSave = async (providerData: LLMProvider) => {
@@ -62,13 +62,12 @@ export function AIProviderModal({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {isEditing 
+            {isEditing
               ? t("settings.ai.editProviderDescription")
-              : t("settings.ai.addProviderDescription")
-            }
+              : t("settings.ai.addProviderDescription")}
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="py-4">
           <AIProviderForm
             provider={provider}

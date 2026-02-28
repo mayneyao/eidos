@@ -95,4 +95,3 @@ export const useFileTreeKeyboard = ({
     }
   }, [selectedNode, renamingNode, treeContainerRef, onRename, onClearSelection])
 }
-

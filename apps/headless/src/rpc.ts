@@ -33,20 +33,26 @@ export const handleFunctionCall = async (
       const properties = method.split(".")
       for (const property of properties.slice(0, -1)) {
         if (!obj) {
-          throw new Error(`Cannot access property "${property}" because parent object is null or undefined (in ${method})`)
+          throw new Error(
+            `Cannot access property "${property}" because parent object is null or undefined (in ${method})`
+          )
         }
         if (property.includes("(") && property.includes(")")) {
           const [funcName, funcParamsRaw] = property.split("(")
           const func = obj[funcName]
-          if (typeof func !== 'function') {
-             throw new Error(`Method "${funcName}" is not a function on ${funcName === method.split('.')[0] ? 'DataSpace' : property}`)
+          if (typeof func !== "function") {
+            throw new Error(
+              `Method "${funcName}" is not a function on ${funcName === method.split(".")[0] ? "DataSpace" : property}`
+            )
           }
           const funcParams = funcParamsRaw.slice(0, -1)
           // Simple split by comma, but handle quoted strings better
-          const params = funcParams.split(",").map(p => {
+          const params = funcParams.split(",").map((p) => {
             const trimmed = p.trim()
-            if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || 
-                (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+            if (
+              (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+              (trimmed.startsWith("'") && trimmed.endsWith("'"))
+            ) {
               return trimmed.slice(1, -1)
             }
             return trimmed
@@ -55,29 +61,37 @@ export const handleFunctionCall = async (
         } else {
           obj = obj[property]
           if (obj === undefined) {
-             const available = Object.keys(obj || {}).join(', ')
-             throw new Error(`Property "${property}" undefined in ${method}. Available properties: ${available}`)
+            const available = Object.keys(obj || {}).join(", ")
+            throw new Error(
+              `Property "${property}" undefined in ${method}. Available properties: ${available}`
+            )
           }
         }
       }
       if (!obj) {
-        throw new Error(`Parent object for final method is null or undefined (in ${method})`)
+        throw new Error(
+          `Parent object for final method is null or undefined (in ${method})`
+        )
       }
       const lastProperty = properties[properties.length - 1]
       const finalFunc = obj[lastProperty]
-      if (typeof finalFunc !== 'function') {
-        throw new Error(`Final property ${lastProperty} is not a function in ${method}`)
+      if (typeof finalFunc !== "function") {
+        throw new Error(
+          `Final property ${lastProperty} is not a function in ${method}`
+        )
       }
       callMethod = finalFunc.bind(obj)
     } else {
       const finalFunc = dataSpace[method as keyof DataSpace]
-      if (typeof finalFunc !== 'function') {
+      if (typeof finalFunc !== "function") {
         throw new Error(`Method ${method} is not a function on DataSpace`)
       }
       callMethod = (finalFunc as Function).bind(dataSpace)
     }
   } catch (error: any) {
-    console.error(`[RPC Error Details] Method: ${method}, Params: ${JSON.stringify(params)}`)
+    console.error(
+      `[RPC Error Details] Method: ${method}, Params: ${JSON.stringify(params)}`
+    )
     console.error(`[RPC Error Message] ${error.message}`)
     throw error
   }

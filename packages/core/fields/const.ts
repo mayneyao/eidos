@@ -20,7 +20,6 @@ export enum FieldType {
   LastEditedBy = "last-edited-by",
 }
 
-
 export enum FieldValueType {
   String = "string",
   Number = "number",
@@ -102,7 +101,6 @@ export const FIELD_VALUE_TYPE_MAP = {
   },
 }
 
-
 // copy from glide-data-grid
 export enum GridCellKind {
   Uri = "uri",
@@ -173,7 +171,7 @@ export function applyMixins(derivedCtor: any, constructors: any[]) {
         derivedCtor.prototype,
         name,
         Object.getOwnPropertyDescriptor(baseCtor.prototype, name) ||
-        Object.create(null)
+          Object.create(null)
       )
     })
   })

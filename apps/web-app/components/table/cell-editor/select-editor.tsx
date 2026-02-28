@@ -72,10 +72,7 @@ export const SelectEditor = ({
   const option = _options.find((item) => item.id == _value)
 
   return (
-    <Popover
-      open={isPopoverOpen}
-      onOpenChange={handlePopoverOpenChange}
-    >
+    <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
       <PopoverTrigger className="w-full">
         <div
           className="flex h-full w-full items-center px-1.5 gap-1.5"

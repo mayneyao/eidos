@@ -47,9 +47,13 @@ interface IBaseField<CD, P, R, RC, FC> {
   cellData2RawData(cell: CD): any
 }
 
-export abstract class BaseField<CD, P, R = string, RC = any, FC = any>
-  implements IBaseField<CD, P, R, RC, FC>
-{
+export abstract class BaseField<
+  CD,
+  P,
+  R = string,
+  RC = any,
+  FC = any,
+> implements IBaseField<CD, P, R, RC, FC> {
   static type: FieldType
 
   /**
@@ -101,7 +105,9 @@ export abstract class BaseField<CD, P, R = string, RC = any, FC = any>
     return {}
   }
 
-  text2RawData(text: string | number | string[] | Date): string | number | boolean | null {
+  text2RawData(
+    text: string | number | string[] | Date
+  ): string | number | boolean | null {
     if (typeof text === "string") {
       return text
     } else if (Array.isArray(text)) {

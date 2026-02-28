@@ -3,7 +3,7 @@ import { useEffect, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 
-import type { ChartConfig } from "..";
+import type { ChartConfig } from ".."
 import { Chart } from ".."
 import { DataGrid } from "./data-grid"
 import { DataSourceConfigComponent } from "./data-source-config"

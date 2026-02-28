@@ -13,18 +13,19 @@ import { Aside } from "@astrojs/starlight/components"
 By default, Eidos uses **eidos.space** as the sync provider. However, you can also configure your own S3-compatible storage service (such as AWS S3, Cloudflare R2, MinIO, etc.) to have full control over your data.
 
 <Aside type="note">
-  Custom sync providers require an **active license**. Please activate your license in **Settings → Account** before proceeding.
+  Custom sync providers require an **active license**. Please activate your
+  license in **Settings → Account** before proceeding.
 </Aside>
 
 ## Supported Storage Services
 
 Any S3-compatible storage service can be used as a sync provider:
 
-| Service | Example Endpoint | Notes |
-|---------|-----------------|-------|
-| **AWS S3** | `https://s3.amazonaws.com` | Standard S3 service |
-| **Cloudflare R2** | `https://{account}.r2.cloudflarestorage.com` | Free tier includes 10GB storage |
-| **MinIO** | `http://localhost:9000` | Self-hosted, free and open-source |
+| Service           | Example Endpoint                             | Notes                             |
+| ----------------- | -------------------------------------------- | --------------------------------- |
+| **AWS S3**        | `https://s3.amazonaws.com`                   | Standard S3 service               |
+| **Cloudflare R2** | `https://{account}.r2.cloudflarestorage.com` | Free tier includes 10GB storage   |
+| **MinIO**         | `http://localhost:9000`                      | Self-hosted, free and open-source |
 
 Other S3-compatible services like Backblaze B2, DigitalOcean Spaces, Alibaba Cloud OSS, and Tencent Cloud COS are also supported.
 
@@ -50,12 +51,12 @@ Before you begin, make sure you have:
 
 3. **Fill in Provider Information**
 
-   | Field | Description | Example |
-   |-------|-------------|---------|
-   | **Provider ID** | A unique identifier (lowercase, no spaces) | `my-s3`, `minio`, `r2` |
-   | **Endpoint URL** | Your S3 service endpoint | `https://s3.amazonaws.com` |
-   | **Bucket Name** | The name of your S3 bucket | `my-eidos-sync` |
-   | **Region** | (Optional) The region of your bucket | `us-east-1` |
+   | Field            | Description                                | Example                    |
+   | ---------------- | ------------------------------------------ | -------------------------- |
+   | **Provider ID**  | A unique identifier (lowercase, no spaces) | `my-s3`, `minio`, `r2`     |
+   | **Endpoint URL** | Your S3 service endpoint                   | `https://s3.amazonaws.com` |
+   | **Bucket Name**  | The name of your S3 bucket                 | `my-eidos-sync`            |
+   | **Region**       | (Optional) The region of your bucket       | `us-east-1`                |
 
 4. **Enter Credentials**
 
@@ -64,7 +65,8 @@ Before you begin, make sure you have:
    - **Secret Access Key**: Your S3 secret key
 
    <Aside type="caution">
-     Your credentials are encrypted and stored locally using your operating system's secure storage. They are never sent to any third-party servers.
+     Your credentials are encrypted and stored locally using your operating
+     system's secure storage. They are never sent to any third-party servers.
    </Aside>
 
 5. **Test the Connection**
@@ -100,8 +102,6 @@ Sync can only be enabled when creating a new space. Once a space is created, you
    - Select your custom provider from the list
    - Click **"Create & Enable Sync"**
 
-
-
 </Steps>
 
 ### Clone an Existing Space
@@ -135,7 +135,8 @@ If you have a space already synced to your custom provider, you can clone it to 
    Click **"Clone Space"** to download and set up the space locally.
 
    <Aside type="tip">
-     The clone time depends on the size of your space. Larger spaces with many files will take longer to download.
+     The clone time depends on the size of your space. Larger spaces with many
+     files will take longer to download.
    </Aside>
 
 </Steps>
@@ -163,7 +164,9 @@ To remove a provider:
 3. Click **Delete Provider**
 
 <Aside type="danger">
-  Deleting a provider only removes the configuration from Eidos. Your data remains in the S3 bucket. To completely delete the data, you need to manually delete it from your S3 service.
+  Deleting a provider only removes the configuration from Eidos. Your data
+  remains in the S3 bucket. To completely delete the data, you need to manually
+  delete it from your S3 service.
 </Aside>
 
 ## Troubleshooting
@@ -175,6 +178,7 @@ Custom sync providers require an active license. Go to **Settings → Account** 
 ### "No Sync Providers Available"
 
 When creating a space, if you see this message:
+
 1. Make sure you've added at least one custom provider in **Settings → Sync**
 2. Verify the provider has valid credentials
 3. Test the connection to ensure it's working
@@ -183,13 +187,13 @@ When creating a space, if you see this message:
 
 Common issues and solutions:
 
-| Error | Solution |
-|-------|----------|
-| Invalid Access Key ID | Check your access key for typos |
-| Invalid Secret Access Key | Verify your secret key is correct |
-| Bucket does not exist | Ensure the bucket name is spelled correctly |
-| Access denied | Check your IAM permissions (needs `s3:ListBucket`, `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`) |
-| Cannot connect | Verify the endpoint URL and your network connection |
+| Error                     | Solution                                                                                              |
+| ------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Invalid Access Key ID     | Check your access key for typos                                                                       |
+| Invalid Secret Access Key | Verify your secret key is correct                                                                     |
+| Bucket does not exist     | Ensure the bucket name is spelled correctly                                                           |
+| Access denied             | Check your IAM permissions (needs `s3:ListBucket`, `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`) |
+| Cannot connect            | Verify the endpoint URL and your network connection                                                   |
 
 ## Next Steps
 

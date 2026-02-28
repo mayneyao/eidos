@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
-import type { FileHandlerMeta, IExtension } from "@/packages/core/types/IExtension"
-import {
-  useDefaultHandler,
-  useFileHandlers,
-} from "@/hooks/use-file-handlers"
+import type {
+  FileHandlerMeta,
+  IExtension,
+} from "@/packages/core/types/IExtension"
+import { useDefaultHandler, useFileHandlers } from "@/hooks/use-file-handlers"
 
 /**
  * Hook to manage file handler selection logic
@@ -17,10 +17,8 @@ export function useHandlerSelection(fileExtension: string) {
 
   const { handlers, isLoading: isLoadingHandlers } =
     useFileHandlers(fileExtension)
-  const {
-    defaultHandlerId,
-    isLoading: isLoadingDefault,
-  } = useDefaultHandler(fileExtension)
+  const { defaultHandlerId, isLoading: isLoadingDefault } =
+    useDefaultHandler(fileExtension)
 
   const [selectedHandler, setSelectedHandler] =
     useState<IExtension<FileHandlerMeta> | null>(null)
@@ -72,4 +70,3 @@ export function useHandlerSelection(fileExtension: string) {
     isLoadingDefault,
   }
 }
-

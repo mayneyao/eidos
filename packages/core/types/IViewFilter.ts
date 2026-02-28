@@ -4,7 +4,7 @@ export interface IFilterValue {
   operator: CompareOperator
   operands: [
     field: string,
-    value: string | number | boolean | Date | null | undefined
+    value: string | number | boolean | Date | null | undefined,
   ]
 }
 

@@ -238,7 +238,7 @@ export class FileSynchronizer {
 
       for (const entry of entries) {
         // Use posix-style paths for keys to match S3 (always forward slashes)
-        const relativePath = base 
+        const relativePath = base
           ? path.posix.join(base, entry.name)
           : entry.name
         const absolutePath = path.join(dir, entry.name)
@@ -247,7 +247,9 @@ export class FileSynchronizer {
           this.config.ignore &&
           this.config.ignore.some((pattern) => {
             // Normalize pattern to posix style and remove trailing /**
-            const normalizedPattern = pattern.replace(/\\/g, '/').replace(/\/\*\*$/, '')
+            const normalizedPattern = pattern
+              .replace(/\\/g, "/")
+              .replace(/\/\*\*$/, "")
             return relativePath.startsWith(normalizedPattern)
           })
         ) {
@@ -400,7 +402,9 @@ export class FileSynchronizer {
           this.config.ignore &&
           this.config.ignore.some((pattern) => {
             // Normalize pattern to posix style and remove trailing /**
-            const normalizedPattern = pattern.replace(/\\/g, '/').replace(/\/\*\*$/, '')
+            const normalizedPattern = pattern
+              .replace(/\\/g, "/")
+              .replace(/\/\*\*$/, "")
             return relativePath.startsWith(normalizedPattern)
           })
         ) {

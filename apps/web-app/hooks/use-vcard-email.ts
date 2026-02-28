@@ -18,8 +18,7 @@ export const useVCardEmail = () => {
     try {
       return (
         apiAgentConfig.enabled &&
-        new URL(apiAgentConfig.url).host ==
-          new URL(URLS.API_AGENT_SERVER).host
+        new URL(apiAgentConfig.url).host == new URL(URLS.API_AGENT_SERVER).host
       )
     } catch (error) {
       return false

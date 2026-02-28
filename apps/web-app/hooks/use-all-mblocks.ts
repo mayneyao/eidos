@@ -1,136 +1,139 @@
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite";
-import type { EidosDataEventChannelMsg } from "@/lib/const";
-import { DataUpdateSignalType, EidosDataEventChannelMsgType, EidosDataEventChannelName } from "@/lib/const";
-import type { IExtension } from "@/packages/core/meta-table/extension";
-import { ExtensionTableName } from "@/packages/core/sqlite/const";
-import { useCallback, useEffect } from "react";
-import { create } from "zustand";
-
-
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import type { EidosDataEventChannelMsg } from "@/lib/const"
+import {
+  DataUpdateSignalType,
+  EidosDataEventChannelMsgType,
+  EidosDataEventChannelName,
+} from "@/lib/const"
+import type { IExtension } from "@/packages/core/meta-table/extension"
+import { ExtensionTableName } from "@/packages/core/sqlite/const"
+import { useCallback, useEffect } from "react"
+import { create } from "zustand"
 
 const useMblockStore = create<{
-    mblocks: IExtension[]
-    loading: boolean
-    setMblocks: (mblocks: IExtension[]) => void
-    setLoading: (loading: boolean) => void
+  mblocks: IExtension[]
+  loading: boolean
+  setMblocks: (mblocks: IExtension[]) => void
+  setLoading: (loading: boolean) => void
 }>((set) => ({
-    mblocks: [],
-    loading: false,
-    setMblocks: (mblocks: IExtension[]) => set({ mblocks }),
-    setLoading: (loading: boolean) => set({ loading }),
+  mblocks: [],
+  loading: false,
+  setMblocks: (mblocks: IExtension[]) => set({ mblocks }),
+  setLoading: (loading: boolean) => set({ loading }),
 }))
 
 export const useSyncMblocks = () => {
-    const { sqlite } = useSqlite()
-    const { mblocks, setMblocks, setLoading } = useMblockStore()
+  const { sqlite } = useSqlite()
+  const { mblocks, setMblocks, setLoading } = useMblockStore()
 
-    const reload = useCallback(async () => {
-        setLoading(true)
-        if (!sqlite) return
-        const mblocks = await sqlite.extension.findMany({
-            where: {
-                type: "block",
-                enabled: true,
-            },
-            select: {
-                id: true,
-                name: true,
-                icon: true,
-                type: true,
-                enabled: true,
-                created_at: true,
-                updated_at: true
-            }
-        })
-        setMblocks(mblocks)
-        setLoading(false)
-    }, [sqlite])
+  const reload = useCallback(async () => {
+    setLoading(true)
+    if (!sqlite) return
+    const mblocks = await sqlite.extension.findMany({
+      where: {
+        type: "block",
+        enabled: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        icon: true,
+        type: true,
+        enabled: true,
+        created_at: true,
+        updated_at: true,
+      },
+    })
+    setMblocks(mblocks)
+    setLoading(false)
+  }, [sqlite])
 
+  // const removeItem = useCallback((id: string) => {
+  //     setMblocks(mblocks.filter(mblock => mblock.id !== id))
+  // }, [])
 
-    // const removeItem = useCallback((id: string) => {
-    //     setMblocks(mblocks.filter(mblock => mblock.id !== id))
-    // }, [])
+  // const addItem = useCallback((mblock: IExtension) => {
+  //     setMblocks([...mblocks, mblock])
+  // }, [])
 
-    // const addItem = useCallback((mblock: IExtension) => {
-    //     setMblocks([...mblocks, mblock])
-    // }, [])
+  // const updateItem = useCallback((_mblock: IExtension) => {
+  //     setMblocks(mblocks.map(mblock => mblock.id === _mblock.id ? _mblock : mblock))
+  // }, [])
 
-    // const updateItem = useCallback((_mblock: IExtension) => {
-    //     setMblocks(mblocks.map(mblock => mblock.id === _mblock.id ? _mblock : mblock))
-    // }, [])
+  useEffect(() => {
+    reload()
 
-    useEffect(() => {
+    const bc = new BroadcastChannel(EidosDataEventChannelName)
 
-        reload()
+    const handler = async (ev: MessageEvent<EidosDataEventChannelMsg>) => {
+      const { type, payload } = ev.data
+      if (type === EidosDataEventChannelMsgType.MetaTableUpdateSignalType) {
+        const { table, _new, _old, type: updateType } = payload
+        if (
+          table !== ExtensionTableName ||
+          _old?.type !== "block" ||
+          _new?.type !== "block"
+        )
+          return
 
-        const bc = new BroadcastChannel(EidosDataEventChannelName)
+        // when data is updated, we need to reload the data from the database. it's simple but not efficient.
+        // we should use a more efficient way to update the data.
+        switch (updateType) {
+          case DataUpdateSignalType.Insert:
+            reload()
+            break
 
-        const handler = async (ev: MessageEvent<EidosDataEventChannelMsg>) => {
-            const { type, payload } = ev.data
-            if (type === EidosDataEventChannelMsgType.MetaTableUpdateSignalType) {
-                const { table, _new, _old, type: updateType } = payload
-                if (table !== ExtensionTableName || (_old?.type !== "block" || _new?.type !== "block")) return
+          case DataUpdateSignalType.Update:
+            reload()
+            break
 
-                // when data is updated, we need to reload the data from the database. it's simple but not efficient.
-                // we should use a more efficient way to update the data.
-                switch (updateType) {
-                    case DataUpdateSignalType.Insert:
-                        reload()
-                        break
-
-                    case DataUpdateSignalType.Update:
-                        reload()
-                        break
-
-                    case DataUpdateSignalType.Delete:
-                        reload()
-                        break
-                    default:
-                        break
-                }
-            }
+          case DataUpdateSignalType.Delete:
+            reload()
+            break
+          default:
+            break
         }
+      }
+    }
 
-        bc.addEventListener("message", handler)
-        return () => {
-            bc.removeEventListener("message", handler)
-            bc.close()
-        }
-    }, [sqlite, reload])
-
+    bc.addEventListener("message", handler)
+    return () => {
+      bc.removeEventListener("message", handler)
+      bc.close()
+    }
+  }, [sqlite, reload])
 }
 
 export const useAllMblocks = () => {
-    const { sqlite } = useSqlite()
+  const { sqlite } = useSqlite()
 
-    const { mblocks, loading, setMblocks, setLoading } = useMblockStore()
+  const { mblocks, loading, setMblocks, setLoading } = useMblockStore()
 
-    const reload = useCallback(async () => {
-        setLoading(true)
-        if (!sqlite) return
-        const mblocks = await sqlite.extension.findMany({
-            where: {
-                type: "block",
-                enabled: true,
-            },
-            select: {
-                id: true,
-                name: true,
-                icon: true,
-                type: true,
-                enabled: true,
-                created_at: true,
-                updated_at: true
-            } as any
-        })
-        setMblocks(mblocks)
-        setLoading(false)
-    }, [sqlite])
+  const reload = useCallback(async () => {
+    setLoading(true)
+    if (!sqlite) return
+    const mblocks = await sqlite.extension.findMany({
+      where: {
+        type: "block",
+        enabled: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        icon: true,
+        type: true,
+        enabled: true,
+        created_at: true,
+        updated_at: true,
+      } as any,
+    })
+    setMblocks(mblocks)
+    setLoading(false)
+  }, [sqlite])
 
-
-    return {
-        mblocks,
-        loading,
-        reload
-    }
+  return {
+    mblocks,
+    loading,
+    reload,
+  }
 }

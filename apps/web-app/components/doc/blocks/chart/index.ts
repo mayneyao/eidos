@@ -19,13 +19,13 @@ const defaultConfig = JSON.stringify(
         type: "bar",
         dataKey: "desktop",
         name: "Desktop Users",
-        style: { fill: 'hsl(var(--chart-1))' },
+        style: { fill: "hsl(var(--chart-1))" },
       },
       {
         type: "bar",
         dataKey: "mobile",
         name: "Mobile Users",
-        style: { fill: 'hsl(var(--chart-2))' },
+        style: { fill: "hsl(var(--chart-2))" },
       },
     ],
     xAxis: { dataKey: "month" },
@@ -35,8 +35,7 @@ const defaultConfig = JSON.stringify(
     showLegend: true,
     width: "100%",
     height: 300,
-  }
-  ,
+  },
   null,
   2
 )
@@ -47,11 +46,12 @@ export default {
   plugin: ChartPlugin,
   icon: "BarChart",
   keywords: ["Chart", "graph", "visualization"],
-  onSelect: (editor: LexicalEditor) => editor.dispatchCommand(INSERT_CHART_COMMAND, defaultConfig),
+  onSelect: (editor: LexicalEditor) =>
+    editor.dispatchCommand(INSERT_CHART_COMMAND, defaultConfig),
   command: {
     create: INSERT_CHART_COMMAND,
   },
   createNode: $createChartNode,
   transform: CHART_NODE_TRANSFORMER,
   markdownLanguage: "chart",
-} as DocBlock 
+} as DocBlock

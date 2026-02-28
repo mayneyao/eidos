@@ -1,7 +1,8 @@
 .group-wrapper-root {
   display: grid;
   grid-template-columns:
-    [boolean-start] 60px [boolean-end property-start] minmax(min-content, 100px) [property-end operator-start] 90px [operator-end value-start] auto [value-end menu-start] 28px [menu-end];
+    [boolean-start] 60px [boolean-end property-start] minmax(min-content, 100px)
+    [property-end operator-start] 90px [operator-end value-start] auto [value-end menu-start] 28px [menu-end];
   grid-auto-rows: minmax(28px, auto);
   gap: 6px;
   padding: 6px 6px 0px;

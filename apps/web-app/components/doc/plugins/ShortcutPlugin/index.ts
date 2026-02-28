@@ -1,7 +1,11 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useKeyPress } from "ahooks"
 import { useCallback } from "react"
-import { $duplicateParagraph, $moveListItem, $toggleCheckList } from "../../utils/selection"
+import {
+  $duplicateParagraph,
+  $moveListItem,
+  $toggleCheckList,
+} from "../../utils/selection"
 
 export function ShortcutPlugin() {
   const [editor] = useLexicalComposerContext()
@@ -15,20 +19,26 @@ export function ShortcutPlugin() {
   }, [editor])
 
   // Duplicate paragraph
-  const duplicateParagraph = useCallback((isUp: boolean) => {
-    editor.update(() => {
-      if (!editor.isEditable()) return
-      $duplicateParagraph(isUp)
-    })
-  }, [editor])
+  const duplicateParagraph = useCallback(
+    (isUp: boolean) => {
+      editor.update(() => {
+        if (!editor.isEditable()) return
+        $duplicateParagraph(isUp)
+      })
+    },
+    [editor]
+  )
 
   // Move list item
-  const moveListItem = useCallback((isUp: boolean) => {
-    editor.update(() => {
-      if (!editor.isEditable()) return
-      $moveListItem(isUp)
-    })
-  }, [editor])
+  const moveListItem = useCallback(
+    (isUp: boolean) => {
+      editor.update(() => {
+        if (!editor.isEditable()) return
+        $moveListItem(isUp)
+      })
+    },
+    [editor]
+  )
 
   // Toggle check list
   useKeyPress(

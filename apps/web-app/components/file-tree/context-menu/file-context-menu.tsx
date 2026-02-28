@@ -205,7 +205,9 @@ export const FileContextMenu = ({
             {!isMultiSelection && onRename && (
               <ContextMenuItem onClick={() => onRename(node)}>
                 <PencilLineIcon className="mr-2 h-4 w-4" />
-                <span className="flex-1">{t("node.menu.rename", "Rename")}</span>
+                <span className="flex-1">
+                  {t("node.menu.rename", "Rename")}
+                </span>
                 <NativeContextMenuShortcut>F2</NativeContextMenuShortcut>
               </ContextMenuItem>
             )}

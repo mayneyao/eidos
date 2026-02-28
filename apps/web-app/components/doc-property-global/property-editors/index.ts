@@ -9,10 +9,10 @@ export { TagsEditor } from "./tags-editor"
 export { BaseEditor, EmptyValue, withEditorBase } from "./base-editor"
 
 // Export factory and registry
-export { 
-  PropertyEditorFactory, 
-  getPropertyEditor, 
-  propertyEditorRegistry 
+export {
+  PropertyEditorFactory,
+  getPropertyEditor,
+  propertyEditorRegistry,
 } from "./editor-factory"
 
 // Export types

@@ -1,4 +1,8 @@
-import type { DocActionMeta, FileActionMeta, IExtension } from "@/packages/core/types/IExtension"
+import type {
+  DocActionMeta,
+  FileActionMeta,
+  IExtension,
+} from "@/packages/core/types/IExtension"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
@@ -16,12 +20,15 @@ import udfTemplate from "./templates/script/udf.ts?raw"
 import fileActionTemplate from "./templates/script/file-action.ts?raw"
 
 // Block templates
-import { extractConstant, blockCodeCompile, scriptCodeCompile } from "@eidos.space/v3"
+import {
+  extractConstant,
+  blockCodeCompile,
+  scriptCodeCompile,
+} from "@eidos.space/v3"
 import emptyBlockTemplate from "./templates/block/empty.tsx?raw"
 import extNodeTemplate from "./templates/block/ext-node.tsx?raw"
 import tableViewTemplate from "./templates/block/table-view.tsx?raw"
 import fileHandlerTemplate from "./templates/block/file-handler.tsx?raw"
-
 
 export const useNewExtension = () => {
   const { addExtension } = useExtension()
@@ -30,8 +37,23 @@ export const useNewExtension = () => {
   const { setFocusedExtensionId } = useExtensionSidebarStore()
 
   const handleCreateNewExtension = async (
-    template: "fileHandler" | "tool" | "udf" | "tableAction" | "docAction" | "fileAction" | "tableView" | "extNode" | "emptyScript" | "emptyBlock" = "tool",
-    type: "script" | "block" = template === "tableView" || template === "extNode" || template === "emptyBlock" || template === "fileHandler" ? "block" : "script"
+    template:
+      | "fileHandler"
+      | "tool"
+      | "udf"
+      | "tableAction"
+      | "docAction"
+      | "fileAction"
+      | "tableView"
+      | "extNode"
+      | "emptyScript"
+      | "emptyBlock" = "tool",
+    type: "script" | "block" = template === "tableView" ||
+    template === "extNode" ||
+    template === "emptyBlock" ||
+    template === "fileHandler"
+      ? "block"
+      : "script"
   ) => {
     const newScriptId = generateIdV7()
     const shortSlug = newScriptId.slice(-8)
@@ -41,7 +63,7 @@ export const useNewExtension = () => {
         case "tool": {
           const [code, meta] = await Promise.all([
             scriptCodeCompile(toolTemplate),
-            extractConstant(toolTemplate, "meta")
+            extractConstant(toolTemplate, "meta"),
           ])
           return {
             id: newScriptId,
@@ -53,15 +75,14 @@ export const useNewExtension = () => {
             code,
             ts_code: toolTemplate,
             meta,
-            enabled: true
-
+            enabled: true,
           }
         }
 
         case "udf": {
           const [code, meta] = await Promise.all([
             scriptCodeCompile(udfTemplate),
-            extractConstant(udfTemplate, "meta")
+            extractConstant(udfTemplate, "meta"),
           ])
           return {
             id: newScriptId,
@@ -73,34 +94,35 @@ export const useNewExtension = () => {
             code,
             ts_code: udfTemplate,
             meta,
-            enabled: true
-
+            enabled: true,
           }
         }
 
         case "tableAction": {
           const [code, meta] = await Promise.all([
             scriptCodeCompile(tableActionTemplate),
-            extractConstant(tableActionTemplate, "meta")
+            extractConstant(tableActionTemplate, "meta"),
           ])
           return {
             id: newScriptId,
             slug: `table-action-${shortSlug}`,
             name: meta?.tableAction?.name || `Toggle Checked`,
             type: type,
-            description: meta?.tableAction?.description || "Toggles the checked status of the selected record",
+            description:
+              meta?.tableAction?.description ||
+              "Toggles the checked status of the selected record",
             version: "0.0.1",
             code,
             ts_code: tableActionTemplate,
             meta,
-            enabled: true
+            enabled: true,
           }
         }
 
         case "docAction": {
           const [code, meta] = await Promise.all([
             scriptCodeCompile(docActionTemplate),
-            extractConstant(docActionTemplate, "meta")
+            extractConstant(docActionTemplate, "meta"),
           ])
           const docMeta = meta as DocActionMeta
           return {
@@ -108,39 +130,44 @@ export const useNewExtension = () => {
             slug: `doc-action-${shortSlug}`,
             name: docMeta?.docAction?.name || `New Doc Action - ${shortSlug}`,
             type: type,
-            description: docMeta?.docAction?.description || "Document action extension",
+            description:
+              docMeta?.docAction?.description || "Document action extension",
             version: "0.0.1",
             code,
             ts_code: docActionTemplate,
             meta: docMeta,
-            enabled: true
+            enabled: true,
           }
         }
 
         case "fileAction": {
           const [code, meta] = await Promise.all([
             scriptCodeCompile(fileActionTemplate),
-            extractConstant(fileActionTemplate, "meta")
+            extractConstant(fileActionTemplate, "meta"),
           ])
           const fileActionMeta = meta as FileActionMeta
           return {
             id: newScriptId,
             slug: `file-action-${shortSlug}`,
-            name: fileActionMeta?.fileAction?.name || `New File Action - ${shortSlug}`,
+            name:
+              fileActionMeta?.fileAction?.name ||
+              `New File Action - ${shortSlug}`,
             type: type,
-            description: fileActionMeta?.fileAction?.description || "File action extension",
+            description:
+              fileActionMeta?.fileAction?.description ||
+              "File action extension",
             version: "0.0.1",
             code,
             ts_code: fileActionTemplate,
             meta: fileActionMeta,
-            enabled: true
+            enabled: true,
           }
         }
 
         case "tableView": {
           const [code, meta] = await Promise.all([
             blockCodeCompile(tableViewTemplate),
-            extractConstant(tableViewTemplate, "meta")
+            extractConstant(tableViewTemplate, "meta"),
           ])
           return {
             id: newScriptId,
@@ -152,14 +179,14 @@ export const useNewExtension = () => {
             code,
             ts_code: tableViewTemplate,
             meta,
-            enabled: true
+            enabled: true,
           }
         }
 
         case "extNode": {
           const [code, meta] = await Promise.all([
             blockCodeCompile(extNodeTemplate),
-            extractConstant(extNodeTemplate, "meta")
+            extractConstant(extNodeTemplate, "meta"),
           ])
           return {
             id: newScriptId,
@@ -171,27 +198,27 @@ export const useNewExtension = () => {
             code,
             ts_code: extNodeTemplate,
             meta,
-            enabled: true
+            enabled: true,
           }
         }
-
 
         case "fileHandler": {
           const [code, meta] = await Promise.all([
             blockCodeCompile(fileHandlerTemplate),
-            extractConstant(fileHandlerTemplate, "meta")
+            extractConstant(fileHandlerTemplate, "meta"),
           ])
           return {
             id: newScriptId,
             slug: `file-handler-${shortSlug}`,
             name: meta?.fileHandler?.title || `New File Handler - ${shortSlug}`,
             type: "block",
-            description: meta?.fileHandler?.description || "Custom file handler",
+            description:
+              meta?.fileHandler?.description || "Custom file handler",
             version: "0.0.1",
             code,
             ts_code: fileHandlerTemplate,
             meta,
-            enabled: true
+            enabled: true,
           }
         }
 
@@ -207,7 +234,7 @@ export const useNewExtension = () => {
             code,
             ts_code: emptyScriptTemplate,
             meta: undefined,
-            enabled: true
+            enabled: true,
           }
         }
 
@@ -223,7 +250,7 @@ export const useNewExtension = () => {
             code,
             ts_code: emptyBlockTemplate,
             meta: undefined,
-            enabled: true
+            enabled: true,
           }
         }
 

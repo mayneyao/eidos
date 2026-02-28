@@ -1,6 +1,6 @@
 import { useMemo, useRef } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import type { NodeKey } from "lexical";
+import type { NodeKey } from "lexical"
 import { $getNodeByKey } from "lexical"
 import { Link } from "@/components/ui/link"
 

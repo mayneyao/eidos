@@ -6,30 +6,19 @@ import type {
   EditableGridCell,
   GridCell,
   Item,
-  Rectangle
-} from "@glideapps/glide-data-grid";
-import {
-  CompactSelection,
-  GridCellKind
+  Rectangle,
 } from "@glideapps/glide-data-grid"
+import { CompactSelection, GridCellKind } from "@glideapps/glide-data-grid"
 import { chunk, range } from "@/lib/lodash"
-import type {
-  MutableRefObject
-} from "react";
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react"
+import type { MutableRefObject } from "react"
+import { useCallback, useContext, useEffect, useRef, useState } from "react"
 
 import { useAutoIndex } from "@/components/table/hooks/use-auto-index"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import {
   rewriteQueryWithOffsetAndLimit,
-  rewriteQueryWithSortedQuery
+  rewriteQueryWithSortedQuery,
 } from "@/packages/core/sqlite/sql-sort-parser"
 import type { IView } from "@/packages/core/types/IView"
 import { useDebounceFn } from "ahooks"
@@ -38,7 +27,7 @@ import { TableContext } from "@/components/table/hooks"
 import { isDesktopMode, isInkServiceMode } from "@/lib/env"
 import { useDataMutation } from "./use-data-mutation"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
-import { useReadonlySqlite } from "@/hooks/use-readonly-sqlite";
+import { useReadonlySqlite } from "@/hooks/use-readonly-sqlite"
 
 export type RowRange = readonly [number, number]
 type RowCallback<T> = (range: RowRange, qs?: string) => Promise<readonly T[]>
@@ -89,7 +78,7 @@ export function useAsyncDataForView<TRowType>(data: {
   const qs = view.query
   const readonlySqlite = useReadonlySqlite()
   const { sqlite: _sqlite } = useSqlite()
-  // when preview, the dataview is temporary view, only exists in memory, so we use sqlite. 
+  // when preview, the dataview is temporary view, only exists in memory, so we use sqlite.
   // when view is not preview, the dataview is permanent view, so we can use readonly sqlite.
   const sqlite = isPreview ? _sqlite : readonlySqlite
   const pageSize = Math.min(_pageSize, 50)
@@ -130,11 +119,13 @@ export function useAsyncDataForView<TRowType>(data: {
   const getCellContent = useCallback<DataEditorProps["getCellContent"]>(
     (cell) => {
       const [col, row] = cell
-      const rowUuid = isView ? row + '' : dataRef.current[row]
+      const rowUuid = isView ? row + "" : dataRef.current[row]
       const rowData = rowUuid && getRowDataById(rowUuid)
       if (rowUuid !== undefined && rowData) {
         const cell = toCell(rowData, col)
-        const isFileCell = cell.kind === GridCellKind.Custom && (cell.data as any).kind === "file-cell"
+        const isFileCell =
+          cell.kind === GridCellKind.Custom &&
+          (cell.data as any).kind === "file-cell"
         const isUrlCell = cell.kind === GridCellKind.Uri
         if (isUrlCell) {
           return {
@@ -171,7 +162,7 @@ export function useAsyncDataForView<TRowType>(data: {
     (index: number) => {
       if (isView) {
         console.log("getRowDataByIndex", { index, isView })
-        return getRowDataById(index + '')
+        return getRowDataById(index + "")
       }
       const rowUuid = dataRef.current[index]
       if (!rowUuid) {
@@ -190,11 +181,13 @@ export function useAsyncDataForView<TRowType>(data: {
       const d = await sqlite.sql4mainThread2(sql)
       setRows(tableId, d, startIndex, true)
       const vr = visiblePagesRef.current
-      rowIdsRef.current = isView ? Array.from({ length: d.length }, (_, i) => i + '') : d.map((r: any) => r._id)
+      rowIdsRef.current = isView
+        ? Array.from({ length: d.length }, (_, i) => i + "")
+        : d.map((r: any) => r._id)
       const data = dataRef.current
       const damageList: { cell: [number, number] }[] = []
       for (const [i, element] of d.entries()) {
-        data[i + startIndex] = isView ? i + startIndex + '' : element._id
+        data[i + startIndex] = isView ? i + startIndex + "" : element._id
         for (let col = vr.x; col <= vr.x + vr.width; col++) {
           damageList.push({
             cell: [col, i + startIndex],
@@ -263,7 +256,9 @@ export function useAsyncDataForView<TRowType>(data: {
       sql = rewriteQueryWithSortedQuery(sql, qs)
       const d = await sqlite?.sql4mainThread2(sql)
       setRows(tableId, d, startIndex, true)
-      const rowIds = isView ? Array.from({ length: d.length }, (_, i) => i + '') : d.map((r: any) => r._id)
+      const rowIds = isView
+        ? Array.from({ length: d.length }, (_, i) => i + "")
+        : d.map((r: any) => r._id)
       const vr = visiblePagesRef.current
       const damageList: { cell: [number, number] }[] = []
       const data = dataRef.current
@@ -289,7 +284,9 @@ export function useAsyncDataForView<TRowType>(data: {
       const d = await sqlite?.sql4mainThread2(sql)
       console.log("loadDataWithOffsetAndLimit", { d, isView, sql })
       setRows(tableId, d, startIndex, true)
-      const rowIds = isView ? Array.from({ length: d.length }, (_, i) => i + '') : d.map((r: any) => r._id)
+      const rowIds = isView
+        ? Array.from({ length: d.length }, (_, i) => i + "")
+        : d.map((r: any) => r._id)
       const vr = visiblePagesRef.current
       const damageList: { cell: [number, number] }[] = []
       const data = dataRef.current
@@ -305,7 +302,6 @@ export function useAsyncDataForView<TRowType>(data: {
     },
     [gridRef, qs, setRows, sqlite, tableId, tableName, pageSize, isView]
   )
-
 
   const loadDataWithOffsetAndLimitInVisible = useCallback(() => {
     if (!sqlite || !tableName || !tableId) return
@@ -328,7 +324,10 @@ export function useAsyncDataForView<TRowType>(data: {
     }
   }, [loadData, pageSize, sqlite, tableId, tableName, visiblePages])
 
-  const { run: loadDataWithOffsetAndLimitDebounced } = useDebounceFn(loadDataWithOffsetAndLimitInVisible, { wait: 100, leading: true, trailing: true })
+  const { run: loadDataWithOffsetAndLimitDebounced } = useDebounceFn(
+    loadDataWithOffsetAndLimitInVisible,
+    { wait: 100, leading: true, trailing: true }
+  )
 
   useEffect(() => {
     if (isDesktopMode) {
@@ -339,7 +338,16 @@ export function useAsyncDataForView<TRowType>(data: {
       // less data, no flash, but blank page
       loadDataWithOffsetAndLimitDebounced()
     }
-  }, [loadData, pageSize, sqlite, tableId, tableName, visiblePages, loadDataWithOffsetAndLimitDebounced, loadDataWithOffsetAndLimitInVisible])
+  }, [
+    loadData,
+    pageSize,
+    sqlite,
+    tableId,
+    tableName,
+    visiblePages,
+    loadDataWithOffsetAndLimitDebounced,
+    loadDataWithOffsetAndLimitInVisible,
+  ])
 
   useEffect(() => {
     // when view changes, reset scroll position

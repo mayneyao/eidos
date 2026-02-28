@@ -185,9 +185,7 @@ export const NumberPropertyEditor = (props: IFieldPropertyEditorProps) => {
                     <div
                       className="w-4 h-4 mr-2 rounded"
                       style={{
-                        backgroundColor: `#${
-                          colors.find((c) => c.name === color)?.value
-                        }`,
+                        backgroundColor: `#${colors.find((c) => c.name === color)?.value}`,
                       }}
                     />
                     {color.charAt(0).toUpperCase() + color.slice(1)}
@@ -197,8 +195,12 @@ export const NumberPropertyEditor = (props: IFieldPropertyEditorProps) => {
               </PopoverTrigger>
               <PopoverContent className="click-outside-ignore w-[200px] p-0">
                 <Command>
-                  <CommandInput placeholder={t("table.propertyEditor.number.searchColor")} />
-                  <CommandEmpty>{t("table.propertyEditor.number.noColorFound")}</CommandEmpty>
+                  <CommandInput
+                    placeholder={t("table.propertyEditor.number.searchColor")}
+                  />
+                  <CommandEmpty>
+                    {t("table.propertyEditor.number.noColorFound")}
+                  </CommandEmpty>
                   <CommandGroup>
                     <CommandList>
                       {colors.map((colorOption) => (

@@ -4,9 +4,12 @@ import type { IData } from "./interface"
 import { handleChatApi } from "./chat-api"
 
 export const pathname = "/api/chat"
-export default async function handle(event: FetchEvent, ctx?: {
-  getDataspace: (space: string) => Promise<DataSpace | null>
-}) {
+export default async function handle(
+  event: FetchEvent,
+  ctx?: {
+    getDataspace: (space: string) => Promise<DataSpace | null>
+  }
+) {
   const data = (await event.request.json()) as IData
   // if request is post execute, then return 200 immediately
   if (event.request.method === "POST") {

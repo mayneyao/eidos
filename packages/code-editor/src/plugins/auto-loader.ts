@@ -4,12 +4,12 @@
  */
 
 // Import all plugin registration files
-import './esm-import-resolver/register'
-import './tailwindcss-autocomplete/register'
-import './example-new-plugin/register'
+import "./esm-import-resolver/register"
+import "./tailwindcss-autocomplete/register"
+import "./example-new-plugin/register"
 
 // Future plugins can be added here:
 // import './formatter/register'
 // import './autocompletion/register'
 
-console.log('📦 All plugins auto-loaded and registered')
+console.log("📦 All plugins auto-loaded and registered")

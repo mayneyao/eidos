@@ -1,4 +1,4 @@
-import type { LexicalEditor, NodeKey } from "lexical";
+import type { LexicalEditor, NodeKey } from "lexical"
 import { $getNodeByKey } from "lexical"
 import { AppWindowIcon, ClipboardCopyIcon } from "lucide-react"
 
@@ -67,4 +67,3 @@ export const FileMenu = ({
     </>
   )
 }
-

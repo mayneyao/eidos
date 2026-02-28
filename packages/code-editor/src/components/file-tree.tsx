@@ -1,7 +1,15 @@
 import React, { useState } from "react"
-import { ChevronDown, ChevronRight, File, Folder, MoreVertical, Edit3, Trash2 } from "lucide-react"
+import {
+  ChevronDown,
+  ChevronRight,
+  File,
+  Folder,
+  MoreVertical,
+  Edit3,
+  Trash2,
+} from "lucide-react"
 import { useMultiFileEditorStore } from "../store"
-import type { FileModel} from "../types";
+import type { FileModel } from "../types"
 import { FileType } from "../types"
 import { FileToolbar } from "./file-toolbar"
 
@@ -11,7 +19,9 @@ import { FileToolbar } from "./file-toolbar"
  */
 export const FileTree: React.FC = () => {
   const { files, openFile, removeFile, renameFile } = useMultiFileEditorStore()
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set(["utils", "scripts"]))
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(
+    new Set(["utils", "scripts"])
+  )
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -22,7 +32,10 @@ export const FileTree: React.FC = () => {
 
   // Debug info
   console.log("FileTree: files count =", files.length)
-  console.log("FileTree: files =", files.map(f => ({ id: f.id, name: f.name, type: f.type })))
+  console.log(
+    "FileTree: files =",
+    files.map((f) => ({ id: f.id, name: f.name, type: f.type }))
+  )
 
   // Build file tree structure
   const rootFiles = files.filter((file) => !file.path.includes("/"))
@@ -85,7 +98,10 @@ export const FileTree: React.FC = () => {
   }
 
   const handleConfirmRename = (fileId: string) => {
-    if (editingName.trim() && editingName !== files.find((f) => f.id === fileId)?.name) {
+    if (
+      editingName.trim() &&
+      editingName !== files.find((f) => f.id === fileId)?.name
+    ) {
       renameFile(fileId, editingName.trim())
     }
     setEditingFile(null)
@@ -120,13 +136,19 @@ export const FileTree: React.FC = () => {
             ${depth > 0 ? `pl-${depth * 4 + 2}` : ""}
           `}
           style={depth > 0 ? { paddingLeft: `${depth * 16 + 8}px` } : {}}
-          onClick={() => isDirectory ? toggleDir(file.id) : handleFileClick(file.id)}
+          onClick={() =>
+            isDirectory ? toggleDir(file.id) : handleFileClick(file.id)
+          }
           onContextMenu={(e) => handleContextMenu(e, file.id)}
         >
           {isDirectory ? (
             <>
               <span className="mr-1">
-                {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                {isExpanded ? (
+                  <ChevronDown size={16} />
+                ) : (
+                  <ChevronRight size={16} />
+                )}
               </span>
               <Folder size={16} className="mr-2 text-blue-500" />
             </>

@@ -11,43 +11,51 @@ interface ClipboardData {
 }
 
 export function ClipboardInspector() {
-  const [clipboardData, setClipboardData] = useState<ClipboardData>({ types: [] })
+  const [clipboardData, setClipboardData] = useState<ClipboardData>({
+    types: [],
+  })
 
   useEffect(() => {
     const checkClipboard = async () => {
       try {
         const clipboardItems = await navigator.clipboard.read()
         const data: ClipboardData = { types: [] }
-        
+
         for (const item of clipboardItems) {
           data.types = [...item.types]
-          
+
           // 读取文本内容
-          if (item.types.includes('text/plain')) {
-            const textBlob = await item.getType('text/plain')
+          if (item.types.includes("text/plain")) {
+            const textBlob = await item.getType("text/plain")
             data.text = await textBlob.text()
           }
-          
+
           // 读取 HTML 内容
-          if (item.types.includes('text/html')) {
-            const htmlBlob = await item.getType('text/html')
+          if (item.types.includes("text/html")) {
+            const htmlBlob = await item.getType("text/html")
             data.html = await htmlBlob.text()
           }
-          
+
           // 读取图片内容
-          if (item.types.includes('image/png') || item.types.includes('image/jpeg') || item.types.includes('image/gif')) {
-            const imageType = item.types.find(type => type.startsWith('image/')) || 'image/png'
+          if (
+            item.types.includes("image/png") ||
+            item.types.includes("image/jpeg") ||
+            item.types.includes("image/gif")
+          ) {
+            const imageType =
+              item.types.find((type) => type.startsWith("image/")) ||
+              "image/png"
             const imageBlob = await item.getType(imageType)
             data.image = URL.createObjectURL(imageBlob)
           }
         }
-        
+
         setClipboardData(data)
       } catch (error) {
         // 如果新的 API 不可用，回退到文本 API
         try {
           const text = await navigator.clipboard.readText()
-          setClipboardData({ text, types: ['text/plain'] })
+          setClipboardData({ text, types: ["text/plain"] })
         } catch (textError) {
           // 静默处理错误，可能是权限问题
         }
@@ -81,7 +89,7 @@ export function ClipboardInspector() {
 
   const downloadImage = () => {
     if (clipboardData.image) {
-      const link = document.createElement('a')
+      const link = document.createElement("a")
       link.href = clipboardData.image
       link.download = `clipboard-image-${Date.now()}.png`
       document.body.appendChild(link)
@@ -96,13 +104,15 @@ export function ClipboardInspector() {
         <div className="space-y-3">
           {/* 类型信息 */}
           <div className="text-xs text-gray-400">
-            Types: {clipboardData.types.join(', ')}
+            Types: {clipboardData.types.join(", ")}
           </div>
 
           {/* 文本内容 */}
           {clipboardData.text && (
             <div className="space-y-2">
-              <div className="text-xs font-medium text-gray-300">Text Content:</div>
+              <div className="text-xs font-medium text-gray-300">
+                Text Content:
+              </div>
               <div className="text-xs text-gray-400">
                 Length: {clipboardData.text.length} chars
               </div>
@@ -121,7 +131,9 @@ export function ClipboardInspector() {
           {/* HTML 内容 */}
           {clipboardData.html && (
             <div className="space-y-2">
-              <div className="text-xs font-medium text-gray-300">HTML Content:</div>
+              <div className="text-xs font-medium text-gray-300">
+                HTML Content:
+              </div>
               <div className="text-xs text-gray-300 break-all whitespace-pre-wrap max-h-20 overflow-y-auto bg-gray-800 p-2 rounded">
                 {clipboardData.html}
               </div>
@@ -137,11 +149,13 @@ export function ClipboardInspector() {
           {/* 图片内容 */}
           {clipboardData.image && (
             <div className="space-y-2">
-              <div className="text-xs font-medium text-gray-300">Image Content:</div>
+              <div className="text-xs font-medium text-gray-300">
+                Image Content:
+              </div>
               <div className="max-h-32 overflow-hidden rounded border border-gray-600">
-                <img 
-                  src={clipboardData.image} 
-                  alt="Clipboard image" 
+                <img
+                  src={clipboardData.image}
+                  alt="Clipboard image"
                   className="max-w-full h-auto"
                 />
               </div>

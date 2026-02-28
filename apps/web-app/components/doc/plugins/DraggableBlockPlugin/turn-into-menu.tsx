@@ -8,15 +8,12 @@ import {
 import { MenuOption } from "@lexical/react/LexicalTypeaheadMenuPlugin"
 import { $createHeadingNode, $createQuoteNode } from "@lexical/rich-text"
 import { $setBlocksType } from "@lexical/selection"
-import type {
-  LexicalEditor,
-  LexicalNode,
-  NodeKey} from "lexical";
+import type { LexicalEditor, LexicalNode, NodeKey } from "lexical"
 import {
   $createParagraphNode,
   $getNodeByKey,
   $getSelection,
-  $isRangeSelection
+  $isRangeSelection,
 } from "lexical"
 import {
   AudioLinesIcon,

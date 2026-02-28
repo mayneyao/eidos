@@ -320,7 +320,9 @@ export default function GridView(props: IGridProps) {
     [setMenu]
   )
 
-  const { onItemHovered, getRowThemeOverride } = useHover({ theme: _theme.name })
+  const { onItemHovered, getRowThemeOverride } = useHover({
+    theme: _theme.name,
+  })
   const { onDragLeave, onDrop, onDragOverCell, highlights } = useDrop({
     getCellContent,
     setCellValue: (col, row, value) => onCellEdited?.([col, row], value),

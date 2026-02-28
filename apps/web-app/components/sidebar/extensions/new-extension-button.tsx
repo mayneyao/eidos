@@ -99,7 +99,10 @@ export const NewExtensionButton = ({ trigger }: NewExtensionButtonProps) => {
           <ZapIcon className="mr-2 h-4 w-4" />
           {t("extension.fileAction", "File Action")}
           <ExtensionTooltip>
-            {t("extension.fileActionDescription", "Create a script to handle file actions")}
+            {t(
+              "extension.fileActionDescription",
+              "Create a script to handle file actions"
+            )}
           </ExtensionTooltip>
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -187,7 +190,9 @@ export const NewExtensionButton = ({ trigger }: NewExtensionButtonProps) => {
         </DropdownMenuLabel>
         <DropdownMenuItem
           className="group relative"
-          onClick={() => window.open(`${EIDOS_SPACE_BASE_URL}/extensions`, "_blank")}
+          onClick={() =>
+            window.open(`${EIDOS_SPACE_BASE_URL}/extensions`, "_blank")
+          }
         >
           <ExternalLinkIcon className="mr-2 h-4 w-4" />
           {t("extension.browseStore")}

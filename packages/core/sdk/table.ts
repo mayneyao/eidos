@@ -26,7 +26,10 @@ export class TableManager {
   // table name in sqlite
   rawTableName: string
   db: EidosDatabase
-  constructor(public id: string, public dataSpace: DataSpaceWithTable) {
+  constructor(
+    public id: string,
+    public dataSpace: DataSpaceWithTable
+  ) {
     this.rawTableName = getRawTableNameById(id)
     this.db = dataSpace.db
   }
@@ -52,10 +55,13 @@ export class TableManager {
   }
 
   async get(id: string): Promise<ITable | null> {
-    const views = await this.dataSpace.view.list({ table_id: id }, {
-      order: 'ASC',
-      orderBy: 'position'
-    })
+    const views = await this.dataSpace.view.list(
+      { table_id: id },
+      {
+        order: "ASC",
+        orderBy: "position",
+      }
+    )
     const tableNode = await this.dataSpace.tree.getNode(id)
     if (!tableNode) {
       return null
@@ -130,21 +136,27 @@ export class TableManager {
     try {
       // Get all file-type columns for this table
       const allColumns = await this.dataSpace.column.list({
-        table_name: this.rawTableName
+        table_name: this.rawTableName,
       })
-      const columns = allColumns.filter(col => col.type === 'file')
+      const columns = allColumns.filter((col) => col.type === "file")
 
       if (columns.length === 0) {
         console.log(`No file columns found in table ${this.rawTableName}`)
         return { migrated: 0, errors: 0 }
       }
 
-      console.log(`Found ${columns.length} file columns in table ${this.rawTableName}`)
+      console.log(
+        `Found ${columns.length} file columns in table ${this.rawTableName}`
+      )
 
       // Get all rows from the table
-      const rows = await this.dataSpace.exec2(`SELECT * FROM ${this.rawTableName}`)
+      const rows = await this.dataSpace.exec2(
+        `SELECT * FROM ${this.rawTableName}`
+      )
 
-      console.log(`Processing ${rows.length} rows in table ${this.rawTableName}`)
+      console.log(
+        `Processing ${rows.length} rows in table ${this.rawTableName}`
+      )
 
       for (const row of rows) {
         const rowId = row._id
@@ -154,7 +166,7 @@ export class TableManager {
         for (const column of columns) {
           const fieldValue = row[column.table_column_name]
 
-          if (!fieldValue || typeof fieldValue !== 'string') {
+          if (!fieldValue || typeof fieldValue !== "string") {
             continue
           }
 
@@ -162,15 +174,19 @@ export class TableManager {
           const paths = smartSplitFilePaths(fieldValue)
 
           let pathsChanged = false
-          const migratedPaths = paths.map(path => {
+          const migratedPaths = paths.map((path) => {
             // Skip network URLs and data URIs
-            if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
+            if (
+              path.startsWith("http://") ||
+              path.startsWith("https://") ||
+              path.startsWith("data:")
+            ) {
               return path
             }
 
             // Check if path matches old format: /{spaceName}/files/
             if (/^\/[^\/]+\/files\//.test(path)) {
-              const newPath = path.replace(/^\/[^\/]+\/files\//, '/files/')
+              const newPath = path.replace(/^\/[^\/]+\/files\//, "/files/")
               if (newPath !== path) {
                 console.log(`Migrating path: ${path} -> ${newPath}`)
                 pathsChanged = true
@@ -183,14 +199,14 @@ export class TableManager {
           })
 
           if (pathsChanged) {
-            updates[column.table_column_name] = migratedPaths.join(',')
+            updates[column.table_column_name] = migratedPaths.join(",")
             rowChanged = true
           }
         }
 
         // Update the row if any paths were changed
         if (rowChanged) {
-          console.log('updates', updates)
+          console.log("updates", updates)
           try {
             await this.rows.update(rowId, updates, { useFieldId: true })
           } catch (error) {
@@ -200,10 +216,12 @@ export class TableManager {
         }
       }
 
-      console.log(`Migration completed: ${migrated} paths migrated, ${errors} errors`)
+      console.log(
+        `Migration completed: ${migrated} paths migrated, ${errors} errors`
+      )
       return { migrated, errors }
     } catch (error) {
-      console.error('Error during table file path migration:', error)
+      console.error("Error during table file path migration:", error)
       throw error
     }
   }
@@ -216,11 +234,11 @@ export class TableManager {
     try {
       // Get all file-type columns for this table
       const allColumns = await this.dataSpace.column.list({
-        table_name: this.rawTableName
+        table_name: this.rawTableName,
       })
-      console.log('allColumns', allColumns, this.rawTableName)
-      const columns = allColumns.filter(col => col.type === 'file')
-      console.log('columns', columns)
+      console.log("allColumns", allColumns, this.rawTableName)
+      const columns = allColumns.filter((col) => col.type === "file")
+      console.log("columns", columns)
 
       if (columns.length === 0) {
         return false
@@ -235,7 +253,7 @@ export class TableManager {
            AND ${column.table_column_name} NOT LIKE 'data:%'
            LIMIT 1`
         )
-        console.log('result', result)
+        console.log("result", result)
         if (result && result[0]?.count > 0) {
           return true
         }
@@ -243,19 +261,25 @@ export class TableManager {
 
       return false
     } catch (error) {
-      console.error('Error checking table file path migration need:', error)
+      console.error("Error checking table file path migration need:", error)
       return false
     }
   }
 
-  static generateCreateTableSql(fields: Array<{
-    name: string;
-    type: FieldType;
-  }>) {
+  static generateCreateTableSql(
+    fields: Array<{
+      name: string
+      type: FieldType
+    }>
+  ) {
     const tableId = uuidv4().split("-").join("")
     const rawTableName = getRawTableNameById(tableId)
-    const fieldsWithoutTitle = fields.filter(field => field.name.toLowerCase() !== 'title')
-    const rawColumns = fieldsWithoutTitle.map((_, index) => generateColumnName())
+    const fieldsWithoutTitle = fields.filter(
+      (field) => field.name.toLowerCase() !== "title"
+    )
+    const rawColumns = fieldsWithoutTitle.map((_, index) =>
+      generateColumnName()
+    )
 
     let createTableSql = `
 CREATE TABLE ${rawTableName} (
@@ -271,8 +295,7 @@ CREATE TABLE ${rawTableName} (
       const sqlType = ColumnTable.getColumnTypeByFieldType(field.type)
       const isLastColumn = index === rawColumns.length - 1
       createTableSql +=
-        `${column} ${sqlType} NULL` +
-        (isLastColumn ? "\n" : ",\n")
+        `${column} ${sqlType} NULL` + (isLastColumn ? "\n" : ",\n")
     })
     createTableSql += `);`
 
@@ -282,7 +305,8 @@ CREATE TABLE ${rawTableName} (
     INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name) VALUES ('title', 'title', '${rawTableName}', 'title');
     `
     fieldsWithoutTitle.forEach((field, index) => {
-      const defaultFieldProperty = allFieldTypesMap[field.type].getDefaultFieldProperty()
+      const defaultFieldProperty =
+        allFieldTypesMap[field.type].getDefaultFieldProperty()
       const rawColumn = rawColumns[index]
       const escapedName = field.name.replace(/'/g, "''")
       createTableSql += `INSERT INTO ${ColumnTableName}(name, type, table_name, table_column_name, property) VALUES ('${escapedName}', '${field.type}', '${rawTableName}', '${rawColumn}', '${JSON.stringify(defaultFieldProperty)}');`

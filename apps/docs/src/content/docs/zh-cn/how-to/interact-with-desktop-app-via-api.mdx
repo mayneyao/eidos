@@ -28,80 +28,83 @@ bun add @eidos.space/client
 ## 示例：Hacker News 数据采集器
 
 创建一个名为 `index.ts` 的文件并添加以下内容。该脚本将：
+
 1.  使用 `createEidosClient` 连接到你的 Eidos 桌面版实例。
 2.  检查并创建 "Hacker News" 表格。
 3.  获取 Hacker News 热门文章，包括文章内容。
 4.  **更新/插入 (Upsert)** 数据：如果文章（通过 HN ID 识别）已存在，则更新其分数；否则创建新记录。
 
 ```typescript
-import { createEidosClient } from '@eidos.space/client';
+import { createEidosClient } from "@eidos.space/client"
 
 // 你可以在 Eidos 桌面端应用的仪表盘或 URL 中找到 Space ID
-const SPACE_ID = 'your_space_id'; 
-const EIDOS_PORT = 13127; // Eidos 桌面版默认 RPC 端口
+const SPACE_ID = "your_space_id"
+const EIDOS_PORT = 13127 // Eidos 桌面版默认 RPC 端口
 
 // 1. 初始化 Eidos 客户端
 const client = createEidosClient({
   endpoint: `http://${SPACE_ID}.eidos.localhost:${EIDOS_PORT}/rpc`,
-});
+})
 
-const space = client.space;
-const TABLE_NAME = 'Hacker News';
+const space = client.space
+const TABLE_NAME = "Hacker News"
 
 // 2. 检查并创建表格
-const tables = await space.schema.listTables();
-let table = tables.find(t => t.name === TABLE_NAME);
+const tables = await space.schema.listTables()
+let table = tables.find((t) => t.name === TABLE_NAME)
 
 if (!table) {
-  console.log(`正在创建表格 "${TABLE_NAME}"...`);
+  console.log(`正在创建表格 "${TABLE_NAME}"...`)
   table = await space.schema.createTable({
     name: TABLE_NAME,
     fields: [
-      { name: 'Content', columnName: 'content', type: 'text' },
-      { name: 'HN ID', columnName: 'hn_id', type: 'number' },
-      { name: 'URL', columnName: 'url', type: 'url' },
-      { name: 'HN 链接', columnName: 'hn_link', type: 'url' },
-      { name: 'Author', columnName: 'author', type: 'text' },
-      { name: 'Score', columnName: 'score', type: 'number' },
-      { 
-        name: 'Type', 
-        columnName: 'type', 
-        type: 'select',
+      { name: "Content", columnName: "content", type: "text" },
+      { name: "HN ID", columnName: "hn_id", type: "number" },
+      { name: "URL", columnName: "url", type: "url" },
+      { name: "HN 链接", columnName: "hn_link", type: "url" },
+      { name: "Author", columnName: "author", type: "text" },
+      { name: "Score", columnName: "score", type: "number" },
+      {
+        name: "Type",
+        columnName: "type",
+        type: "select",
         property: {
           options: [
-            { id: 'self', name: 'self', color: 'blue' },
-            { id: 'link', name: 'link', color: 'green' },
+            { id: "self", name: "self", color: "blue" },
+            { id: "link", name: "link", color: "green" },
           ],
         },
       },
     ],
-  });
+  })
 }
 
-const hnTable = space.table(table.id);
+const hnTable = space.table(table.id)
 
 // 3. 获取 Hacker News 数据
-console.log('正在获取热门文章...');
-const topIds = (await fetch('https://hacker-news.firebaseio.com/v0/topstories.json')
-  .then(res => res.json())) as string[];
+console.log("正在获取热门文章...")
+const topIds = (await fetch(
+  "https://hacker-news.firebaseio.com/v0/topstories.json"
+).then((res) => res.json())) as string[]
 
 // 处理前 10 篇
 for (const id of topIds.slice(0, 10)) {
-  const item = (await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)
-    .then(res => res.json())) as {
-      type: string;
-      title: string;
-      url: string;
-      text?: string;
-      by: string;
-      score: number;
-    };
+  const item = (await fetch(
+    `https://hacker-news.firebaseio.com/v0/item/${id}.json`
+  ).then((res) => res.json())) as {
+    type: string
+    title: string
+    url: string
+    text?: string
+    by: string
+    score: number
+  }
 
-  if (item?.type === 'story') {
+  if (item?.type === "story") {
     // 提取内容：自托管文章（Ask HN, Show HN）有 'text' 字段
     // 对于外部链接，内容将为空
-    const content = item.text ? item.text.replace(/<[^>]+>/g, '') : '';
-    const postType = item.text ? 'self' : 'link';
+    const content = item.text ? item.text.replace(/<[^>]+>/g, "") : ""
+    const postType = item.text ? "self" : "link"
 
     const data = {
       content: content,
@@ -110,33 +113,33 @@ for (const id of topIds.slice(0, 10)) {
       author: item.by,
       score: item.score,
       type: postType,
-    };
+    }
 
     // 4. 导入/更新数据到 Eidos
     // 使用自定义 hn_id 字段检查记录是否存在
     const existing = await hnTable.findFirst({
-      where: { hn_id: id }
-    });
+      where: { hn_id: id },
+    })
 
     if (existing) {
-      console.log(`正在更新: ${item.title}`);
+      console.log(`正在更新: ${item.title}`)
       await hnTable.update({
         where: { _id: existing._id },
-        data
-      });
+        data,
+      })
     } else {
-      console.log(`正在创建: ${item.title}`);
+      console.log(`正在创建: ${item.title}`)
       await hnTable.create({
         data: {
           hn_id: id,
-          ...data
+          ...data,
         },
-      });
+      })
     }
   }
 }
 
-console.log('导入完成！');
+console.log("导入完成！")
 ```
 
 ## 运行脚本

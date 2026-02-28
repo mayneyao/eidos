@@ -1,74 +1,74 @@
 interface KeyMatcherProps {
-  ctrl?: boolean;
-  key?: string;
-  shift?: boolean;
+  ctrl?: boolean
+  key?: string
+  shift?: boolean
 }
 
 export default class KeyMatcher {
-  protected key: KeyMatcherProps;
+  protected key: KeyMatcherProps
 
   constructor(props: KeyMatcherProps) {
-    this.key = props;
+    this.key = props
   }
 
   static capture(e: KeyboardEvent | React.KeyboardEvent) {
-    const isCtrlKey = e.ctrlKey || e.metaKey;
+    const isCtrlKey = e.ctrlKey || e.metaKey
 
-    let key: string | undefined = e.key;
+    let key: string | undefined = e.key
 
-    if (key === "Shift") key = undefined;
-    if (key === "Control") key = undefined;
+    if (key === "Shift") key = undefined
+    if (key === "Control") key = undefined
 
     return new KeyMatcher({
       ctrl: isCtrlKey,
       shift: e.shiftKey,
       key,
-    });
+    })
   }
 
   match(e: KeyboardEvent | React.KeyboardEvent<HTMLDivElement>) {
-    let isMatched = true;
-    const isCtrlKey = e.ctrlKey || e.metaKey;
+    let isMatched = true
+    const isCtrlKey = e.ctrlKey || e.metaKey
 
     if (this.key.ctrl && !isCtrlKey) {
-      isMatched = false;
+      isMatched = false
     }
 
     if (this.key.key && e.key !== this.key.key) {
-      isMatched = false;
+      isMatched = false
     }
 
     if (this.key.shift && !e.shiftKey) {
-      isMatched = false;
+      isMatched = false
     }
 
-    return isMatched;
+    return isMatched
   }
 
   toJson(): KeyMatcherProps {
-    return { ...this.key };
+    return { ...this.key }
   }
 
   toString() {
-    const isMac = navigator.userAgent.toLowerCase().indexOf("mac") > -1;
+    const isMac = navigator.userAgent.toLowerCase().indexOf("mac") > -1
     return [
       this.key.ctrl ? (isMac ? "⌘" : "Ctrl") : undefined,
       this.key.shift ? "Shift" : undefined,
       this.key?.key?.toUpperCase(),
     ]
       .filter(Boolean)
-      .join(" + ");
+      .join(" + ")
   }
 
   toCodeMirrorKey() {
-    const isMac = navigator.userAgent.toLowerCase().indexOf("mac") > -1;
+    const isMac = navigator.userAgent.toLowerCase().indexOf("mac") > -1
     return [
       this.key.ctrl ? (isMac ? "Cmd" : "Ctrl") : undefined,
       this.key.shift ? "Shift" : undefined,
       this.key?.key,
     ]
       .filter(Boolean)
-      .join("-");
+      .join("-")
   }
 }
 
@@ -79,4 +79,4 @@ export const KEY_BINDING = {
   format: new KeyMatcher({ ctrl: true, shift: true, key: "i" }),
   commit: new KeyMatcher({ ctrl: true, key: "s" }),
   discard: new KeyMatcher({ ctrl: true, shift: true, key: "Delete" }),
-};
+}

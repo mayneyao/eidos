@@ -287,9 +287,7 @@ export const useSqlite = (dbName?: string) => {
 
   const deleteDoc = async (docId: string) => {
     if (!sqlWorker) return
-    await sqlWorker.sql`DELETE FROM ${Symbol(
-      TreeTableName
-    )} WHERE id = ${docId}`
+    await sqlWorker.sql`DELETE FROM ${Symbol(TreeTableName)} WHERE id = ${docId}`
     await sqlWorker.deleteDoc(docId)
     delNode(docId)
   }
@@ -493,9 +491,8 @@ export const useSqlite = (dbName?: string) => {
         const doc = await sqlWorker.doc.get(docId)
         if (!doc || !doc.content) return false
 
-        const { needsDocumentPathMigration } = await import(
-          "./use-doc-migration"
-        )
+        const { needsDocumentPathMigration } =
+          await import("./use-doc-migration")
         return needsDocumentPathMigration(doc.content)
       } else {
         // Check if any document needs migration

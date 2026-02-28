@@ -1,9 +1,9 @@
-import type { TypeDefinition } from '../interfaces/plugin'
-import type { TypeDefinitionMetadata } from '../interfaces'
+import type { TypeDefinition } from "../interfaces/plugin"
+import type { TypeDefinitionMetadata } from "../interfaces"
 
-const DB_NAME = 'esm-import-resolver-cache'
+const DB_NAME = "esm-import-resolver-cache"
 const DB_VERSION = 1
-const STORE_NAME = 'type-definitions'
+const STORE_NAME = "type-definitions"
 
 export interface StoredTypeDefinition {
   packageUrl: string
@@ -22,8 +22,8 @@ export class TypeCacheStorage {
   }
 
   private initDB(): void {
-    if (typeof indexedDB === 'undefined') {
-      console.warn('IndexedDB not available, persistent caching disabled')
+    if (typeof indexedDB === "undefined") {
+      console.warn("IndexedDB not available, persistent caching disabled")
       this.dbPromise = Promise.resolve(null)
       return
     }
@@ -32,7 +32,10 @@ export class TypeCacheStorage {
       const request = indexedDB.open(DB_NAME, DB_VERSION)
 
       request.onerror = (event) => {
-        console.error('Failed to open IndexedDB:', (event.target as IDBOpenDBRequest).error)
+        console.error(
+          "Failed to open IndexedDB:",
+          (event.target as IDBOpenDBRequest).error
+        )
         resolve(null)
       }
 
@@ -44,7 +47,7 @@ export class TypeCacheStorage {
         const db = (event.target as IDBOpenDBRequest).result
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           // Use packageUrl as the key path
-          db.createObjectStore(STORE_NAME, { keyPath: 'packageUrl' })
+          db.createObjectStore(STORE_NAME, { keyPath: "packageUrl" })
         }
       }
     })
@@ -58,7 +61,7 @@ export class TypeCacheStorage {
     if (!db) return undefined
 
     return new Promise((resolve) => {
-      const transaction = db.transaction(STORE_NAME, 'readonly')
+      const transaction = db.transaction(STORE_NAME, "readonly")
       const store = transaction.objectStore(STORE_NAME)
       const request = store.get(packageUrl)
 
@@ -75,13 +78,16 @@ export class TypeCacheStorage {
     if (!db) return
 
     return new Promise((resolve) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite')
+      const transaction = db.transaction(STORE_NAME, "readwrite")
       const store = transaction.objectStore(STORE_NAME)
       store.put(stored)
-      
+
       transaction.oncomplete = () => resolve()
       transaction.onerror = (e) => {
-        console.error('Failed to save to cache:', (e.target as IDBRequest).error)
+        console.error(
+          "Failed to save to cache:",
+          (e.target as IDBRequest).error
+        )
         resolve()
       }
     })
@@ -95,10 +101,10 @@ export class TypeCacheStorage {
     if (!db) return
 
     return new Promise((resolve) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite')
+      const transaction = db.transaction(STORE_NAME, "readwrite")
       const store = transaction.objectStore(STORE_NAME)
       store.clear()
-      
+
       transaction.oncomplete = () => resolve()
     })
   }
@@ -111,10 +117,10 @@ export class TypeCacheStorage {
     if (!db) return
 
     return new Promise((resolve) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite')
+      const transaction = db.transaction(STORE_NAME, "readwrite")
       const store = transaction.objectStore(STORE_NAME)
       store.delete(packageUrl)
-      
+
       transaction.oncomplete = () => resolve()
     })
   }

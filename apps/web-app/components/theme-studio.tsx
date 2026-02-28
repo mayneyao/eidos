@@ -106,7 +106,7 @@ export function ThemeStudio() {
   const handleDeleteTheme = (themeName: string) => {
     if (currentThemeName === themeName) {
       // If deleting current theme, switch to default theme
-      handleSelectTheme('Default')
+      handleSelectTheme("Default")
     }
     removeCustomTheme(themeName)
   }
@@ -117,10 +117,7 @@ export function ThemeStudio() {
       <div className="w-1/3 p-2 flex flex-col">
         <div className="flex flex-col gap-1 flex-1">
           {allThemes.map((theme, index) => (
-            <div
-              key={theme.name}
-              className="flex items-center gap-2 group"
-            >
+            <div key={theme.name} className="flex items-center gap-2 group">
               <button
                 onClick={() => {
                   if (isAddingTheme) return
@@ -136,11 +133,11 @@ export function ThemeStudio() {
               >
                 <span className="text-sm">{theme.name}</span>
               </button>
-              {customThemes?.some(ct => ct.name === theme.name) && (
+              {customThemes?.some((ct) => ct.name === theme.name) && (
                 <button
                   onClick={() => handleDeleteTheme(theme.name)}
                   className={`p-1 rounded-md hover:bg-destructive/10 hover:text-destructive opacity-0 
-                    ${selectedThemeIndex === index && !isAddingTheme ? 'opacity-100' : 'group-hover:opacity-100'} 
+                    ${selectedThemeIndex === index && !isAddingTheme ? "opacity-100" : "group-hover:opacity-100"} 
                     transition-opacity`}
                   title={t("theme.delete", "Delete theme")}
                 >

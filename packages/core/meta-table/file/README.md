@@ -41,12 +41,12 @@ const file = await fileTable.upload("https://example.com/image.jpg")
 // URL upload with custom path
 const file = await fileTable.upload("https://example.com/image.jpg", {
   parentPath: ["images", "avatars"],
-  fileName: "custom-name.jpg"
+  fileName: "custom-name.jpg",
 })
 
 // URL upload with duplicate check
 const file = await fileTable.upload("https://example.com/image.jpg", {
-  checkDuplicate: true
+  checkDuplicate: true,
 })
 ```
 
@@ -56,7 +56,7 @@ const file = await fileTable.upload("https://example.com/image.jpg", {
 const file = await fileTable.upload(base64String, {
   fileName: "photo.jpg",
   mimeType: "image/jpeg",
-  parentPath: ["photos"]
+  parentPath: ["photos"],
 })
 ```
 
@@ -66,7 +66,7 @@ const file = await fileTable.upload(base64String, {
 const file = await fileTable.upload(arrayBuffer, {
   fileName: "document.pdf",
   mimeType: "application/pdf",
-  parentPath: ["documents"]
+  parentPath: ["documents"],
 })
 ```
 
@@ -76,13 +76,13 @@ const file = await fileTable.upload(arrayBuffer, {
 // From file input
 const fileInput = document.querySelector('input[type="file"]')
 const file = await fileTable.upload(fileInput.files[0], {
-  parentPath: ["uploads"]
+  parentPath: ["uploads"],
 })
 
 // With custom name
 const file = await fileTable.upload(fileInput.files[0], {
   fileName: "renamed-file.pdf",
-  parentPath: ["uploads"]
+  parentPath: ["uploads"],
 })
 ```
 
@@ -92,7 +92,7 @@ const file = await fileTable.upload(fileInput.files[0], {
 const file = await fileTable.upload(blob, {
   fileName: "screenshot.png",
   mimeType: "image/png",
-  parentPath: ["screenshots"]
+  parentPath: ["screenshots"],
 })
 ```
 
@@ -133,14 +133,14 @@ await fileTable.upload(arrayBuffer, "filename.pdf", "application/pdf", ["docs"])
 await fileTable.upload(url, {
   parentPath: ["subdir"],
   fileName: "filename.jpg",
-  checkDuplicate: true  // This was the default behavior in saveFile2EFS
+  checkDuplicate: true, // This was the default behavior in saveFile2EFS
 })
 
 // Upload from ArrayBuffer
 await fileTable.upload(arrayBuffer, {
   fileName: "filename.pdf",
   mimeType: "application/pdf",
-  parentPath: ["docs"]
+  parentPath: ["docs"],
 })
 ```
 
@@ -189,4 +189,3 @@ try {
   }
 }
 ```
-

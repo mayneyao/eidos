@@ -10,8 +10,9 @@ interface DragState {
 export const useDragStore = create<DragState>((set) => ({
   isDragging: false,
   draggedNode: null,
-  setDragging: (isDragging: boolean, node?: FileTreeNode) => set({
-    isDragging,
-    draggedNode: isDragging ? node : null
-  }),
+  setDragging: (isDragging: boolean, node?: FileTreeNode) =>
+    set({
+      isDragging,
+      draggedNode: isDragging ? node : null,
+    }),
 }))

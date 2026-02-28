@@ -25,7 +25,9 @@ export function useShowInFileManager() {
         if (spaceInfo && spaceInfo.path) {
           // Remove ~/ and join with space path
           const relativePath = filePath.substring(2)
-          const root = spaceInfo.path.endsWith("/") ? spaceInfo.path : `${spaceInfo.path}/`
+          const root = spaceInfo.path.endsWith("/")
+            ? spaceInfo.path
+            : `${spaceInfo.path}/`
           absolutePath = `${root}${relativePath}`
         }
       } else if (filePath.startsWith("@/")) {
@@ -45,7 +47,7 @@ export function useShowInFileManager() {
         }
 
         const mountKey = `eidos:space:files:mount:${mountName}`
-        const mountPath = await sqlite.kv.get(mountKey, 'text')
+        const mountPath = await sqlite.kv.get(mountKey, "text")
 
         if (!mountPath) {
           console.error(`Mount not found: ${mountName}`)
@@ -62,7 +64,10 @@ export function useShowInFileManager() {
           absolutePath = mountPath
         }
       } else {
-        console.warn("Unsupported path format for opening in file manager:", filePath)
+        console.warn(
+          "Unsupported path format for opening in file manager:",
+          filePath
+        )
         return
       }
 
@@ -86,15 +91,21 @@ export function useOpenInFileManagerAction() {
   const { toast } = useToast()
   const { t } = useTranslation()
 
-  const openInFileManager = async (filePath: string, showToastOnError = true) => {
+  const openInFileManager = async (
+    filePath: string,
+    showToastOnError = true
+  ) => {
     try {
       await showInFileManager(filePath)
     } catch (error) {
       console.error("Failed to open file in file manager:", error)
       if (showToastOnError) {
         toast({
-          title: t("nav.dropdown.menu.openInFileManagerError", "Failed to open in file manager"),
-          variant: "destructive"
+          title: t(
+            "nav.dropdown.menu.openInFileManagerError",
+            "Failed to open in file manager"
+          ),
+          variant: "destructive",
         })
       }
       throw error

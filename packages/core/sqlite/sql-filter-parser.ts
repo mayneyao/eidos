@@ -3,13 +3,9 @@ import type {
   ExprRef,
   ExprString,
   ExprUnary,
-  SelectFromStatement} from "pgsql-ast-parser";
-import {
-  Expr,
-  astVisitor,
-  parseFirst,
-  toSql,
+  SelectFromStatement,
 } from "pgsql-ast-parser"
+import { Expr, astVisitor, parseFirst, toSql } from "pgsql-ast-parser"
 
 import type { FilterValueType } from "../types/IViewFilter"
 
@@ -248,12 +244,12 @@ export const transformFilterItems2SqlExpr = (
           right:
             value == null
               ? {
-                type: "null",
-              }
+                  type: "null",
+                }
               : {
-                type: ExprTypeMap[typeof value] || typeof value || "string",
-                value,
-              },
+                  type: ExprTypeMap[typeof value] || typeof value || "string",
+                  value,
+                },
         }
     }
   }

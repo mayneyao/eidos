@@ -1,23 +1,27 @@
-import type { AggregateItem } from "./interface";
-import { transformAggregateItems2SqlString } from "./sql-aggregate-parser";
+import type { AggregateItem } from "./interface"
+import { transformAggregateItems2SqlString } from "./sql-aggregate-parser"
 
 describe("transformAggregateItems2SqlString", () => {
   test("transforms aggregate items with group by columns", () => {
-    const baseSql = "SELECT department FROM employees";
+    const baseSql = "SELECT department FROM employees"
     const aggregateItems: AggregateItem[] = [
       { column: "salary", function: "sum", alias: "total_salary" },
       { column: "id", function: "count", alias: "employee_count" },
-    ];
-    const groupByColumns = ["department"];
-    const result = transformAggregateItems2SqlString(baseSql, aggregateItems, groupByColumns);
+    ]
+    const groupByColumns = ["department"]
+    const result = transformAggregateItems2SqlString(
+      baseSql,
+      aggregateItems,
+      groupByColumns
+    )
 
     // Check that the result contains aggregate expressions and the group by column
-    expect(result).toMatch(/SUM\s*\(\s*salary\s*\)/i);
-    expect(result).toMatch(/COUNT\s*\(\s*id\s*\)/i);
-    expect(result).toMatch(/AS\s+total_salary/i);
-    expect(result).toMatch(/AS\s+employee_count/i);
-    expect(result).toMatch(/GROUP BY\s+department/i);
-  });
+    expect(result).toMatch(/SUM\s*\(\s*salary\s*\)/i)
+    expect(result).toMatch(/COUNT\s*\(\s*id\s*\)/i)
+    expect(result).toMatch(/AS\s+total_salary/i)
+    expect(result).toMatch(/AS\s+employee_count/i)
+    expect(result).toMatch(/GROUP BY\s+department/i)
+  })
 
   // test("transforms aggregate items without group by columns", () => {
   //   const baseSql = "SELECT * FROM orders";
@@ -47,4 +51,4 @@ describe("transformAggregateItems2SqlString", () => {
   //   expect(result).toMatch(/AS\s+unique_price_count/i);
   //   expect(result).toMatch(/GROUP BY\s+category/i);
   // });
-}); 
+})

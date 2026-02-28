@@ -1,6 +1,6 @@
 export enum QueryResultType {
   TEXT = "TEXT",
-  CARD = "CARD", 
+  CARD = "CARD",
   LIST = "LIST",
   TABLE = "TABLE",
 }
@@ -13,4 +13,4 @@ export const getQueryResultType = (data: object[]) => {
     return data.length === 1 ? QueryResultType.TEXT : QueryResultType.LIST
   }
   return data.length === 1 ? QueryResultType.CARD : QueryResultType.TABLE
-} 
+}

@@ -9,9 +9,7 @@
 import { useEffect } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $wrapNodeInElement, mergeRegister } from "@lexical/utils"
-import type {
-  LexicalCommand,
-  LexicalEditor} from "lexical";
+import type { LexicalCommand, LexicalEditor } from "lexical"
 import {
   $createParagraphNode,
   $createRangeSelection,
@@ -31,7 +29,7 @@ import {
 
 import { CAN_USE_DOM } from "../../utils/dom"
 import { $insertDecoratorBlockNode } from "../helper"
-import type { ImagePayload } from "./node";
+import type { ImagePayload } from "./node"
 import { $createImageNode, $isImageNode, ImageNode } from "./node"
 
 export type InsertImagePayload = Readonly<ImagePayload>
@@ -209,8 +207,8 @@ function getDragSelection(event: DragEvent): Range | null | undefined {
     target == null
       ? null
       : target.nodeType === 9
-      ? (target as Document).defaultView
-      : (target as Element).ownerDocument.defaultView
+        ? (target as Document).defaultView
+        : (target as Element).ownerDocument.defaultView
   const domSelection = getDOMSelection(targetWindow)
   if (document.caretRangeFromPoint) {
     range = document.caretRangeFromPoint(event.clientX, event.clientY)

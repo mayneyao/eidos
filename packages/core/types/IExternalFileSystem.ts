@@ -10,10 +10,23 @@ export interface IDirectoryEntry {
   /** Parent directory path relative to queried directory */
   parentPath: string
   /** Entry type */
-  kind: 'file' | 'directory' | 'blockDevice' | 'characterDevice' | 'symbolicLink' | 'fifo' | 'socket'
+  kind:
+    | "file"
+    | "directory"
+    | "blockDevice"
+    | "characterDevice"
+    | "symbolicLink"
+    | "fifo"
+    | "socket"
   /** Optional metadata for virtual file system entries */
   metadata?: {
-    nodeType?: "table" | "doc" | "folder" | "extension" | "dataview" | `ext__${string}`
+    nodeType?:
+      | "table"
+      | "doc"
+      | "folder"
+      | "extension"
+      | "dataview"
+      | `ext__${string}`
     nodeId?: string
     isPinned?: boolean
     icon?: string
@@ -89,7 +102,7 @@ export interface IStats {
  * Compatible with Node.js fs watch event
  */
 export interface IWatchEvent {
-  eventType: 'rename' | 'change'
+  eventType: "rename" | "change"
   filename: string
 }
 
@@ -107,7 +120,7 @@ export interface IWatchOptions {
 /**
  * External file system interface
  * API follows Node.js fs/promises
- * 
+ *
  * Supports:
  * - ~/ (project folder)
  * - @/ (mounted folders)
@@ -120,9 +133,15 @@ export interface IExternalFileSystem {
    * @returns Array of file names or IDirectoryEntry objects
    */
   // Overload signature: when withFileTypes is true, returns IDirectoryEntry[]
-  readdir(path: string, options: { withFileTypes: true; recursive?: boolean }): Promise<IDirectoryEntry[]>
+  readdir(
+    path: string,
+    options: { withFileTypes: true; recursive?: boolean }
+  ): Promise<IDirectoryEntry[]>
   // Overload signature: when withFileTypes is false or undefined, returns string[]
-  readdir(path: string, options?: { withFileTypes?: false; recursive?: boolean }): Promise<string[]>
+  readdir(
+    path: string,
+    options?: { withFileTypes?: false; recursive?: boolean }
+  ): Promise<string[]>
 
   /**
    * Create directory (like fs.mkdir)
@@ -141,9 +160,15 @@ export interface IExternalFileSystem {
   // Overload signature: no options returns Uint8Array
   readFile(path: string): Promise<Uint8Array>
   // Overload signature: with encoding returns string
-  readFile(path: string, options: { encoding: BufferEncoding; flag?: string } | BufferEncoding): Promise<string>
+  readFile(
+    path: string,
+    options: { encoding: BufferEncoding; flag?: string } | BufferEncoding
+  ): Promise<string>
   // Implementation signature: must be compatible with all overload signatures
-  readFile(path: string, options?: IReadFileOptions | BufferEncoding): Promise<string | Uint8Array>
+  readFile(
+    path: string,
+    options?: IReadFileOptions | BufferEncoding
+  ): Promise<string | Uint8Array>
 
   /**
    * Write file contents (like fs.writeFile)
@@ -151,7 +176,11 @@ export interface IExternalFileSystem {
    * @param data File contents as string or Uint8Array
    * @param options Encoding or write options
    */
-  writeFile(path: string, data: string | Uint8Array, options?: IWriteFileOptions | BufferEncoding): Promise<void>
+  writeFile(
+    path: string,
+    data: string | Uint8Array,
+    options?: IWriteFileOptions | BufferEncoding
+  ): Promise<void>
 
   /**
    * Get file stats (like fs.stat)
@@ -194,4 +223,3 @@ export interface IExternalFileSystem {
    */
   search(query: string): Promise<string[]>
 }
-

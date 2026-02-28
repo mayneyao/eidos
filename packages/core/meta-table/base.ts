@@ -1,5 +1,8 @@
 import type { DataSpace } from "../data-space"
-import { SqlQueryBuilder, type FindManyOptions } from "../sqlite/sql-query-builder"
+import {
+  SqlQueryBuilder,
+  type FindManyOptions,
+} from "../sqlite/sql-query-builder"
 
 export interface MetaTable<T> {
   add(data: T): Promise<T>
@@ -29,7 +32,7 @@ export class BaseTableImpl<T = any> {
   public toJson = (data: T) => {
     Object.entries(data as any).forEach(([key, value]) => {
       if (this.JSONFields.includes(key) && value) {
-        ; (data as any)[key] = JSON.parse(value as string)
+        ;(data as any)[key] = JSON.parse(value as string)
       }
     })
     return data
@@ -51,28 +54,32 @@ export class BaseTableImpl<T = any> {
    */
   public async getTableColumns(): Promise<string[]> {
     try {
-      const res = await this.dataSpace.exec2(
-        `PRAGMA table_info(${this.name})`
-      )
+      const res = await this.dataSpace.exec2(`PRAGMA table_info(${this.name})`)
       return res.map((col: any) => col.name)
     } catch (error) {
-      console.error('Failed to get table columns:', error)
+      console.error("Failed to get table columns:", error)
       return []
     }
   }
 
   public async getRegularTriggers(tableName: string) {
-    return await this.dataSpace.exec2(`
+    return (await this.dataSpace.exec2(
+      `
       SELECT name FROM sqlite_master 
       WHERE type = 'trigger' AND tbl_name = ?
-    `, [tableName]) as Array<{ name: string }>
+    `,
+      [tableName]
+    )) as Array<{ name: string }>
   }
 
   public async getTempTriggers(tableName: string) {
-    return await this.dataSpace.exec2(`
+    return (await this.dataSpace.exec2(
+      `
       SELECT name FROM sqlite_temp_master 
       WHERE type = 'trigger' AND tbl_name = ?
-    `, [tableName]) as Array<{ name: string }>
+    `,
+      [tableName]
+    )) as Array<{ name: string }>
   }
 
   async del(id: string, db = this.dataSpace.db): Promise<boolean> {
@@ -157,7 +164,7 @@ export class BaseTableImpl<T = any> {
     }
   ): Promise<T[]> {
     let res: T[] = []
-    let sql = `SELECT ${opts?.fields?.join(', ') || '*'} FROM ${this.name}`
+    let sql = `SELECT ${opts?.fields?.join(", ") || "*"} FROM ${this.name}`
     let setV: any[] = []
     if (query && Object.keys(query).length > 0) {
       const kv = Object.entries(query)
@@ -169,9 +176,7 @@ export class BaseTableImpl<T = any> {
           return `${k} = ?`
         })
         .join(" AND ")
-      setV = kv
-        .filter(([, v]) => v != null)
-        .map(([, v]) => v)
+      setV = kv.filter(([, v]) => v != null).map(([, v]) => v)
       sql += ` WHERE ${setK}`
     }
     if (opts?.orderBy) {
@@ -190,13 +195,8 @@ export class BaseTableImpl<T = any> {
     })
   }
 
-  public async findMany(
-    options: FindManyOptions<T> = {}
-  ): Promise<T[]> {
-    const { sql, params } = SqlQueryBuilder.buildFindMany(
-      this.name,
-      options
-    )
+  public async findMany(options: FindManyOptions<T> = {}): Promise<T[]> {
+    const { sql, params } = SqlQueryBuilder.buildFindMany(this.name, options)
 
     // Execute main query
     const data = await this.dataSpace.exec2(sql, params)
@@ -206,7 +206,10 @@ export class BaseTableImpl<T = any> {
   }
 
   public async count(
-    options: Omit<FindManyOptions<T>, 'select' | 'orderBy' | 'skip' | 'take'> = {}
+    options: Omit<
+      FindManyOptions<T>,
+      "select" | "orderBy" | "skip" | "take"
+    > = {}
   ): Promise<number> {
     const { countSql, countParams } = SqlQueryBuilder.buildFindMany(
       this.name,

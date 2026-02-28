@@ -25,7 +25,9 @@ export function GodModeTooltip() {
   })
   const [isHovering, setIsHovering] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
-  const [hoverTimeoutId, setHoverTimeoutId] = useState<NodeJS.Timeout | null>(null)
+  const [hoverTimeoutId, setHoverTimeoutId] = useState<NodeJS.Timeout | null>(
+    null
+  )
 
   const calculateOptimalPosition = (
     targetRect: DOMRect,
@@ -181,7 +183,7 @@ export function GodModeTooltip() {
       if (!target) return
 
       // 检查是否是 tooltip 元素或其子元素
-      const isTooltipElement = target.closest('[data-tooltip-container]')
+      const isTooltipElement = target.closest("[data-tooltip-container]")
       if (isTooltipElement) {
         // 如果鼠标移动到 tooltip 上，清除隐藏定时器
         if (hoverTimeoutId) {
@@ -233,7 +235,7 @@ export function GodModeTooltip() {
       if (!target) return
 
       // 检查是否是从 tooltip 移出
-      const isFromTooltip = target.closest('[data-tooltip-container]')
+      const isFromTooltip = target.closest("[data-tooltip-container]")
       if (isFromTooltip) {
         return // tooltip 的 onMouseLeave 会处理隐藏逻辑
       }
@@ -374,9 +376,7 @@ export function GodModeTooltip() {
     >
       <div className="relative bg-foreground text-background px-3 py-2 rounded-lg shadow-lg text-sm font-mono max-w-xs break-words">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            {tooltip.content}
-          </div>
+          <div className="flex-1 min-w-0">{tooltip.content}</div>
           <button
             onClick={handleCopy}
             className="flex-shrink-0 p-1 hover:bg-background/20 rounded transition-colors"

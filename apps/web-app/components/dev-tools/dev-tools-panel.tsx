@@ -58,17 +58,16 @@ export function DevToolsPanel() {
 
   // Monitor memory usage
   const monitorMemoryUsage = () => {
-    if ('memory' in performance) {
+    if ("memory" in performance) {
       const memory = (performance as any).memory
       const used = Math.round(memory.usedJSHeapSize / 1024 / 1024) // MB
       const total = Math.round(memory.totalJSHeapSize / 1024 / 1024) // MB
       const limit = Math.round(memory.jsHeapSizeLimit / 1024 / 1024) // MB
       const percentage = Math.round((used / limit) * 100)
-      
+
       setMemoryUsage({ used, total, limit, percentage })
     }
   }
-
 
   // Update node count, FPS, and memory usage
   useEffect(() => {

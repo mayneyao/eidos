@@ -25,7 +25,6 @@ export const functions = allFunctions.map((f) => {
   }
 })
 
-
 type FunctionParamsSchemaMap = {
   [funName: string]: z.ZodSchema<any>
 }

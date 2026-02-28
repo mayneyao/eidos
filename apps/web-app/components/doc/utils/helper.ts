@@ -1,10 +1,10 @@
 import { CodeNode } from "@lexical/code"
-import type { EditorState, Klass, LexicalNode, NodeMap } from "lexical";
+import type { EditorState, Klass, LexicalNode, NodeMap } from "lexical"
 import { $nodesOfType } from "lexical"
 
 import type { ExtBlock } from "../hooks/use-ext-blocks"
-import { ImageNode } from "../blocks/image/node";
-import invariant from "./invariant";
+import { ImageNode } from "../blocks/image/node"
+import invariant from "./invariant"
 
 /**
  * some extension blocks want to transform the code with specific language to their own node
@@ -31,69 +31,71 @@ export const $transformExtCodeBlock = (extBlocks: ExtBlock[]) => {
   }
 }
 
-
-export type TypeToNodeMap = Map<string, NodeMap>;
-const cachedNodeMaps = new WeakMap<EditorState, TypeToNodeMap>();
-const EMPTY_TYPE_TO_NODE_MAP: TypeToNodeMap = new Map();
+export type TypeToNodeMap = Map<string, NodeMap>
+const cachedNodeMaps = new WeakMap<EditorState, TypeToNodeMap>()
+const EMPTY_TYPE_TO_NODE_MAP: TypeToNodeMap = new Map()
 
 /**
  * @internal
  * Compute a Map of node type to nodes for an EditorState
  */
 function computeTypeToNodeMap(editorState: EditorState): TypeToNodeMap {
-  const typeToNodeMap = new Map();
+  const typeToNodeMap = new Map()
   for (const [nodeKey, node] of editorState._nodeMap) {
-    const nodeType = node.__type;
-    let nodeMap = typeToNodeMap.get(nodeType);
+    const nodeType = node.__type
+    let nodeMap = typeToNodeMap.get(nodeType)
     if (!nodeMap) {
-      nodeMap = new Map();
-      typeToNodeMap.set(nodeType, nodeMap);
+      nodeMap = new Map()
+      typeToNodeMap.set(nodeType, nodeMap)
     }
-    nodeMap.set(nodeKey, node);
+    nodeMap.set(nodeKey, node)
   }
-  return typeToNodeMap;
+  return typeToNodeMap
 }
 
 export function getCachedTypeToNodeMap(
-  editorState: EditorState,
+  editorState: EditorState
 ): TypeToNodeMap {
   // If this is a new Editor it may have a writable this._editorState
   // with only a 'root' entry.
   if (!editorState._readOnly && editorState.isEmpty()) {
-    return EMPTY_TYPE_TO_NODE_MAP;
+    return EMPTY_TYPE_TO_NODE_MAP
   }
   invariant(
     editorState._readOnly,
-    'getCachedTypeToNodeMap called with a writable EditorState',
-  );
-  let typeToNodeMap = cachedNodeMaps.get(editorState);
+    "getCachedTypeToNodeMap called with a writable EditorState"
+  )
+  let typeToNodeMap = cachedNodeMaps.get(editorState)
   if (!typeToNodeMap) {
-    typeToNodeMap = computeTypeToNodeMap(editorState);
-    cachedNodeMaps.set(editorState, typeToNodeMap);
+    typeToNodeMap = computeTypeToNodeMap(editorState)
+    cachedNodeMaps.set(editorState, typeToNodeMap)
   }
-  return typeToNodeMap;
+  return typeToNodeMap
 }
 
-export function getNodesOfType<T extends LexicalNode>(klass: Klass<T>, editorState: EditorState): Array<T> {
-  const klassType = klass.getType();
+export function getNodesOfType<T extends LexicalNode>(
+  klass: Klass<T>,
+  editorState: EditorState
+): Array<T> {
+  const klassType = klass.getType()
   if (editorState._readOnly) {
     const nodes = getCachedTypeToNodeMap(editorState).get(klassType) as
       | undefined
-      | Map<string, T>;
-    return nodes ? Array.from(nodes.values()) : [];
+      | Map<string, T>
+    return nodes ? Array.from(nodes.values()) : []
   }
-  const nodes = editorState._nodeMap;
-  const nodesOfType: Array<T> = [];
+  const nodes = editorState._nodeMap
+  const nodesOfType: Array<T> = []
   for (const [, node] of nodes) {
     if (
       node instanceof klass &&
       node.__type === klassType &&
       node.isAttached()
     ) {
-      nodesOfType.push(node as T);
+      nodesOfType.push(node as T)
     }
   }
-  return nodesOfType;
+  return nodesOfType
 }
 
 export const getFirstImageUrl = (editorState: EditorState) => {

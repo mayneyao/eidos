@@ -3,7 +3,7 @@
  * Plugin-specific type definitions
  */
 
-import type { BasePluginProps } from '../base-types'
+import type { BasePluginProps } from "../base-types"
 
 /**
  * Props for Example Plugin

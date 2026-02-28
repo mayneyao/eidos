@@ -74,9 +74,10 @@ function MySortableItem({ item }: { item: MyItem }) {
 ## Real-world Usage Examples
 
 ### Field Ordering (view-field.tsx)
+
 ```tsx
 <SortableContainer
-  items={cards.map(card => ({ ...card, id: card.table_column_name }))}
+  items={cards.map((card) => ({ ...card, id: card.table_column_name }))}
   onReorder={handleReorder}
   className="max-h-[320px] w-[280px] overflow-y-auto overflow-x-hidden"
   renderItem={(item, index) => (
@@ -89,9 +90,10 @@ function MySortableItem({ item }: { item: MyItem }) {
 ```
 
 ### Sort Rules (view-sort-editor.tsx)
+
 ```tsx
 <SortableContainer
-  items={orderItems.map(item => ({ ...item, id: item.column }))}
+  items={orderItems.map((item) => ({ ...item, id: item.column }))}
   onReorder={handleReorder}
   renderItem={(item, index) => (
     <SortableItem
@@ -103,6 +105,7 @@ function MySortableItem({ item }: { item: MyItem }) {
 ```
 
 ### View Ordering (view-toolbar.tsx)
+
 ```tsx
 <SortableContainer
   items={localViews}
@@ -129,25 +132,25 @@ function MySortableItem({ item }: { item: MyItem }) {
 
 ### SortableContainer
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `items` | `T[]` | Array of items to sort |
-| `onReorder` | `(newItems: T[]) => void` | Callback when items are reordered |
-| `renderItem` | `(item: T, index: number) => ReactNode` | Function to render each item |
-| `className` | `string` | CSS classes for the container |
-| `itemClassName` | `string` | CSS classes for each item wrapper |
-| `disabled` | `boolean` | Disable drag and drop |
-| `activationDistance` | `number` | Distance in pixels to start drag (default: 8) |
+| Prop                 | Type                                    | Description                                   |
+| -------------------- | --------------------------------------- | --------------------------------------------- |
+| `items`              | `T[]`                                   | Array of items to sort                        |
+| `onReorder`          | `(newItems: T[]) => void`               | Callback when items are reordered             |
+| `renderItem`         | `(item: T, index: number) => ReactNode` | Function to render each item                  |
+| `className`          | `string`                                | CSS classes for the container                 |
+| `itemClassName`      | `string`                                | CSS classes for each item wrapper             |
+| `disabled`           | `boolean`                               | Disable drag and drop                         |
+| `activationDistance` | `number`                                | Distance in pixels to start drag (default: 8) |
 
 ### SortableItem
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `id` | `string` | Unique identifier for the item |
-| `children` | `ReactNode` | Content to render inside the item |
-| `className` | `string` | CSS classes for the item |
-| `dragHandleClassName` | `string` | CSS classes for the drag handle |
-| `disabled` | `boolean` | Disable dragging for this item |
-| `isDragging` | `boolean` | External drag state |
-| `onDragStart` | `() => void` | Callback when drag starts |
-| `onDragEnd` | `() => void` | Callback when drag ends |
+| Prop                  | Type         | Description                       |
+| --------------------- | ------------ | --------------------------------- |
+| `id`                  | `string`     | Unique identifier for the item    |
+| `children`            | `ReactNode`  | Content to render inside the item |
+| `className`           | `string`     | CSS classes for the item          |
+| `dragHandleClassName` | `string`     | CSS classes for the drag handle   |
+| `disabled`            | `boolean`    | Disable dragging for this item    |
+| `isDragging`          | `boolean`    | External drag state               |
+| `onDragStart`         | `() => void` | Callback when drag starts         |
+| `onDragEnd`           | `() => void` | Callback when drag ends           |

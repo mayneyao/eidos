@@ -37,7 +37,7 @@ export interface URLResolverService {
 
 export interface ResolveOptions {
   /** Target environment (browser, node, deno) */
-  target?: 'browser' | 'node' | 'deno'
+  target?: "browser" | "node" | "deno"
 
   /** Specific version to use */
   version?: string
@@ -52,7 +52,7 @@ export interface ResolveOptions {
   queryParams?: Record<string, string>
 
   /** Bundle format preference */
-  format?: 'esm' | 'cjs' | 'umd'
+  format?: "esm" | "cjs" | "umd"
 
   /** Development mode */
   dev?: boolean
@@ -91,16 +91,46 @@ export interface PackageMetadata {
  * ESM URL Resolver implementation
  */
 export class URLResolver implements URLResolverService {
-  private esmServerUrl = 'https://esm.sh'
+  private esmServerUrl = "https://esm.sh"
   private packageWhitelist = new Set<string>()
   private packageBlacklist = new Set<string>()
 
   private readonly nodeBuiltins = new Set([
-    'assert', 'buffer', 'child_process', 'cluster', 'crypto', 'dgram', 'dns',
-    'domain', 'events', 'fs', 'http', 'https', 'net', 'os', 'path', 'punycode',
-    'querystring', 'readline', 'stream', 'string_decoder', 'timers', 'tls',
-    'tty', 'url', 'util', 'v8', 'vm', 'zlib', 'process', 'console', 'module',
-    'perf_hooks', 'async_hooks', 'worker_threads', 'inspector'
+    "assert",
+    "buffer",
+    "child_process",
+    "cluster",
+    "crypto",
+    "dgram",
+    "dns",
+    "domain",
+    "events",
+    "fs",
+    "http",
+    "https",
+    "net",
+    "os",
+    "path",
+    "punycode",
+    "querystring",
+    "readline",
+    "stream",
+    "string_decoder",
+    "timers",
+    "tls",
+    "tty",
+    "url",
+    "util",
+    "v8",
+    "vm",
+    "zlib",
+    "process",
+    "console",
+    "module",
+    "perf_hooks",
+    "async_hooks",
+    "worker_threads",
+    "inspector",
   ])
 
   private readonly patterns = {
@@ -110,7 +140,7 @@ export class URLResolver implements URLResolverService {
     relative: /^\.{1,2}\//,
     absolute: /^[/\\]/,
     nodePrefix: /^node:/,
-    localPathMapping: /^[@~]\//
+    localPathMapping: /^[@~]\//,
   }
 
   /**
@@ -149,22 +179,22 @@ export class URLResolver implements URLResolverService {
 
     // Target environment
     if (options.target) {
-      queryParams.set('target', options.target)
+      queryParams.set("target", options.target)
     }
 
     // Bundle format
     if (options.format) {
-      queryParams.set('bundle', options.format)
+      queryParams.set("bundle", options.format)
     }
 
     // Development mode
     if (options.dev) {
-      queryParams.set('dev', 'true')
+      queryParams.set("dev", "true")
     }
 
     // Disable types if requested
     if (options.noDts) {
-      queryParams.set('no-dts', 'true')
+      queryParams.set("no-dts", "true")
     }
 
     // Add custom query parameters
@@ -214,11 +244,11 @@ export class URLResolver implements URLResolverService {
   getPackageMetadata(importPath: string): PackageMetadata {
     const metadata: PackageMetadata = {
       originalPath: importPath,
-      name: '',
+      name: "",
       isScoped: false,
       isNodeBuiltin: false,
       isRelative: this.patterns.relative.test(importPath),
-      isLocalPathMapping: this.patterns.localPathMapping.test(importPath)
+      isLocalPathMapping: this.patterns.localPathMapping.test(importPath),
     }
 
     // Handle relative imports
@@ -236,10 +266,10 @@ export class URLResolver implements URLResolverService {
     }
 
     // Remove node: prefix
-    cleanPath = cleanPath.replace(this.patterns.nodePrefix, '')
+    cleanPath = cleanPath.replace(this.patterns.nodePrefix, "")
 
     // Check if it's a Node builtin
-    const basePackage = cleanPath.split('/')[0]
+    const basePackage = cleanPath.split("/")[0]
     metadata.isNodeBuiltin = this.nodeBuiltins.has(basePackage)
 
     // Parse scoped packages
@@ -269,7 +299,7 @@ export class URLResolver implements URLResolverService {
    * Configure ESM server URL
    */
   setEsmServerUrl(url: string): void {
-    this.esmServerUrl = url.replace(/\/$/, '') // Remove trailing slash
+    this.esmServerUrl = url.replace(/\/$/, "") // Remove trailing slash
   }
 
   /**

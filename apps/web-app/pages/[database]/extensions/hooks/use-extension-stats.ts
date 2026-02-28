@@ -49,11 +49,12 @@ export const useExtensionCountByMetaType = (
     const fetchCount = async () => {
       try {
         setLoading(true)
-        const extensionCount = await sqlite.extension.getExtensionCountByMetaType(
-          extensionType,
-          metaType,
-          status
-        )
+        const extensionCount =
+          await sqlite.extension.getExtensionCountByMetaType(
+            extensionType,
+            metaType,
+            status
+          )
         setCount(extensionCount)
       } catch (error) {
         console.error("Failed to fetch extension count:", error)

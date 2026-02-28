@@ -27,7 +27,8 @@ import type { SpaceInfo } from "@/apps/web-app/hooks/use-current-space"
 export function GeneralSettings() {
   const { t } = useTranslation()
   const { space } = useCurrentPathInfo()
-  const { deleteSpace, rebuildIndex, renameSpace, spaceList, updateSpaceList } = useSpace()
+  const { deleteSpace, rebuildIndex, renameSpace, spaceList, updateSpaceList } =
+    useSpace()
   const { navigate } = useRouterAdapter()
   const { close } = useEngine()
   const { toast } = useToast()
@@ -44,7 +45,7 @@ export function GeneralSettings() {
       if (isDesktopMode) {
         const folder = await window.eidos.config.get("dataFolder")
         setDataFolder(folder || "")
-        
+
         // Load current space info
         try {
           const info = await window.eidos.invoke("get-current-space")
@@ -62,7 +63,7 @@ export function GeneralSettings() {
 
   const handleRename = async () => {
     if (!space || !spaceName.trim()) return
-    
+
     setIsRenaming(true)
     try {
       await renameSpace(space, spaceName.trim())
@@ -100,13 +101,16 @@ export function GeneralSettings() {
         await deleteSpace(space)
         await updateSpaceList()
         close()
-        
+
         if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
           // In desktop mode, switch to another space if available
           const updatedSpaces = await window.eidos.invoke("list-spaces")
           if (updatedSpaces && updatedSpaces.length > 0) {
             // Switch to the first available space
-            const result = await window.eidos.invoke("switch-space", updatedSpaces[0].id)
+            const result = await window.eidos.invoke(
+              "switch-space",
+              updatedSpaces[0].id
+            )
             if (result.success) {
               // Space switched successfully, Electron will automatically reload to new subdomain
               return
@@ -189,11 +193,18 @@ export function GeneralSettings() {
                   />
                   <Button
                     onClick={handleRename}
-                    disabled={isRenaming || !spaceInfo || spaceName.trim() === spaceInfo?.name || !spaceName.trim()}
+                    disabled={
+                      isRenaming ||
+                      !spaceInfo ||
+                      spaceName.trim() === spaceInfo?.name ||
+                      !spaceName.trim()
+                    }
                     size="xs"
                   >
                     <Save className="h-3.5 w-3.5 mr-1.5" />
-                    {isRenaming ? t("space.settings.saving") : t("space.settings.save")}
+                    {isRenaming
+                      ? t("space.settings.saving")
+                      : t("space.settings.save")}
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">

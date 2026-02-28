@@ -1,12 +1,7 @@
 import type { DataConnection } from "peerjs"
 
-import type {
-  IMsgForward,
-  IMsgQueryResp
-} from "../../types/ICollaboration";
-import {
-  ECollaborationMsgType
-} from "../../types/ICollaboration"
+import type { IMsgForward, IMsgQueryResp } from "../../types/ICollaboration"
+import { ECollaborationMsgType } from "../../types/ICollaboration"
 import { EidosDataEventChannelName, MsgType } from "@/lib/const"
 
 export interface ISqlite<T, D> {
@@ -61,8 +56,14 @@ export class RemoteSqlite implements ISqlite<DataConnection, any> {
    * Note: This requires the remote peer to support iterator messages
    */
   onIterator<TValue = any>(thisCallId: string): AsyncIterable<TValue> {
-    const messageQueue: Array<{ value?: TValue; done: boolean; error?: Error }> = []
-    let resolveNext: ((value: { value?: TValue; done: boolean; error?: Error }) => void) | null = null
+    const messageQueue: Array<{
+      value?: TValue
+      done: boolean
+      error?: Error
+    }> = []
+    let resolveNext:
+      | ((value: { value?: TValue; done: boolean; error?: Error }) => void)
+      | null = null
     let isDone = false
 
     const messageHandler = (data: any) => {
@@ -130,7 +131,11 @@ export class RemoteSqlite implements ISqlite<DataConnection, any> {
               continue
             }
 
-            const next = await new Promise<{ value?: TValue; done: boolean; error?: Error }>((resolve) => {
+            const next = await new Promise<{
+              value?: TValue
+              done: boolean
+              error?: Error
+            }>((resolve) => {
               resolveNext = resolve
             })
 
@@ -145,7 +150,7 @@ export class RemoteSqlite implements ISqlite<DataConnection, any> {
         } finally {
           self.connector.off("data", messageHandler)
         }
-      }
+      },
     }
   }
 }

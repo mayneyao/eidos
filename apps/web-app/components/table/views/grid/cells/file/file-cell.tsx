@@ -36,7 +36,6 @@ interface FileCellDataProps {
 
 export type FileCell = CustomCell<FileCellDataProps>
 
-
 export const FileCellEditor: ReturnType<
   ProvideEditorCallback<
     FileCell & {
@@ -263,7 +262,7 @@ export const FileCellRenderer: CustomRenderer<FileCell> = {
     if (toPaste.endsWith('"') || toPaste.endsWith("'")) {
       toPaste = toPaste.slice(0, -1)
     }
-    
+
     const fragments = smartSplitFilePaths(toPaste)
     const uris = fragments
       .map((f) => {

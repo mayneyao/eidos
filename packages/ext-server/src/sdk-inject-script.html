@@ -1,21 +1,21 @@
 <script type="module">
-  import { createEidosClient } from '/eidos-client.js';
+  import { createEidosClient } from "/eidos-client.js"
 
   // 1. Detect environment and base domain at runtime
-  const { hostname, port, protocol, origin: currentOrigin } = window.location;
-  const portSuffix = port ? `:${port}` : '';
-  const parts = hostname.split('.');
+  const { hostname, port, protocol, origin: currentOrigin } = window.location
+  const portSuffix = port ? `:${port}` : ""
+  const parts = hostname.split(".")
 
   // Determine baseDomain for fetch proxying
-  let baseDomain = '';
-  if (hostname.endsWith('eidos.localhost')) {
-    baseDomain = 'eidos.localhost';
+  let baseDomain = ""
+  if (hostname.endsWith("eidos.localhost")) {
+    baseDomain = "eidos.localhost"
   } else {
-    baseDomain = parts.slice(1).join('.');
+    baseDomain = parts.slice(1).join(".")
   }
 
   // Use same-origin RPC to avoid CORS issues
-  const rpcEndpoint = `${protocol}//${hostname}${portSuffix}/rpc`;
+  const rpcEndpoint = `${protocol}//${hostname}${portSuffix}/rpc`
 
   const EIDOS_CONFIG = {
     httpEndpoint: rpcEndpoint,
@@ -33,24 +33,27 @@
       const reqHostname = requestUrl.hostname
 
       // Bypass proxy for internal/same-system requests
-      const isInternal = 
+      const isInternal =
         requestUrl.origin === currentOrigin ||
         reqHostname === "localhost" ||
         reqHostname === baseDomain ||
         reqHostname.endsWith(`.proxy.${baseDomain}`) ||
-        reqHostname.endsWith(`.${baseDomain}`);
+        reqHostname.endsWith(`.${baseDomain}`)
 
       if (isInternal) {
         return originalFetch(input, init)
       }
 
       // Subdomain proxy: rewrite hostname from api.example.com to api.example.com.proxy.eidos.localhost
-      const proxyHostname = `${reqHostname}.proxy.${baseDomain}`;
-      const proxyUrl = `${protocol}//${proxyHostname}${portSuffix}${requestUrl.pathname}${requestUrl.search}`;
-      
+      const proxyHostname = `${reqHostname}.proxy.${baseDomain}`
+      const proxyUrl = `${protocol}//${proxyHostname}${portSuffix}${requestUrl.pathname}${requestUrl.search}`
+
       return originalFetch(proxyUrl, init)
     } catch (error) {
-      console.warn("Failed to parse URL for proxy, using original fetch:", error)
+      console.warn(
+        "Failed to parse URL for proxy, using original fetch:",
+        error
+      )
       return originalFetch(input, init)
     }
   }
@@ -58,38 +61,40 @@
   // 3. Helper function to call main thread via postMessage
   const callMain = (method, args) => {
     return new Promise((resolve, reject) => {
-      const channel = new MessageChannel();
+      const channel = new MessageChannel()
       channel.port1.onmessage = (event) => {
-        const { type, data } = event.data;
-        if (type === 'scriptCallMainResp') {
-          resolve(data);
-        } else if (type === 'scriptCallMainError') {
-          reject(data);
+        const { type, data } = event.data
+        if (type === "scriptCallMainResp") {
+          resolve(data)
+        } else if (type === "scriptCallMainError") {
+          reject(data)
         }
-      };
+      }
       window.parent.postMessage(
         {
-          type: 'scriptCallMain',
-          data: { method, args }
+          type: "scriptCallMain",
+          data: { method, args },
         },
-        '*',
+        "*",
         [channel.port2]
-      );
-    });
-  };
+      )
+    })
+  }
 
   // 4. Initialize Eidos Client with main thread bridge
   window.eidos = createEidosClient({
     endpoint: EIDOS_CONFIG.httpEndpoint,
     timeout: EIDOS_CONFIG.timeout,
     mainThreadBridge: {
-      generateText: (options) => callMain('generateText', [options]),
-      generateObject: (options) => callMain('generateObject', [options]),
-      callScript: (scriptId, ...args) => callMain('callScript', [scriptId, ...args]),
-      fetchBlob: (url, options) => callMain('fetchBlob', [url, options]),
-      tableHighlightRow: (tableId, rowId, fieldId) => callMain('tableHighlightRow', [tableId, rowId, fieldId])
-    }
-  });
+      generateText: (options) => callMain("generateText", [options]),
+      generateObject: (options) => callMain("generateObject", [options]),
+      callScript: (scriptId, ...args) =>
+        callMain("callScript", [scriptId, ...args]),
+      fetchBlob: (url, options) => callMain("fetchBlob", [url, options]),
+      tableHighlightRow: (tableId, rowId, fieldId) =>
+        callMain("tableHighlightRow", [tableId, rowId, fieldId]),
+    },
+  })
 
   // 5. Shared logic for script execution in sandbox
   window.addEventListener("message", async (event) => {
@@ -99,12 +104,15 @@
       const { input, context, id, hash, command, bindings } = data
       window.__EIDOS_BINDINGS__ = bindings || {}
 
-      const env = Object.entries(bindings || {}).reduce((acc, [key, binding]) => {
-        if (binding.type === "secret" || binding.type === "text") {
-          acc[key] = binding.value
-        }
-        return acc
-      }, {})
+      const env = Object.entries(bindings || {}).reduce(
+        (acc, [key, binding]) => {
+          if (binding.type === "secret" || binding.type === "text") {
+            acc[key] = binding.value
+          }
+          return acc
+        },
+        {}
+      )
       context.env = env
 
       try {

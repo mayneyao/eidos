@@ -224,4 +224,3 @@ export function serializeParams(params: any[]): {
   })
   return { serialized, extracted: allExtracted }
 }
-

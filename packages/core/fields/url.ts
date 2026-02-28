@@ -1,11 +1,7 @@
 import type { UriCell } from "@glideapps/glide-data-grid"
 
 import { BaseField } from "./base"
-import {
-  FieldType,
-  GridCellKind,
-  TEXT_BASED_COMPARE_OPERATORS
-} from "./const"
+import { FieldType, GridCellKind, TEXT_BASED_COMPARE_OPERATORS } from "./const"
 
 type URLProperty = {}
 

@@ -92,22 +92,22 @@ const Table = eidos.currentSpace.table(tableId)
 // Update a row
 await Table.update({
   where: { _id: rowId },
-  data: { status: "completed" }
+  data: { status: "completed" },
 })
 
 // Create a new row
 await Table.create({
-  data: { name: "New Record", status: "active" }
+  data: { name: "New Record", status: "active" },
 })
 
 // Delete a row
 await Table.delete({
-  where: { _id: rowId }
+  where: { _id: rowId },
 })
 
 // Query rows
 const rows = await Table.findMany({
-  where: { status: "active" }
+  where: { status: "active" },
 })
 ```
 

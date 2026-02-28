@@ -14,6 +14,7 @@ import { FileTree } from "@astrojs/starlight/components"
 Eidos 通过不同的路径前缀（如 `/files/`, `/@/`, `/~/`）来区分不同来源的文件。
 
 这些路径有着广泛的用途：
+
 - **引用与展示**：你可以在文档中插入这些路径来引用图片、音频等资源，或者在表格的“文件”类型字段中使用它们。
 - **扩展环境访问**：在 Block 等扩展环境中，这些路径可以直接作为各种 Web 标签（如 `<img />`, `<video />`）的 `src` 属性进行原生访问。
 - **API 读写**：对于需要更底层控制的场景，可以通过 `eidos.space.fs` API 使用这些路径来读取或保存文件内容。
@@ -138,5 +139,6 @@ eidos mount books /Users/eidos/Documents/Books
 文件动作集成在右键菜单中，用于执行“压缩图片”、“转换格式”或“生成 PDF”等一键操作。脚本在后台执行，完成后通过系统通知反馈结果，适合批处理或无需人工干预的任务。
 
 更多细节请参考：
+
 - [Block 扩展开发文档](/zh-cn/extensions/block/)
 - [脚本扩展开发文档](/zh-cn/extensions/script/)

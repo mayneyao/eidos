@@ -24,7 +24,10 @@ export const ExtTableViewBlockApp = forwardRef<
     return (
       <div className="flex justify-center items-center h-full w-full">
         <div className="text-sm text-gray-500">
-          {t("common.tips.extTableViewNeedHandleBlock", "Table view extension needs an enabled handle block to work")}
+          {t(
+            "common.tips.extTableViewNeedHandleBlock",
+            "Table view extension needs an enabled handle block to work"
+          )}
         </div>
       </div>
     )
@@ -57,7 +60,7 @@ export const ExtTableViewBlockApp = forwardRef<
     // For table view extensions, the URL structure should be:
     // <extid>.block.<spaceId>.eidos.localhost:13127/<tableid>/<viewid>
     const extraPath = `${tableId}/${viewId}`
-    
+
     return (
       <WebViewBlock
         blockId={blockId}

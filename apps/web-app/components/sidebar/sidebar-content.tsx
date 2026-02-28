@@ -89,8 +89,8 @@ const ExtensionsContent = () => {
             setIsContentExpanded={setIsContentExpanded}
           />
         ) : (
-          <FileTree 
-            rootDir="~/.eidos/__EXTENSIONS__/" 
+          <FileTree
+            rootDir="~/.eidos/__EXTENSIONS__/"
             viewPrefixesAsDirectories={viewPrefixesAsDirectories}
           />
         )}

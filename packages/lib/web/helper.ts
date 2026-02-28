@@ -10,5 +10,4 @@ export const isMac = () => navigator.userAgent.toLowerCase().indexOf("mac") > -1
 // windows and linux has the same desktop mode
 export const isWindowsDesktop = isDesktopMode && (isWindows() || isLinux())
 
-
 export const isMacDesktop = () => isDesktopMode && isMac()

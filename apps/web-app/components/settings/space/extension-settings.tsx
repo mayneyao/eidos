@@ -46,7 +46,9 @@ const EXTENSIONS = builtInExtensions
     return {
       id,
       slug: ext.slug, // Original slug for eject
-      title: (meta.sidebarBlock?.title || meta.fileHandler?.title || ext.slug) as string,
+      title: (meta.sidebarBlock?.title ||
+        meta.fileHandler?.title ||
+        ext.slug) as string,
       description,
       type,
     }
@@ -63,63 +65,80 @@ export function ExtensionSettings() {
   const { t } = useTranslation()
   const { isExtensionEnabled, toggleExtension } = useExtensionSettings()
   const { eject, isEjecting, canEject } = useEjectExtension()
-  const [filterType, setFilterType] = useState<"all" | "sidebar" | "file-handler">("all")
+  const [filterType, setFilterType] = useState<
+    "all" | "sidebar" | "file-handler"
+  >("all")
 
   const filteredExtensions = EXTENSIONS.filter(
     (ext) => filterType === "all" || ext.type === filterType
   )
 
   const getFilterLabel = () => {
-      switch(filterType) {
-          case "sidebar": return "Sidebar Blocks"
-          case "file-handler": return "File Handlers"
-          default: return "All Types"
-      }
+    switch (filterType) {
+      case "sidebar":
+        return "Sidebar Blocks"
+      case "file-handler":
+        return "File Handlers"
+      default:
+        return "All Types"
+    }
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between py-4 border-b">
-        <h3 className="text-lg font-medium">{t("settings.extensions.title")}</h3>
-        
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-[180px] justify-between">
-                    {getFilterLabel()}
-                    <ChevronDown className="h-4 w-4 opacity-50" />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[180px]">
-                <DropdownMenuItem onClick={() => setFilterType("all")}>
-                    All Types
-                </DropdownMenuItem>
-                
-                <HoverCard openDelay={0} closeDelay={0}>
-                    <HoverCardTrigger asChild>
-                        <DropdownMenuItem onClick={() => setFilterType("sidebar")}>
-                            Sidebar Blocks
-                        </DropdownMenuItem>
-                    </HoverCardTrigger>
-                    <HoverCardContent side="left" align="start" className="w-[320px] p-0 border-none bg-transparent shadow-none" avoidCollisions>
-                        <div className="bg-background border rounded-lg shadow-lg">
-                            <ExtensionPreview type="sidebar" />
-                        </div>
-                    </HoverCardContent>
-                </HoverCard>
+        <h3 className="text-lg font-medium">
+          {t("settings.extensions.title")}
+        </h3>
 
-                <HoverCard openDelay={0} closeDelay={0}>
-                     <HoverCardTrigger asChild>
-                        <DropdownMenuItem onClick={() => setFilterType("file-handler")}>
-                            File Handlers
-                        </DropdownMenuItem>
-                    </HoverCardTrigger>
-                    <HoverCardContent side="left" align="start" className="w-[320px] p-0 border-none bg-transparent shadow-none" avoidCollisions>
-                         <div className="bg-background border rounded-lg shadow-lg">
-                            <ExtensionPreview type="file-handler" />
-                        </div>
-                    </HoverCardContent>
-                </HoverCard>
-            </DropdownMenuContent>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="w-[180px] justify-between">
+              {getFilterLabel()}
+              <ChevronDown className="h-4 w-4 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[180px]">
+            <DropdownMenuItem onClick={() => setFilterType("all")}>
+              All Types
+            </DropdownMenuItem>
+
+            <HoverCard openDelay={0} closeDelay={0}>
+              <HoverCardTrigger asChild>
+                <DropdownMenuItem onClick={() => setFilterType("sidebar")}>
+                  Sidebar Blocks
+                </DropdownMenuItem>
+              </HoverCardTrigger>
+              <HoverCardContent
+                side="left"
+                align="start"
+                className="w-[320px] p-0 border-none bg-transparent shadow-none"
+                avoidCollisions
+              >
+                <div className="bg-background border rounded-lg shadow-lg">
+                  <ExtensionPreview type="sidebar" />
+                </div>
+              </HoverCardContent>
+            </HoverCard>
+
+            <HoverCard openDelay={0} closeDelay={0}>
+              <HoverCardTrigger asChild>
+                <DropdownMenuItem onClick={() => setFilterType("file-handler")}>
+                  File Handlers
+                </DropdownMenuItem>
+              </HoverCardTrigger>
+              <HoverCardContent
+                side="left"
+                align="start"
+                className="w-[320px] p-0 border-none bg-transparent shadow-none"
+                avoidCollisions
+              >
+                <div className="bg-background border rounded-lg shadow-lg">
+                  <ExtensionPreview type="file-handler" />
+                </div>
+              </HoverCardContent>
+            </HoverCard>
+          </DropdownMenuContent>
         </DropdownMenu>
       </div>
 

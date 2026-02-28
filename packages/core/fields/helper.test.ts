@@ -2,7 +2,8 @@ import { smartSplitFilePaths } from "./helper"
 
 describe("smartSplitFilePaths", () => {
   test("single file path with commas in filename", () => {
-    const input = "/files/Denzel Curry,Gizzle,Bren Joy - Dynasties & Dystopia.mp3"
+    const input =
+      "/files/Denzel Curry,Gizzle,Bren Joy - Dynasties & Dystopia.mp3"
     const result = smartSplitFilePaths(input)
     expect(result).toEqual([
       "/files/Denzel Curry,Gizzle,Bren Joy - Dynasties & Dystopia.mp3",
@@ -44,14 +45,18 @@ describe("smartSplitFilePaths", () => {
   test("data URI", () => {
     const input = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA"
     const result = smartSplitFilePaths(input)
-    expect(result).toEqual(["data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA"])
+    expect(result).toEqual([
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA",
+    ])
   })
 
   test("data URI with commas in base64 data", () => {
     // Base64 data can contain commas that should not split the URI
     const input = "data:image/jpg;base64,/9j/4AAQSkZJRgABAgAAAQ,ABAAD/2wBDAA"
     const result = smartSplitFilePaths(input)
-    expect(result).toEqual(["data:image/jpg;base64,/9j/4AAQSkZJRgABAgAAAQ,ABAAD/2wBDAA"])
+    expect(result).toEqual([
+      "data:image/jpg;base64,/9j/4AAQSkZJRgABAgAAAQ,ABAAD/2wBDAA",
+    ])
   })
 
   test("multiple data URIs separated by commas", () => {
@@ -118,8 +123,7 @@ describe("smartSplitFilePaths", () => {
   })
 
   test("http and https URLs", () => {
-    const input =
-      "http://example.com/file1.jpg, https://example.com/file2.jpg"
+    const input = "http://example.com/file1.jpg, https://example.com/file2.jpg"
     const result = smartSplitFilePaths(input)
     expect(result).toEqual([
       "http://example.com/file1.jpg",
@@ -160,4 +164,3 @@ describe("smartSplitFilePaths", () => {
     ])
   })
 })
-

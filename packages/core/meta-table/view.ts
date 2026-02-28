@@ -3,11 +3,11 @@ import {
   replaceQueryTableName,
   replaceWithFindIndexQuery,
 } from "../sqlite/sql-parser"
-import type { IView, ViewType } from "../types/IView";
+import type { IView, ViewType } from "../types/IView"
 import { ViewTypeEnum } from "../types/IView"
 import { getTableIdByRawTableName, getUuid } from "@/lib/utils"
 
-import type { BaseTable } from "./base";
+import type { BaseTable } from "./base"
 import { BaseTableImpl } from "./base"
 import { timeit } from "../helper"
 
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
 
   JSONFields = ["properties", "filter", "order_map", "hidden_fields"]
   async add(data: IView): Promise<IView> {
-    const position = await this.getLastPosition() + 1
+    const position = (await this.getLastPosition()) + 1
     await this.dataSpace.exec2(
       `INSERT INTO ${this.name} (id,name,type,table_id,query,position) VALUES (? , ? , ? , ? , ?, ?);`,
       [data.id, data.name, data.type, data.table_id, data.query, position]
@@ -69,7 +69,10 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     )
   }
 
-  public async createDefaultView(tableName: string, type: ViewType = ViewTypeEnum.Grid) {
+  public async createDefaultView(
+    tableName: string,
+    type: ViewType = ViewTypeEnum.Grid
+  ) {
     const table_id = getTableIdByRawTableName(tableName)
     return await this.add({
       id: getUuid(),
@@ -213,7 +216,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       const newPosition = await this.getPosition({
         tableId,
         targetId,
-        targetDirection: direction
+        targetDirection: direction,
       })
 
       // Update the position in database
@@ -268,7 +271,7 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     })
 
     if (needsReorder) {
-      await this.reorderViews(views.map(v => v.id))
+      await this.reorderViews(views.map((v) => v.id))
     }
   }
 }

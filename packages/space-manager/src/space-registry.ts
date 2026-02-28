@@ -47,7 +47,10 @@ export class SpaceRegistry {
     // Load existing config to preserve other settings
     const existingConfig = this.loadGlobalConfig()
     const mergedConfig = { ...existingConfig, ...config }
-    fs.writeFileSync(this.globalConfigPath, JSON.stringify(mergedConfig, null, 2))
+    fs.writeFileSync(
+      this.globalConfigPath,
+      JSON.stringify(mergedConfig, null, 2)
+    )
   }
 
   protected loadSpacesConfig(): SpacesConfig {
@@ -90,7 +93,12 @@ export class SpaceRegistry {
 
   public setSpaceSync(
     spaceId: string,
-    sync: { enabled: boolean; remote: string; volumeId?: string; provider?: string }
+    sync: {
+      enabled: boolean
+      remote: string
+      volumeId?: string
+      provider?: string
+    }
   ): void {
     const space = this.getSpace(spaceId)
     if (!space) {

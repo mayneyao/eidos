@@ -25,4 +25,4 @@ function ExampleUsage() {
   )
 }
 
-export default ExampleUsage 
+export default ExampleUsage

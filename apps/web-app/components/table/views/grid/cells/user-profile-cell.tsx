@@ -1,10 +1,10 @@
 import {
-    GridCellKind,
-    TextCellEntry,
-    getMiddleCenterBias,
-    measureTextCached,
-    type CustomCell,
-    type CustomRenderer,
+  GridCellKind,
+  TextCellEntry,
+  getMiddleCenterBias,
+  measureTextCached,
+  type CustomCell,
+  type CustomRenderer,
 } from "@glideapps/glide-data-grid"
 
 export interface UserProfileCellProps {

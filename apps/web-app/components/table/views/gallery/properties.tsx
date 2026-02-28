@@ -8,7 +8,7 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  FormMessage
+  FormMessage,
 } from "@/components/react-hook-form/form"
 import { Switch } from "@/components/ui/switch"
 

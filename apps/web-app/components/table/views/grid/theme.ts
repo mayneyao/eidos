@@ -21,10 +21,16 @@ const commonTheme: Partial<Theme> = {
 export const useDynamicTheme = (theme: string) => {
   const { currentThemeName } = useThemeStore()
   const currentTheme = useCurrentTheme()
-  const getCSSVariable = useCallback((key: string) => {
-    const variables = getThemeVariables(currentTheme?.css || "", theme === "dark")
-    return variables?.[key] || ""
-  }, [currentTheme, theme])
+  const getCSSVariable = useCallback(
+    (key: string) => {
+      const variables = getThemeVariables(
+        currentTheme?.css || "",
+        theme === "dark"
+      )
+      return variables?.[key] || ""
+    },
+    [currentTheme, theme]
+  )
 
   return useMemo(() => {
     return {

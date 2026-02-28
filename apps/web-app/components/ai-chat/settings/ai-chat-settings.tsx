@@ -22,7 +22,7 @@ export function AIChatSettings() {
   const { pitch, setPitch, rate, setRate, autoSpeak, setAutoSpeak } =
     useAIChatSettingsStore()
   const { openSettingsModal } = useSettings()
-  
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -35,8 +35,8 @@ export function AIChatSettings() {
           <DialogTitle>AI Chat Settings</DialogTitle>
           <DialogDescription>
             Configure speaking performance or{" "}
-            <button 
-              onClick={() => openSettingsModal("ai")} 
+            <button
+              onClick={() => openSettingsModal("ai")}
               className="text-cyan-500 underline cursor-pointer"
             >
               other settings

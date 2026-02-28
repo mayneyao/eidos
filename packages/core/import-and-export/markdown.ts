@@ -4,10 +4,13 @@ import type { DataSpace } from "../data-space"
 import { BaseImportAndExport } from "./base"
 
 export class MarkdownImportAndExport extends BaseImportAndExport {
-  async import(file: {
-    name: string
-    content: string
-  }, dataSpace: DataSpace): Promise<string> {
+  async import(
+    file: {
+      name: string
+      content: string
+    },
+    dataSpace: DataSpace
+  ): Promise<string> {
     const nodeId = uuidv7().split("-").join("")
     const nodeName = file.name.replace(/\.[^/.]+$/, "")
     await dataSpace.createOrUpdateDocWithMarkdown(

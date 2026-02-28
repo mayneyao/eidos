@@ -69,21 +69,23 @@ export const AddViewDropdown = ({
           <>
             <DropdownMenuSeparator />
             {tableViews.map((view) => {
-          return (
-            <DropdownMenuItem
-              key={view.id}
-              onClick={() => onAddView(`ext__${view.meta?.tableView?.type}`)}
-            >
-              <div className="flex items-center gap-2">
-                <ViewIcon 
-                  viewType={`ext__${view.meta?.tableView?.type}`} 
-                  className="h-4 w-4" 
-                />
-                <span>{view.meta?.tableView?.title}</span>
-              </div>
-            </DropdownMenuItem>
-          )
-        })}
+              return (
+                <DropdownMenuItem
+                  key={view.id}
+                  onClick={() =>
+                    onAddView(`ext__${view.meta?.tableView?.type}`)
+                  }
+                >
+                  <div className="flex items-center gap-2">
+                    <ViewIcon
+                      viewType={`ext__${view.meta?.tableView?.type}`}
+                      className="h-4 w-4"
+                    />
+                    <span>{view.meta?.tableView?.title}</span>
+                  </div>
+                </DropdownMenuItem>
+              )
+            })}
           </>
         )}
       </DropdownMenuContent>

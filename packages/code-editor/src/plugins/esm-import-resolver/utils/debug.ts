@@ -25,23 +25,23 @@ export function debugError(prefix: string, ...args: unknown[]): void {
 
 // Pre-configured debug functions for specific modules
 export const esmTypesDebug = {
-  log: (...args: unknown[]) => debugLog('ESM Types', ...args),
-  warn: (...args: unknown[]) => debugWarn('ESM Types', ...args),
-  error: (...args: unknown[]) => debugError('ESM Types', ...args),
+  log: (...args: unknown[]) => debugLog("ESM Types", ...args),
+  warn: (...args: unknown[]) => debugWarn("ESM Types", ...args),
+  error: (...args: unknown[]) => debugError("ESM Types", ...args),
 }
 
 export const esmMonacoDebug = {
-  log: (...args: unknown[]) => debugLog('ESM Monaco', ...args),
-  error: (...args: unknown[]) => debugError('ESM Monaco', ...args),
+  log: (...args: unknown[]) => debugLog("ESM Monaco", ...args),
+  error: (...args: unknown[]) => debugError("ESM Monaco", ...args),
 }
 
 export const esmPluginDebug = {
-  log: (...args: unknown[]) => debugLog('ESM Plugin', ...args),
-  warn: (...args: unknown[]) => debugWarn('ESM Plugin', ...args),
-  error: (...args: unknown[]) => debugError('ESM Plugin', ...args),
+  log: (...args: unknown[]) => debugLog("ESM Plugin", ...args),
+  warn: (...args: unknown[]) => debugWarn("ESM Plugin", ...args),
+  error: (...args: unknown[]) => debugError("ESM Plugin", ...args),
 }
 
 export const importParserDebug = {
-  warn: (...args: unknown[]) => debugWarn('Import Parser', ...args),
-  error: (...args: unknown[]) => debugError('Import Parser', ...args),
+  warn: (...args: unknown[]) => debugWarn("Import Parser", ...args),
+  error: (...args: unknown[]) => debugError("Import Parser", ...args),
 }

@@ -3,10 +3,10 @@
  * Based on desktop's NodeBaseServerDatabase
  */
 
-import fs from 'node:fs'
-import path from 'node:path'
-import Database from '@eidos.space/better-sqlite3'
-import { BaseServerDatabase } from '../sqlite/interface'
+import fs from "node:fs"
+import path from "node:path"
+import Database from "@eidos.space/better-sqlite3"
+import { BaseServerDatabase } from "../sqlite/interface"
 
 export interface NodeServerDatabaseOptions {
   // SQLite extensions
@@ -26,10 +26,7 @@ export class NodeServerDatabase extends BaseServerDatabase {
   protected isSyncEnabled = false
   protected logger: Console
 
-  constructor(
-    db: Database.Database,
-    options: NodeServerDatabaseOptions = {}
-  ) {
+  constructor(db: Database.Database, options: NodeServerDatabaseOptions = {}) {
     super()
     this.db = db
     this.isSyncEnabled = options.syncEnabled || false
@@ -83,16 +80,16 @@ export class NodeServerDatabase extends BaseServerDatabase {
       | {
           sql: string
           bind?: any[]
-          rowMode?: 'array' | 'object'
+          rowMode?: "array" | "object"
         }
   ): Promise<any> {
-    if (typeof opts === 'string') {
+    if (typeof opts === "string") {
       const res = this.db.exec(opts)
       return res
-    } else if (typeof opts === 'object') {
+    } else if (typeof opts === "object") {
       const { sql, bind } = opts
       const _bind = bind?.map((item: any) => {
-        if (typeof item === 'boolean') {
+        if (typeof item === "boolean") {
           return item ? 1 : 0
         }
         return item
@@ -101,8 +98,8 @@ export class NodeServerDatabase extends BaseServerDatabase {
       try {
         stmt = this.db.prepare(sql)
       } catch (error) {
-        this.logger.error('Error preparing statement:', error)
-        this.logger.error('SQL:', sql)
+        this.logger.error("Error preparing statement:", error)
+        this.logger.error("SQL:", sql)
         throw error
       }
       let res = null
@@ -115,11 +112,11 @@ export class NodeServerDatabase extends BaseServerDatabase {
         try {
           return stmt.run(_bind)
         } catch (error) {
-          this.logger.error('Error executing statement:', error)
+          this.logger.error("Error executing statement:", error)
           throw error
         }
       }
-      if (opts.rowMode === 'array') {
+      if (opts.rowMode === "array") {
         return res.map((item: any) => Object.values(item))
       }
       return res
@@ -140,18 +137,18 @@ export class NodeServerDatabase extends BaseServerDatabase {
   // Graft commands
   private graftCommand(command: string, resultParser?: (result: any) => any) {
     if (!this.isSyncEnabled) {
-      throw new Error('Graft command is only available in sync mode.')
+      throw new Error("Graft command is only available in sync mode.")
     }
     const rawResult = this.db.pragma(command)
-    
+
     if (
       !rawResult ||
       !Array.isArray(rawResult) ||
       rawResult.length === 0 ||
-      typeof rawResult[0] !== 'object' ||
+      typeof rawResult[0] !== "object" ||
       rawResult[0] === null
     ) {
-      return Promise.resolve({ error: 'Unexpected format from pragma command' })
+      return Promise.resolve({ error: "Unexpected format from pragma command" })
     }
     const result = Object.values(rawResult[0])[0]
     const parsedResult = resultParser ? resultParser(result) : result
@@ -159,46 +156,46 @@ export class NodeServerDatabase extends BaseServerDatabase {
   }
 
   async status() {
-    return this.graftCommand('graft_status')
+    return this.graftCommand("graft_status")
   }
 
   async pull() {
-    return this.graftCommand('graft_pull')
+    return this.graftCommand("graft_pull")
   }
 
   async push() {
-    return this.graftCommand('graft_push')
+    return this.graftCommand("graft_push")
   }
 
   async fetch() {
-    return this.graftCommand('graft_fetch')
+    return this.graftCommand("graft_fetch")
   }
 
   async hydrate() {
-    return this.graftCommand('graft_hydrate')
+    return this.graftCommand("graft_hydrate")
   }
 
   async clone(remoteLogId?: string) {
     if (remoteLogId) {
       return this.graftCommand(`graft_clone = "${remoteLogId}"`)
     }
-    return this.graftCommand('graft_clone')
+    return this.graftCommand("graft_clone")
   }
 
   async info() {
-    return this.graftCommand('graft_info')
+    return this.graftCommand("graft_info")
   }
 
   async tags() {
-    return this.graftCommand('graft_tags')
+    return this.graftCommand("graft_tags")
   }
 
   async volumes() {
-    return this.graftCommand('graft_volumes')
+    return this.graftCommand("graft_volumes")
   }
 
   async audit() {
-    return this.graftCommand('graft_audit')
+    return this.graftCommand("graft_audit")
   }
 }
 
@@ -211,38 +208,38 @@ export async function initializeDatabase(
     graftEnabled: boolean
     isFirstInit?: boolean
     remoteLogId?: string
-    extensions?: NodeServerDatabaseOptions['extensions']
+    extensions?: NodeServerDatabaseOptions["extensions"]
   }
 ): Promise<{ db: NodeServerDatabase; isSyncEnabled: boolean }> {
-  const eidosDir = path.join(dataDir, '.eidos')
-  const graftDir = path.join(eidosDir, '.graft')
-  const dbPath = path.join(eidosDir, 'db.sqlite3')
-  
+  const eidosDir = path.join(dataDir, ".eidos")
+  const graftDir = path.join(eidosDir, ".graft")
+  const dbPath = path.join(eidosDir, "db.sqlite3")
+
   // Use passed isFirstInit or fallback to internal check (though caller should pass it)
   const isFirstInit = options.isFirstInit ?? !fs.existsSync(graftDir)
-  
+
   if (isFirstInit) {
-    console.log('[DB] First-time initialization mode active')
+    console.log("[DB] First-time initialization mode active")
   }
-  
+
   // Ensure directories exist (caller might have created eidosDir, but we ensure here too)
   if (!fs.existsSync(eidosDir)) {
     fs.mkdirSync(eidosDir, { recursive: true })
   }
-  
+
   let db: Database.Database
   let isSyncEnabled = false
-  
+
   if (options.graftEnabled && options.extensions?.graft) {
     // Initialize with Graft VFS
-    console.log('[DB] Initializing with Graft VFS...')
-    
+    console.log("[DB] Initializing with Graft VFS...")
+
     if (!fs.existsSync(graftDir)) {
       fs.mkdirSync(graftDir, { recursive: true })
     }
-    
+
     // Load Graft extension first (registers VFS)
-    const vfsDb = new Database(':memory:')
+    const vfsDb = new Database(":memory:")
     const graftLibPath = options.extensions.graft.libPath
     const graftLibPathNoExt = path.join(
       path.dirname(graftLibPath),
@@ -250,49 +247,53 @@ export async function initializeDatabase(
     )
     vfsDb.loadExtension(graftLibPathNoExt)
     vfsDb.close()
-    
+
     // Open with Graft VFS
-    db = new Database('file:main?vfs=graft')
-    db.pragma('page_size = 4096')
-    db.pragma('journal_mode = MEMORY')
+    db = new Database("file:main?vfs=graft")
+    db.pragma("page_size = 4096")
+    db.pragma("journal_mode = MEMORY")
     isSyncEnabled = true
-    
-    console.log('[DB] Graft VFS initialized')
-    
+
+    console.log("[DB] Graft VFS initialized")
+
     // Clone from remote ONLY on first-time initialization
     if (isFirstInit && options.remoteLogId) {
-      console.log(`[DB] First init: Cloning from remote: ${options.remoteLogId}`)
+      console.log(
+        `[DB] First init: Cloning from remote: ${options.remoteLogId}`
+      )
       try {
         db.pragma(`graft_clone = "${options.remoteLogId}"`)
-        console.log('[DB] graft_clone completed')
-        
-        db.pragma('graft_pull')
-        console.log('[DB] graft_pull completed')
-        
-        db.pragma('graft_hydrate')
-        console.log('[DB] graft_hydrate completed')
+        console.log("[DB] graft_clone completed")
+
+        db.pragma("graft_pull")
+        console.log("[DB] graft_pull completed")
+
+        db.pragma("graft_hydrate")
+        console.log("[DB] graft_hydrate completed")
       } catch (e: any) {
-        console.error('[DB] Clone from remote failed:', e.message)
+        console.error("[DB] Clone from remote failed:", e.message)
       }
     } else if (isFirstInit && !options.remoteLogId) {
-      console.warn('[DB] First init but no REMOTE_LOG_ID - database will be empty')
+      console.warn(
+        "[DB] First init but no REMOTE_LOG_ID - database will be empty"
+      )
     } else {
       // Not first init - just sync
-      console.log('[DB] Existing database, syncing...')
+      console.log("[DB] Existing database, syncing...")
       try {
-        db.pragma('graft_pull')
-        console.log('[DB] graft_pull completed')
+        db.pragma("graft_pull")
+        console.log("[DB] graft_pull completed")
       } catch (e: any) {
-        console.warn('[DB] Sync failed (may be offline):', e.message)
+        console.warn("[DB] Sync failed (may be offline):", e.message)
       }
     }
   } else {
     // Regular SQLite
-    console.log('[DB] Initializing regular SQLite...')
+    console.log("[DB] Initializing regular SQLite...")
     db = new Database(dbPath)
-    db.pragma('journal_mode = WAL')
+    db.pragma("journal_mode = WAL")
   }
-  
+
   // Load other extensions
   if (options.extensions?.simple) {
     try {
@@ -302,12 +303,12 @@ export async function initializeDatabase(
         path.basename(simpleLibPath, path.extname(simpleLibPath))
       )
       db.loadExtension(simpleLibPathNoExt)
-      console.log('[DB] Loaded libsimple extension')
+      console.log("[DB] Loaded libsimple extension")
     } catch (e) {
-      console.warn('[DB] Could not load libsimple:', e)
+      console.warn("[DB] Could not load libsimple:", e)
     }
   }
-  
+
   if (options.extensions?.vec) {
     try {
       const libPath = options.extensions.vec.libPath
@@ -316,14 +317,13 @@ export async function initializeDatabase(
         path.basename(libPath, path.extname(libPath))
       )
       db.loadExtension(libPathNoExt)
-      console.log('[DB] Loaded libvec extension')
+      console.log("[DB] Loaded libvec extension")
     } catch (e) {
-      console.warn('[DB] Could not load libvec:', e)
+      console.warn("[DB] Could not load libvec:", e)
     }
   }
-  
+
   const serverDb = new NodeServerDatabase(db, { syncEnabled: isSyncEnabled })
-  
+
   return { db: serverDb, isSyncEnabled }
 }
-

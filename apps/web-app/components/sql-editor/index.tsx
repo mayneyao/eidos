@@ -109,7 +109,10 @@ const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
               onFontSizeChanged(newFontSize)
               toast.info(
                 `Change code editor font size to ${Math.floor(newFontSize * 100)}%`,
-                { duration: 1000, id: "font-size" }
+                {
+                  duration: 1000,
+                  id: "font-size",
+                }
               )
             }
             return true
@@ -125,7 +128,10 @@ const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
               onFontSizeChanged(newFontSize)
               toast.info(
                 `Change code editor font size to ${Math.floor(newFontSize * 100)}%`,
-                { duration: 1000, id: "font-size" }
+                {
+                  duration: 1000,
+                  id: "font-size",
+                }
               )
             }
             return true

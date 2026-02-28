@@ -2,12 +2,7 @@
   "compilerOptions": {
     "target": "ESNext",
     "useDefineForClassFields": true,
-    "lib": [
-      "ES2020",
-      "DOM",
-      "DOM.Iterable",
-      "WebWorker"
-    ],
+    "lib": ["ES2020", "DOM", "DOM.Iterable", "WebWorker"],
     "module": "ESNext",
     "skipLibCheck": true,
     "allowJs": true,
@@ -25,45 +20,19 @@
     // "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@eidos.space/core": [
-        "./packages/core/index.ts"
-      ],
-      "@eidos.space/core/*": [
-        "./packages/core/*"
-      ],
-      "@eidos.space/client": [
-        "./packages/client/src/index.ts"
-      ],
-      "@eidos.space/client/*": [
-        "./packages/client/src/*"
-      ],
-      "@eidos.space/react": [
-        "./packages/react/src/index.ts"
-      ],
-      "@eidos.space/react/*": [
-        "./packages/react/src/*"
-      ],
-      "@/locales/*": [
-        "./packages/locales/*"
-      ],
-      "@/worker/*": [
-        "./packages/worker/*"
-      ],
-      "@/lib/*": [
-        "./packages/lib/*"
-      ],
-      "@/components/*": [
-        "./apps/web-app/components/*"
-      ],
-      "@/hooks/*": [
-        "./apps/web-app/hooks/*"
-      ],
-      "@/styles/*": [
-        "./apps/web-app/styles/*"
-      ],
-      "@/*": [
-        "./*"
-      ]
+      "@eidos.space/core": ["./packages/core/index.ts"],
+      "@eidos.space/core/*": ["./packages/core/*"],
+      "@eidos.space/client": ["./packages/client/src/index.ts"],
+      "@eidos.space/client/*": ["./packages/client/src/*"],
+      "@eidos.space/react": ["./packages/react/src/index.ts"],
+      "@eidos.space/react/*": ["./packages/react/src/*"],
+      "@/locales/*": ["./packages/locales/*"],
+      "@/worker/*": ["./packages/worker/*"],
+      "@/lib/*": ["./packages/lib/*"],
+      "@/components/*": ["./apps/web-app/components/*"],
+      "@/hooks/*": ["./apps/web-app/hooks/*"],
+      "@/styles/*": ["./apps/web-app/styles/*"],
+      "@/*": ["./*"]
     },
     "types": [
       "vite-plugin-pwa/react",
@@ -73,10 +42,7 @@
       "@types/wicg-file-system-access"
     ]
   },
-  "include": [
-    "**/*.wasm",
-    "packages/shared/types/**/*.d.ts"
-  ],
+  "include": ["**/*.wasm", "packages/shared/types/**/*.d.ts"],
   "exclude": [
     ".wrangler",
     "node_modules",
@@ -88,5 +54,5 @@
     "**/dist/**",
     "**/dev-dist/**",
     "**/dist-electron/**"
-  ],
+  ]
 }

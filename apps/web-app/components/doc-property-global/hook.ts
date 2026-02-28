@@ -1,11 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { useSqlite } from "@/apps/web-app/hooks/use-sqlite";
-import type { EidosDataEventChannelMsg } from "@/lib/const";
-import { DataUpdateSignalType, EidosDataEventChannelMsgType, EidosDataEventChannelName } from "@/lib/const";
-import { DocTableName } from "@/packages/core/sqlite/const";
-import { useDocPropertyTypes } from "./property-type-hook";
-import { SYSTEM_PROPERTY_NAMES } from "./utils";
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import type { EidosDataEventChannelMsg } from "@/lib/const"
+import {
+  DataUpdateSignalType,
+  EidosDataEventChannelMsgType,
+  EidosDataEventChannelName,
+} from "@/lib/const"
+import { DocTableName } from "@/packages/core/sqlite/const"
+import { useDocPropertyTypes } from "./property-type-hook"
+import { SYSTEM_PROPERTY_NAMES } from "./utils"
 
 /**
  * State-managed hook for document properties
@@ -20,12 +24,18 @@ export const useDocProperty = (data: { docId: string }) => {
   )
   const { propertyTypeMap } = useDocPropertyTypes()
 
-
   const displayProperties = useMemo(() => {
     // filter out properties that are not in the propertyTypeMap
-    const validPropertyKeys = new Set([...SYSTEM_PROPERTY_NAMES, ...Object.keys(propertyTypeMap)])
-    const filteredProperties = JSON.parse(docProperty?.meta || '{}')?.displayProperties || [] as string[]
-    return filteredProperties.filter((property: string) => validPropertyKeys.has(property))
+    const validPropertyKeys = new Set([
+      ...SYSTEM_PROPERTY_NAMES,
+      ...Object.keys(propertyTypeMap),
+    ])
+    const filteredProperties =
+      JSON.parse(docProperty?.meta || "{}")?.displayProperties ||
+      ([] as string[])
+    return filteredProperties.filter((property: string) =>
+      validPropertyKeys.has(property)
+    )
   }, [docProperty?.meta, propertyTypeMap])
 
   const getAllProperties = useCallback(
@@ -78,7 +88,6 @@ export const useDocProperty = (data: { docId: string }) => {
     res && setDocProperty(res)
   }, [docId, getAllProperties, sqlite])
 
-
   useEffect(() => {
     _getAllProperties()
   }, [_getAllProperties])
@@ -108,16 +117,16 @@ export const useDocProperty = (data: { docId: string }) => {
         }
       }
       if (type === EidosDataEventChannelMsgType.SchemaUpdateSignalType) {
-        const { table, type: updateType } = payload;
-        if (table !== DocTableName) return;
+        const { table, type: updateType } = payload
+        if (table !== DocTableName) return
         switch (updateType) {
           case DataUpdateSignalType.DeleteColumn:
           case DataUpdateSignalType.AddColumn:
             // Refresh when some properties are deleted
-            _getAllProperties();
-            break;
+            _getAllProperties()
+            break
           default:
-            break;
+            break
         }
       }
     }
@@ -128,7 +137,6 @@ export const useDocProperty = (data: { docId: string }) => {
       bc.close()
     }
   }, [docId, sqlite, _getAllProperties])
-
 
   return {
     properties: docProperty,

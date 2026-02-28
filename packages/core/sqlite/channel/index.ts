@@ -2,7 +2,7 @@ import type { DataSpace, EidosTable } from "../../data-space"
 import type { DataConnection } from "peerjs"
 
 import { HttpSqlite } from "./http"
-import type { ILocalSendData } from "./local";
+import type { ILocalSendData } from "./local"
 import { LocalSqlite } from "./local"
 import { buildSql } from "../helper"
 import type { IQuery, ISqlite } from "../interface"
@@ -11,22 +11,24 @@ import { RemoteSqlite } from "./webrtc"
 import { MsgType } from "@/lib/const"
 import { isDesktopMode, isInkServiceMode } from "@/lib/env"
 import { uuidv7 } from "uuidv7"
-import {
-  isIteratorFunction,
-  serializeParams,
-} from "./iterator-utils"
-
+import { isIteratorFunction, serializeParams } from "./iterator-utils"
 
 type IConfig = {
   isShareMode?: boolean
   connection?: DataConnection
   isReadonly?: boolean
 }
-export const getSqliteChannel = (dbName: string, userId: string, config?: IConfig) => {
+export const getSqliteChannel = (
+  dbName: string,
+  userId: string,
+  config?: IConfig
+) => {
   let sqlite: ISqlite<any, ILocalSendData>
   if (isDesktopMode) {
     if (config?.isReadonly) {
-      sqlite = new LocalSqlite((window as any).eidosReadonly, { readonly: true })
+      sqlite = new LocalSqlite((window as any).eidosReadonly, {
+        readonly: true,
+      })
     } else {
       sqlite = new LocalSqlite((window as any).eidos)
     }
@@ -59,9 +61,14 @@ export const getSqliteProxy = (
       }
       // const r = await sqlite.table("91ba4dd2ad4447cf943db88dbb861323").rows.query()
       // Legacy table API (deprecated, kept for internal use)
-      if (method === "_table" || /^[A-Z][A-Za-z0-9_]*$/.test(method as string)) {
+      if (
+        method === "_table" ||
+        /^[A-Z][A-Za-z0-9_]*$/.test(method as string)
+      ) {
         return function (id: string) {
-          const tableId = /^[A-Z]/.test(method as string) ? (method as string) : id
+          const tableId = /^[A-Z]/.test(method as string)
+            ? (method as string)
+            : id
           return new Proxy<DataSpace>({} as any, {
             get(target, method) {
               if (method == "rows") {
@@ -176,7 +183,7 @@ export const getSqliteProxy = (
           "theme",
           "dataView",
           "kv",
-          "fs"
+          "fs",
         ].includes(method as string)
       ) {
         return new Proxy<EidosTable>({} as any, {
@@ -188,13 +195,11 @@ export const getSqliteProxy = (
 
               // Check if this is an iterator function using the registry
               const isIterFunc = isIteratorFunction(methodName)
-              
+
               // Smart parameter serialization - extract non-serializable values
-              const { serialized: serializedParams, extracted } = serializeParams([
-                _params,
-                ...rest,
-              ])
-              
+              const { serialized: serializedParams, extracted } =
+                serializeParams([_params, ...rest])
+
               // Extract AbortSignal if present (for cancellation support)
               let abortSignal: AbortSignal | undefined
               for (const [path, item] of extracted.entries()) {
@@ -203,7 +208,7 @@ export const getSqliteProxy = (
                   break
                 }
               }
-              
+
               const res = sqlite.send({
                 type: MsgType.CallFunction,
                 data: {
@@ -218,7 +223,7 @@ export const getSqliteProxy = (
               // Use iterator mode for iterator functions
               if (isIterFunc && sqlite.onIterator) {
                 const iterator = sqlite.onIterator(thisCallId)
-                
+
                 // If AbortSignal is provided, set up cancellation
                 if (abortSignal) {
                   const cancelHandler = () => {
@@ -229,7 +234,7 @@ export const getSqliteProxy = (
                       if (!(connector instanceof Worker)) {
                         // Electron mode: use IPC to send cancel
                         const cancelChannel = `sqlite-iterator-cancel-${thisCallId}`
-                        if (connector && typeof connector.send === 'function') {
+                        if (connector && typeof connector.send === "function") {
                           connector.send(cancelChannel, {
                             type: MsgType.IteratorCancel,
                             id: thisCallId,
@@ -244,9 +249,9 @@ export const getSqliteProxy = (
                       }
                     }
                   }
-                  abortSignal.addEventListener('abort', cancelHandler)
+                  abortSignal.addEventListener("abort", cancelHandler)
                 }
-                
+
                 return iterator
               }
               if (res) {

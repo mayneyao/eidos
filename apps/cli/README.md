@@ -12,6 +12,7 @@ Eidos CLI is a **headless version of Eidos** that runs entirely from the command
 - Access Eidos functionality via HTTP API
 
 **Key advantages:**
+
 - ✅ **Lightweight** - No GUI, minimal dependencies
 - ✅ **Scriptable** - Perfect for automation
 - ✅ **Portable** - Single executable file
@@ -176,6 +177,7 @@ eidos graft init /path/to/space \
 **Credentials:**
 
 You can provide S3-compatible storage credentials via:
+
 - Command-line options (shown above)
 - Environment variables:
   ```bash
@@ -188,6 +190,7 @@ You can provide S3-compatible storage credentials via:
 **After initialization:**
 
 The space is ready for syncing with remote storage. Your data is stored in:
+
 - `.eidos/graft.toml` - Configuration file
 - `.eidos/.graft/` - Graft storage directory
 
@@ -224,6 +227,7 @@ curl http://localhost:13128/~/readme.md
 ```
 
 **Mount paths:**
+
 - `/files/*` - Internal files stored in `.eidos/files/`
 - `/~/` - Project folder (files in space root directory)
 - `/@/<name>/` - Mounted external directories
@@ -323,20 +327,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup Eidos CLI
         run: |
           curl -o eidos https://github.com/eidos/releases/latest/download/eidos-linux
           chmod +x eidos
-          
+
       - name: Initialize Test Space
         run: ./eidos init ./test-space --name "CI Test"
-      
+
       - name: Start Eidos Server
         run: |
           ./eidos serve ./test-space --port 13128 &
           sleep 2
-      
+
       - name: Run Integration Tests
         run: npm test
 ```
@@ -558,11 +562,13 @@ CUSTOM_SQLITE_PATH=/path/to/libsqlite3.dylib eidos init
   - Computed columns with UDFs may not update
 
 **Workaround**: For complex write operations, consider:
+
 1. Using the desktop app (which supports UDFs via better-sqlite3)
 2. Implementing logic in your application layer instead of database triggers
 3. Waiting for Bun's native UDF support (planned)
 
 **Why this limitation?**
+
 - The CLI uses Bun's native `bun:sqlite` for performance and portability
 - Bun's SQLite doesn't yet support `createFunction()` API
 - The desktop app uses `better-sqlite3` which has full UDF support

@@ -3,7 +3,7 @@
  * Decoupled system for registering React plugin components
  */
 
-import React from 'react'
+import React from "react"
 
 export interface PluginComponentInfo {
   pluginId: string
@@ -32,7 +32,9 @@ class PluginComponentRegistry {
   /**
    * Get plugin info by React component
    */
-  getPluginInfo(component: React.ComponentType<any>): PluginComponentInfo | null {
+  getPluginInfo(
+    component: React.ComponentType<any>
+  ): PluginComponentInfo | null {
     return this.components.get(component) || null
   }
 
@@ -67,13 +69,17 @@ class PluginComponentRegistry {
       [key: string]: any
     }
   } {
-    const configs: { [pluginId: string]: { enabled?: boolean;[key: string]: any } } = {}
+    const configs: {
+      [pluginId: string]: { enabled?: boolean; [key: string]: any }
+    } = {}
     let hasAnyPlugin = false
 
     React.Children.forEach(children, (child) => {
       if (!React.isValidElement(child)) return
 
-      const pluginInfo = this.getPluginInfo(child.type as React.ComponentType<any>)
+      const pluginInfo = this.getPluginInfo(
+        child.type as React.ComponentType<any>
+      )
       if (pluginInfo) {
         hasAnyPlugin = true
         // Create a stable configuration object
@@ -84,9 +90,9 @@ class PluginComponentRegistry {
     // If no plugins are specified via children, provide a default ESM resolver configuration
     // This maintains backward compatibility
     if (!hasAnyPlugin) {
-      configs['esm-import-resolver'] = {
+      configs["esm-import-resolver"] = {
         enabled: true,
-        enableAutoTypeResolution: true
+        enableAutoTypeResolution: true,
       }
     }
 
@@ -102,18 +108,18 @@ class PluginComponentRegistry {
       return config
     }
 
-    if (typeof config !== 'object') {
+    if (typeof config !== "object") {
       return config
     }
 
     if (Array.isArray(config)) {
-      return config.map(item => this.stabilizeConfig(item))
+      return config.map((item) => this.stabilizeConfig(item))
     }
 
     // Sort object keys to ensure consistent ordering
     const sortedKeys = Object.keys(config).sort()
     const stabilizedConfig: any = {}
-    
+
     for (const key of sortedKeys) {
       stabilizedConfig[key] = this.stabilizeConfig(config[key])
     }
@@ -128,11 +134,13 @@ export const pluginComponentRegistry = new PluginComponentRegistry()
 /**
  * Decorator/Helper function for registering plugin components
  */
-export function registerPluginComponent<T = any>(info: Omit<PluginComponentInfo, 'component'>) {
+export function registerPluginComponent<T = any>(
+  info: Omit<PluginComponentInfo, "component">
+) {
   return function <P extends T>(component: React.FC<P>): React.FC<P> {
     pluginComponentRegistry.registerComponent({
       ...info,
-      component: component as React.ComponentType<any>
+      component: component as React.ComponentType<any>,
     })
     return component
   }

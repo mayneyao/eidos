@@ -21,8 +21,6 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
     return await this.file.del(file.id)
   }
 
-
-
   /**
    * External file system operations (~/ and @/)
    * API follows Node.js fs/promises
@@ -33,16 +31,16 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
 
   /**
    * Initialize file watcher for .eidos/files/
-   * 
+   *
    * NOTE: File watcher is now disabled for database updates.
-   * 
+   *
    * Design change: To maintain consistency between database and file sync,
    * we no longer automatically update the eidos__files table when local files change.
-   * 
+   *
    * - Files are still auto-synced to cloud via FileSynchronizer
    * - Database records are only updated through explicit API calls (upload, etc.)
    * - This ensures database (Graft) remains the source of truth
-   * 
+   *
    * The watcher loop is kept for debugging/observability but does not modify database state.
    */
   public async initFileWatcher() {
@@ -97,7 +95,7 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
         }
       }
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
+      if (error instanceof Error && error.name === "AbortError") {
         console.log("File watcher cancelled")
       } else {
         console.error("File watcher error:", error)
@@ -113,7 +111,9 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
   public async syncFileToDatabase(path: string): Promise<IFile | null> {
     try {
       // remove .eidos/ prefix if present
-      const normalizedPath = path.startsWith("~/.eidos/") ? path : `~/.eidos/${path}`
+      const normalizedPath = path.startsWith("~/.eidos/")
+        ? path
+        : `~/.eidos/${path}`
       const stats = await this.fs.stat(normalizedPath)
       if (stats.isDirectory) return null
 
@@ -123,7 +123,9 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
 
       // Get mime type from filename
       const mimeResult = getMimeType(filename)
-      const mime = (typeof mimeResult === 'string' ? mimeResult : null) || 'application/octet-stream'
+      const mime =
+        (typeof mimeResult === "string" ? mimeResult : null) ||
+        "application/octet-stream"
 
       const fileInfo: IFile = {
         id: existing ? existing.id : getUuid(),
@@ -131,14 +133,14 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
         path: filePathInSpace,
         size: stats.size,
         mime: mime,
-        updated_at: new Date(stats.mtimeMs).toISOString()
+        updated_at: new Date(stats.mtimeMs).toISOString(),
       }
 
       if (existing) {
         // Update
         await this.db.exec({
           sql: `UPDATE ${this.file.name} SET size = ?, updated_at = ? WHERE id = ?`,
-          bind: [fileInfo.size, fileInfo.updated_at, fileInfo.id]
+          bind: [fileInfo.size, fileInfo.updated_at, fileInfo.id],
         })
       } else {
         // Insert
@@ -158,14 +160,12 @@ export class DataSpaceWithFile extends DataSpaceWithDatabase {
    */
   public async removeFileFromDatabase(path: string): Promise<void> {
     try {
-      const filePathInSpace = path.startsWith("~/.eidos/") 
-        ? path.replace("~/.eidos/", "") 
+      const filePathInSpace = path.startsWith("~/.eidos/")
+        ? path.replace("~/.eidos/", "")
         : path
       await this.delFileByPath(filePathInSpace)
     } catch (error) {
       console.error("Remove file from database error:", error)
     }
   }
-
-
 }

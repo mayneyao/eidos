@@ -8,7 +8,13 @@ export type SidebarApp =
   | "graft"
   | string
 
-export type TabId = "nodes" | "extensions" | "today" | "files" | "graft" | string
+export type TabId =
+  | "nodes"
+  | "extensions"
+  | "today"
+  | "files"
+  | "graft"
+  | string
 
 export type SidebarTab = {
   id: TabId
@@ -19,7 +25,7 @@ export type SidebarTab = {
 }
 
 // Tab configuration mapping
-export const TAB_CONFIG: Record<string, Omit<SidebarTab, 'id'>> = {
+export const TAB_CONFIG: Record<string, Omit<SidebarTab, "id">> = {
   nodes: {
     label: "nodes",
     icon: () => null,
@@ -53,9 +59,7 @@ interface SidebarState {
   setCurrentApp: (app: SidebarApp) => void
 }
 
-export const useSidebarStore = create<SidebarState>()(
-  (set) => ({
-    currentApp: "nodes",
-    setCurrentApp: (app) => set({ currentApp: app }),
-  }),
-)
+export const useSidebarStore = create<SidebarState>()((set) => ({
+  currentApp: "nodes",
+  setCurrentApp: (app) => set({ currentApp: app }),
+}))

@@ -204,8 +204,8 @@ export const TextPropertyEditor = (props: IFieldPropertyEditorProps) => {
         {!embeddingModel && (
           <p className="text-sm text-destructive">
             {t("table.propertyEditor.noEmbeddingModelHint")}{" "}
-            <button 
-              onClick={() => openSettingsModal("ai")} 
+            <button
+              onClick={() => openSettingsModal("ai")}
               className="underline cursor-pointer"
             >
               {t("table.propertyEditor.configureNow")}
@@ -215,8 +215,8 @@ export const TextPropertyEditor = (props: IFieldPropertyEditorProps) => {
         {embeddingModel && (
           <p className="text-sm text-muted-foreground">
             {t("table.propertyEditor.currentEmbeddingModel")}:{" "}
-            <button 
-              onClick={() => openSettingsModal("ai")} 
+            <button
+              onClick={() => openSettingsModal("ai")}
               className="underline cursor-pointer"
             >
               {embeddingModel}
@@ -253,9 +253,7 @@ export const TextPropertyEditor = (props: IFieldPropertyEditorProps) => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
             <Label
-              className={`text-sm ${
-                !embeddingModel ? "text-muted-foreground" : ""
-              }`}
+              className={`text-sm ${!embeddingModel ? "text-muted-foreground" : ""}`}
               htmlFor="enable-embedding"
             >
               {t("table.propertyEditor.enableEmbedding")}
@@ -330,9 +328,7 @@ export const TextPropertyEditor = (props: IFieldPropertyEditorProps) => {
             />
             <span className="relative">
               {isProcessing
-                ? `${t("table.propertyEditor.processing")} ${
-                    progress.percentage
-                  }%`
+                ? `${t("table.propertyEditor.processing")} ${progress.percentage}%`
                 : t("table.propertyEditor.process")}
             </span>
           </Button>

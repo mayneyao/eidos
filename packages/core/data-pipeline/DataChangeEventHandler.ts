@@ -1,63 +1,60 @@
-import type {
-  EidosDataEventChannelMsg
-} from "@/lib/const";
-import {
-  DataUpdateSignalType,
-  EidosDataEventChannelMsgType
-} from "@/lib/const"
+import type { EidosDataEventChannelMsg } from "@/lib/const"
+import { DataUpdateSignalType, EidosDataEventChannelMsgType } from "@/lib/const"
 import { getTableIdByRawTableName } from "@/lib/utils"
 
 import type { DataSpace } from "../data-space"
 import { TableManager } from "../sdk/table"
 
-
 export class DataChangeEventHandler {
   constructor(private dataSpace: DataSpace) {
-    dataSpace.dataEventChannel.addEventListener("message", async (e: MessageEvent<EidosDataEventChannelMsg>) => {
-      const { type, payload } = e.data
-      if (type === EidosDataEventChannelMsgType.DataUpdateSignalType) {
-        const { _new, _old, table } = payload
-        if (table.startsWith("lk_")) {
+    dataSpace.dataEventChannel.addEventListener(
+      "message",
+      async (e: MessageEvent<EidosDataEventChannelMsg>) => {
+        const { type, payload } = e.data
+        if (type === EidosDataEventChannelMsgType.DataUpdateSignalType) {
+          const { _new, _old, table } = payload
+          if (table.startsWith("lk_")) {
+            switch (payload.type) {
+              case DataUpdateSignalType.Insert:
+              case DataUpdateSignalType.Delete:
+                this.handleLinkRelationChange({
+                  table,
+                  _old,
+                  _new,
+                })
+                break
+              default:
+                break
+            }
+            return
+          }
           switch (payload.type) {
             case DataUpdateSignalType.Insert:
-            case DataUpdateSignalType.Delete:
-              this.handleLinkRelationChange({
+            case DataUpdateSignalType.Update:
+              const diff = DataChangeEventHandler.getDiff(_old, _new)
+              const diffKeys = Object.keys(diff)
+              const updateSignal = {
                 table,
-                _old,
-                _new,
-              })
+                rowId: _new._id,
+                diff,
+                diffKeys,
+              }
+              if (diffKeys.length === 0) {
+                return
+              }
+              // console.log("updateSignal", updateSignal)
+              const tableId = getTableIdByRawTableName(table)
+              const tm = new TableManager(tableId, this.dataSpace)
+              await tm.compute.updateEffectCells(updateSignal)
+              break
+            case DataUpdateSignalType.Delete:
               break
             default:
               break
           }
-          return
-        }
-        switch (payload.type) {
-          case DataUpdateSignalType.Insert:
-          case DataUpdateSignalType.Update:
-            const diff = DataChangeEventHandler.getDiff(_old, _new)
-            const diffKeys = Object.keys(diff)
-            const updateSignal = {
-              table,
-              rowId: _new._id,
-              diff,
-              diffKeys,
-            }
-            if (diffKeys.length === 0) {
-              return
-            }
-            // console.log("updateSignal", updateSignal)
-            const tableId = getTableIdByRawTableName(table)
-            const tm = new TableManager(tableId, this.dataSpace)
-            await tm.compute.updateEffectCells(updateSignal)
-            break
-          case DataUpdateSignalType.Delete:
-            break
-          default:
-            break
         }
       }
-    })
+    )
   }
 
   handleLinkRelationChange = async (data: {

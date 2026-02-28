@@ -18,7 +18,12 @@ interface SqliteState {
 
   setViews: (tableId: string, views: IView[]) => void
   setFields: (tableId: string, fields: IField[]) => void
-  setRows: (tableId: string, rows: Record<string, any>[], offset?: number, isView?: boolean) => void
+  setRows: (
+    tableId: string,
+    rows: Record<string, any>[],
+    offset?: number,
+    isView?: boolean
+  ) => void
   delRows: (tableId: string, rowIds: string[]) => void
   getRowById: (tableId: string, rowId: string) => Record<string, any> | null
   getRowIds: (tableId: string) => string[]
@@ -99,10 +104,13 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
         }
       }
       tableMap[tableId].viewIds = views.map((view) => view.id)
-      tableMap[tableId].viewMap = views.reduce((acc, cur) => {
-        acc[cur.id] = cur
-        return acc
-      }, {} as Record<string, IView>)
+      tableMap[tableId].viewMap = views.reduce(
+        (acc, cur) => {
+          acc[cur.id] = cur
+          return acc
+        },
+        {} as Record<string, IView>
+      )
       return { dataStore: { ...state.dataStore, tableMap } }
     })
   },
@@ -118,7 +126,10 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
           viewMap: {},
         }
       }
-      tableMap[tableId].viewMap[viewId] = { ...tableMap[tableId].viewMap[viewId], ...view }
+      tableMap[tableId].viewMap[viewId] = {
+        ...tableMap[tableId].viewMap[viewId],
+        ...view,
+      }
       return { dataStore: { ...state.dataStore, tableMap } }
     })
   },
@@ -134,16 +145,24 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
           viewMap: {},
         }
       }
-      tableMap[tableId].fieldMap = fields.reduce((acc, cur) => {
-        acc[cur.name] = cur
-        return acc
-      }, {} as Record<string, IField>)
+      tableMap[tableId].fieldMap = fields.reduce(
+        (acc, cur) => {
+          acc[cur.name] = cur
+          return acc
+        },
+        {} as Record<string, IField>
+      )
       const res = { dataStore: { ...state.dataStore, tableMap } }
       return res
     })
   },
 
-  setRows: (tableId: string, rows: Record<string, any>[], offset?: number, isView?: boolean) => {
+  setRows: (
+    tableId: string,
+    rows: Record<string, any>[],
+    offset?: number,
+    isView?: boolean
+  ) => {
     set((state) => {
       const { tableMap } = state.dataStore
       if (!tableMap[tableId]) {
@@ -154,14 +173,17 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
           viewMap: {},
         }
       }
-      const newRowMap = rows.reduce((acc, cur, index) => {
-        if (!isView) {
-          acc[cur._id] = cur
-        } else {
-          acc[index + (offset || 0)] = cur
-        }
-        return acc
-      }, {} as Record<string, any>)
+      const newRowMap = rows.reduce(
+        (acc, cur, index) => {
+          if (!isView) {
+            acc[cur._id] = cur
+          } else {
+            acc[index + (offset || 0)] = cur
+          }
+          return acc
+        },
+        {} as Record<string, any>
+      )
       tableMap[tableId].rowMap = {
         ...tableMap[tableId].rowMap,
         ...newRowMap,
@@ -201,7 +223,6 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
     return tableMap[tableId].rowMap[rowId]
   },
 
-
   allUiColumns: [],
   setAllUiColumns: (columns) => set({ allUiColumns: columns }),
 
@@ -229,8 +250,7 @@ export const useSqliteStore = create<SqliteState>()((set, get) => ({
   sqliteProxy: null,
   setSqliteProxy: (sqlWorker) => {
     // for debug
-    ; (window as any).sqlite = sqlWorker
+    ;(window as any).sqlite = sqlWorker
     return set({ sqliteProxy: sqlWorker })
   },
-
 }))

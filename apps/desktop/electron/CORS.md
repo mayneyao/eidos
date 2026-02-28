@@ -8,6 +8,7 @@ This document describes the unified CORS (Cross-Origin Resource Sharing) handlin
 
 **Single Source of Truth**: All CORS headers are set at the Hono server level (`server.ts`).
 The Electron `webRequest` API only handles:
+
 - COOP/COEP headers for cross-origin isolation (required for SharedArrayBuffer/WASM)
 - Origin header modification for trusted domains
 
@@ -53,6 +54,7 @@ Request Flow:
 **Location**: `apps/desktop/electron/server.ts`
 
 **Responsibilities**:
+
 - Set `Access-Control-Allow-Origin` for all allowed origins
 - Set `Access-Control-Allow-Methods`
 - Set `Access-Control-Allow-Headers`
@@ -61,42 +63,48 @@ Request Flow:
 - Set COOP/COEP headers for cross-origin isolation
 
 **Special Cases**:
+
 - **Sandbox iframes**: Origin may be `"null"` (opaque origin), allowed if hostname matches `sandbox.*.eidos.localhost`
 - **Proxy subdomain**: Skipped entirely, proxy handler manages its own CORS
 
 **Code**:
+
 ```typescript
-app.use('*', async (c, next) => {
-    // Skip proxy subdomain
-    if (hostname === 'proxy.eidos.localhost') {
-        await next();
-        return;
-    }
+app.use("*", async (c, next) => {
+  // Skip proxy subdomain
+  if (hostname === "proxy.eidos.localhost") {
+    await next()
+    return
+  }
 
-    // Check if origin is allowed
-    const allowed = isAllowedOrigin(requestOrigin, hostname);
-    
-    if (allowed) {
-        c.header('Access-Control-Allow-Origin', getAllowOrigin(requestOrigin, hostname));
-        // ... other headers
-    }
+  // Check if origin is allowed
+  const allowed = isAllowedOrigin(requestOrigin, hostname)
 
-    // Handle preflight
-    if (c.req.method === 'OPTIONS' && allowed) {
-        return c.body(null, 204);
-    }
+  if (allowed) {
+    c.header(
+      "Access-Control-Allow-Origin",
+      getAllowOrigin(requestOrigin, hostname)
+    )
+    // ... other headers
+  }
 
-    // COOP/COEP for SharedArrayBuffer
-    c.header('Cross-Origin-Opener-Policy', 'same-origin');
-    c.header('Cross-Origin-Embedder-Policy', 'require-corp');
+  // Handle preflight
+  if (c.req.method === "OPTIONS" && allowed) {
+    return c.body(null, 204)
+  }
 
-    await next();
-});
+  // COOP/COEP for SharedArrayBuffer
+  c.header("Cross-Origin-Opener-Policy", "same-origin")
+  c.header("Cross-Origin-Embedder-Policy", "require-corp")
+
+  await next()
+})
 ```
 
 ### 2. Extension Middleware (`packages/ext-server/src/middleware.ts`)
 
 **Responsibilities**:
+
 - Serve static JS assets (`eidos-client.js`, `sw.js`, etc.)
 - Handle sandbox HTML and script requests
 
@@ -106,24 +114,27 @@ Therefore, they must set their own CORS headers:
 
 ```typescript
 const jsHeaders = new Headers({
-    "Content-Type": "text/javascript",
-    "Cross-Origin-Embedder-Policy": "require-corp",
-    "Access-Control-Allow-Origin": "*",
-});
+  "Content-Type": "text/javascript",
+  "Cross-Origin-Embedder-Policy": "require-corp",
+  "Access-Control-Allow-Origin": "*",
+})
 ```
 
 ### 3. Proxy Handler (`packages/sandbox/src/proxy-handler.ts`)
 
 **Responsibilities**:
+
 - Proxy external URLs through `*.proxy.eidos.localhost` subdomains
 - Handle CORS for proxied responses
 
 **Subdomain Pattern**:
+
 ```
 api.openai.com.proxy.eidos.localhost/v1/chat -> https://api.openai.com/v1/chat
 ```
 
 **Why subdomain pattern**:
+
 - Better compatibility with libraries that only support modifying base URL
 - No need to encode URLs as query parameters
 - Cleaner URL structure
@@ -134,22 +145,24 @@ The proxy serves external content that needs different CORS handling than intern
 ### 4. Electron webRequest (`cors-manager.ts`)
 
 **Responsibilities**:
+
 - Set COOP/COEP headers for cross-origin isolation (if not already set by server)
 - Modify Origin header for trusted domains (security feature)
 
 **NOT Responsibilities** (anymore):
+
 - Set `Access-Control-Allow-*` headers (now handled by Hono server)
 
 ## Hostname Patterns
 
 The following hostname patterns are supported:
 
-| Pattern | Example | Space ID | Use Case |
-|---------|---------|----------|----------|
-| `<space>.eidos.localhost` | `myspace.eidos.localhost` | `myspace` | Main app |
-| `sandbox.<space>.eidos.localhost` | `sandbox.myspace.eidos.localhost` | `myspace` | Script sandbox |
-| `<ext>.block.<space>.eidos.localhost` | `abc.block.myspace.eidos.localhost` | `myspace` | Extension blocks |
-| `<host>.proxy.eidos.localhost` | `api.openai.com.proxy.eidos.localhost` | N/A | External proxy |
+| Pattern                               | Example                                | Space ID  | Use Case         |
+| ------------------------------------- | -------------------------------------- | --------- | ---------------- |
+| `<space>.eidos.localhost`             | `myspace.eidos.localhost`              | `myspace` | Main app         |
+| `sandbox.<space>.eidos.localhost`     | `sandbox.myspace.eidos.localhost`      | `myspace` | Script sandbox   |
+| `<ext>.block.<space>.eidos.localhost` | `abc.block.myspace.eidos.localhost`    | `myspace` | Extension blocks |
+| `<host>.proxy.eidos.localhost`        | `api.openai.com.proxy.eidos.localhost` | N/A       | External proxy   |
 
 ## Testing
 

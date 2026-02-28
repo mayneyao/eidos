@@ -76,14 +76,16 @@ export async function getDataSpace(config: HeadlessConfig): Promise<DataSpace> {
 
   // IMPORTANT: Check if this is first init BEFORE creating any directories
   // This matches desktop's isInitializationOperation() logic
-  const isFirstInit = graftEnabled && (
-    !fs.existsSync(eidosDir) ||
-    !fs.existsSync(graftConfigPath) ||
-    !fs.existsSync(graftDir)
-  )
-  
+  const isFirstInit =
+    graftEnabled &&
+    (!fs.existsSync(eidosDir) ||
+      !fs.existsSync(graftConfigPath) ||
+      !fs.existsSync(graftDir))
+
   if (isFirstInit) {
-    console.log("[DataSpace] First-time initialization detected (no graft data)")
+    console.log(
+      "[DataSpace] First-time initialization detected (no graft data)"
+    )
   }
 
   if (graftEnabled) {
@@ -140,7 +142,9 @@ export async function getDataSpace(config: HeadlessConfig): Promise<DataSpace> {
   })
 
   console.log(`[DataSpace] Initialized: ${spaceId}`)
-  console.log(`[DataSpace] Graft sync: ${isSyncEnabled ? "enabled" : "disabled"}`)
+  console.log(
+    `[DataSpace] Graft sync: ${isSyncEnabled ? "enabled" : "disabled"}`
+  )
 
   return dataSpaceInstance
 }

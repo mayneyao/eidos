@@ -10,7 +10,12 @@ interface IUrlEditorProps {
   onFinishEditing?: () => void
 }
 
-export const UrlEditor = ({ value, isEditing, onChange, onFinishEditing }: IUrlEditorProps) => {
+export const UrlEditor = ({
+  value,
+  isEditing,
+  onChange,
+  onFinishEditing,
+}: IUrlEditorProps) => {
   const [_value, setValue] = useState(value)
 
   useChangeEffect(() => {

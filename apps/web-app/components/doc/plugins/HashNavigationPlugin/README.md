@@ -12,9 +12,12 @@ This plugin implements automatic navigation to heading positions based on URL ha
 ## Usage
 
 1. Create headings in your document, for example:
+
    ```markdown
    # My Heading
+
    ## Another Heading
+
    ### Third Level Heading
    ```
 

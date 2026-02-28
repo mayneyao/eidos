@@ -53,7 +53,9 @@ export function useFileItemActions(context: FileItemActionsContext) {
   /**
    * Open file with specific handler
    */
-  const handleOpenWith = (handler: IExtension<FileHandlerMeta> & { _builtIn?: boolean }) => {
+  const handleOpenWith = (
+    handler: IExtension<FileHandlerMeta> & { _builtIn?: boolean }
+  ) => {
     // Navigate to file handler page
     // For built-in handlers, add builtin=true query param to render directly (no iframe)
     if (handler._builtIn) {
@@ -77,7 +79,9 @@ export function useFileItemActions(context: FileItemActionsContext) {
   /**
    * Execute file action
    */
-  const handleExecuteFileAction = async (action: IExtension<FileActionMeta>) => {
+  const handleExecuteFileAction = async (
+    action: IExtension<FileActionMeta>
+  ) => {
     await callFunction({
       input: { filePath },
       command: action.meta!.funcName,

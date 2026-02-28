@@ -80,7 +80,7 @@ export function SortableContainer<T extends SortableItem>({
           return newItems
         })
       }
-      
+
       onDragEnd?.()
     },
     [localItems, onReorder, disabled, onDragEnd]

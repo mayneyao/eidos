@@ -27,11 +27,11 @@ interface WindowControlsOverlay extends EventTarget {
   readonly visible: boolean
   getTitlebarAreaRect(): DOMRect
   ongemometrychange:
-  | ((
-    this: WindowControlsOverlay,
-    ev: WindowControlsOverlayGeometryChangeEvent
-  ) => any)
-  | null
+    | ((
+        this: WindowControlsOverlay,
+        ev: WindowControlsOverlayGeometryChangeEvent
+      ) => any)
+    | null
   addEventListener<K extends keyof WindowControlsOverlayEventMap>(
     type: K,
     listener: (

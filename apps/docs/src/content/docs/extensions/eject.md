@@ -42,12 +42,12 @@ Some extensions (like Journal) have multiple files. Each file becomes a separate
 
 ## Important Notes
 
-| | Built-in | Ejected |
-|--|----------|---------|
-| **Editable** | ❌ No | ✅ Yes |
-| **Performance** | Native | Slight sandbox overhead |
-| **Updates** | Auto | Manual (re-eject to update) |
-| **Runs in** | Main app | iframe sandbox |
+|                 | Built-in | Ejected                     |
+| --------------- | -------- | --------------------------- |
+| **Editable**    | ❌ No    | ✅ Yes                      |
+| **Performance** | Native   | Slight sandbox overhead     |
+| **Updates**     | Auto     | Manual (re-eject to update) |
+| **Runs in**     | Main app | iframe sandbox              |
 
 :::caution
 Once ejected, the extension won't receive automatic updates. To get updates, delete it and re-eject.

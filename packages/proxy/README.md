@@ -21,29 +21,32 @@ pnpm add @eidos.space/proxy
 ### As Hono Middleware (Recommended)
 
 ```typescript
-import { Hono } from 'hono';
-import { createProxyMiddleware } from '@eidos.space/proxy';
+import { Hono } from "hono"
+import { createProxyMiddleware } from "@eidos.space/proxy"
 
-const app = new Hono();
+const app = new Hono()
 
 // Enable proxy for *.proxy.eidos.localhost
-app.use('*', createProxyMiddleware({ 
-  baseDomain: 'eidos.localhost',
-  requireHttps: true // default
-}));
+app.use(
+  "*",
+  createProxyMiddleware({
+    baseDomain: "eidos.localhost",
+    requireHttps: true, // default
+  })
+)
 ```
 
 ### Using ProxyHandler Directly
 
 ```typescript
-import { ProxyHandler } from '@eidos.space/proxy';
+import { ProxyHandler } from "@eidos.space/proxy"
 
-const handler = new ProxyHandler();
+const handler = new ProxyHandler()
 const response = await handler.handleProxyRequest(
-  'api.openai.com', 
-  new URL('http://api.openai.com.proxy.eidos.localhost/v1/chat'),
+  "api.openai.com",
+  new URL("http://api.openai.com.proxy.eidos.localhost/v1/chat"),
   context
-);
+)
 ```
 
 ## Configuration
@@ -51,11 +54,11 @@ const response = await handler.handleProxyRequest(
 ```typescript
 interface ProxyMiddlewareConfig {
   /** Base domain for proxy subdomains (e.g., 'eidos.localhost') */
-  baseDomain: string;
+  baseDomain: string
   /** Custom logger */
-  logger?: ProxyLogger;
+  logger?: ProxyLogger
   /** Whether to require HTTPS for target URLs (default: true) */
-  requireHttps?: boolean;
+  requireHttps?: boolean
 }
 ```
 

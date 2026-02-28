@@ -1,14 +1,18 @@
 import { useMemo } from "react"
 
 import { getAllNodes } from "../nodes"
-import type { ExtBlock } from "./use-ext-blocks";
+import type { ExtBlock } from "./use-ext-blocks"
 import { useEnabledExtBlocks, useExtBlocks } from "./use-ext-blocks"
 import { BuiltInBlocks } from "../blocks"
 
 export const useAllEditorNodes = () => {
   const extBlocks = useExtBlocks()
   return useMemo(
-    () => [...getAllNodes(), ...extBlocks.map((block) => block.node), ...BuiltInBlocks.map((block) => block.node)],
+    () => [
+      ...getAllNodes(),
+      ...extBlocks.map((block) => block.node),
+      ...BuiltInBlocks.map((block) => block.node),
+    ],
     [extBlocks]
   )
 }

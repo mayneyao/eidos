@@ -15,12 +15,12 @@ This module provides a generic system for handling iterator functions (functions
 To add a new iterator function, simply register it:
 
 ```typescript
-import { registerIteratorFunction } from '@/packages/core/sqlite/channel/iterator-utils'
+import { registerIteratorFunction } from "@/packages/core/sqlite/channel/iterator-utils"
 
 // Register a new iterator function
-registerIteratorFunction('fs.watch')        // Already registered
-registerIteratorFunction('stream.read')      // Example: add new one
-registerIteratorFunction('events.on')        // Example: add new one
+registerIteratorFunction("fs.watch") // Already registered
+registerIteratorFunction("stream.read") // Example: add new one
+registerIteratorFunction("events.on") // Example: add new one
 ```
 
 ## Using Iterator Functions
@@ -33,12 +33,12 @@ const controller = new AbortController()
 const { signal } = controller
 
 // AbortSignal is automatically extracted and handled
-for await (const event of sqlite.fs.watch(path, { 
+for await (const event of sqlite.fs.watch(path, {
   recursive: true,
-  signal  // Automatically extracted and handled
+  signal, // Automatically extracted and handled
 })) {
-  console.log('File changed:', event)
-  
+  console.log("File changed:", event)
+
   // Cancel after 5 seconds
   setTimeout(() => controller.abort(), 5000)
 }
@@ -90,4 +90,3 @@ if (val instanceof YourCustomType) {
 case "YourCustomType":
   return deserializeYourType(extractedItem.value)
 ```
-

@@ -1,127 +1,127 @@
 :root {
-    --background: 0 0% 100%;
-    --foreground: 224 71.4% 4.1%;
+  --background: 0 0% 100%;
+  --foreground: 224 71.4% 4.1%;
 
-    --muted: 220 14.3% 95.9%;
-    --muted-foreground: 220 8.9% 46.1%;
+  --muted: 220 14.3% 95.9%;
+  --muted-foreground: 220 8.9% 46.1%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 71.4% 4.1%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 224 71.4% 4.1%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 224 71.4% 4.1%;
+  --card: 0 0% 100%;
+  --card-foreground: 224 71.4% 4.1%;
 
-    --primary: 220.9 39.3% 11%;
-    --primary-foreground: 210 20% 98%;
+  --primary: 220.9 39.3% 11%;
+  --primary-foreground: 210 20% 98%;
 
-    --secondary: 220 14.3% 95.9%;
-    --secondary-foreground: 220.9 39.3% 11%;
+  --secondary: 220 14.3% 95.9%;
+  --secondary-foreground: 220.9 39.3% 11%;
 
-    --accent: 220 14.3% 95.9%;
-    --accent-foreground: 220.9 39.3% 11%;
+  --accent: 220 14.3% 95.9%;
+  --accent-foreground: 220.9 39.3% 11%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 20% 98%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 20% 98%;
 
-    --ring: 224 71.4% 4.1%;
+  --ring: 224 71.4% 4.1%;
 
-    --radius: 0.5rem;
+  --radius: 0.5rem;
 
-    --token-comment-color: #6c757d;
-    --token-punctuation-color: #999;
-    --token-property-color: #905;
-    --token-selector-color: #690;
-    --token-operator-color: #9a6e3a;
-    --token-attr-color: #07a;
-    --token-variable-color: #e90;
-    --token-function-color: #dd4a68;
+  --token-comment-color: #6c757d;
+  --token-punctuation-color: #999;
+  --token-property-color: #905;
+  --token-selector-color: #690;
+  --token-operator-color: #9a6e3a;
+  --token-attr-color: #07a;
+  --token-variable-color: #e90;
+  --token-function-color: #dd4a68;
 
-    /* monaco editor */
-    --custom-editor-background: hsl(var(--background));
+  /* monaco editor */
+  --custom-editor-background: hsl(var(--background));
 
-    /* --rhm */
-    --rhm-rect: #ebedf0;
-    --rhm-text-color: #24292e;
-    --rhm-rect-hover-stroke: rgba(0, 0, 0, 0.14);
-    --rhm-rect-active: #196127;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --sidebar: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+  /* --rhm */
+  --rhm-rect: #ebedf0;
+  --rhm-text-color: #24292e;
+  --rhm-rect-hover-stroke: rgba(0, 0, 0, 0.14);
+  --rhm-rect-active: #196127;
+  --chart-1: 12 76% 61%;
+  --chart-2: 173 58% 39%;
+  --chart-3: 197 37% 24%;
+  --chart-4: 43 74% 66%;
+  --chart-5: 27 87% 67%;
+  --sidebar: 0 0% 98%;
+  --sidebar-foreground: 240 5.3% 26.1%;
+  --sidebar-primary: 240 5.9% 10%;
+  --sidebar-primary-foreground: 0 0% 98%;
+  --sidebar-accent: 240 4.8% 95.9%;
+  --sidebar-accent-foreground: 240 5.9% 10%;
+  --sidebar-border: 220 13% 91%;
+  --sidebar-ring: 217.2 91.2% 59.8%;
 }
 
 .dark {
-    --background: 224 71.4% 4.1%;
-    --foreground: 210 20% 98%;
+  --background: 224 71.4% 4.1%;
+  --foreground: 210 20% 98%;
 
-    --muted: 215 27.9% 16.9%;
-    --muted-foreground: 217.9 10.6% 64.9%;
+  --muted: 215 27.9% 16.9%;
+  --muted-foreground: 217.9 10.6% 64.9%;
 
-    --accent: 215 27.9% 16.9%;
-    --accent-foreground: 210 20% 98%;
+  --accent: 215 27.9% 16.9%;
+  --accent-foreground: 210 20% 98%;
 
-    --popover: 224 71.4% 4.1%;
-    --popover-foreground: 210 20% 98%;
+  --popover: 224 71.4% 4.1%;
+  --popover-foreground: 210 20% 98%;
 
-    --border: 215 27.9% 16.9%;
-    --input: 215 27.9% 16.9%;
+  --border: 215 27.9% 16.9%;
+  --input: 215 27.9% 16.9%;
 
-    --card: 224 71.4% 4.1%;
-    --card-foreground: 210 20% 98%;
+  --card: 224 71.4% 4.1%;
+  --card-foreground: 210 20% 98%;
 
-    --primary: 210 20% 98%;
-    --primary-foreground: 220.9 39.3% 11%;
+  --primary: 210 20% 98%;
+  --primary-foreground: 220.9 39.3% 11%;
 
-    --secondary: 215 27.9% 16.9%;
-    --secondary-foreground: 210 20% 98%;
+  --secondary: 215 27.9% 16.9%;
+  --secondary-foreground: 210 20% 98%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 20% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 20% 98%;
 
-    --ring: 216 12.2% 83.9%;
+  --ring: 216 12.2% 83.9%;
 
-    --radius: 0.5rem;
+  --radius: 0.5rem;
 
-    --token-comment-color: #6c757d;
-    --token-punctuation-color: #999;
-    --token-property-color: #d19a66;
-    --token-selector-color: #c678dd;
-    --token-operator-color: #a9a9a9;
-    --token-attr-color: #56a8a8;
-    --token-variable-color: #e09062;
-    --token-function-color: #cb6d90;
+  --token-comment-color: #6c757d;
+  --token-punctuation-color: #999;
+  --token-property-color: #d19a66;
+  --token-selector-color: #c678dd;
+  --token-operator-color: #a9a9a9;
+  --token-attr-color: #56a8a8;
+  --token-variable-color: #e09062;
+  --token-function-color: #cb6d90;
 
-    /* monaco editor */
-    --custom-editor-background: hsl(var(--background));
+  /* monaco editor */
+  --custom-editor-background: hsl(var(--background));
 
-    /* --rhm */
-    --rhm-rect: #2d333b;
-    --rhm-text-color: #c9d1d9;
-    --rhm-rect-hover-stroke: rgba(255, 255, 255, 0.14);
-    --rhm-rect-active: #196127;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+  /* --rhm */
+  --rhm-rect: #2d333b;
+  --rhm-text-color: #c9d1d9;
+  --rhm-rect-hover-stroke: rgba(255, 255, 255, 0.14);
+  --rhm-rect-active: #196127;
+  --chart-1: 220 70% 50%;
+  --chart-2: 160 60% 45%;
+  --chart-3: 30 80% 55%;
+  --chart-4: 280 65% 60%;
+  --chart-5: 340 75% 55%;
+  --sidebar: 240 5.9% 10%;
+  --sidebar-foreground: 240 4.8% 95.9%;
+  --sidebar-primary: 224.3 76.3% 48%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 240 3.7% 15.9%;
+  --sidebar-accent-foreground: 240 4.8% 95.9%;
+  --sidebar-border: 240 3.7% 15.9%;
+  --sidebar-ring: 217.2 91.2% 59.8%;
 }

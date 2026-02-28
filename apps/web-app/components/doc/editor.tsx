@@ -204,10 +204,7 @@ export function Editor(props: EditorProps) {
       })
     ) : (
       <div
-        className={cn(
-          "mb-4 flex w-full items-baseline gap-2",
-          props.className
-        )}
+        className={cn("mb-4 flex w-full items-baseline gap-2", props.className)}
       >
         {props.beforeTitle && <div>{props.beforeTitle}</div>}
         <input

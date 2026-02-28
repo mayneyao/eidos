@@ -7,16 +7,9 @@
     "noEmit": false,
     "emitDeclarationOnly": true,
     "paths": {
-      "@/lib/*": [
-        "../lib/*"
-      ]
-    },
+      "@/lib/*": ["../lib/*"]
+    }
   },
-  "include": [
-    "./**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "include": ["./**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

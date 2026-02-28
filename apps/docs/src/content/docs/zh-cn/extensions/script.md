@@ -122,7 +122,7 @@ export async function toggleChecked(
   const Users = eidos.currentSpace.table(tableId)
   await Users.update({
     where: { _id: rowId },
-    data: { checked: !input.checked }
+    data: { checked: !input.checked },
   })
   return {
     success: true,
@@ -176,7 +176,7 @@ export async function calculateCompletion(
 ) {
   const { docId, env } = ctx
   const doc = await eidos.currentSpace.doc.getMarkdown(docId)
-  
+
   // 从 markdown 中提取 checkbox 的完成占比
   const uncheckedCount = doc
     .split("\n")
@@ -190,7 +190,7 @@ export async function calculateCompletion(
   await eidos.currentSpace.doc.setProperties(docId, {
     completion,
   })
-  
+
   return {
     completion,
   }
@@ -222,8 +222,8 @@ interface FileActionMeta {
   fileAction: {
     name: string
     description: string
-    extensions: string[]  // 支持的文件扩展名，如 [".jpg", ".png"]
-    icon?: string         // 可选图标
+    extensions: string[] // 支持的文件扩展名，如 [".jpg", ".png"]
+    icon?: string // 可选图标
   }
 }
 ```
@@ -245,8 +245,8 @@ export const meta = {
     name: "压缩图片",
     description: "将图片压缩到原大小的 50%",
     extensions: [".jpg", ".jpeg", ".png"],
-    icon: "🗜️"
-  }
+    icon: "🗜️",
+  },
 }
 
 export async function compressImage(
@@ -259,31 +259,37 @@ export async function compressImage(
   try {
     // 读取原始文件
     const data = await eidos.currentSpace.fs.readFile(filePath)
-    
+
     // 压缩图片（使用第三方库，如 browser-image-compression）
     const compressed = await compressImageData(data, {
       maxSizeMB: 1,
-      maxWidthOrHeight: 1920
+      maxWidthOrHeight: 1920,
     })
-    
+
     // 生成新文件路径
-    const newPath = filePath.replace(/(\.\w+)$/, '_compressed$1')
+    const newPath = filePath.replace(/(\.\w+)$/, "_compressed$1")
     await eidos.currentSpace.fs.writeFile(newPath, compressed)
-    
+
     // 显示成功通知
-    eidos.currentSpace.notify({ title: "成功", description: `已压缩并保存到 ${newPath}` })
-    
+    eidos.currentSpace.notify({
+      title: "成功",
+      description: `已压缩并保存到 ${newPath}`,
+    })
+
     return {
       success: true,
       outputPath: newPath,
       originalSize: data.byteLength,
-      compressedSize: compressed.byteLength
+      compressedSize: compressed.byteLength,
     }
   } catch (error) {
-    eidos.currentSpace.notify({ title: "错误", description: `压缩失败: ${error.message}` })
+    eidos.currentSpace.notify({
+      title: "错误",
+      description: `压缩失败: ${error.message}`,
+    })
     return {
       success: false,
-      error: error.message
+      error: error.message,
     }
   }
 }

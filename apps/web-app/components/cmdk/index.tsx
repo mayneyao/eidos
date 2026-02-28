@@ -51,8 +51,14 @@ type SecondaryView = {
 } | null
 
 export function CommandDialogDemo() {
-  const { isCmdkOpen, setCmdkOpen, isGodMode, setGodMode, isKeyboardShortcutsOpen, setKeyboardShortcutsOpen } =
-    useAppRuntimeStore()
+  const {
+    isCmdkOpen,
+    setCmdkOpen,
+    isGodMode,
+    setGodMode,
+    isKeyboardShortcutsOpen,
+    setKeyboardShortcutsOpen,
+  } = useAppRuntimeStore()
   const { openSettingsModal } = useSettings()
   const { input, setInput, mode } = useInput()
   const { resolvedTheme, setTheme } = useTheme()
@@ -115,7 +121,7 @@ export function CommandDialogDemo() {
   /**
    * Migrate file paths in table file fields
    * 修复表格中的 file 字段的路径格式
-   * 
+   *
    * This function fixes file field paths in the current table by converting old path formats
    * to the new standardized format. It checks if migration is needed before proceeding.
    */
@@ -190,7 +196,7 @@ export function CommandDialogDemo() {
   /**
    * Migrate image and file paths in the current document
    * 修复当前文档中的 image 和 file 路径格式
-   * 
+   *
    * This function fixes embedded image and file references within the current document
    * by converting old path formats to the new standardized format. It only processes
    * the currently opened document.
@@ -260,7 +266,7 @@ export function CommandDialogDemo() {
   /**
    * Migrate file paths in the eidos__files table
    * 修复 eidos__files 表中的路径格式
-   * 
+   *
    * This function fixes file path records in the system files table (eidos__files).
    * These paths are used by the image picker and file picker components throughout
    * the application. Migrating these paths ensures all file references work correctly.
@@ -443,9 +449,7 @@ export function CommandDialogDemo() {
                         <Wrench className="mr-2 h-4 w-4" />
                       )}
                       <div className="flex flex-col">
-                        <span>
-                          {t("cmdk.migrateTableFilePaths")}
-                        </span>
+                        <span>{t("cmdk.migrateTableFilePaths")}</span>
                         <span className="text-xs text-muted-foreground">
                           {t("cmdk.migrateTableFilePaths.desc")}
                         </span>
@@ -468,9 +472,7 @@ export function CommandDialogDemo() {
                           <Wrench className="mr-2 h-4 w-4" />
                         )}
                         <div className="flex flex-col">
-                          <span>
-                            {t("cmdk.migrateDocPaths")}
-                          </span>
+                          <span>{t("cmdk.migrateDocPaths")}</span>
                           <span className="text-xs text-muted-foreground">
                             {t("cmdk.migrateDocPaths.desc")}
                           </span>
@@ -535,10 +537,7 @@ export function CommandDialogDemo() {
                 <div className="flex flex-col">
                   <span>{t("cmdk.resetTabs", "Reset Sidebar Tabs")}</span>
                   <span className="text-xs text-muted-foreground">
-                    {t(
-                      "cmdk.resetTabs.desc",
-                      "Reset sidebar tabs to default"
-                    )}
+                    {t("cmdk.resetTabs.desc", "Reset sidebar tabs to default")}
                   </span>
                 </div>
               </CommandItem>
@@ -550,7 +549,12 @@ export function CommandDialogDemo() {
                   }}
                 >
                   <Keyboard className="mr-2 h-4 w-4" />
-                  <span>{t("nav.dropdown.menu.keyboardShortcuts", "Keyboard Shortcuts")}</span>
+                  <span>
+                    {t(
+                      "nav.dropdown.menu.keyboardShortcuts",
+                      "Keyboard Shortcuts"
+                    )}
+                  </span>
                 </CommandItem>
               )}
               <CommandItem onSelect={() => openSettingsModal("general")}>

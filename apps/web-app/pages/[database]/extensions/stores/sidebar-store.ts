@@ -22,10 +22,11 @@ export const useExtensionSidebarStore = create<ExtensionSidebarState>()(
       setSidebarOpen: (isOpen: boolean) => set({ isSidebarOpen: isOpen }),
       toggleSidebar: () => set({ isSidebarOpen: !get().isSidebarOpen }),
       focusedExtensionId: null,
-      setFocusedExtensionId: (id: string | null) => set({ focusedExtensionId: id }),
+      setFocusedExtensionId: (id: string | null) =>
+        set({ focusedExtensionId: id }),
       sortField: "created_at",
       sortOrder: "ASC",
-      setSort: (field: ExtensionSortField, order: ExtensionSortOrder) => 
+      setSort: (field: ExtensionSortField, order: ExtensionSortOrder) =>
         set({ sortField: field, sortOrder: order }),
     }),
     {

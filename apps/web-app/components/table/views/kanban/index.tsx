@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/kibo-ui/kanban"
 
 import { useShowColumns } from "../../hooks"
-import type { KanbanItem} from "./hooks";
+import type { KanbanItem } from "./hooks"
 import { useKanbanViewData } from "./hooks"
 import { KanbanBoard } from "./kanban-board"
 
@@ -33,10 +33,13 @@ export const KanbanView = ({
 
   // items groupBy status
   const itemsGroupByStatus = useMemo(() => {
-    return items.reduce((acc, item) => {
-      acc[item.status] = [...(acc[item.status] || []), item]
-      return acc
-    }, {} as Record<string, KanbanItem[]>)
+    return items.reduce(
+      (acc, item) => {
+        acc[item.status] = [...(acc[item.status] || []), item]
+        return acc
+      },
+      {} as Record<string, KanbanItem[]>
+    )
   }, [items])
 
   const handleDragEnd = (event: DragEndEvent) => {

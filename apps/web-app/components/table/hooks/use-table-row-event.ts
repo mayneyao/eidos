@@ -1,7 +1,6 @@
 import { useEffect } from "react"
 
-import type {
-  EidosDataEventChannelMsg} from "@/lib/const";
+import type { EidosDataEventChannelMsg } from "@/lib/const"
 import {
   DataUpdateSignalType,
   EidosDataEventChannelMsgType,

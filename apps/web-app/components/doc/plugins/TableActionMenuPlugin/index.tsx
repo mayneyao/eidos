@@ -1,8 +1,8 @@
-import type { ReactPortal} from "react";
+import type { ReactPortal } from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable"
-import type { TableCellNode } from "@lexical/table";
+import type { TableCellNode } from "@lexical/table"
 import { $isTableCellNode } from "@lexical/table"
 import {
   $getNearestNodeFromDOMNode,
@@ -30,34 +30,37 @@ function TableCellActionMenuContainer({
   )
   const [colorPickerModal, showColorPickerModal] = useModal()
 
-  const updateMenuPosition = useCallback((element: HTMLElement, mouseEvent?: MouseEvent) => {
-    if (menuButtonRef.current) {
-      let left = 0;
-      let top = 0;
-      
-      if (mouseEvent) {
-        left = mouseEvent.clientX;
-        top = mouseEvent.clientY;
-      } else {
-        const rect = element.getBoundingClientRect();
-        left = rect.left;
-        top = rect.top;
-      }
+  const updateMenuPosition = useCallback(
+    (element: HTMLElement, mouseEvent?: MouseEvent) => {
+      if (menuButtonRef.current) {
+        let left = 0
+        let top = 0
 
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
+        if (mouseEvent) {
+          left = mouseEvent.clientX
+          top = mouseEvent.clientY
+        } else {
+          const rect = element.getBoundingClientRect()
+          left = rect.left
+          top = rect.top
+        }
 
-      if (left + 200 > viewportWidth) {
-        left = viewportWidth - 200;
-      }
-      if (top + 300 > viewportHeight) {
-        top = viewportHeight - 300;
-      }
+        const viewportWidth = window.innerWidth
+        const viewportHeight = window.innerHeight
 
-      menuButtonRef.current.style.top = `${top}px`;
-      menuButtonRef.current.style.left = `${left}px`;
-    }
-  }, []);
+        if (left + 200 > viewportWidth) {
+          left = viewportWidth - 200
+        }
+        if (top + 300 > viewportHeight) {
+          top = viewportHeight - 300
+        }
+
+        menuButtonRef.current.style.top = `${top}px`
+        menuButtonRef.current.style.left = `${left}px`
+      }
+    },
+    []
+  )
 
   useEffect(() => {
     const unregisterListener = editor.registerUpdateListener(

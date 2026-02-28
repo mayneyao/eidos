@@ -12,17 +12,21 @@ export const useBlockTabClick = (blocks: Record<string, any>) => {
   const { setCurrentApp } = useSidebarStore()
   const { navigate } = useRouterAdapter()
 
-  return useCallback((tabId: string, target?: "_blank" | "_self") => {
-    const block = blocks[tabId]
-    const hasUseSidebar = block && block.code && detectDirective(block.code, "use sidebar")
+  return useCallback(
+    (tabId: string, target?: "_blank" | "_self") => {
+      const block = blocks[tabId]
+      const hasUseSidebar =
+        block && block.code && detectDirective(block.code, "use sidebar")
 
-    // Always set current app for proper tab activation state
-    setCurrentApp(tabId)
+      // Always set current app for proper tab activation state
+      setCurrentApp(tabId)
 
-    if (!hasUseSidebar) {
-      // If block does not contain 'use sidebar' directive, navigate to block page
-      navigate(`/blocks/${tabId}`, { target })
-    }
-    // If block has 'use sidebar' directive, it will render in sidebar automatically
-  }, [blocks, setCurrentApp, navigate])
+      if (!hasUseSidebar) {
+        // If block does not contain 'use sidebar' directive, navigate to block page
+        navigate(`/blocks/${tabId}`, { target })
+      }
+      // If block has 'use sidebar' directive, it will render in sidebar automatically
+    },
+    [blocks, setCurrentApp, navigate]
+  )
 }

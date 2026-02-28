@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react'
-import type { Attachment } from 'ai'
-import { useToast } from '@/components/ui/use-toast'
-import { useFileUpload } from '@/apps/web-app/hooks/use-file-upload'
+import { useState, useRef } from "react"
+import type { Attachment } from "ai"
+import { useToast } from "@/components/ui/use-toast"
+import { useFileUpload } from "@/apps/web-app/hooks/use-file-upload"
 
 export function useAttachments() {
   const [attachments, setAttachments] = useState<Attachment[]>([])
@@ -30,7 +30,9 @@ export function useAttachments() {
     }
   }
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const files = Array.from(event.target.files || [])
     setUploadQueue(files.map((file) => file.name))
 
@@ -54,6 +56,6 @@ export function useAttachments() {
     setAttachments,
     uploadQueue,
     fileInputRef,
-    handleFileChange
+    handleFileChange,
   }
-} 
+}

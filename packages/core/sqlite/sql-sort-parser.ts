@@ -1,17 +1,11 @@
 import type {
   ExprRef,
   OrderByStatement,
-  SelectFromStatement
-} from "pgsql-ast-parser";
-import {
-  astMapper,
-  parseFirst,
-  toSql,
+  SelectFromStatement,
 } from "pgsql-ast-parser"
-
+import { astMapper, parseFirst, toSql } from "pgsql-ast-parser"
 
 import type { IField } from "../types/IField"
-
 
 export type OrderByItem = {
   column: string
@@ -64,7 +58,6 @@ export const rewriteQuery2getSortedRowIds = (
   return toSql.statement(modified)
 }
 
-
 export const _rewriteQuery2getSortedSqliteRowIds = (query: string): string => {
   const ast = parseFirst(query) as SelectFromStatement
   const mapper = astMapper((map) => ({
@@ -95,7 +88,11 @@ export const _rewriteQuery2getSortedSqliteRowIds = (query: string): string => {
   return baseQuery
 }
 
-export const rewriteQuery2getSortedSqliteRowIds = (query: string, totalCount: number, batchSize: number = 100000): string[] => {
+export const rewriteQuery2getSortedSqliteRowIds = (
+  query: string,
+  totalCount: number,
+  batchSize: number = 100000
+): string[] => {
   const baseQuery = _rewriteQuery2getSortedSqliteRowIds(query)
 
   const queries: string[] = []
@@ -124,7 +121,9 @@ export const rewriteQueryWithOffsetAndLimit = (
   limit: number
 ) => {
   const ast = parseFirst(query) as SelectFromStatement
-  const isView = ast.from?.some((f) => f.type === 'table' && f.name.name.startsWith('vw_'))
+  const isView = ast.from?.some(
+    (f) => f.type === "table" && f.name.name.startsWith("vw_")
+  )
   if (!ast.orderBy && !isView) {
     ast.orderBy = [
       {
@@ -163,19 +162,19 @@ export const transformQueryWithOrderBy2Sql = (
       return {
         by: isNumber
           ? {
-            type: "cast",
-            operand: {
+              type: "cast",
+              operand: {
+                type: "ref",
+                name: item.column as any,
+              },
+              to: {
+                name: "real",
+              },
+            }
+          : {
               type: "ref",
               name: item.column as any,
             },
-            to: {
-              name: "real",
-            },
-          }
-          : {
-            type: "ref",
-            name: item.column as any,
-          },
         order: item.order as any,
       } as OrderByStatement
     })

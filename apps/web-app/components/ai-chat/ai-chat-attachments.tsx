@@ -1,12 +1,15 @@
-import type { Attachment } from 'ai'
-import { PreviewAttachment } from '../remix-chat/components/preview-attachment'
+import type { Attachment } from "ai"
+import { PreviewAttachment } from "../remix-chat/components/preview-attachment"
 
 interface AIChatAttachmentsProps {
   attachments: Attachment[]
   uploadQueue: string[]
 }
 
-export function AIChatAttachments({ attachments, uploadQueue }: AIChatAttachmentsProps) {
+export function AIChatAttachments({
+  attachments,
+  uploadQueue,
+}: AIChatAttachmentsProps) {
   if (attachments.length === 0 && uploadQueue.length === 0) {
     return null
   }
@@ -29,4 +32,4 @@ export function AIChatAttachments({ attachments, uploadQueue }: AIChatAttachment
       ))}
     </div>
   )
-} 
+}

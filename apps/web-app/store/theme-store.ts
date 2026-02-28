@@ -21,7 +21,7 @@ interface ThemeState {
 }
 
 const defaultThemeState = {
-  currentThemeName: 'Default',
+  currentThemeName: "Default",
   customThemes: [],
 }
 
@@ -40,7 +40,9 @@ export const useThemeStore = create<ThemeState>()(
       },
       addCustomTheme: (theme: CustomTheme) => {
         const { customThemes } = get()
-        const existingIndex = customThemes.findIndex(t => t.name === theme.name)
+        const existingIndex = customThemes.findIndex(
+          (t) => t.name === theme.name
+        )
 
         if (existingIndex !== -1) {
           // Update existing theme
@@ -54,11 +56,13 @@ export const useThemeStore = create<ThemeState>()(
       },
       removeCustomTheme: (name: string) => {
         const { customThemes } = get()
-        set({ customThemes: customThemes.filter(theme => theme.name !== name) })
+        set({
+          customThemes: customThemes.filter((theme) => theme.name !== name),
+        })
       },
       getCustomTheme: (name: string) => {
         const { customThemes } = get()
-        return customThemes.find(theme => theme.name === name)
+        return customThemes.find((theme) => theme.name === name)
       },
       listThemes: () => {
         const { customThemes } = get()
@@ -67,7 +71,7 @@ export const useThemeStore = create<ThemeState>()(
       },
       setCustomTheme: (name: string, css: string) => {
         const { customThemes } = get()
-        const existingIndex = customThemes.findIndex(t => t.name === name)
+        const existingIndex = customThemes.findIndex((t) => t.name === name)
         if (existingIndex !== -1) {
           const updatedThemes = [...customThemes]
           updatedThemes[existingIndex] = { name, css }
@@ -79,11 +83,11 @@ export const useThemeStore = create<ThemeState>()(
       applyTheme: (name: string, css: string) => {
         get().setCustomTheme(name, css)
         get().setCurrentThemeName(name)
-      }
+      },
     }),
     {
       name: "theme-storage",
       storage: createJSONStorage(() => themeStorage),
     }
   )
-) 
+)

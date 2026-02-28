@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { persist } from 'zustand/middleware'
+import { persist } from "zustand/middleware"
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 
 interface ISpaceAppState {
@@ -37,7 +37,7 @@ interface ISpaceAppState {
   tempPanelNode: ITreeNode | null
   setTempPanelNode: (node: ITreeNode | null) => void
   clearCurrentApp: () => void
-  
+
   // Helper to check if currentApp and tempPanelNode are mutually exclusive
   hasActivePanel: () => boolean
 }
@@ -59,7 +59,7 @@ export const useAppsStore = create<IAppsState>()(
         set((state) => ({ apps: state.apps.filter((a) => a !== app) })),
     }),
     {
-      name: 'space-apps-storage',
+      name: "space-apps-storage",
     }
   )
 )
@@ -79,7 +79,10 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set, get) => ({
   isRightPanelOpen: false,
   setIsRightPanelOpen: (isRightPanelOpen, index) => {
     if (index == null) {
-      return set({ isRightPanelOpen: isRightPanelOpen, currentAppIndex: isRightPanelOpen ? 0 : -1 })
+      return set({
+        isRightPanelOpen: isRightPanelOpen,
+        currentAppIndex: isRightPanelOpen ? 0 : -1,
+      })
     }
     return set({
       isRightPanelOpen: isRightPanelOpen,
@@ -106,12 +109,17 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set, get) => ({
   setMobileSidebarOpen: (isMobileSidebarOpen) => set({ isMobileSidebarOpen }),
 
   tempPanelNode: null,
-  setTempPanelNode: (tempPanelNode) => set({ tempPanelNode, currentApp: tempPanelNode ? "" : get().currentApp }),
-  clearCurrentApp: () => set({ currentApp: "", currentAppIndex: -1, tempPanelNode: null }),
-  
+  setTempPanelNode: (tempPanelNode) =>
+    set({ tempPanelNode, currentApp: tempPanelNode ? "" : get().currentApp }),
+  clearCurrentApp: () =>
+    set({ currentApp: "", currentAppIndex: -1, tempPanelNode: null }),
+
   // Helper to check if currentApp and tempPanelNode are mutually exclusive
   hasActivePanel: () => {
     const state = get()
-    return Boolean(state.currentApp && state.currentApp !== "") || Boolean(state.tempPanelNode)
+    return (
+      Boolean(state.currentApp && state.currentApp !== "") ||
+      Boolean(state.tempPanelNode)
+    )
   },
 }))

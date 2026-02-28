@@ -15,7 +15,7 @@ export interface WhereCondition<T = any> {
 }
 
 export interface OrderByOption<T = any> {
-  [key: string]: 'asc' | 'desc' | undefined
+  [key: string]: "asc" | "desc" | undefined
 }
 
 export interface BuiltQuery {
@@ -30,23 +30,17 @@ export class SqlQueryBuilder {
     tableName: string,
     options: FindManyOptions<T> = {}
   ): BuiltQuery {
-    const {
-      where = {},
-      orderBy,
-      skip = 0,
-      take,
-      select,
-    } = options
+    const { where = {}, orderBy, skip = 0, take, select } = options
 
     // Build SELECT clause
     const selectClause = this.buildSelectClause(select)
-    
+
     // Build WHERE clause
     const whereResult = this.buildWhereClause(where)
-    
+
     // Build ORDER BY clause
     const orderByClause = this.buildOrderByClause(orderBy)
-    
+
     // Build LIMIT and OFFSET
     const limitOffsetClause = this.buildLimitOffsetClause(skip, take)
 
@@ -61,14 +55,14 @@ export class SqlQueryBuilder {
     if (limitOffsetClause) {
       sql += ` ${limitOffsetClause}`
     }
-    sql += ';'
+    sql += ";"
 
     // Build count query
     let countSql = `SELECT COUNT(*) as count FROM ${tableName}`
     if (whereResult.whereClause) {
       countSql += ` WHERE ${whereResult.whereClause}`
     }
-    countSql += ';'
+    countSql += ";"
 
     return {
       sql,
@@ -78,28 +72,33 @@ export class SqlQueryBuilder {
     }
   }
 
-  private static buildSelectClause<T>(select?: Partial<Record<keyof T, boolean>>): string {
+  private static buildSelectClause<T>(
+    select?: Partial<Record<keyof T, boolean>>
+  ): string {
     if (!select) {
-      return '*'
+      return "*"
     }
-    
+
     const selectedFields = Object.entries(select)
       .filter(([, include]) => include)
       .map(([field]) => field)
-    
-    return selectedFields.length > 0 ? selectedFields.join(', ') : '*'
+
+    return selectedFields.length > 0 ? selectedFields.join(", ") : "*"
   }
 
-  private static buildWhereClause(where: any): { whereClause: string; params: any[] } {
+  private static buildWhereClause(where: any): {
+    whereClause: string
+    params: any[]
+  } {
     if (!where || Object.keys(where).length === 0) {
-      return { whereClause: '', params: [] }
+      return { whereClause: "", params: [] }
     }
 
     const conditions: string[] = []
     const params: any[] = []
 
     for (const [key, value] of Object.entries(where)) {
-      if (key === 'AND' || key === 'OR' || key === 'NOT') {
+      if (key === "AND" || key === "OR" || key === "NOT") {
         continue
       }
 
@@ -107,9 +106,12 @@ export class SqlQueryBuilder {
         conditions.push(`${key} IS NULL`)
       } else if (value === undefined) {
         conditions.push(`${key} IS NULL`)
-      } else if (typeof value === 'object' && !Array.isArray(value)) {
+      } else if (typeof value === "object" && !Array.isArray(value)) {
         // Handle object conditions like { gt: 10, lt: 20 }
-        const objectConditions = this.buildObjectConditions(key, value as Record<string, any>)
+        const objectConditions = this.buildObjectConditions(
+          key,
+          value as Record<string, any>
+        )
         conditions.push(...objectConditions.conditions)
         params.push(...objectConditions.params)
       } else {
@@ -121,31 +123,31 @@ export class SqlQueryBuilder {
     // Handle logical operators
     if (where.AND && Array.isArray(where.AND)) {
       const andConditions = where.AND.map((condition: any) => {
-        if (typeof condition === 'object' && !Array.isArray(condition)) {
+        if (typeof condition === "object" && !Array.isArray(condition)) {
           const result = this.buildWhereClause(condition)
           params.push(...result.params)
           return result.whereClause
         }
         return condition
       }).filter(Boolean)
-      
+
       if (andConditions.length > 0) {
-        conditions.push(`(${andConditions.join(') AND (')})`)
+        conditions.push(`(${andConditions.join(") AND (")})`)
       }
     }
 
     if (where.OR && Array.isArray(where.OR)) {
       const orConditions = where.OR.map((condition: any) => {
-        if (typeof condition === 'object' && !Array.isArray(condition)) {
+        if (typeof condition === "object" && !Array.isArray(condition)) {
           const result = this.buildWhereClause(condition)
           params.push(...result.params)
           return result.whereClause
         }
         return condition
       }).filter(Boolean)
-      
+
       if (orConditions.length > 0) {
-        conditions.push(`(${orConditions.join(') OR (')})`)
+        conditions.push(`(${orConditions.join(") OR (")})`)
       }
     }
 
@@ -158,68 +160,71 @@ export class SqlQueryBuilder {
     }
 
     return {
-      whereClause: conditions.join(' AND '),
+      whereClause: conditions.join(" AND "),
       params,
     }
   }
 
-  private static buildObjectConditions(field: string, conditions: Record<string, any>): { conditions: string[]; params: any[] } {
+  private static buildObjectConditions(
+    field: string,
+    conditions: Record<string, any>
+  ): { conditions: string[]; params: any[] } {
     const result: string[] = []
     const params: any[] = []
 
     for (const [operator, value] of Object.entries(conditions)) {
       switch (operator) {
-        case 'equals':
+        case "equals":
           result.push(`${field} = ?`)
           params.push(value)
           break
-        case 'not':
+        case "not":
           result.push(`${field} != ?`)
           params.push(value)
           break
-        case 'in':
+        case "in":
           if (Array.isArray(value) && value.length > 0) {
-            const placeholders = value.map(() => '?').join(', ')
+            const placeholders = value.map(() => "?").join(", ")
             result.push(`${field} IN (${placeholders})`)
             params.push(...value)
           }
           break
-        case 'notIn':
+        case "notIn":
           if (Array.isArray(value) && value.length > 0) {
-            const placeholders = value.map(() => '?').join(', ')
+            const placeholders = value.map(() => "?").join(", ")
             result.push(`${field} NOT IN (${placeholders})`)
             params.push(...value)
           }
           break
-        case 'lt':
+        case "lt":
           result.push(`${field} < ?`)
           params.push(value)
           break
-        case 'lte':
+        case "lte":
           result.push(`${field} <= ?`)
           params.push(value)
           break
-        case 'gt':
+        case "gt":
           result.push(`${field} > ?`)
           params.push(value)
           break
-        case 'gte':
+        case "gte":
           result.push(`${field} >= ?`)
           params.push(value)
           break
-        case 'contains':
+        case "contains":
           result.push(`${field} LIKE ?`)
           params.push(`%${value}%`)
           break
-        case 'startsWith':
+        case "startsWith":
           result.push(`${field} LIKE ?`)
           params.push(`${value}%`)
           break
-        case 'endsWith':
+        case "endsWith":
           result.push(`${field} LIKE ?`)
           params.push(`%${value}`)
           break
-        case 'mode':
+        case "mode":
           // Handle case sensitivity mode
           break
       }
@@ -228,16 +233,18 @@ export class SqlQueryBuilder {
     return { conditions: result, params }
   }
 
-  private static buildOrderByClause<T>(orderBy?: OrderByOption<T> | OrderByOption<T>[]): string {
+  private static buildOrderByClause<T>(
+    orderBy?: OrderByOption<T> | OrderByOption<T>[]
+  ): string {
     if (!orderBy) {
-      return ''
+      return ""
     }
 
     if (Array.isArray(orderBy)) {
       return orderBy
-        .map(item => this.buildOrderByItem(item))
+        .map((item) => this.buildOrderByItem(item))
         .filter(Boolean)
-        .join(', ')
+        .join(", ")
     }
 
     return this.buildOrderByItem(orderBy)
@@ -245,27 +252,27 @@ export class SqlQueryBuilder {
 
   private static buildOrderByItem<T>(orderBy: OrderByOption<T>): string {
     const clauses: string[] = []
-    
+
     for (const [field, direction] of Object.entries(orderBy)) {
-      if (direction === 'asc' || direction === 'desc') {
+      if (direction === "asc" || direction === "desc") {
         clauses.push(`${field} ${direction.toUpperCase()}`)
       }
     }
-    
-    return clauses.join(', ')
+
+    return clauses.join(", ")
   }
 
   private static buildLimitOffsetClause(skip: number, take?: number): string {
     const clauses: string[] = []
-    
+
     if (take !== undefined) {
       clauses.push(`LIMIT ${take}`)
     }
-    
+
     if (skip > 0) {
       clauses.push(`OFFSET ${skip}`)
     }
-    
-    return clauses.join(' ')
+
+    return clauses.join(" ")
   }
 }

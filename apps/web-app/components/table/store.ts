@@ -1,10 +1,5 @@
-import type {
-  GridSelection,
-  Rectangle
-} from "@glideapps/glide-data-grid";
-import {
-  CompactSelection
-} from "@glideapps/glide-data-grid"
+import type { GridSelection, Rectangle } from "@glideapps/glide-data-grid"
+import { CompactSelection } from "@glideapps/glide-data-grid"
 import { create } from "zustand"
 
 import type { IField } from "@/packages/core/types/IField"
@@ -22,7 +17,6 @@ interface ITableAppState {
 
   isFieldPropertiesEditorOpen: boolean
   setIsFieldPropertiesEditorOpen: (isFieldPropertiesEditorOpen: boolean) => void
-
 
   selection: GridSelection
   setSelection: (selection: GridSelection) => void
@@ -49,70 +43,72 @@ interface ITableAppState {
 }
 
 // Store factory function
-export const createTableStore = () => create<ITableAppState>()((set) => ({
-  isAddFieldEditorOpen: false,
-  setIsAddFieldEditorOpen: (isAddFieldEditorOpen) =>
-    set({ isAddFieldEditorOpen }),
+export const createTableStore = () =>
+  create<ITableAppState>()((set) => ({
+    isAddFieldEditorOpen: false,
+    setIsAddFieldEditorOpen: (isAddFieldEditorOpen) =>
+      set({ isAddFieldEditorOpen }),
 
-  isFieldPropertiesEditorOpen: false,
-  setIsFieldPropertiesEditorOpen: (isFieldPropertiesEditorOpen) => {
-    set({ isFieldPropertiesEditorOpen })
-  },
+    isFieldPropertiesEditorOpen: false,
+    setIsFieldPropertiesEditorOpen: (isFieldPropertiesEditorOpen) => {
+      set({ isFieldPropertiesEditorOpen })
+    },
 
+    selection: {
+      columns: CompactSelection.empty(),
+      rows: CompactSelection.empty(),
+    },
+    setSelection: (selection) => set({ selection }),
+    clearSelection: () =>
+      set({
+        selection: {
+          columns: CompactSelection.empty(),
+          rows: CompactSelection.empty(),
+        },
+      }),
 
-  selection: {
-    columns: CompactSelection.empty(),
-    rows: CompactSelection.empty(),
-  },
-  setSelection: (selection) => set({ selection }),
-  clearSelection: () =>
-    set({
-      selection: {
-        columns: CompactSelection.empty(),
-        rows: CompactSelection.empty(),
-      },
-    }),
+    menu: undefined,
+    setMenu: (menu) => set({ menu }),
 
-  menu: undefined,
-  setMenu: (menu) => set({ menu }),
+    currentUiColumn: undefined,
+    setCurrentUiColumn: (currentUiColumn) => set({ currentUiColumn }),
 
-  currentUiColumn: undefined,
-  setCurrentUiColumn: (currentUiColumn) => set({ currentUiColumn }),
+    fieldInsertPosition: undefined,
+    setFieldInsertPosition: (position) =>
+      set({ fieldInsertPosition: position }),
 
-  fieldInsertPosition: undefined,
-  setFieldInsertPosition: (position) => set({ fieldInsertPosition: position }),
+    currentPreviewIndex: -1,
+    setCurrentPreviewIndex: (currentPreviewIndex) =>
+      set({ currentPreviewIndex }),
 
-  currentPreviewIndex: -1,
-  setCurrentPreviewIndex: (currentPreviewIndex) => set({ currentPreviewIndex }),
-
-  addedRowIds: new Set(),
-  addAddedRowId: (rowId) => {
-    set((state) => {
-      return {
-        ...state,
-        addedRowIds: new Set(state.addedRowIds).add(rowId),
-      }
-    })
-  },
-  removeAddedRowId: (rowId) => {
-    set((state) => {
-      const addedRowIds = new Set(state.addedRowIds)
-      addedRowIds.delete(rowId)
-      return {
-        ...state,
-        addedRowIds,
-      }
-    })
-  },
-  clearAddedRowIds: () => {
-    set((state) => {
-      return {
-        ...state,
-        addedRowIds: new Set(),
-      }
-    })
-  },
-}))
+    addedRowIds: new Set(),
+    addAddedRowId: (rowId) => {
+      set((state) => {
+        return {
+          ...state,
+          addedRowIds: new Set(state.addedRowIds).add(rowId),
+        }
+      })
+    },
+    removeAddedRowId: (rowId) => {
+      set((state) => {
+        const addedRowIds = new Set(state.addedRowIds)
+        addedRowIds.delete(rowId)
+        return {
+          ...state,
+          addedRowIds,
+        }
+      })
+    },
+    clearAddedRowIds: () => {
+      set((state) => {
+        return {
+          ...state,
+          addedRowIds: new Set(),
+        }
+      })
+    },
+  }))
 
 // Export the store factory and types for use in components
 export type { ITableAppState, IMenu }

@@ -28,9 +28,7 @@ import { AIProviderModal } from "./ai/ai-provider-modal"
 import { AITaskConfigForm } from "./ai/ai-task-form"
 
 // lazy import ProviderIcon
-const ProviderIcon = lazy(
-  () => import("./ai/provider-icon")
-)
+const ProviderIcon = lazy(() => import("./ai/provider-icon"))
 
 export function GlobalAISettings() {
   const { t } = useTranslation()
@@ -125,7 +123,7 @@ export function GlobalAISettings() {
 
   const confirmDeleteProvider = async () => {
     if (!providerToDelete) return
-    
+
     try {
       removeLLMProvider(providerToDelete)
       toast({
@@ -209,12 +207,12 @@ export function GlobalAISettings() {
                       <ProviderIcon type={provider.type} isActive />
                     </Suspense>
                   </div>
-                  
+
                   {/* Name */}
                   <div className="min-w-0 flex-shrink-0">
                     <h5 className="font-medium truncate">{provider.name}</h5>
                   </div>
-                  
+
                   {/* Models */}
                   <div className="flex-1 min-w-0">
                     {provider.models && provider.models.length > 0 ? (
@@ -251,7 +249,7 @@ export function GlobalAISettings() {
                       </span>
                     )}
                   </div>
-                  
+
                   {/* Actions */}
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                     <Button

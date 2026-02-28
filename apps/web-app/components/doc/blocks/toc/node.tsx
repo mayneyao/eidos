@@ -1,16 +1,13 @@
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
+import type { SerializedDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
+import { DecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
 import type {
-    SerializedDecoratorBlockNode} from "@lexical/react/LexicalDecoratorBlockNode";
-import {
-    DecoratorBlockNode
-} from "@lexical/react/LexicalDecoratorBlockNode"
-import type {
-    EditorConfig,
-    ElementFormatType,
-    LexicalEditor,
-    LexicalNode,
-    NodeKey,
-    Spread,
+  EditorConfig,
+  ElementFormatType,
+  LexicalEditor,
+  LexicalNode,
+  NodeKey,
+  Spread,
 } from "lexical"
 
 import { TableOfContentsComponent } from "./component"

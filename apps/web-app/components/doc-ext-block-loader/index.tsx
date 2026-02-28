@@ -6,7 +6,6 @@ import * as Lexical from "lexical"
 import * as React from "react"
 import { useEffect } from "react"
 
-
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useEnabledExtBlocks } from "../doc/hooks/use-ext-blocks"
 
@@ -25,7 +24,9 @@ export const DocExtBlockLoader = () => {
         // But where is "extensions/blocks"?
         // It seems it might be in the user's workspace.
         // Let's assume it is at `extensions/blocks`.
-        const blockDirs = await sqlite.fs.readdir("extensions/blocks", { withFileTypes: true })
+        const blockDirs = await sqlite.fs.readdir("extensions/blocks", {
+          withFileTypes: true,
+        })
         const script = document.createElement("script")
         script.id = ScriptElementId
         // script.async = true
@@ -33,7 +34,10 @@ export const DocExtBlockLoader = () => {
 
         const scriptContent = blockDirs
           .filter((dir) => {
-            return dir.kind === 'directory' && allEnabledExtBlocks.some((block) => block.name === dir.name)
+            return (
+              dir.kind === "directory" &&
+              allEnabledExtBlocks.some((block) => block.name === dir.name)
+            )
           })
           .reduce((acc, dir) => {
             const blockName = dir.name.replace(/-([a-z])/g, function (g) {
@@ -56,15 +60,14 @@ export const DocExtBlockLoader = () => {
         console.error("Failed to load ext blocks", e)
       }
     }
-
-    ; (window as any)["__REACT"] = React
-      ; (window as any)["__LEXICAL"] = Lexical
-      ; (window as any)["__@LEXICAL/UTILS"] = LexicalUtils
-      ; (window as any)["__@LEXICAL/MARKDOWN"] = LexicalMarkdown
-      ; (window as any)["__@LEXICAL/REACT/LEXICALCOMPOSERCONTEXT"] =
-        LexicalComposerContext
-      ; (window as any)["__@LEXICAL/REACT/LEXICALBLOCKWITHALIGNABLECONTENTS"] =
-        BlockWithAlignableContents
+    ;(window as any)["__REACT"] = React
+    ;(window as any)["__LEXICAL"] = Lexical
+    ;(window as any)["__@LEXICAL/UTILS"] = LexicalUtils
+    ;(window as any)["__@LEXICAL/MARKDOWN"] = LexicalMarkdown
+    ;(window as any)["__@LEXICAL/REACT/LEXICALCOMPOSERCONTEXT"] =
+      LexicalComposerContext
+    ;(window as any)["__@LEXICAL/REACT/LEXICALBLOCKWITHALIGNABLECONTENTS"] =
+      BlockWithAlignableContents
     loadBlocks()
   }, [allEnabledExtBlocks, sqlite])
   return <div></div>

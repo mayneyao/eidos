@@ -57,10 +57,12 @@ export function dfs(
  * @param treeData array of tree nodes
  * @returns adjacency list map
  */
-export function buildAdjacencyList(treeData: Array<{ id: string; parent_id: string | null }>): Map<string, string[]> {
+export function buildAdjacencyList(
+  treeData: Array<{ id: string; parent_id: string | null }>
+): Map<string, string[]> {
   const adjacencyList = new Map<string, string[]>()
   for (const row of treeData) {
-    const parentId = row.parent_id || 'root'
+    const parentId = row.parent_id || "root"
     if (!adjacencyList.has(parentId)) {
       adjacencyList.set(parentId, [])
     }

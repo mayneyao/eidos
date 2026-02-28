@@ -14,7 +14,10 @@ export interface IFile {
   is_vectorized?: boolean // whether the file is vectorized, when file is vectorized, it will be stored in `eidos__embeddings` table
 }
 
-export class BaseFileTable extends BaseTableImpl<IFile> implements BaseTable<IFile> {
+export class BaseFileTable
+  extends BaseTableImpl<IFile>
+  implements BaseTable<IFile>
+{
   name = FileTableName
   createTableSql = `
 CREATE TABLE IF NOT EXISTS ${this.name} (
@@ -36,15 +39,13 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
       // File already exists, return the existing record
       return existing
     }
-    
+
     this.dataSpace.exec(
       `INSERT INTO ${this.name} (id,name,path,size,mime) VALUES (? , ? , ? , ? , ?);`,
       [data.id, data.name, data.path, data.size, data.mime]
     )
     return data
   }
-
-
 
   async getFileByPath(path: string): Promise<IFile | null> {
     const res = await this.dataSpace.exec2(
@@ -56,6 +57,4 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     }
     return res[0] as IFile
   }
-
 }
-

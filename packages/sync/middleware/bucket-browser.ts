@@ -36,7 +36,10 @@ function renderBucketBrowserPage(params: {
             acc.push({ name: part, path })
             return acc
           },
-          [{ name: bucketName, path: "" }] as Array<{ name: string; path: string }>
+          [{ name: bucketName, path: "" }] as Array<{
+            name: string
+            path: string
+          }>
         )
     : [{ name: bucketName, path: "" }]
 
@@ -236,7 +239,9 @@ function renderBucketBrowserPage(params: {
           </tr>
         </thead>
         <tbody>
-          ${currentPath ? `
+          ${
+            currentPath
+              ? `
             <tr class="folder-row">
               <td class="icon">📁</td>
               <td colspan="3">
@@ -245,16 +250,22 @@ function renderBucketBrowserPage(params: {
                 )}" class="folder-link">..</a>
               </td>
             </tr>
-          ` : ""}
+          `
+              : ""
+          }
           ${folderHtml}
           ${fileHtml}
-          ${!folderHtml && !fileHtml ? `
+          ${
+            !folderHtml && !fileHtml
+              ? `
             <tr>
               <td colspan="4" class="empty-state">
                 <p>This folder is empty</p>
               </td>
             </tr>
-          ` : ""}
+          `
+              : ""
+          }
         </tbody>
       </table>
     </div>

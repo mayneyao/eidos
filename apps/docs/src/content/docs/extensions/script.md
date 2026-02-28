@@ -121,7 +121,7 @@ export async function toggleChecked(
   const Users = eidos.currentSpace.table(tableId)
   await Users.update({
     where: { _id: rowId },
-    data: { checked: !input.checked }
+    data: { checked: !input.checked },
   })
   return {
     success: true,
@@ -175,7 +175,7 @@ export async function calculateCompletion(
 ) {
   const { docId } = ctx
   const doc = await eidos.currentSpace.doc.getMarkdown(docId)
-  
+
   // Extract completion ratio from markdown checkboxes
   const uncheckedCount = doc
     .split("\n")
@@ -189,7 +189,7 @@ export async function calculateCompletion(
   await eidos.currentSpace.doc.setProperties(docId, {
     completion,
   })
-  
+
   return {
     completion,
   }
@@ -221,8 +221,8 @@ interface FileActionMeta {
   fileAction: {
     name: string
     description: string
-    extensions: string[]  // Supported file extensions, e.g., [".jpg", ".png"]
-    icon?: string         // Optional icon
+    extensions: string[] // Supported file extensions, e.g., [".jpg", ".png"]
+    icon?: string // Optional icon
   }
 }
 ```
@@ -244,8 +244,8 @@ export const meta = {
     name: "Compress Image",
     description: "Compress image to 50% of original size",
     extensions: [".jpg", ".jpeg", ".png"],
-    icon: "🗜️"
-  }
+    icon: "🗜️",
+  },
 }
 
 export async function compressImage(
@@ -255,37 +255,37 @@ export async function compressImage(
   try {
     // Read original file
     const data = await eidos.currentSpace.fs.readFile(filePath)
-    
+
     // Compress image (using third-party library like browser-image-compression)
     const compressed = await compressImageData(data, {
       maxSizeMB: 1,
-      maxWidthOrHeight: 1920
+      maxWidthOrHeight: 1920,
     })
-    
+
     // Generate new file path
-    const newPath = filePath.replace(/(\.\w+)$/, '_compressed$1')
+    const newPath = filePath.replace(/(\.\w+)$/, "_compressed$1")
     await eidos.currentSpace.fs.writeFile(newPath, compressed)
-    
+
     // Show success notification
     eidos.currentSpace.notify({
       title: "Success",
-      description: `Compressed and saved to ${newPath}`
+      description: `Compressed and saved to ${newPath}`,
     })
-    
+
     return {
       success: true,
       outputPath: newPath,
       originalSize: data.byteLength,
-      compressedSize: compressed.byteLength
+      compressedSize: compressed.byteLength,
     }
   } catch (error) {
     eidos.currentSpace.notify({
       title: "Error",
-      description: `Compression failed: ${error.message}`
+      description: `Compression failed: ${error.message}`,
     })
     return {
       success: false,
-      error: error.message
+      error: error.message,
     }
   }
 }

@@ -4,13 +4,10 @@ import { uuidv7 as v7 } from "uuidv7"
 
 import {
   DataUpdateSignalType,
-  EidosDataEventChannelMsgType
+  EidosDataEventChannelMsgType,
 } from "@/lib/const.ts"
 
-
-export const withSqlite3AllUDF = (bc: {
-  postMessage: (data: any) => void
-}) => {
+export const withSqlite3AllUDF = (bc: { postMessage: (data: any) => void }) => {
   const twice = {
     name: "twice",
     xFunc: function (pCx, arg) {

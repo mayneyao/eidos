@@ -221,10 +221,10 @@ export function MyExtNode({ text }: { text: string }) {
 
 **支持的文件路径格式：**
 
-| 路径格式            | 说明                           | 示例                    |
-| ------------------- | ------------------------------ | ----------------------- |
-| `~/path/to/file`    | 项目文件夹（.eidos 所在目录）  | `~/readme.md`           |
-| `@/mount/path/file` | 挂载文件夹（需授权）           | `@/music/song.mp3`      |
+| 路径格式            | 说明                          | 示例               |
+| ------------------- | ----------------------------- | ------------------ |
+| `~/path/to/file`    | 项目文件夹（.eidos 所在目录） | `~/readme.md`      |
+| `@/mount/path/file` | 挂载文件夹（需授权）          | `@/music/song.mp3` |
 
 **URL 示例：**
 
@@ -299,7 +299,10 @@ export function MarkdownEditor() {
       .readFile(filePath, "utf8")
       .then(setContent)
       .catch((err) => {
-        eidos.currentSpace.notify({ title: "错误", description: `无法读取文件: ${err.message}` })
+        eidos.currentSpace.notify({
+          title: "错误",
+          description: `无法读取文件: ${err.message}`,
+        })
       })
   }, [filePath])
 
@@ -308,7 +311,10 @@ export function MarkdownEditor() {
       await eidos.currentSpace.fs.writeFile(filePath, content, "utf8")
       eidos.currentSpace.notify("文件已保存")
     } catch (err) {
-      eidos.currentSpace.notify({ title: "错误", description: `保存失败: ${err.message}` })
+      eidos.currentSpace.notify({
+        title: "错误",
+        description: `保存失败: ${err.message}`,
+      })
     }
   }
 
@@ -484,9 +490,8 @@ export function MyNavigation() {
 
 #### 配置方法
 
-1. 在 Block 文件顶部添加 `"use newtab"`。
-2.前往 **设置** -> **空间设置** -> **新标签页**。
-3. 从列表中选择你的 Block。
+1. 在 Block 文件顶部添加 `"use newtab"`。2.前往 **设置** -> **空间设置** -> **新标签页**。
+2. 从列表中选择你的 Block。
 
 ```tsx
 "use newtab"

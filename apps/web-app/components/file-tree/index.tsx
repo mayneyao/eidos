@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
 
 import { cn } from "@/lib/utils"
@@ -43,7 +37,12 @@ interface FileTreeProps {
   viewPrefixesAsDirectories?: boolean
 }
 
-const FileTree = ({ rootDir, nodes, baseDir, viewPrefixesAsDirectories = true }: FileTreeProps) => {
+const FileTree = ({
+  rootDir,
+  nodes,
+  baseDir,
+  viewPrefixesAsDirectories = true,
+}: FileTreeProps) => {
   const { sqlite } = useSqlite()
   const { navigate } = useRouterAdapter()
   const { isFavorite } = useFavBlocks()
@@ -221,7 +220,9 @@ const FileTree = ({ rootDir, nodes, baseDir, viewPrefixesAsDirectories = true }:
 
     try {
       // Check if this is a virtual node (has nodeType in metadata)
-      const isVirtualNode = node.metadata?.nodeType !== undefined && node.metadata?.nodeType !== "extension"
+      const isVirtualNode =
+        node.metadata?.nodeType !== undefined &&
+        node.metadata?.nodeType !== "extension"
 
       if (isVirtualNode && node.metadata?.nodeId) {
         // For virtual nodes, update the node name directly via database API
@@ -407,7 +408,7 @@ const FileTree = ({ rootDir, nodes, baseDir, viewPrefixesAsDirectories = true }:
   )
 
   const getNodeLevel = useCallback(
-    (index: number) => ((flattenedData[index] as any)?.level ?? 0),
+    (index: number) => (flattenedData[index] as any)?.level ?? 0,
     [flattenedData]
   )
 
@@ -714,9 +715,7 @@ const FileTree = ({ rootDir, nodes, baseDir, viewPrefixesAsDirectories = true }:
       ? "truncate text-foreground"
       : "truncate text-muted-foreground italic"
 
-    const isActive = selectedNode
-      ? selectedNode === node.path
-      : index === 0
+    const isActive = selectedNode ? selectedNode === node.path : index === 0
 
     const setNodeRef = (el: HTMLDivElement | null) => {
       if (el) {
@@ -727,10 +726,7 @@ const FileTree = ({ rootDir, nodes, baseDir, viewPrefixesAsDirectories = true }:
     }
 
     return (
-      <div
-        key={node.path}
-        data-path={node.path}
-      >
+      <div key={node.path} data-path={node.path}>
         <FileTreeNode
           node={node}
           level={level}
@@ -756,9 +752,7 @@ const FileTree = ({ rootDir, nodes, baseDir, viewPrefixesAsDirectories = true }:
           onRowKeyDown={(event: React.KeyboardEvent<HTMLDivElement>) =>
             handleRowKeyDown(event, node, hasChildren, isExpanded)
           }
-          onRowContextMenu={(event) =>
-            handleContextMenuSelection(node, event)
-          }
+          onRowContextMenu={(event) => handleContextMenuSelection(node, event)}
           onRename={(node) => startRename(node.path)}
           onRenameConfirm={(newName) => handleRenameConfirm(node, newName)}
           onRenameCancel={cancelRename}

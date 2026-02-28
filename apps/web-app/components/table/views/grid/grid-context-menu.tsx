@@ -221,9 +221,7 @@ export function GridContextMenu({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>
-              {t("common.cancel")}
-            </AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteConfirm}>
               {t("common.delete")}
             </AlertDialogAction>

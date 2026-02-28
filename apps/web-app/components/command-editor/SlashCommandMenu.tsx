@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 
-import type { Command} from "./SlashCommandPlugin";
+import type { Command } from "./SlashCommandPlugin"
 import { commands } from "./SlashCommandPlugin"
 
 export function SlashCommandMenu() {

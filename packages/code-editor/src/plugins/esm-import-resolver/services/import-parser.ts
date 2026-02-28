@@ -2,10 +2,10 @@
 import type {
   ImportParserService,
   ImportStatement,
-  PackageNamePatterns
-} from '../interfaces'
-import { URLResolver } from './url-resolver'
-import { importParserDebug as debug } from '../utils/debug'
+  PackageNamePatterns,
+} from "../interfaces"
+import { URLResolver } from "./url-resolver"
+import { importParserDebug as debug } from "../utils/debug"
 
 /**
  * Import parser service implementation using oxc-parser
@@ -18,27 +18,60 @@ export class ImportParser implements ImportParserService {
     regular: /^[a-z0-9-~][a-z0-9-._~]*$/,
     version: /^(.+?)@(.+)$/,
     relative: /^\.{1,2}\//,
-    absolute: /^[/\\]/
+    absolute: /^[/\\]/,
   }
 
   private readonly nodeBuiltins = new Set([
-    'assert', 'buffer', 'child_process', 'cluster', 'crypto', 'dgram', 'dns',
-    'domain', 'events', 'fs', 'http', 'https', 'net', 'os', 'path', 'punycode',
-    'querystring', 'readline', 'stream', 'string_decoder', 'timers', 'tls',
-    'tty', 'url', 'util', 'v8', 'vm', 'zlib', 'process', 'console', 'module',
-    'perf_hooks', 'async_hooks', 'worker_threads', 'inspector'
+    "assert",
+    "buffer",
+    "child_process",
+    "cluster",
+    "crypto",
+    "dgram",
+    "dns",
+    "domain",
+    "events",
+    "fs",
+    "http",
+    "https",
+    "net",
+    "os",
+    "path",
+    "punycode",
+    "querystring",
+    "readline",
+    "stream",
+    "string_decoder",
+    "timers",
+    "tls",
+    "tty",
+    "url",
+    "util",
+    "v8",
+    "vm",
+    "zlib",
+    "process",
+    "console",
+    "module",
+    "perf_hooks",
+    "async_hooks",
+    "worker_threads",
+    "inspector",
   ])
 
   /**
    * Parse import statements from source code using regex fallback
    * TODO: Replace with oxc-parser when WASM issues are resolved
    */
-  async parseImports(code: string, _filePath: string): Promise<ImportStatement[]> {
+  async parseImports(
+    code: string,
+    _filePath: string
+  ): Promise<ImportStatement[]> {
     try {
       // Fallback to regex parsing for demo purposes
       return this.parseImportsWithRegex(code)
     } catch (error) {
-      debug.error('Failed to parse imports:', error)
+      debug.error("Failed to parse imports:", error)
       return []
     }
   }
@@ -50,22 +83,22 @@ export class ImportParser implements ImportParserService {
     const imports: ImportStatement[] = []
 
     try {
-      const lines = code.split('\n')
+      const lines = code.split("\n")
 
       for (let i = 0; i < lines.length; i++) {
         try {
           const line = lines[i].trim()
 
           // Skip empty lines and comments
-          if (!line || line.startsWith('//') || line.startsWith('/*')) {
+          if (!line || line.startsWith("//") || line.startsWith("/*")) {
             continue
           }
 
           // Match various import patterns
           const patterns = [
-            /import\s+(.+?)\s+from\s+['"]([^'"]+)['"]/,  // import ... from '...'
-            /import\s+['"]([^'"]+)['"]/,                 // import '...'
-            /import\s*\(\s*['"]([^'"]+)['"]\s*\)/,       // import('...')
+            /import\s+(.+?)\s+from\s+['"]([^'"]+)['"]/, // import ... from '...'
+            /import\s+['"]([^'"]+)['"]/, // import '...'
+            /import\s*\(\s*['"]([^'"]+)['"]\s*\)/, // import('...')
           ]
 
           for (const pattern of patterns) {
@@ -92,10 +125,13 @@ export class ImportParser implements ImportParserService {
                   resolved,
                   isThirdParty,
                   isNodeBuiltin,
-                  hasTypes: false
+                  hasTypes: false,
                 })
               } catch (importError) {
-                debug.warn(`Error processing import "${source}" on line ${i + 1}:`, importError)
+                debug.warn(
+                  `Error processing import "${source}" on line ${i + 1}:`,
+                  importError
+                )
               }
               break
             }
@@ -105,7 +141,7 @@ export class ImportParser implements ImportParserService {
         }
       }
     } catch (error) {
-      debug.error('Error in regex import parsing:', error)
+      debug.error("Error in regex import parsing:", error)
     }
 
     return imports
@@ -114,8 +150,11 @@ export class ImportParser implements ImportParserService {
   /**
    * Parse import specifiers from a line
    */
-  private parseSpecifiersFromLine(line: string, _source: string): ImportStatement['specifiers'] {
-    const specifiers: ImportStatement['specifiers'] = []
+  private parseSpecifiersFromLine(
+    line: string,
+    _source: string
+  ): ImportStatement["specifiers"] {
+    const specifiers: ImportStatement["specifiers"] = []
 
     // Extract the import part before 'from'
     const importMatch = line.match(/import\s+(.+?)\s+from/)
@@ -128,31 +167,33 @@ export class ImportParser implements ImportParserService {
     // Default import: import React from 'react'
     if (/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(importPart)) {
       specifiers.push({
-        type: 'default',
-        local: importPart
+        type: "default",
+        local: importPart,
       })
     }
     // Namespace import: import * as React from 'react'
-    else if (importPart.includes('* as ')) {
-      const namespaceMatch = importPart.match(/\*\s+as\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/)
+    else if (importPart.includes("* as ")) {
+      const namespaceMatch = importPart.match(
+        /\*\s+as\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/
+      )
       if (namespaceMatch) {
         specifiers.push({
-          type: 'namespace',
-          local: namespaceMatch[1]
+          type: "namespace",
+          local: namespaceMatch[1],
         })
       }
     }
     // Named imports: import { useState, useEffect } from 'react'
-    else if (importPart.includes('{') && importPart.includes('}')) {
+    else if (importPart.includes("{") && importPart.includes("}")) {
       const namedMatch = importPart.match(/\{([^}]+)\}/)
       if (namedMatch) {
-        const namedImports = namedMatch[1].split(',').map(s => s.trim())
-        namedImports.forEach(namedImport => {
-          const parts = namedImport.split(' as ').map(s => s.trim())
+        const namedImports = namedMatch[1].split(",").map((s) => s.trim())
+        namedImports.forEach((namedImport) => {
+          const parts = namedImport.split(" as ").map((s) => s.trim())
           specifiers.push({
-            type: 'named',
+            type: "named",
             imported: parts[0],
-            local: parts[1] || parts[0]
+            local: parts[1] || parts[0],
           })
         })
       }
@@ -173,14 +214,16 @@ export class ImportParser implements ImportParserService {
    */
   isThirdPartyPackage(importPath: string): boolean {
     // Skip empty or whitespace-only strings
-    if (!importPath || importPath.trim() === '') {
+    if (!importPath || importPath.trim() === "") {
       return false
     }
 
     // Not relative, not absolute, not Node builtin
-    return !this.isRelativeImport(importPath) &&
-           !this.patterns.absolute.test(importPath) &&
-           !this.isNodeBuiltin(importPath)
+    return (
+      !this.isRelativeImport(importPath) &&
+      !this.patterns.absolute.test(importPath) &&
+      !this.isNodeBuiltin(importPath)
+    )
   }
 
   /**
@@ -188,7 +231,7 @@ export class ImportParser implements ImportParserService {
    */
   isNodeBuiltin(importPath: string): boolean {
     // Remove node: prefix if present
-    const cleanPath = importPath.replace(/^node:/, '')
+    const cleanPath = importPath.replace(/^node:/, "")
     return this.nodeBuiltins.has(cleanPath)
   }
 
@@ -210,15 +253,15 @@ export class ImportParser implements ImportParserService {
     }
 
     // Handle scoped packages (e.g., "@babel/core")
-    if (importPath.startsWith('@')) {
-      const parts = importPath.split('/')
+    if (importPath.startsWith("@")) {
+      const parts = importPath.split("/")
       if (parts.length >= 2) {
         return `${parts[0]}/${parts[1]}`
       }
     }
 
     // Handle regular packages with subpaths (e.g., "lodash/debounce")
-    const parts = importPath.split('/')
+    const parts = importPath.split("/")
     return parts[0]
   }
 

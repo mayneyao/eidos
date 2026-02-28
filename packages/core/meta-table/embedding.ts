@@ -1,6 +1,6 @@
 import { EmbeddingTableName } from "../sqlite/const"
 
-import type { BaseTable} from "./base";
+import type { BaseTable } from "./base"
 import { BaseTableImpl } from "./base"
 
 export interface IEmbedding {

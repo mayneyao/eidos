@@ -3,7 +3,7 @@
  * Allows plugins to self-register without modifying core manager code
  */
 
-import type { EditorPlugin } from './base-types'
+import type { EditorPlugin } from "./base-types"
 
 export interface PluginFactory<TConfig = any> {
   /**
@@ -54,11 +54,15 @@ class PluginRegistry {
    */
   register<TConfig = any>(factory: PluginFactory<TConfig>): void {
     if (this.factories.has(factory.pluginId)) {
-      console.warn(`⚠️ Plugin '${factory.pluginId}' is already registered, overwriting...`)
+      console.warn(
+        `⚠️ Plugin '${factory.pluginId}' is already registered, overwriting...`
+      )
     }
 
     this.factories.set(factory.pluginId, factory)
-    console.log(`📦 Registered plugin: ${factory.displayName} (${factory.pluginId}) v${factory.version}`)
+    console.log(
+      `📦 Registered plugin: ${factory.displayName} (${factory.pluginId}) v${factory.version}`
+    )
   }
 
   /**
@@ -117,14 +121,16 @@ class PluginRegistry {
   /**
    * Get plugin info without creating instance
    */
-  getPluginInfo(pluginId: string): { displayName: string; version: string; description?: string } | null {
+  getPluginInfo(
+    pluginId: string
+  ): { displayName: string; version: string; description?: string } | null {
     const factory = this.factories.get(pluginId)
     if (!factory) return null
 
     return {
       displayName: factory.displayName,
       version: factory.version,
-      description: factory.description
+      description: factory.description,
     }
   }
 
@@ -139,7 +145,9 @@ class PluginRegistry {
     const visit = (pluginId: string) => {
       if (visited.has(pluginId)) return
       if (visiting.has(pluginId)) {
-        throw new Error(`Circular dependency detected involving plugin: ${pluginId}`)
+        throw new Error(
+          `Circular dependency detected involving plugin: ${pluginId}`
+        )
       }
 
       const factory = this.factories.get(pluginId)
@@ -174,7 +182,7 @@ class PluginRegistry {
   initialize(): void {
     if (this.initialized) return
 
-    console.log('🔧 Initializing Plugin Registry')
+    console.log("🔧 Initializing Plugin Registry")
     this.initialized = true
   }
 
@@ -183,7 +191,7 @@ class PluginRegistry {
    */
   clear(): void {
     this.factories.clear()
-    console.log('🧹 Plugin registry cleared')
+    console.log("🧹 Plugin registry cleared")
   }
 }
 
@@ -194,11 +202,13 @@ export const pluginRegistry = new PluginRegistry()
  * Decorator for auto-registering plugins
  */
 export function RegisterPlugin<TConfig = any>(factory: PluginFactory<TConfig>) {
-  return function <T extends new (...args: any[]) => EditorPlugin>(constructor: T) {
+  return function <T extends new (...args: any[]) => EditorPlugin>(
+    constructor: T
+  ) {
     // Auto-register when the class is loaded
     pluginRegistry.register({
       ...factory,
-      createPlugin: (config: TConfig) => new constructor(config)
+      createPlugin: (config: TConfig) => new constructor(config),
     })
 
     return constructor
@@ -208,6 +218,8 @@ export function RegisterPlugin<TConfig = any>(factory: PluginFactory<TConfig>) {
 /**
  * Helper function to register plugin manually
  */
-export function registerPlugin<TConfig = any>(factory: PluginFactory<TConfig>): void {
+export function registerPlugin<TConfig = any>(
+  factory: PluginFactory<TConfig>
+): void {
   pluginRegistry.register(factory)
 }

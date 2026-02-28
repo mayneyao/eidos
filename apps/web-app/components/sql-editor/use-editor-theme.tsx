@@ -1,14 +1,14 @@
-import { tags as t } from "@lezer/highlight";
-import { createTheme } from "@uiw/codemirror-themes";
-import { useTheme } from "@/components/theme-provider";
-import { useMemo } from "react";
+import { tags as t } from "@lezer/highlight"
+import { createTheme } from "@uiw/codemirror-themes"
+import { useTheme } from "@/components/theme-provider"
+import { useMemo } from "react"
 
 export default function useCodeEditorTheme({
   fontSize = 0.875,
 }: {
-  fontSize?: number;
+  fontSize?: number
 }) {
-  const { resolvedTheme, forcedTheme } = useTheme();
+  const { resolvedTheme, forcedTheme } = useTheme()
 
   return useMemo(() => {
     if ((forcedTheme ?? resolvedTheme) === "light") {
@@ -43,7 +43,7 @@ export default function useCodeEditorTheme({
           { tag: [t.function(t.variableName)], color: "#0000A2" },
           { tag: [t.definition(t.typeName), t.typeName], color: "#6D79DE" },
         ],
-      });
+      })
     } else {
       return createTheme({
         theme: "dark",
@@ -71,7 +71,7 @@ export default function useCodeEditorTheme({
           { tag: t.variableName, color: "#1a00db" },
           { tag: t.string, color: "#e67e22" },
         ],
-      });
+      })
     }
-  }, [resolvedTheme, forcedTheme, fontSize]);
+  }, [resolvedTheme, forcedTheme, fontSize])
 }

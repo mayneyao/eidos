@@ -1,10 +1,9 @@
 import type {
   CustomCell,
   CustomRenderer,
-  ProvideEditorCallback} from "@glideapps/glide-data-grid";
-import {
-  GridCellKind
+  ProvideEditorCallback,
 } from "@glideapps/glide-data-grid"
+import { GridCellKind } from "@glideapps/glide-data-grid"
 
 import type { LinkCellData } from "@/packages/core/fields/link"
 

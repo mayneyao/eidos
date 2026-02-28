@@ -21,7 +21,7 @@ export const TableStoreProvider = ({
 }) => {
   const store = useMemo(() => createTableStore(), [])
   const searchStore = useMemo(() => createTableSearchStore(), [])
-  
+
   return (
     <TableStoreContext.Provider value={store}>
       <TableSearchStoreContext.Provider value={searchStore}>
@@ -44,7 +44,9 @@ export const useTableStore = () => {
 export const useTableSearchStore = () => {
   const store = useContext(TableSearchStoreContext)
   if (!store) {
-    throw new Error("useTableSearchStore must be used within a TableStoreProvider")
+    throw new Error(
+      "useTableSearchStore must be used within a TableStoreProvider"
+    )
   }
   return store()
 }

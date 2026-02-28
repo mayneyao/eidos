@@ -34,6 +34,7 @@ desktop
 ```
 
 **Key Integration Points:**
+
 - `server.ts`: Uses `createProxyMiddleware` + `createExtensionMiddleware`
 - RPC endpoint: Uses binary-data utils from client
 - Extension hosting: Full ext-server with sandbox support
@@ -49,6 +50,7 @@ headless
 ```
 
 **Key Differences from Desktop:**
+
 - No `@eidos.space/proxy` (no CORS proxy needed)
 - Uses `createEidosDependencies()` instead of `createDesktopConfig()`
 - Simpler CORS handling (just `hono/cors`)
@@ -62,13 +64,16 @@ headless
 **Pattern:** `api.example.com.proxy.eidos.localhost/path` → `https://api.example.com/path`
 
 **Exports:**
+
 - `createProxyMiddleware()` - Hono middleware
 - `ProxyHandler` - Class for advanced use
 
 **Used by:**
+
 - `apps/desktop` - For extension sandbox fetch proxying
 
 **Not used by:**
+
 - `apps/headless` - Headless doesn't need CORS proxy
 
 ---
@@ -78,6 +83,7 @@ headless
 **Purpose:** RPC client for external connections + binary data utilities
 
 **Exports:**
+
 - `createEidosClient()` - RPC client for headless connections
 - `createSpaceProxy()` - Low-level space proxy
 - Binary data utilities:
@@ -87,6 +93,7 @@ headless
   - `parseMultipartFormData()`
 
 **Used by:**
+
 - `apps/desktop` - Binary data utilities for RPC endpoint
 - External SDK users - RPC client
 
@@ -99,11 +106,13 @@ headless
 **Purpose:** Complete extension runtime environment
 
 **Components:**
+
 1. **Extension Middleware** - Block extension hosting (`*.block.*.eidos.localhost`)
 2. **Script Sandbox** - Script execution environment (`sandbox.*.eidos.localhost`)
 3. **SDK Injection** - `makeSdkInjectScript()` for both
 
 **Exports:**
+
 - `createExtensionMiddleware()` - Main middleware
 - `ScriptSandboxHandler` - Script sandbox
 - `makeSdkInjectScript()` - SDK injection
@@ -111,6 +120,7 @@ headless
 - `createDesktopConfig()` - Desktop config
 
 **Used by:**
+
 - `apps/desktop` - Full functionality with desktop config
 - `apps/headless` - Extension hosting with simpler config
 
@@ -121,11 +131,13 @@ headless
 **Purpose:** Core DataSpace API and SQLite operations
 
 **Exports:**
+
 - `DataSpace` - Main database API
 - Meta-tables (tables, views, extensions, etc.)
 - Query builders
 
 **Used by:**
+
 - Everything - Core dependency
 
 ---
@@ -135,12 +147,14 @@ headless
 **Purpose:** Extension compilation and code transformation
 
 **Exports:**
+
 - `compileCode()` - TypeScript compilation
 - `extractFunction()` - Server-side props extraction
 - `getAllLibs()` - Dependency analysis
 - `generateImportMap()` - Import map generation
 
 **Used by:**
+
 - `apps/web-app` - Extension editor compilation
 - `@eidos.space/ext-server` - Runtime compilation
 
@@ -184,6 +198,7 @@ headless
 ### 1. Proxy is Separate
 
 Proxy is a standalone package because:
+
 - It's a generic HTTP proxy utility
 - Headless doesn't need it (no CORS issues in server-to-server)
 - Could be used independently
@@ -191,6 +206,7 @@ Proxy is a standalone package because:
 ### 2. Client Contains Binary Utils
 
 Binary data utilities are in client because:
+
 - They're RPC-related utilities
 - Server needs them for multipart form handling
 - Client already had similar code (extracted from old sandbox)
@@ -198,6 +214,7 @@ Binary data utilities are in client because:
 ### 3. Ext-Server is Self-Contained
 
 Ext-server includes both blocks and sandbox:
+
 - They share the same SDK injection mechanism
 - They share the same static assets
 - They share the same domain pattern handling
@@ -205,6 +222,7 @@ Ext-server includes both blocks and sandbox:
 ### 4. No Runtime Dependencies Between Proxy/Client/Ext-Server
 
 These three are independent:
+
 - `proxy` - Pure HTTP proxy
 - `client` - RPC client + utils
 - `ext-server` - Extension runtime
@@ -214,13 +232,16 @@ This allows flexible composition in different apps.
 ## Migration History
 
 ### Phase 1: Split Proxy
+
 - Extracted `proxy` from `sandbox`
 
 ### Phase 2: Move Sandbox to Ext-Server
+
 - Moved `ScriptSandboxHandler` to `ext-server`
 - Moved `makeSdkInjectScript` to `ext-server`
 
 ### Phase 3: Remove Sandbox Package
+
 - Binary utils moved to `client`
 - `sandbox` package deleted
 - Desktop uses `client` for binary utils

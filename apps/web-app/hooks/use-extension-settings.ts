@@ -14,10 +14,9 @@ const DEFAULT_ENABLED_EXTENSIONS: Record<string, boolean> = {
  * Each space has its own independent extension configuration.
  */
 export const useExtensionSettings = () => {
-  const [enabledExtensions, setEnabledExtensions] = useSqliteKV<Record<string, boolean>>(
-    "eidos:space:extensions:enabled",
-    DEFAULT_ENABLED_EXTENSIONS
-  )
+  const [enabledExtensions, setEnabledExtensions] = useSqliteKV<
+    Record<string, boolean>
+  >("eidos:space:extensions:enabled", DEFAULT_ENABLED_EXTENSIONS)
 
   const isExtensionEnabled = useCallback(
     (id: string) => enabledExtensions?.[id] ?? true,

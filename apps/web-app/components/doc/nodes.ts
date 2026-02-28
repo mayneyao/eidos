@@ -4,13 +4,10 @@ import { AutoLinkNode, LinkNode } from "@lexical/link"
 import { ListItemNode, ListNode } from "@lexical/list"
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
-import { TableCellNode, TableNode, TableRowNode } from '@lexical/table';
-
+import { TableCellNode, TableNode, TableRowNode } from "@lexical/table"
 
 // Change this import to be more specific and avoid circular dependencies
 import { getBuiltInNodes } from "./blocks"
-
-
 
 export const getAllNodes = () => [
   HorizontalRuleNode,
@@ -28,6 +25,5 @@ export const getAllNodes = () => [
   TableRowNode,
   // custom embed node
   // block
-  ...getBuiltInNodes()
+  ...getBuiltInNodes(),
 ]
-

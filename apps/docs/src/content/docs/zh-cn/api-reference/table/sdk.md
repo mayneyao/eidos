@@ -78,19 +78,19 @@ async findMany(args?: {
 
 **Where 子句运算符:**
 
-| 运算符 | 描述 | 示例 |
-|--------|------|------|
-| `equals` | 精确匹配 | `{ name: { equals: "张三" } }` |
-| `not` | 不等于 | `{ status: { not: "deleted" } }` |
-| `gt` | 大于 | `{ age: { gt: 18 } }` |
-| `gte` | 大于等于 | `{ age: { gte: 18 } }` |
-| `lt` | 小于 | `{ age: { lt: 65 } }` |
-| `lte` | 小于等于 | `{ age: { lte: 65 } }` |
-| `contains` | 包含子字符串 | `{ name: { contains: "张" } }` |
-| `startsWith` | 以...开头 | `{ email: { startsWith: "admin" } }` |
-| `endsWith` | 以...结尾 | `{ email: { endsWith: "@gmail.com" } }` |
-| `in` | 在数组中 | `{ status: { in: ["active", "pending"] } }` |
-| `notIn` | 不在数组中 | `{ status: { notIn: ["deleted"] } }` |
+| 运算符       | 描述         | 示例                                        |
+| ------------ | ------------ | ------------------------------------------- |
+| `equals`     | 精确匹配     | `{ name: { equals: "张三" } }`              |
+| `not`        | 不等于       | `{ status: { not: "deleted" } }`            |
+| `gt`         | 大于         | `{ age: { gt: 18 } }`                       |
+| `gte`        | 大于等于     | `{ age: { gte: 18 } }`                      |
+| `lt`         | 小于         | `{ age: { lt: 65 } }`                       |
+| `lte`        | 小于等于     | `{ age: { lte: 65 } }`                      |
+| `contains`   | 包含子字符串 | `{ name: { contains: "张" } }`              |
+| `startsWith` | 以...开头    | `{ email: { startsWith: "admin" } }`        |
+| `endsWith`   | 以...结尾    | `{ email: { endsWith: "@gmail.com" } }`     |
+| `in`         | 在数组中     | `{ status: { in: ["active", "pending"] } }` |
+| `notIn`      | 不在数组中   | `{ status: { notIn: ["deleted"] } }`        |
 
 ## `count(args)`
 

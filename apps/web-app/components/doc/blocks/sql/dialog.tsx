@@ -53,4 +53,4 @@ export const SqlQueryDialog = (props: SqlQueryDialogProps) => {
       <Button onClick={handleQuery}>Query</Button>
     </div>
   )
-} 
+}

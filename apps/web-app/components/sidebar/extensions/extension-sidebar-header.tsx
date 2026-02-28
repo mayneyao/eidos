@@ -16,7 +16,8 @@ import { ExtensionSearch } from "./extension-search"
 import { NewExtensionButton } from "./new-extension-button"
 
 export const ExtensionSidebarHeader = () => {
-  const { viewPrefixesAsDirectories, setViewPrefixesAsDirectories } = useExtensionStore()
+  const { viewPrefixesAsDirectories, setViewPrefixesAsDirectories } =
+    useExtensionStore()
 
   return (
     <div className="px-1 flex-shrink-0">
@@ -37,13 +38,19 @@ export const ExtensionSidebarHeader = () => {
                   variant={viewPrefixesAsDirectories ? "secondary" : "ghost"}
                   size="sm"
                   className="h-8 w-8 p-0"
-                  onClick={() => setViewPrefixesAsDirectories(!viewPrefixesAsDirectories)}
+                  onClick={() =>
+                    setViewPrefixesAsDirectories(!viewPrefixesAsDirectories)
+                  }
                 >
                   <FolderTree className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>{viewPrefixesAsDirectories ? "View as directories" : "View as flat list"}</p>
+                <p>
+                  {viewPrefixesAsDirectories
+                    ? "View as directories"
+                    : "View as flat list"}
+                </p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

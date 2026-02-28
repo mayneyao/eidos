@@ -7,7 +7,6 @@ import type { IExtension } from "@/packages/core/meta-table/extension"
 
 import { parse } from "comment-parser"
 
-
 export const getDescriptionFromCode = (code: string) => {
   const comments = parse(code)
   const comment = comments[0]
@@ -34,9 +33,7 @@ export const checkPromptEnable = (data: unknown) => {
   return result.data
 }
 
-export const getEditorLanguage = (
-  script: IExtension
-): "typescript" => {
+export const getEditorLanguage = (script: IExtension): "typescript" => {
   // Always return typescript - JSX support is handled by file extension
   // script → .ts, block → .tsx
   return "typescript"
@@ -54,7 +51,6 @@ function getRegistryUrl(path: string) {
   }
   return url.toString()
 }
-
 
 interface RegistryFile {
   path: string
@@ -77,27 +73,24 @@ interface RegistryResponse {
   }
 }
 
-
-
 export const getV0Block = async (link: string) => {
   /**
    * 1. https://v0.dev/chat/b/ZzbGuhRMKPX
    * 2. npx shadcn@latest add https://v0.dev/chat/b/ZzbGuhRMKPX
    * 3. npx shadcn@latest add "https://v0.dev/chat/b/ZzbGuhRMKPX"
    */
-  const _link = link.trim()
-    .replace(/^npx\s+shadcn@latest\s+add\s+/, '')
-    .replace(/^["']|["']$/g, '')
+  const _link = link
+    .trim()
+    .replace(/^npx\s+shadcn@latest\s+add\s+/, "")
+    .replace(/^["']|["']$/g, "")
     .trim()
 
   const url = getRegistryUrl(_link)
-  console.log('Fetching URL:', url)
+  console.log("Fetching URL:", url)
   const res = await fetch(proxyURL(url))
-  const data = await res.json() as RegistryResponse
+  const data = (await res.json()) as RegistryResponse
   return data.files[0]
 }
-
-
 
 export const getDynamicPrompt = (bindings: IExtension["bindings"]) => {
   const replaceText = `table(id: string): TableManager;`
@@ -108,16 +101,19 @@ export const getDynamicPrompt = (bindings: IExtension["bindings"]) => {
     .join("\n")
 
   // Add global eidos variable declaration with dynamic env types
-  const envTypes = Object.entries(bindings || {}).reduce((acc, [key, binding]) => {
-    if (binding.type === "secret" || binding.type === "text") {
-      acc[key] = "string";
-    }
-    return acc;
-  }, {} as Record<string, string>);
+  const envTypes = Object.entries(bindings || {}).reduce(
+    (acc, [key, binding]) => {
+      if (binding.type === "secret" || binding.type === "text") {
+        acc[key] = "string"
+      }
+      return acc
+    },
+    {} as Record<string, string>
+  )
 
   const envTypeString = Object.entries(envTypes)
     .map(([key, type]) => `    ${key}: ${type};`)
-    .join("\n");
+    .join("\n")
 
   const eidosGlobalDeclaration = `
 declare global {
@@ -130,11 +126,11 @@ ${envTypeString}
 }
 `
 
-  let replaced = eidosTypes.replace(replaceText, replaceText + "\n" + bindingText)
+  let replaced = eidosTypes.replace(
+    replaceText,
+    replaceText + "\n" + bindingText
+  )
   // Add global eidos declaration at the end
   replaced = replaced + eidosGlobalDeclaration
   return replaced
 }
-
-
-

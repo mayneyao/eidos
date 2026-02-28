@@ -48,7 +48,7 @@ export class FileField extends BaseField<FileCell, FileProperty, string> {
         if (d.startsWith("http")) {
           if (isLocalProxy) {
             const url = new URL(d)
-            url.protocol = 'http:'
+            url.protocol = "http:"
             url.hostname = `${url.hostname}.proxy.eidos.localhost`
             if (proxyPort) {
               url.port = proxyPort

@@ -22,7 +22,9 @@ export const propertyEditorRegistry: PropertyEditorRegistry = {
 /**
  * Get the appropriate editor component for a property type
  */
-export const getPropertyEditor = (propertyType: PropertyType): PropertyEditorComponent => {
+export const getPropertyEditor = (
+  propertyType: PropertyType
+): PropertyEditorComponent => {
   return propertyEditorRegistry[propertyType] || TextEditor
 }
 
@@ -44,11 +46,6 @@ export const PropertyEditorFactory: React.FC<{
   propertyName?: string
 }> = ({ propertyType, ...props }) => {
   const EditorComponent = getPropertyEditor(propertyType)
-  
-  return (
-    <EditorComponent
-      propertyType={propertyType}
-      {...props}
-    />
-  )
+
+  return <EditorComponent propertyType={propertyType} {...props} />
 }

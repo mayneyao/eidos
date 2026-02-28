@@ -24,12 +24,14 @@ export const BlockApp = forwardRef<
     const _url = new URL(url)
     // getBlockIdFromUrl returns "blockId@space#hash" format, need to remove hash first
     const blockIdWithSpace = getBlockIdFromUrl(url).split("#")[0]
-    
+
     // Parse blockId and blockSpace from "blockId@space" format
     const atIndex = blockIdWithSpace.indexOf("@")
-    const id = atIndex !== -1 ? blockIdWithSpace.slice(0, atIndex) : blockIdWithSpace
-    const blockSpace = atIndex !== -1 ? blockIdWithSpace.slice(atIndex + 1) : undefined
-    
+    const id =
+      atIndex !== -1 ? blockIdWithSpace.slice(0, atIndex) : blockIdWithSpace
+    const blockSpace =
+      atIndex !== -1 ? blockIdWithSpace.slice(atIndex + 1) : undefined
+
     const context = {
       currentNode,
     }

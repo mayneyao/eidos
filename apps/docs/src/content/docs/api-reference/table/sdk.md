@@ -78,19 +78,19 @@ async findMany(args?: {
 
 **Where Clause Operators:**
 
-| Operator | Description | Example |
-|----------|-------------|---------|
-| `equals` | Exact match | `{ name: { equals: "John" } }` |
-| `not` | Not equal | `{ status: { not: "deleted" } }` |
-| `gt` | Greater than | `{ age: { gt: 18 } }` |
-| `gte` | Greater than or equal | `{ age: { gte: 18 } }` |
-| `lt` | Less than | `{ age: { lt: 65 } }` |
-| `lte` | Less than or equal | `{ age: { lte: 65 } }` |
-| `contains` | Contains substring | `{ name: { contains: "Jo" } }` |
-| `startsWith` | Starts with | `{ email: { startsWith: "admin" } }` |
-| `endsWith` | Ends with | `{ email: { endsWith: "@gmail.com" } }` |
-| `in` | In array | `{ status: { in: ["active", "pending"] } }` |
-| `notIn` | Not in array | `{ status: { notIn: ["deleted"] } }` |
+| Operator     | Description           | Example                                     |
+| ------------ | --------------------- | ------------------------------------------- |
+| `equals`     | Exact match           | `{ name: { equals: "John" } }`              |
+| `not`        | Not equal             | `{ status: { not: "deleted" } }`            |
+| `gt`         | Greater than          | `{ age: { gt: 18 } }`                       |
+| `gte`        | Greater than or equal | `{ age: { gte: 18 } }`                      |
+| `lt`         | Less than             | `{ age: { lt: 65 } }`                       |
+| `lte`        | Less than or equal    | `{ age: { lte: 65 } }`                      |
+| `contains`   | Contains substring    | `{ name: { contains: "Jo" } }`              |
+| `startsWith` | Starts with           | `{ email: { startsWith: "admin" } }`        |
+| `endsWith`   | Ends with             | `{ email: { endsWith: "@gmail.com" } }`     |
+| `in`         | In array              | `{ status: { in: ["active", "pending"] } }` |
+| `notIn`      | Not in array          | `{ status: { notIn: ["deleted"] } }`        |
 
 ## `count(args)`
 

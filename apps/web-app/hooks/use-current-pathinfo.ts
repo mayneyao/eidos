@@ -26,8 +26,8 @@ export const useCurrentPathInfo = () => {
 
   // Ensure database is not undefined
   if (!database) {
-    console.warn('No database/space ID detected, this may cause SQLite errors');
-    database = "default"; // Provide a default value
+    console.warn("No database/space ID detected, this may cause SQLite errors")
+    database = "default" // Provide a default value
   }
 
   switch (currentNode?.type) {

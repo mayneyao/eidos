@@ -2,8 +2,12 @@ import { useEffect, useState } from "react"
 
 import { useSqlite } from "./use-sqlite"
 import type { IExtension } from "@/packages/core/meta-table/extension"
-import type { EidosDataEventChannelMsg } from "@/lib/const";
-import { DataUpdateSignalType, EidosDataEventChannelMsgType, EidosDataEventChannelName } from "@/lib/const"
+import type { EidosDataEventChannelMsg } from "@/lib/const"
+import {
+  DataUpdateSignalType,
+  EidosDataEventChannelMsgType,
+  EidosDataEventChannelName,
+} from "@/lib/const"
 import { ExtensionTableName } from "@/packages/core/sqlite/const"
 
 export const useMblocksBatch = (ids: string[]) => {
@@ -20,7 +24,7 @@ export const useMblocksBatch = (ids: string[]) => {
     const fetchBlocks = async () => {
       setLoading(true)
       try {
-        const newIds = ids.filter(id => !(id in blocks))
+        const newIds = ids.filter((id) => !(id in blocks))
 
         if (newIds.length === 0) {
           setLoading(false)
@@ -30,12 +34,12 @@ export const useMblocksBatch = (ids: string[]) => {
         const batchResults = await sqlite.extension.findMany({
           where: {
             id: {
-              in: newIds
-            }
-          }
+              in: newIds,
+            },
+          },
         })
 
-        setBlocks(prev => {
+        setBlocks((prev) => {
           const newBlocks = { ...prev }
           batchResults.forEach((block) => {
             newBlocks[block.id] = block as unknown as IExtension
@@ -43,17 +47,14 @@ export const useMblocksBatch = (ids: string[]) => {
           return newBlocks
         })
       } catch (error) {
-        console.error('Failed to fetch blocks:', error)
+        console.error("Failed to fetch blocks:", error)
       } finally {
         setLoading(false)
       }
     }
 
     fetchBlocks()
-
-
-  }, [sqlite, ids.join(',')])
-
+  }, [sqlite, ids.join(",")])
 
   useEffect(() => {
     const bc = new BroadcastChannel(EidosDataEventChannelName)
@@ -67,7 +68,7 @@ export const useMblocksBatch = (ids: string[]) => {
         try {
           switch (updateType) {
             case DataUpdateSignalType.Update:
-              setBlocks(prev => {
+              setBlocks((prev) => {
                 const newBlocks = { ...prev }
                 newBlocks[_new.id] = _new as unknown as IExtension
                 return newBlocks
@@ -75,7 +76,7 @@ export const useMblocksBatch = (ids: string[]) => {
               break
           }
         } catch (error) {
-          console.error('Failed to update blocks:', error)
+          console.error("Failed to update blocks:", error)
         } finally {
           setLoading(false)
         }
@@ -90,16 +91,16 @@ export const useMblocksBatch = (ids: string[]) => {
   }, [])
 
   useEffect(() => {
-    setBlocks(prev => {
+    setBlocks((prev) => {
       const newBlocks: Record<string, IExtension | null> = {}
-      ids.forEach(id => {
+      ids.forEach((id) => {
         if (id in prev) {
           newBlocks[id] = prev[id]
         }
       })
       return newBlocks
     })
-  }, [ids.join(',')])
+  }, [ids.join(",")])
 
   return { blocks, loading }
 }

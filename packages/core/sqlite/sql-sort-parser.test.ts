@@ -1,4 +1,4 @@
-import type { SelectFromStatement } from "pgsql-ast-parser";
+import type { SelectFromStatement } from "pgsql-ast-parser"
 import { parseFirst } from "pgsql-ast-parser"
 
 import { FieldType } from "../fields/const"

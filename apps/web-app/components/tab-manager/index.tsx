@@ -69,12 +69,20 @@ export function TabManager({ children }: { children: React.ReactNode }) {
         }
         case "next-tab":
           {
-            const { tabs: currentTabs, panels: currentPanels, activePanelId: currentPanelId } = useTabStore.getState()
-            const currentPanel = currentPanels.find((p) => p.id === currentPanelId)
+            const {
+              tabs: currentTabs,
+              panels: currentPanels,
+              activePanelId: currentPanelId,
+            } = useTabStore.getState()
+            const currentPanel = currentPanels.find(
+              (p) => p.id === currentPanelId
+            )
             if (!currentPanel) break
 
             const panelTabs = currentPanel.tabIds
-            const currentIndex = panelTabs.indexOf(currentPanel.activeTabId || "")
+            const currentIndex = panelTabs.indexOf(
+              currentPanel.activeTabId || ""
+            )
             const nextIndex = (currentIndex + 1) % panelTabs.length
             if (panelTabs[nextIndex]) {
               setActiveTab(panelTabs[nextIndex])
@@ -83,13 +91,19 @@ export function TabManager({ children }: { children: React.ReactNode }) {
           break
         case "previous-tab":
           {
-            const { panels: currentPanels, activePanelId: currentPanelId } = useTabStore.getState()
-            const currentPanel = currentPanels.find((p) => p.id === currentPanelId)
+            const { panels: currentPanels, activePanelId: currentPanelId } =
+              useTabStore.getState()
+            const currentPanel = currentPanels.find(
+              (p) => p.id === currentPanelId
+            )
             if (!currentPanel) break
 
             const panelTabs = currentPanel.tabIds
-            const currentIndex = panelTabs.indexOf(currentPanel.activeTabId || "")
-            const prevIndex = currentIndex <= 0 ? panelTabs.length - 1 : currentIndex - 1
+            const currentIndex = panelTabs.indexOf(
+              currentPanel.activeTabId || ""
+            )
+            const prevIndex =
+              currentIndex <= 0 ? panelTabs.length - 1 : currentIndex - 1
             if (panelTabs[prevIndex]) {
               setActiveTab(panelTabs[prevIndex])
             }

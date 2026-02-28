@@ -95,8 +95,8 @@ export const FileTreeContextMenu = ({
         isMultiSelection={isMultiSelection}
         selectionCount={selectionCount}
         selectionHasDataview={selectionHasDataview}
-      // onRename={onRename}
-      // onDelete={onDelete}
+        // onRename={onRename}
+        // onDelete={onDelete}
       >
         {children}
       </FileContextMenu>

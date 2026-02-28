@@ -28,10 +28,11 @@ const defaultAIConfig: AIFormValues = {
 }
 
 // Create a function to get default ConfigState
-const getDefaultConfigState = (): ConfigState => ({
-  aiConfig: defaultAIConfig,
-  // Functions are not persisted, so they don't need to be in the default state
-} as ConfigState)
+const getDefaultConfigState = (): ConfigState =>
+  ({
+    aiConfig: defaultAIConfig,
+    // Functions are not persisted, so they don't need to be in the default state
+  }) as ConfigState
 
 // Create a storage instance with backend synchronization
 const aiStorage = createBackendSyncStorage<ConfigState>({
@@ -40,7 +41,10 @@ const aiStorage = createBackendSyncStorage<ConfigState>({
   defaultBackendState: defaultAIConfig,
   getDefaultState: getDefaultConfigState,
   // Build full state from backend state (backend state is AIFormValues, need to wrap in ConfigState)
-  buildStateFromBackend: (backendState: AIFormValues, currentState: ConfigState) => {
+  buildStateFromBackend: (
+    backendState: AIFormValues,
+    currentState: ConfigState
+  ) => {
     return {
       ...currentState,
       aiConfig: backendState,

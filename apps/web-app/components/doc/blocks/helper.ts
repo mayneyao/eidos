@@ -5,22 +5,22 @@ import { $isListItemNode } from "@lexical/list"
 import { $insertNodeToNearestRoot } from "@lexical/utils"
 
 export const $insertDecoratorBlockNode = (node: DecoratorBlockNode) => {
-    const selection = $getSelection()
+  const selection = $getSelection()
 
-    if ($isRangeSelection(selection)) {
-        const selectedNode = getSelectedNode(selection)
-        if ($isListItemNode(selectedNode)) {
-            selectedNode.append(node)
-        } else {
-            selection.insertNodes([node])
-            if (!node.getNextSibling()) {
-                selection.insertNodes([$createParagraphNode()])
-            }
-        }
+  if ($isRangeSelection(selection)) {
+    const selectedNode = getSelectedNode(selection)
+    if ($isListItemNode(selectedNode)) {
+      selectedNode.append(node)
     } else {
-        $insertNodeToNearestRoot(node)
-        if (!node.getNextSibling()) {
-            $insertNodeToNearestRoot($createParagraphNode())
-        }
+      selection.insertNodes([node])
+      if (!node.getNextSibling()) {
+        selection.insertNodes([$createParagraphNode()])
+      }
     }
+  } else {
+    $insertNodeToNearestRoot(node)
+    if (!node.getNextSibling()) {
+      $insertNodeToNearestRoot($createParagraphNode())
+    }
+  }
 }

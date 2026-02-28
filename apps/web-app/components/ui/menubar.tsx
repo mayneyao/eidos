@@ -3,7 +3,11 @@
 import * as React from "react"
 import { Menubar as MenubarPrimitive } from "radix-ui"
 import { cn } from "@/lib/utils"
-import { CheckIcon, ChevronRightIcon, DotFilledIcon } from "@radix-ui/react-icons"
+import {
+  CheckIcon,
+  ChevronRightIcon,
+  DotFilledIcon,
+} from "@radix-ui/react-icons"
 
 function MenubarMenu({
   ...props

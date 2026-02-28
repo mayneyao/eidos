@@ -1,10 +1,6 @@
 import React, { useState } from "react"
 
-import {
-  FileType,
-  SimpleCodeEditor,
-  type FileModel,
-} from "../../src/index"
+import { FileType, SimpleCodeEditor, type FileModel } from "../../src/index"
 import aFileContent from "./test-files/a.ts?raw"
 import bFileContent from "./test-files/b.ts?raw"
 import componentContent from "./test-files/component.tsx?raw"
@@ -133,53 +129,53 @@ function App() {
               </div>
             </>
           ) : ( */}
-            <>
-              <ul className="list-none p-0 m-0 mb-6">
-                {testFiles.map((file) => (
-                  <li
-                    key={file.id}
-                    className="p-2 rounded cursor-pointer mb-1 text-gray-300 hover:bg-gray-700 transition-colors"
-                    onClick={() => setActiveFileId(file.id)}
-                  >
-                    📄 {file.name}
-                  </li>
-                ))}
-              </ul>
+          <>
+            <ul className="list-none p-0 m-0 mb-6">
+              {testFiles.map((file) => (
+                <li
+                  key={file.id}
+                  className="p-2 rounded cursor-pointer mb-1 text-gray-300 hover:bg-gray-700 transition-colors"
+                  onClick={() => setActiveFileId(file.id)}
+                >
+                  📄 {file.name}
+                </li>
+              ))}
+            </ul>
 
-              <div className="bg-gray-900 p-4 rounded border border-gray-700">
-                <h4 className="text-teal-400 font-medium mb-2 m-0">
-                  Test Features:
-                </h4>
-                <ul className="text-sm text-gray-300 m-0 pl-6">
-                  <li className="mb-1">
-                    Syntax highlighting - Keywords, strings, comments should
-                    have different colors
-                  </li>
-                  <li className="mb-1">
-                    Code completion - Typing this.userService. should show
-                    method hints
-                  </li>
-                  <li className="mb-1">
-                    Type checking - Type errors should have red wavy underlines
-                  </li>
-                  <li className="mb-1">
-                    Cross-file references - a.ts referencing b.ts types should
-                    work normally
-                  </li>
-                  <li className="mb-1">
-                    Hover hints - Hovering over variables should show type
-                    information
-                  </li>
-                  <li className="mb-1 text-yellow-400">
-                    ESM imports - Supports libraries like lodash-es, axios,
-                    date-fns, uuid
-                  </li>
-                  <li className="mb-1 text-yellow-400">
-                    Plugin system - ESM import resolver enabled
-                  </li>
-                </ul>
-              </div>
-            </>
+            <div className="bg-gray-900 p-4 rounded border border-gray-700">
+              <h4 className="text-teal-400 font-medium mb-2 m-0">
+                Test Features:
+              </h4>
+              <ul className="text-sm text-gray-300 m-0 pl-6">
+                <li className="mb-1">
+                  Syntax highlighting - Keywords, strings, comments should have
+                  different colors
+                </li>
+                <li className="mb-1">
+                  Code completion - Typing this.userService. should show method
+                  hints
+                </li>
+                <li className="mb-1">
+                  Type checking - Type errors should have red wavy underlines
+                </li>
+                <li className="mb-1">
+                  Cross-file references - a.ts referencing b.ts types should
+                  work normally
+                </li>
+                <li className="mb-1">
+                  Hover hints - Hovering over variables should show type
+                  information
+                </li>
+                <li className="mb-1 text-yellow-400">
+                  ESM imports - Supports libraries like lodash-es, axios,
+                  date-fns, uuid
+                </li>
+                <li className="mb-1 text-yellow-400">
+                  Plugin system - ESM import resolver enabled
+                </li>
+              </ul>
+            </div>
+          </>
           {/* )} */}
         </div>
 

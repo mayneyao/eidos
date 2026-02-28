@@ -10,7 +10,10 @@ import type { DataSpaceWithTable } from "../data-space/table"
 import type { TableManager } from "./table"
 import { getFieldInstance } from "../fields"
 import { workerStore } from "../rpc"
-import { SqlQueryBuilder, type FindManyOptions } from "../sqlite/sql-query-builder"
+import {
+  SqlQueryBuilder,
+  type FindManyOptions,
+} from "../sqlite/sql-query-builder"
 import { EIDOS_RESERVED_FIELDS } from "@/lib/utils"
 
 export class RowsManager {
@@ -26,10 +29,13 @@ export class RowsManager {
   }
 
   static getReadableRows(rows: Record<string, any>[], fields: IField[]) {
-    const fieldMap = fields.reduce((acc, cur) => {
-      acc[cur.table_column_name] = cur
-      return acc
-    }, {} as Record<string, IField>)
+    const fieldMap = fields.reduce(
+      (acc, cur) => {
+        acc[cur.table_column_name] = cur
+        return acc
+      },
+      {} as Record<string, IField>
+    )
     return rows.map((row) => {
       const data: Record<string, any> = {}
       Object.entries(row).forEach(([key, value]) => {
@@ -55,15 +61,21 @@ export class RowsManager {
       table_name: this.table.rawTableName,
     })
 
-    const fieldRawColumnNameFieldMap = uiColumns.reduce((acc, cur) => {
-      acc[cur.table_column_name] = cur
-      return acc
-    }, {} as Record<string, IField>)
+    const fieldRawColumnNameFieldMap = uiColumns.reduce(
+      (acc, cur) => {
+        acc[cur.table_column_name] = cur
+        return acc
+      },
+      {} as Record<string, IField>
+    )
 
-    const fieldNameRawColumnNameMap = uiColumns.reduce((acc, cur) => {
-      acc[cur.name] = cur.table_column_name
-      return acc
-    }, {} as Record<string, string>)
+    const fieldNameRawColumnNameMap = uiColumns.reduce(
+      (acc, cur) => {
+        acc[cur.name] = cur.table_column_name
+        return acc
+      },
+      {} as Record<string, string>
+    )
 
     this.fieldMap = {
       fieldRawColumnNameFieldMap,
@@ -193,7 +205,11 @@ export class RowsManager {
       if (!view) {
         throw new Error("view not found")
       }
-      const query = rewriteQueryWithOffsetAndLimit(view.query, options.offset, options.limit)
+      const query = rewriteQueryWithOffsetAndLimit(
+        view.query,
+        options.offset,
+        options.limit
+      )
       rows = await this.dataSpace.exec2(query)
     } else {
       const { rawData, notExistKeys } = this.transformData(filter || {}, {
@@ -205,11 +221,13 @@ export class RowsManager {
       }
 
       const hasFilter = Object.keys(rawData).length > 0
-      const sql = `SELECT * FROM ${this.table.rawTableName} ${hasFilter ? "WHERE" : ""
-        } ${Object.keys(rawData)
-          .map((key) => `${key} = ?`)
-          .join(" AND ")} ${options?.limit ? `LIMIT ${options.limit}` : ""} ${options?.offset ? `OFFSET ${options.offset}` : ""
-        }`
+      const sql = `SELECT * FROM ${this.table.rawTableName} ${
+        hasFilter ? "WHERE" : ""
+      } ${Object.keys(rawData)
+        .map((key) => `${key} = ?`)
+        .join(" AND ")} ${options?.limit ? `LIMIT ${options.limit}` : ""} ${
+        options?.offset ? `OFFSET ${options.offset}` : ""
+      }`
       const bind = Object.values(rawData)
       rows = await this.dataSpace.exec2(sql, bind)
     }
@@ -293,7 +311,7 @@ export class RowsManager {
   async batchCreate(
     datas: Record<string, any>[],
     options?: {
-      useFieldId?: boolean,
+      useFieldId?: boolean
       returnReadableData?: boolean
     }
   ) {
@@ -301,12 +319,12 @@ export class RowsManager {
 
     const res = this.batchSyncCreate(datas, fieldMap, options)
     if (options?.returnReadableData) {
-      const { fieldRawColumnNameFieldMap } = await this.getFieldMap();
-      return res.map(item => {
+      const { fieldRawColumnNameFieldMap } = await this.getFieldMap()
+      return res.map((item) => {
         return RowsManager.rawData2Json(item, fieldRawColumnNameFieldMap)
       })
     }
-    return res;
+    return res
   }
   async create(
     data: Record<string, any>,
@@ -477,7 +495,7 @@ export class RowsManager {
     // Execute main query
     const data = await this.dataSpace.exec2(sql, params)
 
-    return data;
+    return data
     // Transform raw data to readable format
     const { fieldRawColumnNameFieldMap } = await this.getFieldMap()
     const transformedData = data.map((item: any) =>
@@ -493,7 +511,10 @@ export class RowsManager {
    * @returns Count of matching rows
    */
   public async count(
-    options: Omit<FindManyOptions<Record<string, any>>, 'select' | 'orderBy' | 'skip' | 'take'> = {}
+    options: Omit<
+      FindManyOptions<Record<string, any>>,
+      "select" | "orderBy" | "skip" | "take"
+    > = {}
   ): Promise<number> {
     const { countSql, countParams } = SqlQueryBuilder.buildFindMany(
       this.table.rawTableName,

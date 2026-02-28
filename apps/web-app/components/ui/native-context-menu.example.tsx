@@ -5,7 +5,7 @@
  * It has the same API as shadcn's context-menu but uses Electron's native menu system.
  */
 
-import React, { useState } from 'react'
+import React, { useState } from "react"
 import {
   NativeContextMenu,
   NativeContextMenuTrigger,
@@ -13,7 +13,7 @@ import {
   NativeContextMenuItem,
   NativeContextMenuCheckboxItem,
   NativeContextMenuSeparator,
-} from './native-context-menu'
+} from "./native-context-menu"
 
 // Basic usage
 function BasicExample() {
@@ -24,11 +24,11 @@ function BasicExample() {
       </NativeContextMenuTrigger>
 
       <NativeContextMenuContent>
-        <NativeContextMenuItem onSelect={() => console.log('Item 1 clicked')}>
+        <NativeContextMenuItem onSelect={() => console.log("Item 1 clicked")}>
           Menu Item 1
         </NativeContextMenuItem>
 
-        <NativeContextMenuItem onSelect={() => console.log('Item 2 clicked')}>
+        <NativeContextMenuItem onSelect={() => console.log("Item 2 clicked")}>
           Menu Item 2
         </NativeContextMenuItem>
 
@@ -60,7 +60,7 @@ function CheckboxExample() {
           Toggle Option
         </NativeContextMenuCheckboxItem>
 
-        <NativeContextMenuItem onSelect={() => console.log('Other action')}>
+        <NativeContextMenuItem onSelect={() => console.log("Other action")}>
           Other Action
         </NativeContextMenuItem>
       </NativeContextMenuContent>
@@ -110,11 +110,11 @@ function CompleteExample() {
       </NativeContextMenuTrigger>
 
       <NativeContextMenuContent>
-        <NativeContextMenuItem onSelect={() => console.log('New File')}>
+        <NativeContextMenuItem onSelect={() => console.log("New File")}>
           New File
         </NativeContextMenuItem>
 
-        <NativeContextMenuItem onSelect={() => console.log('Open File')}>
+        <NativeContextMenuItem onSelect={() => console.log("Open File")}>
           Open File
         </NativeContextMenuItem>
 
@@ -136,7 +136,7 @@ function CompleteExample() {
 
         <NativeContextMenuSeparator />
 
-        <NativeContextMenuItem onSelect={() => console.log('Settings')}>
+        <NativeContextMenuItem onSelect={() => console.log("Settings")}>
           Settings
         </NativeContextMenuItem>
 

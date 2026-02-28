@@ -14,19 +14,19 @@ interface DataViewState {
 export const useDataViewStore = create<DataViewState>()((set, get) => ({
   dataViewIds: [],
   setDataViewIds: (ids) => set({ dataViewIds: ids }),
-  
+
   addDataViewId: (id) => {
     const { dataViewIds } = get()
     if (!dataViewIds.includes(id)) {
       set({ dataViewIds: [...dataViewIds, id] })
     }
   },
-  
+
   removeDataViewId: (id) => {
     const { dataViewIds } = get()
-    set({ dataViewIds: dataViewIds.filter(viewId => viewId !== id) })
+    set({ dataViewIds: dataViewIds.filter((viewId) => viewId !== id) })
   },
-  
+
   reload: async () => {
     // This will be set by the hook
     const { reload } = get()
@@ -34,6 +34,6 @@ export const useDataViewStore = create<DataViewState>()((set, get) => ({
       await reload()
     }
   },
-  
+
   setReloadFunction: (fn) => set({ reload: fn }),
 }))

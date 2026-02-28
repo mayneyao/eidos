@@ -15,13 +15,13 @@ npm install @eidos.space/react
 Access the Eidos SDK to interact with spaces, tables, files, and more.
 
 ```tsx
-import { useEidos } from '@eidos.space/react'
+import { useEidos } from "@eidos.space/react"
 
 export function MyExtension() {
   const eidos = useEidos()
-  
+
   const handleNotify = () => {
-    eidos.currentSpace.notify({ title: 'Hello', description: 'From Extension' })
+    eidos.currentSpace.notify({ title: "Hello", description: "From Extension" })
   }
 
   return <button onClick={handleNotify}>Click Me</button>
@@ -33,11 +33,14 @@ export function MyExtension() {
 Retrieves the current extension's execution context (e.g., `nodeId`, `tableId`, `filePath`).
 
 ```tsx
-import { useExtensionContext, type FileHandlerContext } from '@eidos.space/react'
+import {
+  useExtensionContext,
+  type FileHandlerContext,
+} from "@eidos.space/react"
 
 export function MyFileHandler() {
   const ctx = useExtensionContext<FileHandlerContext>()
-  
+
   return <div>Editing: {ctx.filePath}</div>
 }
 ```
@@ -51,7 +54,7 @@ If you are implementing an Eidos-host environment (like a Web App) that renders 
 Built-in environments use a global Zustand store to provide the SDK to all extensions.
 
 ```tsx
-import { useEidosStore, createEidos } from '@eidos.space/react'
+import { useEidosStore, createEidos } from "@eidos.space/react"
 
 // Initialize once at app startup
 const eidos = createEidos(dataSpaceProxy)
@@ -63,11 +66,11 @@ useEidosStore.getState().setEidos(eidos)
 For built-in extensions, use `ExtensionContextProvider` to provide the specific context (node ID, file path, etc.) for that instance.
 
 ```tsx
-import { ExtensionContextProvider } from '@eidos.space/react'
+import { ExtensionContextProvider } from "@eidos.space/react"
 
 function BuiltInRunner({ slug, context }) {
   const Component = getExtensionComponent(slug)
-  
+
   return (
     <ExtensionContextProvider context={context}>
       <Component />

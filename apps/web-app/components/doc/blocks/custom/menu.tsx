@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { LexicalEditor, NodeKey } from "lexical";
+import type { LexicalEditor, NodeKey } from "lexical"
 import { $getNodeByKey } from "lexical"
 import { ArrowUpRight, Settings, Trash2 } from "lucide-react"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"

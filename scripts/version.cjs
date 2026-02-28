@@ -53,11 +53,11 @@ fs.writeFileSync(tsFilePath, tsFileContent)
 const packageJsonPaths = [
   packageJsonPath, // root package.json
   "apps/desktop/package.json",
-  "apps/web-app/package.json"
+  "apps/web-app/package.json",
 ]
 
 // Update each package.json file
-packageJsonPaths.forEach(pkgPath => {
+packageJsonPaths.forEach((pkgPath) => {
   if (fs.existsSync(pkgPath)) {
     const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"))
     pkg.version = newVersion
@@ -68,7 +68,7 @@ packageJsonPaths.forEach(pkgPath => {
 
 // Step 5: Add all changed files to git
 execSync(`git add ${tsFilePath}`)
-packageJsonPaths.forEach(pkgPath => {
+packageJsonPaths.forEach((pkgPath) => {
   if (fs.existsSync(pkgPath)) {
     execSync(`git add ${pkgPath}`)
   }

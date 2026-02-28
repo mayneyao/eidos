@@ -1,4 +1,3 @@
-
 // global singleton
 let worker: Worker
 

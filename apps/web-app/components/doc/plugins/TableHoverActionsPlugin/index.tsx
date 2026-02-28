@@ -10,9 +10,7 @@ import * as React from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable"
-import type {
-  TableCellNode,
-  TableRowNode} from "@lexical/table";
+import type { TableCellNode, TableRowNode } from "@lexical/table"
 import {
   $getTableAndElementByKey,
   $getTableColumnIndexFromTableCellNode,
@@ -27,7 +25,7 @@ import {
 import { $findMatchingParent, mergeRegister } from "@lexical/utils"
 // import { useDebounce } from "../CodeActionMenuPlugin/utils"
 import { useDebounceFn } from "ahooks"
-import type { NodeKey } from "lexical";
+import type { NodeKey } from "lexical"
 import { $getNearestNodeFromDOMNode } from "lexical"
 import { createPortal } from "react-dom"
 

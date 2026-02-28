@@ -1,4 +1,3 @@
-
 import { BaseField } from "./base"
 import { CompareOperator, FieldType, GridCellKind } from "./const"
 import type { UserFieldContext } from "./created-by"

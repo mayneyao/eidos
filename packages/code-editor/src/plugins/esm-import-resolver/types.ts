@@ -3,7 +3,7 @@
  * Plugin-specific type definitions
  */
 
-import type { BasePluginProps } from '../base-types'
+import type { BasePluginProps } from "../base-types"
 
 /**
  * Import suggestion interface for ESM resolver

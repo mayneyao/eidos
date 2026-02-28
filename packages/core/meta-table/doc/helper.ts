@@ -2,7 +2,7 @@
  * Helper functions for document operations
  */
 
-import { FieldType } from "../../fields/const";
+import { FieldType } from "../../fields/const"
 
 /**
  * Reserved property names that cannot be used as custom properties
@@ -24,18 +24,22 @@ export const RESERVED_PROPERTIES = [
  * @param allowAdvanced Whether to allow advanced FTS syntax
  * @returns Escaped query safe for FTS
  */
-export function escapeFTSQuery(query: string, allowAdvanced: boolean = false): string {
-  if (!query || typeof query !== 'string') {
-    return '';
+export function escapeFTSQuery(
+  query: string,
+  allowAdvanced: boolean = false
+): string {
+  if (!query || typeof query !== "string") {
+    return ""
   }
 
-  const trimmedQuery = query.trim();
+  const trimmedQuery = query.trim()
 
   // Check if query looks like it contains intentional FTS syntax
-  const looksAdvanced = /^["'].*["']$/.test(trimmedQuery) || // Quoted phrases
+  const looksAdvanced =
+    /^["'].*["']$/.test(trimmedQuery) || // Quoted phrases
     /\b(AND|OR|NOT|NEAR)\b/i.test(trimmedQuery) || // Boolean operators
     /\*/.test(trimmedQuery) || // Wildcards
-    /^\+/.test(trimmedQuery); // Prefix search
+    /^\+/.test(trimmedQuery) // Prefix search
 
   // If advanced syntax is allowed and query looks intentional
   if (allowAdvanced && looksAdvanced) {
@@ -43,21 +47,22 @@ export function escapeFTSQuery(query: string, allowAdvanced: boolean = false): s
     return trimmedQuery
       .replace(/"/g, (match, offset, string) => {
         // Count quotes before this position
-        const beforeQuotes = (string.substring(0, offset).match(/"/g) || []).length;
+        const beforeQuotes = (string.substring(0, offset).match(/"/g) || [])
+          .length
         // If odd number of quotes before, this might be unmatched
-        return beforeQuotes % 2 === 0 ? '"' : '';
+        return beforeQuotes % 2 === 0 ? '"' : ""
       })
-      .replace(/\s+/g, ' ')
-      .trim();
+      .replace(/\s+/g, " ")
+      .trim()
   }
 
   // For regular user input, wrap in quotes for exact phrase matching
   // This allows searching for special characters like brackets safely
   // Escape any existing quotes in the content first
-  const escaped = trimmedQuery.replace(/"/g, '""');
+  const escaped = trimmedQuery.replace(/"/g, '""')
 
   // Wrap the entire query in quotes for exact phrase matching
-  return `"${escaped}"`;
+  return `"${escaped}"`
 }
 
 /**
@@ -77,20 +82,22 @@ export function parseFrontmatter(markdown: string): Record<string, any> {
   const properties: Record<string, any> = {}
 
   // Simple YAML parsing (only supports key: value format)
-  const lines = frontmatterStr.split('\n')
+  const lines = frontmatterStr.split("\n")
   for (const line of lines) {
     const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) continue
+    if (!trimmed || trimmed.startsWith("#")) continue
 
-    const colonIndex = trimmed.indexOf(':')
+    const colonIndex = trimmed.indexOf(":")
     if (colonIndex === -1) continue
 
     const key = trimmed.substring(0, colonIndex).trim()
     let value = trimmed.substring(colonIndex + 1).trim()
 
     // Remove quotes
-    if ((value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))) {
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
       value = value.slice(1, -1)
     }
 
@@ -112,7 +119,7 @@ export function isValidPropertyName(propertyName: string): boolean {
   }
 
   // Check if it starts with _
-  if (propertyName.startsWith('_')) {
+  if (propertyName.startsWith("_")) {
     return false
   }
 
@@ -126,7 +133,9 @@ export function isValidPropertyName(propertyName: string): boolean {
  * @param properties properties object
  * @returns filtered valid properties object
  */
-export function filterValidProperties(properties: Record<string, any>): Record<string, any> {
+export function filterValidProperties(
+  properties: Record<string, any>
+): Record<string, any> {
   const validProperties: Record<string, any> = {}
 
   for (const [key, value] of Object.entries(properties)) {

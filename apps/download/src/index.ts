@@ -9,110 +9,121 @@
  */
 
 export interface Env {
-	// Example binding to KV. Learn more at https://developers.cloudflare.com/workers/runtime-apis/kv/
-	// MY_KV_NAMESPACE: KVNamespace;
-	//
-	// Example binding to Durable Object. Learn more at https://developers.cloudflare.com/workers/runtime-apis/durable-objects/
-	// MY_DURABLE_OBJECT: DurableObjectNamespace;
-	//
-	// Example binding to R2. Learn more at https://developers.cloudflare.com/workers/runtime-apis/r2/
-	// MY_BUCKET: R2Bucket;
-	//
-	// Example binding to a Service. Learn more at https://developers.cloudflare.com/workers/runtime-apis/service-bindings/
-	// MY_SERVICE: Fetcher;
+  // Example binding to KV. Learn more at https://developers.cloudflare.com/workers/runtime-apis/kv/
+  // MY_KV_NAMESPACE: KVNamespace;
+  //
+  // Example binding to Durable Object. Learn more at https://developers.cloudflare.com/workers/runtime-apis/durable-objects/
+  // MY_DURABLE_OBJECT: DurableObjectNamespace;
+  //
+  // Example binding to R2. Learn more at https://developers.cloudflare.com/workers/runtime-apis/r2/
+  // MY_BUCKET: R2Bucket;
+  //
+  // Example binding to a Service. Learn more at https://developers.cloudflare.com/workers/runtime-apis/service-bindings/
+  // MY_SERVICE: Fetcher;
 
-	// GitHub personal access token for API requests
-	GITHUB_TOKEN: SecretsStoreSecret;
+  // GitHub personal access token for API requests
+  GITHUB_TOKEN: SecretsStoreSecret
 }
 
 export default {
-	async fetch(
-		request: Request,
-		env: Env,
-		ctx: ExecutionContext
-	): Promise<Response> {
-		const url = new URL(request.url);
-		const platform = url.pathname.split('/').pop()?.toLowerCase();
-		const arch = url.searchParams.get('arch')?.toLowerCase();
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext
+  ): Promise<Response> {
+    const url = new URL(request.url)
+    const platform = url.pathname.split("/").pop()?.toLowerCase()
+    const arch = url.searchParams.get("arch")?.toLowerCase()
 
-		if (platform !== 'mac' && platform !== 'win' && platform !== 'linux') {
-			return new Response('Invalid platform. Use /mac or /win or /linux', { status: 400 });
-		}
+    if (platform !== "mac" && platform !== "win" && platform !== "linux") {
+      return new Response("Invalid platform. Use /mac or /win or /linux", {
+        status: 400,
+      })
+    }
 
-		const baseUrl = 'https://api.github.com/repos'
+    const baseUrl = "https://api.github.com/repos"
 
-		const owner = 'mayneyao'
-		const repo = 'eidos'
+    const owner = "mayneyao"
+    const repo = "eidos"
 
-		const apiUrl = `${baseUrl}/${owner}/${repo}/releases`
+    const apiUrl = `${baseUrl}/${owner}/${repo}/releases`
 
-		try {
+    try {
+      const headers: Record<string, string> = {
+        "User-Agent": "Cloudflare Worker GitHub Release Checker",
+        Accept: "application/vnd.github.v3+json",
+      }
 
-			const headers: Record<string, string> = {
-				'User-Agent': 'Cloudflare Worker GitHub Release Checker',
-				'Accept': 'application/vnd.github.v3+json'
-			};
+      const apiKey = await env.GITHUB_TOKEN.get()
+      // Add GitHub token if available
+      if (apiKey) {
+        headers["Authorization"] = `token ${apiKey}`
+      }
 
-			const apiKey = await env.GITHUB_TOKEN.get();
-			// Add GitHub token if available
-			if (apiKey) {
-				headers['Authorization'] = `token ${apiKey}`;
-			}
+      const response = await fetch(apiUrl, { headers })
 
-			const response = await fetch(apiUrl, { headers });
+      if (!response.ok) {
+        if (response.status === 403) {
+          const rateLimitRemaining = response.headers.get(
+            "x-ratelimit-remaining"
+          )
+          const rateLimitReset = response.headers.get("x-ratelimit-reset")
 
-			if (!response.ok) {
-				if (response.status === 403) {
-					const rateLimitRemaining = response.headers.get('x-ratelimit-remaining');
-					const rateLimitReset = response.headers.get('x-ratelimit-reset');
+          if (rateLimitRemaining === "0") {
+            const resetTime = rateLimitReset
+              ? new Date(parseInt(rateLimitReset) * 1000)
+              : "unknown"
+            return new Response(
+              `Rate limit exceeded. Resets at: ${resetTime}. Consider adding a GitHub token for higher limits.`,
+              { status: 429 }
+            )
+          }
 
-					if (rateLimitRemaining === '0') {
-						const resetTime = rateLimitReset ? new Date(parseInt(rateLimitReset) * 1000) : 'unknown';
-						return new Response(
-							`Rate limit exceeded. Resets at: ${resetTime}. Consider adding a GitHub token for higher limits.`,
-							{ status: 429 }
-						);
-					}
+          return new Response(
+            `GitHub API access forbidden (403). This might be due to rate limiting or IP restrictions. Consider adding a GitHub token.`,
+            { status: 403 }
+          )
+        }
 
-					return new Response(
-						`GitHub API access forbidden (403). This might be due to rate limiting or IP restrictions. Consider adding a GitHub token.`,
-						{ status: 403 }
-					);
-				}
+        throw new Error(
+          `GitHub API responded with ${response.status} ${response.statusText}`
+        )
+      }
 
-				throw new Error(`GitHub API responded with ${response.status} ${response.statusText}`)
-			}
+      const releases = (await response.json()) as Array<{
+        assets: Array<any>
+        prerelease: boolean
+      }>
+      // Filter out pre-release versions
+      const stableReleases = releases.filter((release) => !release.prerelease)
+      const latestRelease = stableReleases[0]
+      if (!latestRelease) {
+        return new Response("No stable release found", { status: 404 })
+      }
+      const extMap = {
+        mac: ".dmg",
+        win: ".exe",
+        linux: ".AppImage".toLowerCase(),
+      }
 
-			const releases = await response.json() as Array<{ assets: Array<any>, prerelease: boolean }>
-			// Filter out pre-release versions
-			const stableReleases = releases.filter(release => !release.prerelease)
-			const latestRelease = stableReleases[0]
-			if (!latestRelease) {
-				return new Response('No stable release found', { status: 404 })
-			}
-			const extMap = {
-				mac: '.dmg',
-				win: '.exe',
-				linux: '.AppImage'.toLowerCase()
-			}
+      const asset = latestRelease.assets.find((asset: any) => {
+        const name = asset.name.toLowerCase()
+        const ext = extMap[platform as keyof typeof extMap]
+        if (arch) {
+          return name.includes(arch) && name.endsWith(ext)
+        }
+        return name.endsWith(ext)
+      })
 
-			const asset = latestRelease.assets.find((asset: any) => {
-				const name = asset.name.toLowerCase();
-				const ext = extMap[platform as keyof typeof extMap];
-				if (arch) {
-					return name.includes(arch) && name.endsWith(ext);
-				}
-				return name.endsWith(ext);
-			});
+      if (!asset) {
+        return new Response(`No ${platform} release found`, { status: 404 })
+      }
 
-			if (!asset) {
-				return new Response(`No ${platform} release found`, { status: 404 });
-			}
-
-			return Response.redirect(asset.browser_download_url, 302);
-		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-			return new Response(`Error: ${errorMessage}`, { status: 500 })
-		}
-	},
-};
+      return Response.redirect(asset.browser_download_url, 302)
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error"
+      return new Response(`Error: ${errorMessage}`, { status: 500 })
+    }
+  },
+}

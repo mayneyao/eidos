@@ -215,7 +215,8 @@ export function GlobalGeneralSettings() {
                   {updateStatus === "progress" && updateProgress && (
                     <span className="text-blue-600">
                       {t("settings.general.downloading")} (
-                      {Math.round(updateProgress.percent || 0)}%)
+                      {Math.round(updateProgress.percent || 0)}
+                      %)
                     </span>
                   )}
                   {updateStatus === "idle" && (

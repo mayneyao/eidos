@@ -1,4 +1,9 @@
-import type { IDirectoryEntry, IExternalFileSystem, IWatchEvent, IWatchOptions } from "../types/IExternalFileSystem"
+import type {
+  IDirectoryEntry,
+  IExternalFileSystem,
+  IWatchEvent,
+  IWatchOptions,
+} from "../types/IExternalFileSystem"
 import type { ITreeNode } from "../types/ITreeNode"
 import type { IExtension } from "../types/IExtension"
 import type { BaseServerDatabase } from "./interface"
@@ -8,12 +13,15 @@ import type { BaseServerDatabase } from "./interface"
  * Key: watched path (e.g., "~/.eidos/__NODES__/")
  * Value: array of event queues for different watchers
  */
-const watchEventQueues = new Map<string, Array<{
-  queue: IWatchEvent[]
-  resolve: ((event: IWatchEvent) => void) | null
-  reject: ((error: Error) => void) | null
-  signal?: AbortSignal
-}>>()
+const watchEventQueues = new Map<
+  string,
+  Array<{
+    queue: IWatchEvent[]
+    resolve: ((event: IWatchEvent) => void) | null
+    reject: ((error: Error) => void) | null
+    signal?: AbortSignal
+  }>
+>()
 
 /**
  * Push a watch event to all watchers for a given path
@@ -23,7 +31,7 @@ function pushWatchEvent(path: string, event: IWatchEvent) {
   if (!watchers || watchers.length === 0) return
 
   // Push event to all watchers
-  watchers.forEach(watcher => {
+  watchers.forEach((watcher) => {
     if (watcher.resolve) {
       watcher.resolve(event)
       watcher.resolve = null
@@ -37,7 +45,7 @@ function pushWatchEvent(path: string, event: IWatchEvent) {
 /**
  * Virtual File System Adapter
  * Wraps an IExternalFileSystem to add support for virtual paths that map to database tables
- * 
+ *
  * Virtual paths:
  * - ~/.eidos/__NODES__/ → eidos__tree table
  * - ~/.eidos/__EXTENSIONS__/ → eidos__extensions table
@@ -67,21 +75,21 @@ export class VirtualFsAdapter implements IExternalFileSystem {
             // For UDFs, we cannot use async operations, so we'll use the nodeId directly
             // The full path building will be handled by the watch consumer if needed
             const event: IWatchEvent = {
-              eventType: eventType as 'rename' | 'change',
-              filename: nodeId || ''
+              eventType: eventType as "rename" | "change",
+              filename: nodeId || "",
             }
             pushWatchEvent(path, event)
           } catch (error) {
-            console.error('Error in virtual fs watch event UDF:', error)
+            console.error("Error in virtual fs watch event UDF:", error)
             // Fallback to just the node ID
             const event: IWatchEvent = {
-              eventType: eventType as 'rename' | 'change',
-              filename: nodeId || ''
+              eventType: eventType as "rename" | "change",
+              filename: nodeId || "",
             }
             pushWatchEvent(path, event)
           }
           return null
-        }
+        },
       })
 
       // Create triggers for eidos__tree table
@@ -185,7 +193,7 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
       this.triggersInitialized = true
     } catch (error) {
-      console.error('Failed to initialize watch triggers:', error)
+      console.error("Failed to initialize watch triggers:", error)
       // Don't throw, just log - watch will still work for non-virtual paths
     }
   }
@@ -194,14 +202,19 @@ export class VirtualFsAdapter implements IExternalFileSystem {
    * Check if a path is a virtual path
    */
   isVirtualPath(path: string): boolean {
-    return path.startsWith("~/.eidos/__NODES__") || path.startsWith("~/.eidos/__EXTENSIONS__")
+    return (
+      path.startsWith("~/.eidos/__NODES__") ||
+      path.startsWith("~/.eidos/__EXTENSIONS__")
+    )
   }
 
   /**
    * Parse a virtual path to extract the type and subpath
    * Returns null if not a virtual path
    */
-  parseVirtualPath(path: string): { type: "nodes" | "extensions"; subPath: string } | null {
+  parseVirtualPath(
+    path: string
+  ): { type: "nodes" | "extensions"; subPath: string } | null {
     const nodesMatch = path.match(/^~\/\.eidos\/__NODES__(\/.*)?$/)
     if (nodesMatch) {
       return {
@@ -235,7 +248,11 @@ export class VirtualFsAdapter implements IExternalFileSystem {
    * Read a virtual directory based on the virtual path
    * @param viewPrefixesAsDirectories - For extensions: treat slug prefixes as folders (e.g., "a/b/c" -> a/b/c.ts)
    */
-  async readVirtualDir(path: string, recursive = false, viewPrefixesAsDirectories = true): Promise<IDirectoryEntry[]> {
+  async readVirtualDir(
+    path: string,
+    recursive = false,
+    viewPrefixesAsDirectories = true
+  ): Promise<IDirectoryEntry[]> {
     const parsed = this.parseVirtualPath(path)
     if (!parsed) return []
 
@@ -243,7 +260,11 @@ export class VirtualFsAdapter implements IExternalFileSystem {
       case "nodes":
         return this.readNodesDir(parsed.subPath, recursive)
       case "extensions":
-        return this.readExtensionsDir(parsed.subPath, recursive, viewPrefixesAsDirectories)
+        return this.readExtensionsDir(
+          parsed.subPath,
+          recursive,
+          viewPrefixesAsDirectories
+        )
       default:
         return []
     }
@@ -252,7 +273,10 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   /**
    * Read nodes from eidos__tree table
    */
-  private async readNodesDir(subPath: string, recursive = false): Promise<IDirectoryEntry[]> {
+  private async readNodesDir(
+    subPath: string,
+    recursive = false
+  ): Promise<IDirectoryEntry[]> {
     const parentId = this.getNodeIdFromPath(subPath)
 
     if (recursive) {
@@ -268,7 +292,9 @@ export class VirtualFsAdapter implements IExternalFileSystem {
    * Read direct children (non-recursive)
    * namePath is built directly in SQL using a subquery for each node
    */
-  private async readNodesDirect(parentId: string | null): Promise<IDirectoryEntry[]> {
+  private async readNodesDirect(
+    parentId: string | null
+  ): Promise<IDirectoryEntry[]> {
     // Query the tree table with namePath built directly in SQL
     let query: string
     let bind: any[] = []
@@ -318,7 +344,9 @@ export class VirtualFsAdapter implements IExternalFileSystem {
       `
     }
 
-    const nodes = await this.db.selectObjects(query, bind) as Array<ITreeNode & { name_path: string }>
+    const nodes = (await this.db.selectObjects(query, bind)) as Array<
+      ITreeNode & { name_path: string }
+    >
 
     // Batch build ID paths to minimize DB roundtrips
     const idPathMap = await this.buildIdPathMap(nodes.map((n) => n.id))
@@ -334,7 +362,9 @@ export class VirtualFsAdapter implements IExternalFileSystem {
    * Read all descendants recursively
    * namePath is built directly in SQL using a subquery for each node
    */
-  private async readNodesRecursive(parentId: string | null): Promise<IDirectoryEntry[]> {
+  private async readNodesRecursive(
+    parentId: string | null
+  ): Promise<IDirectoryEntry[]> {
     let query: string
     let bind: any[] = []
 
@@ -421,7 +451,9 @@ export class VirtualFsAdapter implements IExternalFileSystem {
       `
     }
 
-    const nodes = await this.db.selectObjects(query, bind) as Array<ITreeNode & { name_path: string }>
+    const nodes = (await this.db.selectObjects(query, bind)) as Array<
+      ITreeNode & { name_path: string }
+    >
 
     // Batch build ID paths to minimize DB roundtrips
     const idPathMap = await this.buildIdPathMap(nodes.map((n) => n.id))
@@ -441,9 +473,13 @@ export class VirtualFsAdapter implements IExternalFileSystem {
    * - viewPrefixesAsDirectories=false: Flat display with full slug as filename
    *   e.g., "ejected/journals/index.tsx" will be shown as "ejected/journals/index.tsx"
    */
-  private async readExtensionsDir(subPath: string, recursive = false, viewPrefixesAsDirectories = true): Promise<IDirectoryEntry[]> {
+  private async readExtensionsDir(
+    subPath: string,
+    recursive = false,
+    viewPrefixesAsDirectories = true
+  ): Promise<IDirectoryEntry[]> {
     const query = `SELECT * FROM eidos__extensions ORDER BY slug ASC`
-    const extensions = await this.db.selectObjects(query) as IExtension[]
+    const extensions = (await this.db.selectObjects(query)) as IExtension[]
 
     // Normalize subPath (remove leading slash, ensure trailing slash for prefix matching)
     const normalizedSubPath = subPath.replace(/^\//, "")
@@ -458,12 +494,16 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
     // Flat mode: return all matching extensions as flat list
     if (!viewPrefixesAsDirectories) {
-      return relevantExtensions.map((ext) => this.extensionToEntry(ext, "", false))
+      return relevantExtensions.map((ext) =>
+        this.extensionToEntry(ext, "", false)
+      )
     }
 
     // Recursive mode in hierarchical view: return all matching extensions
     if (recursive) {
-      return relevantExtensions.map((ext) => this.extensionToEntry(ext, normalizedSubPath, true))
+      return relevantExtensions.map((ext) =>
+        this.extensionToEntry(ext, normalizedSubPath, true)
+      )
     }
 
     // Build hierarchical view
@@ -474,9 +514,8 @@ export class VirtualFsAdapter implements IExternalFileSystem {
       if (!ext.slug) continue
 
       // Get the remaining path after current prefix
-      const remainingPath = currentPrefix === "" 
-        ? ext.slug 
-        : ext.slug.slice(currentPrefix.length)
+      const remainingPath =
+        currentPrefix === "" ? ext.slug : ext.slug.slice(currentPrefix.length)
 
       // Check if there's a nested folder
       const slashIndex = remainingPath.indexOf("/")
@@ -491,7 +530,9 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
         if (!seenPrefixes.has(fullFolderPath)) {
           seenPrefixes.add(fullFolderPath)
-          entries.push(this.createVirtualFolderEntry(folderName, fullFolderPath))
+          entries.push(
+            this.createVirtualFolderEntry(folderName, fullFolderPath)
+          )
         }
       }
     }
@@ -502,12 +543,16 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   /**
    * Create a virtual folder entry for extension slug prefixes
    */
-  private createVirtualFolderEntry(folderName: string, fullPath: string): IDirectoryEntry {
+  private createVirtualFolderEntry(
+    folderName: string,
+    fullPath: string
+  ): IDirectoryEntry {
     const parentParts = fullPath.split("/").slice(0, -1)
-    const parentPath = parentParts.length > 0 
-      ? `~/.eidos/__EXTENSIONS__/${parentParts.join("/")}` 
-      : "~/.eidos/__EXTENSIONS__"
-    
+    const parentPath =
+      parentParts.length > 0
+        ? `~/.eidos/__EXTENSIONS__/${parentParts.join("/")}`
+        : "~/.eidos/__EXTENSIONS__"
+
     return {
       name: folderName,
       path: `~/.eidos/__EXTENSIONS__/${fullPath}`,
@@ -535,7 +580,8 @@ export class VirtualFsAdapter implements IExternalFileSystem {
     }
 
     const resolvedIdPath = idPath || `~/.eidos/__NODES__/${node.id}`
-    const resolvedParentPath = parentPath || this.getParentPathFromIdPath(resolvedIdPath)
+    const resolvedParentPath =
+      parentPath || this.getParentPathFromIdPath(resolvedIdPath)
 
     return {
       name: node.name,
@@ -601,7 +647,7 @@ export class VirtualFsAdapter implements IExternalFileSystem {
    * Handles the case where the node may have been deleted (returns nodeId directly)
    */
   private async buildIdPathForWatch(nodeId: string): Promise<string> {
-    if (!nodeId) return ''
+    if (!nodeId) return ""
 
     // Use retry logic to handle database busy errors
     // This can happen when watch events fire during a delete transaction
@@ -628,7 +674,11 @@ export class VirtualFsAdapter implements IExternalFileSystem {
           SELECT id FROM ancestor_path ORDER BY level DESC
         `
 
-        const ancestors = await this.db.selectObjects(ancestorsQuery, [nodeId]) as Array<{ id: string }>
+        const ancestors = (await this.db.selectObjects(ancestorsQuery, [
+          nodeId,
+        ])) as Array<{
+          id: string
+        }>
 
         // If no ancestors found, the node may have been deleted or doesn't exist
         // Return the nodeId directly as a fallback
@@ -637,9 +687,9 @@ export class VirtualFsAdapter implements IExternalFileSystem {
         }
 
         // Build the ID path from root to current node (ancestors are ordered from root to leaf)
-        const pathParts = ancestors.map(ancestor => ancestor.id)
+        const pathParts = ancestors.map((ancestor) => ancestor.id)
 
-        return pathParts.join('/')
+        return pathParts.join("/")
       } catch (error) {
         // If query fails (e.g., node was deleted), return nodeId as fallback
         // This prevents watch events from breaking when nodes are deleted
@@ -647,7 +697,10 @@ export class VirtualFsAdapter implements IExternalFileSystem {
           throw error // Let retry logic handle it
         }
         // For other errors, return nodeId as fallback
-        console.warn(`Failed to build path for node ${nodeId}, using nodeId directly:`, error)
+        console.warn(
+          `Failed to build path for node ${nodeId}, using nodeId directly:`,
+          error
+        )
         return nodeId
       }
     })
@@ -682,7 +735,9 @@ export class VirtualFsAdapter implements IExternalFileSystem {
    * Batch build ID-based paths for multiple node IDs in one query.
    * Returns map of nodeId -> full ID path with virtual root prefix.
    */
-  private async buildIdPathMap(nodeIds: string[]): Promise<Map<string, string>> {
+  private async buildIdPathMap(
+    nodeIds: string[]
+  ): Promise<Map<string, string>> {
     const map = new Map<string, string>()
     if (nodeIds.length === 0) return map
 
@@ -715,10 +770,15 @@ export class VirtualFsAdapter implements IExternalFileSystem {
       GROUP BY root
     `
 
-    const rows = await this.db.selectObjects(sql, uniqueIds) as Array<{ node_id: string; id_chain: string | null }>
+    const rows = (await this.db.selectObjects(sql, uniqueIds)) as Array<{
+      node_id: string
+      id_chain: string | null
+    }>
     for (const row of rows) {
       const idChain = row.id_chain || ""
-      const fullPath = idChain ? `~/.eidos/__NODES__/${idChain}` : "~/.eidos/__NODES__"
+      const fullPath = idChain
+        ? `~/.eidos/__NODES__/${idChain}`
+        : "~/.eidos/__NODES__"
       map.set(row.node_id, fullPath)
     }
 
@@ -737,13 +797,19 @@ export class VirtualFsAdapter implements IExternalFileSystem {
    * @param parentSubPath - The subPath of the parent directory (for building correct paths)
    * @param hierarchicalMode - Whether in hierarchical mode (affects display name)
    */
-  private extensionToEntry(ext: IExtension, parentSubPath: string = "", hierarchicalMode = true): IDirectoryEntry {
+  private extensionToEntry(
+    ext: IExtension,
+    parentSubPath: string = "",
+    hierarchicalMode = true
+  ): IDirectoryEntry {
     const slug = ext.slug || ext.id
     const slugParts = slug.split("/")
     const filename = `${slugParts[slugParts.length - 1]}.${ext.type === "script" ? "ts" : "tsx"}`
-    
+
     // For display name, show full slug in flat mode, just filename in hierarchical mode
-    const displayName = hierarchicalMode ? filename : `${slug}.${ext.type === "script" ? "ts" : "tsx"}`
+    const displayName = hierarchicalMode
+      ? filename
+      : `${slug}.${ext.type === "script" ? "ts" : "tsx"}`
 
     // Build the path:
     // - When parentSubPath is provided (non-recursive or subfolder view), use it as prefix
@@ -757,8 +823,10 @@ export class VirtualFsAdapter implements IExternalFileSystem {
       relativePath = `${slug}.${ext.type === "script" ? "ts" : "tsx"}`
     }
 
-    const pathPrefix = parentSubPath ? `~/.eidos/__EXTENSIONS__/${parentSubPath}` : "~/.eidos/__EXTENSIONS__"
-    
+    const pathPrefix = parentSubPath
+      ? `~/.eidos/__EXTENSIONS__/${parentSubPath}`
+      : "~/.eidos/__EXTENSIONS__"
+
     return {
       name: displayName,
       path: `${pathPrefix}/${relativePath}`,
@@ -777,12 +845,33 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
   // Implement IExternalFileSystem interface - delegate to underlying FS or handle virtual paths
 
-  async readdir(path: string, options: { withFileTypes: true; recursive?: boolean; viewPrefixesAsDirectories?: boolean }): Promise<IDirectoryEntry[]>
-  async readdir(path: string, options?: { withFileTypes?: false; recursive?: boolean; viewPrefixesAsDirectories?: boolean }): Promise<string[]>
-  async readdir(path: string, options?: any): Promise<string[] | IDirectoryEntry[]> {
+  async readdir(
+    path: string,
+    options: {
+      withFileTypes: true
+      recursive?: boolean
+      viewPrefixesAsDirectories?: boolean
+    }
+  ): Promise<IDirectoryEntry[]>
+  async readdir(
+    path: string,
+    options?: {
+      withFileTypes?: false
+      recursive?: boolean
+      viewPrefixesAsDirectories?: boolean
+    }
+  ): Promise<string[]>
+  async readdir(
+    path: string,
+    options?: any
+  ): Promise<string[] | IDirectoryEntry[]> {
     // Handle virtual paths
     if (this.isVirtualPath(path)) {
-      const entries = await this.readVirtualDir(path, options?.recursive, options?.viewPrefixesAsDirectories)
+      const entries = await this.readVirtualDir(
+        path,
+        options?.recursive,
+        options?.viewPrefixesAsDirectories
+      )
 
       if (options?.withFileTypes) {
         return entries
@@ -804,7 +893,10 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   }
 
   async readFile(path: string): Promise<Uint8Array>
-  async readFile(path: string, options: { encoding: BufferEncoding; flag?: string } | BufferEncoding): Promise<string>
+  async readFile(
+    path: string,
+    options: { encoding: BufferEncoding; flag?: string } | BufferEncoding
+  ): Promise<string>
   async readFile(path: string, options?: any): Promise<string | Uint8Array> {
     // Virtual paths don't support readFile
     if (this.isVirtualPath(path)) {
@@ -813,7 +905,11 @@ export class VirtualFsAdapter implements IExternalFileSystem {
     return this.underlyingFS.readFile(path, options)
   }
 
-  async writeFile(path: string, data: string | Uint8Array, options?: any): Promise<void> {
+  async writeFile(
+    path: string,
+    data: string | Uint8Array,
+    options?: any
+  ): Promise<void> {
     // Virtual paths don't support writeFile
     if (this.isVirtualPath(path)) {
       throw new Error("writeFile not supported for virtual paths")
@@ -846,24 +942,24 @@ export class VirtualFsAdapter implements IExternalFileSystem {
    */
   async rmdir(path: string): Promise<void> {
     const parsed = this.parseVirtualPath(path)
-    
+
     // Handle virtual extension folders
     if (parsed?.type === "extensions") {
       const folderPrefix = parsed.subPath.replace(/^\//, "")
-      
+
       if (!folderPrefix) {
         throw new Error("Cannot delete root extensions directory")
       }
-      
+
       // Delete all extensions with slugs starting with this folder prefix (including subfolders)
       await this.db.exec({
         sql: `DELETE FROM eidos__extensions WHERE slug LIKE ?`,
-        bind: [`${folderPrefix}/%`]
+        bind: [`${folderPrefix}/%`],
       })
-      
+
       return
     }
-    
+
     // Delegate to underlying filesystem for non-virtual paths
     return this.underlyingFS.rmdir(path)
   }
@@ -903,7 +999,9 @@ export class VirtualFsAdapter implements IExternalFileSystem {
         case "extensions":
           return this.renameExtension(oldPath, newPath)
         default:
-          throw new Error(`Rename not supported for virtual path type: ${oldParsed.type}`)
+          throw new Error(
+            `Rename not supported for virtual path type: ${oldParsed.type}`
+          )
       }
     }
 
@@ -917,16 +1015,18 @@ export class VirtualFsAdapter implements IExternalFileSystem {
    */
   private async renameNode(oldPath: string, newPath: string): Promise<void> {
     // Extract node ID from old path
-    const nodeId = this.getNodeIdFromPath(oldPath.replace("~/.eidos/__NODES__", ""))
+    const nodeId = this.getNodeIdFromPath(
+      oldPath.replace("~/.eidos/__NODES__", "")
+    )
     if (!nodeId) {
       throw new Error("Cannot rename root nodes directory")
     }
 
     // Get current node data to compare
-    const currentNode = await this.db.selectObjects(
+    const currentNode = (await this.db.selectObjects(
       "SELECT * FROM eidos__tree WHERE id = ?",
       [nodeId]
-    ) as ITreeNode[]
+    )) as ITreeNode[]
 
     if (currentNode.length === 0) {
       throw new Error(`Node not found: ${nodeId}`)
@@ -939,7 +1039,10 @@ export class VirtualFsAdapter implements IExternalFileSystem {
     // - ~/.eidos/__NODES__/new-name (rename at root level)
     // - ~/.eidos/__NODES__/parent-id/node-id (move to folder, keep name/ID)
     // - ~/.eidos/__NODES__/parent-id/new-name (move and rename)
-    const pathParts = newPath.replace("~/.eidos/__NODES__/", "").split("/").filter(Boolean)
+    const pathParts = newPath
+      .replace("~/.eidos/__NODES__/", "")
+      .split("/")
+      .filter(Boolean)
 
     if (pathParts.length === 0) {
       throw new Error("Invalid new path: path cannot be empty")
@@ -999,33 +1102,40 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   /**
    * Rename/move an extension in the eidos__extensions table
    * The virtual path uses slug as filename: ~/.eidos/__EXTENSIONS__/{slug}.ts
-   * 
+   *
    * When renaming:
    * - oldPath: ~/.eidos/__EXTENSIONS__/old-slug.ts
    * - newPath: ~/.eidos/__EXTENSIONS__/new-slug.ts
    * - Simply update the slug to "new-slug"
-   * 
+   *
    * When moving (drag & drop between folders):
    * - oldPath: ~/.eidos/__EXTENSIONS__/folder/old-slug.ts
    * - newPath: ~/.eidos/__EXTENSIONS__/new-folder/old-slug.ts
    * - Update the slug prefix to "new-folder/old-slug"
    */
-  private async renameExtension(oldPath: string, newPath: string): Promise<void> {
+  private async renameExtension(
+    oldPath: string,
+    newPath: string
+  ): Promise<void> {
     // Extract old slug from old path
     // oldPath format: ~/.eidos/__EXTENSIONS__/{slug}.ts (slug may contain "/" for hierarchical paths)
-    const oldPathWithoutPrefix = oldPath.replace("~/.eidos/__EXTENSIONS__", "").replace(/^\//, "")
+    const oldPathWithoutPrefix = oldPath
+      .replace("~/.eidos/__EXTENSIONS__", "")
+      .replace(/^\//, "")
     // Remove file extension to get the full slug (including any folder prefix)
     const oldSlug = oldPathWithoutPrefix.replace(/\.(ts|tsx)$/, "")
-    
+
     if (!oldSlug) {
-      throw new Error("Invalid extension path: cannot extract slug from old path")
+      throw new Error(
+        "Invalid extension path: cannot extract slug from old path"
+      )
     }
 
     // Find the extension by slug
-    const extension = await this.db.selectObjects(
+    const extension = (await this.db.selectObjects(
       `SELECT id, slug FROM eidos__extensions WHERE slug = ?`,
       [oldSlug]
-    ) as Array<{ id: string; slug: string }>
+    )) as Array<{ id: string; slug: string }>
 
     if (!extension || extension.length === 0) {
       throw new Error(`Extension not found with slug: ${oldSlug}`)
@@ -1035,7 +1145,9 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
     // Extract new slug from new path
     // newPath format: ~/.eidos/__EXTENSIONS__/{new-slug}.ts or ~/.eidos/__EXTENSIONS__/folder/{new-slug}.ts
-    const newPathWithoutPrefix = newPath.replace("~/.eidos/__EXTENSIONS__", "").replace(/^\//, "")
+    const newPathWithoutPrefix = newPath
+      .replace("~/.eidos/__EXTENSIONS__", "")
+      .replace(/^\//, "")
     // Remove file extension to get the new slug (including any folder prefix)
     const newSlug = newPathWithoutPrefix.replace(/\.(ts|tsx)$/, "")
 
@@ -1053,11 +1165,14 @@ export class VirtualFsAdapter implements IExternalFileSystem {
    * For virtual paths, uses database triggers and UDF
    * For real paths, delegates to underlying filesystem
    */
-  async *watch(path: string, options?: IWatchOptions): AsyncIterable<IWatchEvent> {
+  async *watch(
+    path: string,
+    options?: IWatchOptions
+  ): AsyncIterable<IWatchEvent> {
     // Normalize path to ensure consistent format
-    const normalizedPath = path.endsWith('/') ? path : path + '/'
+    const normalizedPath = path.endsWith("/") ? path : path + "/"
 
-    console.log('watch', normalizedPath)
+    console.log("watch", normalizedPath)
     // Handle virtual paths
     if (this.isVirtualPath(normalizedPath)) {
       // Only watch root virtual directories
@@ -1076,7 +1191,7 @@ export class VirtualFsAdapter implements IExternalFileSystem {
         queue: [] as IWatchEvent[],
         resolve: null as ((event: IWatchEvent) => void) | null,
         reject: null as ((error: Error) => void) | null,
-        signal: options?.signal
+        signal: options?.signal,
       }
 
       // Add to watchers map
@@ -1102,7 +1217,7 @@ export class VirtualFsAdapter implements IExternalFileSystem {
               }
             }
           }
-          options.signal.addEventListener('abort', abortListener)
+          options.signal.addEventListener("abort", abortListener)
         }
 
         try {
@@ -1122,7 +1237,7 @@ export class VirtualFsAdapter implements IExternalFileSystem {
               // This is especially important on Windows where SQLite is stricter about connection state
               // For delete events (soft delete), the UPDATE transaction needs time to commit
               // before we can safely query the database
-              await new Promise(resolve => setTimeout(resolve, 50))
+              await new Promise((resolve) => setTimeout(resolve, 50))
 
               // For nodes, build the full ID path; for extensions, use the ID directly
               // For delete events (rename eventType), the node is already marked as deleted,
@@ -1132,16 +1247,18 @@ export class VirtualFsAdapter implements IExternalFileSystem {
                 : event.filename
               yield {
                 ...event,
-                filename: fullIdPath || event.filename
+                filename: fullIdPath || event.filename,
               }
               continue
             }
 
             // Otherwise, wait for next event
-            const rawEvent = await new Promise<IWatchEvent>((resolve, reject) => {
-              watcher.resolve = resolve
-              watcher.reject = reject
-            })
+            const rawEvent = await new Promise<IWatchEvent>(
+              (resolve, reject) => {
+                watcher.resolve = resolve
+                watcher.reject = reject
+              }
+            )
 
             // Check if aborted after waiting
             if (options?.signal?.aborted) {
@@ -1152,7 +1269,7 @@ export class VirtualFsAdapter implements IExternalFileSystem {
             // This is especially important on Windows where SQLite is stricter about connection state
             // For delete events (soft delete), the UPDATE transaction needs time to commit
             // before we can safely query the database
-            await new Promise(resolve => setTimeout(resolve, 50))
+            await new Promise((resolve) => setTimeout(resolve, 50))
 
             // For nodes, build the full ID path; for extensions, use the ID directly
             // For delete events (rename eventType), the node is already marked as deleted,
@@ -1162,13 +1279,13 @@ export class VirtualFsAdapter implements IExternalFileSystem {
               : rawEvent.filename
             yield {
               ...rawEvent,
-              filename: fullIdPath || rawEvent.filename
+              filename: fullIdPath || rawEvent.filename,
             }
           }
         } finally {
           // Clean up
           if (abortListener && options?.signal) {
-            options.signal.removeEventListener('abort', abortListener)
+            options.signal.removeEventListener("abort", abortListener)
           }
 
           // Remove watcher from queue

@@ -270,7 +270,10 @@ export function GlobalSearch() {
                         {getNodeIcon(result)}
                         <div className="flex items-center justify-between flex-1 min-w-0 gap-2">
                           <span className="truncate">
-                            {highlightText(result.name || "Untitled", searchTerm)}
+                            {highlightText(
+                              result.name || "Untitled",
+                              searchTerm
+                            )}
                           </span>
                           <span className="text-xs text-muted-foreground truncate">
                             {highlightText(

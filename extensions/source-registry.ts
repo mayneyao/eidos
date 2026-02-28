@@ -1,6 +1,6 @@
 /**
  * Extension Source Registry
- * 
+ *
  * AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
  * Run 'npm run gen:registry' (or similar) to update
  */

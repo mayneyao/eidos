@@ -21,7 +21,7 @@ export function $isAtDocumentStart() {
 
   // Get parent node (usually paragraph or listitem)
   const parentNode = anchorNode.getParent()
-  
+
   if (!parentNode) {
     // Special case: if this is already a paragraph node, treat it as the container
     if (anchorNode.getType() === "paragraph") {
@@ -75,7 +75,7 @@ export function PropertyNavigationPlugin(props: PropertyNavigationPluginProps) {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Only handle up arrow key
       if (event.key !== "ArrowUp") return
-      
+
       editor.getEditorState().read(() => {
         if ($isAtDocumentStart()) {
           // Dispatch custom event to activate property editing

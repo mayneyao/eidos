@@ -53,7 +53,6 @@ export const NavStatus = () => {
   const currentNode = useCurrentNode()
   const { pin, unpin } = useNode()
 
-
   const toggleGodMode = () => {
     setGodMode(!isGodMode)
   }

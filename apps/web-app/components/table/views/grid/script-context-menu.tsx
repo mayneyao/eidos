@@ -25,7 +25,7 @@ export const ScriptContextMenu = ({
   const { sqlite } = useSqlite(space)
   const { callFunction } = useScriptFunction()
   const { fieldRawColumnNameFieldMap } = useCurrentUiColumns()
-  
+
   // Convert rawTableName to tableId
   const tableId = getTableIdByRawTableName(tableName)
   const [tableActionScripts, setTableActionScripts] = useState<

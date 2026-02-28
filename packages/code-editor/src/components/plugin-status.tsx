@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import type { DynamicPluginManager } from '../plugins/dynamic-plugin-manager'
+import React, { useEffect, useState } from "react"
+import type { DynamicPluginManager } from "../plugins/dynamic-plugin-manager"
 
 interface PluginInfo {
   name: string
@@ -11,7 +11,9 @@ interface PluginStatusProps {
   pluginManager?: DynamicPluginManager | null
 }
 
-export const PluginStatus: React.FC<PluginStatusProps> = ({ pluginManager }) => {
+export const PluginStatus: React.FC<PluginStatusProps> = ({
+  pluginManager,
+}) => {
   const [plugins, setPlugins] = useState<PluginInfo[]>([])
   const [managerInitialized, setManagerInitialized] = useState(false)
 
@@ -23,19 +25,19 @@ export const PluginStatus: React.FC<PluginStatusProps> = ({ pluginManager }) => 
           setPlugins([])
           return
         }
-        
+
         setManagerInitialized(pluginManager.isInitialized())
-        
+
         const allPlugins = pluginManager.getAllPlugins()
-        const pluginInfo = allPlugins.map(plugin => ({
-          name: plugin.name || 'Unknown',
-          version: plugin.version || '0.0.0',
-          enabled: plugin.isEnabled()
+        const pluginInfo = allPlugins.map((plugin) => ({
+          name: plugin.name || "Unknown",
+          version: plugin.version || "0.0.0",
+          enabled: plugin.isEnabled(),
         }))
-        
+
         setPlugins(pluginInfo)
       } catch (error) {
-        console.error('Failed to get plugin status:', error)
+        console.error("Failed to get plugin status:", error)
       }
     }
 
@@ -51,11 +53,13 @@ export const PluginStatus: React.FC<PluginStatusProps> = ({ pluginManager }) => 
   return (
     <div className="fixed top-4 right-4 bg-gray-800 text-white p-3 rounded-lg shadow-lg text-sm max-w-xs z-50">
       <h3 className="font-bold mb-2">Plugin Status</h3>
-      
+
       <div className="mb-2">
         <span className="text-gray-300">Manager: </span>
-        <span className={managerInitialized ? 'text-green-400' : 'text-red-400'}>
-          {managerInitialized ? 'Initialized' : 'Not Initialized'}
+        <span
+          className={managerInitialized ? "text-green-400" : "text-red-400"}
+        >
+          {managerInitialized ? "Initialized" : "Not Initialized"}
         </span>
       </div>
 
@@ -66,9 +70,11 @@ export const PluginStatus: React.FC<PluginStatusProps> = ({ pluginManager }) => 
             <div key={index} className="ml-2 mb-1">
               <div className="font-medium">{plugin.name}</div>
               <div className="text-xs text-gray-400">
-                v{plugin.version} - 
-                <span className={plugin.enabled ? 'text-green-400' : 'text-red-400'}>
-                  {plugin.enabled ? ' Enabled' : ' Disabled'}
+                v{plugin.version} -
+                <span
+                  className={plugin.enabled ? "text-green-400" : "text-red-400"}
+                >
+                  {plugin.enabled ? " Enabled" : " Disabled"}
                 </span>
               </div>
             </div>

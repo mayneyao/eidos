@@ -3,9 +3,6 @@ import { CompareOperator, FieldType, GridCellKind } from "./const"
 import type { UserProfileCell } from "./interface"
 type CreatedByProperty = {}
 
-
-
-
 export type UserFieldContext = {
   userMap?: {
     [id: string]: {

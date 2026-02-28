@@ -6,12 +6,8 @@ import { useMultiFileEditorStore } from "../store"
  * Handles global keyboard shortcuts
  */
 export const useKeyboardShortcuts = () => {
-  const {
-    openFiles,
-    activeFileId,
-    setActiveFileId,
-    closeFile,
-  } = useMultiFileEditorStore()
+  const { openFiles, activeFileId, setActiveFileId, closeFile } =
+    useMultiFileEditorStore()
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -42,7 +38,8 @@ export const useKeyboardShortcuts = () => {
         e.preventDefault()
         if (openFiles.length > 1 && activeFileId) {
           const currentIndex = openFiles.indexOf(activeFileId)
-          const prevIndex = currentIndex === 0 ? openFiles.length - 1 : currentIndex - 1
+          const prevIndex =
+            currentIndex === 0 ? openFiles.length - 1 : currentIndex - 1
           setActiveFileId(openFiles[prevIndex])
         }
         return

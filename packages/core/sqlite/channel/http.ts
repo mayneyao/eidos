@@ -57,7 +57,11 @@ export class HttpSqlite implements ISqlite<string, IHttpSendData> {
               reject(new Error(responseData.result))
             }
           } catch (error) {
-            reject(new Error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`))
+            reject(
+              new Error(
+                `Error: ${error instanceof Error ? error.message : "Unknown error"}`
+              )
+            )
           } finally {
             this.responseMap.delete(thisCallId)
           }
@@ -78,6 +82,8 @@ export class HttpSqlite implements ISqlite<string, IHttpSendData> {
    * This would require server-side support for Server-Sent Events (SSE) or WebSocket
    */
   onIterator<TValue = any>(thisCallId: string): AsyncIterable<TValue> {
-    throw new Error("Iterator functions are not supported over HTTP. Use WebSocket or local connection instead.")
+    throw new Error(
+      "Iterator functions are not supported over HTTP. Use WebSocket or local connection instead."
+    )
   }
 }

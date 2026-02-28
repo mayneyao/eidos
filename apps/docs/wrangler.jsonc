@@ -1,15 +1,15 @@
 {
-    "name": "docs-eidos-space",
-    "compatibility_date": "2025-04-01",
-    "assets": {
-        "directory": "./dist"
+  "name": "docs-eidos-space",
+  "compatibility_date": "2025-04-01",
+  "assets": {
+    "directory": "./dist",
+  },
+  "env": {
+    "preview": {
+      "name": "docs-eidos-space-preview",
+      "assets": {
+        "directory": "./dist",
+      },
     },
-    "env": {
-        "preview": {
-            "name": "docs-eidos-space-preview",
-            "assets": {
-                "directory": "./dist"
-            }
-        }
-    }
+  },
 }

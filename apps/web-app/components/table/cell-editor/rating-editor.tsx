@@ -8,7 +8,12 @@ interface IRatingEditorProps {
   onFinishEditing?: () => void
 }
 
-export const RatingEditor = ({ value, onChange, isEditing, onFinishEditing }: IRatingEditorProps) => {
+export const RatingEditor = ({
+  value,
+  onChange,
+  isEditing,
+  onFinishEditing,
+}: IRatingEditorProps) => {
   const [_value, setValue] = useState<number>(value)
   const [hover, setHover] = useState(0)
   const [isInternalEditing, setIsInternalEditing] = useState(false)
@@ -39,7 +44,7 @@ export const RatingEditor = ({ value, onChange, isEditing, onFinishEditing }: IR
   const isActuallyEditing = isEditing || isInternalEditing
 
   return (
-    <div 
+    <div
       className="flex h-full w-full items-center px-2"
       onKeyDown={handleKeyDown}
       onClick={handleClick}

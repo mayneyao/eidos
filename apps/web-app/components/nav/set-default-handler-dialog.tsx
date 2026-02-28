@@ -1,6 +1,9 @@
 "use client"
 
-import type { FileHandlerMeta, IExtension } from "@/packages/core/types/IExtension"
+import type {
+  FileHandlerMeta,
+  IExtension,
+} from "@/packages/core/types/IExtension"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -40,7 +43,9 @@ export const SetDefaultHandlerDialog = ({
     return meta.fileHandler?.title || handler.name || handler.id
   }
 
-  const getHandlerDescription = (handler: IExtension<FileHandlerMeta> | null) => {
+  const getHandlerDescription = (
+    handler: IExtension<FileHandlerMeta> | null
+  ) => {
     if (!handler) return ""
     const meta = handler.meta as FileHandlerMeta
     return meta.fileHandler?.description || ""
@@ -123,4 +128,3 @@ export const SetDefaultHandlerDialog = ({
     </Dialog>
   )
 }
-

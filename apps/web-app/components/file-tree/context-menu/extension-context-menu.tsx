@@ -89,16 +89,16 @@ export const ExtensionContextMenu = ({
     !isMultiSelection &&
     Boolean(
       onOpenInNewTab ||
-        (isBlockExtension && onOpenStandalone) ||
-        (isBlockExtension && onOpenDefaultBrowser)
+      (isBlockExtension && onOpenStandalone) ||
+      (isBlockExtension && onOpenDefaultBrowser)
     )
   const showMediumRiskGroup =
     !isMultiSelection &&
     Boolean(
       onShare ||
-        onCopyCode ||
-        (extensionType === "block" && nodeId) ||
-        onCopySlug
+      onCopyCode ||
+      (extensionType === "block" && nodeId) ||
+      onCopySlug
     )
 
   // Check if extension is pinned (only for block type extensions)
@@ -227,7 +227,9 @@ export const ExtensionContextMenu = ({
               {!isMultiSelection && onRename && (
                 <ContextMenuItem onClick={() => onRename(node)}>
                   <PencilLineIcon className="mr-2 h-4 w-4" />
-                  <span className="flex-1">{t("node.menu.rename", "Rename")}</span>
+                  <span className="flex-1">
+                    {t("node.menu.rename", "Rename")}
+                  </span>
                   <NativeContextMenuShortcut>F2</NativeContextMenuShortcut>
                 </ContextMenuItem>
               )}

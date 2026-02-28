@@ -15,7 +15,8 @@ export function WindowControls() {
     return () => unsubscribe()
   }, [])
 
-  const { location } = useRouterAdapter(); const { pathname } = location
+  const { location } = useRouterAdapter()
+  const { pathname } = location
   const isAppWindow = isStandaloneBlocksPath(pathname)
 
   return (

@@ -94,12 +94,17 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
   const [showNewSpaceDialog, setShowNewSpaceDialog] = React.useState(false)
 
   // Wizard state
-  const [currentStep, setCurrentStep] = React.useState<WizardStep>("choose-action")
+  const [currentStep, setCurrentStep] =
+    React.useState<WizardStep>("choose-action")
   const [selectedAction, setSelectedAction] = React.useState<SpaceAction>(null)
   const [providers, setProviders] = React.useState<SyncProvider[]>([])
-  const [selectedProvider, setSelectedProvider] = React.useState<string | null>(null)
+  const [selectedProvider, setSelectedProvider] = React.useState<string | null>(
+    null
+  )
   const [remoteSpaces, setRemoteSpaces] = React.useState<string[]>([])
-  const [selectedRemoteSpace, setSelectedRemoteSpace] = React.useState<string | null>(null)
+  const [selectedRemoteSpace, setSelectedRemoteSpace] = React.useState<
+    string | null
+  >(null)
   const [localPath, setLocalPath] = React.useState("")
   const [spaceName, setSpaceName] = React.useState("")
   const [enableSync, setEnableSync] = React.useState(false)
@@ -108,7 +113,8 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
   const [loadingRemoteSpaces, setLoadingRemoteSpaces] = React.useState(false)
 
   // Clone progress dialog state
-  const [showCloneProgressDialog, setShowCloneProgressDialog] = React.useState(false)
+  const [showCloneProgressDialog, setShowCloneProgressDialog] =
+    React.useState(false)
   const [cloneProgress, setCloneProgress] = React.useState(0)
   const [cloneStep, setCloneStep] = React.useState<string>("")
   const [cloneError, setCloneError] = React.useState<string | null>(null)
@@ -137,7 +143,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
   // Load providers when needed
   const loadProviders = async () => {
     if (!isDesktopMode || typeof window === "undefined" || !window.eidos) return
-    
+
     setLoadingProviders(true)
     try {
       const result = await window.eidos.invoke("get-sync-providers")
@@ -154,7 +160,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
   // Load remote spaces for selected provider
   const loadRemoteSpaces = async (providerId: string) => {
     if (!isDesktopMode || typeof window === "undefined" || !window.eidos) return
-    
+
     setLoadingRemoteSpaces(true)
     try {
       const result = await window.eidos.invoke("list-remote-spaces", providerId)
@@ -223,7 +229,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
           if (provider) {
             // Remote format: <provider-id>/<bucket-name>/<space-name>
             // For both eidos.space and custom providers, bucketName comes from credentials/config
-            const bucketName = provider.bucketName || provider.id  // fallback to provider id
+            const bucketName = provider.bucketName || provider.id // fallback to provider id
             remoteUrl = `${provider.id}/${bucketName}/${spaceName}`
           }
         }
@@ -242,7 +248,8 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
       }
     } catch (error) {
       console.error("Error creating space:", error)
-      const errorMessage = error instanceof Error ? error.message : "Unknown error"
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error"
       alert(`Failed to create space: ${errorMessage}`)
     } finally {
       setLoading(false)
@@ -266,14 +273,18 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
         // Build remote URL
         const provider = providers.find((p) => p.id === selectedProvider)
-        
+
         // Remote format: <provider-id>/<bucket-name>/<space-name>
         const bucketName = provider?.bucketName || provider?.id || "default"
-        const remoteSpaceName = selectedRemoteSpace.replace(/\/$/, "").split("/").pop() || selectedRemoteSpace
+        const remoteSpaceName =
+          selectedRemoteSpace.replace(/\/$/, "").split("/").pop() ||
+          selectedRemoteSpace
         const remoteUrl = `${provider?.id}/${bucketName}/${remoteSpaceName}`
 
         setCloneProgress(15)
-        setCloneStep(t("space.clone.step.register", "Registering local space..."))
+        setCloneStep(
+          t("space.clone.step.register", "Registering local space...")
+        )
 
         // Use clone-space IPC to properly clone with sync
         const result = await window.eidos.invoke("clone-space", {
@@ -285,25 +296,31 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
 
         if (result.success && result.space) {
           setCloneProgress(60)
-          setCloneStep(t("space.clone.step.initDatabase", "Initializing database..."))
-          
+          setCloneStep(
+            t("space.clone.step.initDatabase", "Initializing database...")
+          )
+
           // Simulate the internal steps for better UX
-          await new Promise(resolve => setTimeout(resolve, 300))
-          
+          await new Promise((resolve) => setTimeout(resolve, 300))
+
           setCloneProgress(75)
-          setCloneStep(t("space.clone.step.setupSync", "Setting up sync configuration..."))
-          
-          await new Promise(resolve => setTimeout(resolve, 200))
-          
+          setCloneStep(
+            t("space.clone.step.setupSync", "Setting up sync configuration...")
+          )
+
+          await new Promise((resolve) => setTimeout(resolve, 200))
+
           setCloneProgress(85)
-          setCloneStep(t("space.clone.step.pullData", "Pulling data from remote..."))
-          
-          await new Promise(resolve => setTimeout(resolve, 300))
-          
+          setCloneStep(
+            t("space.clone.step.pullData", "Pulling data from remote...")
+          )
+
+          await new Promise((resolve) => setTimeout(resolve, 300))
+
           setCloneProgress(95)
           setCloneStep(t("space.clone.step.finalize", "Finalizing setup..."))
-          
-          await new Promise(resolve => setTimeout(resolve, 200))
+
+          await new Promise((resolve) => setTimeout(resolve, 200))
 
           setCloneProgress(100)
           setCloneStep(t("space.clone.completed", "Space cloned successfully!"))
@@ -316,7 +333,8 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
       }
     } catch (error) {
       console.error("Error cloning space:", error)
-      const errorMessage = error instanceof Error ? error.message : "Unknown error"
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error"
       setCloneError(errorMessage)
       setCloneStep(t("space.clone.failed", "Clone failed"))
     } finally {
@@ -442,7 +460,8 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         return (
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Choose a local folder for your new space. Data will be stored locally by default.
+              Choose a local folder for your new space. Data will be stored
+              locally by default.
             </p>
             <div className="space-y-2">
               <Label htmlFor="folder-path">Local Folder</Label>
@@ -454,12 +473,17 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                   readOnly
                   className="flex-1"
                 />
-                <Button type="button" variant="outline" onClick={handleSelectFolder}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSelectFolder}
+                >
                   Browse
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Your data will be stored in this folder. You can optionally enable sync in the next step.
+                Your data will be stored in this folder. You can optionally
+                enable sync in the next step.
               </p>
             </div>
             <div className="flex gap-2 pt-2">
@@ -481,14 +505,16 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         // Separate built-in and custom providers
         const builtInProviders = providers.filter((p) => p.isBuiltIn)
         const customProviders = providers.filter((p) => !p.isBuiltIn)
-        const hasAnySyncProvider = builtInProviders.length > 0 || customProviders.length > 0
-        
+        const hasAnySyncProvider =
+          builtInProviders.length > 0 || customProviders.length > 0
+
         return (
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Sync is optional. Enable it if you want to backup or sync this space across devices.
+              Sync is optional. Enable it if you want to backup or sync this
+              space across devices.
             </p>
-            
+
             {/* Enable Sync Toggle */}
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="flex items-center gap-3">
@@ -500,10 +526,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                   </p>
                 </div>
               </div>
-              <Switch
-                checked={enableSync}
-                onCheckedChange={setEnableSync}
-              />
+              <Switch checked={enableSync} onCheckedChange={setEnableSync} />
             </div>
 
             {/* Provider Selection - only show if sync is enabled */}
@@ -511,12 +534,25 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
               <div className="space-y-3">
                 <Label>Select Sync Provider</Label>
                 {loadingProviders ? (
-                  <div className="text-sm text-muted-foreground">{t("space.createSync.loadingProviders", "Loading providers...")}</div>
-                ) : providers.filter(p => p.hasCredentials).length === 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    {t(
+                      "space.createSync.loadingProviders",
+                      "Loading providers..."
+                    )}
+                  </div>
+                ) : providers.filter((p) => p.hasCredentials).length === 0 ? (
                   <div className="text-sm text-muted-foreground text-center py-4 bg-muted/30 rounded-lg">
-                    <p className="font-medium mb-1">{t("space.createSync.noProvidersAvailable", "No sync providers available")}</p>
+                    <p className="font-medium mb-1">
+                      {t(
+                        "space.createSync.noProvidersAvailable",
+                        "No sync providers available"
+                      )}
+                    </p>
                     <p className="text-xs">
-                      {t("space.createSync.goToSettings", "Go to Settings → Sync to add S3-compatible storage")}
+                      {t(
+                        "space.createSync.goToSettings",
+                        "Go to Settings → Sync to add S3-compatible storage"
+                      )}
                     </p>
                   </div>
                 ) : (
@@ -526,65 +562,72 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                     className="space-y-2"
                   >
                     {/* Built-in providers (eidos.space) - only show if has credentials */}
-                    {builtInProviders.filter(p => p.hasCredentials).map((provider) => (
-                      <div key={provider.id}>
-                        <div
-                          className={cn(
-                            "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
-                          )}
-                        >
-                          <RadioGroupItem
-                            value={provider.id}
-                            id={provider.id}
-                          />
-                          <label
-                            htmlFor={provider.id}
-                            className="flex-1 cursor-pointer"
+                    {builtInProviders
+                      .filter((p) => p.hasCredentials)
+                      .map((provider) => (
+                        <div key={provider.id}>
+                          <div
+                            className={cn(
+                              "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
+                            )}
                           >
-                            <div className="flex items-center gap-2">
-                              <Cloud className="h-4 w-4 text-primary" />
-                              <span className="font-medium">{provider.id}</span>
-                              <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                                {t("settings.sync.builtIn", "Built-in")}
-                              </span>
-                            </div>
-                          </label>
+                            <RadioGroupItem
+                              value={provider.id}
+                              id={provider.id}
+                            />
+                            <label
+                              htmlFor={provider.id}
+                              className="flex-1 cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Cloud className="h-4 w-4 text-primary" />
+                                <span className="font-medium">
+                                  {provider.id}
+                                </span>
+                                <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                                  {t("settings.sync.builtIn", "Built-in")}
+                                </span>
+                              </div>
+                            </label>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
 
                     {/* Custom S3 providers - only show if has credentials */}
-                    {customProviders.filter(p => p.hasCredentials).length > 0 && builtInProviders.filter(p => p.hasCredentials).length > 0 && (
-                      <Separator className="my-2" />
-                    )}
-                    
-                    {customProviders.filter(p => p.hasCredentials).map((provider) => (
-                      <div key={provider.id}>
-                        <div
-                          className={cn(
-                            "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
-                          )}
-                        >
-                          <RadioGroupItem
-                            value={provider.id}
-                            id={provider.id}
-                          />
-                          <label
-                            htmlFor={provider.id}
-                            className="flex-1 cursor-pointer"
+                    {customProviders.filter((p) => p.hasCredentials).length >
+                      0 &&
+                      builtInProviders.filter((p) => p.hasCredentials).length >
+                        0 && <Separator className="my-2" />}
+
+                    {customProviders
+                      .filter((p) => p.hasCredentials)
+                      .map((provider) => (
+                        <div key={provider.id}>
+                          <div
+                            className={cn(
+                              "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
+                            )}
                           >
-                            <div className="flex items-center gap-2">
-                              <Server className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-medium">{provider.id}</span>
-                            </div>
-                          </label>
+                            <RadioGroupItem
+                              value={provider.id}
+                              id={provider.id}
+                            />
+                            <label
+                              htmlFor={provider.id}
+                              className="flex-1 cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Server className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">
+                                  {provider.id}
+                                </span>
+                              </div>
+                            </label>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
                   </RadioGroup>
                 )}
-
-
               </div>
             )}
 
@@ -597,7 +640,14 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                 disabled={loading || (enableSync && !selectedProvider)}
                 className="flex-1"
               >
-                {loading ? t("common.creating", "Creating...") : enableSync ? t("space.createSync.createAndEnable", "Create & Enable Sync") : t("space.createSpace", "Create Space")}
+                {loading
+                  ? t("common.creating", "Creating...")
+                  : enableSync
+                    ? t(
+                        "space.createSync.createAndEnable",
+                        "Create & Enable Sync"
+                      )
+                    : t("space.createSpace", "Create Space")}
               </Button>
             </div>
           </div>
@@ -606,19 +656,30 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
       case "clone-choose-provider":
         const cloneBuiltInProviders = providers.filter((p) => p.isBuiltIn)
         const cloneCustomProviders = providers.filter((p) => !p.isBuiltIn)
-        
+
         return (
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              {t("space.clone.selectProviderDescription", "Select the provider where your remote space is stored.")}
+              {t(
+                "space.clone.selectProviderDescription",
+                "Select the provider where your remote space is stored."
+              )}
             </p>
             {loadingProviders ? (
-              <div className="text-sm text-muted-foreground">{t("space.clone.loadingProviders", "Loading providers...")}</div>
-            ) : providers.filter(p => p.hasCredentials).length === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                {t("space.clone.loadingProviders", "Loading providers...")}
+              </div>
+            ) : providers.filter((p) => p.hasCredentials).length === 0 ? (
               <div className="text-sm text-muted-foreground text-center py-4">
-                {t("space.clone.noProvidersConfigured", "No sync providers with credentials configured.")}
+                {t(
+                  "space.clone.noProvidersConfigured",
+                  "No sync providers with credentials configured."
+                )}
                 <br />
-                {t("space.clone.goToSettings", "Go to Settings → Sync to add providers.")}
+                {t(
+                  "space.clone.goToSettings",
+                  "Go to Settings → Sync to add providers."
+                )}
               </div>
             ) : (
               <RadioGroup
@@ -627,38 +688,37 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                 className="space-y-2"
               >
                 {/* All providers - mixed with built-in tag */}
-                {providers.filter(p => p.hasCredentials).map((provider) => (
-                  <div key={provider.id}>
-                    <div
-                      className={cn(
-                        "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
-                      )}
-                    >
-                      <RadioGroupItem
-                        value={provider.id}
-                        id={provider.id}
-                      />
-                      <label
-                        htmlFor={provider.id}
-                        className="flex-1 cursor-pointer"
+                {providers
+                  .filter((p) => p.hasCredentials)
+                  .map((provider) => (
+                    <div key={provider.id}>
+                      <div
+                        className={cn(
+                          "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
+                        )}
                       >
-                        <div className="flex items-center gap-2">
-                          {provider.isBuiltIn ? (
-                            <Cloud className="h-4 w-4 text-primary" />
-                          ) : (
-                            <Server className="h-4 w-4 text-muted-foreground" />
-                          )}
-                          <span className="font-medium">{provider.name}</span>
-                          {provider.isBuiltIn && (
-                            <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                              {t("settings.sync.builtIn", "Built-in")}
-                            </span>
-                          )}
-                        </div>
-                      </label>
+                        <RadioGroupItem value={provider.id} id={provider.id} />
+                        <label
+                          htmlFor={provider.id}
+                          className="flex-1 cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            {provider.isBuiltIn ? (
+                              <Cloud className="h-4 w-4 text-primary" />
+                            ) : (
+                              <Server className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            <span className="font-medium">{provider.name}</span>
+                            {provider.isBuiltIn && (
+                              <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                                {t("settings.sync.builtIn", "Built-in")}
+                              </span>
+                            )}
+                          </div>
+                        </label>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </RadioGroup>
             )}
             <Button variant="outline" onClick={handleBack} className="w-full">
@@ -671,7 +731,8 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         return (
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Select a space to clone from {providers.find(p => p.id === selectedProvider)?.name}.
+              Select a space to clone from{" "}
+              {providers.find((p) => p.id === selectedProvider)?.name}.
             </p>
             {loadingRemoteSpaces ? (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
@@ -691,12 +752,17 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                 className="space-y-2 max-h-48 overflow-y-auto"
               >
                 {remoteSpaces.map((remoteSpace) => {
-                  const spaceName = remoteSpace.replace(/\/$/, "").split("/").pop() || remoteSpace
+                  const spaceName =
+                    remoteSpace.replace(/\/$/, "").split("/").pop() ||
+                    remoteSpace
                   return (
                     <div key={remoteSpace}>
                       <div className="flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer">
                         <RadioGroupItem value={remoteSpace} id={remoteSpace} />
-                        <label htmlFor={remoteSpace} className="flex-1 cursor-pointer">
+                        <label
+                          htmlFor={remoteSpace}
+                          className="flex-1 cursor-pointer"
+                        >
                           <div className="flex items-center gap-2">
                             <FolderOpen className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium">{spaceName}</span>
@@ -718,7 +784,11 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         return (
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Choose a local folder to clone <strong>{selectedRemoteSpace?.replace(/\/$/, "").split("/").pop()}</strong> into.
+              Choose a local folder to clone{" "}
+              <strong>
+                {selectedRemoteSpace?.replace(/\/$/, "").split("/").pop()}
+              </strong>{" "}
+              into.
             </p>
             <div className="space-y-2">
               <Label htmlFor="clone-folder-path">Local Folder</Label>
@@ -730,7 +800,11 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                   readOnly
                   className="flex-1"
                 />
-                <Button type="button" variant="outline" onClick={handleSelectFolder}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSelectFolder}
+                >
                   Browse
                 </Button>
               </div>
@@ -897,21 +971,33 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
           }
         }}
       >
-        <DialogContent className="sm:max-w-[400px]" onPointerDownOutside={(e) => e.preventDefault()}>
+        <DialogContent
+          className="sm:max-w-[400px]"
+          onPointerDownOutside={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>
               {cloneError
                 ? t("space.clone.failed", "Clone Failed")
                 : cloneComplete
-                ? t("space.clone.success", "Clone Complete")
-                : t("space.clone.inProgress", "Cloning Space...")}
+                  ? t("space.clone.success", "Clone Complete")
+                  : t("space.clone.inProgress", "Cloning Space...")}
             </DialogTitle>
             <DialogDescription>
               {cloneError
-                ? t("space.clone.errorDescription", "An error occurred while cloning the space.")
+                ? t(
+                    "space.clone.errorDescription",
+                    "An error occurred while cloning the space."
+                  )
                 : cloneComplete
-                ? t("space.clone.successDescription", "The space has been cloned successfully.")
-                : t("space.clone.progressDescription", "Please wait while we clone the space to your local machine.")}
+                  ? t(
+                      "space.clone.successDescription",
+                      "The space has been cloned successfully."
+                    )
+                  : t(
+                      "space.clone.progressDescription",
+                      "Please wait while we clone the space to your local machine."
+                    )}
             </DialogDescription>
           </DialogHeader>
 
@@ -919,7 +1005,9 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
             {cloneError ? (
               <div className="flex items-start gap-3 p-3 bg-destructive/10 rounded-lg">
                 <div className="text-destructive text-sm">
-                  <p className="font-medium">{t("space.clone.error", "Error:")}</p>
+                  <p className="font-medium">
+                    {t("space.clone.error", "Error:")}
+                  </p>
                   <p className="mt-1">{cloneError}</p>
                 </div>
               </div>

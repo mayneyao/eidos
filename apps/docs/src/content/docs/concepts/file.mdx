@@ -14,6 +14,7 @@ In Eidos, while dynamic data (like tables and documents) lives in a SQLite datab
 Eidos uses distinct path prefixes (such as `/files/`, `/@/`, and `/~/`) to categorize files from different sources.
 
 These paths serve several key purposes:
+
 - **Reference & Display**: You can insert these paths into documents to reference assets like images or audio, or use them within a "File" type field in tables.
 - **Extension Environment Access**: In programming environments like Blocks, these paths can be used directly as the `src` attribute for native Web tags (e.g., `<img />`, `<video />`).
 - **API Read/Write**: For scenarios requiring lower-level control, you can use these paths with the `eidos.space.fs` API to read from or write to the file system.
@@ -138,5 +139,6 @@ With [Script Extensions](/extensions/script/#24-file-action-script), you can def
 Integrated into the right-click context menu, File Actions enable one-click operations like "Compress Image," "Convert Format," or "Generate PDF." Scripts run in the background and provide feedback via system notifications, making them perfect for batch processing or automated workflows.
 
 For more details, see:
+
 - [Block Extension Documentation](/extensions/block/)
 - [Script Extension Documentation](/extensions/script/)

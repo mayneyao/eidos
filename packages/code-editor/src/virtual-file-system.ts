@@ -41,13 +41,16 @@ export function syncEditorContentToVirtualFileSystem(
   // Ensure content is a valid TypeScript module
   if (!fileContent.trim()) {
     fileContent = "export default {};\nexport {}; // Ensure this is a module"
-  } else if (!fileContent.includes('export') && !fileContent.includes('module.exports')) {
+  } else if (
+    !fileContent.includes("export") &&
+    !fileContent.includes("module.exports")
+  ) {
     fileContent += "\nexport {}; // Ensure this is a module"
   }
 
   try {
     // Always use typescript language - JSX support is handled by file extension
-    const language = 'typescript'
+    const language = "typescript"
 
     // Create URI with correct extension
     const currentUri = monacoInstance.Uri.parse(`file:///${filePath}`)
@@ -56,10 +59,10 @@ export function syncEditorContentToVirtualFileSystem(
     if (existingModel) {
       // For currently editing file, don't modify its content, only update extra lib
       // Only update content when model is not the current active editor's model
-      const activeEditor = monacoInstance.editor.getEditors().find(editor => 
-        editor.getModel() === existingModel
-      )
-      
+      const activeEditor = monacoInstance.editor
+        .getEditors()
+        .find((editor) => editor.getModel() === existingModel)
+
       if (!activeEditor) {
         // This is a dependency file's model, can safely update
         if (existingModel.getValue() !== fileContent) {
@@ -67,9 +70,11 @@ export function syncEditorContentToVirtualFileSystem(
           console.log(`Updated dependency model content for: ${filePath}`)
         }
       } else {
-        console.log(`⏭️ Skipping content update for active editor model: ${filePath}`)
+        console.log(
+          `⏭️ Skipping content update for active editor model: ${filePath}`
+        )
       }
-      
+
       // Ensure language setting is correct
       if (existingModel.getLanguageId() !== language) {
         monacoInstance.editor.setModelLanguage(existingModel, language)
@@ -78,7 +83,9 @@ export function syncEditorContentToVirtualFileSystem(
     } else {
       // Create new model with correct language
       createModelSafely(fileContent, language, currentUri)
-      console.log(`Created new model for: ${filePath} with language: ${language}`)
+      console.log(
+        `Created new model for: ${filePath} with language: ${language}`
+      )
     }
 
     // Update cache and sync time
@@ -87,7 +94,8 @@ export function syncEditorContentToVirtualFileSystem(
 
     // Update TypeScript extra lib with correct path
     try {
-      const extraLibs = monacoInstance.languages.typescript.typescriptDefaults.getExtraLibs()
+      const extraLibs =
+        monacoInstance.languages.typescript.typescriptDefaults.getExtraLibs()
       const libPath = `file:///${filePath}`
       const existingLib = extraLibs[libPath]
 
@@ -101,7 +109,10 @@ export function syncEditorContentToVirtualFileSystem(
         console.log(`⏭️ TypeScript extra lib unchanged for: ${filePath}`)
       }
     } catch (libError) {
-      console.warn(`❌ Failed to update TypeScript extra lib for ${filePath}:`, libError)
+      console.warn(
+        `❌ Failed to update TypeScript extra lib for ${filePath}:`,
+        libError
+      )
     }
   } catch (error) {
     console.error(`❌ Error syncing content for ${filePath}:`, error)

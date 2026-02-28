@@ -1,8 +1,8 @@
 "use client"
 
-import type { FC} from "react";
+import type { FC } from "react"
 import { useEffect, useRef } from "react"
-import type { HTMLMotionProps} from "framer-motion";
+import type { HTMLMotionProps } from "framer-motion"
 import { motion, useAnimation, useInView } from "framer-motion"
 
 type AnimationType =

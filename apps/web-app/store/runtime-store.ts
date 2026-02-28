@@ -101,10 +101,8 @@ export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
     set({ scriptContainerRef: scriptContainerRef }),
 
   isSpaceSettingsOpen: false,
-  setSpaceSettingsOpen: (isSpaceSettingsOpen) =>
-    set({ isSpaceSettingsOpen }),
+  setSpaceSettingsOpen: (isSpaceSettingsOpen) => set({ isSpaceSettingsOpen }),
 
   isGlobalSearchOpen: false,
-  setGlobalSearchOpen: (isGlobalSearchOpen) =>
-    set({ isGlobalSearchOpen }),
+  setGlobalSearchOpen: (isGlobalSearchOpen) => set({ isGlobalSearchOpen }),
 }))

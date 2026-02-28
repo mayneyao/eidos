@@ -6,16 +6,8 @@
  *
  */
 
-import type {
-  MouseEventHandler,
-  ReactPortal} from "react";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
+import type { MouseEventHandler, ReactPortal } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable"
 import {
@@ -369,21 +361,17 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): JSX.Element {
 
       if (draggingDirection && mouseCurrentPos && tableRect) {
         if (isHeightChanging(draggingDirection)) {
-          styles[draggingDirection].left = `${
-            window.pageXOffset + tableRect.left
-          }px`
-          styles[draggingDirection].top = `${
-            window.pageYOffset + mouseCurrentPos.y / zoom
-          }px`
+          styles[draggingDirection].left =
+            `${window.pageXOffset + tableRect.left}px`
+          styles[draggingDirection].top =
+            `${window.pageYOffset + mouseCurrentPos.y / zoom}px`
           styles[draggingDirection].height = "3px"
           styles[draggingDirection].width = `${tableRect.width}px`
         } else {
-          styles[draggingDirection].top = `${
-            window.pageYOffset + tableRect.top
-          }px`
-          styles[draggingDirection].left = `${
-            window.pageXOffset + mouseCurrentPos.x / zoom
-          }px`
+          styles[draggingDirection].top =
+            `${window.pageYOffset + tableRect.top}px`
+          styles[draggingDirection].left =
+            `${window.pageXOffset + mouseCurrentPos.x / zoom}px`
           styles[draggingDirection].width = "3px"
           styles[draggingDirection].height = `${tableRect.height}px`
         }

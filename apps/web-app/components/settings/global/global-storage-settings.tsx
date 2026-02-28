@@ -26,7 +26,9 @@ type StorageFormValues = z.infer<typeof storageFormSchema>
 export function GlobalStorageSettings() {
   const { t } = useTranslation()
   const [dataFolder, setDataFolder] = useState<string | null>(null)
-  const [originalDataFolder, setOriginalDataFolder] = useState<string | null>(null)
+  const [originalDataFolder, setOriginalDataFolder] = useState<string | null>(
+    null
+  )
   const [hasChanges, setHasChanges] = useState(false)
 
   const form = useForm<StorageFormValues>({
@@ -125,7 +127,9 @@ export function GlobalStorageSettings() {
                         <FormControl>
                           <Input
                             {...field}
-                            placeholder={t("settings.storage.selectDataFolderPlaceholder")}
+                            placeholder={t(
+                              "settings.storage.selectDataFolderPlaceholder"
+                            )}
                             readOnly
                             className="flex-1"
                           />

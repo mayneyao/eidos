@@ -32,19 +32,19 @@ async function extract(zipPath, distPath) {
     if (process.platform === "win32") {
       execSync(
         `powershell Expand-Archive "${zipPath}" -DestinationPath . -Force`,
-        { stdio: "inherit" }
+        {
+          stdio: "inherit",
+        }
       )
       const libsimpleDir = fs
         .readdirSync(".")
         .find((dir) => dir.startsWith("libsimple"))
       if (libsimpleDir) {
         execSync(
-          `xcopy "${path.join(
-            ".",
-            libsimpleDir,
-            "*"
-          )}" "${distPath}\\" /E /I /H /Y /S`,
-          { stdio: "inherit" }
+          `xcopy "${path.join(".", libsimpleDir, "*")}" "${distPath}\\" /E /I /H /Y /S`,
+          {
+            stdio: "inherit",
+          }
         )
         const sourceDll = path.join(distPath, "simple.dll")
         const targetDll = path.join(distPath, "libsimple.dll")

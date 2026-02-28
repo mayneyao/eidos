@@ -172,7 +172,10 @@ const { data: allItems, loading: loadingAll } = useItemsList(sqlite)
 // Get paginated items
 const { data: paginatedItems, loading: loadingPaginated } = useItemsList(
   sqlite,
-  { page: 1, pageSize: 10 }
+  {
+    page: 1,
+    pageSize: 10,
+  }
 )
 ```
 

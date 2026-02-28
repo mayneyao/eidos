@@ -25,10 +25,8 @@ type BoxStyle = {
 export function useMouseSelection(
   getSelectionItems: () => NodeListOf<Element>
 ) {
-  const {
-    setIsSelecting: setGlobalIsSelecting,
-    queryWithinContainer,
-  } = useEditorInstance()
+  const { setIsSelecting: setGlobalIsSelecting, queryWithinContainer } =
+    useEditorInstance()
   const [editor] = useLexicalComposerContext()
   const [startX, setStartX] = useState(0)
   const [startY, setStartY] = useState(0)
@@ -125,8 +123,9 @@ export function useMouseSelection(
       const docTitle = queryWithinContainer("#doc-title")
       const editorContainer = queryWithinContainer(".editor-input")
       const dragHandle = queryWithinContainer(".draggable-block-menu")
-      const docPropertyGlobalContainer =
-        queryWithinContainer("#doc-property-container")
+      const docPropertyGlobalContainer = queryWithinContainer(
+        "#doc-property-container"
+      )
       const isClickOnEditor = editorContainer?.contains(e.target as Node)
       const isClickOnDragHandle = dragHandle?.contains(e.target as Node)
       const isClickOnDocTitle = docTitle?.contains(e.target as Node)

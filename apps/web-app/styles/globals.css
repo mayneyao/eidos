@@ -9,8 +9,6 @@
   /* Thumb and track colors */
 }
 
-
-
 #root {
   overflow: hidden;
 }
@@ -27,7 +25,9 @@ code[class*="language-"] {
   word-break: break-word !important;
   font-size: 0.75rem !important;
   line-height: 1.25rem !important;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace !important;
 }
 
 html {
@@ -194,7 +194,9 @@ html {
 
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
   }
 }
 

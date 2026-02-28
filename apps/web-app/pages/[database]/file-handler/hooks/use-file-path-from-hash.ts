@@ -15,10 +15,7 @@ export function useFilePathFromHash() {
     return decodeURIComponent(rawPath)
   }, [location.hash])
 
-  const fileExtension = useMemo(
-    () => getFileExtension(filePath),
-    [filePath]
-  )
+  const fileExtension = useMemo(() => getFileExtension(filePath), [filePath])
 
   const fileName = useMemo(() => {
     const parts = filePath.split("/")
@@ -31,4 +28,3 @@ export function useFilePathFromHash() {
     fileName,
   }
 }
-

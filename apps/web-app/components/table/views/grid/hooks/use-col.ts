@@ -90,10 +90,13 @@ export const useColumns = (
       newShowColumns.splice(targetIndex, 0, removedShow)
       setShowColumns(newShowColumns)
 
-      const orderMap = newShowColumns.reduce((acc, cur, index) => {
-        acc[cur.table_column_name] = index
-        return acc
-      }, {} as Record<string, number>)
+      const orderMap = newShowColumns.reduce(
+        (acc, cur, index) => {
+          acc[cur.table_column_name] = index
+          return acc
+        },
+        {} as Record<string, number>
+      )
 
       if (!view) return
       await updateView(view.id, {

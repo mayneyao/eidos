@@ -25,9 +25,7 @@ export const useTodo = (
       if (!sqlite || !docId) return
       await sqlite.sql`UPDATE ${Symbol(TodoTableName)} SET content = ${
         item.text
-      }, done = ${item.checked} WHERE node_key = ${
-        item.nodeKey
-      } AND doc_id = ${docId};`
+      }, done = ${item.checked} WHERE node_key = ${item.nodeKey} AND doc_id = ${docId};`
     },
     [sqlite, docId]
   )

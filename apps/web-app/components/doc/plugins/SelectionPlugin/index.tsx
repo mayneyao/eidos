@@ -25,8 +25,5 @@ export const SelectionPlugin = () => {
     container ??
     document.body
 
-  return createPortal(
-    <div id="selection-box" style={boxStyle} />,
-    portalTarget
-  )
+  return createPortal(<div id="selection-box" style={boxStyle} />, portalTarget)
 }

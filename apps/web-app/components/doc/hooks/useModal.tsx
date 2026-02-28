@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input"
 
 export function useModal(): [
   JSX.Element | null,
-  (title: string, showModal: (onClose: () => void) => JSX.Element) => void
+  (title: string, showModal: (onClose: () => void) => JSX.Element) => void,
 ] {
   const [open, setOpen] = useState(false)
   const [modalContent, setModalContent] = useState<null | {
@@ -52,8 +52,7 @@ export function useModal(): [
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
-            <DialogDescription>
-            </DialogDescription>
+            <DialogDescription></DialogDescription>
           </DialogHeader>
           {content}
         </DialogContent>
@@ -64,7 +63,7 @@ export function useModal(): [
   const showModal = useCallback(
     (
       title: string,
-       
+
       getContent: (onClose: () => void) => JSX.Element,
       closeOnClickOutside = false
     ) => {

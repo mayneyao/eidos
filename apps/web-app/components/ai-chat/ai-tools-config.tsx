@@ -32,14 +32,14 @@ const buildDefaultToolState = (tools: Record<string, any>) =>
   )
 
 function useEnabledToolsKV(tools: Record<string, any>) {
-  const [kvEnabledTools, setKvEnabledTools] = useSqliteKV<Record<string, boolean>>(
-    ENABLED_TOOLS_KV_KEY,
-    {}
-  )
+  const [kvEnabledTools, setKvEnabledTools] = useSqliteKV<
+    Record<string, boolean>
+  >(ENABLED_TOOLS_KV_KEY, {})
 
   useEffect(() => {
     const toolNames = Object.keys(tools)
-    const hasStoredValue = kvEnabledTools && Object.keys(kvEnabledTools).length > 0
+    const hasStoredValue =
+      kvEnabledTools && Object.keys(kvEnabledTools).length > 0
 
     if (!toolNames.length || hasStoredValue) return
 

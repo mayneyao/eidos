@@ -3,5 +3,5 @@ main = "src/index.ts"
 compatibility_date = "2024-10-17"
 
 secrets_store_secrets = [
-  { binding = "GITHUB_TOKEN", store_id= "b73d70957ed84acc8ad641f7107df44d", secret_name = "GITHUB_TOKEN" }
+  { binding = "GITHUB_TOKEN", store_id = "b73d70957ed84acc8ad641f7107df44d", secret_name = "GITHUB_TOKEN" },
 ]

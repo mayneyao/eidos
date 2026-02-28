@@ -19,7 +19,13 @@ interface PanelViewProps {
   children: React.ReactNode
 }
 
-function PanelView({ panel, isActive, isFirst, isLast, children }: PanelViewProps) {
+function PanelView({
+  panel,
+  isActive,
+  isFirst,
+  isLast,
+  children,
+}: PanelViewProps) {
   const { tabs, setActivePanel } = useTabStore()
   const panelTabs = panel.tabIds
     .map((id) => tabs.find((t) => t.id === id))
@@ -103,10 +109,7 @@ export function SplitPanelManager({ children }: SplitPanelManagerProps) {
 
   // Multiple panels - use resizable layout
   return (
-    <ResizablePanelGroup
-      direction={splitDirection}
-      className="h-full w-full"
-    >
+    <ResizablePanelGroup direction={splitDirection} className="h-full w-full">
       {panels.map((panel, index) => (
         <React.Fragment key={panel.id}>
           {index > 0 && (

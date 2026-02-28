@@ -40,7 +40,8 @@ export const GalleryCardCover = ({
   }
 
   const { isView } = useContext(TableContext)
-  const showContent = coverPreview == undefined || coverPreview === "__CONTENT__"
+  const showContent =
+    coverPreview == undefined || coverPreview === "__CONTENT__"
   const showBlock = coverPreview?.startsWith("block://")
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
@@ -80,10 +81,10 @@ export const GalleryCardCover = ({
   if (imageUrl) {
     return (
       <>
-        <img 
-          src={imageUrl} 
-          alt="" 
-          className="h-[200px] w-full object-cover cursor-pointer" 
+        <img
+          src={imageUrl}
+          alt=""
+          className="h-[200px] w-full object-cover cursor-pointer"
           onClick={() => setShowPreview(true)}
         />
         {showPreview && (
@@ -116,9 +117,12 @@ export const GalleryCardCover = ({
   }
 
   // If it's a field (not __CONTENT__, not block://), show the field's image
-  if (coverField && coverPreview && 
-      coverPreview !== "__CONTENT__" && 
-      !coverPreview.startsWith("block://")) {
+  if (
+    coverField &&
+    coverPreview &&
+    coverPreview !== "__CONTENT__" &&
+    !coverPreview.startsWith("block://")
+  ) {
     const coverUrl = getCoverUrl(item, coverField)
     if (!coverUrl) return null
     return (

@@ -123,14 +123,15 @@ export const useJournalsSidebarData = () => {
       let entries: [string, string][] = []
       try {
         const batchRes = await space.getDocMarkdownBatch(targetIds)
-        entries = batchRes.map(
-          (item: { id: string; markdown: string }) => [
-            item.id,
-            buildSnippet(item.markdown || ""),
-          ]
-        )
+        entries = batchRes.map((item: { id: string; markdown: string }) => [
+          item.id,
+          buildSnippet(item.markdown || ""),
+        ])
       } catch (error) {
-        console.warn("[JournalsSidebar] Failed to batch load journal previews", error)
+        console.warn(
+          "[JournalsSidebar] Failed to batch load journal previews",
+          error
+        )
         entries = targetIds.map((id) => [id, ""])
       }
 

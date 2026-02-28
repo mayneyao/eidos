@@ -8,10 +8,9 @@ import * as prettierMarkdown from "prettier/plugins/markdown"
 
 import { useToast } from "@/components/ui/use-toast"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { formatFor, loadConfig ,lintFor} from "@huacnlee/autocorrect"
+import { formatFor, loadConfig, lintFor } from "@huacnlee/autocorrect"
 import { useEditorInstance } from "../../hooks/editor-instance-context"
 import { allTransformers } from "../const"
-
 
 const autocorrect = {
   formatFor,
@@ -35,31 +34,33 @@ export function PrettierPlugin() {
   const { docId } = useEditorInstance()
   const { t } = useTranslation()
 
-
-  const formatMarkdown = useCallback(async (markdown: string) => {
-    try {
-      // const prettierFormatted = await prettier.format(markdown, {
-      //   parser: 'markdown',
-      //   plugins: [prettierMarkdown],
-      //   printWidth: 80,
-      //   tabWidth: 2,
-      //   useTabs: false,
-      //   semi: false,
-      //   singleQuote: true,
-      //   quoteProps: 'as-needed',
-      //   trailingComma: 'es5',
-      //   bracketSpacing: true,
-      //   arrowParens: 'avoid',
-      //   proseWrap: 'preserve',
-      //   htmlWhitespaceSensitivity: 'ignore',
-      //   embeddedLanguageFormatting: 'off',
-      // })
-      const result = autocorrect.formatFor(markdown, 'markdown')
-      return result.out
-    } catch (error) {
-      throw error
-    }
-  }, [autocorrect])
+  const formatMarkdown = useCallback(
+    async (markdown: string) => {
+      try {
+        // const prettierFormatted = await prettier.format(markdown, {
+        //   parser: 'markdown',
+        //   plugins: [prettierMarkdown],
+        //   printWidth: 80,
+        //   tabWidth: 2,
+        //   useTabs: false,
+        //   semi: false,
+        //   singleQuote: true,
+        //   quoteProps: 'as-needed',
+        //   trailingComma: 'es5',
+        //   bracketSpacing: true,
+        //   arrowParens: 'avoid',
+        //   proseWrap: 'preserve',
+        //   htmlWhitespaceSensitivity: 'ignore',
+        //   embeddedLanguageFormatting: 'off',
+        // })
+        const result = autocorrect.formatFor(markdown, "markdown")
+        return result.out
+      } catch (error) {
+        throw error
+      }
+    },
+    [autocorrect]
+  )
 
   const handleFormat = useCallback(async () => {
     if (!editor.isEditable() || !docId) {
@@ -67,8 +68,8 @@ export function PrettierPlugin() {
     }
 
     try {
-      let markdown = ''
-      
+      let markdown = ""
+
       editor.getEditorState().read(() => {
         markdown = $convertToMarkdownString(allTransformers, undefined, true)
       })
@@ -99,16 +100,19 @@ export function PrettierPlugin() {
         )
       } else {
         toast({
-          title: t('doc.prettier.formatFailed'),
-          description: t('doc.prettier.saveFailed'),
-          variant: 'destructive',
+          title: t("doc.prettier.formatFailed"),
+          description: t("doc.prettier.saveFailed"),
+          variant: "destructive",
         })
       }
     } catch (error) {
       toast({
-        title: t('doc.prettier.formatFailed'),
-        description: error instanceof Error ? error.message : t('doc.prettier.unknownError'),
-        variant: 'destructive',
+        title: t("doc.prettier.formatFailed"),
+        description:
+          error instanceof Error
+            ? error.message
+            : t("doc.prettier.unknownError"),
+        variant: "destructive",
       })
     }
   }, [editor, sqlite, docId, toast, formatMarkdown, autocorrect, t])
@@ -127,4 +131,4 @@ export function PrettierPlugin() {
   )
 
   return null
-} 
+}

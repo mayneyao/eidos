@@ -237,9 +237,7 @@ export const DataViewPlaceholder = ({
                       {t("common.sqlQuery")}
                     </label>
                   </div>
-                  <TemplateModal
-                    onTemplateSelect={handleTemplateSelect}
-                  >
+                  <TemplateModal onTemplateSelect={handleTemplateSelect}>
                     <Button variant="outline" size="xs" className="gap-1 mx-2">
                       <Database className="h-3 w-3" />
                       {t("common.templates")}

@@ -151,14 +151,17 @@ export const useFileTreeDragDrop = ({
     ]
   )
 
-  const handleDragEnter = useCallback((e: React.DragEvent, node: FileTreeNode) => {
-    // Only allow drop on folders
-    if (node.kind !== "directory") return
+  const handleDragEnter = useCallback(
+    (e: React.DragEvent, node: FileTreeNode) => {
+      // Only allow drop on folders
+      if (node.kind !== "directory") return
 
-    e.preventDefault()
-    e.stopPropagation()
-    setDragOverNode(node.path)
-  }, [])
+      e.preventDefault()
+      e.stopPropagation()
+      setDragOverNode(node.path)
+    },
+    []
+  )
 
   const handleDragLeave = useCallback(
     (e: React.DragEvent) => {
@@ -314,4 +317,3 @@ export const useFileTreeDragDrop = ({
     handleExternalDragOver,
   }
 }
-

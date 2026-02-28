@@ -22,7 +22,7 @@ export const useHover = ({ theme }: { theme?: string }) => {
   }, [])
 
   const getRowThemeOverride = React.useCallback<any>(
-    (row:any) => {
+    (row: any) => {
       const isDarkMode = theme === "dark"
       const isOddRow = row % 2 === 1
       if (isOddRow) return oddRowOrHoverRowThemeOverride(isDarkMode)

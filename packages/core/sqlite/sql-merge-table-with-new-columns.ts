@@ -1,10 +1,5 @@
-import type {
-  CreateColumnDef,
-  CreateTableStatement} from "pgsql-ast-parser";
-import {
-  parseFirst,
-  toSql,
-} from "pgsql-ast-parser"
+import type { CreateColumnDef, CreateTableStatement } from "pgsql-ast-parser"
+import { parseFirst, toSql } from "pgsql-ast-parser"
 
 /**
  * sqlite has some limitations on alter table, for example, we can't add a column with non-constant default value.

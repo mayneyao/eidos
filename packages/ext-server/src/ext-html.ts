@@ -1,29 +1,29 @@
-import type { Config } from "tailwindcss";
+import type { Config } from "tailwindcss"
 
 export interface ExtensionContext {
-  type?: string;
-  space?: string;
-  locale?: string;
-  nodeId?: string;
-  tableId?: string;
-  viewId?: string;
-  filePath?: string;
-  currentDay?: string;
-  syncEnabled?: boolean;
+  type?: string
+  space?: string
+  locale?: string
+  nodeId?: string
+  tableId?: string
+  viewId?: string
+  filePath?: string
+  currentDay?: string
+  syncEnabled?: boolean
 }
 
 export interface IndexHtmlProps {
-  theme: string;
-  importMap: string;
-  cssLoaderScript: string;
-  sdkInjectScriptContent: string;
-  envString: string;
-  twConfig: Partial<Config>;
-  compiledCode: string;
-  defaultPropsString: string;
-  serverSideProps: any;
-  rawThemeCss: string;
-  extensionContext?: ExtensionContext;
+  theme: string
+  importMap: string
+  cssLoaderScript: string
+  sdkInjectScriptContent: string
+  envString: string
+  twConfig: Partial<Config>
+  compiledCode: string
+  defaultPropsString: string
+  serverSideProps: any
+  rawThemeCss: string
+  extensionContext?: ExtensionContext
 }
 
 export const getIndexHtml = (props: IndexHtmlProps): string => {
@@ -37,7 +37,7 @@ export const getIndexHtml = (props: IndexHtmlProps): string => {
     serverSideProps,
     rawThemeCss,
     extensionContext,
-  } = props;
+  } = props
 
   return `<html class="${theme}">
       <head>
@@ -123,5 +123,5 @@ export const getIndexHtml = (props: IndexHtmlProps): string => {
         <script src="/app-wrapper.js" type="module"></script>
       </body>
     </html>
-    `;
-};
+    `
+}

@@ -1,10 +1,8 @@
 import type { CustomCell, CustomRenderer } from "@glideapps/glide-data-grid"
 
-export type InferCustomRendererType<T> = T extends CustomRenderer<infer U>
-  ? U
-  : never
+export type InferCustomRendererType<T> =
+  T extends CustomRenderer<infer U> ? U : never
 export type InferCustomCellProps<T> = T extends CustomCell<infer U> ? U : never
-
 
 // only for type
 
@@ -18,7 +16,6 @@ export interface UserProfileCellProps {
 
 export type UserProfileCell = CustomCell<UserProfileCellProps>
 
-
 interface FileCellDataProps {
   readonly kind: "file-cell"
   readonly data: string[]
@@ -28,7 +25,6 @@ interface FileCellDataProps {
 }
 
 export type FileCell = CustomCell<FileCellDataProps>
-
 
 interface DatePickerCellProps {
   readonly kind: "date-picker-cell"

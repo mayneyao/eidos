@@ -6,11 +6,8 @@ import { ListItemNode, ListNode } from "@lexical/list"
 import { MarkNode } from "@lexical/mark"
 import { $convertToMarkdownString } from "@lexical/markdown"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
-import type {
-  InitialConfigType} from "@lexical/react/LexicalComposer";
-import {
-  LexicalComposer,
-} from "@lexical/react/LexicalComposer"
+import type { InitialConfigType } from "@lexical/react/LexicalComposer"
+import { LexicalComposer } from "@lexical/react/LexicalComposer"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary"
@@ -31,9 +28,7 @@ import { useTranslation } from "react-i18next"
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import { useToast } from "@/components/ui/use-toast"
 import { MentionNode } from "@/components/doc/blocks/mention/node"
-import type {
-  MentionPluginProps,
-} from "@/components/doc/blocks/mention/plugin";
+import type { MentionPluginProps } from "@/components/doc/blocks/mention/plugin"
 import NewMentionsPlugin from "@/components/doc/blocks/mention/plugin"
 import { allTransformers } from "@/components/doc/plugins/const"
 import { useEmbedding } from "@/apps/web-app/hooks/use-embedding"

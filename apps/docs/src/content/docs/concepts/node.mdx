@@ -43,22 +43,22 @@ CREATE TABLE IF NOT EXISTS eidos__tree (
 
 ### Field Definitions
 
-| Field | Type | Description |
-|-----|------|-------------|
-| id | TEXT | Unique identifier for the node |
-| name | TEXT | Node name |
-| type | TEXT | Node type (doc/table/dataview/folder) |
-| parent_id | TEXT | Parent node ID |
-| icon | TEXT | Node icon |
-| cover | TEXT | Node cover |
-| is_pinned | BOOLEAN | Whether the node is pinned |
-| is_full_width | BOOLEAN | Whether to display in full width |
-| is_locked | BOOLEAN | Whether the node is locked |
-| is_deleted | BOOLEAN | Whether the node is deleted |
-| hide_properties | BOOLEAN | Whether to hide properties |
-| position | REAL | Node position |
-| created_at | TIMESTAMP | Creation timestamp |
-| updated_at | TIMESTAMP | Last update timestamp |
+| Field           | Type      | Description                           |
+| --------------- | --------- | ------------------------------------- |
+| id              | TEXT      | Unique identifier for the node        |
+| name            | TEXT      | Node name                             |
+| type            | TEXT      | Node type (doc/table/dataview/folder) |
+| parent_id       | TEXT      | Parent node ID                        |
+| icon            | TEXT      | Node icon                             |
+| cover           | TEXT      | Node cover                            |
+| is_pinned       | BOOLEAN   | Whether the node is pinned            |
+| is_full_width   | BOOLEAN   | Whether to display in full width      |
+| is_locked       | BOOLEAN   | Whether the node is locked            |
+| is_deleted      | BOOLEAN   | Whether the node is deleted           |
+| hide_properties | BOOLEAN   | Whether to hide properties            |
+| position        | REAL      | Node position                         |
+| created_at      | TIMESTAMP | Creation timestamp                    |
+| updated_at      | TIMESTAMP | Last update timestamp                 |
 
 ## Extension Nodes
 
@@ -77,16 +77,17 @@ CREATE TABLE IF NOT EXISTS eidos__extnodes (
 
 ### Extension Node Fields
 
-| Field | Type | Description |
-|-----|------|-------------|
-| id | TEXT | Unique identifier for the node |
-| type | TEXT | Extension node type, e.g., `excalidraw` |
-| blob | BLOB | Binary data (images, audio, video, etc.) |
-| text | TEXT | Text data (JSON, Markdown, etc.) |
-| created_at | TIMESTAMP | Creation timestamp |
-| updated_at | TIMESTAMP | Last update timestamp |
+| Field      | Type      | Description                              |
+| ---------- | --------- | ---------------------------------------- |
+| id         | TEXT      | Unique identifier for the node           |
+| type       | TEXT      | Extension node type, e.g., `excalidraw`  |
+| blob       | BLOB      | Binary data (images, audio, video, etc.) |
+| text       | TEXT      | Text data (JSON, Markdown, etc.)         |
+| created_at | TIMESTAMP | Creation timestamp                       |
+| updated_at | TIMESTAMP | Last update timestamp                    |
 
 Extension nodes choose storage fields based on data type:
+
 - `blob` for storing binary data
 - `text` for storing text data
 

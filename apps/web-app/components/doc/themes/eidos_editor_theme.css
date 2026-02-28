@@ -397,7 +397,10 @@ ol .eidos_editor_theme__listItem {
   outline: none;
 }
 
-ul li.eidos_editor_theme__listItem:not(.eidos_editor_theme__listItemUnchecked):not(.eidos_editor_theme__listItemChecked):before {
+ul
+  li.eidos_editor_theme__listItem:not(
+    .eidos_editor_theme__listItemUnchecked
+  ):not(.eidos_editor_theme__listItemChecked):before {
   content: "";
   width: 6px;
   height: 6px;
@@ -416,11 +419,14 @@ ul li.eidos_editor_theme__listItem[role="checkbox"]:before {
   top: 6px;
 }
 
-ul li.eidos_editor_theme__listItem[role="checkbox"]>div>.eidos_editor_theme__embedBlock {
+ul
+  li.eidos_editor_theme__listItem[role="checkbox"]
+  > div
+  > .eidos_editor_theme__embedBlock {
   padding-top: 6px;
 }
 
-ul li.eidos_editor_theme__listItem[role="checkbox"]>.editor-image {
+ul li.eidos_editor_theme__listItem[role="checkbox"] > .editor-image {
   top: 6px;
 }
 
@@ -457,7 +463,6 @@ ul li.eidos_editor_theme__listItem[role="checkbox"]>.editor-image {
 }
 
 @media (max-width: 1280px) {
-
   .eidos_editor_theme__listItemUnchecked:before,
   .eidos_editor_theme__listItemChecked:before {
     top: 6px;
@@ -465,7 +470,6 @@ ul li.eidos_editor_theme__listItem[role="checkbox"]>.editor-image {
 }
 
 @media (min-width: 1280px) {
-
   .eidos_editor_theme__listItemUnchecked:before,
   .eidos_editor_theme__listItemChecked:before {
     top: 10px;
@@ -584,6 +588,6 @@ ul li.eidos_editor_theme__listItem[role="checkbox"]>.editor-image {
   background-color: hsl(var(--secondary));
 }
 
-.eidos_editor_theme__listItem>[data-lexical-decorator]:first-child {
+.eidos_editor_theme__listItem > [data-lexical-decorator]:first-child {
   padding-top: 10px;
 }

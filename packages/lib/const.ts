@@ -63,7 +63,6 @@ export enum EidosDataEventChannelMsgType {
   SchemaUpdateSignalType = "SchemaUpdateSignalType",
   // trigger when data of system meta table eidos__xxx changes
   MetaTableUpdateSignalType = "MetaTableUpdateSignalType",
-
 }
 
 export type EidosDataEventChannelMsg = {
@@ -120,36 +119,67 @@ export enum CustomEventType {
 }
 
 export const EIDOS_PORT = 13127
-export const EIDOS_SPACE_BASE_URL = process.env.NODE_ENV === "production" ? "https://eidos.space" : "http://localhost:4321";
+export const EIDOS_SPACE_BASE_URL =
+  process.env.NODE_ENV === "production"
+    ? "https://eidos.space"
+    : "http://localhost:4321"
 
 export const EIDOS_CHAT_PROJECT_ID = "EIDOS_CHAT"
 
-export const EIDOS_PROXY_URL = isDesktopMode ? "http://proxy.eidos.localhost:13127/?url=" : "https://proxy.eidos.space/?url="
+export const EIDOS_PROXY_URL = isDesktopMode
+  ? "http://proxy.eidos.localhost:13127/?url="
+  : "https://proxy.eidos.space/?url="
 
 // Worker initialization constants
 export const WORKER_INIT_MESSAGES = {
-  INIT: 'init',
-  INIT_FAILED: 'init_failed',
-  INIT_TIMEOUT: 'init_timeout'
+  INIT: "init",
+  INIT_FAILED: "init_failed",
+  INIT_TIMEOUT: "init_timeout",
 } as const
 
 export const WORKER_INIT_CONFIG = {
   RETRY_INTERVAL: 50, // ms
-  MAX_RETRIES: 200,   // 10 seconds total (200 * 50ms)
-  WEBSOCKET_DELAY: 1000 // ms
+  MAX_RETRIES: 200, // 10 seconds total (200 * 50ms)
+  WEBSOCKET_DELAY: 1000, // ms
 } as const
 
 export const WORKER_MESSAGE_TYPES = {
-  IS_WORKER_INITIALIZED: 'isWorkerInitialized'
+  IS_WORKER_INITIALIZED: "isWorkerInitialized",
 } as const
 
 // Allowed file extensions for document processing and context
 export const ALLOWED_DOCUMENT_EXTENSIONS = [
-  '.md', '.markdown', '.txt', '.rtf', '.doc', '.docx', '.pdf',
-  '.json', '.xml', '.html', '.htm', '.css', '.js', '.ts',
-  '.jsx', '.tsx', '.py', '.rs', '.go', '.java', '.cpp', '.c',
-  '.php', '.rb', '.sh', '.yaml', '.yml', '.toml', '.ini',
-  '.cfg', '.conf'
+  ".md",
+  ".markdown",
+  ".txt",
+  ".rtf",
+  ".doc",
+  ".docx",
+  ".pdf",
+  ".json",
+  ".xml",
+  ".html",
+  ".htm",
+  ".css",
+  ".js",
+  ".ts",
+  ".jsx",
+  ".tsx",
+  ".py",
+  ".rs",
+  ".go",
+  ".java",
+  ".cpp",
+  ".c",
+  ".php",
+  ".rb",
+  ".sh",
+  ".yaml",
+  ".yml",
+  ".toml",
+  ".ini",
+  ".cfg",
+  ".conf",
 ]
 
 // OAuth / Authentication constants
@@ -159,20 +189,19 @@ export const OAUTH_CONFIG = {
 
   // OAuth endpoints (relative to AUTH_SERVER_BASE_URL)
   ENDPOINTS: {
-    AUTHORIZE: '/api/auth/oauth2/authorize',
-    TOKEN: '/api/auth/oauth2/token',
-    USERINFO: '/api/auth/oauth2/userinfo',
-    END_SESSION: '/api/auth/oauth2/endsession',
+    AUTHORIZE: "/api/auth/oauth2/authorize",
+    TOKEN: "/api/auth/oauth2/token",
+    USERINFO: "/api/auth/oauth2/userinfo",
+    END_SESSION: "/api/auth/oauth2/endsession",
   },
 
   // Client configuration
-  CLIENT_ID: 'desktop.eidos.space',
+  CLIENT_ID: "desktop.eidos.space",
   REDIRECT_URI: `http://127.0.0.1:${EIDOS_PORT}/oauth/callback`,
-  SCOPES: 'openid profile email',
+  SCOPES: "openid profile email",
 
   // Token management
   TOKEN_REFRESH_BUFFER_MS: 5 * 60 * 1000, // 5 minutes before expiration
 } as const
-
 
 export const SYNC_INTERNAL_URL = EIDOS_SPACE_BASE_URL + "/api/sync/init"

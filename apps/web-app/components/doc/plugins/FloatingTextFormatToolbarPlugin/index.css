@@ -6,7 +6,9 @@
   left: 0;
   z-index: 10;
   opacity: 0;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
   border-radius: 6px;
   transition: opacity 0.2s ease-in-out;
   height: 32px;

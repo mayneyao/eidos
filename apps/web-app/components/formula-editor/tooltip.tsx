@@ -1,4 +1,3 @@
-
 /**
  * Creates a custom tooltip component for UDF code
  * @param code The UDF code to extract documentation from

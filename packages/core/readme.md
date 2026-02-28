@@ -32,7 +32,7 @@ yarn add @eidos.space/core
 ### Basic Setup
 
 ```typescript
-import { DataSpace } from '@eidos.space/core'
+import { DataSpace } from "@eidos.space/core"
 
 // 1. Initialize database adapter (example with your custom adapter)
 const db = new YourDatabaseAdapter("./data.sqlite3")
@@ -57,19 +57,19 @@ const rows = await dataSpace.table("tasks").rows.query()
 
 // Query with filters
 const completedTasks = await dataSpace.table("tasks").rows.query({
-  where: { status: "completed" }
+  where: { status: "completed" },
 })
 
 // Create a new row
 await dataSpace.table("tasks").rows.create({
   title: "New Task",
   status: "pending",
-  priority: "high"
+  priority: "high",
 })
 
 // Update a row
 await dataSpace.table("tasks").rows.update("row-id", {
-  status: "completed"
+  status: "completed",
 })
 
 // Delete a row
@@ -105,7 +105,7 @@ const node = await dataSpace.tree.getNode("node-id")
 await dataSpace.tree.createNode({
   name: "New Folder",
   type: "folder",
-  parentId: "parent-node-id"
+  parentId: "parent-node-id",
 })
 ```
 
@@ -184,7 +184,7 @@ export class DenoServerDatabase implements BaseServerDatabase {
 }
 
 // Example: Node.js adapter with better-sqlite3
-import Database from 'better-sqlite3'
+import Database from "better-sqlite3"
 
 export class NodeServerDatabase implements BaseServerDatabase {
   db: Database.Database
@@ -199,13 +199,13 @@ export class NodeServerDatabase implements BaseServerDatabase {
 
 ### Supported Environments
 
-| Runtime | SQLite Library | Status |
-|---------|---------------|--------|
-| Browser | `@sqlite.org/sqlite-wasm` | ✅ Supported |
-| Node.js | `better-sqlite3` | ✅ Supported |
-| Deno | `@db/sqlite` | ✅ Supported |
-| Bun | `bun:sqlite` | 🔄 Experimental |
-| Cloudflare Workers | `D1` | 🔄 Experimental |
+| Runtime            | SQLite Library            | Status          |
+| ------------------ | ------------------------- | --------------- |
+| Browser            | `@sqlite.org/sqlite-wasm` | ✅ Supported    |
+| Node.js            | `better-sqlite3`          | ✅ Supported    |
+| Deno               | `@db/sqlite`              | ✅ Supported    |
+| Bun                | `bun:sqlite`              | 🔄 Experimental |
+| Cloudflare Workers | `D1`                      | 🔄 Experimental |
 
 ## Advanced Usage
 
@@ -214,16 +214,28 @@ export class NodeServerDatabase implements BaseServerDatabase {
 Implement the `BaseServerDatabase` interface for your runtime:
 
 ```typescript
-import { BaseServerDatabase } from '@eidos.space/core'
+import { BaseServerDatabase } from "@eidos.space/core"
 
 export class CustomDatabaseAdapter extends BaseServerDatabase {
   // Implement required methods based on your SQLite library
-  prepare(sql: string) { /* ... */ }
-  close() { /* ... */ }
-  selectObjects(sql: string, bind?: any[]) { /* ... */ }
-  transaction(func: Function) { /* ... */ }
-  exec(opts: any) { /* ... */ }
-  createFunction(opt: { name: string; xFunc: Function }) { /* ... */ }
+  prepare(sql: string) {
+    /* ... */
+  }
+  close() {
+    /* ... */
+  }
+  selectObjects(sql: string, bind?: any[]) {
+    /* ... */
+  }
+  transaction(func: Function) {
+    /* ... */
+  }
+  exec(opts: any) {
+    /* ... */
+  }
+  createFunction(opt: { name: string; xFunc: Function }) {
+    /* ... */
+  }
 }
 ```
 
@@ -234,9 +246,15 @@ Implement filesystem operations for your environment:
 ```typescript
 export class CustomFileSystemManager {
   // Implement file operations
-  async read(path: string): Promise<Uint8Array> { /* ... */ }
-  async write(path: string, data: Uint8Array): Promise<void> { /* ... */ }
-  async delete(path: string): Promise<void> { /* ... */ }
+  async read(path: string): Promise<Uint8Array> {
+    /* ... */
+  }
+  async write(path: string, data: Uint8Array): Promise<void> {
+    /* ... */
+  }
+  async delete(path: string): Promise<void> {
+    /* ... */
+  }
   // ... other file operations
 }
 ```
