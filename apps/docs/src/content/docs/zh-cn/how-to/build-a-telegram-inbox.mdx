@@ -88,9 +88,13 @@ Eidos 提供官方 Telegram Bot（[@eidos_relay_bot](https://t.me/eidos_relay_bo
    - `sender`（文本）— 发送者
    - `created_at`（日期）— 发送时间
 
-2. **创建一个脚本**来处理收到的消息：
+2. **获取表格 ID**：
 
-   进入 **扩展 → 脚本 → 创建脚本**，粘贴以下代码：
+   在左侧文件树中，右键点击刚创建的 `messages` 表格，选择 **"Copy ID"** 复制表格的唯一标识符（格式如 `019cd7c9e4577af3a70423780008dcc9`）。
+
+3. **创建一个脚本**来处理收到的消息：
+
+   进入 **扩展 → 脚本 → 创建脚本**，粘贴以下代码，并将 `YOUR_TABLE_ID` 替换为上一步复制的表格 ID：
 
    ```typescript
    export const meta = {
@@ -105,16 +109,19 @@ Eidos 提供官方 Telegram Bot（[@eidos_relay_bot](https://t.me/eidos_relay_bo
      for (const msg of batch.messages) {
        const { text, from } = msg.body.message
        
-       await eidos.currentSpace.table("messages").rows.create({
-         content: text,
-         sender: from.username || from.first_name,
-         created_at: new Date().toISOString(),
+       // 将 "YOUR_TABLE_ID" 替换为你复制的表格 ID
+       await eidos.currentSpace.table("YOUR_TABLE_ID").create({
+         data: {
+           content: text,
+           sender: from.username || from.first_name,
+           created_at: new Date().toISOString(),
+         }
        })
      }
    }
    ```
 
-3. **将收件箱绑定到脚本**：
+4. **将收件箱绑定到脚本**：
 
    进入 **设置 → Relay**，输入 `my-inbox`（你刚才起的名字），然后选择 "保存 Telegram 消息" 脚本。
 
@@ -122,7 +129,7 @@ Eidos 提供官方 Telegram Bot（[@eidos_relay_bot](https://t.me/eidos_relay_bo
 
 ---
 
-## 第四步：试一试
+## 第五步：试一试
 
 <Steps>
 
@@ -130,7 +137,7 @@ Eidos 提供官方 Telegram Bot（[@eidos_relay_bot](https://t.me/eidos_relay_bo
 
 2. 在 Telegram 给 [@eidos_relay_bot](https://t.me/eidos_relay_bot) 发送任意消息
 
-3. 查看 Eidos 里的 `messages` 表格 — 消息应该几秒钟内就出现！
+3. 查看 `messages` 表格 — 消息应该几秒钟内就出现！
 
 </Steps>
 

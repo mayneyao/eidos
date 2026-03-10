@@ -88,9 +88,13 @@ Now tell Eidos what to do when messages arrive.
    - `sender` (Text) — who sent it
    - `created_at` (Date) — when it was sent
 
-2. **Create a script** to process incoming messages:
+2. **Get the table ID**:
 
-   Go to **Extensions → Scripts → Create Script**, and paste this:
+   In the left sidebar file tree, right-click on the `messages` table you just created and select **"Copy ID"** to copy the table's unique identifier (format like `019cd7c9e4577af3a70423780008dcc9`).
+
+3. **Create a script** to process incoming messages:
+
+   Go to **Extensions → Scripts → Create Script**, and paste this code. Replace `YOUR_TABLE_ID` with the table ID you copied in the previous step:
 
    ```typescript
    export const meta = {
@@ -105,16 +109,19 @@ Now tell Eidos what to do when messages arrive.
      for (const msg of batch.messages) {
        const { text, from } = msg.body.message
        
-       await eidos.currentSpace.table("messages").rows.create({
-         content: text,
-         sender: from.username || from.first_name,
-         created_at: new Date().toISOString(),
+       // Replace "YOUR_TABLE_ID" with the table ID you copied
+       await eidos.currentSpace.table("YOUR_TABLE_ID").create({
+         data: {
+           content: text,
+           sender: from.username || from.first_name,
+           created_at: new Date().toISOString(),
+         }
        })
      }
    }
    ```
 
-3. **Connect your inbox** to the script:
+4. **Connect your inbox** to the script:
 
    Go to **Settings → Relay**, enter `my-inbox` (the name you chose), and select your "Save Telegram Messages" script.
 
@@ -122,7 +129,7 @@ Now tell Eidos what to do when messages arrive.
 
 ---
 
-## Step 4: Try It Out
+## Step 5: Try It Out
 
 <Steps>
 
@@ -130,7 +137,7 @@ Now tell Eidos what to do when messages arrive.
 
 2. Send any message to [@eidos_relay_bot](https://t.me/eidos_relay_bot) on Telegram
 
-3. Check your `messages` table in Eidos — it should appear within seconds!
+3. Check your `messages` table — it should appear within seconds!
 
 </Steps>
 
