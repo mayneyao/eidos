@@ -1101,5 +1101,9 @@
   "space.settings.relay.docsLink": "数据中转服务",
   "space.settings.relay.maxChannelsReached": "已达到最大频道数",
   "space.settings.relay.maxChannelsDescription": "最多只能创建 {{max}} 个频道。",
-  "space.settings.relay.channelCount": "{{current}}/{{max}} 个频道"
+  "space.settings.relay.channelCount": "{{current}}/{{max}} 个频道",
+  "space.settings.relay.pendingShort": "待处理",
+  "space.settings.relay.deadLetterShort": "死信",
+  "space.settings.relay.pendingTooltip": "待处理的消息",
+  "space.settings.relay.deadLetterTooltip": "死信队列消息（超过最大重试次数）"
 }

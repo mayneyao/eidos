@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import { Copy, Plus, Trash2, Terminal, Hash, Edit2, Info } from "lucide-react"
+import { Copy, Plus, Trash2, Terminal, Hash, Edit2, Info, AlertCircle } from "lucide-react"
 
 import { isDesktopMode } from "@/lib/env"
 import { Button } from "@/components/ui/button"
@@ -55,6 +55,10 @@ export function RelaySettings() {
     name: "",
     handlerScriptId: "",
   })
+  
+  // Message counts state
+  const [channelCounts, setChannelCounts] = useState<Record<string, { pending: number; deadLetter: number }>>({})
+  const [totalCounts, setTotalCounts] = useState<{ pending: number; deadLetter: number }>({ pending: 0, deadLetter: 0 })
 
   useEffect(() => {
     const loadData = async () => {
@@ -114,6 +118,34 @@ export function RelaySettings() {
   const handleToggleRelay = (enabled: boolean) => {
     saveRelayConfig({ ...relayConfig, enabled })
   }
+
+  // Fetch message counts for all channels
+  const fetchMessageCounts = useCallback(async () => {
+    if (!isDesktopMode || !space || relayConfig.channels.length === 0) return
+    
+    try {
+      // Fetch total counts
+      const total = await window.eidos.invoke("get-relay-total-counts", space)
+      setTotalCounts(total)
+      
+      // Fetch per-channel counts
+      const counts: Record<string, { pending: number; deadLetter: number }> = {}
+      for (const channel of relayConfig.channels) {
+        const result = await window.eidos.invoke("get-relay-channel-counts", space, { channelId: channel.id })
+        counts[channel.id] = result
+      }
+      setChannelCounts(counts)
+    } catch (error) {
+      console.error("Error fetching message counts:", error)
+    }
+  }, [space, relayConfig.channels])
+
+  // Poll message counts periodically
+  useEffect(() => {
+    fetchMessageCounts()
+    const interval = setInterval(fetchMessageCounts, 5000) // Refresh every 5 seconds
+    return () => clearInterval(interval)
+  }, [fetchMessageCounts])
 
   const getDefaultChannelName = () => {
     const nextNumber = relayConfig.channels.length + 1
@@ -360,7 +392,7 @@ export function RelaySettings() {
       {/* Relay Master Toggle */}
       <div className="p-4 rounded-lg bg-muted/50 border">
         <div className="flex items-center justify-between">
-          <div>
+          <div className="min-w-0">
             <span className="text-sm font-medium">{t("space.settings.relay.service")}</span>
             <p className="text-sm text-muted-foreground">
               {relayConfig.enabled
@@ -369,6 +401,28 @@ export function RelaySettings() {
                   ? t("space.settings.relay.serviceDisabled", { count: relayConfig.channels.length })
                   : t("space.settings.relay.noChannels")}
             </p>
+            {/* Message Statistics */}
+            {(totalCounts.pending > 0 || totalCounts.deadLetter > 0) && (
+              <div className="flex items-center gap-2 mt-2">
+                {totalCounts.pending > 0 && (
+                  <span 
+                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                    title={t("space.settings.relay.pendingTooltip")}
+                  >
+                    {t("space.settings.relay.pendingShort")}: {totalCounts.pending}
+                  </span>
+                )}
+                {totalCounts.deadLetter > 0 && (
+                  <span 
+                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                    title={t("space.settings.relay.deadLetterTooltip")}
+                  >
+                    <AlertCircle className="h-3 w-3 mr-1" />
+                    {t("space.settings.relay.deadLetterShort")}: {totalCounts.deadLetter}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <Switch
             checked={relayConfig.enabled}
@@ -419,6 +473,29 @@ export function RelaySettings() {
                 </div>
               </div>
 
+              {/* Message Counts */}
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const counts = channelCounts[channel.id]
+                  if (!counts) return null
+                  return (
+                    <>
+                      {counts.pending > 0 && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" title={t("space.settings.relay.pendingTooltip")}>
+                          {counts.pending}
+                        </span>
+                      )}
+                      {counts.deadLetter > 0 && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" title={t("space.settings.relay.deadLetterTooltip")}>
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          {counts.deadLetter}
+                        </span>
+                      )}
+                    </>
+                  )
+                })()}
+              </div>
+
               {/* Handler Script */}
               <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
                 <Terminal className="h-4 w-4" />
@@ -453,7 +530,6 @@ export function RelaySettings() {
           ))
         )}
       </div>
-
     </div>
   )
 }

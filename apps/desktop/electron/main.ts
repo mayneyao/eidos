@@ -437,6 +437,16 @@ ipcMain.handle("ack-relay-messages", async (event, spaceId, data) => {
   return processPool.callProcess(spaceId, "ack-relay-messages", data)
 })
 
+ipcMain.handle("get-relay-channel-counts", async (event, spaceId, data) => {
+  const processPool = DataSpaceProcessPool.getInstance()
+  return processPool.callProcess(spaceId, "get-relay-channel-counts", data)
+})
+
+ipcMain.handle("get-relay-total-counts", async (event, spaceId) => {
+  const processPool = DataSpaceProcessPool.getInstance()
+  return processPool.callProcess(spaceId, "get-relay-total-counts", {})
+})
+
 // Get all available sync providers (including eidos.space if connected)
 ipcMain.handle("get-sync-providers", async () => {
   try {

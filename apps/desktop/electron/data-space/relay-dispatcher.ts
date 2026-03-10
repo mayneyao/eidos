@@ -132,6 +132,44 @@ export class RelayDispatcher {
     deleteMany(ids)
   }
 
+  /**
+   * Get message counts for a channel (pending and dead letter)
+   */
+  public getChannelCounts(channelId: string): { pending: number; deadLetter: number } {
+    const pendingStmt = this.db.prepare(`
+      SELECT COUNT(*) as count FROM messages 
+      WHERE channel_id = ? AND processed = 0 AND attempts < ${this.MAX_RETRY_ATTEMPTS}
+    `)
+    const deadStmt = this.db.prepare(`
+      SELECT COUNT(*) as count FROM messages 
+      WHERE channel_id = ? AND processed = 0 AND attempts >= ${this.MAX_RETRY_ATTEMPTS}
+    `)
+    
+    const pending = (pendingStmt.get(channelId) as any)?.count || 0
+    const deadLetter = (deadStmt.get(channelId) as any)?.count || 0
+    
+    return { pending, deadLetter }
+  }
+
+  /**
+   * Get total message counts across all channels
+   */
+  public getTotalCounts(): { pending: number; deadLetter: number } {
+    const pendingStmt = this.db.prepare(`
+      SELECT COUNT(*) as count FROM messages 
+      WHERE processed = 0 AND attempts < ${this.MAX_RETRY_ATTEMPTS}
+    `)
+    const deadStmt = this.db.prepare(`
+      SELECT COUNT(*) as count FROM messages 
+      WHERE processed = 0 AND attempts >= ${this.MAX_RETRY_ATTEMPTS}
+    `)
+    
+    const pending = (pendingStmt.get() as any)?.count || 0
+    const deadLetter = (deadStmt.get() as any)?.count || 0
+    
+    return { pending, deadLetter }
+  }
+
   public close() {
     this.db.close()
   }

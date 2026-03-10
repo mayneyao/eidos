@@ -124,7 +124,8 @@ class DataSpaceManager {
   public async getOrSetDataSpace(spaceName: string): Promise<DataSpace> {
     if (this.dataSpace && this.dataSpace.dbName !== spaceName) {
       // Close both main and draft databases when switching to a different space
-      this.dataSpace.close()
+      // Also stop relay client to avoid multiple relay clients running simultaneously
+      await this.close()
     } else if (this.dataSpace) {
       // If same space, return existing instance
       return this.dataSpace
@@ -339,6 +340,38 @@ class DataSpaceManager {
       }
     )
     this.relayClient.start()
+
+    // 4. Check for pending messages in inbox and notify renderer
+    // This handles the case where messages arrived before a handler script was bound
+    setTimeout(() => {
+      this.notifyPendingMessages(info)
+    }, 1000) // Delay to ensure RelayClient has completed initial pull
+  }
+
+  /**
+   * Check for pending messages and notify renderer to process them
+   * Called after relay initialization to handle backlog
+   */
+  private notifyPendingMessages(info: SpaceInfo) {
+    if (!this.relayDispatcher) return
+
+    const channelsWithHandler = info.relay?.channels?.filter((c: any) => c.handlerScriptId) || []
+    
+    for (const channel of channelsWithHandler) {
+      const pendingCount = this.relayDispatcher.getPendingMessages(channel.id).length
+      if (pendingCount > 0) {
+        logger.info(`[DataSpaceManager] Found ${pendingCount} pending messages for channel ${channel.id}, notifying renderer`)
+        process.parentPort?.postMessage({
+          type: "forward-to-renderer",
+          channel: "relay-messages-ready",
+          data: {
+            spaceId: info.id,
+            relayId: channel.id,
+            count: pendingCount,
+          },
+        })
+      }
+    }
   }
 
   private initRelay(info: SpaceInfo) {
@@ -384,6 +417,20 @@ class DataSpaceManager {
       return { success: true }
     }
     return { success: false, error: "Dispatcher not initialized" }
+  }
+
+  public getRelayChannelCounts(channelId: string): { pending: number; deadLetter: number } {
+    if (this.relayDispatcher) {
+      return this.relayDispatcher.getChannelCounts(channelId)
+    }
+    return { pending: 0, deadLetter: 0 }
+  }
+
+  public getRelayTotalCounts(): { pending: number; deadLetter: number } {
+    if (this.relayDispatcher) {
+      return this.relayDispatcher.getTotalCounts()
+    }
+    return { pending: 0, deadLetter: 0 }
   }
 }
 
@@ -439,6 +486,10 @@ if (communicationPort) {
         } else if (method === "ack-relay-messages") {
           const { acked, retry } = data
           result = DataSpaceManager.getInstance().ackRelayMessages(acked, retry)
+        } else if (method === "get-relay-channel-counts") {
+          result = DataSpaceManager.getInstance().getRelayChannelCounts(data?.channelId)
+        } else if (method === "get-relay-total-counts") {
+          result = DataSpaceManager.getInstance().getRelayTotalCounts()
         } else {
           result = { success: false, error: `Unknown method: ${method}` }
         }
