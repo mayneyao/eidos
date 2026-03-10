@@ -31,6 +31,7 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { useLayoutInit } from "../../../web-app/pages/[database]/hook"
 import { useSpaceAppStore } from "../../../web-app/pages/[database]/store"
+import { useRelayHandler } from "@/apps/web-app/hooks/use-relay-handler"
 import { TabErrorBoundary } from "../TabErrorBoundary"
 
 const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
@@ -67,6 +68,7 @@ export function DesktopSpaceLayout() {
   }, [space])
 
   useLayoutInit()
+  useRelayHandler()
 
   const [rightPanelSize, setRightPanelSize] = useLocalStorageState<number>(
     "rightPanelSize",

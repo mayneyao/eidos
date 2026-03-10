@@ -13,6 +13,7 @@ export type ExtensionMeta =
   | DocActionMeta
   | FileActionMeta
   | UDFMeta
+  | RelayHandlerMeta
 
 export type IBinding = {
   type: BindingType
@@ -48,6 +49,7 @@ export enum ScriptExtensionType {
   FileAction = "fileAction",
   Tool = "tool",
   UDF = "udf",
+  RelayHandler = "relayHandler",
 }
 
 export enum BlockExtensionType {
@@ -140,6 +142,15 @@ export interface UDFMeta {
   }
 }
 
+export interface RelayHandlerMeta {
+  type: ScriptExtensionType.RelayHandler
+  funcName: string
+  relayHandler: {
+    name: string
+    description: string
+  }
+}
+
 // Context interfaces for different extension types
 export interface ITableViewContext {
   tableId: string
@@ -166,5 +177,11 @@ export interface IBlockExtension extends Omit<IExtension, "type" | "meta"> {
 // Script Extension interfaces
 export interface IScriptExtension extends Omit<IExtension, "type" | "meta"> {
   type: "script"
-  meta: ToolMeta | TableActionMeta | DocActionMeta | FileActionMeta | UDFMeta
+  meta:
+    | ToolMeta
+    | TableActionMeta
+    | DocActionMeta
+    | FileActionMeta
+    | UDFMeta
+    | RelayHandlerMeta
 }

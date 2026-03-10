@@ -1,3 +1,4 @@
+import { CircleHelp } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { GlobalAccountSettings } from "./global/global-account-settings"
@@ -14,6 +15,7 @@ import { GeneralSettings } from "./space/general-settings"
 import { MountSettings } from "./space/mount-settings"
 import { SpaceSyncSettings } from "./space/space-sync-settings"
 import { NewTabSettings } from "./space/new-tab-settings"
+import { RelaySettings } from "./space/relay-settings"
 
 type SettingsSection =
   | "space-general"
@@ -23,6 +25,7 @@ type SettingsSection =
   | "space-extensions"
   | "space-newtab"
   | "space-sync"
+  | "space-relay"
   | "general"
   | "account"
   | "ai"
@@ -54,6 +57,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return "New Tab"
       case "space-sync":
         return t("space.settings.sync")
+      case "space-relay":
+        return t("space.settings.relay")
       case "general":
         return t("settings.general")
       case "account":
@@ -89,6 +94,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return <NewTabSettings />
       case "space-sync":
         return <SpaceSyncSettings />
+      case "space-relay":
+        return <RelaySettings />
       case "general":
         return <GlobalGeneralSettings />
       case "account":
@@ -112,8 +119,19 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="p-4 lg:p-6 overflow-y-auto flex-1">
         <div className="max-w-2xl mx-auto">
-          <h2 className="text-xl lg:text-2xl font-semibold mb-4 lg:mb-6">
+          <h2 className="text-xl lg:text-2xl font-semibold mb-4 lg:mb-6 flex items-center gap-2">
             {getSectionTitle(activeSection)}
+            {activeSection === "space-relay" && (
+              <a
+                href="https://docs.eidos.space/services/relay/"
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("space.settings.relay.docsLink")}
+                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <CircleHelp className="h-5 w-5" />
+              </a>
+            )}
           </h2>
           {renderContent()}
         </div>

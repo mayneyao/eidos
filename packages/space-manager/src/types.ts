@@ -1,3 +1,14 @@
+export interface RelayChannel {
+  id: string
+  name: string
+  handlerScriptId?: string
+}
+
+export interface RelayConfig {
+  enabled: boolean
+  channels: RelayChannel[]
+}
+
 export interface SpaceInfo {
   id: string
   name: string
@@ -10,6 +21,7 @@ export interface SpaceInfo {
     // The sync provider ID used when sync was enabled (e.g., 'eidos.space', 'my-s3')
     provider?: string
   }
+  relay?: RelayConfig
 }
 
 export interface SpacesConfig {

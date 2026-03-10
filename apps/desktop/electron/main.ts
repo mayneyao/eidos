@@ -20,6 +20,7 @@ import { MsgType } from "@/lib/const"
 import { getConfigManager } from "./config"
 import { corsManager } from "./cors-manager"
 import { CredentialsManager } from "./credentials"
+import { DataSpaceProcessPool } from "./data-space/process-pool"
 import {
   closeDataSpace,
   getCurrentSpaceId,
@@ -418,6 +419,22 @@ ipcMain.handle("clear-sync-credentials", async (event, providerId) => {
 
 ipcMain.handle("has-sync-credentials", async (event, providerId) => {
   return CredentialsManager.hasSyncCredentials(providerId)
+})
+
+ipcMain.handle("pull-relay-messages", async (event, spaceId) => {
+  const processPool = DataSpaceProcessPool.getInstance()
+  processPool.sendToProcess(spaceId, { type: "pull-relay-messages" })
+  return { success: true }
+})
+
+ipcMain.handle("get-relay-messages", async (event, spaceId, data) => {
+  const processPool = DataSpaceProcessPool.getInstance()
+  return processPool.callProcess(spaceId, "get-relay-messages", data)
+})
+
+ipcMain.handle("ack-relay-messages", async (event, spaceId, data) => {
+  const processPool = DataSpaceProcessPool.getInstance()
+  return processPool.callProcess(spaceId, "ack-relay-messages", data)
 })
 
 // Get all available sync providers (including eidos.space if connected)
@@ -1050,11 +1067,16 @@ app.whenReady().then(async () => {
 
   ipcMain.handle(
     "update-space",
-    async (_, spaceId: string, updates: { name?: string }) => {
+    async (_, spaceId: string, updates: { name?: string; relay?: any }) => {
       const registry = getSpaceRegistry()
       try {
         const success = registry.updateSpace(spaceId, updates)
         if (success) {
+          const processPool = DataSpaceProcessPool.getInstance()
+          processPool.sendToProcess(spaceId, {
+            type: "update-space-info",
+            spaceInfo: registry.getSpace(spaceId),
+          })
           return { success: true }
         } else {
           return { success: false, error: "Space not found" }

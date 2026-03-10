@@ -18,6 +18,7 @@ import docActionTemplate from "./templates/script/doc-action.ts?raw"
 import toolTemplate from "./templates/script/tool.ts?raw"
 import udfTemplate from "./templates/script/udf.ts?raw"
 import fileActionTemplate from "./templates/script/file-action.ts?raw"
+import relayHandlerTemplate from "./templates/script/relay-handler.ts?raw"
 
 // Block templates
 import {
@@ -44,6 +45,7 @@ export const useNewExtension = () => {
       | "tableAction"
       | "docAction"
       | "fileAction"
+      | "relayHandler"
       | "tableView"
       | "extNode"
       | "emptyScript"
@@ -160,6 +162,27 @@ export const useNewExtension = () => {
             code,
             ts_code: fileActionTemplate,
             meta: fileActionMeta,
+            enabled: true,
+          }
+        }
+
+        case "relayHandler": {
+          const [code, meta] = await Promise.all([
+            scriptCodeCompile(relayHandlerTemplate),
+            extractConstant(relayHandlerTemplate, "meta"),
+          ])
+          return {
+            id: newScriptId,
+            slug: `relay-handler-${shortSlug}`,
+            name: meta?.relayHandler?.name || `New Relay Handler - ${shortSlug}`,
+            type: type,
+            description:
+              meta?.relayHandler?.description ||
+              "Processes incoming messages from Relay channels",
+            version: "0.0.1",
+            code,
+            ts_code: relayHandlerTemplate,
+            meta,
             enabled: true,
           }
         }

@@ -11,6 +11,34 @@ import { RpcServer } from "./rpc/rpc-server"
 import type { InitMessage, WorkerInitData } from "./rpc/rpc-types"
 import { NodeServerDatabase } from "./sqlite-server"
 import { isInitializationOperation } from "./sync/helper"
+import { RelayClient } from "./relay-client"
+import { RelayDispatcher } from "./relay-dispatcher"
+
+function requestAccessToken(): Promise<string | null> {
+  return new Promise((resolve) => {
+    const requestId = Math.random().toString(36).substr(2, 9)
+    const port = process.parentPort
+    if (!port) return resolve(null)
+
+    const responseHandler = (event: any) => {
+      if (
+        event.data.type === "access-token-response" &&
+        event.data.requestId === requestId
+      ) {
+        port.off("message", responseHandler)
+        resolve(event.data.token)
+      }
+    }
+
+    port.on("message", responseHandler)
+    port.postMessage({ type: "get-access-token", requestId })
+
+    setTimeout(() => {
+      port.off("message", responseHandler)
+      resolve(null)
+    }, 5000)
+  })
+}
 
 // Logger that forwards messages to main process
 function createLogger() {
@@ -52,6 +80,10 @@ let spaceInfo: SpaceInfo | undefined
 class DataSpaceManager {
   private static instance: DataSpaceManager
   private dataSpace: DataSpace | null = null
+  private relayClient: RelayClient | null = null
+  private relayDispatcher: RelayDispatcher | null = null
+  private relayChannelMap: Map<string, string> = new Map() // channelId -> relayId
+  private _spaceInfo: SpaceInfo | undefined // Internal copy of spaceInfo
 
   private constructor() {}
 
@@ -109,7 +141,8 @@ class DataSpaceManager {
       throw new Error("Worker configuration is not initialized")
     }
 
-    const isInit = isInitializationOperation(spaceInfo)
+    this._spaceInfo = spaceInfo // Store the global spaceInfo locally
+    const isInit = isInitializationOperation(this._spaceInfo)
 
     // Create sync client if credentials available
     const syncClient = graftPathConfig?.credentials
@@ -120,7 +153,7 @@ class DataSpaceManager {
     const remoteLogId = isInit
       ? await this.getRemoteLogId(
           syncClient,
-          spaceInfo.sync?.remote,
+          this._spaceInfo.sync?.remote,
           graftPathConfig?.credentials?.bucketName
         )
       : undefined
@@ -128,7 +161,7 @@ class DataSpaceManager {
     // Create database with sync support
     const serverDb = await NodeServerDatabase.create(
       {
-        spaceInfo: spaceInfo,
+        spaceInfo: this._spaceInfo,
         remoteLogId: remoteLogId,
         options: {
           readonly: false, // Worker can have full access
@@ -144,7 +177,7 @@ class DataSpaceManager {
     )
 
     // Create external file system with space info
-    const externalFS = await createExternalFileSystem(serverDb, spaceInfo.path)
+    const externalFS = await createExternalFileSystem(serverDb, this._spaceInfo.path)
 
     // Create data event channel
     const dataEventChannel = createDataEventChannel(
@@ -225,6 +258,12 @@ class DataSpaceManager {
     })
 
     this.dataSpace.initFileWatcher()
+
+    // Start relay clients if enabled
+    if (this._spaceInfo.relay?.enabled && this._spaceInfo.relay.channels.length > 0) {
+      this.initRelay(this._spaceInfo)
+    }
+
     return this.dataSpace
   }
 
@@ -236,9 +275,115 @@ class DataSpaceManager {
     // Stop file watcher before closing dataspace
     this.dataSpace.unwatchFileWatcher()
 
+    if (this.relayClient) {
+      this.relayClient.stop()
+      this.relayClient = null
+    }
+
+    if (this.relayDispatcher) {
+      this.relayDispatcher.close()
+      this.relayDispatcher = null
+    }
+    this.relayChannelMap.clear()
+
     this.dataSpace.close()
     this.dataSpace = null
     return true
+  }
+
+  private async asyncInitRelay(info: SpaceInfo) {
+    // 1. Clear existing client
+    if (this.relayClient) {
+      this.relayClient.stop()
+      this.relayClient = null
+    }
+
+    if (this.relayDispatcher) {
+      this.relayDispatcher.close()
+      this.relayDispatcher = null
+    }
+    this.relayChannelMap.clear()
+
+    // 2. Get all enabled relay channel IDs
+    if (!info.relay?.enabled) return
+    
+    const channels = info.relay.channels
+    if (channels.length === 0) return
+
+    // Build channel ID -> relay ID mapping for callbacks
+    const channelIds: string[] = []
+    for (const channel of channels) {
+      channelIds.push(channel.id)
+      this.relayChannelMap.set(channel.id, channel.id)
+    }
+
+    // 3. Start unified RelayClient for all channels
+    this.relayDispatcher = new RelayDispatcher(info.path)
+    
+    this.relayClient = new RelayClient(
+      info.path,
+      channelIds,
+      requestAccessToken,
+      (channelId, count) => {
+        const relayId = this.relayChannelMap.get(channelId) || channelId
+        // Notify primary (main) process to broadcast to renderer
+        process.parentPort?.postMessage({
+          type: "forward-to-renderer",
+          channel: "relay-messages-ready",
+          data: {
+            spaceId: info.id,
+            relayId: relayId,
+            count,
+          },
+        })
+      }
+    )
+    this.relayClient.start()
+  }
+
+  private initRelay(info: SpaceInfo) {
+    this.asyncInitRelay(info).catch((e) => {
+      logger.error("[DataSpaceManager] Failed to init relay clients:", e)
+    })
+  }
+
+  public setSpaceInfo(info: SpaceInfo) {
+    this._spaceInfo = info // Update internal spaceInfo
+    this.initRelay(info)
+  }
+
+  public async pullRelayMessages(relayId?: string): Promise<void> {
+    if (!this.relayClient) {
+      console.warn(`[DataSpaceManager] RelayClient is not active.`)
+      return
+    }
+
+    if (relayId) {
+      // Pull from specific channel
+      await this.relayClient.pullMessages(relayId)
+    } else {
+      // Pull from all channels
+      const channels = Array.from(this.relayChannelMap.keys())
+      for (const channelId of channels) {
+        await this.relayClient.pullMessages(channelId)
+      }
+    }
+  }
+
+  public getRelayMessages(channelId?: string) {
+    if (this.relayDispatcher) {
+      return this.relayDispatcher.getPendingMessages(channelId)
+    }
+    return []
+  }
+
+  public ackRelayMessages(acked: string[], retry: string[]) {
+    if (this.relayDispatcher) {
+      if (acked) this.relayDispatcher.ackMessages(acked)
+      if (retry) this.relayDispatcher.retryMessages(retry)
+      return { success: true }
+    }
+    return { success: false, error: "Dispatcher not initialized" }
   }
 }
 
@@ -269,6 +414,48 @@ if (communicationPort) {
       spaceInfo = initMsg.spaceInfo
       await getOrSetDataSpace(initMsg.spaceId)
       communicationPort.postMessage({ type: "worker-ready" })
+      return
+    }
+
+    if (payload.type === "pull-relay-messages") {
+      logger.info("Worker received manual pull request for relay messages")
+      await DataSpaceManager.getInstance().pullRelayMessages(payload.relayId)
+      return
+    }
+
+    if (payload.type === "update-space-info") {
+      logger.info("Worker received updated space info dynamically")
+      spaceInfo = payload.spaceInfo
+      DataSpaceManager.getInstance().setSpaceInfo(payload.spaceInfo)
+      return
+    }
+
+    if (payload.type === "rpc-request") {
+      const { method, data, id } = payload
+      try {
+        let result
+        if (method === "get-relay-messages") {
+          result = DataSpaceManager.getInstance().getRelayMessages(data?.channelId)
+        } else if (method === "ack-relay-messages") {
+          const { acked, retry } = data
+          result = DataSpaceManager.getInstance().ackRelayMessages(acked, retry)
+        } else {
+          result = { success: false, error: `Unknown method: ${method}` }
+        }
+
+        communicationPort.postMessage({
+          type: "rpc-response",
+          id,
+          result: result ?? null,
+        })
+      } catch (error) {
+        logger.error(`[Worker] RPC error for method ${method}:`, error)
+        communicationPort.postMessage({
+          type: "rpc-response",
+          id,
+          result: { success: false, error: error instanceof Error ? error.message : String(error) },
+        })
+      }
       return
     }
   })

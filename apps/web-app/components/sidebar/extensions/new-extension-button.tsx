@@ -9,6 +9,7 @@ import {
   ToyBrickIcon,
   WrenchIcon,
   ZapIcon,
+  ForwardIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -102,6 +103,22 @@ export const NewExtensionButton = ({ trigger }: NewExtensionButtonProps) => {
             {t(
               "extension.fileActionDescription",
               "Create a script to handle file actions"
+            )}
+          </ExtensionTooltip>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="group relative"
+          onClick={() => handleCreateNewExtension("relayHandler")}
+        >
+          <ForwardIcon className="mr-2 h-4 w-4" />
+          {t("extension.relayHandler", "Relay Handler")}
+          <Badge variant="default" className="bg-primary">
+            {t("common.badge.new")}
+          </Badge>
+          <ExtensionTooltip>
+            {t(
+              "extension.relayHandlerDescription",
+              "Process incoming messages from Relay channels"
             )}
           </ExtensionTooltip>
         </DropdownMenuItem>

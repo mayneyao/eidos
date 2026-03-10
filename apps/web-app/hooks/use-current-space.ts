@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from "react"
 import { create } from "zustand"
 
 import { isDesktopMode } from "@/lib/env"
+import type { RelayChannel, RelayConfig } from "@eidos.space/space-manager"
+
+export type { RelayChannel, RelayConfig }
 
 export interface SpaceInfo {
   id: string
@@ -12,6 +15,7 @@ export interface SpaceInfo {
     remote: string
     provider?: string
   }
+  relay?: RelayConfig
 }
 
 interface SpaceState {
