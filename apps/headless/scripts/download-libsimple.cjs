@@ -14,8 +14,14 @@ function getPlatformInfo() {
 
   switch (platform) {
     case "win32":
+      if (arch === "arm64") {
+        return { name: "windows", arch: "arm64", ext: "zip" }
+      }
       return { name: "windows", arch: "x64", ext: "zip" }
     case "darwin":
+      if (arch === "arm64") {
+        return { name: "osx", arch: "arm64", ext: "zip" }
+      }
       return { name: "osx", arch: "x64", ext: "zip" }
     case "linux":
       if (arch === "arm64" || arch === "arm") {

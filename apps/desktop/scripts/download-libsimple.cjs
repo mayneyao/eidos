@@ -10,11 +10,16 @@ function getPlatformInfo() {
 
   switch (platform) {
     case "win32":
-      // Assuming Windows builds are always x64 for now
+      // Support both x64 and arm64 architectures
+      if (arch === "arm64") {
+        return { name: "windows", arch: "arm64", ext: "zip" }
+      }
       return { name: "windows", arch: "x64", ext: "zip" }
     case "darwin":
-      // Assuming macOS builds are generally x64 unless specified otherwise in releases
-      // Adapt if arm64 builds (e.g., 'osx-arm64') become available
+      // Support both x64 and arm64 architectures
+      if (arch === "arm64") {
+        return { name: "osx", arch: "arm64", ext: "zip" }
+      }
       return { name: "osx", arch: "x64", ext: "zip" }
     case "linux":
       if (arch === "arm64" || arch === "arm") {
