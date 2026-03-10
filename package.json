@@ -1,6 +1,6 @@
 {
   "name": "eidos-project",
-  "version": "0.28.0",
+  "version": "0.29.0",
   "private": true,
   "type": "module",
   "description": "Eidos is an extensible framework for managing your personal data throughout your lifetime in one place.",
