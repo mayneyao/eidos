@@ -108,12 +108,16 @@ Eidos 的同步机制基于 [Graft](https://graft.rs/)，其工作流与 **Git**
 
 ## 同步供应商 (Provider)
 
-Eidos 支持自定义同步供应商，你可以根据需求选择：
+Eidos 支持多种同步供应商：
 
-- **eidos.space (官方托管)**：零配置，登录账号即可使用。数据存储在官方提供的加密 S3 存储桶中，适合追求便捷的用户。
-- **自定义 S3 兼容服务**：你可以使用自己的 S3 存储（如 AWS S3, Cloudflare R2, MinIO 等）。这为你提供了完全的数据控制权，适合有自托管需求或已有云存储资源的用户。
+- **eidos.space (官方托管)**：零配置，登录账号即可使用。数据存储在官方提供的加密 S3 存储桶中。
+- **自定义 S3 兼容服务**：使用你自己的 S3 存储（AWS S3, Cloudflare R2, MinIO 等），完全掌控数据。
+
+:::note[Spark License 权益]
+**自定义同步供应商**是 **Spark License** 持有者的专享功能。免费用户只能使用官方 eidos.space 同步。
 
 了解如何[配置自定义同步服务](/zh-cn/how-to/setup-custom-sync-provider/)。
+:::
 
 ## 下一步
 

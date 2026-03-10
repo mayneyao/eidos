@@ -31,6 +31,7 @@
   "printWidth": 80,
   "sortPackageJson": false,
   "ignorePatterns": [
+    "packages/ext-server/src/generated/*.ts",
     "cache",
     ".cache",
     "package.json",

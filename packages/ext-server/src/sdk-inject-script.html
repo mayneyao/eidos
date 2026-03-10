@@ -117,6 +117,17 @@
 
       try {
         const module = await import(`/${id}.js?t=${hash || Date.now()}`)
+
+        // Enrich input if it's a relay batch
+        if (input && input.__isRelayBatch && Array.isArray(input.messages)) {
+          input.messages.forEach((msg) => {
+            msg.ack = () =>
+              port.postMessage({ type: "RelayMessageAck", id: msg.id })
+            msg.retry = () =>
+              port.postMessage({ type: "RelayMessageRetry", id: msg.id })
+          })
+        }
+
         const res = await module[command](input, context)
         port.postMessage({ type: "ScriptFunctionCallResponse", data: res })
       } catch (error) {

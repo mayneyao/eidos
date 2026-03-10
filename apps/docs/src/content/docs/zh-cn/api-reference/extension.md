@@ -2,7 +2,7 @@
 title: "Extension API 参考"
 description: "@eidos.space/react 的 API 参考"
 sidebar:
-  order: 1
+  order: 2
 ---
 
 `@eidos.space/react` 包提供了一组用于构建 Eidos 扩展的 React Hook 和工具。它允许扩展以类型安全的方式在不同的渲染环境中与 Eidos 数据、UI 和系统服务进行交互。

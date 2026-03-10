@@ -503,8 +503,7 @@ export function startServer({ dist, port }: { dist: string; port: number }) {
       }
 
       const dataSpace = await getOrSetDataSpace(spaceId)
-      log("rpc", method, params, spaceId, dataSpace.dbName)
-
+      log(`rpc[${spaceId}]`, method)
       const result = await (dataSpace as any)._executePayload({
         method,
         params,

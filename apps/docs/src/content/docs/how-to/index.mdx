@@ -9,6 +9,8 @@ import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
 Welcome to the Eidos How-to guides. Here you will find practical solutions and step-by-step instructions for getting things done.
 
+## Sync & Storage
+
 <CardGrid>
   <LinkCard
     title="Setup Custom Sync Provider"
@@ -16,18 +18,33 @@ Welcome to the Eidos How-to guides. Here you will find practical solutions and s
     href="/how-to/setup-custom-sync-provider/"
   />
   <LinkCard
+    title="Use Semantic Search"
+    description="Enable vector embeddings on text fields to perform semantic search"
+    href="/how-to/use-semantic-search/"
+  />
+</CardGrid>
+
+## Customization
+
+<CardGrid>
+  <LinkCard
     title="Customize New Tab Page"
     description="Create a custom dashboard for your new tab page using Block extensions"
     href="/how-to/customize-new-tab/"
+  />
+</CardGrid>
+
+## Integration & Automation
+
+<CardGrid>
+  <LinkCard
+    title="Save Telegram Messages to Eidos"
+    description="Collect ideas, links, and notes from Telegram directly into your Eidos space"
+    href="/how-to/build-a-telegram-inbox/"
   />
   <LinkCard
     title="Interact with Desktop App via API"
     description="Automate data ingestion into Eidos using the @eidos.space/client library"
     href="/how-to/interact-with-desktop-app-via-api/"
-  />
-  <LinkCard
-    title="Use Semantic Search"
-    description="Enable vector embeddings on text fields to perform semantic search"
-    href="/how-to/use-semantic-search/"
   />
 </CardGrid>

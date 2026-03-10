@@ -15,6 +15,7 @@ sidebar:
 - **文档动作**：在文档上触发的智能处理
 - **文件动作**：后台处理文件的一键操作
 - **用户自定义函数 (UDF)**：可在 SQL 查询中调用的数据库函数
+- **Relay 处理器**：后台处理通过 Relay 接收的消息
 
 ## 1. 介绍
 
@@ -57,7 +58,7 @@ export const meta = {
       properties: {
         name: {
           type: "string",
-        },
+         },
       },
     },
     outputJSONSchema: {
@@ -364,9 +365,83 @@ function add(a: number, b: number) {
 }
 ```
 
+### 2.6 Relay 处理器脚本
+
+#### 2.6.1 概述
+
+当 `type` 属性设置为 `"relayHandler"` 时，脚本作为通过 Relay 服务接收的数据的后台消费者。这模拟了 "Push-Pull" 模式，Eidos 会自动从云端拉取数据并触发你的脚本进行处理。
+
+#### 2.6.2 元配置
+
+```typescript
+interface RelayHandlerMeta {
+  type: "relayHandler"
+  funcName: string
+  relayHandler: {
+    name: string
+    description: string
+  }
+}
+```
+
+#### 2.6.3 执行上下文
+
+Relay 处理器函数接收一个 `batch` 对象，其中包含从本地 `inbox.sqlite` 中提取的消息。
+
+- `batch`: 一个包含以下内容的对象：
+  - `messages`: `Message` 对象数组
+    - `id`: 字符串
+    - `body`: 任意类型（消息负载）
+    - `timestamp`: 数字（时间戳）
+    - `metadata`: 对象（元数据）
+    - `ack()`: 显式确认消息处理成功
+    - `retry()`: 显式标记消息需要重试
+  - `ackAll()`: 确认批次中的所有消息
+  - `retryAll()`: 标记批次中的所有消息为重试
+
+**处理逻辑：**
+- **隐式确认 (Implicit ACK)**：如果处理器函数成功返回（未抛出错误），批次中所有未显式标记重试的消息都将被视为已确认，并从 `inbox.sqlite` 中移除。
+- **自动重试**：如果处理器抛出未捕获的异常，所有未显式调用 `ack()` 的消息将留在 `inbox.sqlite` 中，并在下一个执行周期重新尝试处理。
+
+#### 2.6.4 实现示例
+
+```ts
+export const meta = {
+  type: "relayHandler",
+  funcName: "handleInbox",
+  relayHandler: {
+    name: "处理 Webhooks",
+    description: "解析来自 inbox.sqlite 的原始数据并归档到主表",
+  },
+}
+
+export async function handleInbox(batch) {
+  for (const message of batch.messages) {
+    try {
+      const { title, content } = message.body
+      const Notes = eidos.currentSpace.table("notes")
+      await Notes.create({
+        data: {
+          title: title || "无标题",
+          content: content || "",
+          source: "relay",
+          receivedAt: message.timestamp,
+        },
+      })
+      // 可选：显式确认
+      message.ack()
+    } catch (e) {
+      // 处理该特定消息时出错
+      console.error("处理消息失败:", message.id, e)
+      message.retry()
+    }
+  }
+}
+```
+
 ## 3. 安全注意事项
 
-脚本执行应该被适当沙箱化，以防止未经授权的系统访问。实现必须验证输入参数，并根据执行上下文强制执行适当的访问控制。
+脚本执行应该被适当沙箱化，以防止未经授权性系统访问。实现必须验证输入参数，并根据执行上下文强制执行适当的访问控制。
 
 ## 4. 实现要求
 

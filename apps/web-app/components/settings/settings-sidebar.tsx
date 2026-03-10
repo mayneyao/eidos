@@ -5,10 +5,12 @@ import {
   Cloud,
   FileText,
   Folder,
+  Network,
   Info,
   KeyRound,
   Package,
   Palette,
+  SatelliteDish,
   Settings as SettingsIcon,
   Shield,
   FileType,
@@ -31,6 +33,7 @@ type SettingsSection =
   | "space-extensions"
   | "space-newtab"
   | "space-sync"
+  | "space-relay"
   | "general"
   | "account"
   | "ai"
@@ -140,6 +143,13 @@ export function SettingsSidebar({
       title: t("space.settings.mounts"),
       description: t("space.settings.mountsDescription"),
       icon: <Folder className="h-5 w-5" />,
+      category: "space",
+    },
+    {
+      id: "space-relay",
+      title: t("space.settings.relay"),
+      description: t("space.settings.relayDescription"),
+      icon: <Network className="h-5 w-5" />,
       category: "space",
     },
     // Space sync settings hidden for now (unstable)

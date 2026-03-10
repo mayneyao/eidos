@@ -36,7 +36,8 @@ export const callJavaScript = (
     space: string
     hash?: string
   },
-  scriptContainerRef: any
+  scriptContainerRef: any,
+  onUpdate?: (event: MessageEvent) => void
 ): Promise<any> => {
   const channel = new MessageChannel()
 
@@ -50,12 +51,20 @@ export const callJavaScript = (
   )
 
   return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error("Script execution timeout (30s)"))
+    }, 30000)
+
     channel.port1.onmessage = (event) => {
       const { type, data } = event.data
       if (type === "ScriptFunctionCallResponse") {
+        clearTimeout(timeoutId)
         resolve(data)
       } else if (type === "ScriptFunctionCallError") {
+        clearTimeout(timeoutId)
         reject(data)
+      } else if (onUpdate) {
+        onUpdate(event)
       }
     }
   })

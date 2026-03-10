@@ -43,7 +43,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [tokenFetchTime, setTokenFetchTime] = useState<number>(0)
 
   const fetchUser = useCallback(async () => {
     if (!isDesktopMode) {
@@ -76,14 +75,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (res.ok) {
         const data = await res.json()
         setAccessToken(data.access_token)
-        setTokenFetchTime(Date.now())
         return data.access_token
       }
     } catch {
       // Ignore errors
     }
     setAccessToken(null)
-    setTokenFetchTime(0)
     return null
   }, [])
 
@@ -131,15 +128,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   const getAccessToken = useCallback(async (): Promise<string | null> => {
-    // If token was fetched recently (within 10 seconds), return cached token
-    // This reduces unnecessary requests while still ensuring fresh tokens
-    const tokenAge = Date.now() - tokenFetchTime
-    if (accessToken && tokenAge < 10000) {
-      return accessToken
-    }
-    // Otherwise fetch fresh token from backend (backend handles refresh if needed)
+    // Always fetch fresh token from backend to ensure token validity
+    // Backend handles refresh automatically if needed
     return fetchAccessToken()
-  }, [accessToken, tokenFetchTime, fetchAccessToken])
+  }, [fetchAccessToken])
 
   // Initial fetch
   useEffect(() => {
@@ -147,15 +139,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     fetchAccessToken()
 
     // Poll for auth status (check both user and token)
-    // Check every 3 minutes to ensure token refresh happens before expiration
+    // Check every 2 minutes to ensure token refresh happens before expiration
     // Backend refreshes tokens 5 minutes before they expire
     const interval = setInterval(
       async () => {
         await fetchUser()
         await fetchAccessToken()
       },
-      3 * 60 * 1000
-    ) // 3 minutes
+      2 * 60 * 1000
+    ) // 2 minutes
 
     // Listen for auth state changes from main process (OAuth callback / logout)
     let unsubscribe: (() => void) | undefined

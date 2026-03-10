@@ -4,6 +4,7 @@ import fs from "fs"
 import path from "path"
 
 import { getMainWindowWebContents } from "../main"
+import { CredentialsManager } from "../credentials"
 import type { InitMessage } from "./rpc/rpc-types"
 
 interface ProcessItem {
@@ -129,6 +130,23 @@ export class DataSpaceProcessPool extends EventEmitter {
             data: { error: "No main window available" },
           })
         }
+      } else if (payload.type === "get-access-token") {
+        CredentialsManager.getAccessToken().then((token) => {
+          child.postMessage({
+            type: "access-token-response",
+            requestId: payload.requestId,
+            token,
+          })
+        }).catch((err) => {
+          console.error("Failed to get access token for worker", err)
+          child.postMessage({
+            type: "access-token-response",
+            requestId: payload.requestId,
+            token: null,
+          })
+        })
+      } else if (payload.type === "rpc-response") {
+        this.emit(`rpc-response-${payload.id}`, payload.result)
       }
     })
 
@@ -182,5 +200,47 @@ export class DataSpaceProcessPool extends EventEmitter {
       }
     }
     this.processes.clear()
+  }
+
+  public sendToProcess(spaceId: string, message: any) {
+    const item = this.processes.get(spaceId)
+    if (item && !this.isProcessDead(item.process)) {
+      item.process.postMessage(message)
+    } else {
+      console.warn(`[ProcessPool] Cannot send message, process for ${spaceId} is dead or not found`)
+    }
+  }
+
+  public async callProcess(spaceId: string, method: string, data?: any): Promise<any> {
+    const item = this.processes.get(spaceId)
+    if (!item || this.isProcessDead(item.process)) {
+      throw new Error(`Process for space ${spaceId} not found or dead`)
+    }
+
+    const id = Math.random().toString(36).substr(2, 9)
+    const timeoutMs = 30000
+
+    const promise = new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        this.off(`rpc-response-${id}`, onResponse)
+        reject(new Error(`RPC call timeout (${timeoutMs}ms): ${method}`))
+      }, timeoutMs)
+
+      const onResponse = (result: any) => {
+        clearTimeout(timeoutId)
+        resolve(result)
+      }
+
+      this.once(`rpc-response-${id}`, onResponse)
+    })
+
+    item.process.postMessage({
+      type: "rpc-request",
+      id,
+      method,
+      data,
+    })
+
+    return promise
   }
 }

@@ -122,7 +122,8 @@ export const EIDOS_PORT = 13127
 export const EIDOS_SPACE_BASE_URL =
   process.env.NODE_ENV === "production"
     ? "https://eidos.space"
-    : "http://localhost:4321"
+    // : "http://localhost:4321"
+    : "https://eidos.space"
 
 export const EIDOS_CHAT_PROJECT_ID = "EIDOS_CHAT"
 
