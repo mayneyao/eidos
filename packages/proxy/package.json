@@ -25,7 +25,7 @@
     }
   },
   "dependencies": {
-    "hono": "^4.6.15"
+    "hono": "^4.12.7"
   },
   "devDependencies": {
     "vitest": "^3.0.0"

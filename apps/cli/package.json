@@ -27,11 +27,10 @@
     "@eidos.space/space-manager": "workspace:*",
     "@eidos.space/sync": "workspace:*",
     "commander": "^12.0.0",
-    "hono": "^4.5.0"
+    "hono": "^4.12.7"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "typescript": "^5.8.3"
   }
 }
-

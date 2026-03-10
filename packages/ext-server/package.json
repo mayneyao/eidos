@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "hono": "^4.6.15"
+    "hono": "^4.12.7"
   },
   "peerDependencies": {
     "tailwindcss": "^3.0.0 || ^4.0.0"

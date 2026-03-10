@@ -15,16 +15,16 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.800.0",
+    "@aws-sdk/client-s3": "^3.1005.0",
     "@eidos.space/better-sqlite3": "^11.9.3",
-    "@eidos.space/core": "^0.28.1",
     "@eidos.space/client": "workspace:*",
+    "@eidos.space/core": "^0.28.1",
     "@eidos.space/ext-server": "workspace:*",
     "@eidos.space/v3": "workspace:*",
     "@hono/node-server": "^1.13.7",
     "aws4fetch": "^1.0.20",
     "dotenv": "^16.4.7",
-    "hono": "^4.6.15",
+    "hono": "^4.12.7",
     "oxc-parser": "^0.74.0",
     "oxc-transform": "^0.74.0",
     "sqlite-graft": "^0.2.1",
@@ -37,5 +37,3 @@
     "vite-node": "^3.1.4"
   }
 }
-
-
