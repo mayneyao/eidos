@@ -15,6 +15,7 @@ Supported script types include:
 - **Document Actions**: Intelligent processing triggered on documents
 - **File Actions**: One-click operations for background file processing
 - **User-Defined Functions (UDFs)**: Database functions callable in SQL queries
+- **Relay Handlers**: Background processing for messages received via Relay
 
 ## 1. Introduction
 
@@ -357,6 +358,80 @@ export const meta = {
 
 function add(a: number, b: number) {
   return a + b
+}
+```
+
+### 2.6 Relay Handler Scripts
+
+#### 2.6.1 Overview
+
+When the `type` property is set to `"relayHandler"`, scripts function as background consumers for data received via the Relay service. This mimics a "Push-Pull" pattern where Eidos automatically pulls data from the cloud and triggers your script to process it.
+
+#### 2.6.2 Meta Configuration
+
+```typescript
+interface RelayHandlerMeta {
+  type: "relayHandler"
+  funcName: string
+  relayHandler: {
+    name: string
+    description: string
+  }
+}
+```
+
+#### 2.6.3 Execution Context
+
+Relay handler functions receive a `batch` object containing the messages pulled from the local `inbox.sqlite`.
+
+- `batch`: An object containing:
+  - `messages`: An array of `Message` objects
+    - `id`: string
+    - `body`: any (the payload)
+    - `timestamp`: number
+    - `metadata`: object
+    - `ack()`: Explicitly acknowledge the message
+    - `retry()`: Explicitly mark the message for retry
+  - `ackAll()`: Acknowledge all messages in the batch
+  - `retryAll()`: Mark all messages in the batch for retry
+
+**Processing Logic:**
+- **Implicit ACK**: If the handler function returns successfully, all messages in the batch that were not explicitly marked for retry are considered acknowledged and will be removed from `inbox.sqlite`.
+- **Automatic Retry**: If the handler throws an unhandled exception, all messages that were not explicitly acknowledged via `ack()` will remain in `inbox.sqlite` and be retried in the next execution cycle.
+
+#### 2.6.4 Implementation Example
+
+```ts
+export const meta = {
+  type: "relayHandler",
+  funcName: "handleInbox",
+  relayHandler: {
+    name: "Process Webhooks",
+    description: "Parses raw payloads from inbox.sqlite and archives them to main tables",
+  },
+}
+
+export async function handleInbox(batch) {
+  for (const message of batch.messages) {
+    try {
+      const { title, content } = message.body
+      const Notes = eidos.currentSpace.table("notes")
+      await Notes.create({
+        data: {
+          title: title || "Untitled",
+          content: content || "",
+          source: "relay",
+          receivedAt: message.timestamp,
+        },
+      })
+      // Optional: Explicitly ack
+      message.ack()
+    } catch (e) {
+      // Something went wrong with this specific message
+      console.error("Failed to process message", message.id, e)
+      message.retry()
+    }
+  }
 }
 ```
 

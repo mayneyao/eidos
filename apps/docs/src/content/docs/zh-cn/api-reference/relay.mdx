@@ -1,0 +1,516 @@
+---
+title: Relay API 参考
+description: Eidos Relay 服务的完整 API 文档
+sidebar:
+  order: 3
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components"
+
+Relay API 允许外部服务将数据推送到与你的 Eidos Space 关联的中转队列中。消息会暂存在云端，等你的 Eidos 桌面版下次上线时自动投递到本地。
+
+API 设计与 Cloudflare Queues 保持一致。
+
+**核心原则**：没有显式的重试端点 —— 不确认消息 = 自动重试。
+
+## 基础 URL
+
+```
+https://api.eidos.space/v1/relay/channels/{channelId}/messages
+```
+
+## 认证
+
+所有请求必须携带 Relay API Token，在 [Eidos.space 控制台](https://eidos.space) 生成。
+
+```http
+Authorization: Bearer {token}
+```
+
+---
+
+## 端点
+
+### 1. 发送单条消息
+
+将一条消息推送到中转队列。
+
+**端点：** `POST /`
+
+<Tabs>
+  <TabItem label="cURL">
+    ```bash
+    curl -X POST https://api.eidos.space/v1/relay/channels/{channelId}/messages \
+      -H "Authorization: Bearer {token}" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "body": { "event": "order.created", "orderId": "123" }
+      }'
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    await fetch("https://api.eidos.space/v1/relay/channels/{channelId}/messages", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer {token}",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        body: { event: "order.created", orderId: "123" },
+      }),
+    });
+    ```
+  </TabItem>
+</Tabs>
+
+**请求体字段：**
+
+| 字段           | 类型   | 必填 | 说明 |
+| -------------- | ------ | ---- | ---- |
+| `body`         | any    | ✅   | 消息体，可以是任意可序列化的 JSON 值 |
+| `content_type`  | string | —    | `"json"`（默认）、`"text"`、`"bytes"` 或 `"v8"` |
+| `delay_seconds` | number | —    | 消息被投递前的延迟秒数 |
+| `metadata`     | object | —    | 附加到消息上的自定义键值元数据 |
+
+**响应：**
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+```
+
+---
+
+### 2. 批量发送消息
+
+在一次请求中推送多条消息。
+
+**端点：** `POST /batch`
+
+<Tabs>
+  <TabItem label="cURL">
+    ```bash
+    curl -X POST https://api.eidos.space/v1/relay/channels/{channelId}/messages/batch \
+      -H "Authorization: Bearer {token}" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "messages": [
+          { "body": { "event": "user.signup", "id": 1 } },
+          { "body": { "event": "user.signup", "id": 2 } }
+        ]
+      }'
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    await fetch("https://api.eidos.space/v1/relay/channels/{channelId}/messages/batch", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer {token}",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messages: [
+          { body: { event: "user.signup", id: 1 } },
+          { body: { event: "user.signup", id: 2 } },
+        ],
+      }),
+    });
+    ```
+  </TabItem>
+</Tabs>
+
+**请求体字段：**
+
+| 字段           | 类型   | 必填 | 说明 |
+| -------------- | ------ | ---- | ---- |
+| `messages`     | array  | ✅   | 消息对象数组，每条消息的结构与单条发送相同 |
+| `delay_seconds` | number | —    | 应用于所有未单独指定延迟的消息的默认延迟 |
+
+**响应：**
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "ids": [
+      "550e8400-e29b-41d4-a716-446655440000",
+      "550e8400-e29b-41d4-a716-446655440001"
+    ]
+  }
+}
+```
+
+---
+
+### 3. 拉取消息
+
+从中转队列中取回待处理的消息。Eidos 桌面版会在内部自动调用此接口，你也可以直接调用来构建自定义消费者。
+
+**端点：** `POST /pull`
+
+<Tabs>
+  <TabItem label="cURL">
+    ```bash
+    curl -X POST https://api.eidos.space/v1/relay/channels/{channelId}/messages/pull \
+      -H "Authorization: Bearer {token}" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "batch_size": 10,
+        "visibility_timeout_ms": 30000
+      }'
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    const response = await fetch("https://api.eidos.space/v1/relay/channels/{channelId}/messages/pull", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer {token}",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        batch_size: 10,
+        visibility_timeout_ms: 30000,
+      }),
+    });
+    const { result } = await response.json();
+    console.log(result.messages);
+    ```
+  </TabItem>
+</Tabs>
+
+**请求体字段：**
+
+| 字段                    | 类型   | 必填 | 说明 |
+| ----------------------- | ------ | ---- | ---- |
+| `visibility_timeout_ms` | number | —    | 消息被拉取后，在队列中对其他消费者隐藏的时长（毫秒）。默认：`30000` |
+| `batch_size`            | number | —    | 单次拉取的消息数量。默认：`10`，最大：`100` |
+
+**响应：**
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "message_backlog_count": 42,
+    "messages": [
+      {
+        "body": { "event": "user.created" },
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "timestamp_ms": 1689615013586,
+        "attempts": 1,
+        "metadata": {
+          "key": "value"
+        },
+        "lease_id": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2Q0JDLUhTNTEyIn0..."
+      }
+    ]
+  }
+}
+```
+
+**消息字段：**
+
+| 字段           | 类型   | 说明                      |
+| -------------- | ------ | ------------------------- |
+| `body`         | any    | 消息体                    |
+| `id`           | string | 唯一消息 ID               |
+| `timestamp_ms` | number | 发布时间戳（毫秒）        |
+| `attempts`     | number | 投递尝试次数              |
+| `metadata`     | object | 自定义元数据              |
+| `lease_id`     | string | 用于确认/重试的租约 ID    |
+
+---
+
+### 4. 确认消息（ACK）
+
+确认消息已成功处理。被确认的消息将从云端永久删除。
+
+**端点：** `POST /ack`
+
+<Tabs>
+  <TabItem label="cURL">
+    ```bash
+    curl -X POST https://api.eidos.space/v1/relay/channels/{channelId}/messages/ack \
+      -H "Authorization: Bearer {token}" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "lease_ids": ["LEASE_ID_1", "LEASE_ID_2"]
+      }'
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    await fetch("https://api.eidos.space/v1/relay/channels/{channelId}/messages/ack", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer {token}",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        lease_ids: ["LEASE_ID_1", "LEASE_ID_2"],
+      }),
+    });
+    ```
+  </TabItem>
+</Tabs>
+
+**请求体字段：**
+
+| 字段        | 类型     | 必填 | 说明 |
+| ----------- | -------- | ---- | ---- |
+| `lease_ids` | string[] | ✅   | 拉取接口返回的 `lease_id` 数组 |
+
+**响应：**
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "acked_count": 1
+  }
+}
+```
+
+---
+
+### 5. 订阅 (WebSocket)
+
+通过 WebSocket 连接接收中继中有新消息时的实时通知。这消除了轮询的需要。
+
+**端点：** `GET /subscribe`
+
+```http
+GET https://api.eidos.space/v1/relay/channels/{channelId}/messages/subscribe
+Upgrade: websocket
+Authorization: Bearer {token}
+```
+
+**WebSocket 事件：**
+
+连接时，你会收到欢迎事件：
+```json
+{ "type": "subscribed", "channelId": "your-channel" }
+```
+
+当有人向此中继发送消息时，你会收到：
+```json
+{ "type": "new_message", "channelId": "your-channel" }
+```
+
+:::note
+WebSocket 仅发送通知 ping。你仍然需要调用 `POST /pull` 来安全地获取和锁定消息。
+:::
+
+---
+
+### 6. 全局订阅 (WebSocket)
+
+通过 WebSocket 连接同时接收多个频道的实时通知。
+
+**端点：** `GET /v1/relay/subscribe?channels={channelId1},{channelId2}`
+
+```http
+GET https://api.eidos.space/v1/relay/subscribe?channels={channelId1},{channelId2}
+Upgrade: websocket
+Authorization: Bearer {token}
+```
+
+**WebSocket 事件：**
+
+连接时，你会收到欢迎事件：
+```json
+{ "type": "subscribed", "channels": ["channelId1", "channelId2"] }
+```
+
+当有人向其中任一频道发送消息时，你会收到与单频道订阅相同的通知，其中包含 `channelId` 以便你知道哪个频道有新消息：
+```json
+{ "type": "new_message", "channelId": "channelId1" }
+```
+
+:::note
+每个 WebSocket 连接最多支持 10 个频道。如果提供超过 10 个频道，只有前 10 个会被订阅。
+:::
+
+---
+
+## 消息生命周期
+
+```
+┌──────────┐    send     ┌──────────┐    pull     ┌──────────┐
+│ 生产者    │ ─────────── │  Relay   │ ─────────── │ 消费者   │
+└──────────┘             └──────────┘             └────┬─────┘
+                                                       │
+                    ┌──────────────────────────────────┤
+                    │ ack（在 visibility_timeout 内）   │
+                    ▼                                  │
+              ┌──────────┐                             │
+              │  已删除   │                             │
+              └──────────┘                             │
+                                                       │
+                    ┌──────────────────────────────────┘
+                    │ 未 ack / 超时
+                    ▼
+              ┌──────────┐
+              │  重新入队  │  (attempts++)
+              └────┬─────┘
+                   │ attempts < maxRetries
+                   └──────────────────────┐
+                                          ▼
+                                    ┌──────────┐
+                                    │ 死信队列  │ (可选)
+                                    └──────────┘
+```
+
+拉取的消息如果未在 `visibility_timeout_ms` 内被确认，会自动重新进入队列供下次拉取。消息的 `attempts` 计数器会递增。当 `attempts` 达到 `max_retries` 时，消息会被丢弃或发送到死信队列。
+
+这确保了"至少一次投递"的语义，无需单独的重试端点。
+
+---
+
+## 错误响应格式
+
+所有错误都遵循以下格式：
+
+```json
+{
+  "success": false,
+  "errors": [
+    {
+      "code": 400,
+      "message": "Missing required field: body"
+    }
+  ],
+  "messages": [],
+  "result": null
+}
+```
+
+---
+
+## 使用示例
+
+### 发送并消费
+
+```javascript
+// 1. 发送消息
+const sendRes = await fetch("/v1/relay/channels/my-channel/messages", {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${token}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    body: { event: "order.created", orderId: "123" },
+  }),
+});
+const { result: { id } } = await sendRes.json();
+
+// 2. 拉取消息
+const pullRes = await fetch("/v1/relay/channels/my-channel/messages/pull", {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${token}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    batch_size: 10,
+    visibility_timeout_ms: 30000,
+  }),
+});
+const { result: { messages } } = await pullRes.json();
+
+// 3. 处理消息
+for (const msg of messages) {
+  await processMessage(msg.body);
+}
+
+// 4. 确认所有消息
+await fetch("/v1/relay/channels/my-channel/messages/ack", {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${token}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    lease_ids: messages.map((m) => m.lease_id),
+  }),
+});
+```
+
+### 批量发送
+
+```javascript
+const res = await fetch("/v1/relay/channels/my-channel/messages/batch", {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${token}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    messages: [
+      { body: { type: "email", to: "user1@example.com" } },
+      { body: { type: "email", to: "user2@example.com" } },
+      { body: { type: "email", to: "user3@example.com" } },
+    ],
+  }),
+});
+```
+
+---
+
+## 限制
+
+### 消息限制
+
+| 限制 | 值 | 说明 |
+|------|-----|------|
+| `delay_seconds` | 最大 86400 (24 小时) | 消息可被消费前的最大延迟时间 |
+| `visibility_timeout_ms` | 最大 43200000 (12 小时) | 消息被拉取后对其他消费者隐藏的最大时间 |
+| `batch_size` | 最大 100 | 单次拉取请求的最大消息数量 |
+| 消息大小 | 128 KB | 单条消息的最大大小（body + metadata） |
+
+| 最大重试次数 | 3 | 消息被丢弃前的最大投递尝试次数 |
+| 消息保留时间 | 14 天 | 消息在队列中保留的最长时间 |
+
+### 套餐配额
+
+| 功能 | 免费版 | Spark 版 |
+|------|--------|----------|
+| 最大存储 | 10 MB | 100 MB |
+| 最大频道数 | 5 | 100 |
+| 最大消息大小 | 128 KB | 128 KB |
+| 消息保留时间 | 3 天 | 14 天 |
+
+### 默认值
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `visibility_timeout_ms` | 30000 (30 秒) | 消息未被确认前重新可见的时间 |
+| `batch_size` | 10 | 单次拉取请求返回的消息数量 |
+| `content_type` | "json" | 消息的默认内容类型 |
+
+### 硬限制
+
+- **单用户最大存储**: 100 MB（所有频道）
+- **最大消息大小**: 1 MB（SQLite 保护限制）
+- **单用户最大频道数**: 100（Spark 版）
+
+
+
+
+

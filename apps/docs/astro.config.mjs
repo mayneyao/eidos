@@ -88,8 +88,21 @@ export default defineConfig({
               "zh-CN": "API 参考",
             },
             icon: "setting",
-            link: "/api-reference/space/",
+            link: "/api-reference/ai/",
             items: [
+              {
+                label: "AI API",
+                link: "/api-reference/ai/",
+              },
+              {
+                label: "Extension API",
+                link: "/api-reference/extension/",
+              },
+              {
+                label: "Relay API",
+                link: "/api-reference/relay/",
+                badge: "New",
+              },
               {
                 label: "Space API",
                 link: "/api-reference/space/",
@@ -115,14 +128,6 @@ export default defineConfig({
                     link: "/api-reference/table/views/",
                   },
                 ],
-              },
-              {
-                label: "AI API",
-                link: "/api-reference/ai/",
-              },
-              {
-                label: "Extension API",
-                link: "/api-reference/extension/",
               },
             ],
           },

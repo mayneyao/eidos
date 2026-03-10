@@ -1,0 +1,161 @@
+---
+title: 将 Telegram 消息保存到 Eidos
+description: 把 Telegram 中的想法、链接和笔记自动收集到 Eidos
+sidebar:
+  order: 5
+---
+
+import { Steps } from "@astrojs/starlight/components"
+import { Aside } from "@astrojs/starlight/components"
+
+想快速把 Telegram 里的消息、想法或链接保存到 Eidos？本教程教你搭建一个简单的收件箱，自动收集 Telegram 消息。
+
+## 最终效果
+
+发送消息给 Telegram Bot → 消息自动出现在你的 Eidos 表格中。
+
+```
+Telegram ──▶ Eidos 云端 ──▶ Eidos 桌面版 ──▶ 你的表格
+```
+
+## 准备工作
+
+- 已安装 Eidos 桌面版
+- 有一个 Telegram 账号
+- 有一个 [eidos.space](https://eidos.space) 账号
+
+---
+
+## 第一步：获取 API 密钥
+
+首先创建一个 API 密钥，让 Telegram 能够向你的 Eidos 发送消息。
+
+<Steps>
+
+1. 打开 [eidos.space/account](https://eidos.space/account?tab=api-keys)
+
+2. 点击 **"创建密钥"**
+
+3. 输入一个名称（比如 `telegram-inbox`）
+
+4. 在 Relay 区域勾选 **Read** 和 **Write**
+
+5. 点击 **创建密钥**
+
+6. **复制并保存密钥** — 它只会显示一次！
+
+</Steps>
+
+---
+
+## 第二步：连接 Telegram Bot
+
+Eidos 提供官方 Telegram Bot（[@eidos_relay_bot](https://t.me/eidos_relay_bot)），无需自己搭建！
+
+<Steps>
+
+1. 打开 Telegram，搜索 **@eidos_relay_bot**
+
+2. 点击 **开始**
+
+3. 发送以下消息进行配置：
+   ```
+   /config my-inbox 你的API密钥
+   ```
+   
+   把 `你的API密钥` 替换成第一步复制的密钥。
+
+4. 发送一条测试消息。如果看到 👌 表情，说明成功了！
+
+</Steps>
+
+<Aside type="tip">
+  收件箱名字可以随便起（这里用的 `my-inbox`），记住这个名字，下一步要用。
+</Aside>
+
+---
+
+## 第三步：设置 Eidos 接收消息
+
+现在告诉 Eidos，收到消息后怎么处理。
+
+<Steps>
+
+1. **创建一个表格**，命名为 `messages`
+
+   添加这几列：
+   - `content`（文本）— 消息内容
+   - `sender`（文本）— 发送者
+   - `created_at`（日期）— 发送时间
+
+2. **创建一个脚本**来处理收到的消息：
+
+   进入 **扩展 → 脚本 → 创建脚本**，粘贴以下代码：
+
+   ```typescript
+   export const meta = {
+     type: "relayHandler",
+     funcName: "saveTelegramMessages",
+     relayHandler: {
+       name: "保存 Telegram 消息",
+     },
+   }
+
+   export async function saveTelegramMessages(batch) {
+     for (const msg of batch.messages) {
+       const { text, from } = msg.body.message
+       
+       await eidos.currentSpace.table("messages").rows.create({
+         content: text,
+         sender: from.username || from.first_name,
+         created_at: new Date().toISOString(),
+       })
+     }
+   }
+   ```
+
+3. **将收件箱绑定到脚本**：
+
+   进入 **设置 → Relay**，输入 `my-inbox`（你刚才起的名字），然后选择 "保存 Telegram 消息" 脚本。
+
+</Steps>
+
+---
+
+## 第四步：试一试
+
+<Steps>
+
+1. 确保 Eidos 桌面版是打开的
+
+2. 在 Telegram 给 [@eidos_relay_bot](https://t.me/eidos_relay_bot) 发送任意消息
+
+3. 查看 Eidos 里的 `messages` 表格 — 消息应该几秒钟内就出现！
+
+</Steps>
+
+---
+
+## 常见问题
+
+**可以创建多个收件箱吗？**
+
+可以！用不同的名字比如 `work-notes`、`personal-ideas`、`reading-list`，每个可以对应不同的表格和脚本。
+
+**消息没出现怎么办？**
+
+- 检查 Eidos 桌面版是否正在运行
+- 确认 **设置 → Relay** 里的收件箱名字和 `/config` 时用的一致
+- 尝试重新配置：给 Bot 发 `/clear`，然后重新发 `/config`
+
+**消息会保存多久？**
+
+消息会在云端队列中保留最多 14 天。只要在这期间打开 Eidos 桌面版，消息就会被送达。
+
+---
+
+## 下一步
+
+- 了解 [Relay](/zh-cn/services/relay/) 的工作原理
+- 探索 [脚本](/zh-cn/extensions/script/)，自定义消息处理方式
+- 尝试用 [Relay API](/zh-cn/api-reference/relay/) 连接其他应用

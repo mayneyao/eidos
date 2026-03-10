@@ -2,7 +2,7 @@
 title: Extension API Reference
 description: API reference for @eidos.space/react
 sidebar:
-  order: 1
+  order: 2
 ---
 
 The `@eidos.space/react` package provides a set of React hooks and utilities for building Eidos extensions. It allows extensions to interact with Eidos data, UI, and system services in a type-safe manner across different rendering environments.

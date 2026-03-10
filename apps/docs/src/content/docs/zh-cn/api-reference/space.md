@@ -2,7 +2,7 @@
 title: Space API 参考
 description: Eidos Space 功能完整 API 参考
 sidebar:
-  order: 1
+  order: 4
 ---
 
 `eidos.space` 对象提供对所有数据空间功能的访问，包括导航、文档管理和扩展节点操作。

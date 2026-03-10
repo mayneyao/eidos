@@ -2,7 +2,7 @@
 title: AI API 参考
 description: Eidos AI 功能完整 API 参考
 sidebar:
-  order: 2
+  order: 1
 ---
 
 `eidos.AI` 对象提供强大的文本生成和结构化数据处理的人工智能功能。
