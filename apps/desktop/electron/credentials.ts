@@ -2,6 +2,7 @@ import crypto from "crypto"
 import fs from "fs/promises"
 import path from "path"
 import { app, safeStorage } from "electron"
+import log from "electron-log"
 import { OAUTH_CONFIG } from "@/lib/const"
 
 // PKCE utilities
@@ -83,7 +84,7 @@ async function writeSecureTokens(tokensJson: string): Promise<void> {
 
   const encryptionAvailable = safeStorage.isEncryptionAvailable()
   if (!encryptionAvailable && !warnedAboutPlaintextStorage) {
-    console.warn(
+    log.warn(
       "Electron safeStorage encryption unavailable; storing tokens unencrypted on disk."
     )
     warnedAboutPlaintextStorage = true
@@ -111,7 +112,7 @@ async function readSecureTokens(): Promise<string | null> {
     if (error?.code === "ENOENT") {
       return null
     }
-    console.error("Failed to read stored tokens:", error)
+    log.error("Failed to read stored tokens:", error)
     return null
   }
 }
@@ -122,7 +123,7 @@ async function clearSecureTokens(): Promise<void> {
     await fs.unlink(filePath)
   } catch (error: any) {
     if (error?.code !== "ENOENT") {
-      console.warn("Failed to clear stored tokens:", error)
+      log.warn("Failed to clear stored tokens:", error)
     }
   }
 }
@@ -136,7 +137,7 @@ async function writeSecureSyncCredentials(
 
   const encryptionAvailable = safeStorage.isEncryptionAvailable()
   if (!encryptionAvailable && !warnedAboutPlaintextStorage) {
-    console.warn(
+    log.warn(
       "Electron safeStorage encryption unavailable; storing sync credentials unencrypted on disk."
     )
     warnedAboutPlaintextStorage = true
@@ -166,7 +167,7 @@ async function readSecureSyncCredentials(
     if (error?.code === "ENOENT") {
       return null
     }
-    console.error("Failed to read stored sync credentials:", error)
+    log.error("Failed to read stored sync credentials:", error)
     return null
   }
 }
@@ -179,7 +180,7 @@ async function clearSecureSyncCredentials(
     await fs.unlink(filePath)
   } catch (error: any) {
     if (error?.code !== "ENOENT") {
-      console.warn("Failed to clear stored sync credentials:", error)
+      log.warn("Failed to clear stored sync credentials:", error)
     }
   }
 }
@@ -236,7 +237,7 @@ export class CredentialsManager {
       const tokensJson = JSON.stringify(tokensWithTimestamp)
       await writeSecureTokens(tokensJson)
     } catch (error) {
-      console.error("Failed to store OAuth tokens:", error)
+      log.error("Failed to store OAuth tokens:", error)
       throw new Error("Failed to securely store authentication tokens")
     }
   }
@@ -253,7 +254,7 @@ export class CredentialsManager {
     try {
       return JSON.parse(tokensJson) as OAuthTokens
     } catch (error) {
-      console.error("Failed to parse stored tokens:", error)
+      log.error("Failed to parse stored tokens:", error)
       return null
     }
   }
@@ -269,7 +270,7 @@ export class CredentialsManager {
       const { _stored_at, ...publicTokens } = tokens
       return publicTokens
     } catch (error) {
-      console.error("Failed to retrieve OAuth tokens:", error)
+      log.error("Failed to retrieve OAuth tokens:", error)
       return null
     }
   }
@@ -310,7 +311,7 @@ export class CredentialsManager {
       // Remove tokens from disk
       await clearSecureTokens()
     } catch (error) {
-      console.warn("Failed to clear tokens from storage:", error)
+      log.warn("Failed to clear tokens from storage:", error)
     }
 
     // Clear user info from config
@@ -326,7 +327,7 @@ export class CredentialsManager {
   static async refreshTokens(): Promise<OAuthTokens | null> {
     const tokens = await this.getTokens()
     if (!tokens?.refresh_token) {
-      console.warn("No refresh token available")
+      log.warn("No refresh token available")
       return null
     }
 
@@ -346,7 +347,7 @@ export class CredentialsManager {
 
       if (!tokenResponse.ok) {
         const error = await tokenResponse.text()
-        console.error("Token refresh failed:", error)
+        log.error("Token refresh failed:", error)
         // If refresh fails, clear all tokens to force re-authentication
         await this.clearAll()
         return null
@@ -364,10 +365,10 @@ export class CredentialsManager {
 
       // Store the refreshed tokens
       await this.setTokens(updatedTokens)
-      console.log("Tokens refreshed successfully")
+      log.info("Tokens refreshed successfully")
       return updatedTokens
     } catch (error) {
-      console.error("Error refreshing tokens:", error)
+      log.error("Error refreshing tokens:", error)
       // If refresh fails due to network error, don't clear tokens immediately
       // Let the caller decide what to do
       return null
@@ -381,8 +382,13 @@ export class CredentialsManager {
     try {
       const tokens = await this.readStoredTokens()
       if (!tokens) return true // No tokens means expired
-      if (!tokens.access_token || !tokens.expires_in || !tokens._stored_at) {
-        return false // If we don't have expiration info, assume it's valid (backward compatibility)
+      if (!tokens.access_token) {
+        return true // No access token means expired
+      }
+      if (!tokens.expires_in || !tokens._stored_at) {
+        // If we don't have expiration info, we can't determine if it's expired
+        // Try to refresh to be safe (refresh will fail gracefully if no refresh_token)
+        return true
       }
 
       const storedAt = tokens._stored_at
@@ -392,7 +398,7 @@ export class CredentialsManager {
       // Add a buffer to refresh tokens before they actually expire
       return now >= expiresAt - OAUTH_CONFIG.TOKEN_REFRESH_BUFFER_MS
     } catch (error) {
-      console.error("Error checking token expiration:", error)
+      log.error("Error checking token expiration:", error)
       return true // On error, assume expired for safety
     }
   }
@@ -408,12 +414,12 @@ export class CredentialsManager {
 
     // Check if token needs refresh
     if (await this.isAccessTokenExpired()) {
-      console.log("Access token expired or expiring soon, attempting refresh")
+      log.info("Access token expired or expiring soon, attempting refresh")
       const refreshedTokens = await this.refreshTokens()
       if (refreshedTokens?.access_token) {
         return refreshedTokens.access_token
       } else {
-        console.warn("Failed to refresh tokens")
+        log.warn("Failed to refresh tokens")
         return null
       }
     }
@@ -432,7 +438,7 @@ export class CredentialsManager {
       const credentialsJson = JSON.stringify(credentials)
       await writeSecureSyncCredentials(credentialsJson, providerId)
     } catch (error) {
-      console.error("Failed to store sync credentials:", error)
+      log.error("Failed to store sync credentials:", error)
       throw new Error("Failed to securely store sync credentials")
     }
   }
@@ -451,7 +457,7 @@ export class CredentialsManager {
 
       return JSON.parse(credentialsJson) as SyncBucketCredentials
     } catch (error) {
-      console.error("Failed to retrieve sync credentials:", error)
+      log.error("Failed to retrieve sync credentials:", error)
       return null
     }
   }
@@ -465,7 +471,7 @@ export class CredentialsManager {
     try {
       await clearSecureSyncCredentials(providerId)
     } catch (error) {
-      console.warn("Failed to clear sync credentials from storage:", error)
+      log.warn("Failed to clear sync credentials from storage:", error)
     }
   }
 

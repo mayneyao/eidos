@@ -14,7 +14,7 @@ import {
 import { createBucketBrowserMiddleware } from "@eidos.space/sync"
 import { serve } from "@hono/node-server"
 import { BrowserWindow } from "electron"
-import { log } from "electron-log"
+import log from "electron-log"
 import { Hono } from "hono"
 import path from "path"
 import {
@@ -249,7 +249,7 @@ export function startServer({ dist, port }: { dist: string; port: number }) {
 
   // host static files
   app.use("/*", serveStatic({ root: dist }))
-  log("static files served from", dist)
+  log.info("static files served from", dist)
 
   // OIDC Implementation with PKCE
 
@@ -339,7 +339,7 @@ export function startServer({ dist, port }: { dist: string; port: number }) {
 
       const tokens: OAuthTokens = await tokenResponse.json()
 
-      console.log("tokens", tokens)
+      log.info("tokens", tokens)
       // Store tokens securely
       await CredentialsManager.setTokens(tokens)
 
@@ -358,7 +358,7 @@ export function startServer({ dist, port }: { dist: string; port: number }) {
         await CredentialsManager.setUserInfo(user!)
       } else {
         // Fallback if userinfo fails
-        console.error("Failed to fetch user info")
+        log.error("Failed to fetch user info")
       }
 
       // Broadcast auth state change to frontend
@@ -401,7 +401,7 @@ export function startServer({ dist, port }: { dist: string; port: number }) {
         hasValidTokens: true,
       })
     } catch (error: any) {
-      console.error("Error checking authentication status:", error)
+      log.error("Error checking authentication status:", error)
       return c.json({ authenticated: false, error: error.message }, 500)
     }
   })
@@ -424,7 +424,7 @@ export function startServer({ dist, port }: { dist: string; port: number }) {
           })
         } catch (endSessionError) {
           // Log but don't fail - still clear local credentials
-          console.error("Failed to end session on server:", endSessionError)
+          log.error("Failed to end session on server:", endSessionError)
         }
       }
 
@@ -434,7 +434,7 @@ export function startServer({ dist, port }: { dist: string; port: number }) {
       broadcastAuthStateChange(false, null)
       return c.json({ success: true })
     } catch (error: any) {
-      console.error("Error during logout:", error)
+      log.error("Error during logout:", error)
       return c.json({ success: false, error: error.message }, 500)
     }
   })
@@ -453,7 +453,7 @@ export function startServer({ dist, port }: { dist: string; port: number }) {
 
       return c.json({ access_token: accessToken })
     } catch (error: any) {
-      console.error("Error getting access token:", error)
+      log.error("Error getting access token:", error)
       return c.json({ error: error.message }, 500)
     }
   })
@@ -503,7 +503,7 @@ export function startServer({ dist, port }: { dist: string; port: number }) {
       }
 
       const dataSpace = await getOrSetDataSpace(spaceId)
-      log(`rpc[${spaceId}]`, method)
+      log.info(`rpc[${spaceId}]`, method)
       const result = await (dataSpace as any)._executePayload({
         method,
         params,
@@ -692,7 +692,7 @@ export function startServer({ dist, port }: { dist: string; port: number }) {
       fetch: app.fetch,
     },
     (info) => {
-      log(`Server is running on ${info.address}:${info.port}`)
+      log.info(`Server is running on ${info.address}:${info.port}`)
     }
   )
 }

@@ -199,7 +199,7 @@ export const OAUTH_CONFIG = {
   // Client configuration
   CLIENT_ID: "desktop.eidos.space",
   REDIRECT_URI: `http://127.0.0.1:${EIDOS_PORT}/oauth/callback`,
-  SCOPES: "openid profile email",
+  SCOPES: "openid profile email offline_access",
 
   // Token management
   TOKEN_REFRESH_BUFFER_MS: 5 * 60 * 1000, // 5 minutes before expiration
