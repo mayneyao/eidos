@@ -34,7 +34,17 @@ import {
 } from "./file-system/playground"
 import { ProtocolHandler } from "./protocol-handler"
 import { getApiAgentStatus, initApiAgent } from "./server/api-agent"
-import { startServer } from "./server/server"
+import {
+  type PortInUseError,
+  startServer,
+} from "./server/server"
+import {
+  formatProcessInfo,
+  getKillCommand,
+  isProcessRunning,
+  killProcess,
+  type PortOccupancyInfo,
+} from "./port-checker"
 import { GlobalShortcutManager } from "./services/global-shortcut-manager"
 import { getSpaceRegistry, migrateFromLegacyConfig } from "./space-registry"
 import { AppUpdater } from "./updater"
@@ -90,7 +100,166 @@ process.env.VITE_PUBLIC = app.isPackaged
 // not working on windows, we just change name in package.json to eidos to avoid breaking change
 // app.setPath('userData', path.join(app.getPath('appData'), 'eidos'))
 
-startServer({ dist: process.env.DIST, port: PORT })
+/**
+ * Show port in use dialog with process information
+ * Returns the user's choice and whether the process was killed
+ */
+async function showPortInUseDialog(
+  port: number,
+  processInfo?: PortOccupancyInfo | null
+): Promise<{ action: "retry" | "exit"; killed: boolean }> {
+  const hasProcessInfo = processInfo && processInfo.pid
+  const killCmd = hasProcessInfo ? getKillCommand(processInfo) : null
+
+  const buildDetailMessage = () => {
+    const detailLines: string[] = [
+      `The port ${port} required by Eidos is already in use by another process.`,
+      "",
+    ]
+
+    if (processInfo) {
+      detailLines.push(formatProcessInfo(processInfo))
+      detailLines.push("")
+    }
+
+    if (killCmd) {
+      detailLines.push(
+        `You can click "Kill Process" to automatically terminate it, or run the following command manually:`
+      )
+      detailLines.push(``)
+      detailLines.push(`${killCmd}`)
+      detailLines.push(``)
+    }
+
+    detailLines.push("Please stop the conflicting process and try again.")
+    return detailLines.join("\n")
+  }
+
+  // Buttons: Kill Process (if applicable), Retry, Exit
+  const buttons = hasProcessInfo
+    ? ["Kill Process", "Retry", "Exit"]
+    : ["Retry", "Exit"]
+
+  const result = await dialog.showMessageBox({
+    type: "warning",
+    title: "Port Already in Use",
+    message: `Eidos cannot start because port ${port} is occupied`,
+    detail: buildDetailMessage(),
+    buttons,
+    defaultId: hasProcessInfo ? 1 : 0, // Default to Retry
+    cancelId: hasProcessInfo ? 2 : 1, // Cancel maps to Exit
+  })
+
+  // Handle button clicks
+  if (hasProcessInfo) {
+    // Button order: ["Kill Process", "Retry", "Exit"]
+    switch (result.response) {
+      case 0: // Kill Process
+        if (processInfo.pid) {
+          // Check if process is still running
+          if (!isProcessRunning(processInfo.pid)) {
+            // Process already exited
+            await dialog.showMessageBox({
+              type: "info",
+              title: "Process Already Terminated",
+              message: "The process has already been terminated.",
+              buttons: ["Retry"],
+              defaultId: 0,
+            })
+            return { action: "retry", killed: true }
+          }
+
+          const success = await killProcess(processInfo.pid)
+          if (success) {
+            // Verify the process is actually gone
+            await new Promise((resolve) => setTimeout(resolve, 500))
+            if (!isProcessRunning(processInfo.pid)) {
+              await dialog.showMessageBox({
+                type: "info",
+                title: "Process Killed",
+                message: `Process ${processInfo.processName || processInfo.pid} has been terminated.`,
+                buttons: ["Continue"],
+                defaultId: 0,
+              })
+              return { action: "retry", killed: true }
+            }
+          }
+
+          // Kill failed
+          const retryResult = await dialog.showMessageBox({
+            type: "error",
+            title: "Failed to Kill Process",
+            message: `Unable to terminate process ${processInfo.processName || processInfo.pid}.`,
+            detail: "The process may require elevated privileges (administrator/root) to terminate.",
+            buttons: ["Retry", "Exit"],
+            defaultId: 0,
+          })
+          return {
+            action: retryResult.response === 0 ? "retry" : "exit",
+            killed: false,
+          }
+        }
+        return { action: "retry", killed: false }
+
+      case 1: // Retry
+        return { action: "retry", killed: false }
+
+      case 2: // Exit
+      default:
+        return { action: "exit", killed: false }
+    }
+  } else {
+    // Button order: ["Retry", "Exit"]
+    return {
+      action: result.response === 0 ? "retry" : "exit",
+      killed: false,
+    }
+  }
+}
+
+/**
+ * Initialize server with port conflict handling
+ */
+async function initializeServer(): Promise<void> {
+  while (true) {
+    try {
+      await startServer({ dist: process.env.DIST, port: PORT })
+      console.log(`Server started successfully on port ${PORT}`)
+      return
+    } catch (error) {
+      const portError = error as PortInUseError
+      if (portError.port && portError.port === PORT) {
+        console.error(`Port ${PORT} is in use:`, error)
+        const result = await showPortInUseDialog(PORT, portError.processInfo)
+        if (result.action === "exit") {
+          console.log("User chose to exit due to port conflict")
+          app.quit()
+          process.exit(0)
+        }
+        // User chose retry (either directly or after kill), continue the loop
+        if (result.killed) {
+          console.log("Process was killed, retrying immediately...")
+        } else {
+          console.log("User chose to retry, waiting for port to be freed...")
+        }
+        // Small delay before retry
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+      } else {
+        // Unexpected error
+        console.error("Failed to start server:", error)
+        await dialog.showErrorBox(
+          "Server Error",
+          `Failed to start Eidos server: ${error instanceof Error ? error.message : String(error)}`
+        )
+        app.quit()
+        process.exit(1)
+      }
+    }
+  }
+}
+
+// Start server initialization
+initializeServer()
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()

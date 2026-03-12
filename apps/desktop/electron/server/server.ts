@@ -1,5 +1,10 @@
 import { OAUTH_CONFIG } from "@/lib/const"
 import aiHandler, { pathname as aiPath } from "@/worker/service-worker/ai"
+import {
+  getProcessByPort,
+  isPortInUse,
+  type PortOccupancyInfo,
+} from "../port-checker"
 import { createProxyMiddleware } from "@eidos.space/proxy"
 import {
   containsBinaryData,
@@ -201,7 +206,29 @@ const handleStaticFile = async (c: any) => {
   return new Response(file, { headers })
 }
 
-export function startServer({ dist, port }: { dist: string; port: number }) {
+export interface PortInUseError extends Error {
+  port: number
+  processInfo?: PortOccupancyInfo | null
+}
+
+export async function startServer({
+  dist,
+  port,
+}: {
+  dist: string
+  port: number
+}): Promise<void> {
+  // Check if port is already in use
+  const portOccupied = await isPortInUse(port)
+  if (portOccupied) {
+    const processInfo = await getProcessByPort(port)
+    const error = new Error(
+      `Port ${port} is already in use`
+    ) as PortInUseError
+    error.port = port
+    error.processInfo = processInfo
+    throw error
+  }
   // Bucket browser middleware: handles storage.eidos.localhost
   // Provides a simple web UI for browsing S3-compatible buckets
   app.use(
