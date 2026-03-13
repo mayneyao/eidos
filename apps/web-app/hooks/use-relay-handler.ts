@@ -42,7 +42,7 @@ export const useRelayHandler = () => {
       for (const relay of relaysToProcess) {
         if (!relay.handlerScriptId) continue
         
-        console.log(`[RelayHandler] Checking messages for relay: ${relay.name || relay.id}`)
+        console.log(`[RelayHandler] Checking messages for relay: ${relay.id}`)
 
         // 2. Load the script
         const script = (await sqlite.extension.get(relay.handlerScriptId)) as IExtension<RelayHandlerMeta> | undefined
@@ -64,7 +64,7 @@ export const useRelayHandler = () => {
             break
           }
 
-          console.log(`[RelayHandler] Processing batch of ${messages.length} messages for ${relay.name || relay.id}...`)
+          console.log(`[RelayHandler] Processing batch of ${messages.length} messages for ${relay.id}...`)
 
           // 4. Create the batch object
           const ackedIds: string[] = []
@@ -74,7 +74,6 @@ export const useRelayHandler = () => {
             __isRelayBatch: true,
             relay: {
               id: relay.id,
-              name: relay.name,
             },
             messages: messages.map((msg) => ({
               id: msg.id,

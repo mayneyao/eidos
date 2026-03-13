@@ -1,6 +1,5 @@
 export interface RelayChannel {
   id: string
-  name: string
   handlerScriptId?: string
 }
 
