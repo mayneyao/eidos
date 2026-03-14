@@ -1,6 +1,0 @@
-node_modules
-dist
-dist-sqlite-ext
-*.log
-.DS_Store
-

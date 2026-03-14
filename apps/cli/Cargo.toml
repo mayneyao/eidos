@@ -1,0 +1,52 @@
+[package]
+name = "eidos"
+version = "0.1.0"
+edition = "2024"
+description = "Eidos CLI - AI Agent friendly command-line interface for Eidos"
+authors = ["mayneyao"]
+license = "AGPL-3.0"
+
+[[bin]]
+name = "eidos"
+path = "src/main.rs"
+
+[dependencies]
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+clap_complete = "4.5"
+
+# HTTP & Async
+tokio = { version = "1.44", features = ["full"] }
+reqwest = { version = "0.12", features = ["json", "multipart"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Config & Data
+dirs = "6.0"
+toml = "0.8"
+
+# Output formatting
+comfy-table = "7.1"
+colored = "3.0"
+anyhow = "1.0"
+thiserror = "2.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Utils
+url = "2.5"
+chrono = { version = "0.4", features = ["serde"] }
+walkdir = "2.5"
+mime_guess = "2.0"
+
+[dev-dependencies]
+mockito = "1.7"
+tempfile = "3.19"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
