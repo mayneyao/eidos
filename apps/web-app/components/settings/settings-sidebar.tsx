@@ -29,10 +29,8 @@ type SettingsSection =
   | "space-general"
   | "space-document"
   | "space-mounts"
-  | "space-file-handlers"
   | "space-extensions"
   | "space-newtab"
-  | "space-sync"
   | "space-relay"
   | "general"
   | "account"
@@ -48,6 +46,7 @@ interface SettingsItem {
   icon: React.ReactNode
   disabled?: boolean
   isAlpha?: boolean
+  isBeta?: boolean
   category: "space" | "global"
 }
 
@@ -150,17 +149,10 @@ export function SettingsSidebar({
       title: t("space.settings.relay"),
       description: t("space.settings.relayDescription"),
       icon: <Network className="h-5 w-5" />,
+      isBeta: true,
       category: "space",
     },
-    // Space sync settings hidden for now (unstable)
-    // {
-    //   id: "space-sync",
-    //   title: t("space.settings.sync"),
-    //   description: t("space.settings.syncDescription"),
-    //   icon: <Cloud className="h-5 w-5" />,
-    //   disabled: !hasSyncCredentials && !isSyncEnabled,
-    //   category: "space",
-    // },
+
     // Global Settings
     {
       id: "general",
@@ -205,7 +197,7 @@ export function SettingsSidebar({
       ),
       icon: <Cloud className="h-5 w-5" />,
       disabled: !isDesktopMode,
-      isAlpha: true,
+      isBeta: true,
       category: "global",
     },
     // Security settings hidden for now (unstable)
@@ -260,6 +252,11 @@ export function SettingsSidebar({
                     {section.isAlpha && (
                       <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">
                         {t("common.badge.alpha")}
+                      </span>
+                    )}
+                    {section.isBeta && (
+                      <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">
+                        {t("common.badge.beta")}
                       </span>
                     )}
                   </span>
@@ -351,6 +348,11 @@ export function SettingsSidebar({
                               {t("common.badge.alpha")}
                             </span>
                           )}
+                          {section.isBeta && (
+                            <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">
+                              {t("common.badge.beta")}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -391,8 +393,13 @@ export function SettingsSidebar({
                           {section.icon}
                         </div>
                         <div className="flex-1 min-h-[1rem] flex flex-col justify-center">
-                          <div className="font-medium text-sm leading-tight">
+                          <div className="font-medium text-sm leading-tight flex items-center gap-1.5">
                             {section.title}
+                            {section.isBeta && (
+                              <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">
+                                {t("common.badge.beta")}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>

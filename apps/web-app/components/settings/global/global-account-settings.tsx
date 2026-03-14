@@ -119,6 +119,7 @@ export function GlobalAccountSettings() {
             )}
           </li>
           <li>{t("settings.account.serviceSync", "Sync")}</li>
+          <li>{t("settings.account.serviceRelay", "Relay")}</li>
         </ul>
       </div>
 

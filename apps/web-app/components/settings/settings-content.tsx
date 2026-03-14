@@ -1,4 +1,4 @@
-import { CircleHelp } from "lucide-react"
+import { BookOpenText } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { GlobalAccountSettings } from "./global/global-account-settings"
@@ -10,10 +10,10 @@ import { GlobalStorageSettings } from "./global/global-storage-settings"
 import { GlobalSyncSettings } from "./global/global-sync-settings"
 import { DocumentSettings } from "./space/document-settings"
 import { ExtensionSettings } from "./space/extension-settings"
-import { FileHandlersSettings } from "./space/file-handlers-settings"
+
 import { GeneralSettings } from "./space/general-settings"
 import { MountSettings } from "./space/mount-settings"
-import { SpaceSyncSettings } from "./space/space-sync-settings"
+
 import { NewTabSettings } from "./space/new-tab-settings"
 import { RelaySettings } from "./space/relay-settings"
 
@@ -21,10 +21,8 @@ type SettingsSection =
   | "space-general"
   | "space-document"
   | "space-mounts"
-  | "space-file-handlers"
   | "space-extensions"
   | "space-newtab"
-  | "space-sync"
   | "space-relay"
   | "general"
   | "account"
@@ -39,7 +37,13 @@ interface SettingsContentProps {
 }
 
 export function SettingsContent({ activeSection }: SettingsContentProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+
+  const getDocsUrl = (path: string) => {
+    const baseUrl = "https://docs.eidos.space"
+    const isChinese = i18n.language.startsWith("zh")
+    return isChinese ? `${baseUrl}/zh-cn${path}` : `${baseUrl}${path}`
+  }
 
   const getSectionTitle = (section: SettingsSection) => {
     switch (section) {
@@ -49,14 +53,12 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return t("space.settings.document")
       case "space-mounts":
         return t("space.settings.mounts")
-      case "space-file-handlers":
-        return "File Handlers"
+
       case "space-extensions":
         return "Extensions"
       case "space-newtab":
         return "New Tab"
-      case "space-sync":
-        return t("space.settings.sync")
+
       case "space-relay":
         return t("space.settings.relay")
       case "general":
@@ -86,14 +88,12 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return <DocumentSettings />
       case "space-mounts":
         return <MountSettings />
-      case "space-file-handlers":
-        return <FileHandlersSettings />
+
       case "space-extensions":
         return <ExtensionSettings />
       case "space-newtab":
         return <NewTabSettings />
-      case "space-sync":
-        return <SpaceSyncSettings />
+
       case "space-relay":
         return <RelaySettings />
       case "general":
@@ -123,13 +123,57 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
             {getSectionTitle(activeSection)}
             {activeSection === "space-relay" && (
               <a
-                href="https://docs.eidos.space/services/relay/"
+                href={getDocsUrl("/services/relay/")}
                 target="_blank"
                 rel="noopener noreferrer"
                 title={t("space.settings.relay.docsLink")}
                 className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
               >
-                <CircleHelp className="h-5 w-5" />
+                <BookOpenText className="h-5 w-5" />
+              </a>
+            )}
+            {activeSection === "sync" && (
+              <a
+                href={getDocsUrl("/services/sync/")}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("settings.sync.docsLink")}
+                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <BookOpenText className="h-5 w-5" />
+              </a>
+            )}
+            {activeSection === "space-extensions" && (
+              <a
+                href={getDocsUrl("/extensions/eject/")}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("space.settings.extensions.docsLink")}
+                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <BookOpenText className="h-5 w-5" />
+              </a>
+            )}
+            {activeSection === "space-newtab" && (
+              <a
+                href={getDocsUrl("/how-to/customize-new-tab/")}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("space.settings.newtab.docsLink")}
+                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <BookOpenText className="h-5 w-5" />
+              </a>
+            )}
+            {activeSection === "space-mounts" && (
+              <a
+                href={getDocsUrl("/concepts/file/")}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("space.settings.mounts.docsLink")}
+                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <BookOpenText className="h-5 w-5" />
               </a>
             )}
           </h2>

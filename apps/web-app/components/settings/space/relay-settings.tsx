@@ -9,9 +9,11 @@ import {
   Edit2,
   Info,
   AlertCircle,
+  Lock,
 } from "lucide-react"
 
 import { isDesktopMode } from "@/lib/env"
+import { useAuthOptional } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -56,6 +58,8 @@ export function RelaySettings() {
   const { space } = useCurrentPathInfo()
   const { toast } = useToast()
   const { relayHandlers } = useAllRelayHandlers()
+  const auth = useAuthOptional()
+  const isAuthenticated = auth?.isAuthenticated ?? false
 
   const [relayConfig, setRelayConfig] = useState<RelayConfig>({
     enabled: false,
@@ -277,6 +281,42 @@ export function RelaySettings() {
         <p className="text-sm text-muted-foreground">
           {t("space.settings.relay.desktopOnly")}
         </p>
+      </div>
+    )
+  }
+
+  // Login required prompt
+  if (!isAuthenticated) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            {t("space.settings.relay.description")}
+          </p>
+        </div>
+        <div className="p-6 rounded-xl bg-gradient-to-br from-amber-50/80 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/10 border border-amber-200/60 dark:border-amber-800/30">
+          <div className="flex items-start gap-4">
+            <div className="p-2.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 shrink-0">
+              <Lock className="h-5 w-5" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-semibold text-amber-900 dark:text-amber-100">
+                {t("space.settings.relay.loginRequired")}
+              </h3>
+              <p className="text-sm text-amber-800/80 dark:text-amber-200/70">
+                {t("space.settings.relay.loginRequiredDescription")}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                onClick={() => auth?.login()}
+              >
+                {t("settings.account.login", "Login")}
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }

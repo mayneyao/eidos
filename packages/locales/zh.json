@@ -481,6 +481,9 @@
   "settings.account.description": "你完全可以不用理会账号。除非想使用官方提供的一些服务，比如 sync、extension 分享、API 转发等。",
   "settings.account.yourAccount": "你的账户",
   "settings.account.services": "需要登录的服务：",
+  "settings.account.serviceExtensionShare": "分享扩展到 eidos.space",
+  "settings.account.serviceSync": "同步",
+  "settings.account.serviceRelay": "Relay 数据中转",
   "settings.account.serviceExtensionMarket": "扩展市场",
   "settings.account.serviceApiForwarding": "API 转发",
   "settings.account.serviceEidosSync": "Eidos 同步（使用 eidos.space 提供商时）",
@@ -688,6 +691,7 @@
   "settings.storage.settingsUpdated": "存储设置完成！",
   "settings.sync": "同步",
   "settings.sync.description": "配置您的同步设置。",
+  "settings.sync.docsLink": "同步服务",
   "settings.title": "设置",
   "setup.continue": "继续",
   "setup.dataFolder.description": "选择存储 Eidos 数据的位置。您可以稍后在设置中更改此选项。",
@@ -1056,6 +1060,7 @@
   "space.settings.sync.enableWarningTitle": "启用同步",
   "space.settings.sync.enableWarningDescription": "⚠️ 同步目前是实验性功能。您只能为一个空间启用同步。\n\n启用同步将改变您的数据存储结构：\n• .eidos/db.sqlite3 → .eidos/.graft/（虚拟存储文件夹）+ .eidos/graft.toml（配置文件）\n\n不必担心，您可以随时在两种格式之间转换。",
   "space.settings.sync.enableWarningConfirm": "启用同步",
+  "space.settings.sync.docsLink": "同步服务",
   "space.settings.relay": "数据中转",
   "space.settings.relayDescription": "配置数据中转通道，接收来自外部服务的消息。",
   "space.settings.relay.title": "数据中转 (Relay)",
@@ -1101,5 +1106,10 @@
   "space.settings.relay.pendingShort": "待处理",
   "space.settings.relay.deadLetterShort": "死信",
   "space.settings.relay.pendingTooltip": "待处理的消息",
-  "space.settings.relay.deadLetterTooltip": "死信队列消息（超过最大重试次数）"
+  "space.settings.relay.deadLetterTooltip": "死信队列消息（超过最大重试次数）",
+  "space.settings.relay.loginRequired": "需要登录",
+  "space.settings.relay.loginRequiredDescription": "Relay 服务需要您登录账号。请登录以配置和使用数据中转频道。",
+  "space.settings.extensions.docsLink": "Eject 扩展",
+  "space.settings.newtab.docsLink": "自定义新标签页",
+  "space.settings.mounts.docsLink": "文件挂载"
 }
