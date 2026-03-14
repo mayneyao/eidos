@@ -84,6 +84,20 @@ export interface TableListItem {
 }
 
 /**
+ * Portable schema representation for import/export.
+ * Encodes table structure (name + fields) without any IDs,
+ * so it can be shared and used to recreate tables.
+ */
+export interface TableSchemaExport {
+  /** Schema format version */
+  version: 1
+  /** Table display name */
+  name: string
+  /** Field definitions (system fields excluded) */
+  fields: CreateFieldInput[]
+}
+
+/**
  * Schema management client for table/field/view lifecycle operations.
  *
  * Access via `eidos.currentSpace.schema.*`
@@ -460,5 +474,70 @@ CREATE TABLE ${rawTableName} (
   async deleteView(tableId: string, viewId: string): Promise<boolean> {
     await this.dataSpace.view.del(viewId)
     return true
+  }
+
+  // ============ SCHEMA IMPORT / EXPORT ============
+
+  /**
+   * Export a table's schema as a portable object.
+   * The returned value can be JSON-stringified and base64-encoded for sharing.
+   * System fields (_id, title, _created_time, etc.) are excluded.
+   *
+   * @param tableId Table ID
+   * @returns Portable schema object
+   *
+   * @example
+   * ```typescript
+   * const schema = await eidos.currentSpace.schema.export(tableId)
+   * const encoded = btoa(JSON.stringify(schema))
+   * // share `encoded` with others
+   * ```
+   */
+  async export(tableId: string): Promise<TableSchemaExport> {
+    const tableInfo = await this.getTable(tableId)
+    // Exclude system/title fields from export
+    const exportableFields = tableInfo.fields.filter(
+      (f) =>
+        f.columnName !== "title" &&
+        f.type !== FieldType.Title &&
+        f.columnName !== "_id"
+    )
+    return {
+      version: 1,
+      name: tableInfo.name,
+      fields: exportableFields.map((f) => ({
+        name: f.name,
+        columnName: f.columnName,
+        type: f.type,
+        ...(f.property ? { property: f.property } : {}),
+      })),
+    }
+  }
+
+  /**
+   * Create a new table from a previously exported schema.
+   * This is the counterpart to `schema.export()`.
+   *
+   * @param schema Schema exported via `schema.export()` (or decoded from base64)
+   * @param nameOverride Optional new name for the table (defaults to schema name)
+   * @returns Created table info
+   *
+   * @example
+   * ```typescript
+   * const schema = JSON.parse(atob(encodedSchema)) as TableSchemaExport
+   * const table = await eidos.currentSpace.schema.import(schema)
+   * ```
+   */
+  async import(
+    schema: TableSchemaExport,
+    nameOverride?: string
+  ): Promise<TableInfo> {
+    if (schema.version !== 1) {
+      throw new Error(`Unsupported schema version: ${schema.version}`)
+    }
+    return this.createTable({
+      name: nameOverride ?? schema.name,
+      fields: schema.fields,
+    })
   }
 }

@@ -12,6 +12,7 @@ import {
   Palette,
   RefreshCcwIcon,
   Settings,
+  TableIcon,
   Wand2,
   Wrench,
 } from "lucide-react"
@@ -43,6 +44,7 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { ThemeStudio } from "../theme-studio"
 import { DocActionCommandItems } from "./doc-actions"
 import { useCMDKGoto, useInput } from "./hooks"
+import { ImportSchema } from "./import-schema"
 import { SecondaryView } from "./secondary-view"
 
 type SecondaryView = {
@@ -422,41 +424,72 @@ export function CommandDialogDemo() {
                   </CommandGroup>
                 )}
                 <CommandSeparator />
-                {isDesktopMode && currentNode?.type === "table" && (
-                  <CommandGroup heading={t("cmdk.table")}>
-                    <CommandItem
-                      onSelect={() => {
-                        rebuildTableFTS(currentNode.id)
-                      }}
-                      value={`${t("cmdk.rebuildFTS")} ${t("cmdk.rebuildFTS.desc")}`}
-                    >
-                      <RefreshCcwIcon className="mr-2 h-4 w-4" />
-                      <div className="flex flex-col">
-                        <span>{t("cmdk.rebuildFTS")}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {t("cmdk.rebuildFTS.desc")}
-                        </span>
-                      </div>
-                    </CommandItem>
-                    <CommandItem
-                      onSelect={handleMigrateTableFilePaths}
-                      disabled={isMigratingTable}
-                      value={`${t("cmdk.migrateTableFilePaths")} ${t("cmdk.migrateTableFilePaths.desc")}`}
-                    >
-                      {isMigratingTable ? (
-                        <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Wrench className="mr-2 h-4 w-4" />
-                      )}
-                      <div className="flex flex-col">
-                        <span>{t("cmdk.migrateTableFilePaths")}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {t("cmdk.migrateTableFilePaths.desc")}
-                        </span>
-                      </div>
-                    </CommandItem>
-                  </CommandGroup>
-                )}
+                {/* Table commands: import schema is always visible; rebuild FTS etc. are table-node only */}
+                <CommandGroup heading={t("cmdk.table")}>
+
+                  {/* Import schema: available globally */}
+                  <CommandItem
+                    value="import table schema recreate from base64"
+                    onSelect={() => {
+                      setSecondaryView({
+                        component: (
+                          <ImportSchema
+                            onDone={() => {
+                              setSecondaryView(null)
+                              setCmdkOpen(false)
+                            }}
+                          />
+                        ),
+                        title: "Import Table Schema",
+                      })
+                    }}
+                  >
+                    <TableIcon className="mr-2 h-4 w-4" />
+                    <div className="flex flex-col">
+                      <span>Import Table Schema</span>
+                      <span className="text-xs text-muted-foreground">
+                        Paste a base64 schema to recreate a table
+                      </span>
+                    </div>
+                  </CommandItem>
+
+                  {/* Desktop-only / table-node-specific commands */}
+                  {isDesktopMode && currentNode?.type === "table" && (
+                    <>
+                      <CommandItem
+                        onSelect={() => {
+                          rebuildTableFTS(currentNode.id)
+                        }}
+                        value={`${t("cmdk.rebuildFTS")} ${t("cmdk.rebuildFTS.desc")}`}
+                      >
+                        <RefreshCcwIcon className="mr-2 h-4 w-4" />
+                        <div className="flex flex-col">
+                          <span>{t("cmdk.rebuildFTS")}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {t("cmdk.rebuildFTS.desc")}
+                          </span>
+                        </div>
+                      </CommandItem>
+                      <CommandItem
+                        onSelect={handleMigrateTableFilePaths}
+                        disabled={isMigratingTable}
+                        value={`${t("cmdk.migrateTableFilePaths")} ${t("cmdk.migrateTableFilePaths.desc")}`}
+                      >
+                        {isMigratingTable ? (
+                          <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Wrench className="mr-2 h-4 w-4" />
+                        )}
+                        <div className="flex flex-col">
+                          <span>{t("cmdk.migrateTableFilePaths")}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {t("cmdk.migrateTableFilePaths.desc")}
+                          </span>
+                        </div>
+                      </CommandItem>
+                    </>
+                  )}
+                </CommandGroup>
 
                 {currentNode?.type === "doc" && (
                   <>

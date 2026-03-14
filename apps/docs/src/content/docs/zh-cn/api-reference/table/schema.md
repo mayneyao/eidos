@@ -172,3 +172,92 @@ async listViews(tableId: string): Promise<ViewInfo[]>
 ```typescript
 async deleteView(tableId: string, viewId: string): Promise<boolean>
 ```
+
+---
+
+## Schema 导入 / 导出
+
+这两个方法允许你将**表格结构**（字段定义）以紧凑的可移植字符串形式分享——不包含任何行数据。
+
+### `export(tableId)`
+
+将表的 Schema 导出为可移植对象。系统字段（`_id`、`title`、时间戳等）会自动排除。
+
+```typescript
+async export(tableId: string): Promise<TableSchemaExport>
+
+interface TableSchemaExport {
+  version: 1
+  name: string
+  fields: CreateFieldInput[]
+}
+```
+
+**示例 — 导出并复制为 base64 字符串:**
+
+```typescript
+const schema = await eidos.space.schema.export("table_id_here")
+
+// 编码为 base64，便于复制分享
+const encoded = btoa(
+  encodeURIComponent(JSON.stringify(schema)).replace(
+    /%([0-9A-F]{2})/g,
+    (_, p1) => String.fromCharCode(parseInt(p1, 16))
+  )
+)
+console.log(encoded) // "eyJ2ZXJzaW9uIjox..."
+```
+
+### `import(schema, nameOverride?)`
+
+根据之前导出的 Schema 创建新表，是 `export()` 的逆操作。
+
+```typescript
+async import(schema: TableSchemaExport, nameOverride?: string): Promise<TableInfo>
+```
+
+**参数:**
+
+- `schema` — `TableSchemaExport` 对象（例如从 base64 字符串解码而来）
+- `nameOverride` — 可选：覆盖 Schema 中的表名
+
+**示例 — 解码 base64 并重建表格:**
+
+```typescript
+// 将 base64 字符串解码为 Schema 对象
+const schema = JSON.parse(
+  decodeURIComponent(
+    atob(encodedString)
+      .split("")
+      .map((c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0"))
+      .join("")
+  )
+)
+
+// 创建表格
+const table = await eidos.space.schema.import(schema)
+console.log("已创建:", table.name, "共", table.fields.length, "个字段")
+
+// 使用不同名称创建
+const copy = await eidos.space.schema.import(schema, "我的副本")
+```
+
+**完整往返示例:**
+
+```typescript
+// 从源表导出
+const schema = await eidos.space.schema.export(sourceTableId)
+
+// 分享 schema 或编码后，在另一个 space 重建：
+const newTable = await eidos.space.schema.import(schema, "任务（副本）")
+```
+
+:::tip[UI 快捷方式]
+无需脚本也可完成此操作：
+- **导出**：右键点击表格 → **导出 → Copy Schema** → base64 字符串已复制到剪贴板
+- **导入**：按 `⌘K` → 搜索 **"Import Table Schema"** → 粘贴字符串 → 预览确认 → **Create Table**
+:::
+
+:::note
+在导入 Schema 时，`_id` 和 `title` 等系统字段会自动被系统创建。我们了解到部分用户可能不喜欢强制性的 `title` 字段，目前正在思考是否有更完美的解决方案。
+:::

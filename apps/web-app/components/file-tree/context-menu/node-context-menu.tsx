@@ -11,6 +11,7 @@ import {
   PencilLineIcon,
   PinIcon,
   PinOffIcon,
+  Share2Icon,
   Trash2Icon,
 } from "lucide-react"
 import React, { useState } from "react"
@@ -38,6 +39,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { useCopyTableSchema } from "../../node-menu/node-export"
 
 interface FileTreeNode extends IDirectoryEntry {
   children?: FileTreeNode[]
@@ -58,6 +60,18 @@ interface NodeContextMenuProps {
   isMultiSelection?: boolean
   selectionCount?: number
   selectionHasDataview?: boolean
+}
+
+const CopyTableSchemaWrapper = ({ tableId }: { tableId: string }) => {
+  const { copyTableSchema } = useCopyTableSchema()
+  const { t } = useTranslation()
+
+  return (
+    <ContextMenuItem onClick={() => copyTableSchema(tableId)}>
+      <Share2Icon className="mr-2 h-4 w-4" />
+      {t("common.copySchema", "Copy Schema")}
+    </ContextMenuItem>
+  )
 }
 
 /**
@@ -198,6 +212,9 @@ export const NodeContextMenu = ({
                 <CopyIcon className="mr-2 h-4 w-4" />
                 {t("node.menu.copyId", "Copy ID")}
               </ContextMenuItem>
+            )}
+            {node.metadata?.nodeType === "table" && node.metadata?.nodeId && (
+              <CopyTableSchemaWrapper tableId={node.metadata.nodeId} />
             )}
           </>
         )}

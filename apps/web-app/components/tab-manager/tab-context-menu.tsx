@@ -69,7 +69,10 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 
 import { CopyShowHide } from "../copy-show-hide"
-import { NodeExportContextMenu } from "../node-menu/node-export"
+import {
+  CopyTableSchemaContextMenu,
+  NodeExportContextMenu,
+} from "../node-menu/node-export"
 import { Switch } from "../ui/switch"
 import { useToast } from "../ui/use-toast"
 import { VCardQrCode } from "../vcard-qr-code"
@@ -494,6 +497,7 @@ export function TabContextMenu({
                       {t("nav.dropdown.menu.mail")}
                     </ContextMenuItem>
                   </DialogTrigger>
+                  <CopyTableSchemaContextMenu node={node} />
                 </>
               )}
               <ContextMenuSeparator />

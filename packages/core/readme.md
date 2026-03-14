@@ -109,6 +109,66 @@ await dataSpace.tree.createNode({
 })
 ```
 
+## Schema Import / Export (UI Features)
+
+The Eidos UI provides first-class support for sharing table structures without copying data:
+
+### Exporting a Schema
+
+Right-click any **table** in the sidebar → **Export → Copy Schema**.
+
+This copies a **base64-encoded** string to your clipboard. The string encodes only the table structure (name + field definitions), not the row data — making it safe and compact to share via chat, email, or a config file.
+
+Internally this calls:
+
+```typescript
+const schema = await eidos.currentSpace.schema.exportSchema(tableId)
+// schema: { version: 1, name: string, fields: CreateFieldInput[] }
+
+const encoded = btoa(
+  encodeURIComponent(JSON.stringify(schema))
+    .replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode(parseInt(p1, 16)))
+)
+// encoded: "eyJ2ZXJzaW9uIjox..."
+```
+
+### Importing a Schema
+
+Press **⌘K / Ctrl+K** to open the command palette, then search for **"Import Table Schema"** and press Enter.
+
+Paste the base64 string into the dialog — you'll see a live preview of the table name and fields before confirming.
+
+Internally this calls:
+
+```typescript
+const schema = JSON.parse(
+  decodeURIComponent(
+    atob(encoded)
+      .split("")
+      .map((c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0"))
+      .join("")
+  )
+)
+const table = await eidos.currentSpace.schema.import(schema)
+```
+
+### Programmatic API (Scripts / Extensions)
+
+Both operations are available as first-class methods on `SchemaClient`:
+
+```typescript
+// Export
+const schema = await eidos.currentSpace.schema.export(tableId)
+// Returns: { version: 1, name: string, fields: CreateFieldInput[] }
+
+// Import (creates a new table from the schema)
+const table = await eidos.currentSpace.schema.import(schema)
+// Optional: override the name
+const copy = await eidos.currentSpace.schema.import(schema, "My Copy")
+```
+
+---
+
 ## API Reference
 
 ### DataSpace
@@ -135,6 +195,24 @@ The main entry point for interacting with your data:
 - `dataSpace.tree.listNodes()` - Alternative list method
 - `dataSpace.tree.getNode(nodeId)` - Get a specific node
 - `dataSpace.tree.createNode(data)` - Create a new node
+
+#### Schema Operations
+
+- `dataSpace.schema.createTable(input)` - Create a new table with fields
+- `dataSpace.schema.getTable(tableId)` - Get table info (name, fields, views)
+- `dataSpace.schema.listTables()` - List all tables
+- `dataSpace.schema.updateTable(tableId, input)` - Rename table
+- `dataSpace.schema.deleteTable(tableId)` - Delete table
+- `dataSpace.schema.addField(tableId, input)` - Add a field to a table
+- `dataSpace.schema.updateField(tableId, columnName, input)` - Update field metadata
+- `dataSpace.schema.deleteField(tableId, columnName)` - Remove a field
+- `dataSpace.schema.listFields(tableId)` - List all fields in a table
+- `dataSpace.schema.createView(tableId, input)` - Create a view
+- `dataSpace.schema.listViews(tableId)` - List all views
+- `dataSpace.schema.deleteView(tableId, viewId)` - Delete a view
+- `dataSpace.schema.export(tableId)` - Export table schema as portable `TableSchemaExport` object
+- `dataSpace.schema.import(schema, nameOverride?)` - Create a new table from an exported schema
+
 
 ## Architecture
 

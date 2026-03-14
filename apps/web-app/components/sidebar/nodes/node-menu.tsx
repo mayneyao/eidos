@@ -14,6 +14,7 @@ import {
   PencilLineIcon,
   PinIcon,
   PinOffIcon,
+  Share2Icon,
   ScissorsIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -48,7 +49,10 @@ import {
 } from "@/apps/web-app/pages/[database]/store"
 
 import { NodeMoveInto } from "../../node-menu/move-into"
-import { NodeExportContextMenu } from "../../node-menu/node-export"
+import {
+  CopyTableSchemaContextMenu,
+  NodeExportContextMenu,
+} from "../../node-menu/node-export"
 import { Input } from "../../ui/input"
 import { useTreeOperations } from "./hooks"
 import { useFolderStore } from "./store"
@@ -319,6 +323,7 @@ export function NodeItem({
               <CopyIcon className="pr-1.5" />
               {t("node.menu.duplicate")}
             </ContextMenuItem>
+            <CopyTableSchemaContextMenu node={node} />
           </>
         )}
         {/* TODO: NodeMoveInto with Command component not supported in native context menu */}

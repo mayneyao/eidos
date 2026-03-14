@@ -1,4 +1,4 @@
-import { CopyIcon, DownloadIcon } from "lucide-react"
+import { CopyIcon, DownloadIcon, Share2Icon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
@@ -35,11 +35,47 @@ const useCopyDocAsMarkdown = () => {
   return { copyDocAsMarkdown }
 }
 
+export const useCopyTableSchema = () => {
+  const { sqlite } = useSqlite()
+  const { toast } = useToast()
+
+  const copyTableSchema = async (tableId: string) => {
+    if (!sqlite) return
+    try {
+      const schema = await sqlite.schema.export(tableId)
+      const json = JSON.stringify(schema)
+      // Use btoa for ASCII-safe base64; handle unicode via encodeURIComponent trick
+      const encoded = btoa(
+        encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+          String.fromCharCode(parseInt(p1, 16))
+        )
+      )
+      await navigator.clipboard.writeText(encoded)
+      toast({
+        title: "Schema Copied",
+        description:
+          "Table schema (base64) copied to clipboard. Use ⌘K → Import Schema to recreate it.",
+      })
+    } catch (err) {
+      console.error("Failed to copy schema:", err)
+      toast({
+        title: "Export Failed",
+        description:
+          err instanceof Error ? err.message : "Unknown error occurred",
+        variant: "destructive",
+      })
+    }
+  }
+
+  return { copyTableSchema }
+}
+
 export const NodeExportContextMenu = ({ node }: { node: ITreeNode }) => {
   const { sqlite } = useSqlite()
   const { t } = useTranslation()
 
   const { copyDocAsMarkdown } = useCopyDocAsMarkdown()
+  const { copyTableSchema } = useCopyTableSchema()
 
   const exportTable = async (tableId: string) => {
     const file = await sqlite?.exportCsv(tableId)
@@ -65,6 +101,14 @@ export const NodeExportContextMenu = ({ node }: { node: ITreeNode }) => {
             Csv(.csv)
           </ContextMenuItem>
           <ContextMenuItem disabled>Excel(.xlsx)</ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => {
+              copyTableSchema(node.id)
+            }}
+          >
+            <Share2Icon className="mr-2 h-3.5 w-3.5" />
+            Copy Schema
+          </ContextMenuItem>
         </ContextMenuSubContent>
       </ContextMenuSub>
     )
@@ -84,10 +128,28 @@ export const NodeExportContextMenu = ({ node }: { node: ITreeNode }) => {
   return null
 }
 
+export const CopyTableSchemaContextMenu = ({ node }: { node: ITreeNode }) => {
+  const { copyTableSchema } = useCopyTableSchema()
+
+  if (node.type !== "table") return null
+
+  return (
+    <ContextMenuItem
+      onClick={() => {
+        copyTableSchema(node.id)
+      }}
+    >
+      <Share2Icon className="mr-2 h-3.5 w-3.5" />
+      Copy Schema
+    </ContextMenuItem>
+  )
+}
+
 export const NodeExport = ({ node }: { node: ITreeNode }) => {
   const { sqlite } = useSqlite()
   const { t } = useTranslation()
   const { copyDocAsMarkdown } = useCopyDocAsMarkdown()
+  const { copyTableSchema } = useCopyTableSchema()
 
   const exportTable = async (tableId: string) => {
     const file = await sqlite?.exportCsv(tableId)
@@ -114,6 +176,14 @@ export const NodeExport = ({ node }: { node: ITreeNode }) => {
             Csv(.csv)
           </DropdownMenuItem>
           <DropdownMenuItem disabled>Excel(.xlsx)</DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              copyTableSchema(node.id)
+            }}
+          >
+            <Share2Icon className="mr-2 h-3.5 w-3.5" />
+            Copy Schema
+          </DropdownMenuItem>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
     )
