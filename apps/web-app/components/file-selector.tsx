@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react"
-import { useDrop } from "ahooks"
+import { useDrop, useVirtualList } from "ahooks"
 
 import { getFilePreviewImage } from "@/lib/mime/mime"
 import { cn, proxyURL } from "@/lib/utils"
@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
 import { useFileUpload, useFiles } from "@/apps/web-app/hooks/use-file-upload"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+import type { IExtension } from "@/packages/core/meta-table/extension"
+import type { IFile } from "@/packages/core/meta-table/file"
 
 export const DefaultColors = [
   "bg-red-500",
@@ -43,7 +45,58 @@ export function FileSelector(props: {
     return files.filter((file) => file.mime.startsWith("image/"))
   }, [files])
 
-  console.log("files", files)
+  const galleryContainerRef = useRef<HTMLDivElement>(null)
+  const galleryWrapperRef = useRef<HTMLDivElement>(null)
+
+  const galleryItems = useMemo(() => {
+    const items: (
+      | { type: "colors" }
+      | { type: "header"; title: string }
+      | { type: "image-row"; data: IFile[]; index: number }
+    )[] = []
+    if (!props.disableColor) {
+      items.push({ type: "colors" })
+    }
+    items.push({ type: "header", title: "Images" })
+    for (let i = 0; i < images.length; i += 5) {
+      items.push({
+        type: "image-row",
+        data: images.slice(i, i + 5),
+        index: i / 5,
+      })
+    }
+    return items
+  }, [images, props.disableColor])
+
+  const [galleryList] = useVirtualList(galleryItems, {
+    containerTarget: galleryContainerRef,
+    wrapperTarget: galleryWrapperRef,
+    itemHeight: (index) => {
+      const item = galleryItems[index]
+      if (item.type === "colors") return 120
+      if (item.type === "header") return 32
+      return 100
+    },
+    overscan: 10,
+  })
+
+  const blockContainerRef = useRef<HTMLDivElement>(null)
+  const blockWrapperRef = useRef<HTMLDivElement>(null)
+
+  const blockRows = useMemo(() => {
+    const rows: IExtension[][] = []
+    for (let i = 0; i < allMblocks.length; i += 2) {
+      rows.push(allMblocks.slice(i, i + 2))
+    }
+    return rows
+  }, [allMblocks])
+
+  const [blockList] = useVirtualList(blockRows, {
+    containerTarget: blockContainerRef,
+    wrapperTarget: blockWrapperRef,
+    itemHeight: 40,
+    overscan: 10,
+  })
 
   const dropRef = useRef(null)
   const [isHovering, setIsHovering] = useState(false)
@@ -145,76 +198,102 @@ export function FileSelector(props: {
       </div>
       {!props.hideGallery && (
         <TabsContent value="gallery" className="mt-0">
-          <ScrollArea
-            className={cn({
+          <div
+            ref={galleryContainerRef}
+            className={cn("overflow-y-auto pr-3", {
               "h-[400px]": !props.height,
-              [`h-[${props.height}px]`]: props.height,
             })}
+            style={props.height ? { height: props.height } : {}}
           >
-            {!props.disableColor && (
-              <div className="mb-3">
-                <h3 className="mb-2 text-sm font-medium text-muted-foreground">
-                  Colors
-                </h3>
-                <div className="grid grid-cols-6 gap-2">
-                  {DefaultColors.map((color) => {
-                    return (
-                      <div
-                        className={cn(
-                          "aspect-square cursor-pointer rounded-md border border-border/20",
-                          color
-                        )}
-                        key={color}
-                        onClick={() => handleSelectColor(color)}
-                      />
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-            <div>
-              <h3 className="mb-2 text-sm font-medium text-muted-foreground">
-                Images
-              </h3>
-              <div className="grid grid-cols-5 gap-2">
-                {images.map((image) => {
-                  const url = `/${image.path}`
-                  const _url = getFilePreviewImage(url)
+            <div ref={galleryWrapperRef}>
+              {galleryList.map((item) => {
+                const data = item.data
+                if (data.type === "colors") {
                   return (
-                    <img
-                      onClick={() => props.onSelected(url)}
-                      key={image.id}
-                      alt={image.name}
-                      className="aspect-square cursor-pointer rounded-md object-cover border border-border/20"
-                      src={_url}
-                    />
+                    <div className="mb-3" key="colors">
+                      <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+                        Colors
+                      </h3>
+                      <div className="grid grid-cols-6 gap-2">
+                        {DefaultColors.map((color) => {
+                          return (
+                            <div
+                              className={cn(
+                                "aspect-square cursor-pointer rounded-md border border-border/20",
+                                color
+                              )}
+                              key={color}
+                              onClick={() => handleSelectColor(color)}
+                            />
+                          )
+                        })}
+                      </div>
+                    </div>
                   )
-                })}
-              </div>
+                }
+                if (data.type === "header") {
+                  return (
+                    <h3
+                      className="mb-2 text-sm font-medium text-muted-foreground"
+                      key="header"
+                    >
+                      {data.title}
+                    </h3>
+                  )
+                }
+                if (data.type === "image-row") {
+                  return (
+                    <div
+                      className="grid grid-cols-5 gap-2 mb-2"
+                      key={`row-${data.index}`}
+                    >
+                      {data.data.map((image: IFile) => {
+                        const url = `/${image.path}`
+                        const _url = getFilePreviewImage(url)
+                        return (
+                          <img
+                            onClick={() => props.onSelected(url)}
+                            key={image.id}
+                            alt={image.name}
+                            className="aspect-square cursor-pointer rounded-md object-cover border border-border/20"
+                            src={_url}
+                          />
+                        )
+                      })}
+                    </div>
+                  )
+                }
+                return null
+              })}
             </div>
-          </ScrollArea>
+          </div>
         </TabsContent>
       )}
       {props.showBlock && (
         <TabsContent value="block" className="mt-0">
-          <ScrollArea
-            className={cn({
+          <div
+            ref={blockContainerRef}
+            className={cn("overflow-y-auto pr-3", {
               "h-[400px]": !props.height,
-              [`h-[${props.height}px]`]: props.height,
             })}
+            style={props.height ? { height: props.height } : {}}
           >
-            <div className="grid grid-cols-2 gap-2">
-              {allMblocks.map((block) => (
-                <div
-                  key={block.id}
-                  className="cursor-pointer rounded-md border border-border/20 p-2 text-sm hover:bg-accent"
-                  onClick={() => props.onSelected(`block://${block.id}`)}
-                >
-                  {block.name}
+            <div ref={blockWrapperRef}>
+              {blockList.map((item) => (
+                <div key={item.index} className="grid grid-cols-2 gap-2 mb-2">
+                  {item.data.map((block: IExtension) => (
+                    <div
+                      key={block.id}
+                      className="cursor-pointer rounded-md border border-border/20 p-2 text-sm hover:bg-accent h-[32px] flex items-center"
+                      onClick={() => props.onSelected(`block://${block.id}`)}
+                    >
+                      {block.name}
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
-          </ScrollArea>
+          </div>
         </TabsContent>
       )}
       <TabsContent value="upload" ref={dropRef} className="mt-0">
