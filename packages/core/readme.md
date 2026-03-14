@@ -126,8 +126,10 @@ const schema = await eidos.currentSpace.schema.exportSchema(tableId)
 // schema: { version: 1, name: string, fields: CreateFieldInput[] }
 
 const encoded = btoa(
-  encodeURIComponent(JSON.stringify(schema))
-    .replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode(parseInt(p1, 16)))
+  encodeURIComponent(JSON.stringify(schema)).replace(
+    /%([0-9A-F]{2})/g,
+    (_, p1) => String.fromCharCode(parseInt(p1, 16))
+  )
 )
 // encoded: "eyJ2ZXJzaW9uIjox..."
 ```
@@ -212,7 +214,6 @@ The main entry point for interacting with your data:
 - `dataSpace.schema.deleteView(tableId, viewId)` - Delete a view
 - `dataSpace.schema.export(tableId)` - Export table schema as portable `TableSchemaExport` object
 - `dataSpace.schema.import(schema, nameOverride?)` - Create a new table from an exported schema
-
 
 ## Architecture
 

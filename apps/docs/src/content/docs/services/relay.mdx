@@ -77,10 +77,8 @@ The body can be any valid JSON. For example:
 When Eidos picks up messages from the cloud broker, they don't go directly into your main database. Instead, they arrive in a separate local file: `inbox.sqlite3`, which acts as your **message staging queue**.
 
 <FileTree>
-  - my-space/
-    - .eidos/
-      - db.sqlite3 (Your main database)
-      - **inbox.sqlite3** (Message queue staging area)
+  - my-space/ - .eidos/ - db.sqlite3 (Your main database) - **inbox.sqlite3**
+  (Message queue staging area)
 </FileTree>
 
 The reason for the separation is straightforward. Eidos tracks every change to `db.sqlite3`—it's under version control. Dropping thousands of raw webhook payloads directly into it would cause your history to balloon. The `inbox.sqlite3` file is intentionally untracked, giving you a clean staging area waiting for consumer pickup.
@@ -103,7 +101,7 @@ export const meta = {
 
 export async function handleWebhooks(batch) {
   for (const message of batch.messages) {
-    console.log("Processing message:", message.body);
+    console.log("Processing message:", message.body)
     // Add your business logic here to parse data and save to main database
   }
 }
@@ -119,13 +117,13 @@ Relay is an **Add-on** service that consumes cloud computation and storage resou
 The table below outlines the initial trial quotas provided during this free exploration phase, separately for **Free (Basic)** and **Spark License (Lifetime)** users:
 :::
 
-| <div style={{ minWidth: "120px" }}>Limit Scope</div> | <div style={{ minWidth: "90px" }}>Free</div> | <div style={{ minWidth: "90px" }}>Spark</div> | Description |
-| :--- | :--- | :--- | :--- |
-| **API Rate Limit** | 1000 reqs/hr | 1000 reqs/hr | Maximum requests allowed per API Key. |
-| **Channel Count** | 5 | 100 | Channels act as routing categories. |
-| **Max Message Size** | 128 KB | 128 KB | Maximum payload size for a single JSON message sent to Relay. |
-| **Cloud Storage** | 10 MB | 100 MB | Maximum staging queue capacity. Roughly equivalent to ~5,000 Telegram/Discord messages (Free) or ~50,000 messages (Spark). |
-| **Retention Period** | 3 Days | 14 Days | Maximum time messages are kept in the cloud if not consumed by a desktop client. |
+| <div style={{ minWidth: "120px" }}>Limit Scope</div> | <div style={{ minWidth: "90px" }}>Free</div> | <div style={{ minWidth: "90px" }}>Spark</div> | Description                                                                                                                |
+| :--------------------------------------------------- | :------------------------------------------- | :-------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------- |
+| **API Rate Limit**                                   | 1000 reqs/hr                                 | 1000 reqs/hr                                  | Maximum requests allowed per API Key.                                                                                      |
+| **Channel Count**                                    | 5                                            | 100                                           | Channels act as routing categories.                                                                                        |
+| **Max Message Size**                                 | 128 KB                                       | 128 KB                                        | Maximum payload size for a single JSON message sent to Relay.                                                              |
+| **Cloud Storage**                                    | 10 MB                                        | 100 MB                                        | Maximum staging queue capacity. Roughly equivalent to ~5,000 Telegram/Discord messages (Free) or ~50,000 messages (Spark). |
+| **Retention Period**                                 | 3 Days                                       | 14 Days                                       | Maximum time messages are kept in the cloud if not consumed by a desktop client.                                           |
 
 :::caution[About Spark License Quotas]
 Spark users receive free quotas for Add-on services (shown as initial baseline above). These quotas operate on a shared pool model and may adjust based on service capacity. Early supporters permanently retain higher base quota proportions within the Spark community.

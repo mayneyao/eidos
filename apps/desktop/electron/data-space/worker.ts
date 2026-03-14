@@ -178,7 +178,10 @@ class DataSpaceManager {
     )
 
     // Create external file system with space info
-    const externalFS = await createExternalFileSystem(serverDb, this._spaceInfo.path)
+    const externalFS = await createExternalFileSystem(
+      serverDb,
+      this._spaceInfo.path
+    )
 
     // Create data event channel
     const dataEventChannel = createDataEventChannel(
@@ -261,7 +264,10 @@ class DataSpaceManager {
     this.dataSpace.initFileWatcher()
 
     // Start relay clients if enabled
-    if (this._spaceInfo.relay?.enabled && this._spaceInfo.relay.channels.length > 0) {
+    if (
+      this._spaceInfo.relay?.enabled &&
+      this._spaceInfo.relay.channels.length > 0
+    ) {
       this.initRelay(this._spaceInfo)
     }
 
@@ -307,7 +313,7 @@ class DataSpaceManager {
 
     // 2. Get all enabled relay channel IDs
     if (!info.relay?.enabled) return
-    
+
     const channels = info.relay.channels
     if (channels.length === 0) return
 
@@ -320,7 +326,7 @@ class DataSpaceManager {
 
     // 3. Start unified RelayClient for all channels
     this.relayDispatcher = new RelayDispatcher(info.path)
-    
+
     this.relayClient = new RelayClient(
       info.path,
       channelIds,
@@ -355,12 +361,17 @@ class DataSpaceManager {
   private notifyPendingMessages(info: SpaceInfo) {
     if (!this.relayDispatcher) return
 
-    const channelsWithHandler = info.relay?.channels?.filter((c: any) => c.handlerScriptId) || []
-    
+    const channelsWithHandler =
+      info.relay?.channels?.filter((c: any) => c.handlerScriptId) || []
+
     for (const channel of channelsWithHandler) {
-      const pendingCount = this.relayDispatcher.getPendingMessages(channel.id).length
+      const pendingCount = this.relayDispatcher.getPendingMessages(
+        channel.id
+      ).length
       if (pendingCount > 0) {
-        logger.info(`[DataSpaceManager] Found ${pendingCount} pending messages for channel ${channel.id}, notifying renderer`)
+        logger.info(
+          `[DataSpaceManager] Found ${pendingCount} pending messages for channel ${channel.id}, notifying renderer`
+        )
         process.parentPort?.postMessage({
           type: "forward-to-renderer",
           channel: "relay-messages-ready",
@@ -419,7 +430,10 @@ class DataSpaceManager {
     return { success: false, error: "Dispatcher not initialized" }
   }
 
-  public getRelayChannelCounts(channelId: string): { pending: number; deadLetter: number } {
+  public getRelayChannelCounts(channelId: string): {
+    pending: number
+    deadLetter: number
+  } {
     if (this.relayDispatcher) {
       return this.relayDispatcher.getChannelCounts(channelId)
     }
@@ -482,12 +496,16 @@ if (communicationPort) {
       try {
         let result
         if (method === "get-relay-messages") {
-          result = DataSpaceManager.getInstance().getRelayMessages(data?.channelId)
+          result = DataSpaceManager.getInstance().getRelayMessages(
+            data?.channelId
+          )
         } else if (method === "ack-relay-messages") {
           const { acked, retry } = data
           result = DataSpaceManager.getInstance().ackRelayMessages(acked, retry)
         } else if (method === "get-relay-channel-counts") {
-          result = DataSpaceManager.getInstance().getRelayChannelCounts(data?.channelId)
+          result = DataSpaceManager.getInstance().getRelayChannelCounts(
+            data?.channelId
+          )
         } else if (method === "get-relay-total-counts") {
           result = DataSpaceManager.getInstance().getRelayTotalCounts()
         } else {
@@ -504,7 +522,10 @@ if (communicationPort) {
         communicationPort.postMessage({
           type: "rpc-response",
           id,
-          result: { success: false, error: error instanceof Error ? error.message : String(error) },
+          result: {
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          },
         })
       }
       return

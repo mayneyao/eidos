@@ -66,12 +66,12 @@ Send a single message to the relay.
 
 **Request body fields:**
 
-| Field          | Type   | Required | Description |
-| -------------- | ------ | -------- | ----------- |
-| `body`         | any    | ✅       | The message payload. Can be any JSON-serializable value. |
-| `content_type`  | string | —        | `"json"` (default), `"text"`, `"bytes"`, or `"v8"` |
+| Field           | Type   | Required | Description                                               |
+| --------------- | ------ | -------- | --------------------------------------------------------- |
+| `body`          | any    | ✅       | The message payload. Can be any JSON-serializable value.  |
+| `content_type`  | string | —        | `"json"` (default), `"text"`, `"bytes"`, or `"v8"`        |
 | `delay_seconds` | number | —        | Seconds before the message becomes available for delivery |
-| `metadata`     | object | —        | Arbitrary key-value metadata attached to the message |
+| `metadata`      | object | —        | Arbitrary key-value metadata attached to the message      |
 
 **Response:**
 
@@ -129,10 +129,10 @@ Send multiple messages at once.
 
 **Request body fields:**
 
-| Field          | Type    | Required | Description |
-| -------------- | ------- | -------- | ----------- |
-| `messages`     | array   | ✅       | Array of message objects. Each follows the same structure as a single send. |
-| `delay_seconds` | number  | —        | Default delay applied to all messages that don't specify their own |
+| Field           | Type   | Required | Description                                                                 |
+| --------------- | ------ | -------- | --------------------------------------------------------------------------- |
+| `messages`      | array  | ✅       | Array of message objects. Each follows the same structure as a single send. |
+| `delay_seconds` | number | —        | Default delay applied to all messages that don't specify their own          |
 
 **Response:**
 
@@ -191,10 +191,10 @@ Pull messages from the relay for consumption. This is used internally by Eidos D
 
 **Request body fields:**
 
-| Field                  | Type   | Required | Description |
-| ---------------------- | ------ | -------- | ----------- |
-| `visibility_timeout_ms`| number | —        | How long (ms) a pulled message is hidden from other consumers. Default: `30000` |
-| `batch_size`           | number | —        | Number of messages to pull. Default: `10`, max: `100` |
+| Field                   | Type   | Required | Description                                                                     |
+| ----------------------- | ------ | -------- | ------------------------------------------------------------------------------- |
+| `visibility_timeout_ms` | number | —        | How long (ms) a pulled message is hidden from other consumers. Default: `30000` |
+| `batch_size`            | number | —        | Number of messages to pull. Default: `10`, max: `100`                           |
 
 **Response:**
 
@@ -269,8 +269,8 @@ Acknowledge successfully processed messages. Acknowledged messages are permanent
 
 **Request body fields:**
 
-| Field       | Type     | Required | Description |
-| ----------- | -------- | -------- | ----------- |
+| Field       | Type     | Required | Description                                              |
+| ----------- | -------- | -------- | -------------------------------------------------------- |
 | `lease_ids` | string[] | ✅       | Array of `lease_id` values returned by the pull endpoint |
 
 **Response:**
@@ -303,11 +303,13 @@ Authorization: Bearer {token}
 **WebSocket Events:**
 
 When connecting, you will receive a welcome event:
+
 ```json
 { "type": "subscribed", "channelId": "your-channel" }
 ```
 
 When someone sends a message to this relay, you will receive:
+
 ```json
 { "type": "new_message", "channelId": "your-channel" }
 ```
@@ -333,11 +335,13 @@ Authorization: Bearer {token}
 **WebSocket Events:**
 
 When connecting, you will receive a welcome event:
+
 ```json
 { "type": "subscribed", "channels": ["channelId1", "channelId2"] }
 ```
 
 When someone sends a message to any of these channels, you will receive the same notification as the single-channel subscribe, which includes the `channelId` so you know which channel has a new message:
+
 ```json
 { "type": "new_message", "channelId": "channelId1" }
 ```
@@ -411,45 +415,49 @@ All errors follow this format:
 const sendRes = await fetch("/v1/relay/channels/my-channel/messages", {
   method: "POST",
   headers: {
-    "Authorization": `Bearer ${token}`,
+    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
     body: { event: "order.created", orderId: "123" },
   }),
-});
-const { result: { id } } = await sendRes.json();
+})
+const {
+  result: { id },
+} = await sendRes.json()
 
 // 2. Pull messages
 const pullRes = await fetch("/v1/relay/channels/my-channel/messages/pull", {
   method: "POST",
   headers: {
-    "Authorization": `Bearer ${token}`,
+    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
     batch_size: 10,
     visibility_timeout_ms: 30000,
   }),
-});
-const { result: { messages } } = await pullRes.json();
+})
+const {
+  result: { messages },
+} = await pullRes.json()
 
 // 3. Process messages
 for (const msg of messages) {
-  await processMessage(msg.body);
+  await processMessage(msg.body)
 }
 
 // 4. Acknowledge all
 await fetch("/v1/relay/channels/my-channel/messages/ack", {
   method: "POST",
   headers: {
-    "Authorization": `Bearer ${token}`,
+    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
     lease_ids: messages.map((m) => m.lease_id),
   }),
-});
+})
 ```
 
 ### Send Batch
@@ -458,7 +466,7 @@ await fetch("/v1/relay/channels/my-channel/messages/ack", {
 const res = await fetch("/v1/relay/channels/my-channel/messages/batch", {
   method: "POST",
   headers: {
-    "Authorization": `Bearer ${token}`,
+    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
@@ -468,7 +476,7 @@ const res = await fetch("/v1/relay/channels/my-channel/messages/batch", {
       { body: { type: "email", to: "user3@example.com" } },
     ],
   }),
-});
+})
 ```
 
 ---
@@ -477,39 +485,34 @@ const res = await fetch("/v1/relay/channels/my-channel/messages/batch", {
 
 ### Message Limits
 
-| Limit | Value | Description |
-|-------|-------|-------------|
-| `delay_seconds` | Max 86400 (24 hours) | Maximum delay before message becomes available for consumption |
-| `visibility_timeout_ms` | Max 43200000 (12 hours) | Maximum time a message is invisible after being pulled |
-| `batch_size` | Max 100 | Maximum number of messages per pull request |
-| Message size | 128 KB | Maximum size of a single message (body + metadata) |
-| Max retries | 3 | Maximum delivery attempts before message is discarded |
-| Message retention | 14 days | Maximum time a message is kept in the queue |
+| Limit                   | Value                   | Description                                                    |
+| ----------------------- | ----------------------- | -------------------------------------------------------------- |
+| `delay_seconds`         | Max 86400 (24 hours)    | Maximum delay before message becomes available for consumption |
+| `visibility_timeout_ms` | Max 43200000 (12 hours) | Maximum time a message is invisible after being pulled         |
+| `batch_size`            | Max 100                 | Maximum number of messages per pull request                    |
+| Message size            | 128 KB                  | Maximum size of a single message (body + metadata)             |
+| Max retries             | 3                       | Maximum delivery attempts before message is discarded          |
+| Message retention       | 14 days                 | Maximum time a message is kept in the queue                    |
 
 ### Plan Quotas
 
-| Feature | Free Plan | Spark Plan |
-|---------|-----------|------------|
-| Max storage | 10 MB | 100 MB |
-| Max channels | 5 | 100 |
-| Max message size | 128 KB | 128 KB |
-| Message retention | 3 days | 14 days |
+| Feature           | Free Plan | Spark Plan |
+| ----------------- | --------- | ---------- |
+| Max storage       | 10 MB     | 100 MB     |
+| Max channels      | 5         | 100        |
+| Max message size  | 128 KB    | 128 KB     |
+| Message retention | 3 days    | 14 days    |
 
 ### Default Values
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
+| Parameter               | Default            | Description                                                   |
+| ----------------------- | ------------------ | ------------------------------------------------------------- |
 | `visibility_timeout_ms` | 30000 (30 seconds) | Time before message becomes visible again if not acknowledged |
-| `batch_size` | 10 | Number of messages returned per pull request |
-| `content_type` | "json" | Default content type for messages |
+| `batch_size`            | 10                 | Number of messages returned per pull request                  |
+| `content_type`          | "json"             | Default content type for messages                             |
 
 ### Hard Limits
 
 - **Max tenant storage**: 100 MB per user (across all channels)
 - **Max message size**: 1 MB (SQLite safeguard)
 - **Max channels per user**: 100 (Spark plan)
-
-
-
-
-

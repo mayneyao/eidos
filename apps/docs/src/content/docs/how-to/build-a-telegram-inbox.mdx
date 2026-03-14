@@ -59,10 +59,11 @@ Eidos provides an official Telegram bot ([@eidos_relay_bot](https://t.me/eidos_r
 2. Tap **Start**
 
 3. Send this message to configure it:
+
    ```
    /config my-inbox YOUR_API_KEY
    ```
-   
+
    Replace `YOUR_API_KEY` with the key you copied in Step 1.
 
 4. Send a test message. If you see a 👌 reaction, it's working!
@@ -70,7 +71,8 @@ Eidos provides an official Telegram bot ([@eidos_relay_bot](https://t.me/eidos_r
 </Steps>
 
 <Aside type="tip">
-  You can pick any name for your inbox (we used `my-inbox`). Just remember it for the next step.
+  You can pick any name for your inbox (we used `my-inbox`). Just remember it
+  for the next step.
 </Aside>
 
 ---
@@ -108,14 +110,14 @@ Now tell Eidos what to do when messages arrive.
    export async function saveTelegramMessages(batch) {
      for (const msg of batch.messages) {
        const { text, from } = msg.body.message
-       
+
        // Replace "YOUR_TABLE_ID" with the table ID you copied
        await eidos.currentSpace.table("YOUR_TABLE_ID").create({
          data: {
            content: text,
            sender: from.username || from.first_name,
            created_at: new Date().toISOString(),
-         }
+         },
        })
      }
    }

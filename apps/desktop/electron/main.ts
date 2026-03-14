@@ -34,10 +34,7 @@ import {
 } from "./file-system/playground"
 import { ProtocolHandler } from "./protocol-handler"
 import { getApiAgentStatus, initApiAgent } from "./server/api-agent"
-import {
-  type PortInUseError,
-  startServer,
-} from "./server/server"
+import { type PortInUseError, startServer } from "./server/server"
 import {
   formatProcessInfo,
   getKillCommand,
@@ -190,7 +187,8 @@ async function showPortInUseDialog(
             type: "error",
             title: "Failed to Kill Process",
             message: `Unable to terminate process ${processInfo.processName || processInfo.pid}.`,
-            detail: "The process may require elevated privileges (administrator/root) to terminate.",
+            detail:
+              "The process may require elevated privileges (administrator/root) to terminate.",
             buttons: ["Retry", "Exit"],
             defaultId: 0,
           })

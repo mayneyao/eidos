@@ -426,7 +426,6 @@ export function CommandDialogDemo() {
                 <CommandSeparator />
                 {/* Table commands: import schema is always visible; rebuild FTS etc. are table-node only */}
                 <CommandGroup heading={t("cmdk.table")}>
-
                   {/* Import schema: available globally */}
                   <CommandItem
                     value="import table schema recreate from base64"

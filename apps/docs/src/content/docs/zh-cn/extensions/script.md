@@ -58,7 +58,7 @@ export const meta = {
       properties: {
         name: {
           type: "string",
-         },
+        },
       },
     },
     outputJSONSchema: {
@@ -400,6 +400,7 @@ Relay 处理器函数接收一个 `batch` 对象，其中包含从本地 `inbox.
   - `retryAll()`: 标记批次中的所有消息为重试
 
 **处理逻辑：**
+
 - **隐式确认 (Implicit ACK)**：如果处理器函数成功返回（未抛出错误），批次中所有未显式标记重试的消息都将被视为已确认，并从 `inbox.sqlite` 中移除。
 - **自动重试**：如果处理器抛出未捕获的异常，所有未显式调用 `ack()` 的消息将留在 `inbox.sqlite` 中，并在下一个执行周期重新尝试处理。
 

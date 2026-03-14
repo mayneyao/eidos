@@ -254,9 +254,10 @@ const newTable = await eidos.space.schema.import(schema, "Tasks (Copy)")
 
 :::tip[UI shortcut]
 You can also do this without scripts:
+
 - **Export**: Right-click a table → **Export → Copy Schema** → base64 string is copied to clipboard
 - **Import**: Press `⌘K` → search **"Import Table Schema"** → paste the string → preview → **Create Table**
-:::
+  :::
 
 :::note
 When importing a schema, system fields like `_id` and `title` are automatically recreated by the system. We understand that some users may prefer a more flexible approach to the `title` field, and we are currently exploring potential solutions to address this.

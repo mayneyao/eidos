@@ -1,5 +1,5 @@
 import { parentPort, workerData } from "worker_threads"
-import type { SyncConfig } from "@/packages/sync";
+import type { SyncConfig } from "@/packages/sync"
 import { FileSynchronizer } from "@/packages/sync"
 
 if (!parentPort) {

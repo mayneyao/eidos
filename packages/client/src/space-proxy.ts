@@ -4,7 +4,7 @@
  * Extracted and adapted from packages/sandbox/src/sdk-inject-script.html
  */
 
-import type { TransportConfig } from "./transport";
+import type { TransportConfig } from "./transport"
 import { createHttpTransport, onCallBack } from "./transport"
 
 /**

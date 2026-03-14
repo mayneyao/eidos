@@ -59,10 +59,11 @@ Eidos 提供官方 Telegram Bot（[@eidos_relay_bot](https://t.me/eidos_relay_bo
 2. 点击 **开始**
 
 3. 发送以下消息进行配置：
+
    ```
    /config my-inbox 你的API密钥
    ```
-   
+
    把 `你的API密钥` 替换成第一步复制的密钥。
 
 4. 发送一条测试消息。如果看到 👌 表情，说明成功了！
@@ -108,14 +109,14 @@ Eidos 提供官方 Telegram Bot（[@eidos_relay_bot](https://t.me/eidos_relay_bo
    export async function saveTelegramMessages(batch) {
      for (const msg of batch.messages) {
        const { text, from } = msg.body.message
-       
+
        // 将 "YOUR_TABLE_ID" 替换为你复制的表格 ID
        await eidos.currentSpace.table("YOUR_TABLE_ID").create({
          data: {
            content: text,
            sender: from.username || from.first_name,
            created_at: new Date().toISOString(),
-         }
+         },
        })
      }
    }

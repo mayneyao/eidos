@@ -254,9 +254,10 @@ const newTable = await eidos.space.schema.import(schema, "任务（副本）")
 
 :::tip[UI 快捷方式]
 无需脚本也可完成此操作：
+
 - **导出**：右键点击表格 → **导出 → Copy Schema** → base64 字符串已复制到剪贴板
 - **导入**：按 `⌘K` → 搜索 **"Import Table Schema"** → 粘贴字符串 → 预览确认 → **Create Table**
-:::
+  :::
 
 :::note
 在导入 Schema 时，`_id` 和 `title` 等系统字段会自动被系统创建。我们了解到部分用户可能不喜欢强制性的 `title` 字段，目前正在思考是否有更完美的解决方案。

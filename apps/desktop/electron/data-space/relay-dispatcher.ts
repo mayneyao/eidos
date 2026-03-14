@@ -30,7 +30,10 @@ export class RelayDispatcher {
   // Maximum retry attempts before message is considered dead
   private readonly MAX_RETRY_ATTEMPTS = 3
 
-  public getPendingMessages(channelId?: string, limit: number = 10): RelayMessage[] {
+  public getPendingMessages(
+    channelId?: string,
+    limit: number = 10
+  ): RelayMessage[] {
     let query = `
       SELECT id, channel_id, body, content_type, timestamp_ms, attempts, metadata 
       FROM messages 
@@ -87,7 +90,10 @@ export class RelayDispatcher {
   /**
    * Get dead letter messages (exceeded max retry attempts)
    */
-  public getDeadLetterMessages(channelId?: string, limit: number = 10): RelayMessage[] {
+  public getDeadLetterMessages(
+    channelId?: string,
+    limit: number = 10
+  ): RelayMessage[] {
     let query = `
       SELECT id, channel_id, body, content_type, timestamp_ms, attempts, metadata 
       FROM messages 
@@ -135,7 +141,10 @@ export class RelayDispatcher {
   /**
    * Get message counts for a channel (pending and dead letter)
    */
-  public getChannelCounts(channelId: string): { pending: number; deadLetter: number } {
+  public getChannelCounts(channelId: string): {
+    pending: number
+    deadLetter: number
+  } {
     const pendingStmt = this.db.prepare(`
       SELECT COUNT(*) as count FROM messages 
       WHERE channel_id = ? AND processed = 0 AND attempts < ${this.MAX_RETRY_ATTEMPTS}
@@ -144,10 +153,10 @@ export class RelayDispatcher {
       SELECT COUNT(*) as count FROM messages 
       WHERE channel_id = ? AND processed = 0 AND attempts >= ${this.MAX_RETRY_ATTEMPTS}
     `)
-    
+
     const pending = (pendingStmt.get(channelId) as any)?.count || 0
     const deadLetter = (deadStmt.get(channelId) as any)?.count || 0
-    
+
     return { pending, deadLetter }
   }
 
@@ -163,10 +172,10 @@ export class RelayDispatcher {
       SELECT COUNT(*) as count FROM messages 
       WHERE processed = 0 AND attempts >= ${this.MAX_RETRY_ATTEMPTS}
     `)
-    
+
     const pending = (pendingStmt.get() as any)?.count || 0
     const deadLetter = (deadStmt.get() as any)?.count || 0
-    
+
     return { pending, deadLetter }
   }
 

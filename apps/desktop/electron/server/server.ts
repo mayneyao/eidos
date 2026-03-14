@@ -222,9 +222,7 @@ export async function startServer({
   const portOccupied = await isPortInUse(port)
   if (portOccupied) {
     const processInfo = await getProcessByPort(port)
-    const error = new Error(
-      `Port ${port} is already in use`
-    ) as PortInUseError
+    const error = new Error(`Port ${port} is already in use`) as PortInUseError
     error.port = port
     error.processInfo = processInfo
     throw error

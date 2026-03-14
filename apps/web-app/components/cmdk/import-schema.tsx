@@ -98,8 +98,8 @@ export function ImportSchema({ onDone }: ImportSchemaProps) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Paste the base64 schema string (from Right-click → Export → Copy
-        Schema) to recreate a table structure.
+        Paste the base64 schema string (from Right-click → Export → Copy Schema)
+        to recreate a table structure.
       </p>
 
       <Textarea
@@ -114,9 +114,7 @@ export function ImportSchema({ onDone }: ImportSchemaProps) {
         autoFocus
       />
 
-      {parseError && (
-        <p className="text-xs text-destructive">{parseError}</p>
-      )}
+      {parseError && <p className="text-xs text-destructive">{parseError}</p>}
 
       {!preview && (
         <Button
@@ -134,7 +132,8 @@ export function ImportSchema({ onDone }: ImportSchemaProps) {
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold">{preview.name}</span>
             <span className="text-xs text-muted-foreground">
-              {preview.fields.length} field{preview.fields.length !== 1 ? "s" : ""}
+              {preview.fields.length} field
+              {preview.fields.length !== 1 ? "s" : ""}
             </span>
           </div>
           <ul className="space-y-0.5">

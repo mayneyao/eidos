@@ -396,6 +396,7 @@ Relay handler functions receive a `batch` object containing the messages pulled 
   - `retryAll()`: Mark all messages in the batch for retry
 
 **Processing Logic:**
+
 - **Implicit ACK**: If the handler function returns successfully, all messages in the batch that were not explicitly marked for retry are considered acknowledged and will be removed from `inbox.sqlite`.
 - **Automatic Retry**: If the handler throws an unhandled exception, all messages that were not explicitly acknowledged via `ack()` will remain in `inbox.sqlite` and be retried in the next execution cycle.
 
@@ -407,7 +408,8 @@ export const meta = {
   funcName: "handleInbox",
   relayHandler: {
     name: "Process Webhooks",
-    description: "Parses raw payloads from inbox.sqlite and archives them to main tables",
+    description:
+      "Parses raw payloads from inbox.sqlite and archives them to main tables",
   },
 }
 

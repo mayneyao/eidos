@@ -1,6 +1,15 @@
 import { useEffect, useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import { Copy, Plus, Trash2, Terminal, Hash, Edit2, Info, AlertCircle } from "lucide-react"
+import {
+  Copy,
+  Plus,
+  Trash2,
+  Terminal,
+  Hash,
+  Edit2,
+  Info,
+  AlertCircle,
+} from "lucide-react"
 
 import { isDesktopMode } from "@/lib/env"
 import { Button } from "@/components/ui/button"
@@ -9,7 +18,10 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import type { RelayChannel, RelayConfig } from "@/apps/web-app/hooks/use-current-space"
+import type {
+  RelayChannel,
+  RelayConfig,
+} from "@/apps/web-app/hooks/use-current-space"
 import {
   useAllRelayHandlers,
   useSyncRelayHandlers,
@@ -45,18 +57,28 @@ export function RelaySettings() {
   const { toast } = useToast()
   const { relayHandlers } = useAllRelayHandlers()
 
-  const [relayConfig, setRelayConfig] = useState<RelayConfig>({ enabled: false, channels: [] })
+  const [relayConfig, setRelayConfig] = useState<RelayConfig>({
+    enabled: false,
+    channels: [],
+  })
   const [isInitializing, setIsInitializing] = useState(true)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [editingChannel, setEditingChannel] = useState<RelayChannel | null>(null)
+  const [editingChannel, setEditingChannel] = useState<RelayChannel | null>(
+    null
+  )
   const [formData, setFormData] = useState<ChannelFormData>({
     id: "",
     handlerScriptId: "",
   })
-  
+
   // Message counts state
-  const [channelCounts, setChannelCounts] = useState<Record<string, { pending: number; deadLetter: number }>>({})
-  const [totalCounts, setTotalCounts] = useState<{ pending: number; deadLetter: number }>({ pending: 0, deadLetter: 0 })
+  const [channelCounts, setChannelCounts] = useState<
+    Record<string, { pending: number; deadLetter: number }>
+  >({})
+  const [totalCounts, setTotalCounts] = useState<{
+    pending: number
+    deadLetter: number
+  }>({ pending: 0, deadLetter: 0 })
 
   useEffect(() => {
     const loadData = async () => {
@@ -72,12 +94,12 @@ export function RelaySettings() {
                 channels: info.relays.map((r: any) => ({
                   id: r.id || crypto.randomUUID().replace(/-/g, ""),
                   handlerScriptId: r.handlerScriptId,
-                }))
+                })),
               }
               // Automatically save migration
               await window.eidos.invoke("update-space", space, {
                 relay: config,
-                relays: null
+                relays: null,
               })
             }
             setRelayConfig(config || { enabled: false, channels: [] })
@@ -95,7 +117,12 @@ export function RelaySettings() {
   }, [space])
 
   const saveRelayConfig = async (newConfig: RelayConfig) => {
-    if (isDesktopMode && typeof window !== "undefined" && window.eidos && space) {
+    if (
+      isDesktopMode &&
+      typeof window !== "undefined" &&
+      window.eidos &&
+      space
+    ) {
       try {
         await window.eidos.invoke("update-space", space, {
           relay: newConfig,
@@ -119,16 +146,20 @@ export function RelaySettings() {
   // Fetch message counts for all channels
   const fetchMessageCounts = useCallback(async () => {
     if (!isDesktopMode || !space || relayConfig.channels.length === 0) return
-    
+
     try {
       // Fetch total counts
       const total = await window.eidos.invoke("get-relay-total-counts", space)
       setTotalCounts(total)
-      
+
       // Fetch per-channel counts
       const counts: Record<string, { pending: number; deadLetter: number }> = {}
       for (const channel of relayConfig.channels) {
-        const result = await window.eidos.invoke("get-relay-channel-counts", space, { channelId: channel.id })
+        const result = await window.eidos.invoke(
+          "get-relay-channel-counts",
+          space,
+          { channelId: channel.id }
+        )
         counts[channel.id] = result
       }
       setChannelCounts(counts)
@@ -144,7 +175,6 @@ export function RelaySettings() {
     return () => clearInterval(interval)
   }, [fetchMessageCounts])
 
-
   const resetForm = () => {
     setFormData({
       id: crypto.randomUUID().replace(/-/g, ""),
@@ -156,7 +186,9 @@ export function RelaySettings() {
     if (relayConfig.channels.length >= MAX_CHANNELS) {
       toast({
         title: t("space.settings.relay.maxChannelsReached"),
-        description: t("space.settings.relay.maxChannelsDescription", { max: MAX_CHANNELS }),
+        description: t("space.settings.relay.maxChannelsDescription", {
+          max: MAX_CHANNELS,
+        }),
         variant: "destructive",
       })
       return
@@ -250,7 +282,11 @@ export function RelaySettings() {
   }
 
   if (isInitializing) {
-    return <div className="py-6 text-sm text-muted-foreground">{t("space.settings.relay.loading")}</div>
+    return (
+      <div className="py-6 text-sm text-muted-foreground">
+        {t("space.settings.relay.loading")}
+      </div>
+    )
   }
 
   const channelCount = relayConfig.channels.length
@@ -265,7 +301,10 @@ export function RelaySettings() {
           </p>
           {relayConfig.channels.length > 0 && (
             <p className="text-xs text-muted-foreground mt-1">
-              {t("space.settings.relay.channelCount", { current: relayConfig.channels.length, max: MAX_CHANNELS })}
+              {t("space.settings.relay.channelCount", {
+                current: relayConfig.channels.length,
+                max: MAX_CHANNELS,
+              })}
             </p>
           )}
         </div>
@@ -276,13 +315,16 @@ export function RelaySettings() {
               size="sm"
               disabled={relayConfig.channels.length >= MAX_CHANNELS}
             >
-              <Plus className="h-4 w-4 mr-1" /> {t("space.settings.relay.addChannel")}
+              <Plus className="h-4 w-4 mr-1" />{" "}
+              {t("space.settings.relay.addChannel")}
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>
-                {editingChannel ? t("space.settings.relay.editChannel") : t("space.settings.relay.addChannel")}
+                {editingChannel
+                  ? t("space.settings.relay.editChannel")
+                  : t("space.settings.relay.addChannel")}
               </DialogTitle>
               <DialogDescription>
                 {editingChannel
@@ -293,7 +335,9 @@ export function RelaySettings() {
             <div className="space-y-4 py-4">
               {/* Channel ID */}
               <div className="space-y-2">
-                <Label htmlFor="channel-id">{t("space.settings.relay.channelId")}</Label>
+                <Label htmlFor="channel-id">
+                  {t("space.settings.relay.channelId")}
+                </Label>
                 <div className="flex gap-2 items-center">
                   <Input
                     id="channel-id"
@@ -308,7 +352,10 @@ export function RelaySettings() {
                     variant="ghost"
                     className="shrink-0 h-8 w-8 p-0"
                     onClick={() =>
-                      setFormData({ ...formData, id: crypto.randomUUID().replace(/-/g, "") })
+                      setFormData({
+                        ...formData,
+                        id: crypto.randomUUID().replace(/-/g, ""),
+                      })
                     }
                     title={t("space.settings.relay.generateId")}
                   >
@@ -320,10 +367,11 @@ export function RelaySettings() {
                 </p>
               </div>
 
-
               {/* Handler Script */}
               <div className="space-y-2">
-                <Label htmlFor="handler-script">{t("space.settings.relay.handlerScript")}</Label>
+                <Label htmlFor="handler-script">
+                  {t("space.settings.relay.handlerScript")}
+                </Label>
                 <Select
                   value={formData.handlerScriptId || "none"}
                   onValueChange={(val) =>
@@ -334,10 +382,16 @@ export function RelaySettings() {
                   }
                 >
                   <SelectTrigger id="handler-script">
-                    <SelectValue placeholder={t("space.settings.relay.selectScriptPlaceholder")} />
+                    <SelectValue
+                      placeholder={t(
+                        "space.settings.relay.selectScriptPlaceholder"
+                      )}
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">{t("space.settings.relay.noHandler")}</SelectItem>
+                    <SelectItem value="none">
+                      {t("space.settings.relay.noHandler")}
+                    </SelectItem>
                     {relayHandlers.map((handler) => (
                       <SelectItem key={handler.id} value={handler.id}>
                         {handler.name || handler.slug}
@@ -358,7 +412,9 @@ export function RelaySettings() {
                 {t("space.settings.relay.cancel")}
               </Button>
               <Button onClick={handleSaveChannel}>
-                {editingChannel ? t("space.settings.relay.saveChanges") : t("space.settings.relay.addChannelButton")}
+                {editingChannel
+                  ? t("space.settings.relay.saveChanges")
+                  : t("space.settings.relay.addChannelButton")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -369,36 +425,46 @@ export function RelaySettings() {
       <div className="p-5 rounded-xl bg-gradient-to-br from-muted/80 to-muted/30 border shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4 min-w-0">
-            <div className={`p-2.5 rounded-full ${relayConfig.enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+            <div
+              className={`p-2.5 rounded-full ${relayConfig.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
+            >
               <Hash className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <span className="text-sm font-semibold">{t("space.settings.relay.service")}</span>
+              <span className="text-sm font-semibold">
+                {t("space.settings.relay.service")}
+              </span>
               <p className="text-sm text-muted-foreground line-clamp-1">
                 {relayConfig.enabled
-                  ? t("space.settings.relay.serviceEnabled", { count: channelCount })
+                  ? t("space.settings.relay.serviceEnabled", {
+                      count: channelCount,
+                    })
                   : relayConfig.channels.length > 0
-                    ? t("space.settings.relay.serviceDisabled", { count: relayConfig.channels.length })
+                    ? t("space.settings.relay.serviceDisabled", {
+                        count: relayConfig.channels.length,
+                      })
                     : t("space.settings.relay.noChannels")}
               </p>
               {/* Message Statistics */}
               {(totalCounts.pending > 0 || totalCounts.deadLetter > 0) && (
                 <div className="flex items-center gap-2 mt-2">
                   {totalCounts.pending > 0 && (
-                    <span 
+                    <span
                       className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
                       title={t("space.settings.relay.pendingTooltip")}
                     >
-                      {t("space.settings.relay.pendingShort")}: {totalCounts.pending}
+                      {t("space.settings.relay.pendingShort")}:{" "}
+                      {totalCounts.pending}
                     </span>
                   )}
                   {totalCounts.deadLetter > 0 && (
-                    <span 
+                    <span
                       className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
                       title={t("space.settings.relay.deadLetterTooltip")}
                     >
                       <AlertCircle className="h-3 w-3 mr-1" />
-                      {t("space.settings.relay.deadLetterShort")}: {totalCounts.deadLetter}
+                      {t("space.settings.relay.deadLetterShort")}:{" "}
+                      {totalCounts.deadLetter}
                     </span>
                   )}
                 </div>
@@ -456,16 +522,26 @@ export function RelaySettings() {
               <div className="flex items-center gap-2 empty:hidden">
                 {(() => {
                   const counts = channelCounts[channel.id]
-                  if (!counts || (counts.pending === 0 && counts.deadLetter === 0)) return null
+                  if (
+                    !counts ||
+                    (counts.pending === 0 && counts.deadLetter === 0)
+                  )
+                    return null
                   return (
                     <>
                       {counts.pending > 0 && (
-                        <span className="inline-flex items-center px-2 py-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold border border-blue-500/20" title={t("space.settings.relay.pendingTooltip")}>
+                        <span
+                          className="inline-flex items-center px-2 py-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold border border-blue-500/20"
+                          title={t("space.settings.relay.pendingTooltip")}
+                        >
                           {counts.pending}
                         </span>
                       )}
                       {counts.deadLetter > 0 && (
-                        <span className="inline-flex items-center px-2 py-1 rounded bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-bold border border-red-500/20" title={t("space.settings.relay.deadLetterTooltip")}>
+                        <span
+                          className="inline-flex items-center px-2 py-1 rounded bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-bold border border-red-500/20"
+                          title={t("space.settings.relay.deadLetterTooltip")}
+                        >
                           <AlertCircle className="h-3 w-3 mr-1" />
                           {counts.deadLetter}
                         </span>
@@ -480,8 +556,9 @@ export function RelaySettings() {
                 <Terminal className="h-3.5 w-3.5" />
                 <span className="truncate max-w-[120px] sm:max-w-[180px]">
                   {channel.handlerScriptId
-                    ? relayHandlers.find((h) => h.id === channel.handlerScriptId)
-                        ?.name || t("space.settings.relay.unknownScript")
+                    ? relayHandlers.find(
+                        (h) => h.id === channel.handlerScriptId
+                      )?.name || t("space.settings.relay.unknownScript")
                     : t("space.settings.relay.noHandlerLabel")}
                 </span>
               </div>

@@ -163,7 +163,10 @@ export class RelayClient {
       try {
         await this.pullMessages(channelId)
       } catch (error) {
-        console.error(`[RelayClient] Failed to pull messages for channel ${channelId}:`, error)
+        console.error(
+          `[RelayClient] Failed to pull messages for channel ${channelId}:`,
+          error
+        )
         // Continue with other channels even if one fails
       }
     }
@@ -449,8 +452,10 @@ export class RelayClient {
           ORDER BY timestamp_ms DESC 
           LIMIT @limit
         `)
-    
-    const rows = query.all(channelId ? { channelId, limit } : { limit }) as any[]
+
+    const rows = query.all(
+      channelId ? { channelId, limit } : { limit }
+    ) as any[]
     return rows.map((row) => ({
       id: row.id,
       channelId: row.channel_id,
@@ -464,7 +469,7 @@ export class RelayClient {
 
   private parseBody(body: string, contentType: string): any {
     if (typeof body !== "string") return body
-    
+
     // Parse based on content type
     switch (contentType) {
       case "text":

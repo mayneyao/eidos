@@ -174,7 +174,8 @@ export const useNewExtension = () => {
           return {
             id: newScriptId,
             slug: `relay-handler-${shortSlug}`,
-            name: meta?.relayHandler?.name || `New Relay Handler - ${shortSlug}`,
+            name:
+              meta?.relayHandler?.name || `New Relay Handler - ${shortSlug}`,
             type: type,
             description:
               meta?.relayHandler?.description ||

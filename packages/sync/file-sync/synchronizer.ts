@@ -13,10 +13,10 @@ import {
   _Object,
 } from "@aws-sdk/client-s3"
 import { Upload } from "@aws-sdk/lib-storage"
-import type { FSWatcher} from "chokidar";
+import type { FSWatcher } from "chokidar"
 import { watch } from "chokidar"
 
-import type { SyncConfig } from "./types";
+import type { SyncConfig } from "./types"
 import { FileMetadata } from "./types"
 import { debounce, isEmpty } from "./utils"
 

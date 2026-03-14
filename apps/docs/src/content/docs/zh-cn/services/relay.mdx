@@ -67,10 +67,8 @@ curl -X POST https://api.eidos.space/v1/relay/channels/{channelId}/messages \
 Eidos 从云端中转站取回消息后，不会直接写入主数据库，而是先落到一个独立的本地文件：`inbox.sqlite3`，这扮演了**消息暂存队列**的角色。
 
 <FileTree>
-  - my-space/
-    - .eidos/
-      - db.sqlite3 (主数据库)
-      - **inbox.sqlite3** (消息队列暂存区)
+  - my-space/ - .eidos/ - db.sqlite3 (主数据库) - **inbox.sqlite3**
+  (消息队列暂存区)
 </FileTree>
 
 分开存储的理由很简单。Eidos 会追踪 `db.sqlite3` 的每一次变动，它受版本控制。如果把成百上千条原始的 Webhook 数据直接塞进去，历史记录会迅速膨胀。`inbox.sqlite3` 是刻意不纳入版本控制的，作为一块干净的消息缓存区，等待消费者读取。
@@ -93,7 +91,7 @@ export const meta = {
 
 export async function handleWebhooks(batch) {
   for (const message of batch.messages) {
-    console.log("准备处理消息:", message.body);
+    console.log("准备处理消息:", message.body)
     // 在这里添加你的业务逻辑，解析数据并存入主数据库
   }
 }
@@ -109,13 +107,13 @@ Relay 是一项需要消耗云端计算和存储资源的 **Add-on (附加)** �
 以下表格详细列出了免费探索期内，分别为 **Free（基础免费版）** 和 **Spark License（买断版）** 用户提供的初始体验配额：
 :::
 
-| <div style={{ minWidth: "110px" }}>限制项</div> | <div style={{ minWidth: "90px" }}>Free</div> | <div style={{ minWidth: "90px" }}>Spark</div> | 说明 |
-| :--- | :--- | :--- | :--- |
-| **API 调用频率** | 1000 次/小时 | 1000 次/小时 | 每个 API Key 的请求上限。 |
-| **Channel 数量** | 5 | 100 | Channel 作为路由分类。 |
-| **单条消息大小** | 128 KB | 128 KB | 单条向 Relay 投递的 JSON 消息的最大 Payload。 |
-| **云端存储配额** | 10 MB | 100 MB | 云端待接取的总队列容量。大约相当于 5000 条 Telegram/Discord 消息（Free）或 5 万条消息（Spark）。 |
-| **消息保留期限** | 3 天 | 14 天 | 暂存在云端尚未被本地拉取消费的最长留存时间，超时自动清理。 |
+| <div style={{ minWidth: "110px" }}>限制项</div> | <div style={{ minWidth: "90px" }}>Free</div> | <div style={{ minWidth: "90px" }}>Spark</div> | 说明                                                                                             |
+| :---------------------------------------------- | :------------------------------------------- | :-------------------------------------------- | :----------------------------------------------------------------------------------------------- |
+| **API 调用频率**                                | 1000 次/小时                                 | 1000 次/小时                                  | 每个 API Key 的请求上限。                                                                        |
+| **Channel 数量**                                | 5                                            | 100                                           | Channel 作为路由分类。                                                                           |
+| **单条消息大小**                                | 128 KB                                       | 128 KB                                        | 单条向 Relay 投递的 JSON 消息的最大 Payload。                                                    |
+| **云端存储配额**                                | 10 MB                                        | 100 MB                                        | 云端待接取的总队列容量。大约相当于 5000 条 Telegram/Discord 消息（Free）或 5 万条消息（Spark）。 |
+| **消息保留期限**                                | 3 天                                         | 14 天                                         | 暂存在云端尚未被本地拉取消费的最长留存时间，超时自动清理。                                       |
 
 :::caution[关于 Spark License 配额]
 Spark 用户享有 Add-on 服务的免费配额（上表所示为初始基准）。这些配额采用共享池模式运作，可能根据服务容量和用户增长进行调整。早期支持者在 Spark 群体中永久保留更高的基础配额比例。

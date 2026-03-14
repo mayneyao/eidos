@@ -6,7 +6,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
-import type { Panel } from "@/apps/web-app/store/tabs";
+import type { Panel } from "@/apps/web-app/store/tabs"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 
 import { TabBar } from "./tab-bar"
