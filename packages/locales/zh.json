@@ -1064,7 +1064,7 @@
   "space.settings.relay": "数据中转",
   "space.settings.relayDescription": "配置数据中转通道，接收来自外部服务的消息。",
   "space.settings.relay.title": "数据中转 (Relay)",
-  "space.settings.relay.description": "将您的 Eidos Space 连接到世界。使用 Webhook 将数据推送到这里，然后让专门的脚本处理并将其写入表格。",
+  "space.settings.relay.description": "将您的 Eidos Space 连接到世界。使用 Webhook 将数据推送到这里，然后让专门的脚本处理它们。",
   "space.settings.relay.addChannel": "添加频道",
   "space.settings.relay.editChannelDescription": "更新频道配置。",
   "space.settings.relay.editChannel": "编辑频道",

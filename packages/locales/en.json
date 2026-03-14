@@ -869,7 +869,7 @@
   "space.settings.relay": "Relay",
   "space.settings.relayDescription": "Configure data relay channels to receive messages from external services.",
   "space.settings.relay.title": "Data Relay",
-  "space.settings.relay.description": "Connect your Eidos Space to the world. Use webhooks to push data here, then let specialized scripts process them into your tables.",
+  "space.settings.relay.description": "Connect your Eidos Space to the world. Use webhooks to push data here, then let specialized scripts process them.",
   "space.settings.relay.addChannel": "Add Channel",
   "space.settings.relay.editChannelDescription": "Update the channel configuration.",
   "space.settings.relay.editChannel": "Edit Channel",
