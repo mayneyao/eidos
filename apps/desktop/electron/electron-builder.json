@@ -27,7 +27,8 @@
     "**/node_modules/oxc-parser/**/*",
     "**/node_modules/@oxc-parser/binding-*/**/*",
     "**/node_modules/oxc-transform/**/*",
-    "**/node_modules/@oxc-transform/binding-*/**/*"
+    "**/node_modules/@oxc-transform/binding-*/**/*",
+    "**/node_modules/node-pty/**/*"
   ],
   "extraResources": [
     {
@@ -36,7 +37,10 @@
       "filter": ["**/*"]
     }
   ],
-  "asarUnpack": ["**/node_modules/@vscode/ripgrep/**/*"],
+  "asarUnpack": [
+    "**/node_modules/@vscode/ripgrep/**/*",
+    "**/node_modules/node-pty/**/*"
+  ],
   "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
   "win": {
     "target": ["nsis", "zip"],

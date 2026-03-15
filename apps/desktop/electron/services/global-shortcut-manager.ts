@@ -109,6 +109,11 @@ export class GlobalShortcutManager {
         accelerator: "CommandOrControl+Shift+C",
         description: "Copy current URL",
       },
+      {
+        id: "toggle-terminal",
+        accelerator: "Ctrl+`",
+        description: "Toggle terminal panel",
+      },
       // Tab management shortcuts
       {
         id: "close-current-tab",

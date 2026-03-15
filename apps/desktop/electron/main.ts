@@ -43,6 +43,7 @@ import {
   type PortOccupancyInfo,
 } from "./port-checker"
 import { GlobalShortcutManager } from "./services/global-shortcut-manager"
+import { terminalService } from "./services/terminal-service"
 import { getSpaceRegistry, migrateFromLegacyConfig } from "./space-registry"
 import { AppUpdater } from "./updater"
 import { createWindow } from "./window-manager/createWindow"
@@ -552,6 +553,7 @@ app.on("window-all-closed", () => {
   getDataSpace()?.close()
   globalShortcutManager?.destroy()
   globalShortcutManager = null
+  terminalService.cleanup()
   win = null
 })
 
@@ -905,6 +907,7 @@ ipcMain.handle("clear-license", async () => {
 
 app.on("before-quit", () => {
   cleanupPlaygroundWatchers()
+  terminalService.cleanup()
   forceQuit = true
 })
 
@@ -1238,6 +1241,11 @@ app.whenReady().then(async () => {
       return null
     }
 
+    const registry = getSpaceRegistry()
+    return registry.getSpace(spaceId)
+  })
+
+  ipcMain.handle("get-space-by-id", (_, spaceId: string) => {
     const registry = getSpaceRegistry()
     return registry.getSpace(spaceId)
   })

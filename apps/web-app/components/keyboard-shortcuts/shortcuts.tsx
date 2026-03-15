@@ -39,6 +39,8 @@ export function ShortCuts() {
     setCmdkOpen,
     isGlobalSearchOpen,
     setGlobalSearchOpen,
+    isTerminalVisible,
+    setIsTerminalVisible,
   } = useAppRuntimeStore()
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
   const { setCurrentApp } = useSidebarStore()
@@ -139,6 +141,10 @@ export function ShortCuts() {
           })
           break
 
+        case "toggle-terminal":
+          setIsTerminalVisible(!isTerminalVisible)
+          break
+
         default:
           // Handle sidebar tab switching (switch-sidebar-tab-1 through switch-sidebar-tab-9)
           if (action.id.startsWith("switch-sidebar-tab-")) {
@@ -232,6 +238,8 @@ export function ShortCuts() {
     sortedTabs,
     isGlobalSearchOpen,
     setGlobalSearchOpen,
+    isTerminalVisible,
+    setIsTerminalVisible,
   ])
 
   // navigate to today - now handled by global shortcut (Cmd+Shift+T)
