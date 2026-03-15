@@ -115,14 +115,6 @@ The `createEidosClient` function accepts a configuration object:
 | `fetch`    | `typeof fetch` | Custom fetch implementation (optional)                   |
 | `apiKey`   | `string`       | API Key for authentication (optional)                    |
 
-> **Note on localhost subdomains:** The client automatically handles `*.localhost` URLs (e.g., `http://space1.localhost:3000/rpc`) to work around DNS issues. When such URLs are detected, the client will:
->
-> - Rewrite the request to `127.0.0.1` (bypassing DNS resolution)
-> - Preserve the original subdomain in the `Host` header
-> - Add `X-Forwarded-Host` header for compatibility
->
-> This ensures reliable communication with the Eidos Desktop RPC server when using subdomains.
-
 ## Features
 
 - **Prisma-style API**: Type-safe (when used with generated types) and intuitive CRUD operations.
