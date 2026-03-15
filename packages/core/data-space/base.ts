@@ -90,6 +90,18 @@ export abstract class BaseDataSpace {
   context: {
     setInterval?: typeof setInterval
     embedding?: (text: string) => Promise<Array<number>>
+    /**
+     * Extension compiler function. Injected by desktop/headless layer.
+     * Compiles TypeScript/TSX code and extracts metadata.
+     */
+    compileExtension?: (code: string) => Promise<{
+      compiledCode: string
+      meta: any
+      type: "block" | "script"
+      name: string
+      description: string
+      slugPrefix: string
+    }>
   }
   constructor(config: {
     db: EidosDatabase
@@ -98,6 +110,14 @@ export abstract class BaseDataSpace {
     context: {
       setInterval?: typeof setInterval
       embedding?: (text: string) => Promise<Array<number>>
+      compileExtension?: (code: string) => Promise<{
+        compiledCode: string
+        meta: any
+        type: "block" | "script"
+        name: string
+        description: string
+        slugPrefix: string
+      }>
     }
     createUDF?: (db: EidosDatabase) => void
     draftDb?: EidosDatabase

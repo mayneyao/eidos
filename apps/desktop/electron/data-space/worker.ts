@@ -1,5 +1,10 @@
 import { DataSpace } from "@/packages/core/data-space"
 import { BucketClient } from "@/packages/sync/bucket"
+import {
+  blockCodeCompile,
+  extractConstant,
+  scriptCodeCompile,
+} from "@eidos.space/v3"
 
 import { EidosMessageChannelName } from "@/lib/const"
 
@@ -203,6 +208,85 @@ class DataSpaceManager {
       dbName: spaceName,
       context: {
         setInterval,
+        // Inject extension compiler for CLI deployment support
+        compileExtension: async (code: string) => {
+          const meta = (await extractConstant(code, "meta")) as any
+
+          // Determine type: block (tsx with JSX) or script (ts without JSX)
+          const hasJsx =
+            code.includes("(") &&
+            (code.includes("return <") ||
+              code.includes("=> <") ||
+              code.includes("React.createElement"))
+
+          const metaType = meta?.type
+          const type: "block" | "script" =
+            metaType === "tableView" ||
+            metaType === "extNode" ||
+            metaType === "fileHandler" ||
+            hasJsx
+              ? "block"
+              : "script"
+
+          // Compile code based on type
+          const compileMethod =
+            type === "block" ? blockCodeCompile : scriptCodeCompile
+          const compiledCode = await compileMethod(code)
+
+          // Extract name from meta
+          let name = "Unnamed Extension"
+          let description = ""
+          let slugPrefix = "ext"
+
+          if (meta) {
+            if (meta.tableView?.title) {
+              name = meta.tableView.title
+              description = meta.tableView.description || ""
+              slugPrefix = "table-view"
+            } else if (meta.extNode?.title) {
+              name = meta.extNode.title
+              description = meta.extNode.description || ""
+              slugPrefix = "ext-node"
+            } else if (meta.fileHandler?.title) {
+              name = meta.fileHandler.title
+              description = meta.fileHandler.description || ""
+              slugPrefix = "file-handler"
+            } else if (meta.tool?.name) {
+              name = meta.tool.name
+              description = meta.tool.description || ""
+              slugPrefix = "tool"
+            } else if (meta.udf?.name) {
+              name = meta.udf.name
+              description = meta.udf.description || ""
+              slugPrefix = "udf"
+            } else if (meta.tableAction?.name) {
+              name = meta.tableAction.name
+              description = meta.tableAction.description || ""
+              slugPrefix = "table-action"
+            } else if (meta.docAction?.name) {
+              name = meta.docAction.name
+              description = meta.docAction.description || ""
+              slugPrefix = "doc-action"
+            } else if (meta.fileAction?.name) {
+              name = meta.fileAction.name
+              description = meta.fileAction.description || ""
+              slugPrefix = "file-action"
+            } else if (meta.relayHandler?.name) {
+              name = meta.relayHandler.name
+              description = meta.relayHandler.description || ""
+              slugPrefix = "relay-handler"
+            }
+          }
+
+          return {
+            compiledCode,
+            meta,
+            type,
+            name,
+            description,
+            slugPrefix,
+          }
+        },
       },
       createUDF: initUDF,
       postMessage: (data: any, transfer?: any[]) => {

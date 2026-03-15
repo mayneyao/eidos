@@ -803,4 +803,92 @@ export class ExtensionTable
       }
     }
   }
+
+  /**
+   * Install extension from raw TypeScript/TSX code.
+   * Requires compileExtension to be injected via context.
+   *
+   * For tableView extensions with a bound tableId, this method also creates
+   * a view instance in the eidos__view table so the view appears in the table.
+   *
+   * @param code - Raw TypeScript/TSX code
+   * @param id - Optional extension ID
+   * @param enabled - Whether to enable immediately
+   * @returns The installed extension
+   */
+  async installFromCode(
+    code: string,
+    id?: string,
+    enabled: boolean = true
+  ): Promise<IExtension> {
+    const compileExtension = this.dataSpace.context.compileExtension
+    if (!compileExtension) {
+      throw new Error(
+        "compileExtension not available. Ensure context.compileExtension is injected."
+      )
+    }
+
+    // Use injected compiler
+    const { compiledCode, meta, type, name, description, slugPrefix } =
+      await compileExtension(code)
+
+    // Generate ID and slug
+    const { getUuid } = await import("@/lib/utils")
+    const extensionId = id || getUuid()
+    const shortId = extensionId.slice(-8)
+    const slug = await this.generateUniqueSlug(`${slugPrefix}-${shortId}`)
+
+    // Construct extension object
+    const extension: IExtension = {
+      id: extensionId,
+      slug,
+      name,
+      description,
+      type,
+      version: "0.0.1",
+      code: compiledCode,
+      ts_code: code,
+      meta,
+      enabled,
+    }
+
+    // Save extension to database
+    const savedExtension = await this.add(extension)
+
+    // For tableView extensions with tableId binding, create a view instance
+    if (meta?.type === "tableView" && meta.tableView?.tableId) {
+      const tableId = meta.tableView.tableId
+      const viewType = meta.tableView.type || "custom"
+      const viewName = meta.tableView.title || name
+
+      // Check if a view for this extension already exists
+      const existingViews = await this.dataSpace.view.list({
+        table_id: tableId,
+      })
+      const existingView = existingViews.find(
+        (v) =>
+          v.type === `ext__${viewType}` &&
+          v.properties?.extensionId === extensionId
+      )
+
+      if (!existingView) {
+        // Create a new view instance for this table
+        const { getRawTableNameById } = await import("@/lib/utils")
+        const tableName = getRawTableNameById(tableId)
+
+        await this.dataSpace.view.add({
+          id: getUuid(),
+          name: viewName,
+          type: `ext__${viewType}`,
+          table_id: tableId,
+          query: `SELECT * FROM ${tableName}`,
+          properties: {
+            extensionId: extensionId,
+          },
+        })
+      }
+    }
+
+    return savedExtension
+  }
 }
