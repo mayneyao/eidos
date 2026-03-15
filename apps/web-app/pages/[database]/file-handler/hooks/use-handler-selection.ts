@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import type {
   FileHandlerMeta,
@@ -20,8 +20,12 @@ export function useHandlerSelection(fileExtension: string) {
   const { defaultHandlerId, isLoading: isLoadingDefault } =
     useDefaultHandler(fileExtension)
 
-  const [selectedHandler, setSelectedHandler] =
-    useState<IExtension<FileHandlerMeta> | null>(null)
+  const [selectedHandlerId, setSelectedHandlerId] = useState<string | null>(
+    null
+  )
+
+  // Create a stable handler ID list for dependency comparison
+  const handlerIds = useMemo(() => handlers.map((h) => h.id), [handlers])
 
   // Determine which handler to use
   useEffect(() => {
@@ -38,7 +42,7 @@ export function useHandlerSelection(fileExtension: string) {
     if (handlerIdFromQuery) {
       const queryHandler = handlers.find((h) => h.id === handlerIdFromQuery)
       if (queryHandler) {
-        setSelectedHandler(queryHandler)
+        setSelectedHandlerId(queryHandler.id)
         return
       }
     }
@@ -47,21 +51,29 @@ export function useHandlerSelection(fileExtension: string) {
     if (defaultHandlerId) {
       const defaultHandler = handlers.find((h) => h.id === defaultHandlerId)
       if (defaultHandler) {
-        setSelectedHandler(defaultHandler)
+        setSelectedHandlerId(defaultHandler.id)
         return
       }
     }
 
     // Priority 3: Use the first handler
-    setSelectedHandler(handlers[0])
+    setSelectedHandlerId(handlers[0].id)
   }, [
-    handlers,
+    // Use handlerIds (string array) instead of handlers (object array) to avoid reference issues
+    handlerIds,
     defaultHandlerId,
     handlerIdFromQuery,
     isLoadingHandlers,
     isLoadingDefault,
     fileExtension,
+    handlers,
   ])
+
+  // Get the selected handler object from the ID
+  const selectedHandler = useMemo(() => {
+    if (!selectedHandlerId) return null
+    return handlers.find((h) => h.id === selectedHandlerId) || null
+  }, [selectedHandlerId, handlers])
 
   return {
     handlers,
