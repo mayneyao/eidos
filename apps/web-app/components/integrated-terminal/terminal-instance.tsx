@@ -147,6 +147,9 @@ export function TerminalInstance({
     terminal.open(containerRef.current)
     fitAddon.fit()
 
+    // Focus the terminal immediately after opening
+    terminal.focus()
+
     terminalRef.current = terminal
     fitAddonRef.current = fitAddon
 
@@ -255,6 +258,20 @@ export function TerminalInstance({
       terminalRef.current.focus()
       // Refit when becoming active
       fitAddonRef.current?.fit()
+    }
+  }, [isActive])
+
+  // Handle focus when terminal panel becomes visible
+  useEffect(() => {
+    const handlePanelShown = () => {
+      if (isActive && terminalRef.current) {
+        terminalRef.current.focus()
+      }
+    }
+
+    window.addEventListener("terminal-panel-shown", handlePanelShown)
+    return () => {
+      window.removeEventListener("terminal-panel-shown", handlePanelShown)
     }
   }, [isActive])
 

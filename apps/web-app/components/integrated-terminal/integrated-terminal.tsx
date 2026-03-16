@@ -1,10 +1,9 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
-import { Plus, X, Trash2, Terminal as TerminalIcon } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Plus, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import { TerminalInstance } from "./terminal-instance"
 
 interface TerminalSession {
@@ -133,11 +132,13 @@ export function IntegratedTerminal({
     }
   }, [])
 
-  // When terminal becomes visible, trigger a resize after a short delay
+  // When terminal becomes visible, trigger a resize and focus the active terminal
   useEffect(() => {
     if (isVisible) {
       const timer = setTimeout(() => {
         window.dispatchEvent(new Event("resize"))
+        // Dispatch custom event to focus the active terminal
+        window.dispatchEvent(new CustomEvent("terminal-panel-shown"))
       }, 100)
       return () => clearTimeout(timer)
     }
@@ -246,77 +247,59 @@ export function IntegratedTerminal({
         onMouseDown={handleResizeStart}
       />
 
-      {/* Terminal Header */}
-      <div className="flex items-center justify-between border-b border-border bg-muted/50 px-2 py-1">
-        <div className="flex items-center gap-2">
-          <TerminalIcon className="h-4 w-4 text-muted-foreground" />
-          <span className="text-xs font-medium text-muted-foreground">
-            Terminal
-          </span>
+      {/* Terminal Header - VSCode Style */}
+      <div className="flex items-center border-b border-border bg-muted/50">
+        {/* Tabs */}
+        <div className="flex items-center flex-1 overflow-x-auto">
           {sessions.length > 0 && (
-            <Tabs
-              value={activeSessionId || undefined}
-              onValueChange={setActiveSessionId}
-              className="ml-2"
-            >
-              <TabsList className="h-7 bg-transparent">
-                {sessions.map((session) => (
-                  <TabsTrigger
-                    key={session.id}
-                    value={session.id}
-                    className={cn(
-                      "relative h-6 px-3 py-0 text-xs data-[state=active]:bg-background",
-                      activeSessionId === session.id && "font-medium"
-                    )}
+            <>
+              {sessions.map((session) => (
+                <button
+                  key={session.id}
+                  onClick={() => setActiveSessionId(session.id)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 text-xs border-r border-border transition-colors group",
+                    activeSessionId === session.id
+                      ? "bg-background text-foreground"
+                      : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <span className="max-w-[120px] truncate">
+                    {session.title}
+                  </span>
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      closeTerminal(session.id)
+                    }}
+                    className="ml-1 p-0.5 rounded-sm opacity-0 group-hover:opacity-100 hover:bg-muted-foreground/20 transition-opacity"
                   >
-                    <span className="max-w-[120px] truncate">
-                      {session.title}
-                    </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        closeTerminal(session.id)
-                      }}
-                      className="ml-2 rounded-sm opacity-0 hover:bg-muted group-hover:opacity-100 hover:opacity-100"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+                    <X className="h-3 w-3" />
+                  </span>
+                </button>
+              ))}
+            </>
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
+
+          {/* New Terminal Button */}
+          <button
             onClick={handleManualCreate}
+            className="flex items-center px-2 py-1.5 text-muted-foreground hover:text-foreground transition-colors"
             title="New Terminal (Ctrl+Shift+`)"
           >
             <Plus className="h-3.5 w-3.5" />
-          </Button>
+          </button>
         </div>
-        <div className="flex items-center gap-1">
-          {sessions.length > 0 && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={closeAllTerminals}
-              title="Close All"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
+
+        {/* Actions */}
+        <div className="flex items-center px-2 border-l border-border">
+          <button
             onClick={onToggleVisibility}
+            className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
             title="Hide Terminal (Ctrl+`)"
           >
             <X className="h-3.5 w-3.5" />
-          </Button>
+          </button>
         </div>
       </div>
 
@@ -327,7 +310,6 @@ export function IntegratedTerminal({
       >
         {sessions.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-3">
-            <TerminalIcon className="h-8 w-8 text-muted-foreground/50" />
             <p className="text-sm text-muted-foreground">
               {spacePath ? "No active terminals" : "Loading space path..."}
             </p>
