@@ -2,7 +2,10 @@ import { v4 as uuidv4 } from "uuid"
 
 import { FieldType } from "../fields/const"
 import { ColumnTableName } from "../sqlite/const"
-import { generateColumnName, getRawTableNameById } from "@/lib/utils"
+import {
+  generateColumnNameFromFieldName,
+  getRawTableNameById,
+} from "@/lib/utils"
 
 import type { DataSpace } from "../data-space"
 import { TableManager } from "../sdk/table"
@@ -131,7 +134,16 @@ export class CsvImportAndExport extends BaseImportAndExport {
       const header = lines[0]
 
       const rawTableName = getRawTableNameById(tableId)
-      let rawColumns = columns.map((column) => generateColumnName())
+      // Generate semantic column names from CSV headers
+      const existingColumns: string[] = []
+      let rawColumns = columns.map((column) => {
+        const rawColumn = generateColumnNameFromFieldName(
+          column,
+          existingColumns
+        )
+        existingColumns.push(rawColumn)
+        return rawColumn
+      })
       let createTableSql = `
 CREATE TABLE ${rawTableName} (
   _id TEXT PRIMARY KEY NOT NULL,
