@@ -54,7 +54,7 @@ export const SpaceSettings = () => {
           <SettingsIcon className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="h-[85vh] w-[75vw] max-w-6xl p-0">
+      <DialogContent className="h-[85vh] w-[75vw] max-w-6xl p-0 overflow-hidden">
         <UnifiedSettings
           initialSection={activeSection}
           showSpaceSettings={showSpaceSettings}

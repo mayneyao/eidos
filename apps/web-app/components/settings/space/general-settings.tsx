@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react"
-import { AlertTriangle, FolderOpen, Save, Search } from "lucide-react"
+import {
+  AlertTriangle,
+  CheckCircle2,
+  FileText,
+  FolderOpen,
+  Info,
+  Save,
+  Search,
+} from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
@@ -18,11 +26,15 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useEngine } from "@/apps/web-app/hooks/use-engine"
 import { useSpace } from "@/apps/web-app/hooks/use-space"
 import type { SpaceInfo } from "@/apps/web-app/hooks/use-current-space"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 
 export function GeneralSettings() {
   const { t } = useTranslation()
@@ -32,6 +44,7 @@ export function GeneralSettings() {
   const { navigate } = useRouterAdapter()
   const { close } = useEngine()
   const { toast } = useToast()
+  const { sqlite } = useSqlite(space)
 
   const [confirmName, setConfirmName] = useState("")
   const [isRebuilding, setIsRebuilding] = useState(false)
@@ -39,6 +52,12 @@ export function GeneralSettings() {
   const [spaceInfo, setSpaceInfo] = useState<SpaceInfo | null>(null)
   const [spaceName, setSpaceName] = useState("")
   const [isRenaming, setIsRenaming] = useState(false)
+
+  // Node name uniqueness settings
+  const [nameUniquenessEnabled, setNameUniquenessEnabled] = useState(false)
+  const [isLoadingUniqueness, setIsLoadingUniqueness] = useState(true)
+  const [isTogglingUniqueness, setIsTogglingUniqueness] = useState(false)
+  const [duplicateCount, setDuplicateCount] = useState(0)
 
   useEffect(() => {
     const loadData = async () => {
@@ -60,6 +79,29 @@ export function GeneralSettings() {
     }
     loadData()
   }, [space])
+
+  // Load node name uniqueness settings
+  useEffect(() => {
+    const loadUniquenessSettings = async () => {
+      if (!sqlite) return
+      setIsLoadingUniqueness(true)
+      try {
+        const enabled = await sqlite.tree.isNameUniquenessEnabled()
+        setNameUniquenessEnabled(enabled)
+
+        // Check for duplicates if index doesn't exist yet
+        if (!enabled) {
+          const duplicates = await sqlite.tree.findDuplicateNames()
+          setDuplicateCount(duplicates.length)
+        }
+      } catch (error) {
+        console.error("Error loading name uniqueness settings:", error)
+      } finally {
+        setIsLoadingUniqueness(false)
+      }
+    }
+    loadUniquenessSettings()
+  }, [sqlite])
 
   const handleRename = async () => {
     if (!space || !spaceName.trim()) return
@@ -164,6 +206,64 @@ export function GeneralSettings() {
     }
   }
 
+  const handleToggleNameUniqueness = async () => {
+    if (!sqlite) return
+    setIsTogglingUniqueness(true)
+    try {
+      if (nameUniquenessEnabled) {
+        // Disable - drop the index
+        await sqlite.tree.disableNameUniqueness()
+        setNameUniquenessEnabled(false)
+        toast({
+          title: t("node.settings.nameUniquenessDisabled"),
+        })
+      } else {
+        // Enable - check for duplicates first
+        const duplicates = await sqlite.tree.findDuplicateNames()
+        if (duplicates.length > 0) {
+          toast({
+            title: t("node.settings.duplicateNodesFound", {
+              count: duplicates.length,
+            }),
+            description: t("node.settings.duplicateNodesWillBeRenamed"),
+          })
+        }
+
+        const result = await sqlite.tree.enableNameUniqueness()
+        if (result.success) {
+          setNameUniquenessEnabled(true)
+          setDuplicateCount(0)
+          if (result.renamed && result.renamed.length > 0) {
+            toast({
+              title: t("node.settings.duplicateNodesRenamed", {
+                count: result.renamed.length,
+              }),
+            })
+          } else {
+            toast({
+              title: t("node.settings.nameUniquenessEnabled"),
+            })
+          }
+        } else {
+          toast({
+            title: "Failed to enable name uniqueness",
+            description: result.error,
+            variant: "destructive",
+          })
+        }
+      }
+    } catch (error) {
+      console.error("Error toggling name uniqueness:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      })
+    } finally {
+      setIsTogglingUniqueness(false)
+    }
+  }
+
   return (
     <div className="space-y-0">
       <div className="py-4">
@@ -183,13 +283,14 @@ export function GeneralSettings() {
                 <Label htmlFor="spaceName">
                   {t("space.settings.spaceName")}
                 </Label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Input
                     id="spaceName"
                     value={spaceName}
                     onChange={(e) => setSpaceName(e.target.value)}
                     disabled={isRenaming || !spaceInfo}
                     placeholder={t("space.settings.spaceNamePlaceholder")}
+                    className="flex-1"
                   />
                   <Button
                     onClick={handleRename}
@@ -200,6 +301,7 @@ export function GeneralSettings() {
                       !spaceName.trim()
                     }
                     size="xs"
+                    className="shrink-0"
                   >
                     <Save className="h-3.5 w-3.5 mr-1.5" />
                     {isRenaming
@@ -231,8 +333,8 @@ export function GeneralSettings() {
               {t("space.settings.dataDescription")}
             </p>
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="space-y-0.5 flex-[5] min-w-[240px]">
                   <Label>{t("space.settings.rebuildSearchIndex")}</Label>
                   <p className="text-sm text-muted-foreground">
                     {t("space.settings.rebuildSearchIndexDescription")}
@@ -240,20 +342,21 @@ export function GeneralSettings() {
                 </div>
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={handleRebuildIndex}
                   disabled={isRebuilding}
-                  className="w-fit"
+                  className="shrink-0"
                 >
                   <Search className="h-4 w-4 mr-2" />
                   {isRebuilding
                     ? t("space.settings.rebuilding")
-                    : t("space.settings.rebuildSearchIndex")}
+                    : t("common.rebuild", "Rebuild")}
                 </Button>
               </div>
 
               {isDesktopMode && (
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="space-y-0.5 flex-[5] min-w-[240px]">
                     <Label>{t("space.settings.openDataFolder")}</Label>
                     <p className="text-sm text-muted-foreground">
                       {t("space.settings.openDataFolderDescription")}
@@ -261,14 +364,104 @@ export function GeneralSettings() {
                   </div>
                   <Button
                     variant="outline"
+                    size="sm"
                     onClick={handleOpenFolder}
-                    className="w-fit"
+                    className="shrink-0"
                   >
                     <FolderOpen className="h-4 w-4 mr-2" />
-                    {t("space.settings.openDataFolder")}
+                    {t("space.settings.openFolder", "Open Folder")}
                   </Button>
                 </div>
               )}
+
+              {/* Node Name Uniqueness Setting */}
+              <div className="py-6 border-t border-border">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="space-y-1 flex-[5] min-w-[240px]">
+                    <Label>{t("node.settings.nameUniqueness")}</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {t("node.settings.nameUniquenessDescription")}
+                    </p>
+
+                    {!isLoadingUniqueness &&
+                      !nameUniquenessEnabled &&
+                      duplicateCount > 0 && (
+                        <div className="mt-3">
+                          <Alert className="bg-amber-50/50 dark:bg-amber-950/10 border-amber-200/50 dark:border-amber-900/30 py-3">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+                            <AlertTitle className="text-sm font-medium text-amber-800 dark:text-amber-400">
+                              {t("node.settings.duplicateNodesFound", {
+                                count: duplicateCount,
+                              })}
+                            </AlertTitle>
+                            <AlertDescription className="text-xs text-amber-700/80 dark:text-amber-500/70">
+                              {t("node.settings.duplicateNodesWillBeRenamed")}
+                            </AlertDescription>
+                          </Alert>
+                        </div>
+                      )}
+                  </div>
+
+                  <div className="shrink-0">
+                    {isLoadingUniqueness ? (
+                      <div className="h-8 w-20 bg-muted animate-pulse rounded-md" />
+                    ) : nameUniquenessEnabled ? (
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span className="text-sm font-medium">
+                          {t("node.settings.nameUniquenessEnabled")}
+                        </span>
+                      </div>
+                    ) : (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={isTogglingUniqueness}
+                            className="shrink-0"
+                          >
+                            {t("common.enable", "Enable")}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              {t("node.settings.nameUniqueness")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="space-y-2">
+                              <p>
+                                {t("node.settings.nameUniquenessEnableConfirm")}
+                              </p>
+                              {duplicateCount > 0 && (
+                                <p className="text-amber-600 dark:text-amber-400">
+                                  {t("node.settings.duplicateNodesFound", {
+                                    count: duplicateCount,
+                                  })}{" "}
+                                  -
+                                  {t(
+                                    "node.settings.duplicateNodesWillBeRenamed"
+                                  )}
+                                </p>
+                              )}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>
+                              {t("common.cancel")}
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={handleToggleNameUniqueness}
+                            >
+                              {t("common.continue")}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

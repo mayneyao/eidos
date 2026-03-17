@@ -334,8 +334,8 @@ export function RelaySettings() {
   return (
     <div className="space-y-6">
       {/* Header with Add Button */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex-1 min-w-0">
           <p className="text-sm text-muted-foreground">
             {t("space.settings.relay.description")}
           </p>
@@ -463,14 +463,14 @@ export function RelaySettings() {
 
       {/* Relay Master Toggle */}
       <div className="p-5 rounded-xl bg-gradient-to-br from-muted/80 to-muted/30 border shadow-sm">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
             <div
               className={`p-2.5 rounded-full ${relayConfig.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
             >
               <Hash className="h-5 w-5" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <span className="text-sm font-semibold">
                 {t("space.settings.relay.service")}
               </span>
@@ -535,7 +535,7 @@ export function RelaySettings() {
           relayConfig.channels.map((channel) => (
             <div
               key={channel.id}
-              className="group flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl border transition-all hover:bg-muted/40 bg-muted/10 border-border/50 hover:border-border hover:shadow-sm"
+              className="group flex flex-wrap items-center gap-4 p-4 rounded-xl border transition-all hover:bg-muted/40 bg-muted/10 border-border/50 hover:border-border hover:shadow-sm"
             >
               <div className="flex-1 min-w-0 flex items-center gap-2">
                 <div className="flex items-center gap-2 px-0 py-1">

@@ -78,7 +78,7 @@ export const useSqlite = (dbName?: string) => {
     const viewId = uuidv7().split("-").join("")
     const node = await sqlWorker.tree.addNode({
       id: viewId,
-      name: "",
+      name: "New View",
       type: TreeNodeType.Dataview,
       parent_id,
     })
@@ -105,9 +105,10 @@ export const useSqlite = (dbName?: string) => {
     const tableId = uuidv7().split("-").join("")
     const _tableName = getRawTableNameById(tableId)
     const sql = createTemplateTableSql(_tableName)
-    //
+    // Use default name if not provided
+    const finalTableName = tableName?.trim() || "Untitled Table"
     await createTableAndRegister({
-      tableName,
+      tableName: finalTableName,
       tableId,
       sql,
       parent_id,
@@ -124,9 +125,11 @@ export const useSqlite = (dbName?: string) => {
   ) => {
     if (!sqlWorker) return
     const docId = nodeId || uuidv7().split("-").join("")
+    // Use default name if not provided
+    const finalDocName = docName?.trim() || "Untitled Doc"
     const node = await sqlWorker.tree.addNode({
       id: docId,
-      name: docName,
+      name: finalDocName,
       type: TreeNodeType.Doc,
       parent_id: parent_id,
       hide_properties: true,
@@ -402,8 +405,13 @@ export const useSqlite = (dbName?: string) => {
 
   const updateNodeName = async (nodeId: string, newName: string) => {
     if (!sqlWorker) return
-    await sqlWorker.tree.updateNodeName(nodeId, newName)
-    // State will be updated automatically via database triggers
+    try {
+      await sqlWorker.tree.updateNodeName(nodeId, newName)
+      // State will be updated automatically via database triggers
+    } catch (error: any) {
+      // Re-throw error so caller can handle it (e.g., show toast)
+      throw error
+    }
   }
 
   const rebuildFTS = async (tableId: string) => {

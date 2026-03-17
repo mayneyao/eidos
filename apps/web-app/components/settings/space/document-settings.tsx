@@ -51,8 +51,8 @@ export function DocumentSettings() {
               {t("space.settings.documentPropertiesDescription")}
             </p>
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="space-y-0.5 flex-[5] min-w-[240px]">
                   <Label htmlFor="markerProperty">
                     {t("space.settings.markerProperty")}
                   </Label>
@@ -60,7 +60,7 @@ export function DocumentSettings() {
                     {t("space.settings.markerPropertyDescription")}
                   </p>
                 </div>
-                <div className="w-64">
+                <div className="w-full lg:w-64">
                   <Select
                     value={settings.data.markerProperty || "none"}
                     onValueChange={(value) =>
@@ -90,8 +90,8 @@ export function DocumentSettings() {
                   </Select>
                 </div>
               </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="space-y-0.5 flex-[5] min-w-[240px]">
                   <Label htmlFor="showReferenceNodeIcon">
                     {t("space.settings.showReferenceNodeIcon")}
                   </Label>
@@ -99,7 +99,7 @@ export function DocumentSettings() {
                     {t("space.settings.showReferenceNodeIconDescription")}
                   </p>
                 </div>
-                <div className="w-64 flex justify-end">
+                <div className="w-full lg:w-64 flex justify-end shrink-0">
                   <Switch
                     checked={settings.data.showReferenceNodeIcon}
                     onCheckedChange={(checked) =>
@@ -108,8 +108,8 @@ export function DocumentSettings() {
                   />
                 </div>
               </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="space-y-0.5 flex-[5] min-w-[240px]">
                   <Label htmlFor="imageAlign">
                     {t("space.settings.imageAlign")}
                   </Label>
@@ -117,7 +117,7 @@ export function DocumentSettings() {
                     {t("space.settings.imageAlignDescription")}
                   </p>
                 </div>
-                <div className="w-64 flex justify-end">
+                <div className="w-full lg:w-64 flex justify-end shrink-0">
                   <ToggleGroup
                     type="single"
                     value={settings.data.imageAlign || "center"}

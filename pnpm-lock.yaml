@@ -49,31 +49,6 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@20.19.1)(jsdom@24.1.3(bufferutil@4.0.9)(canvas@2.11.2(encoding@0.1.13))(utf-8-validate@6.0.5))(lightningcss@1.30.1)(terser@5.46.0)
 
-  apps/cli:
-    dependencies:
-      '@eidos.space/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@eidos.space/space-manager':
-        specifier: workspace:*
-        version: link:../../packages/space-manager
-      '@eidos.space/sync':
-        specifier: workspace:*
-        version: link:../../packages/sync
-      commander:
-        specifier: ^12.0.0
-        version: 12.1.0
-      hono:
-        specifier: ^4.12.7
-        version: 4.12.7
-    devDependencies:
-      '@types/bun':
-        specifier: latest
-        version: 1.3.10
-      typescript:
-        specifier: ^5.8.3
-        version: 5.8.3
-
   apps/desktop:
     dependencies:
       '@eidos.space/better-sqlite3':
@@ -139,6 +114,9 @@ importers:
       node-machine-id:
         specifier: ^1.1.12
         version: 1.1.12
+      node-pty:
+        specifier: 1.1.0
+        version: 1.1.0
       oxc-parser:
         specifier: ^0.74.0
         version: 0.74.0
@@ -181,10 +159,10 @@ importers:
         version: 8.18.1
       '@vitejs/plugin-react':
         specifier: ^4.6.0
-        version: 4.6.0(vite@6.3.5(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+        version: 4.6.0(vite@6.3.5(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       '@vitejs/plugin-react-oxc':
         specifier: ^0.2.3
-        version: 0.2.3(vite@6.3.5(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+        version: 0.2.3(vite@6.3.5(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       autoprefixer:
         specifier: ^10.4.14
         version: 10.4.21(postcss@8.5.6)
@@ -217,16 +195,16 @@ importers:
         version: 5.8.3
       vite:
         specifier: ^6.3.5
-        version: 6.3.5(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+        version: 6.3.5(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
       vite-plugin-electron:
         specifier: ^0.28.7
         version: 0.28.8
       vite-plugin-top-level-await:
         specifier: ^1.5.0
-        version: 1.5.0(rollup@4.44.1)(vite@6.3.5(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+        version: 1.5.0(rollup@4.44.1)(vite@6.3.5(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       vite-plugin-wasm:
         specifier: ^3.4.1
-        version: 3.4.1(vite@6.3.5(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+        version: 3.4.1(vite@6.3.5(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
 
   apps/docs:
     dependencies:
@@ -444,7 +422,7 @@ importers:
         version: 0.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@lobehub/icons':
         specifier: ^1.96.0
-        version: 1.98.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 1.98.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@monaco-editor/react':
         specifier: ^4.6.0
         version: 4.7.0(monaco-editor@0.52.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -787,6 +765,15 @@ importers:
       ws:
         specifier: ^8.17.1
         version: 8.18.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      xterm:
+        specifier: ^5.3.0
+        version: 5.3.0
+      xterm-addon-fit:
+        specifier: ^0.8.0
+        version: 0.8.0(xterm@5.3.0)
+      xterm-addon-web-links:
+        specifier: ^0.9.0
+        version: 0.9.0(xterm@5.3.0)
       yjs:
         specifier: ^13.6.6
         version: 13.6.27
@@ -829,10 +816,10 @@ importers:
         version: 1.8.8
       '@vitejs/plugin-react':
         specifier: ^4.0.3
-        version: 4.6.0(vite@6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+        version: 4.6.0(vite@6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       '@vitejs/plugin-react-oxc':
         specifier: ^0.2.3
-        version: 0.2.3(vite@6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+        version: 0.2.3(vite@6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       autoprefixer:
         specifier: ^10.4.14
         version: 10.4.21(postcss@8.5.6)
@@ -847,16 +834,16 @@ importers:
         version: 5.8.3
       vite:
         specifier: '>=6.4.1'
-        version: 6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+        version: 6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
       vite-plugin-pwa:
         specifier: ^0.20.1
-        version: 0.20.5(vite@6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(workbox-build@7.3.0(@types/babel__core@7.20.5))(workbox-window@7.3.0)
+        version: 0.20.5(vite@6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(workbox-build@7.3.0(@types/babel__core@7.20.5))(workbox-window@7.3.0)
       vite-plugin-top-level-await:
         specifier: ^1.5.0
-        version: 1.5.0(rollup@2.80.0)(vite@6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+        version: 1.5.0(rollup@2.80.0)(vite@6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       vite-plugin-wasm:
         specifier: ^3.4.1
-        version: 3.4.1(vite@6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+        version: 3.4.1(vite@6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
 
   extensions/blocks/graft:
     dependencies:
@@ -6480,9 +6467,6 @@ packages:
   '@types/body-parser@1.19.6':
     resolution: {integrity: sha512-HLFeCYgz89uk22N5Qg3dvGvsv46B8GLvKKo1zKG4NybA8U2DiEO3w9lqGg29t/tfLRJpJ6iQxnVw4OnB7MoM9g==}
 
-  '@types/bun@1.3.10':
-    resolution: {integrity: sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ==}
-
   '@types/cacheable-request@6.0.3':
     resolution: {integrity: sha512-IQ3EbTzGxIigb1I3qPZc1rWJnH0BmSKv5QYTalEwweFvyBDLSAe24zP0le/hyi7ecGfZVlIVAg4BZqb8WBwKqw==}
 
@@ -7464,9 +7448,6 @@ packages:
   builder-util@24.13.1:
     resolution: {integrity: sha512-NhbCSIntruNDTOVI9fdXz0dihaqX2YuE1D6zZMrwiErzH4ELZHE6mdiB40wEgZNprDia+FghRFgKoAqMZRRjSA==}
 
-  bun-types@1.3.10:
-    resolution: {integrity: sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg==}
-
   bytes@3.1.2:
     resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
     engines: {node: '>= 0.8'}
@@ -7699,10 +7680,6 @@ packages:
   commander@11.1.0:
     resolution: {integrity: sha512-yPVavfyCcRhmorC7rWlkHn15b4wDVgVmBA7kV4QVBsF7kv/9TKJAbAXVTxvTnwP8HHKjRCJDClKbciiYS7p0DQ==}
     engines: {node: '>=16'}
-
-  commander@12.1.0:
-    resolution: {integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==}
-    engines: {node: '>=18'}
 
   commander@14.0.3:
     resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
@@ -10331,6 +10308,9 @@ packages:
   node-addon-api@6.1.0:
     resolution: {integrity: sha512-+eawOlIgy680F0kBzPUNFhMZGtJ1YmqM6l4+Crf4IkImjYrO/mqPwRMh352g23uIaQKFItcQ64I7KMaJxHgAVA==}
 
+  node-addon-api@7.1.1:
+    resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
+
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
     engines: {node: '>=10.5.0'}
@@ -10364,6 +10344,9 @@ packages:
 
   node-mock-http@1.0.3:
     resolution: {integrity: sha512-jN8dK25fsfnMrVsEhluUTPkBFY+6ybu7jSB1n+ri/vOGjJxU8J9CZhpSGkHXSkFjtUhbmoncG/YG9ta5Ludqog==}
+
+  node-pty@1.1.0:
+    resolution: {integrity: sha512-20JqtutY6JPXTUnL0ij1uad7Qe1baT46lyolh2sSENDd4sTzKZ4nmAFkeAARDKwmlLjPx6XKRlwRUxwjOy+lUg==}
 
   node-releases@2.0.19:
     resolution: {integrity: sha512-xxOWJsBKtzAq7DY0J+DTzuz58K8e7sJbdgwkbMWQe8UYB6ekmsQ45q0M/tJDsGaZmbC+l7n57UV8Hl5tHxO9uw==}
@@ -13574,6 +13557,22 @@ packages:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
 
+  xterm-addon-fit@0.8.0:
+    resolution: {integrity: sha512-yj3Np7XlvxxhYF/EJ7p3KHaMt6OdwQ+HDu573Vx1lRXsVxOcnVJs51RgjZOouIZOczTsskaS+CpXspK81/DLqw==}
+    deprecated: This package is now deprecated. Move to @xterm/addon-fit instead.
+    peerDependencies:
+      xterm: ^5.0.0
+
+  xterm-addon-web-links@0.9.0:
+    resolution: {integrity: sha512-LIzi4jBbPlrKMZF3ihoyqayWyTXAwGfu4yprz1aK2p71e9UKXN6RRzVONR0L+Zd+Ik5tPVI9bwp9e8fDTQh49Q==}
+    deprecated: This package is now deprecated. Move to @xterm/addon-web-links instead.
+    peerDependencies:
+      xterm: ^5.0.0
+
+  xterm@5.3.0:
+    resolution: {integrity: sha512-8QqjlekLUFTrU6x7xck1MsPzPA571K5zNqWm0M0oroYEWVOptZ0+ubQSkQ3uxIEhcIHRujJy6emDWX4A7qyFzg==}
+    deprecated: This package is now deprecated. Move to @xterm/xterm instead.
+
   xxhash-wasm@1.1.0:
     resolution: {integrity: sha512-147y/6YNh+tlp6nd/2pWq38i9h6mz/EuQ6njIrmW8D1BS5nCqs0P6DG+m6zTGnNz5I+uhZ0SHxBs9BsPrwcKDA==}
 
@@ -14728,9 +14727,9 @@ snapshots:
       regexpu-core: 6.4.0
       semver: 6.3.1
 
-  '@babel/helper-define-polyfill-provider@0.6.4(@babel/core@7.27.7)':
+  '@babel/helper-define-polyfill-provider@0.6.4(@babel/core@7.28.0)':
     dependencies:
-      '@babel/core': 7.27.7
+      '@babel/core': 7.28.0
       '@babel/helper-compilation-targets': 7.27.2
       '@babel/helper-plugin-utils': 7.27.1
       debug: 4.4.3
@@ -15259,14 +15258,14 @@ snapshots:
       '@babel/core': 7.28.0
       '@babel/helper-plugin-utils': 7.28.6
 
-  '@babel/plugin-transform-runtime@7.27.4(@babel/core@7.27.7)':
+  '@babel/plugin-transform-runtime@7.27.4(@babel/core@7.28.0)':
     dependencies:
-      '@babel/core': 7.27.7
+      '@babel/core': 7.28.0
       '@babel/helper-module-imports': 7.27.1
       '@babel/helper-plugin-utils': 7.27.1
-      babel-plugin-polyfill-corejs2: 0.4.13(@babel/core@7.27.7)
-      babel-plugin-polyfill-corejs3: 0.11.1(@babel/core@7.27.7)
-      babel-plugin-polyfill-regenerator: 0.6.4(@babel/core@7.27.7)
+      babel-plugin-polyfill-corejs2: 0.4.13(@babel/core@7.28.0)
+      babel-plugin-polyfill-corejs3: 0.11.1(@babel/core@7.28.0)
+      babel-plugin-polyfill-regenerator: 0.6.4(@babel/core@7.28.0)
       semver: 6.3.1
     transitivePeerDependencies:
       - supports-color
@@ -16882,10 +16881,10 @@ snapshots:
 
   '@lobehub/emojilib@1.0.0': {}
 
-  '@lobehub/fluent-emoji@2.0.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@lobehub/fluent-emoji@2.0.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@lobehub/emojilib': 1.0.0
-      '@lobehub/ui': 2.22.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@lobehub/ui': 2.22.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       antd: 5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       antd-style: 3.7.1(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       emoji-regex: 10.4.0
@@ -16906,9 +16905,9 @@ snapshots:
       - supports-color
       - vue
 
-  '@lobehub/icons@1.98.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@lobehub/icons@1.98.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@lobehub/ui': 2.22.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@lobehub/ui': 2.22.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       antd: 5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       antd-style: 3.7.1(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       lucide-react: 0.469.0(react@18.3.1)
@@ -16927,9 +16926,9 @@ snapshots:
       - supports-color
       - vue
 
-  '@lobehub/icons@2.45.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@lobehub/icons@2.45.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@lobehub/ui': 2.22.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@lobehub/ui': 2.22.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       antd: 5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       antd-style: 3.7.1(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       lucide-react: 0.469.0(react@18.3.1)
@@ -16948,7 +16947,7 @@ snapshots:
       - supports-color
       - vue
 
-  '@lobehub/ui@2.22.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@lobehub/ui@2.22.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@ant-design/cssinjs': 1.24.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@dnd-kit/core': 6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -16959,8 +16958,8 @@ snapshots:
       '@emoji-mart/react': 1.1.1(emoji-mart@5.6.0)(react@18.3.1)
       '@floating-ui/react': 0.27.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@giscus/react': 3.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@lobehub/fluent-emoji': 2.0.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@lobehub/icons': 2.45.0(@babel/core@7.27.7)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@lobehub/fluent-emoji': 2.0.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@lobehub/icons': 2.45.0(@babel/core@7.28.0)(@types/mdast@4.0.4)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(antd@5.26.2(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(framer-motion@11.18.2(@emotion/is-prop-valid@1.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@mdx-js/mdx': 3.1.1
       '@mdx-js/react': 3.1.1(@types/react@18.3.23)(react@18.3.1)
       '@radix-ui/react-slot': 1.2.4(@types/react@18.3.23)(react@18.3.1)
@@ -16993,7 +16992,7 @@ snapshots:
       rc-menu: 9.16.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       re-resizable: 6.11.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react: 18.3.1
-      react-avatar-editor: 13.0.2(@babel/core@7.27.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react-avatar-editor: 13.0.2(@babel/core@7.28.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react-dom: 18.3.1(react@18.3.1)
       react-error-boundary: 6.0.0(react@18.3.1)
       react-hotkeys-hook: 5.2.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -19680,10 +19679,6 @@ snapshots:
       '@types/connect': 3.4.38
       '@types/node': 20.19.1
 
-  '@types/bun@1.3.10':
-    dependencies:
-      bun-types: 1.3.10
-
   '@types/cacheable-request@6.0.3':
     dependencies:
       '@types/http-cache-semantics': 4.0.4
@@ -19934,6 +19929,7 @@ snapshots:
   '@types/node@25.4.0':
     dependencies:
       undici-types: 7.18.2
+    optional: true
 
   '@types/papaparse@5.3.16':
     dependencies:
@@ -20105,17 +20101,17 @@ snapshots:
     dependencies:
       valibot: 1.0.0(typescript@5.9.3)
 
-  '@vitejs/plugin-react-oxc@0.2.3(vite@6.3.5(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))':
+  '@vitejs/plugin-react-oxc@0.2.3(vite@6.3.5(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))':
     dependencies:
       '@rolldown/pluginutils': 1.0.0-beta.11
-      vite: 6.3.5(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+      vite: 6.3.5(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
 
-  '@vitejs/plugin-react-oxc@0.2.3(vite@6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))':
+  '@vitejs/plugin-react-oxc@0.2.3(vite@6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))':
     dependencies:
       '@rolldown/pluginutils': 1.0.0-beta.11
-      vite: 6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+      vite: 6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
 
-  '@vitejs/plugin-react@4.6.0(vite@6.3.5(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))':
+  '@vitejs/plugin-react@4.6.0(vite@6.3.5(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))':
     dependencies:
       '@babel/core': 7.27.7
       '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.27.7)
@@ -20123,11 +20119,11 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-beta.19
       '@types/babel__core': 7.20.5
       react-refresh: 0.17.0
-      vite: 6.3.5(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+      vite: 6.3.5(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
     transitivePeerDependencies:
       - supports-color
 
-  '@vitejs/plugin-react@4.6.0(vite@6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))':
+  '@vitejs/plugin-react@4.6.0(vite@6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))':
     dependencies:
       '@babel/core': 7.27.7
       '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.27.7)
@@ -20135,7 +20131,7 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-beta.19
       '@types/babel__core': 7.20.5
       react-refresh: 0.17.0
-      vite: 6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+      vite: 6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -20772,11 +20768,11 @@ snapshots:
       cosmiconfig: 7.1.0
       resolve: 1.22.10
 
-  babel-plugin-polyfill-corejs2@0.4.13(@babel/core@7.27.7):
+  babel-plugin-polyfill-corejs2@0.4.13(@babel/core@7.28.0):
     dependencies:
       '@babel/compat-data': 7.27.7
-      '@babel/core': 7.27.7
-      '@babel/helper-define-polyfill-provider': 0.6.4(@babel/core@7.27.7)
+      '@babel/core': 7.28.0
+      '@babel/helper-define-polyfill-provider': 0.6.4(@babel/core@7.28.0)
       semver: 6.3.1
     transitivePeerDependencies:
       - supports-color
@@ -20790,10 +20786,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  babel-plugin-polyfill-corejs3@0.11.1(@babel/core@7.27.7):
+  babel-plugin-polyfill-corejs3@0.11.1(@babel/core@7.28.0):
     dependencies:
-      '@babel/core': 7.27.7
-      '@babel/helper-define-polyfill-provider': 0.6.4(@babel/core@7.27.7)
+      '@babel/core': 7.28.0
+      '@babel/helper-define-polyfill-provider': 0.6.4(@babel/core@7.28.0)
       core-js-compat: 3.43.0
     transitivePeerDependencies:
       - supports-color
@@ -20806,10 +20802,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  babel-plugin-polyfill-regenerator@0.6.4(@babel/core@7.27.7):
+  babel-plugin-polyfill-regenerator@0.6.4(@babel/core@7.28.0):
     dependencies:
-      '@babel/core': 7.27.7
-      '@babel/helper-define-polyfill-provider': 0.6.4(@babel/core@7.27.7)
+      '@babel/core': 7.28.0
+      '@babel/helper-define-polyfill-provider': 0.6.4(@babel/core@7.28.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -21040,10 +21036,6 @@ snapshots:
       temp-file: 3.4.0
     transitivePeerDependencies:
       - supports-color
-
-  bun-types@1.3.10:
-    dependencies:
-      '@types/node': 25.4.0
 
   bytes@3.1.2: {}
 
@@ -21278,8 +21270,6 @@ snapshots:
   comma-separated-tokens@2.0.3: {}
 
   commander@11.1.0: {}
-
-  commander@12.1.0: {}
 
   commander@14.0.3: {}
 
@@ -24531,6 +24521,8 @@ snapshots:
 
   node-addon-api@6.1.0: {}
 
+  node-addon-api@7.1.1: {}
+
   node-domexception@1.0.0: {}
 
   node-fetch-native@1.6.6: {}
@@ -24554,6 +24546,10 @@ snapshots:
   node-machine-id@1.1.12: {}
 
   node-mock-http@1.0.3: {}
+
+  node-pty@1.1.0:
+    dependencies:
+      node-addon-api: 7.1.1
 
   node-releases@2.0.19: {}
 
@@ -25729,9 +25725,9 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  react-avatar-editor@13.0.2(@babel/core@7.27.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  react-avatar-editor@13.0.2(@babel/core@7.28.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
-      '@babel/plugin-transform-runtime': 7.27.4(@babel/core@7.27.7)
+      '@babel/plugin-transform-runtime': 7.27.4(@babel/core@7.28.0)
       '@babel/runtime': 7.28.4
       prop-types: 15.8.1
       react: 18.3.1
@@ -27696,7 +27692,8 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  undici-types@7.18.2: {}
+  undici-types@7.18.2:
+    optional: true
 
   undici@5.29.0:
     dependencies:
@@ -28068,44 +28065,44 @@ snapshots:
 
   vite-plugin-electron@0.28.8: {}
 
-  vite-plugin-pwa@0.20.5(vite@6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(workbox-build@7.3.0(@types/babel__core@7.20.5))(workbox-window@7.3.0):
+  vite-plugin-pwa@0.20.5(vite@6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(workbox-build@7.3.0(@types/babel__core@7.20.5))(workbox-window@7.3.0):
     dependencies:
       debug: 4.4.1
       pretty-bytes: 6.1.1
       tinyglobby: 0.2.14
-      vite: 6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+      vite: 6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
       workbox-build: 7.3.0(@types/babel__core@7.20.5)
       workbox-window: 7.3.0
     transitivePeerDependencies:
       - supports-color
 
-  vite-plugin-top-level-await@1.5.0(rollup@2.80.0)(vite@6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
+  vite-plugin-top-level-await@1.5.0(rollup@2.80.0)(vite@6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
     dependencies:
       '@rollup/plugin-virtual': 3.0.2(rollup@2.80.0)
       '@swc/core': 1.12.7
       uuid: 10.0.0
-      vite: 6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+      vite: 6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
     transitivePeerDependencies:
       - '@swc/helpers'
       - rollup
 
-  vite-plugin-top-level-await@1.5.0(rollup@4.44.1)(vite@6.3.5(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
+  vite-plugin-top-level-await@1.5.0(rollup@4.44.1)(vite@6.3.5(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
     dependencies:
       '@rollup/plugin-virtual': 3.0.2(rollup@4.44.1)
       '@swc/core': 1.12.7
       uuid: 10.0.0
-      vite: 6.3.5(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+      vite: 6.3.5(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
     transitivePeerDependencies:
       - '@swc/helpers'
       - rollup
 
-  vite-plugin-wasm@3.4.1(vite@6.3.5(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
+  vite-plugin-wasm@3.4.1(vite@6.3.5(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
     dependencies:
-      vite: 6.3.5(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+      vite: 6.3.5(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
 
-  vite-plugin-wasm@3.4.1(vite@6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
+  vite-plugin-wasm@3.4.1(vite@6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
     dependencies:
-      vite: 6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+      vite: 6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
 
   vite@5.4.19(@types/node@20.19.1)(lightningcss@1.30.1)(terser@5.46.0):
     dependencies:
@@ -28118,24 +28115,7 @@ snapshots:
       lightningcss: 1.30.1
       terser: 5.46.0
 
-  vite@6.3.5(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2):
-    dependencies:
-      esbuild: 0.25.5
-      fdir: 6.4.6(picomatch@4.0.2)
-      picomatch: 4.0.2
-      postcss: 8.5.6
-      rollup: 4.44.1
-      tinyglobby: 0.2.14
-    optionalDependencies:
-      '@types/node': 20.19.1
-      fsevents: 2.3.3
-      jiti: 2.6.1
-      lightningcss: 1.30.1
-      terser: 5.46.0
-      tsx: 4.21.0
-      yaml: 2.8.2
-
-  vite@6.4.1(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2):
+  vite@6.3.5(@types/node@20.19.1)(jiti@1.21.7)(lightningcss@1.30.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2):
     dependencies:
       esbuild: 0.25.5
       fdir: 6.4.6(picomatch@4.0.2)
@@ -28600,6 +28580,16 @@ snapshots:
     optional: true
 
   xtend@4.0.2: {}
+
+  xterm-addon-fit@0.8.0(xterm@5.3.0):
+    dependencies:
+      xterm: 5.3.0
+
+  xterm-addon-web-links@0.9.0(xterm@5.3.0):
+    dependencies:
+      xterm: 5.3.0
+
+  xterm@5.3.0: {}
 
   xxhash-wasm@1.1.0: {}
 

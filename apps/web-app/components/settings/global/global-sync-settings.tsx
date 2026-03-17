@@ -464,7 +464,7 @@ export function GlobalSyncSettings() {
   return (
     <div className="space-y-0">
       {/* Providers Section */}
-      <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="py-4 flex flex-wrap items-center justify-between gap-4">
         <h3 className="text-lg font-medium">
           {t("settings.sync.provider", "Provider")}
         </h3>
@@ -533,8 +533,8 @@ export function GlobalSyncSettings() {
 
           {/* Built-in: eidos.space - Temporarily Disabled */}
           <div className="p-4 rounded-lg border border-muted bg-muted/30 opacity-60">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex items-center gap-3 flex-[5] min-w-[240px]">
                 <Cloud className="h-5 w-5 text-blue-500 shrink-0" />
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -596,11 +596,11 @@ export function GlobalSyncSettings() {
                 key={provider.id}
                 className="p-4 rounded-lg border border-border"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex items-center gap-3 flex-[5] min-w-[240px]">
                     <Server className="h-5 w-5 text-muted-foreground shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium">{provider.name}</span>
                         {isTestSuccess ? (
                           <Badge

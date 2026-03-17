@@ -118,80 +118,82 @@ export function MountSettings() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-0.5 flex-1 min-w-0">
               <Label>{t("space.settings.mounts.configuredMounts")}</Label>
               <p className="text-sm text-muted-foreground">
                 {t("space.settings.mounts.configuredMountsDescription")}
               </p>
             </div>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <FolderPlus className="h-4 w-4 mr-2" />
-                  {t("space.settings.mounts.addMount")}
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>
+            <div className="shrink-0">
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <FolderPlus className="h-4 w-4 mr-2" />
                     {t("space.settings.mounts.addMount")}
-                  </DialogTitle>
-                  <DialogDescription>
-                    {t("space.settings.mounts.addMountDescription")}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="mount-name">
-                      {t("space.settings.mounts.mountName")}
-                    </Label>
-                    <Input
-                      id="mount-name"
-                      value={newMountName}
-                      onChange={(e) => setNewMountName(e.target.value)}
-                      placeholder={t(
-                        "space.settings.mounts.mountNamePlaceholder"
-                      )}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="mount-path">
-                      {t("space.settings.mounts.mountPath")}
-                    </Label>
-                    <div className="flex gap-2">
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>
+                      {t("space.settings.mounts.addMount")}
+                    </DialogTitle>
+                    <DialogDescription>
+                      {t("space.settings.mounts.addMountDescription")}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="mount-name">
+                        {t("space.settings.mounts.mountName")}
+                      </Label>
                       <Input
-                        id="mount-path"
-                        value={newMountPath}
-                        onChange={(e) => setNewMountPath(e.target.value)}
+                        id="mount-name"
+                        value={newMountName}
+                        onChange={(e) => setNewMountName(e.target.value)}
                         placeholder={t(
-                          "space.settings.mounts.mountPathPlaceholder"
+                          "space.settings.mounts.mountNamePlaceholder"
                         )}
-                        className="flex-1"
                       />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleSelectDirectory}
-                      >
-                        <FolderOpen className="h-4 w-4" />
-                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mount-path">
+                        {t("space.settings.mounts.mountPath")}
+                      </Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="mount-path"
+                          value={newMountPath}
+                          onChange={(e) => setNewMountPath(e.target.value)}
+                          placeholder={t(
+                            "space.settings.mounts.mountPathPlaceholder"
+                          )}
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleSelectDirectory}
+                        >
+                          <FolderOpen className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsDialogOpen(false)}
-                  >
-                    {t("common.cancel")}
-                  </Button>
-                  <Button onClick={handleAddMount}>
-                    {t("space.settings.mounts.addMount")}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsDialogOpen(false)}
+                    >
+                      {t("common.cancel")}
+                    </Button>
+                    <Button onClick={handleAddMount}>
+                      {t("space.settings.mounts.addMount")}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
           <div className="max-w-4xl">
@@ -212,7 +214,7 @@ export function MountSettings() {
                 {mounts.map((mount) => (
                   <div
                     key={mount.name}
-                    className="flex items-center justify-between p-4 border rounded-lg"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg gap-4"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3">

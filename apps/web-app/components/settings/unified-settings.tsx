@@ -41,7 +41,7 @@ export function UnifiedSettings({
   }, [])
 
   return (
-    <div className="flex flex-col lg:flex-row h-[85vh]">
+    <div className="flex flex-col lg:flex-row h-[85vh] overflow-hidden">
       <SettingsSidebar
         activeSection={activeSection}
         onSectionChange={setActiveSection}

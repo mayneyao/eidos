@@ -3,6 +3,7 @@ import { Plus } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { isDesktopMode } from "@/lib/env"
+import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -19,6 +20,7 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 export const CreateNodeTrigger = ({ parent_id }: { parent_id?: string }) => {
   const { space } = useCurrentPathInfo()
   const { t } = useTranslation()
+  const { toast } = useToast()
 
   const { extNodes } = useAllExtNodes()
 
@@ -33,37 +35,83 @@ export const CreateNodeTrigger = ({ parent_id }: { parent_id?: string }) => {
   const goto = useGoto()
 
   const handleCreateDoc = async () => {
-    const docId = await createDoc("", parent_id)
-    goto(space, docId)
+    try {
+      const docId = await createDoc("", parent_id)
+      if (docId) {
+        goto(space, docId)
+      }
+    } catch (error: any) {
+      toast({
+        title: t("common.error"),
+        description: error?.message || String(error),
+        variant: "destructive",
+      })
+    }
   }
 
   const handleCreateTable = async () => {
-    const tableId = await createTable("", parent_id)
-    goto(space, tableId)
+    try {
+      const tableId = await createTable("", parent_id)
+      if (tableId) {
+        goto(space, tableId)
+      }
+    } catch (error: any) {
+      toast({
+        title: t("common.error"),
+        description: error?.message || String(error),
+        variant: "destructive",
+      })
+    }
   }
 
   const handlerCreateFolder = async () => {
-    const folderId = await createFolder(parent_id)
-    console.log("create folder")
+    try {
+      const folderId = await createFolder(parent_id)
+      console.log("create folder", folderId)
+    } catch (error: any) {
+      toast({
+        title: t("common.error"),
+        description: error?.message || String(error),
+        variant: "destructive",
+      })
+    }
   }
 
   const handleCreateView = async () => {
-    const viewId = await createView(parent_id)
-    console.log("create view")
-    goto(space, viewId)
+    try {
+      const viewId = await createView(parent_id)
+      console.log("create view", viewId)
+      if (viewId) {
+        goto(space, viewId)
+      }
+    } catch (error: any) {
+      toast({
+        title: t("common.error"),
+        description: error?.message || String(error),
+        variant: "destructive",
+      })
+    }
   }
 
   const handleCreateExtNode = async (type: ITreeNode["type"]) => {
-    const nodeType = type.startsWith("ext__") ? type.split("ext__")[1] : type
-    const extNode = extNodes.find(
-      (node) => node.meta?.extNode?.type === nodeType
-    )
-    if (!extNode) return
-    console.log("creating ", extNode)
-    const extNodeId = await createExtNode(nodeType, parent_id)
-    console.log("extNodeId", extNodeId)
-    if (!extNodeId) return
-    goto(space, extNodeId)
+    try {
+      const nodeType = type.startsWith("ext__") ? type.split("ext__")[1] : type
+      const extNode = extNodes.find(
+        (node) => node.meta?.extNode?.type === nodeType
+      )
+      if (!extNode) return
+      console.log("creating ", extNode)
+      const extNodeId = await createExtNode(nodeType, parent_id)
+      console.log("extNodeId", extNodeId)
+      if (!extNodeId) return
+      goto(space, extNodeId)
+    } catch (error: any) {
+      toast({
+        title: t("common.error"),
+        description: error?.message || String(error),
+        variant: "destructive",
+      })
+    }
   }
 
   const handleImportCsv = async (file: File) => {

@@ -626,3 +626,14 @@ process.on("beforeExit", async () => {
   logger.info("worker beforeExit")
   await DataSpaceManager.getInstance().close()
 })
+
+// Global error handlers to prevent worker crash
+process.on("uncaughtException", (err) => {
+  logger.error("[Worker] Uncaught exception:", err)
+  // Keep worker alive
+})
+
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error("[Worker] Unhandled rejection at:", promise, "reason:", reason)
+  // Keep worker alive
+})

@@ -37,7 +37,7 @@ export function GlobalAccountSettings() {
     if (!licenseKey) return
     setLoading(true)
     try {
-      const success = await activate(licenseKey, auth?.accessToken)
+      const success = await activate(licenseKey, auth?.accessToken ?? undefined)
       if (success) {
         setLicenseKey("")
       }
@@ -140,7 +140,7 @@ export function GlobalAccountSettings() {
             </div>
           ) : licenseInfo ? (
             <div className="p-4 rounded-lg border bg-card">
-              <div className="flex items-start justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold uppercase text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">

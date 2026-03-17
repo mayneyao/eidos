@@ -116,9 +116,9 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
       <div className="p-4 lg:p-6 overflow-y-auto flex-1">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-2xl mx-auto w-full">
           <h2 className="text-xl lg:text-2xl font-semibold mb-4 lg:mb-6 flex items-center gap-2">
             {getSectionTitle(activeSection)}
             {activeSection === "space-relay" && (
