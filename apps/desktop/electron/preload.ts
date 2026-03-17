@@ -387,6 +387,14 @@ function main() {
         return () => ipcRenderer.removeListener("terminal:exit", listener)
       },
     },
+
+    // CLI installation
+    cli: {
+      isInstalled: () => ipcRenderer.invoke("cli:is-installed"),
+      install: () => ipcRenderer.invoke("cli:install"),
+      uninstall: () => ipcRenderer.invoke("cli:uninstall"),
+      getPath: () => ipcRenderer.invoke("cli:get-path"),
+    },
   })
 }
 main()

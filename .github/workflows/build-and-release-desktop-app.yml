@@ -79,6 +79,9 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
 
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+
       - name: Tweak pnpm.cjs (Windows only)
         if: matrix.platform == 'windows'
         run: sed -i 's/\/usr\/bin\/env node/node/g' /c/Users/runneradmin/setup-pnpm/node_modules/.pnpm/pnpm@10.12.4/node_modules/pnpm/bin/pnpm.cjs
@@ -91,6 +94,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: pnpm install
+
+      - name: Build CLI (local script)
+        run: node apps/desktop/scripts/build-cli-local.cjs
 
       - name: Import Code-Signing Certificates (macOS only)
         if: matrix.needs_codesign == true

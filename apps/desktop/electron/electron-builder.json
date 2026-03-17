@@ -35,6 +35,11 @@
       "from": "dist-sqlite-ext",
       "to": "dist-sqlite-ext",
       "filter": ["**/*"]
+    },
+    {
+      "from": "dist-cli",
+      "to": "dist-cli",
+      "filter": ["**/*"]
     }
   ],
   "asarUnpack": [

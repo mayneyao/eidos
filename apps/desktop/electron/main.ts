@@ -44,6 +44,12 @@ import {
 } from "./port-checker"
 import { GlobalShortcutManager } from "./services/global-shortcut-manager"
 import { terminalService } from "./services/terminal-service"
+import {
+  getCliBinaryPath,
+  installCli,
+  isCliInstalled,
+  uninstallCli,
+} from "./services/cli-installer"
 import { getSpaceRegistry, migrateFromLegacyConfig } from "./space-registry"
 import { AppUpdater } from "./updater"
 import { createWindow } from "./window-manager/createWindow"
@@ -1466,3 +1472,20 @@ ipcMain.handle(
     }
   }
 )
+
+// CLI installation IPC handlers
+ipcMain.handle("cli:is-installed", async () => {
+  return isCliInstalled()
+})
+
+ipcMain.handle("cli:install", async () => {
+  return installCli()
+})
+
+ipcMain.handle("cli:uninstall", async () => {
+  return uninstallCli()
+})
+
+ipcMain.handle("cli:get-path", async () => {
+  return getCliBinaryPath()
+})

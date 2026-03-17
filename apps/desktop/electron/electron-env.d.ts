@@ -157,5 +157,11 @@ interface Window {
         callback: (sessionId: string, exitCode: number, signal?: number) => void
       ) => () => void
     }
+    cli: {
+      isInstalled: () => Promise<boolean>
+      install: () => Promise<{ success: boolean; message: string }>
+      uninstall: () => Promise<{ success: boolean; message: string }>
+      getPath: () => Promise<string>
+    }
   }
 }
