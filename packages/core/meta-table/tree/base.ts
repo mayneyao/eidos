@@ -29,6 +29,10 @@ export class BaseTreeTable
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
   
+  -- Note: Unique index is NOT created automatically here.
+  -- It's created when user explicitly enables node name uniqueness
+  -- via enableNameUniqueness() which handles duplicate migration first.
+  
   ${createTriggersForFields(
     TreeTableName,
     [
@@ -58,19 +62,47 @@ export class BaseTreeTable
     return res[0].maxId + 1
   }
 
-  async add(data: ITreeNode): Promise<ITreeNode> {
+  async add(
+    data: ITreeNode & { _skipAutoRename?: boolean }
+  ): Promise<ITreeNode> {
+    // Generate ID if not provided
+    if (!data.id) {
+      data.id = uuidv7().split("-").join("")
+    }
+
+    // Ensure name is unique by auto-appending suffix if needed if uniqueness is enabled
+    // _skipAutoRename is used by Node API when it has already checked for existence
+    if (!data._skipAutoRename && data.name && data.name.trim() !== "") {
+      const isEnabled = await this.isNameUniquenessEnabled()
+      if (isEnabled) {
+        data.name = await this.ensureUniqueName(data.name, data.parent_id)
+      }
+    }
+
     const nextPosition = await this.getNextRowId()
-    this.dataSpace.exec(
-      `INSERT INTO ${TreeTableName} (id,name,type,parent_id,position,hide_properties) VALUES (? , ? , ? , ?,?,?);`,
-      [
-        data.id,
-        data.name,
-        data.type,
-        data.parent_id,
-        nextPosition,
-        data.hide_properties ?? 0,
-      ]
-    )
+    try {
+      this.dataSpace.exec(
+        `INSERT INTO ${TreeTableName} (id,name,type,parent_id,position,hide_properties) VALUES (? , ? , ? , ?,?,?);`,
+        [
+          data.id,
+          data.name,
+          data.type,
+          data.parent_id,
+          nextPosition,
+          data.hide_properties ?? 0,
+        ]
+      )
+    } catch (error: any) {
+      console.error("[TreeTable] Error adding node:", error)
+      // If unique constraint violation, provide a more helpful error
+      if (error.message?.includes("UNIQUE constraint failed")) {
+        throw new Error(
+          `A node named "${data.name}" already exists in this location. ` +
+            `Please enable "Node Name Uniqueness" in settings to auto-rename duplicates.`
+        )
+      }
+      throw error
+    }
     return Promise.resolve({
       ...data,
       position: nextPosition,
@@ -90,13 +122,29 @@ export class BaseTreeTable
 
   async updateName(id: string, name: string): Promise<boolean> {
     try {
+      // Check name uniqueness if name is not empty and uniqueness is enabled
+      if (name && name.trim() !== "") {
+        const isEnabled = await this.isNameUniquenessEnabled()
+        if (isEnabled) {
+          const node = await this.get(id)
+          if (node) {
+            const isUnique = await this.isNameUnique(name, node.parent_id, id)
+            if (!isUnique) {
+              throw new Error(
+                `A node named "${name}" already exists in this location`
+              )
+            }
+          }
+        }
+      }
+
       await this.dataSpace.exec2(
         `UPDATE ${TreeTableName} SET name = ? WHERE id = ?;`,
         [name, id]
       )
       return Promise.resolve(true)
     } catch (error) {
-      return Promise.resolve(false)
+      throw error
     }
   }
 
@@ -195,10 +243,24 @@ export class BaseTreeTable
     const node = await this.get(id)
     if (!node) return null
     const newId = uuidv7().split("-").join("")
+
+    // Generate a unique name for the duplicate
+    let newName = node.name + " Copy"
+    let suffix = 1
+    while (!(await this.isNameUnique(newName, node.parent_id))) {
+      newName = `${node.name} Copy (${suffix})`
+      suffix++
+      // Prevent infinite loop
+      if (suffix > 1000) {
+        newName = `${node.name} Copy ${uuidv7().slice(0, 8)}`
+        break
+      }
+    }
+
     await this.add({
       ...node,
       id: newId,
-      name: node.name + " Copy",
+      name: newName,
     })
     return this.getNode(newId)
   }
@@ -214,5 +276,236 @@ export class BaseTreeTable
       [idOrMiniId, idOrMiniId]
     )
     return res.length > 0 ? res[0] : null
+  }
+
+  /**
+   * Check if the unique index exists
+   * This is the source of truth for whether node name uniqueness is enabled
+   */
+  async hasUniqueIndex(): Promise<boolean> {
+    const res = await this.dataSpace.exec2(
+      `SELECT name FROM sqlite_master WHERE type='index' AND name='idx_tree_name_unique'`
+    )
+    return res.length > 0
+  }
+
+  /**
+   * Check if node name uniqueness is enabled for this space
+   * Alias for hasUniqueIndex() for semantic clarity
+   */
+  async isNameUniquenessEnabled(): Promise<boolean> {
+    return this.hasUniqueIndex()
+  }
+
+  /**
+   * Find duplicate node names in the tree
+   * Returns groups of nodes with the same name under the same parent
+   */
+  async findDuplicateNames(): Promise<
+    Array<{
+      parent_id: string | null
+      name: string
+      count: number
+      ids: string[]
+    }>
+  > {
+    const sql = `
+      SELECT 
+        COALESCE(parent_id, '') as parent_key,
+        parent_id,
+        name,
+        COUNT(*) as count,
+        GROUP_CONCAT(id) as ids
+      FROM ${TreeTableName}
+      WHERE is_deleted = 0 AND name != ''
+      GROUP BY COALESCE(parent_id, ''), name
+      HAVING COUNT(*) > 1
+    `
+    const res = await this.dataSpace.exec2(sql)
+    return res.map((row: any) => ({
+      parent_id: row.parent_id || null,
+      name: row.name,
+      count: row.count,
+      ids: row.ids.split(","),
+    }))
+  }
+
+  /**
+   * Auto-rename duplicate nodes by adding (1), (2), etc.
+   * Returns the list of renamed nodes
+   */
+  async migrateDuplicateNames(): Promise<
+    Array<{ id: string; oldName: string; newName: string }>
+  > {
+    const duplicates = await this.findDuplicateNames()
+    const renamed: Array<{ id: string; oldName: string; newName: string }> = []
+
+    for (const group of duplicates) {
+      // Sort by id to ensure consistent ordering
+      const sortedIds = group.ids.sort()
+      // Skip the first one, rename the rest
+      for (let i = 1; i < sortedIds.length; i++) {
+        const id = sortedIds[i]
+        const newName = `${group.name} (${i})`
+        await this.updateName(id, newName)
+        renamed.push({ id, oldName: group.name, newName })
+      }
+    }
+
+    return renamed
+  }
+
+  /**
+   * Enable node name uniqueness for this space
+   * 1. Migrate duplicate names
+   * 2. Create unique index
+   */
+  async enableNameUniqueness(): Promise<{
+    success: boolean
+    renamed?: Array<{ id: string; oldName: string; newName: string }>
+    error?: string
+  }> {
+    try {
+      // Check if index already exists
+      const hasIndex = await this.hasUniqueIndex()
+      if (hasIndex) {
+        return { success: true, renamed: [] }
+      }
+
+      // First, migrate duplicate names
+      const renamed = await this.migrateDuplicateNames()
+
+      // Create the unique index
+      await this.dataSpace.exec2(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_tree_name_unique ON ${TreeTableName}(
+          COALESCE(parent_id, ''), 
+          name
+        ) WHERE is_deleted = 0
+      `)
+
+      return { success: true, renamed }
+    } catch (error: any) {
+      return { success: false, error: error.message }
+    }
+  }
+
+  /**
+   * Disable node name uniqueness for this space
+   * This drops the unique index
+   */
+  async disableNameUniqueness(): Promise<void> {
+    try {
+      await this.dataSpace.exec2(`DROP INDEX IF EXISTS idx_tree_name_unique`)
+    } catch (error) {
+      console.error("Error dropping unique index:", error)
+    }
+  }
+
+  /**
+   * Try to create unique index if no duplicates exist
+   * This is safe to call on space initialization - it will only create
+   * the index if there are no conflicting records.
+   * Returns true if index was created or already exists
+   */
+  async tryCreateUniqueIndex(): Promise<boolean> {
+    // Check if index already exists
+    const hasIndex = await this.hasUniqueIndex()
+    if (hasIndex) return true
+
+    // Check for duplicates before attempting to create index
+    const duplicates = await this.findDuplicateNames()
+    if (duplicates.length > 0) {
+      // Cannot create index - duplicates exist
+      return false
+    }
+
+    // Safe to create index
+    try {
+      await this.dataSpace.exec2(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_tree_name_unique ON ${TreeTableName}(
+          COALESCE(parent_id, ''), 
+          name
+        ) WHERE is_deleted = 0
+      `)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Check if a node name is unique under the given parent
+   */
+  async isNameUnique(
+    name: string,
+    parentId: string | null | undefined,
+    excludeId?: string
+  ): Promise<boolean> {
+    // Empty names are always considered unique (no constraint)
+    if (!name || name.trim() === "") return true
+
+    try {
+      let sql = `
+        SELECT COUNT(*) as count FROM ${TreeTableName}
+        WHERE name = ? AND is_deleted = 0
+      `
+      const bind: any[] = [name]
+
+      if (parentId) {
+        sql += ` AND parent_id = ?`
+        bind.push(parentId)
+      } else {
+        sql += ` AND parent_id IS NULL`
+      }
+
+      if (excludeId) {
+        sql += ` AND id != ?`
+        bind.push(excludeId)
+      }
+
+      const res = await this.dataSpace.exec2(sql, bind)
+      return res[0].count === 0
+    } catch (error) {
+      console.error("Error checking name uniqueness:", error)
+      // If we can't check uniqueness, assume it's not unique to be safe
+      // This will trigger the duplicate name handling logic
+      return false
+    }
+  }
+
+  /**
+   * Ensure a node name is unique by appending (1), (2), etc. if needed
+   * This is used when creating new nodes to avoid name conflicts
+   */
+  async ensureUniqueName(
+    name: string,
+    parentId: string | null | undefined
+  ): Promise<string> {
+    // Empty names are returned as-is
+    if (!name || name.trim() === "") return name
+
+    // Check if name is already unique
+    if (await this.isNameUnique(name, parentId)) {
+      return name
+    }
+
+    // Try to extract any existing suffix like (1), (2)
+    const baseNameMatch = name.match(/^(.*)\s*\((\d+)\)$/)
+    const baseName = baseNameMatch ? baseNameMatch[1].trim() : name
+    let suffix = 1
+
+    // Find a unique name by incrementing suffix
+    let newName = `${baseName} (${suffix})`
+    while (!(await this.isNameUnique(newName, parentId))) {
+      suffix++
+      newName = `${baseName} (${suffix})`
+      // Safety limit to prevent infinite loop
+      if (suffix > 1000) {
+        newName = `${baseName} ${uuidv7().slice(0, 8)}`
+        break
+      }
+    }
+
+    return newName
   }
 }

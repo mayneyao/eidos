@@ -11,10 +11,10 @@ import { TableManager } from "../sdk/table"
 import { TableClient } from "../sdk/table-client"
 import type { IField } from "../types/IField"
 import { TreeNodeType } from "../types/ITreeNode"
-import { DataSpaceWithDoc } from "./doc"
+import { DataSpaceWithNode } from "./node"
 
 // Extension class to add table-related methods
-export class DataSpaceWithTable extends DataSpaceWithDoc {
+export class DataSpaceWithTable extends DataSpaceWithNode {
   /**
    * Schema management client for table/field/view lifecycle operations.
    *
