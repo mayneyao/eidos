@@ -125,6 +125,32 @@ eidos.space.notify({
 
 ---
 
+## Node API
+
+The `eidos.space.node` object provides a unified interface for managing all node types (documents, tables, folders, dataviews, and extension nodes) with path-based addressing.
+
+See [Node API Reference](./node/) for complete documentation.
+
+**Quick Examples:**
+
+```typescript
+// Get node by path
+const node = await eidos.space.node.get("projects/roadmap")
+
+// Create a document
+await eidos.space.node.create("notes/idea", "doc", {
+  content: "# My Idea",
+})
+
+// Move or rename
+await eidos.space.node.move("drafts/article", "published/article")
+
+// Delete
+await eidos.space.node.delete("old-document")
+```
+
+---
+
 ## Table API
 
 Table operations have been moved to their own focused pages.
@@ -138,11 +164,101 @@ Table operations have been moved to their own focused pages.
 
 ## Document API
 
-The `eidos.space.doc` object provides document management functionality.
+The `eidos.space.doc` object provides document content management functionality.
 
-### `getMarkdown(id: string)`
+:::tip[Addressing by Path]
+With name uniqueness enabled, documents can be addressed by path:
 
-Get the Markdown content of a document.
+```typescript
+await eidos.space.doc.read("notes/idea")
+await eidos.space.doc.write("notes/idea", "# Content")
+```
+
+:::
+
+### Content Operations (Path-based)
+
+#### `read(path: string)`
+
+Read document content by path. Returns markdown.
+
+```typescript
+async read(path: string): Promise<string>
+```
+
+**Example:**
+
+```typescript
+// Read document content
+const content = await eidos.space.doc.read("notes/ideas")
+console.log(content)
+```
+
+#### `write(path: string, markdown: string)`
+
+Write document content by path (overwrites existing content).
+
+```typescript
+async write(path: string, markdown: string): Promise<void>
+```
+
+**Example:**
+
+```typescript
+// Write content to document
+await eidos.space.doc.write("notes/ideas", "# My Ideas\n\n- Idea 1")
+
+// Create with content via node.create
+await eidos.space.node.create("notes/new-doc", "doc", {
+  content: "# Initial content",
+})
+```
+
+#### `append(path: string, markdown: string)`
+
+Append content to document by path.
+
+```typescript
+async append(path: string, markdown: string): Promise<void>
+```
+
+**Example:**
+
+```typescript
+// Append to daily log
+await eidos.space.doc.append("journal/daily", "\n## Evening\nWent for a walk.")
+
+// Append command output
+const output = await eidos.space.exec("some command")
+await eidos.space.doc.append("logs/output", output)
+```
+
+#### `prepend(path: string, markdown: string)`
+
+Prepend content to document by path.
+
+```typescript
+async prepend(path: string, markdown: string): Promise<void>
+```
+
+**Example:**
+
+```typescript
+// Add header to existing document
+await eidos.space.doc.prepend("notes/ideas", "# Ideas Collection\n\n")
+
+// Add timestamp to log
+await eidos.space.doc.prepend(
+  "logs/activity",
+  `[${new Date().toISOString()}] Started\n`
+)
+```
+
+### Content Operations (ID-based)
+
+#### `getMarkdown(id: string)`
+
+Get the Markdown content of a document by ID.
 
 ```typescript
 async getMarkdown(id: string): Promise<string>
@@ -155,7 +271,9 @@ const markdown = await eidos.space.doc.getMarkdown("doc_123")
 console.log("Markdown content:", markdown)
 ```
 
-### `getProperties(id: string)`
+### Document Properties
+
+#### `getProperties(id: string)`
 
 Get all properties of a document (including system properties and custom properties).
 
@@ -170,7 +288,7 @@ const allProps = await eidos.space.doc.getProperties("doc_123")
 console.log("All properties:", allProps)
 ```
 
-### `setProperties(id: string, properties: Record<string, any>)`
+#### `setProperties(id: string, properties: Record<string, any>)`
 
 Set properties of a document.
 
@@ -192,7 +310,7 @@ if (result.success) {
 }
 ```
 
-### `deleteProperty(propertyName: string)`
+#### `deleteProperty(propertyName: string)`
 
 Delete the specified property column.
 
@@ -205,78 +323,6 @@ async deleteProperty(propertyName: string): Promise<void>
 ```typescript
 await eidos.space.doc.deleteProperty("old_property")
 console.log("Property deleted")
-```
-
----
-
-## Extension Node API
-
-The `eidos.space.extNode` object provides extension node data storage functionality.
-
-### `getText(id: string)`
-
-Get the text content of a node.
-
-```typescript
-async getText(id: string): Promise<string | null>
-```
-
-**Example:**
-
-```typescript
-const textContent = await eidos.space.extNode.getText("node_123")
-if (textContent) {
-  const data = JSON.parse(textContent)
-  console.log("Parsed data:", data)
-}
-```
-
-### `setText(id: string, text: string)`
-
-Set the text content of a node.
-
-```typescript
-async setText(id: string, text: string): Promise<boolean>
-```
-
-**Example:**
-
-```typescript
-const data = { elements: [], appState: {} }
-await eidos.space.extNode.setText("node_123", JSON.stringify(data))
-```
-
-### `getBlob(id: string)`
-
-Get the binary data of a node.
-
-```typescript
-async getBlob(id: string): Promise<Buffer | null>
-```
-
-**Example:**
-
-```typescript
-const blobData = await eidos.space.extNode.getBlob("node_123")
-if (blobData) {
-  // Process binary data
-  console.log("Binary data size:", blobData.length)
-}
-```
-
-### `setBlob(id: string, blob: Buffer)`
-
-Set the binary data of a node.
-
-```typescript
-async setBlob(id: string, blob: Buffer): Promise<boolean>
-```
-
-**Example:**
-
-```typescript
-const buffer = Buffer.from("some binary data")
-await eidos.space.extNode.setBlob("node_123", buffer)
 ```
 
 ---

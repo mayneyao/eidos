@@ -120,6 +120,32 @@ eidos.space.notify({
 
 ---
 
+## Node API
+
+`eidos.space.node` 对象提供了一个统一的接口，用于管理所有节点类型（文档、表格、文件夹、数据视图和扩展节点），支持基于路径的寻址。
+
+完整文档请参见 [Node API 参考](./node/)。
+
+**快速示例：**
+
+```typescript
+// 通过路径获取节点
+const node = await eidos.space.node.get("projects/roadmap")
+
+// 创建文档
+await eidos.space.node.create("notes/idea", "doc", {
+  content: "# 我的想法",
+})
+
+// 移动或重命名
+await eidos.space.node.move("drafts/article", "published/article")
+
+// 删除
+await eidos.space.node.delete("old-document")
+```
+
+---
+
 ## 表格 API
 
 表格相关的操作已移动到独立的专题页面：
@@ -135,24 +161,116 @@ eidos.space.notify({
 
 ## 文档 API
 
-`eidos.space.doc` 对象提供文档管理功能。
+`eidos.space.doc` 对象提供文档内容管理功能。
 
-### `getMarkdown(id: string)`
+:::tip[通过路径寻址]
+当开启名称唯一性时，可以通过路径操作文档：
 
-获取文档的 Markdown 内容。
+```typescript
+await eidos.space.doc.read("notes/idea")
+await eidos.space.doc.write("notes/idea", "# 内容")
+```
+
+:::
+
+### 内容操作（基于路径）
+
+#### `read(path: string)`
+
+通过路径读取文档内容。返回 Markdown。
+
+```typescript
+async read(path: string): Promise<string>
+```
+
+**示例：**
+
+```typescript
+// 读取文档内容
+const content = await eidos.space.doc.read("notes/ideas")
+console.log(content)
+```
+
+#### `write(path: string, markdown: string)`
+
+通过路径写入文档内容（覆盖现有内容）。
+
+```typescript
+async write(path: string, markdown: string): Promise<void>
+```
+
+**示例：**
+
+```typescript
+// 写入文档内容
+await eidos.space.doc.write("notes/ideas", "# 我的想法\n\n- 想法 1")
+
+// 通过 node.create 创建带内容的文档
+await eidos.space.node.create("notes/new-doc", "doc", {
+  content: "# 初始内容",
+})
+```
+
+#### `append(path: string, markdown: string)`
+
+通过路径追加内容到文档。
+
+```typescript
+async append(path: string, markdown: string): Promise<void>
+```
+
+**示例：**
+
+```typescript
+// 追加到日志
+await eidos.space.doc.append("journal/daily", "\n## 晚间\n去散步了。")
+
+// 追加命令输出
+const output = await eidos.space.exec("some command")
+await eidos.space.doc.append("logs/output", output)
+```
+
+#### `prepend(path: string, markdown: string)`
+
+通过路径前置内容到文档。
+
+```typescript
+async prepend(path: string, markdown: string): Promise<void>
+```
+
+**示例：**
+
+```typescript
+// 添加标题到现有文档
+await eidos.space.doc.prepend("notes/ideas", "# 想法收集\n\n")
+
+// 添加时间戳到日志
+await eidos.space.doc.prepend(
+  "logs/activity",
+  `[${new Date().toISOString()}] 开始\n`
+)
+```
+
+### 内容操作（基于 ID）
+
+#### `getMarkdown(id: string)`
+
+通过 ID 获取文档 Markdown 内容。
 
 ```typescript
 async getMarkdown(id: string): Promise<string>
 ```
 
-**示例:**
+**示例：**
 
 ```typescript
 const markdown = await eidos.space.doc.getMarkdown("doc_123")
 console.log("Markdown 内容:", markdown)
 ```
 
-### `getProperties(id: string)`
+### 文档属性
+
+#### `getProperties(id: string)`
 
 获取文档的所有属性（包括系统属性和自定义属性）。
 
@@ -160,14 +278,14 @@ console.log("Markdown 内容:", markdown)
 async getProperties(id: string): Promise<Record<string, any>>
 ```
 
-**示例:**
+**示例：**
 
 ```typescript
 const allProps = await eidos.space.doc.getProperties("doc_123")
 console.log("所有属性:", allProps)
 ```
 
-### `setProperties(id: string, properties: Record<string, any>)`
+#### `setProperties(id: string, properties: Record<string, any>)`
 
 设置文档的属性。
 
@@ -175,7 +293,7 @@ console.log("所有属性:", allProps)
 async setProperties(id: string, properties: Record<string, any>): Promise<{ success: boolean; message?: string; updatedProperties?: string[] }>
 ```
 
-**示例:**
+**示例：**
 
 ```typescript
 const result = await eidos.space.doc.setProperties("doc_123", {
@@ -189,7 +307,7 @@ if (result.success) {
 }
 ```
 
-### `deleteProperty(propertyName: string)`
+#### `deleteProperty(propertyName: string)`
 
 删除指定的属性列。
 
@@ -197,83 +315,11 @@ if (result.success) {
 async deleteProperty(propertyName: string): Promise<void>
 ```
 
-**示例:**
+**示例：**
 
 ```typescript
 await eidos.space.doc.deleteProperty("old_property")
 console.log("属性已删除")
-```
-
----
-
-## 扩展节点 API
-
-`eidos.space.extNode` 对象提供扩展节点数据存储功能。
-
-### `getText(id: string)`
-
-获取节点的文本内容。
-
-```typescript
-async getText(id: string): Promise<string | null>
-```
-
-**示例:**
-
-```typescript
-const textContent = await eidos.space.extNode.getText("node_123")
-if (textContent) {
-  const data = JSON.parse(textContent)
-  console.log("解析的数据:", data)
-}
-```
-
-### `setText(id: string, text: string)`
-
-设置节点的文本内容。
-
-```typescript
-async setText(id: string, text: string): Promise<boolean>
-```
-
-**示例:**
-
-```typescript
-const data = { elements: [], appState: {} }
-await eidos.space.extNode.setText("node_123", JSON.stringify(data))
-```
-
-### `getBlob(id: string)`
-
-获取节点的二进制数据。
-
-```typescript
-async getBlob(id: string): Promise<Buffer | null>
-```
-
-**示例:**
-
-```typescript
-const blobData = await eidos.space.extNode.getBlob("node_123")
-if (blobData) {
-  // 处理二进制数据
-  console.log("二进制数据大小:", blobData.length)
-}
-```
-
-### `setBlob(id: string, blob: Buffer)`
-
-设置节点的二进制数据。
-
-```typescript
-async setBlob(id: string, blob: Buffer): Promise<boolean>
-```
-
-**示例:**
-
-```typescript
-const buffer = Buffer.from("some binary data")
-await eidos.space.extNode.setBlob("node_123", buffer)
 ```
 
 ---
