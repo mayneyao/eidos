@@ -813,13 +813,13 @@ export class ExtensionTable
    *
    * @param code - Raw TypeScript/TSX code
    * @param id - Optional extension ID
-   * @param enabled - Whether to enable immediately
+   * @param slug - Optional slug (for update by slug)
    * @returns The installed extension
    */
   async installFromCode(
     code: string,
     id?: string,
-    enabled: boolean = true
+    slug?: string
   ): Promise<IExtension> {
     const compileExtension = this.dataSpace.context.compileExtension
     if (!compileExtension) {
@@ -832,28 +832,65 @@ export class ExtensionTable
     const { compiledCode, meta, type, name, description, slugPrefix } =
       await compileExtension(code)
 
+    // Check if we're updating an existing extension
+    let existingExtension: IExtension | null = null
+    if (id) {
+      existingExtension = await this.get(id)
+    }
+    if (!existingExtension && slug) {
+      existingExtension = await this.getExtensionBySlug(slug)
+    }
+
     // Generate ID and slug
     const { getUuid } = await import("@/lib/utils")
-    const extensionId = id || getUuid()
-    const shortId = extensionId.slice(-8)
-    const slug = await this.generateUniqueSlug(`${slugPrefix}-${shortId}`)
+    const extensionId = existingExtension?.id || id || getUuid()
+
+    // Determine the slug to use
+    let finalSlug: string
+    if (existingExtension) {
+      // Keep existing slug when updating
+      finalSlug = existingExtension.slug!
+    } else if (slug) {
+      // Use provided slug for new extension, ensure uniqueness
+      finalSlug = await this.generateUniqueSlug(slug)
+    } else {
+      // Generate new slug
+      const shortId = extensionId.slice(-8)
+      finalSlug = await this.generateUniqueSlug(`${slugPrefix}-${shortId}`)
+    }
 
     // Construct extension object
     const extension: IExtension = {
       id: extensionId,
-      slug,
+      slug: finalSlug,
       name,
       description,
       type,
-      version: "0.0.1",
+      version: existingExtension?.version || "0.0.1",
       code: compiledCode,
       ts_code: code,
       meta,
-      enabled,
+      enabled: existingExtension?.enabled ?? true,
     }
 
-    // Save extension to database
-    const savedExtension = await this.add(extension)
+    // Save extension to database (update if exists, add if new)
+    let savedExtension: IExtension
+    if (existingExtension) {
+      // Update existing extension
+      await this.set(extensionId, {
+        name: extension.name,
+        description: extension.description,
+        type: extension.type,
+        code: extension.code,
+        ts_code: extension.ts_code,
+        meta: extension.meta,
+        // Preserve enabled status unless explicitly changed
+        // slug is preserved from existing extension
+      })
+      savedExtension = { ...existingExtension, ...extension }
+    } else {
+      savedExtension = await this.add(extension)
+    }
 
     // For tableView extensions with tableId binding, create a view instance
     if (meta?.type === "tableView" && meta.tableView?.tableId) {
