@@ -1052,7 +1052,7 @@
   "table.records": "Records",
   "table.renameView": "Rename View",
   "table.resetFreezeColumn": "Reset Freeze Column",
-  "table.rows.deleteConfirmDescription": "This action cannot be undone. This will permanently delete the selected rows.",
+  "table.rows.deleteConfirmDescription": "This action cannot be undone. This will permanently delete the selected rows and their associated sub-documents.",
   "table.rows.deleteConfirmTitle": "Are you sure you want to delete these rows?",
   "table.searchModelPlaceholder": "Search model...",
   "table.selectModelPlaceholder": "Select model...",

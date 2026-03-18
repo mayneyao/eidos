@@ -967,7 +967,7 @@
   "table.records": "记录",
   "table.renameView": "重命名视图",
   "table.resetFreezeColumn": "Reset Freeze Column",
-  "table.rows.deleteConfirmDescription": "此操作无法撤消。这将永久删除选中的行。",
+  "table.rows.deleteConfirmDescription": "此操作无法撤消。这将永久删除选中的行及其关联的子文档。",
   "table.rows.deleteConfirmTitle": "您确定要删除这些行吗？",
   "table.searchModelPlaceholder": "搜索模型...",
   "table.selectModelPlaceholder": "选择模型...",

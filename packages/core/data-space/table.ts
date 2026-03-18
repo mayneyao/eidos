@@ -2,6 +2,7 @@ import {
   extractIdFromShortId,
   getRawTableNameById,
   getTableIdByRawTableName,
+  shortenId,
 } from "@/lib/utils"
 
 import { FieldType } from "../fields/const"
@@ -10,8 +11,9 @@ import { SchemaClient } from "../sdk/schema"
 import { TableManager } from "../sdk/table"
 import { TableClient } from "../sdk/table-client"
 import type { IField } from "../types/IField"
-import { TreeNodeType } from "../types/ITreeNode"
+import { TreeNodeType, type ITreeNode } from "../types/ITreeNode"
 import { DataSpaceWithNode } from "./node"
+import { TreeTableName } from "../sqlite/const"
 
 // Extension class to add table-related methods
 export class DataSpaceWithTable extends DataSpaceWithNode {
@@ -232,7 +234,42 @@ export class DataSpaceWithTable extends DataSpaceWithNode {
     const tableId = getTableIdByRawTableName(tableName)
     const tableManager = this._table(tableId)
     await tableManager.rows.batchDelete(ids)
+    // Also delete associated sub-documents
+    await this.deleteSubDocsForRows(ids, tableId)
     this.undoRedoManager.event()
+  }
+
+  /**
+   * Delete sub-documents associated with table rows.
+   * When a row is expanded, a sub-document with id = shortenId(row._id) and parent_id = tableId is created.
+   * This method deletes those sub-documents when the rows are deleted.
+   *
+   * Uses batch query to find sub-docs, then deletes them serially to maintain consistency.
+   */
+  private async deleteSubDocsForRows(
+    rowIds: string[],
+    tableId: string
+  ): Promise<void> {
+    if (rowIds.length === 0) return
+
+    // Convert rowIds to subDocIds (shortened format)
+    const subDocIds = rowIds.map((id) => shortenId(id))
+
+    // Build placeholders for IN clause
+    const placeholders = subDocIds.map(() => "?").join(",")
+
+    // Batch query: Get all sub-docs that belong to this table
+    const subDocs = (await this.exec2(
+      `SELECT id, name, type, parent_id, is_deleted FROM ${TreeTableName} WHERE id IN (${placeholders}) AND parent_id = ?`,
+      [...subDocIds, tableId]
+    )) as ITreeNode[]
+
+    if (subDocs.length === 0) return
+
+    // Serial deletion: Delete sub-docs one by one to maintain consistency
+    for (const subDoc of subDocs) {
+      await this.tree.permanentlyDeleteNodeByType(subDoc)
+    }
   }
 
   public async deleteRowsByRange(
@@ -240,6 +277,7 @@ export class DataSpaceWithTable extends DataSpaceWithNode {
     tableName: string,
     query: string
   ) {
+    const tableId = getTableIdByRawTableName(tableName)
     // query is a sql string like "select * from tb_xxxxx Order by _id"
     // range is a array of {startIndex: number, endIndex: number}
     // we need to delete rows from startIndex to endIndex
@@ -247,6 +285,16 @@ export class DataSpaceWithTable extends DataSpaceWithNode {
       // when query has no order by, we need to add order by to make sure delete from start to end
       query += " ORDER BY _id"
     }
+    // First, get the IDs of rows to be deleted for sub-doc cleanup
+    const rowIdsToDelete: string[] = []
+    for (const item of range) {
+      const limit = item.endIndex - item.startIndex
+      const offset = item.startIndex
+      const idQuery = `SELECT _id FROM (${query}) LIMIT ${limit} OFFSET ${offset}`
+      const rows = await this.exec2(idQuery)
+      rowIdsToDelete.push(...rows.map((r: any) => r._id))
+    }
+
     const sql = `DELETE FROM ${tableName} WHERE _id in (SELECT _id FROM (${query}) LIMIT ? OFFSET ?)`
     await this.db.transaction(async (db) => {
       // reverse range, delete from end to start to avoid index change
@@ -255,6 +303,8 @@ export class DataSpaceWithTable extends DataSpaceWithNode {
         await this.syncExec2(sql, bind, db)
       }
     })
+    // Also delete associated sub-documents
+    await this.deleteSubDocsForRows(rowIdsToDelete, tableId)
     this.undoRedoManager.event()
   }
 
