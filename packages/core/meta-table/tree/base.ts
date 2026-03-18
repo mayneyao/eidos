@@ -317,7 +317,7 @@ export class BaseTreeTable
         COUNT(*) as count,
         GROUP_CONCAT(id) as ids
       FROM ${TreeTableName}
-      WHERE is_deleted = 0 AND name != ''
+      WHERE is_deleted = 0
       GROUP BY COALESCE(parent_id, ''), name
       HAVING COUNT(*) > 1
     `
