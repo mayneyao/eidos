@@ -760,7 +760,7 @@ export class ExtensionTable
   }
 
   /**
-   * Override add method to ensure slug uniqueness
+   * Override add method to ensure slug uniqueness and tableView type uniqueness
    */
   async add(
     data: Partial<IExtension>,
@@ -769,6 +769,26 @@ export class ExtensionTable
     // If slug is provided, ensure it's unique
     if (data.slug) {
       data.slug = await this.generateUniqueSlug(data.slug)
+    }
+
+    // For tableView extensions, check if the type conflicts with existing ones
+    // Only check for new extensions (no id or id doesn't exist yet)
+    const meta = data.meta
+    if (meta?.type === "tableView" && meta.tableView?.type) {
+      const isNewExtension = !data.id || !(await this.get(data.id))
+      if (isNewExtension) {
+        const viewType = meta.tableView.type
+        const existingTableViews = await this.getTableViewsInfo()
+        const conflictingExtension = existingTableViews.find(
+          (ext) => ext.meta?.tableView?.type === viewType
+        )
+        if (conflictingExtension) {
+          throw new Error(
+            `TableView type "${viewType}" already exists in extension "${conflictingExtension.name}" (${conflictingExtension.id}). ` +
+              `Please use a different type in your meta.tableView.type.`
+          )
+        }
+      }
     }
 
     return super.add(data, db)
@@ -839,6 +859,26 @@ export class ExtensionTable
     }
     if (!existingExtension && slug) {
       existingExtension = await this.getExtensionBySlug(slug)
+    }
+
+    // For tableView extensions, check if the type conflicts with existing ones
+    // When creating a new extension (not updating), the type must be unique
+    if (
+      meta?.type === "tableView" &&
+      meta.tableView?.type &&
+      !existingExtension
+    ) {
+      const viewType = meta.tableView.type
+      const existingTableViews = await this.getTableViewsInfo()
+      const conflictingExtension = existingTableViews.find(
+        (ext) => ext.meta?.tableView?.type === viewType
+      )
+      if (conflictingExtension) {
+        throw new Error(
+          `TableView type "${viewType}" already exists in extension "${conflictingExtension.name}" (${conflictingExtension.id}). ` +
+            `Please use a different type in your meta.tableView.type.`
+        )
+      }
     }
 
     // Generate ID and slug
