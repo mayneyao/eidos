@@ -1,10 +1,45 @@
 use anyhow::{Context, Result};
 use clap::Subcommand;
 use colored::Colorize;
-use comfy_table::{Table, modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL};
+use unicode_width::UnicodeWidthStr;
 
 use crate::client::EidosClient;
 use crate::config::{Config, SpaceRegistry};
+
+/// Strip ANSI escape sequences from string
+fn strip_ansi(s: &str) -> String {
+    let mut result = String::new();
+    let mut chars = s.chars().peekable();
+    
+    while let Some(ch) = chars.next() {
+        if ch == '\x1b' {
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                while let Some(c) = chars.next() {
+                    if c.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+    
+    result
+}
+
+/// Pad string to target display width
+fn pad_to_width(s: &str, target_width: usize) -> String {
+    let plain = strip_ansi(s);
+    let display_width = plain.width();
+    if display_width >= target_width {
+        s.to_string()
+    } else {
+        let padding = target_width - display_width;
+        format!("{}{}", s, " ".repeat(padding))
+    }
+}
 
 /// Space management commands
 #[derive(Subcommand)]
@@ -53,22 +88,37 @@ async fn list_spaces(_client: EidosClient) -> Result<()> {
         return Ok(());
     }
 
-    let mut table = Table::new();
-    table
-        .set_header(vec!["ID", "Name", "Path"])
-        .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
-        .load_preset(UTF8_FULL)
-        .apply_modifier(UTF8_ROUND_CORNERS);
+    // Calculate column widths
+    let mut max_id_width = 2; // "ID".len()
+    let mut max_name_width = 4; // "Name".len()
+    let mut max_path_width = 4; // "Path".len()
+    
+    for space in spaces.iter() {
+        max_id_width = max_id_width.max(space.id.width());
+        max_name_width = max_name_width.max(space.name.width());
+        max_path_width = max_path_width.max(space.path.width());
+    }
+    
+    max_id_width += 2;
+    max_name_width += 2;
+    max_path_width += 2;
 
-    for space in spaces {
-        table.add_row(vec![
-            space.id.cyan().to_string(),
-            space.name.clone(),
-            space.path.clone(),
-        ]);
+    // Print header
+    println!("{} {} {}",
+        pad_to_width(&"ID".dimmed().to_string(), max_id_width),
+        pad_to_width(&"Name".dimmed().to_string(), max_name_width),
+        pad_to_width(&"Path".dimmed().to_string(), max_path_width)
+    );
+
+    // Print rows
+    for space in spaces.iter() {
+        println!("{} {} {}",
+            pad_to_width(&space.id.cyan().to_string(), max_id_width),
+            pad_to_width(&space.name, max_name_width),
+            pad_to_width(&space.path, max_path_width)
+        );
     }
 
-    println!("{}", table);
     Ok(())
 }
 
