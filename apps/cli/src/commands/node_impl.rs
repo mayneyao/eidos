@@ -93,37 +93,16 @@ pub async fn cmd_view(client: EidosClient, path: String) -> Result<()> {
     let node_id = node["id"].as_str().context("Node has no ID")?;
     let node_type = node["type"].as_str().unwrap_or("unknown");
     
-    match node_type {
-        "doc" => {
-            let content: Value = client
-                .call("doc.get", vec![serde_json::json!(node_id)])
-                .await?;
-            let markdown = content["markdown"].as_str().unwrap_or("");
-            println!("{}", markdown);
-        }
-        "table" => {
-            // Get first 100 rows as CSV
-            let rows: Value = client
-                .call("table.rows.query", vec![
-                    serde_json::json!(node_id),
-                    serde_json::json!({"limit": 100}),
-                ])
-                .await?;
-            
-            // Simple CSV output
-            if let Some(rows_array) = rows.as_array() {
-                for row in rows_array {
-                    println!("{}", serde_json::to_string(row)?);
-                }
-            }
-        }
-        "dataview" => {
-            println!("{} (dataview execution not yet implemented)", "Note:".yellow());
-        }
-        _ => {
-            println!("{}", serde_json::to_string_pretty(&node)?);
-        }
+    // cat only supports doc type
+    if node_type != "doc" {
+        bail!("'{}' is a {}. Only documents can be viewed with 'cat'", path, node_type);
     }
+    
+    let content: Value = client
+        .call("doc.get", vec![serde_json::json!(node_id)])
+        .await?;
+    let markdown = content["markdown"].as_str().unwrap_or("");
+    println!("{}", markdown);
     
     Ok(())
 }

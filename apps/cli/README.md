@@ -119,7 +119,41 @@ eidos table delete users <row-id>
 eidos table schema users
 ```
 
-### Document
+### Filesystem-style Commands
+
+Eidos CLI provides Unix-like commands to navigate and manage nodes:
+
+```bash
+# List nodes (like ls)
+eidos ls                    # List root
+eidos ls <path>             # List specific folder
+eidos ls -l                 # Long format with IDs
+
+# View document content (like cat)
+eidos cat <doc-path>        # Output document markdown content
+
+# Create folder (like mkdir)
+eidos mkdir <path>
+
+# Create document (like touch)
+eidos touch <path> [--content "text"]
+
+# Move/rename node (like mv)
+eidos mv <src> <dst>
+
+# Append to document
+eidos append <path> [--content "text"]
+
+# Delete node (like rm)
+eidos rm <path>
+eidos rm -r <folder>        # Remove folder recursively
+eidos rm -f <path>          # Permanent delete
+
+# Execute SQL query
+eidos sql "SELECT * FROM mytable"
+```
+
+### Document (Legacy)
 
 ```bash
 # List documents

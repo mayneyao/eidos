@@ -22,7 +22,7 @@ pub enum Commands {
         long: bool,
     },
 
-    /// View node content (doc: markdown, table: CSV)
+    /// View document content (markdown)
     #[command(name = "cat")]
     View {
         path: String,
