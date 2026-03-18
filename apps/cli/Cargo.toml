@@ -31,6 +31,7 @@ toml = "0.8"
 # Output formatting
 comfy-table = "7.1"
 colored = "3.0"
+unicode-width = "0.1"
 anyhow = "1.0"
 thiserror = "2.0"
 tracing = "0.1"

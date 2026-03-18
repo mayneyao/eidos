@@ -5,9 +5,9 @@
 
 use anyhow::{Context, Result, bail};
 use colored::Colorize;
-use comfy_table::{Table, modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL};
 use serde_json::Value;
 use std::io::Read;
+use unicode_width::UnicodeWidthStr;
 
 use crate::client::EidosClient;
 
@@ -19,6 +19,43 @@ fn normalize_path(path: &str) -> String {
 }
 
 // ========== Command Implementations ==========
+
+/// Strip ANSI escape sequences from string
+fn strip_ansi(s: &str) -> String {
+    let mut result = String::new();
+    let mut chars = s.chars().peekable();
+    
+    while let Some(ch) = chars.next() {
+        if ch == '\x1b' {
+            // Skip escape sequence
+            if chars.peek() == Some(&'[') {
+                chars.next(); // skip '['
+                // Skip until 'm' (SGR) or other terminator
+                while let Some(c) = chars.next() {
+                    if c.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+    
+    result
+}
+
+/// Pad string to target display width, accounting for CJK and emoji
+fn pad_to_width(s: &str, target_width: usize) -> String {
+    let plain = strip_ansi(s);
+    let display_width = plain.width();
+    if display_width >= target_width {
+        s.to_string()
+    } else {
+        let padding = target_width - display_width;
+        format!("{}{}", s, " ".repeat(padding))
+    }
+}
 
 pub async fn cmd_list(client: EidosClient, path: Option<String>, long: bool) -> Result<()> {
     let path = path.unwrap_or_else(|| "/".to_string());
@@ -38,14 +75,36 @@ pub async fn cmd_list(client: EidosClient, path: Option<String>, long: bool) -> 
     }
     
     if long {
-        // Use comfy-table for proper alignment with emoji and CJK characters
-        let mut table = Table::new();
-        table
-            .set_header(vec!["", "ID", "Type", "Name", "Created"])
-            .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
-            .load_preset(UTF8_FULL)
-            .apply_modifier(UTF8_ROUND_CORNERS);
+        // Calculate column widths based on content
+        let mut max_type_width = 4; // "TYPE".len()
+        let mut max_name_width = 4; // "NAME".len()
         
+        for node in &nodes {
+            let name = node["name"].as_str().unwrap_or("(unnamed)");
+            let node_type = node["type"].as_str().unwrap_or("unknown");
+            
+            let type_label = match node_type {
+                "folder" => "folder",
+                "doc" => "doc",
+                "table" => "table",
+                "dataview" => "dataview",
+                _ if node_type.starts_with("ext__") => "extension",
+                _ => "other",
+            };
+            
+            max_type_width = max_type_width.max(type_label.width());
+            max_name_width = max_name_width.max(name.width());
+        }
+        
+        // Print header (no icon column)
+        println!("{}  {}  {}  {}",
+            pad_to_width("ID", 34),
+            pad_to_width("TYPE", max_type_width + 2), // +2 for icon
+            pad_to_width("NAME", max_name_width),
+            "CREATED".dimmed()
+        );
+        
+        // Print rows - icon is part of type column
         for node in nodes {
             let name = node["name"].as_str().unwrap_or("(unnamed)");
             let node_type = node["type"].as_str().unwrap_or("unknown");
@@ -56,21 +115,21 @@ pub async fn cmd_list(client: EidosClient, path: Option<String>, long: bool) -> 
                 "folder" => ("📁", "folder"),
                 "doc" => ("📄", "doc"),
                 "table" => ("📊", "table"),
-                "dataview" => ("👁 ", "dataview"),
+                "dataview" => ("👁", "dataview"),  // removed space after emoji
                 _ if node_type.starts_with("ext__") => ("🔌", "extension"),
                 _ => ("📦", "other"),
             };
             
-            table.add_row(vec![
-                icon.to_string(),
-                id.bright_black().to_string(),
-                type_label.to_string(),
-                name.to_string(),
-                created.dimmed().to_string(),
-            ]);
+            // Combine icon and type label
+            let icon_type = format!("{} {}", icon, type_label);
+            
+            println!("{}  {}  {}  {}",
+                pad_to_width(&id.bright_black().to_string(), 34),
+                pad_to_width(&icon_type, max_type_width + 3), // +3 for icon + space
+                pad_to_width(name, max_name_width),
+                created.dimmed()
+            );
         }
-        
-        println!("{}", table);
     } else {
         for node in nodes {
             let name = node["name"].as_str().unwrap_or("(unnamed)");

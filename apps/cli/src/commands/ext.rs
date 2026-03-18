@@ -2,9 +2,47 @@ use anyhow::{Context, Result};
 use clap::Subcommand;
 use colored::Colorize;
 use std::path::Path;
+use unicode_width::UnicodeWidthStr;
 
 use crate::client::EidosClient;
 use crate::config::Config;
+
+/// Strip ANSI escape sequences from string
+fn strip_ansi(s: &str) -> String {
+    let mut result = String::new();
+    let mut chars = s.chars().peekable();
+    
+    while let Some(ch) = chars.next() {
+        if ch == '\x1b' {
+            // Skip escape sequence
+            if chars.peek() == Some(&'[') {
+                chars.next(); // skip '['
+                // Skip until 'm' (SGR) or other terminator
+                while let Some(c) = chars.next() {
+                    if c.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+    
+    result
+}
+
+/// Pad string to target display width, accounting for CJK and emoji
+fn pad_to_width(s: &str, target_width: usize) -> String {
+    let plain = strip_ansi(s);
+    let display_width = plain.width();
+    if display_width >= target_width {
+        s.to_string()
+    } else {
+        let padding = target_width - display_width;
+        format!("{}{}", s, " ".repeat(padding))
+    }
+}
 
 /// Extension management commands
 #[derive(Subcommand)]
@@ -160,12 +198,42 @@ async fn list_extensions(
         return Ok(());
     }
 
+    // Calculate column widths based on content
+    let mut max_id_width = 2; // "ID".len()
+    let mut max_slug_width = 4; // "Slug".len()
+    let mut max_name_width = 4; // "Name".len()
+    let mut max_type_width = 4; // "Type".len()
+    
+    for ext in &extensions {
+        let id = ext.get("id").and_then(|v| v.as_str()).unwrap_or("-");
+        let slug = ext.get("slug").and_then(|v| v.as_str()).unwrap_or("-");
+        let name = ext.get("name").and_then(|v| v.as_str()).unwrap_or("-");
+        let ext_type = ext.get("type").and_then(|v| v.as_str()).unwrap_or("block");
+        
+        if let Some(ref filter) = type_filter {
+            if ext_type != filter {
+                continue;
+            }
+        }
+        
+        max_id_width = max_id_width.max(id.width());
+        max_slug_width = max_slug_width.max(slug.width());
+        max_name_width = max_name_width.max(name.width());
+        max_type_width = max_type_width.max(ext_type.width());
+    }
+    
+    // Add some padding
+    max_id_width += 2;
+    max_slug_width += 2;
+    max_name_width += 2;
+    max_type_width += 2;
+
     // Print header
-    println!("{:<36} {:<24} {:<30} {:<8} {}", 
-        "ID".dimmed(), 
-        "Slug".dimmed(), 
-        "Name".dimmed(),
-        "Type".dimmed(),
+    println!("{} {} {} {} {}", 
+        pad_to_width(&"ID".dimmed().to_string(), max_id_width),
+        pad_to_width(&"Slug".dimmed().to_string(), max_slug_width),
+        pad_to_width(&"Name".dimmed().to_string(), max_name_width),
+        pad_to_width(&"Type".dimmed().to_string(), max_type_width),
         "Status".dimmed()
     );
     
@@ -186,11 +254,11 @@ async fn list_extensions(
         }
 
         let status = if enabled { "enabled".green() } else { "disabled".dimmed() };
-        println!("{:<36} {:<24} {:<30} {:<8} {}", 
-            id.cyan(),
-            slug,
-            name,
-            ext_type,
+        println!("{} {} {} {} {}", 
+            pad_to_width(&id.cyan().to_string(), max_id_width),
+            pad_to_width(slug, max_slug_width),
+            pad_to_width(name, max_name_width),
+            pad_to_width(ext_type, max_type_width),
             status
         );
     }
