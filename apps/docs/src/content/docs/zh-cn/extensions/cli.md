@@ -22,30 +22,33 @@ sidebar:
 
 ## 安装与设置
 
-从 [GitHub Releases](https://github.com/mayneyao/eidos/releases) 下载适用于您平台的预编译二进制文件，并将其添加到系统 PATH 中。
+CLI 二进制文件与 Eidos Desktop 打包发布，无需单独下载。
 
-检查连接状态：
+### 通过命令面板安装
+
+1. 打开 Eidos Desktop
+2. 按 `Cmd/Ctrl + K` 打开命令面板
+3. 输入 "install eidos" 并选择 "Install 'eidos' command in PATH"
+4. CLI 将被添加到系统 PATH 中
+
+### 验证安装
 
 ```bash
 eidos status
 ```
 
-## 空间管理
+## 空间自动检测
 
-在执行数据操作之前，必须选择一个活动空间。
+CLI 会根据当前目录自动检测要使用哪个空间。当在空间目录中时，命令会自动针对该空间执行。
 
 ```bash
-# 列出可用空间
-eidos space list
+# 在空间目录内 - 自动检测
+cd /path/to/my-space
+eidos ls
+eidos cat readme
 
-# 切换到指定空间
-eidos space use my-workspace
-
-# 显示当前空间信息
-eidos space info
-
-# 在默认浏览器中打开空间
-eidos space open
+# 在空间目录外 - 使用 -s 参数
+eidos -s my-space ls
 ```
 
 ## 节点操作（类 FS 风格）
@@ -122,6 +125,32 @@ eidos rm old-doc
 eidos rm -f -r archive/2023
 ```
 
+## 表格操作
+
+### 列出表格
+
+```bash
+eidos table ls
+eidos table ls -l
+```
+
+### 显示表格结构
+
+查看字段名称、列名（用于 SQL）、类型和公式定义：
+
+```bash
+eidos table schema tb_abc123
+```
+
+**输出：**
+
+| 列名         | 描述                              |
+| ------------ | --------------------------------- |
+| `Name`       | 字段显示名称                      |
+| `ColumnName` | 数据库列名（SQL 中使用）          |
+| `Type`       | 字段类型                          |
+| `Property`   | 公式表达式（仅 formula 类型显示） |
+
 ## 扩展管理
 
 无需接触 GUI 即可部署和管理扩展。
@@ -134,11 +163,10 @@ eidos ext deploy ./my-block.tsx --slug my-custom-view
 eidos ext deploy ./my-block.tsx --force
 
 # 列出已安装的扩展
-eidos ext list
+eidos ext ls
 
-# 启用/禁用扩展
-eidos ext enable <ext-id>
-eidos ext disable <ext-id>
+# 删除扩展
+eidos ext rm <ext-id>
 ```
 
 ## 脚本编写与 AI 集成

@@ -9,12 +9,29 @@ sidebar:
 
 ## 全局选项
 
-| 选项                   | 描述                                  |
-| ---------------------- | ------------------------------------- |
-| `-s, --space <id>`     | 目标空间 ID（如果在空间目录中则可选） |
-| `-e, --endpoint <url>` | Eidos Desktop 端点                    |
-| `-h, --help`           | 显示帮助                              |
-| `-V, --version`        | 显示版本                              |
+| 选项               | 描述                                  |
+| ------------------ | ------------------------------------- |
+| `-s, --space <id>` | 目标空间 ID（如果在空间目录中则可选） |
+| `-h, --help`       | 显示帮助                              |
+| `-V, --version`    | 显示版本                              |
+
+## 空间选择
+
+CLI 自动检测要使用哪个空间：
+
+1. **自动检测**（推荐）：当在空间目录中时，CLI 自动使用该空间
+2. **显式指定**：使用 `-s <space>` 或 `--space <space>` 指定空间
+
+```bash
+# 在空间目录内 - 自动检测
+cd /path/to/my-space
+eidos ls
+eidos cat readme
+
+# 在空间目录外 - 显式指定
+eidos -s my-space ls
+eidos --space my-space cat readme
+```
 
 ## 节点命令（文件系统风格）
 
@@ -26,7 +43,7 @@ sidebar:
 
 ```bash
 eidos ls              # 列出根节点
-eidos ls /projects    # 列出文件夹中的节点
+eidos ls projects     # 列出文件夹中的节点
 eidos ls -l           # 长格式显示（含 ID）
 ```
 
@@ -41,8 +58,8 @@ eidos ls -l           # 长格式显示（含 ID）
 查看文档内容（Markdown 输出）。
 
 ```bash
-eidos cat /readme                 # 查看文档 Markdown
-eidos cat /notes/ideas            # 查看文档内容
+eidos cat readme                  # 查看文档 Markdown
+eidos cat notes/ideas             # 查看文档内容
 ```
 
 **注意：** `cat` 仅支持文档类型。查询表格数据请使用 `sql` 命令。
@@ -52,8 +69,8 @@ eidos cat /notes/ideas            # 查看文档内容
 创建文件夹。
 
 ```bash
-eidos mkdir /projects
-eidos mkdir /projects/2024/q1
+eidos mkdir projects
+eidos mkdir projects/2024/q1
 ```
 
 **注意：** 如果路径下已存在同名节点，将报错。
@@ -63,8 +80,8 @@ eidos mkdir /projects/2024/q1
 创建文档。
 
 ```bash
-eidos touch /notes/ideas
-eidos touch /projects/readme
+eidos touch notes/ideas
+eidos touch projects/readme
 ```
 
 **选项：**
@@ -77,16 +94,16 @@ eidos touch /projects/readme
 
 ```bash
 # 从文件创建
-cat readme.md | eidos touch /projects/readme
+cat readme.md | eidos touch projects/readme
 
 # 从 echo 创建
-echo "# Hello World" | eidos touch /notes/hello
+echo "# Hello World" | eidos touch notes/hello
 
 # 从命令输出创建
-date | eidos touch /daily/now
+date | eidos touch daily/now
 
 # 或使用 --content 参数
-eidos touch /notes/ideas --content "# 我的想法"
+eidos touch notes/ideas --content "# 我的想法"
 ```
 
 **注意：** 如果路径下已存在同名节点，将报错。
@@ -97,13 +114,13 @@ eidos touch /notes/ideas --content "# 我的想法"
 
 ```bash
 # 重命名
-eidos mv /drafts/article /drafts/final-article
+eidos mv drafts/article drafts/final-article
 
 # 移动到不同文件夹
-eidos mv /drafts/article /published/article
+eidos mv drafts/article published/article
 
 # 移动到根目录
-eidos mv /archive/2024/report /report
+eidos mv archive/2024/report report
 ```
 
 ### `append <path>`
@@ -112,14 +129,14 @@ eidos mv /archive/2024/report /report
 
 ```bash
 # 从字符串追加
-eidos append /notes/daily --content "## 晚间笔记"
+eidos append notes/daily --content "## 晚间笔记"
 
 # 从 stdin 追加（管道）
-echo "新行" | eidos append /notes/log
-cat footer.md | eidos append /projects/readme
+echo "新行" | eidos append notes/log
+cat footer.md | eidos append projects/readme
 
 # 追加命令输出
-date | eidos append /journal/activity
+date | eidos append journal/activity
 ```
 
 **注意：** 文档必须已存在。如不存在请先使用 `touch` 创建。
@@ -129,10 +146,10 @@ date | eidos append /journal/activity
 删除节点。
 
 ```bash
-eidos rm /old-document              # 软删除（移入回收站）
-eidos rm /sensitive -f              # 永久删除
-eidos rm /old-folder -r             # 递归删除文件夹
-eidos rm /sensitive-folder -rf      # 强制 + 递归
+eidos rm old-document              # 软删除（移入回收站）
+eidos rm sensitive -f              # 永久删除
+eidos rm old-folder -r             # 递归删除文件夹
+eidos rm sensitive-folder -rf      # 强制 + 递归
 ```
 
 **选项：**
@@ -142,57 +159,48 @@ eidos rm /sensitive-folder -rf      # 强制 + 递归
 | `-f, --force`     | 永久删除（跳过回收站） |
 | `-r, --recursive` | 删除文件夹时必须指定   |
 
+## 查询命令
+
 ### `sql <query>`
 
-执行 SQL 查询。
+直接对 SQLite 数据库执行 **只读** SQL 查询。
 
 ```bash
 eidos sql "SELECT * FROM eidos__tree WHERE type = 'doc'"
 eidos sql "SELECT title, status FROM tb_abc123 WHERE status = 'todo'"
 ```
 
-## 空间命令
+:::caution
+**重要提示**：此命令仅用于 `SELECT` 查询。不要使用 `INSERT`、`UPDATE` 或 `DELETE` 语句，因为它们会绕过 Eidos 的事务处理机制，可能导致数据损坏。请使用适当的 CLI 命令（`touch`、`mkdir`、`mv`、`rm`）或桌面应用进行数据修改。
+:::
 
-### `space list`
+## 表格命令
 
-列出所有已注册的空间。
+### `table ls`
 
-```bash
-eidos space list
-```
-
-### `space use <id>`
-
-设置当前空间。
+列出当前空间中的所有表格。
 
 ```bash
-eidos space use my-space
+eidos table ls         # 简单列表
+eidos table ls -l      # 详细列表（含 ID）
 ```
 
-### `space open [id]`
+### `table schema <table-id>`
 
-在 Eidos Desktop 中打开空间。
+显示表格的结构，包括字段名称、列名、类型和公式属性。
 
 ```bash
-eidos space open              # 打开当前空间
-eidos space open my-space     # 打开指定空间
+eidos table schema tb_abc123
 ```
 
-### `space add <id> <endpoint>`
+**输出列：**
 
-添加新空间。
-
-```bash
-eidos space add my-workspace http://127.0.0.1:13127
-```
-
-### `space remove <id>`
-
-从注册表中移除空间。
-
-```bash
-eidos space remove old-space
-```
+| 列名         | 描述                                         |
+| ------------ | -------------------------------------------- |
+| `Name`       | 字段显示名称                                 |
+| `ColumnName` | 数据库列名（用于 SQL 查询）                  |
+| `Type`       | 字段类型（text、number、select、formula 等） |
+| `Property`   | 公式表达式（仅 formula 类型显示）            |
 
 ## 扩展命令
 
@@ -212,36 +220,20 @@ eidos ext deploy ./script.ts --slug my-script --force
 | `-f, --force`   | 如果扩展已存在则覆盖         |
 | `--slug <slug>` | 指定扩展的唯一标识符（slug） |
 
-### `ext list`
+### `ext ls`
 
 列出所有扩展。
 
 ```bash
-eidos ext list
+eidos ext ls
 ```
 
-### `ext enable <id>`
-
-启用扩展。
-
-```bash
-eidos ext enable my-extension
-```
-
-### `ext disable <id>`
-
-禁用扩展。
-
-```bash
-eidos ext disable my-extension
-```
-
-### `ext delete <id>`
+### `ext rm <id>`
 
 删除扩展。
 
 ```bash
-eidos ext delete my-extension
+eidos ext rm my-extension
 ```
 
 ## 其他命令
@@ -271,26 +263,18 @@ eidos completions zsh
 eidos completions fish
 ```
 
-## 环境变量
-
-| 变量             | 描述                 | 默认值                   |
-| ---------------- | -------------------- | ------------------------ |
-| `EIDOS_ENDPOINT` | Desktop RPC 端点     | `http://127.0.0.1:13127` |
-| `EIDOS_SPACE`    | 默认空间 ID          | -                        |
-| `EIDOS_API_KEY`  | API 密钥（用于认证） | -                        |
-
 ## 示例
 
 ### 操作文档
 
 ```bash
 # 创建并查看文档
-eidos touch /notes/ideas
-eidos cat /notes/ideas
+eidos touch notes/ideas
+eidos cat notes/ideas
 
 # 移动文档到不同文件夹
-eidos mkdir /archive
-eidos mv /notes/ideas /archive/ideas
+eidos mkdir archive
+eidos mv notes/ideas archive/ideas
 ```
 
 ### 操作表格
@@ -304,8 +288,8 @@ eidos sql "SELECT * FROM tb_xxx WHERE status = 'todo'"
 
 ```bash
 # 创建文件夹结构
-eidos mkdir /projects
-eidos mkdir /projects/2024
-eidos touch /projects/2024/roadmap
-eidos touch /projects/2024/milestones
+eidos mkdir projects
+eidos mkdir projects/2024
+eidos touch projects/2024/roadmap
+eidos touch projects/2024/milestones
 ```

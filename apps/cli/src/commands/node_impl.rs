@@ -10,51 +10,13 @@ use std::io::Read;
 use unicode_width::UnicodeWidthStr;
 
 use crate::client::EidosClient;
+use crate::utils::pad_to_width;
 
 /// Normalize path for Node API
 /// Node API expects paths without leading "/"
 fn normalize_path(path: &str) -> String {
     let path = path.trim_start_matches('/');
     if path.is_empty() { "".to_string() } else { path.to_string() }
-}
-
-// ========== Command Implementations ==========
-
-/// Strip ANSI escape sequences from string
-fn strip_ansi(s: &str) -> String {
-    let mut result = String::new();
-    let mut chars = s.chars().peekable();
-    
-    while let Some(ch) = chars.next() {
-        if ch == '\x1b' {
-            // Skip escape sequence
-            if chars.peek() == Some(&'[') {
-                chars.next(); // skip '['
-                // Skip until 'm' (SGR) or other terminator
-                while let Some(c) = chars.next() {
-                    if c.is_ascii_alphabetic() {
-                        break;
-                    }
-                }
-            }
-        } else {
-            result.push(ch);
-        }
-    }
-    
-    result
-}
-
-/// Pad string to target display width, accounting for CJK and emoji
-fn pad_to_width(s: &str, target_width: usize) -> String {
-    let plain = strip_ansi(s);
-    let display_width = plain.width();
-    if display_width >= target_width {
-        s.to_string()
-    } else {
-        let padding = target_width - display_width;
-        format!("{}{}", s, " ".repeat(padding))
-    }
 }
 
 pub async fn cmd_list(client: EidosClient, path: Option<String>, long: bool) -> Result<()> {

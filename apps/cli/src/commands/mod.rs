@@ -2,12 +2,14 @@ pub mod completions;
 pub mod ext;
 pub mod space;
 pub mod status;
+pub mod table;
 
 use anyhow::Result;
 use clap::Subcommand;
 
 use crate::client::EidosClient;
 use crate::config::Config;
+use crate::utils::OutputFormat;
 
 /// Node operations - filesystem-style commands for Eidos
 /// 
@@ -84,6 +86,10 @@ pub enum Commands {
     #[command(subcommand)]
     Ext(ext::ExtCommands),
 
+    /// Table management commands
+    #[command(subcommand)]
+    Table(table::TableCommands),
+
     /// Check Eidos Desktop status
     Status,
 
@@ -98,12 +104,13 @@ pub enum Commands {
 mod node_impl;
 
 impl Commands {
-    pub async fn execute(self, client: EidosClient, config: &mut Config) -> Result<()> {
+    pub async fn execute(self, client: EidosClient, config: &mut Config, format: OutputFormat) -> Result<()> {
         // Ensure space is selected for node operations
         let needs_space = matches!(self, 
             Commands::List { .. } | Commands::View { .. } | Commands::Mkdir { .. } |
             Commands::Touch { .. } | Commands::Move { .. } |
-            Commands::Remove { .. } | Commands::Sql { .. }
+            Commands::Remove { .. } | Commands::Sql { .. } |
+            Commands::Table(..)
         );
         
         if needs_space && config.space_id.is_none() {
@@ -137,6 +144,7 @@ impl Commands {
             }
             Commands::Space(cmd) => cmd.execute(client, config).await,
             Commands::Ext(cmd) => cmd.execute(client, config).await,
+            Commands::Table(cmd) => cmd.execute(client, format).await,
             Commands::Status => status::execute(client).await,
             Commands::Completions { shell } => completions::execute(shell),
         }

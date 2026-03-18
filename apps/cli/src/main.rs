@@ -1,6 +1,7 @@
 mod client;
 mod commands;
 mod config;
+mod utils;
 
 use anyhow::Result;
 use clap::Parser;
@@ -34,8 +35,8 @@ struct Cli {
     api_key: Option<String>,
 
     /// Output format
-    #[arg(short = 'O', long, global = true, value_enum, default_value = "table")]
-    format: OutputFormat,
+    #[arg(short = 'f', long, global = true, value_enum, default_value = "table")]
+    format: crate::utils::OutputFormat,
 
     /// Quiet mode (no interactive output)
     #[arg(short, long, global = true)]
@@ -44,14 +45,6 @@ struct Cli {
     /// Verbose output
     #[arg(short, long, global = true, action = clap::ArgAction::Count)]
     verbose: u8,
-}
-
-#[derive(Clone, Copy, Debug, Default, clap::ValueEnum)]
-enum OutputFormat {
-    #[default]
-    Table,
-    Json,
-    Yaml,
 }
 
 #[tokio::main]
@@ -95,7 +88,7 @@ async fn run() -> Result<()> {
     let client = EidosClient::new(config.clone())?;
 
     // Execute command
-    cli.command.execute(client, &mut config).await?;
+    cli.command.execute(client, &mut config, cli.format).await?;
 
     Ok(())
 }

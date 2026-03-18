@@ -8,21 +8,22 @@ This CLI is designed for AI Agents (like Claude Code) and developers to interact
 
 ## Features
 
-- **Space Management**: List, switch between, and open spaces
+- **Auto Space Detection**: Automatically detects space from current directory
+- **Filesystem-style Commands**: Manage nodes using familiar Unix commands
 - **Table Operations**: Query, create, update, delete table rows
 - **Document Management**: Create, edit, search documents
 - **AI-Optimized Output**: Structured output with tables and JSON support
 
 ## Installation
 
-### From Source
+The CLI binary is bundled with Eidos Desktop. No separate download needed.
 
-```bash
-cd apps/cli
-cargo build --release
+### Install via Command Palette
 
-# Binary will be at target/release/eidos
-```
+1. Open Eidos Desktop
+2. Press `Cmd/Ctrl + K` to open Command Palette
+3. Type "install eidos" and select "Install 'eidos' command in PATH"
+4. The CLI will be added to your system PATH
 
 ### Shell Completion
 
@@ -46,53 +47,38 @@ eidos status
 ### Quick Start
 
 ```bash
-# List all spaces
-eidos space list
+# When inside a space directory, CLI automatically uses that space
+eidos ls                      # List all nodes
+eidos cat readme              # View document content
+eidos mkdir projects          # Create folder
+eidos touch notes/ideas       # Create document
 
-# Set current space
-eidos space use my-space
+# Otherwise, specify space with -s flag
+eidos -s my-space ls
+eidos -s my-space cat readme
 
-# List tables in current space
-eidos table list
-
-# Query a table
-eidos table query posts --limit 10
-
-# List documents
-eidos doc list
-
-# Search documents
-eidos doc search "meeting notes"
+# Query tables with SQL
+eidos sql "SELECT * FROM eidos__tree WHERE type = 'doc'"
 ```
 
-### Environment Variables
+### Space Selection
 
-| Variable         | Description                                              |
-| ---------------- | -------------------------------------------------------- |
-| `EIDOS_ENDPOINT` | Eidos Desktop endpoint (default: http://localhost:13128) |
-| `EIDOS_SPACE`    | Default space ID                                         |
-| `EIDOS_API_KEY`  | API key for authentication                               |
+The CLI automatically detects the space to use:
 
-### Global Flags
+1. **Auto-detection** (recommended): When inside a space directory, CLI automatically uses that space
+2. **Explicit flag**: Use `-s <space>` to specify a space
 
 ```bash
-eidos --endpoint http://localhost:13128 --space my-space table list
-eidos -s my-space doc list
-eidos --format json table query users
+# Auto-detect from current directory
+cd /path/to/my-space
+eidos ls
+
+# Explicit space selection
+eidos -s my-space ls
+eidos -s my-space cat readme
 ```
 
 ## Commands
-
-### Space
-
-```bash
-eidos space list              # List all spaces
-eidos space info              # Show current space info
-eidos space info <space-id>   # Show specific space info
-eidos space use <space-id>    # Set current space
-eidos space open              # Open current space in browser
-eidos space open <space-id>   # Open specific space
-```
 
 ### Table
 
@@ -188,16 +174,16 @@ This CLI is optimized for AI agent usage:
 Example agent workflow:
 
 ```bash
-# Check if Eidos is available
+# Check if Eidos is available and auto-detect space
 if eidos status; then
-    # Use current space or set one
-    eidos space use my-project
+    # List nodes in current space
+    eidos ls
 
     # Query data
-    eidos table query tasks --filter '{"status":"todo"}' --format json
+    eidos sql "SELECT * FROM mytable WHERE status = 'todo'"
 
     # Create document
-    eidos doc create "Meeting Notes" --content "..."
+    eidos touch notes/meeting-notes --content "# Meeting Notes"
 fi
 ```
 

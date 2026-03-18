@@ -2,7 +2,7 @@
 name = "eidos"
 version = "0.1.0"
 edition = "2024"
-description = "Eidos CLI - AI Agent friendly command-line interface for Eidos"
+description = "Eidos CLI - Command-line interface for Eidos"
 authors = ["mayneyao"]
 license = "AGPL-3.0"
 build = "build.rs"

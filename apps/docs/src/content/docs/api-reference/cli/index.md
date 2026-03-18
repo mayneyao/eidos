@@ -9,12 +9,29 @@ Complete command reference for the `eidos` CLI.
 
 ## Global Options
 
-| Option                 | Description                                      |
-| ---------------------- | ------------------------------------------------ |
-| `-s, --space <id>`     | Target space ID (optional if in space directory) |
-| `-e, --endpoint <url>` | Eidos Desktop endpoint                           |
-| `-h, --help`           | Show help                                        |
-| `-V, --version`        | Show version                                     |
+| Option             | Description                                      |
+| ------------------ | ------------------------------------------------ |
+| `-s, --space <id>` | Target space ID (optional if in space directory) |
+| `-h, --help`       | Show help                                        |
+| `-V, --version`    | Show version                                     |
+
+## Space Selection
+
+The CLI automatically detects which space to use:
+
+1. **Auto-detection** (recommended): When inside a space directory, the CLI automatically uses that space
+2. **Explicit flag**: Use `-s <space>` or `--space <space>` to specify a space
+
+```bash
+# Inside a space directory - auto-detected
+cd /path/to/my-space
+eidos ls
+eidos cat readme
+
+# Outside a space directory - explicit selection
+eidos -s my-space ls
+eidos --space my-space cat readme
+```
 
 ## Node Commands (Filesystem Style)
 
@@ -26,7 +43,7 @@ List nodes at the specified path.
 
 ```bash
 eidos ls              # List root nodes
-eidos ls /projects    # List nodes in folder
+eidos ls projects     # List nodes in folder
 eidos ls -l           # Long format with IDs
 ```
 
@@ -41,8 +58,8 @@ eidos ls -l           # Long format with IDs
 View document content (markdown output).
 
 ```bash
-eidos cat /readme                 # View document markdown
-eidos cat /notes/ideas            # View document content
+eidos cat readme                 # View document markdown
+eidos cat notes/ideas             # View document content
 ```
 
 **Note:** `cat` only works with documents. Use `sql` for querying table data.
@@ -52,8 +69,8 @@ eidos cat /notes/ideas            # View document content
 Create a folder.
 
 ```bash
-eidos mkdir /projects
-eidos mkdir /projects/2024/q1
+eidos mkdir projects
+eidos mkdir projects/2024/q1
 ```
 
 **Note:** Will fail if a node with the same name already exists at the path.
@@ -63,8 +80,8 @@ eidos mkdir /projects/2024/q1
 Create a document.
 
 ```bash
-eidos touch /notes/ideas
-eidos touch /projects/readme
+eidos touch notes/ideas
+eidos touch projects/readme
 ```
 
 **Options:**
@@ -77,16 +94,16 @@ eidos touch /projects/readme
 
 ```bash
 # Create from file
-cat readme.md | eidos touch /projects/readme
+cat readme.md | eidos touch projects/readme
 
 # Create from echo
-echo "# Hello World" | eidos touch /notes/hello
+echo "# Hello World" | eidos touch notes/hello
 
 # Create from command output
-date | eidos touch /daily/now
+date | eidos touch daily/now
 
 # Or use --content flag
-eidos touch /notes/ideas --content "# My Ideas"
+eidos touch notes/ideas --content "# My Ideas"
 ```
 
 **Note:** Will fail if a node with the same name already exists at the path.
@@ -97,13 +114,13 @@ Move or rename a node.
 
 ```bash
 # Rename
-eidos mv /drafts/article /drafts/final-article
+eidos mv drafts/article drafts/final-article
 
 # Move to different folder
-eidos mv /drafts/article /published/article
+eidos mv drafts/article published/article
 
 # Move to root
-eidos mv /archive/2024/report /report
+eidos mv archive/2024/report report
 ```
 
 ### `append <path>`
@@ -112,14 +129,14 @@ Append content to an existing document.
 
 ```bash
 # Append from string
-eidos append /notes/daily --content "## Evening notes"
+eidos append notes/daily --content "## Evening notes"
 
 # Append from stdin (pipe)
-echo "New line" | eidos append /notes/log
-cat footer.md | eidos append /projects/readme
+echo "New line" | eidos append notes/log
+cat footer.md | eidos append projects/readme
 
 # Append command output
-date | eidos append /journal/activity
+date | eidos append journal/activity
 ```
 
 **Note:** The document must exist. Use `touch` to create first if needed.
@@ -129,10 +146,10 @@ date | eidos append /journal/activity
 Delete a node.
 
 ```bash
-eidos rm /old-document              # Soft delete (move to trash)
-eidos rm /sensitive -f              # Permanent delete
-eidos rm /old-folder -r             # Delete folder recursively
-eidos rm /sensitive-folder -rf      # Force + recursive
+eidos rm old-document              # Soft delete (move to trash)
+eidos rm sensitive -f              # Permanent delete
+eidos rm old-folder -r             # Delete folder recursively
+eidos rm sensitive-folder -rf      # Force + recursive
 ```
 
 **Options:**
@@ -142,57 +159,48 @@ eidos rm /sensitive-folder -rf      # Force + recursive
 | `-f, --force`     | Permanent delete (skip trash) |
 | `-r, --recursive` | Required for deleting folders |
 
+## Query Commands
+
 ### `sql <query>`
 
-Execute SQL query.
+Execute SQL query directly against the SQLite database for **read-only operations**.
 
 ```bash
 eidos sql "SELECT * FROM eidos__tree WHERE type = 'doc'"
 eidos sql "SELECT title, status FROM tb_abc123 WHERE status = 'todo'"
 ```
 
-## Space Commands
+:::caution
+**Important**: This command is for `SELECT` queries only. Do not use `INSERT`, `UPDATE`, or `DELETE` statements as they bypass Eidos' transaction handling and can lead to data corruption. Use the appropriate CLI commands (`touch`, `mkdir`, `mv`, `rm`) or Desktop app for data modifications.
+:::
 
-### `space list`
+## Table Commands
 
-List all registered spaces.
+### `table ls`
 
-```bash
-eidos space list
-```
-
-### `space use <id>`
-
-Set the current space.
+List all tables in the current space.
 
 ```bash
-eidos space use my-space
+eidos table ls         # Simple list
+eidos table ls -l      # Detailed list with IDs
 ```
 
-### `space open [id]`
+### `table schema <table-id>`
 
-Open a space in Eidos Desktop.
+Show the schema of a table, including field names, column names, types, and formula properties.
 
 ```bash
-eidos space open              # Open current space
-eidos space open my-space     # Open specific space
+eidos table schema tb_abc123
 ```
 
-### `space add <id> <endpoint>`
+**Output columns:**
 
-Add a new space.
-
-```bash
-eidos space add my-workspace http://127.0.0.1:13127
-```
-
-### `space remove <id>`
-
-Remove a space from registry.
-
-```bash
-eidos space remove old-space
-```
+| Column       | Description                                      |
+| ------------ | ------------------------------------------------ |
+| `Name`       | Field display name                               |
+| `ColumnName` | Database column name (for SQL queries)           |
+| `Type`       | Field type (text, number, select, formula, etc.) |
+| `Property`   | Formula expression (only shown for formula type) |
 
 ## Extension Commands
 
@@ -226,36 +234,20 @@ The file extension determines how the code is parsed:
 | `.tsx`    | JSX + TypeScript | Blocks with UI components (supports generics like `useState<T[]>()` ) |
 | `.ts`     | Pure TypeScript  | Scripts without JSX (table actions, doc actions, tools, etc.)         |
 
-### `ext list`
+### `ext ls`
 
 List all extensions.
 
 ```bash
-eidos ext list
+eidos ext ls
 ```
 
-### `ext enable <id>`
-
-Enable an extension.
-
-```bash
-eidos ext enable my-extension
-```
-
-### `ext disable <id>`
-
-Disable an extension.
-
-```bash
-eidos ext disable my-extension
-```
-
-### `ext delete <id>`
+### `ext rm <id>`
 
 Delete an extension.
 
 ```bash
-eidos ext delete my-extension
+eidos ext rm my-extension
 ```
 
 ## Other Commands
@@ -285,26 +277,18 @@ eidos completions zsh
 eidos completions fish
 ```
 
-## Environment Variables
-
-| Variable         | Description                | Default                  |
-| ---------------- | -------------------------- | ------------------------ |
-| `EIDOS_ENDPOINT` | Desktop RPC endpoint       | `http://127.0.0.1:13127` |
-| `EIDOS_SPACE`    | Default space ID           | -                        |
-| `EIDOS_API_KEY`  | API key for authentication | -                        |
-
 ## Examples
 
 ### Working with Documents
 
 ```bash
 # Create and view a document
-eidos touch /notes/ideas
-eidos cat /notes/ideas
+eidos touch notes/ideas
+eidos cat notes/ideas
 
 # Move document to different folder
-eidos mkdir /archive
-eidos mv /notes/ideas /archive/ideas
+eidos mkdir archive
+eidos mv notes/ideas archive/ideas
 ```
 
 ### Working with Tables
@@ -318,8 +302,8 @@ eidos sql "SELECT * FROM tb_xxx WHERE status = 'todo'"
 
 ```bash
 # Create folder structure
-eidos mkdir /projects
-eidos mkdir /projects/2024
-eidos touch /projects/2024/roadmap
-eidos touch /projects/2024/milestones
+eidos mkdir projects
+eidos mkdir projects/2024
+eidos touch projects/2024/roadmap
+eidos touch projects/2024/milestones
 ```

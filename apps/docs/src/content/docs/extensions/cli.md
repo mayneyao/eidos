@@ -22,30 +22,33 @@ Eidos Desktop must be running for the CLI to interact with your data.
 
 ## Installation & Setup
 
-Download the pre-compiled binary for your platform from the [GitHub Releases](https://github.com/mayneyao/eidos/releases) and add it to your system PATH.
+The CLI binary is bundled with Eidos Desktop. No separate download needed.
 
-Check connection status:
+### Install via Command Palette
+
+1. Open Eidos Desktop
+2. Press `Cmd/Ctrl + K` to open Command Palette
+3. Type "install eidos" and select "Install 'eidos' command in PATH"
+4. The CLI will be added to your system PATH
+
+### Verify Installation
 
 ```bash
 eidos status
 ```
 
-## Space Management
+## Space Auto-Detection
 
-Before performing data operations, you must select an active space.
+The CLI automatically detects which space to use based on your current directory. When inside a space directory, commands will automatically target that space.
 
 ```bash
-# List available spaces
-eidos space list
+# Inside a space directory - automatically detected
+cd /path/to/my-space
+eidos ls
+eidos cat readme
 
-# Switch to a specific space
-eidos space use my-workspace
-
-# Show current space info
-eidos space info
-
-# Open space in default browser
-eidos space open
+# Outside a space directory - use -s flag
+eidos -s my-space ls
 ```
 
 ## Node Operations (FS-style)
@@ -122,6 +125,32 @@ eidos rm old-doc
 eidos rm -f -r archive/2023
 ```
 
+## Table Operations
+
+### List Tables
+
+```bash
+eidos table ls
+eidos table ls -l
+```
+
+### Show Table Schema
+
+View field names, column names (for SQL), types, and formula definitions:
+
+```bash
+eidos table schema tb_abc123
+```
+
+**Output:**
+
+| Column       | Description                            |
+| ------------ | -------------------------------------- |
+| `Name`       | Field display name                     |
+| `ColumnName` | Database column name (use in SQL)      |
+| `Type`       | Field type                             |
+| `Property`   | Formula expression (formula type only) |
+
 ## Extension Management
 
 Deploy and manage extensions without touching the GUI.
@@ -137,11 +166,10 @@ eidos ext deploy ./my-script.ts
 eidos ext deploy ./my-block.tsx --slug my-existing-slug
 
 # List installed extensions
-eidos ext list
+eidos ext ls
 
-# Enable/Disable extension
-eidos ext enable <ext-id>
-eidos ext disable <ext-id>
+# Delete an extension
+eidos ext rm <ext-id>
 ```
 
 :::tip[File Extension Matters]

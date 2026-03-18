@@ -6,43 +6,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::client::EidosClient;
 use crate::config::Config;
-
-/// Strip ANSI escape sequences from string
-fn strip_ansi(s: &str) -> String {
-    let mut result = String::new();
-    let mut chars = s.chars().peekable();
-    
-    while let Some(ch) = chars.next() {
-        if ch == '\x1b' {
-            // Skip escape sequence
-            if chars.peek() == Some(&'[') {
-                chars.next(); // skip '['
-                // Skip until 'm' (SGR) or other terminator
-                while let Some(c) = chars.next() {
-                    if c.is_ascii_alphabetic() {
-                        break;
-                    }
-                }
-            }
-        } else {
-            result.push(ch);
-        }
-    }
-    
-    result
-}
-
-/// Pad string to target display width, accounting for CJK and emoji
-fn pad_to_width(s: &str, target_width: usize) -> String {
-    let plain = strip_ansi(s);
-    let display_width = plain.width();
-    if display_width >= target_width {
-        s.to_string()
-    } else {
-        let padding = target_width - display_width;
-        format!("{}{}", s, " ".repeat(padding))
-    }
-}
+use crate::utils::pad_to_width;
 
 /// Extension management commands
 #[derive(Subcommand)]
@@ -58,19 +22,15 @@ pub enum ExtCommands {
     },
 
     /// List all extensions
+    #[command(name = "ls")]
     List {
         /// Filter by type (block, script)
         #[arg(short, long)]
         type_filter: Option<String>,
     },
 
-    /// Get extension details
-    Get {
-        /// Extension ID
-        id: String,
-    },
-
     /// Delete an extension
+    #[command(name = "rm")]
     Delete {
         /// Extension ID
         id: String,
@@ -78,18 +38,6 @@ pub enum ExtCommands {
         /// Skip confirmation
         #[arg(short, long)]
         yes: bool,
-    },
-
-    /// Enable an extension
-    Enable {
-        /// Extension ID
-        id: String,
-    },
-
-    /// Disable an extension
-    Disable {
-        /// Extension ID
-        id: String,
     },
 }
 
@@ -105,10 +53,7 @@ impl ExtCommands {
                 deploy_extension(client, space_id, &path, slug).await
             }
             ExtCommands::List { type_filter } => list_extensions(client, space_id, type_filter).await,
-            ExtCommands::Get { id } => get_extension(client, space_id, &id).await,
             ExtCommands::Delete { id, yes } => delete_extension(client, space_id, &id, yes).await,
-            ExtCommands::Enable { id } => toggle_extension(client, space_id, &id, true).await,
-            ExtCommands::Disable { id } => toggle_extension(client, space_id, &id, false).await,
         }
     }
 }
@@ -266,40 +211,6 @@ async fn list_extensions(
     Ok(())
 }
 
-async fn get_extension(
-    client: EidosClient,
-    space_id: &str,
-    id: &str,
-) -> Result<()> {
-    let result = client
-        .call_for_space(space_id, "extension.get", vec![serde_json::json!(id)])
-        .await?;
-
-    if result.is_null() {
-        anyhow::bail!("Extension '{}' not found", id);
-    }
-
-    let ext: serde_json::Value = serde_json::from_value(result)?;
-    
-    println!("{}", "Extension Details".bold().underline());
-    println!("  {}: {}", "ID".dimmed(), id.cyan());
-    println!("  {}: {}", "Name".dimmed(), ext.get("name").and_then(|v| v.as_str()).unwrap_or("-"));
-    println!("  {}: {}", "Type".dimmed(), ext.get("type").and_then(|v| v.as_str()).unwrap_or("block"));
-    println!("  {}: {}", "Version".dimmed(), ext.get("version").and_then(|v| v.as_str()).unwrap_or("1.0.0"));
-    println!("  {}: {}", "Status".dimmed(), 
-        if ext.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false) { "enabled".green() } else { "disabled".dimmed() }
-    );
-    
-    if let Some(meta) = ext.get("meta") {
-        println!("  {}: {}", "Meta".dimmed(), serde_json::to_string_pretty(meta)?.dimmed());
-    }
-
-    let code_len = ext.get("code").and_then(|v| v.as_str()).map(|s| s.len()).unwrap_or(0);
-    println!("  {}: {} bytes", "Code Size".dimmed(), code_len.to_string().cyan());
-
-    Ok(())
-}
-
 async fn delete_extension(
     client: EidosClient,
     space_id: &str,
@@ -326,21 +237,3 @@ async fn delete_extension(
     println!("{} Extension '{}' deleted", "✓".green(), id.cyan());
     Ok(())
 }
-
-async fn toggle_extension(
-    client: EidosClient,
-    space_id: &str,
-    id: &str,
-    enabled: bool,
-) -> Result<()> {
-    let method = if enabled { "extension.enable" } else { "extension.disable" };
-    client
-        .call_for_space(space_id, method, vec![serde_json::json!(id)])
-        .await?;
-
-    let status = if enabled { "enabled".green() } else { "disabled".dimmed() };
-    println!("{} Extension '{}' {}", "✓".green(), id.cyan(), status);
-    Ok(())
-}
-
-
