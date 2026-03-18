@@ -81,15 +81,14 @@ cat draft.md | eidos touch papers/final
 
 ### `cat <path>`
 
-查看节点内容。
+查看文档内容（Markdown 输出）。
 
 ```bash
 # 查看文档的 Markdown 内容
 eidos cat notes/idea
-
-# 查看表格数据（以 CSV 风格表格显示）
-eidos cat database/users
 ```
+
+**注意：** `cat` 仅支持文档类型。查询表格数据请使用 `sql` 命令。
 
 ### `mkdir <path>`
 

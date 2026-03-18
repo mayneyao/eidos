@@ -38,13 +38,14 @@ eidos ls -l           # Long format with IDs
 
 ### `cat <path>`
 
-View node content.
+View document content (markdown output).
 
 ```bash
 eidos cat /readme                 # View document markdown
-eidos cat /projects/tasks         # View table as JSON
-eidos cat /dashboard/active-view  # View dataview results
+eidos cat /notes/ideas            # View document content
 ```
+
+**Note:** `cat` only works with documents. Use `sql` for querying table data.
 
 ### `mkdir <path>`
 

@@ -81,15 +81,14 @@ cat draft.md | eidos touch papers/final
 
 ### `cat <path>`
 
-View node content.
+View document content (markdown output).
 
 ```bash
 # View document markdown
 eidos cat notes/idea
-
-# View table data as CSV-style table
-eidos cat database/users
 ```
+
+**Note:** `cat` only works with documents. Use `sql` for querying table data.
 
 ### `mkdir <path>`
 

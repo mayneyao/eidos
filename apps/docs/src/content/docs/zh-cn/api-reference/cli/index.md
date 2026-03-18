@@ -38,13 +38,14 @@ eidos ls -l           # 长格式显示（含 ID）
 
 ### `cat <path>`
 
-查看节点内容。
+查看文档内容（Markdown 输出）。
 
 ```bash
 eidos cat /readme                 # 查看文档 Markdown
-eidos cat /projects/tasks         # 查看表格 JSON
-eidos cat /dashboard/active-view  # 查看数据视图结果
+eidos cat /notes/ideas            # 查看文档内容
 ```
+
+**注意：** `cat` 仅支持文档类型。查询表格数据请使用 `sql` 命令。
 
 ### `mkdir <path>`
 
