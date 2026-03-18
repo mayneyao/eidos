@@ -5,6 +5,7 @@
 
 use anyhow::{Context, Result, bail};
 use colored::Colorize;
+use comfy_table::{Table, modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL};
 use serde_json::Value;
 use std::io::Read;
 
@@ -37,32 +38,44 @@ pub async fn cmd_list(client: EidosClient, path: Option<String>, long: bool) -> 
     }
     
     if long {
-        println!("{:<22} {:<10} {:<30} {}", "ID", "TYPE", "NAME", "CREATED".dimmed());
-    }
-    
-    for node in nodes {
-        let name = node["name"].as_str().unwrap_or("(unnamed)");
-        let node_type = node["type"].as_str().unwrap_or("unknown");
-        let id = node["id"].as_str().unwrap_or("");
+        // Use comfy-table for proper alignment with emoji and CJK characters
+        let mut table = Table::new();
+        table
+            .set_header(vec!["", "ID", "Type", "Name", "Created"])
+            .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
+            .load_preset(UTF8_FULL)
+            .apply_modifier(UTF8_ROUND_CORNERS);
         
-        if long {
+        for node in nodes {
+            let name = node["name"].as_str().unwrap_or("(unnamed)");
+            let node_type = node["type"].as_str().unwrap_or("unknown");
+            let id = node["id"].as_str().unwrap_or("");
             let created = node["created_at"].as_str().unwrap_or("-");
+            
             let (icon, type_label) = match node_type {
-                "folder" => ("📁", "folder    "),
-                "doc" => ("📄", "doc       "),
-                "table" => ("📊", "table     "),
-                "dataview" => ("👁 ", "dataview  "),
-                _ if node_type.starts_with("ext__") => ("🔌", "extension "),
-                _ => ("📦", "other     "),
+                "folder" => ("📁", "folder"),
+                "doc" => ("📄", "doc"),
+                "table" => ("📊", "table"),
+                "dataview" => ("👁 ", "dataview"),
+                _ if node_type.starts_with("ext__") => ("🔌", "extension"),
+                _ => ("📦", "other"),
             };
-            println!("{} {:<20} {:<10} {:<30} {}", 
-                icon, 
-                id.bright_black(), 
-                type_label,
-                name, 
-                created.dimmed()
-            );
-        } else {
+            
+            table.add_row(vec![
+                icon.to_string(),
+                id.bright_black().to_string(),
+                type_label.to_string(),
+                name.to_string(),
+                created.dimmed().to_string(),
+            ]);
+        }
+        
+        println!("{}", table);
+    } else {
+        for node in nodes {
+            let name = node["name"].as_str().unwrap_or("(unnamed)");
+            let node_type = node["type"].as_str().unwrap_or("unknown");
+            
             let colored_name = match node_type {
                 "folder" => name.blue().bold(),
                 "doc" => name.white(),
@@ -73,9 +86,6 @@ pub async fn cmd_list(client: EidosClient, path: Option<String>, long: bool) -> 
             };
             print!("{}  ", colored_name);
         }
-    }
-    
-    if !long {
         println!();
     }
     
