@@ -11,15 +11,10 @@ use crate::config::Config;
 pub enum ExtCommands {
     /// Deploy an extension from file
     Deploy {
-        /// Path to extension file (.tsx)
+        /// Path to extension file (.tsx or .ts)
         path: String,
         
-        /// Force overwrite if extension exists
-        #[arg(short, long)]
-        force: bool,
-        
-        /// Specify extension slug for update (e.g., my-extension)
-        /// If provided, will update existing extension with this slug
+        /// Optional slug to update existing extension
         #[arg(long)]
         slug: Option<String>,
     },
@@ -68,8 +63,8 @@ impl ExtCommands {
             .context("No space selected. Use 'eidos space use <space-id>'")?;
 
         match self {
-            ExtCommands::Deploy { path, force, slug } => {
-                deploy_extension(client, space_id, &path, force, slug).await
+            ExtCommands::Deploy { path, slug } => {
+                deploy_extension(client, space_id, &path, slug).await
             }
             ExtCommands::List { type_filter } => list_extensions(client, space_id, type_filter).await,
             ExtCommands::Get { id } => get_extension(client, space_id, &id).await,
@@ -84,7 +79,6 @@ async fn deploy_extension(
     client: EidosClient,
     space_id: &str,
     path: &str,
-    force: bool,
     slug: Option<String>,
 ) -> Result<()> {
     let path = Path::new(path);
@@ -97,83 +91,37 @@ async fn deploy_extension(
     let code = std::fs::read_to_string(path)
         .with_context(|| format!("Failed to read {}", path.display()))?;
 
-    // Generate extension ID from filename (fallback if slug not provided)
-    let id = path
-        .file_stem()
+    // Get original filename for TSX/TS detection (required)
+    let filename = path
+        .file_name()
         .and_then(|s| s.to_str())
-        .unwrap_or("unknown")
-        .to_string();
-
-    // Check if extension exists by slug (for update) or by id (for force overwrite)
-    let existing_id = if let Some(ref slug) = slug {
-        // Try to find existing extension by slug
-        let existing = client
-            .call_for_space(space_id, "extension.getExtensionBySlug", vec![serde_json::json!(slug)])
-            .await;
-        if let Ok(result) = existing {
-            if !result.is_null() {
-                result.get("id").and_then(|v| v.as_str()).map(|s| s.to_string())
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    } else if force {
-        // Try to find by id
-        let existing = client
-            .call_for_space(space_id, "extension.get", vec![serde_json::json!(&id)])
-            .await;
-        if let Ok(result) = existing {
-            if !result.is_null() {
-                Some(id.clone())
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    // If extension exists and force is not set, show error
-    if existing_id.is_none() && !force {
-        let existing = client
-            .call_for_space(space_id, "extension.get", vec![serde_json::json!(&id)])
-            .await;
-        if existing.is_ok() && !existing.unwrap().is_null() {
-            anyhow::bail!(
-                "Extension '{}' already exists. Use --force to overwrite or --slug <slug> to update by slug",
-                id
-            );
-        }
-    }
+        .map(|s| s.to_string())
+        .ok_or_else(|| anyhow::anyhow!("Invalid filename"))?;
 
     // Deploy using backend's installFromCode method
-    // Pass slug and existing_id to support update mode
+    // Pass optional slug for updating existing extension
     let result = client
         .call_for_space(
             space_id,
             "extension.installFromCode",
             vec![
                 serde_json::json!(code),
-                serde_json::json!(existing_id.as_deref().unwrap_or(&id)),
+                serde_json::json!(filename),
                 serde_json::json!(slug),
             ],
         )
         .await?;
 
-    let action = if existing_id.is_some() { "Updated" } else { "Deployed" };
-    let result_id = result.get("id").and_then(|v| v.as_str()).unwrap_or(&id);
+    let result_id = result.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
     let result_slug = result.get("slug").and_then(|v| v.as_str());
     let is_enabled = result.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
     
+    let action = if slug.is_some() { "Updated" } else { "Deployed" };
     println!(
         "{} Extension '{}' {}",
         "✓".green(),
         result_id.cyan(),
-        action.to_lowercase()
+        action.to_lowercase(),
     );
     
     if let Some(s) = result_slug {

@@ -209,29 +209,27 @@ class DataSpaceManager {
       context: {
         setInterval,
         // Inject extension compiler for CLI deployment support
-        compileExtension: async (code: string) => {
+        compileExtension: async (code: string, filename: string) => {
           const meta = (await extractConstant(code, "meta")) as any
 
-          // Determine type: block (tsx with JSX) or script (ts without JSX)
-          const hasJsx =
-            code.includes("(") &&
-            (code.includes("return <") ||
-              code.includes("=> <") ||
-              code.includes("React.createElement"))
-
+          // Determine type based on meta or filename extension
           const metaType = meta?.type
+          const hasTsxExtension = filename?.endsWith(".tsx")
           const type: "block" | "script" =
             metaType === "tableView" ||
             metaType === "extNode" ||
             metaType === "fileHandler" ||
-            hasJsx
+            hasTsxExtension
               ? "block"
               : "script"
 
-          // Compile code based on type
-          const compileMethod =
-            type === "block" ? blockCodeCompile : scriptCodeCompile
-          const compiledCode = await compileMethod(code)
+          // Use filename extension to determine parsing mode:
+          // .tsx → JSX mode (supports JSX elements + generics via lang option)
+          // .ts  → Pure TypeScript mode
+          // Fallback to type-based filename if not provided
+          const effectiveFilename =
+            filename || (type === "block" ? "extension.tsx" : "extension.ts")
+          const compiledCode = await blockCodeCompile(code, effectiveFilename)
 
           // Extract name from meta
           let name = "Unnamed Extension"

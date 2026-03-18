@@ -200,16 +200,30 @@ eidos space remove old-space
 Deploy an extension from a file.
 
 ```bash
+# Deploy a block with UI components (JSX supported)
 eidos ext deploy ./my-view.tsx
-eidos ext deploy ./script.ts --slug my-script --force
+
+# Deploy a pure TypeScript script (no JSX)
+eidos ext deploy ./my-script.ts
+
+# Update an existing extension by slug
+eidos ext deploy ./my-view.tsx --slug my-existing-slug
 ```
 
 **Options:**
 
-| Option          | Description                           |
-| --------------- | ------------------------------------- |
-| `-f, --force`   | Overwrite if extension already exists |
-| `--slug <slug>` | Specify unique slug for the extension |
+| Option          | Description                              |
+| --------------- | ---------------------------------------- |
+| `--slug <slug>` | Update existing extension with this slug |
+
+**File Extensions:**
+
+The file extension determines how the code is parsed:
+
+| Extension | Mode             | Use Case                                                              |
+| --------- | ---------------- | --------------------------------------------------------------------- |
+| `.tsx`    | JSX + TypeScript | Blocks with UI components (supports generics like `useState<T[]>()` ) |
+| `.ts`     | Pure TypeScript  | Scripts without JSX (table actions, doc actions, tools, etc.)         |
 
 ### `ext list`
 

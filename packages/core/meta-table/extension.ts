@@ -15,6 +15,7 @@ import { BlockExtensionType } from "../types/IExtension"
 import type { BaseTable } from "./base"
 import { BaseTableImpl } from "./base"
 import { performTrigramSearch } from "./doc/search"
+import { getUuid, getRawTableNameById } from "@/lib/utils"
 
 // Re-export types for backward compatibility
 export type { ExtensionStatus, IExtension, TableViewMeta }
@@ -832,13 +833,14 @@ export class ExtensionTable
    * a view instance in the eidos__view table so the view appears in the table.
    *
    * @param code - Raw TypeScript/TSX code
-   * @param id - Optional extension ID
-   * @param slug - Optional slug (for update by slug)
+   * @param filename - Original filename (e.g., "my-ext.tsx" or "my-script.ts")
+   *                   Used to determine parsing mode based on file extension
+   * @param slug - Optional slug for updating existing extension
    * @returns The installed extension
    */
   async installFromCode(
     code: string,
-    id?: string,
+    filename: string,
     slug?: string
   ): Promise<IExtension> {
     const compileExtension = this.dataSpace.context.compileExtension
@@ -848,21 +850,17 @@ export class ExtensionTable
       )
     }
 
-    // Use injected compiler
+    // Use injected compiler, pass filename for proper TSX/TS detection
     const { compiledCode, meta, type, name, description, slugPrefix } =
-      await compileExtension(code)
+      await compileExtension(code, filename)
 
-    // Check if we're updating an existing extension
+    // Check if we're updating an existing extension by slug
     let existingExtension: IExtension | null = null
-    if (id) {
-      existingExtension = await this.get(id)
-    }
-    if (!existingExtension && slug) {
+    if (slug) {
       existingExtension = await this.getExtensionBySlug(slug)
     }
 
     // For tableView extensions, check if the type conflicts with existing ones
-    // When creating a new extension (not updating), the type must be unique
     if (
       meta?.type === "tableView" &&
       meta.tableView?.type &&
@@ -882,8 +880,7 @@ export class ExtensionTable
     }
 
     // Generate ID and slug
-    const { getUuid } = await import("@/lib/utils")
-    const extensionId = existingExtension?.id || id || getUuid()
+    const extensionId = existingExtension?.id || getUuid()
 
     // Determine the slug to use
     let finalSlug: string
@@ -924,8 +921,6 @@ export class ExtensionTable
         code: extension.code,
         ts_code: extension.ts_code,
         meta: extension.meta,
-        // Preserve enabled status unless explicitly changed
-        // slug is preserved from existing extension
       })
       savedExtension = { ...existingExtension, ...extension }
     } else {
@@ -950,7 +945,6 @@ export class ExtensionTable
 
       if (!existingView) {
         // Create a new view instance for this table
-        const { getRawTableNameById } = await import("@/lib/utils")
         const tableName = getRawTableNameById(tableId)
 
         await this.dataSpace.view.add({

@@ -128,11 +128,14 @@ eidos rm -f -r archive/2023
 Deploy and manage extensions without touching the GUI.
 
 ```bash
-# Deploy a component from source with a specific slug
-eidos ext deploy ./my-block.tsx --slug my-custom-view
+# Deploy a block extension (UI component with .tsx)
+eidos ext deploy ./my-block.tsx
 
-# Force update an existing extension
-eidos ext deploy ./my-block.tsx --force
+# Deploy a script extension (pure logic with .ts)
+eidos ext deploy ./my-script.ts
+
+# Update an existing extension by slug
+eidos ext deploy ./my-block.tsx --slug my-existing-slug
 
 # List installed extensions
 eidos ext list
@@ -141,6 +144,15 @@ eidos ext list
 eidos ext enable <ext-id>
 eidos ext disable <ext-id>
 ```
+
+:::tip[File Extension Matters]
+The CLI uses the file extension to determine how to parse the code:
+
+- **`.tsx`** — JSX mode (supports React components with JSX syntax + TypeScript generics)
+- **`.ts`** — Pure TypeScript mode (for scripts without JSX)
+
+Always use `.tsx` for blocks with UI components (even if they use generic syntax like `useState<T[]>()`), and `.ts` for pure logic scripts.
+:::
 
 ## Scripting & AI Integration
 

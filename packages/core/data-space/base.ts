@@ -94,7 +94,10 @@ export abstract class BaseDataSpace {
      * Extension compiler function. Injected by desktop/headless layer.
      * Compiles TypeScript/TSX code and extracts metadata.
      */
-    compileExtension?: (code: string) => Promise<{
+    compileExtension?: (
+      code: string,
+      filename: string
+    ) => Promise<{
       compiledCode: string
       meta: any
       type: "block" | "script"
@@ -110,7 +113,10 @@ export abstract class BaseDataSpace {
     context: {
       setInterval?: typeof setInterval
       embedding?: (text: string) => Promise<Array<number>>
-      compileExtension?: (code: string) => Promise<{
+      compileExtension?: (
+        code: string,
+        filename: string
+      ) => Promise<{
         compiledCode: string
         meta: any
         type: "block" | "script"
