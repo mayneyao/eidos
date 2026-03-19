@@ -220,7 +220,7 @@ impl Config {
     /// Get current space ID or return error
     pub fn require_space(&self) -> Result<String> {
         self.space_id.clone()
-            .context("No space selected. Use 'eidos space use <space-id>' or pass --space")
+            .context("No space selected. Change to a space directory or use -s <space-id>")
     }
 
     /// Get the full endpoint for a space (with hostname)

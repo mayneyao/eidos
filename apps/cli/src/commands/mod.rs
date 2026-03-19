@@ -1,5 +1,6 @@
 pub mod completions;
 pub mod ext;
+pub mod mount;
 pub mod space;
 pub mod status;
 pub mod table;
@@ -10,6 +11,7 @@ use clap::Subcommand;
 use crate::client::EidosClient;
 use crate::config::Config;
 use crate::utils::OutputFormat;
+use crate::commands::mount::MountArgs;
 
 /// Node operations - filesystem-style commands for Eidos
 /// 
@@ -90,6 +92,16 @@ pub enum Commands {
     #[command(subcommand)]
     Table(table::TableCommands),
 
+    /// Mount management commands
+    /// 
+    /// Behaves like Unix mount command:
+    ///   eidos mount              # List all mounts
+    ///   eidos mount <name> <dir> # Mount directory
+    ///   eidos mount -u <name>    # Unmount
+    ///   eidos mount -l           # List mounts (explicit)
+    #[command(name = "mount")]
+    Mount(MountArgs),
+
     /// Check Eidos Desktop status
     Status,
 
@@ -110,11 +122,11 @@ impl Commands {
             Commands::List { .. } | Commands::View { .. } | Commands::Mkdir { .. } |
             Commands::Touch { .. } | Commands::Move { .. } |
             Commands::Remove { .. } | Commands::Sql { .. } |
-            Commands::Table(..)
+            Commands::Table(..) | Commands::Mount(..)
         );
         
         if needs_space && config.space_id.is_none() {
-            return Err(anyhow::anyhow!("No space selected. Use 'eidos space use <space-id>' first."));
+            return Err(anyhow::anyhow!("No space selected. Change to a space directory or use -s <space-id>"));
         }
 
         match self {
@@ -145,6 +157,7 @@ impl Commands {
             Commands::Space(cmd) => cmd.execute(client, config).await,
             Commands::Ext(cmd) => cmd.execute(client, config).await,
             Commands::Table(cmd) => cmd.execute(client, format).await,
+            Commands::Mount(args) => args.execute(client).await,
             Commands::Status => status::execute(client).await,
             Commands::Completions { shell } => completions::execute(shell),
         }

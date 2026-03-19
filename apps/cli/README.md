@@ -63,19 +63,15 @@ eidos sql "SELECT * FROM eidos__tree WHERE type = 'doc'"
 
 ### Space Selection
 
-The CLI automatically detects the space to use:
-
-1. **Auto-detection** (recommended): When inside a space directory, CLI automatically uses that space
-2. **Explicit flag**: Use `-s <space>` to specify a space
+The CLI automatically detects the space based on your current directory:
 
 ```bash
-# Auto-detect from current directory
+# Inside a space directory - auto-detected
 cd /path/to/my-space
 eidos ls
 
-# Explicit space selection
+# Outside a space directory - use -s flag
 eidos -s my-space ls
-eidos -s my-space cat readme
 ```
 
 ## Commands

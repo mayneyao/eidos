@@ -46,7 +46,7 @@ impl ExtCommands {
         let space_id = config
             .space_id
             .as_ref()
-            .context("No space selected. Use 'eidos space use <space-id>'")?;
+            .context("No space selected. Change to a space directory or use -s <space-id>")?;
 
         match self {
             ExtCommands::Deploy { path, slug } => {

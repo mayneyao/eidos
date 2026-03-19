@@ -120,8 +120,14 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_node_ls() {
-        let cli = Cli::try_parse_from(["eidos", "node", "ls", "/folder"]).unwrap();
-        assert!(matches!(cli.command, Commands::Node(_)));
+    fn test_cli_list() {
+        let cli = Cli::try_parse_from(["eidos", "ls", "/folder"]).unwrap();
+        assert!(matches!(cli.command, Commands::List { .. }));
+    }
+
+    #[test]
+    fn test_cli_mount() {
+        let cli = Cli::try_parse_from(["eidos", "mount", "ls"]).unwrap();
+        assert!(matches!(cli.command, Commands::Mount(_)));
     }
 }

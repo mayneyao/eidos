@@ -12,39 +12,18 @@ sidebar:
 | 选项               | 描述                                  |
 | ------------------ | ------------------------------------- |
 | `-s, --space <id>` | 目标空间 ID（如果在空间目录中则可选） |
+| `-f, --format`     | 输出格式：`table`（默认）或 `json`    |
 | `-h, --help`       | 显示帮助                              |
 | `-V, --version`    | 显示版本                              |
 
-## 空间选择
-
-CLI 自动检测要使用哪个空间：
-
-1. **自动检测**（推荐）：当在空间目录中时，CLI 自动使用该空间
-2. **显式指定**：使用 `-s <space>` 或 `--space <space>` 指定空间
-
-```bash
-# 在空间目录内 - 自动检测
-cd /path/to/my-space
-eidos ls
-eidos cat readme
-
-# 在空间目录外 - 显式指定
-eidos -s my-space ls
-eidos --space my-space cat readme
-```
-
-## 节点命令（文件系统风格）
-
-当开启名称唯一性时，节点可以通过路径寻址，如 `/folder/document`。
+## 节点命令
 
 ### `ls [path]`
 
 列出指定路径下的节点。
 
 ```bash
-eidos ls              # 列出根节点
-eidos ls projects     # 列出文件夹中的节点
-eidos ls -l           # 长格式显示（含 ID）
+eidos ls [path] [options]
 ```
 
 **选项：**
@@ -58,30 +37,25 @@ eidos ls -l           # 长格式显示（含 ID）
 查看文档内容（Markdown 输出）。
 
 ```bash
-eidos cat readme                  # 查看文档 Markdown
-eidos cat notes/ideas             # 查看文档内容
+eidos cat <path>
 ```
 
-**注意：** `cat` 仅支持文档类型。查询表格数据请使用 `sql` 命令。
+**注意：** 仅支持文档类型。查询表格数据请使用 `sql`。
 
 ### `mkdir <path>`
 
 创建文件夹。
 
 ```bash
-eidos mkdir projects
-eidos mkdir projects/2024/q1
+eidos mkdir <path>
 ```
-
-**注意：** 如果路径下已存在同名节点，将报错。
 
 ### `touch <path>`
 
 创建文档。
 
 ```bash
-eidos touch notes/ideas
-eidos touch projects/readme
+eidos touch <path> [options]
 ```
 
 **选项：**
@@ -90,66 +64,47 @@ eidos touch projects/readme
 | ---------------------- | ------------ |
 | `-c, --content <text>` | 初始文档内容 |
 
-**通过管道创建：**
+**管道：**
 
 ```bash
-# 从文件创建
-cat readme.md | eidos touch projects/readme
-
-# 从 echo 创建
-echo "# Hello World" | eidos touch notes/hello
-
-# 从命令输出创建
-date | eidos touch daily/now
-
-# 或使用 --content 参数
-eidos touch notes/ideas --content "# 我的想法"
+cat file.md | eidos touch notes/doc
+echo "text" | eidos touch notes/doc
 ```
-
-**注意：** 如果路径下已存在同名节点，将报错。
 
 ### `mv <source> <destination>`
 
 移动或重命名节点。
 
 ```bash
-# 重命名
-eidos mv drafts/article drafts/final-article
-
-# 移动到不同文件夹
-eidos mv drafts/article published/article
-
-# 移动到根目录
-eidos mv archive/2024/report report
+eidos mv <source> <destination>
 ```
 
 ### `append <path>`
 
-追加内容到现有文档。
+追加内容到文档。
 
 ```bash
-# 从字符串追加
-eidos append notes/daily --content "## 晚间笔记"
-
-# 从 stdin 追加（管道）
-echo "新行" | eidos append notes/log
-cat footer.md | eidos append projects/readme
-
-# 追加命令输出
-date | eidos append journal/activity
+eidos append <path> [options]
 ```
 
-**注意：** 文档必须已存在。如不存在请先使用 `touch` 创建。
+**选项：**
+
+| 选项                   | 描述         |
+| ---------------------- | ------------ |
+| `-c, --content <text>` | 要追加的内容 |
+
+**管道：**
+
+```bash
+echo "text" | eidos append notes/doc
+```
 
 ### `rm <path>`
 
 删除节点。
 
 ```bash
-eidos rm old-document              # 软删除（移入回收站）
-eidos rm sensitive -f              # 永久删除
-eidos rm old-folder -r             # 递归删除文件夹
-eidos rm sensitive-folder -rf      # 强制 + 递归
+eidos rm <path> [options]
 ```
 
 **选项：**
@@ -163,66 +118,108 @@ eidos rm sensitive-folder -rf      # 强制 + 递归
 
 ### `sql <query>`
 
-直接对 SQLite 数据库执行 **只读** SQL 查询。
+执行只读 SQL 查询。
 
 ```bash
 eidos sql "SELECT * FROM eidos__tree WHERE type = 'doc'"
-eidos sql "SELECT title, status FROM tb_abc123 WHERE status = 'todo'"
 ```
 
 :::caution
-**重要提示**：此命令仅用于 `SELECT` 查询。不要使用 `INSERT`、`UPDATE` 或 `DELETE` 语句，因为它们会绕过 Eidos 的事务处理机制，可能导致数据损坏。请使用适当的 CLI 命令（`touch`、`mkdir`、`mv`、`rm`）或桌面应用进行数据修改。
+**仅只读。** 不要使用 `INSERT`、`UPDATE` 或 `DELETE`，它们会绕过事务处理。
 :::
 
 ## 表格命令
 
 ### `table ls`
 
-列出当前空间中的所有表格。
+列出所有表格。
 
 ```bash
-eidos table ls         # 简单列表
-eidos table ls -l      # 详细列表（含 ID）
+eidos table ls [options]
 ```
+
+**选项：**
+
+| 选项         | 描述        |
+| ------------ | ----------- |
+| `-l, --long` | 显示表格 ID |
 
 ### `table schema <table-id>`
 
-显示表格的结构，包括字段名称、列名、类型和公式属性。
+显示表格结构。
 
 ```bash
-eidos table schema tb_abc123
+eidos table schema <table-id>
 ```
 
 **输出列：**
 
-| 列名         | 描述                                         |
-| ------------ | -------------------------------------------- |
-| `Name`       | 字段显示名称                                 |
-| `ColumnName` | 数据库列名（用于 SQL 查询）                  |
-| `Type`       | 字段类型（text、number、select、formula 等） |
-| `Property`   | 公式表达式（仅 formula 类型显示）            |
+| 列名         | 描述                        |
+| ------------ | --------------------------- |
+| `Name`       | 字段显示名称                |
+| `ColumnName` | 数据库列名（用于 SQL 查询） |
+| `Type`       | 字段类型                    |
+| `Property`   | 公式表达式（仅公式类型）    |
+
+## 挂载命令
+
+### `mount`
+
+列出所有挂载（默认行为）。
+
+```bash
+eidos mount
+eidos mount -l
+```
+
+### `mount <name> <path>`
+
+挂载目录。
+
+```bash
+eidos mount <name> <path>
+```
+
+**路径处理：**
+
+- `~` 展开为主目录
+- 相对路径解析为绝对路径
+- 目录必须存在
+
+**访问模式：** `/@/<name>/filename`
+
+### `mount -u <name>`
+
+卸载目录。
+
+```bash
+eidos mount -u <name>
+```
 
 ## 扩展命令
 
 ### `ext deploy <path>`
 
-从文件部署扩展。
+部署扩展。
 
 ```bash
-eidos ext deploy ./my-view.tsx
-eidos ext deploy ./script.ts --slug my-script --force
+eidos ext deploy <path> [options]
 ```
 
 **选项：**
 
-| 选项            | 描述                         |
-| --------------- | ---------------------------- |
-| `-f, --force`   | 如果扩展已存在则覆盖         |
-| `--slug <slug>` | 指定扩展的唯一标识符（slug） |
+| 选项            | 描述                       |
+| --------------- | -------------------------- |
+| `--slug <slug>` | 更新具有此 slug 的现有扩展 |
+
+**文件扩展名：**
+
+- `.tsx` — 带 JSX 组件的 Block
+- `.ts` — 纯 TypeScript 脚本
 
 ### `ext ls`
 
-列出所有扩展。
+列出扩展。
 
 ```bash
 eidos ext ls
@@ -233,7 +230,26 @@ eidos ext ls
 删除扩展。
 
 ```bash
-eidos ext rm my-extension
+eidos ext rm <id>
+```
+
+## 空间命令
+
+### `space ls`
+
+列出所有空间。
+
+```bash
+eidos space ls
+```
+
+### `space open [id]`
+
+在 Eidos Desktop 中打开空间。
+
+```bash
+eidos space open
+eidos space open <id>
 ```
 
 ## 其他命令
@@ -246,50 +262,12 @@ eidos ext rm my-extension
 eidos status
 ```
 
-**输出：**
-
-```
-✓ Connected to Eidos Desktop (v0.5.0)
-  Space: my-space
-```
-
 ### `completions <shell>`
 
-生成 Shell 自动补全脚本。
+生成 shell 自动补全脚本。
 
 ```bash
 eidos completions bash
 eidos completions zsh
 eidos completions fish
-```
-
-## 示例
-
-### 操作文档
-
-```bash
-# 创建并查看文档
-eidos touch notes/ideas
-eidos cat notes/ideas
-
-# 移动文档到不同文件夹
-eidos mkdir archive
-eidos mv notes/ideas archive/ideas
-```
-
-### 操作表格
-
-```bash
-# 使用 SQL 查询表格数据
-eidos sql "SELECT * FROM tb_xxx WHERE status = 'todo'"
-```
-
-### 批量操作
-
-```bash
-# 创建文件夹结构
-eidos mkdir projects
-eidos mkdir projects/2024
-eidos touch projects/2024/roadmap
-eidos touch projects/2024/milestones
 ```

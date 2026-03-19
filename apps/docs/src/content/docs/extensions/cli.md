@@ -6,211 +6,63 @@ sidebar:
   badge: New
 ---
 
-The `eidos` CLI provides a powerful, developer-friendly command-line interface for interacting with Eidos Desktop. It is designed for automation, AI agents, and power users who prefer the terminal for fast data operations and extension management.
+The `eidos` CLI provides a command-line interface for interacting with Eidos Desktop. It is designed for automation, AI agents, and power users who prefer terminal-based workflows.
 
 :::tip
-Eidos Desktop must be running for the CLI to interact with your data.
+Eidos Desktop must be running for the CLI to work.
 :::
 
-## Key Features
+## Design Philosophy
 
-- **Filesystem-style Commands**: Manage documents and folders using familiar commands like `ls`, `cat`, `mkdir`, `touch`, `mv`, and `rm`.
-- **Path-based Addressing**: Address any node using its semantic path (e.g., `projects/roadmap`) when name uniqueness is enabled.
-- **AI-Optimized**: Supports `--format json` for easy parsing by AI agents and scripts.
-- **Extension Deployment**: Deploy blocks and scripts directly from your local filesystem.
-- **Raw SQL Access**: Execute queries directly against your space's SQLite database.
+The CLI treats your Eidos space as a filesystem:
 
-## Installation & Setup
+- **Documents** are files you can read (`cat`), create (`touch`), and modify (`append`)
+- **Folders** are directories you can navigate (`ls`) and create (`mkdir`)
+- **Tables** are queryable data stores accessible via SQL
+- **External directories** can be mounted and accessed via `/@/<name>/` paths
 
-The CLI binary is bundled with Eidos Desktop. No separate download needed.
+This design allows you to use familiar Unix-style commands to manage your personal data.
 
-### Install via Command Palette
+## Installation
+
+The CLI is bundled with Eidos Desktop:
 
 1. Open Eidos Desktop
 2. Press `Cmd/Ctrl + K` to open Command Palette
 3. Type "install eidos" and select "Install 'eidos' command in PATH"
-4. The CLI will be added to your system PATH
 
-### Verify Installation
+Verify with `eidos status`.
 
-```bash
-eidos status
-```
+## Space Selection
 
-## Space Auto-Detection
+The CLI automatically detects your space based on the current directory. When inside a space directory, commands automatically target that space.
 
-The CLI automatically detects which space to use based on your current directory. When inside a space directory, commands will automatically target that space.
+For other locations, use the `-s <space>` flag to specify a space explicitly.
 
-```bash
-# Inside a space directory - automatically detected
-cd /path/to/my-space
-eidos ls
-eidos cat readme
+## Key Capabilities
 
-# Outside a space directory - use -s flag
-eidos -s my-space ls
-```
+### Filesystem-Style Operations
 
-## Node Operations (FS-style)
+Manage nodes using familiar commands: `ls`, `cat`, `mkdir`, `touch`, `mv`, `rm`, `append`. Nodes are addressed by paths like `projects/roadmap` when name uniqueness is enabled.
 
-Eidos CLI treats your space like a filesystem. Documents and tables are nodes in a tree.
+### External Directory Mounts
 
-### `ls [path]`
+Mount local directories to access them via `/@/<mount-name>/` paths within Eidos. This is useful for large files (media libraries, document collections) that you don't want to store in the synchronized `.eidos` directory.
 
-List child nodes at a path.
+### SQL Queries
 
-```bash
-# List root nodes
-eidos ls
+Execute read-only SQL queries directly against your space's SQLite database for advanced data extraction.
 
-# List nodes in a folder with details
-eidos ls projects --long
-```
+### Extension Deployment
 
-### `touch <path>`
+Deploy blocks and scripts from local files without using the GUI. The CLI detects file types (`.tsx` for JSX components, `.ts` for pure scripts) and handles compilation automatically.
 
-Create a document.
+### AI-Optimized Output
 
-```bash
-# Create empty document
-eidos touch notes/meeting-notes
+Use `--format json` for machine-readable output, enabling easy integration with AI agents and automation scripts.
 
-# Create with content
-eidos touch notes/idea --content "# My Idea\nThis is a great idea."
+## Documentation
 
-# Pipe content from another command
-cat draft.md | eidos touch papers/final
-```
-
-### `cat <path>`
-
-View document content (markdown output).
-
-```bash
-# View document markdown
-eidos cat notes/idea
-```
-
-**Note:** `cat` only works with documents. Use `sql` for querying table data.
-
-### `mkdir <path>`
-
-Create a folder.
-
-```bash
-eidos mkdir archive/2024/january
-```
-
-### `mv <src> <dst>`
-
-Move or rename a node.
-
-```bash
-# Rename
-eidos mv notes/idea notes/archived-idea
-
-# Move to different folder
-eidos mv notes/archived-idea archive/2024/
-```
-
-### `rm <path>`
-
-Delete a node.
-
-```bash
-# Move to trash
-eidos rm old-doc
-
-# Permanently delete recursively (be careful!)
-eidos rm -f -r archive/2023
-```
-
-## Table Operations
-
-### List Tables
-
-```bash
-eidos table ls
-eidos table ls -l
-```
-
-### Show Table Schema
-
-View field names, column names (for SQL), types, and formula definitions:
-
-```bash
-eidos table schema tb_abc123
-```
-
-**Output:**
-
-| Column       | Description                            |
-| ------------ | -------------------------------------- |
-| `Name`       | Field display name                     |
-| `ColumnName` | Database column name (use in SQL)      |
-| `Type`       | Field type                             |
-| `Property`   | Formula expression (formula type only) |
-
-## Extension Management
-
-Deploy and manage extensions without touching the GUI.
-
-```bash
-# Deploy a block extension (UI component with .tsx)
-eidos ext deploy ./my-block.tsx
-
-# Deploy a script extension (pure logic with .ts)
-eidos ext deploy ./my-script.ts
-
-# Update an existing extension by slug
-eidos ext deploy ./my-block.tsx --slug my-existing-slug
-
-# List installed extensions
-eidos ext ls
-
-# Delete an extension
-eidos ext rm <ext-id>
-```
-
-:::tip[File Extension Matters]
-The CLI uses the file extension to determine how to parse the code:
-
-- **`.tsx`** — JSX mode (supports React components with JSX syntax + TypeScript generics)
-- **`.ts`** — Pure TypeScript mode (for scripts without JSX)
-
-Always use `.tsx` for blocks with UI components (even if they use generic syntax like `useState<T[]>()`), and `.ts` for pure logic scripts.
-:::
-
-## Scripting & AI Integration
-
-The CLI is designed to be bridged with other tools.
-
-### JSON Output
-
-Use the `--format json` or `-f json` flag to get machine-readable output:
-
-```bash
-eidos ls -f json
-```
-
-### SQL Execution
-
-Run raw SQL queries for complex data extraction:
-
-```bash
-eidos sql "SELECT title FROM users WHERE status = 'active' LIMIT 5"
-```
-
-### Shell Completions
-
-Generate completion scripts for your shell:
-
-```bash
-eidos completions zsh > ~/.zsh/completion/_eidos
-```
-
-## Learn More
-
+- [CLI How-To Guide](../../how-to/use-cli/) - Common workflows and examples
 - [CLI API Reference](../../api-reference/cli/) - Complete command reference
-- [API Reference: Node API](../../api-reference/node/) - Understanding node structures
-- [How-to: Deploy Extensions](../../how-to/deploy-extensions/) - Practical extension development guide
+- [Node API Reference](../../api-reference/node/) - Understanding node structures
