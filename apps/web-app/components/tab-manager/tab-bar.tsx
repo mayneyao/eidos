@@ -132,7 +132,17 @@ export function TabBar({
         return
       }
 
-      // 2) Node tabs: "/<nodeId>"
+      // 2) Folder handler tabs with explicit folder paths
+      const folderHandlerPattern = new URLPattern({ pathname: "/folder" })
+      const folderHandlerMatch = folderHandlerPattern.exec(url)
+      if (folderHandlerMatch && url.includes("#")) {
+        const hashIndex = url.indexOf("#")
+        const folderPath = decodeURIComponent(url.substring(hashIndex + 1))
+        dispatchExpandTo("files", folderPath)
+        return
+      }
+
+      // 3) Node tabs: "/<nodeId>"
       const nodePattern = new URLPattern({ pathname: "/:nodeId" })
       const nodeMatch = nodePattern.exec(url)
       if (nodeMatch?.pathname?.groups?.nodeId) {

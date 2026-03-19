@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface ExtensionPreviewProps {
-  type: "sidebar" | "file-handler" | null
+  type: "sidebar" | "file-handler" | "folder-handler" | null
 }
 
 export function ExtensionPreview({ type }: ExtensionPreviewProps) {
@@ -49,7 +49,9 @@ export function ExtensionPreview({ type }: ExtensionPreviewProps) {
         <div
           className={cn(
             "flex-1 flex flex-col transition-all duration-300",
-            type === "file-handler" ? "bg-primary/5" : ""
+            type === "file-handler" || type === "folder-handler"
+              ? "bg-primary/5"
+              : ""
           )}
         >
           {/* Header */}
@@ -60,7 +62,7 @@ export function ExtensionPreview({ type }: ExtensionPreviewProps) {
             <div
               className={cn(
                 "flex-1 rounded border border-dashed border-muted-foreground/20 flex flex-col items-center justify-center gap-2 p-4",
-                type === "file-handler"
+                type === "file-handler" || type === "folder-handler"
                   ? "border-primary/40 bg-primary/5 shadow-[inset_0_0_20px_rgba(var(--primary),0.05)]"
                   : ""
               )}
@@ -75,6 +77,20 @@ export function ExtensionPreview({ type }: ExtensionPreviewProps) {
                   <div className="text-center space-y-2">
                     <div className="text-xs text-primary font-medium">
                       Opens in Editor
+                    </div>
+                    <Skeleton className="h-2 w-24 bg-primary/10 mx-auto" />
+                  </div>
+                </>
+              ) : type === "folder-handler" ? (
+                <>
+                  <div className="h-12 w-16 rounded bg-primary/20 flex items-center justify-center animate-pulse border border-primary/20">
+                    <span className="text-[10px] text-primary font-bold">
+                      📁
+                    </span>
+                  </div>
+                  <div className="text-center space-y-2">
+                    <div className="text-xs text-primary font-medium">
+                      Browses Folders
                     </div>
                     <Skeleton className="h-2 w-24 bg-primary/10 mx-auto" />
                   </div>
@@ -100,6 +116,11 @@ export function ExtensionPreview({ type }: ExtensionPreviewProps) {
         {type === "file-handler" && (
           <span className="flex items-center gap-1 text-primary">
             Handles opening files
+          </span>
+        )}
+        {type === "folder-handler" && (
+          <span className="flex items-center gap-1 text-primary">
+            Handles browsing folders
           </span>
         )}
       </div>

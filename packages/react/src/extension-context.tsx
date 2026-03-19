@@ -41,6 +41,15 @@ export interface FileHandlerContext extends BaseExtensionContext {
 }
 
 /**
+ * Context for FolderHandler type extensions
+ */
+export interface FolderHandlerContext extends BaseExtensionContext {
+  type: "folderHandler"
+  folderPath: string
+  folderName: string
+}
+
+/**
  * Context for SidebarBlock type extensions
  */
 export interface SidebarBlockContext extends BaseExtensionContext {
@@ -58,6 +67,7 @@ export type ExtensionContextType =
   | ExtNodeContext
   | TableViewContext
   | FileHandlerContext
+  | FolderHandlerContext
   | SidebarBlockContext
 
 /**
@@ -232,6 +242,15 @@ export function isFileHandlerContext(
   ctx: ExtensionContextType
 ): ctx is FileHandlerContext {
   return ctx.type === "fileHandler"
+}
+
+/**
+ * Type guard to check if context is FolderHandlerContext
+ */
+export function isFolderHandlerContext(
+  ctx: ExtensionContextType
+): ctx is FolderHandlerContext {
+  return ctx.type === "folderHandler"
 }
 
 /**

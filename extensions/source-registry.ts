@@ -6,18 +6,30 @@
  */
 
 import { registerExtensionSource } from "./eject-extension"
+import folder_browser_index_tsx from "./blocks/folder-browser/index.tsx?raw"
+import graft_index_tsx from "./blocks/graft/index.tsx?raw"
+import graft_use_graft_ts from "./blocks/graft/use-graft.ts?raw"
 import journal_index_tsx from "./blocks/journal/index.tsx?raw"
 import journal_use_journals_ts from "./blocks/journal/use-journals.ts?raw"
 import journal_utils_ts from "./blocks/journal/utils.ts?raw"
 import media_preview_index_tsx from "./blocks/media-preview/index.tsx?raw"
-import graft_index_tsx from "./blocks/graft/index.tsx?raw"
-import graft_use_graft_ts from "./blocks/graft/use-graft.ts?raw"
 import monaco_editor_index_tsx from "./blocks/monaco-editor/index.tsx?raw"
 
 /**
  * Register all built-in extension sources with their files
  */
 export function initializeExtensionSources() {
+  // folder-browser
+  registerExtensionSource("folder-browser", {
+    "index.tsx": folder_browser_index_tsx,
+  })
+
+  // graft
+  registerExtensionSource("graft", {
+    "index.tsx": graft_index_tsx,
+    "use-graft.ts": graft_use_graft_ts,
+  })
+
   // journal
   registerExtensionSource("journal", {
     "index.tsx": journal_index_tsx,
@@ -28,12 +40,6 @@ export function initializeExtensionSources() {
   // media-preview
   registerExtensionSource("media-preview", {
     "index.tsx": media_preview_index_tsx,
-  })
-
-  // graft
-  registerExtensionSource("graft", {
-    "index.tsx": graft_index_tsx,
-    "use-graft.ts": graft_use_graft_ts,
   })
 
   // monaco-editor

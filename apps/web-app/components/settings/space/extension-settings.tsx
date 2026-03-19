@@ -26,7 +26,7 @@ import { ExtensionPreview } from "./extension-preview"
 const EXTENSIONS = builtInExtensions
   .map((ext) => {
     const meta = ext.meta as any
-    let type: "sidebar" | "file-handler" | undefined
+    let type: "sidebar" | "file-handler" | "folder-handler" | undefined
     let description = ""
 
     if (meta.type === "sidebarBlock") {
@@ -35,6 +35,9 @@ const EXTENSIONS = builtInExtensions
     } else if (meta.type === "fileHandler") {
       type = "file-handler"
       description = meta.fileHandler?.description || ""
+    } else if (meta.type === "folderHandler") {
+      type = "folder-handler"
+      description = meta.folderHandler?.description || ""
     }
 
     if (!type) return null
@@ -46,6 +49,7 @@ const EXTENSIONS = builtInExtensions
       slug: ext.slug,
       title: (meta.sidebarBlock?.title ||
         meta.fileHandler?.title ||
+        meta.folderHandler?.title ||
         ext.slug) as string,
       description,
       type,
@@ -56,7 +60,7 @@ const EXTENSIONS = builtInExtensions
   slug: string
   title: string
   description: string
-  type: "sidebar" | "file-handler"
+  type: "sidebar" | "file-handler" | "folder-handler"
 }[]
 
 export function ExtensionSettings() {
@@ -64,7 +68,7 @@ export function ExtensionSettings() {
   const { isExtensionEnabled, toggleExtension } = useExtensionSettings()
   const { eject, isEjecting, canEject } = useEjectExtension()
   const [filterType, setFilterType] = useState<
-    "all" | "sidebar" | "file-handler"
+    "all" | "sidebar" | "file-handler" | "folder-handler"
   >("all")
 
   const filteredExtensions = EXTENSIONS.filter(
@@ -77,6 +81,8 @@ export function ExtensionSettings() {
         return t("space.settings.extensions.sidebarBlocks", "Sidebar Blocks")
       case "file-handler":
         return t("space.settings.extensions.fileHandlers", "File Handlers")
+      case "folder-handler":
+        return t("space.settings.extensions.folderHandlers", "Folder Handlers")
       default:
         return t("space.settings.extensions.allTypes", "All Types")
     }
@@ -146,6 +152,29 @@ export function ExtensionSettings() {
                 </div>
               </HoverCardContent>
             </HoverCard>
+
+            <HoverCard openDelay={0} closeDelay={0}>
+              <HoverCardTrigger asChild>
+                <DropdownMenuItem
+                  onClick={() => setFilterType("folder-handler")}
+                >
+                  {t(
+                    "space.settings.extensions.folderHandlers",
+                    "Folder Handlers"
+                  )}
+                </DropdownMenuItem>
+              </HoverCardTrigger>
+              <HoverCardContent
+                side="left"
+                align="start"
+                className="w-[320px] p-0 border-none bg-transparent shadow-none"
+                avoidCollisions
+              >
+                <div className="bg-background border rounded-lg shadow-lg">
+                  <ExtensionPreview type="folder-handler" />
+                </div>
+              </HoverCardContent>
+            </HoverCard>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -178,10 +207,15 @@ export function ExtensionSettings() {
                     <Badge variant="secondary" className="text-xs capitalize">
                       {ext.type === "sidebar"
                         ? t("space.settings.extensions.sidebar", "Sidebar")
-                        : t(
-                            "space.settings.extensions.fileHandler",
-                            "File Handler"
-                          )}
+                        : ext.type === "file-handler"
+                          ? t(
+                              "space.settings.extensions.fileHandler",
+                              "File Handler"
+                            )
+                          : t(
+                              "space.settings.extensions.folderHandler",
+                              "Folder Handler"
+                            )}
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground truncate">

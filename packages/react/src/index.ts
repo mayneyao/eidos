@@ -42,6 +42,7 @@ export {
   isExtNodeContext,
   isTableViewContext,
   isFileHandlerContext,
+  isFolderHandlerContext,
   isSidebarBlockContext,
 } from "./extension-context"
 export type {
@@ -49,6 +50,7 @@ export type {
   ExtNodeContext,
   TableViewContext,
   FileHandlerContext,
+  FolderHandlerContext,
   SidebarBlockContext,
   ExtensionContextType,
 } from "./extension-context"

@@ -146,6 +146,7 @@ const FileTree = ({
     event?: React.MouseEvent | React.KeyboardEvent
   ) => {
     // Determine navigation path
+    console.log("node", node)
     let targetPath = ""
     if (node.metadata?.nodeType && node.metadata?.nodeType !== "extension") {
       // Navigate to node (table, doc, folder, dataview)
@@ -156,6 +157,9 @@ const FileTree = ({
     } else if (node.kind === "file") {
       // Regular file - use file handler
       targetPath = `/file-handler#${node.path}`
+    } else if (node.kind === "directory") {
+      // Directory - use folder handler
+      targetPath = `/folder#${node.path}`
     }
 
     if (!targetPath) return

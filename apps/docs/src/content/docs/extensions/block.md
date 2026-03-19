@@ -390,6 +390,193 @@ const stats = await eidos.currentSpace.fs.stat(filePath)
 
 For more details on the file system API, see [Space API Reference - File System API](/api-reference/space/#file-system-api).
 
+### 4.4 Folder Handler Extensions (RFC)
+
+Provide custom folder/directory browsing and management capabilities, similar to File Handler but for directories instead of individual files.
+
+:::tip[Folder Handler vs File Handler]
+**Folder vs File**:
+
+- **Folder Handler**: Handles **directories/folders**, providing custom browsing experiences (gallery view, tree view, specialized management)
+- **File Handler**: Handles **individual files**, providing editing, preview, or playback capabilities
+
+Both use the same file system API but with different focus: Folder Handler uses `readdir()` and `stat()`, while File Handler uses `readFile()` and `writeFile()`.
+:::
+
+#### URL Access Pattern
+
+Folder paths are passed through hash (same as File Handler):
+
+```
+<extid>.block.<spaceId>.eidos.localhost:13127#<folderPath>
+```
+
+**URL Examples:**
+
+```
+# Browse photos folder
+gallery-viewer.block.my-space.eidos.localhost:13127#~/photos
+
+# Open project workspace
+project-dashboard.block.my-space.eidos.localhost:13127#@/work/project-a
+
+# Browse root directory
+file-browser.block.my-space.eidos.localhost:13127#~/
+```
+
+#### Meta Configuration
+
+```typescript
+interface FolderHandlerMeta {
+  type: "folderHandler"
+  componentName: string
+  folderHandler: {
+    title: string // Handler display name
+    description: string // Handler description
+    // Match patterns for folder paths (supports wildcards)
+    patterns: string[]
+    // Optional: specific folder names to match
+    folderNames?: string[]
+    // Optional: icon identifier
+    icon?: string
+    // Optional: whether this handler can handle root paths
+    allowRoot?: boolean
+    // Optional: priority for handler selection (higher = preferred)
+    priority?: number
+  }
+}
+```
+
+**Pattern Examples:**
+
+```typescript
+// Match by folder name (any location)
+{ patterns: ["*/photos", "*/pictures"] }
+
+// Match by specific path
+{ patterns: ["~/projects/*", "@/work/*/docs"] }
+
+// Match any folder (fallback handler)
+{ patterns: ["*"], priority: 0 }
+
+// Match root directories only
+{ patterns: ["~/", "@/"], allowRoot: true }
+```
+
+#### Handler Selection Logic
+
+1. Extract folder path from URL hash
+2. Query all folder handlers from `eidos__extensions` table
+3. Filter handlers by pattern matching against folder path
+4. Sort by priority (highest first)
+5. If only one handler matches, use it; otherwise check user default or prompt selection
+
+**Default Handler Storage:**
+
+```typescript
+// Key format: eidos:space:folder:handler:default:<folderPath>
+await eidos.currentSpace.kv.put(
+  `eidos:space:folder:handler:default:~/photos`,
+  "gallery-viewer-ext-id"
+)
+```
+
+#### Context Interface
+
+```typescript
+interface FolderHandlerContext extends BaseExtensionContext {
+  type: "folderHandler"
+  folderPath: string // Absolute folder path (e.g., "~/photos")
+  folderName: string // Folder name (e.g., "photos")
+}
+```
+
+#### Implementation Example: Gallery Viewer
+
+```tsx
+import {
+  useExtensionContext,
+  type FolderHandlerContext,
+} from "@eidos.space/react"
+
+export const meta = {
+  type: "folderHandler",
+  componentName: "GalleryViewer",
+  folderHandler: {
+    title: "Gallery Viewer",
+    description: "Visual photo gallery with thumbnail grid",
+    patterns: ["*/photos", "*/images", "*.album"],
+    icon: "🖼️",
+    priority: 100,
+  },
+}
+
+export function GalleryViewer() {
+  const ctx = useExtensionContext<FolderHandlerContext>()
+  const { folderPath, folderName } = ctx
+  const [images, setImages] = useState([])
+
+  useEffect(() => {
+    loadImages()
+  }, [folderPath])
+
+  const loadImages = async () => {
+    // List all files in folder
+    const entries = await eidos.currentSpace.fs.readdir(folderPath, {
+      withFileTypes: true,
+    })
+
+    // Filter for image files
+    const imageEntries = entries.filter(
+      (entry) =>
+        entry.kind === "file" && /\.(jpg|jpeg|png|gif|webp)$/i.test(entry.name)
+    )
+
+    setImages(
+      imageEntries.map((e) => ({
+        name: e.name,
+        path: `${folderPath}/${e.name}`,
+      }))
+    )
+  }
+
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">{folderName}</h1>
+      <div className="grid grid-cols-4 gap-4">
+        {images.map((image) => (
+          <img
+            key={image.path}
+            src={`http://${window.location.host}${image.path}`}
+            alt={image.name}
+            className="aspect-square object-cover rounded-lg"
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+```
+
+#### File System API for Folders
+
+```typescript
+// List directory contents
+const entries = await eidos.currentSpace.fs.readdir(folderPath, {
+  withFileTypes: true, // Returns { name, kind } objects
+  recursive: false, // Set true for deep listing
+})
+
+// Get folder stats
+const stats = await eidos.currentSpace.fs.stat(folderPath)
+console.log(stats.isDirectory) // true
+
+// Watch for changes
+for await (const event of eidos.currentSpace.fs.watch(folderPath)) {
+  console.log(`${event.filename} ${event.eventType}`)
+}
+```
+
 ## 5. Directive System
 
 Block supports a directive system designed for lightweight extensions that do not require a complex `meta` configuration object. By adding specific string literals at the top of the file, you can easily define the behavior and rendering mode of the Block.
@@ -512,11 +699,11 @@ export function MyNewTab() {
 - Once configured, opening a new tab (or the home page) will render this block instead of the default Eidos dashboard.
 - You can revert to the default dashboard at any time in settings.
 
-## 7. Security Considerations
+## 6. Security Considerations
 
 Extension execution should be properly sandboxed to prevent unauthorized system access. Implementations must validate component props and enforce appropriate isolation between extensions and the host application.
 
-## 8. Implementation Requirements
+## 7. Implementation Requirements
 
 - When specific extension functionality is required, a `meta` object conforming to the specified interface should be exported
 - When no `meta` object is exported, the component runs as a regular React component
@@ -524,7 +711,7 @@ Extension execution should be properly sandboxed to prevent unauthorized system 
 - Proper error boundaries and loading states should be implemented
 - When interacting with application data, data fetching must be performed through the Eidos SDK
 
-## 7. Future Extensions
+## 8. Future Extensions
 
 This specification may be extended to support additional extension types, including but not limited to:
 

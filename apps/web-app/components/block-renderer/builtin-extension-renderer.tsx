@@ -15,6 +15,7 @@ import {
   ExtensionContextProvider,
   type ExtNodeContext,
   type FileHandlerContext,
+  type FolderHandlerContext,
   type SidebarBlockContext,
   type TableViewContext,
 } from "@eidos.space/react"
@@ -41,6 +42,14 @@ interface BuiltInFileHandlerRendererProps {
   space: string
   locale: string
   filePath: string
+  fallback?: ReactNode
+}
+
+interface BuiltInFolderHandlerRendererProps {
+  extensionSlug: string
+  space: string
+  locale: string
+  folderPath: string
   fallback?: ReactNode
 }
 
@@ -147,6 +156,45 @@ export function BuiltInFileHandlerRenderer({
     space,
     locale,
     filePath,
+  }
+
+  const Component = ext.component
+
+  return (
+    <Suspense fallback={fallback || <div>Loading...</div>}>
+      <ExtensionContextProvider context={context}>
+        <Component />
+      </ExtensionContextProvider>
+    </Suspense>
+  )
+}
+
+/**
+ * Renders a built-in FolderHandler extension directly in React
+ */
+export function BuiltInFolderHandlerRenderer({
+  extensionSlug,
+  space,
+  locale,
+  folderPath,
+  fallback,
+}: BuiltInFolderHandlerRendererProps) {
+  const ext = getBuiltInExtension(extensionSlug)
+
+  if (!ext) {
+    console.warn(`Built-in extension not found: ${extensionSlug}`)
+    return fallback || null
+  }
+
+  // Extract folder name from path
+  const folderName = folderPath.split("/").filter(Boolean).pop() || ""
+
+  const context: FolderHandlerContext = {
+    type: "folderHandler",
+    space,
+    locale,
+    folderPath,
+    folderName,
   }
 
   const Component = ext.component
