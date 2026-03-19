@@ -1,4 +1,10 @@
-import { createContext, useContext, type ReactNode } from "react"
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react"
 
 /**
  * Base context interface shared by all extension types
@@ -164,7 +170,32 @@ export function useExtensionContext<
   }
 
   // 2. Fallback to URL parsing (third-party iframe extensions)
-  const urlContext = parseContextFromLocation()
+  // For third-party extensions, we need to listen to URL changes
+  // because the host may change the hash without reloading the iframe
+  const [urlContext, setUrlContext] = useState<ExtensionContextType | null>(
+    parseContextFromLocation
+  )
+
+  useEffect(() => {
+    // Only set up listeners for third-party extensions (running in iframe/webview)
+    if (reactContext) return
+
+    const handleHashChange = () => {
+      setUrlContext(parseContextFromLocation())
+    }
+
+    // Listen to hash changes
+    window.addEventListener("hashchange", handleHashChange)
+
+    // Also listen to popstate for history changes
+    window.addEventListener("popstate", handleHashChange)
+
+    return () => {
+      window.removeEventListener("hashchange", handleHashChange)
+      window.removeEventListener("popstate", handleHashChange)
+    }
+  }, [reactContext])
+
   if (urlContext) {
     return urlContext as T
   }

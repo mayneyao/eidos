@@ -1,6 +1,6 @@
 {
   "name": "@eidos.space/react",
-  "version": "0.27.0",
+  "version": "0.27.1",
   "description": "React hooks and context for Eidos extensions",
   "main": "./src/index.ts",
   "module": "./src/index.ts",
