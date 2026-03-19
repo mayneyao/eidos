@@ -2,11 +2,13 @@ import { useEffect, useState } from "react"
 import {
   AlertTriangle,
   CheckCircle2,
-  FileText,
+  Database,
   FolderOpen,
-  Info,
+  HardDrive,
   Save,
   Search,
+  Settings2,
+  Trash2,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
@@ -266,7 +268,8 @@ export function GeneralSettings() {
 
   return (
     <div className="space-y-0">
-      <div className="py-4">
+      <div className="py-4 flex items-center gap-2">
+        <Settings2 className="h-5 w-5 text-muted-foreground" />
         <h3 className="text-lg font-medium">{t("space.settings.spaceInfo")}</h3>
       </div>
 
@@ -318,7 +321,8 @@ export function GeneralSettings() {
         </div>
       </div>
 
-      <div className="py-4">
+      <div className="py-4 flex items-center gap-2">
+        <Database className="h-5 w-5 text-muted-foreground" />
         <h3 className="text-lg font-medium">
           {t("space.settings.dataManagement")}
         </h3>
@@ -467,7 +471,8 @@ export function GeneralSettings() {
         </div>
       </div>
 
-      <div className="py-4">
+      <div className="py-4 flex items-center gap-2">
+        <Trash2 className="h-5 w-5 text-destructive" />
         <h3 className="text-lg font-medium text-destructive">
           {t("space.settings.dangerZone")}
         </h3>
@@ -500,7 +505,8 @@ export function GeneralSettings() {
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>
+                      <AlertDialogTitle className="flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5 text-destructive" />
                         {t("common.areYouAbsolutelySure")}
                       </AlertDialogTitle>
                       <AlertDialogDescription>
@@ -523,8 +529,9 @@ export function GeneralSettings() {
                       <AlertDialogAction
                         onClick={handleUnregister}
                         disabled={confirmName !== space}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       >
-                        {t("common.continue")}
+                        {t("common.delete")}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

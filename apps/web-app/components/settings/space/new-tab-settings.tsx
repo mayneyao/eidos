@@ -2,10 +2,13 @@ import { useEffect, useState } from "react"
 import type { IExtension } from "@/packages/core/types/IExtension"
 import { detectDirective } from "@eidos.space/v3"
 import {
-  ExternalLinkIcon,
+  ExternalLink,
   LayoutTemplate,
   SquareMousePointer,
+  Plus,
+  LayoutGrid,
 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
@@ -16,6 +19,7 @@ import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 
 export function NewTabSettings() {
+  const { t } = useTranslation()
   const { sqlite } = useSqlite()
   const { navigate } = useRouterAdapter()
   const [newTabBlocks, setNewTabBlocks] = useState<IExtension[]>([])
@@ -25,7 +29,6 @@ export function NewTabSettings() {
     ""
   )
 
-  // Load all blocks with "use newtab" directive
   useEffect(() => {
     if (!sqlite) return
 
@@ -60,112 +63,132 @@ export function NewTabSettings() {
 
   if (isLoading) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        Loading new tab options...
+      <div className="py-6 text-sm text-muted-foreground">
+        {t("space.settings.newtab.loading", "Loading new tab options...")}
       </div>
     )
   }
 
   return (
     <div className="space-y-0">
-      <div className="py-4">
-        <h3 className="text-lg font-medium">New Tab Page</h3>
+      {/* New Tab Page Section */}
+      <div className="py-4 flex items-center gap-2">
+        <LayoutGrid className="h-5 w-5 text-muted-foreground" />
+        <h3 className="text-lg font-medium">
+          {t("space.settings.newtab.title", "New Tab Page")}
+        </h3>
       </div>
 
       <hr className="border-border" />
 
       <div className="py-6">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-sm text-muted-foreground mb-4">
-              Choose what happens when you open a new tab. You can use the
-              default dashboard or select a custom block.
-            </p>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {t(
+              "space.settings.newtab.description",
+              "Choose what happens when you open a new tab."
+            )}
+          </p>
 
-            <RadioGroup
-              value={selectedBlockId || "default"}
-              onValueChange={handleSelect}
-              className="space-y-4"
+          <RadioGroup
+            value={selectedBlockId || "default"}
+            onValueChange={handleSelect}
+            className="space-y-3"
+          >
+            {/* Default Option */}
+            <div
+              className="flex items-start gap-3 p-4 rounded-lg border hover:border-primary/50 transition-colors cursor-pointer"
+              onClick={() => handleSelect("default")}
             >
-              {/* Default Option */}
+              <RadioGroupItem
+                value="default"
+                id="default"
+                className="mt-0.5 shrink-0"
+              />
+              <div className="p-2 rounded-md bg-muted shrink-0">
+                <LayoutTemplate className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <Label htmlFor="default" className="font-medium cursor-pointer">
+                  {t("space.settings.newtab.default", "Default Dashboard")}
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {t(
+                    "space.settings.newtab.defaultDescription",
+                    "Standard start page with shortcuts and recent documents."
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {/* Custom Blocks */}
+            {newTabBlocks.map((block) => (
               <div
-                className="flex items-start space-x-3 space-y-0 rounded-md border p-4 hover:bg-muted/50 transition-colors cursor-pointer"
-                onClick={() => handleSelect("default")}
+                key={block.id}
+                className="flex items-start gap-3 p-4 rounded-lg border hover:border-primary/50 transition-colors cursor-pointer group"
+                onClick={() => handleSelect(block.id)}
               >
-                <RadioGroupItem value="default" id="default" className="mt-1" />
-                <div className="flex-1 space-y-1">
+                <RadioGroupItem
+                  value={block.id}
+                  id={block.id}
+                  className="mt-0.5 shrink-0"
+                />
+                <div className="p-2 rounded-md bg-muted shrink-0">
+                  <SquareMousePointer className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
                   <Label
-                    htmlFor="default"
+                    htmlFor={block.id}
                     className="font-medium cursor-pointer"
                   >
-                    Default Dashboard
+                    {block.name || block.id}
                   </Label>
-                  <p className="text-sm text-muted-foreground">
-                    The standard Eidos start page with shortcuts and recent
-                    documents.
+                  <p className="text-sm text-muted-foreground line-clamp-2">
+                    {block.description ||
+                      t(
+                        "space.settings.newtab.noDescription",
+                        "No description"
+                      )}
                   </p>
                 </div>
-                <LayoutTemplate className="h-5 w-5 text-muted-foreground" />
-              </div>
-
-              {/* Custom Blocks */}
-              {newTabBlocks.map((block) => (
-                <div
-                  key={block.id}
-                  className="flex items-start space-x-3 space-y-0 rounded-md border p-4 hover:bg-muted/50 transition-colors cursor-pointer group"
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    closeSettings()
+                    navigate(`/blocks/${block.id}`)
+                  }}
                 >
-                  <RadioGroupItem
-                    value={block.id}
-                    id={block.id}
-                    className="mt-1"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleSelect(block.id)
-                    }}
-                  />
-                  <div
-                    className="flex-1 space-y-1"
-                    onClick={() => handleSelect(block.id)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Label
-                        htmlFor={block.id}
-                        className="font-medium cursor-pointer"
-                      >
-                        {block.name || block.id}
-                      </Label>
-                    </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {block.description || "No description"}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        closeSettings()
-                        navigate(`/blocks/${block.id}`)
-                      }}
-                    >
-                      <ExternalLinkIcon className="h-4 w-4" />
-                    </Button>
-                    <SquareMousePointer className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                </div>
-              ))}
-            </RadioGroup>
-
-            {newTabBlocks.length === 0 && (
-              <div className="mt-6 text-sm text-muted-foreground bg-muted/30 p-4 rounded-md">
-                No blocks with "use newtab" directive found. Add{" "}
-                <code>"use newtab";</code> to the top of your block code to make
-                it available here.
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
               </div>
-            )}
-          </div>
+            ))}
+          </RadioGroup>
+
+          {/* Empty State Hint */}
+          {newTabBlocks.length === 0 && (
+            <div className="p-6 rounded-lg border border-dashed">
+              <div className="flex items-start gap-3">
+                <Plus className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    {t(
+                      "space.settings.newtab.noBlocks",
+                      'No blocks with "use newtab" directive found.'
+                    )}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {t(
+                      "space.settings.newtab.addDirectiveHint",
+                      'Add "use newtab"; to the top of your block code to make it available here.'
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
