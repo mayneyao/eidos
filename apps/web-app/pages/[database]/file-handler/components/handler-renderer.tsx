@@ -35,8 +35,11 @@ export function HandlerRenderer({ handlerId, filePath }: HandlerRendererProps) {
   }
 
   // For third-party handlers, use WebView (iframe sandbox)
+  // Use key={filePath} to force re-create webview when file changes
+  // This ensures the extension page fully reloads with the new context
   return (
     <SimpleWebViewBlock
+      key={filePath}
       url={`http://${handlerId}.block.${space}.eidos.localhost:13127/#${filePath}`}
       height="100%"
     />
