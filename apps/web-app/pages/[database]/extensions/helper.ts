@@ -1,7 +1,7 @@
 import z from "zod"
 
 import { toast } from "@/components/ui/use-toast"
-import { proxyURL } from "@/lib/utils"
+import { getDisplayURL } from "@/lib/utils"
 import eidosTypes from "@/packages/core/dist/index.d.ts?raw"
 import type { IExtension } from "@/packages/core/meta-table/extension"
 
@@ -87,7 +87,7 @@ export const getV0Block = async (link: string) => {
 
   const url = getRegistryUrl(_link)
   console.log("Fetching URL:", url)
-  const res = await fetch(proxyURL(url))
+  const res = await fetch(getDisplayURL(url))
   const data = (await res.json()) as RegistryResponse
   return data.files[0]
 }

@@ -608,6 +608,46 @@ export const proxyURL = (url?: string) => {
   return EIDOS_PROXY_URL + url
 }
 
+/**
+ * Get proxy URL using subdomain pattern for desktop mode
+ * Example: https://example.com/image.jpg -> http://example.com.proxy.eidos.localhost:13127/image.jpg
+ */
+export const getProxyURLWithSubdomain = (url: string): string => {
+  try {
+    const urlObj = new URL(url)
+    const port = "13127"
+    // Build subdomain proxy URL: <host>.proxy.eidos.localhost:<port>/<pathname>
+    const proxyHostname = `${urlObj.hostname}.proxy.eidos.localhost`
+    return `http://${proxyHostname}:${port}${urlObj.pathname}${urlObj.search}`
+  } catch (error) {
+    return url
+  }
+}
+
+/**
+ * Get display URL for images and other resources
+ * - Same origin: use directly
+ * - Desktop mode: use subdomain proxy pattern
+ * - Web mode: use traditional proxy URL with ?url= parameter
+ */
+export const getDisplayURL = (url: string) => {
+  try {
+    const urlObj = new URL(url)
+    if (urlObj.host === window.location.host) {
+      return url
+    }
+    // Check if we're in desktop mode (using .eidos.localhost domain)
+    const isDesktopMode = window.location.hostname.endsWith(".eidos.localhost")
+    if (isDesktopMode) {
+      return getProxyURLWithSubdomain(url)
+    }
+    // Web mode: use traditional proxy
+    return proxyURL(url)
+  } catch (error) {
+    return url
+  }
+}
+
 export const getBlockUrl = (blockId: string, props?: Record<string, any>) => {
   const url = new URL(`block://${blockId}`)
   if (props) {
