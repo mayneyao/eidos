@@ -1,20 +1,20 @@
 {
   "name": "@eidos.space/react",
-  "version": "0.27.1",
+  "version": "0.27.3",
   "description": "React hooks and context for Eidos extensions",
-  "main": "./src/index.ts",
-  "module": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./*": {
-      "types": "./src/*.ts",
-      "import": "./src/*.ts",
-      "default": "./src/*.ts"
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js",
+      "default": "./dist/*.js"
     }
   },
   "files": [
@@ -48,28 +48,13 @@
   "homepage": "https://github.com/mayneyao/eidos/tree/main/packages/react#readme",
   "publishConfig": {
     "access": "public",
-    "registry": "https://registry.npmjs.org/",
-    "main": "./dist/index.js",
-    "module": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js",
-        "default": "./dist/index.js"
-      },
-      "./*": {
-        "types": "./dist/*.d.ts",
-        "import": "./dist/*.js",
-        "default": "./dist/*.js"
-      }
-    }
+    "registry": "https://registry.npmjs.org/"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0"
   },
   "dependencies": {
-    "@eidos.space/core": "workspace:*",
+    "@eidos.space/core": "^0.28.3",
     "zustand": "^5.0.0"
   },
   "devDependencies": {

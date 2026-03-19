@@ -2,12 +2,12 @@
   "name": "@eidos.space/v3",
   "version": "1.0.0",
   "description": "Code compilation and analysis tools for Eidos",
-  "main": "./src/index.ts",
-  "module": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts"
+    ".": "./dist/index.js",
+    "./*": "./dist/*.js"
   },
   "type": "module",
   "scripts": {
@@ -15,15 +15,7 @@
     "typecheck": "tsc --noEmit",
     "typecheck:tsgo": "tsgo --noEmit"
   },
-  "publishConfig": {
-    "main": "./dist/index.js",
-    "module": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-      ".": "./dist/index.js",
-      "./*": "./dist/*.js"
-    }
-  },
+
   "keywords": [
     "eidos.space",
     "compiler",

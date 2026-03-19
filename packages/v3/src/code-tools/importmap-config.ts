@@ -21,7 +21,7 @@ export const CORE_DEPENDENCIES: Record<string, string> = {
  * Eidos official packages with versions
  */
 export const EIDOS_PACKAGES: Record<string, string> = {
-  "@eidos.space/react": "0.27.1",
+  "@eidos.space/react": "0.27.3",
 }
 
 /**

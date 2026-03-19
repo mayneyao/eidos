@@ -2,12 +2,12 @@
   "name": "@eidos.space/space-manager",
   "version": "1.0.0",
   "description": "Space management for Eidos",
-  "main": "./src/index.ts",
-  "module": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts"
+    ".": "./dist/index.js",
+    "./*": "./dist/*.js"
   },
   "scripts": {
     "build": "tsdown",
@@ -16,15 +16,7 @@
     "typecheck:tsgo": "tsgo --noEmit"
   },
   "type": "module",
-  "publishConfig": {
-    "main": "./dist/index.js",
-    "module": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-      ".": "./dist/index.js",
-      "./*": "./dist/*.js"
-    }
-  },
+
   "keywords": [
     "eidos.space",
     "space-manager"
