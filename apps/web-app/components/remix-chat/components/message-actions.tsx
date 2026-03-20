@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
 import { applyCode } from "@/packages/ai/generate"
 import type { Message } from "ai"
+import { isDesktopMode } from "@/lib/env"
 import { Loader2, PlayIcon, RefreshCwIcon } from "lucide-react"
 import { useSWRConfig } from "swr"
 import { useCopyToClipboard } from "usehooks-ts"
@@ -82,12 +83,21 @@ export function MessageActions({
 
       try {
         setIsApplying(true)
-        const model = getLLModel(applyCodeModel)
-        const newCode = await applyCode({
-          originalCode: currentExtension?.ts_code || "",
-          updateSnippet: indexJsxCode,
-          model,
-        })
+        let newCode: string
+        if (isDesktopMode) {
+          newCode = await window.eidos.AI.applyCode({
+            model: applyCodeModel,
+            originalCode: currentExtension?.ts_code || "",
+            updateSnippet: indexJsxCode,
+          })
+        } else {
+          const model = getLLModel(applyCodeModel)
+          newCode = await applyCode({
+            originalCode: currentExtension?.ts_code || "",
+            updateSnippet: indexJsxCode,
+            model,
+          })
+        }
         setScriptCodeMap(projectId, newCode)
         // setLayoutMode("code")
         setSearchParams({ tab: "code" })

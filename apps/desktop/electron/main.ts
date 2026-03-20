@@ -55,6 +55,7 @@ import { AppUpdater } from "./updater"
 import { createWindow } from "./window-manager/createWindow"
 import { convertToElectronMenuTemplateWithIds } from "./window-manager/menu-utils"
 import { LicenseManager } from "./license"
+import { registerElectronFetchIpc } from "./lib/electron-fetch"
 
 process.on("uncaughtException", (error) => {
   console.error("Unhandled Exception:", error) // Also log to console
@@ -1011,6 +1012,9 @@ function extractSpaceIdFromProtocolUrl(url: string): string | null {
 
 app.whenReady().then(async () => {
   corsManager.initialize()
+
+  // Register IPC handler for fetch proxy (bypass CORS)
+  registerElectronFetchIpc()
 
   await migrateFromLegacyConfig()
 

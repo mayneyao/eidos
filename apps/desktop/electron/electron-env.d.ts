@@ -80,8 +80,22 @@ interface Window {
     }>
     openUrl: (url: string) => Promise<void>
     AI: {
-      generateText: typeof import("ai").generateText
-      generateObject: typeof import("ai").generateObject
+      generateText: (config: {
+        model: string
+        prompt: string
+        [key: string]: any
+      }) => Promise<{ text: string }>
+      generateObject: (config: {
+        model: string
+        prompt: string
+        schema: any
+        [key: string]: any
+      }) => Promise<{ object: any }>
+      applyCode: (config: {
+        model: string
+        originalCode: string
+        updateSnippet: string
+      }) => Promise<string>
     }
     showNativeMenu: (
       items: NativeMenuItem[],

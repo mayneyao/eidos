@@ -5,10 +5,16 @@ import type { AppConfig } from "./config/index"
 import type { PlaygroundFile } from "./file-system/playground"
 import nodeAdapter from "./lib/node-adapter"
 import type { ApiAgentStatus } from "./server/api-agent"
+import { installElectronFetchProxy } from "./lib/electron-fetch"
 
 // AI related
 import { generateText, generateObject } from "ai"
 import { getProvider } from "@/packages/ai/helper"
+import { applyCode as _applyCode } from "@/packages/ai/generate"
+
+// Install fetch proxy to bypass CORS in preload context
+// This allows AI SDK to make requests to external APIs without CORS restrictions
+installElectronFetchProxy()
 
 type IpcListener = (event: Electron.IpcRendererEvent, ...args: any[]) => void
 
@@ -343,6 +349,21 @@ function main() {
 
         return generateObject({
           ...restConfig,
+          model: reconstructedModel,
+        })
+      },
+      applyCode: async (config: {
+        model: string
+        originalCode: string
+        updateSnippet: string
+      }) => {
+        console.log("preload applyCode", config)
+        const { model, originalCode, updateSnippet } = config
+        const reconstructedModel = await getModelByName(model)
+
+        return _applyCode({
+          originalCode,
+          updateSnippet,
           model: reconstructedModel,
         })
       },
