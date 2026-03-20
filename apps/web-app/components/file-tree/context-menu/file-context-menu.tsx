@@ -137,7 +137,7 @@ export const FileContextMenu = ({
         showFileActions ||
         hasRenameOrDelete ||
         showOpenFolder ||
-        !!onOpenInNewTab)) ||
+        (!isFolder && !!onOpenInNewTab))) ||
     (!!onDelete && isMultiSelection)
 
   // Don't render context menu if there are no items to show
@@ -149,8 +149,8 @@ export const FileContextMenu = ({
     <ContextMenu>
       <ContextMenuTrigger className="w-full">{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-48">
-        {/* Open in new tab */}
-        {!isMultiSelection && onOpenInNewTab && (
+        {/* Open in new tab - only for files */}
+        {!isMultiSelection && !isFolder && onOpenInNewTab && (
           <ContextMenuItem onClick={() => onOpenInNewTab(node)}>
             <ExternalLinkIcon className="mr-2 h-4 w-4" />
             {t("node.menu.openInNewTab", "Open in New Tab")}
@@ -210,11 +210,7 @@ export const FileContextMenu = ({
             }}
           >
             <FolderOpen className="mr-2 h-4 w-4" />
-            {folderHandlers[0]?.meta?.folderHandler?.title
-              ? t("folder.menu.openWithTitle", "Open with {{title}}", {
-                  title: folderHandlers[0].meta.folderHandler.title,
-                })
-              : t("folder.menu.open", "Open")}
+            {t("folder.menu.openWithFolderBrowser", "Open with folder-browser")}
           </ContextMenuItem>
         )}
 
