@@ -1,15 +1,20 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useRef } from "react"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
-import type {
-  FileHandlerMeta,
-  IExtension,
-} from "@/packages/core/types/IExtension"
 import { useDefaultHandler, useFileHandlers } from "@/hooks/use-file-handlers"
 
 /**
- * Hook to manage file handler selection logic
- * Automatically selects default handler if available, otherwise uses the first handler
- * Also supports handler ID from URL query parameter for immediate selection
+ * Hook to manage file handler selection logic.
+ *
+ * Handler selection is computed **synchronously during render** (via useMemo)
+ * instead of asynchronously (via useEffect+useState).  This avoids "stale frame"
+ * bugs where the selection lags one render behind when `fileExtension` changes.
+ *
+ * A ref (`lastResolvedByExt`) remembers the last resolved handler per extension
+ * so that:
+ *   - Same-extension switching: the resolved handler is reused instantly (no
+ *     loading flash, no re-selection).
+ *   - Cross-extension switching: the handler is properly re-evaluated using the
+ *     default handler for the new extension.
  */
 export function useHandlerSelection(fileExtension: string) {
   const { searchParams } = useRouterAdapter()
@@ -20,60 +25,54 @@ export function useHandlerSelection(fileExtension: string) {
   const { defaultHandlerId, isLoading: isLoadingDefault } =
     useDefaultHandler(fileExtension)
 
-  const [selectedHandlerId, setSelectedHandlerId] = useState<string | null>(
-    null
-  )
+  // Remember resolved handler ID per extension so same-extension switching
+  // reuses it without any loading flash.
+  const lastResolvedByExt = useRef<Record<string, string>>({})
 
-  // Create a stable handler ID list for dependency comparison
-  const handlerIds = useMemo(() => handlers.map((h) => h.id), [handlers])
+  // Derive selectedHandler synchronously — no useEffect, no useState, no lag.
+  const selectedHandler = useMemo(() => {
+    // Still loading data — cannot decide yet
+    if (!fileExtension || isLoadingHandlers || isLoadingDefault) return null
+    if (handlers.length === 0) return null
 
-  // Determine which handler to use
-  useEffect(() => {
-    if (
-      isLoadingHandlers ||
-      isLoadingDefault ||
-      !fileExtension ||
-      handlers.length === 0
-    ) {
-      return
-    }
-
-    // Priority 1: Use handler from URL query parameter if specified
+    // Priority 1: URL query parameter
     if (handlerIdFromQuery) {
-      const queryHandler = handlers.find((h) => h.id === handlerIdFromQuery)
-      if (queryHandler) {
-        setSelectedHandlerId(queryHandler.id)
-        return
+      const h = handlers.find((h) => h.id === handlerIdFromQuery)
+      if (h) {
+        lastResolvedByExt.current[fileExtension] = h.id
+        return h
       }
     }
 
-    // Priority 2: Use default handler if available
+    // Priority 2: Default handler for this extension
     if (defaultHandlerId) {
-      const defaultHandler = handlers.find((h) => h.id === defaultHandlerId)
-      if (defaultHandler) {
-        setSelectedHandlerId(defaultHandler.id)
-        return
+      const h = handlers.find((h) => h.id === defaultHandlerId)
+      if (h) {
+        lastResolvedByExt.current[fileExtension] = h.id
+        return h
       }
     }
 
-    // Priority 3: Use the first handler
-    setSelectedHandlerId(handlers[0].id)
+    // Priority 3: Previously resolved handler for the same extension
+    // (handles same-ext switching — reuses the last known result)
+    const lastId = lastResolvedByExt.current[fileExtension]
+    if (lastId) {
+      const h = handlers.find((h) => h.id === lastId)
+      if (h) return h
+    }
+
+    // Priority 4: First available handler
+    const first = handlers[0]
+    lastResolvedByExt.current[fileExtension] = first.id
+    return first
   }, [
-    // Use handlerIds (string array) instead of handlers (object array) to avoid reference issues
-    handlerIds,
-    defaultHandlerId,
-    handlerIdFromQuery,
-    isLoadingHandlers,
-    isLoadingDefault,
     fileExtension,
     handlers,
+    handlerIdFromQuery,
+    defaultHandlerId,
+    isLoadingHandlers,
+    isLoadingDefault,
   ])
-
-  // Get the selected handler object from the ID
-  const selectedHandler = useMemo(() => {
-    if (!selectedHandlerId) return null
-    return handlers.find((h) => h.id === selectedHandlerId) || null
-  }, [selectedHandlerId, handlers])
 
   return {
     handlers,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 import { useSqlite } from "./use-sqlite"
 import type {
   IExtension,
@@ -28,14 +28,29 @@ export const useFileHandlers = (fileExtension: string) => {
 }
 
 /**
- * Hook to manage default handler for a file extension
- * Uses cache to avoid redundant requests when switching between file types
+ * Hook to manage default handler for a file extension.
+ *
+ * Derives `isLoading` and `defaultHandlerId` directly from the Zustand
+ * `defaultHandlerCache` rather than mirroring them into local state.
+ *
+ * Why: local state lags one render frame behind — on the render where
+ * `fileExtension` changes the stale (old extension) isLoading/defaultHandlerId
+ * would be returned, causing the selection logic downstream to pick the wrong
+ * handler.  The Zustand selector is always synchronously correct for the
+ * *current* `fileExtension`, so there is never a stale frame:
+ *
+ *   undefined  →  not fetched yet  →  isLoading = true
+ *   null       →  fetched, no default set  →  isLoading = false, defaultHandlerId = null
+ *   string     →  fetched, has a default  →  isLoading = false, defaultHandlerId = the ID
+ *
+ * Same-extension switching: the cache value is unchanged → isLoading stays
+ * false, defaultHandlerId stays the same → no loading flash.
+ * Different-extension switching (uncached): cache value is immediately
+ * `undefined` for the new extension → isLoading = true on the very first
+ * render → selection effect waits correctly.
  */
 export const useDefaultHandler = (fileExtension: string) => {
   const { sqlite } = useSqlite()
-  const getDefaultHandler = useFileHandlerStore(
-    (state) => state.getDefaultHandler
-  )
   const setDefaultHandlerCache = useFileHandlerStore(
     (state) => state.setDefaultHandler
   )
@@ -43,57 +58,37 @@ export const useDefaultHandler = (fileExtension: string) => {
     (state) => state.clearDefaultHandlerCache
   )
 
-  // Subscribe to cache changes for this file extension
-  const cachedDefaultHandlerId = useFileHandlerStore((state) => {
-    return state.defaultHandlerCache[fileExtension]
-  })
+  // Single source of truth: read directly from the Zustand cache.
+  // undefined = not yet fetched (treat as loading)
+  // null      = fetched, no default configured
+  // string    = fetched, has a default handler ID
+  const cachedValue = useFileHandlerStore(
+    (state) => state.defaultHandlerCache[fileExtension]
+  )
 
-  const [defaultHandlerId, setDefaultHandlerId] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const isCached = cachedValue !== undefined
+  const defaultHandlerId = isCached ? cachedValue : null
+  const isLoading = !isCached && !!fileExtension
 
-  // Sync local state with store cache when it changes
+  // Fetch from SQLite and populate the cache when not yet cached
   useEffect(() => {
-    if (cachedDefaultHandlerId !== undefined) {
-      setDefaultHandlerId(cachedDefaultHandlerId)
-      setIsLoading(false)
-    }
-  }, [cachedDefaultHandlerId])
-
-  useEffect(() => {
-    if (!sqlite || !fileExtension) {
-      setDefaultHandlerId(null)
-      setIsLoading(false)
-      return
-    }
-
-    // Check cache first
-    const cached = getDefaultHandler(fileExtension)
-    if (cached !== undefined) {
-      setDefaultHandlerId(cached)
-      setIsLoading(false)
-      return
-    }
+    if (!sqlite || !fileExtension || isCached) return
 
     const loadDefaultHandler = async () => {
       try {
-        setIsLoading(true)
         const key = `eidos:space:file:handler:default:${fileExtension}`
         const handlerId = await sqlite.kv.get(key, "text")
-        // Update cache
         setDefaultHandlerCache(fileExtension, handlerId)
-        setDefaultHandlerId(handlerId)
       } catch (error) {
         console.error("Error loading default handler:", error)
-        setDefaultHandlerId(null)
-        // Cache null result to avoid repeated failed requests
+        // Cache null so we don't retry on every render
         setDefaultHandlerCache(fileExtension, null)
-      } finally {
-        setIsLoading(false)
       }
     }
 
     loadDefaultHandler()
-  }, [sqlite, fileExtension, getDefaultHandler, setDefaultHandlerCache])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sqlite, fileExtension, isCached])
 
   const setDefaultHandler = useCallback(
     async (handlerId: string) => {
@@ -102,9 +97,7 @@ export const useDefaultHandler = (fileExtension: string) => {
       try {
         const key = `eidos:space:file:handler:default:${fileExtension}`
         await sqlite.kv.put(key, handlerId)
-        // Update cache in store - this will automatically notify all subscribers
         setDefaultHandlerCache(fileExtension, handlerId)
-        setDefaultHandlerId(handlerId)
       } catch (error) {
         console.error("Error setting default handler:", error)
       }
@@ -118,9 +111,7 @@ export const useDefaultHandler = (fileExtension: string) => {
     try {
       const key = `eidos:space:file:handler:default:${fileExtension}`
       await sqlite.kv.delete(key)
-      // Clear cache in store
       clearDefaultHandlerCache(fileExtension)
-      setDefaultHandlerId(null)
     } catch (error) {
       console.error("Error clearing default handler:", error)
     }
