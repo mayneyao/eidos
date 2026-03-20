@@ -148,8 +148,8 @@ export function GlobalGeneralSettings() {
       <div className="py-6">
         <div className="space-y-6">
           {/* Current Version */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-0.5 flex-[5] min-w-[240px]">
               <Label>{t("settings.general.currentVersion")}</Label>
               <p className="text-sm text-muted-foreground">
                 {EIDOS_VERSION}{" "}
@@ -176,8 +176,8 @@ export function GlobalGeneralSettings() {
 
           {/* Check for Updates */}
           {isDesktopMode && (
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-0.5 flex-[5] min-w-[240px]">
                 <Label>{t("settings.general.checkForUpdates")}</Label>
                 <p className="text-sm text-muted-foreground">
                   {updateStatus === "available" && updateInfo?.version && (
@@ -226,7 +226,7 @@ export function GlobalGeneralSettings() {
                   )}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                 {updateStatus === "available" && (
                   <Button
                     onClick={quitAndInstall}
@@ -234,7 +234,7 @@ export function GlobalGeneralSettings() {
                     className="flex items-center gap-2"
                   >
                     <CheckCircle className="h-4 w-4" />
-                    {t("settings.general.restartToInstall")}
+                    {t("common.installAndRestart", "Install & Restart")}
                   </Button>
                 )}
                 {updateStatus === "downloaded" && (
@@ -244,7 +244,7 @@ export function GlobalGeneralSettings() {
                     className="flex items-center gap-2"
                   >
                     <CheckCircle className="h-4 w-4" />
-                    {t("settings.general.restartToInstall")}
+                    {t("common.installAndRestart", "Install & Restart")}
                   </Button>
                 )}
                 {updateStatus === "progress" && (
@@ -272,7 +272,7 @@ export function GlobalGeneralSettings() {
                     className="flex items-center gap-2"
                   >
                     <RefreshCw className="h-4 w-4" />
-                    {t("settings.general.checkForUpdates")}
+                    {t("common.checkUpdates", "Check Updates")}
                   </Button>
                 )}
               </div>
@@ -281,8 +281,8 @@ export function GlobalGeneralSettings() {
 
           {/* Auto Update */}
           {isDesktop && (
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-0.5 flex-[5] min-w-[240px]">
                 <Label>{t("settings.general.enableAutoUpdate")}</Label>
                 <p className="text-sm text-muted-foreground">
                   {t("settings.general.enableAutoUpdateDescription")}
@@ -292,6 +292,7 @@ export function GlobalGeneralSettings() {
                 checked={autoUpdateEnabled}
                 onCheckedChange={handleToggleAutoUpdate}
                 disabled={isLoadingConfig}
+                className="shrink-0"
               />
             </div>
           )}
@@ -309,14 +310,14 @@ export function GlobalGeneralSettings() {
       <div className="py-6">
         <Form {...appearanceForm}>
           <form className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-0.5 flex-[5] min-w-[240px]">
                 <Label>{t("settings.appearance.language")}</Label>
                 <p className="text-sm text-muted-foreground">
                   {t("settings.appearance.languageDescription")}
                 </p>
               </div>
-              <div className="w-64">
+              <div className="w-full sm:w-64 shrink-0">
                 <FormField
                   control={appearanceForm.control}
                   name="language"
@@ -344,14 +345,14 @@ export function GlobalGeneralSettings() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-0.5 flex-[5] min-w-[240px]">
                 <Label>{t("settings.appearance.theme")}</Label>
                 <p className="text-sm text-muted-foreground">
                   {t("settings.appearance.themeDescription")}
                 </p>
               </div>
-              <div className="w-64">
+              <div className="w-full sm:w-64 shrink-0">
                 <FormField
                   control={appearanceForm.control}
                   name="theme"

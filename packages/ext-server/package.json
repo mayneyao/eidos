@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "description": "Hono middleware for rendering Eidos block extensions server-side",
   "type": "module",
-  "main": "src/index.ts",
+  "main": "./dist/index.js",
   "exports": {
-    ".": "./src/index.ts",
-    "./eidos": "./src/eidos.ts",
-    "./desktop": "./src/desktop.ts"
+    ".": "./dist/index.js",
+    "./eidos": "./dist/eidos.js",
+    "./desktop": "./dist/desktop.js"
   },
   "scripts": {
     "build:assets": "node scripts/build-assets.mjs",

@@ -22,11 +22,66 @@ import {
 } from "./binary-data"
 
 /**
+ * Check if URL uses *.localhost pattern which may have DNS issues
+ * e.g., xxx.localhost:3000 -> replace host with 127.0.0.1 but keep Host header
+ */
+function isLocalhostSubdomain(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    const hostname = parsed.hostname
+    // Match *.localhost or *.localhost.localdomain
+    return hostname.endsWith(".localhost") && hostname !== "localhost"
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Create a smart fetch that handles *.localhost DNS issues
+ * by converting to 127.0.0.1 while preserving the Host header
+ */
+function createSmartFetch(customFetch?: typeof fetch): typeof fetch {
+  const baseFetch = customFetch || globalThis.fetch
+
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = input.toString()
+
+    if (isLocalhostSubdomain(url)) {
+      const parsed = new URL(url)
+      const originalHost = parsed.host // includes port
+      const originalHostname = parsed.hostname
+
+      // Replace hostname with 127.0.0.1
+      parsed.hostname = "127.0.0.1"
+      const newUrl = parsed.toString()
+
+      // Merge headers, preserving original Host
+      const headers = new Headers(init?.headers)
+      headers.set("Host", originalHost)
+
+      // For some environments, also set X-Forwarded-Host as fallback
+      if (!headers.has("X-Forwarded-Host")) {
+        headers.set("X-Forwarded-Host", originalHost)
+      }
+
+      return baseFetch(newUrl, {
+        ...init,
+        headers,
+      })
+    }
+
+    return baseFetch(input, init)
+  }
+}
+
+/**
  * Create HTTP transport for RPC calls
  */
 export function createHttpTransport(config: TransportConfig) {
   const { endpoint, timeout = 30000 } = config
-  const fetchFn = config.fetch || globalThis.fetch
+  const fetchFn = config.fetch
+    ? createSmartFetch(config.fetch)
+    : createSmartFetch()
 
   return {
     send: async (requestData: any): Promise<TransportPort> => {

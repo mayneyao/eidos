@@ -2,10 +2,14 @@ import { useContext, useEffect } from "react"
 import type { IView } from "@/packages/core/types/IView"
 
 import { TableContext, useViewOperation } from "@/components/table/hooks"
-import { useTableOperation } from "@/apps/web-app/hooks/use-table"
+import {
+  useTableFields,
+  useTableOperation,
+} from "@/apps/web-app/hooks/use-table"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 
 import { useTableStore } from "../table-store-provider"
+import { useColumns } from "../views/grid/hooks/use-col"
 import { FieldAppendPanel } from "./field-append-panel"
 import { FieldEditorDropdown } from "./field-editor-dropdown"
 import { FieldPropertyEditor } from "./field-property-editor"
@@ -41,6 +45,8 @@ export const FieldEditor = (props: IFieldEditorProps) => {
     }
   }, [uiColumns, setCurrentUiColumn, currentUiColumn])
 
+  const { fields } = useTableFields(tableName)
+  const { showColumns } = useColumns(fields, props.view)
   const { deleteField, addField, updateFieldProperty, changeFieldType } =
     useTableOperation(tableName, databaseName)
   const { updateView } = useViewOperation()
@@ -48,7 +54,19 @@ export const FieldEditor = (props: IFieldEditorProps) => {
 
   const handleFieldCreated = async (fieldName: string, position: number) => {
     if (props.view) {
-      const newOrderMap = { ...(props.view.order_map || {}) }
+      // If order_map is empty or doesn't have all visible columns,
+      // initialize it based on current showColumns order (which matches what user sees)
+      const hasExistingOrderMap =
+        props.view.order_map && Object.keys(props.view.order_map).length > 0
+      const newOrderMap = hasExistingOrderMap ? { ...props.view.order_map } : {}
+
+      // If order_map was empty, initialize all visible columns with their current positions
+      // This ensures new field is inserted at the correct position relative to visible columns
+      if (!hasExistingOrderMap) {
+        showColumns.forEach((col, index) => {
+          newOrderMap[col.table_column_name!] = index
+        })
+      }
 
       newOrderMap[fieldName] = position
 

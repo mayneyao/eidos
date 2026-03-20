@@ -15,6 +15,7 @@ import { BlockExtensionType } from "../types/IExtension"
 import type { BaseTable } from "./base"
 import { BaseTableImpl } from "./base"
 import { performTrigramSearch } from "./doc/search"
+import { getUuid, getRawTableNameById } from "@/lib/utils"
 
 // Re-export types for backward compatibility
 export type { ExtensionStatus, IExtension, TableViewMeta }
@@ -760,7 +761,7 @@ export class ExtensionTable
   }
 
   /**
-   * Override add method to ensure slug uniqueness
+   * Override add method to ensure slug uniqueness and tableView type uniqueness
    */
   async add(
     data: Partial<IExtension>,
@@ -769,6 +770,26 @@ export class ExtensionTable
     // If slug is provided, ensure it's unique
     if (data.slug) {
       data.slug = await this.generateUniqueSlug(data.slug)
+    }
+
+    // For tableView extensions, check if the type conflicts with existing ones
+    // Only check for new extensions (no id or id doesn't exist yet)
+    const meta = data.meta
+    if (meta?.type === "tableView" && meta.tableView?.type) {
+      const isNewExtension = !data.id || !(await this.get(data.id))
+      if (isNewExtension) {
+        const viewType = meta.tableView.type
+        const existingTableViews = await this.getTableViewsInfo()
+        const conflictingExtension = existingTableViews.find(
+          (ext) => ext.meta?.tableView?.type === viewType
+        )
+        if (conflictingExtension) {
+          throw new Error(
+            `TableView type "${viewType}" already exists in extension "${conflictingExtension.name}" (${conflictingExtension.id}). ` +
+              `Please use a different type in your meta.tableView.type.`
+          )
+        }
+      }
     }
 
     return super.add(data, db)
@@ -802,5 +823,143 @@ export class ExtensionTable
         )
       }
     }
+  }
+
+  /**
+   * Install extension from raw TypeScript/TSX code.
+   * Requires compileExtension to be injected via context.
+   *
+   * For tableView extensions with a bound tableId, this method also creates
+   * a view instance in the eidos__view table so the view appears in the table.
+   *
+   * @param code - Raw TypeScript/TSX code
+   * @param filename - Original filename (e.g., "my-ext.tsx" or "my-script.ts")
+   *                   Used to determine parsing mode based on file extension
+   * @param slug - Optional slug for updating existing extension
+   * @returns The installed extension
+   */
+  async installFromCode(
+    code: string,
+    filename: string,
+    slug?: string
+  ): Promise<IExtension> {
+    const compileExtension = this.dataSpace.context.compileExtension
+    if (!compileExtension) {
+      throw new Error(
+        "compileExtension not available. Ensure context.compileExtension is injected."
+      )
+    }
+
+    // Use injected compiler, pass filename for proper TSX/TS detection
+    const { compiledCode, meta, type, name, description, slugPrefix } =
+      await compileExtension(code, filename)
+
+    // Check if we're updating an existing extension by slug
+    let existingExtension: IExtension | null = null
+    if (slug) {
+      existingExtension = await this.getExtensionBySlug(slug)
+    }
+
+    // For tableView extensions, check if the type conflicts with existing ones
+    if (
+      meta?.type === "tableView" &&
+      meta.tableView?.type &&
+      !existingExtension
+    ) {
+      const viewType = meta.tableView.type
+      const existingTableViews = await this.getTableViewsInfo()
+      const conflictingExtension = existingTableViews.find(
+        (ext) => ext.meta?.tableView?.type === viewType
+      )
+      if (conflictingExtension) {
+        throw new Error(
+          `TableView type "${viewType}" already exists in extension "${conflictingExtension.name}" (${conflictingExtension.id}). ` +
+            `Please use a different type in your meta.tableView.type.`
+        )
+      }
+    }
+
+    // Generate ID and slug
+    const extensionId = existingExtension?.id || getUuid()
+
+    // Determine the slug to use
+    let finalSlug: string
+    if (existingExtension) {
+      // Keep existing slug when updating
+      finalSlug = existingExtension.slug!
+    } else if (slug) {
+      // Use provided slug for new extension, ensure uniqueness
+      finalSlug = await this.generateUniqueSlug(slug)
+    } else {
+      // Generate new slug
+      const shortId = extensionId.slice(-8)
+      finalSlug = await this.generateUniqueSlug(`${slugPrefix}-${shortId}`)
+    }
+
+    // Construct extension object
+    const extension: IExtension = {
+      id: extensionId,
+      slug: finalSlug,
+      name,
+      description,
+      type,
+      version: existingExtension?.version || "0.0.1",
+      code: compiledCode,
+      ts_code: code,
+      meta,
+      enabled: existingExtension?.enabled ?? true,
+    }
+
+    // Save extension to database (update if exists, add if new)
+    let savedExtension: IExtension
+    if (existingExtension) {
+      // Update existing extension
+      await this.set(extensionId, {
+        name: extension.name,
+        description: extension.description,
+        type: extension.type,
+        code: extension.code,
+        ts_code: extension.ts_code,
+        meta: extension.meta,
+      })
+      savedExtension = { ...existingExtension, ...extension }
+    } else {
+      savedExtension = await this.add(extension)
+    }
+
+    // For tableView extensions with tableId binding, create a view instance
+    if (meta?.type === "tableView" && meta.tableView?.tableId) {
+      const tableId = meta.tableView.tableId
+      const viewType = meta.tableView.type || "custom"
+      const viewName = meta.tableView.title || name
+
+      // Check if a view for this extension already exists
+      const existingViews = await this.dataSpace.view.list({
+        table_id: tableId,
+      })
+      const existingView = existingViews.find(
+        (v) =>
+          v.type === `ext__${viewType}` &&
+          v.properties?.extensionId === extensionId
+      )
+
+      if (!existingView) {
+        // Create a new view instance for this table
+        const tableName = getRawTableNameById(tableId)
+
+        await this.dataSpace.view.add({
+          id: getUuid(),
+          name: viewName,
+          type: `ext__${viewType}`,
+          table_id: tableId,
+          query: `SELECT * FROM ${tableName}`,
+          properties: {
+            extensionId: extensionId,
+          },
+        })
+      }
+    }
+
+    return savedExtension
   }
 }

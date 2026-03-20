@@ -8,6 +8,7 @@ export type ExtensionMeta =
   | TableViewMeta
   | ExtNodeMeta
   | FileHandlerMeta
+  | FolderHandlerMeta
   | ToolMeta
   | TableActionMeta
   | DocActionMeta
@@ -56,6 +57,7 @@ export enum BlockExtensionType {
   TableView = "tableView",
   ExtNode = "extNode",
   FileHandler = "fileHandler",
+  FolderHandler = "folderHandler",
 }
 
 // Block Extension Meta Configurations
@@ -67,6 +69,8 @@ export interface TableViewMeta {
     // the type of the view. built-in types are: grid, gallery, kanban.
     type: string
     description: string
+    // Optional: bind to a specific table. If set, this view only appears for that table.
+    tableId?: string
   }
 }
 
@@ -89,6 +93,25 @@ export interface FileHandlerMeta {
     description: string
     extensions: string[]
     icon?: string
+  }
+}
+
+export interface FolderHandlerMeta {
+  type: BlockExtensionType.FolderHandler
+  componentName: string
+  folderHandler: {
+    title: string
+    description: string
+    // Match patterns for folder paths (supports wildcards)
+    patterns: string[]
+    // Optional: specific folder names to match
+    folderNames?: string[]
+    // Optional: icon identifier
+    icon?: string
+    // Optional: whether this handler can handle root paths
+    allowRoot?: boolean
+    // Optional: priority for handler selection (higher = preferred)
+    priority?: number
   }
 }
 
@@ -171,7 +194,7 @@ export interface IDocActionContext {
 // Block Extension interfaces
 export interface IBlockExtension extends Omit<IExtension, "type" | "meta"> {
   type: "block"
-  meta: TableViewMeta | ExtNodeMeta | FileHandlerMeta
+  meta: TableViewMeta | ExtNodeMeta | FileHandlerMeta | FolderHandlerMeta
 }
 
 // Script Extension interfaces

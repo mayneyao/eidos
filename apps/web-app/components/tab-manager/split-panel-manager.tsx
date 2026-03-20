@@ -17,6 +17,7 @@ interface PanelViewProps {
   isActive: boolean
   isFirst: boolean
   isLast: boolean
+  showTabBar?: boolean
   children: React.ReactNode
 }
 
@@ -25,6 +26,7 @@ function PanelView({
   isActive,
   isFirst,
   isLast,
+  showTabBar = true,
   children,
 }: PanelViewProps) {
   const { tabs, setActivePanel } = useTabStore()
@@ -46,8 +48,14 @@ function PanelView({
       )}
       onClick={handlePanelClick}
     >
-      {/* Panel-specific TabBar */}
-      <TabBar panelId={panel.id} isFirstPanel={isFirst} isLastPanel={isLast} />
+      {/* Panel-specific TabBar - hidden when Nav renders it (single panel) */}
+      {showTabBar && (
+        <TabBar
+          panelId={panel.id}
+          isFirstPanel={isFirst}
+          isLastPanel={isLast}
+        />
+      )}
 
       {/* Tab content area */}
       <div className="relative flex-1 min-h-0">
@@ -73,42 +81,19 @@ interface SplitPanelManagerProps {
 export function SplitPanelManager({ children }: SplitPanelManagerProps) {
   const { panels, activePanelId, splitDirection } = useTabStore()
 
-  // Single panel or no panels - render simple view
-  if (panels.length <= 1) {
-    const panel = panels[0]
-    if (!panel) {
-      // No panels at all - this shouldn't happen normally
-      return (
-        <div className="flex-1 min-h-0 flex items-center justify-center text-muted-foreground">
-          No tabs open
-        </div>
-      )
-    }
-
-    // Single panel: Nav handles TabBar, we just render content
+  // No panels at all - this shouldn't happen normally
+  if (panels.length === 0) {
     return (
-      <div className="flex flex-col h-full w-full">
-        <div className="relative flex-1 min-h-0">
-          {panel.tabIds.map((tabId) => {
-            const tab = useTabStore.getState().tabs.find((t) => t.id === tabId)
-            if (!tab) return null
-            return (
-              <TabContainer
-                key={tab.id}
-                tabId={tab.id}
-                initialUrl={tab.url}
-                isActive={panel.activeTabId === tab.id}
-              >
-                {children}
-              </TabContainer>
-            )
-          })}
-        </div>
+      <div className="flex-1 min-h-0 flex items-center justify-center text-muted-foreground">
+        No tabs open
       </div>
     )
   }
 
-  // Multiple panels - use resizable layout
+  // Always use ResizablePanelGroup to maintain stable component tree structure
+  // This prevents TabContainer remounting when switching between single and multiple panels
+  const isMultiPanel = panels.length > 1
+
   return (
     <ResizablePanelGroup direction={splitDirection} className="h-full w-full">
       {panels.map((panel, index) => (
@@ -122,6 +107,7 @@ export function SplitPanelManager({ children }: SplitPanelManagerProps) {
               isActive={panel.id === activePanelId}
               isFirst={index === 0}
               isLast={index === panels.length - 1}
+              showTabBar={isMultiPanel}
             >
               {children}
             </PanelView>

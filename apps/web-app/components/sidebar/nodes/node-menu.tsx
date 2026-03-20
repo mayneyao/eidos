@@ -54,6 +54,7 @@ import {
   NodeExportContextMenu,
 } from "../../node-menu/node-export"
 import { Input } from "../../ui/input"
+import { useToast } from "@/components/ui/use-toast"
 import { useTreeOperations } from "./hooks"
 import { useFolderStore } from "./store"
 
@@ -88,6 +89,7 @@ export function NodeItem({
   const { setIsRightPanelOpen, setCurrentApp } = useSpaceAppStore()
   const { addNode } = useContextNodes()
   const { addApp } = useAppsStore()
+  const { toast } = useToast()
 
   const [renameOpen, setRenameOpen] = useState(false)
   const [newName, setNewName] = useState(node.name)
@@ -98,33 +100,79 @@ export function NodeItem({
   const { extNodes } = useAllExtNodes()
 
   const handleCreateDoc = async () => {
-    const docId = await createDoc("", node.id)
-    goto(space, docId)
+    try {
+      const docId = await createDoc("", node.id)
+      if (docId) {
+        goto(space, docId)
+      }
+    } catch (error: any) {
+      toast({
+        title: t("common.error"),
+        description: error?.message || String(error),
+        variant: "destructive",
+      })
+    }
   }
 
   const handleCreateTable = async () => {
-    const tableId = await createTable("", node.id)
-    goto(space, tableId)
+    try {
+      const tableId = await createTable("", node.id)
+      if (tableId) {
+        goto(space, tableId)
+      }
+    } catch (error: any) {
+      toast({
+        title: t("common.error"),
+        description: error?.message || String(error),
+        variant: "destructive",
+      })
+    }
   }
 
   const handleCreateView = async () => {
-    const viewId = await createView(node.id)
-    goto(space, viewId)
+    try {
+      const viewId = await createView(node.id)
+      if (viewId) {
+        goto(space, viewId)
+      }
+    } catch (error: any) {
+      toast({
+        title: t("common.error"),
+        description: error?.message || String(error),
+        variant: "destructive",
+      })
+    }
   }
 
-  const handleCreateFolder = () => {
-    createFolder(node.id)
+  const handleCreateFolder = async () => {
+    try {
+      await createFolder(node.id)
+    } catch (error: any) {
+      toast({
+        title: t("common.error"),
+        description: error?.message || String(error),
+        variant: "destructive",
+      })
+    }
   }
 
   const handleCreateExtNode = async (type: ITreeNode["type"]) => {
-    const nodeType = type.startsWith("ext__") ? type.split("ext__")[1] : type
-    const extNode = extNodes.find(
-      (node) => node.meta?.extNode?.type === nodeType
-    )
-    if (!extNode) return
-    const extNodeId = await createExtNode(nodeType, node.id)
-    if (!extNodeId) return
-    goto(space, extNodeId)
+    try {
+      const nodeType = type.startsWith("ext__") ? type.split("ext__")[1] : type
+      const extNode = extNodes.find(
+        (node) => node.meta?.extNode?.type === nodeType
+      )
+      if (!extNode) return
+      const extNodeId = await createExtNode(nodeType, node.id)
+      if (!extNodeId) return
+      goto(space, extNodeId)
+    } catch (error: any) {
+      toast({
+        title: t("common.error"),
+        description: error?.message || String(error),
+        variant: "destructive",
+      })
+    }
   }
 
   const handleAddToChat = () => {
@@ -153,7 +201,14 @@ export function NodeItem({
 
   useClickAway(() => {
     if (renameOpen) {
-      renameNode(node.id, newName)
+      renameNode(node.id, newName).catch((error: any) => {
+        toast({
+          title: t("common.error"),
+          description: error?.message || String(error),
+          variant: "destructive",
+        })
+        setNewName(node.name) // Reset to original name
+      })
       setRenameOpen(false)
     }
   }, [renameInputRef])
@@ -175,7 +230,18 @@ export function NodeItem({
   const handleRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       renameNode(node.id, newName)
-      setRenameOpen(false)
+        .then(() => {
+          setRenameOpen(false)
+        })
+        .catch((error: any) => {
+          toast({
+            title: t("common.error"),
+            description: error?.message || String(error),
+            variant: "destructive",
+          })
+          setNewName(node.name) // Reset to original name
+          setRenameOpen(false)
+        })
     }
     if (e.key === "Escape") {
       setRenameOpen(false)

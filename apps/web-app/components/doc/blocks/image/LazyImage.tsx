@@ -7,7 +7,7 @@ import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { $getNodeByKey, type LexicalEditor, type NodeKey } from "lexical"
 
-import { proxyURL } from "@/lib/utils"
+import { getDisplayURL } from "@/lib/utils"
 
 import { $isImageNode } from "./node"
 
@@ -23,18 +23,6 @@ export function useSuspenseImage(src: string) {
         resolve(null)
       }
     })
-  }
-}
-
-export const getDisplayURL = (url: string) => {
-  try {
-    const urlObj = new URL(url)
-    if (urlObj.host === window.location.host) {
-      return url
-    }
-    return proxyURL(url)
-  } catch (error) {
-    return url
   }
 }
 

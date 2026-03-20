@@ -1,3 +1,5 @@
+import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { MoveDiagonalIcon, MoveUpRightIcon, Trash2Icon } from "lucide-react"
 
 import { getRawTableNameById, shortenId } from "@/lib/utils"
@@ -7,6 +9,16 @@ import {
   NativeContextMenuItem as ContextMenuItem,
   NativeContextMenuTrigger as ContextMenuTrigger,
 } from "@/components/ui/native-context-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
@@ -27,6 +39,8 @@ export const DataCardMenu = ({
   children,
   isView,
 }: DataCardProps) => {
+  const { t } = useTranslation()
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const goto = useGoto()
   const { getOrCreateTableSubDoc } = useSqlite()
   const { deleteRowsByIds } = useTableOperation(
@@ -34,8 +48,13 @@ export const DataCardMenu = ({
     space
   )
 
-  const deleteItem = async () => {
+  const handleDelete = () => {
+    setShowDeleteDialog(true)
+  }
+
+  const handleDeleteConfirm = async () => {
     await deleteRowsByIds([item._id], getRawTableNameById(tableId))
+    setShowDeleteDialog(false)
   }
 
   const { setSubPage } = useCurrentSubPage()
@@ -84,11 +103,29 @@ export const DataCardMenu = ({
           <MoveDiagonalIcon className="pr-2" />
           Open in full page
         </ContextMenuItem>
-        <ContextMenuItem onClick={deleteItem}>
+        <ContextMenuItem onClick={handleDelete}>
           <Trash2Icon className="pr-2" />
           Delete
         </ContextMenuItem>
       </ContextMenuContent>
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("table.rows.deleteConfirmTitle")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("table.rows.deleteConfirmDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm}>
+              {t("common.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ContextMenu>
   )
 }

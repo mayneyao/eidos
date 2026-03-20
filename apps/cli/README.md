@@ -1,614 +1,218 @@
-# Eidos CLI
+# Eidos CLI (Rust)
 
-Command-line interface for managing Eidos spaces - initialize, serve, and open spaces from the terminal.
+AI Agent friendly command-line interface for Eidos.
 
-## What is Eidos CLI?
+## Overview
 
-Eidos CLI is a **headless version of Eidos** that runs entirely from the command line. You can use it without installing the desktop app to:
-
-- Create and manage Eidos spaces programmatically
-- Run API servers for any space
-- Integrate Eidos into automation workflows and CI/CD pipelines
-- Access Eidos functionality via HTTP API
-
-**Key advantages:**
-
-- ✅ **Lightweight** - No GUI, minimal dependencies
-- ✅ **Scriptable** - Perfect for automation
-- ✅ **Portable** - Single executable file
-- ✅ **Standalone** - No desktop app required
+This CLI is designed for AI Agents (like Claude Code) and developers to interact with Eidos Desktop through a simple command-line interface. Unlike the previous headless implementation, this version **requires Eidos Desktop to be running** as the backend.
 
 ## Features
 
-- 🚀 **Initialize** - Create new Eidos spaces anywhere
-- 🌐 **Serve** - Run local API server for any space
-- 💻 **Open** - Open spaces in desktop app (like `code .`)
-- 📦 **Manage** - List and manage all your spaces
-- 🔄 **Graft** - Initialize graft storage for remote syncing
-- 🔗 **Mount** - Mount external directories for file access
+- **Auto Space Detection**: Automatically detects space from current directory
+- **Filesystem-style Commands**: Manage nodes using familiar Unix commands
+- **Table Operations**: Query, create, update, delete table rows
+- **Document Management**: Create, edit, search documents
+- **AI-Optimized Output**: Structured output with tables and JSON support
 
-## Quick Start
+## Installation
+
+The CLI binary is bundled with Eidos Desktop. No separate download needed.
+
+### Install via Command Palette
+
+1. Open Eidos Desktop
+2. Press `Cmd/Ctrl + K` to open Command Palette
+3. Type "install eidos" and select "Install 'eidos' command in PATH"
+4. The CLI will be added to your system PATH
+
+### Shell Completion
+
+```bash
+# Generate completion scripts
+eidos completions bash > /usr/local/share/bash-completion/completions/eidos
+eidos completions zsh > /usr/share/zsh/site-functions/_eidos
+eidos completions fish > ~/.config/fish/completions/eidos.fish
+```
+
+## Usage
 
 ### Prerequisites
 
-**macOS only**: Install Homebrew SQLite for extension support:
+Eidos Desktop must be running. Check status with:
 
 ```bash
-brew install sqlite
+eidos status
 ```
 
-> **Why?** Apple's built-in SQLite doesn't support extensions. Homebrew's version does.
-
-### Installation
-
-**Option 1: Install from built executable**
+### Quick Start
 
 ```bash
-# Build the CLI
-cd apps/cli
-bun run build
+# When inside a space directory, CLI automatically uses that space
+eidos ls                      # List all nodes
+eidos cat readme              # View document content
+eidos mkdir projects          # Create folder
+eidos touch notes/ideas       # Create document
 
-# Install globally
-sudo ./dist/eidos install
+# Otherwise, specify space with -s flag
+eidos -s my-space ls
+eidos -s my-space cat readme
+
+# Query tables with SQL
+eidos sql "SELECT * FROM eidos__tree WHERE type = 'doc'"
 ```
 
-**Option 2: Development mode**
+### Space Selection
+
+The CLI automatically detects the space based on your current directory:
 
 ```bash
-cd apps/cli
-bun run dev [command]
-```
+# Inside a space directory - auto-detected
+cd /path/to/my-space
+eidos ls
 
-### Verify Installation
-
-```bash
-eidos --version
-eidos --help
+# Outside a space directory - use -s flag
+eidos -s my-space ls
 ```
 
 ## Commands
 
-### 📝 Initialize a Space
-
-Create a new Eidos space in any directory:
+### Table
 
 ```bash
-# Initialize in current directory
-eidos init
+# List tables
+eidos table list
 
-# Initialize with custom name
-eidos init --name "My Project"
+# Query with filter
+eidos table query posts --filter '{"published":true}' --limit 20
 
-# Initialize in specific directory
-eidos init /path/to/project --name "My Project"
+# Get single row
+eidos table get users <row-id>
+
+# Create row
+eidos table create users '{"name":"John","email":"john@example.com"}'
+
+# Update row
+eidos table update users <row-id> '{"name":"Jane"}'
+
+# Delete row
+eidos table delete users <row-id>
+
+# Show schema
+eidos table schema users
 ```
 
-**What it does:**
+### Filesystem-style Commands
 
-- Creates `.eidos/` directory with database and file storage
-- Initializes SQLite database with all meta tables
-- Registers space in global config (`~/.eidos/spaces.json`)
-- Loads SQLite extensions (FTS, vector search)
-
-### 🌐 Start API Server
-
-Run a local HTTP server for **any space** - no desktop app needed:
+Eidos CLI provides Unix-like commands to navigate and manage nodes:
 
 ```bash
-# Start in current directory
-eidos serve
+# List nodes (like ls)
+eidos ls                    # List root
+eidos ls <path>             # List specific folder
+eidos ls -l                 # Long format with IDs
 
-# Specify space and port
-eidos serve /path/to/space --port 3000
+# View document content (like cat)
+eidos cat <doc-path>        # Output document markdown content
 
-# Bind to all network interfaces
-eidos serve --host 0.0.0.0 --port 3000
+# Create folder (like mkdir)
+eidos mkdir <path>
+
+# Create document (like touch)
+eidos touch <path> [--content "text"]
+
+# Move/rename node (like mv)
+eidos mv <src> <dst>
+
+# Append to document
+eidos append <path> [--content "text"]
+
+# Delete node (like rm)
+eidos rm <path>
+eidos rm -r <folder>        # Remove folder recursively
+eidos rm -f <path>          # Permanent delete
+
+# Execute SQL query
+eidos sql "SELECT * FROM mytable"
 ```
 
-**Available endpoints:**
-
-- `POST /rpc` - Execute RPC methods
-- `GET /files/*` - Access internal space files
-- `GET /~/*` - Access project folder files
-- `GET /@/*` - Access mounted directory files
-- `GET /health` - Health check
-
-**Example RPC call:**
+### Document (Legacy)
 
 ```bash
-curl -X POST http://localhost:13128/rpc \
-  -H "Content-Type: application/json" \
-  -d '{
-    "method": "doc.list",
-    "params": []
-  }'
+# List documents
+eidos doc list
+eidos doc list --parent <folder-id>
+
+# Get document
+eidos doc get <doc-id>
+
+# Create document
+eidos doc create "My Title" --content "Hello World"
+
+# Update document
+eidos doc update <doc-id> --title "New Title" --content "Updated content"
+
+# Delete document
+eidos doc delete <doc-id>
+
+# Search documents
+eidos doc search "keyword"
 ```
 
-> **Note:** The server works with spaces created by either the CLI or desktop app - they share the same format and registry.
+## For AI Agents
 
-### 💻 Open in Desktop App
+This CLI is optimized for AI agent usage:
 
-Open a space in the Eidos desktop app (similar to `code .`):
+1. **Structured Output**: Tables are formatted for easy parsing
+2. **JSON Mode**: Use `--format json` for programmatic output
+3. **Error Handling**: Clear error messages with suggestions
+4. **Exit Codes**: Non-zero exit codes on failure for script integration
+
+Example agent workflow:
 
 ```bash
-# Open current directory
-eidos .
-
-# Or use the full command
-eidos open
-
-# Open specific path
-eidos open /path/to/space
-```
-
-**Requirements:**
-
-- Space must be initialized (contains `.eidos/` directory)
-- Space must be registered in global config
-- Eidos desktop app must be installed
-
-### 🔄 Initialize Graft Storage for Syncing
-
-Convert a space to use graft storage format for remote syncing:
-
-```bash
-# Initialize graft storage in current space
-eidos graft init
-
-# Initialize with explicit credentials
-eidos graft init --access-key-id YOUR_KEY \
-                 --secret-access-key YOUR_SECRET \
-                 --bucket-name eidos-sync \
-                 --endpoint https://s3.eidos.space
-
-# Initialize specific space with remote URL
-eidos graft init /path/to/space \
-                 --remote https://eidos.space/username/space-id.graft
-```
-
-**What it does:**
-
-- Converts `db.sqlite3` to `.graft` storage format
-- Creates `graft.toml` configuration file
-- Imports existing database data into graft storage
-- Registers `volumeId` in space configuration (`~/.eidos/spaces.json`)
-- Enables remote synchronization capabilities
-
-**Credentials:**
-
-You can provide S3-compatible storage credentials via:
-
-- Command-line options (shown above)
-- Environment variables:
-  ```bash
-  export AWS_ACCESS_KEY_ID=your_key
-  export AWS_SECRET_ACCESS_KEY=your_secret
-  export AWS_BUCKET_NAME=eidos-sync
-  export AWS_ENDPOINT=https://s3.eidos.space
-  ```
-
-**After initialization:**
-
-The space is ready for syncing with remote storage. Your data is stored in:
-
-- `.eidos/graft.toml` - Configuration file
-- `.eidos/.graft/` - Graft storage directory
-
-### 🔗 Mount External Directories
-
-Mount external directories to access files via the API server:
-
-```bash
-# Mount a directory
-eidos mount audio /Users/username/Music
-
-# Mount another directory
-eidos mount books /Users/username/Documents/Books
-
-# Remove a mount
-eidos unmount audio
-```
-
-**How it works:**
-
-- Mount configurations are stored in the space's database (KV table)
-- Mounted directories are accessible via `/@/<mount-name>/<file-path>`
-- Mount names must be alphanumeric (with underscores/hyphens allowed)
-- Paths are resolved to absolute paths for portability
-
-**Accessing mounted files:**
-
-```bash
-# Via HTTP API
-curl http://localhost:13128/@/audio/song.mp3
-
-# Via project folder (files in space root)
-curl http://localhost:13128/~/readme.md
-```
-
-**Mount paths:**
-
-- `/files/*` - Internal files stored in `.eidos/files/`
-- `/~/` - Project folder (files in space root directory)
-- `/@/<name>/` - Mounted external directories
-
-### 🔧 Manage Installation
-
-```bash
-# Install CLI to PATH
-sudo eidos install
-
-# Uninstall
-sudo eidos uninstall
-
-# Check installation status
-eidos status
-```
-
-## Usage Examples
-
-### Example 1: Headless Eidos Server
-
-Run Eidos as a pure backend service without any GUI:
-
-```bash
-# Initialize a space
-mkdir /var/eidos-data/production
-cd /var/eidos-data/production
-eidos init --name "Production API"
-
-# Start headless server
-eidos serve --host 0.0.0.0 --port 13128
-
-# Access from anywhere (no desktop app needed!)
-curl http://your-server:13128/rpc \
-  -H "Content-Type: application/json" \
-  -d '{"method":"space.info","params":[]}'
-```
-
-### Example 2: Create and Open
-
-```bash
-# Create a new project
-mkdir my-project
-cd my-project
-
-# Initialize as Eidos space
-eidos init --name "My Project"
-
-# Open in desktop app (optional)
-eidos .
-```
-
-### Example 3: Remote Development
-
-```bash
-# On remote server
-cd ~/my-space
-eidos serve --host 0.0.0.0 --port 3000
-
-# From local machine
-curl http://remote-server:3000/rpc \
-  -H "Content-Type: application/json" \
-  -d '{"method":"doc.list","params":[]}'
-```
-
-### Example 4: Automation Script
-
-```javascript
-// script.js - Automated space management
-const API_URL = "http://localhost:13128/rpc"
-
-async function listDocs() {
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      method: "doc.list",
-      params: [],
-    }),
-  })
-
-  const { data } = await response.json()
-  console.log("Documents:", data)
-}
-
-listDocs()
-```
-
-### Example 5: CI/CD Integration
-
-```yaml
-# .github/workflows/test.yml
-name: Test with Eidos
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Eidos CLI
-        run: |
-          curl -o eidos https://github.com/eidos/releases/latest/download/eidos-linux
-          chmod +x eidos
-
-      - name: Initialize Test Space
-        run: ./eidos init ./test-space --name "CI Test"
-
-      - name: Start Eidos Server
-        run: |
-          ./eidos serve ./test-space --port 13128 &
-          sleep 2
-
-      - name: Run Integration Tests
-        run: npm test
-```
-
-### Example 6: Mount External Directories
-
-Access files from external directories without copying them into the space:
-
-```bash
-# Navigate to your Eidos space
-cd ~/my-project
-
-# Mount external directories
-eidos mount music /Users/username/Music
-eidos mount videos /Users/username/Videos
-
-# Start server
-eidos serve
-
-# Access mounted files via HTTP
-curl http://localhost:13128/@/music/song.mp3
-curl http://localhost:13128/@/videos/documentary.mp4
-
-# Access project files
-curl http://localhost:13128/~/readme.md
+# Check if Eidos is available and auto-detect space
+if eidos status; then
+    # List nodes in current space
+    eidos ls
+
+    # Query data
+    eidos sql "SELECT * FROM mytable WHERE status = 'todo'"
+
+    # Create document
+    eidos touch notes/meeting-notes --content "# Meeting Notes"
+fi
 ```
 
 ## Development
 
-### Setup
-
 ```bash
-cd apps/cli
+# Run in development
+cargo run -- status
+cargo run -- space list
+cargo run -- table list
 
-# Install dependencies (via workspace root)
-pnpm install
+# Run tests
+cargo test
 
-# Link SQLite extensions from desktop app
-bun run setup
-```
-
-### Commands
-
-```bash
-# Run in development mode
-bun run dev init
-bun run dev serve
-bun run dev open
-bun run dev mount audio /path/to/music
-bun run dev unmount audio
-
-# Build executable
-bun run build
-
-# Type check
-bun run typecheck
-
-# Clean build artifacts
-bun run clean
-```
-
-### Project Structure
-
-```
-apps/cli/
-├── src/
-│   ├── commands/          # CLI commands
-│   │   ├── init.ts       # Space initialization
-│   │   ├── serve.ts      # API server
-│   │   ├── open.ts       # Open in desktop app
-│   │   ├── graft.ts      # Graft storage initialization
-│   │   ├── mount.ts      # Mount external directories
-│   │   ├── unmount.ts    # Remove mounts
-│   │   └── install.ts    # Installation management
-│   ├── db/               # Database adapters
-│   │   ├── bun-server-database.ts  # Bun SQLite adapter
-│   │   ├── database-manager.ts     # Connection pool
-│   │   └── sqlite-setup.ts         # SQLite configuration
-│   ├── server/           # HTTP server
-│   │   ├── server.ts     # Hono server
-│   │   └── data-space.ts # DataSpace management
-│   ├── utils/            # Utilities
-│   └── index.ts          # CLI entry point
-├── dist/                 # Build output
-├── dist-sqlite-ext/      # SQLite extensions (symlinked)
-└── examples/             # Usage examples
+# Build release
+cargo build --release
 ```
 
 ## Architecture
 
-### Database Adapter Pattern
-
-The CLI uses `BunServerDatabase` to integrate with `@eidos.space/core`:
-
-```typescript
-import { DataSpace } from "@eidos.space/core/data-space"
-
-import { BunServerDatabase } from "./db/bun-server-database"
-
-// Create adapter
-const db = new BunServerDatabase(dbPath)
-
-// Load extensions
-db.loadExtension("./dist-sqlite-ext/libsimple.dylib")
-
-// Create DataSpace
-const dataSpace = new DataSpace({
-  db: db,
-  dbName: "my-space",
-  // ...
-})
 ```
-
-### Connection Management
-
-Uses `DatabaseManager` singleton to prevent multiple connections:
-
-```typescript
-import { dbManager } from "./db/database-manager"
-
-// Get or create connection
-const db = dbManager.getConnection(dbPath, { readwrite: true })
-
-// Release when done
-dbManager.releaseConnection(dbPath)
+src/
+├── main.rs          # CLI entry point
+├── config.rs        # Configuration management
+├── client.rs        # HTTP RPC client
+└── commands/
+    ├── mod.rs       # Command dispatcher
+    ├── space.rs     # Space commands
+    ├── table.rs     # Table operations
+    ├── doc.rs       # Document operations
+    └── status.rs    # Status check
 ```
-
-## Troubleshooting
-
-### "SQLite extensions not found"
-
-**Cause:** Extensions are missing or not symlinked.
-
-**Solution:**
-
-```bash
-cd apps/cli
-bun run setup
-```
-
-Ensure `../desktop/dist-sqlite-ext` exists (build desktop app if needed).
-
-### "This build of sqlite3 does not support dynamic extension loading"
-
-**Cause:** Using Apple's built-in SQLite on macOS.
-
-**Solution:**
-
-```bash
-# Install Homebrew SQLite
-brew install sqlite
-
-# Verify
-brew --prefix sqlite
-
-# Restart terminal and try again
-eidos init ~/test
-```
-
-### "Space not registered"
-
-**Cause:** Space exists but not in global registry.
-
-**Solution:**
-
-```bash
-# Re-initialize to register
-eidos init /path/to/space
-```
-
-### "Port already in use"
-
-**Cause:** Another process is using the port.
-
-**Solution:**
-
-```bash
-# Use a different port
-eidos serve --port 3001
-
-# Or kill the process using the port
-lsof -ti:13128 | xargs kill -9
-```
-
-### Database locked errors
-
-**Cause:** Multiple connections to the same database.
-
-**Solution:**
-
-- Stop other `eidos serve` instances
-- Close desktop app if it has the space open
-- The CLI uses `DatabaseManager` to prevent this, but external tools can still cause locks
-
-## Environment Variables
-
-```bash
-# Force production mode (uses compiled packages)
-NODE_ENV=production eidos serve
-
-# Custom SQLite library path (macOS)
-CUSTOM_SQLITE_PATH=/path/to/libsqlite3.dylib eidos init
-```
-
-## Known Limitations
-
-### User-Defined Functions (UDF)
-
-⚠️ **Important**: The current Bun SQLite adapter does not support custom SQL functions (UDFs). This means:
-
-- **Most read operations work perfectly** ✅
-  - Querying documents, tables, and data
-  - Full-text search (via extensions)
-  - Vector search (via extensions)
-
-- **Some write operations may behave differently** ⚠️
-  - Operations that rely on custom SQL functions may not work as expected
-  - Triggers using UDFs won't execute
-  - Computed columns with UDFs may not update
-
-**Workaround**: For complex write operations, consider:
-
-1. Using the desktop app (which supports UDFs via better-sqlite3)
-2. Implementing logic in your application layer instead of database triggers
-3. Waiting for Bun's native UDF support (planned)
-
-**Why this limitation?**
-
-- The CLI uses Bun's native `bun:sqlite` for performance and portability
-- Bun's SQLite doesn't yet support `createFunction()` API
-- The desktop app uses `better-sqlite3` which has full UDF support
-
-> **Most use cases are unaffected** - reading data, basic CRUD operations, and FTS/vector search all work great!
-
-## FAQ
-
-**Q: Can I use the CLI without the desktop app?**  
-A: **Yes!** The CLI is a standalone headless Eidos. It creates fully compatible spaces that can later be opened in the desktop app if needed, but the desktop app is entirely optional.
-
-**Q: Does the CLI work on Windows/Linux?**  
-A: The CLI is built with Bun which supports all platforms. However, SQLite extensions may need platform-specific builds.
-
-**Q: Can I run multiple servers?**  
-A: Yes, just use different ports: `eidos serve --port 3001`, `eidos serve --port 3002`, etc.
-
-**Q: Is the server secure?**  
-A: The server is for local development only. Don't expose it to the internet without proper authentication and HTTPS.
-
-**Q: Can I access desktop app's spaces?**  
-A: Yes! The CLI and desktop app share the same space registry (`~/.eidos/spaces.json`) and space format.
-
-**Q: What about the UDF limitation?**  
-A: For most use cases (reading data, basic writes, search), the CLI works perfectly. Complex write operations with database triggers may need the desktop app.
-
-## Contributing
-
-The CLI is part of the Eidos monorepo. See the main [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
 
 ## License
 
-See [LICENSE](../../LICENSE) in the repository root.
-
-## Related Documentation
-
-- [Eidos Core Package](../../packages/core/readme.md) - Core architecture
-- [Space Manager Package](../../packages/space-manager/README.md) - Space management utilities
-- [Desktop App](../desktop/readme.md) - Eidos desktop application
-
----
-
-**Built with:** [Bun](https://bun.sh) • [Hono](https://hono.dev) • [@eidos.space/core](../../packages/core)
+AGPL-3.0

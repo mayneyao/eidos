@@ -90,6 +90,21 @@ export abstract class BaseDataSpace {
   context: {
     setInterval?: typeof setInterval
     embedding?: (text: string) => Promise<Array<number>>
+    /**
+     * Extension compiler function. Injected by desktop/headless layer.
+     * Compiles TypeScript/TSX code and extracts metadata.
+     */
+    compileExtension?: (
+      code: string,
+      filename: string
+    ) => Promise<{
+      compiledCode: string
+      meta: any
+      type: "block" | "script"
+      name: string
+      description: string
+      slugPrefix: string
+    }>
   }
   constructor(config: {
     db: EidosDatabase
@@ -98,6 +113,17 @@ export abstract class BaseDataSpace {
     context: {
       setInterval?: typeof setInterval
       embedding?: (text: string) => Promise<Array<number>>
+      compileExtension?: (
+        code: string,
+        filename: string
+      ) => Promise<{
+        compiledCode: string
+        meta: any
+        type: "block" | "script"
+        name: string
+        description: string
+        slugPrefix: string
+      }>
     }
     createUDF?: (db: EidosDatabase) => void
     draftDb?: EidosDatabase
@@ -410,17 +436,19 @@ export abstract class BaseDataSpace {
   /**
    * navigate to node in the same space
    * @param path e.g. "/<nodeId>"
+   * @param options navigation options
    * @example
    * eidos.currentSpace.navigate("/<tableId>")
    * eidos.currentSpace.navigate("/<docId>")
    * eidos.currentSpace.navigate("/2025-09-30")
    * eidos.currentSpace.navigate("/extensions/<extensionId>")
    * eidos.currentSpace.navigate("/blocks/<blockId>")
+   * eidos.currentSpace.navigate("/<docId>", { target: "_blank" }) // open in new tab
    */
-  public navigate(path: string) {
+  public navigate(path: string, options?: { target?: "_blank" | "_self" }) {
     this.postMessage?.({
       type: MsgType.Navigate,
-      data: path,
+      data: { path, target: options?.target },
     })
   }
 

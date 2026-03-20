@@ -6,9 +6,11 @@ import { ExtensionDetailPage } from "@/apps/web-app/pages/[database]/extensions/
 import { ExtensionsEmptyState } from "@/apps/web-app/pages/[database]/extensions/empty-state"
 import { ExtensionsLayout } from "@/apps/web-app/pages/[database]/extensions/layout"
 import { FileHandlerPage } from "@/apps/web-app/pages/[database]/file-handler/page"
+import { FolderHandlerPage } from "@/apps/web-app/pages/[database]/folder-handler/page"
 import EverydayPage from "@/apps/web-app/pages/[database]/journals/[day]/page"
 import EverydayHomePage from "@/apps/web-app/pages/[database]/journals/page"
 import SpaceHomePage from "@/apps/web-app/pages/[database]/page"
+import TerminalPage from "@/apps/web-app/pages/[database]/terminal/page"
 
 export const spaceRoutes: RouteObject[] = [
   {
@@ -18,6 +20,10 @@ export const spaceRoutes: RouteObject[] = [
   {
     path: "file-handler",
     element: <FileHandlerPage />,
+  },
+  {
+    path: "folder",
+    element: <FolderHandlerPage />,
   },
   {
     path: "blocks",
@@ -54,6 +60,10 @@ export const spaceRoutes: RouteObject[] = [
         element: <EverydayPage />,
       },
     ],
+  },
+  {
+    path: "terminal",
+    element: <TerminalPage />,
   },
   {
     path: ":table",

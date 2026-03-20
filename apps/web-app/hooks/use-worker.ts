@@ -119,8 +119,8 @@ export const useWorker = () => {
           break
         }
         case MsgType.Navigate:
-          // data is the path, such as "/<nodeId>"
-          navigate(data)
+          // data is { path: string, target?: "_blank" | "_self" }
+          navigate(data.path, { target: data.target })
           break
         case MsgType.BlockUIMsg:
           setBlockUIMsg(data.msg)

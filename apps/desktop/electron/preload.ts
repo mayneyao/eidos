@@ -5,10 +5,16 @@ import type { AppConfig } from "./config/index"
 import type { PlaygroundFile } from "./file-system/playground"
 import nodeAdapter from "./lib/node-adapter"
 import type { ApiAgentStatus } from "./server/api-agent"
+import { installElectronFetchProxy } from "./lib/electron-fetch"
 
 // AI related
 import { generateText, generateObject } from "ai"
 import { getProvider } from "@/packages/ai/helper"
+import { applyCode as _applyCode } from "@/packages/ai/generate"
+
+// Install fetch proxy to bypass CORS in preload context
+// This allows AI SDK to make requests to external APIs without CORS restrictions
+installElectronFetchProxy()
 
 type IpcListener = (event: Electron.IpcRendererEvent, ...args: any[]) => void
 
@@ -227,6 +233,11 @@ function main() {
         ipcRenderer.invoke("activate-license", licenseKey, token),
       getInfo: () => ipcRenderer.invoke("get-license-info"),
     },
+    space: {
+      getCurrent: () => ipcRenderer.invoke("get-current-space"),
+      getById: (spaceId: string) =>
+        ipcRenderer.invoke("get-space-by-id", spaceId),
+    },
 
     // AI helper functions
     fetchAvailableModels: (
@@ -341,6 +352,69 @@ function main() {
           model: reconstructedModel,
         })
       },
+      applyCode: async (config: {
+        model: string
+        originalCode: string
+        updateSnippet: string
+      }) => {
+        console.log("preload applyCode", config)
+        const { model, originalCode, updateSnippet } = config
+        const reconstructedModel = await getModelByName(model)
+
+        return _applyCode({
+          originalCode,
+          updateSnippet,
+          model: reconstructedModel,
+        })
+      },
+    },
+
+    // Terminal integration
+    terminal: {
+      create: (options?: {
+        cwd?: string
+        shell?: string
+        env?: Record<string, string>
+        cols?: number
+        rows?: number
+      }) => ipcRenderer.invoke("terminal:create", options),
+      write: (sessionId: string, data: string) =>
+        ipcRenderer.invoke("terminal:write", sessionId, data),
+      resize: (sessionId: string, cols: number, rows: number) =>
+        ipcRenderer.invoke("terminal:resize", sessionId, cols, rows),
+      kill: (sessionId: string) =>
+        ipcRenderer.invoke("terminal:kill", sessionId),
+      list: () => ipcRenderer.invoke("terminal:list"),
+      getDefaultShell: () => ipcRenderer.invoke("terminal:get-default-shell"),
+      onData: (callback: (sessionId: string, data: string) => void) => {
+        const listener = (
+          _event: Electron.IpcRendererEvent,
+          sessionId: string,
+          data: string
+        ) => callback(sessionId, data)
+        ipcRenderer.on("terminal:data", listener)
+        return () => ipcRenderer.removeListener("terminal:data", listener)
+      },
+      onExit: (
+        callback: (sessionId: string, exitCode: number, signal?: number) => void
+      ) => {
+        const listener = (
+          _event: Electron.IpcRendererEvent,
+          sessionId: string,
+          exitCode: number,
+          signal?: number
+        ) => callback(sessionId, exitCode, signal)
+        ipcRenderer.on("terminal:exit", listener)
+        return () => ipcRenderer.removeListener("terminal:exit", listener)
+      },
+    },
+
+    // CLI installation
+    cli: {
+      isInstalled: () => ipcRenderer.invoke("cli:is-installed"),
+      install: () => ipcRenderer.invoke("cli:install"),
+      uninstall: () => ipcRenderer.invoke("cli:uninstall"),
+      getPath: () => ipcRenderer.invoke("cli:get-path"),
     },
   })
 }

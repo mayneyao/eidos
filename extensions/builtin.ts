@@ -7,6 +7,7 @@
 import type { ComponentType } from "react"
 import type { ExtensionMeta } from "@eidos.space/core/types/IExtension"
 
+import * as FolderBrowser from "./blocks/folder-browser"
 import * as Graft from "./blocks/graft"
 import * as Journal from "./blocks/journal"
 import * as MediaPreview from "./blocks/media-preview"
@@ -49,6 +50,7 @@ function register(slug: string, module: any): BuiltInExtension {
       (meta as any).extNode?.title ||
       (meta as any).tableView?.title ||
       (meta as any).fileHandler?.title ||
+      (meta as any).folderHandler?.title ||
       (meta as any).sidebarBlock?.title ||
       slug,
     type: "block",
@@ -67,6 +69,7 @@ export const builtInExtensions: BuiltInExtension[] = [
   register("graft", Graft),
   register("monaco-editor", MonacoEditor),
   register("media-preview", MediaPreview),
+  register("folder-browser", FolderBrowser),
 ]
 
 builtInExtensions.forEach((ext) => {
@@ -129,6 +132,15 @@ export function getBuiltInFileHandler(
 export function getBuiltInFileHandlers(): BuiltInExtension[] {
   return builtInExtensions.filter(
     (ext) => (ext.meta as any)?.type === "fileHandler"
+  )
+}
+
+/**
+ * Get all built-in FolderHandler extensions
+ */
+export function getBuiltInFolderHandlers(): BuiltInExtension[] {
+  return builtInExtensions.filter(
+    (ext) => (ext.meta as any)?.type === "folderHandler"
   )
 }
 

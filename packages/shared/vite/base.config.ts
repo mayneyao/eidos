@@ -7,15 +7,91 @@ import wasm from "vite-plugin-wasm"
 // enable visualizer if you want to see the size of the package
 // import { visualizer } from "rollup-plugin-visualizer"
 
-export const sharedAlias = {
-  "@/locales": path.resolve(__dirname, "../../../packages/locales"),
-  "@/worker": path.resolve(__dirname, "../../../packages/worker"),
-  "@/lib": path.resolve(__dirname, "../../../packages/lib"),
-  "@/components": path.resolve(__dirname, "../../../apps/web-app/components"),
-  "@/hooks": path.resolve(__dirname, "../../../apps/web-app/hooks"),
-  "@/styles": path.resolve(__dirname, "../../../apps/web-app/styles"),
-  "@": path.resolve(__dirname, "../../../"),
-}
+// Helper to create alias entries for workspace packages
+const workspacePackage = (
+  name: string,
+  subpath: string = "src/index.ts"
+): { find: RegExp; replacement: string } => ({
+  find: new RegExp(`^${name}$`),
+  replacement: path.resolve(
+    __dirname,
+    `../../../packages/${name.replace("@eidos.space/", "")}/${subpath}`
+  ),
+})
+
+const workspacePackageWildcard = (
+  name: string,
+  subpath: string = "src"
+): { find: RegExp; replacement: string } => ({
+  find: new RegExp(`^${name}/(.+)$`),
+  replacement: path.resolve(
+    __dirname,
+    `../../../packages/${name.replace("@eidos.space/", "")}/${subpath}/$1`
+  ),
+})
+
+// Export as array for Vite (order matters - specific paths before wildcards)
+export const sharedAlias = [
+  // Local workspace packages - exact matches (higher priority)
+  workspacePackage("@eidos.space/core", "index.ts"),
+  workspacePackage("@eidos.space/react"),
+  workspacePackage("@eidos.space/v3"),
+  workspacePackage("@eidos.space/client"),
+  workspacePackage("@eidos.space/proxy"),
+  workspacePackage("@eidos.space/space-manager"),
+  workspacePackage("@eidos.space/ext-server"),
+
+  // ext-server subpath exports (must come before wildcard)
+  {
+    find: /^@eidos\.space\/ext-server\/desktop$/,
+    replacement: path.resolve(
+      __dirname,
+      "../../../packages/ext-server/src/desktop.ts"
+    ),
+  },
+  {
+    find: /^@eidos\.space\/ext-server\/eidos$/,
+    replacement: path.resolve(
+      __dirname,
+      "../../../packages/ext-server/src/eidos.ts"
+    ),
+  },
+
+  // Wildcard matches (lower priority)
+  workspacePackageWildcard("@eidos.space/core"),
+  workspacePackageWildcard("@eidos.space/react"),
+  workspacePackageWildcard("@eidos.space/v3"),
+  workspacePackageWildcard("@eidos.space/client"),
+  workspacePackageWildcard("@eidos.space/proxy"),
+  workspacePackageWildcard("@eidos.space/space-manager"),
+
+  // Regular project aliases
+  {
+    find: "@/locales",
+    replacement: path.resolve(__dirname, "../../../packages/locales"),
+  },
+  {
+    find: "@/worker",
+    replacement: path.resolve(__dirname, "../../../packages/worker"),
+  },
+  {
+    find: "@/lib",
+    replacement: path.resolve(__dirname, "../../../packages/lib"),
+  },
+  {
+    find: "@/components",
+    replacement: path.resolve(__dirname, "../../../apps/web-app/components"),
+  },
+  {
+    find: "@/hooks",
+    replacement: path.resolve(__dirname, "../../../apps/web-app/hooks"),
+  },
+  {
+    find: "@/styles",
+    replacement: path.resolve(__dirname, "../../../apps/web-app/styles"),
+  },
+  { find: "@", replacement: path.resolve(__dirname, "../../../") },
+]
 
 export const sharedConfig: UserConfig = {
   base: "/",

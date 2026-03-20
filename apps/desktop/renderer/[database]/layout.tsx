@@ -1,6 +1,6 @@
-import { Suspense, lazy, useEffect, useRef } from "react"
+import { Suspense, lazy, useEffect, useRef, useState, useCallback } from "react"
 import { useLocalStorageState, useSize } from "ahooks"
-import { Outlet, useLocation, useRoutes } from "react-router-dom"
+import { Outlet, useLocation, useRoutes, useParams } from "react-router-dom"
 
 import { EidosDataEventChannelName } from "@/lib/const"
 import { cn, isStandaloneBlocksPath } from "@/lib/utils"
@@ -28,6 +28,7 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { ScriptBreadcrumb } from "@/apps/web-app/pages/[database]/extensions/components/extension-breadcrumb"
 import { spaceRoutes } from "@/apps/web-app/routes"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { IntegratedTerminal } from "@/components/integrated-terminal"
 
 import { useLayoutInit } from "../../../web-app/pages/[database]/hook"
 import { useSpaceAppStore } from "../../../web-app/pages/[database]/store"
@@ -54,14 +55,80 @@ function TabContentLayout() {
 
 export function DesktopSpaceLayout() {
   const { sqlite } = useSqlite()
-  const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
+  const {
+    isShareMode,
+    currentPreviewFile,
+    isTerminalVisible,
+    setIsTerminalVisible,
+  } = useAppRuntimeStore()
   const { isRightPanelOpen, currentApp, resetCurrentApp, tempPanelNode } =
     useSpaceAppStore()
   const isBlocksPath = isStandaloneBlocksPath(window.location.pathname)
+  const [spacePath, setSpacePath] = useState<string>("")
 
+  const params = useParams()
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const size = useSize(rightPanelRef)
-  const { space } = useCurrentPathInfo()
+  const { space: spaceFromPath } = useCurrentPathInfo()
+
+  // Use space from path info or from route params
+  const space = spaceFromPath || params.database
+
+  // Get space path for terminal
+  useEffect(() => {
+    console.log(
+      "[Layout] spacePath effect - space:",
+      space,
+      "params.database:",
+      params.database
+    )
+    const getSpacePath = async () => {
+      try {
+        // Try to get space by ID first (most reliable)
+        if (space) {
+          const spaceInfo = await window.eidos?.space?.getById(space)
+          console.log("[Layout] Space info from getById:", spaceInfo)
+          if (spaceInfo?.path) {
+            console.log(
+              "[Layout] Setting spacePath from getById:",
+              spaceInfo.path
+            )
+            setSpacePath(spaceInfo.path)
+            return
+          }
+        }
+
+        // Fallback: try get-current-space
+        const currentSpace = await window.eidos?.space?.getCurrent()
+        console.log("[Layout] Current space from getCurrent:", currentSpace)
+        if (currentSpace?.path) {
+          console.log(
+            "[Layout] Setting spacePath from getCurrent:",
+            currentSpace.path
+          )
+          setSpacePath(currentSpace.path)
+          return
+        }
+
+        // Fallback: try to construct from dataFolder (legacy)
+        if (space) {
+          const dataFolder = await window.eidos?.config?.get("dataFolder")
+          console.log("[Layout] dataFolder:", dataFolder)
+          if (dataFolder) {
+            const fullPath = `${dataFolder}/${space}`
+            console.log("[Layout] Setting spacePath from dataFolder:", fullPath)
+            setSpacePath(fullPath)
+            return
+          }
+        }
+
+        console.log("[Layout] Could not determine space path")
+      } catch (e) {
+        console.error("[Layout] Failed to get space path:", e)
+      }
+    }
+    getSpacePath()
+  }, [space, params.database])
 
   useEffect(() => {
     resetCurrentApp()
@@ -76,6 +143,10 @@ export function DesktopSpaceLayout() {
       defaultValue: 20,
     }
   )
+
+  const toggleTerminal = useCallback(() => {
+    setIsTerminalVisible(!isTerminalVisible)
+  }, [isTerminalVisible, setIsTerminalVisible])
 
   useEffect(() => {
     const dataEventChannel = new BroadcastChannel(EidosDataEventChannelName)
@@ -118,73 +189,85 @@ export function DesktopSpaceLayout() {
     <>
       {/* <DocExtBlockLoader /> */}
       <KeyboardShortCuts />
-      <div className={cn("relative flex w-full overflow-hidden")}>
+      <div className={cn("relative flex w-full h-screen overflow-hidden")}>
         <ScriptContainer />
         <SideBar />
-        <main className="flex min-w-0 grow">
-          <ResizablePanelGroup
-            direction="horizontal"
-            className="h-screen w-full"
-          >
-            <ResizablePanel
-              defaultSize={100 - (isRightPanelOpen ? rightPanelSize! : 0)}
-              minSize={50}
+        <main className="flex min-w-0 grow flex-col relative">
+          {/* Main Content Area - grows to fill available space */}
+          <div className="flex-1 min-h-0 flex">
+            <ResizablePanelGroup
+              direction="horizontal"
+              className="w-full h-full"
             >
-              <div className="h-full flex flex-col">
-                <Nav />
-                <TabManager>
-                  <TabContentLayout />
-                </TabManager>
-              </div>
-            </ResizablePanel>
-            {isRightPanelOpen && (
-              <>
-                <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
-                <ResizablePanel
-                  defaultSize={rightPanelSize}
-                  minSize={20}
-                  maxSize={50}
-                  className="min-w-[450px]"
-                  onResize={(size) => setRightPanelSize(size)}
-                >
-                  <div
-                    className={cn(
-                      "px-1 flex justify-end h-[38px] items-center shrink-0 border-b border-border/60 bg-muted/60",
-                      {
-                        "pr-[116px]": isWindowsDesktop && isRightPanelOpen,
-                      }
-                    )}
+              <ResizablePanel
+                defaultSize={100 - (isRightPanelOpen ? rightPanelSize! : 0)}
+                minSize={50}
+              >
+                <div className="h-full flex flex-col">
+                  <Nav />
+                  <TabManager>
+                    <TabContentLayout />
+                  </TabManager>
+                  {/* Terminal Panel - at bottom of main content area */}
+                  <IntegratedTerminal
+                    isVisible={isTerminalVisible}
+                    onToggleVisibility={toggleTerminal}
+                    spacePath={spacePath}
+                  />
+                </div>
+              </ResizablePanel>
+              {isRightPanelOpen && (
+                <>
+                  <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
+                  <ResizablePanel
+                    defaultSize={rightPanelSize}
+                    minSize={20}
+                    maxSize={50}
+                    className="min-w-[450px]"
+                    onResize={(size) => setRightPanelSize(size)}
                   >
-                    <RightPanelNav />
-                  </div>
-                  <div
-                    className="grow  h-[calc(100%-38px)] overflow-y-auto"
-                    ref={rightPanelRef}
-                  >
-                    {tempPanelNode ? (
-                      <TempPanel />
-                    ) : (
-                      <>
-                        {currentApp === "chat" && (
-                          <Suspense fallback={<Loading />}>
-                            <AIChat />
-                          </Suspense>
-                        )}
-                        {isCurrentAppABlock && (
-                          <Suspense fallback={<Loading />}>
-                            <BlockApp url={currentApp} height={size?.height} />
-                          </Suspense>
-                        )}
-                        {currentApp && currentApp.startsWith("node://") && (
-                          <NodeAppPanel />
-                        )}
-                      </>
-                    )}
-                  </div>
-                </ResizablePanel>
-              </>
-            )}
-          </ResizablePanelGroup>
+                    <div
+                      className={cn(
+                        "px-1 flex justify-end h-[38px] items-center shrink-0 border-b border-border/60 bg-muted/60",
+                        {
+                          "pr-[116px]": isWindowsDesktop && isRightPanelOpen,
+                        }
+                      )}
+                    >
+                      <RightPanelNav />
+                    </div>
+                    <div
+                      className="grow  h-[calc(100%-38px)] overflow-y-auto"
+                      ref={rightPanelRef}
+                    >
+                      {tempPanelNode ? (
+                        <TempPanel />
+                      ) : (
+                        <>
+                          {currentApp === "chat" && (
+                            <Suspense fallback={<Loading />}>
+                              <AIChat />
+                            </Suspense>
+                          )}
+                          {isCurrentAppABlock && (
+                            <Suspense fallback={<Loading />}>
+                              <BlockApp
+                                url={currentApp}
+                                height={size?.height}
+                              />
+                            </Suspense>
+                          )}
+                          {currentApp && currentApp.startsWith("node://") && (
+                            <NodeAppPanel />
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </ResizablePanel>
+                </>
+              )}
+            </ResizablePanelGroup>
+          </div>
         </main>
       </div>
     </>

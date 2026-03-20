@@ -58,6 +58,7 @@ const Views = ({
   isView,
   isReadOnly,
   onEditStart,
+  tableName,
 }: {
   views: IView[]
   currentView: IView | undefined
@@ -73,6 +74,7 @@ const Views = ({
   isView: boolean
   isReadOnly?: boolean
   onEditStart: (viewId: string) => void
+  tableName?: string
 }) => {
   const [open, setOpen] = useState(false)
   const [localViews, setLocalViews] = useState(views)
@@ -113,7 +115,7 @@ const Views = ({
 
   const onlyOneView = views.length === 1
   const { t } = useTranslation()
-  const { tableViews } = useCustomTableViews()
+  const { tableViews } = useCustomTableViews(tableName)
 
   // Handle view switching and close dropdown
   const handleJump2View = (viewId: string) => {
@@ -420,6 +422,7 @@ export const ViewToolbar = (props: {
               isView={isView}
               isReadOnly={props.isReadOnly}
               onEditStart={setEditingViewId}
+              tableName={tableName}
             />
             {currentView && (
               <span className="text-xs text-muted-foreground ml-2 select-none flex-shrink-0">

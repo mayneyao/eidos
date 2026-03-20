@@ -390,6 +390,193 @@ const stats = await eidos.currentSpace.fs.stat(filePath)
 
 更多文件系统 API 详情，请参阅 [Space API 参考 - 文件系统 API](/zh-cn/api-reference/space/#文件系统-api)。
 
+### 4.4 文件夹处理器扩展 (RFC)
+
+提供自定义文件夹/目录浏览和管理能力，类似于文件处理器，但针对目录而非单个文件。
+
+:::tip[文件夹处理器 vs 文件处理器]
+**文件夹与文件的区别**：
+
+- **文件夹处理器**: 处理**目录/文件夹**，提供自定义浏览体验（图库视图、树形视图、专业管理）
+- **文件处理器**: 处理**单个文件**，提供编辑、预览或播放功能
+
+两者使用相同的文件系统 API，但关注点不同：文件夹处理器使用 `readdir()` 和 `stat()`，而文件处理器使用 `readFile()` 和 `writeFile()`。
+:::
+
+#### URL 访问模式
+
+文件夹路径通过 hash 传递（与文件处理器相同）：
+
+```
+<extid>.block.<spaceId>.eidos.localhost:13127#<folderPath>
+```
+
+**URL 示例：**
+
+```
+# 浏览照片文件夹
+gallery-viewer.block.my-space.eidos.localhost:13127#~/photos
+
+# 打开项目工作空间
+project-dashboard.block.my-space.eidos.localhost:13127#@/work/project-a
+
+# 浏览根目录
+file-browser.block.my-space.eidos.localhost:13127#~/
+```
+
+#### 元配置
+
+```typescript
+interface FolderHandlerMeta {
+  type: "folderHandler"
+  componentName: string
+  folderHandler: {
+    title: string // 处理器显示名称
+    description: string // 处理器描述
+    // 文件夹路径匹配模式（支持通配符）
+    patterns: string[]
+    // 可选：特定文件夹名称匹配
+    folderNames?: string[]
+    // 可选：图标标识符
+    icon?: string
+    // 可选：是否允许处理根路径
+    allowRoot?: boolean
+    // 可选：处理器选择优先级（越高越优先）
+    priority?: number
+  }
+}
+```
+
+**模式示例：**
+
+```typescript
+// 按文件夹名称匹配（任意位置）
+{ patterns: ["*/photos", "*/pictures"] }
+
+// 按特定路径匹配
+{ patterns: ["~/projects/*", "@/work/*/docs"] }
+
+// 匹配任意文件夹（后备处理器）
+{ patterns: ["*"], priority: 0 }
+
+// 仅匹配根目录
+{ patterns: ["~/", "@/"], allowRoot: true }
+```
+
+#### 处理器选择逻辑
+
+1. 从 URL hash 中提取文件夹路径
+2. 从 `eidos__extensions` 表查询所有文件夹处理器
+3. 根据模式匹配过滤处理器
+4. 按优先级排序（高的优先）
+5. 如果只有一个匹配，直接使用；否则检查用户默认设置或提示选择
+
+**默认处理器存储：**
+
+```typescript
+// 键格式：eidos:space:folder:handler:default:<folderPath>
+await eidos.currentSpace.kv.put(
+  `eidos:space:folder:handler:default:~/photos`,
+  "gallery-viewer-ext-id"
+)
+```
+
+#### 上下文接口
+
+```typescript
+interface FolderHandlerContext extends BaseExtensionContext {
+  type: "folderHandler"
+  folderPath: string // 绝对文件夹路径（如 "~/photos"）
+  folderName: string // 文件夹名称（如 "photos"）
+}
+```
+
+#### 实现示例：图库查看器
+
+```tsx
+import {
+  useExtensionContext,
+  type FolderHandlerContext,
+} from "@eidos.space/react"
+
+export const meta = {
+  type: "folderHandler",
+  componentName: "GalleryViewer",
+  folderHandler: {
+    title: "图库查看器",
+    description: "可视化照片图库，带缩略图网格",
+    patterns: ["*/photos", "*/images", "*.album"],
+    icon: "🖼️",
+    priority: 100,
+  },
+}
+
+export function GalleryViewer() {
+  const ctx = useExtensionContext<FolderHandlerContext>()
+  const { folderPath, folderName } = ctx
+  const [images, setImages] = useState([])
+
+  useEffect(() => {
+    loadImages()
+  }, [folderPath])
+
+  const loadImages = async () => {
+    // 列出文件夹中的所有文件
+    const entries = await eidos.currentSpace.fs.readdir(folderPath, {
+      withFileTypes: true,
+    })
+
+    // 过滤图片文件
+    const imageEntries = entries.filter(
+      (entry) =>
+        entry.kind === "file" && /\.(jpg|jpeg|png|gif|webp)$/i.test(entry.name)
+    )
+
+    setImages(
+      imageEntries.map((e) => ({
+        name: e.name,
+        path: `${folderPath}/${e.name}`,
+      }))
+    )
+  }
+
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">{folderName}</h1>
+      <div className="grid grid-cols-4 gap-4">
+        {images.map((image) => (
+          <img
+            key={image.path}
+            src={`http://${window.location.host}${image.path}`}
+            alt={image.name}
+            className="aspect-square object-cover rounded-lg"
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+```
+
+#### 文件夹的文件系统 API
+
+```typescript
+// 列出目录内容
+const entries = await eidos.currentSpace.fs.readdir(folderPath, {
+  withFileTypes: true, // 返回 { name, kind } 对象
+  recursive: false, // 设为 true 递归列出
+})
+
+// 获取文件夹统计信息
+const stats = await eidos.currentSpace.fs.stat(folderPath)
+console.log(stats.isDirectory) // true
+
+// 监听变化
+for await (const event of eidos.currentSpace.fs.watch(folderPath)) {
+  console.log(`${event.filename} ${event.eventType}`)
+}
+```
+
 ## 5. 指令系统
 
 Block 支持一套指令系统，专为无需复杂 `meta` 配置对象的轻量级扩展设计。通过在文件顶部添加特定的字符串字面量，你可以轻松定义 Block 的行为和渲染方式。

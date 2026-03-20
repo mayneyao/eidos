@@ -92,7 +92,7 @@ export function GlobalSecuritySettings() {
   return (
     <div className="space-y-0">
       {/* Security Section */}
-      <div className="py-4 flex items-center justify-between">
+      <div className="py-4 flex flex-wrap items-center justify-between gap-4">
         <h3 className="text-lg font-medium">{t("settings.security.title")}</h3>
         {hasChanges && (
           <Button type="button" onClick={() => form.handleSubmit(onSubmit)()}>
@@ -107,8 +107,8 @@ export function GlobalSecuritySettings() {
         <Form {...form}>
           <form className="space-y-6">
             {/* Web Security */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-0.5 flex-1 min-w-0">
                 <Label>{t("settings.security.webSecurity")}</Label>
                 <p className="text-sm text-muted-foreground">
                   {t("settings.security.webSecurityDescription")}
@@ -118,7 +118,7 @@ export function GlobalSecuritySettings() {
                 control={form.control}
                 name="webSecurity"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="shrink-0">
                     <FormControl>
                       <Switch
                         checked={field.value}

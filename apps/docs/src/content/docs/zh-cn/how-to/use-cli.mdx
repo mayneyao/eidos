@@ -1,0 +1,182 @@
+---
+title: 使用 Eidos CLI
+description: 学习如何使用 eidos 命令行工具从终端管理你的 Eidos 空间。
+---
+
+Eidos CLI (`eidos`) 是一个命令行工具，让你可以直接从终端与 Eidos Desktop 应用交互。本指南介绍常见的工作流和使用场景。
+
+## 安装
+
+CLI 已包含在 Eidos Desktop 中。安装步骤：
+
+1. 打开 Eidos Desktop
+2. 按 `Cmd/Ctrl + K` 打开命令面板
+3. 输入 "install eidos" 并选择 "Install 'eidos' command in PATH"
+
+验证安装：
+
+```bash
+eidos status
+```
+
+## 空间选择
+
+CLI 会根据当前目录自动检测使用哪个空间。如果你位于某个空间目录内，它会自动使用该空间。
+
+你也可以显式指定空间：
+
+```bash
+# 为单个命令指定空间
+eidos -s my-space ls
+
+# 导航到空间目录
+cd /path/to/my-space
+```
+
+## 常见工作流
+
+### 每日笔记
+
+高效创建和维护每日笔记：
+
+```bash
+# 创建今日笔记并添加模板
+eidos touch "daily/$(date +%Y-%m-%d)" --content "# $(date +%A, %B %d)\n\n## 上午\n\n## 下午\n\n## 晚上"
+
+# 全天追加到今日笔记
+eidos append "daily/$(date +%Y-%m-%d)" --content "- [ ] 审核 Pull Requests"
+echo "与团队会面，讨论了路线图" | eidos append "daily/$(date +%Y-%m-%d)"
+```
+
+### 项目初始化
+
+快速搭建新项目结构：
+
+```bash
+# 创建项目文件夹
+eidos mkdir projects/website
+eidos mkdir projects/website/docs
+eidos mkdir projects/website/assets
+
+# 创建项目文档
+eidos touch projects/website/readme --content "# 网站项目"
+eidos touch projects/website/todo --content "## 待办\n- [ ] 设计首页\n- [ ] 设置 CI/CD"
+
+# 查看结构
+eidos ls projects/website -l
+```
+
+### 文档管理
+
+组织和管理文档：
+
+```bash
+# 创建草稿
+eidos touch drafts/article --content "# 文章草稿"
+
+# 完成后移到已发布
+eidos mkdir published
+eidos mv drafts/article published/article
+
+# 查看已发布内容
+eidos cat published/article
+```
+
+### 挂载外部资源
+
+无需复制文件即可访问外部目录：
+
+```bash
+# 挂载 Documents 文件夹
+eidos mount docs ~/Documents
+
+# 现在在 Eidos 中通过 /@/docs/filename.pdf 引用文件
+# 列出所有挂载
+eidos mount
+
+# 不再需要时移除挂载
+eidos mount -u docs
+```
+
+### 表格数据导出
+
+导出数据进行分析或备份：
+
+```bash
+# 导出表格数据为 JSON
+eidos -f json sql "SELECT * FROM tb_xxx" > backup.json
+
+# 查询前查看表格结构
+eidos table schema tb_xxx
+```
+
+### 扩展开发
+
+从开发环境部署扩展：
+
+```bash
+# 部署 Block 扩展
+eidos ext deploy ./my-block.tsx
+
+# 更新现有扩展
+eidos ext deploy ./my-block.tsx --slug my-block
+
+# 列出已安装的扩展
+eidos ext ls
+```
+
+## 输出格式
+
+大多数命令支持 JSON 输出以便脚本处理：
+
+```bash
+# 用于解析的 JSON 输出
+eidos -f json table ls
+eidos -f json sql "SELECT * FROM eidos__tree LIMIT 5"
+```
+
+## Shell 自动补全
+
+为 Shell 添加 Tab 补全：
+
+```bash
+# Bash
+eidos completions bash > /usr/local/share/bash-completion/completions/eidos
+
+# Zsh
+eidos completions zsh > /usr/share/zsh/site-functions/_eidos
+
+# Fish
+eidos completions fish > ~/.config/fish/completions/eidos.fish
+```
+
+## 环境变量
+
+| 变量 | 说明 |
+|------|------|
+| `EIDOS_ENDPOINT` | Eidos Desktop 端点（默认：`http://localhost:13127`） |
+| `EIDOS_SPACE` | 默认空间 ID |
+| `EIDOS_API_KEY` | API 密钥（如已启用认证） |
+
+## 故障排除
+
+### "No space selected" 错误
+
+CLI 需要知道使用哪个空间。可以：
+- 导航到空间目录（自动检测）
+- 导航到空间目录（自动检测）
+- 每个命令指定：`eidos -s <space-id> <command>`
+
+### "Eidos Desktop is not running"
+
+CLI 需要 Eidos Desktop 正在运行。先启动应用，然后用 `eidos status` 验证。
+
+### 权限被拒绝
+
+确保 CLI 已正确安装到 PATH。安装后可能需要重启终端。
+
+## 下一步
+
+- [CLI 概念](../../extensions/cli/) - 了解 CLI 设计和特性
+- [CLI API 参考](../../api-reference/cli/) - 完整命令参考
+- [Node API 参考](../../api-reference/node/) - 了解节点结构

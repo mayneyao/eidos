@@ -2,12 +2,12 @@
   "name": "@eidos.space/proxy",
   "version": "1.0.0",
   "description": "HTTP Proxy service for Eidos - subdomain-based cross-origin request proxying",
-  "main": "./src/index.ts",
-  "module": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts"
+    ".": "./dist/index.js",
+    "./*": "./dist/*.js"
   },
   "scripts": {
     "test": "vitest",
@@ -15,15 +15,7 @@
     "typecheck:tsgo": "tsgo --noEmit"
   },
   "type": "module",
-  "publishConfig": {
-    "main": "./dist/index.js",
-    "module": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-      ".": "./dist/index.js",
-      "./*": "./dist/*.js"
-    }
-  },
+
   "dependencies": {
     "hono": "^4.12.7"
   },

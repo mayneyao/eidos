@@ -1,4 +1,10 @@
-import { createContext, useContext, type ReactNode } from "react"
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react"
 
 /**
  * Base context interface shared by all extension types
@@ -35,6 +41,15 @@ export interface FileHandlerContext extends BaseExtensionContext {
 }
 
 /**
+ * Context for FolderHandler type extensions
+ */
+export interface FolderHandlerContext extends BaseExtensionContext {
+  type: "folderHandler"
+  folderPath: string
+  folderName: string
+}
+
+/**
  * Context for SidebarBlock type extensions
  */
 export interface SidebarBlockContext extends BaseExtensionContext {
@@ -52,6 +67,7 @@ export type ExtensionContextType =
   | ExtNodeContext
   | TableViewContext
   | FileHandlerContext
+  | FolderHandlerContext
   | SidebarBlockContext
 
 /**
@@ -164,7 +180,32 @@ export function useExtensionContext<
   }
 
   // 2. Fallback to URL parsing (third-party iframe extensions)
-  const urlContext = parseContextFromLocation()
+  // For third-party extensions, we need to listen to URL changes
+  // because the host may change the hash without reloading the iframe
+  const [urlContext, setUrlContext] = useState<ExtensionContextType | null>(
+    parseContextFromLocation
+  )
+
+  useEffect(() => {
+    // Only set up listeners for third-party extensions (running in iframe/webview)
+    if (reactContext) return
+
+    const handleHashChange = () => {
+      setUrlContext(parseContextFromLocation())
+    }
+
+    // Listen to hash changes
+    window.addEventListener("hashchange", handleHashChange)
+
+    // Also listen to popstate for history changes
+    window.addEventListener("popstate", handleHashChange)
+
+    return () => {
+      window.removeEventListener("hashchange", handleHashChange)
+      window.removeEventListener("popstate", handleHashChange)
+    }
+  }, [reactContext])
+
   if (urlContext) {
     return urlContext as T
   }
@@ -201,6 +242,15 @@ export function isFileHandlerContext(
   ctx: ExtensionContextType
 ): ctx is FileHandlerContext {
   return ctx.type === "fileHandler"
+}
+
+/**
+ * Type guard to check if context is FolderHandlerContext
+ */
+export function isFolderHandlerContext(
+  ctx: ExtensionContextType
+): ctx is FolderHandlerContext {
+  return ctx.type === "folderHandler"
 }
 
 /**

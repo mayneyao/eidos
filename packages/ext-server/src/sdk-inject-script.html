@@ -36,6 +36,7 @@
       const isInternal =
         requestUrl.origin === currentOrigin ||
         reqHostname === "localhost" ||
+        reqHostname === "127.0.0.1" ||
         reqHostname === baseDomain ||
         reqHostname.endsWith(`.proxy.${baseDomain}`) ||
         reqHostname.endsWith(`.${baseDomain}`)

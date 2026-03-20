@@ -59,6 +59,7 @@ export function createSpaceProxy(config: TransportConfig) {
           "action",
           "schema",
           "graft",
+          "node",
           "script",
           "extension",
           "tree",

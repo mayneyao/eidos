@@ -89,6 +89,27 @@ function extractSpaceIdFromHostname(hostname: string): string | null {
 }
 
 /**
+ * Extract spaceId from request, considering X-Forwarded-Host header
+ * This supports DNS workaround where *.localhost is rewritten to 127.0.0.1
+ */
+function extractSpaceIdFromRequest(c: any): string | null {
+  // Try X-Forwarded-Host first (for DNS workaround)
+  const forwardedHost = c.req.header("X-Forwarded-Host")
+  if (forwardedHost) {
+    // Remove port if present (e.g., "host:13127" -> "host")
+    const hostWithoutPort = forwardedHost.split(":")[0]
+    const spaceId = extractSpaceIdFromHostname(hostWithoutPort)
+    if (spaceId) {
+      return spaceId
+    }
+  }
+
+  // Fallback to URL hostname
+  const url = new URL(c.req.url)
+  return extractSpaceIdFromHostname(url.hostname)
+}
+
+/**
  * Unified CORS Configuration
  * Single source of truth for all CORS settings
  */
@@ -100,7 +121,8 @@ const CORS_CONFIG = {
   // Allowed HTTP methods
   allowedMethods: "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH",
   // Allowed headers
-  allowedHeaders: "Content-Type, Authorization, X-Requested-With",
+  allowedHeaders:
+    "Content-Type, Authorization, X-Requested-With, X-Forwarded-Host",
 }
 
 /**
@@ -486,8 +508,7 @@ export async function startServer({
   // handle api calls
   app.post("/rpc", async (c) => {
     try {
-      const url = new URL(c.req.url)
-      const spaceId = extractSpaceIdFromHostname(url.hostname)
+      const spaceId = extractSpaceIdFromRequest(c)
 
       if (!spaceId) {
         throw new Error("Invalid request, space ID not found in hostname")
@@ -598,8 +619,7 @@ export async function startServer({
 
   app.get("/files/*", async (c) => {
     try {
-      const url = new URL(c.req.url)
-      const spaceId = extractSpaceIdFromHostname(url.hostname)
+      const spaceId = extractSpaceIdFromRequest(c)
 
       if (!spaceId) {
         return c.text("Space ID not found in hostname", 400)
@@ -646,8 +666,7 @@ export async function startServer({
 
   app.get("/~/*", async (c) => {
     try {
-      const url = new URL(c.req.url)
-      const spaceId = extractSpaceIdFromHostname(url.hostname)
+      const spaceId = extractSpaceIdFromRequest(c)
 
       if (!spaceId) {
         return c.text("Space ID not found in hostname", 400)
@@ -670,8 +689,7 @@ export async function startServer({
 
   app.get("/@/*", async (c) => {
     try {
-      const url = new URL(c.req.url)
-      const spaceId = extractSpaceIdFromHostname(url.hostname)
+      const spaceId = extractSpaceIdFromRequest(c)
 
       if (!spaceId) {
         return c.text("Space ID not found in hostname", 400)

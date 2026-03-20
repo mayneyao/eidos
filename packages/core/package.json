@@ -1,20 +1,20 @@
 {
   "name": "@eidos.space/core",
-  "version": "0.28.3",
+  "version": "0.28.4",
   "description": "core package for eidos.space",
-  "main": "./index.ts",
-  "module": "./index.ts",
-  "types": "./index.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./index.ts",
-      "import": "./index.ts",
-      "default": "./index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./*": {
-      "types": "./*.ts",
-      "import": "./*.ts",
-      "default": "./*.ts"
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js",
+      "default": "./dist/*.js"
     }
   },
   "files": [
@@ -52,22 +52,7 @@
   "homepage": "https://github.com/mayneyao/eidos/tree/main/packages/core#readme",
   "publishConfig": {
     "access": "public",
-    "registry": "https://registry.npmjs.org/",
-    "main": "./dist/index.js",
-    "module": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js",
-        "default": "./dist/index.js"
-      },
-      "./*": {
-        "types": "./dist/*.d.ts",
-        "import": "./dist/*.js",
-        "default": "./dist/*.js"
-      }
-    }
+    "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
     "csv-parse": "^5.6.0",

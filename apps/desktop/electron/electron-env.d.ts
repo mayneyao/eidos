@@ -80,8 +80,22 @@ interface Window {
     }>
     openUrl: (url: string) => Promise<void>
     AI: {
-      generateText: typeof import("ai").generateText
-      generateObject: typeof import("ai").generateObject
+      generateText: (config: {
+        model: string
+        prompt: string
+        [key: string]: any
+      }) => Promise<{ text: string }>
+      generateObject: (config: {
+        model: string
+        prompt: string
+        schema: any
+        [key: string]: any
+      }) => Promise<{ object: any }>
+      applyCode: (config: {
+        model: string
+        originalCode: string
+        updateSnippet: string
+      }) => Promise<string>
     }
     showNativeMenu: (
       items: NativeMenuItem[],
@@ -117,6 +131,51 @@ interface Window {
     license: {
       activate: (licenseKey: string, token?: string | null) => Promise<any>
       getInfo: () => Promise<any>
+    }
+    space: {
+      getCurrent: () => Promise<{
+        id: string
+        name: string
+        path: string
+      } | null>
+      getById: (
+        spaceId: string
+      ) => Promise<{ id: string; name: string; path: string } | null>
+    }
+    terminal: {
+      create: (options?: {
+        cwd?: string
+        shell?: string
+        env?: Record<string, string>
+        cols?: number
+        rows?: number
+      }) => Promise<{ success: boolean; sessionId?: string; error?: string }>
+      write: (
+        sessionId: string,
+        data: string
+      ) => Promise<{ success: boolean; error?: string }>
+      resize: (
+        sessionId: string,
+        cols: number,
+        rows: number
+      ) => Promise<{ success: boolean; error?: string }>
+      kill: (sessionId: string) => Promise<{ success: boolean; error?: string }>
+      list: () => Promise<
+        Array<{ id: string; shell: string; cwd: string; createdAt: number }>
+      >
+      getDefaultShell: () => Promise<string>
+      onData: (
+        callback: (sessionId: string, data: string) => void
+      ) => () => void
+      onExit: (
+        callback: (sessionId: string, exitCode: number, signal?: number) => void
+      ) => () => void
+    }
+    cli: {
+      isInstalled: () => Promise<boolean>
+      install: () => Promise<{ success: boolean; message: string }>
+      uninstall: () => Promise<{ success: boolean; message: string }>
+      getPath: () => Promise<string>
     }
   }
 }

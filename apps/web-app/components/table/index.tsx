@@ -5,7 +5,6 @@ import { getTableIdByRawTableName } from "@/lib/utils"
 import { useTableOperation } from "@/hooks/use-table"
 import { useSqliteTableSubscribe } from "@/apps/web-app/hooks/use-sqlite-table-subscribe"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
-import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 
 import { ExtTableViewBlockApp } from "../block-renderer/ext-table-view-block-app"
 import { FieldEditor } from "./fields"
@@ -34,14 +33,15 @@ interface ITableProps {
 export const Table = ({
   tableName,
   space,
-  viewId,
+  viewId: viewIdProp,
   isEmbed,
   isEditable,
   isReadOnly,
 }: ITableProps) => {
   const udfs = useUDFs()
   const tableId = getTableIdByRawTableName(tableName)
-  const { getTableCurrentViewId, setTableCurrentViewId } = useSqliteStore()
+  // Use local state for view ID to ensure each Table instance has independent view state
+  const [localViewId, setLocalViewId] = useState<string | undefined>(undefined)
 
   const { updateUiColumns } = useUiColumns(tableName, space)
   const { updateViews, views } = useTableOperation(tableName, space)
@@ -53,20 +53,20 @@ export const Table = ({
     updateViews()
   }, [updateViews, tableName])
 
-  const currentView = useMemo(() => {
-    // First try to get from global state
-    const globalViewId = getTableCurrentViewId(tableId)
-    const currentViewId = viewId || globalViewId
+  // Determine the current view ID: prop takes precedence, then local state, then default to first view
+  const currentViewId = viewIdProp || localViewId
 
+  const currentView = useMemo(() => {
     if (currentViewId) {
       return views.find((v) => v.id === currentViewId)
     }
     return views[0]
-  }, [views, viewId, tableId, getTableCurrentViewId])
+  }, [views, currentViewId])
 
   const setCurrentViewId = (newViewId: string | undefined) => {
-    if (newViewId && tableId) {
-      setTableCurrentViewId(tableId, newViewId)
+    // Only update local state if not controlled by prop
+    if (!viewIdProp && newViewId) {
+      setLocalViewId(newViewId)
     }
   }
 

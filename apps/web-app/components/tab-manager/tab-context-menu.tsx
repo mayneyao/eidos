@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog"
 import {
   NativeContextMenu as ContextMenu,
+  NativeContextMenuCheckboxItem as ContextMenuCheckboxItem,
   NativeContextMenuContent as ContextMenuContent,
   NativeContextMenuItem as ContextMenuItem,
   NativeContextMenuSeparator as ContextMenuSeparator,
@@ -73,7 +74,7 @@ import {
   CopyTableSchemaContextMenu,
   NodeExportContextMenu,
 } from "../node-menu/node-export"
-import { Switch } from "../ui/switch"
+
 import { useToast } from "../ui/use-toast"
 import { VCardQrCode } from "../vcard-qr-code"
 
@@ -125,6 +126,8 @@ export function TabContextMenu({
       if (parts.length >= 1) {
         if (parts[0] === "file-handler") {
           // /file-handler - no additional params
+        } else if (parts[0] === "folder") {
+          // /folder - no additional params
         } else if (parts[0] === "blocks" && parts.length >= 2) {
           // /blocks/:blockId
           result.blockId = parts[1]
@@ -455,37 +458,24 @@ export function TabContextMenu({
               {node.type === "doc" && !isDayPageId(node.id) && (
                 <>
                   <ContextMenuSeparator />
-                  <ContextMenuItem
-                    className="flex justify-between"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      toggleNodeFullWidth(node)
-                    }}
+                  <ContextMenuCheckboxItem
+                    checked={node.is_full_width}
+                    onCheckedChange={() => toggleNodeFullWidth(node)}
                   >
-                    {/* icon for full width */}
-                    <div className="flex items-center gap-2">
-                      <MoveHorizontal className="mr-2 h-4 w-4" />
-                      {t("nav.dropdown.menu.fullWidth")}
-                    </div>
-                    <Switch checked={node.is_full_width} />
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    className="flex justify-between"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      toggleNodeLock(node)
-                    }}
+                    <MoveHorizontal className="mr-2 h-4 w-4" />
+                    {t("nav.dropdown.menu.fullWidth")}
+                  </ContextMenuCheckboxItem>
+                  <ContextMenuCheckboxItem
+                    checked={node.is_locked}
+                    onCheckedChange={() => toggleNodeLock(node)}
                   >
-                    <div className="flex items-center gap-2">
-                      {node.is_locked ? (
-                        <LockIcon className="mr-2 h-4 w-4" />
-                      ) : (
-                        <LockOpenIcon className="mr-2 h-4 w-4" />
-                      )}
-                      {t("nav.dropdown.menu.lock")}
-                    </div>
-                    <Switch checked={node.is_locked} />
-                  </ContextMenuItem>
+                    {node.is_locked ? (
+                      <LockIcon className="mr-2 h-4 w-4" />
+                    ) : (
+                      <LockOpenIcon className="mr-2 h-4 w-4" />
+                    )}
+                    {t("nav.dropdown.menu.lock")}
+                  </ContextMenuCheckboxItem>
                 </>
               )}
               {node.type === "table" && enabled && (

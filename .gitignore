@@ -2,6 +2,7 @@
 dist-electron
 dist-app
 dist-sqlite-ext
+dist-cli
 
 # wrangler
 .wrangler/*

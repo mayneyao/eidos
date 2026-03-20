@@ -7,6 +7,7 @@ const DEFAULT_ENABLED_EXTENSIONS: Record<string, boolean> = {
   today: true,
   "monaco-editor": true,
   "media-preview": true,
+  "folder-browser": true,
 }
 
 /**

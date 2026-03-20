@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react"
 import { useDrop, useVirtualList } from "ahooks"
 
 import { getFilePreviewImage } from "@/lib/mime/mime"
-import { cn, proxyURL } from "@/lib/utils"
+import { cn, getDisplayURL } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -111,7 +111,7 @@ export function FileSelector(props: {
   const handleSelectWebFile = async () => {
     const url = (document.getElementById("web-image-url") as HTMLInputElement)
       .value
-    const cover = proxyURL(url)
+    const cover = getDisplayURL(url)
     props.onSelected(cover, true)
   }
 

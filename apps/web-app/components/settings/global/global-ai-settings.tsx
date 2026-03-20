@@ -1,7 +1,7 @@
 import { Suspense, lazy, useState } from "react"
 import type { LLMProvider } from "@/packages/ai/config"
 import { ALL_PROVIDERS, type LLMProviderType } from "@/packages/ai/helper"
-import { Edit, Plus, Trash2 } from "lucide-react"
+import { Edit, Plus, Trash2, AlertTriangle, Bot, Sparkles } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import {
@@ -14,6 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -154,10 +155,13 @@ export function GlobalAISettings() {
     <div className="space-y-0">
       {/* Provider Section */}
       <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h3 className="text-lg font-medium">{t("settings.ai.provider")}</h3>
+        <div className="flex items-center gap-2">
+          <Bot className="h-5 w-5 text-muted-foreground" />
+          <h3 className="text-lg font-medium">{t("settings.ai.provider")}</h3>
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
+            <Button size="sm">
               <Plus className="mr-2 h-4 w-4" />
               {t("common.button.add")}
             </Button>
@@ -186,124 +190,169 @@ export function GlobalAISettings() {
 
       <hr className="border-border" />
 
-      <div className="py-4 lg:py-6">
+      <div className="py-6">
         <div className="space-y-4">
-          <div className="space-y-0.5">
-            <p className="text-sm text-muted-foreground">
-              {t("settings.ai.providerDescription")}
-            </p>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            {t("settings.ai.providerDescription")}
+          </p>
 
-          <div className="flex flex-col gap-3">
-            {aiConfig.llmProviders.map((provider) => {
-              return (
-                <div
-                  key={provider.name}
-                  className="group flex items-center p-3 rounded-lg border hover:bg-accent/50 transition-colors gap-3"
-                >
-                  {/* Icon */}
-                  <div className="flex-shrink-0">
-                    <Suspense fallback={<div className="w-5 h-5" />}>
-                      <ProviderIcon type={provider.type} isActive />
-                    </Suspense>
-                  </div>
+          {aiConfig.llmProviders.length === 0 ? (
+            <div className="p-8 text-center border border-dashed rounded-lg">
+              <Bot className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
+              <p className="text-muted-foreground mb-1">
+                {t("settings.ai.noProviders", "No providers configured")}
+              </p>
+              <p className="text-sm text-muted-foreground mb-4">
+                {t(
+                  "settings.ai.addProviderHint",
+                  "Add an LLM provider to start using AI features"
+                )}
+              </p>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Plus className="mr-2 h-4 w-4" />
+                    {t("settings.ai.addProvider", "Add Provider")}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" side="bottom">
+                  {ALL_PROVIDERS.map((type) => (
+                    <DropdownMenuItem
+                      key={type}
+                      onSelect={() => handleAddProvider(type)}
+                      className="flex items-center gap-2"
+                      disabled={
+                        type !== "openai-compatible" &&
+                        type !== "ollama" &&
+                        configuredProviderTypes.has(type)
+                      }
+                    >
+                      <Suspense fallback={<div className="w-4 h-4" />}>
+                        <ProviderIcon type={type} />
+                      </Suspense>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {aiConfig.llmProviders.map((provider) => {
+                const models = provider.models
+                  ? provider.models.split(",").map((m) => m.trim())
+                  : []
+                const displayModels = models.slice(0, 3)
+                const remainingCount = models.length - 3
 
-                  {/* Name */}
-                  <div className="min-w-0 flex-shrink-0">
-                    <h5 className="font-medium truncate">{provider.name}</h5>
-                  </div>
-
-                  {/* Models */}
-                  <div className="flex-1 min-w-0">
-                    {provider.models && provider.models.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 items-center text-xs text-muted-foreground">
-                        {provider.models
-                          .split(",")
-                          .slice(0, 5)
-                          .map((model) => (
-                            <span
-                              key={model}
-                              className="whitespace-nowrap rounded bg-muted px-2 py-1 text-muted-foreground"
-                            >
-                              {model}
-                            </span>
-                          ))}
-                        {(() => {
-                          const totalModels = provider.models.split(",").length
-                          if (totalModels > 5) {
-                            const remainingCount = totalModels - 5
-                            return (
-                              <span className="italic shrink-0 text-muted-foreground">
-                                {t("common.more", {
-                                  count: remainingCount,
-                                })}
-                              </span>
-                            )
-                          }
-                          return null
-                        })()}
+                return (
+                  <div
+                    key={provider.name}
+                    className="p-4 rounded-lg border hover:border-primary/50 transition-colors"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      {/* Icon & Name */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="p-2 rounded-md bg-muted shrink-0">
+                          <Suspense fallback={<div className="w-4 h-4" />}>
+                            <ProviderIcon type={provider.type} isActive />
+                          </Suspense>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">
+                            {provider.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground capitalize">
+                            {provider.type}
+                          </p>
+                        </div>
                       </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground italic">
-                        {t("settings.ai.noModelsConfigured")}
-                      </span>
-                    )}
-                  </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEditProvider(provider)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteProvider(provider.name)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                      {/* Models */}
+                      <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+                        {models.length > 0 ? (
+                          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                            {displayModels.map((model) => (
+                              <Badge
+                                key={model}
+                                variant="secondary"
+                                className="text-xs font-normal"
+                              >
+                                {model}
+                              </Badge>
+                            ))}
+                            {remainingCount > 0 && (
+                              <span className="text-xs text-muted-foreground">
+                                +{remainingCount}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">
+                            {t("settings.ai.noModelsConfigured")}
+                          </span>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleEditProvider(provider)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => handleDeleteProvider(provider.name)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Model Preferences Section */}
-      <div className="py-4 lg:py-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-muted-foreground" />
           <h3 className="text-lg font-medium">
             {t("settings.ai.modelPreferences")}
           </h3>
-          <Button
-            size="sm"
-            disabled={!isFormDirty}
-            className="transition-opacity duration-200"
-            style={{
-              opacity: isFormDirty ? 1 : 0,
-              pointerEvents: isFormDirty ? "auto" : "none",
-            }}
-            onClick={() => {
-              // Trigger form submission
-              const form = document.querySelector("form")
-              if (form) {
-                form.requestSubmit()
-              }
-            }}
-          >
-            {t("common.update")}
-          </Button>
         </div>
+        <Button
+          size="sm"
+          disabled={!isFormDirty}
+          className="transition-opacity duration-200"
+          style={{
+            opacity: isFormDirty ? 1 : 0,
+            pointerEvents: isFormDirty ? "auto" : "none",
+          }}
+          onClick={() => {
+            // Trigger form submission
+            const form = document.querySelector("form")
+            if (form) {
+              form.requestSubmit()
+            }
+          }}
+        >
+          {t("common.update")}
+        </Button>
       </div>
 
       <hr className="border-border" />
 
-      <div className="py-4 lg:py-6">
+      <div className="py-6">
         <AITaskConfigForm onDirtyChange={setIsFormDirty} />
       </div>
 
@@ -324,7 +373,8 @@ export function GlobalAISettings() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
               {t("settings.ai.deleteProviderTitle")}
             </AlertDialogTitle>
             <AlertDialogDescription>
@@ -335,8 +385,11 @@ export function GlobalAISettings() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteProvider}>
-              {t("common.confirm")}
+            <AlertDialogAction
+              onClick={confirmDeleteProvider}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

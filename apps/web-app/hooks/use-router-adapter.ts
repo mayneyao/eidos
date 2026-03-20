@@ -158,6 +158,8 @@ export const useRouterAdapter = () => {
     if (parts.length >= 1) {
       if (parts[0] === "file-handler") {
         // /file-handler - no additional params
+      } else if (parts[0] === "folder") {
+        // /folder - no additional params
       } else if (parts[0] === "blocks" && parts.length >= 2) {
         // /blocks/:blockId
         result.blockId = parts[1]

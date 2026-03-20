@@ -1,6 +1,7 @@
 import { toast } from "@/components/ui/use-toast"
 import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 import { getProvider } from "@/packages/ai/helper"
+import { isDesktopMode } from "@/lib/env"
 import type { LanguageModelV1 } from "ai"
 import { embedMany, generateText } from "ai"
 import { useState } from "react"
@@ -68,21 +69,20 @@ export const useModelTest = () => {
           }
           break
         case TaskType.Translation:
-          const translationText = async (
-            text: string,
-            targetLanguage: string
-          ) => {
-            if (!model) return []
-            const res = await generateText({
-              model: modelProvider(config.modelId) as LanguageModelV1,
-              prompt: `Translate the following text to ${targetLanguage}: ${text}`,
-            })
-            return res.text
-          }
           try {
             const text = "Bonjour World"
             const targetLanguage = "English"
-            await translationText(text, targetLanguage)
+            if (isDesktopMode) {
+              await window.eidos.AI.generateText({
+                model,
+                prompt: `Translate the following text to ${targetLanguage}: ${text}`,
+              })
+            } else {
+              const res = await generateText({
+                model: modelProvider(config.modelId) as LanguageModelV1,
+                prompt: `Translate the following text to ${targetLanguage}: ${text}`,
+              })
+            }
             toast({
               title: "Test Succeeded",
               description: `Tested ${modelType} model "${model}" successfully.`,
@@ -100,11 +100,17 @@ export const useModelTest = () => {
           if (!model) return []
 
           try {
-            const code = await generateText({
-              model: modelProvider(config.modelId) as LanguageModelV1,
-              prompt: `just write a function that takes a list of numbers and returns the sum of the numbers. don't include any other text.`,
-            })
-            console.log(code)
+            if (isDesktopMode) {
+              await window.eidos.AI.generateText({
+                model,
+                prompt: `just write a function that takes a list of numbers and returns the sum of the numbers. don't include any other text.`,
+              })
+            } else {
+              await generateText({
+                model: modelProvider(config.modelId) as LanguageModelV1,
+                prompt: `just write a function that takes a list of numbers and returns the sum of the numbers. don't include any other text.`,
+              })
+            }
             toast({
               title: "Test Succeeded",
               description: `Tested ${modelType} model "${model}" successfully.`,
@@ -122,9 +128,7 @@ export const useModelTest = () => {
           if (!model) return []
 
           try {
-            const patchCode = await generateText({
-              model: modelProvider(config.modelId) as LanguageModelV1,
-              prompt: `You are a code patching assistant. Apply the following edit to the given code:
+            const prompt = `You are a code patching assistant. Apply the following edit to the given code:
 
 <code>
 import { useState } from "react"
@@ -148,16 +152,29 @@ export function Counter() {
 Add a reset button that sets count back to 0, and add a disabled state when count is 0.
 </update>
 
-Return the complete modified code with the changes applied.`,
-            })
-            console.log(patchCode)
+Return the complete modified code with the changes applied.`
+            let patchCodeText: string
+            if (isDesktopMode) {
+              const { text } = await window.eidos.AI.generateText({
+                model,
+                prompt,
+              })
+              patchCodeText = text
+            } else {
+              const patchCode = await generateText({
+                model: modelProvider(config.modelId) as LanguageModelV1,
+                prompt,
+              })
+              patchCodeText = patchCode.text
+            }
+            console.log(patchCodeText)
 
             // Simple validation to check if the response contains expected modifications
             if (
-              patchCode.text.includes("export function Counter") &&
-              patchCode.text.includes("Reset") &&
-              (patchCode.text.includes("disabled") ||
-                patchCode.text.includes("count === 0"))
+              patchCodeText.includes("export function Counter") &&
+              patchCodeText.includes("Reset") &&
+              (patchCodeText.includes("disabled") ||
+                patchCodeText.includes("count === 0"))
             ) {
               toast({
                 title: "Test Succeeded",

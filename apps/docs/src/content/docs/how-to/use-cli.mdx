@@ -1,0 +1,183 @@
+---
+title: Use the Eidos CLI
+description: Learn how to use the eidos command-line interface to manage your Eidos space from the terminal.
+---
+
+The Eidos CLI (`eidos`) is a command-line interface that allows you to interact with your Eidos Desktop application directly from the terminal. This guide walks you through common workflows and use cases.
+
+## Installation
+
+The CLI is bundled with Eidos Desktop. To install it:
+
+1. Open Eidos Desktop
+2. Press `Cmd/Ctrl + K` to open the Command Palette
+3. Type "install eidos" and select "Install 'eidos' command in PATH"
+
+Verify the installation:
+
+```bash
+eidos status
+```
+
+## Space Selection
+
+The CLI automatically detects which space to use based on your current directory. If you're inside a space directory, it will use that space automatically.
+
+You can also explicitly specify a space:
+
+```bash
+# Use a specific space for a single command
+eidos -s my-space ls
+
+# Or navigate to a space directory for auto-detection
+cd /path/to/my-space
+eidos ls
+```
+
+## Common Workflows
+
+### Daily Notes
+
+Create and maintain daily notes efficiently:
+
+```bash
+# Create today's note with a template
+eidos touch "daily/$(date +%Y-%m-%d)" --content "# $(date +%A, %B %d)\n\n## Morning\n\n## Afternoon\n\n## Evening"
+
+# Append to today's note throughout the day
+eidos append "daily/$(date +%Y-%m-%d)" --content "- [ ] Review pull requests"
+echo "Met with the team, discussed roadmap" | eidos append "daily/$(date +%Y-%m-%d)"
+```
+
+### Project Setup
+
+Quickly scaffold a new project structure:
+
+```bash
+# Create project folders
+eidos mkdir projects/website
+eidos mkdir projects/website/docs
+eidos mkdir projects/website/assets
+
+# Create project documents
+eidos touch projects/website/readme --content "# Website Project"
+eidos touch projects/website/todo --content "## TODO\n- [ ] Design homepage\n- [ ] Setup CI/CD"
+
+# View the structure
+eidos ls projects/website -l
+```
+
+### Document Management
+
+Organize and manage your documents:
+
+```bash
+# Create a draft
+eidos touch drafts/article --content "# Draft Article"
+
+# Move to published when ready
+eidos mkdir published
+eidos mv drafts/article published/article
+
+# View published content
+eidos cat published/article
+```
+
+### Mount External Resources
+
+Access external directories without copying files:
+
+```bash
+# Mount your Documents folder
+eidos mount docs ~/Documents
+
+# Now reference files in Eidos as /@/docs/filename.pdf
+# List all mounts
+eidos mount
+
+# Remove mount when no longer needed
+eidos mount -u docs
+```
+
+### Table Data Export
+
+Export data for analysis or backup:
+
+```bash
+# Export table data as JSON
+eidos -f json sql "SELECT * FROM tb_xxx" > backup.json
+
+# View table schema before querying
+eidos table schema tb_xxx
+```
+
+### Extension Development
+
+Deploy extensions from your development environment:
+
+```bash
+# Deploy a block extension
+eidos ext deploy ./my-block.tsx
+
+# Update an existing extension
+eidos ext deploy ./my-block.tsx --slug my-block
+
+# List installed extensions
+eidos ext ls
+```
+
+## Output Formats
+
+Most commands support JSON output for scripting:
+
+```bash
+# JSON output for parsing
+eidos -f json table ls
+eidos -f json sql "SELECT * FROM eidos__tree LIMIT 5"
+```
+
+## Shell Completion
+
+Add tab completion to your shell:
+
+```bash
+# Bash
+eidos completions bash > /usr/local/share/bash-completion/completions/eidos
+
+# Zsh
+eidos completions zsh > /usr/share/zsh/site-functions/_eidos
+
+# Fish
+eidos completions fish > ~/.config/fish/completions/eidos.fish
+```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `EIDOS_ENDPOINT` | Eidos Desktop endpoint (default: `http://localhost:13127`) |
+| `EIDOS_SPACE` | Default space ID |
+| `EIDOS_API_KEY` | API key for authentication (if enabled) |
+
+## Troubleshooting
+
+### "No space selected" Error
+
+The CLI needs to know which space to use. Either:
+- Navigate to a space directory (auto-detection)
+- Navigate to a space directory (auto-detection)
+- Specify per command: `eidos -s <space-id> <command>`
+
+### "Eidos Desktop is not running"
+
+The CLI requires Eidos Desktop to be running. Start the application first, then verify with `eidos status`.
+
+### Permission Denied
+
+Ensure the CLI was properly installed to your PATH. You may need to restart your terminal after installation.
+
+## Next Steps
+
+- [CLI Concepts](../../extensions/cli/) - Understand CLI design and features
+- [CLI API Reference](../../api-reference/cli/) - Complete command reference
+- [Node API Reference](../../api-reference/node/) - Understanding node structures

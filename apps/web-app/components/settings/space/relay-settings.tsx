@@ -7,9 +7,10 @@ import {
   Terminal,
   Hash,
   Edit2,
-  Info,
   AlertCircle,
   Lock,
+  Radio,
+  AlertTriangle,
 } from "lucide-react"
 
 import { isDesktopMode } from "@/lib/env"
@@ -19,6 +20,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
+import { Badge } from "@/components/ui/badge"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import type {
   RelayChannel,
@@ -44,6 +46,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface ChannelFormData {
   id: string
@@ -74,6 +86,8 @@ export function RelaySettings() {
     id: "",
     handlerScriptId: "",
   })
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [channelToDelete, setChannelToDelete] = useState<string | null>(null)
 
   // Message counts state
   const [channelCounts, setChannelCounts] = useState<
@@ -267,11 +281,20 @@ export function RelaySettings() {
     setEditingChannel(null)
   }
 
-  const handleDeleteChannel = (id: string) => {
-    if (confirm(t("space.settings.relay.deleteConfirm"))) {
-      const newChannels = relayConfig.channels.filter((c) => c.id !== id)
+  const openDeleteDialog = (id: string) => {
+    setChannelToDelete(id)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteChannel = () => {
+    if (channelToDelete) {
+      const newChannels = relayConfig.channels.filter(
+        (c) => c.id !== channelToDelete
+      )
       saveRelayConfig({ ...relayConfig, channels: newChannels })
       toast({ title: t("space.settings.relay.channelRemoved") })
+      setDeleteDialogOpen(false)
+      setChannelToDelete(null)
     }
   }
 
@@ -288,32 +311,36 @@ export function RelaySettings() {
   // Login required prompt
   if (!isAuthenticated) {
     return (
-      <div className="space-y-6">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            {t("space.settings.relay.description")}
-          </p>
+      <div className="space-y-0">
+        <div className="py-4 flex items-center gap-2">
+          <Radio className="h-5 w-5 text-muted-foreground" />
+          <h3 className="text-lg font-medium">
+            {t("space.settings.relay.service")}
+          </h3>
         </div>
-        <div className="p-6 rounded-xl bg-gradient-to-br from-amber-50/80 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/10 border border-amber-200/60 dark:border-amber-800/30">
-          <div className="flex items-start gap-4">
-            <div className="p-2.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 shrink-0">
-              <Lock className="h-5 w-5" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="font-semibold text-amber-900 dark:text-amber-100">
-                {t("space.settings.relay.loginRequired")}
-              </h3>
-              <p className="text-sm text-amber-800/80 dark:text-amber-200/70">
-                {t("space.settings.relay.loginRequiredDescription")}
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2 border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/30"
-                onClick={() => auth?.login()}
-              >
-                {t("settings.account.login", "Login")}
-              </Button>
+
+        <hr className="border-border" />
+
+        <div className="py-6">
+          <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+            <div className="flex items-start gap-3">
+              <Lock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-medium text-amber-800 dark:text-amber-200">
+                  {t("space.settings.relay.loginRequired")}
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                  {t("space.settings.relay.loginRequiredDescription")}
+                </p>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-amber-700 dark:text-amber-300 mt-2"
+                  onClick={() => auth?.login()}
+                >
+                  {t("settings.account.login", "Login")} →
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -329,303 +356,371 @@ export function RelaySettings() {
     )
   }
 
-  const channelCount = relayConfig.channels.length
+  const hasMessages = totalCounts.pending > 0 || totalCounts.deadLetter > 0
 
   return (
-    <div className="space-y-6">
-      {/* Header with Add Button */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            {t("space.settings.relay.description")}
-          </p>
-          {relayConfig.channels.length > 0 && (
-            <p className="text-xs text-muted-foreground mt-1">
-              {t("space.settings.relay.channelCount", {
-                current: relayConfig.channels.length,
-                max: MAX_CHANNELS,
-              })}
-            </p>
-          )}
-        </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button
-              onClick={handleOpenAddDialog}
-              size="sm"
-              disabled={relayConfig.channels.length >= MAX_CHANNELS}
-            >
-              <Plus className="h-4 w-4 mr-1" />{" "}
-              {t("space.settings.relay.addChannel")}
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>
-                {editingChannel
-                  ? t("space.settings.relay.editChannel")
-                  : t("space.settings.relay.addChannel")}
-              </DialogTitle>
-              <DialogDescription>
-                {editingChannel
-                  ? t("space.settings.relay.editChannelDescription")
-                  : t("space.settings.relay.addChannelDescription")}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              {/* Channel ID */}
-              <div className="space-y-2">
-                <Label htmlFor="channel-id">
-                  {t("space.settings.relay.channelId")}
-                </Label>
-                <div className="flex gap-2 items-center">
-                  <Input
-                    id="channel-id"
-                    value={formData.id}
-                    onChange={(e) =>
-                      setFormData({ ...formData, id: e.target.value })
-                    }
-                    placeholder="unique-channel-id"
-                    className="font-mono text-sm"
-                  />
-                  <Button
-                    variant="ghost"
-                    className="shrink-0 h-8 w-8 p-0"
-                    onClick={() =>
-                      setFormData({
-                        ...formData,
-                        id: crypto.randomUUID().replace(/-/g, ""),
-                      })
-                    }
-                    title={t("space.settings.relay.generateId")}
-                  >
-                    <Hash className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {t("space.settings.relay.channelIdDescription")}
-                </p>
-              </div>
-
-              {/* Handler Script */}
-              <div className="space-y-2">
-                <Label htmlFor="handler-script">
-                  {t("space.settings.relay.handlerScript")}
-                </Label>
-                <Select
-                  value={formData.handlerScriptId || "none"}
-                  onValueChange={(val) =>
-                    setFormData({
-                      ...formData,
-                      handlerScriptId: val === "none" ? "" : val,
-                    })
-                  }
-                >
-                  <SelectTrigger id="handler-script">
-                    <SelectValue
-                      placeholder={t(
-                        "space.settings.relay.selectScriptPlaceholder"
-                      )}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">
-                      {t("space.settings.relay.noHandler")}
-                    </SelectItem>
-                    {relayHandlers.map((handler) => (
-                      <SelectItem key={handler.id} value={handler.id}>
-                        {handler.name || handler.slug}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {t("space.settings.relay.handlerScriptDescription")}
-                </p>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setIsAddDialogOpen(false)}
-              >
-                {t("space.settings.relay.cancel")}
-              </Button>
-              <Button onClick={handleSaveChannel}>
-                {editingChannel
-                  ? t("space.settings.relay.saveChanges")
-                  : t("space.settings.relay.addChannelButton")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+    <div className="space-y-0">
+      {/* Header */}
+      <div className="py-4 flex items-center gap-2">
+        <Radio className="h-5 w-5 text-muted-foreground" />
+        <h3 className="text-lg font-medium">
+          {t("space.settings.relay.service")}
+        </h3>
       </div>
 
-      {/* Relay Master Toggle */}
-      <div className="p-5 rounded-xl bg-gradient-to-br from-muted/80 to-muted/30 border shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4 min-w-0">
-            <div
-              className={`p-2.5 rounded-full ${relayConfig.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
-            >
-              <Hash className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <span className="text-sm font-semibold">
-                {t("space.settings.relay.service")}
-              </span>
-              <p className="text-sm text-muted-foreground line-clamp-1">
-                {relayConfig.enabled
-                  ? t("space.settings.relay.serviceEnabled", {
-                      count: channelCount,
-                    })
-                  : relayConfig.channels.length > 0
-                    ? t("space.settings.relay.serviceDisabled", {
-                        count: relayConfig.channels.length,
-                      })
-                    : t("space.settings.relay.noChannels")}
-              </p>
-              {/* Message Statistics */}
-              {(totalCounts.pending > 0 || totalCounts.deadLetter > 0) && (
-                <div className="flex items-center gap-2 mt-2">
-                  {totalCounts.pending > 0 && (
-                    <span
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
-                      title={t("space.settings.relay.pendingTooltip")}
-                    >
-                      {t("space.settings.relay.pendingShort")}:{" "}
-                      {totalCounts.pending}
-                    </span>
-                  )}
-                  {totalCounts.deadLetter > 0 && (
-                    <span
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
-                      title={t("space.settings.relay.deadLetterTooltip")}
-                    >
-                      <AlertCircle className="h-3 w-3 mr-1" />
-                      {t("space.settings.relay.deadLetterShort")}:{" "}
-                      {totalCounts.deadLetter}
-                    </span>
-                  )}
+      <hr className="border-border" />
+
+      <div className="py-6">
+        <div className="space-y-6">
+          {/* Master Toggle Card */}
+          <div className="p-4 rounded-lg border">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div
+                  className={`p-2 rounded-md ${
+                    relayConfig.enabled
+                      ? "bg-primary/10 text-primary"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <Radio className="h-5 w-5" />
                 </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium">
+                      {t("space.settings.relay.service")}
+                    </span>
+                    {relayConfig.enabled ? (
+                      <Badge
+                        variant="secondary"
+                        className="text-green-600 shrink-0"
+                      >
+                        {t("common.enabled")}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="shrink-0">
+                        {t("common.disabled")}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {relayConfig.channels.length > 0
+                      ? t("space.settings.relay.channelsConfigured", {
+                          count: relayConfig.channels.length,
+                        })
+                      : t("space.settings.relay.noChannels")}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={relayConfig.enabled}
+                disabled={relayConfig.channels.length === 0}
+                onCheckedChange={handleToggleRelay}
+              />
+            </div>
+
+            {/* Message Statistics */}
+            {hasMessages && (
+              <div className="mt-4 pt-4 border-t flex items-center gap-2 flex-wrap">
+                {totalCounts.pending > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="text-blue-600 bg-blue-50 dark:bg-blue-950/30"
+                  >
+                    {t("space.settings.relay.pendingShort")}:{" "}
+                    {totalCounts.pending}
+                  </Badge>
+                )}
+                {totalCounts.deadLetter > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="text-red-600 bg-red-50 dark:bg-red-950/30"
+                  >
+                    <AlertCircle className="h-3 w-3 mr-1" />
+                    {t("space.settings.relay.deadLetterShort")}:{" "}
+                    {totalCounts.deadLetter}
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Channels Section */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Hash className="h-4 w-4 text-muted-foreground" />
+              <h4 className="font-medium">
+                {t("space.settings.relay.channels")}
+              </h4>
+              {relayConfig.channels.length > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  (
+                  {t("space.settings.relay.channelCount", {
+                    current: relayConfig.channels.length,
+                    max: MAX_CHANNELS,
+                  })}
+                  )
+                </span>
               )}
             </div>
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  onClick={handleOpenAddDialog}
+                  size="sm"
+                  disabled={relayConfig.channels.length >= MAX_CHANNELS}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  {t("space.settings.relay.addChannel")}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingChannel
+                      ? t("space.settings.relay.editChannel")
+                      : t("space.settings.relay.addChannel")}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {editingChannel
+                      ? t("space.settings.relay.editChannelDescription")
+                      : t("space.settings.relay.addChannelDescription")}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  {/* Channel ID */}
+                  <div className="space-y-2">
+                    <Label htmlFor="channel-id">
+                      {t("space.settings.relay.channelId")}
+                    </Label>
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        id="channel-id"
+                        value={formData.id}
+                        onChange={(e) =>
+                          setFormData({ ...formData, id: e.target.value })
+                        }
+                        placeholder="unique-channel-id"
+                        className="font-mono text-sm"
+                      />
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0 h-9 w-9"
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            id: crypto.randomUUID().replace(/-/g, ""),
+                          })
+                        }
+                        title={t("space.settings.relay.generateId")}
+                      >
+                        <Hash className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {t("space.settings.relay.channelIdDescription")}
+                    </p>
+                  </div>
+
+                  {/* Handler Script */}
+                  <div className="space-y-2">
+                    <Label htmlFor="handler-script">
+                      {t("space.settings.relay.handlerScript")}
+                    </Label>
+                    <Select
+                      value={formData.handlerScriptId || "none"}
+                      onValueChange={(val) =>
+                        setFormData({
+                          ...formData,
+                          handlerScriptId: val === "none" ? "" : val,
+                        })
+                      }
+                    >
+                      <SelectTrigger id="handler-script">
+                        <SelectValue
+                          placeholder={t(
+                            "space.settings.relay.selectScriptPlaceholder"
+                          )}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">
+                          {t("space.settings.relay.noHandler")}
+                        </SelectItem>
+                        {relayHandlers.map((handler) => (
+                          <SelectItem key={handler.id} value={handler.id}>
+                            {handler.name || handler.slug}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {t("space.settings.relay.handlerScriptDescription")}
+                    </p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsAddDialogOpen(false)}
+                  >
+                    {t("space.settings.relay.cancel")}
+                  </Button>
+                  <Button onClick={handleSaveChannel}>
+                    {editingChannel
+                      ? t("space.settings.relay.saveChanges")
+                      : t("space.settings.relay.addChannelButton")}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
-          <Switch
-            checked={relayConfig.enabled}
-            disabled={relayConfig.channels.length === 0}
-            onCheckedChange={handleToggleRelay}
-          />
+
+          {/* Channel List */}
+          {relayConfig.channels.length === 0 ? (
+            <div className="p-8 text-center border border-dashed rounded-lg">
+              <Radio className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
+              <p className="text-muted-foreground mb-1">
+                {t("space.settings.relay.noChannelsDescription")}
+              </p>
+              <p className="text-sm text-muted-foreground mb-4">
+                {t("space.settings.relay.createChannelHint")}
+              </p>
+              <Button variant="outline" onClick={handleOpenAddDialog}>
+                <Plus className="h-4 w-4 mr-2" />
+                {t("space.settings.relay.createFirst")}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {relayConfig.channels.map((channel) => {
+                const counts = channelCounts[channel.id]
+                const hasChannelMessages =
+                  counts && (counts.pending > 0 || counts.deadLetter > 0)
+                const handlerName = channel.handlerScriptId
+                  ? relayHandlers.find((h) => h.id === channel.handlerScriptId)
+                      ?.name || t("space.settings.relay.unknownScript")
+                  : null
+
+                return (
+                  <div
+                    key={channel.id}
+                    className="p-4 rounded-lg border hover:border-primary/50 transition-colors"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      {/* Channel ID */}
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <code className="text-sm font-mono font-medium truncate">
+                          {channel.id}
+                        </code>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+                          onClick={() => {
+                            navigator.clipboard.writeText(channel.id)
+                            toast({
+                              title: t("space.settings.relay.idCopied"),
+                            })
+                          }}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+
+                      {/* Message Counts & Handler */}
+                      <div className="flex items-center gap-2">
+                        {hasChannelMessages && (
+                          <>
+                            {counts!.pending > 0 && (
+                              <Badge
+                                variant="secondary"
+                                className="text-blue-600 bg-blue-50 dark:bg-blue-950/30 text-xs"
+                              >
+                                {counts!.pending}
+                              </Badge>
+                            )}
+                            {counts!.deadLetter > 0 && (
+                              <Badge
+                                variant="secondary"
+                                className="text-red-600 bg-red-50 dark:bg-red-950/30 text-xs"
+                              >
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                {counts!.deadLetter}
+                              </Badge>
+                            )}
+                          </>
+                        )}
+
+                        {handlerName ? (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                            <Terminal className="h-3 w-3" />
+                            <span className="truncate max-w-[100px] sm:max-w-[150px]">
+                              {handlerName}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                            {t("space.settings.relay.noHandlerLabel")}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleOpenEditDialog(channel)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => openDeleteDialog(channel.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Channel List */}
-      <div className="space-y-2">
-        {relayConfig.channels.length === 0 ? (
-          <div className="p-8 text-center border border-dashed rounded-lg">
-            <p className="text-sm text-muted-foreground mb-4">
-              {t("space.settings.relay.noChannelsDescription")}
-            </p>
-            <Button variant="outline" onClick={handleOpenAddDialog}>
-              <Plus className="h-4 w-4 mr-2" />
-              {t("space.settings.relay.createFirst")}
-            </Button>
-          </div>
-        ) : (
-          relayConfig.channels.map((channel) => (
-            <div
-              key={channel.id}
-              className="group flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl border transition-all hover:bg-muted/40 bg-muted/10 border-border/50 hover:border-border hover:shadow-sm"
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              {t("space.settings.relay.deleteChannel")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("space.settings.relay.deleteConfirmDescription", {
+                id: channelToDelete,
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteChannel}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              <div className="flex-1 min-w-0 flex items-center gap-2">
-                <div className="flex items-center gap-2 px-0 py-1">
-                  <Hash className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <code className="text-sm font-mono font-bold truncate max-w-[180px] sm:max-w-[350px]">
-                    {channel.id}
-                  </code>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 ml-0.5 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      navigator.clipboard.writeText(channel.id)
-                      toast({ title: t("space.settings.relay.idCopied") })
-                    }}
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Message Counts */}
-              <div className="flex items-center gap-2 empty:hidden">
-                {(() => {
-                  const counts = channelCounts[channel.id]
-                  if (
-                    !counts ||
-                    (counts.pending === 0 && counts.deadLetter === 0)
-                  )
-                    return null
-                  return (
-                    <>
-                      {counts.pending > 0 && (
-                        <span
-                          className="inline-flex items-center px-2 py-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold border border-blue-500/20"
-                          title={t("space.settings.relay.pendingTooltip")}
-                        >
-                          {counts.pending}
-                        </span>
-                      )}
-                      {counts.deadLetter > 0 && (
-                        <span
-                          className="inline-flex items-center px-2 py-1 rounded bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-bold border border-red-500/20"
-                          title={t("space.settings.relay.deadLetterTooltip")}
-                        >
-                          <AlertCircle className="h-3 w-3 mr-1" />
-                          {counts.deadLetter}
-                        </span>
-                      )}
-                    </>
-                  )
-                })()}
-              </div>
-
-              {/* Handler Script */}
-              <div className="flex items-center gap-2 text-[13px] text-muted-foreground bg-muted/20 px-3 py-1.5 rounded-lg border border-transparent group-hover:border-border/30 transition-colors">
-                <Terminal className="h-3.5 w-3.5" />
-                <span className="truncate max-w-[120px] sm:max-w-[180px]">
-                  {channel.handlerScriptId
-                    ? relayHandlers.find(
-                        (h) => h.id === channel.handlerScriptId
-                      )?.name || t("space.settings.relay.unknownScript")
-                    : t("space.settings.relay.noHandlerLabel")}
-                </span>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-lg"
-                  onClick={() => handleOpenEditDialog(channel)}
-                >
-                  <Edit2 className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => handleDeleteChannel(channel.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+              {t("common.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

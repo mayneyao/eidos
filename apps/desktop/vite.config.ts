@@ -17,6 +17,7 @@ const externalNodeModules = [
   "oxc-parser",
   "oxc-transform",
   "@vscode/ripgrep",
+  "node-pty",
 ]
 
 // desktop do not need android and windows11
@@ -85,8 +86,19 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
           build: {
             rollupOptions: {
               plugins: [esmShim() as unknown as Plugin],
-              external: externalNodeModules,
+              external: [...externalNodeModules, "electron"],
+              output: {
+                format: "esm",
+              },
             },
+            commonjsOptions: {
+              // Handle dynamic requires for native modules
+              ignoreDynamicRequires: true,
+              transformMixedEsModules: true,
+            },
+          },
+          optimizeDeps: {
+            exclude: [...externalNodeModules],
           },
         },
       },
@@ -107,6 +119,9 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
                 chunkFileNames: "[name].mjs",
                 assetFileNames: "[name].[ext]",
               },
+            },
+            commonjsOptions: {
+              ignoreDynamicRequires: true,
             },
           },
         },

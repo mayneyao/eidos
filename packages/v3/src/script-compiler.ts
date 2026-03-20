@@ -53,8 +53,11 @@ export const scriptCodeCompile = async (
   }
 }
 
-export async function blockCodeCompile(ts_code: string): Promise<string> {
-  const result = await compileCode(ts_code)
+export async function blockCodeCompile(
+  ts_code: string,
+  filename?: string
+): Promise<string> {
+  const result = await compileCode(ts_code, { filename })
   if (result.error) {
     console.error("Error compiling block code:", result.error)
     throw new Error(result.error)

@@ -175,6 +175,19 @@ interface TableListItem {
   name: string;
 }
 /**
+ * Portable schema representation for import/export.
+ * Encodes table structure (name + fields) without any IDs,
+ * so it can be shared and used to recreate tables.
+ */
+interface TableSchemaExport {
+  /** Schema format version */
+  version: 1;
+  /** Table display name */
+  name: string;
+  /** Field definitions (system fields excluded) */
+  fields: CreateFieldInput[];
+}
+/**
  * Schema management client for table/field/view lifecycle operations.
  *
  * Access via `eidos.currentSpace.schema.*`
@@ -268,6 +281,37 @@ declare class SchemaClient {
    * @param viewId View ID
    */
   deleteView(tableId: string, viewId: string): Promise<boolean>;
+  /**
+   * Export a table's schema as a portable object.
+   * The returned value can be JSON-stringified and base64-encoded for sharing.
+   * System fields (_id, title, _created_time, etc.) are excluded.
+   *
+   * @param tableId Table ID
+   * @returns Portable schema object
+   *
+   * @example
+   * ```typescript
+   * const schema = await eidos.currentSpace.schema.export(tableId)
+   * const encoded = btoa(JSON.stringify(schema))
+   * // share `encoded` with others
+   * ```
+   */
+  export(tableId: string): Promise<TableSchemaExport>;
+  /**
+   * Create a new table from a previously exported schema.
+   * This is the counterpart to `schema.export()`.
+   *
+   * @param schema Schema exported via `schema.export()` (or decoded from base64)
+   * @param nameOverride Optional new name for the table (defaults to schema name)
+   * @returns Created table info
+   *
+   * @example
+   * ```typescript
+   * const schema = JSON.parse(atob(encodedSchema)) as TableSchemaExport
+   * const table = await eidos.currentSpace.schema.import(schema)
+   * ```
+   */
+  import(schema: TableSchemaExport, nameOverride?: string): Promise<TableInfo>;
 }
 //# sourceMappingURL=schema.d.ts.map
 //#endregion
@@ -297,7 +341,7 @@ interface WhereCondition<T = any> {
   [key: string]: any;
 }
 interface OrderByOption<T = any> {
-  [key: string]: 'asc' | 'desc' | undefined;
+  [key: string]: "asc" | "desc" | undefined;
 }
 //#endregion
 //#region sdk/rows.d.ts
@@ -401,7 +445,7 @@ declare class RowsManager {
    * @param options Query options excluding select, orderBy, skip, take
    * @returns Count of matching rows
    */
-  count(options?: Omit<FindManyOptions<Record<string, any>>, 'select' | 'orderBy' | 'skip' | 'take'>): Promise<number>;
+  count(options?: Omit<FindManyOptions<Record<string, any>>, "select" | "orderBy" | "skip" | "take">): Promise<number>;
 }
 //# sourceMappingURL=rows.d.ts.map
 //#endregion
@@ -661,8 +705,8 @@ declare class TextFieldService {
   resetEmbedding: (fieldId: string) => Promise<void>;
   onPropertyChange: (oldField: IField<TextProperty>, property: TextProperty) => Promise<void>;
   /**
-  * when user delete a link field, we also need to delete the paired link field and delete relation data
-  */
+   * when user delete a link field, we also need to delete the paired link field and delete relation data
+   */
   beforeDeleteColumn(tableName: string, columnName: string, db?: BaseServerDatabase): Promise<void>;
   /**
    * Get statistics about the embedding status for a text field
@@ -903,6 +947,161 @@ declare class TableClient<T extends Record<string, any> = Record<string, any>> {
   private buildWhereFromOptions;
 }
 //#endregion
+//#region types/ITreeNode.d.ts
+declare enum TreeNodeType {
+  Table = "table",
+  Doc = "doc",
+  Folder = "folder",
+  Dataview = "dataview",
+}
+interface ITreeNode {
+  id: string;
+  name: string;
+  type: TreeNodeType | `ext__${string}` | "day" | "table" | "doc" | "folder" | "dataview" | "extension";
+  position?: number;
+  parent_id?: string;
+  is_pinned?: boolean;
+  is_full_width?: boolean;
+  is_locked?: boolean;
+  is_deleted?: boolean;
+  hide_properties?: boolean;
+  icon?: string;
+  cover?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+//# sourceMappingURL=ITreeNode.d.ts.map
+//#endregion
+//#region sdk/node.d.ts
+interface NodeApiOptions {
+  content?: string;
+  schema?: TableSchema;
+  query?: string;
+  hideProperties?: boolean;
+}
+interface TableSchema {
+  columns: Array<{
+    name: string;
+    type: string;
+    options?: any;
+  }>;
+}
+interface DeleteOptions {
+  permanent?: boolean;
+  recursive?: boolean;
+}
+interface FindQuery {
+  name?: string;
+  type?: string | string[];
+  parent?: string;
+  isDeleted?: boolean;
+}
+/**
+ * Node SDK client - provides path-based node operations
+ *
+ * @example
+ * ```typescript
+ * // Get node by path
+ * const node = await space.node.get("projects/roadmap")
+ *
+ * // Create a document
+ * await space.node.create("notes/idea", "doc", {
+ *   content: "# My Idea\n\nThis is brilliant!"
+ * })
+ *
+ * // Move node
+ * await space.node.move("drafts/article", "published/article")
+ *
+ * // Delete node
+ * await space.node.delete("old-document")
+ * ```
+ */
+declare class NodeClient {
+  private dataSpace;
+  constructor(dataSpace: DataSpace);
+  /**
+   * Check if path-based operations are available
+   * Requires node name uniqueness to be enabled
+   */
+  isPathEnabled(): Promise<boolean>;
+  /**
+   * Parse a path into parent path and name
+   * Paths are relative to space root, no "/" prefix
+   * @example "folder/doc" -> { parentPath: "folder", name: "doc" }
+   * @example "doc" -> { parentPath: "", name: "doc" }
+   */
+  private parsePath;
+  /**
+   * Resolve a path to a node ID
+   * Returns null if path doesn't exist or uniqueness is not enabled
+   * Paths are relative to space root, no "/" prefix needed
+   */
+  resolvePath(path: string): Promise<{
+    id: string;
+    node: ITreeNode;
+  } | null>;
+  /**
+   * Get a node by its path
+   * Requires name uniqueness to be enabled
+   */
+  get(path: string): Promise<ITreeNode | null>;
+  /**
+   * Get a node by its ID
+   * Works regardless of name uniqueness setting
+   */
+  getById(id: string): Promise<ITreeNode | null>;
+  /**
+   * List child nodes at a path
+   * Use empty string "" for root
+   */
+  list(path?: string): Promise<ITreeNode[]>;
+  /**
+   * Create a new node at the specified path
+   */
+  create(path: string, type: "doc" | "table" | "folder" | "dataview" | string, options?: NodeApiOptions): Promise<ITreeNode>;
+  /**
+   * Move or rename a node
+   */
+  move(sourcePath: string, destPath: string): Promise<ITreeNode>;
+  /**
+   * Delete a node
+   */
+  delete(path: string, options?: DeleteOptions): Promise<void>;
+  /**
+   * Check if a node exists at the given path
+   */
+  exists(path: string): Promise<boolean>;
+  /**
+   * Duplicate a node
+   */
+  duplicate(path: string, newPath?: string): Promise<ITreeNode>;
+  /**
+   * Search for nodes
+   */
+  find(query?: FindQuery): Promise<ITreeNode[]>;
+  /**
+   * Get the text content of an extension node
+   */
+  getText(id: string): Promise<string | null>;
+  /**
+   * Set the text content of an extension node
+   */
+  setText(id: string, text: string): Promise<boolean>;
+  /**
+   * Get the binary data of an extension node
+   */
+  getBlob(id: string): Promise<Buffer | null>;
+  /**
+   * Set the binary data of an extension node
+   */
+  setBlob(id: string, blob: Buffer): Promise<boolean>;
+  /**
+   * Restore a deleted node
+   */
+  restore(path: string): Promise<void>;
+}
+//# sourceMappingURL=node.d.ts.map
+//#endregion
 //#region meta-table/base.d.ts
 interface MetaTable<T> {
   add(data: T): Promise<T>;
@@ -960,7 +1159,7 @@ declare class BaseTableImpl<T = any> {
     fields?: string[];
   }): Promise<T[]>;
   findMany(options?: FindManyOptions<T>): Promise<T[]>;
-  count(options?: Omit<FindManyOptions<T>, 'select' | 'orderBy' | 'skip' | 'take'>): Promise<number>;
+  count(options?: Omit<FindManyOptions<T>, "select" | "orderBy" | "skip" | "take">): Promise<number>;
 }
 //# sourceMappingURL=base.d.ts.map
 //#endregion
@@ -1114,7 +1313,7 @@ declare class TableSemanticSearch {
     fieldId?: string;
     page?: number;
     pageSize?: number;
-    method?: 'L2' | 'COSINE';
+    method?: "L2" | "COSINE";
   }): Promise<{
     meta: {
       embeddingFieldId: string;
@@ -1168,7 +1367,7 @@ type ChatMessage = {
   chat_id: string;
   role: string;
   content: string;
-  parts: Message['parts'];
+  parts: Message["parts"];
   created_at?: string;
 };
 declare class MessageTable extends BaseTableImpl<ChatMessage> implements BaseTable<ChatMessage> {
@@ -1194,9 +1393,9 @@ declare class ChatTable extends BaseTableImpl<Chat> implements BaseTable<Chat> {
   createTableSql: string;
   getChatIdsByProjectId(projectId: string): Promise<string[]>;
   getChatsByProjectId(projectId: string): Promise<Chat[]>;
-  getChatById(chatId: string): Promise<Chat & {
+  getChatById(chatId: string): Promise<(Chat & {
     messages: ChatMessage[];
-  } | null>;
+  }) | null>;
   del(chatId: string): Promise<boolean>;
 }
 //# sourceMappingURL=chat.d.ts.map
@@ -1269,31 +1468,6 @@ declare class BaseDocTable extends BaseTableImpl<IDoc> implements BaseTable<IDoc
   createTableSql: string;
 }
 //# sourceMappingURL=base.d.ts.map
-//#endregion
-//#region types/ITreeNode.d.ts
-declare enum TreeNodeType {
-  Table = "table",
-  Doc = "doc",
-  Folder = "folder",
-  Dataview = "dataview",
-}
-interface ITreeNode {
-  id: string;
-  name: string;
-  type: TreeNodeType | `ext__${string}` | 'day' | 'table' | 'doc' | 'folder' | 'dataview' | 'extension';
-  position?: number;
-  parent_id?: string;
-  is_pinned?: boolean;
-  is_full_width?: boolean;
-  is_locked?: boolean;
-  is_deleted?: boolean;
-  hide_properties?: boolean;
-  icon?: string;
-  cover?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-//# sourceMappingURL=ITreeNode.d.ts.map
 //#endregion
 //#region meta-table/doc/index.d.ts
 declare const ComposedDocTable: {
@@ -1517,6 +1691,26 @@ declare class DocTable extends ComposedDocTable {
    * @returns
    */
   duplicate(id: string): Promise<ITreeNode | null>;
+  /**
+   * Read document content by path
+   * Requires name uniqueness to be enabled
+   */
+  read(path: string): Promise<string>;
+  /**
+   * Write document content by path (overwrites existing content)
+   * Requires name uniqueness to be enabled
+   */
+  write(path: string, markdown: string): Promise<void>;
+  /**
+   * Append content to document by path
+   * Requires name uniqueness to be enabled
+   */
+  append(path: string, markdown: string): Promise<void>;
+  /**
+   * Prepend content to document by path
+   * Requires name uniqueness to be enabled
+   */
+  prepend(path: string, markdown: string): Promise<void>;
 }
 //# sourceMappingURL=index.d.ts.map
 //#endregion
@@ -1542,7 +1736,7 @@ declare class EmbeddingTable extends BaseTableImpl implements BaseTable<IEmbeddi
 //#region types/IExtension.d.ts
 type ExtensionStatus = "all" | "enabled" | "disabled";
 type BindingType = "table" | "secret" | "text";
-type ExtensionMeta = TableViewMeta | ExtNodeMeta | FileHandlerMeta | ToolMeta | TableActionMeta | DocActionMeta | FileActionMeta | UDFMeta;
+type ExtensionMeta = TableViewMeta | ExtNodeMeta | FileHandlerMeta | ToolMeta | TableActionMeta | DocActionMeta | FileActionMeta | UDFMeta | RelayHandlerMeta;
 type IBinding = {
   type: BindingType;
   value: string;
@@ -1571,6 +1765,7 @@ declare enum ScriptExtensionType {
   FileAction = "fileAction",
   Tool = "tool",
   UDF = "udf",
+  RelayHandler = "relayHandler",
 }
 declare enum BlockExtensionType {
   TableView = "tableView",
@@ -1584,6 +1779,7 @@ interface TableViewMeta {
     title: string;
     type: string;
     description: string;
+    tableId?: string;
   };
 }
 interface ExtNodeMeta {
@@ -1647,6 +1843,14 @@ interface UDFMeta {
   udf: {
     name: string;
     deterministic?: boolean;
+  };
+}
+interface RelayHandlerMeta {
+  type: ScriptExtensionType.RelayHandler;
+  funcName: string;
+  relayHandler: {
+    name: string;
+    description: string;
   };
 }
 //#endregion
@@ -1783,7 +1987,7 @@ declare class ExtensionTable extends BaseTableImpl<IExtension> implements BaseTa
    */
   getExtensionsByMetaType(extensionType: "script" | "block", metaType: string, status?: ExtensionStatus): Promise<IExtension[]>;
   /**
-   * Override add method to ensure slug uniqueness
+   * Override add method to ensure slug uniqueness and tableView type uniqueness
    */
   add(data: Partial<IExtension>, db?: BaseServerDatabase): Promise<IExtension>;
   /**
@@ -1791,6 +1995,20 @@ declare class ExtensionTable extends BaseTableImpl<IExtension> implements BaseTa
    * This method should be called during migration to ensure all existing extensions have unique slugs
    */
   fixDuplicateSlugs(): Promise<void>;
+  /**
+   * Install extension from raw TypeScript/TSX code.
+   * Requires compileExtension to be injected via context.
+   *
+   * For tableView extensions with a bound tableId, this method also creates
+   * a view instance in the eidos__view table so the view appears in the table.
+   *
+   * @param code - Raw TypeScript/TSX code
+   * @param filename - Original filename (e.g., "my-ext.tsx" or "my-script.ts")
+   *                   Used to determine parsing mode based on file extension
+   * @param slug - Optional slug for updating existing extension
+   * @returns The installed extension
+   */
+  installFromCode(code: string, filename: string, slug?: string): Promise<IExtension>;
 }
 //# sourceMappingURL=extension.d.ts.map
 //#endregion
@@ -1887,7 +2105,9 @@ declare class BaseTreeTable extends BaseTableImpl implements BaseTable<ITreeNode
   name: string;
   createTableSql: string;
   getNextRowId: () => Promise<any>;
-  add(data: ITreeNode): Promise<ITreeNode>;
+  add(data: ITreeNode & {
+    _skipAutoRename?: boolean;
+  }): Promise<ITreeNode>;
   get(id: string): Promise<ITreeNode | null>;
   updateName(id: string, name: string): Promise<boolean>;
   pin(id: string, is_pinned: boolean): Promise<boolean>;
@@ -1905,6 +2125,70 @@ declare class BaseTreeTable extends BaseTableImpl implements BaseTable<ITreeNode
    * @param idOrMiniId
    */
   getNode(idOrMiniId: string): Promise<ITreeNode | null>;
+  /**
+   * Check if the unique index exists
+   * This is the source of truth for whether node name uniqueness is enabled
+   */
+  hasUniqueIndex(): Promise<boolean>;
+  /**
+   * Check if node name uniqueness is enabled for this space
+   * Alias for hasUniqueIndex() for semantic clarity
+   */
+  isNameUniquenessEnabled(): Promise<boolean>;
+  /**
+   * Find duplicate node names in the tree
+   * Returns groups of nodes with the same name under the same parent
+   */
+  findDuplicateNames(): Promise<Array<{
+    parent_id: string | null;
+    name: string;
+    count: number;
+    ids: string[];
+  }>>;
+  /**
+   * Auto-rename duplicate nodes by adding (1), (2), etc.
+   * Returns the list of renamed nodes
+   */
+  migrateDuplicateNames(): Promise<Array<{
+    id: string;
+    oldName: string;
+    newName: string;
+  }>>;
+  /**
+   * Enable node name uniqueness for this space
+   * 1. Migrate duplicate names
+   * 2. Create unique index
+   */
+  enableNameUniqueness(): Promise<{
+    success: boolean;
+    renamed?: Array<{
+      id: string;
+      oldName: string;
+      newName: string;
+    }>;
+    error?: string;
+  }>;
+  /**
+   * Disable node name uniqueness for this space
+   * This drops the unique index
+   */
+  disableNameUniqueness(): Promise<void>;
+  /**
+   * Try to create unique index if no duplicates exist
+   * This is safe to call on space initialization - it will only create
+   * the index if there are no conflicting records.
+   * Returns true if index was created or already exists
+   */
+  tryCreateUniqueIndex(): Promise<boolean>;
+  /**
+   * Check if a node name is unique under the given parent
+   */
+  isNameUnique(name: string, parentId: string | null | undefined, excludeId?: string): Promise<boolean>;
+  /**
+   * Ensure a node name is unique by appending (1), (2), etc. if needed
+   * This is used when creating new nodes to avoid name conflicts
+   */
+  ensureUniqueName(name: string, parentId: string | null | undefined): Promise<string>;
 }
 //# sourceMappingURL=base.d.ts.map
 //#endregion
@@ -1916,7 +2200,9 @@ declare const ComposedTreeTable: {
     name: string;
     createTableSql: string;
     getNextRowId: () => Promise<any>;
-    add(data: ITreeNode): Promise<ITreeNode>;
+    add(data: ITreeNode & {
+      _skipAutoRename?: boolean;
+    }): Promise<ITreeNode>;
     get(id: string): Promise<ITreeNode | null>;
     updateName(id: string, name: string): Promise<boolean>;
     pin(id: string, is_pinned: boolean): Promise<boolean>;
@@ -1929,6 +2215,32 @@ declare const ComposedTreeTable: {
     moveIntoTable(id: string, tableId: string, parentId?: string): Promise<boolean>;
     duplicateNode(id: string): Promise<ITreeNode | null>;
     getNode(idOrMiniId: string): Promise<ITreeNode | null>;
+    hasUniqueIndex(): Promise<boolean>;
+    isNameUniquenessEnabled(): Promise<boolean>;
+    findDuplicateNames(): Promise<Array<{
+      parent_id: string | null;
+      name: string;
+      count: number;
+      ids: string[];
+    }>>;
+    migrateDuplicateNames(): Promise<Array<{
+      id: string;
+      oldName: string;
+      newName: string;
+    }>>;
+    enableNameUniqueness(): Promise<{
+      success: boolean;
+      renamed?: Array<{
+        id: string;
+        oldName: string;
+        newName: string;
+      }>;
+      error?: string;
+    }>;
+    disableNameUniqueness(): Promise<void>;
+    tryCreateUniqueIndex(): Promise<boolean>;
+    isNameUnique(name: string, parentId: string | null | undefined, excludeId?: string): Promise<boolean>;
+    ensureUniqueName(name: string, parentId: string | null | undefined): Promise<string>;
     JSONFields: string[];
     dataSpace: DataSpace;
     initTable(createTableSql: string): void;
@@ -1983,7 +2295,9 @@ declare const ComposedTreeTable: {
     name: string;
     createTableSql: string;
     getNextRowId: () => Promise<any>;
-    add(data: ITreeNode): Promise<ITreeNode>;
+    add(data: ITreeNode & {
+      _skipAutoRename?: boolean;
+    }): Promise<ITreeNode>;
     get(id: string): Promise<ITreeNode | null>;
     updateName(id: string, name: string): Promise<boolean>;
     pin(id: string, is_pinned: boolean): Promise<boolean>;
@@ -1996,6 +2310,32 @@ declare const ComposedTreeTable: {
     moveIntoTable(id: string, tableId: string, parentId?: string): Promise<boolean>;
     duplicateNode(id: string): Promise<ITreeNode | null>;
     getNode(idOrMiniId: string): Promise<ITreeNode | null>;
+    hasUniqueIndex(): Promise<boolean>;
+    isNameUniquenessEnabled(): Promise<boolean>;
+    findDuplicateNames(): Promise<Array<{
+      parent_id: string | null;
+      name: string;
+      count: number;
+      ids: string[];
+    }>>;
+    migrateDuplicateNames(): Promise<Array<{
+      id: string;
+      oldName: string;
+      newName: string;
+    }>>;
+    enableNameUniqueness(): Promise<{
+      success: boolean;
+      renamed?: Array<{
+        id: string;
+        oldName: string;
+        newName: string;
+      }>;
+      error?: string;
+    }>;
+    disableNameUniqueness(): Promise<void>;
+    tryCreateUniqueIndex(): Promise<boolean>;
+    isNameUnique(name: string, parentId: string | null | undefined, excludeId?: string): Promise<boolean>;
+    ensureUniqueName(name: string, parentId: string | null | undefined): Promise<string>;
     JSONFields: string[];
     dataSpace: DataSpace;
     initTable(createTableSql: string): void;
@@ -2059,7 +2399,9 @@ declare const ComposedTreeTable: {
     name: string;
     createTableSql: string;
     getNextRowId: () => Promise<any>;
-    add(data: ITreeNode): Promise<ITreeNode>;
+    add(data: ITreeNode & {
+      _skipAutoRename?: boolean;
+    }): Promise<ITreeNode>;
     get(id: string): Promise<ITreeNode | null>;
     updateName(id: string, name: string): Promise<boolean>;
     pin(id: string, is_pinned: boolean): Promise<boolean>;
@@ -2072,6 +2414,32 @@ declare const ComposedTreeTable: {
     moveIntoTable(id: string, tableId: string, parentId?: string): Promise<boolean>;
     duplicateNode(id: string): Promise<ITreeNode | null>;
     getNode(idOrMiniId: string): Promise<ITreeNode | null>;
+    hasUniqueIndex(): Promise<boolean>;
+    isNameUniquenessEnabled(): Promise<boolean>;
+    findDuplicateNames(): Promise<Array<{
+      parent_id: string | null;
+      name: string;
+      count: number;
+      ids: string[];
+    }>>;
+    migrateDuplicateNames(): Promise<Array<{
+      id: string;
+      oldName: string;
+      newName: string;
+    }>>;
+    enableNameUniqueness(): Promise<{
+      success: boolean;
+      renamed?: Array<{
+        id: string;
+        oldName: string;
+        newName: string;
+      }>;
+      error?: string;
+    }>;
+    disableNameUniqueness(): Promise<void>;
+    tryCreateUniqueIndex(): Promise<boolean>;
+    isNameUnique(name: string, parentId: string | null | undefined, excludeId?: string): Promise<boolean>;
+    ensureUniqueName(name: string, parentId: string | null | undefined): Promise<string>;
     JSONFields: string[];
     dataSpace: DataSpace;
     initTable(createTableSql: string): void;
@@ -2206,7 +2574,7 @@ interface IDirectoryEntry {
   /** Parent directory path relative to queried directory */
   parentPath: string;
   /** Entry type */
-  kind: 'file' | 'directory' | 'blockDevice' | 'characterDevice' | 'symbolicLink' | 'fifo' | 'socket';
+  kind: "file" | "directory" | "blockDevice" | "characterDevice" | "symbolicLink" | "fifo" | "socket";
   /** Optional metadata for virtual file system entries */
   metadata?: {
     nodeType?: "table" | "doc" | "folder" | "extension" | "dataview" | `ext__${string}`;
@@ -2276,7 +2644,7 @@ interface IStats {
  * Compatible with Node.js fs watch event
  */
 interface IWatchEvent {
-  eventType: 'rename' | 'change';
+  eventType: "rename" | "change";
   filename: string;
 }
 /**
@@ -2415,6 +2783,18 @@ declare abstract class BaseDataSpace {
   context: {
     setInterval?: typeof setInterval;
     embedding?: (text: string) => Promise<Array<number>>;
+    /**
+     * Extension compiler function. Injected by desktop/headless layer.
+     * Compiles TypeScript/TSX code and extracts metadata.
+     */
+    compileExtension?: (code: string, filename: string) => Promise<{
+      compiledCode: string;
+      meta: any;
+      type: "block" | "script";
+      name: string;
+      description: string;
+      slugPrefix: string;
+    }>;
   };
   constructor(config: {
     db: EidosDatabase;
@@ -2423,6 +2803,14 @@ declare abstract class BaseDataSpace {
     context: {
       setInterval?: typeof setInterval;
       embedding?: (text: string) => Promise<Array<number>>;
+      compileExtension?: (code: string, filename: string) => Promise<{
+        compiledCode: string;
+        meta: any;
+        type: "block" | "script";
+        name: string;
+        description: string;
+        slugPrefix: string;
+      }>;
     };
     createUDF?: (db: EidosDatabase) => void;
     draftDb?: EidosDatabase;
@@ -2841,8 +3229,34 @@ declare class DataSpaceWithDoc extends DataSpaceWithFile {
 }
 //# sourceMappingURL=doc.d.ts.map
 //#endregion
+//#region data-space/node.d.ts
+/**
+ * Extension class to add Node API to DataSpace
+ * Inherits from DataSpaceWithDoc to add node operations
+ */
+declare class DataSpaceWithNode extends DataSpaceWithDoc {
+  private _nodeClient?;
+  /**
+   * Node API - unified interface for node operations
+   *
+   * @example
+   * ```typescript
+   * // Get node by path
+   * const node = await dataSpace.node.get("projects/roadmap")
+   *
+   * // Create document
+   * await dataSpace.node.create("notes/idea", "doc")
+   *
+   * // Move node
+   * await dataSpace.node.move("a", "b")
+   * ```
+   */
+  get node(): NodeClient;
+}
+//# sourceMappingURL=node.d.ts.map
+//#endregion
 //#region data-space/table.d.ts
-declare class DataSpaceWithTable extends DataSpaceWithDoc {
+declare class DataSpaceWithTable extends DataSpaceWithNode {
   /**
    * Schema management client for table/field/view lifecycle operations.
    *
@@ -2934,6 +3348,14 @@ declare class DataSpaceWithTable extends DataSpaceWithDoc {
    * @param tableId
    */
   deleteRowsByIds(ids: string[], tableName: string): Promise<void>;
+  /**
+   * Delete sub-documents associated with table rows.
+   * When a row is expanded, a sub-document with id = shortenId(row._id) and parent_id = tableId is created.
+   * This method deletes those sub-documents when the rows are deleted.
+   *
+   * Uses batch query to find sub-docs, then deletes them serially to maintain consistency.
+   */
+  private deleteSubDocsForRows;
   deleteRowsByRange(range: {
     startIndex: number;
     endIndex: number;

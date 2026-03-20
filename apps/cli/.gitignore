@@ -1,6 +1,21 @@
-node_modules
-dist
-dist-sqlite-ext
-*.log
-.DS_Store
+# Rust build artifacts
+/target
+**/*.rs.bk
+*.pdb
 
+# IDE
+.idea
+*.swp
+*.swo
+*~
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+*.log
+
+# Shell completions (generated)
+/completions

@@ -2,7 +2,10 @@ import { v4 as uuidv4 } from "uuid"
 
 import { FieldType } from "../fields/const"
 import { ColumnTableName } from "../sqlite/const"
-import { generateColumnName, getRawTableNameById } from "@/lib/utils"
+import {
+  generateColumnNameFromFieldName,
+  getRawTableNameById,
+} from "@/lib/utils"
 
 import type { DataSpace } from "../data-space"
 import { TableManager } from "../sdk/table"
@@ -131,7 +134,16 @@ export class CsvImportAndExport extends BaseImportAndExport {
       const header = lines[0]
 
       const rawTableName = getRawTableNameById(tableId)
-      let rawColumns = columns.map((column) => generateColumnName())
+      // Generate semantic column names from CSV headers
+      const existingColumns: string[] = []
+      let rawColumns = columns.map((column) => {
+        const rawColumn = generateColumnNameFromFieldName(
+          column,
+          existingColumns
+        )
+        existingColumns.push(rawColumn)
+        return rawColumn
+      })
       let createTableSql = `
 CREATE TABLE ${rawTableName} (
   _id TEXT PRIMARY KEY NOT NULL,
@@ -177,10 +189,13 @@ CREATE TABLE ${rawTableName} (
       // dataSpace.db.exec("PRAGMA journal_mode = OFF;")
       await dataSpace.db.exec("PRAGMA synchronous = 0;")
       await dataSpace.db.exec(`PRAGMA cache_size = ${cacheSize};`)
-      await dataSpace.db.exec("PRAGMA locking_mode = EXCLUSIVE;")
-      await dataSpace.db.exec("PRAGMA temp_store = MEMORY;")
-
-      console.log("locksInfo:", await dataSpace.sql`PRAGMA locking_mode`)
+      // NOTE: We avoid using EXCLUSIVE locking mode as it blocks other connections
+      // and breaks the reactive system. NORMAL mode with synchronous=0 is sufficient
+      // for bulk import performance.
+      // await dataSpace.db.exec("PRAGMA locking_mode = EXCLUSIVE;")
+      // NOTE: Changing temp_store deletes all existing TEMP triggers, breaking
+      // the reactive system. The default temp_store (FILE) is fine for import.
+      // await dataSpace.db.exec("PRAGMA temp_store = MEMORY;")
 
       const dataLines = lines.slice(1)
       const totalRows = dataLines.length
@@ -254,7 +269,7 @@ CREATE TABLE ${rawTableName} (
         await dataSpace.db.exec("PRAGMA journal_mode = OFF;")
       }
       await dataSpace.db.exec("PRAGMA synchronous = 1;")
-      await dataSpace.db.exec("PRAGMA locking_mode = NORMAL;")
+      // NOTE: locking_mode is no longer changed during import, so no need to restore
     }
   }
 

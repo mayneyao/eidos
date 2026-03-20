@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useKeyPress } from "ahooks"
 import {
   Bot,
@@ -13,6 +13,7 @@ import {
   RefreshCcwIcon,
   Settings,
   TableIcon,
+  Terminal,
   Wand2,
   Wrench,
 } from "lucide-react"
@@ -94,7 +95,16 @@ export function CommandDialogDemo() {
   const [isMigrating, setIsMigrating] = useState(false)
   const [isMigratingDoc, setIsMigratingDoc] = useState(false)
   const [isMigratingTable, setIsMigratingTable] = useState(false)
+  const [isCliInstalled, setIsCliInstalled] = useState<boolean | null>(null)
+  const [isInstallingCli, setIsInstallingCli] = useState(false)
   const { toast } = useToast()
+
+  // Check CLI installation status on mount (desktop only)
+  useEffect(() => {
+    if (isDesktopMode && window.eidos?.cli) {
+      window.eidos.cli.isInstalled().then(setIsCliInstalled)
+    }
+  }, [])
 
   // Use current workspace in desktop mode, otherwise use lastOpenedDatabase
   const goEveryday = goto(`/journals`)
@@ -382,6 +392,66 @@ export function CommandDialogDemo() {
     await window.eidos.reloadApp()
   }
 
+  const handleInstallCli = async () => {
+    if (!window.eidos?.cli) return
+
+    setIsInstallingCli(true)
+    try {
+      const result = await window.eidos.cli.install()
+      if (result.success) {
+        setIsCliInstalled(true)
+        toast({
+          title: t("cmdk.cli.installSuccess", "CLI Installed"),
+          description: result.message,
+        })
+      } else {
+        toast({
+          title: t("cmdk.cli.installFailed", "Installation Failed"),
+          description: result.message,
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: t("cmdk.cli.installFailed", "Installation Failed"),
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      })
+    } finally {
+      setIsInstallingCli(false)
+      setCmdkOpen(false)
+    }
+  }
+
+  const handleUninstallCli = async () => {
+    if (!window.eidos?.cli) return
+
+    try {
+      const result = await window.eidos.cli.uninstall()
+      if (result.success) {
+        setIsCliInstalled(false)
+        toast({
+          title: t("cmdk.cli.uninstallSuccess", "CLI Uninstalled"),
+          description: result.message,
+        })
+      } else {
+        toast({
+          title: t("cmdk.cli.uninstallFailed", "Uninstall Failed"),
+          description: result.message,
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: t("cmdk.cli.uninstallFailed", "Uninstall Failed"),
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      })
+    } finally {
+      setCmdkOpen(false)
+    }
+  }
+
   const { t } = useTranslation()
 
   return (
@@ -593,6 +663,45 @@ export function CommandDialogDemo() {
                 <Settings className="mr-2 h-4 w-4" />
                 <span>{t("common.settings")}</span>
               </CommandItem>
+              {isDesktopMode && isCliInstalled !== null && (
+                <CommandItem
+                  onSelect={
+                    isCliInstalled ? handleUninstallCli : handleInstallCli
+                  }
+                  disabled={isInstallingCli}
+                  value="install eidos cli command path"
+                >
+                  {isInstallingCli ? (
+                    <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Terminal className="mr-2 h-4 w-4" />
+                  )}
+                  <div className="flex flex-col">
+                    <span>
+                      {isCliInstalled
+                        ? t(
+                            "cmdk.cli.uninstall",
+                            "Uninstall 'eidos' command from PATH"
+                          )
+                        : t(
+                            "cmdk.cli.install",
+                            "Install 'eidos' command in PATH"
+                          )}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {isCliInstalled
+                        ? t(
+                            "cmdk.cli.uninstallDesc",
+                            "Remove the eidos CLI from your system PATH"
+                          )
+                        : t(
+                            "cmdk.cli.installDesc",
+                            "Use 'eidos' command in terminal to interact with Eidos"
+                          )}
+                    </span>
+                  </div>
+                </CommandItem>
+              )}
             </CommandGroup>
           </CommandList>
         </>

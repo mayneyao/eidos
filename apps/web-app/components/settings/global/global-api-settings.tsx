@@ -179,7 +179,7 @@ export function GlobalAPISettings() {
 
         <div className="py-6">
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-0.5">
                 <Label>{t("settings.api.enable")}</Label>
                 <p className="text-sm text-muted-foreground">
@@ -215,7 +215,7 @@ export function GlobalAPISettings() {
                   name="url"
                   render={({ field }) => (
                     <FormItem>
-                      <div className="flex gap-2 items-center">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                         <FormControl>
                           <Input {...field} readOnly className="flex-1" />
                         </FormControl>

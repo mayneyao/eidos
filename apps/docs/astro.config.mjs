@@ -95,6 +95,11 @@ export default defineConfig({
                 link: "/api-reference/ai/",
               },
               {
+                label: "CLI",
+                link: "/api-reference/cli/",
+                badge: "New",
+              },
+              {
                 label: "Extension API",
                 link: "/api-reference/extension/",
               },
@@ -106,6 +111,10 @@ export default defineConfig({
               {
                 label: "Space API",
                 link: "/api-reference/space/",
+              },
+              {
+                label: "Node API",
+                link: "/api-reference/node/",
               },
               {
                 label: "Table API",

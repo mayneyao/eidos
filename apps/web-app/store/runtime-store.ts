@@ -52,6 +52,10 @@ interface AppRuntimeState {
   // global search dialog
   isGlobalSearchOpen: boolean
   setGlobalSearchOpen: (isGlobalSearchOpen: boolean) => void
+
+  // terminal panel visibility
+  isTerminalVisible: boolean
+  setIsTerminalVisible: (isTerminalVisible: boolean) => void
 }
 
 export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
@@ -105,4 +109,7 @@ export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
 
   isGlobalSearchOpen: false,
   setGlobalSearchOpen: (isGlobalSearchOpen) => set({ isGlobalSearchOpen }),
+
+  isTerminalVisible: false,
+  setIsTerminalVisible: (isTerminalVisible) => set({ isTerminalVisible }),
 }))

@@ -43,11 +43,19 @@ import {
   type PortOccupancyInfo,
 } from "./port-checker"
 import { GlobalShortcutManager } from "./services/global-shortcut-manager"
+import { terminalService } from "./services/terminal-service"
+import {
+  getCliBinaryPath,
+  installCli,
+  isCliInstalled,
+  uninstallCli,
+} from "./services/cli-installer"
 import { getSpaceRegistry, migrateFromLegacyConfig } from "./space-registry"
 import { AppUpdater } from "./updater"
 import { createWindow } from "./window-manager/createWindow"
 import { convertToElectronMenuTemplateWithIds } from "./window-manager/menu-utils"
 import { LicenseManager } from "./license"
+import { registerElectronFetchIpc } from "./lib/electron-fetch"
 
 process.on("uncaughtException", (error) => {
   console.error("Unhandled Exception:", error) // Also log to console
@@ -552,6 +560,7 @@ app.on("window-all-closed", () => {
   getDataSpace()?.close()
   globalShortcutManager?.destroy()
   globalShortcutManager = null
+  terminalService.cleanup()
   win = null
 })
 
@@ -905,6 +914,7 @@ ipcMain.handle("clear-license", async () => {
 
 app.on("before-quit", () => {
   cleanupPlaygroundWatchers()
+  terminalService.cleanup()
   forceQuit = true
 })
 
@@ -1002,6 +1012,9 @@ function extractSpaceIdFromProtocolUrl(url: string): string | null {
 
 app.whenReady().then(async () => {
   corsManager.initialize()
+
+  // Register IPC handler for fetch proxy (bypass CORS)
+  registerElectronFetchIpc()
 
   await migrateFromLegacyConfig()
 
@@ -1242,6 +1255,11 @@ app.whenReady().then(async () => {
     return registry.getSpace(spaceId)
   })
 
+  ipcMain.handle("get-space-by-id", (_, spaceId: string) => {
+    const registry = getSpaceRegistry()
+    return registry.getSpace(spaceId)
+  })
+
   ipcMain.handle(
     "update-space",
     async (_, spaceId: string, updates: { name?: string; relay?: any }) => {
@@ -1458,3 +1476,20 @@ ipcMain.handle(
     }
   }
 )
+
+// CLI installation IPC handlers
+ipcMain.handle("cli:is-installed", async () => {
+  return isCliInstalled()
+})
+
+ipcMain.handle("cli:install", async () => {
+  return installCli()
+})
+
+ipcMain.handle("cli:uninstall", async () => {
+  return uninstallCli()
+})
+
+ipcMain.handle("cli:get-path", async () => {
+  return getCliBinaryPath()
+})

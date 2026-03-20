@@ -166,6 +166,7 @@ export const getSqliteProxy = (
         [
           "doc",
           "graft",
+          "node",
           "action",
           "schema",
           // deprecated, use extension instead

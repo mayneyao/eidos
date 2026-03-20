@@ -4,6 +4,7 @@ import React from "react"
 import type {
   FileActionMeta,
   FileHandlerMeta,
+  FolderHandlerMeta,
   IExtension,
 } from "@/packages/core/types/IExtension"
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
@@ -20,6 +21,7 @@ import type { NavigateFunction } from "react-router-dom"
 
 import { useFileActions } from "@/hooks/use-file-actions"
 import { getFileExtension, useFileHandlers } from "@/hooks/use-file-handlers"
+import { useFolderHandlers } from "@/hooks/use-all-folder-handlers"
 import { useFileItemActions } from "@/hooks/use-file-item-actions"
 import {
   NativeContextMenu as ContextMenu,
@@ -74,6 +76,10 @@ export const FileContextMenu = ({
     useFileActions(fileExtension)
   const { space } = useCurrentPathInfo()
 
+  // For folders: get folder handlers
+  const { handlers: folderHandlers, isLoading: isLoadingFolderHandlers } =
+    useFolderHandlers(node.path)
+
   const fileActionsContext = {
     filePath: node.path,
     space,
@@ -83,11 +89,27 @@ export const FileContextMenu = ({
   const { openInFileManager, openWith, executeFileAction } =
     useFileItemActions(fileActionsContext)
 
-  const hasMultipleHandlers = handlers.length > 1
-  const showOpenWith = !isLoadingHandlers && hasMultipleHandlers
-  const showFileActions = !isLoadingActions && fileActions.length > 0
-  const hasRenameOrDelete = !!(onRename || onDelete)
   const isFolder = node.kind === "directory"
+
+  // File handlers (for files)
+  const hasMultipleFileHandlers = handlers.length > 1
+  const showFileOpenWith =
+    !isFolder && !isLoadingHandlers && hasMultipleFileHandlers
+  const showFileActions =
+    !isFolder && !isLoadingActions && fileActions.length > 0
+
+  // Folder handlers (for folders)
+  const hasFolderHandler = folderHandlers.length > 0
+  const hasMultipleFolderHandlers = folderHandlers.length > 1
+  const showFolderOpenWith =
+    isFolder && !isLoadingFolderHandlers && hasMultipleFolderHandlers
+  const showFolderOpen =
+    isFolder &&
+    !isLoadingFolderHandlers &&
+    hasFolderHandler &&
+    !hasMultipleFolderHandlers
+
+  const hasRenameOrDelete = !!(onRename || onDelete)
   // Show "Open in File Manager" for all items (files and folders) in desktop app
   const showOpenFolder =
     typeof window !== "undefined" && !!(window as any).eidos
@@ -109,11 +131,13 @@ export const FileContextMenu = ({
 
   const hasAnyMenuItems =
     (!isMultiSelection &&
-      (showOpenWith ||
+      (showFileOpenWith ||
+        showFolderOpen ||
+        showFolderOpenWith ||
         showFileActions ||
         hasRenameOrDelete ||
         showOpenFolder ||
-        !!onOpenInNewTab)) ||
+        (!isFolder && !!onOpenInNewTab))) ||
     (!!onDelete && isMultiSelection)
 
   // Don't render context menu if there are no items to show
@@ -125,8 +149,8 @@ export const FileContextMenu = ({
     <ContextMenu>
       <ContextMenuTrigger className="w-full">{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-48">
-        {/* Open in new tab */}
-        {!isMultiSelection && onOpenInNewTab && (
+        {/* Open in new tab - only for files */}
+        {!isMultiSelection && !isFolder && onOpenInNewTab && (
           <ContextMenuItem onClick={() => onOpenInNewTab(node)}>
             <ExternalLinkIcon className="mr-2 h-4 w-4" />
             {t("node.menu.openInNewTab", "Open in New Tab")}
@@ -141,8 +165,8 @@ export const FileContextMenu = ({
           </ContextMenuItem>
         )}
 
-        {/* Open with submenu */}
-        {!isMultiSelection && showOpenWith && (
+        {/* Open with submenu for files */}
+        {!isMultiSelection && showFileOpenWith && (
           <ContextMenuSub>
             <ContextMenuSubTrigger>
               <FileIcon className="mr-2 h-4 w-4" />
@@ -160,6 +184,64 @@ export const FileContextMenu = ({
                       <span className="mr-2">{meta.fileHandler.icon}</span>
                     )}
                     {meta.fileHandler.title || handler.name}
+                  </ContextMenuItem>
+                )
+              })}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        )}
+
+        {/* Open folder (single handler) */}
+        {!isMultiSelection && showFolderOpen && (
+          <ContextMenuItem
+            onClick={() => {
+              const handler = folderHandlers[0]
+              const encodedPath = encodeURIComponent(node.path)
+              if (handler?.id.startsWith("builtin-")) {
+                navigate(
+                  `/folder?handler=${handler.id}&builtin=true#${encodedPath}`
+                )
+              } else if (handler) {
+                navigate(`/folder?handler=${handler.id}#${encodedPath}`)
+              } else {
+                // Fallback to default
+                navigate(`/folder#${encodedPath}`)
+              }
+            }}
+          >
+            <FolderOpen className="mr-2 h-4 w-4" />
+            {t("folder.menu.openWithFolderBrowser", "Open with folder-browser")}
+          </ContextMenuItem>
+        )}
+
+        {/* Open with submenu for folders */}
+        {!isMultiSelection && showFolderOpenWith && (
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <FolderOpen className="mr-2 h-4 w-4" />
+              {t("folder.menu.openWith", "Open with")}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              {folderHandlers.map((handler) => {
+                const meta = handler.meta as FolderHandlerMeta
+                return (
+                  <ContextMenuItem
+                    key={handler.id}
+                    onClick={() => {
+                      const encodedPath = encodeURIComponent(node.path)
+                      if (handler.id.startsWith("builtin-")) {
+                        navigate(
+                          `/folder?handler=${handler.id}&builtin=true#${encodedPath}`
+                        )
+                      } else {
+                        navigate(`/folder?handler=${handler.id}#${encodedPath}`)
+                      }
+                    }}
+                  >
+                    {meta.folderHandler.icon && (
+                      <span className="mr-2">{meta.folderHandler.icon}</span>
+                    )}
+                    {meta.folderHandler.title || handler.name}
                   </ContextMenuItem>
                 )
               })}
@@ -198,9 +280,11 @@ export const FileContextMenu = ({
           <>
             {/* Show separator if there are open actions above */}
             {!isMultiSelection &&
-              (showOpenFolder || showOpenWith || showFileActions) && (
-                <ContextMenuSeparator />
-              )}
+              (showOpenFolder ||
+                showFileOpenWith ||
+                showFolderOpen ||
+                showFolderOpenWith ||
+                showFileActions) && <ContextMenuSeparator />}
 
             {!isMultiSelection && onRename && (
               <ContextMenuItem onClick={() => onRename(node)}>
