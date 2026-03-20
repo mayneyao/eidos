@@ -28,6 +28,8 @@
       "@eidos.space/react/*": ["./packages/react/src/*"],
       "@eidos.space/v3": ["./packages/v3/src/index.ts"],
       "@eidos.space/v3/*": ["./packages/v3/src/*"],
+      "@eidos.space/space-manager": ["./packages/space-manager/src/index.ts"],
+      "@eidos.space/space-manager/*": ["./packages/space-manager/src/*"],
       "@/locales/*": ["./packages/locales/*"],
       "@/worker/*": ["./packages/worker/*"],
       "@/lib/*": ["./packages/lib/*"],
