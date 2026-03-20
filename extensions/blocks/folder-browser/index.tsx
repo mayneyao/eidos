@@ -22,7 +22,7 @@ export const meta = {
   componentName: "FolderBrowser",
   icon: "folder",
   folderHandler: {
-    title: "Finder",
+    title: "FolderBrowser",
     description:
       "Modern file browser with clean list view, breadcrumb navigation, and refined visual design.",
     patterns: ["*"],
