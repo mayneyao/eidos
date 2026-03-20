@@ -114,7 +114,7 @@ export const FileTreeNode = ({
   const canDrop = hasChildren && !isDragging
 
   return (
-    <div key={node.path} className="min-w-0">
+    <div key={node.path} className="min-w-0 h-full box-border">
       <FileTreeContextMenu
         node={node}
         onRename={onRename}

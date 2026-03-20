@@ -30,6 +30,12 @@ export const useFileTreeData = ({
   const { sqlite } = useSqlite()
   const normalizedRootDir = rootDir ? rootDir.replace(/\/+$/, "") : rootDir
 
+  // Use a ref to store the latest onScrollToNode callback
+  const onScrollToNodeRef = useRef(onScrollToNode)
+  useEffect(() => {
+    onScrollToNodeRef.current = onScrollToNode
+  }, [onScrollToNode])
+
   // Flat data structure
   // rootNodes: Top level nodes
   // dirContent: Map of directory path -> list of children nodes
@@ -501,7 +507,7 @@ export const useFileTreeData = ({
         if (!relativePath) {
           // Path is exactly the root node; still scroll to it
           setTimeout(() => {
-            onScrollToNode?.(path)
+            onScrollToNodeRef.current?.(path)
           }, 100)
           return
         }
@@ -541,7 +547,7 @@ export const useFileTreeData = ({
 
         // 4. Scroll to node
         setTimeout(() => {
-          onScrollToNode?.(path)
+          onScrollToNodeRef.current?.(path)
         }, 100)
       } catch (e) {
         console.error(`[FileTree] expandTo failed for ${path}`, e)
@@ -555,7 +561,6 @@ export const useFileTreeData = ({
       dirContent,
       loadSubDirectory,
       setExpandedNodes,
-      onScrollToNode,
     ]
   )
 

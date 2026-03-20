@@ -57,7 +57,8 @@ const FileTree = ({
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null)
   const [renamingNode, setRenamingNode] = useState<string | null>(null)
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const treeContainerRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false)
   const [pendingMove, setPendingMove] = useState<{
     sources: FileTreeNode[]
@@ -66,24 +67,8 @@ const FileTree = ({
     resolve: (allow: boolean) => void
   } | null>(null)
 
-  const scrollToNode = (nodePath: string, retryCount = 0) => {
-    const nodeElement = nodeRefs.current.get(nodePath)
-
-    if (nodeElement) {
-      nodeElement.scrollIntoView({
-        behavior: "auto",
-        block: "center",
-      })
-      // Add a small highlight effect
-      nodeElement.classList.add("bg-accent/50")
-      setTimeout(() => {
-        nodeElement.classList.remove("bg-accent/50")
-      }, 2000)
-    } else if (retryCount < 20) {
-      // Retry after a short delay to allow for rendering
-      setTimeout(() => scrollToNode(nodePath, retryCount + 1), 100)
-    }
-  }
+  // Ref to store scrollToNode callback for useFileTreeData
+  const scrollToNodeRef = useRef<(path: string, retryCount?: number) => void>()
 
   // Use file tree data hook for data loading and file system watching
   const {
@@ -99,9 +84,99 @@ const FileTree = ({
     isNodesMode,
     expandedNodes,
     setExpandedNodes,
-    onScrollToNode: scrollToNode,
+    onScrollToNode: (path: string) => scrollToNodeRef.current?.(path),
     viewPrefixesAsDirectories,
   })
+
+  // Custom virtual list implementation
+  const ITEM_HEIGHT = 36
+  const OVERSCAN = 10
+  const [scrollTop, setScrollTop] = useState(0)
+  const [containerHeight, setContainerHeight] = useState(0)
+
+  // Calculate visible range
+  const virtualList = useMemo(() => {
+    const totalHeight = flattenedData.length * ITEM_HEIGHT
+    const startIndex = Math.max(
+      0,
+      Math.floor(scrollTop / ITEM_HEIGHT) - OVERSCAN
+    )
+    const visibleCount = Math.ceil(containerHeight / ITEM_HEIGHT) + OVERSCAN * 2
+    const endIndex = Math.min(flattenedData.length, startIndex + visibleCount)
+
+    const offsetTop = startIndex * ITEM_HEIGHT
+
+    return {
+      items: flattenedData.slice(startIndex, endIndex).map((item, index) => ({
+        data: item,
+        index: startIndex + index,
+      })),
+      offsetTop,
+      totalHeight,
+    }
+  }, [flattenedData, scrollTop, containerHeight])
+
+  // Handle scroll
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const handleScroll = () => {
+      setScrollTop(container.scrollTop)
+    }
+
+    // Initial measurement
+    setContainerHeight(container.clientHeight)
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerHeight(entry.contentRect.height)
+      }
+    })
+    resizeObserver.observe(container)
+
+    container.addEventListener("scroll", handleScroll, { passive: true })
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll)
+      resizeObserver.disconnect()
+    }
+  }, [])
+
+  // Scroll to index function
+  const scrollToVirtualIndex = useCallback((index: number) => {
+    const container = containerRef.current
+    if (!container) return
+    container.scrollTop = index * ITEM_HEIGHT
+  }, [])
+
+  const flattenedPaths = useMemo(
+    () => flattenedData.map((node) => node.path),
+    [flattenedData]
+  )
+
+  const scrollToNode = useCallback(
+    (nodePath: string, retryCount = 0) => {
+      const index = flattenedPaths.indexOf(nodePath)
+      if (index !== -1) {
+        scrollToVirtualIndex(index)
+        // Add highlight effect to the node
+        const nodeElement = nodeRefs.current.get(nodePath)
+        if (nodeElement) {
+          nodeElement.classList.add("bg-accent/50")
+          setTimeout(() => {
+            nodeElement.classList.remove("bg-accent/50")
+          }, 2000)
+        }
+      } else if (retryCount < 20) {
+        // Retry after a short delay to allow for rendering
+        setTimeout(() => scrollToNode(nodePath, retryCount + 1), 100)
+      }
+    },
+    [flattenedPaths, scrollToVirtualIndex]
+  )
+
+  // Update scrollToNodeRef so useFileTreeData can access the latest callback
+  scrollToNodeRef.current = scrollToNode
 
   // Context menu operations - use baseDir or rootDir for path detection
   const {
@@ -274,7 +349,7 @@ const FileTree = ({
   useFileTreeKeyboard({
     selectedNode,
     renamingNode,
-    treeContainerRef,
+    treeContainerRef: containerRef,
     onRename: startRename,
     onClearSelection: () => {
       setSelectedNode(null)
@@ -319,11 +394,6 @@ const FileTree = ({
     setPendingMove(null)
     setIsMoveDialogOpen(false)
   }
-
-  const flattenedPaths = useMemo(
-    () => flattenedData.map((node) => node.path),
-    [flattenedData]
-  )
 
   const pathToNodeMap = useMemo(() => {
     const map = new Map<string, FileTreeNode>()
@@ -730,7 +800,11 @@ const FileTree = ({
     }
 
     return (
-      <div key={node.path} data-path={node.path}>
+      <div
+        key={node.metadata?.nodeId || node.path}
+        data-path={node.path}
+        className="h-[36px]"
+      >
         <FileTreeNode
           node={node}
           level={level}
@@ -793,15 +867,29 @@ const FileTree = ({
   return (
     <>
       <div
-        ref={treeContainerRef}
+        ref={containerRef}
         role="tree"
         aria-multiselectable="true"
-        className={cn(
-          "space-y-1 px-4 bg-sidebar",
-          !isNodesMode && "h-full overflow-y-auto"
-        )}
+        className="h-full overflow-y-auto px-4 bg-sidebar"
       >
-        {flattenedData.map((node, index) => renderTreeNode(node, index))}
+        <div
+          ref={wrapperRef}
+          style={{
+            height: `${virtualList.totalHeight}px`,
+            position: "relative",
+          }}
+        >
+          <div
+            style={{
+              transform: `translateY(${virtualList.offsetTop}px)`,
+              willChange: "transform",
+            }}
+          >
+            {virtualList.items.map((item) =>
+              renderTreeNode(item.data, item.index)
+            )}
+          </div>
+        </div>
       </div>
 
       <AlertDialog
