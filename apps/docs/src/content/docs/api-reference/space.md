@@ -15,17 +15,21 @@ The `eidos.space` object provides access to all data space functionality includi
 
 ## Common Methods
 
-### `navigate(path: string)`
+### `navigate(path: string, options?)`
 
 Navigate to a node within the current space.
 
 ```typescript
-navigate(path: string): void
+navigate(path: string, options?: { target?: "_blank" | "_self" }): void
 ```
 
 **Parameters:**
 
 - `path` (string): The path to navigate to, relative to the current space
+- `options` (object, optional): Navigation options
+  - `target` (string, optional): Where to open the navigation target
+    - `"_self"` (default): Open in the current tab
+    - `"_blank"`: Open in a new tab
 
 **Supported Path Formats:**
 
@@ -64,6 +68,9 @@ eidos.space.navigate("/file-handler/#~/readme.md")
 
 // Navigate to a file handler (open a file in a mounted folder)
 eidos.space.navigate("/file-handler/#@/music/song.mp3")
+
+// Open in a new tab
+eidos.space.navigate("/doc_456", { target: "_blank" })
 ```
 
 ### `notify(msg: string)`

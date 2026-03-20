@@ -13,22 +13,26 @@ sidebar:
 
 ## 通用方法
 
-### `navigate(path: string)`
+### `navigate(path: string, options?)`
 
 在当前空间内导航到节点。
 
 ```typescript
-navigate(path: string): void
+navigate(path: string, options?: { target?: "_blank" | "_self" }): void
 ```
 
 **参数:**
 
 - `path` (string): 要导航到的路径，相对于当前空间
+- `options` (object, 可选): 导航选项
+  - `target` (string, 可选): 在哪里打开导航目标
+    - `"_self"` (默认): 在当前标签页打开
+    - `"_blank"`: 在新标签页打开
 
 **支持的路径格式:**
 
 - `"/<nodeId>"` - 通过 ID 导航到特定节点
-- `"/<docId>#<hash>" - 导航到文档（支持 hash 锚点，如 `#标题`）
+- `"/<docId>#<hash>"` - 导航到文档（支持 hash 锚点，如 `#标题`）
 - `"/2025-09-30"` - 导航到基于日期的节点
 - `"/extensions/<extensionId>"` - 导航到扩展
 - `"/blocks/<blockId>"` - 导航到块
@@ -61,6 +65,9 @@ eidos.space.navigate("/file-handler/#~/readme.md")
 
 // 导航到文件处理器（打开挂载文件夹中的文件）
 eidos.space.navigate("/file-handler/#@/music/song.mp3")
+
+// 在新标签页打开
+eidos.space.navigate("/doc_456", { target: "_blank" })
 ```
 
 ### `notify(msg: string)`
