@@ -455,5 +455,24 @@ export class LinkFieldService {
       sql: `DELETE FROM ${reverseRelationTableName} WHERE link_field_id = ?`,
       bind: [pairedField.table_column_name],
     })
+    // delete references for __title columns
+    // note: reference records use ${columnName}__title as self_table_column_name
+    // but the foreign key references eidos__column(table_name, table_column_name)
+    // since there's no ${columnName}__title in eidos__column, ON DELETE CASCADE won't work
+    // we need to manually delete these references
+    await this.dataSpace.reference.delBy(
+      {
+        self_table_name: tableName,
+        self_table_column_name: `${columnName}__title`,
+      },
+      db
+    )
+    await this.dataSpace.reference.delBy(
+      {
+        self_table_name: pairedField.table_name,
+        self_table_column_name: `${pairedField.table_column_name}__title`,
+      },
+      db
+    )
   }
 }

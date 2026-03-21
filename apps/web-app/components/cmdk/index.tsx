@@ -90,11 +90,14 @@ export function CommandDialogDemo() {
     needsDocPathMigration,
     migrateTableFilePaths,
     needsTableFilePathMigration,
+    fixTableSchema,
+    needsTableSchemaFix,
   } = useSqlite()
   const goto = useCMDKGoto()
   const [isMigrating, setIsMigrating] = useState(false)
   const [isMigratingDoc, setIsMigratingDoc] = useState(false)
   const [isMigratingTable, setIsMigratingTable] = useState(false)
+  const [isFixingSchema, setIsFixingSchema] = useState(false)
   const [isCliInstalled, setIsCliInstalled] = useState<boolean | null>(null)
   const [isInstallingCli, setIsInstallingCli] = useState(false)
   const { toast } = useToast()
@@ -202,6 +205,79 @@ export function CommandDialogDemo() {
       })
     } finally {
       setIsMigratingTable(false)
+    }
+  }
+
+  /**
+   * Fix table schema by removing orphan __title columns
+   * 修复表格结构，删除孤立的 __title 列
+   *
+   * This function detects and removes orphan __title columns that don't have
+   * corresponding link fields. This can happen when link fields were deleted
+   * incorrectly in older versions, causing "duplicate column name" errors
+   * when trying to create new link fields.
+   */
+  const handleFixTableSchema = async () => {
+    if (!currentNode || currentNode.type !== "table") return
+
+    setIsFixingSchema(true)
+    try {
+      const needsFix = await needsTableSchemaFix(currentNode.id)
+      if (!needsFix) {
+        toast({
+          title: t("cmdk.fixTableSchema.noFixNeeded", "No Fix Needed"),
+          description: t(
+            "cmdk.fixTableSchema.noFixNeededDesc",
+            "This table's schema is already correct."
+          ),
+        })
+        setCmdkOpen(false)
+        return
+      }
+
+      const result = await fixTableSchema(currentNode.id)
+      if (result.errors.length > 0) {
+        toast({
+          title: t("cmdk.fixTableSchema.fixFailed", "Schema Fix Failed"),
+          description: t(
+            "cmdk.fixTableSchema.fixFailedDesc",
+            `Errors occurred: ${result.errors.join(", ")}`
+          ),
+          variant: "destructive",
+        })
+      } else if (result.fixed.length > 0) {
+        toast({
+          title: t("cmdk.fixTableSchema.fixCompleted", "Schema Fixed"),
+          description: t(
+            "cmdk.fixTableSchema.fixCompletedDesc",
+            `Successfully removed ${result.fixed.length} orphan column(s): ${result.fixed.join(", ")}`,
+            { count: result.fixed.length, columns: result.fixed.join(", ") }
+          ),
+        })
+      } else {
+        toast({
+          title: t("cmdk.fixTableSchema.noFixNeeded", "No Fix Needed"),
+          description: t(
+            "cmdk.fixTableSchema.noFixNeededDesc",
+            "No orphan columns were found."
+          ),
+        })
+      }
+      setCmdkOpen(false)
+    } catch (error) {
+      console.error("Table schema fix failed:", error)
+      toast({
+        title: t("cmdk.fixTableSchema.fixFailed", "Schema Fix Failed"),
+        description: t(
+          "cmdk.fixTableSchema.fixFailedDesc",
+          error instanceof Error
+            ? error.message
+            : "An unknown error occurred during schema fix."
+        ),
+        variant: "destructive",
+      })
+    } finally {
+      setIsFixingSchema(false)
     }
   }
 
@@ -553,6 +629,23 @@ export function CommandDialogDemo() {
                           <span>{t("cmdk.migrateTableFilePaths")}</span>
                           <span className="text-xs text-muted-foreground">
                             {t("cmdk.migrateTableFilePaths.desc")}
+                          </span>
+                        </div>
+                      </CommandItem>
+                      <CommandItem
+                        onSelect={handleFixTableSchema}
+                        disabled={isFixingSchema}
+                        value={`${t("cmdk.fixTableSchema")} ${t("cmdk.fixTableSchema.desc")}`}
+                      >
+                        {isFixingSchema ? (
+                          <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Wand2 className="mr-2 h-4 w-4" />
+                        )}
+                        <div className="flex flex-col">
+                          <span>{t("cmdk.fixTableSchema")}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {t("cmdk.fixTableSchema.desc")}
                           </span>
                         </div>
                       </CommandItem>

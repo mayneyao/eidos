@@ -227,6 +227,179 @@ export class TableManager {
   }
 
   /**
+   * Detect and fix orphan __title columns that don't have corresponding link fields
+   * This can happen when link fields were deleted incorrectly in older versions
+   * @returns Object with arrays of fixed columns and any errors
+   */
+  async fixOrphanTitleColumns(): Promise<{
+    fixed: string[]
+    errors: string[]
+  }> {
+    const fixed: string[] = []
+    const errors: string[] = []
+
+    try {
+      // Get all columns in the table
+      const tableInfo = await this.dataSpace.exec2(
+        `PRAGMA table_info(${this.rawTableName})`
+      )
+      const allColumns = tableInfo.map((col: any) => col.name)
+
+      // Find all __title columns
+      const titleColumns = allColumns.filter((col: string) =>
+        col.endsWith("__title")
+      )
+
+      if (titleColumns.length === 0) {
+        return { fixed: [], errors: [] }
+      }
+
+      // Get all link fields for this table from eidos__column
+      const linkFields = await this.dataSpace.column.list({
+        table_name: this.rawTableName,
+      })
+      const linkFieldNames = new Set(
+        linkFields
+          .filter((f) => f.type === "link")
+          .map((f) => f.table_column_name)
+      )
+
+      // Find orphan columns to drop
+      const columnsToDrop: string[] = []
+      for (const titleColumn of titleColumns) {
+        const linkColumnName = titleColumn.slice(0, -7) // Remove '__title'
+        if (!linkFieldNames.has(linkColumnName)) {
+          columnsToDrop.push(titleColumn)
+        }
+      }
+
+      if (columnsToDrop.length === 0) {
+        return { fixed: [], errors: [] }
+      }
+
+      // Need to drop triggers before dropping columns because triggers reference columns
+      // Drop existing triggers
+      try {
+        await this.dataSpace.db.exec(`
+          DROP TRIGGER IF EXISTS data_update_trigger_${this.rawTableName};
+          DROP TRIGGER IF EXISTS data_insert_trigger_${this.rawTableName};
+          DROP TRIGGER IF EXISTS data_delete_trigger_${this.rawTableName};
+        `)
+      } catch (e) {
+        // Ignore errors if triggers don't exist
+      }
+
+      // Clean up orphaned references for __title columns before dropping columns
+      // These references were created when link fields were added but not cleaned up when deleted
+      for (const titleColumn of columnsToDrop) {
+        try {
+          await this.dataSpace.reference.delBy({
+            self_table_name: this.rawTableName,
+            self_table_column_name: titleColumn,
+          })
+          console.log(
+            `Cleaned up reference for orphan column: ${this.rawTableName}.${titleColumn}`
+          )
+        } catch (e) {
+          // Ignore errors if reference doesn't exist
+          console.log(
+            `No reference to clean for ${this.rawTableName}.${titleColumn}`
+          )
+        }
+      }
+
+      // Drop orphan columns
+      for (const titleColumn of columnsToDrop) {
+        try {
+          await this.dataSpace.db.exec(
+            `ALTER TABLE ${this.rawTableName} DROP COLUMN ${titleColumn};`
+          )
+          fixed.push(titleColumn)
+          console.log(
+            `Fixed orphan __title column: ${this.rawTableName}.${titleColumn}`
+          )
+        } catch (error) {
+          const errorMsg = `Failed to drop column ${titleColumn}: ${error}`
+          console.error(errorMsg)
+          errors.push(errorMsg)
+        }
+      }
+
+      // Recreate triggers with updated column list
+      if (fixed.length > 0) {
+        try {
+          // Get updated column list after dropping columns
+          const updatedTableInfo = await this.dataSpace.exec2(
+            `PRAGMA table_info(${this.rawTableName})`
+          )
+          await this.dataSpace.dataChangeTrigger.setTrigger(
+            this.dataSpace,
+            this.rawTableName,
+            updatedTableInfo
+          )
+        } catch (e) {
+          const errorMsg = `Failed to recreate triggers: ${e}`
+          console.error(errorMsg)
+          errors.push(errorMsg)
+        }
+      }
+
+      return { fixed, errors }
+    } catch (error) {
+      const errorMsg = `Error fixing orphan title columns: ${error}`
+      console.error(errorMsg)
+      errors.push(errorMsg)
+      return { fixed, errors }
+    }
+  }
+
+  /**
+   * Check if this table has orphan __title columns that need fixing
+   * @returns True if there are orphan columns
+   */
+  async hasOrphanTitleColumns(): Promise<boolean> {
+    try {
+      // Get all columns in the table
+      const tableInfo = await this.dataSpace.exec2(
+        `PRAGMA table_info(${this.rawTableName})`
+      )
+      const allColumns = tableInfo.map((col: any) => col.name)
+
+      // Find all __title columns
+      const titleColumns = allColumns.filter((col: string) =>
+        col.endsWith("__title")
+      )
+
+      if (titleColumns.length === 0) {
+        return false
+      }
+
+      // Get all link fields for this table from eidos__column
+      const linkFields = await this.dataSpace.column.list({
+        table_name: this.rawTableName,
+      })
+      const linkFieldNames = new Set(
+        linkFields
+          .filter((f) => f.type === "link")
+          .map((f) => f.table_column_name)
+      )
+
+      // Check if any __title column is orphan
+      for (const titleColumn of titleColumns) {
+        const linkColumnName = titleColumn.slice(0, -7)
+        if (!linkFieldNames.has(linkColumnName)) {
+          return true
+        }
+      }
+
+      return false
+    } catch (error) {
+      console.error("Error checking for orphan title columns:", error)
+      return false
+    }
+  }
+
+  /**
    * Check if this table needs file path migration
    * @returns True if migration is needed
    */

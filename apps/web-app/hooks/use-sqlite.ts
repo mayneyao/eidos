@@ -539,6 +539,31 @@ export const useSqlite = (dbName?: string) => {
     }
   }
 
+  const fixTableSchema = async (tableId: string) => {
+    if (!sqlWorker) return { fixed: [], errors: [] }
+
+    try {
+      return await sqlWorker.fixTableSchema(tableId)
+    } catch (error) {
+      console.error("Error fixing table schema:", error)
+      return {
+        fixed: [],
+        errors: [error instanceof Error ? error.message : "Unknown error"],
+      }
+    }
+  }
+
+  const needsTableSchemaFix = async (tableId: string) => {
+    if (!sqlWorker) return false
+
+    try {
+      return await sqlWorker.needsTableSchemaFix(tableId)
+    } catch (error) {
+      console.error("Error checking table schema fix need:", error)
+      return false
+    }
+  }
+
   return {
     sqlite: isShareMode ? sqlWorker : isInitialized ? sqlWorker : null,
     createTable,
@@ -579,6 +604,8 @@ export const useSqlite = (dbName?: string) => {
     needsDocPathMigration,
     migrateTableFilePaths,
     needsTableFilePathMigration,
+    fixTableSchema,
+    needsTableSchemaFix,
     resetTableData,
   }
 }

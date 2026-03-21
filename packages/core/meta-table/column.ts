@@ -256,11 +256,38 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
           tableColumnName,
           this.dataSpace.db
         )
-        // delete paired field
+        // delete paired field (including its __title column via _deleteField)
         await _deleteField(
           pairedField.table_name,
           pairedField.table_column_name
         )
+        // delete the __title column of paired field - need to update trigger first
+        await this.dataSpace.tableFullTextSearch.updateTrigger(
+          pairedField.table_name,
+          [`${pairedField.table_column_name}__title`]
+        )
+        await this.dataSpace.onTableChange(
+          this.dataSpace.dbName,
+          pairedField.table_name,
+          [`${pairedField.table_column_name}__title`]
+        )
+        this.dataSpace.db
+          .prepare(
+            `ALTER TABLE ${pairedField.table_name} DROP COLUMN ${pairedField.table_column_name}__title;`
+          )
+          .run()
+        // delete the __title column of current field - need to update trigger first
+        await this.dataSpace.tableFullTextSearch.updateTrigger(tableName, [
+          `${tableColumnName}__title`,
+        ])
+        await this.dataSpace.onTableChange(this.dataSpace.dbName, tableName, [
+          `${tableColumnName}__title`,
+        ])
+        this.dataSpace.db
+          .prepare(
+            `ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName}__title;`
+          )
+          .run()
       }
       await _deleteField(tableName, tableColumnName)
 

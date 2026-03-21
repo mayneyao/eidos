@@ -441,4 +441,26 @@ export class DataSpaceWithTable extends DataSpaceWithNode {
   public async needsTableFilePathMigration(tableId: string): Promise<boolean> {
     return await this._table(tableId).needsFilePathMigration()
   }
+
+  /**
+   * Fix orphan __title columns in a table that don't have corresponding link fields
+   * This can happen when link fields were deleted incorrectly in older versions
+   * @param tableId The table ID to fix
+   * @returns Object with arrays of fixed columns and any errors
+   */
+  public async fixTableSchema(tableId: string): Promise<{
+    fixed: string[]
+    errors: string[]
+  }> {
+    return await this._table(tableId).fixOrphanTitleColumns()
+  }
+
+  /**
+   * Check if a table has orphan __title columns that need fixing
+   * @param tableId The table ID to check
+   * @returns True if there are orphan columns that need fixing
+   */
+  public async needsTableSchemaFix(tableId: string): Promise<boolean> {
+    return await this._table(tableId).hasOrphanTitleColumns()
+  }
 }
