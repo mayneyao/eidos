@@ -6,16 +6,14 @@ import {
   type ProvideEditorCallback,
 } from "@glideapps/glide-data-grid"
 import { useKeyPress } from "ahooks"
-import update from "immutability-helper"
-import { DndProvider } from "react-dnd"
-import { HTML5Backend } from "react-dnd-html5-backend"
+import { Plus } from "lucide-react"
 
 import { getFileType } from "@/lib/mime/mime"
 import { cn } from "@/lib/utils"
 import { smartSplitFilePaths } from "@/packages/core/fields/helper"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
 import { FinderDialog } from "@/components/finder"
+import { SortableContainer } from "@/components/table/sortable"
 
 import { drawImage } from "../helper"
 import { Card } from "./file-cell-eidtor"
@@ -31,6 +29,13 @@ interface FileCellDataProps {
 
 export type FileCell = CustomCell<FileCellDataProps>
 
+interface FileItem {
+  id: string
+  url: string
+  displayUrl: string
+  index: number
+}
+
 export const FileCellEditor: ReturnType<
   ProvideEditorCallback<
     FileCell & {
@@ -44,22 +49,17 @@ export const FileCellEditor: ReturnType<
   const [open, setOpen] = useState(false)
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState(-1)
 
-  const moveCard = useCallback(
-    (dragIndex: number, hoverIndex: number) => {
-      const newData = update(cell.data.data, {
-        $splice: [
-          [dragIndex, 1],
-          [hoverIndex, 0, cell.data.data[dragIndex] as any],
-        ],
-      })
+  const items: FileItem[] = cell.data.data.map((url, index) => ({
+    id: `${url}-${index}`,
+    url,
+    displayUrl: cell.data.displayData[index],
+    index,
+  }))
 
-      const newDisplayData = update(cell.data.displayData, {
-        $splice: [
-          [dragIndex, 1],
-          [hoverIndex, 0, cell.data.displayData[dragIndex] as any],
-        ],
-      })
-
+  const handleReorder = useCallback(
+    (newItems: FileItem[]) => {
+      const newData = newItems.map((item) => item.url)
+      const newDisplayData = newItems.map((item) => item.displayUrl)
       onChange({
         ...cell,
         data: {
@@ -115,24 +115,6 @@ export const FileCellEditor: ReturnType<
     [cell, onChange]
   )
 
-  const renderCard = useCallback(
-    (v: string, originalUrl: string, i: number) => {
-      return (
-        <Card
-          key={originalUrl}
-          id={v}
-          text={v}
-          originalUrl={originalUrl}
-          moveCard={moveCard}
-          index={i}
-          setCurrentPreviewIndex={setCurrentPreviewIndex}
-          deleteByUrl={deleteByUrl}
-        ></Card>
-      )
-    },
-    [deleteByUrl, moveCard, setCurrentPreviewIndex]
-  )
-
   const addUrls = (urls: string[]) => {
     const newData = [...cell.data.data, ...urls]
     const newDisplayData = [...cell.data.displayData, ...urls]
@@ -147,52 +129,42 @@ export const FileCellEditor: ReturnType<
   }
 
   const container = document.getElementById("portal") || document.body
-  // const showUploadFilePicker = async () => {
-  //   const pickerOpts = {
-  //     types: [
-  //       {
-  //         description: "Images",
-  //         accept: {
-  //           "image/*": [".png", ".gif", ".jpeg", ".jpg"],
-  //         },
-  //       },
-  //     ],
-  //     excludeAcceptAllOption: true,
-  //     multiple: true,
-  //   }
-  //   const fileHandles = await (window as any).showOpenFilePicker(pickerOpts)
-  //   const files = await Promise.all(fileHandles.map((fh: any) => fh.getFile()))
-
-  //   const addedFiles = await addFiles(files)
-  //   const urls = addedFiles.map(
-  //     (fileInfo) => "/" + fileInfo.path.split("/").slice(1).join("/")
-  //   )
-  //   addUrls(urls)
-  // }
+  const hasFiles = cell.data.displayData.length > 0
 
   return (
-    <div
-      className={cn(
-        "min-w-[280px] rounded-md border-none outline-none",
-        className
-      )}
-    >
-      <DndProvider backend={HTML5Backend} context={window}>
-        {cell.data.displayData.map((v, i) => {
-          const originalUrl = cell.data.data[i]
-          return renderCard(v, originalUrl, i)
-        })}
-      </DndProvider>
+    <div className={cn("min-w-[200px] max-w-[260px] p-1", className)}>
+      <SortableContainer
+        items={items}
+        onReorder={handleReorder}
+        className="space-y-0.5"
+        itemClassName=""
+        renderItem={(item) => (
+          <Card
+            id={item.id}
+            text={item.displayUrl}
+            originalUrl={item.url}
+            index={item.index}
+            setCurrentPreviewIndex={setCurrentPreviewIndex}
+            deleteByUrl={deleteByUrl}
+          />
+        )}
+      />
 
       {!cell.readonly && (
         <>
-          {cell.data.displayData.length > 0 && <Separator className="my-0.5" />}
+          {hasFiles && <div className="h-px bg-border/50 my-1" />}
           <Button
             variant="ghost"
-            className="w-full h-7 text-xs text-muted-foreground hover:text-foreground"
+            size="sm"
+            className={cn(
+              "w-full h-6 text-xs text-muted-foreground hover:text-foreground",
+              "hover:bg-accent/50 transition-colors duration-100",
+              "flex items-center justify-center gap-1"
+            )}
             onClick={() => setOpen(true)}
           >
-            + Add File
+            <Plus className="h-3 w-3" />
+            Add File
           </Button>
           <FinderDialog
             open={open}
@@ -236,11 +208,7 @@ export const FileCellRenderer: CustomRenderer<FileCell> = {
   needsHoverPosition: false,
   draw: (a) => {
     const data = a.cell.data.displayData
-    drawImage(
-      a,
-      data
-      //   a.cell.rounding,
-    )
+    drawImage(a, data)
   },
   measure: (_ctx, cell) => cell.data.data.length * 50,
   onDelete: (c) => ({
@@ -253,7 +221,6 @@ export const FileCellRenderer: CustomRenderer<FileCell> = {
   provideEditor: () => (p) => <FileCellEditor {...p} />,
   onPaste: (toPaste, cell) => {
     toPaste = toPaste.trim()
-    // if toPaste startWith  " or ' , remove them
     if (toPaste.startsWith('"') || toPaste.startsWith("'")) {
       toPaste = toPaste.slice(1)
     }

@@ -1,86 +1,29 @@
-import { useContext, useRef, type FC } from "react"
-import type { Identifier, XYCoord } from "dnd-core"
-import { FileIcon, MoreHorizontal } from "lucide-react"
-import { useDrag, useDrop } from "react-dnd"
+import { useContext, type FC } from "react"
+import { ExternalLink, FileIcon, GripVertical, Trash2 } from "lucide-react"
+import { useSortable } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 import { getFileType } from "@/lib/mime/mime"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
 import { TableContext } from "@/components/table/hooks"
 
-enum ItemTypes {
-  CARD = "card",
-}
-
-const style = {
-  padding: "0.25rem 0.5rem",
-  transition: "all 0.3s ease",
-  transform: "translate3d(0,0,0)",
-}
-
 export interface CardProps {
-  id: any
+  id: string
   text: string
   originalUrl: string
   index: number
-  moveCard: (dragIndex: number, hoverIndex: number) => void
   setCurrentPreviewIndex: (i: number) => void
   deleteByUrl: (index: number) => void
 }
 
-interface DragItem {
-  index: number
-  id: string
-  type: string
-}
-
-const FileRender = ({
-  url,
-  originalUrl,
-}: {
-  url: string
-  originalUrl: string
-}) => {
-  const fileType = getFileType(originalUrl)
-  switch (fileType) {
-    case "image":
-      return (
-        <img
-          src={url}
-          alt=""
-          className="max-h-[120px] cursor-pointer object-contain rounded-sm"
-        />
-      )
-    case "audio":
-      return (
-        <audio
-          src={originalUrl}
-          className="cursor-pointer object-contain"
-          controls
-        />
-      )
-    case "video":
-      return (
-        <video
-          src={originalUrl}
-          className="max-h-[120px] cursor-pointer object-contain rounded-sm"
-          controls
-        />
-      )
-    default:
-      return (
-        <div
-          className="flex h-8 cursor-pointer items-center gap-2"
-          title={originalUrl}
-        >
-          <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <p className="truncate text-sm">{originalUrl}</p>
-        </div>
-      )
+// Extract filename from path for display
+const getDisplayName = (url: string): string => {
+  try {
+    const decoded = decodeURIComponent(url)
+    const filename = decoded.split("/").pop() || url
+    return filename
+  } catch {
+    return url.split("/").pop() || url
   }
 }
 
@@ -88,132 +31,116 @@ export const Card: FC<CardProps> = ({
   id,
   text,
   index,
-  moveCard,
   originalUrl,
   deleteByUrl,
   setCurrentPreviewIndex,
 }) => {
-  const ref = useRef<HTMLDivElement>(null)
   const { isView } = useContext(TableContext)
-  const [{ handlerId }, drop] = useDrop<
-    DragItem,
-    void,
-    { handlerId: Identifier | null }
-  >({
-    accept: ItemTypes.CARD,
-    collect(monitor) {
-      return {
-        handlerId: monitor.getHandlerId(),
-      }
-    },
-    hover(item: DragItem, monitor) {
-      if (!ref.current) {
-        return
-      }
-      const dragIndex = item.index
-      const hoverIndex = index
+  const fileType = getFileType(originalUrl)
+  const displayName = getDisplayName(originalUrl)
 
-      // Don't replace items with themselves
-      if (dragIndex === hoverIndex) {
-        return
-      }
-
-      // Determine rectangle on screen
-      const hoverBoundingRect = ref.current?.getBoundingClientRect()
-
-      // Get vertical middle
-      const hoverMiddleY =
-        (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2
-
-      // Determine mouse position
-      const clientOffset = monitor.getClientOffset()
-
-      // Get pixels to the top
-      const hoverClientY = (clientOffset as XYCoord).y - hoverBoundingRect.top
-
-      // Only perform the move when the mouse has crossed half of the items height
-      // When dragging downwards, only move when the cursor is below 50%
-      // When dragging upwards, only move when the cursor is above 50%
-
-      // Dragging downwards
-      if (dragIndex < hoverIndex && hoverClientY < hoverMiddleY) {
-        return
-      }
-
-      // Dragging upwards
-      if (dragIndex > hoverIndex && hoverClientY > hoverMiddleY) {
-        return
-      }
-
-      // Time to actually perform the action
-      moveCard(dragIndex, hoverIndex)
-
-      // Note: we're mutating the monitor item here!
-      // Generally it's better to avoid mutations,
-      // but it's good here for the sake of performance
-      // to avoid expensive index searches.
-      item.index = hoverIndex
-    },
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id,
   })
 
-  const [{ isDragging }, drag] = useDrag({
-    type: ItemTypes.CARD,
-    item: () => {
-      return { id, index }
-    },
-    collect: (monitor: any) => ({
-      isDragging: monitor.isDragging(),
-    }),
-  })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1000 : "auto",
+  }
 
-  const opacity = isDragging ? 0.5 : 1
-  drag(drop(ref))
-
-  const handleClickViewOriginal = () => {
+  const handleOpenOriginal = (e: React.MouseEvent) => {
+    e.stopPropagation()
     window.open(originalUrl, "_blank")
   }
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    deleteByUrl(index)
+  }
+
+  const handlePreview = () => {
+    setCurrentPreviewIndex(index)
+  }
+
+  const isImage = fileType === "image"
+
   return (
     <div
-      ref={ref}
-      style={{ ...style, opacity }}
-      data-handler-id={handlerId}
-      className="space-between flex items-start justify-between hover:bg-secondary/50 rounded-sm"
+      ref={setNodeRef}
+      style={style}
+      onClick={handlePreview}
+      className={cn(
+        "group flex items-center gap-1.5 px-1.5 py-1 rounded",
+        "hover:bg-accent/50 cursor-pointer",
+        "transition-colors duration-100",
+        isDragging && "shadow-md bg-accent/30"
+      )}
     >
-      <div
-        onClick={() => setCurrentPreviewIndex(index)}
-        className="max-w-[85%]"
-      >
-        <FileRender url={text} originalUrl={originalUrl} />
-      </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger className="click-outside-ignore h-6 w-6 flex items-center justify-center">
-          <MoreHorizontal className="h-3 w-3 text-muted-foreground" />
-        </DropdownMenuTrigger>
-        {/* z-index 10000 > gdg editor 9999 */}
-        <DropdownMenuContent className="click-outside-ignore z-[10000]">
-          <DropdownMenuItem
-            onClick={() => setCurrentPreviewIndex(index)}
-            className="text-xs"
-          >
-            Fullscreen
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={handleClickViewOriginal}
-            className="text-xs"
-          >
-            View Original
-          </DropdownMenuItem>
-          {!isView && (
-            <DropdownMenuItem
-              onClick={() => deleteByUrl(index)}
-              className="text-xs"
-            >
-              Delete
-            </DropdownMenuItem>
+      {/* Drag Handle */}
+      {!isView && (
+        <div
+          className={cn(
+            "flex items-center justify-center w-4 shrink-0",
+            "text-muted-foreground/30 hover:text-muted-foreground/60",
+            "cursor-grab active:cursor-grabbing"
           )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </div>
+      )}
+
+      {/* Thumbnail */}
+      <div className="shrink-0">
+        {isImage ? (
+          <img
+            src={text}
+            alt={displayName}
+            className="h-6 w-6 object-cover rounded"
+            loading="lazy"
+          />
+        ) : (
+          <div className="h-6 w-6 flex items-center justify-center rounded bg-muted">
+            <FileIcon className="h-3.5 w-3.5 text-muted-foreground" />
+          </div>
+        )}
+      </div>
+
+      {/* Filename */}
+      <span className="flex-1 text-xs truncate min-w-0" title={displayName}>
+        {displayName}
+      </span>
+
+      {/* Actions - always visible on hover */}
+      {!isView && (
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={handleOpenOriginal}
+            className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+            title="Open"
+          >
+            <ExternalLink className="h-3 w-3" />
+          </button>
+          <button
+            onClick={handleDelete}
+            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+            title="Remove"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
