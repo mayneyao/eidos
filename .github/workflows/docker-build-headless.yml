@@ -1,19 +1,6 @@
 name: Build Headless Docker Image
 
 on:
-  push:
-    branches:
-      - dev
-    paths:
-      - "apps/headless/**"
-      - "packages/**"
-      - "pnpm-lock.yaml"
-      - ".github/workflows/docker-build-headless.yml"
-  pull_request:
-    branches:
-      - dev
-    paths:
-      - "apps/headless/**"
   release:
     types: [published]
   workflow_dispatch:
@@ -67,7 +54,7 @@ jobs:
         with:
           context: .
           file: apps/headless/Dockerfile
-          push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/refactor/extensions' || github.event_name == 'release') || github.event.inputs.push_image == 'true' }}
+          push: ${{ github.event_name == 'release' || github.event.inputs.push_image == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64,linux/arm64
