@@ -1,0 +1,140 @@
+/* Flexoki - An inky color scheme for prose and code */
+/* https://stephango.com/flexoki */
+
+:root {
+  /* Flexoki Base - Light Mode (Paper) */
+  --background: 48 100% 98%;
+  --foreground: 45 6% 6%;
+
+  --card: 46 29% 92%;
+  --card-foreground: 45 6% 6%;
+
+  --popover: 48 100% 98%;
+  --popover-foreground: 45 6% 6%;
+
+  --primary: 175 57% 33%;
+  --primary-foreground: 48 100% 98%;
+
+  --secondary: 45 12% 89%;
+  --secondary-foreground: 45 6% 6%;
+
+  --muted: 45 12% 89%;
+  --muted-foreground: 42 3% 47%;
+
+  --accent: 175 57% 33%;
+  --accent-foreground: 48 100% 98%;
+
+  --destructive: 4 57% 42%;
+  --destructive-foreground: 48 100% 98%;
+
+  --border: 43 13% 83%;
+  --input: 43 13% 83%;
+  --ring: 175 57% 33%;
+
+  --radius: 0.5rem;
+
+  /* Flexoki Syntax Highlighting Colors */
+  --token-comment-color: #878580;
+  --token-punctuation-color: #6F6E69;
+  --token-property-color: #BC5215;
+  --token-selector-color: #66800B;
+  --token-operator-color: #6F6E69;
+  --token-attr-color: #205EA6;
+  --token-variable-color: #AF3029;
+  --token-function-color: #AD8301;
+
+  /* monaco editor */
+  --custom-editor-background: hsl(var(--background));
+
+  /* Heatmap colors */
+  --rhm-rect: #E6E4D9;
+  --rhm-text-color: #282726;
+  --rhm-rect-hover-stroke: rgba(0, 0, 0, 0.14);
+  --rhm-rect-active: #66800B;
+
+  /* Chart colors - Flexoki accent palette */
+  --chart-1: 4 57% 42%;
+  --chart-2: 21 78% 45%;
+  --chart-3: 45 98% 38%;
+  --chart-4: 69 84% 32%;
+  --chart-5: 175 57% 33%;
+
+  /* Sidebar - subtle variation */
+  --sidebar: 46 29% 92%;
+  --sidebar-foreground: 45 6% 6%;
+  --sidebar-primary: 175 57% 33%;
+  --sidebar-primary-foreground: 48 100% 98%;
+  --sidebar-accent: 45 12% 89%;
+  --sidebar-accent-foreground: 45 6% 6%;
+  --sidebar-border: 43 13% 83%;
+  --sidebar-ring: 175 57% 33%;
+}
+
+.dark {
+  /* Flexoki Base - Dark Mode (Ink) */
+  --background: 45 6% 6%;
+  --foreground: 48 100% 98%;
+
+  --card: 45 5% 10%;
+  --card-foreground: 48 100% 98%;
+
+  --popover: 45 5% 10%;
+  --popover-foreground: 48 100% 98%;
+
+  --primary: 174 45% 41%;
+  --primary-foreground: 45 6% 6%;
+
+  --secondary: 45 6% 13%;
+  --secondary-foreground: 48 100% 98%;
+
+  --muted: 45 6% 13%;
+  --muted-foreground: 40 4% 58%;
+
+  --accent: 174 45% 41%;
+  --accent-foreground: 45 6% 6%;
+
+  --destructive: 4 61% 48%;
+  --destructive-foreground: 48 100% 98%;
+
+  --border: 45 5% 17%;
+  --input: 45 5% 17%;
+  --ring: 174 45% 41%;
+
+  --radius: 0.5rem;
+
+  /* Flexoki Syntax Highlighting Colors - Dark */
+  --token-comment-color: #878580;
+  --token-punctuation-color: #9F9D96;
+  --token-property-color: #DA702C;
+  --token-selector-color: #879A39;
+  --token-operator-color: #9F9D96;
+  --token-attr-color: #4385BE;
+  --token-variable-color: #D14D41;
+  --token-function-color: #D0A215;
+
+  /* monaco editor */
+  --custom-editor-background: hsl(var(--background));
+
+  /* Heatmap colors */
+  --rhm-rect: #343331;
+  --rhm-text-color: #CECDC3;
+  --rhm-rect-hover-stroke: rgba(255, 255, 255, 0.14);
+  --rhm-rect-active: #879A39;
+
+  /* Chart colors - Flexoki accent palette (light variants for dark mode) */
+  --chart-1: 5 60% 53%;
+  --chart-2: 24 70% 51%;
+  --chart-3: 44 85% 45%;
+  --chart-4: 69 55% 46%;
+  --chart-5: 174 45% 41%;
+
+  /* Sidebar */
+  --sidebar: 45 6% 6%;
+  --sidebar-foreground: 48 100% 98%;
+  --sidebar-primary: 174 45% 41%;
+  --sidebar-primary-foreground: 45 6% 6%;
+  --sidebar-accent: 45 6% 13%;
+  --sidebar-accent-foreground: 48 100% 98%;
+  --sidebar-border: 45 5% 17%;
+  --sidebar-ring: 174 45% 41%;
+}

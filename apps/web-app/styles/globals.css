@@ -4,9 +4,39 @@
 
 * {
   scrollbar-width: thin;
-  /* Make the scrollbar narrower */
-  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
-  /* Thumb and track colors */
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+/* Webkit Scrollbar - Light Mode (Default) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Webkit Scrollbar - Dark Mode */
+.dark ::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.6);
 }
 
 #root {
@@ -123,39 +153,39 @@ html {
   }
 
   .dark {
-    --background: 224 71.4% 4.1%;
+    --background: 220 13% 9%;
     --foreground: 210 20% 98%;
 
-    --muted: 215 27.9% 16.9%;
-    --muted-foreground: 217.9 10.6% 64.9%;
+    --muted: 220 13% 18%;
+    --muted-foreground: 217 15% 55%;
 
-    --accent: 215 27.9% 16.9%;
+    --accent: 220 13% 18%;
     --accent-foreground: 210 20% 98%;
 
-    --popover: 224 71.4% 4.1%;
+    --popover: 220 13% 11%;
     --popover-foreground: 210 20% 98%;
 
-    --border: 215 27.9% 16.9%;
-    --input: 215 27.9% 16.9%;
+    --border: 220 13% 22%;
+    --input: 220 13% 22%;
 
-    --card: 224 71.4% 4.1%;
+    --card: 220 13% 11%;
     --card-foreground: 210 20% 98%;
 
     --primary: 210 20% 98%;
     --primary-foreground: 220.9 39.3% 11%;
 
-    --secondary: 215 27.9% 16.9%;
+    --secondary: 220 13% 18%;
     --secondary-foreground: 210 20% 98%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 62.8% 40%;
     --destructive-foreground: 210 20% 98%;
 
-    --ring: 216 12.2% 83.9%;
+    --ring: 217 20% 65%;
 
     --radius: 0.5rem;
 
-    --token-comment-color: #6c757d;
-    --token-punctuation-color: #999;
+    --token-comment-color: #8b949e;
+    --token-punctuation-color: #a9a9a9;
     --token-property-color: #d19a66;
     --token-selector-color: #c678dd;
     --token-operator-color: #a9a9a9;
@@ -171,19 +201,19 @@ html {
     --rhm-text-color: #c9d1d9;
     --rhm-rect-hover-stroke: rgba(255, 255, 255, 0.14);
     --rhm-rect-active: #196127;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --chart-1: 220 70% 55%;
+    --chart-2: 160 60% 50%;
+    --chart-3: 30 80% 60%;
+    --chart-4: 280 65% 65%;
+    --chart-5: 340 75% 60%;
+    --sidebar: 220 13% 9%;
+    --sidebar-foreground: 210 20% 98%;
+    --sidebar-primary: 217 70% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 220 13% 16%;
+    --sidebar-accent-foreground: 210 20% 98%;
+    --sidebar-border: 220 13% 20%;
+    --sidebar-ring: 217 70% 55%;
   }
 }
 

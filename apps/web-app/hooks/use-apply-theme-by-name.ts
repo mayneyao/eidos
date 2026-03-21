@@ -2,6 +2,7 @@ import { useThemeStore } from "@/apps/web-app/store/theme-store"
 import { parseCSSVariables, setThemeVariables } from "@/lib/web/theme"
 import retroArcade from "@/styles/themes/retro-arcade.css?raw"
 import defaultTheme from "@/styles/themes/default.css?raw"
+import flexokiTheme from "@/styles/themes/flexoki.css?raw"
 import { useTheme } from "@/components/theme-provider"
 import { useCallback, useEffect } from "react"
 import { useAllThemes } from "./use-all-themes"
@@ -11,6 +12,10 @@ export const presetThemes = [
   {
     name: "Default",
     css: defaultTheme,
+  },
+  {
+    name: "Flexoki",
+    css: flexokiTheme,
   },
   {
     name: "Retro Arcade",
