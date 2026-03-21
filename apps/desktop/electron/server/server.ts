@@ -135,16 +135,22 @@ function isAllowedOrigin(
 ): boolean {
   // Handle opaque origin (sandboxed iframe sends "null")
   if (origin === "null") {
-    // Only allow opaque origins from sandbox subdomains
+    // Allow opaque origins from sandbox subdomains or localhost (desktop mode)
     return (
-      hostname.startsWith("sandbox.") && hostname.endsWith(".eidos.localhost")
+      (hostname.startsWith("sandbox.") &&
+        hostname.endsWith(".eidos.localhost")) ||
+      hostname === "127.0.0.1" ||
+      hostname === "localhost"
     )
   }
 
-  // No origin header - allow if from sandbox subdomain
+  // No origin header - allow if from sandbox subdomain or localhost (desktop mode)
   if (!origin) {
     return (
-      hostname.startsWith("sandbox.") && hostname.endsWith(".eidos.localhost")
+      (hostname.startsWith("sandbox.") &&
+        hostname.endsWith(".eidos.localhost")) ||
+      hostname === "127.0.0.1" ||
+      hostname === "localhost"
     )
   }
 
