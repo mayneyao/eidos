@@ -482,18 +482,17 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
 
   /**
    * Search for files using ripgrep
+   * @param query Search query
+   * @param searchPaths Optional array of virtual paths to search within
    */
-  /**
-   * Search for files using ripgrep
-   */
-  async search(query: string): Promise<string[]> {
+  async search(query: string, searchPaths?: string[]): Promise<string[]> {
     // Parse query into keywords for filtering results
     const keywords = query.split(/\s+/).filter((k) => k.length > 0)
     if (keywords.length === 0) {
       return []
     }
 
-    // Get all paths to search (project root + mounts)
+    // Get mounts for path resolution
     const mounts = await this.getMounts()
     const projectRoot = await this.resolvePath("~/")
     const spaceFilePath = await this.resolvePath("~/.eidos")
@@ -503,7 +502,6 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
     }
 
     // Filter mounts to only include paths that exist on this platform
-    // This prevents cross-platform mount paths (e.g., macOS paths on Windows) from breaking search
     const validMounts: typeof mounts = []
     for (const mount of mounts) {
       try {
@@ -516,15 +514,43 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
       }
     }
 
-    const searchPaths = [
-      projectRoot,
-      spaceFilePath,
-      ...validMounts.map((m) => m.path),
-    ]
+    let absoluteSearchPaths: string[]
+
+    if (searchPaths && searchPaths.length > 0) {
+      // Resolve provided virtual paths to absolute paths
+      absoluteSearchPaths = []
+      for (const virtualPath of searchPaths) {
+        try {
+          const absolutePath = await this.resolvePath(virtualPath)
+          if (absolutePath) {
+            // Check if path exists
+            try {
+              await fs.access(absolutePath)
+              absoluteSearchPaths.push(absolutePath)
+            } catch {
+              console.warn(`[Search] Path does not exist: ${virtualPath}`)
+            }
+          }
+        } catch (err) {
+          console.warn(`[Search] Failed to resolve path: ${virtualPath}`, err)
+        }
+      }
+    } else {
+      // Default: search all paths (project root + space files + mounts)
+      absoluteSearchPaths = [
+        projectRoot,
+        spaceFilePath,
+        ...validMounts.map((m) => m.path),
+      ]
+    }
+
+    if (absoluteSearchPaths.length === 0) {
+      return []
+    }
 
     try {
       // Perform search using the helper
-      const lines = await searchWithRg(query, searchPaths)
+      const lines = await searchWithRg(query, absoluteSearchPaths)
 
       // Parse results and map back to virtual paths
       const results: Set<string> = new Set()

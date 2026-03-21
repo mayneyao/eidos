@@ -967,10 +967,10 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   /**
    * Search for files
    */
-  async search(query: string): Promise<string[]> {
+  async search(query: string, searchPaths?: string[]): Promise<string[]> {
     // Virtual paths don't support search yet (or handled differently)
     // For now, we delegate to underlying FS which handles ~/ and @/
-    return this.underlyingFS.search(query)
+    return this.underlyingFS.search(query, searchPaths)
   }
 
   /**

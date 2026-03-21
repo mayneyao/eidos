@@ -219,7 +219,8 @@ export interface IExternalFileSystem {
   /**
    * Search for files
    * @param query Search query
+   * @param searchPaths Optional array of paths to search within (defaults to all)
    * @returns Array of matching file paths (virtual paths)
    */
-  search(query: string): Promise<string[]>
+  search(query: string, searchPaths?: string[]): Promise<string[]>
 }

@@ -294,7 +294,7 @@ export class FSManager {
    * @example
    * const results = await eidos.currentSpace.fs.search("query")
    */
-  async search(query: string): Promise<string[]> {
-    return await this.externalFS.search(query)
+  async search(query: string, searchPaths?: string[]): Promise<string[]> {
+    return await this.externalFS.search(query, searchPaths)
   }
 }
