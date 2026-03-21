@@ -17,7 +17,7 @@ export interface FinderLocation {
   id: string
   name: string
   path: string
-  type: "space" | "mount" | "directory"
+  type: "space" | "mount" | "directory" | "shortcut"
   icon?: string
 }
 
@@ -26,6 +26,8 @@ export interface FinderItem extends IDirectoryEntry {
 }
 
 export type FinderSelectMode = "file" | "directory"
+
+export type SearchScope = "global" | "current"
 
 export interface UseFinderOptions {
   initialPath?: string
@@ -70,6 +72,7 @@ export function useFinder(options: UseFinderOptions = {}) {
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null)
   const [history, setHistory] = useState<string[]>([initialPath])
   const [historyIndex, setHistoryIndex] = useState(0)
+  const [searchScope, setSearchScope] = useState<SearchScope>("current")
 
   const searchTimeoutRef = useRef<NodeJS.Timeout>()
   const displayItemsRef = useRef<FinderItem[]>([])
@@ -97,6 +100,13 @@ export function useFinder(options: UseFinderOptions = {}) {
         path: "~/",
         type: "space",
         icon: "Database",
+      },
+      {
+        id: "files",
+        name: "Files",
+        path: "~/.eidos/files",
+        type: "shortcut",
+        icon: "FolderOpen",
       },
     ]
     const mountLocations: FinderLocation[] = mounts.map((mount) => ({
@@ -177,7 +187,10 @@ export function useFinder(options: UseFinderOptions = {}) {
 
       setIsSearching(true)
       try {
-        const results = await sqlite.fs.search(query)
+        // Determine search paths based on scope
+        const searchPaths =
+          searchScope === "current" ? [currentPath] : undefined
+        const results = await sqlite.fs.search(query, searchPaths)
         if (!cancelled) {
           setSearchResults(results)
         }
@@ -198,7 +211,7 @@ export function useFinder(options: UseFinderOptions = {}) {
     return () => {
       cancelled = true
     }
-  }, [debouncedQuery])
+  }, [debouncedQuery, selectMode, searchScope, currentPath])
 
   // Navigation
   const navigateTo = useCallback(
@@ -237,20 +250,7 @@ export function useFinder(options: UseFinderOptions = {}) {
     }
   }, [history, historyIndex])
 
-  const navigateUp = useCallback(() => {
-    if (currentPath === "~/" || currentPath === "~") return
-    if (currentPath.startsWith("@/")) {
-      const parts = currentPath.split("/")
-      if (parts.length <= 2) {
-        navigateTo("~/")
-        return
-      }
-    }
-    const parentPath = currentPath.split("/").slice(0, -1).join("/") || "~/"
-    navigateTo(parentPath)
-  }, [currentPath, navigateTo])
-
-  // Selection - uses displayItemsRef to always work with current displayed items
+  // Selection
   const toggleSelection = useCallback(
     (path: string, isShiftKey = false, isMetaKey = false) => {
       const currentItems = displayItemsRef.current
@@ -365,7 +365,6 @@ export function useFinder(options: UseFinderOptions = {}) {
 
   const canGoBack = historyIndex > 0
   const canGoForward = historyIndex < history.length - 1
-  const canGoUp = currentPath !== "~/" && currentPath !== "~"
 
   return {
     currentPath,
@@ -380,16 +379,16 @@ export function useFinder(options: UseFinderOptions = {}) {
     searchQuery,
     canGoBack,
     canGoForward,
-    canGoUp,
     isSearchMode,
+    searchScope,
     navigateTo,
     navigateBack,
     navigateForward,
-    navigateUp,
     toggleSelection,
     selectAll,
     handleItemDoubleClick,
     setSearchQuery,
+    setSearchScope,
     confirmSelection,
     refresh: () => loadDirectory(currentPath),
   }

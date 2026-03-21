@@ -221,7 +221,7 @@ const VirtualItem = memo(function VirtualItem({
         <div className="flex items-center gap-2 min-w-0">
           <span
             className={cn(
-              "truncate text-sm font-medium",
+              "truncate text-sm font-medium select-none",
               isSelected ? "text-accent-foreground" : "text-foreground"
             )}
           >
@@ -372,7 +372,7 @@ export function FinderContent({
       {/* Content - fixed height container */}
       <div
         ref={setContainerRef}
-        className="flex-1 overflow-y-auto outline-none relative min-h-0"
+        className="flex-1 overflow-y-auto overflow-x-hidden outline-none relative min-h-0"
         tabIndex={0}
         role="listbox"
         aria-multiselectable={true}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,7 @@ import { useFinder, type UseFinderOptions } from "./hooks/useFinder"
 import { FinderSidebar } from "./FinderSidebar"
 import { FinderToolbar } from "./FinderToolbar"
 import { FinderContent } from "./FinderContent"
+import { FinderGallery } from "./FinderGallery"
 
 interface FinderDialogProps extends UseFinderOptions {
   open: boolean
@@ -49,6 +50,9 @@ export function FinderDialog({
   onSelectRef.current = onSelect
   onOpenChangeRef.current = onOpenChange
 
+  // View mode state
+  const [viewMode, setViewMode] = useState<"list" | "gallery">("list")
+
   const {
     currentPath,
     locations,
@@ -59,15 +63,15 @@ export function FinderDialog({
     searchQuery,
     canGoBack,
     canGoForward,
-    canGoUp,
     isSearchMode,
+    searchScope,
     navigateTo,
     navigateBack,
     navigateForward,
-    navigateUp,
     toggleSelection,
     handleItemDoubleClick,
     setSearchQuery,
+    setSearchScope,
     confirmSelection,
     selectAll,
   } = useFinder({
@@ -150,17 +154,11 @@ export function FinderDialog({
         navigateForward()
         return
       }
-
-      if ((e.metaKey || e.ctrlKey) && e.key === "ArrowUp") {
-        e.preventDefault()
-        navigateUp()
-        return
-      }
     }
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [open, selectAll, navigateBack, navigateForward, navigateUp])
+  }, [open, selectAll, navigateBack, navigateForward])
 
   // Focus content when opened
   useEffect(() => {
@@ -206,26 +204,39 @@ export function FinderDialog({
             <FinderToolbar
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
-              canGoUp={canGoUp}
               isSearching={isSearching}
-              onUp={navigateUp}
               path={currentPath}
               locations={locations}
               onNavigate={navigateTo}
               canSearch={selectMode === "file"}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              searchScope={searchScope}
+              onSearchScopeChange={setSearchScope}
+              isSearchMode={isSearchMode}
             />
 
             <div className="flex-1 min-h-0 overflow-hidden">
-              <FinderContent
-                items={items}
-                selectedPaths={selectedPaths}
-                currentPath={currentPath}
-                isLoading={isLoading}
-                isSearchMode={isSearchMode}
-                selectMode={selectMode}
-                onSelect={toggleSelection}
-                onDoubleClick={handleItemDoubleClick}
-              />
+              {viewMode === "list" ? (
+                <FinderContent
+                  items={items}
+                  selectedPaths={selectedPaths}
+                  currentPath={currentPath}
+                  isLoading={isLoading}
+                  isSearchMode={isSearchMode}
+                  selectMode={selectMode}
+                  onSelect={toggleSelection}
+                  onDoubleClick={handleItemDoubleClick}
+                />
+              ) : (
+                <FinderGallery
+                  items={items}
+                  selectedPaths={selectedPaths}
+                  selectMode={selectMode}
+                  onSelect={toggleSelection}
+                  onDoubleClick={handleItemDoubleClick}
+                />
+              )}
             </div>
           </div>
         </div>
