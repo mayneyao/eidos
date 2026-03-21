@@ -61,40 +61,52 @@ function getTerminalTheme() {
     "--foreground",
     isDark ? "#fafafa" : "#09090b"
   )
-  const muted = getCssVarAsHex(
-    "--muted-foreground",
-    isDark ? "#a1a1aa" : "#71717a"
-  )
-  const primary = getCssVarAsHex("--primary", isDark ? "#3b82f6" : "#2563eb")
-  const destructive = getCssVarAsHex(
-    "--destructive",
-    isDark ? "#ef4444" : "#dc2626"
-  )
-  const accent = getCssVarAsHex("--accent", isDark ? "#22c55e" : "#16a34a")
-  const secondary = getCssVarAsHex(
-    "--secondary",
-    isDark ? "#71717a" : "#f4f4f5"
-  )
-  const border = getCssVarAsHex("--border", isDark ? "#27272a" : "#e4e4e7")
 
-  // Generate ANSI colors based on theme
+  // Get ANSI colors from theme CSS variables
   const ansiColors = {
-    black: isDark ? "#18181b" : "#e4e4e7",
-    red: destructive,
-    green: accent,
-    yellow: isDark ? "#f59e0b" : "#d97706",
-    blue: primary,
-    magenta: isDark ? "#a855f7" : "#9333ea",
-    cyan: isDark ? "#06b6d4" : "#0891b2",
-    white: foreground,
-    brightBlack: muted,
-    brightRed: destructive,
-    brightGreen: accent,
-    brightYellow: isDark ? "#fbbf24" : "#f59e0b",
-    brightBlue: primary,
-    brightMagenta: isDark ? "#c084fc" : "#a855f7",
-    brightCyan: isDark ? "#22d3ee" : "#06b6d4",
-    brightWhite: isDark ? "#ffffff" : "#09090b",
+    black: getCssVarAsHex("--terminal-black", isDark ? "#09090b" : "#18181b"),
+    red: getCssVarAsHex("--terminal-red", isDark ? "#ef4444" : "#dc2626"),
+    green: getCssVarAsHex("--terminal-green", isDark ? "#22c55e" : "#16a34a"),
+    yellow: getCssVarAsHex("--terminal-yellow", isDark ? "#f59e0b" : "#d97706"),
+    blue: getCssVarAsHex("--terminal-blue", isDark ? "#3b82f6" : "#2563eb"),
+    magenta: getCssVarAsHex(
+      "--terminal-magenta",
+      isDark ? "#a855f7" : "#9333ea"
+    ),
+    cyan: getCssVarAsHex("--terminal-cyan", isDark ? "#06b6d4" : "#0891b2"),
+    white: getCssVarAsHex("--terminal-white", isDark ? "#e4e4e7" : "#fafafa"),
+    brightBlack: getCssVarAsHex(
+      "--terminal-bright-black",
+      isDark ? "#52525b" : "#71717a"
+    ),
+    brightRed: getCssVarAsHex(
+      "--terminal-bright-red",
+      isDark ? "#f87171" : "#ef4444"
+    ),
+    brightGreen: getCssVarAsHex(
+      "--terminal-bright-green",
+      isDark ? "#4ade80" : "#22c55e"
+    ),
+    brightYellow: getCssVarAsHex(
+      "--terminal-bright-yellow",
+      isDark ? "#fbbf24" : "#f59e0b"
+    ),
+    brightBlue: getCssVarAsHex(
+      "--terminal-bright-blue",
+      isDark ? "#60a5fa" : "#3b82f6"
+    ),
+    brightMagenta: getCssVarAsHex(
+      "--terminal-bright-magenta",
+      isDark ? "#c084fc" : "#a855f7"
+    ),
+    brightCyan: getCssVarAsHex(
+      "--terminal-bright-cyan",
+      isDark ? "#22d3ee" : "#06b6d4"
+    ),
+    brightWhite: getCssVarAsHex(
+      "--terminal-bright-white",
+      isDark ? "#fafafa" : "#ffffff"
+    ),
   }
 
   return {
@@ -102,7 +114,7 @@ function getTerminalTheme() {
     foreground,
     cursor: foreground,
     cursorAccent: background,
-    selectionBackground: isDark ? "#3f3f46" : "#d4d4d8",
+    selectionBackground: ansiColors.brightBlack + "40", // 25% opacity
     selectionForeground: foreground,
     ...ansiColors,
   }
