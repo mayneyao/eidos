@@ -31,17 +31,16 @@ export class LastEditedByField extends BaseField<
     context?: UserFieldContext
   ): UserProfileCell {
     const { userMap } = context || {}
-    const user = userMap?.[rawData || ""] || {
-      name: "unknown",
-    }
+    const user = userMap?.[rawData || ""]
+    const userName = user?.name || "unknown"
     return {
       kind: GridCellKind.Custom,
       data: {
-        image: user.avatar || "",
+        image: user?.avatar || "",
         kind: "user-profile-cell",
-        initial: user.name,
+        initial: userName[0],
         tint: "#233",
-        name: user.name,
+        name: userName,
       },
       copyData: rawData || "",
       allowOverlay: false,
