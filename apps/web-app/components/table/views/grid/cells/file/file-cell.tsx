@@ -14,13 +14,8 @@ import { getFileType } from "@/lib/mime/mime"
 import { cn } from "@/lib/utils"
 import { smartSplitFilePaths } from "@/packages/core/fields/helper"
 import { Button } from "@/components/ui/button"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
-import { FileSelector } from "@/components/file-selector"
+import { FinderDialog } from "@/components/finder"
 
 import { drawImage } from "../helper"
 import { Card } from "./file-cell-eidtor"
@@ -192,31 +187,34 @@ export const FileCellEditor: ReturnType<
       {!cell.readonly && (
         <>
           {cell.data.displayData.length > 0 && <Separator className="my-0.5" />}
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                className="w-full h-7 text-xs text-muted-foreground hover:text-foreground"
-              >
-                + Add File
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              className="click-outside-ignore w-auto p-0"
-              container={container}
-            >
-              <FileSelector
-                onSelected={(url) => {
-                  addUrls([url])
-                  setOpen(false)
-                }}
-                onRemove={() => {}}
-                disableColor
-                hideRemove
-                height={250}
-              />
-            </PopoverContent>
-          </Popover>
+          <Button
+            variant="ghost"
+            className="w-full h-7 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setOpen(true)}
+          >
+            + Add File
+          </Button>
+          <FinderDialog
+            open={open}
+            onOpenChange={(isOpen) => {
+              setOpen(isOpen)
+            }}
+            title="Select File"
+            confirmLabel="Add"
+            onSelect={(paths) => {
+              if (paths.length > 0) {
+                const urls = paths.map((path) =>
+                  path.startsWith("/") ? path : `/${path}`
+                )
+                addUrls(urls)
+              }
+              setOpen(false)
+            }}
+            selectMode="file"
+            allowMultiple
+            initialPath="~/"
+            container={container}
+          />
         </>
       )}
       {currentPreviewIndex > -1 && (
