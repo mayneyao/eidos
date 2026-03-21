@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react"
-import { ChevronsUpDown } from "lucide-react"
+import { ChevronsUpDown, Hash, BarChart3 } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 import { useTranslation } from "react-i18next"
 
 import type { NumberProperty } from "@/packages/core/fields/number"
 import { SelectField } from "@/packages/core/fields/select"
 import type { IField } from "@/packages/core/types/IField"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -22,6 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 
 interface IFieldPropertyEditorProps {
@@ -47,7 +49,6 @@ export const NumberPropertyEditor = (props: IFieldPropertyEditorProps) => {
   const [showNumber, setShowNumber] = useState<boolean>(
     props.uiColumn.property?.showNumber ?? true
   )
-  const [openFormat, setOpenFormat] = useState(false)
   const [openColor, setOpenColor] = useState(false)
   const [colors, setColors] = useState<{ name: string; value: string }[]>([])
   const { resolvedTheme } = useTheme()
@@ -68,141 +69,153 @@ export const NumberPropertyEditor = (props: IFieldPropertyEditorProps) => {
     props.onPropertyChange(updatedProperty)
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      {/* <div className="flex items-center justify-between">
-        <Label>Number format</Label>
-        <Popover open={openFormat} onOpenChange={setOpenFormat}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              aria-expanded={openFormat}
-              className="w-[200px] justify-between"
-            >
-              {format.charAt(0).toUpperCase() + format.slice(1)}
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="click-outside-ignore w-[200px] p-0">
-            <Command>
-              <CommandInput placeholder="Search format..." />
-              <CommandEmpty>No format found.</CommandEmpty>
-              <CommandGroup>
-                <CommandList>
-                  <CommandItem
-                    onSelect={() => {
-                      setFormat("number")
-                      setOpenFormat(false)
-                    }}
-                  >
-                    Number
-                  </CommandItem>
-                  <CommandItem
-                    onSelect={() => {
-                      setFormat("percent")
-                      setOpenFormat(false)
-                    }}
-                  >
-                    Percentage
-                  </CommandItem>
-                  <CommandItem
-                    onSelect={() => {
-                      setFormat("currency")
-                      setOpenFormat(false)
-                    }}
-                  >
-                    Currency
-                  </CommandItem>
-                </CommandList>
-              </CommandGroup>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      </div> */}
+  const showAsOptions = [
+    {
+      value: "number" as const,
+      label: t("table.propertyEditor.number.number"),
+      icon: Hash,
+      preview: "42",
+    },
+    {
+      value: "bar" as const,
+      label: t("table.propertyEditor.number.bar"),
+      icon: BarChart3,
+      preview: null,
+    },
+  ]
 
-      <Label>{t("table.propertyEditor.number.showAs")}</Label>
-      <div className="flex gap-2">
-        <div
-          className={`rounded-md cursor-pointer p-2 border flex-1 flex flex-col items-center justify-center h-20 ${
-            showAs === "number"
-              ? "bg-gray-200 dark:bg-gray-700"
-              : "bg-white dark:bg-gray-900"
-          }`}
-          onClick={() => {
-            setShowAs("number")
-            updateProperty({ showAs: "number" })
-          }}
-        >
-          <span className="text-2xl font-bold">42</span>
-          <span>{t("table.propertyEditor.number.number")}</span>
-        </div>
-        <div
-          className={`rounded-md cursor-pointer p-2 border flex-1 flex flex-col items-center justify-center h-20 ${
-            showAs === "bar"
-              ? "bg-gray-200 dark:bg-gray-700"
-              : "bg-white dark:bg-gray-900"
-          }`}
-          onClick={() => {
-            setShowAs("bar")
-            updateProperty({ showAs: "bar" })
-          }}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            className="w-8 h-8"
-          >
-            <line
-              x1="4"
-              y1="12"
-              x2="20"
-              y2="12"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-            <circle cx="14" cy="12" r="3" fill="currentColor" />
-          </svg>
-          <span>{t("table.propertyEditor.number.bar")}</span>
+  return (
+    <div className="space-y-3">
+      <Separator />
+
+      {/* Show As Section */}
+      <div className="space-y-2">
+        <Label className="text-xs font-medium text-foreground">
+          {t("table.propertyEditor.number.showAs")}
+        </Label>
+        <div className="grid grid-cols-2 gap-2">
+          {showAsOptions.map((option) => {
+            const Icon = option.icon
+            const isSelected = showAs === option.value
+
+            return (
+              <button
+                key={option.value}
+                onClick={() => {
+                  setShowAs(option.value)
+                  updateProperty({ showAs: option.value })
+                }}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-1.5",
+                  "p-2.5 rounded-lg border-2 transition-all duration-150",
+                  "hover:border-accent hover:bg-accent/5",
+                  isSelected
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-background"
+                )}
+              >
+                {option.preview ? (
+                  <span
+                    className={cn(
+                      "text-lg font-bold",
+                      isSelected ? "text-primary" : "text-foreground"
+                    )}
+                  >
+                    {option.preview}
+                  </span>
+                ) : (
+                  <div className="w-full flex justify-center">
+                    <svg
+                      viewBox="0 0 48 24"
+                      className={cn(
+                        "w-12 h-6",
+                        isSelected ? "text-primary" : "text-muted-foreground"
+                      )}
+                      fill="none"
+                    >
+                      <rect
+                        x="2"
+                        y="8"
+                        width="44"
+                        height="8"
+                        rx="4"
+                        fill="currentColor"
+                        opacity="0.2"
+                      />
+                      <rect
+                        x="2"
+                        y="8"
+                        width="28"
+                        height="8"
+                        rx="4"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </div>
+                )}
+                <div className="flex items-center gap-1">
+                  <Icon
+                    className={cn(
+                      "h-3 w-3",
+                      isSelected ? "text-primary" : "text-muted-foreground"
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      "text-xs font-medium",
+                      isSelected ? "text-primary" : "text-foreground"
+                    )}
+                  >
+                    {option.label}
+                  </span>
+                </div>
+              </button>
+            )
+          })}
         </div>
       </div>
 
+      {/* Bar-specific Options */}
       {showAs === "bar" && (
-        <>
-          <div className="flex items-center justify-between">
-            <Label>{t("table.propertyEditor.number.color")}</Label>
+        <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-150">
+          <Separator />
+
+          {/* Color Selection */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-foreground">
+              {t("table.propertyEditor.number.color")}
+            </Label>
             <Popover open={openColor} onOpenChange={setOpenColor}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   role="combobox"
                   aria-expanded={openColor}
-                  className="w-[200px] justify-between"
+                  className="w-full justify-between h-7 text-xs"
                 >
-                  <div className="flex items-center">
+                  <div className="flex items-center gap-2">
                     <div
-                      className="w-4 h-4 mr-2 rounded"
+                      className="w-3.5 h-3.5 rounded"
                       style={{
                         backgroundColor: `#${colors.find((c) => c.name === color)?.value}`,
                       }}
                     />
-                    {color.charAt(0).toUpperCase() + color.slice(1)}
+                    <span className="capitalize">{color}</span>
                   </div>
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="click-outside-ignore w-[200px] p-0">
                 <Command>
                   <CommandInput
                     placeholder={t("table.propertyEditor.number.searchColor")}
+                    className="h-7 text-xs"
                   />
-                  <CommandEmpty>
+                  <CommandEmpty className="text-xs py-2">
                     {t("table.propertyEditor.number.noColorFound")}
                   </CommandEmpty>
                   <CommandGroup>
-                    <CommandList>
+                    <CommandList className="max-h-[160px]">
                       {colors.map((colorOption) => (
                         <CommandItem
                           key={colorOption.name}
@@ -211,17 +224,30 @@ export const NumberPropertyEditor = (props: IFieldPropertyEditorProps) => {
                             setOpenColor(false)
                             updateProperty({ color: colorOption.name })
                           }}
+                          className="flex items-center gap-2 text-xs"
                         >
-                          <div className="flex items-center">
-                            <div
-                              className="w-4 h-4 mr-2 rounded"
-                              style={{
-                                backgroundColor: `#${colorOption.value}`,
-                              }}
-                            />
-                            {colorOption.name.charAt(0).toUpperCase() +
-                              colorOption.name.slice(1)}
-                          </div>
+                          <div
+                            className="w-3.5 h-3.5 rounded"
+                            style={{
+                              backgroundColor: `#${colorOption.value}`,
+                            }}
+                          />
+                          <span className="capitalize">{colorOption.name}</span>
+                          {color === colorOption.name && (
+                            <svg
+                              className="ml-auto h-3.5 w-3.5 text-primary"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M5 13l4 4L19 7"
+                              />
+                            </svg>
+                          )}
                         </CommandItem>
                       ))}
                     </CommandList>
@@ -231,31 +257,42 @@ export const NumberPropertyEditor = (props: IFieldPropertyEditorProps) => {
             </Popover>
           </div>
 
-          <div className="flex items-center justify-between">
-            <Label>{t("table.propertyEditor.number.divideBy")}</Label>
+          {/* Divide By Input */}
+          <div className="space-y-1">
+            <Label className="text-xs font-medium text-foreground">
+              {t("table.propertyEditor.number.divideBy")}
+            </Label>
             <Input
               type="number"
-              className="w-[200px]"
+              className="h-7 text-xs"
               value={divideBy}
               onChange={(e) => {
-                const newValue = parseInt(e.target.value, 10)
+                const newValue = parseInt(e.target.value, 10) || 1
                 setDivideBy(newValue)
                 updateProperty({ divideBy: newValue })
               }}
+              min={1}
             />
+            <p className="text-[10px] text-muted-foreground leading-tight">
+              {t("table.propertyEditor.number.divideByDescription")}
+            </p>
           </div>
 
-          <div className="flex items-center justify-between">
-            <Label>{t("table.propertyEditor.number.showNumber")}</Label>
+          {/* Show Number Toggle */}
+          <div className="flex items-center justify-between py-0.5">
+            <Label className="text-xs font-medium text-foreground">
+              {t("table.propertyEditor.number.showNumber")}
+            </Label>
             <Switch
               checked={showNumber}
               onCheckedChange={(checked) => {
                 setShowNumber(checked)
                 updateProperty({ showNumber: checked })
               }}
+              className="scale-90"
             />
           </div>
-        </>
+        </div>
       )}
     </div>
   )

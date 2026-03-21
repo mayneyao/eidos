@@ -9,7 +9,7 @@ import {
   ArrowUpNarrowWideIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  PlusIcon,
+  GripVerticalIcon,
   Settings2,
   Trash2,
 } from "lucide-react"
@@ -27,6 +27,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { Separator } from "@/components/ui/separator"
 import { CommonMenuItem } from "@/components/common-menu-item"
 import {
   TableContext,
@@ -104,6 +105,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
     setIsFieldPropertiesEditorOpen(true)
     setMenu(undefined)
   }
+
   const handleDeleteFieldClick = () => {
     setCurrentColIndex(menu?.col)
     setMenu(undefined)
@@ -123,15 +125,13 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   }
 
   const addASCSort = () => {
-    console.log("addASCSort", currentUiColumn)
     if (currentUiColumn) {
       addSort(currentView!, currentUiColumn.table_column_name, "ASC")
     }
     setMenu(undefined)
   }
-  const addDESCSort = () => {
-    console.log("addDESCSort", currentUiColumn)
 
+  const addDESCSort = () => {
     if (currentUiColumn) {
       addSort(currentView!, currentUiColumn.table_column_name, "DESC")
     }
@@ -185,6 +185,78 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
     ["mousedown", "touchstart"]
   )
 
+  const menuGroups = [
+    {
+      id: "edit",
+      items: [
+        {
+          icon: Settings2,
+          label: t("table.editProperty"),
+          onClick: handleEditFieldPropertiesClick,
+        },
+      ],
+    },
+    {
+      id: "sort",
+      items: [
+        {
+          icon: ArrowUpNarrowWideIcon,
+          label: t("table.sortAscending"),
+          onClick: addASCSort,
+        },
+        {
+          icon: ArrowDownWideNarrowIcon,
+          label: t("table.sortDescending"),
+          onClick: addDESCSort,
+        },
+      ],
+    },
+    {
+      id: "insert",
+      items: !isView
+        ? [
+            {
+              icon: ChevronLeftIcon,
+              label: t("table.insertLeft"),
+              onClick: handleAddFieldLeft,
+            },
+            {
+              icon: ChevronRightIcon,
+              label: t("table.insertRight"),
+              onClick: handleAddFieldRight,
+            },
+          ]
+        : [],
+    },
+    {
+      id: "freeze",
+      items: [
+        {
+          icon: showResetFreezeColumn ? ArrowLeftToLine : ArrowRightToLine,
+          label: showResetFreezeColumn
+            ? t("table.resetFreezeColumn")
+            : t("table.freezeToHere"),
+          onClick: handleFreezeColumn,
+        },
+      ],
+    },
+    {
+      id: "delete",
+      items:
+        currentUiColumn?.type !== "title" && !isView
+          ? [
+              {
+                icon: Trash2,
+                label: t("table.deleteField"),
+                onClick: handleDeleteFieldClick,
+                variant: "destructive" as const,
+                dialogTrigger: true,
+              },
+            ]
+          : [],
+    },
+  ]
+
   return (
     <div ref={ref}>
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -192,13 +264,20 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
           <div
             {...layerProps}
             className={cn(
-              "hidden min-w-[220px] overflow-hidden rounded-sm  bg-popover p-1 shadow-md ",
-              isOpen && "block"
+              "hidden min-w-[200px] overflow-hidden rounded-lg bg-popover p-1 shadow-xl border",
+              isOpen && "block animate-in fade-in zoom-in-95 duration-100"
             )}
             onMouseMoveCapture={(e) => e.stopPropagation()}
           >
             <div ref={ref2}>
-              <div className="p-2">
+              {/* Field Name Edit Section */}
+              <div className="px-2 py-1.5 mb-0.5">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <GripVerticalIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                    {t("table.field.fieldName")}
+                  </span>
+                </div>
                 {currentUiColumn && (
                   <FieldNameEdit
                     field={currentUiColumn}
@@ -209,80 +288,84 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                 )}
               </div>
 
-              <CommonMenuItem
-                className="pl-4"
-                onClick={handleEditFieldPropertiesClick}
-              >
-                <Settings2 className="mr-2 h-4 w-4" />
-                {t("table.editProperty")}
-              </CommonMenuItem>
-              <CommonMenuItem className="pl-4" onClick={addASCSort}>
-                <ArrowUpNarrowWideIcon className="mr-2 h-4 w-4" />
-                {t("table.sortAscending")}
-              </CommonMenuItem>
-              <CommonMenuItem className="pl-4" onClick={addDESCSort}>
-                <ArrowDownWideNarrowIcon className="mr-2 h-4 w-4" />
-                {t("table.sortDescending")}
-              </CommonMenuItem>
+              <Separator className="my-1" />
 
-              {!isView && (
-                <>
-                  <CommonMenuItem className="pl-4" onClick={handleAddFieldLeft}>
-                    <ChevronLeftIcon className="mr-2 h-4 w-4" />
-                    {t("table.insertLeft")}
-                  </CommonMenuItem>
-                  <CommonMenuItem
-                    className="pl-4"
-                    onClick={handleAddFieldRight}
-                  >
-                    <ChevronRightIcon className="mr-2 h-4 w-4" />
-                    {t("table.insertRight")}
-                  </CommonMenuItem>
-                </>
+              {/* Menu Groups */}
+              {menuGroups.map((group, groupIndex) =>
+                group.items.length > 0 ? (
+                  <div key={group.id}>
+                    {groupIndex > 0 && <Separator className="my-1" />}
+                    <div className="space-y-0">
+                      {group.items.map((item, itemIndex) => {
+                        const content = (
+                          <CommonMenuItem
+                            className={cn(
+                              "pl-2 py-1",
+                              item.variant === "destructive" &&
+                                "text-destructive hover:text-destructive hover:bg-destructive/10"
+                            )}
+                            onClick={
+                              item.dialogTrigger ? undefined : item.onClick
+                            }
+                          >
+                            <item.icon
+                              className={cn(
+                                "mr-2 h-3.5 w-3.5 shrink-0",
+                                item.variant === "destructive"
+                                  ? "text-destructive"
+                                  : "text-muted-foreground"
+                              )}
+                            />
+                            <span className="text-xs">{item.label}</span>
+                          </CommonMenuItem>
+                        )
+
+                        return item.dialogTrigger ? (
+                          <DialogTrigger
+                            key={`${group.id}-${itemIndex}`}
+                            onClick={item.onClick}
+                            className="w-full"
+                          >
+                            {content}
+                          </DialogTrigger>
+                        ) : (
+                          <div key={`${group.id}-${itemIndex}`}>{content}</div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null
               )}
 
-              <CommonMenuItem className="pl-4" onClick={handleFreezeColumn}>
-                {showResetFreezeColumn ? (
-                  <ArrowLeftToLine className="mr-2 h-4 w-4" />
-                ) : (
-                  <ArrowRightToLine className="mr-2 h-4 w-4" />
-                )}
-                {showResetFreezeColumn
-                  ? t("table.resetFreezeColumn")
-                  : t("table.freezeToHere")}
-              </CommonMenuItem>
-              {currentUiColumn?.type !== "title" && !isView && (
-                <DialogTrigger
-                  onClick={handleDeleteFieldClick}
-                  className="w-full"
-                >
-                  <CommonMenuItem className="pl-4">
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    {t("table.deleteField")}
-                  </CommonMenuItem>
-                </DialogTrigger>
-              )}
+              {/* Delete Confirmation Dialog */}
               <DialogContent className="max-w-[300px]">
-                <DialogHeader>
-                  <DialogTitle>
-                    {t("table.deleteFieldConfirmation")}
-                  </DialogTitle>
-                  <DialogDescription>
+                <DialogHeader className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-full bg-destructive/10">
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </div>
+                    <DialogTitle className="text-sm">
+                      {t("table.deleteFieldConfirmation")}
+                    </DialogTitle>
+                  </div>
+                  <DialogDescription className="text-xs leading-relaxed">
                     {currentUiColumn?.type === FieldType.Link
                       ? t("table.deleteLinkFieldWarning")
                       : t("common.thisActionCannotBeUndone")}
                   </DialogDescription>
                 </DialogHeader>
-                <DialogFooter>
+                <DialogFooter className="gap-1.5 sm:gap-1.5 mt-3">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     onClick={() => setIsDeleteDialogOpen(false)}
+                    className="h-7 text-xs"
                   >
                     {t("common.cancel")}
                   </Button>
                   <Button
                     variant="destructive"
                     onClick={handleDeleteFieldConfirm}
+                    className="h-7 text-xs"
                   >
                     {t("common.delete")}
                   </Button>

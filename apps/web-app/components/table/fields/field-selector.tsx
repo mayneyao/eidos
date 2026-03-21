@@ -3,6 +3,7 @@ import { ChevronsUpDown } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import type { IField } from "@/packages/core/types/IField"
+import { cn } from "@/lib/utils"
 import {
   Command,
   CommandEmpty,
@@ -27,6 +28,7 @@ interface IFieldSelectorProps {
   onChange: (value: string) => void
   className?: string
   excludeValues?: string[]
+  disabled?: boolean
 }
 
 export const FieldSelector = ({
@@ -35,6 +37,7 @@ export const FieldSelector = ({
   onChange,
   className,
   excludeValues = [],
+  disabled = false,
 }: IFieldSelectorProps) => {
   const [open, setOpen] = useState(false)
   const { t } = useTranslation()
@@ -51,11 +54,16 @@ export const FieldSelector = ({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger>
+      <PopoverTrigger disabled={disabled}>
         <Button
           variant="outline"
           role="combobox"
-          className={`h-7 w-[180px] justify-between px-2 py-1 text-xs ${className || ""}`}
+          disabled={disabled}
+          className={cn(
+            "h-7 justify-between px-2 py-1 text-xs w-[180px]",
+            disabled && "opacity-50 cursor-not-allowed",
+            className
+          )}
         >
           <div className="max-w-[130px] truncate">
             {value
