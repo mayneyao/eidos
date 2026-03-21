@@ -40,6 +40,7 @@ export function FinderDialog({
   initialPath = "~/",
   selectMode = "file",
   allowMultiple = false,
+  accept,
   onSelect,
   container,
 }: FinderDialogProps) {
@@ -78,6 +79,7 @@ export function FinderDialog({
     initialPath,
     selectMode,
     allowMultiple,
+    accept,
     onSelect,
   })
 
@@ -225,6 +227,7 @@ export function FinderDialog({
                   isLoading={isLoading}
                   isSearchMode={isSearchMode}
                   selectMode={selectMode}
+                  accept={accept}
                   onSelect={toggleSelection}
                   onDoubleClick={handleItemDoubleClick}
                 />
@@ -233,6 +236,7 @@ export function FinderDialog({
                   items={items}
                   selectedPaths={selectedPaths}
                   selectMode={selectMode}
+                  accept={accept}
                   onSelect={toggleSelection}
                   onDoubleClick={handleItemDoubleClick}
                 />

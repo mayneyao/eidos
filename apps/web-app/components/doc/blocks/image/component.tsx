@@ -30,55 +30,57 @@ import {
   type NodeKey,
 } from "lexical"
 
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { FileSelector } from "@/components/file-selector"
+import { Button } from "@/components/ui/button"
+import { FinderDialog } from "@/components/finder"
 
 import "./style.css"
 import { cn } from "@/lib/utils"
 
 import { LazyImage } from "./LazyImage"
-// import { useSettings } from "../context/SettingsContext"
-// import { useSharedHistoryContext } from "../context/SharedHistoryContext"
-
 import { $isImageNode } from "./node"
+import { Image, Upload } from "lucide-react"
 
 function ImagePlaceholder(props: { nodeKey: string }) {
   const { nodeKey } = props
   const [editor] = useLexicalComposerContext()
+  const [open, setOpen] = useState(false)
 
-  const handleSelect = (src: string) => {
-    editor.update(() => {
-      const node = $getNodeByKey(nodeKey)
-      if ($isImageNode(node)) {
-        node.setSrc(src)
-      }
-    })
+  const handleSelect = (paths: string[]) => {
+    if (paths.length > 0) {
+      const src = paths[0]
+      editor.update(() => {
+        const node = $getNodeByKey(nodeKey)
+        if ($isImageNode(node)) {
+          node.setSrc(src)
+        }
+      })
+    }
+    setOpen(false)
   }
 
   return (
-    <Popover>
-      <PopoverTrigger className="w-full">
-        <div className="flex h-[70px] w-full items-center justify-center bg-gray-200">
-          <div className="text-center">
-            <div className="text-sm text-gray-500">Add an image</div>
-          </div>
+    <>
+      <Button
+        variant="ghost"
+        className="h-[70px] w-full border-2 border-dashed border-border bg-muted/50 hover:bg-muted"
+        onClick={() => setOpen(true)}
+      >
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Image className="h-4 w-4" />
+          <span className="text-sm">Add an image</span>
         </div>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0">
-        <FileSelector
-          onSelected={handleSelect}
-          onRemove={() => {}}
-          disableColor
-          hideRemove
-          onlyImage
-          height={300}
-        />
-      </PopoverContent>
-    </Popover>
+      </Button>
+      <FinderDialog
+        open={open}
+        onOpenChange={setOpen}
+        title="Select Image"
+        confirmLabel="Select"
+        onSelect={handleSelect}
+        selectMode="file"
+        allowMultiple={false}
+        accept="image/*"
+      />
+    </>
   )
 }
 

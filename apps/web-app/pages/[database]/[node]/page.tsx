@@ -16,7 +16,6 @@ import { ExtNodeBlockApp } from "@/components/block-renderer/ext-node-block-app"
 import { DataView } from "@/components/dataview"
 import { PropertyTabs } from "@/components/doc-property-global/property-tabs"
 import { Editor } from "@/components/doc/editor"
-import { DefaultColors } from "@/components/file-selector"
 import { FolderTree } from "@/components/folder"
 import { Table } from "@/components/table"
 import {
@@ -37,6 +36,20 @@ import { EverydayPageContent } from "../journals/[day]/page"
 import { NodeCover } from "./node-cover"
 import { NodeIconEditor } from "./node-icon"
 import { NodeRestore } from "./node-restore"
+
+const DefaultColors = [
+  "bg-red-500",
+  "bg-yellow-400",
+  "bg-blue-500",
+  "bg-pink-200",
+  "bg-teal-300",
+  "bg-pink-500",
+  "bg-blue-200",
+  "bg-gradient-to-br from-blue-500 to-red-500",
+  "bg-gradient-to-br from-purple-500 to-pink-500",
+  "bg-gray-700",
+  "bg-gradient-to-br from-blue-200 to-red-200",
+]
 
 export const NodeComponent = ({
   nodeId,

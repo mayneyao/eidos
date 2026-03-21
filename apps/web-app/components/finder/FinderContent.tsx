@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { FinderItem } from "./hooks/useFinder"
+import { matchesAccept } from "./hooks/useFinder"
 import { useVirtualList } from "./hooks/useVirtualList"
 
 const ITEM_HEIGHT = 44
@@ -26,6 +27,7 @@ interface FinderContentProps {
   isLoading: boolean
   isSearchMode: boolean
   selectMode: "file" | "directory"
+  accept?: string
   onSelect: (path: string, isShiftKey: boolean, isMetaKey: boolean) => void
   onDoubleClick: (item: FinderItem) => void
 }
@@ -146,6 +148,7 @@ const VirtualItem = memo(function VirtualItem({
   index,
   isSelected,
   isSelectable,
+  isDisabled,
   isSearchMode,
   onSelect,
   onDoubleClick,
@@ -154,6 +157,7 @@ const VirtualItem = memo(function VirtualItem({
   index: number
   isSelected: boolean
   isSelectable: boolean
+  isDisabled?: boolean
   isSearchMode: boolean
   onSelect: (path: string, shift: boolean, meta: boolean) => void
   onDoubleClick: (item: FinderItem) => void
@@ -170,39 +174,51 @@ const VirtualItem = memo(function VirtualItem({
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
-      if (!isSelectable) return
+      if (!isSelectable || isDisabled) return
       onSelect(item.path, e.shiftKey, e.metaKey || e.ctrlKey)
     },
-    [isSelectable, item.path, onSelect]
+    [isSelectable, isDisabled, item.path, onSelect]
   )
 
   const handleDoubleClick = useCallback(() => {
+    // Allow navigation into directories even if disabled (for accept filtering)
+    if (isDisabled && !isDirectory) return
     onDoubleClick(item)
-  }, [item, onDoubleClick])
+  }, [isDisabled, isDirectory, item, onDoubleClick])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Enter") {
         e.preventDefault()
+        if (isDisabled && !isDirectory) return
         onDoubleClick(item)
-      } else if (e.key === " " && isSelectable) {
+      } else if (e.key === " " && isSelectable && !isDisabled) {
         e.preventDefault()
         onSelect(item.path, false, true)
       }
     },
-    [isSelectable, isDirectory, item.path, onSelect, onDoubleClick, item]
+    [
+      isSelectable,
+      isDisabled,
+      isDirectory,
+      item.path,
+      onSelect,
+      onDoubleClick,
+      item,
+    ]
   )
 
   return (
     <div
       ref={itemRef}
       className={cn(
-        "absolute left-0 right-0 px-4 flex items-center cursor-pointer select-none outline-none",
+        "absolute left-0 right-0 px-4 flex items-center select-none outline-none",
         "transition-colors duration-75",
         isSelected
           ? "bg-accent text-accent-foreground"
           : "hover:bg-accent/40 text-foreground",
-        !isSelectable && !isDirectory && "opacity-50 cursor-not-allowed"
+        !isSelectable && !isDirectory && "opacity-50",
+        isDisabled && "opacity-40 cursor-not-allowed grayscale"
       )}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
@@ -210,6 +226,7 @@ const VirtualItem = memo(function VirtualItem({
       tabIndex={isSelected ? 0 : -1}
       role="option"
       aria-selected={isSelected}
+      aria-disabled={isDisabled}
     >
       {/* Icon */}
       <div className="flex-shrink-0 mr-3">
@@ -255,6 +272,7 @@ export function FinderContent({
   isLoading,
   isSearchMode,
   selectMode,
+  accept,
   onSelect,
   onDoubleClick,
 }: FinderContentProps) {
@@ -410,6 +428,9 @@ export function FinderContent({
             const isSelectable =
               (selectMode === "directory" && isDirectory) ||
               (selectMode === "file" && !isDirectory)
+            // Check if file matches accept pattern (for file type filtering)
+            const isDisabled =
+              !isDirectory && accept ? !matchesAccept(item.name, accept) : false
 
             return (
               <div key={item.path} style={style}>
@@ -418,6 +439,7 @@ export function FinderContent({
                   index={index}
                   isSelected={isSelected}
                   isSelectable={isSelectable}
+                  isDisabled={isDisabled}
                   isSearchMode={isSearchMode}
                   onSelect={onSelect}
                   onDoubleClick={onDoubleClick}

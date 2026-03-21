@@ -39,7 +39,87 @@ export interface UseFinderOptions {
   selectMode?: FinderSelectMode
   /** Allow multiple selection */
   allowMultiple?: boolean
+  /** File type filter, e.g. ".jpg,.png" or "image/*" */
+  accept?: string
   onSelect?: (paths: string[]) => void
+}
+
+/**
+ * Check if file matches accept pattern (Web API style)
+ * Supports: ".jpg,.png", "image/*", "image/jpeg", etc.
+ */
+export function matchesAccept(fileName: string, accept?: string): boolean {
+  if (!accept) return true
+
+  const patterns = accept.split(",").map((p) => p.trim().toLowerCase())
+  const ext = fileName.split(".").pop()?.toLowerCase() || ""
+
+  for (const pattern of patterns) {
+    if (pattern.startsWith(".")) {
+      // Extension pattern like ".jpg"
+      if (ext === pattern.slice(1)) return true
+    } else if (pattern.endsWith("/*")) {
+      // MIME type wildcard like "image/*"
+      const mimeType = getMimeTypeFromExt(ext)
+      if (mimeType?.startsWith(pattern.slice(0, -1))) return true
+    } else if (pattern.includes("/")) {
+      // Full MIME type like "image/jpeg"
+      const mimeType = getMimeTypeFromExt(ext)
+      if (mimeType === pattern) return true
+    }
+  }
+  return false
+}
+
+/**
+ * Get MIME type from file extension
+ */
+function getMimeTypeFromExt(ext: string): string | undefined {
+  const mimeTypes: Record<string, string> = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    gif: "image/gif",
+    webp: "image/webp",
+    svg: "image/svg+xml",
+    bmp: "image/bmp",
+    ico: "image/x-icon",
+    mp3: "audio/mpeg",
+    wav: "audio/wav",
+    flac: "audio/flac",
+    aac: "audio/aac",
+    ogg: "audio/ogg",
+    mp4: "video/mp4",
+    mov: "video/quicktime",
+    avi: "video/x-msvideo",
+    mkv: "video/x-matroska",
+    webm: "video/webm",
+    pdf: "application/pdf",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    txt: "text/plain",
+    md: "text/markdown",
+    json: "application/json",
+    js: "application/javascript",
+    ts: "application/typescript",
+    jsx: "application/javascript",
+    tsx: "application/typescript",
+    py: "text/x-python",
+    rb: "text/x-ruby",
+    go: "text/x-go",
+    rs: "text/x-rust",
+    java: "text/x-java",
+    cpp: "text/x-c++",
+    c: "text/x-c",
+    swift: "text/x-swift",
+    kt: "text/x-kotlin",
+    html: "text/html",
+    css: "text/css",
+    scss: "text/x-scss",
+    sass: "text/x-sass",
+    less: "text/x-less",
+  }
+  return mimeTypes[ext]
 }
 
 export function useFinder(options: UseFinderOptions = {}) {
@@ -47,6 +127,7 @@ export function useFinder(options: UseFinderOptions = {}) {
     initialPath = "~/",
     selectMode = "file",
     allowMultiple = false,
+    accept,
     onSelect,
   } = options
 
@@ -133,6 +214,11 @@ export function useFinder(options: UseFinderOptions = {}) {
           ...entry,
           isSelected: selectedPaths.has(entry.path),
         }))
+
+        // Note: We don't filter files by accept pattern here
+        // Files are shown but disabled if they don't match accept
+        // This matches macOS Finder behavior
+
         finderItems.sort((a, b) => {
           if (a.kind === "directory" && b.kind !== "directory") return -1
           if (a.kind !== "directory" && b.kind === "directory") return 1
@@ -147,7 +233,7 @@ export function useFinder(options: UseFinderOptions = {}) {
       }
     },
     [searchQuery]
-  ) // Only depend on searchQuery
+  )
 
   // Load on path change - no dependencies that change every render
   useEffect(() => {
@@ -347,6 +433,10 @@ export function useFinder(options: UseFinderOptions = {}) {
 
   // Derived state - current displayed items (directory or search results)
   const searchResultItems: FinderItem[] = useMemo(() => {
+    // Note: We don't filter search results by accept pattern
+    // Files are shown but disabled if they don't match accept
+    // This matches macOS Finder behavior
+
     return searchResults.map((path) => ({
       path,
       name: path.split("/").pop() || path,

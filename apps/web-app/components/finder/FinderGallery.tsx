@@ -14,6 +14,7 @@ import {
 import { getFileType } from "@/lib/mime/mime"
 import { cn } from "@/lib/utils"
 import type { FinderItem } from "./hooks/useFinder"
+import { matchesAccept } from "./hooks/useFinder"
 
 // Grid item configuration
 const ITEM_SIZE = 100
@@ -24,6 +25,7 @@ interface FinderGalleryProps {
   items: FinderItem[]
   selectedPaths: Set<string>
   selectMode: "file" | "directory"
+  accept?: string
   onSelect: (path: string, isShiftKey: boolean, isMetaKey: boolean) => void
   onDoubleClick: (item: FinderItem) => void
 }
@@ -91,12 +93,14 @@ const GalleryItem = ({
   item,
   isSelected,
   isSelectable,
+  isDisabled,
   onClick,
   onDoubleClick,
 }: {
   item: FinderItem
   isSelected: boolean
   isSelectable: boolean
+  isDisabled?: boolean
   onClick: (e: React.MouseEvent) => void
   onDoubleClick: () => void
 }) => {
@@ -118,14 +122,16 @@ const GalleryItem = ({
 
   return (
     <div
-      onClick={onClick}
-      onDoubleClick={onDoubleClick}
+      onClick={isDisabled ? undefined : onClick}
+      onDoubleClick={isDisabled && !isDirectory ? undefined : onDoubleClick}
       className={cn(
-        "group relative flex flex-col items-center gap-2 p-3 rounded-lg cursor-pointer",
+        "group relative flex flex-col items-center gap-2 p-3 rounded-lg",
         "transition-all duration-150",
         isSelected ? "bg-accent ring-2 ring-primary/50" : "hover:bg-accent/40",
-        !isSelectable && !isDirectory && "opacity-50 cursor-not-allowed"
+        !isSelectable && !isDirectory && "opacity-50",
+        isDisabled && "opacity-40 grayscale cursor-not-allowed"
       )}
+      aria-disabled={isDisabled}
     >
       {/* Thumbnail or Icon */}
       <div className="relative w-16 h-16 flex items-center justify-center">
@@ -185,6 +191,7 @@ export function FinderGallery({
   items,
   selectedPaths,
   selectMode,
+  accept,
   onSelect,
   onDoubleClick,
 }: FinderGalleryProps) {
@@ -324,6 +331,11 @@ export function FinderGallery({
                 const isSelectable =
                   (selectMode === "directory" && isDirectory) ||
                   (selectMode === "file" && !isDirectory)
+                // Check if file matches accept pattern
+                const isDisabled =
+                  !isDirectory && accept
+                    ? !matchesAccept(item.name, accept)
+                    : false
 
                 return (
                   <div
@@ -334,6 +346,7 @@ export function FinderGallery({
                       item={item}
                       isSelected={isSelected}
                       isSelectable={isSelectable}
+                      isDisabled={isDisabled}
                       onClick={(e) => handleItemClick(item, e)}
                       onDoubleClick={() => handleItemDoubleClick(item)}
                     />
