@@ -220,7 +220,7 @@ export function WithMarkdown<T extends Constructor>(Base: T) {
                 id,
                 is_day_page,
                 content: MarkdownDocTableMixin.mergeState(content, res.content),
-                markdown: markdown + "\n" + res.markdown,
+                markdown: markdown + res.markdown,
               })
               // Do not handle custom properties in prepend mode
               break
@@ -230,7 +230,7 @@ export function WithMarkdown<T extends Constructor>(Base: T) {
                 id,
                 is_day_page,
                 content: MarkdownDocTableMixin.mergeState(res.content, content),
-                markdown: res.markdown + "\n" + markdown,
+                markdown: res.markdown + markdown,
               })
               // Do not handle custom properties in append mode
               break

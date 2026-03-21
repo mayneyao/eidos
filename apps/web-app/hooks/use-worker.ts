@@ -4,6 +4,7 @@ import React, { lazy, Suspense, useCallback } from "react"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useToast } from "@/components/ui/use-toast"
 import {
+  EidosDataEventChannelName,
   EidosMessageChannelName,
   MsgType,
   WORKER_INIT_MESSAGES,
@@ -175,12 +176,28 @@ export const useWorker = () => {
     }
     let listenerId: string | undefined
     let listenerId2: string | undefined
+    let listenerId3: string | undefined
+    // BroadcastChannel for forwarding data update events (for cross-component reactive updates)
+    const dataEventBc = isDesktopMode
+      ? new BroadcastChannel(EidosDataEventChannelName)
+      : null
+
     if (isDesktopMode) {
       listenerId = window.eidos.on("request-from-main", requestHandler)
       listenerId2 = window.eidos.on(
         EidosMessageChannelName,
         async (event: any, arg: any) => {
           await handle(new MessageEvent("message", { data: arg }))
+        }
+      ) as unknown as string
+      // Listen for data update events from worker (via EidosDataEventChannelName)
+      listenerId3 = window.eidos.on(
+        EidosDataEventChannelName,
+        async (event: any, arg: any) => {
+          // Forward data update events to BroadcastChannel for reactive updates across components
+          if (dataEventBc && arg) {
+            dataEventBc.postMessage(arg)
+          }
         }
       ) as unknown as string
       setInitialized(true)
@@ -198,6 +215,12 @@ export const useWorker = () => {
         }
         if (listenerId2) {
           window.eidos.off(EidosMessageChannelName, listenerId2)
+        }
+        if (listenerId3) {
+          window.eidos.off(EidosDataEventChannelName, listenerId3)
+        }
+        if (dataEventBc) {
+          dataEventBc.close()
         }
       } else {
         const worker = getWorker()
