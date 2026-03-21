@@ -874,6 +874,7 @@ const FileTree = ({
       >
         <div
           ref={wrapperRef}
+          className="bg-sidebar"
           style={{
             height: `${virtualList.totalHeight}px`,
             position: "relative",
