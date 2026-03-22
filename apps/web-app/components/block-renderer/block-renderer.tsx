@@ -164,12 +164,12 @@ export const BlockRenderer = React.forwardRef<
           <style>
             ${themeRawCode}
             * {
-              border-color: hsl(var(--border));
+              border-color: var(--border);
             }
 
             body {
-              background-color: hsl(var(--background));
-              color: hsl(var(--foreground));
+              background-color: var(--background);
+              color: var(--foreground);
               margin: 0;
               padding: 0;
             }
@@ -183,7 +183,7 @@ export const BlockRenderer = React.forwardRef<
               display: flex;
               align-items: center;
               justify-content: center;
-              background-color: hsl(var(--background));
+              background-color: var(--background);
               transition: opacity 0.2s;
               font-family: monospace;
               font-size: 16px;

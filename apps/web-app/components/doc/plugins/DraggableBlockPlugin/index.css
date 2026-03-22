@@ -62,7 +62,7 @@
 
 .draggable-block-menu > div:hover {
   opacity: 0.8;
-  background-color: hsl(var(--muted) / 0.5);
+  background-color: color-mix(in hsl, var(--muted) 50%, transparent);
   transition: all 0.1s ease-out;
 }
 
@@ -72,7 +72,7 @@
 
 .draggable-block-target-line {
   pointer-events: none;
-  background: hsl(var(--primary));
+  background: var(--primary);
   height: 2px;
   position: absolute;
   left: -1rem;
@@ -80,5 +80,5 @@
   opacity: 0;
   will-change: transform;
   border-radius: 1px;
-  box-shadow: 0 0 4px hsl(var(--primary) / 0.3);
+  box-shadow: 0 0 4px color-mix(in hsl, var(--primary) 30%, transparent);
 }

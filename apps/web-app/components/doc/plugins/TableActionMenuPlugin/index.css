@@ -42,7 +42,7 @@
   border-radius: 8px;
   min-height: 40px;
   max-height: 80vh;
-  background-color: hsl(var(--background));
+  background-color: var(--background);
   overflow-y: auto;
 }
 
@@ -102,7 +102,7 @@
 }
 
 .dropdown .item:hover {
-  background-color: hsl(var(--muted));
+  background-color: var(--muted);
 }
 
 .dropdown .item .text {
@@ -126,7 +126,7 @@
 
 .dropdown .divider {
   width: auto;
-  background-color: hsl(var(--muted));
+  background-color: var(--muted);
   margin: 4px 8px;
   height: 1px;
 }

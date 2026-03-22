@@ -7,7 +7,7 @@ code::before {
 }
 
 .eidos_editor_card_block {
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   padding: 1rem;
   margin: 1rem 0;
   border-radius: 0.5rem;
@@ -31,8 +31,8 @@ code::before {
 .eidos_editor_theme__quote {
   margin: 0 !important;
   font-size: 15px;
-  color: hsl(var(--muted-foreground));
-  border-left-color: hsl(var(--border));
+  color: var(--muted-foreground);
+  border-left-color: var(--border);
   border-left-width: 4px;
   border-left-style: solid;
   padding-left: 16px;
@@ -40,13 +40,13 @@ code::before {
 
 .eidos_editor_theme__h1 {
   font-size: 24px;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   font-weight: 400;
 }
 
 .eidos_editor_theme__h2 {
   font-size: 15px;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   font-weight: 700;
   /* text-transform: uppercase; */
 }
@@ -91,19 +91,19 @@ code::before {
 }
 
 .eidos_editor_theme__textCode {
-  background-color: hsl(var(--secondary));
+  background-color: var(--secondary);
   padding: 1px 0.25rem;
   font-family: Menlo, Consolas, Monaco, monospace;
   font-size: 94%;
 }
 
 .eidos_editor_theme__hashtag {
-  background-color: hsl(var(--accent) / 0.15);
-  border-bottom: 1px solid hsl(var(--accent) / 0.3);
+  background-color: color-mix(in hsl, var(--accent) 15%, transparent);
+  border-bottom: 1px solid color-mix(in hsl, var(--accent) 30%, transparent);
 }
 
 .eidos_editor_theme__link {
-  color: hsl(var(--primary));
+  color: var(--primary);
   text-decoration: none;
 }
 
@@ -113,7 +113,7 @@ code::before {
 }
 
 .eidos_editor_theme__code {
-  background-color: hsl(var(--card));
+  background-color: var(--card);
   font-family: Menlo, Consolas, Monaco, monospace;
   display: block;
   padding: 8px 8px 8px 24px;
@@ -125,19 +125,19 @@ code::before {
   overflow-x: auto;
   position: relative;
   tab-size: 2;
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
 }
 
 .eidos_editor_theme__code:before {
   content: attr(data-gutter);
   position: absolute;
-  background-color: hsl(var(--secondary));
+  background-color: var(--secondary);
   left: 0;
   top: 0;
-  border-right: 1px solid hsl(var(--border));
+  border-right: 1px solid var(--border);
   padding: 8px;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   white-space: pre-wrap;
   text-align: right;
   min-width: 25px;
@@ -158,7 +158,7 @@ code::before {
 }
 
 .eidos_editor_theme__tableCell {
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   min-width: 75px;
   vertical-align: top;
   text-align: start;
@@ -176,7 +176,7 @@ code::before {
   left: 0;
   width: 100%;
   height: 4px;
-  background-color: hsl(var(--muted-foreground));
+  background-color: var(--muted-foreground);
 }
 
 .eidos_editor_theme__tableCellResizer {
@@ -190,16 +190,16 @@ code::before {
 }
 
 .eidos_editor_theme__tableCellHeader {
-  background-color: hsl(var(--secondary));
+  background-color: var(--secondary);
   text-align: start;
 }
 
 .eidos_editor_theme__tableCellSelected {
-  background-color: hsl(var(--accent) / 0.5);
+  background-color: color-mix(in hsl, var(--accent) 50%, transparent);
 }
 
 .eidos_editor_theme__tableCellPrimarySelected {
-  border: 2px solid hsl(var(--primary));
+  border: 2px solid var(--primary);
   display: block;
   height: calc(100% - 2px);
   position: absolute;
@@ -210,7 +210,7 @@ code::before {
 }
 
 .eidos_editor_theme__tableCellEditing {
-  box-shadow: 0 0 5px hsl(var(--foreground) / 0.4);
+  box-shadow: 0 0 5px color-mix(in hsl, var(--foreground) 40%, transparent);
   border-radius: 3px;
 }
 
@@ -218,7 +218,7 @@ code::before {
   position: absolute;
   top: 0;
   width: 20px;
-  background-color: hsl(var(--secondary));
+  background-color: var(--secondary);
   height: 100%;
   right: 0;
   animation: table-controls 0.2s ease;
@@ -239,14 +239,14 @@ code::before {
 }
 
 .eidos_editor_theme__tableAddColumns:hover {
-  background-color: hsl(var(--accent));
+  background-color: var(--accent);
 }
 
 .eidos_editor_theme__tableAddRows {
   position: absolute;
   bottom: -25px;
   width: calc(100% - 25px);
-  background-color: hsl(var(--secondary));
+  background-color: var(--secondary);
   height: 20px;
   left: 0;
   animation: table-controls 0.2s ease;
@@ -267,7 +267,7 @@ code::before {
 }
 
 .eidos_editor_theme__tableAddRows:hover {
-  background-color: hsl(var(--accent));
+  background-color: var(--accent);
 }
 
 @keyframes table-controls {
@@ -284,7 +284,7 @@ code::before {
   display: block;
   position: absolute;
   width: 1px;
-  background-color: hsl(var(--primary));
+  background-color: var(--primary);
   height: 100%;
   top: 0;
 }
@@ -300,23 +300,23 @@ code::before {
 }
 
 .eidos_editor_theme__tableCellActionButton {
-  background-color: hsl(var(--secondary));
+  background-color: var(--secondary);
   display: block;
   border: 0;
   border-radius: 20px;
   width: 20px;
   height: 20px;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   cursor: pointer;
 }
 
 .eidos_editor_theme__tableCellActionButton:hover {
-  background-color: hsl(var(--accent));
+  background-color: var(--accent);
 }
 
 .eidos_editor_theme__characterLimit {
   display: inline;
-  background-color: hsl(var(--destructive) / 0.3) !important;
+  background-color: color-mix(in hsl, var(--destructive) 30%, transparent) !important;
 }
 
 .eidos_editor_theme__ol1 {
@@ -484,26 +484,26 @@ ul li.eidos_editor_theme__listItem[role="checkbox"] > .editor-image {
 
 .eidos_editor_theme__listItemUnchecked:focus:before,
 .eidos_editor_theme__listItemChecked:focus:before {
-  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.5);
+  box-shadow: 0 0 0 2px color-mix(in hsl, var(--ring) 50%, transparent);
   border-radius: 2px;
 }
 
 .eidos_editor_theme__listItemUnchecked:before {
-  border: 1px solid hsl(var(--muted-foreground));
+  border: 1px solid var(--muted-foreground);
   border-radius: 2px;
 }
 
 .eidos_editor_theme__listItemChecked:before {
-  border: 1px solid hsl(var(--primary));
+  border: 1px solid var(--primary);
   border-radius: 2px;
-  background-color: hsl(var(--primary));
+  background-color: var(--primary);
   background-repeat: no-repeat;
 }
 
 .eidos_editor_theme__listItemChecked:after {
   content: "";
   cursor: pointer;
-  border-color: hsl(var(--primary-foreground));
+  border-color: var(--primary-foreground);
   border-style: solid;
   position: absolute;
   display: block;
@@ -559,24 +559,24 @@ ul li.eidos_editor_theme__listItem[role="checkbox"] > .editor-image {
 }
 
 .eidos_editor_theme__mark {
-  background: hsl(var(--accent) / 0.14);
-  border-bottom: 2px solid hsl(var(--accent) / 0.3);
+  background: color-mix(in hsl, var(--accent) 14%, transparent);
+  border-bottom: 2px solid color-mix(in hsl, var(--accent) 30%, transparent);
   padding-bottom: 2px;
 }
 
 .eidos_editor_theme__markOverlap {
-  background: hsl(var(--accent) / 0.3);
-  border-bottom: 2px solid hsl(var(--accent) / 0.7);
+  background: color-mix(in hsl, var(--accent) 30%, transparent);
+  border-bottom: 2px solid color-mix(in hsl, var(--accent) 70%, transparent);
 }
 
 .eidos_editor_theme__mark.selected {
-  background: hsl(var(--accent) / 0.5);
-  border-bottom: 2px solid hsl(var(--accent));
+  background: color-mix(in hsl, var(--accent) 50%, transparent);
+  border-bottom: 2px solid var(--accent);
 }
 
 .eidos_editor_theme__markOverlap.selected {
-  background: hsl(var(--accent) / 0.7);
-  border-bottom: 2px solid hsl(var(--accent) / 0.7);
+  background: color-mix(in hsl, var(--accent) 70%, transparent);
+  border-bottom: 2px solid color-mix(in hsl, var(--accent) 70%, transparent);
 }
 
 .eidos_editor_theme__embedBlock {
@@ -584,8 +584,8 @@ ul li.eidos_editor_theme__listItem[role="checkbox"] > .editor-image {
 }
 
 .eidos_editor_theme__embedBlockFocus {
-  outline: 1px solid hsl(var(--primary));
-  background-color: hsl(var(--secondary));
+  outline: 1px solid var(--primary);
+  background-color: var(--secondary);
 }
 
 .eidos_editor_theme__listItem > [data-lexical-decorator]:first-child {

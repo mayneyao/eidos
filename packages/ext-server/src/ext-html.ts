@@ -73,12 +73,12 @@ export const getIndexHtml = (props: IndexHtmlProps): string => {
           * {
             scrollbar-width: thin;
             scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
-            border-color: hsl(var(--border));
+            border-color: var(--border);
           }
     
           body {
-            background-color: hsl(var(--background));
-            color: hsl(var(--foreground));
+            background-color: var(--background);
+            color: var(--foreground);
             margin: 0;
             padding: 0;
           }
@@ -92,7 +92,7 @@ export const getIndexHtml = (props: IndexHtmlProps): string => {
             display: flex;
             align-items: center;
             justify-content: center;
-            background-color: hsl(var(--background));
+            background-color: var(--background);
             transition: opacity 0.2s;
             font-family: monospace;
             font-size: 16px;

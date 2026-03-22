@@ -379,9 +379,9 @@ export const LabPage = () => {
     width: "100%",
     height: 300,
     themeConfig: {
-      Frontend: { label: "Frontend", color: "hsl(var(--chart-1))" },
-      Backend: { label: "Backend", color: "hsl(var(--chart-2))" },
-      Database: { label: "Database", color: "hsl(var(--chart-3))" },
+      Frontend: { label: "Frontend", color: "var(--chart-1)" },
+      Backend: { label: "Backend", color: "var(--chart-2)" },
+      Database: { label: "Database", color: "var(--chart-3)" },
     },
   }
 

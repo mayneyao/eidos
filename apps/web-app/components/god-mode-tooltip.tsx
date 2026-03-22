@@ -306,7 +306,7 @@ export function GodModeTooltip() {
           height: 0,
           borderLeft: `${arrowSize}px solid transparent`,
           borderRight: `${arrowSize}px solid transparent`,
-          borderTop: `${arrowSize}px solid hsl(var(--foreground))`,
+          borderTop: `${arrowSize}px solid var(--foreground)`,
         }
       case "bottom":
         return {
@@ -318,7 +318,7 @@ export function GodModeTooltip() {
           height: 0,
           borderLeft: `${arrowSize}px solid transparent`,
           borderRight: `${arrowSize}px solid transparent`,
-          borderBottom: `${arrowSize}px solid hsl(var(--foreground))`,
+          borderBottom: `${arrowSize}px solid var(--foreground)`,
         }
       case "left":
         return {
@@ -330,7 +330,7 @@ export function GodModeTooltip() {
           height: 0,
           borderTop: `${arrowSize}px solid transparent`,
           borderBottom: `${arrowSize}px solid transparent`,
-          borderLeft: `${arrowSize}px solid hsl(var(--foreground))`,
+          borderLeft: `${arrowSize}px solid var(--foreground)`,
         }
       case "right":
         return {
@@ -342,7 +342,7 @@ export function GodModeTooltip() {
           height: 0,
           borderTop: `${arrowSize}px solid transparent`,
           borderBottom: `${arrowSize}px solid transparent`,
-          borderRight: `${arrowSize}px solid hsl(var(--foreground))`,
+          borderRight: `${arrowSize}px solid var(--foreground)`,
         }
       default:
         return {}
