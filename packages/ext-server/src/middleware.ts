@@ -16,7 +16,7 @@ import {
   swJs,
   tailwindRawJs,
 } from "./generated/assets"
-import { presetThemes, twConfig } from "./helper"
+import { presetThemes } from "./helper"
 import type {
   ExtServerConfig,
   ExtensionProvider,
@@ -171,7 +171,6 @@ async function renderExtension(
     cssLoaderScript,
     sdkInjectScriptContent,
     envString: JSON.stringify(getEnvMap(extension.bindings)),
-    twConfig,
     compiledCode,
     defaultPropsString: JSON.stringify({}),
     serverSideProps,

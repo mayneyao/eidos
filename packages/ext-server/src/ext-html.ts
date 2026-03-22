@@ -18,7 +18,6 @@ export interface IndexHtmlProps {
   cssLoaderScript: string
   sdkInjectScriptContent: string
   envString: string
-  twConfig: Partial<Config>
   compiledCode: string
   defaultPropsString: string
   serverSideProps: any
@@ -33,7 +32,7 @@ export const getIndexHtml = (props: IndexHtmlProps): string => {
     cssLoaderScript,
     sdkInjectScriptContent,
     envString,
-    twConfig,
+
     serverSideProps,
     rawThemeCss,
     extensionContext,
@@ -113,9 +112,7 @@ export const getIndexHtml = (props: IndexHtmlProps): string => {
             80%, 100% { content: '...'; }
           }
         </style>
-        <script>
-          tailwind.config = ${JSON.stringify(twConfig)};
-        </script>
+
       </head>
       <body>
         <div id="loading">Loading</div>
