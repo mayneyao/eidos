@@ -63,7 +63,7 @@ export const ViewLayout = (props: {
                       e.stopPropagation()
                       setOpen(!open)
                     }}
-                    className="p-1 px-2 rounded-sm cursor-pointer transition-colors ml-2"
+                    className="p-1 px-2 rounded-xs cursor-pointer transition-colors ml-2"
                   >
                     <ChevronsUpDown className="h-4 w-4" />
                   </div>

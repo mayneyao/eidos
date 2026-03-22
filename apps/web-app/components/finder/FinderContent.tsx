@@ -212,7 +212,7 @@ const VirtualItem = memo(function VirtualItem({
     <div
       ref={itemRef}
       className={cn(
-        "absolute left-0 right-0 px-4 flex items-center select-none outline-none",
+        "absolute left-0 right-0 px-4 flex items-center select-none outline-hidden",
         "transition-colors duration-75",
         isSelected
           ? "bg-accent text-accent-foreground"
@@ -390,7 +390,7 @@ export function FinderContent({
       {/* Content - fixed height container */}
       <div
         ref={setContainerRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden outline-none relative min-h-0"
+        className="flex-1 overflow-y-auto overflow-x-hidden outline-hidden relative min-h-0"
         tabIndex={0}
         role="listbox"
         aria-multiselectable={true}

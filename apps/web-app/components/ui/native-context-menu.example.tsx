@@ -19,7 +19,7 @@ import {
 function BasicExample() {
   return (
     <NativeContextMenu>
-      <NativeContextMenuTrigger className="p-4 border rounded cursor-context-menu">
+      <NativeContextMenuTrigger className="p-4 border border-border rounded cursor-context-menu">
         Right-click here
       </NativeContextMenuTrigger>
 
@@ -48,7 +48,7 @@ function CheckboxExample() {
 
   return (
     <NativeContextMenu>
-      <NativeContextMenuTrigger className="p-4 border rounded cursor-context-menu">
+      <NativeContextMenuTrigger className="p-4 border border-border rounded cursor-context-menu">
         Right-click here
       </NativeContextMenuTrigger>
 
@@ -75,7 +75,7 @@ function MultiOptionExample() {
 
   return (
     <NativeContextMenu>
-      <NativeContextMenuTrigger className="p-4 border rounded cursor-context-menu">
+      <NativeContextMenuTrigger className="p-4 border border-border rounded cursor-context-menu">
         Right-click here
       </NativeContextMenuTrigger>
 
@@ -105,7 +105,7 @@ function CompleteExample() {
 
   return (
     <NativeContextMenu>
-      <NativeContextMenuTrigger className="p-4 border rounded cursor-context-menu">
+      <NativeContextMenuTrigger className="p-4 border border-border rounded cursor-context-menu">
         Right-click here for full menu
       </NativeContextMenuTrigger>
 

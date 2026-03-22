@@ -282,13 +282,13 @@ export const AIInputEditor = React.forwardRef<
       <LexicalComposer initialConfig={initialConfig}>
         <div data-testid="ai-input-editor">
           <div
-            className="relative max-h-[200px] overflow-y-auto bg-card outline-none  transition-colors duration-200"
+            className="relative max-h-[200px] overflow-y-auto bg-card outline-hidden  transition-colors duration-200"
             data-drop-zone="ai-editor"
           >
             <RichTextPlugin
               contentEditable={
                 <ContentEditable
-                  className="h-auto min-h-[100px] rounded-t-sm border-none bg-card p-2 outline-none "
+                  className="h-auto min-h-[100px] rounded-t-sm border-none bg-card p-2 outline-hidden "
                   onKeyDownCapture={handleKeyDown}
                 />
               }

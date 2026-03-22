@@ -154,7 +154,7 @@ export const TagsValue = ({
         <Button
           variant="ghost"
           onClick={handleRemove}
-          className="size-auto h-5 px-1 rounded-sm"
+          className="size-auto h-5 px-1 rounded-xs"
         >
           <XIcon size={12} className="hover:text-muted-foreground" />
         </Button>

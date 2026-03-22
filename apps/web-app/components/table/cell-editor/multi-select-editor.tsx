@@ -152,7 +152,7 @@ export const MultiSelectEditor = ({
               return inline ? (
                 <span
                   key={optionId}
-                  className="rounded-sm px-2 text-sm whitespace-nowrap"
+                  className="rounded-xs px-2 text-sm whitespace-nowrap"
                   style={{
                     background: SelectField.getColorValue(
                       option?.color || SelectField.defaultColor,
@@ -193,12 +193,12 @@ export const MultiSelectEditor = ({
         asChild={true}
       >
         <Command value={currentSelect} onValueChange={setCurrentSelect}>
-          <div className="flex w-full rounded-md bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50">
+          <div className="flex w-full rounded-md bg-transparent py-2 text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50">
             <div className="flex flex-wrap gap-1 px-2">
               {allOptions.map((option) => (
                 <div
                   key={option.id}
-                  className="flex h-5 items-center gap-1 truncate rounded-sm px-1.5 text-xs"
+                  className="flex h-5 items-center gap-1 truncate rounded-xs px-1.5 text-xs"
                   style={{
                     background: SelectField.getColorValue(
                       option.color,

@@ -9,7 +9,7 @@ export function ExtensionPreview({ type }: ExtensionPreviewProps) {
   return (
     <div className="p-3 w-full aspect-[4/3] relative overflow-hidden flex flex-col">
       {/* App Frame */}
-      <div className="flex flex-1 w-full bg-background border rounded shadow-sm overflow-hidden">
+      <div className="flex flex-1 w-full bg-background border border-border rounded shadow-xs overflow-hidden">
         {/* Sidebar */}
         <div
           className={cn(
@@ -24,7 +24,7 @@ export function ExtensionPreview({ type }: ExtensionPreviewProps) {
 
             {/* Highlighted New Tab */}
             {type === "sidebar" && (
-              <div className="h-6 w-8 bg-primary/20 rounded border border-primary/20 animate-pulse shadow-sm flex items-center justify-center">
+              <div className="h-6 w-8 bg-primary/20 rounded border border-primary/20 animate-pulse shadow-xs flex items-center justify-center">
                 <div className="h-3 w-3 rounded-full bg-primary/40" />
               </div>
             )}

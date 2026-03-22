@@ -130,7 +130,7 @@ export const CustomBlockComponent = (props: {
 
   if (!currentBlock) {
     return (
-      <div className="w-full h-fit border border-gray-200 rounded-sm p-4">
+      <div className="w-full h-fit border border-gray-200 rounded-xs p-4">
         <div className="text-center text-sm text-gray-500">
           Custom block Not Found, maybe it's disabled or deleted
         </div>
@@ -140,7 +140,7 @@ export const CustomBlockComponent = (props: {
 
   return (
     <div
-      className="w-full  p-2 relative hover:ring-1 hover:ring-gray-200 rounded-sm min-h-[30px]"
+      className="w-full  p-2 relative hover:ring-1 hover:ring-gray-200 rounded-xs min-h-[30px]"
       style={{
         height: `${height}px`,
         pointerEvents: isSelecting ? "none" : "auto",

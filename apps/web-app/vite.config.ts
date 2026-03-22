@@ -1,5 +1,6 @@
 import type { UserConfig } from "vite"
 import { defineConfig, mergeConfig } from "vite"
+import tailwindcss from "@tailwindcss/vite"
 import { VitePWA } from "vite-plugin-pwa"
 import { sharedConfig } from "../../packages/shared/vite/base.config"
 import { createHtmlPlugin } from "../../packages/shared/vite/plugins"
@@ -7,6 +8,7 @@ import iconJson from "./icons.json"
 
 const webAppConfig: UserConfig = mergeConfig(sharedConfig, {
   plugins: [
+    tailwindcss(),
     createHtmlPlugin("/pages/index.tsx"),
     VitePWA({
       srcDir: ".",

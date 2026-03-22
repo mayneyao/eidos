@@ -17,7 +17,7 @@ export const SelectOptionItem = ({
 }) => {
   return (
     <span
-      className="truncate rounded-sm px-2 text-sm"
+      className="truncate rounded-xs px-2 text-sm"
       style={{
         background: SelectField.getColorValue(
           option?.color || SelectField.defaultColor,

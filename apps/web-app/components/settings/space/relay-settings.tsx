@@ -373,7 +373,7 @@ export function RelaySettings() {
       <div className="py-6">
         <div className="space-y-6">
           {/* Master Toggle Card */}
-          <div className="p-4 rounded-lg border">
+          <div className="p-4 rounded-lg border border-border">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div
@@ -579,7 +579,7 @@ export function RelaySettings() {
 
           {/* Channel List */}
           {relayConfig.channels.length === 0 ? (
-            <div className="p-8 text-center border border-dashed rounded-lg">
+            <div className="p-8 text-center border border-border border-dashed rounded-lg">
               <Radio className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
               <p className="text-muted-foreground mb-1">
                 {t("space.settings.relay.noChannelsDescription")}
@@ -606,7 +606,7 @@ export function RelaySettings() {
                 return (
                   <div
                     key={channel.id}
-                    className="p-4 rounded-lg border hover:border-primary/50 transition-colors"
+                    className="p-4 rounded-lg border border-border hover:border-primary/50 transition-colors"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       {/* Channel ID */}

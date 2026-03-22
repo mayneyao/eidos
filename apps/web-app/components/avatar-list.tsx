@@ -13,7 +13,7 @@ export const AvatarList = ({ nameList }: AvatarListProps) => {
             key={index}
             className={cn(
               `z-${index * 10}`,
-              "h-8 w-8 cursor-pointer border-2 border-red-300 bg-white shadow-sm"
+              "h-8 w-8 cursor-pointer border-2 border-red-300 bg-white shadow-xs"
             )}
           >
             {/* <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" /> */}

@@ -304,7 +304,7 @@ export function FinderGallery({
   return (
     <div
       ref={containerRef}
-      className="h-full overflow-y-auto overflow-x-hidden outline-none"
+      className="h-full overflow-y-auto overflow-x-hidden outline-hidden"
       tabIndex={0}
       role="listbox"
       aria-multiselectable={true}

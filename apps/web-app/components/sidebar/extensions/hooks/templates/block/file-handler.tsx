@@ -106,7 +106,7 @@ export default function FileHandler() {
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          className="w-full h-full p-4 resize-none border-none focus:outline-none font-mono text-sm bg-background text-foreground"
+          className="w-full h-full p-4 resize-none border-none focus:outline-hidden font-mono text-sm bg-background text-foreground"
           placeholder="File content..."
         />
       </div>

@@ -321,7 +321,7 @@ export function FieldAppendPanel({
               className={cn(
                 "flex items-center gap-2 px-2.5 py-2 rounded-md text-left transition-all duration-150",
                 "hover:bg-accent hover:text-accent-foreground",
-                "focus:outline-none focus:ring-1 focus:ring-ring",
+                "focus:outline-hidden focus:ring-1 focus:ring-ring",
                 "disabled:opacity-40 disabled:cursor-not-allowed"
               )}
             >

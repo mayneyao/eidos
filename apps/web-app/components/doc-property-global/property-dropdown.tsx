@@ -127,7 +127,7 @@ export const PropertyDropdown: React.FC<PropertyDropdownProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="w-full px-2 py-1 text-sm border border-input rounded focus:outline-none focus:border-ring"
+            className="w-full px-2 py-1 text-sm border border-input rounded focus:outline-hidden focus:border-ring"
             placeholder="Search properties..."
           />
         </div>
@@ -156,8 +156,10 @@ export const PropertyDropdown: React.FC<PropertyDropdownProps> = ({
                   <button
                     key={propertyName}
                     onClick={() => onSelectProperty(propertyName)}
-                    className={`w-full px-2 py-1 text-sm text-left hover:bg-accent hover:border hover:border-border border border-transparent flex items-center gap-2 transition-colors ${
-                      isSelected ? "bg-accent border-border" : ""
+                    className={`w-full px-2 py-1 text-sm text-left hover:bg-accent flex items-center gap-2 transition-colors ${
+                      isSelected
+                        ? "bg-accent border border-border"
+                        : "border border-transparent hover:border hover:border-border"
                     }`}
                   >
                     <span className="text-muted-foreground">
@@ -201,8 +203,10 @@ export const PropertyDropdown: React.FC<PropertyDropdownProps> = ({
                     <button
                       key={propertyName}
                       onClick={() => onSelectProperty(propertyName)}
-                      className={`w-full px-2 py-1 text-sm text-left hover:bg-accent hover:border hover:border-border border border-transparent flex items-center gap-2 transition-colors ${
-                        isSelected ? "bg-accent border-border" : ""
+                      className={`w-full px-2 py-1 text-sm text-left hover:bg-accent flex items-center gap-2 transition-colors ${
+                        isSelected
+                          ? "bg-accent border border-border"
+                          : "border border-transparent hover:border hover:border-border"
                       }`}
                     >
                       <span className="text-muted-foreground">
@@ -235,12 +239,12 @@ export const PropertyDropdown: React.FC<PropertyDropdownProps> = ({
           {/* Create New Property Button */}
           <button
             onClick={() => onCreateNew(searchQuery.trim() || undefined)}
-            className={`w-full px-2 py-1 text-sm text-left hover:bg-accent hover:border hover:border-border border border-transparent flex items-center gap-2 text-muted-foreground transition-colors ${
+            className={`w-full px-2 py-1 text-sm text-left hover:bg-accent flex items-center gap-2 text-muted-foreground transition-colors ${
               selectedIndex ===
               filteredSystemProperties.length +
                 filteredSelectableProperties.length
-                ? "bg-accent border-border"
-                : ""
+                ? "bg-accent border border-border"
+                : "border border-transparent hover:border hover:border-border"
             }`}
           >
             <Plus className="w-3 h-3" />

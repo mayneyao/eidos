@@ -39,11 +39,7 @@ export default function RootLayout({
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
       <AuthProvider>
-        <SidebarProvider
-          defaultOpen={isSidebarOpen}
-          open={isSidebarOpen}
-          onOpenChange={setSidebarOpen}
-        >
+        <SidebarProvider open={isSidebarOpen} onOpenChange={setSidebarOpen}>
           {/* Transparent titlebar for dragging */}
           <div
             className="h-[8px] w-full bg-transparent absolute top-0 left-0"

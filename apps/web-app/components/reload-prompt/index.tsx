@@ -40,14 +40,14 @@ export function ReloadPrompt() {
           </div>
           {needRefresh && (
             <button
-              className="mr-2 rounded border border-gray-500 px-3 py-1 outline-none"
+              className="mr-2 rounded border border-gray-500 px-3 py-1 outline-hidden"
               onClick={() => updateServiceWorker(true)}
             >
               Reload
             </button>
           )}
           <button
-            className="rounded border border-gray-500 px-3 py-1 outline-none"
+            className="rounded border border-gray-500 px-3 py-1 outline-hidden"
             onClick={() => close()}
           >
             Close

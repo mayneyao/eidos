@@ -128,7 +128,7 @@ export const DataCard = ({
                               handleChange(uiColumn.table_column_name, _value)
                             }
                           }}
-                          className="flex h-8 w-full min-w-[100px] max-w-[300px] cursor-pointer items-center rounded-sm px-1 hover:bg-none"
+                          className="flex h-8 w-full min-w-[100px] max-w-[300px] cursor-pointer items-center rounded-xs px-1 hover:bg-none"
                           disableTextBaseEditor
                           inline
                         />

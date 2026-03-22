@@ -209,7 +209,7 @@ export const TemplateModal = ({
                   key={template.name}
                   ref={(el) => (templateRefs.current[index] = el)}
                   onClick={() => handleTemplateSelect(template.sql.trim())}
-                  className={`p-3 text-left border border-border rounded-lg hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring transition-colors group ${
+                  className={`p-3 text-left border border-border rounded-lg hover:bg-muted focus:outline-hidden focus:ring-2 focus:ring-ring transition-colors group ${
                     focusedIndex === index ? "ring-2 ring-ring bg-muted" : ""
                   }`}
                   onFocus={() => setFocusedIndex(index)}

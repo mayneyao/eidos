@@ -64,7 +64,7 @@ export function EverydayPageContent({
           if (!day) return null
           return (
             <div
-              className="h-[50px] text-4xl font-mono font-bold text-primary outline-none my-2 flex w-full items-baseline gap-2"
+              className="h-[50px] text-4xl font-mono font-bold text-primary outline-hidden my-2 flex w-full items-baseline gap-2"
               id="doc-title"
             >
               <span className="text-4xl font-bold leading-[1.1]">{day}</span>

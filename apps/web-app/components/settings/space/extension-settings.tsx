@@ -129,7 +129,7 @@ export function ExtensionSettings() {
                 className="w-[320px] p-0 border-none bg-transparent shadow-none"
                 avoidCollisions
               >
-                <div className="bg-background border rounded-lg shadow-lg">
+                <div className="bg-background border border-border rounded-lg shadow-lg">
                   <ExtensionPreview type="sidebar" />
                 </div>
               </HoverCardContent>
@@ -147,7 +147,7 @@ export function ExtensionSettings() {
                 className="w-[320px] p-0 border-none bg-transparent shadow-none"
                 avoidCollisions
               >
-                <div className="bg-background border rounded-lg shadow-lg">
+                <div className="bg-background border border-border rounded-lg shadow-lg">
                   <ExtensionPreview type="file-handler" />
                 </div>
               </HoverCardContent>
@@ -170,7 +170,7 @@ export function ExtensionSettings() {
                 className="w-[320px] p-0 border-none bg-transparent shadow-none"
                 avoidCollisions
               >
-                <div className="bg-background border rounded-lg shadow-lg">
+                <div className="bg-background border border-border rounded-lg shadow-lg">
                   <ExtensionPreview type="folder-handler" />
                 </div>
               </HoverCardContent>
@@ -194,7 +194,7 @@ export function ExtensionSettings() {
             {filteredExtensions.map((ext) => (
               <div
                 key={ext.id}
-                className="flex items-center justify-between p-4 rounded-lg border hover:border-primary/50 transition-colors"
+                className="flex items-center justify-between p-4 rounded-lg border border-border hover:border-primary/50 transition-colors"
               >
                 <div className="space-y-1 min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">

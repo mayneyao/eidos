@@ -36,7 +36,7 @@ export function FinderBreadcrumb({
               disabled={isLast}
               className={cn(
                 "flex items-center gap-1 px-1.5 py-0.5 rounded transition-all duration-150",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+                "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
                 isLast
                   ? "font-medium text-foreground cursor-default"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent/60"

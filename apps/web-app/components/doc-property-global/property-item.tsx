@@ -121,7 +121,7 @@ export const PropertyItem: React.FC<PropertyItemProps> = ({
         setItemRef(node)
       }}
       style={style}
-      className={`group relative flex items-center py-1 px-2 -mx-2 rounded border transition-colors border-transparent hover:border-border hover:bg-muted/50 focus:border-border focus:bg-muted/50 focus:outline-none ${
+      className={`group relative flex items-center py-1 px-2 -mx-2 rounded transition-colors border border-transparent hover:border-border hover:bg-muted/50 focus:border-border focus:bg-muted/50 focus:outline-hidden ${
         isDragging ? "z-50" : ""
       }`}
       tabIndex={0}

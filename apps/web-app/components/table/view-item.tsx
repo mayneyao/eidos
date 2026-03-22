@@ -99,7 +99,7 @@ export const ViewItem = ({
           <div ref={setNodeRef} style={style} className="w-full group">
             <div
               className={cn(
-                "flex items-center gap-2 w-full rounded-sm px-2 py-1 group-hover:bg-accent/50 transition-all duration-200",
+                "flex items-center gap-2 w-full rounded-xs px-2 py-1 group-hover:bg-accent/50 transition-all duration-200",
                 {
                   "bg-accent": isActive,
                   "animate-border-flicker": loading,

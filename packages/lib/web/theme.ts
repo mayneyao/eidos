@@ -98,7 +98,7 @@ export function getAllThemeVariables(): ThemeVariables {
   return variables
 }
 
-// Default theme values based on your globals.css
+// Default theme values based on your globals.css (HSL values without hsl() wrapper)
 export const defaultTheme: ThemeVariables = {
   background: "0 0% 100%",
   foreground: "224 71.4% 4.1%",

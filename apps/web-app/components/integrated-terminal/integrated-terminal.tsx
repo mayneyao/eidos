@@ -272,7 +272,7 @@ export function IntegratedTerminal({
                       e.stopPropagation()
                       closeTerminal(session.id)
                     }}
-                    className="ml-1 p-0.5 rounded-sm opacity-0 group-hover:opacity-100 hover:bg-muted-foreground/20 transition-opacity"
+                    className="ml-1 p-0.5 rounded-xs opacity-0 group-hover:opacity-100 hover:bg-muted-foreground/20 transition-opacity"
                   >
                     <X className="h-3 w-3" />
                   </span>

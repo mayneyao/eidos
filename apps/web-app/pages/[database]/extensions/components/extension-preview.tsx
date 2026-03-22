@@ -121,7 +121,7 @@ export const FileTreeSelector = ({
       <div key={node.path}>
         <div
           className={cn(
-            "flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent rounded-sm",
+            "flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent rounded-xs",
             isSelected && "bg-accent"
           )}
           style={{ paddingLeft: `${level * 16 + 8}px` }}

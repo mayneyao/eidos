@@ -71,7 +71,7 @@ export const DateEditor = ({
           mode="single"
           selected={_value ? new Date(_value) : undefined}
           onSelect={handleDateSelect}
-          className="rounded-md border-none outline-none"
+          className="rounded-md border-none outline-hidden"
         />
       </PopoverContent>
     </Popover>

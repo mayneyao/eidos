@@ -117,7 +117,7 @@ export const TagsEditor: React.FC<PropertyEditorProps> = ({
           onChange={(e) => setEditingValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={handleFinishEdit}
-          className="w-full bg-transparent border-none outline-none focus:outline-none"
+          className="w-full bg-transparent border-none outline-hidden focus:outline-hidden"
           placeholder="Enter tags separated by commas..."
         />
       </BaseEditor>

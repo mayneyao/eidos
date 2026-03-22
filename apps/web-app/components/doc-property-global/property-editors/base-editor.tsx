@@ -29,7 +29,7 @@ export const BaseEditor: React.FC<{
         "absolute inset-0 flex items-center px-2 text-sm",
         !readonly && !isSystemProperty && onClick && "cursor-pointer",
         readonly || isSystemProperty ? "cursor-default" : "",
-        isEditing && "bg-muted/30 rounded-sm",
+        isEditing && "bg-muted/30 rounded-xs",
         className
       )}
       onClick={onClick}

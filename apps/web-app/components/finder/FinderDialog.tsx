@@ -192,7 +192,7 @@ export function FinderDialog({
 
         <div
           ref={contentRef}
-          className="flex-1 flex min-h-0 outline-none h-[calc(600px-57px-57px)]"
+          className="flex-1 flex min-h-0 outline-hidden h-[calc(600px-57px-57px)]"
           tabIndex={-1}
         >
           <FinderSidebar

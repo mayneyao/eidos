@@ -39,7 +39,7 @@ export const KanbanBoard = ({
   return (
     <div
       className={cn(
-        "flex h-full min-h-40 flex-col gap-2 rounded-md border bg-secondary p-2 text-xs shadow-sm outline outline-2 transition-all",
+        "flex h-full min-h-40 flex-col gap-2 rounded-md border bg-secondary p-2 text-xs shadow-xs outline outline-2 transition-all",
         isOver ? "outline-primary" : "outline-transparent",
         className
       )}
@@ -78,7 +78,7 @@ export const KanbanCard = ({
   return (
     <Card
       className={cn(
-        "rounded-md p-3 shadow-sm transition-colors duration-300",
+        "rounded-md p-3 shadow-xs transition-colors duration-300",
         isDragging && "opacity-50",
         isRecentlyMoved && "bg-primary/10",
         className
@@ -184,7 +184,7 @@ export const KanbanProvider = ({
       </KanbanContext.Provider>
       <DragOverlay dropAnimation={null}>
         {activeNode ? (
-          <Card className="rounded-md p-3 shadow-sm cursor-grabbing">
+          <Card className="rounded-md p-3 shadow-xs cursor-grabbing">
             <div dangerouslySetInnerHTML={{ __html: activeNode as string }} />
           </Card>
         ) : null}

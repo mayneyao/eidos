@@ -37,7 +37,7 @@ export const SyncBlockComponent = (props: { id: string }) => {
   }, [getNode, id])
 
   return (
-    <div className="rounded-sm ring-purple-300 hover:ring">
+    <div className="rounded-xs ring-purple-300 hover:ring">
       {node?.type === "doc" ||
         (node?.type === "day" && (
           <div>to be done</div>

@@ -27,6 +27,7 @@ import {
   useSidebarStore,
   type SidebarApp,
 } from "@/apps/web-app/store/sidebar-store"
+import { useSidebar } from "@/components/ui/sidebar"
 
 import { SortableContainer, SortableItem } from "../table/sortable"
 import { Button } from "../ui/button"
@@ -138,6 +139,7 @@ export const SidebarTabs = () => {
   const { tabs: tabIds, addTab, removeTab, reorderTabs } = useTabsKV()
   const { space } = useCurrentPathInfo()
   const { navigate } = useRouterAdapter()
+  const { open } = useSidebar()
 
   // Get block IDs (non-fixed tabs)
   const blockIds = useMemo(
@@ -284,6 +286,11 @@ export const SidebarTabs = () => {
   // Create list for display - convert string IDs to SortableItem objects
   const allTabs = sortedTabs.map((id) => ({ id }))
   const visibleItems = allTabs.slice(0, visibleTabsCount)
+
+  // Hide tabs when sidebar is collapsed
+  if (!open) {
+    return null
+  }
 
   return (
     <div

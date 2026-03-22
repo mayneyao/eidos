@@ -193,7 +193,7 @@ export function FinderToolbar({
                     disabled={isLast}
                     className={cn(
                       "flex items-center gap-1 px-1.5 py-0.5 rounded transition-all duration-150 truncate",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+                      "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
                       isLast
                         ? "font-medium text-foreground cursor-default"
                         : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
@@ -304,7 +304,7 @@ export function FinderToolbar({
             {!isSearching && searchQuery && (
               <button
                 onClick={clearSearch}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
               >
                 <X className="h-3 w-3" />
               </button>
