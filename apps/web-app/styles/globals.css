@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Import Tailwind plugins */
+@plugin "@tailwindcss/typography";
+
 /* Import base theme variables */
 @import "./themes/default.css";
 
@@ -18,6 +21,9 @@
 }
 
 @theme inline {
+  /* Typography - prose max width */
+  --tw-prose-max-width: 85ch;
+
   /* Colors - reference CSS variables from imported theme */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -191,4 +197,21 @@ body {
   * {
     @apply border-border;
   }
+}
+
+/* Prose custom styles - hr override */
+.prose hr {
+  border: none;
+  height: 2em;
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+
+.prose hr::before {
+  content: '';
+  flex-grow: 1;
+  height: 1px;
+  background: var(--tw-prose-hr);
 }
