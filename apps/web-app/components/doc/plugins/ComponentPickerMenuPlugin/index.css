@@ -1,9 +1,14 @@
+#typeahead-menu {
+  z-index: 100;
+}
 .typeahead-popover {
   border-radius: var(--radius-md);
   background-color: var(--popover);
   color: var(--popover-foreground);
   padding: 0;
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
   border: 1px solid var(--border);
   overflow: hidden;
 }
