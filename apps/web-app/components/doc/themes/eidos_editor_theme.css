@@ -38,24 +38,6 @@ code::before {
   padding-left: 16px;
 }
 
-.eidos_editor_theme__h1 {
-  font-size: 24px;
-  color: var(--foreground);
-  font-weight: 400;
-}
-
-.eidos_editor_theme__h2 {
-  font-size: 15px;
-  color: var(--muted-foreground);
-  font-weight: 700;
-  /* text-transform: uppercase; */
-}
-
-.eidos_editor_theme__h3 {
-  font-size: 12px;
-  /* text-transform: uppercase; */
-}
-
 .eidos_editor_theme__indent {
   --lexical-indent-base-value: 40px;
 }
@@ -316,7 +298,11 @@ code::before {
 
 .eidos_editor_theme__characterLimit {
   display: inline;
-  background-color: color-mix(in hsl, var(--destructive) 30%, transparent) !important;
+  background-color: color-mix(
+    in hsl,
+    var(--destructive) 30%,
+    transparent
+  ) !important;
 }
 
 .eidos_editor_theme__ol1 {

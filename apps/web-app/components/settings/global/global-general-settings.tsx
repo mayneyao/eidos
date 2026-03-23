@@ -24,6 +24,8 @@ import {
 import { useTheme } from "@/components/theme-provider"
 import { useDesktopClient } from "@/apps/web-app/hooks/use-desktop-client"
 import { useUpdateStatus } from "@/apps/web-app/hooks/use-update-status"
+import { useSpaceTheme } from "@/apps/web-app/hooks/use-space-theme"
+import { navigateToSection } from "@/apps/web-app/components/settings/settings-events"
 
 const appearanceFormSchema = z.object({
   theme: z.enum(["light", "dark"], {
@@ -58,6 +60,8 @@ export function GlobalGeneralSettings() {
     checkForUpdates,
     quitAndInstall,
   } = useUpdateStatus()
+
+  const { themes, currentTheme: spaceTheme, applyTheme } = useSpaceTheme()
 
   const { toast } = useToast()
 
@@ -347,7 +351,7 @@ export function GlobalGeneralSettings() {
 
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-0.5 flex-[5] min-w-[240px]">
-                <Label>{t("settings.appearance.theme")}</Label>
+                <Label>{t("settings.appearance.mode")}</Label>
                 <p className="text-sm text-muted-foreground">
                   {t("settings.appearance.themeDescription")}
                 </p>
@@ -382,6 +386,45 @@ export function GlobalGeneralSettings() {
                     </FormItem>
                   )}
                 />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-0.5 flex-[5] min-w-[240px]">
+                <Label>{t("settings.appearance.themeStyle")}</Label>
+                <p className="text-sm text-muted-foreground">
+                  {t("settings.appearance.themeStyleDescription")}{" "}
+                  <button
+                    type="button"
+                    onClick={() => navigateToSection("space-theme")}
+                    className="text-primary hover:underline font-medium inline-flex items-center gap-0.5 cursor-pointer"
+                  >
+                    {t("settings.appearance.manageThemes")}
+                  </button>
+                </p>
+              </div>
+              <div className="w-full sm:w-64 shrink-0">
+                <div className="relative">
+                  <select
+                    className={cn(
+                      buttonVariants({ variant: "outline" }),
+                      "w-full appearance-none bg-transparent font-normal"
+                    )}
+                    value={spaceTheme || "default"}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      applyTheme(val === "default" ? null : val)
+                    }}
+                  >
+                    <option value="default">{t("theme.default")}</option>
+                    {themes.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-3 h-4 w-4 opacity-50 pointer-events-none" />
+                </div>
               </div>
             </div>
           </form>

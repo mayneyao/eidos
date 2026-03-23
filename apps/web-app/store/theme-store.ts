@@ -1,3 +1,15 @@
+/**
+ * @deprecated This store is deprecated. Use `useSpaceTheme` hook from `@/apps/web-app/hooks/use-space-theme` instead.
+ *
+ * Migration guide:
+ * - `currentThemeName` → `useSpaceTheme().currentTheme`
+ * - `customThemes` → `useSpaceTheme().themes`
+ * - `applyTheme(name, css)` → `useSpaceTheme().installTheme(name, css)` then `useSpaceTheme().applyTheme(name)`
+ * - `setCurrentThemeName(name)` → `useSpaceTheme().applyTheme(name)`
+ *
+ * Themes are now stored per-space in `~/.eidos/themes/` instead of global state.
+ */
+
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 

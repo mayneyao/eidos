@@ -1,12 +1,12 @@
-import { useThemeStore } from "@/apps/web-app/store/theme-store"
+/**
+ * @deprecated This hook is deprecated. Use `useSpaceTheme` from `@/apps/web-app/hooks/use-space-theme` instead.
+ * Themes are now managed per-space. See theme-store.ts for migration guide.
+ */
+
 import { parseCSSVariables, setThemeVariables } from "@/lib/web/theme"
 import retroArcade from "@/styles/themes/retro-arcade.css?raw"
 import defaultTheme from "@/styles/themes/default.css?raw"
 import flexokiTheme from "@/styles/themes/flexoki.css?raw"
-import { useTheme } from "@/components/theme-provider"
-import { useCallback, useEffect } from "react"
-import { useAllThemes } from "./use-all-themes"
-import { useSqliteKV } from "./use-sqlite-kv"
 
 export const presetThemes = [
   {
@@ -23,9 +23,15 @@ export const presetThemes = [
   },
 ]
 
+/**
+ * Apply theme CSS to DOM
+ * @param rawCss Theme CSS content
+ * @param isDarkMode Whether to apply dark mode variables
+ */
 export const handleApplyTheme = (rawCss: string, isDarkMode: boolean) => {
   try {
     // Parse both light and dark mode variables
+    // Note: keep hsl() wrapper when setting CSS variables
     const lightMatch = /:root\s*{([^}]+)}/.exec(rawCss)
     const darkMatch = /\.dark\s*{([^}]+)}/.exec(rawCss)
     if (!lightMatch && !darkMatch) {
@@ -35,48 +41,23 @@ export const handleApplyTheme = (rawCss: string, isDarkMode: boolean) => {
     }
     if (isDarkMode) {
       if (darkMatch) {
-        const darkVariables = parseCSSVariables(darkMatch[1])
+        const darkVariables = parseCSSVariables(darkMatch[1], false)
         setThemeVariables(darkVariables)
       }
     } else if (lightMatch) {
-      const lightVariables = parseCSSVariables(lightMatch[1])
+      const lightVariables = parseCSSVariables(lightMatch[1], false)
       setThemeVariables(lightVariables)
     }
   } catch (err) {}
 }
 
+/**
+ * @deprecated Use `useSpaceTheme` instead
+ */
 export const useApplyThemeByName = () => {
-  const { currentThemeName } = useThemeStore()
-  const { resolvedTheme } = useTheme()
-  const allThemes = useAllThemes()
-  const [themeMode, setThemeMode] = useSqliteKV<string>(
-    "eidos:space:settings:theme:mode",
-    "light"
-  )
-  const applyTheme = useCallback(
-    (mode: string, themeName: string) => {
-      const currentThemeName = allThemes.find((t) => t.name === themeName)
-      if (currentThemeName) {
-        handleApplyTheme(currentThemeName.css, mode === "dark")
-      }
-    },
-    [allThemes]
-  )
-
-  const applyDarkModeSwitch = useCallback(
-    (theme: string) => {
-      applyTheme(theme, currentThemeName)
-    },
-    [applyTheme, currentThemeName]
-  )
-
-  useEffect(() => {
-    applyTheme(resolvedTheme, currentThemeName)
-    setThemeMode(resolvedTheme)
-  }, [currentThemeName, resolvedTheme])
-
+  console.warn("useApplyThemeByName is deprecated. Use useSpaceTheme instead.")
   return {
-    applyTheme,
-    applyDarkModeSwitch,
+    applyTheme: () => {},
+    applyDarkModeSwitch: () => {},
   }
 }

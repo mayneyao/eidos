@@ -8,7 +8,6 @@ import {
   FilePlus2Icon,
   Keyboard,
   LayoutGrid,
-  PaintBucket,
   Palette,
   RefreshCcwIcon,
   Settings,
@@ -42,7 +41,6 @@ import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
-import { ThemeStudio } from "../theme-studio"
 import { DocActionCommandItems } from "./doc-actions"
 import { useCMDKGoto, useInput } from "./hooks"
 import { ImportSchema } from "./import-schema"
@@ -696,17 +694,7 @@ export function CommandDialogDemo() {
                   </span>
                 </div>
               </CommandItem>
-              <CommandItem
-                onSelect={() => {
-                  setSecondaryView({
-                    component: <ThemeStudio />,
-                    title: t("cmdk.themeStudio"),
-                  })
-                }}
-              >
-                <PaintBucket className="mr-2 h-4 w-4" />
-                <span>{t("cmdk.themeStudio")}</span>
-              </CommandItem>
+
               <CommandItem
                 onSelect={handleMigrateFilePaths}
                 disabled={isMigrating}

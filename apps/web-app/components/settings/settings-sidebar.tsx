@@ -10,6 +10,7 @@ import {
   KeyRound,
   Package,
   Palette,
+  Paintbrush,
   SatelliteDish,
   Settings as SettingsIcon,
   Shield,
@@ -32,6 +33,7 @@ type SettingsSection =
   | "space-extensions"
   | "space-newtab"
   | "space-relay"
+  | "space-theme"
   | "general"
   | "account"
   | "ai"
@@ -150,6 +152,16 @@ export function SettingsSidebar({
       description: t("space.settings.relayDescription"),
       icon: <Network className="h-5 w-5" />,
       isBeta: true,
+      category: "space",
+    },
+    {
+      id: "space-theme",
+      title: t("space.settings.theme", "Theme"),
+      description: t(
+        "space.settings.themeDescription",
+        "Customize the appearance of your space"
+      ),
+      icon: <Paintbrush className="h-5 w-5" />,
       category: "space",
     },
 
