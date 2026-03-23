@@ -254,12 +254,12 @@ const VirtualItem = memo(function VirtualItem({
 
       {/* Size */}
       <div className="w-24 text-right text-xs text-muted-foreground/80 hidden sm:block tabular-nums">
-        {formatFileSize(item.metadata?.size)}
+        {formatFileSize((item.metadata as any)?.size)}
       </div>
 
       {/* Modified */}
       <div className="w-28 text-right text-xs text-muted-foreground/80 hidden md:block ml-4 tabular-nums">
-        {formatDate(item.metadata?.mtime)}
+        {formatDate((item.metadata as any)?.mtime)}
       </div>
     </div>
   )

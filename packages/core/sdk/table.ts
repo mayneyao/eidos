@@ -333,7 +333,7 @@ export class TableManager {
             `PRAGMA table_info(${this.rawTableName})`
           )
           await this.dataSpace.dataChangeTrigger.setTrigger(
-            this.dataSpace,
+            this.dataSpace as any,
             this.rawTableName,
             updatedTableInfo
           )

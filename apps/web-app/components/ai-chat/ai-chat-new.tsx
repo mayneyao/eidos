@@ -371,7 +371,6 @@ export default function Chat() {
                 value={aiModel}
                 size="xs"
                 className="max-w-[200px]  text-xs"
-                localModels={[]}
                 noBorder
               />
             </div>

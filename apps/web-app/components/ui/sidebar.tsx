@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
 
 import { cn } from "@/lib/utils"
 
@@ -318,7 +319,7 @@ export const SidebarMenuButton = React.forwardRef<
   SidebarMenuButtonProps
 >(({ className, children, isActive, asChild = false, ...props }, ref) => {
   const { open } = useSidebar()
-  const Comp = asChild ? React.Slot : "button"
+  const Comp = asChild ? Slot : "button"
 
   return (
     <Comp

@@ -3,8 +3,6 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { useKeyPress } from "ahooks"
 import { useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import * as prettier from "prettier/standalone"
-import * as prettierMarkdown from "prettier/plugins/markdown"
 
 import { useToast } from "@/components/ui/use-toast"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"

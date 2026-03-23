@@ -70,6 +70,7 @@ export class VirtualFsAdapter implements IExternalFileSystem {
       // Register UDF function for watch events - UDFs must be synchronous
       this.db.createFunction({
         name: "eidos_virtual_fs_watch_event",
+        deterministic: false,
         xFunc: (path: string, eventType: string, nodeId: string) => {
           try {
             // For UDFs, we cannot use async operations, so we'll use the nodeId directly

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useRef, useState } from "react"
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react"
 import { FieldType } from "@/packages/core/fields/const"
 import type { IGridViewProperties, IView } from "@/packages/core/types/IView"
 import { useClickAway } from "ahooks"
@@ -39,6 +39,14 @@ import { useTableFields } from "@/apps/web-app/hooks/use-table"
 import { useColumns } from "../views/grid/hooks/use-col"
 import { useTableStore } from "../table-store-provider"
 import { FieldNameEdit } from "./field-name-edit"
+
+interface IMenuItem {
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  onClick: (e?: any) => void
+  variant?: "destructive"
+  dialogTrigger?: boolean
+}
 
 interface IFieldEditorDropdownProps {
   tableName: string
@@ -185,7 +193,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
     ["mousedown", "touchstart"]
   )
 
-  const menuGroups = [
+  const menuGroups: { id: string; items: IMenuItem[] }[] = [
     {
       id: "edit",
       items: [

@@ -71,7 +71,7 @@ export class LookupField extends BaseField<
     return targetField
   }
 
-  get displayType(): FieldType {
+  get displayType(): FieldType | `${FieldType}` {
     if (!this.entityFieldInstance) return FieldType.Text
     return this.entityFieldInstance.displayType
   }

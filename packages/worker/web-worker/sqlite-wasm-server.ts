@@ -26,6 +26,14 @@ export class SQLiteWasmDatabase extends BaseServerDatabase {
     return true
   }
 
+  selectObjectsSync(): { [columnName: string]: any }[] {
+    throw new Error("selectObjectsSync is not implemented")
+  }
+
+  table() {
+    throw new Error("table is not implemented")
+  }
+
   pages(): Promise<{ [key: string]: any }> {
     return Promise.resolve({})
   }

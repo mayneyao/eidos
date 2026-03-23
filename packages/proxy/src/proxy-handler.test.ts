@@ -131,8 +131,10 @@ describe("ProxyHandler", () => {
   describe("Request Handling", () => {
     it("should return 400 for missing URL parameter", async () => {
       const context = createMockContext("http://proxy.eidos.localhost:13127/")
+      const url = new URL(context.req.url)
       const response = await proxyHandler.handleProxyRequest(
-        new URL(context.req.url),
+        "example.com",
+        url,
         context
       )
 
@@ -145,8 +147,10 @@ describe("ProxyHandler", () => {
       const context = createMockContext(
         "http://proxy.eidos.localhost:13127/?url=javascript:alert(1)"
       )
+      const url = new URL(context.req.url)
       const response = await proxyHandler.handleProxyRequest(
-        new URL(context.req.url),
+        "example.com",
+        url,
         context
       )
 

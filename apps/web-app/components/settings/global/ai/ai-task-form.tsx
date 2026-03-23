@@ -88,8 +88,7 @@ export function AITaskConfigForm({
                         <AIModelSelect
                           value={field.value ?? ""}
                           onValueChange={field.onChange}
-                          onlyLocal={false}
-                          localModels={aiConfig.localModels}
+                          // @ts-ignore
                         />
                       </FormControl>
                       <ModelTestButton
@@ -122,8 +121,6 @@ export function AITaskConfigForm({
                         <AIModelSelect
                           value={field.value ?? ""}
                           onValueChange={field.onChange}
-                          onlyLocal={false}
-                          localModels={aiConfig.localModels}
                         />
                       </FormControl>
                       <ModelTestButton
@@ -156,8 +153,6 @@ export function AITaskConfigForm({
                         <AIModelSelect
                           value={field.value ?? ""}
                           onValueChange={field.onChange}
-                          onlyLocal={false}
-                          localModels={aiConfig.localModels}
                         />
                       </FormControl>
                       <ModelTestButton
@@ -190,7 +185,6 @@ export function AITaskConfigForm({
                         <AIModelSelect
                           value={field.value ?? ""}
                           onValueChange={field.onChange}
-                          localModels={aiConfig.localModels}
                         />
                       </FormControl>
                       <ModelTestButton

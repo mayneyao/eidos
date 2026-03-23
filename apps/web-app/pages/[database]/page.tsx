@@ -27,7 +27,7 @@ export default function DatabaseHome() {
   const goto = useGoto()
   const { setCmdkOpen, setGlobalSearchOpen, setSpaceSettingsOpen } =
     useAppRuntimeStore()
-  const { toggleSidebar } = useSidebar()
+  const { toggle: toggleSidebar } = useSidebar()
   const [newTabBlockId] = useSqliteKV<string | null>(
     "eidos:space:settings:newtab",
     ""

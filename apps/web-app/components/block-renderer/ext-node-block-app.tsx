@@ -14,6 +14,7 @@ import {
 
 import { type BlockRendererRef } from "./block-renderer"
 import { WebViewBlock } from "./webview-block"
+import { useTheme } from "../theme-provider"
 
 export const ExtNodeBlockApp = forwardRef<
   BlockRendererRef,
@@ -25,6 +26,8 @@ export const ExtNodeBlockApp = forwardRef<
 >(({ space, blockId, nodeId }, ref) => {
   const { t } = useTranslation()
   const block = useMblock(blockId || undefined)
+  const { i18n } = useTranslation()
+  const { resolvedTheme } = useTheme()
 
   if (!blockId) {
     // extnode need an enabled handle block to work
@@ -54,6 +57,8 @@ export const ExtNodeBlockApp = forwardRef<
       type: "extNode",
       space,
       nodeId,
+      locale: i18n.language,
+      theme: resolvedTheme,
     }
 
     return (

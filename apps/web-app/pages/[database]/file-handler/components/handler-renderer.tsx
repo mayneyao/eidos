@@ -1,5 +1,7 @@
 import { getBuiltInExtensionById } from "@/extensions/builtin"
 
+import { useTranslation } from "react-i18next"
+
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import { SimpleWebViewBlock } from "@/components/block-renderer/simple-webview-block"
@@ -13,6 +15,7 @@ interface HandlerRendererProps {
 export function HandlerRenderer({ handlerId, filePath }: HandlerRendererProps) {
   const { space } = useCurrentPathInfo()
   const { searchParams } = useRouterAdapter()
+  const { i18n } = useTranslation()
 
   // Check if this is a built-in handler (indicated by query param or by ID prefix)
   const isBuiltin =
@@ -29,6 +32,7 @@ export function HandlerRenderer({ handlerId, filePath }: HandlerRendererProps) {
           extensionSlug={slug}
           space={space}
           filePath={filePath}
+          locale={i18n.language}
         />
       )
     }

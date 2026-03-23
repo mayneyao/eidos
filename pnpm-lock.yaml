@@ -60,6 +60,9 @@ importers:
       '@eidos.space/ext-server':
         specifier: workspace:*
         version: link:../../packages/ext-server
+      '@eidos.space/proxy':
+        specifier: workspace:*
+        version: link:../../packages/proxy
       '@eidos.space/space-manager':
         specifier: workspace:*
         version: link:../../packages/space-manager
