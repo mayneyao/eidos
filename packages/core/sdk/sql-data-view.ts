@@ -1,10 +1,11 @@
-import { ViewTypeEnum } from "../types/IView"
-import type { DataSpace } from "../data-space"
 import { shortenId, uuidv7 } from "@/lib/utils"
-import type { IField } from "../types/IField"
-import { FieldType } from "../fields/const"
+import type { DataSpace } from "../data-space"
 import { allFieldTypesMap } from "../fields"
+import { FieldType } from "../fields/const"
 import { parseColumnTypesFromComments } from "../sqlite/sql-comment-parser"
+import { TreeNodeType } from "../types/ITreeNode"
+import type { IField } from "../types/IField"
+import { ViewTypeEnum } from "../types/IView"
 
 export class SqlDataView {
   constructor(private dataSpace: DataSpace) {}
@@ -200,6 +201,189 @@ export class SqlDataView {
       console.error("Error creating column metadata from comments:", error)
       // Don't throw error here to avoid breaking the view creation
       // Just log the error and continue with default behavior
+    }
+  }
+
+  async createTableFromDataView(
+    viewNodeId: string,
+    newTableName: string,
+    titleColumnName?: string
+  ) {
+    const viewName = `vw_${viewNodeId}`
+    // 1. Generate a new table ID
+    const tableId = uuidv7().split("-").join("")
+    const rawTableName = `tb_${tableId}`
+
+    // 2. Get view columns to see what we have
+    const columns = await this.dataSpace.db
+      .prepare(`PRAGMA table_info(${viewName});`)
+      .all()
+    const existingColumnNames = new Set(
+      columns.map((c: any) => c.name.toLowerCase())
+    )
+
+    // Required Eidos columns
+    const requiredColumns = [
+      {
+        name: "_id",
+        type: "TEXT PRIMARY KEY NOT NULL",
+        eidosType: "row-id",
+        defaultValue: "uuidv7()",
+      },
+      {
+        name: "title",
+        type: "TEXT",
+        eidosType: FieldType.Title,
+        defaultValue: "NULL",
+      },
+      {
+        name: "_created_time",
+        type: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        eidosType: FieldType.CreatedTime,
+        defaultValue: "CURRENT_TIMESTAMP",
+      },
+      {
+        name: "_last_edited_time",
+        type: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        eidosType: FieldType.LastEditedTime,
+        defaultValue: "CURRENT_TIMESTAMP",
+      },
+      {
+        name: "_created_by",
+        type: "TEXT DEFAULT 'unknown'",
+        eidosType: FieldType.CreatedBy,
+        defaultValue: "'unknown'",
+      },
+      {
+        name: "_last_edited_by",
+        type: "TEXT DEFAULT 'unknown'",
+        eidosType: FieldType.LastEditedBy,
+        defaultValue: "'unknown'",
+      },
+    ]
+
+    await this.dataSpace.db.prepare("BEGIN TRANSACTION;").run()
+    try {
+      // 3. Build CREATE TABLE SQL and register columns
+      const columnDefs: string[] = []
+
+      // Always add required Eidos columns
+      for (const req of requiredColumns) {
+        columnDefs.push(`${req.name} ${req.type}`)
+      }
+
+      // Add view columns, but handle conflicts with required columns
+      for (const col of columns) {
+        const lowerName = col.name.toLowerCase()
+        if (lowerName === "_id") {
+          columnDefs.push(`_original_id ${col.type || "TEXT"}`)
+        } else if (lowerName === "title") {
+          columnDefs.push(`_original_title ${col.type || "TEXT"}`)
+        } else if (requiredColumns.some((r) => r.name === lowerName)) {
+          // Skip other system columns if they conflict exactly
+        } else {
+          columnDefs.push(`${col.name} ${col.type || "TEXT"}`)
+        }
+      }
+
+      await this.dataSpace.db.exec(
+        `CREATE TABLE ${rawTableName} (\n${columnDefs.join(",\n")}\n);`
+      )
+
+      // 4. Insert data from view
+      const targetColNames: string[] = ["_id"]
+      const selectExprs: string[] = [
+        `eidos_generate_id("${columns[0]?.name || "1"}")`,
+      ]
+
+      for (const col of columns) {
+        const lowerName = col.name.toLowerCase()
+        if (lowerName === "_id") {
+          targetColNames.push("_original_id")
+          selectExprs.push(`"${col.name}"`)
+        } else if (lowerName === "title") {
+          targetColNames.push("_original_title")
+          selectExprs.push(`"${col.name}"`)
+        } else if (requiredColumns.some((r) => r.name === lowerName)) {
+          // Skip
+        } else {
+          targetColNames.push(`"${col.name}"`)
+          selectExprs.push(`"${col.name}"`)
+        }
+      }
+
+      // Handle title mapping (if user specified a source column for title)
+      if (titleColumnName) {
+        targetColNames.push("title")
+        selectExprs.push(`"${titleColumnName}"`)
+      }
+
+      const insertSql = `INSERT INTO ${rawTableName} (${targetColNames.join(
+        ", "
+      )}) SELECT ${selectExprs.join(", ")} FROM ${viewName}`
+      await this.dataSpace.db.exec(insertSql)
+
+      // 5. Add to eidos__tree
+      await this.dataSpace.tree.addNode({
+        id: tableId,
+        name: newTableName,
+        type: TreeNodeType.Table,
+        parent_id: undefined,
+      })
+
+      // 6. Register columns in eidos__column
+      // Register required/system columns
+      for (const req of requiredColumns) {
+        const defaultProperty = (allFieldTypesMap as any)[req.eidosType]
+          ? (allFieldTypesMap as any)[req.eidosType].getDefaultFieldProperty()
+          : {}
+
+        await this.dataSpace.column.addPureUIColumn({
+          name: req.name,
+          type: req.eidosType as any,
+          table_name: rawTableName,
+          table_column_name: req.name,
+          property: defaultProperty,
+        })
+      }
+
+      // Register view columns (including the renamed ones)
+      const viewFields = await this.getViewFields(viewNodeId)
+      for (const col of columns) {
+        const lowerName = col.name.toLowerCase()
+        let targetName = col.name
+        if (lowerName === "_id") {
+          targetName = "_original_id"
+        } else if (lowerName === "title") {
+          targetName = "_original_title"
+        } else if (requiredColumns.some((r) => r.name === lowerName)) {
+          continue
+        }
+
+        const viewField = viewFields.find(
+          (f) => f.table_column_name === col.name
+        )
+        const type = viewField?.type || FieldType.Text
+        const defaultProperty = allFieldTypesMap[type].getDefaultFieldProperty()
+
+        await this.dataSpace.column.addPureUIColumn({
+          name: targetName,
+          type,
+          table_name: rawTableName,
+          table_column_name: targetName,
+          property: defaultProperty,
+        })
+      }
+
+      // 7. Create default view for the new table
+      await this.dataSpace.view.createDefaultView(rawTableName)
+
+      await this.dataSpace.db.prepare("COMMIT;").run()
+      return tableId
+    } catch (error) {
+      await this.dataSpace.db.prepare("ROLLBACK;").run()
+      console.error("Error in createTableFromDataView transaction:", error)
+      throw error
     }
   }
 }

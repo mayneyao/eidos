@@ -44,6 +44,7 @@ import { ViewFilter } from "./view-filter"
 import { ViewIcon } from "./view-icon"
 import { ViewItem } from "./view-item"
 import { ViewRawQuery } from "./view-raw-query"
+import { ViewCreateTable } from "./view-create-table"
 import { ViewSearch } from "./view-search"
 import { ViewSort } from "./view-sort"
 
@@ -455,7 +456,11 @@ export const ViewToolbar = (props: {
             <ViewFilter view={currentView} />
             <ViewSort view={currentView} />
             <ViewField view={currentView} />
-            {isView && <ViewRawQuery />}
+            {isView && (
+              <>
+                <ViewRawQuery />
+              </>
+            )}
             {!props.isReadOnly && !isView && (
               <Button size="xs" onClick={handleAddRow} variant="ghost">
                 <PlusIcon className="h-4 w-4"></PlusIcon>

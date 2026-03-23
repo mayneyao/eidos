@@ -22,6 +22,7 @@ import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 
 import { TableContext } from "../table/hooks"
 import { TableStoreProvider } from "../table/table-store-provider"
+import { ViewCreateTable } from "../table/view-create-table"
 import { TemplateModal } from "./template-modal"
 
 const SqlEditor = lazy(() => import("@/components/sql-editor"))
@@ -289,7 +290,8 @@ export const DataViewPlaceholder = ({
                 <span>{"Preview"}</span>
                 <span className="ml-1 text-xs opacity-60">⌘⏎</span>
               </Button>
-              <Button size="xs" onClick={handleCreate}>
+              {isPreviewMode && <ViewCreateTable viewNodeId={nodeId} />}
+              <Button size="xs" onClick={handleCreate} className="ml-2">
                 {t("common.createDataView")}
               </Button>
             </div>

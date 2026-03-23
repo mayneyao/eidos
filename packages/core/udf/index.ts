@@ -61,7 +61,7 @@ export const withSqlite3AllUDF = (bc: { postMessage: (data: any) => void }) => {
     xFunc: function (pCx) {
       return v4()
     },
-    deterministic: false,
+    deterministic: true,
   }
 
   const uuidv4NoCtx = {
@@ -69,7 +69,7 @@ export const withSqlite3AllUDF = (bc: { postMessage: (data: any) => void }) => {
     xFunc: function () {
       return v4()
     },
-    deterministic: false,
+    deterministic: true,
   }
 
   const uuidv7 = {
@@ -77,7 +77,7 @@ export const withSqlite3AllUDF = (bc: { postMessage: (data: any) => void }) => {
     xFunc: function (pCx) {
       return v7()
     },
-    deterministic: false,
+    deterministic: true,
   }
 
   const uuidv7NoCtx = {
@@ -85,7 +85,25 @@ export const withSqlite3AllUDF = (bc: { postMessage: (data: any) => void }) => {
     xFunc: function () {
       return v7()
     },
+    deterministic: true,
+  }
+
+  const eidos_generate_id = {
+    name: "eidos_generate_id",
+    xFunc: function (pCx) {
+      return v7()
+    },
     deterministic: false,
+    nArg: -1,
+  }
+
+  const eidos_generate_idNoCtx = {
+    name: "eidos_generate_id",
+    xFunc: function () {
+      return v7()
+    },
+    deterministic: false,
+    nArg: -1,
   }
 
   const eidos_data_event_update = {
@@ -351,6 +369,7 @@ export const withSqlite3AllUDF = (bc: { postMessage: (data: any) => void }) => {
     today,
     uuidv4,
     uuidv7,
+    eidos_generate_id,
     eidos_data_event_update,
     eidos_data_event_insert,
     eidos_data_event_delete,
@@ -368,6 +387,7 @@ export const withSqlite3AllUDF = (bc: { postMessage: (data: any) => void }) => {
     todayNoCtx,
     uuidv4NoCtx,
     uuidv7NoCtx,
+    eidos_generate_idNoCtx,
     eidos_data_event_updateNoCtx,
     eidos_data_event_insertNoCtx,
     eidos_data_event_deleteNoCtx,

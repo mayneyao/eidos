@@ -7,6 +7,7 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 
 import SqlEditor from "../sql-editor"
 import { TableContext } from "./hooks"
+import { ViewCreateTable } from "./view-create-table"
 
 export const ViewRawQuery = () => {
   const [rawQuery, setRawQuery] = useState("")
@@ -46,8 +47,16 @@ export const ViewRawQuery = () => {
           <Settings className="h-4 w-4 opacity-60"></Settings>
         </Button>
       </DialogTrigger>
-      <DialogContent className="p-0 md:max-w-[756px] m-0">
-        <SqlEditor value={rawQuery} readOnly />
+      <DialogContent className="p-0 md:max-w-[756px] m-0 flex flex-col h-[70vh] overflow-hidden">
+        <div className="flex justify-between items-center px-4 py-2 border-b">
+          <span className="text-sm font-medium opacity-60">SQL Raw Query</span>
+        </div>
+        <div className="flex-1 min-h-0">
+          <SqlEditor value={rawQuery} readOnly />
+        </div>
+        <div className="flex justify-end p-2 border-t">
+          <ViewCreateTable />
+        </div>
       </DialogContent>
     </Dialog>
   )

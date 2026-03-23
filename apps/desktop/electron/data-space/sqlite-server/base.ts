@@ -128,11 +128,17 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
     return []
   }
 
-  createFunction(opt: { name: string; xFunc: (...args: any[]) => any }) {
+  createFunction(opt: {
+    name: string
+    xFunc: (...args: any[]) => any
+    deterministic?: boolean
+    nArg?: number
+  }) {
     this.db.function(
       opt.name,
       {
-        deterministic: true,
+        deterministic: opt.deterministic ?? false,
+        varargs: opt.nArg === -1,
       },
       opt.xFunc
     )
