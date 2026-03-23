@@ -1,4 +1,4 @@
-import { getCSSVariable } from "@/lib/web/theme"
+import { getCSSVariable, getThemeVariables } from "@/lib/web/theme"
 import type { Theme } from "@glideapps/glide-data-grid"
 import { useMemo } from "react"
 
@@ -14,23 +14,28 @@ const commonTheme: Partial<Theme> = {
   lineHeight: 1.4,
 }
 
-/**
- * Get theme color from CSS variables (applied by space-based theme system)
- * CSS variables are in format: --key: hsl(h s% l%) or --key: h s% l%
- */
-const getThemeColor = (key: string): string => {
-  const value = getCSSVariable(key)
-  if (!value) return ""
-  // If value already has hsl(), use it directly
-  // Otherwise wrap it with hsl()
-  if (value.startsWith("hsl(")) {
-    return value
-  }
-  return `hsl(${value})`
-}
+export const useDynamicTheme = (theme: string, themeCss?: string | null) => {
+  const isDarkMode = theme === "dark"
 
-export const useDynamicTheme = (theme: string) => {
+  const themeVars = useMemo(() => {
+    if (themeCss) {
+      return getThemeVariables(themeCss, isDarkMode)
+    }
+    return null
+  }, [themeCss, isDarkMode])
+
   return useMemo(() => {
+    const getThemeColor = (key: string): string => {
+      const value = (themeVars && themeVars[key]) || getCSSVariable(key)
+      if (!value) return ""
+      // If value already has hsl(), use it directly
+      // Otherwise wrap it with hsl()
+      if (value.startsWith("hsl(")) {
+        return value
+      }
+      return `hsl(${value})`
+    }
+
     return {
       ...commonTheme,
       accentColor: getThemeColor("primary"),
@@ -58,5 +63,5 @@ export const useDynamicTheme = (theme: string) => {
       linkColor: getThemeColor("primary"),
       name: theme,
     }
-  }, [theme])
+  }, [theme, themeVars])
 }

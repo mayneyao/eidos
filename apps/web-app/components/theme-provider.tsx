@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from "react"
@@ -101,7 +102,7 @@ export function ThemeProvider({
     return themeSetting === "dark" ? "dark" : "light"
   }, [forcedTheme, systemTheme, themeSetting])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof document === "undefined") return
     const root = document.documentElement
 

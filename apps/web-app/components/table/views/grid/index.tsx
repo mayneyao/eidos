@@ -49,6 +49,7 @@ import { useFormulaEditor } from "./plugins/use-formula-editor"
 import "./styles.css"
 import { useUndoRedo } from "./hooks/use-undo-redo"
 import { useDynamicTheme } from "./theme"
+import { useCurrentTheme } from "@/apps/web-app/hooks/use-current-theme"
 
 // lazy import FormulaEditor
 const FormulaEditor = lazy(() => import("./plugins/formula-editor"))
@@ -65,7 +66,8 @@ interface IGridProps {
 export default function GridView(props: IGridProps) {
   const { tableName, databaseName } = props
   const { resolvedTheme } = useTheme()
-  const _theme = useDynamicTheme(resolvedTheme)
+  const { css: spaceThemeCss } = useCurrentTheme()
+  const _theme = useDynamicTheme(resolvedTheme, spaceThemeCss)
   const { setCurrentTableSchema } = useSpaceAppStore()
   const glideDataGridRef = useRef<DataEditorRef>(null)
   const containerRef = useRef<HTMLDivElement>(null)

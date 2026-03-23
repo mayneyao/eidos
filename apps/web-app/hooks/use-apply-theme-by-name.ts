@@ -12,25 +12,19 @@ import { parseCSSVariables, setThemeVariables } from "@/lib/web/theme"
  */
 export const handleApplyTheme = (rawCss: string, isDarkMode: boolean) => {
   try {
-    // Parse both light and dark mode variables
-    // Note: keep hsl() wrapper when setting CSS variables
     const lightMatch = /:root\s*{([^}]+)}/.exec(rawCss)
     const darkMatch = /\.dark\s*{([^}]+)}/.exec(rawCss)
-    if (!lightMatch && !darkMatch) {
-      throw new Error(
-        "No valid theme definitions found. Please ensure your CSS includes both :root {...} and .dark {...} blocks."
-      )
-    }
+
     if (isDarkMode) {
       if (darkMatch) {
-        const darkVariables = parseCSSVariables(darkMatch[1], false)
-        setThemeVariables(darkVariables)
+        setThemeVariables(parseCSSVariables(darkMatch[1], false))
       }
     } else if (lightMatch) {
-      const lightVariables = parseCSSVariables(lightMatch[1], false)
-      setThemeVariables(lightVariables)
+      setThemeVariables(parseCSSVariables(lightMatch[1], false))
     }
-  } catch (err) {}
+  } catch (err) {
+    console.error("Failed to apply theme variables:", err)
+  }
 }
 
 /**

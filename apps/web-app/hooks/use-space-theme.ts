@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react"
 import { useTranslation } from "react-i18next"
 
 import { useToast } from "@/components/ui/use-toast"
@@ -8,8 +14,12 @@ import { handleApplyTheme } from "@/apps/web-app/hooks/use-apply-theme-by-name"
 import { useTheme } from "@/components/theme-provider"
 import defaultThemeCss from "@/styles/themes/default.css?raw"
 
-// Global flag to ensure theme is only auto-loaded once per app session
-let globalThemeInitialized = false
+// Local set to track initialized spaces in current app session
+const initializedSpaces = new Set<string>()
+
+// Simple listener system to sync multiple instances of useSpaceTheme
+const themeListeners = new Set<() => void>()
+const notifyThemeChange = () => themeListeners.forEach((l) => l())
 
 interface ThemeCache {
   currentTheme: string | null
@@ -31,7 +41,17 @@ export function useSpaceTheme() {
 
   const [themes, setThemes] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [cacheVersion, setCacheVersion] = useState(0) // Force re-compute when cache changes
+  const [cacheVersion, setCacheVersion] = useState(0) // Local trigger
+  const [syncVersion, setSyncVersion] = useState(0) // Global trigger
+
+  // Subscribe to global theme changes
+  useEffect(() => {
+    const l = () => setSyncVersion((v) => v + 1)
+    themeListeners.add(l)
+    return () => {
+      themeListeners.delete(l)
+    }
+  }, [])
 
   const cacheKey = `${CACHE_KEY_PREFIX}${space}`
 
@@ -56,7 +76,8 @@ export function useSpaceTheme() {
     (data: ThemeCache) => {
       try {
         localStorage.setItem(cacheKey, JSON.stringify(data))
-        setCacheVersion((v) => v + 1) // Trigger re-compute
+        setCacheVersion((v) => v + 1) // Trigger re-compute locally
+        notifyThemeChange() // Trigger re-compute in other instances
       } catch (e) {
         console.error("Failed to cache theme:", e)
       }
@@ -68,17 +89,18 @@ export function useSpaceTheme() {
   const clearCache = useCallback(() => {
     localStorage.removeItem(cacheKey)
     setCacheVersion((v) => v + 1)
+    notifyThemeChange()
   }, [cacheKey])
 
   // Current theme from cache (source of truth)
   const currentTheme = useMemo(() => {
     return getCache()?.currentTheme ?? null
-  }, [getCache, cacheVersion]) // Re-compute when cache changes
+  }, [getCache, cacheVersion, syncVersion]) // Re-compute when cache or global sync changes
 
   // Current theme CSS from cache
   const currentThemeCss = useMemo(() => {
     return getCache()?.currentThemeCss ?? null
-  }, [getCache, cacheVersion])
+  }, [getCache, cacheVersion, syncVersion])
 
   // Load theme list
   const loadThemes = useCallback(async () => {
@@ -204,9 +226,9 @@ export function useSpaceTheme() {
     loadThemes()
   }, [sqlite, loadThemes])
 
-  // Global theme auto-apply on first mount
+  // Global theme auto-apply on first mount for each space
   useEffect(() => {
-    if (!sqlite || globalThemeInitialized) return
+    if (!sqlite || !space || initializedSpaces.has(space)) return
 
     const initApply = async () => {
       try {
@@ -228,23 +250,35 @@ export function useSpaceTheme() {
               currentThemeCss: css,
               timestamp: Date.now(),
             })
+          } else {
+            // Theme name exists but CSS not found - reset to default
+            await sqlite.theme.setCurrent(null)
+            handleApplyTheme(defaultThemeCss, isDarkMode)
           }
+        } else {
+          // No custom theme - ensure default is applied
+          handleApplyTheme(defaultThemeCss, isDarkMode)
         }
 
-        globalThemeInitialized = true
+        initializedSpaces.add(space)
       } catch (error) {
         console.error("Failed to initialize theme CSS:", error)
       }
     }
 
     initApply()
-  }, [sqlite, isDarkMode, getCache, setCache])
+  }, [sqlite, space, isDarkMode, getCache, setCache])
 
   // Re-apply theme when dark mode changes
-  useEffect(() => {
-    if (!currentTheme || !sqlite || !globalThemeInitialized) return
+  useLayoutEffect(() => {
+    if (!space || !sqlite || !initializedSpaces.has(space)) return
 
     const reapply = async () => {
+      if (!currentTheme) {
+        handleApplyTheme(defaultThemeCss, isDarkMode)
+        return
+      }
+
       // Try cache first
       const cached = getCache()
       if (cached?.currentTheme === currentTheme && cached.currentThemeCss) {
@@ -262,11 +296,14 @@ export function useSpaceTheme() {
           currentThemeCss: css,
           timestamp: Date.now(),
         })
+      } else {
+        // Current theme not found anymore - fallback to default
+        handleApplyTheme(defaultThemeCss, isDarkMode)
       }
     }
 
     reapply()
-  }, [isDarkMode, currentTheme, sqlite, getCache, setCache, themes])
+  }, [isDarkMode, currentTheme, sqlite, space, getCache, setCache, themes])
 
   return {
     currentTheme,
