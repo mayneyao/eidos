@@ -144,6 +144,30 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
     )
   }
 
+  table(
+    name: string,
+    options: {
+      rows: (...params: unknown[]) => Generator
+      columns: string[]
+      parameters?: string[]
+      safeIntegers?: boolean
+      directOnly?: boolean
+    }
+  ) {
+    this.db.table(name, options as any)
+  }
+
+  selectObjectsSync(
+    sql: string,
+    bind?: any[]
+  ): { [columnName: string]: any }[] {
+    const stmt = this.db.prepare(sql)
+    if (bind != null) {
+      return stmt.all(bind) as { [columnName: string]: any }[]
+    }
+    return stmt.all() as { [columnName: string]: any }[]
+  }
+
   // Helper methods for subclasses
   getGraftInfo() {
     return {

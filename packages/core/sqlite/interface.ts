@@ -133,4 +133,18 @@ export abstract class BaseServerDatabase {
     name: string
     xFunc: (...args: any[]) => any
   }): any
+  abstract table(
+    name: string,
+    options: {
+      rows: (...params: unknown[]) => Generator
+      columns: string[]
+      parameters?: string[]
+      safeIntegers?: boolean
+      directOnly?: boolean
+    }
+  ): any
+  abstract selectObjectsSync(
+    sql: string,
+    bind?: any[]
+  ): { [columnName: string]: any }[]
 }

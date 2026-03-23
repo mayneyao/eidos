@@ -99,6 +99,10 @@
     "syntax": "nullif(X,Y)",
     "description": "<p>The nullif(X, Y) function returns X if X and Y are different, and NULL if they are the same.</p>\n<pre><code>select nullif(6, 6)\n-&gt; NULL\n\nselect nullif(7, 6)\n-&gt; 7\n</code></pre>"
   },
+  "lsdir": {
+    "syntax": "lsdir(path [, recursive])",
+    "description": "<p>Table-valued function that lists files and subdirectories. Matches SQLite fileio extension behavior.</p>\n<pre><code>SELECT * FROM lsdir('~/'); -- Non-recursive by default\nSELECT * FROM lsdir('~/', 1); -- Recursive\n</code></pre>\n<p>Returns columns: <b>name</b>, <b>path</b>, <b>kind</b>, <b>pathname</b>, <b>size</b>, <b>mtime</b>.</p>"
+  },
   "octet_length": {
     "syntax": "octet_length(X)",
     "description": "<p>The octet_length(X) function returns the number of bytes in the encoding of text string X. If X is NULL, it returns NULL. For BLOBs, it returns the same as length(X). For numeric values, it returns the byte count of the text representation.</p>\n<pre><code>select octet_length('វិសាល'); -&gt; 15\nselect octet_length('visal'); -&gt; 5\nselect octet_length(x'ff11ee');  -&gt; 3\n</code></pre>"

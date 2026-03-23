@@ -286,7 +286,17 @@ class DataSpaceManager {
           }
         },
       },
-      createUDF: initUDF,
+      createUDF: (db) => {
+        const mounts = db.selectObjectsSync(
+          "SELECT key, value FROM eidos__kv WHERE key LIKE 'eidos:space:files:mount:%'"
+        )
+        const mountMap: Record<string, string> = {}
+        for (const mount of mounts) {
+          const name = mount.key.split(":").pop()
+          if (name) mountMap[name] = mount.value
+        }
+        return initUDF(db, this._spaceInfo?.path || "", mountMap)
+      },
       postMessage: (data: any, transfer?: any[]) => {
         const port = process.parentPort
         if (port) {
