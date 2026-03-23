@@ -1,0 +1,88 @@
+---
+title: 自定义空间主题
+description: 了解如何在 Eidos 中创建和应用自定义主题。
+sidebar:
+  order: 3
+---
+
+import { Steps } from "@astrojs/starlight/components"
+
+Eidos 允许你通过定义自定义 CSS 变量来完全定制工作空间的外观。主题是按空间管理的，这意味着你可以为不同的项目设置不同的视觉风格。
+
+## 主题结构
+
+一个主题由一个包含 `theme.css` 文件的文件夹组成。它必须同时为亮色和暗色模式定义 CSS 变量。
+
+### 必须的 CSS 区块
+
+你的 `theme.css` 必须遵循以下结构，以便 Eidos 能够正确解析变量：
+
+```css
+:root {
+  /* 亮色模式变量 */
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(224 71.4% 4.1%);
+  --primary: hsl(262 83% 58%);
+  --radius: 0.5rem;
+  /* ... 其他变量 */
+}
+
+.dark {
+  /* 暗色模式变量 */
+  --background: hsl(224 71.4% 4.1%);
+  --foreground: hsl(0 0% 100%);
+  --primary: hsl(263 70% 50%);
+  /* ... 其他变量 */
+}
+```
+
+## 创建自定义主题
+
+<Steps>
+
+1.  **打开空间存储目录**
+
+    在 Eidos 桌面版中，你可以通过系统的文件管理器直接访问空间的根目录。
+
+2.  **创建主题目录**
+
+    进入空间根目录下的 `.eidos` 隐藏文件夹，然后深入 `themes` 目录。创建一个以你的主题命名的文件夹：
+
+    `~/.eidos/themes/my-custom-theme/`
+
+3.  **添加 theme.css 文件**
+
+    在新建的文件夹内创建一个 `theme.css` 文件并将你的 CSS 代码放入其中。你可以参考下方 [常用变量](#常用变量) 来配置基础色调。
+
+4.  **应用你的主题**
+
+    打开 **设置** (`Cmd/Ctrl + ,`) → **空间设置** → **外观**。你的自定义主题应该会出现在列表中（可能在“已安装”或“本地”分类下）。点击 **应用主题** 即可看到效果。
+
+</Steps>
+
+## 常用变量
+
+Eidos 界面渲染的核心变量如下（基于 Shadcn UI 和 Tailwind CSS）：
+
+| 变量名 | 说明 |
+| :--- | :--- |
+| `--background` | 工作空间主背景颜色 |
+| `--foreground` | 主文字颜色 |
+| `--primary` | 主色调（按钮图标、选中的激活状态等） |
+| `--primary-foreground` | 主色调背景上的文字颜色 |
+| `--muted` | 弱化的背景色（侧边栏、代码块背景等） |
+| `--muted-foreground` | 弱化的文字颜色（如辅助说明文字） |
+| `--accent` | 悬停或高亮效果背景色 |
+| `--border` | 组件边框颜色 |
+| `--radius` | 界面元素的圆角半径（如 `0.5rem` 或 `0px`） |
+
+:::tip
+你还可以定义其他的 CSS 变量（如 `--font-sans`, `--font-serif`, `--font-mono`）来定制空间使用的字体。
+:::
+
+## 分享你的主题
+
+如果你创建了一个特别满意的主题并想分享给其他 Eidos 用户，你可以将其贡献到 [官方主题注册表](https://github.com/eidos-space/registry)。
+
+1. 创建一个公开的 GitHub 仓库并上传你的 `theme.css` 与 `screenshot.png` 截图。
+2. 向注册表仓库提交 Pull Request，在 `themes.registry.json` 中添加你的主题信息。
