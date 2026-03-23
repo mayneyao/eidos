@@ -199,6 +199,20 @@ export function IntegratedTerminal({
   // Handle resize
   const handleResizeStart = useCallback(() => {
     setIsResizing(true)
+
+    // Add global overlay to prevent webview from swallowing events
+    const overlay = document.createElement("div")
+    overlay.id = "terminal-drag-overlay"
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 9999;
+      cursor: ns-resize;
+    `
+    document.body.appendChild(overlay)
   }, [])
 
   const handleResizeMove = useCallback(
@@ -214,6 +228,8 @@ export function IntegratedTerminal({
 
   const handleResizeEnd = useCallback(() => {
     setIsResizing(false)
+    const overlay = document.getElementById("terminal-drag-overlay")
+    overlay?.remove()
   }, [])
 
   useEffect(() => {

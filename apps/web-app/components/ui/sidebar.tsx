@@ -136,6 +136,20 @@ function SidebarRail() {
       startXRef.current = e.clientX
       startWidthRef.current = width
 
+      // Add global overlay to prevent webview from swallowing events
+      const overlay = document.createElement("div")
+      overlay.id = "sidebar-drag-overlay"
+      overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 9999;
+        cursor: col-resize;
+      `
+      document.body.appendChild(overlay)
+
       const handleMouseMove = (e: MouseEvent) => {
         const delta = e.clientX - startXRef.current
         const newWidth = startWidthRef.current + delta
@@ -146,6 +160,8 @@ function SidebarRail() {
         setIsResizing(false)
         document.removeEventListener("mousemove", handleMouseMove)
         document.removeEventListener("mouseup", handleMouseUp)
+        const overlay = document.getElementById("sidebar-drag-overlay")
+        overlay?.remove()
       }
 
       document.addEventListener("mousemove", handleMouseMove)
