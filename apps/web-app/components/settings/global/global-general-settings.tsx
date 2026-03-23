@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next"
 import * as z from "zod"
 
 import { URLS } from "@/lib/const"
-import { EIDOS_VERSION, isDesktopMode } from "@/lib/env"
+import { EIDOS_COMMIT, EIDOS_VERSION, isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -175,6 +175,7 @@ export function GlobalGeneralSettings() {
             </div>
             <div className="text-sm font-mono text-muted-foreground">
               v{EIDOS_VERSION}
+              {EIDOS_COMMIT && ` (${EIDOS_COMMIT})`}
             </div>
           </div>
 

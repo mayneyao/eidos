@@ -1,8 +1,19 @@
 import react from "@vitejs/plugin-react"
+import child_process from "child_process"
 import path from "path"
 import type { UserConfig } from "vite"
 import topLevelAwait from "vite-plugin-top-level-await"
 import wasm from "vite-plugin-wasm"
+
+let commitHash: string = ""
+try {
+  commitHash = child_process
+    .execSync("git rev-parse --short HEAD")
+    .toString()
+    .trim()
+} catch (e) {
+  console.error("Failed to get git commit hash", e)
+}
 
 // enable visualizer if you want to see the size of the package
 // import { visualizer } from "rollup-plugin-visualizer"
@@ -95,6 +106,9 @@ export const sharedAlias = [
 
 export const sharedConfig: UserConfig = {
   base: "/",
+  define: {
+    "import.meta.env.VITE_COMMIT_HASH": JSON.stringify(commitHash),
+  },
   plugins: [
     react(),
     wasm(),
