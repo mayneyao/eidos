@@ -29,7 +29,6 @@ interface ThemeCache {
 }
 
 const CACHE_KEY_PREFIX = "eidos:theme:"
-const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
 export function useSpaceTheme() {
   const { t } = useTranslation()
@@ -60,12 +59,7 @@ export function useSpaceTheme() {
     try {
       const cached = localStorage.getItem(cacheKey)
       if (!cached) return null
-      const data = JSON.parse(cached) as ThemeCache
-      if (Date.now() - data.timestamp > CACHE_TTL) {
-        localStorage.removeItem(cacheKey)
-        return null
-      }
-      return data
+      return JSON.parse(cached) as ThemeCache
     } catch {
       return null
     }
@@ -177,6 +171,12 @@ export function useSpaceTheme() {
       try {
         await sqlite.theme.install(name, css)
         await loadThemes()
+
+        // If this is the current theme, re-apply it to update the UI
+        if (currentTheme === name) {
+          await applyTheme(name)
+        }
+
         toast({
           title: t("theme.installed", "Theme installed"),
           description: name,
@@ -274,24 +274,28 @@ export function useSpaceTheme() {
     if (!space || !sqlite || !initializedSpaces.has(space)) return
 
     const reapply = async () => {
-      if (!currentTheme) {
+      // Always get freshest data from cache or state to avoid stale closure issues
+      // in multi-instance scenarios (e.g. ThemeUpdater vs Settings)
+      const cached = getCache()
+      const effectiveTheme = cached?.currentTheme ?? currentTheme
+
+      if (!effectiveTheme) {
         handleApplyTheme(defaultThemeCss, isDarkMode)
         return
       }
 
       // Try cache first
-      const cached = getCache()
-      if (cached?.currentTheme === currentTheme && cached.currentThemeCss) {
+      if (cached?.currentTheme === effectiveTheme && cached.currentThemeCss) {
         handleApplyTheme(cached.currentThemeCss, isDarkMode)
         return
       }
 
       // Fallback to DB
-      const css = await sqlite.theme.get(currentTheme)
+      const css = await sqlite.theme.get(effectiveTheme)
       if (css) {
         handleApplyTheme(css, isDarkMode)
         setCache({
-          currentTheme,
+          currentTheme: effectiveTheme,
           themes,
           currentThemeCss: css,
           timestamp: Date.now(),
