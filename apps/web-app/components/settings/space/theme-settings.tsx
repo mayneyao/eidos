@@ -489,7 +489,7 @@ export function ThemeSettings() {
                   )}
                 </div>
                 <p className="text-[11px] text-muted-foreground truncate uppercase font-medium tracking-tight mt-1">
-                  Eidos Official
+                  Eidos
                 </p>
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-primary transition-colors" />

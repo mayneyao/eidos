@@ -1,6 +1,7 @@
 import { getCSSVariable, getThemeVariables } from "@/lib/web/theme"
+import defaultThemeCss from "@/styles/themes/default.css?raw"
 import type { Theme } from "@glideapps/glide-data-grid"
-import { useMemo } from "react"
+import { useLayoutEffect, useMemo, useState } from "react"
 
 const commonTheme: Partial<Theme> = {
   cellHorizontalPadding: 8,
@@ -16,16 +17,27 @@ const commonTheme: Partial<Theme> = {
 
 export const useDynamicTheme = (theme: string, themeCss?: string | null) => {
   const isDarkMode = theme === "dark"
+  const [lastResolvedTheme, setLastResolvedTheme] = useState(theme)
+
+  // Use layout effect to trigger a re-render after the DOM has updated (class changes)
+  // This ensures that getCSSVariable calls inside the renderer will get the correct values
+  useLayoutEffect(() => {
+    setLastResolvedTheme(theme)
+  }, [theme])
 
   const themeVars = useMemo(() => {
+    // If we have custom theme CSS, use it
     if (themeCss) {
       return getThemeVariables(themeCss, isDarkMode)
     }
-    return null
+    // Otherwise, parse the default theme CSS to get variables for the current mode immediately
+    return getThemeVariables(defaultThemeCss, isDarkMode)
   }, [themeCss, isDarkMode])
 
   return useMemo(() => {
     const getThemeColor = (key: string): string => {
+      // 1. Try parsed theme variables (instant)
+      // 2. Fallback to reading from CSS variables in DOM (accurate after DOM updates)
       const value = (themeVars && themeVars[key]) || getCSSVariable(key)
       if (!value) return ""
       // If value already has hsl(), use it directly
@@ -63,5 +75,5 @@ export const useDynamicTheme = (theme: string, themeCss?: string | null) => {
       linkColor: getThemeColor("primary"),
       name: theme,
     }
-  }, [theme, themeVars])
+  }, [theme, themeVars, lastResolvedTheme])
 }
