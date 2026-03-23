@@ -48,70 +48,115 @@ export function AutoLoadSavePlugin(props: AutoLoadSavePluginProps) {
   const lastSavedContentRef = useRef<string>("")
 
   const loadInitialContent = useCallback(async () => {
+    const currentDocId = docId
     lock.current = true
-    const initContent = await getDoc(docId)
+    try {
+      const initContent = await getDoc(docId)
 
-    let state = JSON.stringify(DefaultState)
-    if (initContent) {
-      try {
-        state = initContent
-        lastSavedContentRef.current = initContent
-      } catch (error) {
-        console.error("Error parsing content:", error)
+      // If we've already switched to another document, ignore this result
+      if (currentDocId !== docId) return
+
+      let state = JSON.stringify(DefaultState)
+      if (initContent) {
+        try {
+          state = initContent
+        } catch (error) {
+          console.error("Error parsing content:", error)
+        }
+      }
+
+      editor.update(() => {
+        // Double check docId inside the update lock
+        if (currentDocId !== docId) return
+
+        // Avoid calling setEditorState if content is already identical to minimize disruption
+        // and preserve cursor/focus.
+        const currentContent = JSON.stringify(editor.getEditorState().toJSON())
+        if (currentContent === state && lastSavedContentRef.current === state) {
+          lock.current = false
+          return
+        }
+
+        const parsedState = editor.parseEditorState(state)
+        editor.setEditorState(parsedState)
+        lastSavedContentRef.current = state
+        lock.current = false
+      })
+    } catch (error) {
+      console.error("Error loading content:", error)
+      if (currentDocId === docId) {
+        lock.current = false
       }
     }
+  }, [editor, docId, getDoc])
 
-    editor.update(() => {
-      const parsedState = editor.parseEditorState(state)
-      editor.setEditorState(parsedState)
-      editor.setEditable(Boolean(isEditable))
-      lock.current = false
-    })
-  }, [editor, docId, getDoc, isEditable])
+  const { run: debounceSave } = useDebounceFn(updateDoc, { wait: 500 })
 
   useEffect(() => {
+    // CRITICAL: Synchronously lock and cancel pending saves when switching docs.
+    // This prevents a pending save from doc A being applied to doc B if the
+    // transition happens during the debounce window.
+    lock.current = true
+    debounceSave.cancel()
+    lastSavedContentRef.current = ""
+
     loadInitialContent()
-  }, [loadInitialContent])
+  }, [docId, loadInitialContent, debounceSave])
+
+  useEffect(() => {
+    editor.setEditable(Boolean(isEditable))
+  }, [editor, isEditable])
 
   const handleSave = useCallback(async () => {
     if (!editor.isEditable()) return
+    if (disableManuallySave) return
 
-    editor.update(async () => {
-      const json = editor.getEditorState().toJSON()
-      const content = JSON.stringify(json)
-      const markdown = $convertToMarkdownString(allTransformers)
-      await updateDoc(docId, content, markdown)
-      // Update last saved content after successful save
-      lastSavedContentRef.current = content
+    // Cancel any pending debounced save to avoid racing
+    debounceSave.cancel()
+
+    const editorState = editor.getEditorState()
+    const content = JSON.stringify(editorState.toJSON())
+
+    // Skip if nothing changed since last confirmed save
+    if (content === lastSavedContentRef.current) return
+
+    let markdown = ""
+    editorState.read(() => {
+      markdown = $convertToMarkdownString(allTransformers)
     })
-  }, [docId, editor, updateDoc])
+
+    await updateDoc(docId, content, markdown)
+    // Note: We don't update lastSavedContentRef.current here.
+    // The BroadcastChannel listener will update it once the DB write is confirmed.
+  }, [docId, editor, updateDoc, debounceSave, disableManuallySave])
 
   useKeyPress(["ctrl.s", "meta.s"], (e) => {
     e.preventDefault()
-    if (disableManuallySave) return
     handleSave()
   })
-
-  const { run: debounceSave } = useDebounceFn(updateDoc, { wait: 500 })
 
   useEffect(() => {
     const unRegister = editor.registerUpdateListener(
       ({ editorState, prevEditorState }) => {
         if (lock.current) return
 
-        editor.update(() => {
-          const json = editorState.toJSON()
-          const oldJson = prevEditorState.toJSON()
-          const content = JSON.stringify(json)
-          const oldContent = JSON.stringify(oldJson)
+        const json = editorState.toJSON()
+        const oldJson = prevEditorState.toJSON()
+        const content = JSON.stringify(json)
+        const oldContent = JSON.stringify(oldJson)
 
-          if (content === oldContent) return
+        if (content === oldContent) return
 
-          const markdown = $convertToMarkdownString(allTransformers)
-          debounceSave(docId, content, markdown)
-          // Update last saved content
-          lastSavedContentRef.current = content
+        let markdown = ""
+        editorState.read(() => {
+          markdown = $convertToMarkdownString(allTransformers)
         })
+
+        debounceSave(docId, content, markdown)
+        // CRITICAL: Removed pre-emptive update of lastSavedContentRef.current here.
+        // Updating it here causes a race condition where older in-flight changes
+        // can trigger a "refresh" because the current state matches the ref
+        // but the DB update is an older version.
       }
     )
     return () => unRegister()
@@ -147,6 +192,15 @@ export function AutoLoadSavePlugin(props: AutoLoadSavePluginProps) {
       const latestContent = await getDoc(docId)
       if (!latestContent) return
 
+      // If database matches current editor state, no need to refresh,
+      // just update our reference to match.
+      const currentContent = JSON.stringify(editor.getEditorState().toJSON())
+      if (latestContent === currentContent) {
+        console.log(`[AutoLoadSavePlugin] DB matches editor, skipping refresh`)
+        lastSavedContentRef.current = latestContent
+        return
+      }
+
       // Compare with last saved content (not current editor state)
       // This avoids triggering refresh for our own edits
       if (latestContent === lastSavedContentRef.current) {
@@ -160,7 +214,7 @@ export function AutoLoadSavePlugin(props: AutoLoadSavePluginProps) {
 
       // Content is different from what we last saved - external update
       // Check if user has typed new content since last save
-      const currentContent = JSON.stringify(editor.getEditorState().toJSON())
+      // currentContent already defined above
       const hasUnsavedChanges = currentContent !== lastSavedContentRef.current
 
       if (hasUnsavedChanges) {
