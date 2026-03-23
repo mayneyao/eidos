@@ -19,6 +19,7 @@ import {
   type SidebarBlockContext,
   type TableViewContext,
 } from "@eidos.space/react"
+import { useTheme } from "../theme-provider"
 
 interface BuiltInExtNodeRendererProps {
   extensionSlug: string
@@ -74,6 +75,7 @@ export function BuiltInExtNodeRenderer({
 }: BuiltInExtNodeRendererProps) {
   const ext = getBuiltInExtension(extensionSlug)
 
+  const { resolvedTheme } = useTheme()
   if (!ext) {
     console.warn(`Built-in extension not found: ${extensionSlug}`)
     return fallback || null
@@ -84,6 +86,7 @@ export function BuiltInExtNodeRenderer({
     space,
     locale,
     nodeId,
+    theme: resolvedTheme,
   }
 
   const Component = ext.component
@@ -109,6 +112,7 @@ export function BuiltInTableViewRenderer({
   fallback,
 }: BuiltInTableViewRendererProps) {
   const ext = getBuiltInExtension(extensionSlug)
+  const { resolvedTheme } = useTheme()
 
   if (!ext) {
     console.warn(`Built-in extension not found: ${extensionSlug}`)
@@ -121,6 +125,7 @@ export function BuiltInTableViewRenderer({
     locale,
     tableId,
     viewId,
+    theme: resolvedTheme,
   }
 
   const Component = ext.component
@@ -146,6 +151,7 @@ export function BuiltInFileHandlerRenderer({
 }: BuiltInFileHandlerRendererProps) {
   const ext = getBuiltInExtension(extensionSlug)
 
+  const { resolvedTheme } = useTheme()
   if (!ext) {
     console.warn(`Built-in extension not found: ${extensionSlug}`)
     return fallback || null
@@ -156,6 +162,7 @@ export function BuiltInFileHandlerRenderer({
     space,
     locale,
     filePath,
+    theme: resolvedTheme,
   }
 
   const Component = ext.component
@@ -181,6 +188,7 @@ export function BuiltInFolderHandlerRenderer({
 }: BuiltInFolderHandlerRendererProps) {
   const ext = getBuiltInExtension(extensionSlug)
 
+  const { resolvedTheme } = useTheme()
   if (!ext) {
     console.warn(`Built-in extension not found: ${extensionSlug}`)
     return fallback || null
@@ -195,6 +203,7 @@ export function BuiltInFolderHandlerRenderer({
     locale,
     folderPath,
     folderName,
+    theme: resolvedTheme,
   }
 
   const Component = ext.component
@@ -221,6 +230,7 @@ export function BuiltInSidebarBlockRenderer({
 }: BuiltInSidebarBlockRendererProps) {
   const ext = getBuiltInExtension(extensionSlug)
 
+  const { resolvedTheme } = useTheme()
   if (!ext) {
     console.warn(`Built-in extension not found: ${extensionSlug}`)
     return fallback || null
@@ -232,6 +242,7 @@ export function BuiltInSidebarBlockRenderer({
     currentDay,
     locale,
     syncEnabled,
+    theme: resolvedTheme,
   }
 
   const Component = ext.component

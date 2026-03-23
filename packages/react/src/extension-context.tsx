@@ -13,6 +13,7 @@ export interface BaseExtensionContext {
   space: string
   /** Current locale for i18n, e.g. 'en', 'zh-CN' */
   locale: string
+  theme: string
 }
 
 /**
@@ -113,6 +114,12 @@ function parseContextFromLocation(): ExtensionContextType | null {
   const hostMatch = hostname.match(/\.block\.(.+)\.eidos\.localhost/)
   const space = hostMatch?.[1] || ""
 
+  // Extract theme from document class
+
+  const theme = document.documentElement.classList.contains("dark")
+    ? "dark"
+    : "light"
+
   // FileHandler: uses hash for file path
   if (hash) {
     return {
@@ -120,6 +127,7 @@ function parseContextFromLocation(): ExtensionContextType | null {
       space,
       locale: "en", // Default locale for third-party extensions
       filePath: decodeURIComponent(hash.slice(1)), // Remove leading #
+      theme: theme,
     }
   }
 
@@ -133,6 +141,7 @@ function parseContextFromLocation(): ExtensionContextType | null {
       locale: "en", // Default locale for third-party extensions
       tableId: parts[0],
       viewId: parts[1],
+      theme: theme,
     }
   }
 
@@ -143,6 +152,7 @@ function parseContextFromLocation(): ExtensionContextType | null {
       space,
       locale: "en", // Default locale for third-party extensions
       nodeId: parts[0],
+      theme: theme,
     }
   }
 
