@@ -159,7 +159,7 @@ const SqlStatementStateField = StateField.define({
 
 const SqlStatementTheme = EditorView.baseTheme({
   ".cm-highlight-statement": {
-    borderLeft: "3px solid #ff9ff3 !important",
+    borderLeft: "3px solid var(--primary) !important",
   },
 })
 

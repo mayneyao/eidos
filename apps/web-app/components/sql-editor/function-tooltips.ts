@@ -72,24 +72,25 @@ const functionTooltipField = (dict: TooltipDirectionary) => {
 
 const functionTooltipBaseTheme = EditorView.baseTheme({
   ".cm-tooltip.cm-tooltip-cursor": {
-    backgroundColor: "#66b",
-    color: "white",
-    border: "none",
+    backgroundColor: "var(--popover)",
+    color: "var(--popover-foreground)",
+    border: "1px solid var(--border)",
     padding: "2px 7px",
     borderRadius: "4px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
     "& .cm-tooltip-arrow:before": {
-      borderTopColor: "#66b",
+      borderTopColor: "var(--border)",
     },
     "& .cm-tooltip-arrow:after": {
-      borderTopColor: "transparent",
+      borderTopColor: "var(--popover)",
     },
   },
   ".code-tooltip a": {
-    color: "white",
+    color: "var(--primary)",
     textDecoration: "underline",
   },
   ".code-tooltip a:hover": {
-    color: "white",
+    color: "var(--primary)",
     textDecoration: "none",
   },
 })
