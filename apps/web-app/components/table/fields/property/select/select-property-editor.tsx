@@ -141,7 +141,7 @@ export const SelectPropertyEditor = (props: IFieldPropertyEditorProps) => {
   }
 
   return (
-    <div className="space-y-2" ref={ref}>
+    <div className="flex flex-col flex-1 min-h-0 gap-2" ref={ref}>
       <Separator />
 
       {/* Header */}
@@ -188,16 +188,12 @@ export const SelectPropertyEditor = (props: IFieldPropertyEditorProps) => {
         </div>
       )}
 
-      {/* Options List */}
       <div
         className={cn(
-          "w-full rounded-md border bg-muted/30",
-          localOptions.length > 6 && "max-h-[180px] overflow-hidden"
+          "w-full rounded-md border bg-muted/30 flex-1 min-h-0 flex flex-col overflow-hidden"
         )}
       >
-        <ScrollArea
-          className={localOptions.length > 6 ? "h-[180px]" : undefined}
-        >
+        <ScrollArea className="flex-1 w-full">
           <div className="p-1.5">
             {localOptions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-4 text-center">
