@@ -4,6 +4,9 @@
 /* Import Tailwind plugins */
 @plugin "@tailwindcss/typography";
 
+/* Explicitly define dark variant for .dark class support in v4 */
+@variant dark (&:where(.dark, .dark *));
+
 /* Import base theme variables */
 @import "./themes/default.css";
 
@@ -21,9 +24,6 @@
 }
 
 @theme inline {
-  /* Typography - prose max width */
-  --tw-prose-max-width: 85ch;
-
   /* Colors - reference CSS variables from imported theme */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -199,6 +199,14 @@ body {
   }
 }
 
+@theme {
+  --max-width-prose: 85ch;
+}
+
+.prose {
+  max-width: var(--max-width-prose);
+}
+
 /* Prose custom styles - hr override */
 .prose hr {
   border: none;
@@ -210,7 +218,7 @@ body {
 }
 
 .prose hr::before {
-  content: '';
+  content: "";
   flex-grow: 1;
   height: 1px;
   background: var(--tw-prose-hr);
