@@ -4,24 +4,6 @@
  */
 
 import { parseCSSVariables, setThemeVariables } from "@/lib/web/theme"
-import retroArcade from "@/styles/themes/retro-arcade.css?raw"
-import defaultTheme from "@/styles/themes/default.css?raw"
-import flexokiTheme from "@/styles/themes/flexoki.css?raw"
-
-export const presetThemes = [
-  {
-    name: "Default",
-    css: defaultTheme,
-  },
-  {
-    name: "Flexoki",
-    css: flexokiTheme,
-  },
-  {
-    name: "Retro Arcade",
-    css: retroArcade,
-  },
-]
 
 /**
  * Apply theme CSS to DOM

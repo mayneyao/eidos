@@ -75,6 +75,11 @@ export function useSpaceTheme() {
     return getCache()?.currentTheme ?? null
   }, [getCache, cacheVersion]) // Re-compute when cache changes
 
+  // Current theme CSS from cache
+  const currentThemeCss = useMemo(() => {
+    return getCache()?.currentThemeCss ?? null
+  }, [getCache, cacheVersion])
+
   // Load theme list
   const loadThemes = useCallback(async () => {
     if (!sqlite) return
@@ -265,6 +270,7 @@ export function useSpaceTheme() {
 
   return {
     currentTheme,
+    currentThemeCss,
     themes,
     isLoading,
     applyTheme,

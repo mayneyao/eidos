@@ -17,7 +17,6 @@ import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useExtensionByIdOrSlug } from "@/hooks/use-extension"
 import { useSqlite } from "@/hooks/use-sqlite"
 import buttonRaw from "@/components/ui/button?raw"
-import { twConfig } from "@/components/block-renderer/tailwind-config"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { getDynamicPrompt } from "../helper"
@@ -327,7 +326,7 @@ export const SimpleCodeEditorWrapper = forwardRef(
           {/* Tailwind CSS Autocomplete Plugin with custom configuration */}
           <TailwindCSSPlugin
             enabled={true}
-            tailwindConfig={twConfig as any} // Type assertion for Tailwind config compatibility
+            // tailwindConfig={twConfig as any} // Type assertion for Tailwind config compatibility
             customClasses={[
               // Add any additional custom classes specific to your project
               "custom-gradient",

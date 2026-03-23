@@ -32,7 +32,6 @@ export const getIndexHtml = (props: IndexHtmlProps): string => {
     cssLoaderScript,
     sdkInjectScriptContent,
     envString,
-
     serverSideProps,
     rawThemeCss,
     extensionContext,

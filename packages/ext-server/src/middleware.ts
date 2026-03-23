@@ -130,26 +130,23 @@ async function renderExtension(
       extension.slug
     )
 
-  // Get theme
-  const dynamicThemes = config.getCustomThemes?.() || []
-  const allThemes = [
-    ...presetThemes,
-    ...(config.customThemes || []),
-    ...dynamicThemes,
-  ]
-
-  // Get theme CSS - prefer current theme name from config
+  // Get theme CSS from DataSpace
   let themeRawCss = ""
-  const currentThemeName = config.getCurrentThemeName?.()
-  if (currentThemeName) {
-    const theme = allThemes.find((t) => t.name === currentThemeName)
-    themeRawCss = theme?.css || allThemes[0]?.css || ""
-  } else {
-    themeRawCss = allThemes[0]?.css || ""
+  if (provider.dataSpace?.theme) {
+    const themeManager = provider.dataSpace.theme
+    const currentThemeName = await themeManager.getCurrent()
+    if (currentThemeName) {
+      themeRawCss = (await themeManager.get(currentThemeName)) || ""
+    }
   }
 
-  let themeMode: string = config.themeMode || "light"
-  if (!config.themeMode && provider.getThemeMode) {
+  // Fallback to default preset theme if not found or no theme manager
+  if (!themeRawCss) {
+    themeRawCss = presetThemes[0].css
+  }
+
+  let themeMode: string = "light"
+  if (provider.getThemeMode) {
     const providerTheme = await provider.getThemeMode()
     if (providerTheme === "light" || providerTheme === "dark") {
       themeMode = providerTheme
