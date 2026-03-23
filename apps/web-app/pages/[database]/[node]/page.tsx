@@ -151,7 +151,7 @@ export const NodeComponent = ({
           docId={node.id}
           title={node.name}
           showTitle
-          className={node.is_full_width ? "max-w-full md:!px-12" : ""}
+          className={node.is_full_width ? "!max-w-none" : ""}
           onTitleChange={(title) => {
             updateNodeName(node.id, title)
           }}
@@ -162,7 +162,7 @@ export const NodeComponent = ({
           propertyComponent={
             <div
               className={cn("w-full mb-2", {
-                "max-w-full md:!px-12": node.is_full_width,
+                "!max-w-none": node.is_full_width,
               })}
             >
               {node?.type === "doc" && !node.hide_properties && (

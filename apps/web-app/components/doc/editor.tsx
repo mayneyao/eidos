@@ -203,9 +203,7 @@ export function Editor(props: EditorProps) {
         canChangeTitle,
       })
     ) : (
-      <div
-        className={cn("mb-4 flex w-full items-baseline gap-2", props.className)}
-      >
+      <div className="mb-4 flex w-full items-baseline gap-2">
         {props.beforeTitle && <div>{props.beforeTitle}</div>}
         <input
           id="doc-title"
@@ -256,7 +254,7 @@ export function Editor(props: EditorProps) {
             </div>
           </div>
         ) : (
-          <InnerEditor {...props} />
+          <InnerEditor {...props} className={undefined} />
         )}
       </div>
     </div>
