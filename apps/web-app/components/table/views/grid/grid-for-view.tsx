@@ -37,6 +37,7 @@ import { useHighlightRow } from "./hooks/use-highlight-row"
 import { useHover } from "./hooks/use-hover"
 import "./styles.css"
 import { useDynamicTheme } from "./theme"
+import { useCurrentTheme } from "@/hooks/use-current-theme"
 
 interface IGridProps {
   tableName: string
@@ -51,7 +52,8 @@ interface IGridProps {
 export function GridViewForView(props: IGridProps) {
   const { tableName, databaseName } = props
   const { resolvedTheme } = useTheme()
-  const _theme = useDynamicTheme(resolvedTheme)
+  const { css: spaceThemeCss } = useCurrentTheme()
+  const _theme = useDynamicTheme(resolvedTheme, spaceThemeCss)
   const { setCurrentTableSchema } = useSpaceAppStore()
   const glideDataGridRef = useRef<DataEditorRef>(null)
   const containerRef = useRef<HTMLDivElement>(null)
