@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import {
   AlertTriangle,
   CheckCircle2,
+  Copy,
   Database,
   FolderOpen,
   HardDrive,
@@ -282,6 +283,35 @@ export function GeneralSettings() {
               {t("space.settings.spaceDescription")}
             </p>
             <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="spaceId">{t("space.settings.spaceId")}</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="spaceId"
+                    value={spaceInfo?.id || space || ""}
+                    readOnly
+                    className="flex-1 bg-muted/50 cursor-default border-dashed"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-foreground border border-input"
+                    onClick={() => {
+                      const id = spaceInfo?.id || space || ""
+                      navigator.clipboard.writeText(id)
+                      toast({
+                        title: t("common.copied"),
+                      })
+                    }}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t("space.settings.spaceIdDescription")}
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="spaceName">
                   {t("space.settings.spaceName")}
