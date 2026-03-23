@@ -69,7 +69,7 @@ export function ChartPreview({
                   setDataError("Invalid JSON format")
                 }
               }}
-              className="font-mono text-sm h-full outline-none"
+              className="font-mono text-sm h-full outline-hidden"
               placeholder="Enter JSON data array"
             />
             {dataError && (

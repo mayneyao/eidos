@@ -62,7 +62,7 @@ export function DatabaseLayoutBase({
         ></iframe>
       )}
       <ScriptContainer />
-      <div className="flex h-screen w-full">
+      <div className="flex h-screen w-full overflow-hidden">
         <SideBar />
         <div className="flex h-screen flex-col min-w-0 grow">
           <Nav />

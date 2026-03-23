@@ -55,7 +55,7 @@ export const UrlEditor = ({
             onFinishEditing?.()
           }
         }}
-        className="w-full h-full px-2 text-sm border-none rounded focus:outline-none bg-muted focus:bg-accent"
+        className="w-full h-full px-2 text-sm border-none rounded focus:outline-hidden bg-muted focus:bg-accent"
         placeholder="Enter URL..."
         autoFocus
       />

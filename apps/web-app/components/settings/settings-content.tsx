@@ -16,6 +16,7 @@ import { MountSettings } from "./space/mount-settings"
 
 import { NewTabSettings } from "./space/new-tab-settings"
 import { RelaySettings } from "./space/relay-settings"
+import { ThemeSettings } from "./space/theme-settings"
 
 type SettingsSection =
   | "space-general"
@@ -24,6 +25,7 @@ type SettingsSection =
   | "space-extensions"
   | "space-newtab"
   | "space-relay"
+  | "space-theme"
   | "general"
   | "account"
   | "ai"
@@ -61,6 +63,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
 
       case "space-relay":
         return t("space.settings.relay")
+      case "space-theme":
+        return t("space.settings.theme", "Theme")
       case "general":
         return t("settings.general")
       case "account":
@@ -96,6 +100,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
 
       case "space-relay":
         return <RelaySettings />
+      case "space-theme":
+        return <ThemeSettings />
       case "general":
         return <GlobalGeneralSettings />
       case "account":
@@ -171,6 +177,20 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
                 target="_blank"
                 rel="noopener noreferrer"
                 title={t("space.settings.mounts.docsLink")}
+                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <BookOpenText className="h-5 w-5" />
+              </a>
+            )}
+            {activeSection === "space-theme" && (
+              <a
+                href={getDocsUrl("/how-to/customize-theme/")}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t(
+                  "space.settings.theme.docsLink",
+                  "Theme documentation"
+                )}
                 className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
               >
                 <BookOpenText className="h-5 w-5" />

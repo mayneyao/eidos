@@ -104,7 +104,7 @@ export function InnerEditor(props: EditorProps) {
             <RichTextPlugin
               contentEditable={
                 <div className="editor relative" ref={onRef}>
-                  <ContentEditable className="editor-input outline-none dark:prose-invert" />
+                  <ContentEditable className="editor-input outline-hidden dark:prose-invert" />
                   {!props.disableSafeBottomPaddingPlugin && (
                     <SafeBottomPaddingPlugin />
                   )}
@@ -210,7 +210,7 @@ export function Editor(props: EditorProps) {
         <input
           id="doc-title"
           placeholder={t("doc.untitled")}
-          className="h-[50px] max-w-xs grow truncate bg-transparent text-4xl font-bold text-primary outline-none sm:max-w-full"
+          className="h-[50px] max-w-xs grow truncate bg-transparent text-4xl font-bold text-primary outline-hidden sm:max-w-full"
           value={title}
           title={title}
           style={props.titleStyle}

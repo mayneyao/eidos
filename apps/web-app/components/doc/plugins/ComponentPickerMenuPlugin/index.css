@@ -1,10 +1,11 @@
-#typeahead-menu {
-  z-index: 999;
-  position: fixed !important;
-}
-
 .typeahead-popover {
-  @apply rounded-md bg-popover text-popover-foreground p-0 shadow-lg border overflow-hidden;
+  border-radius: var(--radius-md);
+  background-color: var(--popover);
+  color: var(--popover-foreground);
+  padding: 0;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  border: 1px solid var(--border);
+  overflow: hidden;
 }
 
 .typeahead-popover ul {
@@ -33,13 +34,13 @@
 }
 
 .typeahead-popover ul li.selected {
-  background: hsl(var(--secondary));
+  background: var(--secondary);
 }
 
 .typeahead-popover li {
   margin: 0 8px 0 8px;
   padding: 8px;
-  color: hsl(var(--popover-foreground));
+  color: var(--popover-foreground);
   cursor: pointer;
   line-height: 16px;
   font-size: 15px;
@@ -47,9 +48,9 @@
   align-content: center;
   flex-direction: row;
   flex-shrink: 0;
-  background-color: hsl(var(--background));
+  background-color: var(--background);
   border: 0;
-  @apply gap-2;
+  gap: 0.5rem;
 }
 
 .typeahead-popover li.active {
@@ -60,7 +61,7 @@
 }
 
 .typeahead-popover li:hover {
-  background-color: hsl(var(--secondary));
+  background-color: var(--secondary);
 }
 
 .typeahead-popover li .text {

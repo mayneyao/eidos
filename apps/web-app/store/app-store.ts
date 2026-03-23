@@ -1,6 +1,5 @@
 // need persist, store user config in localstorage, make app response faster
 
-import { useSidebar } from "@/components/ui/sidebar"
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
@@ -46,21 +45,5 @@ export const useAppStoreBase = create<AppState>()(
   )
 )
 
-export const useAppStore = () => {
-  const store = useAppStoreBase()
-  const { open, setOpen, openMobile, setOpenMobile, isMobile } = useSidebar()
-
-  return {
-    ...store,
-    // In mobile mode, use openMobile state; in desktop mode, use open state
-    isSidebarOpen: isMobile ? openMobile : open,
-    setSidebarOpen: (isOpen: boolean) => {
-      store.setSidebarOpen(isOpen)
-      if (isMobile) {
-        setOpenMobile(isOpen)
-      } else {
-        setOpen(isOpen)
-      }
-    },
-  }
-}
+// Re-export for backward compatibility
+export { useAppStore } from "@/apps/web-app/hooks/use-app-store"

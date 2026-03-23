@@ -68,7 +68,7 @@ export function AIModelSelect({
         value={value}
         onChange={handleChange}
         className={cn(
-          "w-full appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-md",
+          "w-full appearance-none cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-md",
           sizeClasses[size || "default"],
           noBorder
             ? "bg-transparent border-0 hover:bg-accent/50"

@@ -35,7 +35,7 @@ const SqlTable = ({
 }) => {
   const keys = Object.keys(data[0])
   return (
-    <div className="overflow-x-auto rounded-sm border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+    <div className="overflow-x-auto rounded-xs border border-gray-200 bg-white shadow-xs dark:border-gray-800 dark:bg-gray-950">
       <div className="border-b border-gray-200 dark:border-gray-800">
         <Button
           onClick={handleClick}
@@ -83,7 +83,7 @@ const List = ({
   handleClick: () => void
 }) => {
   return (
-    <div className="rounded-sm border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+    <div className="rounded-xs border border-gray-200 bg-white shadow-xs dark:border-gray-800 dark:bg-gray-950">
       <div className="border-b border-gray-200 dark:border-gray-800">
         <Button
           onClick={handleClick}
@@ -119,7 +119,7 @@ const Card = ({
   handleClick: () => void
 }) => {
   return (
-    <div className="rounded-sm border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+    <div className="rounded-xs border border-gray-200 bg-white shadow-xs dark:border-gray-800 dark:bg-gray-950">
       <div className="border-b border-gray-200 dark:border-gray-800">
         <Button
           onClick={handleClick}
@@ -185,7 +185,7 @@ export function SQLComponent({ sql, nodeKey }: SQLProps) {
       {modal}
       {renderType === QueryResultType.TEXT && (
         <span
-          className="inline-block cursor-pointer rounded-sm px-1 text-purple-500 hover:bg-secondary"
+          className="inline-block cursor-pointer rounded-xs px-1 text-purple-500 hover:bg-secondary"
           onClick={handleClick}
         >
           {res[0]?.[Object.keys(res[0])[0]]}

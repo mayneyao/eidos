@@ -1,11 +1,12 @@
 import { useEffect } from "react"
 import { useTheme } from "@/components/theme-provider"
 
-import { useApplyThemeByName } from "@/apps/web-app/hooks/use-apply-theme-by-name"
+import { useSpaceTheme } from "@/apps/web-app/hooks/use-space-theme"
 
 export const ThemeUpdater = () => {
   const { resolvedTheme } = useTheme()
-  useApplyThemeByName()
+  // Initialize space-based theme (auto-loads and applies current theme)
+  useSpaceTheme()
 
   useEffect(() => {
     if (resolvedTheme === "dark") {

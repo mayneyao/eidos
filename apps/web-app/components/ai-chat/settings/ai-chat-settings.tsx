@@ -26,7 +26,7 @@ export function AIChatSettings() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <div className=" cursor-pointer rounded-sm p-1 hover:bg-secondary">
+        <div className=" cursor-pointer rounded-xs p-1 hover:bg-secondary">
           <SettingsIcon className="h-4 w-4"></SettingsIcon>
         </div>
       </DialogTrigger>

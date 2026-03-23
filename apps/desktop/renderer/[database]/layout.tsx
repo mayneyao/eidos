@@ -189,85 +189,80 @@ export function DesktopSpaceLayout() {
     <>
       {/* <DocExtBlockLoader /> */}
       <KeyboardShortCuts />
-      <div className={cn("relative flex w-full h-screen overflow-hidden")}>
+      <div className={cn("relative flex w-full overflow-hidden")}>
         <ScriptContainer />
         <SideBar />
-        <main className="flex min-w-0 grow flex-col relative">
+        <main className="flex min-w-0 grow">
           {/* Main Content Area - grows to fill available space */}
-          <div className="flex-1 min-h-0 flex">
-            <ResizablePanelGroup
-              direction="horizontal"
-              className="w-full h-full"
+          <ResizablePanelGroup
+            direction="horizontal"
+            className="h-screen w-full"
+          >
+            <ResizablePanel
+              defaultSize={100 - (isRightPanelOpen ? rightPanelSize! : 0)}
+              minSize={50}
             >
-              <ResizablePanel
-                defaultSize={100 - (isRightPanelOpen ? rightPanelSize! : 0)}
-                minSize={50}
-              >
-                <div className="h-full flex flex-col">
-                  <Nav />
-                  <TabManager>
-                    <TabContentLayout />
-                  </TabManager>
-                  {/* Terminal Panel - at bottom of main content area */}
-                  <IntegratedTerminal
-                    isVisible={isTerminalVisible}
-                    onToggleVisibility={toggleTerminal}
-                    spacePath={spacePath}
-                  />
-                </div>
-              </ResizablePanel>
-              {isRightPanelOpen && (
-                <>
-                  <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
-                  <ResizablePanel
-                    defaultSize={rightPanelSize}
-                    minSize={20}
-                    maxSize={50}
-                    className="min-w-[450px]"
-                    onResize={(size) => setRightPanelSize(size)}
+              <div className="h-full flex flex-col">
+                <Nav />
+                <TabManager>
+                  <TabContentLayout />
+                </TabManager>
+                {/* Terminal Panel - at bottom of main content area */}
+                <IntegratedTerminal
+                  isVisible={isTerminalVisible}
+                  onToggleVisibility={toggleTerminal}
+                  spacePath={spacePath}
+                />
+              </div>
+            </ResizablePanel>
+            {isRightPanelOpen && (
+              <>
+                <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
+                <ResizablePanel
+                  defaultSize={rightPanelSize}
+                  minSize={20}
+                  maxSize={50}
+                  className="min-w-[450px]"
+                  onResize={(size) => setRightPanelSize(size)}
+                >
+                  <div
+                    className={cn(
+                      "px-1 flex justify-end h-[38px] items-center shrink-0 border-b border-border/60 bg-muted/60",
+                      {
+                        "pr-[116px]": isWindowsDesktop && isRightPanelOpen,
+                      }
+                    )}
                   >
-                    <div
-                      className={cn(
-                        "px-1 flex justify-end h-[38px] items-center shrink-0 border-b border-border/60 bg-muted/60",
-                        {
-                          "pr-[116px]": isWindowsDesktop && isRightPanelOpen,
-                        }
-                      )}
-                    >
-                      <RightPanelNav />
-                    </div>
-                    <div
-                      className="grow  h-[calc(100%-38px)] overflow-y-auto"
-                      ref={rightPanelRef}
-                    >
-                      {tempPanelNode ? (
-                        <TempPanel />
-                      ) : (
-                        <>
-                          {currentApp === "chat" && (
-                            <Suspense fallback={<Loading />}>
-                              <AIChat />
-                            </Suspense>
-                          )}
-                          {isCurrentAppABlock && (
-                            <Suspense fallback={<Loading />}>
-                              <BlockApp
-                                url={currentApp}
-                                height={size?.height}
-                              />
-                            </Suspense>
-                          )}
-                          {currentApp && currentApp.startsWith("node://") && (
-                            <NodeAppPanel />
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </ResizablePanel>
-                </>
-              )}
-            </ResizablePanelGroup>
-          </div>
+                    <RightPanelNav />
+                  </div>
+                  <div
+                    className="grow  h-[calc(100%-38px)] overflow-y-auto"
+                    ref={rightPanelRef}
+                  >
+                    {tempPanelNode ? (
+                      <TempPanel />
+                    ) : (
+                      <>
+                        {currentApp === "chat" && (
+                          <Suspense fallback={<Loading />}>
+                            <AIChat />
+                          </Suspense>
+                        )}
+                        {isCurrentAppABlock && (
+                          <Suspense fallback={<Loading />}>
+                            <BlockApp url={currentApp} height={size?.height} />
+                          </Suspense>
+                        )}
+                        {currentApp && currentApp.startsWith("node://") && (
+                          <NodeAppPanel />
+                        )}
+                      </>
+                    )}
+                  </div>
+                </ResizablePanel>
+              </>
+            )}
+          </ResizablePanelGroup>
         </main>
       </div>
     </>

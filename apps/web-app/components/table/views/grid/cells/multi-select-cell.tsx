@@ -164,12 +164,12 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
         asChild={true}
       >
         <Command value={currentSelect} onValueChange={setCurrentSelect}>
-          <div className="flex w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50">
+          <div className="flex w-full rounded-md bg-transparent py-3 text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50">
             <div className="flex flex-wrap gap-2 px-2">
               {currentOptions.map((option) => (
                 <div
                   key={option.id}
-                  className="flex h-6 items-center gap-2  truncate rounded-sm px-2 text-sm"
+                  className="flex h-6 items-center gap-2  truncate rounded-xs px-2 text-sm"
                   style={{
                     background: SelectField.getColorValue(
                       option.color,

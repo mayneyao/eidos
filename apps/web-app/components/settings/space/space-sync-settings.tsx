@@ -273,7 +273,7 @@ export function SpaceSyncSettings() {
         )}
 
       {/* Provider Selection */}
-      <div className="p-4 rounded-lg bg-muted/50 border space-y-4">
+      <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-4">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium">Sync Provider</span>
           {spaceInfo?.sync?.provider ? (
@@ -428,7 +428,7 @@ export function SpaceSyncSettings() {
       </div>
 
       {/* Sync Toggle */}
-      <div className="p-4 rounded-lg bg-muted/50 border">
+      <div className="p-4 rounded-lg bg-muted/50 border border-border">
         <div className="flex items-center justify-between">
           <div>
             <span className="text-sm font-medium">Space Sync</span>
@@ -479,7 +479,7 @@ export function SpaceSyncSettings() {
           </div>
         </div>
       ) : !isSyncEnabled && hasCredentialsForProvider(effectiveProviderId) ? (
-        <div className="flex items-center justify-center p-6 border border-dashed rounded-lg">
+        <div className="flex items-center justify-center p-6 border border-border border-dashed rounded-lg">
           <Button
             variant="outline"
             onClick={() => window.open("https://eidos.space/new", "_blank")}
@@ -491,7 +491,7 @@ export function SpaceSyncSettings() {
       ) : null}
 
       {/* Info */}
-      <div className="p-3 rounded-lg bg-muted/50 border text-sm text-muted-foreground">
+      <div className="p-3 rounded-lg bg-muted/50 border border-border text-sm text-muted-foreground">
         <p>
           <strong>Note:</strong> Configure sync providers in{" "}
           <Button

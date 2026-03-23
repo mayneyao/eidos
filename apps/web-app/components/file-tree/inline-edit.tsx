@@ -179,7 +179,7 @@ export const InlineEdit: React.FC<InlineEditProps> = ({
         onChange={(e) => {
           setEditValue(e.target.value)
         }}
-        className={`${className} outline-none bg-transparent border-none p-0 m-0 h-[20px]`}
+        className={`${className} outline-hidden bg-transparent border-none p-0 m-0 h-[20px]`}
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}
         onClick={(e) => e.stopPropagation()}

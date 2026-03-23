@@ -205,7 +205,7 @@ export const KanbanBoard = memo(
                     type="text"
                     value={newItemTitle}
                     onChange={(e) => setNewItemTitle(e.target.value)}
-                    className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full px-2 py-1 text-sm border rounded focus:outline-hidden focus:ring-2 focus:ring-primary"
                     placeholder={t("kanban.newItem.inputTitle")}
                     autoFocus
                     onKeyDown={(e) => {

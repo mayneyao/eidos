@@ -205,7 +205,7 @@ export function MountSettings() {
               {mounts.map((mount) => (
                 <div
                   key={mount.name}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg gap-4"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-border rounded-lg gap-4"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3">

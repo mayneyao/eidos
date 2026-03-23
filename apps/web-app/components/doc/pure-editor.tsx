@@ -112,7 +112,7 @@ export function PureEditor(props: EditorProps) {
         <input
           id="doc-title"
           placeholder="Untitled"
-          className="h-[50px] w-[90%] truncate bg-transparent text-4xl font-bold text-primary outline-none"
+          className="h-[50px] w-[90%] truncate bg-transparent text-4xl font-bold text-primary outline-hidden"
           value={title}
           title={title}
           style={props.titleStyle}
@@ -153,7 +153,7 @@ export function PureEditor(props: EditorProps) {
               <RichTextPlugin
                 contentEditable={
                   <div className="editor relative" ref={onRef}>
-                    <ContentEditable className="editor-input outline-none dark:prose-invert" />
+                    <ContentEditable className="editor-input outline-hidden dark:prose-invert" />
                     {!props.disableSafeBottomPaddingPlugin && (
                       <SafeBottomPaddingPlugin />
                     )}

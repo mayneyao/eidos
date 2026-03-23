@@ -334,6 +334,165 @@ console.log("Property deleted")
 
 ---
 
+## Theme API
+
+The `eidos.space.theme` object provides theme management functionality for customizing the appearance of your space.
+
+Themes are stored as CSS files in `<space>/.eidos/themes/<name>/theme.css`.
+
+**Theme CSS Example:**
+
+```css
+/* Define CSS variables for light mode */
+:root {
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(222.2 84% 4.9%);
+  --primary: hsl(222.2 47.4% 11.2%);
+  --primary-foreground: hsl(210 40% 98%);
+  /* ... more variables */
+}
+
+/* Define CSS variables for dark mode */
+.dark {
+  --background: hsl(222.2 84% 4.9%);
+  --foreground: hsl(210 40% 98%);
+  --primary: hsl(210 40% 98%);
+  --primary-foreground: hsl(222.2 47.4% 11.2%);
+  /* ... more variables */
+}
+```
+
+### `list()`
+
+List all available theme names.
+
+```typescript
+async list(): Promise<string[]>
+```
+
+**Returns:**
+
+- Array of theme names
+
+**Example:**
+
+```typescript
+const themes = await eidos.space.theme.list()
+console.log(themes) // ["dark-pro", "minimal", "retro"]
+```
+
+### `get(name: string)`
+
+Get theme CSS content.
+
+```typescript
+async get(name: string): Promise<string | null>
+```
+
+**Parameters:**
+
+- `name` (string): Theme name
+
+**Returns:**
+
+- CSS content as string, or `null` if theme not found
+
+**Example:**
+
+```typescript
+const css = await eidos.space.theme.get("dark-pro")
+if (css) {
+  console.log("Theme loaded:", css.length, "characters")
+}
+```
+
+### `install(name: string, css: string)`
+
+Install or update a theme.
+
+```typescript
+async install(name: string, css: string): Promise<void>
+```
+
+**Parameters:**
+
+- `name` (string): Theme name
+- `css` (string): Theme CSS content
+
+**Example:**
+
+```typescript
+const css = `
+:root {
+  --primary: hsl(222.2 47.4% 11.2%);
+}
+`
+await eidos.space.theme.install("my-theme", css)
+```
+
+### `uninstall(name: string)`
+
+Delete a theme.
+
+```typescript
+async uninstall(name: string): Promise<void>
+```
+
+**Parameters:**
+
+- `name` (string): Theme name to delete
+
+**Example:**
+
+```typescript
+await eidos.space.theme.uninstall("old-theme")
+```
+
+### `getCurrent()`
+
+Get the currently active theme name.
+
+```typescript
+async getCurrent(): Promise<string | null>
+```
+
+**Returns:**
+
+- Current theme name, or `null` if using default theme
+
+**Example:**
+
+```typescript
+const current = await eidos.space.theme.getCurrent()
+if (current) {
+  console.log(`Current theme: ${current}`)
+} else {
+  console.log("Using default theme")
+}
+```
+
+### `setCurrent(name: string | null)`
+
+Set the active theme.
+
+```typescript
+async setCurrent(name: string | null): Promise<void>
+```
+
+**Parameters:**
+
+- `name` (string | null): Theme name to activate, or `null` to reset to default
+
+**Example:**
+
+```typescript
+// Apply a theme
+await eidos.space.theme.setCurrent("dark-pro")
+
+// Reset to default
+await eidos.space.theme.setCurrent(null)
+```
+
 ## File System API
 
 Eidos provides a restricted external file API that enables access to the native file system. This is a restricted mechanism that provides secure file system access capabilities.
@@ -1099,60 +1258,55 @@ if (status.behind > 0) {
 }
 ```
 
-### `fetch()`
-
-Fetch the latest state from the remote server without applying it. This updates the local knowledge of the remote state (updating the `behind` count in status), but does not modify your data.
-
-```typescript
-async fetch(): Promise<void>
-```
-
 ### `pull()`
 
-Pull changes from the remote server and apply them to the local space.
-
-- Performs a `fetch` first.
-- Merges remote changes into your local database.
-- Automatically triggers a reload if changes are applied.
+Pull the latest changes from the remote repository.
 
 ```typescript
 async pull(): Promise<void>
 ```
 
+**Example:**
+
+```typescript
+await eidos.space.graft.pull()
+console.log("Pull completed successfully")
+```
+
 ### `push()`
 
-Push local changes to the remote server.
+Push local commits to the remote repository.
 
 ```typescript
 async push(): Promise<void>
 ```
 
-### `tags()`
-
-Get a list of all tags (snapshots) available for this space.
+**Example:**
 
 ```typescript
-async tags(): Promise<Array<{
-  tag: string         // Tag name
-  log_id: string      // Unique ID of the log/commit
-  created_at: string  // Creation timestamp
-}>>
+await eidos.space.graft.push()
+console.log("Push completed successfully")
+```
+
+### `fetch()`
+
+Fetch the latest changes from the remote repository without merging them.
+
+```typescript
+async fetch(): Promise<void>
 ```
 
 **Example:**
 
 ```typescript
-const tags = await eidos.space.graft.tags()
-tags.forEach((tag) => console.log(`Snapshot: ${tag.tag} (${tag.created_at})`))
+await eidos.space.graft.fetch()
+const status = await eidos.space.graft.status()
+console.log(`Behind by ${status.behind} commits after fetch`)
 ```
 
-### `clone(remoteLogId?)`
+### `clone(remoteLogId?: string)`
 
-Reset the local space to match the remote state or a specific snapshot.
-
-:::danger
-**Destructive Operation**: This will replace your current local data with the data from the remote or specified snapshot. Any unpushed local changes will be lost.
-:::
+Clone a remote repository into the current space.
 
 ```typescript
 async clone(remoteLogId?: string): Promise<void>
@@ -1160,22 +1314,32 @@ async clone(remoteLogId?: string): Promise<void>
 
 **Parameters:**
 
-- `remoteLogId` (string, optional): Specific log ID to clone from. If omitted, clones from the head of the default branch.
+- `remoteLogId` (string, optional): The ID of the remote log to clone. If not provided, uses the default remote.
 
-### `hydrate()`
-
-Hydrate the local database from a snapshot. This is used to restore the database to a consistent state from the stored Graft data.
+**Example:**
 
 ```typescript
-async hydrate(): Promise<void>
+// Clone the default remote
+await eidos.space.graft.clone()
+
+// Clone a specific remote
+await eidos.space.graft.clone("https://sync.eidos.space/logs/abc123")
 ```
 
 ### `info()`
 
-Get detailed information about the Graft state, such as snapshot size, page counts, and version info.
+Get information about the current Graft repository.
 
 ```typescript
 async info(): Promise<any>
+```
+
+### `tags()`
+
+List all tags in the repository.
+
+```typescript
+async tags(): Promise<any[]>
 ```
 
 ### `audit()`

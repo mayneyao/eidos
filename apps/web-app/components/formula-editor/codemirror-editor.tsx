@@ -160,9 +160,9 @@ function createEditorView(
       EditorView.theme({
         "&": {
           height: height || "100px",
-          border: "1px solid hsl(var(--border))",
+          border: "1px solid var(--border)",
           borderRadius: "0.375rem 0.375rem 0 0",
-          backgroundColor: "hsl(var(--secondary))",
+          backgroundColor: "var(--secondary)",
         },
         "&.cm-focused": {
           outline: "none",
@@ -175,19 +175,19 @@ function createEditorView(
           display: "none",
         },
         ".cm-content": {
-          color: "hsl(var(--foreground))",
+          color: "var(--foreground)",
         },
         "&.cm-focused .cm-cursor": {
-          borderLeftColor: "hsl(var(--foreground))",
+          borderLeftColor: "var(--foreground)",
         },
         ".cm-selectionBackground": {
-          backgroundColor: "hsl(var(--accent) / 0.2)",
+          backgroundColor: "color-mix(in hsl, var(--accent) 20%, transparent)",
         },
         "&.cm-focused .cm-selectionBackground": {
-          backgroundColor: "hsl(var(--accent) / 0.3)",
+          backgroundColor: "color-mix(in hsl, var(--accent) 30%, transparent)",
         },
         ".cm-placeholder": {
-          color: "hsl(var(--muted-foreground))",
+          color: "var(--muted-foreground)",
           fontStyle: "italic",
         },
       }),

@@ -98,7 +98,7 @@ export function getAllThemeVariables(): ThemeVariables {
   return variables
 }
 
-// Default theme values based on your globals.css
+// Default theme values based on your globals.css (HSL values without hsl() wrapper)
 export const defaultTheme: ThemeVariables = {
   background: "0 0% 100%",
   foreground: "224 71.4% 4.1%",
@@ -148,7 +148,10 @@ export function setThemeConfig(
   })
 }
 
-export function parseCSSVariables(css: string): Record<string, string> {
+export function parseCSSVariables(
+  css: string,
+  stripHslWrapper = false
+): Record<string, string> {
   const themeVariables: Record<string, string> = {}
 
   // Match CSS variable declarations
@@ -157,11 +160,18 @@ export function parseCSSVariables(css: string): Record<string, string> {
 
   while ((match = regex.exec(css)) !== null) {
     const [, name, value] = match
-    // if (name.trim() === "sidebar") {
-    //   themeVariables["sidebar-background"] = value.trim()
-    //   continue
-    // }
-    themeVariables[name.trim()] = value.trim()
+    let trimmedValue = value.trim()
+
+    // Optionally strip hsl() wrapper for raw HSL values
+    // Used by table theme which wraps with `hsl(${value})`
+    if (stripHslWrapper) {
+      const hslMatch = trimmedValue.match(/^hsl\(([^)]+)\)$/)
+      if (hslMatch) {
+        trimmedValue = hslMatch[1].trim()
+      }
+    }
+
+    themeVariables[name.trim()] = trimmedValue
   }
 
   return themeVariables
@@ -170,6 +180,7 @@ export function parseCSSVariables(css: string): Record<string, string> {
 export const getThemeVariables = (rawCss: string, isDarkMode: boolean) => {
   try {
     // Parse both light and dark mode variables
+    // Note: strip hsl() wrapper for table theme which wraps with `hsl(${value})`
     const lightMatch = /:root\s*{([^}]+)}/.exec(rawCss)
     const darkMatch = /\.dark\s*{([^}]+)}/.exec(rawCss)
     if (!lightMatch && !darkMatch) {
@@ -179,11 +190,11 @@ export const getThemeVariables = (rawCss: string, isDarkMode: boolean) => {
     }
     if (isDarkMode) {
       if (darkMatch) {
-        const darkVariables = parseCSSVariables(darkMatch[1])
+        const darkVariables = parseCSSVariables(darkMatch[1], true)
         return darkVariables
       }
     } else if (lightMatch) {
-      const lightVariables = parseCSSVariables(lightMatch[1])
+      const lightVariables = parseCSSVariables(lightMatch[1], true)
       return lightVariables
     }
   } catch (err) {}

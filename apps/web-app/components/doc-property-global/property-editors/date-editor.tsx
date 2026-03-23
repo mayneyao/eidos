@@ -165,7 +165,7 @@ export const DateEditor: React.FC<PropertyEditorProps> = ({
           onChange={(e) => setEditingValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={handleFinishEdit}
-          className="w-auto min-w-0 bg-transparent border-none outline-none focus:outline-none"
+          className="w-auto min-w-0 bg-transparent border-none outline-hidden focus:outline-hidden"
         />
       </BaseEditor>
     )

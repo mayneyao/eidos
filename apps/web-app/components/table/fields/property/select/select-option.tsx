@@ -172,7 +172,7 @@ export const SelectOption = ({
                   onClick={() => handleColorChange(color.name)}
                   className={cn(
                     "group relative h-6 w-full rounded transition-all duration-150",
-                    "hover:scale-105 focus:outline-none focus:ring-1 focus:ring-ring",
+                    "hover:scale-105 focus:outline-hidden focus:ring-1 focus:ring-ring",
                     option.color === color.name && "ring-1.5 ring-foreground"
                   )}
                   style={{

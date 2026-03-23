@@ -47,7 +47,7 @@ const renderer: CustomRenderer<DatePickerCell> = {
             },
           })
         }}
-        className="rounded-md border-none outline-none"
+        className="rounded-md border-none outline-hidden"
       />
     )
   },

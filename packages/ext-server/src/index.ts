@@ -30,5 +30,5 @@ export { getIndexHtml } from "./ext-html"
 export type { IndexHtmlProps, ExtensionContext } from "./ext-html"
 
 // Theme and config
-export { twConfig, presetThemes } from "./helper"
+export { presetThemes } from "./helper"
 export type { Theme } from "./helper"

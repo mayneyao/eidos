@@ -316,7 +316,7 @@ export const DocPropertyGlobal: React.FC<DocPropertyGlobalProps> = ({
   }, [])
 
   return (
-    <div ref={containerRef} className="focus:outline-none" tabIndex={0}>
+    <div ref={containerRef} className="focus:outline-hidden" tabIndex={0}>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -362,7 +362,7 @@ export const DocPropertyGlobal: React.FC<DocPropertyGlobalProps> = ({
                 <div className="flex items-center gap-2 w-40 flex-shrink-0 relative">
                   <button
                     onClick={() => setShowPropertyDropdown(true)}
-                    className="group flex items-center gap-2 h-6 py-1 px-2 -mx-2 rounded border transition-colors cursor-pointer border-transparent hover:border-border hover:bg-muted/50 focus:border-border focus:bg-muted/50 focus:outline-none"
+                    className="group flex items-center gap-2 h-6 py-1 px-2 -mx-2 rounded transition-colors cursor-pointer border border-transparent hover:border-border hover:bg-muted/50 focus:border-border focus:bg-muted/50 focus:outline-hidden"
                     tabIndex={0}
                     data-property-item
                     data-property-name="__add_property__"

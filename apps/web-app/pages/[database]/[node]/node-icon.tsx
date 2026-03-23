@@ -89,7 +89,7 @@ export const NodeIconEditor = (props: {
           props.customTrigger
         )}
       </PopoverTrigger>
-      <PopoverContent className="w-auto border-none p-0 outline-none">
+      <PopoverContent className="w-auto border-none p-0 outline-hidden">
         <div className="relative">
           <Picker data={data} onEmojiSelect={handleIconSelect} />
           <Button

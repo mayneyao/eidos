@@ -1,6 +1,7 @@
 import fs from "fs/promises"
 import path from "path"
 import esmShim from "@rollup/plugin-esm-shim"
+import tailwindcss from "@tailwindcss/vite"
 import { defineConfig, mergeConfig, type Plugin, type UserConfig } from "vite"
 import electron from "vite-plugin-electron/simple"
 
@@ -62,6 +63,7 @@ const copyPublicPlugin = (): Plugin => {
 
 const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
   plugins: [
+    tailwindcss(),
     createHtmlPlugin("renderer/index.tsx"),
     copyPublicPlugin(),
     electron({

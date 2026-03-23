@@ -10,6 +10,7 @@ import {
   KeyRound,
   Package,
   Palette,
+  Paintbrush,
   SatelliteDish,
   Settings as SettingsIcon,
   Shield,
@@ -32,6 +33,7 @@ type SettingsSection =
   | "space-extensions"
   | "space-newtab"
   | "space-relay"
+  | "space-theme"
   | "general"
   | "account"
   | "ai"
@@ -152,6 +154,16 @@ export function SettingsSidebar({
       isBeta: true,
       category: "space",
     },
+    {
+      id: "space-theme",
+      title: t("space.settings.theme", "Theme"),
+      description: t(
+        "space.settings.themeDescription",
+        "Customize the appearance of your space"
+      ),
+      icon: <Paintbrush className="h-5 w-5" />,
+      category: "space",
+    },
 
     // Global Settings
     {
@@ -232,10 +244,10 @@ export function SettingsSidebar({
                     !section.disabled && onSectionChange(section.id)
                   }
                   disabled={section.disabled}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm whitespace-nowrap transition-all duration-200 border ${
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm whitespace-nowrap transition-all duration-200 ${
                     activeSection === section.id
-                      ? "bg-background shadow-sm border-border"
-                      : "border-transparent hover:bg-muted"
+                      ? "bg-background shadow-xs border border-border"
+                      : "border border-transparent hover:bg-muted"
                   } ${section.disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                 >
                   <div
@@ -279,10 +291,10 @@ export function SettingsSidebar({
                       !section.disabled && onSectionChange(section.id)
                     }
                     disabled={section.disabled}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm whitespace-nowrap transition-all duration-200 border ${
+                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm whitespace-nowrap transition-all duration-200 ${
                       activeSection === section.id
-                        ? "bg-background shadow-sm border-border"
-                        : "border-transparent hover:bg-muted"
+                        ? "border bg-background shadow-xs border-border"
+                        : "border border-transparent hover:bg-muted"
                     } ${section.disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
                     <div
@@ -324,10 +336,10 @@ export function SettingsSidebar({
                       !section.disabled && onSectionChange(section.id)
                     }
                     disabled={section.disabled}
-                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-left transition-all duration-200 border ${
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-left transition-all duration-200 ${
                       activeSection === section.id
-                        ? "bg-background shadow-sm border-border"
-                        : "border-transparent hover:bg-muted"
+                        ? "bg-background shadow-xs border border-border"
+                        : "border border-transparent hover:bg-muted"
                     } ${section.disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
                     <div className="flex items-center space-x-2.5 min-h-[1rem]">
@@ -376,10 +388,10 @@ export function SettingsSidebar({
                         !section.disabled && onSectionChange(section.id)
                       }
                       disabled={section.disabled}
-                      className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-left transition-all duration-200 border ${
+                      className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-left transition-all duration-200 ${
                         activeSection === section.id
-                          ? "bg-background shadow-sm border-border"
-                          : "border-transparent hover:bg-muted"
+                          ? "border bg-background shadow-xs border-border"
+                          : "border border-transparent hover:bg-muted"
                       } ${section.disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                     >
                       <div className="flex items-center space-x-2.5 min-h-[1rem]">

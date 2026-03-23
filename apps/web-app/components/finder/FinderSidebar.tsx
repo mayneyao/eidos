@@ -53,9 +53,9 @@ export function FinderSidebar({
                 onClick={() => onNavigate(location.path)}
                 className={cn(
                   "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-all duration-150",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                  "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                   isActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm"
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-xs"
                     : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
                 )}
               >
@@ -90,9 +90,9 @@ export function FinderSidebar({
                 onClick={() => onNavigate(location.path)}
                 className={cn(
                   "w-full flex items-center gap-2.5 pl-7 pr-2 py-1.5 rounded-md text-sm transition-all duration-150",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                  "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                   isActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm"
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-xs"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
                 )}
               >
@@ -132,9 +132,9 @@ export function FinderSidebar({
                     onClick={() => onNavigate(location.path)}
                     className={cn(
                       "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-all duration-150",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                      "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                       isActive
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm"
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-xs"
                         : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
                     )}
                   >

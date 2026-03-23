@@ -94,7 +94,7 @@ const FieldItem: React.FC<FieldItemProps> = ({
   return (
     <div
       ref={containerRef}
-      className="group relative flex items-center py-1 px-2 -mx-2 rounded border transition-colors border-transparent hover:border-border hover:bg-muted/50 focus:border-border focus:bg-muted/50 focus:outline-none"
+      className="group relative flex items-center py-1 px-2 -mx-2 rounded transition-colors border border-transparent hover:border-border hover:bg-muted/50 focus:border-border focus:bg-muted/50 focus:outline-hidden"
       tabIndex={0}
       data-property-item
       data-property-name={name}
@@ -297,7 +297,7 @@ export const DocProperty = (props: IDocPropertyProps) => {
   }, [])
 
   return (
-    <div ref={containerRef} className="focus:outline-none" tabIndex={0}>
+    <div ref={containerRef} className="focus:outline-hidden" tabIndex={0}>
       <div className="space-y-1">
         {fields.map(
           ({ uiColumn, iconSvgString, name, value, isSystemColumn }) => (

@@ -21,7 +21,7 @@ import { AuthProvider } from "@/components/auth-provider"
 
 export default function RootLayout() {
   const { isInitialized, initWorker } = useWorker()
-  const { isSidebarOpen } = useAppStoreBase()
+  const { isSidebarOpen, setSidebarOpen } = useAppStoreBase()
   const { t } = useTranslation()
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
       <AuthProvider>
-        <SidebarProvider defaultOpen={isSidebarOpen}>
+        <SidebarProvider open={isSidebarOpen} onOpenChange={setSidebarOpen}>
           {isStagingMode && (
             <div className="fixed right-0 bottom-0 z-50 rounded-tl-lg bg-yellow-500 px-3 py-1 text-sm font-medium text-yellow-950">
               {t("common.tips.staging")}

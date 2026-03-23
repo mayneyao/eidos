@@ -267,7 +267,7 @@ export function ViewSortEditor(props: IViewEditorProps) {
   )
 
   return (
-    <div className="w-[360px] rounded border p-1.5 shadow-sm">
+    <div className="w-[360px] rounded border p-1.5 shadow-xs">
       {!orderItems.length && (
         <span className="select-none text-xs text-muted-foreground">
           {t("table.view.noSortRule")}

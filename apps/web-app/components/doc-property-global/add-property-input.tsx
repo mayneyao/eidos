@@ -101,7 +101,7 @@ export const AddPropertyInput: React.FC<AddPropertyInputProps> = ({
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               onBlur={handleBlur}
-              className={`absolute inset-0 w-full px-2 text-sm border-none rounded focus:outline-none bg-muted focus:bg-accent ${
+              className={`absolute inset-0 w-full px-2 text-sm border-none rounded focus:outline-hidden bg-muted focus:bg-accent ${
                 validationError ? "border-red-500 focus:border-red-500" : ""
               }`}
               placeholder="Property name"

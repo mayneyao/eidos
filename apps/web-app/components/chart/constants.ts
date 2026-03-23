@@ -36,24 +36,24 @@ export const PRESET_COLORS = {
     stroke: "#CC4628",
   },
   // chart1: {
-  //   fill: 'hsl(var(--chart-1))',
-  //   stroke: 'hsl(var(--chart-1))',
+  //   fill: 'var(--chart-1)',
+  //   stroke: 'var(--chart-1)',
   // },
   // chart2: {
-  //   fill: 'hsl(var(--chart-2))',
-  //   stroke: 'hsl(var(--chart-2))',
+  //   fill: 'var(--chart-2)',
+  //   stroke: 'var(--chart-2)',
   // },
   // chart3: {
-  //   fill: 'hsl(var(--chart-3))',
-  //   stroke: 'hsl(var(--chart-3))',
+  //   fill: 'var(--chart-3)',
+  //   stroke: 'var(--chart-3)',
   // },
   // chart4: {
-  //   fill: 'hsl(var(--chart-4))',
-  //   stroke: 'hsl(var(--chart-4))',
+  //   fill: 'var(--chart-4)',
+  //   stroke: 'var(--chart-4)',
   // },
   // chart5: {
-  //   fill: 'hsl(var(--chart-5))',
-  //   stroke: 'hsl(var(--chart-5))',
+  //   fill: 'var(--chart-5)',
+  //   stroke: 'var(--chart-5)',
   // },
 } as const
 

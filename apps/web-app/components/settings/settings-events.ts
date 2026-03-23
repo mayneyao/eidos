@@ -6,6 +6,7 @@ export type SettingsSection =
   | "space-extensions"
   | "space-newtab"
   | "space-relay"
+  | "space-theme"
   | "general"
   | "account"
   | "ai"
@@ -32,6 +33,13 @@ export const openSettings = (options: SettingsOpenEvent = {}) => {
 
 export const closeSettings = () => {
   const event = new CustomEvent(SETTINGS_CLOSE_EVENT)
+  window.dispatchEvent(event)
+}
+
+export const navigateToSection = (section: SettingsSection) => {
+  const event = new CustomEvent("settings-navigate", {
+    detail: section,
+  })
   window.dispatchEvent(event)
 }
 

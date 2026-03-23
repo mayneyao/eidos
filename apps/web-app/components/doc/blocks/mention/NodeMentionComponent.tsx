@@ -86,7 +86,7 @@ export const NodeMentionComponent = (props: NodeMentionComponentProps) => {
             <span
               className={cn(
                 "inline-flex shrink-0 cursor-pointer",
-                "items-baseline rounded-sm px-1 underline hover:bg-secondary",
+                "items-baseline rounded-xs px-1 underline hover:bg-secondary",
                 {
                   "text-red-400": node?.is_deleted,
                   "ring-1 ring-ring": isNodeSelected,

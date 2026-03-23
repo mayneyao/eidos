@@ -339,7 +339,7 @@ export default function Chat() {
         </div>
         <div
           id="circle"
-          className="absolute right-0 top-0 z-10 ml-0 h-1 rounded-sm bg-green-300 opacity-50"
+          className="absolute right-0 top-0 z-10 ml-0 h-1 rounded-xs bg-green-300 opacity-50"
         ></div>
 
         <AIContextNodes

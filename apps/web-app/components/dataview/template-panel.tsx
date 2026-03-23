@@ -131,7 +131,7 @@ export const TemplatePanel = ({
             <button
               key={template.name}
               onClick={() => onTemplateSelect(template.sql.trim())}
-              className="p-3 text-left border border-border rounded-lg hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring transition-colors group"
+              className="p-3 text-left border border-border rounded-lg hover:bg-muted focus:outline-hidden focus:ring-2 focus:ring-ring transition-colors group"
             >
               <div className="flex items-start justify-between mb-2">
                 <div className="font-medium text-sm">{t(template.i18nKey)}</div>

@@ -30,10 +30,10 @@ export const CopyShowHide = ({ text, hideMask }: CopyShowHideProps) => {
   }, [show, text, hideMask])
 
   return (
-    <div className="flex w-full gap-2 rounded-sm bg-slate-100  p-1  font-mono ">
+    <div className="flex w-full gap-2 rounded-xs bg-slate-100  p-1  font-mono ">
       <input
         disabled
-        className="w-full border-none bg-transparent text-cyan-500 outline-none "
+        className="w-full border-none bg-transparent text-cyan-500 outline-hidden "
         value={displayText}
       ></input>
       <Button
