@@ -5,7 +5,6 @@ import {
   ExternalLinkIcon,
   MoveDiagonalIcon,
   MoveUpRightIcon,
-  SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -42,13 +41,11 @@ export function GridContextMenu({
   handleDelRows,
   getRowByIndex,
   getFieldByIndex,
-  openAItools,
 }: {
   getFieldByIndex: (index: number) => IField
   handleDelRows: (ranges: { startIndex: number; endIndex: number }[]) => void
   getRowByIndex: (index: number) => any
   children: React.ReactNode
-  openAItools: () => void
 }) {
   const { t } = useTranslation()
   const { selection, clearSelection } = useTableStore()
@@ -182,18 +179,6 @@ export function GridContextMenu({
             <ExternalLinkIcon className="pr-2" />
             Open URL
           </ContextMenuItem>
-        )}
-
-        {/* Medium-risk operations */}
-        {!isReadOnly && (
-          <>
-            <ContextMenuSeparator />
-            <ContextMenuItem onClick={openAItools}>
-              <SparklesIcon className="pr-2" />
-              Ask AI
-              <ContextMenuShortcut>Alt+I</ContextMenuShortcut>
-            </ContextMenuItem>
-          </>
         )}
 
         {/* Script actions */}

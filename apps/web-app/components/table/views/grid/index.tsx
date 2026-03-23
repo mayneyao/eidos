@@ -43,7 +43,6 @@ import { ROW_NUMBER_COL_WIDTH, useFreezeLine } from "./hooks/use-freeze-line"
 import { useGridSearch } from "./hooks/use-grid-search"
 import { useHighlightRow } from "./hooks/use-highlight-row"
 import { useHover } from "./hooks/use-hover"
-import { AITools } from "./plugins/ai-tools"
 // import { FormulaEditor } from "./plugins/formula-editor"
 import { useFormulaEditor } from "./plugins/use-formula-editor"
 import "./styles.css"
@@ -73,7 +72,6 @@ export default function GridView(props: IGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   // const { undo, redo } = useSqlite(databaseName)
   const size = useSize(containerRef)
-  const aiContainerRef = useRef<HTMLDivElement>(null)
   const [aiHighlightRegions, setAIHighlightRegions] = React.useState<
     DataEditorProps["highlightRegions"]
   >([])
@@ -158,7 +156,6 @@ export default function GridView(props: IGridProps) {
 
   const { setIsAddFieldEditorOpen, selection, setSelection, clearSelection } =
     useTableStore()
-  const [isAItoolsOpen, setIsAItoolsOpen] = React.useState(false)
 
   const onSelectionChange = useCallback(
     (selection: GridSelection) => {
@@ -247,17 +244,10 @@ export default function GridView(props: IGridProps) {
   // Use the hook to get the highlight regions:
 
   useEffect(() => {
-    if (!selection.current) {
-      closeAItools()
-    }
     const bounds = glideDataGridRef.current?.getBounds(
       selection.current?.cell[0],
       selection.current?.cell[1]
     )
-    if (aiContainerRef.current && bounds) {
-      aiContainerRef.current.style.left = `${bounds.x + bounds.width}px`
-      aiContainerRef.current.style.top = `${bounds.y}px`
-    }
   }, [selection])
 
   const rowMarkersWidth = props.isEmbed ? 0 : ROW_NUMBER_COL_WIDTH
@@ -330,10 +320,6 @@ export default function GridView(props: IGridProps) {
     setCellValue: (col, row, value) => onCellEdited?.([col, row], value),
   })
 
-  const closeAItools = () => {
-    setIsAItoolsOpen(false)
-    glideDataGridRef.current?.focus()
-  }
   const highlightRegions = useMemo(() => {
     return [
       ...(highlights ?? []),
@@ -371,16 +357,6 @@ export default function GridView(props: IGridProps) {
   }, [aiHighlightRegions])
 
   // useKeyPress(["ctrl.f", "meta.f"], (e) => {
-  //   e.preventDefault()
-  //   setShowSearch(!showSearch)
-  // })
-
-  useKeyPress("alt.i", (e) => {
-    if (e.metaKey) return
-    e.preventDefault()
-    e.stopPropagation()
-    setIsAItoolsOpen((prev) => !prev)
-  })
 
   // handle undo redo
   useKeyPress(["ctrl.z", "meta.z"], (e) => {
@@ -427,7 +403,6 @@ export default function GridView(props: IGridProps) {
           handleDelRows={handleDelRows}
           getRowByIndex={getRowByIndex}
           getFieldByIndex={getFieldByIndex}
-          openAItools={() => setIsAItoolsOpen(true)}
         >
           {Boolean(uiColumns.length) && (
             <DataEditor
@@ -482,18 +457,7 @@ export default function GridView(props: IGridProps) {
             />
           )}
         </GridContextMenu>
-        <div ref={aiContainerRef} className=" fixed">
-          {isAItoolsOpen && (
-            <AITools
-              close={closeAItools}
-              fields={showColumns}
-              getRowByIndex={getRowByIndex}
-              getFieldByIndex={getFieldByIndex}
-              selection={selection}
-              setAIHighlightRegions={setAIHighlightRegions}
-            />
-          )}
-        </div>
+        <div className=" fixed"></div>
         {showAILoading && (
           <div style={positionStyle} className="fixed">
             <TwinkleSparkle />
