@@ -181,15 +181,15 @@ export const useSqlite = (dbName?: string) => {
     },
     [sqlWorker]
   )
-  const getDocMarkdown = useCallback(
+  const lexical2markdown = useCallback(
     async (docId: string) => {
       if (!sqlWorker) return
-      const doc = await sqlWorker.getDocMarkdown(docId)
+      const doc = await sqlWorker.lexical2markdown(docId)
       return doc
     },
     [sqlWorker]
   )
-  const getDocMarkdownBatch = useCallback(
+  const lexical2markdownBatch = useCallback(
     async (docIds: string[]) => {
       if (!sqlWorker) return []
       if (!docIds.length) return []
@@ -584,8 +584,8 @@ export const useSqlite = (dbName?: string) => {
     updateDoc,
     renameNode,
     getDoc,
-    getDocMarkdown,
-    getDocMarkdownBatch,
+    lexical2markdown,
+    lexical2markdownBatch,
     searchDayPages,
     fullTextSearch,
     deleteNode,

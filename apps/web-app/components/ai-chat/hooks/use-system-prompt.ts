@@ -44,7 +44,7 @@ export const useAdditionalData = (contextNodes: ITreeNode[] = []) => {
     { set: setPathDoc, reset: resetPathDoc, get: getPathDoc },
   ] = useMap<string, string>()
   const { sqlite } = useSqlite()
-  const { getDocMarkdown } = useDocEditor(sqlite)
+  const { lexical2markdown } = useDocEditor(sqlite)
 
   const tables = useMemo(
     () =>
@@ -88,12 +88,12 @@ export const useAdditionalData = (contextNodes: ITreeNode[] = []) => {
   useEffect(() => {
     async function loadDocs() {
       for (const docId of docs) {
-        const markdown = await getDocMarkdown(docId)
+        const markdown = await lexical2markdown(docId)
         set(docId, markdown)
       }
     }
     loadDocs()
-  }, [docs, getDocMarkdown, set])
+  }, [docs, lexical2markdown, set])
 
   useEffect(() => {
     async function loadTableSchemas() {

@@ -24,7 +24,7 @@ export const useOpenInPlayground = ({
 
   const openInPlayground = async (docId: string, filename?: string) => {
     try {
-      const markdown = await sqlite?.getDocMarkdown(docId)
+      const markdown = await sqlite?.lexical2markdown(docId)
       if (!markdown) {
         console.error("Failed to export markdown for document")
         return

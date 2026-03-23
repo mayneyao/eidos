@@ -1,0 +1,41 @@
+{
+  "name": "@eidos.space/lexical",
+  "version": "1.0.0",
+  "description": "Headless Lexical conversion utilities for Eidos",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:manual": "tsx src/test-conversion.ts"
+  },
+  "dependencies": {
+    "@lexical/code": "^0.42.0",
+    "@lexical/hashtag": "^0.42.0",
+    "@lexical/headless": "^0.42.0",
+    "@lexical/html": "^0.42.0",
+    "@lexical/link": "^0.42.0",
+    "@lexical/list": "^0.42.0",
+    "@lexical/markdown": "^0.42.0",
+    "@lexical/react": "^0.42.0",
+    "@lexical/rich-text": "^0.42.0",
+    "@lexical/table": "^0.42.0",
+    "@lexical/utils": "^0.42.0",
+    "lexical": "^0.42.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "tsdown": "^0.12.9",
+    "typescript": "^5.8.3"
+  }
+}

@@ -7,6 +7,8 @@ import { EidosDataEventChannelName } from "@/lib/const"
 import { BaseServerDatabase } from "@/packages/core/sqlite/interface"
 import { DataSpace } from "@/packages/core/data-space"
 import { ExtensionTableName } from "@/packages/core/sqlite/const"
+import * as lexicalConverter from "@eidos.space/lexical"
+import { getEidosNodes, getEidosTransformers } from "@eidos.space/lexical"
 
 const log = logger.info
 const error = logger.error
@@ -195,6 +197,26 @@ export class SqliteServer {
       dbName: "draft",
       context: {
         setInterval: setInterval,
+        lexical: {
+          markdown2lexical: (markdown: string) =>
+            lexicalConverter.markdown2lexical(
+              markdown,
+              getEidosNodes(),
+              getEidosTransformers()
+            ),
+          lexical2markdown: (state: string) =>
+            lexicalConverter.lexical2markdown(
+              state,
+              getEidosNodes(),
+              getEidosTransformers()
+            ),
+          convertHtml2State: (html: string) =>
+            lexicalConverter.convertHtml2State(
+              html,
+              getEidosNodes(),
+              getEidosTransformers()
+            ),
+        },
       },
       dataEventChannel: new BroadcastChannel(
         `${EidosDataEventChannelName}-draft`
@@ -266,6 +288,26 @@ export class SqliteServer {
       createUDF,
       context: {
         setInterval: setInterval,
+        lexical: {
+          markdown2lexical: (markdown: string) =>
+            lexicalConverter.markdown2lexical(
+              markdown,
+              getEidosNodes(),
+              getEidosTransformers()
+            ),
+          lexical2markdown: (state: string) =>
+            lexicalConverter.lexical2markdown(
+              state,
+              getEidosNodes(),
+              getEidosTransformers()
+            ),
+          convertHtml2State: (html: string) =>
+            lexicalConverter.convertHtml2State(
+              html,
+              getEidosNodes(),
+              getEidosTransformers()
+            ),
+        },
       },
       dataEventChannel: new BroadcastChannel(EidosDataEventChannelName),
       isUDFWithCtx: true,

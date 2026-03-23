@@ -43,7 +43,7 @@ interface DocActionProps {
 export const DocAction: React.FC<DocActionProps> = ({ docId }) => {
   const { t } = useTranslation()
   const params = useCurrentPathInfo()
-  const { updateNodeName, getDocMarkdown } = useSqlite(params.database)
+  const { updateNodeName, lexical2markdown } = useSqlite(params.database)
   const { generateTitle, isLoading: isTitleGenerating } = useGenerateTitle()
   const { callFunction } = useScriptFunction()
   const node = useCurrentNode()
@@ -75,7 +75,7 @@ export const DocAction: React.FC<DocActionProps> = ({ docId }) => {
   const handleGenerateTitle = async () => {
     if (!docId) return
 
-    const docContent = await getDocMarkdown(docId)
+    const docContent = await lexical2markdown(docId)
     if (!docContent) return
 
     try {

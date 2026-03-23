@@ -86,9 +86,16 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
             ),
           },
           build: {
+            target: "node18",
             rollupOptions: {
               plugins: [esmShim() as unknown as Plugin],
-              external: [...externalNodeModules, "electron"],
+              external: [
+                ...externalNodeModules,
+                "electron",
+                "react",
+                "react-dom",
+                /^@lexical\/react/,
+              ],
               output: {
                 format: "esm",
               },

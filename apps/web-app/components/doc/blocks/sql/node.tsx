@@ -1,25 +1,15 @@
 import type { ReactNode } from "react"
-import type { ElementTransformer } from "@lexical/markdown"
-import type {
-  LexicalNode,
-  NodeKey,
-  SerializedLexicalNode,
-  Spread,
-} from "lexical"
-import { DecoratorNode } from "lexical"
+import {
+  BaseSQLNode,
+  $isBaseSQLNode,
+  createSQLTransformer,
+  type SerializedSQLNode,
+} from "@eidos.space/lexical"
+import { type LexicalNode, type NodeKey } from "lexical"
 
 import { SQLComponent } from "./component"
 
-export type SerializedSQLNode = Spread<
-  {
-    sql: string
-  },
-  SerializedLexicalNode
->
-
-export class SQLNode extends DecoratorNode<ReactNode> {
-  __sql: string
-
+export class SQLNode extends BaseSQLNode {
   static getType(): string {
     return "sql"
   }
@@ -29,21 +19,7 @@ export class SQLNode extends DecoratorNode<ReactNode> {
   }
 
   constructor(sql: string, key?: NodeKey) {
-    super(key)
-    this.__sql = sql
-  }
-
-  setSQL(sql: string): void {
-    const writable = this.getWritable()
-    writable.__sql = sql
-  }
-
-  createDOM(): HTMLElement {
-    return document.createElement("span")
-  }
-
-  updateDOM(): false {
-    return false
+    super(sql, key)
   }
 
   static importJSON(data: SerializedSQLNode): SQLNode {
@@ -51,32 +27,8 @@ export class SQLNode extends DecoratorNode<ReactNode> {
     return node
   }
 
-  exportJSON(): SerializedSQLNode {
-    return {
-      sql: this.__sql,
-      type: "sql",
-      version: 1,
-    }
-  }
-
   decorate(): ReactNode {
     return <SQLComponent sql={this.__sql} nodeKey={this.__key} />
-  }
-
-  getTextContent(): string {
-    return this.__sql
-  }
-
-  isInline(): boolean {
-    return true
-  }
-
-  isIsolated(): boolean {
-    return true
-  }
-
-  isKeyboardSelectable(): boolean {
-    return true
   }
 }
 
@@ -90,19 +42,6 @@ export function $isSQLNode(
   return node instanceof SQLNode
 }
 
-export const SQL_NODE_TRANSFORMER: ElementTransformer = {
-  dependencies: [SQLNode],
-  export: (node) => {
-    if (!$isSQLNode(node)) {
-      return null
-    }
-    return `<query sql="${node.getTextContent()}" />`
-  },
-  regExp: /<query sql="([^"]+?)"\s?\/>\s?$/,
-  replace: (textNode, _1, match) => {
-    const [, sql] = match
-    const sqlNode = $createSQLNode(sql)
-    textNode.replace(sqlNode)
-  },
-  type: "element",
-}
+export const SQL_NODE_TRANSFORMER = createSQLTransformer(SQLNode, (sql) =>
+  $createSQLNode(sql)
+)

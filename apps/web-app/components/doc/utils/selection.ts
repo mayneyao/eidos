@@ -16,7 +16,7 @@ import {
 import type { ListItemNode } from "@lexical/list"
 import { $isListItemNode, $isListNode, ListNode } from "@lexical/list"
 
-import { _getDocMarkdown } from "@/apps/web-app/hooks/use-doc-editor"
+import { _lexical2markdown } from "@/apps/web-app/hooks/use-doc-editor"
 
 import { getAllNodes } from "../nodes"
 import { allTransformers } from "../plugins/const"

@@ -38,7 +38,7 @@ export const getHeadlessEditor = () => {
   return editor
 }
 
-export const _getDocMarkdown = async (
+export const _lexical2markdown = async (
   articleEditorStateJSON: string
 ): Promise<string> => {
   const editor = getHeadlessEditor()
@@ -141,9 +141,7 @@ export const _convertHtml2State = async (html: string): Promise<string> => {
   })
 }
 
-export const _convertMarkdown2State = async (
-  markdown: string
-): Promise<string> => {
+export const _markdown2lexical = async (markdown: string): Promise<string> => {
   // parse all links from markdown, then get preview data of all links
   const allLinks = getAllLinks(markdown)
   const infos = await Promise.all(
@@ -183,13 +181,13 @@ export const _convertMarkdown2State = async (
 }
 
 export const useDocEditor = (sqlite: DataSpace | null) => {
-  const getDocMarkdown = useCallback(
+  const lexical2markdown = useCallback(
     async (docId: string): Promise<string> => {
       const doc = await sqlite?.doc.get(docId)
-      return _getDocMarkdown(doc?.content ?? "")
+      return _lexical2markdown(doc?.content ?? "")
     },
     [sqlite]
   )
-  const convertMarkdown2State = _convertMarkdown2State
-  return { getDocMarkdown, convertMarkdown2State }
+  const markdown2lexical = _markdown2lexical
+  return { lexical2markdown, markdown2lexical }
 }

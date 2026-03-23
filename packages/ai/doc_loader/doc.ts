@@ -6,7 +6,7 @@ import type { BaseLoader } from "./base"
 export class DocLoader implements BaseLoader {
   constructor(private dataSpace: DataSpace) {}
   async load(docId: string) {
-    const markdown = await this.dataSpace.getDocMarkdown(docId)
+    const markdown = await this.dataSpace.lexical2markdown(docId)
     // split markdown into pages,every 100 lines is a page
     const lines = markdown?.split("\n")
     if (!lines) {

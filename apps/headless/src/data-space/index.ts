@@ -7,6 +7,7 @@ import { EventEmitter } from "events"
 import fs from "node:fs"
 import path from "node:path"
 import { DataSpace } from "@eidos.space/core"
+import * as lexicalConverter from "@eidos.space/lexical"
 
 import type { HeadlessConfig } from "../config/env"
 import { applyGraftEnv, generateGraftToml } from "../config/env"
@@ -137,6 +138,7 @@ export async function getDataSpace(config: HeadlessConfig): Promise<DataSpace> {
     dbName: spaceId,
     context: {
       setInterval,
+      lexical: lexicalConverter,
     },
     dataEventChannel: createMockBroadcastChannel(`space-${spaceId}`) as any,
     enableFTS: true,

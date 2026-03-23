@@ -21,8 +21,25 @@ export function WithMarkdown<T extends Constructor>(Base: T) {
         | MsgType.ConvertMarkdown2State
         | MsgType.ConvertHtml2State
         | MsgType.ConvertEmail2State,
-      data: any
+      data: any,
+      extraNodes?: any[],
+      extraTransformers?: any[]
     ) => {
+      const lexical = this.dataSpace.context.lexical
+      if (lexical) {
+        switch (type) {
+          case MsgType.GetDocMarkdown:
+            return lexical.lexical2markdown(data, extraNodes, extraTransformers)
+          case MsgType.ConvertMarkdown2State:
+            return lexical.markdown2lexical(data, extraNodes, extraTransformers)
+          case MsgType.ConvertHtml2State:
+            return lexical.convertHtml2State(
+              data,
+              extraNodes,
+              extraTransformers
+            )
+        }
+      }
       return this.dataSpace.callRenderer?.(type, data)
     }
 

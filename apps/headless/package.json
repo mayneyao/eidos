@@ -19,6 +19,7 @@
     "@eidos.space/better-sqlite3": "^11.9.3",
     "@eidos.space/client": "workspace:*",
     "@eidos.space/core": "^0.28.1",
+    "@eidos.space/lexical": "workspace:*",
     "@eidos.space/ext-server": "workspace:*",
     "@eidos.space/v3": "workspace:*",
     "@hono/node-server": "^1.13.7",

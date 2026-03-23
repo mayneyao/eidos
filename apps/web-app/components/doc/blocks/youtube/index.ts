@@ -1,7 +1,11 @@
 import type { LexicalEditor } from "lexical"
 import type { DocBlock } from "../interface"
 import { YouTubePlugin, INSERT_YOUTUBE_COMMAND } from "./plugin"
-import { $createYouTubeNode, YouTubeNode } from "./node"
+import {
+  $createYouTubeNode,
+  YouTubeNode,
+  YOUTUBE_NODE_TRANSFORMER,
+} from "./node"
 
 export default {
   name: "YouTube",
@@ -19,5 +23,6 @@ export default {
     create: INSERT_YOUTUBE_COMMAND,
   },
   createNode: $createYouTubeNode,
+  transform: YOUTUBE_NODE_TRANSFORMER,
   hiddenInMenu: true,
 } as DocBlock

@@ -22,8 +22,8 @@ import { useRouterAdapter } from "./use-router-adapter"
 import {
   _convertEmail2State,
   _convertHtml2State,
-  _convertMarkdown2State,
-  _getDocMarkdown,
+  _markdown2lexical,
+  _lexical2markdown,
 } from "./use-doc-editor"
 import { useCurrentUser } from "./user-current-user"
 
@@ -135,10 +135,10 @@ export const useWorker = () => {
           })
           break
         case MsgType.GetDocMarkdown:
-          res = await _getDocMarkdown(data)
+          res = await _lexical2markdown(data)
           break
         case MsgType.ConvertMarkdown2State:
-          res = await _convertMarkdown2State(data)
+          res = await _markdown2lexical(data)
           break
         case MsgType.ConvertHtml2State:
           res = await _convertHtml2State(data)

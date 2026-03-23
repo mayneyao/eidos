@@ -1,66 +1,37 @@
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
-import type { SerializedDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
-import { DecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
+import {
+  BaseVideoNode,
+  $isBaseVideoNode,
+  createVideoTransformer,
+  type SerializedVideoNode,
+} from "@eidos.space/lexical"
 import type {
   EditorConfig,
   ElementFormatType,
   LexicalEditor,
   LexicalNode,
   NodeKey,
-  Spread,
 } from "lexical"
 
 import { VideoComponent } from "./component"
 
-export type SerializedVideoNode = Spread<
-  {
-    src: string
-  },
-  SerializedDecoratorBlockNode
->
-
-export class VideoNode extends DecoratorBlockNode {
-  __src: string
-
+export class VideoNode extends BaseVideoNode {
   static getType(): string {
     return "video"
   }
 
   static clone(node: VideoNode): VideoNode {
-    return new VideoNode(node.__src, node.__format, node.__key)
+    return new VideoNode(node.__src, node.getFormat(), node.getKey())
   }
 
   constructor(src: string, format?: ElementFormatType, key?: NodeKey) {
-    super(format, key)
-    this.__src = src
-  }
-
-  setSrc(src: string): void {
-    const writable = this.getWritable()
-    writable.__src = src
-  }
-
-  createDOM(): HTMLElement {
-    return document.createElement("div")
-  }
-
-  updateDOM(): false {
-    return false
+    super(src, format, key)
   }
 
   static importJSON(data: SerializedVideoNode): VideoNode {
     const node = $createVideoNode(data.src)
     node.setFormat(data.format)
     return node
-  }
-
-  exportJSON(): SerializedVideoNode {
-    return {
-      ...super.exportJSON(),
-      src: this.__src,
-      type: "video",
-      version: 1,
-    }
   }
 
   decorate(_editor: LexicalEditor, config: EditorConfig): JSX.Element {
@@ -71,17 +42,13 @@ export class VideoNode extends DecoratorBlockNode {
     }
     return (
       <BlockWithAlignableContents
-        format={this.__format}
+        format={this.getFormat()}
         className={className}
-        nodeKey={this.__key}
+        nodeKey={this.getKey()}
       >
-        <VideoComponent url={this.__src} nodeKey={this.__key} />
+        <VideoComponent url={this.__src} nodeKey={this.getKey()} />
       </BlockWithAlignableContents>
     )
-  }
-
-  getTextContent(): string {
-    return this.__src
   }
 }
 
@@ -94,3 +61,7 @@ export function $isVideoNode(
 ): node is VideoNode {
   return node instanceof VideoNode
 }
+
+export const VIDEO_NODE_TRANSFORMER = createVideoTransformer(VideoNode, (src) =>
+  $createVideoNode(src)
+)

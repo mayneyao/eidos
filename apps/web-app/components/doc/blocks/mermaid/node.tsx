@@ -1,91 +1,60 @@
 import type { MultilineElementTransformer } from "@lexical/markdown"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
-import type { SerializedDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
-import { DecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
+import {
+  BaseMermaidNode,
+  $isBaseMermaidNode,
+  createMermaidTransformer,
+} from "@eidos.space/lexical"
 import type {
   EditorConfig,
   ElementFormatType,
   LexicalEditor,
   LexicalNode,
   NodeKey,
-  Spread,
 } from "lexical"
 
 import { Mermaid } from "./component"
 
-export type SerializedMermaidNode = Spread<
-  {
-    text: string
-  },
-  SerializedDecoratorBlockNode
->
-
-export class MermaidNode extends DecoratorBlockNode {
-  __text: string
-
+export class MermaidNode extends BaseMermaidNode {
   static getType(): string {
     return "mermaid"
   }
 
   static clone(node: MermaidNode): MermaidNode {
-    return new MermaidNode(node.__text, node.__format, node.__key)
+    return new MermaidNode(node.__code, node.getFormat(), node.getKey())
   }
 
   constructor(text: string, format?: ElementFormatType, key?: NodeKey) {
-    super(format, key)
-    this.__text = text
+    super(text, format, key)
   }
 
-  setText(text: string) {
-    const writable = this.getWritable()
-    writable.__text = text
-  }
-
-  createDOM(): HTMLElement {
-    return document.createElement("div")
-  }
-
-  updateDOM(): false {
-    return false
-  }
-
-  exportJSON(): SerializedMermaidNode {
-    return {
-      ...super.exportJSON(),
-      text: this.__text,
-      type: "mermaid",
-      version: 1,
-    }
-  }
-
-  static importJSON(serializedNode: SerializedMermaidNode): MermaidNode {
-    const node = $createMermaidNode(serializedNode.text)
+  static importJSON(serializedNode: any): MermaidNode {
+    const node = $createMermaidNode(serializedNode.code || serializedNode.text)
     node.setFormat(serializedNode.format)
     return node
   }
 
   decorate(_editor: LexicalEditor, config: EditorConfig): JSX.Element {
-    if (this.__text.length === 0 || this.__text == null) {
-      return <div>Empty Mermaid text</div>
+    if (this.__code.length === 0 || this.__code == null) {
+      return <div>Empty Mermaid code</div>
     }
     const embedBlockTheme = config.theme.embedBlock || {}
     const className = {
       base: embedBlockTheme.base || "",
       focus: embedBlockTheme.focus || "",
     }
+    const nodeKey = this.getKey()
+    const format = this.getFormat()
+
     return (
       <BlockWithAlignableContents
-        format={this.__format}
+        format={format}
         className={className}
-        nodeKey={this.__key}
+        nodeKey={nodeKey}
       >
-        <Mermaid text={this.__text} nodeKey={this.__key} />
+        <Mermaid text={this.__code} nodeKey={nodeKey} />
       </BlockWithAlignableContents>
     )
-  }
-
-  getTextContent(): string {
-    return this.__text
   }
 }
 
@@ -99,41 +68,5 @@ export function $isMermaidNode(
   return node instanceof MermaidNode
 }
 
-export const MERMAID_NODE_TRANSFORMER: MultilineElementTransformer = {
-  dependencies: [MermaidNode],
-  export: (node: LexicalNode, traverseChildren: (node: any) => string) => {
-    if (!$isMermaidNode(node)) {
-      return null
-    }
-    const textContent = node.getTextContent()
-    return (
-      "```mermaid\n" +
-      (node.__text || "") +
-      (textContent ? "\n" + textContent : "") +
-      "\n" +
-      "```"
-    )
-  },
-  regExpStart: /```mermaid/,
-  regExpEnd: {
-    regExp: /```/,
-    optional: true,
-  },
-  replace: (
-    rootNode,
-    children,
-    startMatch,
-    endMatch,
-    linesInBetween,
-    isImport
-  ) => {
-    const text = linesInBetween?.join("\n").trim()
-    if (!text) {
-      return false
-    }
-    const mermaidNode = $createMermaidNode(text)
-    rootNode.append(mermaidNode)
-    return true
-  },
-  type: "multiline-element",
-}
+export const MERMAID_NODE_TRANSFORMER: MultilineElementTransformer =
+  createMermaidTransformer(MermaidNode, (text) => $createMermaidNode(text))

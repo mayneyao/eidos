@@ -100,6 +100,10 @@ export default defineConfig({
                 badge: "New",
               },
               {
+                label: "Document API",
+                autogenerate: { directory: "/api-reference/document" },
+              },
+              {
                 label: "Extension API",
                 link: "/api-reference/extension/",
               },

@@ -5,6 +5,8 @@ import {
   extractConstant,
   scriptCodeCompile,
 } from "@eidos.space/v3"
+import * as lexicalConverter from "@eidos.space/lexical"
+import { getEidosNodes, getEidosTransformers } from "@eidos.space/lexical"
 
 import { EidosMessageChannelName } from "@/lib/const"
 
@@ -284,6 +286,26 @@ class DataSpaceManager {
             description,
             slugPrefix,
           }
+        },
+        lexical: {
+          markdown2lexical: (markdown: string) =>
+            lexicalConverter.markdown2lexical(
+              markdown,
+              getEidosNodes(),
+              getEidosTransformers()
+            ),
+          lexical2markdown: (state: string) =>
+            lexicalConverter.lexical2markdown(
+              state,
+              getEidosNodes(),
+              getEidosTransformers()
+            ),
+          convertHtml2State: (html: string) =>
+            lexicalConverter.convertHtml2State(
+              html,
+              getEidosNodes(),
+              getEidosTransformers()
+            ),
         },
       },
       createUDF: (db) => {

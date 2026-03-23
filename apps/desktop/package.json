@@ -24,6 +24,7 @@
   "dependencies": {
     "@eidos.space/better-sqlite3": "^11.9.3",
     "@eidos.space/client": "workspace:*",
+    "@eidos.space/lexical": "workspace:*",
     "@eidos.space/ext-server": "workspace:*",
     "@eidos.space/proxy": "workspace:*",
     "@eidos.space/space-manager": "workspace:*",

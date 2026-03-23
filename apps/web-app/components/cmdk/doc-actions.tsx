@@ -22,7 +22,7 @@ import { IconRenderer } from "../ui/icon-picker"
 export const DocActionCommandItems = () => {
   const { t } = useTranslation()
   const params = useCurrentPathInfo()
-  const { updateNodeName, getDocMarkdown } = useSqlite(params.database)
+  const { updateNodeName, lexical2markdown } = useSqlite(params.database)
   const { generateTitle, isLoading: isTitleGenerating } = useGenerateTitle()
   const { callFunction } = useScriptFunction()
   const node = useCurrentNode()
@@ -54,7 +54,7 @@ export const DocActionCommandItems = () => {
   const handleGenerateTitle = async () => {
     if (!node?.id) return
 
-    const docContent = await getDocMarkdown(node.id)
+    const docContent = await lexical2markdown(node.id)
     if (!docContent) return
 
     try {

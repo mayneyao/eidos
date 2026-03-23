@@ -1,20 +1,14 @@
 import type { ReactNode } from "react"
-import type { TextMatchTransformer } from "@lexical/markdown"
-import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
 import {
-  DecoratorNode,
-  type EditorConfig,
-  type LexicalEditor,
-  type LexicalNode,
-  type NodeKey,
-} from "lexical"
+  BaseMentionNode,
+  $isBaseMentionNode,
+  createMentionTransformer,
+} from "@eidos.space/lexical"
+import type { EditorConfig, LexicalEditor, LexicalNode, NodeKey } from "lexical"
 
 import { MentionComponent } from "./component"
 
-export class MentionNode extends DecoratorNode<ReactNode> {
-  __id: string
-  __title?: string
-
+export class MentionNode extends BaseMentionNode {
   static getType(): string {
     return "mention"
   }
@@ -24,27 +18,15 @@ export class MentionNode extends DecoratorNode<ReactNode> {
   }
 
   constructor(id: string, title?: string, key?: NodeKey) {
-    super(key)
-    this.__id = id
-    this.__title = title
+    super(id, title, key)
   }
 
-  getTextContent(): string {
-    return `[[ ${this.__id} ]]`
-  }
-
-  createDOM(): HTMLElement {
-    const node = document.createElement("span")
-    // node.style.display = "inline-block"
-    node.setAttribute("data-type", "mention")
+  static importJSON(data: any): MentionNode {
+    const node = $createMentionNode(data.id, data.title)
     return node
   }
 
-  updateDOM(): false {
-    return false
-  }
-
-  decorate(_editor: LexicalEditor, config: EditorConfig): ReactNode {
+  decorate(_editor: LexicalEditor, _config: EditorConfig): ReactNode {
     return (
       <MentionComponent
         id={this.__id}
@@ -52,28 +34,6 @@ export class MentionNode extends DecoratorNode<ReactNode> {
         nodeKey={this.getKey()}
       />
     )
-  }
-
-  static importJSON(data: any): MentionNode {
-    const node = $createMentionNode(data.id)
-    return node
-  }
-
-  exportJSON() {
-    return {
-      id: this.__id,
-      title: this.__title,
-      type: "mention",
-      version: 1,
-    }
-  }
-
-  canInsertTextBefore(): boolean {
-    return false
-  }
-
-  canInsertTextAfter(): boolean {
-    return false
   }
 }
 
@@ -87,22 +47,7 @@ export function $isMentionNode(
   return node instanceof MentionNode
 }
 
-export const MENTION_NODE_TRANSFORMER: TextMatchTransformer = {
-  dependencies: [MentionNode],
-  export: (node) => {
-    if (!$isMentionNode(node)) {
-      return null
-    }
-    const mentionNode = node as MentionNode
-    return `[[ ${mentionNode.__id} ]]`
-  },
-  importRegExp: /\[\[ ([^\]]+) \]\]/,
-  regExp: /\[\[ ([^\]]+) \]\]$/,
-  replace: (textNode, match) => {
-    const [, id] = match
-    const mentionNode = $createMentionNode(id.trim())
-    textNode.replace(mentionNode)
-  },
-  trigger: "]",
-  type: "text-match",
-}
+export const MENTION_NODE_TRANSFORMER = createMentionTransformer(
+  MentionNode,
+  (id) => $createMentionNode(id.trim())
+)
