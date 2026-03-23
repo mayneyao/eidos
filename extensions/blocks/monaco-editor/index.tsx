@@ -154,6 +154,46 @@ function getLanguageFromPath(filePath: string): string {
 }
 
 /**
+ * Get color from CSS variable and resolve to HEX
+ */
+function getVariableColor(varName: string, fallback: string): string {
+  if (typeof window === "undefined") return fallback
+
+  const temp = document.createElement("div")
+  temp.style.color = `var(${varName})`
+  temp.style.display = "none"
+  document.body.appendChild(temp)
+  const resolved = getComputedStyle(temp).color
+  document.body.removeChild(temp)
+
+  if (
+    !resolved ||
+    resolved === "rgba(0, 0, 0, 0)" ||
+    resolved === "transparent"
+  ) {
+    return fallback
+  }
+
+  // Parse rgb(r, g, b) or rgba(r, g, b, a)
+  const match = resolved.match(/\d+(\.\d+)?/g)
+  if (!match || match.length < 3) return fallback
+
+  const r = Math.min(255, parseInt(match[0])).toString(16).padStart(2, "0")
+  const g = Math.min(255, parseInt(match[1])).toString(16).padStart(2, "0")
+  const b = Math.min(255, parseInt(match[2])).toString(16).padStart(2, "0")
+
+  // Handle alpha if present
+  if (match.length === 4) {
+    const a = Math.round(parseFloat(match[3]) * 255)
+      .toString(16)
+      .padStart(2, "0")
+    return `#${r}${g}${b}${a}`
+  }
+
+  return `#${r}${g}${b}`
+}
+
+/**
  * Monaco Editor FileHandler Extension
  *
  * Reuses the project's Monaco editor for editing text files
@@ -222,6 +262,71 @@ export function MonacoEditor() {
     return () => resizeObserver.disconnect()
   }, [monacoInstance])
 
+  // Define and apply theme based on CSS variables
+  useEffect(() => {
+    if (!monacoInstance) return
+
+    const isDark = ctx.theme === "dark"
+    const background = getVariableColor(
+      "--background",
+      isDark ? "#1e1e1e" : "#ffffff"
+    )
+    const foreground = getVariableColor(
+      "--foreground",
+      isDark ? "#d4d4d4" : "#333333"
+    )
+    const primary = getVariableColor("--primary", "#007acc")
+    const border = getVariableColor("--border", isDark ? "#444444" : "#cccccc")
+
+    // Syntax colors
+    const comment = getVariableColor("--token-comment-color", "#6a9955")
+    const keyword = getVariableColor(
+      "--token-property-color",
+      isDark ? "#569cd6" : "#0000ff"
+    )
+    const string = getVariableColor(
+      "--token-selector-color",
+      isDark ? "#ce9178" : "#a31515"
+    )
+    const number = getVariableColor(
+      "--token-variable-color",
+      isDark ? "#b5cea8" : "#098658"
+    )
+    const type = getVariableColor(
+      "--token-attr-color",
+      isDark ? "#4ec9b0" : "#267f99"
+    )
+    const func = getVariableColor(
+      "--token-function-color",
+      isDark ? "#dcdcaa" : "#795e26"
+    )
+
+    monacoInstance.editor.defineTheme("eidos-dynamic", {
+      base: isDark ? "vs-dark" : "vs",
+      inherit: true,
+      rules: [
+        { token: "comment", foreground: comment },
+        { token: "keyword", foreground: keyword },
+        { token: "string", foreground: string },
+        { token: "number", foreground: number },
+        { token: "type", foreground: type },
+        { token: "function", foreground: func },
+      ],
+      colors: {
+        "editor.background": background,
+        "editor.foreground": foreground,
+        "editor.lineHighlightBackground": isDark ? "#ffffff08" : "#00000005",
+        "editorCursor.foreground": primary,
+        "editor.selectionBackground": isDark ? "#ffffff20" : "#00000010",
+        "editorIndentGuide.background": border,
+        "editorLineNumber.foreground": isDark ? "#858585" : "#237893",
+        "editor.border": border,
+      },
+    })
+
+    monacoInstance.editor.setTheme("eidos-dynamic")
+  }, [monacoInstance, ctx.theme])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full w-full">
@@ -250,7 +355,7 @@ export function MonacoEditor() {
         width="100%"
         value={content}
         language={language}
-        theme="vs-light"
+        theme="eidos-dynamic"
         options={{
           minimap: { enabled: true },
           wordWrap: "on",
