@@ -35,7 +35,7 @@ export const GalleryViewProperties = (props: { viewId: string }) => {
     defaultValues: {
       hideEmptyFields: view?.properties?.hideEmptyFields,
       coverPreview: view?.properties?.coverPreview,
-      fitContent: view?.properties?.fitContent || false,
+      fitContent: view?.properties?.fitContent ?? true,
     },
   })
 

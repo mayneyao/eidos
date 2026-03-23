@@ -6,6 +6,8 @@ import {
 import type { IView, ViewType } from "../types/IView"
 import { ViewTypeEnum } from "../types/IView"
 import { getTableIdByRawTableName, getUuid } from "@/lib/utils"
+import { getFieldInstance } from "../fields"
+import { FieldType } from "../fields/const"
 
 import type { BaseTable } from "./base"
 import { BaseTableImpl } from "./base"
@@ -33,9 +35,11 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   JSONFields = ["properties", "filter", "order_map", "hidden_fields"]
   async add(data: IView): Promise<IView> {
     const position = (await this.getLastPosition()) + 1
+    const { insertKPlaceholder, insertVPlaceholder, values } =
+      this.transformData({ ...data, position })
     await this.dataSpace.exec2(
-      `INSERT INTO ${this.name} (id,name,type,table_id,query,position) VALUES (? , ? , ? , ? , ?, ?);`,
-      [data.id, data.name, data.type, data.table_id, data.query, position]
+      `INSERT INTO ${this.name} (${insertKPlaceholder}) VALUES (${insertVPlaceholder});`,
+      values
     )
     return {
       ...data,
@@ -74,11 +78,26 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
     type: ViewType = ViewTypeEnum.Grid
   ) {
     const table_id = getTableIdByRawTableName(tableName)
+    let properties: any = undefined
+    if (type === ViewTypeEnum.Gallery) {
+      const fields = await this.dataSpace.column.list({ table_name: tableName })
+      const firstFileField = fields.find((f) => {
+        const fieldInstance = getFieldInstance(f)
+        return fieldInstance.displayType === FieldType.File
+      })
+      properties = {
+        fitContent: true,
+      }
+      if (firstFileField) {
+        properties.coverPreview = firstFileField.table_column_name
+      }
+    }
     return await this.add({
       id: getUuid(),
       name: "New View",
       type,
       table_id,
+      properties,
       query: `SELECT * FROM ${tableName}`,
     })
   }
