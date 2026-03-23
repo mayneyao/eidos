@@ -136,6 +136,10 @@ export default defineConfig({
                     label: "View Objects",
                     link: "/api-reference/table/views/",
                   },
+                  {
+                    label: "SQL Functions",
+                    link: "/api-reference/table/sql-functions/",
+                  },
                 ],
               },
             ],

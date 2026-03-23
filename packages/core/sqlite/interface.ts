@@ -132,6 +132,8 @@ export abstract class BaseServerDatabase {
   abstract createFunction(opt: {
     name: string
     xFunc: (...args: any[]) => any
+    deterministic: boolean
+    nArg?: number
   }): any
   abstract table(
     name: string,

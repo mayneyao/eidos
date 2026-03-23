@@ -1,0 +1,28 @@
+---
+title: SQL 扩展函数
+description: Eidos 提供的内置 SQL 函数
+---
+
+import { Badge } from '@astrojs/starlight/components';
+
+Eidos 在标准 SQLite 基础上开发了一系列内置处理函数，旨在辅助个人数据管理和本地智能化。这些函数在 [数据视图 (Dataview)](/nodes/dataview) 中非常有用，可用于聚合、转换和智能分析各类信息。
+
+:::tip[Eidos 环境专有扩展]
+请注意，这些函数是 **Eidos 环境专供的非标准 SQLite 函数**。虽然您的数据库文件保持标准的 SQLite 格式，可以使用任何工具打开，但这些自定义扩展函数只有在 Eidos 内部运行时才能正确执行。
+:::
+
+## 文件系统 (File System)
+
+用于管理和列举文件。
+
+#### `lsdir(path [, recursive])`
+这是一个虚表函数（Virtual Table），用于列出指定目录下的文件和子目录。其行为与标准的 SQLite `fileio` 扩展一致。
+
+- **参数**: 
+  - `path`: 目标路径。支持家目录 (`~`) 和挂载点 (`@/`)。
+  - `recursive`: (可选) 为 `1` 表示递归搜索，为 `0`（默认值）表示仅列出顶级。
+- **返回列**: `name`, `path`, `kind`, `pathname`, `size`, `mtime`。
+- **示例**: 
+  ```sql
+  SELECT * FROM lsdir('~/Documents', 1) WHERE name LIKE '%.pdf';
+  ```

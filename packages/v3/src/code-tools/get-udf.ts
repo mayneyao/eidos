@@ -17,6 +17,7 @@ interface UDFResult {
     name: string
     xFunc: Function
     deterministic?: boolean
+    nArg?: number
   }
 }
 
