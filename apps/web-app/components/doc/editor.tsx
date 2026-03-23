@@ -90,7 +90,7 @@ export function InnerEditor(props: EditorProps) {
   }, [props.isEditable, props.namespace])
 
   return (
-    <LexicalComposer initialConfig={initConfig}>
+    <LexicalComposer initialConfig={initConfig} key={props.docId}>
       <EditorInstanceProvider docId={props.docId ?? null}>
         <div
           className={cn("editor-container w-full", props.className)}
