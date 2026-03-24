@@ -140,6 +140,19 @@ export class VirtualFsAdapter implements IExternalFileSystem {
         END;
       `
 
+      const treeRealDeleteTrigger = `
+        CREATE TEMP TRIGGER IF NOT EXISTS virtual_fs_tree_real_delete_trigger
+        AFTER DELETE ON eidos__tree
+        FOR EACH ROW
+        BEGIN
+          SELECT eidos_virtual_fs_watch_event(
+            '~/.eidos/__NODES__/',
+            'rename',
+            OLD.id
+          );
+        END;
+      `
+
       // Create triggers for eidos__extensions table
       const extensionInsertTrigger = `
         CREATE TEMP TRIGGER IF NOT EXISTS virtual_fs_extension_insert_trigger
@@ -188,6 +201,7 @@ export class VirtualFsAdapter implements IExternalFileSystem {
       this.db.exec(treeInsertTrigger)
       this.db.exec(treeUpdateTrigger)
       this.db.exec(treeDeleteTrigger)
+      this.db.exec(treeRealDeleteTrigger)
       this.db.exec(extensionInsertTrigger)
       this.db.exec(extensionUpdateTrigger)
       this.db.exec(extensionDeleteTrigger)

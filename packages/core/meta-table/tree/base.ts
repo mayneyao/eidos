@@ -63,7 +63,8 @@ export class BaseTreeTable
   }
 
   async add(
-    data: ITreeNode & { _skipAutoRename?: boolean }
+    data: ITreeNode & { _skipAutoRename?: boolean },
+    db = this.dataSpace.db
   ): Promise<ITreeNode> {
     // Generate ID if not provided
     if (!data.id) {
@@ -81,7 +82,7 @@ export class BaseTreeTable
 
     const nextPosition = await this.getNextRowId()
     try {
-      this.dataSpace.exec(
+      await this.dataSpace.syncExec2(
         `INSERT INTO ${TreeTableName} (id,name,type,parent_id,position,hide_properties) VALUES (? , ? , ? , ?,?,?);`,
         [
           data.id,
@@ -90,7 +91,8 @@ export class BaseTreeTable
           data.parent_id,
           nextPosition,
           data.hide_properties ?? 0,
-        ]
+        ],
+        db as any
       )
     } catch (error: any) {
       console.error("[TreeTable] Error adding node:", error)
@@ -157,7 +159,7 @@ export class BaseTreeTable
   }
 
   async del(id: string, db = this.dataSpace.db): Promise<boolean> {
-    this.dataSpace.syncExec2(
+    await this.dataSpace.syncExec2(
       `DELETE FROM ${TreeTableName} WHERE id = ?`,
       [id],
       db
@@ -212,7 +214,7 @@ export class BaseTreeTable
     try {
       await this.dataSpace.db.transaction(async (db) => {
         // update parent_id
-        this.dataSpace.syncExec2(
+        await this.dataSpace.syncExec2(
           `UPDATE ${TreeTableName} SET parent_id = ? WHERE id = ?;`,
           [tableId, id],
           db
@@ -221,13 +223,13 @@ export class BaseTreeTable
         const title = (await this.get(id))?.name
         if (parentId) {
           const parentTableName = getRawTableNameById(parentId)
-          this.dataSpace.syncExec2(
+          await this.dataSpace.syncExec2(
             `DELETE FROM ${parentTableName} WHERE _id = ?;`,
             [extractIdFromShortId(id)],
             db
           )
         }
-        this.dataSpace.syncExec2(
+        await this.dataSpace.syncExec2(
           `INSERT INTO ${tableName} (_id,title) VALUES (?,?);`,
           [extractIdFromShortId(id), title],
           db
