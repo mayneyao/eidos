@@ -248,8 +248,13 @@ export const createExtensionMiddleware = (config: ExtServerConfig) => {
     // Check for sandbox domain
     const sandboxMatch = hostname.match(sandboxPattern)
     if (sandboxMatch && config.dependencies.createSandboxHandler) {
-      // Skip RPC requests - let server handle them
-      if (url.pathname === "/rpc") {
+      // Skip special paths and RPC requests - let server handle them
+      if (
+        url.pathname.startsWith("/files/") ||
+        url.pathname.startsWith("/~/") ||
+        url.pathname.startsWith("/@/") ||
+        url.pathname === "/rpc"
+      ) {
         return await next()
       }
 
