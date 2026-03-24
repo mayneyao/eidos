@@ -231,7 +231,7 @@ const handleStaticFile = async (c: any) => {
   const headers = new Headers()
   headers.append("Content-Type", file.type)
   headers.append("Cross-Origin-Embedder-Policy", "require-corp")
-  return new Response(file, { headers })
+  return c.newResponse(file as any, { headers })
 }
 
 export interface PortInUseError extends Error {
@@ -589,7 +589,7 @@ export async function startServer({
         )
 
         // Note: CORS headers are set by the global middleware above
-        return new Response(formData)
+        return c.newResponse(formData as any)
       } else {
         // Regular JSON response
         return c.json({ success: true, data: result })
@@ -657,14 +657,14 @@ export async function startServer({
 
           headers.append("Content-Range", `bytes ${start}-${end}/${file.size}`)
           headers.append("Content-Length", String(chunk.size))
-          return new Response(chunk, {
+          return c.newResponse(chunk as any, {
             status: 206,
             headers,
           })
         }
       }
 
-      return new Response(file, { headers })
+      return c.newResponse(file as any, { headers })
     } catch (error: any) {
       return c.text(`Error serving file: ${error.message}`, 500)
     }
