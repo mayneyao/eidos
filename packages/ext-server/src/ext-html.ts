@@ -63,6 +63,14 @@ export const getIndexHtml = (props: IndexHtmlProps): string => {
           window.addEventListener('message', (event) => {
             if (event.data.type === 'theme-change') {
               document.documentElement.className = event.data.theme;
+              const { variables } = event.data;
+              if (variables) {
+                Object.entries(variables).forEach(([name, value]) => {
+                  if (typeof value === 'string') {
+                    document.documentElement.style.setProperty('--' + name, value);
+                  }
+                });
+              }
             }
           });
         </script>
