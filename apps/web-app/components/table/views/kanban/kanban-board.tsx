@@ -65,6 +65,7 @@ export const KanbanBoard = memo(
     const [newItemTitle, setNewItemTitle] = useState("")
     const inputRef = useRef<HTMLInputElement>(null)
     const [isCollapsed, setIsCollapsed] = useState(false)
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     const memoizedItems = useMemo(() => items || [], [items])
 
@@ -97,10 +98,15 @@ export const KanbanBoard = memo(
 
     const handleCreateNewItem = async () => {
       const title = newItemTitle.trim()
-      if (!title) return
-      setNewItemTitle("")
-      await createItem(title, status.status)
-      setIsAdding(false)
+      if (!title || isSubmitting) return
+      setIsSubmitting(true)
+      try {
+        setNewItemTitle("")
+        await createItem(title, status.status)
+        setIsAdding(false)
+      } finally {
+        setIsSubmitting(false)
+      }
     }
 
     return (
@@ -176,7 +182,7 @@ export const KanbanBoard = memo(
                     name={item.title || item.name || item.id}
                     parent={status.status}
                     index={index}
-                    className={`h-[${cardHeight}px`}
+                    className={`h-[${cardHeight}px]`}
                   >
                     <DataCard
                       key={item.id}
