@@ -13,6 +13,13 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { handleApplyTheme } from "@/apps/web-app/hooks/use-apply-theme-by-name"
 import { useTheme } from "@/components/theme-provider"
 import defaultThemeCss from "@/styles/themes/default.css?raw"
+import {
+  EidosDataEventChannelMsgType,
+  EidosDataEventChannelName,
+  type EidosDataEventChannelMsg,
+  DataUpdateSignalType,
+} from "@/lib/const"
+import { KVTableName } from "@/packages/core/sqlite/const"
 
 // Local set to track initialized spaces in current app session
 const initializedSpaces = new Set<string>()
@@ -43,8 +50,9 @@ export function useSpaceTheme() {
   const [cacheVersion, setCacheVersion] = useState(0) // Local trigger
   const [syncVersion, setSyncVersion] = useState(0) // Global trigger
 
-  // Subscribe to global theme changes
+  // Subscribe to global theme changes (in-app memory)
   useEffect(() => {
+    // Inner-app listener
     const l = () => setSyncVersion((v) => v + 1)
     themeListeners.add(l)
     return () => {
@@ -78,6 +86,51 @@ export function useSpaceTheme() {
     },
     [cacheKey]
   )
+
+  // Subscribe to cross-tab and CLI sync via database events
+  useEffect(() => {
+    if (!space || !sqlite) return
+
+    const bc = new BroadcastChannel(EidosDataEventChannelName)
+    const handler = async (ev: MessageEvent<EidosDataEventChannelMsg>) => {
+      const { type, payload } = ev.data
+      if (type === EidosDataEventChannelMsgType.MetaTableUpdateSignalType) {
+        const { table, _new, _old } = payload
+        const key = _new?.key || _old?.key
+        if (table === KVTableName && key === "eidos:space:config:theme") {
+          // Changed via CLI or other process
+          const name = await sqlite.theme.getCurrent()
+          if (name) {
+            const css = await sqlite.theme.get(name)
+            if (css) {
+              setCache({
+                currentTheme: name,
+                themes: [], // will be refreshed by hooks
+                currentThemeCss: css,
+                timestamp: Date.now(),
+              })
+            } else {
+              // css missing, reset
+              localStorage.removeItem(`${CACHE_KEY_PREFIX}${space}`)
+              setCacheVersion((v) => v + 1)
+              setSyncVersion((v) => v + 1)
+            }
+          } else {
+            // Null theme means reset
+            localStorage.removeItem(`${CACHE_KEY_PREFIX}${space}`)
+            setCacheVersion((v) => v + 1)
+            setSyncVersion((v) => v + 1)
+          }
+        }
+      }
+    }
+    bc.addEventListener("message", handler)
+
+    return () => {
+      bc.removeEventListener("message", handler)
+      bc.close()
+    }
+  }, [sqlite, space, setCache])
 
   // Clear cache
   const clearCache = useCallback(() => {
