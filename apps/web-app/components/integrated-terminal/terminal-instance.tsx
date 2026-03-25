@@ -185,7 +185,7 @@ export function TerminalInstance({
 
     observerRef.current.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ["class"],
+      attributeFilter: ["class", "style"],
     })
 
     // Setup ResizeObserver to handle container size changes
