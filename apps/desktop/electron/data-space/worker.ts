@@ -6,7 +6,11 @@ import {
   scriptCodeCompile,
 } from "@eidos.space/v3"
 
-import { EidosMessageChannelName } from "@/lib/const"
+import {
+  DataUpdateSignalType,
+  EidosDataEventChannelMsgType,
+  EidosMessageChannelName,
+} from "@/lib/const"
 
 import type { SpaceInfo } from "../space-registry"
 import { createDataEventChannel } from "./data-event-channel"
@@ -287,14 +291,49 @@ class DataSpaceManager {
         },
       },
       createUDF: (db) => {
-        const mounts = db.selectObjectsSync(
-          "SELECT key, value FROM eidos__kv WHERE key LIKE 'eidos:space:files:mount:%'"
-        )
         const mountMap: Record<string, string> = {}
-        for (const mount of mounts) {
-          const name = mount.key.split(":").pop()
-          if (name) mountMap[name] = mount.value
+        const refreshMountMap = () => {
+          try {
+            const mounts = db.selectObjectsSync(
+              "SELECT key, value FROM eidos__kv WHERE key LIKE 'eidos:space:files:mount:%'"
+            )
+            // Update in place to preserve the reference passed to registerLsdir
+            Object.keys(mountMap).forEach((k) => delete mountMap[k])
+            for (const mount of mounts) {
+              const name = mount.key.split(":").pop()
+              if (name) mountMap[name] = mount.value
+            }
+          } catch (error) {
+            // eidos__kv might not exist yet during migration
+          }
         }
+
+        refreshMountMap()
+
+        // Listen for KV changes to update mounts dynamically without restart
+        dataEventChannel.addEventListener("message", (event: any) => {
+          const msg = event.data
+          if (
+            msg?.type ===
+              EidosDataEventChannelMsgType.MetaTableUpdateSignalType &&
+            msg?.payload?.table === "eidos__kv"
+          ) {
+            const { type, _new, _old } = msg.payload
+            const key = _new?.key || _old?.key
+
+            if (key?.startsWith("eidos:space:files:mount:")) {
+              const name = key.split(":").pop()
+              if (!name) return
+
+              if (type === DataUpdateSignalType.Delete) {
+                delete mountMap[name]
+              } else if (_new && _new.value) {
+                mountMap[name] = _new.value
+              }
+            }
+          }
+        })
+
         return initUDF(db, this._spaceInfo?.path || "", mountMap)
       },
       postMessage: (data: any, transfer?: any[]) => {
