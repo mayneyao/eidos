@@ -12,10 +12,10 @@ use crate::client::EidosClient;
 use crate::commands::Commands;
 use crate::config::{Config, SpaceRegistry};
 
-/// Eidos CLI - AI Agent friendly command-line interface
+/// Eidos CLI - Command-line interface for Eidos Desktop
 #[derive(Parser)]
 #[command(name = "eidos")]
-#[command(about = "AI Agent friendly CLI for Eidos")]
+#[command(about = "Command-line interface for Eidos")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 struct Cli {
     /// Available commands

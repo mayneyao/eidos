@@ -1,9 +1,9 @@
 pub mod completions;
 pub mod ext;
 pub mod mount;
-pub mod space;
 pub mod status;
 pub mod table;
+pub mod theme;
 
 use anyhow::Result;
 use clap::Subcommand;
@@ -80,10 +80,6 @@ pub enum Commands {
         query: String,
     },
 
-    /// Space management commands
-    #[command(subcommand)]
-    Space(space::SpaceCommands),
-
     /// Extension management commands
     #[command(subcommand)]
     Ext(ext::ExtCommands),
@@ -91,6 +87,10 @@ pub enum Commands {
     /// Table management commands
     #[command(subcommand)]
     Table(table::TableCommands),
+
+    /// Theme management commands
+    #[command(subcommand)]
+    Theme(theme::ThemeCommands),
 
     /// Mount management commands
     /// 
@@ -154,9 +154,9 @@ impl Commands {
             Commands::Sql { query } => {
                 node_impl::cmd_sql(client, query).await
             }
-            Commands::Space(cmd) => cmd.execute(client, config).await,
             Commands::Ext(cmd) => cmd.execute(client, config).await,
             Commands::Table(cmd) => cmd.execute(client, format).await,
+            Commands::Theme(cmd) => cmd.execute(client, config).await,
             Commands::Mount(args) => args.execute(client).await,
             Commands::Status => status::execute(client).await,
             Commands::Completions { shell } => completions::execute(shell),
