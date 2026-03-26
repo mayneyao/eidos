@@ -130,4 +130,10 @@ mod tests {
         let cli = Cli::try_parse_from(["eidos", "mount", "ls"]).unwrap();
         assert!(matches!(cli.command, Commands::Mount(_)));
     }
+
+    #[test]
+    fn test_cli_table() {
+        let cli = Cli::try_parse_from(["eidos", "table", "tb_xxxx"]).unwrap();
+        assert!(matches!(cli.command, Commands::Table { table: Some(_), cmd: None }));
+    }
 }

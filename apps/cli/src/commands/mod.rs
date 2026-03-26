@@ -85,8 +85,14 @@ pub enum Commands {
     Ext(ext::ExtCommands),
 
     /// Table management commands
-    #[command(subcommand)]
-    Table(table::TableCommands),
+    #[command(name = "table", arg_required_else_help = true)]
+    Table {
+        /// Table ID (if no subcommand is provided, used for import)
+        table: Option<String>,
+
+        #[command(subcommand)]
+        cmd: Option<table::TableCommands>,
+    },
 
     /// Theme management commands
     #[command(subcommand)]
@@ -122,7 +128,7 @@ impl Commands {
             Commands::List { .. } | Commands::View { .. } | Commands::Mkdir { .. } |
             Commands::Touch { .. } | Commands::Move { .. } |
             Commands::Remove { .. } | Commands::Sql { .. } |
-            Commands::Table(..) | Commands::Mount(..)
+            Commands::Table { .. } | Commands::Mount(..)
         );
         
         if needs_space && config.space_id.is_none() {
@@ -155,7 +161,20 @@ impl Commands {
                 node_impl::cmd_sql(client, query).await
             }
             Commands::Ext(cmd) => cmd.execute(client, config).await,
-            Commands::Table(cmd) => cmd.execute(client, format).await,
+            Commands::Table { table, cmd } => {
+                if let Some(cmd) = cmd {
+                    cmd.execute(client, format).await
+                } else if let Some(table) = table {
+                    // Quick import mode
+                    table::TableCommands::Import { 
+                        table: table.clone(), 
+                        data: None, 
+                        file: None 
+                    }.execute(client, format).await
+                } else {
+                    Ok(())
+                }
+            }
             Commands::Theme(cmd) => cmd.execute(client, config).await,
             Commands::Mount(args) => args.execute(client).await,
             Commands::Status => status::execute(client).await,
