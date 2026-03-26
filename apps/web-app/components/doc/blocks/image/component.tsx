@@ -7,7 +7,6 @@
  */
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react"
-import { useCollaborationContext } from "@lexical/react/LexicalCollaborationContext"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection"
 import { mergeRegister } from "@lexical/utils"
@@ -112,7 +111,6 @@ export default function ImageComponent({
   const [isSelected, setSelected, clearSelection] =
     useLexicalNodeSelection(nodeKey)
   const [isResizing, setIsResizing] = useState<boolean>(false)
-  const { isCollabActive } = useCollaborationContext()
   const [editor] = useLexicalComposerContext()
   const [selection, setSelection] = useState<BaseSelection | null>(null)
   const activeEditorRef = useRef<LexicalEditor | null>(null)

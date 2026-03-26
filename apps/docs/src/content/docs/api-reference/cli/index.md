@@ -161,6 +161,56 @@ eidos table schema <table-id>
 | `Type`       | Field type                             |
 | `Property`   | Formula expression (formula type only) |
 
+### `table import <table-id>` (alias: `add`, `append`)
+
+Import or append data records to a table from JSON.
+
+```bash
+eidos table import <table-id> [options]
+# Shorthand for import
+eidos table <table-id> < data.json
+```
+
+**Options:**
+
+| Option              | Description              |
+| ------------------- | ------------------------ |
+| `-d, --data <str>`  | Direct JSON array string |
+| `-i, --file <path>` | Input JSON file          |
+
+**Piping:**
+
+```bash
+cat data.json | eidos table tb_xxxx
+opencli bilibili fav -f json | eidos table tb_xxxx
+```
+
+### `table create <name>`
+
+Create a new table with automated schema inference or explicit definitions.
+
+```bash
+eidos table create <name> [options]
+```
+
+**Options:**
+
+| Option                | Description                                    |
+| --------------------- | ---------------------------------------------- |
+| `-F, --fields <list>` | Explicit fields (e.g., `name:text,age:number`) |
+| `-T, --template <id>` | Copy schema from an existing table             |
+| `-d, --data <str>`    | Sample JSON to infer schema from (CLI, stdin)  |
+| `-i, --file <path>`   | Sample JSON file to infer schema from          |
+
+**Schema Inference + Import:**
+
+If data is provided via piping or `--file` during creation, the CLI will automatically infer the schema from the first record and import all data after the table is created.
+
+```bash
+# Create table "Favorites" and import items automatically
+opencli bilibili fav -f json | eidos table create "Favorites"
+```
+
 ## Mount Commands
 
 ### `mount`

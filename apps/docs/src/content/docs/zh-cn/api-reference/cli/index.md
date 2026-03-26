@@ -161,6 +161,56 @@ eidos table schema <table-id>
 | `Type`       | 字段类型                    |
 | `Property`   | 公式表达式（仅公式类型）    |
 
+### `table import <table-id>` (别名: `add`, `append`)
+
+从 JSON 导入或追加数据记录到表格。
+
+```bash
+eidos table import <table-id> [options]
+# 导入快捷语法
+eidos table <table-id> < data.json
+```
+
+**选项：**
+
+| 选项                | 描述               |
+| ------------------- | ------------------ |
+| `-d, --data <str>`  | 直接输入 JSON 数组 |
+| `-i, --file <path>` | 输入 JSON 文件     |
+
+**管道操作：**
+
+```bash
+cat data.json | eidos table tb_xxxx
+opencli bilibili fav -f json | eidos table tb_xxxx
+```
+
+### `table create <name>`
+
+通过自动结构推断或显式定义创建新表格。
+
+```bash
+eidos table create <name> [options]
+```
+
+**选项：**
+
+| 选项                  | 描述                                     |
+| --------------------- | ---------------------------------------- |
+| `-F, --fields <list>` | 显式定义字段 (如 `name:text,age:number`) |
+| `-T, --template <id>` | 从现有表拷贝结构                         |
+| `-d, --data <str>`    | 用于推断结构的 JSON 样例                 |
+| `-i, --file <path>`   | 用于推断结构的 JSON 样例文件             |
+
+**结构推断 + 自动导入：**
+
+如果在创建时通过管道或 `--file` 提供了数据，CLI 会自动根据第一条记录推断结构，并在表格创建后自动导入所有数据。
+
+```bash
+# 创建 "收藏夹" 并自动推断结构和导入数据
+opencli bilibili fav -f json | eidos table create "收藏夹"
+```
+
 ## 挂载命令
 
 ### `mount`

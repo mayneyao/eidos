@@ -11,6 +11,7 @@ import {
   Lock,
   Radio,
   AlertTriangle,
+  ExternalLink,
 } from "lucide-react"
 
 import { isDesktopMode } from "@/lib/env"
@@ -22,6 +23,7 @@ import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
 import { Badge } from "@/components/ui/badge"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import type {
   RelayChannel,
   RelayConfig,
@@ -64,7 +66,11 @@ interface ChannelFormData {
 
 const MAX_CHANNELS = 5
 
-export function RelaySettings() {
+interface RelaySettingsProps {
+  onCloseSettings?: () => void
+}
+
+export function RelaySettings({ onCloseSettings }: RelaySettingsProps) {
   const { t } = useTranslation()
   useSyncRelayHandlers()
   const { space } = useCurrentPathInfo()
@@ -72,6 +78,7 @@ export function RelaySettings() {
   const { relayHandlers } = useAllRelayHandlers()
   const auth = useAuthOptional()
   const isAuthenticated = auth?.isAuthenticated ?? false
+  const { navigate } = useRouterAdapter()
 
   const [relayConfig, setRelayConfig] = useState<RelayConfig>({
     enabled: false,
@@ -500,13 +507,15 @@ export function RelaySettings() {
                         onChange={(e) =>
                           setFormData({ ...formData, id: e.target.value })
                         }
-                        placeholder="unique-channel-id"
+                        placeholder={t(
+                          "space.settings.relay.channelIdPlaceholder"
+                        )}
                         className="font-mono text-sm"
                       />
                       <Button
                         variant="outline"
                         size="icon"
-                        className="shrink-0 h-9 w-9"
+                        className="shrink-0 size-7"
                         onClick={() =>
                           setFormData({
                             ...formData,
@@ -528,33 +537,52 @@ export function RelaySettings() {
                     <Label htmlFor="handler-script">
                       {t("space.settings.relay.handlerScript")}
                     </Label>
-                    <Select
-                      value={formData.handlerScriptId || "none"}
-                      onValueChange={(val) =>
-                        setFormData({
-                          ...formData,
-                          handlerScriptId: val === "none" ? "" : val,
-                        })
-                      }
-                    >
-                      <SelectTrigger id="handler-script">
-                        <SelectValue
-                          placeholder={t(
-                            "space.settings.relay.selectScriptPlaceholder"
-                          )}
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">
-                          {t("space.settings.relay.noHandler")}
-                        </SelectItem>
-                        {relayHandlers.map((handler) => (
-                          <SelectItem key={handler.id} value={handler.id}>
-                            {handler.name || handler.slug}
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={formData.handlerScriptId || "none"}
+                        onValueChange={(val) =>
+                          setFormData({
+                            ...formData,
+                            handlerScriptId: val === "none" ? "" : val,
+                          })
+                        }
+                      >
+                        <SelectTrigger id="handler-script" className="flex-1">
+                          <SelectValue
+                            placeholder={t(
+                              "space.settings.relay.selectScriptPlaceholder"
+                            )}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">
+                            {t("space.settings.relay.noHandler")}
                           </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                          {relayHandlers.map((handler) => (
+                            <SelectItem key={handler.id} value={handler.id}>
+                              {handler.name || handler.slug}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {formData.handlerScriptId && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="shrink-0 size-7"
+                          onClick={() => {
+                            onCloseSettings?.()
+                            navigate(`/extensions/${formData.handlerScriptId}`)
+                          }}
+                          title={t(
+                            "space.settings.relay.openScript",
+                            "Open Script"
+                          )}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {t("space.settings.relay.handlerScriptDescription")}
                     </p>
@@ -619,6 +647,7 @@ export function RelaySettings() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+                          title={t("common.copy")}
                           onClick={() => {
                             navigator.clipboard.writeText(channel.id)
                             toast({
@@ -660,6 +689,25 @@ export function RelaySettings() {
                             <span className="truncate max-w-[100px] sm:max-w-[150px]">
                               {handlerName}
                             </span>
+                            {channel.handlerScriptId && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5 p-0 hover:bg-transparent hover:text-primary"
+                                onClick={() => {
+                                  onCloseSettings?.()
+                                  navigate(
+                                    `/extensions/${channel.handlerScriptId}`
+                                  )
+                                }}
+                                title={t(
+                                  "space.settings.relay.openScript",
+                                  "Open Script"
+                                )}
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </Button>
+                            )}
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">

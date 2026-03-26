@@ -260,7 +260,11 @@ export class TerminalService {
       }
 
       // Prepare environment
+      // Ensure we have UTF-8 locale set, otherwise non-ASCII characters (like Chinese)
+      // may be garbled in build mode where process.env.LANG might be missing.
       const env = {
+        LANG: "en_US.UTF-8",
+        LC_ALL: "en_US.UTF-8",
         ...process.env,
         ...options.env,
         TERM: "xterm-256color",
@@ -270,6 +274,9 @@ export class TerminalService {
         PATH:
           process.env.PATH || "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin",
       }
+
+      // If LANG was already in process.env or options.env, it will be kept because they are spread after.
+      // But if it's completely missing, our defaults will ensure UTF-8 support.
 
       logger.info("[Terminal] Environment PATH:", env.PATH)
       logger.info("[Terminal] Environment TERM:", env.TERM)

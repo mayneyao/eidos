@@ -139,24 +139,25 @@ impl EidosClient {
     /// Handle HTTP response and parse RPC result
     async fn handle_response(&self, response: Response) -> Result<Value> {
         let status = response.status();
+        let text = response.text().await.unwrap_or_default();
 
+        // 1. Try to parse as standard RPC response (success or controlled error)
+        if let Ok(rpc_resp) = serde_json::from_str::<RpcResponse>(&text) {
+            if rpc_resp.success {
+                return Ok(rpc_resp.data.unwrap_or(Value::Null));
+            } else {
+                let msg = rpc_resp.error.unwrap_or_else(|| "Unknown error".to_string());
+                anyhow::bail!("{}", msg);
+            }
+        }
+
+        // 2. If not a valid RPC JSON, check for HTTP failure
         if !status.is_success() {
-            let text = response.text().await.unwrap_or_default();
-            error!("HTTP error {}: {}", status, text);
-            anyhow::bail!("Server error: {}", status);
+            anyhow::bail!("Server error: {} ({})", status, text);
         }
 
-        let rpc_resp: RpcResponse = response
-            .json()
-            .await
-            .context("Failed to parse RPC response")?;
-
-        if !rpc_resp.success {
-            let err_msg = rpc_resp.error.unwrap_or_else(|| "Unknown error".to_string());
-            anyhow::bail!("RPC error: {}", err_msg);
-        }
-
-        Ok(rpc_resp.data.unwrap_or(Value::Null))
+        // 3. Success status but invalid JSON
+        anyhow::bail!("Unexpected response format: {}", text);
     }
 
     /// Check if the server is healthy

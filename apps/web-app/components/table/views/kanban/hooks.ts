@@ -198,14 +198,19 @@ export const useKanbanViewData = (view: IView) => {
             prevItems.filter((item) => item.id !== _old._id)
           )
         } else if (isCreate) {
-          setItems((prevItems) => [
-            ...prevItems,
-            {
-              ..._new,
-              id: _new._id,
-              status: _new[groupByField] || NULL_STATUS,
-            },
-          ])
+          setItems((prevItems) => {
+            if (prevItems.some((item) => item.id === _new._id)) {
+              return prevItems
+            }
+            return [
+              ...prevItems,
+              {
+                ..._new,
+                id: _new._id,
+                status: _new[groupByField] || NULL_STATUS,
+              },
+            ]
+          })
         }
         await fetchStatusCounts()
       }
@@ -239,7 +244,7 @@ export const useKanbanItemOperations = (
       uuidv7(),
       {
         title: title,
-        [groupByField]: status,
+        [groupByField]: status === NULL_STATUS ? null : status,
       },
       {
         useFieldId: true,

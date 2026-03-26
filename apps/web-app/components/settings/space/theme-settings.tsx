@@ -12,6 +12,8 @@ import {
   Trash2,
   ChevronRight,
   Globe,
+  WifiOff,
+  RefreshCw,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { ThemeReadme } from "./theme-readme"
@@ -101,10 +103,18 @@ export function ThemeSettings() {
     installTheme,
     uninstallTheme,
     refreshThemes,
+    getThemeColors,
   } = useSpaceTheme()
+
+  // Cache for theme preview colors
+  const [themeColorsMap, setThemeColorsMap] = useState<Map<string, string[]>>(
+    new Map()
+  )
   const {
     themes: marketThemes,
     isLoading: isMarketLoading,
+    error: marketError,
+    refresh: refreshMarket,
     downloadTheme,
   } = useThemeMarket()
 
@@ -118,6 +128,26 @@ export function ThemeSettings() {
     null
   )
   const [installing, setInstalling] = useState<string | null>(null)
+
+  // Async load theme colors when themes change
+  useEffect(() => {
+    const loadColors = async () => {
+      const newColorsMap = new Map<string, string[]>()
+      const colorsPromises = installedThemes.map(async (name) => {
+        const colors = await getThemeColors(name)
+        return { name, colors }
+      })
+
+      const results = await Promise.all(colorsPromises)
+      for (const { name, colors } of results) {
+        newColorsMap.set(name, colors)
+      }
+
+      setThemeColorsMap(newColorsMap)
+    }
+
+    loadColors()
+  }, [installedThemes, getThemeColors])
 
   const allThemes = useMemo<ThemeWithStatus[]>(() => {
     const installedSet = new Set(installedThemes)
@@ -202,6 +232,15 @@ export function ThemeSettings() {
   }
 
   const getPreviewColors = (name: string): string[] => {
+    // Return cached colors if available
+    if (themeColorsMap.has(name)) {
+      return themeColorsMap.get(name)!
+    }
+    // Return default colors for default theme
+    if (name === t("theme.default", "Default")) {
+      return ["#18181b", "#27272a", "#52525b"]
+    }
+    // Fallback to name-based colors while loading
     const hash = name
       .split("")
       .reduce((acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0)
@@ -542,7 +581,53 @@ export function ThemeSettings() {
             </div>
           ))}
 
-          {filteredThemes.length === 0 && (
+          {/* Loading State */}
+          {isMarketLoading && marketThemes.length === 0 && (
+            <>
+              {/* Skeleton cards for loading state */}
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={`skeleton-${i}`}
+                  className="flex items-center gap-3 p-3 rounded-xl border border-border/50 bg-muted/10"
+                >
+                  <div className="w-16 h-12 rounded-lg bg-muted animate-pulse shrink-0" />
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="h-4 bg-muted animate-pulse rounded w-24" />
+                    <div className="h-3 bg-muted animate-pulse rounded w-16" />
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/30" />
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Error State */}
+          {marketError && !isMarketLoading && (
+            <div className="col-span-full py-12 text-center border-2 border-dashed rounded-xl bg-muted/5">
+              <WifiOff className="h-8 w-8 mx-auto text-muted-foreground/40 mb-3" />
+              <p className="text-muted-foreground text-sm font-medium mb-1">
+                {t("theme.loadError", "Failed to load theme market")}
+              </p>
+              <p className="text-muted-foreground/60 text-xs mb-4">
+                {t(
+                  "theme.checkNetwork",
+                  "Please check your network connection"
+                )}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refreshMarket}
+                className="gap-2"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                {t("theme.retry", "Retry")}
+              </Button>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!isMarketLoading && !marketError && filteredThemes.length === 0 && (
             <div className="col-span-full py-16 text-center border-2 border-dashed rounded-xl bg-muted/5">
               <Palette className="h-8 w-8 mx-auto text-muted-foreground/40 mb-3" />
               <p className="text-muted-foreground text-sm font-medium">

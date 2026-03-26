@@ -1,4 +1,7 @@
+import { useCurrentTheme } from "@/apps/web-app/hooks/use-current-theme"
+import { getThemeVariables } from "@/lib/web/theme"
 import { useTheme } from "@/components/theme-provider"
+import defaultThemeCss from "@/styles/themes/default.css?raw"
 import React, { useEffect, useRef, useState } from "react"
 
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
@@ -26,6 +29,7 @@ export const WebViewBlock: React.FC<WebViewBlockProps> = ({
   const webviewRef = useRef<HTMLWebViewElement | null>(null)
   const { space } = useCurrentPathInfo()
   const { resolvedTheme } = useTheme()
+  const { css: currentThemeCss } = useCurrentTheme()
 
   const baseUrl = `http://${blockId}.block.${space}.eidos.localhost:13127/`
   const fullUrl = extraPath ? `${baseUrl}${extraPath}` : baseUrl
@@ -49,11 +53,16 @@ export const WebViewBlock: React.FC<WebViewBlockProps> = ({
   // Handle theme changes
   useEffect(() => {
     if (!webviewRef.current) return
+    const variables = getThemeVariables(
+      currentThemeCss || defaultThemeCss,
+      resolvedTheme === "dark"
+    )
+
     webviewRef.current.contentWindow?.postMessage(
-      { type: "theme-change", theme: resolvedTheme },
+      { type: "theme-change", theme: resolvedTheme, variables },
       "*"
     )
-  }, [resolvedTheme])
+  }, [resolvedTheme, currentThemeCss])
 
   // Setup webview event listeners
   useEffect(() => {
@@ -64,13 +73,22 @@ export const WebViewBlock: React.FC<WebViewBlockProps> = ({
       // @ts-ignore
       const id = webviewRef.current?.getWebContentsId()
       window.eidos.send("webview-dom-ready", id)
+      const variables = getThemeVariables(
+        currentThemeCss || defaultThemeCss,
+        resolvedTheme === "dark"
+      )
+      webviewRef.current?.contentWindow?.postMessage(
+        { type: "theme-change", theme: resolvedTheme, variables },
+        "*"
+      )
       setTimeout(() => {
-        webviewRef.current?.contentWindow?.postMessage(
-          JSON.stringify({ type: "props-change", props: defaultProps })
-        )
-      }, 5000)
+        webviewRef.current?.contentWindow?.postMessage({
+          type: "props-change",
+          props: defaultProps,
+        })
+      }, 100)
     })
-  }, [defaultProps])
+  }, [currentThemeCss, resolvedTheme, defaultProps])
 
   // Update URL when props change (without rerender trigger)
   useEffect(() => {

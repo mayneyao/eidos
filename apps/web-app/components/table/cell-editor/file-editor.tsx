@@ -66,9 +66,14 @@ IFileEditorProps) => {
             onClick={() => setIsEditing(true)}
           >
             {_value?.data.displayData.length ? (
-              _value.data.displayData.map((url) => {
+              _value.data.displayData.map((url, index) => {
                 return (
-                  <img src={url} alt="" key={url} className="h-full w-auto" />
+                  <img
+                    src={url}
+                    alt=""
+                    key={`${url}-${index}`}
+                    className="h-full w-auto"
+                  />
                 )
               })
             ) : (

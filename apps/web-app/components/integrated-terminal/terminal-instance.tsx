@@ -141,7 +141,7 @@ export function TerminalInstance({
 
     const terminal = new Terminal({
       fontFamily:
-        'Menlo, Monaco, "Courier New", monospace, "Apple Color Emoji", "Segoe UI Emoji"',
+        'Menlo, Monaco, "Courier New", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", monospace, "Apple Color Emoji", "Segoe UI Emoji"',
       fontSize: 13,
       theme,
       cursorBlink: true,
@@ -185,7 +185,7 @@ export function TerminalInstance({
 
     observerRef.current.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ["class"],
+      attributeFilter: ["class", "style"],
     })
 
     // Setup ResizeObserver to handle container size changes

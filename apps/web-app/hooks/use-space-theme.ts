@@ -13,6 +13,17 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { handleApplyTheme } from "@/apps/web-app/hooks/use-apply-theme-by-name"
 import { useTheme } from "@/components/theme-provider"
 import defaultThemeCss from "@/styles/themes/default.css?raw"
+import {
+  EidosDataEventChannelMsgType,
+  EidosDataEventChannelName,
+  type EidosDataEventChannelMsg,
+  DataUpdateSignalType,
+} from "@/lib/const"
+import { KVTableName } from "@/packages/core/sqlite/const"
+import {
+  extractThemeColors,
+  generateFallbackColors,
+} from "@/apps/web-app/lib/theme-color-parser"
 
 // Local set to track initialized spaces in current app session
 const initializedSpaces = new Set<string>()
@@ -30,6 +41,9 @@ interface ThemeCache {
 
 const CACHE_KEY_PREFIX = "eidos:theme:"
 
+// Color cache for theme previews (memory only, not persisted)
+const themeColorCache = new Map<string, string[]>()
+
 export function useSpaceTheme() {
   const { t } = useTranslation()
   const { toast } = useToast()
@@ -42,9 +56,11 @@ export function useSpaceTheme() {
   const [isLoading, setIsLoading] = useState(false)
   const [cacheVersion, setCacheVersion] = useState(0) // Local trigger
   const [syncVersion, setSyncVersion] = useState(0) // Global trigger
+  const [colorCacheVersion, setColorCacheVersion] = useState(0) // Trigger re-render when colors loaded
 
-  // Subscribe to global theme changes
+  // Subscribe to global theme changes (in-app memory)
   useEffect(() => {
+    // Inner-app listener
     const l = () => setSyncVersion((v) => v + 1)
     themeListeners.add(l)
     return () => {
@@ -78,6 +94,51 @@ export function useSpaceTheme() {
     },
     [cacheKey]
   )
+
+  // Subscribe to cross-tab and CLI sync via database events
+  useEffect(() => {
+    if (!space || !sqlite) return
+
+    const bc = new BroadcastChannel(EidosDataEventChannelName)
+    const handler = async (ev: MessageEvent<EidosDataEventChannelMsg>) => {
+      const { type, payload } = ev.data
+      if (type === EidosDataEventChannelMsgType.MetaTableUpdateSignalType) {
+        const { table, _new, _old } = payload
+        const key = _new?.key || _old?.key
+        if (table === KVTableName && key === "eidos:space:config:theme") {
+          // Changed via CLI or other process
+          const name = await sqlite.theme.getCurrent()
+          if (name) {
+            const css = await sqlite.theme.get(name)
+            if (css) {
+              setCache({
+                currentTheme: name,
+                themes: [], // will be refreshed by hooks
+                currentThemeCss: css,
+                timestamp: Date.now(),
+              })
+            } else {
+              // css missing, reset
+              localStorage.removeItem(`${CACHE_KEY_PREFIX}${space}`)
+              setCacheVersion((v) => v + 1)
+              setSyncVersion((v) => v + 1)
+            }
+          } else {
+            // Null theme means reset
+            localStorage.removeItem(`${CACHE_KEY_PREFIX}${space}`)
+            setCacheVersion((v) => v + 1)
+            setSyncVersion((v) => v + 1)
+          }
+        }
+      }
+    }
+    bc.addEventListener("message", handler)
+
+    return () => {
+      bc.removeEventListener("message", handler)
+      bc.close()
+    }
+  }, [sqlite, space, setCache])
 
   // Clear cache
   const clearCache = useCallback(() => {
@@ -309,6 +370,57 @@ export function useSpaceTheme() {
     reapply()
   }, [isDarkMode, currentTheme, sqlite, space, getCache, setCache, themes])
 
+  // Get theme preview colors (with caching)
+  const getThemeColors = useCallback(
+    async (name: string): Promise<string[]> => {
+      // Return cached colors if available
+      const cacheKey = `${space}:${name}`
+      if (themeColorCache.has(cacheKey)) {
+        return themeColorCache.get(cacheKey)!
+      }
+
+      // For default theme, use fixed colors
+      if (!name) {
+        return ["#18181b", "#27272a", "#52525b"]
+      }
+
+      if (!sqlite) {
+        return generateFallbackColors(name)
+      }
+
+      try {
+        const css = await sqlite.theme.get(name)
+        if (css) {
+          const colors = extractThemeColors(css)
+          if (colors && colors.length >= 2) {
+            themeColorCache.set(cacheKey, colors)
+            // Trigger re-render after async load
+            setColorCacheVersion((v) => v + 1)
+            return colors
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to parse theme colors for ${name}:`, error)
+      }
+
+      // Fallback to name-based colors
+      return generateFallbackColors(name)
+    },
+    [sqlite, space]
+  )
+
+  // Clear color cache when themes change
+  useEffect(() => {
+    if (space) {
+      // Clear color cache for this space to ensure fresh colors
+      for (const key of themeColorCache.keys()) {
+        if (key.startsWith(`${space}:`)) {
+          themeColorCache.delete(key)
+        }
+      }
+    }
+  }, [space, themes.length])
+
   return {
     currentTheme,
     currentThemeCss,
@@ -319,5 +431,6 @@ export function useSpaceTheme() {
     uninstallTheme,
     getThemeCss,
     refreshThemes: loadThemes,
+    getThemeColors,
   }
 }

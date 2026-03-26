@@ -75,6 +75,18 @@ export class NodeClient {
   }
 
   /**
+   * Ensure path-based operations are enabled
+   * @throws Error if path resolution is disabled
+   */
+  private async ensurePathEnabled(): Promise<void> {
+    if (!(await this.isPathEnabled())) {
+      throw new Error(
+        "Path-based operations are not enabled. Please enable 'Node Name Uniqueness' in settings to use this feature."
+      )
+    }
+  }
+
+  /**
    * Parse a path into parent path and name
    * Paths are relative to space root, no "/" prefix
    * @example "folder/doc" -> { parentPath: "folder", name: "doc" }
@@ -97,10 +109,7 @@ export class NodeClient {
   async resolvePath(
     path: string
   ): Promise<{ id: string; node: ITreeNode } | null> {
-    const hasUniqueIndex = await this.dataSpace.tree.hasUniqueIndex()
-    if (!hasUniqueIndex) {
-      return null
-    }
+    await this.ensurePathEnabled()
 
     // Normalize path - remove leading "/" if present
     const normalizedPath = path.startsWith("/") ? path.slice(1) : path
@@ -113,10 +122,10 @@ export class NodeClient {
     let currentId: string | null = null
     for (const name of parts) {
       const nodes = await this.dataSpace.tree.list(
-        { parent_id: currentId, name },
+        { parent_id: currentId, name, is_deleted: 0 } as any,
         { limit: 1 }
       )
-      const match = nodes.find((n) => !n.is_deleted)
+      const match = nodes[0]
       if (!match) {
         return null
       }
@@ -149,13 +158,14 @@ export class NodeClient {
    * Use empty string "" for root
    */
   async list(path: string = ""): Promise<ITreeNode[]> {
+    await this.ensurePathEnabled()
     // Normalize path - treat "/" or "" as root
     const normalizedPath =
       path === "/" ? "" : path.startsWith("/") ? path.slice(1) : path
 
     if (normalizedPath === "") {
       return this.dataSpace.tree.list(
-        { parent_id: null },
+        { parent_id: null, is_deleted: 0 } as any,
         { orderBy: "position", order: "DESC" }
       )
     }
@@ -166,7 +176,7 @@ export class NodeClient {
     }
 
     return this.dataSpace.tree.list(
-      { parent_id: resolved.id },
+      { parent_id: resolved.id, is_deleted: 0 } as any,
       { orderBy: "position", order: "DESC" }
     )
   }
@@ -349,6 +359,7 @@ export class NodeClient {
    * Search for nodes
    */
   async find(query: FindQuery = {}): Promise<ITreeNode[]> {
+    await this.ensurePathEnabled()
     let sql = `SELECT * FROM eidos__tree WHERE is_deleted = 0`
     const binds: any[] = []
 
@@ -420,6 +431,7 @@ export class NodeClient {
    * Restore a deleted node
    */
   async restore(path: string): Promise<void> {
+    await this.ensurePathEnabled()
     // For restore, we need to find by ID since it's marked as deleted
     const allDeleted = await this.find({ isDeleted: true })
     const parts = path.split("/").filter(Boolean)
