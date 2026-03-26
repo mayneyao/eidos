@@ -66,22 +66,40 @@ packageJsonPaths.forEach((pkgPath) => {
   }
 })
 
-// Step 5: Add all changed files to git
+// Step 5: Update Cargo.toml for CLI
+const cargoTomlPath = "apps/cli/Cargo.toml"
+if (fs.existsSync(cargoTomlPath)) {
+  let cargoTomlContent = fs.readFileSync(cargoTomlPath, "utf8")
+  // Only replace version in [package] section, not in dependencies
+  // Match version line that appears after [package] section header and before next section
+  cargoTomlContent = cargoTomlContent.replace(
+    /(\[package\][\s\S]*?^version = ")([^"]+)(")/m,
+    `$1${newVersion}$3`
+  )
+  fs.writeFileSync(cargoTomlPath, cargoTomlContent)
+  console.log(`Updated version in ${cargoTomlPath}`)
+}
+
+// Step 6: Add all changed files to git
 execSync(`git add ${tsFilePath}`)
 packageJsonPaths.forEach((pkgPath) => {
   if (fs.existsSync(pkgPath)) {
     execSync(`git add ${pkgPath}`)
   }
 })
+if (fs.existsSync(cargoTomlPath)) {
+  execSync(`git add ${cargoTomlPath}`)
+}
 
 // Commit all version updates together
 execSync(`git commit -m "Update to version ${newVersion}" --no-edit`)
 
 console.log(
-  `Version updated to ${newVersion} in all package.json files and ${tsFilePath}`
+  `Version updated to ${newVersion} in all package.json files, ${tsFilePath}, and ${cargoTomlPath}`
 )
 console.log("Updated files:")
 console.log("- Root package.json")
 console.log("- apps/desktop/package.json")
 console.log("- apps/web-app/package.json")
 console.log("- packages/lib/env.ts")
+console.log("- apps/cli/Cargo.toml")
