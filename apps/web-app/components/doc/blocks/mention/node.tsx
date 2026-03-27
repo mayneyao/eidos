@@ -26,6 +26,14 @@ export class MentionNode extends BaseMentionNode {
     return node
   }
 
+  createDOM(): HTMLElement {
+    return document.createElement("span")
+  }
+
+  updateDOM(): false {
+    return false
+  }
+
   decorate(_editor: LexicalEditor, _config: EditorConfig): ReactNode {
     return (
       <MentionComponent
