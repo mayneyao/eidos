@@ -28,6 +28,7 @@ import { ShortcutPlugin } from "./ShortcutPlugin"
 import TableCellResizer from "./TableCellResizer"
 import TableHoverActionsPlugin from "./TableHoverActionsPlugin"
 import { HashNavigationPlugin } from "./HashNavigationPlugin"
+import { PersistentIdPlugin } from "./PersistentIdPlugin"
 import { allTransformers } from "./const"
 
 export const AllPlugins = ({
@@ -74,6 +75,7 @@ export const AllPlugins = ({
       <ClickableLinkPlugin />
       <ComponentPickerMenuPlugin />
       <HashNavigationPlugin />
+      <PersistentIdPlugin />
       <MarkdownShortcutPlugin transformers={__allTransformers} />
       <FloatingLinkEditorPlugin />
       {BuiltInBlocks.map((block) => (

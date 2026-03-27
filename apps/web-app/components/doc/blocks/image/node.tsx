@@ -31,7 +31,7 @@ import ImageComponent from "./component"
 
 export type SerializedImageNode = Spread<
   {
-    caption: {
+    caption?: {
       editorState: string
     }
   },
@@ -85,10 +85,18 @@ export class ImageNode extends BaseImageNode {
       captionsEnabled,
     })
     node.setFormat(serializedNode.format)
-    const nestedEditor = node.__caption
-    const editorState = nestedEditor.parseEditorState(caption.editorState)
-    if (!editorState.isEmpty()) {
-      nestedEditor.setEditorState(editorState)
+
+    // Safely handle caption with persistent ID state
+    if (caption?.editorState) {
+      const nestedEditor = node.__caption
+      try {
+        const editorState = nestedEditor.parseEditorState(caption.editorState)
+        if (!editorState.isEmpty()) {
+          nestedEditor.setEditorState(editorState)
+        }
+      } catch (error) {
+        console.warn("Failed to parse caption editor state:", error)
+      }
     }
     return node
   }
