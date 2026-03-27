@@ -1,28 +1,55 @@
 import { useEffect, useRef, useState, useCallback } from "react"
-import { createHighlighter, type Highlighter } from "shiki"
+import type { HighlighterCore, LanguageRegistration } from "shiki"
+import { createHighlighterCore } from "shiki/core"
+import { createOnigurumaEngine } from "shiki/engine/oniguruma"
+
+// Only import commonly used languages to keep bundle size reasonable
+// Using @shikijs/langs directly for better TypeScript support
+import javascript from "@shikijs/langs/javascript"
+import typescript from "@shikijs/langs/typescript"
+import tsx from "@shikijs/langs/tsx"
+import jsx from "@shikijs/langs/jsx"
+import python from "@shikijs/langs/python"
+import bash from "@shikijs/langs/bash"
+import json from "@shikijs/langs/json"
+import markdown from "@shikijs/langs/markdown"
+import css from "@shikijs/langs/css"
+import yaml from "@shikijs/langs/yaml"
+import html from "@shikijs/langs/html"
+import sql from "@shikijs/langs/sql"
+
+// Import themes from @shikijs/themes
+import githubDark from "@shikijs/themes/github-dark"
+import githubLight from "@shikijs/themes/github-light"
+
+// Map of available languages (langs are arrays, so we flatten them)
+const bundledLanguages: Record<string, LanguageRegistration[]> = {
+  javascript,
+  typescript,
+  tsx,
+  jsx,
+  python,
+  bash,
+  json,
+  markdown,
+  css,
+  yaml,
+  html,
+  sql,
+}
+
+// Get all languages as a flat array for initial load
+const allLanguages = Object.values(bundledLanguages).flat()
 
 // Shiki highlighter singleton
-let highlighterPromise: Promise<Highlighter> | null = null
+let highlighterPromise: Promise<HighlighterCore> | null = null
 
-const getHighlighter = () => {
+const getHighlighter = async () => {
   if (!highlighterPromise) {
-    highlighterPromise = createHighlighter({
-      themes: ["github-dark", "github-light"],
-      langs: [
-        "javascript",
-        "typescript",
-        "jsx",
-        "tsx",
-        "python",
-        "sql",
-        "bash",
-        "json",
-        "markdown",
-        "css",
-        "yaml",
-        "html",
-        "mermaid",
-      ],
+    highlighterPromise = createHighlighterCore({
+      themes: [githubDark, githubLight],
+      langs: allLanguages,
+      engine: createOnigurumaEngine(() => import("shiki/wasm")),
     })
   }
   return highlighterPromise
@@ -36,7 +63,6 @@ const languageMap: Record<string, string> = {
   sh: "bash",
   shell: "bash",
   yml: "yaml",
-  html: "html",
   xml: "html",
   plaintext: "text",
   text: "text",
@@ -78,11 +104,8 @@ export const useShikiHighlight = (
         const highlighter = await getHighlighter()
         const validLang = getValidLanguage(language)
 
-        // Check if language is supported, fallback to text if not
-        const supportedLangs = highlighter.getLoadedLanguages()
-        const langToUse = supportedLangs.includes(validLang as any)
-          ? validLang
-          : "text"
+        // Check if language is bundled
+        const langToUse = bundledLanguages[validLang] ? validLang : "text"
 
         const html = highlighter.codeToHtml(code, {
           lang: langToUse,
@@ -119,11 +142,10 @@ export const useShikiHighlight = (
 
 /**
  * Hook to highlight all code blocks under a container element
- * Similar to Prism.highlightAllUnder
  */
 export const useShikiHighlighter = (options: UseShikiOptions = {}) => {
   const { theme = "github-dark" } = options
-  const highlighterRef = useRef<Highlighter | null>(null)
+  const highlighterRef = useRef<HighlighterCore | null>(null)
   const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
@@ -136,23 +158,22 @@ export const useShikiHighlighter = (options: UseShikiOptions = {}) => {
   const highlightElement = useCallback(
     async (element: HTMLElement) => {
       if (!highlighterRef.current) return
+      const highlighter = highlighterRef.current
 
       const codeElements = element.querySelectorAll('code[class*="language-"]')
 
-      codeElements.forEach((codeEl) => {
+      for (const codeEl of Array.from(codeElements)) {
         const code = codeEl.textContent || ""
         const className = codeEl.className
         const match = /language-(\w+)/.exec(className)
         const lang = match?.[1] || "text"
         const validLang = getValidLanguage(lang)
 
-        const supportedLangs = highlighterRef.current!.getLoadedLanguages()
-        const langToUse = supportedLangs.includes(validLang as any)
-          ? validLang
-          : "text"
+        // Check if language is bundled
+        const langToUse = bundledLanguages[validLang] ? validLang : "text"
 
         try {
-          const html = highlighterRef.current!.codeToHtml(code, {
+          const html = highlighter.codeToHtml(code, {
             lang: langToUse,
             theme,
           })
@@ -166,7 +187,7 @@ export const useShikiHighlighter = (options: UseShikiOptions = {}) => {
         } catch (error) {
           console.error("Failed to highlight element:", error)
         }
-      })
+      }
     },
     [theme]
   )

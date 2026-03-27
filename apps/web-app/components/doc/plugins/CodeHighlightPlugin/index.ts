@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { registerCodeHighlighting } from "@lexical/code-shiki"
+import { registerCodeHighlighting } from "@lexical/code"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 
 export function CodeHighlightPlugin() {
