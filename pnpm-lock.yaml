@@ -23,7 +23,7 @@ importers:
         version: 7.0.0-dev.20251210.1
       '@vitejs/plugin-react':
         specifier: ^4.7.0
-        version: 4.7.0(vite@7.3.1(@types/node@20.19.37)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3))
+        version: 4.7.0(vite@5.4.21(@types/node@20.19.37)(lightningcss@1.32.0)(terser@5.46.1))
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -390,6 +390,9 @@ importers:
       '@lexical/code':
         specifier: ^0.42.0
         version: 0.42.0
+      '@lexical/code-shiki':
+        specifier: ^0.42.0
+        version: 0.42.0
       '@lexical/hashtag':
         specifier: ^0.42.0
         version: 0.42.0
@@ -642,9 +645,6 @@ importers:
       postal-mime:
         specifier: ^2.2.5
         version: 2.7.4
-      prismjs:
-        specifier: ^1.29.0
-        version: 1.30.0
       prosemirror-example-setup:
         specifier: ^1.2.3
         version: 1.2.3
@@ -744,6 +744,9 @@ importers:
       remark-gfm:
         specifier: ^4.0.0
         version: 4.0.1
+      shiki:
+        specifier: ^4.0.2
+        version: 4.0.2
       sonner:
         specifier: ^1.5.0
         version: 1.7.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -820,9 +823,6 @@ importers:
       '@types/papaparse':
         specifier: ^5.3.7
         version: 5.5.2
-      '@types/prismjs':
-        specifier: ^1.26.5
-        version: 1.26.6
       '@types/react':
         specifier: ^18.2.14
         version: 18.3.28
@@ -3532,6 +3532,9 @@ packages:
 
   '@lexical/code-prism@0.42.0':
     resolution: {integrity: sha512-KgngkUtgcgC8ocBnfGyN71CC3EnP5PMFAmH1KcGp/+jSgl11nRpCjwYYIoUHm6AB7jKJ8dLbd/UUmShARjUnGA==}
+
+  '@lexical/code-shiki@0.42.0':
+    resolution: {integrity: sha512-Zxw8SA3UU7CI9I6v/tALLiuI/iqfiL0+AZP3pO5+iLRnD67+Yq+/QQSpgQssyV8Am+U4StzLYW8FwEw+8rCKaA==}
 
   '@lexical/code@0.42.0':
     resolution: {integrity: sha512-KMu1nWae9pHvA9nl6dlJacbt3QBBNemgalmLJcZ5QhdGEQA1cVIU4gBPJ5TJqgY9XF7WZgj5JvDIPxjrZmf+XQ==}
@@ -6621,9 +6624,6 @@ packages:
 
   '@types/plist@3.0.5':
     resolution: {integrity: sha512-E6OCaRmAe4WDmWNsL/9RMqdkkzDCY1etutkflWk4c+AcjDU07Pcz1fQwTX0TQz+Pxqn9i4L1TU3UFpjnrcDgxA==}
-
-  '@types/prismjs@1.26.6':
-    resolution: {integrity: sha512-vqlvI7qlMvcCBbVe0AKAb4f97//Hy0EBTaiW8AalRnG/xAN5zOiWWyrNqNXeq8+KAuvRewjCVY1+IPxk4RdNYw==}
 
   '@types/prop-types@15.7.15':
     resolution: {integrity: sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==}
@@ -15719,6 +15719,16 @@ snapshots:
       lexical: 0.42.0
       prismjs: 1.30.0
 
+  '@lexical/code-shiki@0.42.0':
+    dependencies:
+      '@lexical/code-core': 0.42.0
+      '@shikijs/core': 3.23.0
+      '@shikijs/engine-javascript': 3.23.0
+      '@shikijs/langs': 3.23.0
+      '@shikijs/themes': 3.23.0
+      lexical: 0.42.0
+      shiki: 3.23.0
+
   '@lexical/code@0.42.0':
     dependencies:
       '@lexical/code-core': 0.42.0
@@ -18951,8 +18961,6 @@ snapshots:
       xmlbuilder: 15.1.1
     optional: true
 
-  '@types/prismjs@1.26.6': {}
-
   '@types/prop-types@15.7.15': {}
 
   '@types/qs@6.15.0': {}
@@ -19118,6 +19126,18 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-beta.11
       vite: 6.4.1(@types/node@20.19.37)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3)
 
+  '@vitejs/plugin-react@4.7.0(vite@5.4.21(@types/node@20.19.37)(lightningcss@1.32.0)(terser@5.46.1))':
+    dependencies:
+      '@babel/core': 7.29.0
+      '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.29.0)
+      '@babel/plugin-transform-react-jsx-source': 7.27.1(@babel/core@7.29.0)
+      '@rolldown/pluginutils': 1.0.0-beta.27
+      '@types/babel__core': 7.20.5
+      react-refresh: 0.17.0
+      vite: 5.4.21(@types/node@20.19.37)(lightningcss@1.32.0)(terser@5.46.1)
+    transitivePeerDependencies:
+      - supports-color
+
   '@vitejs/plugin-react@4.7.0(vite@6.4.1(@types/node@20.19.37)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3))':
     dependencies:
       '@babel/core': 7.29.0
@@ -19127,18 +19147,6 @@ snapshots:
       '@types/babel__core': 7.20.5
       react-refresh: 0.17.0
       vite: 6.4.1(@types/node@20.19.37)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3)
-    transitivePeerDependencies:
-      - supports-color
-
-  '@vitejs/plugin-react@4.7.0(vite@7.3.1(@types/node@20.19.37)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3))':
-    dependencies:
-      '@babel/core': 7.29.0
-      '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.29.0)
-      '@babel/plugin-transform-react-jsx-source': 7.27.1(@babel/core@7.29.0)
-      '@rolldown/pluginutils': 1.0.0-beta.27
-      '@types/babel__core': 7.20.5
-      react-refresh: 0.17.0
-      vite: 7.3.1(@types/node@20.19.37)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3)
     transitivePeerDependencies:
       - supports-color
 
@@ -26527,22 +26535,6 @@ snapshots:
       tinyglobby: 0.2.15
     optionalDependencies:
       '@types/node': 24.12.0
-      fsevents: 2.3.3
-      jiti: 2.6.1
-      lightningcss: 1.32.0
-      terser: 5.46.1
-      yaml: 2.8.3
-
-  vite@7.3.1(@types/node@20.19.37)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3):
-    dependencies:
-      esbuild: 0.27.4
-      fdir: 6.5.0(picomatch@4.0.4)
-      picomatch: 4.0.4
-      postcss: 8.5.8
-      rollup: 4.60.0
-      tinyglobby: 0.2.15
-    optionalDependencies:
-      '@types/node': 20.19.37
       fsevents: 2.3.3
       jiti: 2.6.1
       lightningcss: 1.32.0

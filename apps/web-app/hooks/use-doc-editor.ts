@@ -3,8 +3,6 @@ import type { DataSpace } from "@eidos.space/core/data-space"
 import { $generateNodesFromDOM } from "@lexical/html"
 import type { Email } from "postal-mime"
 
-import "@/lib/prism-config"
-// lexical code highlight depends on prismjs which run in worker prism-config disable messageHandler otherwise it will throw error
 import { createHeadlessEditor } from "@lexical/headless"
 import {
   $convertFromMarkdownString,

@@ -1,23 +1,45 @@
-import { useCallback, useEffect, useRef } from "react"
-import Prism from "prismjs"
+import { useEffect, useRef, useState, useCallback } from "react"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { useShikiHighlight, getValidLanguage } from "@/hooks/use-shiki"
 
-// Import Prism theme and language support
-import "prismjs/themes/prism-tomorrow.css"
-import "./prism-custom.css"
-import "prismjs/components/prism-typescript"
-import "prismjs/components/prism-javascript"
-import "prismjs/components/prism-jsx"
-import "prismjs/components/prism-tsx"
-import "prismjs/components/prism-python"
-import "prismjs/components/prism-sql"
-import "prismjs/components/prism-bash"
-import "prismjs/components/prism-json"
-import "prismjs/components/prism-markdown"
-import "prismjs/components/prism-css"
-import "prismjs/components/prism-yaml"
+// Shiki styles
+import "./shiki-styles.css"
+
+interface CodeBlockProps {
+  language: string
+  children: string
+  className?: string
+}
+
+// Separate component for code blocks to use Shiki highlighting
+const ShikiCodeBlock = ({
+  language,
+  children,
+  className = "",
+  ...props
+}: CodeBlockProps & React.HTMLAttributes<HTMLPreElement>) => {
+  const { highlightedHtml, isLoading } = useShikiHighlight(children, language)
+
+  if (isLoading) {
+    return (
+      <pre
+        className={`w-full overflow-x-auto bg-zinc-100 dark:bg-zinc-800 p-3 rounded-lg mt-2 mb-2 ${className}`}
+        {...props}
+      >
+        <code className="font-mono text-sm">{children}</code>
+      </pre>
+    )
+  }
+
+  return (
+    <div
+      className={`w-full overflow-x-auto rounded-lg mt-2 mb-2 ${className}`}
+      dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+    />
+  )
+}
 
 interface MarkdownRendererProps {
   children: string
@@ -32,88 +54,6 @@ export const MarkdownRenderer = ({
   enableGfm = true,
   customComponents = {},
 }: MarkdownRendererProps) => {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const resizeTimerRef = useRef<NodeJS.Timeout | null>(null)
-
-  const rehighlight = useCallback(() => {
-    if (containerRef.current) {
-      // Use highlightAllUnder for more targeted highlighting
-      Prism.highlightAllUnder(containerRef.current)
-    } else {
-      // Fallback to highlightAll if ref is not available
-      Prism.highlightAll()
-    }
-  }, [])
-
-  useEffect(() => {
-    // Use setTimeout to ensure DOM is fully rendered before highlighting
-    const timer = setTimeout(rehighlight, 0)
-    return () => clearTimeout(timer)
-  }, [children, rehighlight])
-
-  // Additional effect to ensure highlighting after component mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (containerRef.current) {
-        // Find all code elements and manually highlight them
-        const codeElements = containerRef.current.querySelectorAll(
-          'code[class*="language-"]'
-        )
-        codeElements.forEach((element) => {
-          Prism.highlightElement(element)
-        })
-      }
-    }, 100) // Slightly longer delay for mount
-
-    return () => clearTimeout(timer)
-  }, [])
-
-  // 监听容器大小变化，重新触发高亮
-  useEffect(() => {
-    if (!containerRef.current) return
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      if (resizeTimerRef.current) {
-        clearTimeout(resizeTimerRef.current)
-      }
-
-      resizeTimerRef.current = setTimeout(() => {
-        rehighlight()
-        resizeTimerRef.current = null
-      }, 100)
-    })
-
-    resizeObserver.observe(containerRef.current)
-
-    return () => {
-      resizeObserver.disconnect()
-      if (resizeTimerRef.current) {
-        clearTimeout(resizeTimerRef.current)
-        resizeTimerRef.current = null
-      }
-    }
-  }, [rehighlight])
-
-  // Helper function to get valid language for Prism
-  const getValidLanguage = (lang: string): string => {
-    if (!lang) return "plaintext"
-
-    // Common language mappings
-    const languageMap: Record<string, string> = {
-      js: "javascript",
-      ts: "typescript",
-      py: "python",
-      sh: "bash",
-      shell: "bash",
-      yml: "yaml",
-      html: "markup",
-      xml: "markup",
-    }
-
-    const normalizedLang = lang.toLowerCase()
-    return languageMap[normalizedLang] || normalizedLang
-  }
-
   // Default components for ReactMarkdown to support code highlighting
   const defaultComponents: Partial<Components> = {
     code: ({ node, inline, className, children, ...props }: any) => {
@@ -131,26 +71,18 @@ export const MarkdownRenderer = ({
         )
       }
 
-      // For block code, use proper language or fallback to plaintext
+      // For block code, use Shiki highlighting
       const validLanguage = getValidLanguage(language)
-      const codeClassName = `language-${validLanguage}`
+      const codeContent = String(children).replace(/\n$/, "")
 
       return (
-        <pre
-          className="w-full overflow-x-auto bg-zinc-100 dark:bg-zinc-800 p-3 rounded-lg mt-2 mb-2"
-          {...props}
-        >
-          <code
-            className={`${codeClassName} font-mono text-sm`}
-            data-language={validLanguage}
-          >
-            {children}
-          </code>
-        </pre>
+        <ShikiCodeBlock language={validLanguage} {...props}>
+          {codeContent}
+        </ShikiCodeBlock>
       )
     },
     pre: ({ children, ...props }) => {
-      // Prevent double wrapping of pre tags
+      // Prevent double wrapping of pre tags, Shiki handles this
       return <>{children}</>
     },
     h1: ({ children, ...props }) => (
@@ -250,7 +182,6 @@ export const MarkdownRenderer = ({
   return (
     <div
       className={`prose prose-zinc dark:prose-invert max-w-none ${className}`}
-      ref={containerRef}
     >
       <ReactMarkdown remarkPlugins={plugins} components={components}>
         {children}

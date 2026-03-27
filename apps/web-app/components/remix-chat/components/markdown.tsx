@@ -1,5 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react"
-import Prism from "prismjs"
+import { memo, useEffect, useRef, useState, useCallback } from "react"
 import ReactMarkdown, { type Components } from "react-markdown"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import rehypeRaw from "rehype-raw"
@@ -8,15 +7,12 @@ import remarkGfm from "remark-gfm"
 import { cn, isDayPageId } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useShikiHighlight, getValidLanguage } from "@/hooks/use-shiki"
 
 import remarkInternalLinks from "./remark-internal-links"
-import "prismjs/themes/prism-tomorrow.css"
-import "./prism-custom.css"
-import "prismjs/components/prism-typescript"
-import "prismjs/components/prism-javascript"
-import "prismjs/components/prism-jsx"
-import "prismjs/components/prism-tsx"
 import { ChevronDownIcon, ChevronUpIcon, LinkIcon } from "lucide-react"
+
+import "@/components/markdown-renderer/shiki-styles.css"
 
 declare global {
   namespace JSX {
@@ -30,13 +26,108 @@ declare global {
   }
 }
 
+// Shiki-powered code block component
+interface ShikiCodeBlockProps {
+  language: string
+  children: string
+  className?: string
+  inline?: boolean
+}
+
+const ShikiCodeBlock = ({
+  language,
+  children,
+  className = "",
+  inline = false,
+}: ShikiCodeBlockProps) => {
+  const { highlightedHtml, isLoading } = useShikiHighlight(children, language)
+
+  if (inline) {
+    return (
+      <code
+        className={cn(
+          "text-sm py-0.5 px-1 rounded-md",
+          "bg-zinc-100 dark:bg-zinc-800",
+          "group-data-[role=user]/message:bg-primary-foreground/20 group-data-[role=user]/message:text-primary-foreground",
+          className
+        )}
+      >
+        {children}
+      </code>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <pre
+        className={cn(
+          "w-[80dvw] md:max-w-[500px] overflow-x-scroll p-3 rounded-lg mt-2",
+          "bg-zinc-100 dark:bg-zinc-800",
+          "group-data-[role=user]/message:bg-primary-foreground/10 group-data-[role=user]/message:text-primary-foreground",
+          className
+        )}
+      >
+        <code>{children}</code>
+      </pre>
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        "w-[80dvw] md:max-w-[500px] overflow-x-auto rounded-lg mt-2",
+        className
+      )}
+      dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+    />
+  )
+}
+
+// LLM Response component with Shiki highlighting
+const LLMResponseBlock = ({
+  children,
+  language = "markdown",
+}: {
+  children?: React.ReactNode
+  language?: string
+}) => {
+  const codeContent = typeof children === "string" ? children : ""
+  const { highlightedHtml, isLoading } = useShikiHighlight(
+    codeContent,
+    getValidLanguage(language)
+  )
+
+  return (
+    <div
+      className={cn(
+        "border rounded-lg my-4",
+        "border-zinc-200 dark:border-zinc-700",
+        "group-data-[role=user]/message:border-primary-foreground/30"
+      )}
+    >
+      {isLoading ? (
+        <pre
+          className={cn(
+            "p-4 overflow-x-auto !m-0",
+            "bg-zinc-50 dark:bg-zinc-900",
+            "group-data-[role=user]/message:bg-primary-foreground/10 group-data-[role=user]/message:text-primary-foreground"
+          )}
+        >
+          <code>{children}</code>
+        </pre>
+      ) : (
+        <div
+          className="overflow-x-auto"
+          dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+        />
+      )}
+    </div>
+  )
+}
+
 const NonMemoizedMarkdown = ({ children }: { children: string }) => {
   const { navigate } = useRouterAdapter()
   const { space } = useCurrentPathInfo()
-
-  useEffect(() => {
-    Prism.highlightAll()
-  }, [children])
 
   const handleInternalLinkClick = (id: string) => {
     if (isDayPageId(id)) {
@@ -71,14 +162,15 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
         )
       }
 
+      const codeContent = String(children).replace(/\n$/, "")
+
       if (
         language === "javascript" ||
         language === "jsx" ||
         language === "tsx" ||
         language === "python"
       ) {
-        const code = children?.toString()
-        const linesCount = code?.split("\n").length
+        const linesCount = codeContent.split("\n").length
         const filename =
           language === "python"
             ? "main.py"
@@ -147,34 +239,32 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
               )}
             </div>
             <div className={isCollapsed ? "hidden" : ""}>
-              <pre
+              <ShikiCodeBlock
+                language={getValidLanguage(language)}
                 className={cn(
                   "!m-0",
-                  // Style in user messages
                   "group-data-[role=user]/message:bg-primary-foreground/10 group-data-[role=user]/message:text-primary-foreground"
                 )}
               >
-                <code className={`language-${language}`}>{children}</code>
-              </pre>
+                {codeContent}
+              </ShikiCodeBlock>
             </div>
           </div>
         )
       }
 
       return (
-        <pre
-          {...(props as React.HTMLAttributes<HTMLPreElement>)}
+        <ShikiCodeBlock
+          language={getValidLanguage(language)}
           className={cn(
             "w-[80dvw] md:max-w-[500px] overflow-x-scroll p-3 rounded-lg mt-2",
-            // Default style
             "bg-zinc-100 dark:bg-zinc-800",
-            // Style in user messages
             "group-data-[role=user]/message:bg-primary-foreground/10 group-data-[role=user]/message:text-primary-foreground",
             className
           )}
         >
-          <code className={`language-${language}`}>{children}</code>
-        </pre>
+          {codeContent}
+        </ShikiCodeBlock>
       )
     },
     "internal-link": ({
@@ -203,39 +293,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
       title,
       ...props
     }: any) => {
-      const codeRef = useRef<HTMLElement>(null)
-
-      useEffect(() => {
-        if (codeRef.current) {
-          Prism.highlightElement(codeRef.current)
-        }
-      }, [children, language])
-
-      return (
-        <div
-          className={cn(
-            "border rounded-lg my-4",
-            // Default style
-            "border-zinc-200 dark:border-zinc-700",
-            // Style in user messages
-            "group-data-[role=user]/message:border-primary-foreground/30"
-          )}
-        >
-          <pre
-            className={cn(
-              "p-4 overflow-x-auto !m-0",
-              // Default style
-              "bg-zinc-50 dark:bg-zinc-900",
-              // Style in user messages
-              "group-data-[role=user]/message:bg-primary-foreground/10 group-data-[role=user]/message:text-primary-foreground"
-            )}
-          >
-            <code ref={codeRef} className={`language-${language}`}>
-              {children}
-            </code>
-          </pre>
-        </div>
-      )
+      return <LLMResponseBlock language={language}>{children}</LLMResponseBlock>
     },
     ol: ({ node, children, ...props }: any) => {
       return (
@@ -270,7 +328,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
         <a
           className={cn(
             "hover:underline",
-            // Default style
+            // Default color
             "text-blue-500",
             // Style in user messages - use brighter foreground color
             "group-data-[role=user]/message:text-primary-foreground group-data-[role=user]/message:opacity-90 group-data-[role=user]/message:hover:opacity-100"

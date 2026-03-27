@@ -6,10 +6,7 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 
 import defaultTheme from "@/components/doc/themes/default"
 
-// too wired to import mermaid here, but it's necessary
-// import mermaid let lexical code node recognize 'mermaid' language
-
-import "prismjs/components/prism-mermaid"
+// Mermaid language support is handled by Shiki, no need for Prism import
 import {
   useAllEditorNodes,
   useLoadingExtBlocks,
