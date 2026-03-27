@@ -72,6 +72,14 @@ export class BaseSQLNode extends DecoratorNode<any> {
   isKeyboardSelectable(): boolean {
     return true
   }
+
+  createDOM(): HTMLElement {
+    return document.createElement("span")
+  }
+
+  updateDOM(): false {
+    return false
+  }
 }
 
 export function $isBaseSQLNode(
