@@ -35,20 +35,8 @@ export enum MsgType {
   IteratorError = "IteratorError",
   IteratorCancel = "IteratorCancel",
 
-  ConvertMarkdown2State = "ConvertMarkdown2State",
-  ConvertHtml2State = "ConvertHtml2State",
-  ConvertEmail2State = "ConvertEmail2State",
-
-  GetDocMarkdown = "GetDocMarkdown",
-
   // table related msg
   HighlightRow = "HighlightRow",
-
-  GetTheme = "GetTheme",
-  SetTheme = "SetTheme",
-  ListThemes = "ListThemes",
-  SetCurrentTheme = "SetCurrentTheme",
-  ApplyTheme = "ApplyTheme",
 }
 
 export enum MainServiceWorkerMsgType {

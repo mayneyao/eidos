@@ -1,4 +1,3 @@
-import { MsgType } from "@/lib/const"
 import type { BaseDocTable, IDoc } from "./base"
 import { parseFrontmatter } from "./helper"
 import type { Email } from "postal-mime"
@@ -9,38 +8,44 @@ type Constructor<T = {}> = new (...args: any[]) => T & BaseDocTable
 export function WithMarkdown<T extends Constructor>(Base: T) {
   return class MarkdownDocTableMixin extends Base {
     /**
-     * for now lexical's code node depends on the browser's dom, so we can't use lexical in worker.
-     * wait for lexical improve code node to support worker
-     * @param type
-     * @param data
-     * @returns
+     * Unified conversion using context.lexical, completely in headless environment
+     * No longer relies on frontend rendering, avoiding Lexical version inconsistency issues
      */
-    callMain = (
-      type:
-        | MsgType.GetDocMarkdown
-        | MsgType.ConvertMarkdown2State
-        | MsgType.ConvertHtml2State
-        | MsgType.ConvertEmail2State,
-      data: any,
-      extraNodes?: any[],
-      extraTransformers?: any[]
-    ) => {
+    getLexicalConverter() {
       const lexical = this.dataSpace.context.lexical
-      if (lexical) {
-        switch (type) {
-          case MsgType.GetDocMarkdown:
-            return lexical.lexical2markdown(data, extraNodes, extraTransformers)
-          case MsgType.ConvertMarkdown2State:
-            return lexical.markdown2lexical(data, extraNodes, extraTransformers)
-          case MsgType.ConvertHtml2State:
-            return lexical.convertHtml2State(
-              data,
-              extraNodes,
-              extraTransformers
-            )
-        }
+      if (!lexical) {
+        throw new Error(
+          "Lexical converter not available. Please ensure context.lexical is properly initialized."
+        )
       }
-      return this.dataSpace.callRenderer?.(type, data)
+      return lexical
+    }
+
+    /**
+     * Markdown to Lexical State
+     */
+    async markdownToLexical(
+      markdown: string,
+      options?: { oldState?: string }
+    ): Promise<string> {
+      const lexical = this.getLexicalConverter()
+      return lexical.markdown2lexical(markdown, [], [], options)
+    }
+
+    /**
+     * Lexical State to Markdown
+     */
+    async lexicalToMarkdown(state: string): Promise<string> {
+      const lexical = this.getLexicalConverter()
+      return lexical.lexical2markdown(state)
+    }
+
+    /**
+     * HTML to Lexical State
+     */
+    async htmlToLexical(html: string): Promise<string> {
+      const lexical = this.getLexicalConverter()
+      return lexical.convertHtml2State(html)
     }
 
     async listAllDayPages() {
@@ -120,8 +125,6 @@ export function WithMarkdown<T extends Constructor>(Base: T) {
     async getMarkdown(id: string): Promise<string> {
       const doc = await this.get(id)
       return doc?.markdown || ""
-      // const res = await callMain(MsgType.GetDocMarkdown, doc?.content)
-      // return res as string
     }
 
     async getBaseInfo(id: string): Promise<Partial<IDoc>> {
@@ -133,10 +136,12 @@ export function WithMarkdown<T extends Constructor>(Base: T) {
     }
 
     async createOrUpdateWithMarkdown(id: string, mdStr: string) {
-      const content = (await this.callMain(
-        MsgType.ConvertMarkdown2State,
-        mdStr
-      )) as string
+      // Get existing document content (for ID preservation)
+      const existing = await this.get(id)
+      const oldState = existing?.content
+
+      // Use headless lexical conversion, pass old state to preserve IDs
+      const content = await this.markdownToLexical(mdStr, { oldState })
       return this._createOrUpdate(id, content, mdStr)
     }
 
@@ -149,36 +154,66 @@ export function WithMarkdown<T extends Constructor>(Base: T) {
       const { id, text, type, mode = "replace" } = data
       switch (type) {
         case "html":
-          const content = (await this.callMain(
-            MsgType.ConvertHtml2State,
-            text
-          )) as string
-
-          const markdown = (await this.callMain(
-            MsgType.GetDocMarkdown,
-            content
-          )) as string
+          const content = await this.htmlToLexical(text as string)
+          const markdown = await this.lexicalToMarkdown(content)
           return this._createOrUpdate(id, content, markdown, mode)
 
         case "markdown":
-          const content2 = (await this.callMain(
-            MsgType.ConvertMarkdown2State,
-            text
-          )) as string
+          // For append/prepend, use headless merge to avoid frontend rendering issues
+          if (mode === "append" || mode === "prepend") {
+            return this.createOrUpdateWithMerge(id, text as string, mode)
+          }
+          // replace mode: normal conversion
+          const content2 = await this.markdownToLexical(text as string)
           return this._createOrUpdate(id, content2, text as string, mode)
         case "email":
-          const content3 = (await this.callMain(MsgType.ConvertEmail2State, {
-            space: this.dataSpace.dbName,
-            email: text,
-          })) as string
-          const markdown3 = (await this.callMain(
-            MsgType.GetDocMarkdown,
-            content3
-          )) as string
-          return this._createOrUpdate(id, content3, markdown3, mode)
+          // Email conversion still needs special handling, temporarily keep as is
+          // TODO: migrate email conversion to headless as well
+          throw new Error(
+            "Email conversion is not yet supported in headless mode"
+          )
         default:
           throw new Error(`unknown type ${type}`)
       }
+    }
+
+    /**
+     * Use headless merge to implement append/prepend
+     * Completely in Node.js environment, no frontend rendering dependency
+     */
+    async createOrUpdateWithMerge(
+      id: string,
+      markdown: string,
+      mode: "append" | "prepend"
+    ) {
+      // 1. Get existing document
+      const existing = await this.get(id)
+      if (!existing) {
+        // Document doesn't exist, treat as replace
+        const content = await this.markdownToLexical(markdown)
+        return this._createOrUpdate(id, content, markdown, "replace")
+      }
+
+      // 2. Convert new Markdown to Lexical (don't pass oldState, as it's new content)
+      const newContent = await this.markdownToLexical(markdown)
+
+      // 4. Use headless merge to merge states
+      const { mergeLexicalStates } = await import("@eidos.space/lexical")
+      const mergedState = mergeLexicalStates(existing.content, newContent, mode)
+
+      // 5. Build merged markdown
+      const mergedMarkdown =
+        mode === "prepend"
+          ? markdown + existing.markdown
+          : existing.markdown + markdown
+
+      // 6. Save
+      return this._createOrUpdate(
+        id,
+        JSON.stringify(mergedState),
+        mergedMarkdown,
+        "replace" // Already merged, save as replace
+      )
     }
 
     static mergeState = (oldState: string, newState: string) => {

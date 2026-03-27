@@ -30,7 +30,9 @@
     "@lexical/react": "^0.42.0",
     "@lexical/rich-text": "^0.42.0",
     "@lexical/table": "^0.42.0",
-    "@lexical/utils": "^0.42.0",
+    "@lexical/utils": "^0.42.0"
+  },
+  "peerDependencies": {
     "lexical": "^0.42.0"
   },
   "devDependencies": {

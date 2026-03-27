@@ -292,11 +292,17 @@ class DataSpaceManager {
           }
         },
         lexical: {
-          markdown2lexical: (markdown: string) =>
+          markdown2lexical: (
+            markdown: string,
+            extraNodes?: any[],
+            extraTransformers?: any[],
+            options?: { oldState?: string }
+          ) =>
             lexicalConverter.markdown2lexical(
               markdown,
-              getEidosNodes(),
-              getEidosTransformers()
+              extraNodes ?? getEidosNodes(),
+              extraTransformers ?? getEidosTransformers(),
+              options
             ),
           lexical2markdown: (state: string) =>
             lexicalConverter.lexical2markdown(

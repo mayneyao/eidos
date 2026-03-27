@@ -21,6 +21,14 @@ const externalNodeModules = [
   "node-pty",
 ]
 
+// Rollup packages to externalize (supports regex)
+const rollupExternal: (string | RegExp)[] = [
+  ...externalNodeModules,
+  // Ensure lexical packages are not inlined to avoid duplicate instance issues
+  "lexical",
+  /^@lexical\//,
+]
+
 // desktop do not need android and windows11
 const copyPublicPlugin = (): Plugin => {
   return {
@@ -89,13 +97,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
             target: "node18",
             rollupOptions: {
               plugins: [esmShim() as unknown as Plugin],
-              external: [
-                ...externalNodeModules,
-                "electron",
-                "react",
-                "react-dom",
-                /^@lexical\/react/,
-              ],
+              external: [...rollupExternal, "electron", "react", "react-dom"],
               output: {
                 format: "esm",
               },
@@ -107,7 +109,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
             },
           },
           optimizeDeps: {
-            exclude: [...externalNodeModules],
+            exclude: [...externalNodeModules, "lexical"],
           },
         },
       },
@@ -120,7 +122,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
           },
           build: {
             rollupOptions: {
-              external: externalNodeModules,
+              external: rollupExternal,
               output: {
                 format: "es",
                 inlineDynamicImports: true,

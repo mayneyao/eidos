@@ -61,7 +61,7 @@
     "@huacnlee/autocorrect": "^2.14.0",
     "@lexical/clipboard": "^0.42.0",
     "@lexical/code": "^0.42.0",
-    "@lexical/code-shiki": "^0.34.0",
+
     "@lexical/hashtag": "^0.42.0",
     "@lexical/headless": "^0.42.0",
     "@lexical/html": "^0.42.0",

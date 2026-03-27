@@ -4,18 +4,31 @@ import {
   $convertToMarkdownString,
   type Transformer,
 } from "@lexical/markdown"
+import type { SerializedEditorState } from "lexical"
 import { $getRoot, $insertNodes, type Klass, type LexicalNode } from "lexical"
 import { getStandardNodes } from "./standard-nodes"
 import { getEidosNodes, getEidosTransformers } from "./nodes/index"
 import { getStandardTransformers } from "./transformers"
+import { assignIdsViaHarness, type HarnessOptions } from "./utils/id-harness"
 
 const NODES = [...getEidosNodes(), ...getStandardNodes()]
 const TRANSFORMERS = [...getEidosTransformers(), ...getStandardTransformers()]
 
+/**
+ * Markdown conversion options
+ */
+export interface MarkdownConversionOptions extends HarnessOptions {
+  /** Old state JSON string (for ID preservation) */
+  oldState?: string
+  /** Whether to enable ID Harness (default true) */
+  useHarness?: boolean
+}
+
 export async function markdown2lexical(
   markdown: string,
   extraNodes: Array<Klass<LexicalNode>> = [],
-  extraTransformers: Transformer[] = []
+  extraTransformers: Transformer[] = [],
+  options: MarkdownConversionOptions = {}
 ): Promise<string> {
   const editor = createHeadlessEditor({
     nodes: [...NODES, ...extraNodes],
@@ -43,7 +56,22 @@ export async function markdown2lexical(
     console.error("Markdown to Lexical conversion failed", error)
   }
 
-  return JSON.stringify(editor.getEditorState().toJSON())
+  let newState = editor.getEditorState().toJSON() as SerializedEditorState
+
+  // Apply ID Harness: preserve old state IDs as much as possible
+  if (options.useHarness !== false) {
+    const oldState = options.oldState
+      ? (JSON.parse(options.oldState) as SerializedEditorState)
+      : null
+
+    newState = assignIdsViaHarness(newState, oldState, {
+      hashLength: options.hashLength ?? 6,
+      fuzzyMatch: options.fuzzyMatch ?? true,
+      fuzzyThreshold: options.fuzzyThreshold ?? 0.3,
+    })
+  }
+
+  return JSON.stringify(newState)
 }
 
 export async function lexical2markdown(

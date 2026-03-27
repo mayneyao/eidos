@@ -109,7 +109,8 @@ export abstract class BaseDataSpace {
       markdown2lexical: (
         markdown: string,
         extraNodes?: any[],
-        extraTransformers?: any[]
+        extraTransformers?: any[],
+        options?: { oldState?: string }
       ) => Promise<string>
       lexical2markdown: (
         state: string,

@@ -141,7 +141,10 @@ export const _convertHtml2State = async (html: string): Promise<string> => {
   })
 }
 
-export const _markdown2lexical = async (markdown: string): Promise<string> => {
+export const _markdown2lexical = async (
+  markdown: string,
+  options?: { oldState?: string }
+): Promise<string> => {
   // parse all links from markdown, then get preview data of all links
   const allLinks = getAllLinks(markdown)
   const infos = await Promise.all(
@@ -174,9 +177,23 @@ export const _markdown2lexical = async (markdown: string): Promise<string> => {
         discrete: true,
       }
     )
-    const json = editor.getEditorState().toJSON()
-    const content = JSON.stringify(json)
-    resolve(content)
+    let newState = editor.getEditorState().toJSON()
+
+    // 应用 ID Harness：尽可能保留旧状态的 ID
+    if (options?.oldState) {
+      // 动态导入以避免循环依赖
+      import("@eidos.space/lexical").then(({ assignIdsViaHarness }) => {
+        const oldStateObj = JSON.parse(options.oldState!)
+        newState = assignIdsViaHarness(newState, oldStateObj, {
+          hashLength: 6,
+          fuzzyMatch: true,
+          fuzzyThreshold: 0.3,
+        })
+        resolve(JSON.stringify(newState))
+      })
+    } else {
+      resolve(JSON.stringify(newState))
+    }
   })
 }
 
