@@ -29,7 +29,9 @@ export class FormulaField extends BaseField<TextCell, FormulaProperty> {
       ...this.column,
       type: this.column.property.displayType ?? FieldType.Text,
     })
-    const content = fieldInstance.getCellContent(rawData)
+    // Ensure rawData is converted to string for display types that expect string input
+    const stringRawData = rawData != null ? String(rawData) : ""
+    const content = fieldInstance.getCellContent(stringRawData)
     return {
       ...content,
       allowOverlay: true,
