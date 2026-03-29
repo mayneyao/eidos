@@ -256,9 +256,48 @@ function buildPathIdMap(state: SerializedEditorState): Map<string, string> {
 }
 
 /**
+ * Calculate path similarity accounting for insertions/deletions
+ * Returns a score where higher is more similar (0-1 range)
+ */
+function calculateAdvancedPathSimilarity(
+  newPath: string,
+  newIndex: number,
+  oldPath: string,
+  oldIndex: number
+): number {
+  // Extract all indices from paths
+  const newIndices =
+    newPath
+      .match(/children\[(\d+)\]/g)
+      ?.map((s) => parseInt(s.match(/\d+/)![0])) || []
+  const oldIndices =
+    oldPath
+      .match(/children\[(\d+)\]/g)
+      ?.map((s) => parseInt(s.match(/\d+/)![0])) || []
+
+  if (newIndices.length !== oldIndices.length || newIndices.length === 0) {
+    return 0
+  }
+
+  // Calculate similarity based on relative ordering, not absolute position
+  let similarity = 0
+  let weight = 1
+
+  for (let i = 0; i < newIndices.length; i++) {
+    const diff = Math.abs(newIndices[i] - oldIndices[i])
+    // Use sigmoid-like decay for position difference
+    const levelSim = Math.exp(-diff * 0.5)
+    similarity += weight * levelSim
+    weight *= 0.7 // Parent level matters more
+  }
+
+  return similarity / newIndices.length
+}
+
+/**
  * Find matching ID for node
  * Uses progressive relaxation matching strategy
- * Enhanced to handle multiple nodes with same content
+ * Enhanced to handle multiple nodes with same content and type changes
  */
 function findMatchingId(
   node: SerializedLexicalNode,
@@ -294,7 +333,7 @@ function findMatchingId(
     }
   }
 
-  // Strategy 5: Find all old nodes with same type and content, pick closest by path similarity
+  // Strategy 5: Find all old nodes with same type and content, pick closest by advanced path similarity
   const sameContentNodes = allOldNodes.filter(
     (n) =>
       !usedIds.has(n.id) &&
@@ -302,17 +341,64 @@ function findMatchingId(
       extractContent(n.node) === content
   )
   if (sameContentNodes.length > 0) {
-    // Find closest by path index
-    const pathIndex = index
     let bestMatch = sameContentNodes[0]
-    let bestDistance = Infinity
+    let bestSim = -1
 
     for (const candidate of sameContentNodes) {
-      // Extract index from candidate's path in allOldNodes order
       const candidateIndex = allOldNodes.findIndex((n) => n.id === candidate.id)
-      const distance = Math.abs(pathIndex - candidateIndex)
-      if (distance < bestDistance) {
-        bestDistance = distance
+      const sim = calculateAdvancedPathSimilarity(
+        path,
+        index,
+        candidate.node.path || "",
+        candidateIndex
+      )
+      if (sim > bestSim) {
+        bestSim = sim
+        bestMatch = candidate
+      }
+    }
+    return bestMatch.id
+  }
+
+  // Strategy 6: Cross-type matching for content-only preservation
+  // When content is identical but type changed (e.g., heading -> paragraph)
+  const crossTypeNodes = allOldNodes.filter(
+    (n) =>
+      !usedIds.has(n.id) &&
+      n.node.type !== node.type &&
+      extractContent(n.node) === content &&
+      content.length > 0 // Only for non-empty content
+  )
+  if (crossTypeNodes.length > 0) {
+    // Prefer nodes with similar structural roles
+    const similarTypes = ["heading", "paragraph", "quote"]
+    const newIsStructural = similarTypes.includes(node.type)
+
+    let candidates = crossTypeNodes
+    if (newIsStructural) {
+      // Prefer other structural types
+      const structuralMatches = crossTypeNodes.filter((n) =>
+        similarTypes.includes(n.node.type)
+      )
+      if (structuralMatches.length > 0) {
+        candidates = structuralMatches
+      }
+    }
+
+    // Pick the one with best path similarity
+    let bestMatch = candidates[0]
+    let bestSim = -1
+
+    for (const candidate of candidates) {
+      const candidateIndex = allOldNodes.findIndex((n) => n.id === candidate.id)
+      const sim = calculateAdvancedPathSimilarity(
+        path,
+        index,
+        candidate.node.path || "",
+        candidateIndex
+      )
+      if (sim > bestSim) {
+        bestSim = sim
         bestMatch = candidate
       }
     }
