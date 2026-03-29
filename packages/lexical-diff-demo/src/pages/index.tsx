@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef, useEffect } from "react"
+import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import type { SerializedEditorState, SerializedLexicalNode } from "lexical"
 import {
   markdown2lexical,
