@@ -295,6 +295,56 @@ function calculateAdvancedPathSimilarity(
 }
 
 /**
+ * Special matching for empty content nodes (e.g., empty paragraphs)
+ * Uses relative ordering instead of absolute position
+ */
+function matchEmptyNodes(
+  node: SerializedLexicalNode,
+  path: string,
+  index: number,
+  candidates: Array<{ node: SerializedLexicalNode; id: string }>,
+  allOldNodes: Array<{ node: SerializedLexicalNode; id: string }>,
+  usedIds: Set<string>
+): string | null {
+  // Get the parent's child index
+  const pathMatch = path.match(/children\[(\d+)\]$/)
+  if (!pathMatch) return candidates[0].id
+
+  const myIndex = parseInt(pathMatch[1])
+
+  // Find my position among empty nodes at the same level
+  const newEmptyNodeIndices: number[] = []
+  // This is tricky - we need to know the position of this empty node
+  // among all empty nodes. We'll use the allOldNodes order as reference.
+
+  // Simple approach: pick the first unused candidate that has similar parent structure
+  let bestMatch = candidates[0]
+  let bestScore = -1
+
+  for (const candidate of candidates) {
+    // Calculate similarity based on parent path structure
+    const candidatePath = candidate.node.path || ""
+    const myParentPath = path.replace(/children\[\d+\]$/, "")
+    const candidateParentPath = candidatePath.replace(/children\[\d+\]$/, "")
+
+    // Prefer candidates with same parent path
+    const parentMatch = myParentPath === candidateParentPath ? 1 : 0
+
+    // Prefer earlier unused candidates (preserves relative order)
+    const orderPenalty =
+      allOldNodes.findIndex((n) => n.id === candidate.id) * 0.01
+
+    const score = parentMatch - orderPenalty
+    if (score > bestScore) {
+      bestScore = score
+      bestMatch = candidate
+    }
+  }
+
+  return bestMatch.id
+}
+
+/**
  * Find matching ID for node
  * Uses progressive relaxation matching strategy
  * Enhanced to handle multiple nodes with same content and type changes
@@ -341,6 +391,18 @@ function findMatchingId(
       extractContent(n.node) === content
   )
   if (sameContentNodes.length > 0) {
+    // Special handling for empty content nodes: use relative ordering
+    if (content === "") {
+      return matchEmptyNodes(
+        node,
+        path,
+        index,
+        sameContentNodes,
+        allOldNodes,
+        usedIds
+      )
+    }
+
     let bestMatch = sameContentNodes[0]
     let bestSim = -1
 
@@ -497,25 +559,31 @@ export function assignIdsViaHarness(
       } as SerializedLexicalNode
     }
 
-    // Try to find matching ID
-    const matchedId = findMatchingId(
-      node,
-      path,
-      index,
-      parentTypes,
-      fingerprintMap,
-      usedIds,
-      allOldNodes,
-      pathIdMap,
-      options
-    )
-
-    if (matchedId) {
-      setSerializedNodePersistentId(node, matchedId)
-      usedIds.add(matchedId)
+    // Skip nodes that already have an ID (e.g., ghost nodes from LCS phase)
+    const existingId = getSerializedNodePersistentId(node)
+    if (existingId) {
+      usedIds.add(existingId)
     } else {
-      // No match, generate new ID
-      setSerializedNodePersistentId(node, generatePersistentId())
+      // Try to find matching ID
+      const matchedId = findMatchingId(
+        node,
+        path,
+        index,
+        parentTypes,
+        fingerprintMap,
+        usedIds,
+        allOldNodes,
+        pathIdMap,
+        options
+      )
+
+      if (matchedId) {
+        setSerializedNodePersistentId(node, matchedId)
+        usedIds.add(matchedId)
+      } else {
+        // No match, generate new ID
+        setSerializedNodePersistentId(node, generatePersistentId())
+      }
     }
 
     // Recursively process children
