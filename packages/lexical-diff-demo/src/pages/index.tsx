@@ -282,26 +282,24 @@ function LexicalTreeView({
 }) {
   const isInitialRenderRef = useRef(true)
   const prevStateRef = useRef<SerializedEditorState | null>(null)
-  const prevPathToPidRef = useRef<Map<string, string>>(new Map())
+  const prevAllPidsRef = useRef<Set<string>>(new Set())
 
-  // 第一次渲染标记 + 更新 prevPathToPid
+  // 第一次渲染标记 + 更新 prevAllPids
   useEffect(() => {
     if (state) {
       if (isInitialRenderRef.current) {
         isInitialRenderRef.current = false
       }
-      // 保存当前状态的 path->pid 映射用于下次比较
-      const pathToPid = new Map<string, string>()
-      const walk = (node: any, path: string) => {
-        if (node?.$?.pid) pathToPid.set(path, node.$.pid)
+      // 保存当前状态的所有 PID 用于下次比较
+      const allPids = new Set<string>()
+      const walk = (node: any) => {
+        if (node?.$?.pid) allPids.add(node.$.pid)
         if (node?.children?.length) {
-          node.children.forEach((child: any, index: number) => {
-            walk(child, `${path}-${index}`)
-          })
+          node.children.forEach(walk)
         }
       }
-      walk(state.root, "root")
-      prevPathToPidRef.current = pathToPid
+      walk(state.root)
+      prevAllPidsRef.current = allPids
       prevStateRef.current = state
     }
   }, [state])
@@ -327,15 +325,11 @@ function LexicalTreeView({
     const pid = node.$?.pid
 
     // key 必须包含 path 确保唯一性，避免同一 ID 多次渲染时共享组件
-    // PID 用于新节点检测动画
     const key = pid ? `${pid}-${path}` : path
 
-    // 检测是否是新节点（该 path 之前没有，或 PID 变化了）
-    const prevPid = prevPathToPidRef.current.get(path)
-    const currPid = pid
-    const isNewNode =
-      !isInitialRenderRef.current &&
-      (!prevPid || (currPid && currPid !== prevPid))
+    // 检测是否是新 PID（之前整个文档中不存在的 PID）
+    const isNewPid =
+      !isInitialRenderRef.current && pid && !prevAllPidsRef.current.has(pid)
 
     return (
       <div key={key} data-path={path}>
@@ -346,7 +340,7 @@ function LexicalTreeView({
           isExpanded={true}
           hasChildren={hasChildren}
           onToggle={() => {}} // 不再支持折叠
-          isNew={isNewNode}
+          isNew={isNewPid}
         />
 
         {hasChildren && (
@@ -360,32 +354,17 @@ function LexicalTreeView({
     )
   }
 
-  // 检测新节点并滚动
+  // 检测新 PID 并滚动
   useEffect(() => {
     if (!state || isInitialRenderRef.current) return
 
-    // 获取之前的 path -> PID 映射
-    const prevPathToPid = new Map<string, string>()
-    if (prevStateRef.current?.root) {
-      const walk = (node: any, path: string) => {
-        if (node?.$?.pid) prevPathToPid.set(path, node.$.pid)
-        if (node?.children?.length) {
-          node.children.forEach((child: any, index: number) => {
-            walk(child, `${path}-${index}`)
-          })
-        }
-      }
-      walk(prevStateRef.current.root, "root")
-    }
-
-    // 找到第一个新节点的路径（基于 path 和 PID 都变化）
+    // 找到第一个新 PID 的路径
     let firstNewPath: string | null = null
     const findNew = (node: any, path: string) => {
       if (firstNewPath) return
-      const prevPid = prevPathToPid.get(path)
-      const currPid = node?.$?.pid
-      // 新节点：path 之前不存在，或该 path 的 PID 变了
-      if (!prevPid || (currPid && currPid !== prevPid)) {
+      const pid = node?.$?.pid
+      // 新 PID：之前整个文档中不存在
+      if (pid && !prevAllPidsRef.current.has(pid)) {
         firstNewPath = path
         return
       }
