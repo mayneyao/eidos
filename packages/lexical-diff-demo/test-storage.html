@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Storage</title>
+</head>
+<body>
+  <h1>LocalStorage Test</h1>
+  <button onclick="check()">Check Storage</button>
+  <button onclick="clear()">Clear Storage</button>
+  <pre id="output"></pre>
+  <script>
+    function check() {
+      const markdown = localStorage.getItem('lexical-diff-demo:markdown');
+      const state = localStorage.getItem('lexical-diff-demo:lexicalState');
+      const output = document.getElementById('output');
+      if (state) {
+        const parsed = JSON.parse(state);
+        const ids = [];
+        function walk(node) {
+          if (node?.$?.pid) ids.push(node.$.pid.slice(0, 16));
+          node?.children?.forEach(walk);
+        }
+        walk(parsed.root);
+        output.textContent = 'IDs found:\n' + ids.join('\n');
+      } else {
+        output.textContent = 'No state found';
+      }
+    }
+    function clear() {
+      localStorage.removeItem('lexical-diff-demo:markdown');
+      localStorage.removeItem('lexical-diff-demo:lexicalState');
+      document.getElementById('output').textContent = 'Cleared';
+    }
+  </script>
+</body>
+</html>

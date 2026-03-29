@@ -1,4 +1,4 @@
-import type { TextMatchTransformer } from "@lexical/markdown"
+import type { ElementTransformer } from "@lexical/markdown"
 import type { SerializedDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
 import { DecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
 import {
@@ -144,7 +144,7 @@ export function createImageTransformer<T extends typeof LexicalNode>(
     src,
     altText
   ) => new nodeClass(src, altText, 500) as any
-): TextMatchTransformer {
+): ElementTransformer {
   return {
     dependencies: [nodeClass],
     export: (node: LexicalNode) => {
@@ -153,15 +153,18 @@ export function createImageTransformer<T extends typeof LexicalNode>(
       }
       return `![${(node as BaseImageNode).getAltText()}](${(node as BaseImageNode).getSrc()})`
     },
-    importRegExp: /!\[([^\[]*)]\(([^\s].*?)\)/,
     regExp: /!\[([^\[]*)]\(([^\s].*?)\)$/,
-    replace: (textNode, match) => {
+    replace: (parentNode, _1, match, isImport) => {
       const [, altText, src] = match
       const node = createNode(src, altText)
-      textNode.replace(node)
+      if (isImport || parentNode.getNextSibling() != null) {
+        parentNode.replace(node)
+      } else {
+        parentNode.insertBefore(node)
+      }
+      node.selectNext()
     },
-    trigger: ")",
-    type: "text-match",
+    type: "element",
   }
 }
 

@@ -1,0 +1,7 @@
+{
+  "name": "Duplicate paragraph insertion",
+  "description": "Insert a duplicate paragraph that already exists",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

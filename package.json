@@ -48,7 +48,7 @@
     "semver": "^7.6.2",
     "shx": "^0.3.4",
     "typescript": "^5.8.3",
-    "vitest": "^2.1.9"
+    "vitest": "^4.1.2"
   },
   "engines": {
     "node": ">=18.0.0",

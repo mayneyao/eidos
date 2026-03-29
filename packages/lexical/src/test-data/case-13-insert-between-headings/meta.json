@@ -1,0 +1,7 @@
+{
+  "name": "Insert between two headings",
+  "description": "Insert content between the '特性' heading and its list",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

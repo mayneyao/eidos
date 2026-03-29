@@ -1,0 +1,7 @@
+{
+  "name": "table-insert",
+  "description": "Insert table after text",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

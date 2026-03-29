@@ -1,0 +1,7 @@
+{
+  "name": "code-block-insert",
+  "description": "Insert code block after text",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

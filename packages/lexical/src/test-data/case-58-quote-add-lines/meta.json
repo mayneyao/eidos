@@ -1,0 +1,7 @@
+{
+  "name": "quote-add-lines",
+  "description": "Add lines to quote block",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

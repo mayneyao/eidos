@@ -1,0 +1,7 @@
+{
+  "name": "complex-document-edit",
+  "description": "Full document edit with headings, bold text, new subsection",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

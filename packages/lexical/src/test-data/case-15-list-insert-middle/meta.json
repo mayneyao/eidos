@@ -1,0 +1,7 @@
+{
+  "name": "Insert in middle of unordered list",
+  "description": "Insert a new item in the middle of an unordered list",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

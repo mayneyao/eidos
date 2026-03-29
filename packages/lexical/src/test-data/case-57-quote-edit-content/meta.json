@@ -1,0 +1,7 @@
+{
+  "name": "quote-edit-content",
+  "description": "Edit quote block content",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

@@ -1,0 +1,3 @@
+- Normal item
+- [ ] Check item
+- [x] Done item

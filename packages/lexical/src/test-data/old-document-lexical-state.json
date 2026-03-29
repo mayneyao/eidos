@@ -1,0 +1,626 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "项目计划书",
+            "type": "text",
+            "version": 1,
+            "$": {
+              "pid": "019d351358d7751e971e090d80467f76"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h1",
+        "$": {
+          "pid": "019d351358d77630bace0f03c6c099af"
+        }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d779b0824b8349bba76d42"
+        }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "项目概述",
+            "type": "text",
+            "version": 1,
+            "$": {
+              "pid": "019d351358d771da9e81b7db943db857"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": {
+          "pid": "019d351358d7764a876fac11354d3426"
+        }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d771a695571772aa1dd057"
+        }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "这是一个关于人工智能辅助写作工具的项目规划文档。",
+            "type": "text",
+            "version": 1,
+            "$": {
+              "pid": "019d351358d878cda7382d47ae9bc13b"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d8716481127f25980af1e5"
+        }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d871dfb12c822c2ab23323"
+        }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "核心功能",
+            "type": "text",
+            "version": 1,
+            "$": {
+              "pid": "019d351358d872dd94a5d7c5a55e1151"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": {
+          "pid": "019d351358d87aa4a3aa8eade55d18ba"
+        }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d87605af29018008807e6e"
+        }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "智能补全",
+            "type": "text",
+            "version": 1,
+            "$": {
+              "pid": "019d351358d8729eb5ec4bd41f833798"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h3",
+        "$": {
+          "pid": "019d351358d8768ab853ce7b777f321e"
+        }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "根据上下文自动建议接下来的内容，提高写作效率。",
+            "type": "text",
+            "version": 1,
+            "$": {
+              "pid": "019d351358d87aec8b62ea8848dbd7d7"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d8794981bab35effda8ca8"
+        }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d87878be309b7233ad30e1"
+        }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "语法检查",
+            "type": "text",
+            "version": 1,
+            "$": {
+              "pid": "019d351358d87b9a98470a3774bc473a"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h3",
+        "$": {
+          "pid": "019d351358d8737599acf218211125e2"
+        }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "实时检测语法错误并给出修改建议。",
+            "type": "text",
+            "version": 1,
+            "$": {
+              "pid": "019d351358d87525ab1ce50e9e9bcab6"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d870ca84b6dbc1130d6927"
+        }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d878cfb199a5b8b20f525b"
+        }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "版本历史",
+            "type": "text",
+            "version": 1,
+            "$": {
+              "pid": "019d351358d87438bcfbad587532a8bc"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h3",
+        "$": {
+          "pid": "019d351358d873c5814b58bc310c8595"
+        }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "自动保存文档历史版本，方便回溯和恢复。",
+            "type": "text",
+            "version": 1,
+            "$": {
+              "pid": "019d351358d871988548924d5cbadc83"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d8758eb690308daf3b754a"
+        }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d87adbafad30337d8685a6"
+        }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "技术栈",
+            "type": "text",
+            "version": 1,
+            "$": {
+              "pid": "019d351358d879fab209402c72219d2d"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": {
+          "pid": "019d351358d87f72baaab986020aa37b"
+        }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d8759295fc5f5e81c5aa30"
+        }
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "前端: React + TypeScript",
+                "type": "text",
+                "version": 1,
+                "$": {
+                  "pid": "019d351358d87d2c9e988b886aea7f58"
+                }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 1,
+            "$": {
+              "pid": "019d351358d87674a86999a4a4657dfc"
+            }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "后端: Node.js + PostgreSQL",
+                "type": "text",
+                "version": 1,
+                "$": {
+                  "pid": "019d351358d870bba8c8f772a2dc4fd4"
+                }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 2,
+            "$": {
+              "pid": "019d351358d87473b573a25439e674c7"
+            }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "AI 引擎: OpenAI GPT-4",
+                "type": "text",
+                "version": 1,
+                "$": {
+                  "pid": "019d351358d87279bc8d611e022332e6"
+                }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 3,
+            "$": {
+              "pid": "019d351358d8746fadde0e6c61f627c0"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "list",
+        "version": 1,
+        "listType": "bullet",
+        "start": 1,
+        "tag": "ul",
+        "$": {
+          "pid": "019d351358d87906b12179dd7081c4b3"
+        }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d87bb2bf589eb88a9894e2"
+        }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "时间规划",
+            "type": "text",
+            "version": 1,
+            "$": {
+              "pid": "019d351358d8752bb5d2d5c73e08c131"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": {
+          "pid": "019d351358d87ca1900f90b4d4688c9d"
+        }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d870cbb6db853f4571faab"
+        }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "第一阶段: 需求分析和原型设计（2周）",
+            "type": "text",
+            "version": 1,
+            "$": {
+              "pid": "019d351358d87cb783bd8422004a7a28"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d87277a13b38c1ffe7b14f"
+        }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "第二阶段: 核心功能开发（4周）",
+            "type": "text",
+            "version": 1,
+            "$": {
+              "pid": "019d351358d875d3b20d6b72001d7070"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d87d9996426f122a66926f"
+        }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "第三阶段: 测试和优化（2周）",
+            "type": "text",
+            "version": 1,
+            "$": {
+              "pid": "019d351358d87f2f8d242877f3c81ae8"
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d87252b238276955561585"
+        }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": {
+          "pid": "019d351358d8736f8467b59fa0cd8dbb"
+        }
+      }
+    ],
+    "direction": null,
+    "format": "",
+    "indent": 0,
+    "type": "root",
+    "version": 1
+  }
+}

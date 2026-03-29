@@ -1,0 +1,7 @@
+{
+  "name": "hr-insert",
+  "description": "Insert horizontal rule between paragraphs",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

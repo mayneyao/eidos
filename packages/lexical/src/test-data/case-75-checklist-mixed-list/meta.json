@@ -1,0 +1,7 @@
+{
+  "name": "checklist-mixed-list",
+  "description": "Mixed list types - normal and check list",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

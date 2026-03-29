@@ -1,0 +1,7 @@
+{
+  "name": "Duplicate heading insertion",
+  "description": "Insert a duplicate heading that already exists",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Insert list item at beginning",
+  "description": "Insert a new item at the beginning of a list",
+  "expected": {
+    "preserveAllExistingIds": true,
+    "newNodeCount": 1
+  }
+}

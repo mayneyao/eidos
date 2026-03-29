@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef } from "react"
-import { $convertToMarkdownString } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useDebounceFn, useKeyPress } from "ahooks"
 
@@ -10,8 +9,6 @@ import {
   type EidosDataEventChannelMsg,
 } from "@/lib/const"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-
-import { allTransformers } from "../const"
 
 interface AutoLoadSavePluginProps {
   docId: string
@@ -120,12 +117,7 @@ export function AutoLoadSavePlugin(props: AutoLoadSavePluginProps) {
     // Skip if nothing changed since last confirmed save
     if (content === lastSavedContentRef.current) return
 
-    let markdown = ""
-    editorState.read(() => {
-      markdown = $convertToMarkdownString(allTransformers)
-    })
-
-    await updateDoc(docId, content, markdown)
+    await updateDoc(docId, content)
     // Note: We don't update lastSavedContentRef.current here.
     // The BroadcastChannel listener will update it once the DB write is confirmed.
   }, [docId, editor, updateDoc, debounceSave, disableManuallySave])
@@ -147,12 +139,7 @@ export function AutoLoadSavePlugin(props: AutoLoadSavePluginProps) {
 
         if (content === oldContent) return
 
-        let markdown = ""
-        editorState.read(() => {
-          markdown = $convertToMarkdownString(allTransformers)
-        })
-
-        debounceSave(docId, content, markdown)
+        debounceSave(docId, content)
         // CRITICAL: Removed pre-emptive update of lastSavedContentRef.current here.
         // Updating it here causes a race condition where older in-flight changes
         // can trigger a "refresh" because the current state matches the ref

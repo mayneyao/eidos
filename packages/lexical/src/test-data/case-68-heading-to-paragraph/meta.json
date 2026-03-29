@@ -1,0 +1,7 @@
+{
+  "name": "heading-to-paragraph",
+  "description": "Convert heading to paragraph",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

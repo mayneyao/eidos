@@ -12,8 +12,10 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import {
   registerPersistentIdPlugin,
   createPersistentIdPlugin,
+  $ensureNodePersistentId,
 } from "@eidos.space/lexical"
 import { useEffect } from "react"
+import { $getRoot, $isElementNode, $getNodeByKey } from "lexical"
 
 import { uuidv7 } from "@/lib/utils"
 
@@ -91,6 +93,62 @@ export function PersistentIdPlugin({
       }
     }
   }, [editor, enabled, allNodeTypes, nodeTypes, idGenerator])
+
+  // Initialize persistent IDs for existing nodes (for old documents)
+  useEffect(() => {
+    if (!enabled) return
+
+    // Schedule a one-time update to ensure all existing nodes have IDs
+    // This handles migration of old documents that don't have persistent IDs
+    const timeoutId = setTimeout(() => {
+      editor.getEditorState().read(() => {
+        const root = $getRoot()
+        const nodesWithoutId: string[] = []
+
+        // Traverse all nodes to find those without IDs
+        const traverse = (node: any) => {
+          if (node.getType() === "root") {
+            if ($isElementNode(node)) {
+              node.getChildren().forEach(traverse)
+            }
+            return
+          }
+          // Check if node needs an ID (this is a read-only check)
+          // We'll collect keys and then do a write operation
+          nodesWithoutId.push(node.getKey())
+          if ($isElementNode(node)) {
+            node.getChildren().forEach(traverse)
+          }
+        }
+
+        traverse(root)
+
+        if (nodesWithoutId.length > 0) {
+          // Schedule an update to add IDs to nodes that need them
+          editor.update(
+            () => {
+              let addedCount = 0
+              for (const key of nodesWithoutId) {
+                const node = $getNodeByKey(key)
+                if (node && node.getType() !== "root") {
+                  const id = $ensureNodePersistentId(node)
+                  if (id) addedCount++
+                }
+              }
+              if (addedCount > 0) {
+                console.log(
+                  `[PersistentIdPlugin] Added persistent IDs to ${addedCount} existing nodes`
+                )
+              }
+            },
+            { discrete: true }
+          )
+        }
+      })
+    }, 100) // Small delay to ensure editor is fully initialized
+
+    return () => clearTimeout(timeoutId)
+  }, [editor, enabled])
 
   return null
 }

@@ -1,0 +1,8 @@
+{
+  "name": "Insert multiple paragraphs at beginning",
+  "description": "Insert multiple paragraphs at the beginning of document",
+  "expected": {
+    "preserveAllExistingIds": true,
+    "newNodeCount": 3
+  }
+}

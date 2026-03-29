@@ -58,7 +58,7 @@ export async function markdown2lexical(
 
   let newState = editor.getEditorState().toJSON() as SerializedEditorState
 
-  // Apply ID Harness: preserve old state IDs as much as possible
+  // Apply ID preservation via Harness
   if (options.useHarness !== false) {
     const oldState = options.oldState
       ? (JSON.parse(options.oldState) as SerializedEditorState)

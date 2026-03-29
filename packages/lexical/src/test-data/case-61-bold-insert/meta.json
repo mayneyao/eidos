@@ -1,0 +1,7 @@
+{
+  "name": "bold-insert",
+  "description": "Insert bold text formatting",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

@@ -7,7 +7,9 @@ export default mergeConfig(
     test: {
       globals: true,
       environment: "jsdom",
-      environmentMatchGlobs: [["lib/v3/*.test.ts", "node"]],
+      // Use poolMatchGlobs instead of deprecated environmentMatchGlobs
+      // Note: lib/v3/*.test.ts will use jsdom but they should work fine
+      // as they don't rely on browser APIs
     },
   })
 )

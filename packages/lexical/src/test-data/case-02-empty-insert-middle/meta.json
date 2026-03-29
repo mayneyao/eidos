@@ -1,0 +1,8 @@
+{
+  "name": "Insert empty paragraph in middle",
+  "description": "Insert an empty paragraph between two existing paragraphs",
+  "expected": {
+    "preserveAllExistingIds": true,
+    "newNodeCount": 1
+  }
+}

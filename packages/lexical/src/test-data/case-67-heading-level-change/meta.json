@@ -1,0 +1,7 @@
+{
+  "name": "heading-level-change",
+  "description": "Change heading level from h2 to h3",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

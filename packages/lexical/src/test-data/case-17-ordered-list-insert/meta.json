@@ -1,0 +1,7 @@
+{
+  "name": "Insert in ordered list",
+  "description": "Insert a new step in the middle of an ordered list",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

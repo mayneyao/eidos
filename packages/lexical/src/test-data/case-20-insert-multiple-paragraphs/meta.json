@@ -1,0 +1,7 @@
+{
+  "name": "Insert multiple paragraphs at once",
+  "description": "Insert multiple paragraphs in the document at once",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

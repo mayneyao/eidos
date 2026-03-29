@@ -10,6 +10,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./plugins/persistent-id": {
+      "types": "./dist/plugins/persistent-id.d.ts",
+      "import": "./dist/plugins/persistent-id.js",
+      "default": "./dist/plugins/persistent-id.js"
     }
   },
   "type": "module",
@@ -17,7 +22,8 @@
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:manual": "tsx src/test-conversion.ts"
+    "test:manual": "tsx src/test-conversion.ts",
+    "bench": "vitest bench --run"
   },
   "dependencies": {
     "@lexical/code": "^0.42.0",
@@ -37,6 +43,7 @@
   },
   "devDependencies": {
     "@types/react": "^18.3.18",
+    "jsdom": "^29.0.1",
     "tsdown": "^0.12.9",
     "typescript": "^5.8.3"
   }

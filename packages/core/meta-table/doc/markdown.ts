@@ -26,7 +26,11 @@ export function WithMarkdown<T extends Constructor>(Base: T) {
      */
     async markdownToLexical(
       markdown: string,
-      options?: { oldState?: string }
+      options?: {
+        oldState?: string
+        oldMarkdown?: string
+        useASTDiff?: boolean
+      }
     ): Promise<string> {
       const lexical = this.getLexicalConverter()
       return lexical.markdown2lexical(markdown, [], [], options)
@@ -139,9 +143,15 @@ export function WithMarkdown<T extends Constructor>(Base: T) {
       // Get existing document content (for ID preservation)
       const existing = await this.get(id)
       const oldState = existing?.content
+      const oldMarkdown = existing?.markdown
 
-      // Use headless lexical conversion, pass old state to preserve IDs
-      const content = await this.markdownToLexical(mdStr, { oldState })
+      // Use headless lexical conversion, pass old state and markdown to preserve IDs
+      // AST diff is used when both oldState and oldMarkdown are provided
+      const content = await this.markdownToLexical(mdStr, {
+        oldState,
+        oldMarkdown,
+        useASTDiff: true,
+      })
       return this._createOrUpdate(id, content, mdStr)
     }
 

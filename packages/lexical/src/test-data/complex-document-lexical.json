@@ -1,0 +1,4056 @@
+{
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Comprehensive Markdown Test Document",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ec7690866ced854a533061" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h1",
+        "$": { "pid": "019d3038d4ec7d8a93e52e67a97bf639" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ec7621a5675019ac0068bb" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "This document contains ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ec768e92a41f31a809568a" }
+          },
+          {
+            "detail": 0,
+            "format": 1,
+            "mode": "normal",
+            "style": "",
+            "text": "all",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ec7b6e930e5ff3c264fea4" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": " common Markdown node types for testing ID preservation.",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ec725a9f0fc01cb1c14ac0" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ec7f769d1a49615a6a01b9" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ec798ea3d4e1df81707d8d" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Paragraphs and Text Formatting",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ec7859b875de5f4a27803c" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ec741c8c6772e85831d035" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ec7da5a08c99cf9e5f93e6" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "This is a simple paragraph with ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ec73f19f88eef54c076e4f" }
+          },
+          {
+            "detail": 0,
+            "format": 2,
+            "mode": "normal",
+            "style": "",
+            "text": "italic",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ec78559a28e80d3d0eefe8" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": " and ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ec74a2b564f1c1ec6bd6ed" }
+          },
+          {
+            "detail": 0,
+            "format": 1,
+            "mode": "normal",
+            "style": "",
+            "text": "bold",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ec77e0ab5fb0c4220c84e8" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": " text. We also have ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ec78818dec2435d5e8636b" }
+          },
+          {
+            "detail": 0,
+            "format": 16,
+            "mode": "normal",
+            "style": "",
+            "text": "inline code",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ec711c9ae739743f0399b9" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": " and ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ec78abbcf144e173da52ba" }
+          },
+          {
+            "detail": 0,
+            "format": 4,
+            "mode": "normal",
+            "style": "",
+            "text": "strikethrough",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ec7a418fd39f5fff6da284" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": " text.",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ec7351bb7061c77010a3a7" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ec76388e0b3149f0c48290" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ec71c4a7736bb472fdf81a" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Here's a paragraph with a ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7d9ca7718bb3219d59c8" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "link to example",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed72199c3bcd0b8d1e2e1b" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "link",
+            "version": 1,
+            "rel": null,
+            "target": null,
+            "title": null,
+            "url": "https://example.com",
+            "$": { "pid": "019d3038d4ed7856a94beeccbc8abd47" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": " and an auto-link: <https://github.com>.",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed721aa62642b269d68945" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7a559a4aeb04649f5b71" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7cab9f09d7e449221784" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Lists",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7f08905261e491ebbc57" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ed76f4a7fccb56bd226001" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed754a9fbd1aa42315ce9b" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Unordered Lists",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed766c89925a3807f21554" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h3",
+        "$": { "pid": "019d3038d4ed7a6cb746a77a01f3af9b" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7c32b078cc3ee95082fc" }
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "First item",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed7474b62ed5c8df9ec560" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 1,
+            "$": { "pid": "019d3038d4ed7ec59fa54c2f73156711" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Second item with ",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed7c76b5cfe4ea8dfe5da1" }
+              },
+              {
+                "detail": 0,
+                "format": 1,
+                "mode": "normal",
+                "style": "",
+                "text": "bold",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed74878d30d643ee239900" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 2,
+            "$": { "pid": "019d3038d4ed7772b64e0f9fa23aaf07" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Third item with ",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed75c79db9eb953adb846e" }
+              },
+              {
+                "children": [
+                  {
+                    "detail": 0,
+                    "format": 0,
+                    "mode": "normal",
+                    "style": "",
+                    "text": "a link",
+                    "type": "text",
+                    "version": 1,
+                    "$": { "pid": "019d3038d4ed7b699321284a1cb7e05b" }
+                  }
+                ],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "type": "link",
+                "version": 1,
+                "rel": null,
+                "target": null,
+                "title": null,
+                "url": "https://example.com",
+                "$": { "pid": "019d3038d4ed79bb900daab734b49467" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 3,
+            "$": { "pid": "019d3038d4ed7a34b4ecb054f2a2e413" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Nested item 1",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed706aade39c68e15ca4d5" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 4,
+            "$": { "pid": "019d3038d4ed7a94b6c0351b237be27c" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Nested item 2",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed756abfeeb42446a9fd68" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 5,
+            "$": { "pid": "019d3038d4ed76e4a298f74b8f1ee445" }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "detail": 0,
+                        "format": 0,
+                        "mode": "normal",
+                        "style": "",
+                        "text": "Deeply nested",
+                        "type": "text",
+                        "version": 1,
+                        "$": { "pid": "019d3038d4ed77e7928c8d47a23e37fd" }
+                      }
+                    ],
+                    "direction": null,
+                    "format": "",
+                    "indent": 1,
+                    "type": "listitem",
+                    "version": 1,
+                    "value": 1,
+                    "$": { "pid": "019d3038d4ed72c7a7b7f1707d1feb73" }
+                  }
+                ],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "type": "list",
+                "version": 1,
+                "listType": "bullet",
+                "start": 1,
+                "tag": "ul",
+                "$": { "pid": "019d3038d4ed7711b1bb4c243b67f557" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 6,
+            "$": { "pid": "019d3038d4ed7289a84999b10184d3e7" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Back to top level",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed7480a4ef50bea1e28a5c" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 6,
+            "$": { "pid": "019d3038d4ed760da40e83ad5badb81f" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "list",
+        "version": 1,
+        "listType": "bullet",
+        "start": 1,
+        "tag": "ul",
+        "$": { "pid": "019d3038d4ed7b2184a0920db916b7cb" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed72bd8d755ac4a3326c46" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Ordered Lists",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7dcaaf4854ee78b08604" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h3",
+        "$": { "pid": "019d3038d4ed72fa92e21a9cec58f2e4" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7156afe56444980d7fb3" }
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "First numbered item",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed7a068e66f9187fd3ec97" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 1,
+            "$": { "pid": "019d3038d4ed78259ee3fa430775560f" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Second numbered item",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed73b2ad44e18dc2220b4c" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 2,
+            "$": { "pid": "019d3038d4ed75f6af19aeaea145ee93" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Nested numbered 1",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed7ccebf126e70a3cb346a" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 3,
+            "$": { "pid": "019d3038d4ed764d88504af11956d4a3" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Nested numbered 2",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed79b384ba845dcc285c3f" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 4,
+            "$": { "pid": "019d3038d4ed793996ecb0f523998f2d" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Third numbered item with ",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed76288ee9d87128b7394a" }
+              },
+              {
+                "detail": 0,
+                "format": 2,
+                "mode": "normal",
+                "style": "",
+                "text": "italic",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed7cb39473512a0a989857" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 5,
+            "$": { "pid": "019d3038d4ed7894ac94023d1cea8d16" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "list",
+        "version": 1,
+        "listType": "number",
+        "start": 1,
+        "tag": "ol",
+        "$": { "pid": "019d3038d4ed7c75862d508db277bf31" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed779686ef4a27f02cedd5" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Task Lists",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed74c592fcbf55b4820b2f" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h3",
+        "$": { "pid": "019d3038d4ed79e0b07e2efbe04255da" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed716898bfb3a31cce2d32" }
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Completed task",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed7e7ca1f3ef52821bf29b" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "checked": true,
+            "value": 1,
+            "$": { "pid": "019d3038d4ed72649c9d1c928e412396" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Incomplete task",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed7bf2a59b54524aa4afe3" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "checked": false,
+            "value": 2,
+            "$": { "pid": "019d3038d4ed7021be3ad71cb9268f76" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Another completed task with ",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed75f0a8c6a3dc5cfce89a" }
+              },
+              {
+                "detail": 0,
+                "format": 1,
+                "mode": "normal",
+                "style": "",
+                "text": "bold",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed79f1a573939551ef1737" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "checked": true,
+            "value": 3,
+            "$": { "pid": "019d3038d4ed7856ace86c5304a2b821" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "list",
+        "version": 1,
+        "listType": "check",
+        "start": 1,
+        "tag": "ul",
+        "$": { "pid": "019d3038d4ed7347b0f083986622f92f" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7f0ba2f5e80000b6ae50" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Blockquotes",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed71c78b39c0a46baf0613" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ed73669c1aa82321b4307a" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed77249da4516082a80faf" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "This is a simple blockquote.",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7920b877afc737afc4bb" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "quote",
+        "version": 1,
+        "$": { "pid": "019d3038d4ed73739a8dc4e46f3da179" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7782af665d66d7faf284" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Blockquote with ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed79468772e23707795d57" }
+          },
+          {
+            "detail": 0,
+            "format": 1,
+            "mode": "normal",
+            "style": "",
+            "text": "formatting",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed718995a7f6bacd2e2db0" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": " and ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7b87a9e8faf6ba9e340b" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "links",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed7b78b2da9a2c5fd7a806" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "link",
+            "version": 1,
+            "rel": null,
+            "target": null,
+            "title": null,
+            "url": "https://example.com",
+            "$": { "pid": "019d3038d4ed7202b516af555037d9a1" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": ".",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7d56bd59be817a964b22" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "quote",
+        "version": 1,
+        "$": { "pid": "019d3038d4ed7a099a155a897cb2b033" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": ">",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7e8b8ffd488ba8f34d07" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed796ea69205b492d9f599" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "> Nested blockquote",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7728b4d422c9eed75523" }
+          },
+          {
+            "type": "linebreak",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7e579a91d8f54997018d" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "> Second line of nested",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7f3490574fe9af7b25a6" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "quote",
+        "version": 1,
+        "$": { "pid": "019d3038d4ed770cb8334b25ce40b2e9" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": ">",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed702c9a099d13dada20c9" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed79cb8718d433d50a5c0a" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Back to first level",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7556866bfee80b77a84b" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "quote",
+        "version": 1,
+        "$": { "pid": "019d3038d4ed7d11af8a82ed0c163649" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed704d8d36566315f3eae7" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Code",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7d89b6fd45cd1dfe98e9" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ed787bb9929fe3f60fe119" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed792bb9e0154142ad7d34" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Code Block with Language",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed70ba9ff3f302ed202f93" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h3",
+        "$": { "pid": "019d3038d4ed7476b9caef10d3d1cf56" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7071819419dd10d91369" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "function hello(name: string): string {\n  return `Hello, ${name}!`\n}",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7ff4a8902f71be441588" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "code",
+        "version": 1,
+        "language": "typescript",
+        "$": { "pid": "019d3038d4ed7fa0ac8932d80da3fda6" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7cea93dd95e511c5dae4" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Code Block without Language",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed78e6bac0a8afc037309e" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h3",
+        "$": { "pid": "019d3038d4ed707db2bb762c7a85328c" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7718aeed3aa1904c8aa1" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Plain text code block\nNo language specified",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed79e1ae963b4527d336ac" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "code",
+        "version": 1,
+        "$": { "pid": "019d3038d4ed787a8968710cca5abcec" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed719fa1bb0e0e0bf9ed52" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Inline Code",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7e28a6ba9b68994e030b" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h3",
+        "$": { "pid": "019d3038d4ed76d687ae575fbaf054bb" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7f949e7465e7749e0b5e" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Use ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7fff9d8b165c0708d3b7" }
+          },
+          {
+            "detail": 0,
+            "format": 16,
+            "mode": "normal",
+            "style": "",
+            "text": "npm install",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed776f84f25e61305b8d83" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": " to install packages. For configuration, edit ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed797cabfa9b42ae7a913d" }
+          },
+          {
+            "detail": 0,
+            "format": 16,
+            "mode": "normal",
+            "style": "",
+            "text": "config.json",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed76da9a443511d919ca8b" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": ".",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed702d9a23eef8b5e1e450" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7068981c250b93625704" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed75108e3c67e8280ad354" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Headings",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed773bbb97c7269bf65987" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ed76308277696da6433acc" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7c34b3b0550813d472e8" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Heading Level 3",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7c3588992b55ff5c04fd" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h3",
+        "$": { "pid": "019d3038d4ed7882a57710817411d026" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7313b0e5ef3206a763c4" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Heading Level 4",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7eba903f52384a3a7eac" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h4",
+        "$": { "pid": "019d3038d4ed7e4ea2ee0fab4befe5b3" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7f2487e5eb19b885047b" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Heading Level 5",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed701fa861843b7584ed1a" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h5",
+        "$": { "pid": "019d3038d4ed7ba79922cfaead357a1f" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7ba684f2fc05cf06695c" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Heading Level 6",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed78f2a85bcc7f7963566f" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h6",
+        "$": { "pid": "019d3038d4ed76cfba662bdd1d3e2379" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed792fb168e574a5663e2e" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Horizontal Rules",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed71ca9c2eb860f4412d51" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ed75ad8cd108c5429475bb" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed72a19f4518428b26e974" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Above the rule",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7895ad0baf33935c28b6" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7731938702a346d50f22" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7de6abd2866d76e399e1" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "---",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7bdb9b72f7b9e0a68c5c" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7882be27e98b5cf2be13" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed757bb7b47d3eb45e97f5" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Below the rule",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed77bcb520ffd33b21eb8e" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed79d99aa7815cb4905d5c" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7a359cfd4a72351162c8" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "***",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7c07b291889861421e3f" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7eab867409b8e34409ab" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed733f9169cec42636e797" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Another rule",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7e39b427df104ae028bd" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7725823f8c3657390841" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed755fbd2da8bd7f3a5c05" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "___",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7e98bc5f221f0a6797b4" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7d7b895479df83a37719" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed74c08fc42fca941b0a44" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Final rule",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7fc0bedc5b39e5ce19de" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7044ab402496f5f2ca42" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed785eab92709a98c9133f" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Tables",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7bd198196b9b0982a265" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ed78248c06d8746f816a6c" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7c46babf337402e52b29" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "| Header 1 | Header 2 | Header 3 |",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed79d783ee391cb449cc44" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed76c688eb9b6e304705e9" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "|----------|----------|----------|",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7d24881adf033f31bb37" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7d33bdf2194c697fbb2c" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "| Cell 1   | Cell 2   | Cell 3   |",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7bbf883036ed27f051cb" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7e6ea8f9aa369d58ae1a" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "| ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7af690f6c7e86ff119ab" }
+          },
+          {
+            "detail": 0,
+            "format": 1,
+            "mode": "normal",
+            "style": "",
+            "text": "Bold",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7be3851848533ed1c03e" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": " | ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7b959c5562561cc1db81" }
+          },
+          {
+            "detail": 0,
+            "format": 2,
+            "mode": "normal",
+            "style": "",
+            "text": "Italic",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed73ab938824811c0a9a51" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": " | ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed75c9aa9e060cd11ef6a3" }
+          },
+          {
+            "detail": 0,
+            "format": 16,
+            "mode": "normal",
+            "style": "",
+            "text": "Code",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed79f7855c9a9c1d9ce9f2" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "   |",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed78c7a677eb5997d5f6c8" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7f838a5509967ba8b0bc" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "| ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7b0db980d64842430807" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Link",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ed79bab142ed0a926e5574" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "link",
+            "version": 1,
+            "rel": null,
+            "target": null,
+            "title": null,
+            "url": "https://example.com",
+            "$": { "pid": "019d3038d4ed7f7a913ed7e3e76d7950" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": " | 123 | true |",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed758caec8b7f9f5815aaa" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed76278c1711ae3b081d23" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed75a5b24c52ec7f1f7100" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "HTML Elements",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed78da8a4f516301641b22" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ed7e589e7e4937567d2a19" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7a2ba84b17c8d803bc83" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "<div align=\"center\">",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed71859893162b3a0b1e00" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed73fb9d4c0b2840b45e9a" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "  <p>Some HTML content</p>",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed782691c2d7a4857ab7ef" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7d4abe0416615d390147" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "</div>",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed781a86d43660cf789df2" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7b8fa9b3aaa7be9578a6" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed78f881a3baf3bc93a250" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Special Characters",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7b3db56df9d994c121e4" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ed7a4eb3902e7f8e46a4ea" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7ec4a8e8af1ded778fe6" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Here's some special characters: &copy; &reg; &trade; &euro; &pound;",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7faca114a156aec6de37" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed77b4865ee3e935b05492" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7aa5a521f07e2581686d" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Escaping characters: *not italic* and `not code`",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed71d4bdd176d239acbd02" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7d16b447921b8d5c95a6" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed745e80e43849f46597de" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Emoji",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed747a8ff63d293a3505d0" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ed7a4488ed25d3972d4df7" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed77c9ae9a2c12e2c5be98" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": ":smile: :heart: :thumbsup:",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed77e6843e083c0da69ae5" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7995a6cda0826869bbb2" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7bec891dd79c3280f31d" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Footnotes",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7d4d8c7d9370d5d1abd4" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ed7613860733edd9c2e9d3" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed70cebb48d4b8d79af5bf" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Here's a sentence with a footnote[^1].",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7000af7e4e47b6cfb04d" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7aa2a1cd9bd92ca03bfb" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed79209ccef0d02dd75aea" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "[^1]: This is the footnote content.",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed731ab24752b73750b586" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7f8a80d7c00505bf5089" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed74f3873c3b0510314537" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Definition Lists",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed721bb150bc6663eb84b3" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ed79a1a8a9cbe7a3b297d6" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7e8dbd2eebddfc76bbbc" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Term 1",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed77a799db6f5ef554db44" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7bdba124ccc7981678fc" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": ": Definition 1",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed79038e754e83a1824005" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7666a27c8bc7a28ea049" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed74d9b6a0062145074e46" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Term 2",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed763cae1f71244c536370" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7de19094359c7bb7ea2d" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": ": Definition 2a",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7fe4aceb820ef362ebc2" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7a518ca6fc53bf6b5a10" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": ": Definition 2b",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7c14b19c4082692384ec" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed777b88f0f682383fc115" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed743fb8b78338b843ef3b" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Images",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed75898da4f40320629aa9" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ed70029f4a478af2660263" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed79b9873b49aa60a45f5c" }
+      },
+      {
+        "children": [
+          {
+            "type": "image",
+            "version": 1,
+            "format": "",
+            "altText": "Alt text",
+            "maxWidth": 500,
+            "src": "https://via.placeholder.com/150 \"Image Title\"",
+            "$": { "pid": "019d3038d4ed781999f923f806b2ed78" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed76a7aa224b89f4517b7f" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed76e59145a37e9e09d5dd" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Math (if supported)",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7037b77a37b52fcacb61" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ed72e59211fd627e54f5fe" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed772fbe877b6e5afc8322" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Inline math: $E = mc^2$",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7580882bff394fc1faf6" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7f85a610ac2fe3dd53d3" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7b819a16e8c7c5a21802" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Block math:",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7ecf8219b0665f6460dd" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed73fdb201c783a83de549" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7534b2a25b0c61ebd7de" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "$$",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7a37803f09b880739697" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed79e8b3e7bbe5b4d95370" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "\\sum_{i=1}^{n} x_i = x_1 + x_2 + \\cdots + x_n",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed71e28377bd74633b1c02" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed710ca88910d18c265fd5" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "$$",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed71c489df66b667b5644d" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7338b64a87ec9b5459d9" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7c9194177452a3f5ba18" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Mixed Content Paragraph",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7bebb7eb8e44a5c70335" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ed7da5837ac47abd255398" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7ad1aead24c22c72044d" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "This paragraph has ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed74b9bd95b02c1e4361c0" }
+          },
+          {
+            "detail": 0,
+            "format": 1,
+            "mode": "normal",
+            "style": "",
+            "text": "bold",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7fa982955e6589189637" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": ", ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7fe58388b90dc4931281" }
+          },
+          {
+            "detail": 0,
+            "format": 2,
+            "mode": "normal",
+            "style": "",
+            "text": "italic",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7bdbb5a7689ab6e6e7ef" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": ", ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ed7c218666e89aa444b919" }
+          },
+          {
+            "detail": 0,
+            "format": 16,
+            "mode": "normal",
+            "style": "",
+            "text": "code",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7298b4c23d2aad339f5c" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": ", ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7c438207d69cf2a779f5" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "link",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ee78b8b03fd57bacfce0fb" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "link",
+            "version": 1,
+            "rel": null,
+            "target": null,
+            "title": null,
+            "url": "https://example.com",
+            "$": { "pid": "019d3038d4ee7b3697c90ed4c32c925d" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": ", and ",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7d4a84aacce54c67a12b" }
+          },
+          {
+            "detail": 0,
+            "format": 4,
+            "mode": "normal",
+            "style": "",
+            "text": "strikethrough",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee77e7aaa9a3ddc2160c7f" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": " all together. It also spans",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee75f198b9fc2ac04b8ce8" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ed7f19ad7b03e8de5c6ead" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "multiple lines to test line break handling.",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee71c3b70112359564ed9c" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee7f9f95bd4668c9ba0fa4" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee708796da270c1d5c4155" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Empty Paragraphs",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee73af9023b3f5af3edf25" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ee72d4b595cde096e0b785" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee71ae9c3a698d09abaaa4" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee75c5a25efca4917ca2c9" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee762daa7ef9200f633e2f" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Above and below are empty lines.",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7fd5be228cac8571b523" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee70b7b90aaa3382c01f9f" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee7485a5c97a10f875f4a6" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee7a81819e94ea86775e47" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Very Long Paragraph",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee784fbb334e5975245f1b" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ee76ec8347633a30cfa97b" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee791189bcb08b94ea00cb" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee74c89bca9928c0b05b54" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee74acb6545689366f35b3" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee7fa1a0f3a63ce91a08e2" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Short Paragraph",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee737faf0c1409a5ef409a" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ee756d87f8513b54b70415" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee766f9246aa059d245d85" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Hi.",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7499b138f31d8ad362ff" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee7ef3a7238aef2546dfb4" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee7db9aeeacf31941e74d1" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Multiple Code Blocks",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee77e3b23456d8d429b283" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ee7da3ab1d8bf331a79886" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee70568fa08ce2bcfee63c" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "const x = 1;",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7e7880d4fec5f235b2f6" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "code",
+        "version": 1,
+        "language": "javascript",
+        "$": { "pid": "019d3038d4ee7a73b29ffcf4722c6724" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee76b7ac2e8bd763f9266a" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "def hello():\n    return \"world\"",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7a6386c8611c7cc51c58" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "code",
+        "version": 1,
+        "language": "python",
+        "$": { "pid": "019d3038d4ee7d2885d0fe3e87e2c25c" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee7a0592e78c801986bdf6" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "fn main() {\n    println!(\"Hello, world!\");\n}",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7726a43a1420efb93b35" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "code",
+        "version": 1,
+        "language": "rust",
+        "$": { "pid": "019d3038d4ee7565aba5bc93777dc573" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee71cfb7025b96315c5b1c" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Complex List Structure",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7367ab66076829dc22ea" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ee75288052437dfebc6911" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee7d42a054d874825489fb" }
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Item 1",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ee7905b44932200a873550" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 1,
+            "$": { "pid": "019d3038d4ee7c38aef967ee41114fdf" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "list",
+        "version": 1,
+        "listType": "number",
+        "start": 1,
+        "tag": "ol",
+        "$": { "pid": "019d3038d4ee711eaa73ebad2b53618a" }
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Sub A",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ee7a1faa1ddd64d26314c5" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 1,
+            "$": { "pid": "019d3038d4ee7ff0b75e8700804198c1" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Sub B",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ee735cb0cb0252223d797e" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 2,
+            "$": { "pid": "019d3038d4ee79ff82d6ee7ba8bca3c7" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "list",
+        "version": 1,
+        "listType": "bullet",
+        "start": 1,
+        "tag": "ul",
+        "$": { "pid": "019d3038d4ee7354bd6d2c263d8a570a" }
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "detail": 0,
+                        "format": 0,
+                        "mode": "normal",
+                        "style": "",
+                        "text": "Deep 1",
+                        "type": "text",
+                        "version": 1,
+                        "$": { "pid": "019d3038d4ee7131b5cc51a27acf4d2d" }
+                      }
+                    ],
+                    "direction": null,
+                    "format": "",
+                    "indent": 1,
+                    "type": "listitem",
+                    "version": 1,
+                    "value": 1,
+                    "$": { "pid": "019d3038d4ee79708f1fd151c73d25d1" }
+                  },
+                  {
+                    "children": [
+                      {
+                        "detail": 0,
+                        "format": 0,
+                        "mode": "normal",
+                        "style": "",
+                        "text": "Deep 2",
+                        "type": "text",
+                        "version": 1,
+                        "$": { "pid": "019d3038d4ee78fcb28e32867e30475b" }
+                      }
+                    ],
+                    "direction": null,
+                    "format": "",
+                    "indent": 1,
+                    "type": "listitem",
+                    "version": 1,
+                    "value": 2,
+                    "$": { "pid": "019d3038d4ee74b390de9d7c1a469b90" }
+                  }
+                ],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "type": "list",
+                "version": 1,
+                "listType": "number",
+                "start": 1,
+                "tag": "ol",
+                "$": { "pid": "019d3038d4ee7e6f8fdcd3959e185562" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 1,
+            "$": { "pid": "019d3038d4ee79f5b0d006d10149db74" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "list",
+        "version": 1,
+        "listType": "number",
+        "start": 1,
+        "tag": "ol",
+        "$": { "pid": "019d3038d4ee7a41997856a70bc2fb7e" }
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Sub C",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ee70fca0a0e01fa1b24a19" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 1,
+            "$": { "pid": "019d3038d4ee737c8ac71f700ddb327a" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "list",
+        "version": 1,
+        "listType": "bullet",
+        "start": 1,
+        "tag": "ul",
+        "$": { "pid": "019d3038d4ee7597987b8bb35914f999" }
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Item 2",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ee728b80785a39fc2c88b6" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 2,
+            "$": { "pid": "019d3038d4ee792bbec0042bd7c89af9" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Sub Num 1",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ee7e1bb5b41b719377555f" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 3,
+            "$": { "pid": "019d3038d4ee786aa0935e50cab16152" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Sub Num 2",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ee7a60bf72986eede26f37" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 4,
+            "$": { "pid": "019d3038d4ee7f43a41729cacc6aa436" }
+          },
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Item 3",
+                "type": "text",
+                "version": 1,
+                "$": { "pid": "019d3038d4ee72b4824e297fec9d7cfa" }
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "version": 1,
+            "value": 5,
+            "$": { "pid": "019d3038d4ee7c89bc82ed4a26215c0b" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "list",
+        "version": 1,
+        "listType": "number",
+        "start": 2,
+        "tag": "ol",
+        "$": { "pid": "019d3038d4ee7c1fa1619536d311b568" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee7d63821338f8dc4a6b1b" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Blockquote with List",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7099b9fb1a185d3e909e" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ee7cefb2a1d4e78376f46a" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee7a9bbf8680e39a181c68" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "## Heading in Blockquote",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee79c6a8c9139f2dbdac7f" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "quote",
+        "version": 1,
+        "$": { "pid": "019d3038d4ee761a8a1bceb81725ad40" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": ">",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7c4e84d134399198412b" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee7b9d881254726bed9a80" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "- Item in quote",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee70bca1297b98920ff622" }
+          },
+          {
+            "type": "linebreak",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee765ab04926f00cdfe894" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "- Another item",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7884b16fb573a956ffc0" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "quote",
+        "version": 1,
+        "$": { "pid": "019d3038d4ee7092af754629e830e4bf" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": ">",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7dbc8bbad05cb9b38487" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee7aa89a36e5132fac8aef" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "```code",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7cb98eb29300ff2074eb" }
+          },
+          {
+            "type": "linebreak",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee736689fa356807745480" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "in quote",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee73119d767cbef6d7c809" }
+          },
+          {
+            "type": "linebreak",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7287968b458c84046c2c" }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "```",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7373adce45201bd0d848" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "quote",
+        "version": 1,
+        "$": { "pid": "019d3038d4ee7856abf0beeb49f86e81" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": ">",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7834b15cd8eacd0cc2b7" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee79f494e56236cab39fb1" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Normal text in quote.",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee703db35cb6ba83e43555" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "quote",
+        "version": 1,
+        "$": { "pid": "019d3038d4ee7fd5ace516f1f0420247" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee76108310729437885881" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "Final Section",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7c4287b2fba6e9e13779" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "heading",
+        "version": 1,
+        "tag": "h2",
+        "$": { "pid": "019d3038d4ee7a1d98c2190de413bc98" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee703a8e11c5514d53ccb5" }
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "This is the final paragraph of the comprehensive test document.",
+            "type": "text",
+            "version": 1,
+            "$": { "pid": "019d3038d4ee7924827d52a773da4ce4" }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee7b0eaff078d24c4c311d" }
+      },
+      {
+        "children": [],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "paragraph",
+        "version": 1,
+        "textFormat": 0,
+        "textStyle": "",
+        "$": { "pid": "019d3038d4ee72babc4e956100f3c379" }
+      }
+    ],
+    "direction": null,
+    "format": "",
+    "indent": 0,
+    "type": "root",
+    "version": 1
+  }
+}

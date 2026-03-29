@@ -1,0 +1,8 @@
+{
+  "name": "Insert content between headings",
+  "description": "Insert a paragraph between two section headings",
+  "expected": {
+    "preserveAllExistingIds": true,
+    "newNodeCount": 1
+  }
+}

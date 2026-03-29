@@ -1,0 +1,7 @@
+{
+  "name": "Insert empty paragraph between paragraphs",
+  "description": "Insert an empty paragraph between two regular paragraphs",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

@@ -1,4 +1,4 @@
-import type { TextMatchTransformer } from "@lexical/markdown"
+import type { ElementTransformer } from "@lexical/markdown"
 import type { SerializedDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
 import { DecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
 import {
@@ -67,7 +67,7 @@ export function createYouTubeTransformer<T extends typeof LexicalNode>(
   nodeClass: any = BaseYouTubeNode,
   createNode: (videoID: string) => InstanceType<T> = (videoID) =>
     new nodeClass(videoID) as any
-): TextMatchTransformer {
+): ElementTransformer {
   return {
     dependencies: [nodeClass],
     export: (node: LexicalNode) => {
@@ -76,17 +76,19 @@ export function createYouTubeTransformer<T extends typeof LexicalNode>(
       }
       return `https://www.youtube.com/watch?v=${(node as BaseYouTubeNode).getId()}`
     },
-    importRegExp:
-      /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
     regExp:
       /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})$/,
-    replace: (textNode, match) => {
+    replace: (parentNode, _1, match, isImport) => {
       const [, videoID] = match
       const youtubeNode = createNode(videoID)
-      textNode.replace(youtubeNode)
+      if (isImport || parentNode.getNextSibling() != null) {
+        parentNode.replace(youtubeNode)
+      } else {
+        parentNode.insertBefore(youtubeNode)
+      }
+      youtubeNode.selectNext()
     },
-    trigger: "v", // Using 'v' from 'watch?v=' as a trigger point or similar
-    type: "text-match",
+    type: "element",
   }
 }
 

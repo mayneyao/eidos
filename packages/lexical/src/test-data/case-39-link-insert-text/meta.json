@@ -1,0 +1,7 @@
+{
+  "name": "link-insert-text",
+  "description": "Insert link in plain text",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

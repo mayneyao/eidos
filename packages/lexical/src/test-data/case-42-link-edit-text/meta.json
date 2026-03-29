@@ -1,0 +1,7 @@
+{
+  "name": "link-edit-text",
+  "description": "Change link text",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

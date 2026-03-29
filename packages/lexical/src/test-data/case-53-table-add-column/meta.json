@@ -1,0 +1,7 @@
+{
+  "name": "table-add-column",
+  "description": "Add column to existing table",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

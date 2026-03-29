@@ -1,0 +1,7 @@
+{
+  "name": "link-multiple-insert",
+  "description": "Insert multiple links in text",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

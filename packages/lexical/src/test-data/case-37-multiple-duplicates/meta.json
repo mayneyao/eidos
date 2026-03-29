@@ -1,0 +1,7 @@
+{
+  "name": "Multiple duplicates insertion",
+  "description": "Insert multiple duplicate paragraphs at the end",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

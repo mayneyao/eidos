@@ -20,12 +20,16 @@ export class DataSpaceWithDoc extends DataSpaceWithFile {
   public async updateDoc(
     docId: string,
     content: string,
-    markdown: string,
+    _markdown?: string,
     _isDayPage = false
   ) {
     const res = await this.doc.get(docId)
     // yyyy-mm-dd is day page
     const isDayPage = _isDayPage || /^\d{4}-\d{2}-\d{2}$/g.test(docId)
+
+    // Convert content to markdown on the backend
+    const markdown = _markdown ?? (await this.doc.lexicalToMarkdown(content))
+
     if (!res) {
       await this.doc.add({
         id: docId,

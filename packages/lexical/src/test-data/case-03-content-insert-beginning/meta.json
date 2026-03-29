@@ -1,0 +1,8 @@
+{
+  "name": "Insert content paragraph at beginning",
+  "description": "Insert a paragraph with content at the very beginning",
+  "expected": {
+    "preserveAllExistingIds": true,
+    "newNodeCount": 1
+  }
+}

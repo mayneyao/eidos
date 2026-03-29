@@ -1,0 +1,7 @@
+{
+  "name": "Insert between title and first paragraph",
+  "description": "Insert emphasized content between the title and first paragraph",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

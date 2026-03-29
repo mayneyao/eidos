@@ -1,0 +1,7 @@
+{
+  "name": "checklist-insert",
+  "description": "Insert check list items",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

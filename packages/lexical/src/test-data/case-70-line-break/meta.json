@@ -1,0 +1,7 @@
+{
+  "name": "line-break",
+  "description": "Insert line break with trailing spaces",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

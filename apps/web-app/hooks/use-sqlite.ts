@@ -167,7 +167,7 @@ export const useSqlite = (dbName?: string) => {
   const updateDoc = async (
     docId: string,
     content: string,
-    markdown: string
+    markdown?: string
   ) => {
     if (!sqlWorker) return
     await sqlWorker.updateDoc(docId, content, markdown)

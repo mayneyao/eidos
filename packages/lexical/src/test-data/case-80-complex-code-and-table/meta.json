@@ -1,0 +1,7 @@
+{
+  "name": "complex-code-and-table",
+  "description": "Code block and table together",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

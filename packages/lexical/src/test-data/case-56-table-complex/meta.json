@@ -1,0 +1,7 @@
+{
+  "name": "table-complex",
+  "description": "Complex table operations - add column and row",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

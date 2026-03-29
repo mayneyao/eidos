@@ -24,6 +24,8 @@ export const persistentIdState = createState(PERSISTENT_ID_KEY, {
     }
     return ""
   },
+  // Reset ID when node is copied/split to avoid duplicate IDs
+  resetOnCopyNode: true,
 })
 
 /**

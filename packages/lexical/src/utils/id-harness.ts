@@ -215,6 +215,47 @@ function findFuzzyMatch(
 }
 
 /**
+ * Build path -> ID mapping from old state for fallback matching
+ */
+function buildPathIdMap(state: SerializedEditorState): Map<string, string> {
+  const map = new Map<string, string>()
+
+  function traverse(
+    node: SerializedLexicalNode,
+    path: string = "root",
+    index: number = 0
+  ) {
+    const nodeWithChildren = node as SerializedElementNode
+
+    if (node.type === "root") {
+      nodeWithChildren.children?.forEach(
+        (child: SerializedLexicalNode, i: number) => {
+          traverse(child, `${path}/0`, i)
+        }
+      )
+      return
+    }
+
+    const id = getSerializedNodePersistentId(node)
+    if (id) {
+      // Store mapping from exact path to ID
+      map.set(`${path}/${index}`, id)
+    }
+
+    if (nodeWithChildren.children) {
+      nodeWithChildren.children.forEach(
+        (child: SerializedLexicalNode, i: number) => {
+          traverse(child, `${path}/${index}`, i)
+        }
+      )
+    }
+  }
+
+  traverse(state.root)
+  return map
+}
+
+/**
  * Find matching ID for node
  * Uses progressive relaxation matching strategy
  */
@@ -226,6 +267,7 @@ function findMatchingId(
   fingerprintMap: FingerprintIdMap,
   usedIds: Set<string>,
   allOldNodes: Array<{ node: SerializedLexicalNode; id: string }>,
+  pathIdMap: Map<string, string>,
   options: HarnessOptions
 ): string | null {
   const content = extractContent(node)
@@ -261,6 +303,17 @@ function findMatchingId(
     if (fuzzyId) return fuzzyId
   }
 
+  // Fallback: Match by path + type (preserves ID when content changes but position stays same)
+  const pathKey = `${path}/${index}`
+  const pathMatchedId = pathIdMap.get(pathKey)
+  if (pathMatchedId && !usedIds.has(pathMatchedId)) {
+    // Verify type matches to avoid mismatched nodes
+    const oldNode = allOldNodes.find((n) => n.id === pathMatchedId)
+    if (oldNode && oldNode.node.type === node.type) {
+      return pathMatchedId
+    }
+  }
+
   return null
 }
 
@@ -289,7 +342,10 @@ export function assignIdsViaHarness(
     hashLength: options.hashLength ?? 6,
   })
 
-  // 2. Collect all old nodes with IDs (for fuzzy matching)
+  // 2. Build path -> ID mapping for fallback matching
+  const pathIdMap = buildPathIdMap(oldState)
+
+  // 3. Collect all old nodes with IDs (for fuzzy matching and path fallback)
   const allOldNodes: Array<{ node: SerializedLexicalNode; id: string }> = []
   function collectOldNodes(node: SerializedLexicalNode) {
     const nodeWithChildren = node as SerializedElementNode
@@ -307,7 +363,7 @@ export function assignIdsViaHarness(
   }
   collectOldNodes(oldState.root)
 
-  // 3. Track used IDs (to avoid duplicate assignment)
+  // 4. Track used IDs (to avoid duplicate assignment)
   const usedIds = new Set<string>()
 
   // 4. Assign IDs to new state nodes
@@ -338,6 +394,7 @@ export function assignIdsViaHarness(
       fingerprintMap,
       usedIds,
       allOldNodes,
+      pathIdMap,
       options
     )
 

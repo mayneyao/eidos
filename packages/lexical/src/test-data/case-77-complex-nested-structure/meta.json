@@ -1,0 +1,7 @@
+{
+  "name": "complex-nested-structure",
+  "description": "Nested structures - heading, nested quotes with inline formatting and list, nested list items",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}

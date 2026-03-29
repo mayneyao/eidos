@@ -1,0 +1,7 @@
+{
+  "name": "inline-code-insert",
+  "description": "Insert inline code in text",
+  "expected": {
+    "preserveAllExistingIds": true
+  }
+}
