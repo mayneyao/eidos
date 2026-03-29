@@ -258,6 +258,7 @@ function buildPathIdMap(state: SerializedEditorState): Map<string, string> {
 /**
  * Find matching ID for node
  * Uses progressive relaxation matching strategy
+ * Enhanced to handle multiple nodes with same content
  */
 function findMatchingId(
   node: SerializedLexicalNode,
@@ -291,6 +292,31 @@ function findMatchingId(
     if (id && !usedIds.has(id)) {
       return id
     }
+  }
+
+  // Strategy 5: Find all old nodes with same type and content, pick closest by path similarity
+  const sameContentNodes = allOldNodes.filter(
+    (n) =>
+      !usedIds.has(n.id) &&
+      n.node.type === node.type &&
+      extractContent(n.node) === content
+  )
+  if (sameContentNodes.length > 0) {
+    // Find closest by path index
+    const pathIndex = index
+    let bestMatch = sameContentNodes[0]
+    let bestDistance = Infinity
+
+    for (const candidate of sameContentNodes) {
+      // Extract index from candidate's path in allOldNodes order
+      const candidateIndex = allOldNodes.findIndex((n) => n.id === candidate.id)
+      const distance = Math.abs(pathIndex - candidateIndex)
+      if (distance < bestDistance) {
+        bestDistance = distance
+        bestMatch = candidate
+      }
+    }
+    return bestMatch.id
   }
 
   // Try fuzzy matching if enabled
