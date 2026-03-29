@@ -457,7 +457,7 @@ function CanvasMinimap({
   const [viewportRatio, setViewportRatio] = useState({ top: 0, height: 1 })
   const newNodesRef = useRef<Set<string>>(new Set())
   const prevStateRef = useRef<SerializedEditorState | null>(null)
-  const animationRef = useRef<number>()
+  const animationRef = useRef<number | null>(null)
   const isInitialRenderRef = useRef(true)
 
   // 检测新节点（通过比较前后状态的 PID 集合）
@@ -742,27 +742,138 @@ function deleteRegressionCase(id: string) {
   }
 }
 
-// 导出回归测试用例为 JSON 文件
-function exportRegressionCases(cases: RegressionCase[]) {
-  const data = {
-    exportTime: new Date().toISOString(),
-    totalCases: cases.length,
-    cases: cases.map((c, index) => ({
-      ...c,
-      caseName: `case-${String(cases.length - index).padStart(3, "0")}-rate-${(c.preservationRate * 100).toFixed(1)}`,
-    })),
-  }
-  const blob = new Blob([JSON.stringify(data, null, 2)], {
-    type: "application/json",
+// IndexedDB key for saving directory handle
+const DB_NAME = "lexical-demo"
+const DB_VERSION = 1
+const STORE_NAME = "settings"
+const DIR_HANDLE_KEY = "regressionCasesDir"
+
+// Open IndexedDB
+async function openDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION)
+    request.onerror = () => reject(request.error)
+    request.onsuccess = () => resolve(request.result)
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME)
+      }
+    }
   })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = `lexical-regression-cases-${new Date().toISOString().slice(0, 10)}.json`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+}
+
+// Save directory handle to IndexedDB
+async function saveDirectoryHandle(handle: FileSystemDirectoryHandle | null) {
+  if (!handle) return
+  const db = await openDB()
+  const tx = db.transaction(STORE_NAME, "readwrite")
+  const store = tx.objectStore(STORE_NAME)
+  await new Promise<void>((resolve, reject) => {
+    const request = store.put(handle, DIR_HANDLE_KEY)
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error)
+  })
+}
+
+// Get saved directory handle from IndexedDB
+async function getDirectoryHandle(): Promise<FileSystemDirectoryHandle | null> {
+  try {
+    const db = await openDB()
+    const tx = db.transaction(STORE_NAME, "readonly")
+    const store = tx.objectStore(STORE_NAME)
+    return new Promise((resolve, reject) => {
+      const request = store.get(DIR_HANDLE_KEY)
+      request.onsuccess = () => resolve(request.result || null)
+      request.onerror = () => reject(request.error)
+    })
+  } catch {
+    return null
+  }
+}
+
+// 导出回归测试用例为 JSON 文件到选择的目录
+async function exportRegressionCases(cases: RegressionCase[]) {
+  try {
+    // Check File System Access API support
+    if (!("showDirectoryPicker" in window)) {
+      // Fallback to traditional download
+      const data = {
+        exportTime: new Date().toISOString(),
+        totalCases: cases.length,
+        cases: cases.map((c, index) => ({
+          ...c,
+          caseName: `case-${String(cases.length - index).padStart(3, "0")}-rate-${(c.preservationRate * 100).toFixed(1)}`,
+        })),
+      }
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `lexical-regression-cases-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      return
+    }
+
+    // Try to get saved directory handle
+    let dirHandle = await getDirectoryHandle()
+
+    // If no saved handle or user wants to change, show picker
+    if (!dirHandle) {
+      dirHandle = await (window as any).showDirectoryPicker({
+        mode: "readwrite",
+      })
+      await saveDirectoryHandle(dirHandle)
+    }
+
+    // Request permission (required in some browsers)
+    const permission = await (dirHandle as any).requestPermission({
+      mode: "readwrite",
+    })
+    if (permission !== "granted" || !dirHandle) {
+      // Permission denied, show picker again
+      dirHandle = await (window as any).showDirectoryPicker({
+        mode: "readwrite",
+      })
+      await saveDirectoryHandle(dirHandle)
+    }
+
+    // Write file to directory
+    if (!dirHandle) {
+      throw new Error("No directory selected")
+    }
+    const filename = `lexical-regression-cases-${new Date().toISOString().slice(0, 10)}-${Date.now()}.json`
+    const fileHandle = await dirHandle.getFileHandle(filename, {
+      create: true,
+    })
+    const writable = await fileHandle.createWritable()
+
+    const data = {
+      exportTime: new Date().toISOString(),
+      totalCases: cases.length,
+      cases: cases.map((c, index) => ({
+        ...c,
+        caseName: `case-${String(cases.length - index).padStart(3, "0")}-rate-${(c.preservationRate * 100).toFixed(1)}`,
+      })),
+    }
+
+    await writable.write(JSON.stringify(data, null, 2))
+    await writable.close()
+
+    alert(`✅ 已导出 ${cases.length} 个用例到: ${filename}`)
+  } catch (err: any) {
+    if (err.name === "AbortError") {
+      // User cancelled, do nothing
+      return
+    }
+    console.error("Export failed:", err)
+    alert(`导出失败: ${err.message}`)
+  }
 }
 
 // 导出回归测试用例为测试数据目录格式
@@ -813,6 +924,32 @@ function RegressionCasesPanel({
 }) {
   const [expandedCase, setExpandedCase] = useState<string | null>(null)
   const [showDetails, setShowDetails] = useState(false)
+  const [hasDirHandle, setHasDirHandle] = useState(false)
+
+  // Check if we have a saved directory handle
+  useEffect(() => {
+    getDirectoryHandle().then((handle) => setHasDirHandle(!!handle))
+  }, [])
+
+  // Export with optional directory change
+  const handleExport = async (forceChooseDir = false) => {
+    if (forceChooseDir) {
+      // Clear saved handle to force re-selection
+      const db = await openDB()
+      const tx = db.transaction(STORE_NAME, "readwrite")
+      const store = tx.objectStore(STORE_NAME)
+      await new Promise<void>((resolve, reject) => {
+        const request = store.delete(DIR_HANDLE_KEY)
+        request.onsuccess = () => resolve()
+        request.onerror = () => reject(request.error)
+      })
+      setHasDirHandle(false)
+    }
+    await exportRegressionCases(cases)
+    // Update status after export
+    const handle = await getDirectoryHandle()
+    setHasDirHandle(!!handle)
+  }
 
   if (cases.length === 0) {
     return (
@@ -842,11 +979,21 @@ function RegressionCasesPanel({
             {showDetails ? "收起" : "展开"}
           </button>
           <button
-            onClick={() => exportRegressionCases(cases)}
-            className="px-2 py-1 text-[10px] bg-blue-600 text-white rounded hover:bg-blue-700"
+            onClick={() => handleExport(false)}
+            className="px-2 py-1 text-[10px] bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
+            title={hasDirHandle ? "导出到已选目录" : "选择导出目录"}
           >
-            导出 JSON
+            {hasDirHandle ? "📁 导出" : "📂 导出..."}
           </button>
+          {hasDirHandle && (
+            <button
+              onClick={() => handleExport(true)}
+              className="text-[10px] text-gray-500 hover:text-gray-700 px-1"
+              title="更换导出目录"
+            >
+              更换
+            </button>
+          )}
           <button
             onClick={() => {
               if (confirm("确定要清空所有收集的测试用例吗？")) {
