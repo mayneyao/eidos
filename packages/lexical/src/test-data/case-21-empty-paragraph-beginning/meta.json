@@ -1,7 +1,0 @@
-{
-  "name": "Insert empty paragraph at beginning",
-  "description": "Insert an empty paragraph after the title",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

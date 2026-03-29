@@ -1,7 +1,0 @@
-{
-  "name": "Duplicate list item insertion",
-  "description": "Insert a duplicate list item that already exists",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

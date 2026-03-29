@@ -1,7 +1,0 @@
-{
-  "name": "Insert heading at beginning",
-  "description": "Insert a new heading at the very beginning of the document",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

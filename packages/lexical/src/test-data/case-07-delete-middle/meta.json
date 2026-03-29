@@ -1,8 +1,0 @@
-{
-  "name": "Delete middle paragraph",
-  "description": "Delete a paragraph in the middle",
-  "expected": {
-    "preserveAllExistingIds": true,
-    "deletedNodeCount": 1
-  }
-}

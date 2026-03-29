@@ -1,4 +1,0 @@
-- Apple
-- Banana
-- Apple
-- Cherry

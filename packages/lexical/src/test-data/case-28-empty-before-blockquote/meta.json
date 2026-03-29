@@ -1,7 +1,0 @@
-{
-  "name": "Insert empty paragraph before blockquote",
-  "description": "Insert an empty paragraph before a blockquote",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

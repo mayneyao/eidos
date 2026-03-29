@@ -1,1 +1,0 @@
-Use the `getData()` function

@@ -1,7 +1,0 @@
-{
-  "name": "complex-mixed-nodes",
-  "description": "Mixed node types - heading, paragraph with bold, list, check list, table",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

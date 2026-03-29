@@ -1,0 +1,832 @@
+{
+  "generatedAt": "2026-03-29T15:04:41.827Z",
+  "totalCases": 81,
+  "cases": [
+    {
+      "id": "case-01-empty-insert-beginning",
+      "name": "Insert empty paragraph at beginning",
+      "description": "Insert an empty paragraph at the very beginning of document",
+      "old": "# Document Title\n\nFirst paragraph with content.\n\nSecond paragraph with more content.\n",
+      "new": "# Document Title\n\n(empty line will be inserted here)\n\nFirst paragraph with content.\n\nSecond paragraph with more content.\n",
+      "expected": {
+        "preserveAllExistingIds": true,
+        "newNodeCount": 1
+      }
+    },
+    {
+      "id": "case-02-empty-insert-middle",
+      "name": "Insert empty paragraph in middle",
+      "description": "Insert an empty paragraph between two existing paragraphs",
+      "old": "# Document Title\n\nFirst paragraph with content.\n\nSecond paragraph with more content.\n",
+      "new": "# Document Title\n\nFirst paragraph with content.\n\n(empty line inserted here)\n\nSecond paragraph with more content.\n",
+      "expected": {
+        "preserveAllExistingIds": true,
+        "newNodeCount": 1
+      }
+    },
+    {
+      "id": "case-03-content-insert-beginning",
+      "name": "Insert content paragraph at beginning",
+      "description": "Insert a paragraph with content at the very beginning",
+      "old": "# Document Title\n\nFirst paragraph with content.\n\nSecond paragraph with more content.\n",
+      "new": "# Document Title\n\n**New paragraph inserted at beginning**\n\nFirst paragraph with content.\n\nSecond paragraph with more content.\n",
+      "expected": {
+        "preserveAllExistingIds": true,
+        "newNodeCount": 1
+      }
+    },
+    {
+      "id": "case-04-content-insert-middle",
+      "name": "Insert content between headings",
+      "description": "Insert a paragraph between two section headings",
+      "old": "# Section A\n\nParagraph in section A.\n\n# Section B\n\nParagraph in section B.\n",
+      "new": "# Section A\n\nParagraph in section A.\n\n**New paragraph between sections**\n\n# Section B\n\nParagraph in section B.\n",
+      "expected": {
+        "preserveAllExistingIds": true,
+        "newNodeCount": 1
+      }
+    },
+    {
+      "id": "case-05-multiple-insert",
+      "name": "Insert multiple paragraphs at beginning",
+      "description": "Insert multiple paragraphs at the beginning of document",
+      "old": "# Document\n\nFirst paragraph.\n\nLast paragraph.\n",
+      "new": "# Document\n\n**Inserted paragraph 1**\n\n**Inserted paragraph 2**\n\n**Inserted paragraph 3**\n\nFirst paragraph.\n\nLast paragraph.\n",
+      "expected": {
+        "preserveAllExistingIds": true,
+        "newNodeCount": 3
+      }
+    },
+    {
+      "id": "case-06-delete-beginning",
+      "name": "Delete first paragraph",
+      "description": "Delete the first content paragraph",
+      "old": "# Document\n\n**Paragraph to be deleted**\n\nFirst kept paragraph.\n\nSecond kept paragraph.\n",
+      "new": "# Document\n\nFirst kept paragraph.\n\nSecond kept paragraph.\n",
+      "expected": {
+        "preserveAllExistingIds": true,
+        "deletedNodeCount": 1
+      }
+    },
+    {
+      "id": "case-07-delete-middle",
+      "name": "Delete middle paragraph",
+      "description": "Delete a paragraph in the middle",
+      "old": "# Document\n\nFirst paragraph.\n\n**Paragraph to delete**\n\nLast paragraph.\n",
+      "new": "# Document\n\nFirst paragraph.\n\nLast paragraph.\n",
+      "expected": {
+        "preserveAllExistingIds": true,
+        "deletedNodeCount": 1
+      }
+    },
+    {
+      "id": "case-08-replace-content",
+      "name": "Replace paragraph content",
+      "description": "Replace content of a paragraph (should be treated as new node)",
+      "old": "# Document\n\nOriginal paragraph content.\n\nAnother paragraph.\n",
+      "new": "# Document\n\n**Completely replaced content**\n\nAnother paragraph.\n",
+      "expected": {
+        "preserveAllExistingIds": false,
+        "notes": "Content change may result in new ID if hash doesn't match"
+      }
+    },
+    {
+      "id": "case-09-mixed-changes",
+      "name": "Mixed insert and delete",
+      "description": "Insert a new paragraph and delete another in the same operation",
+      "old": "# Document\n\nKeep this paragraph.\n\nDelete this paragraph.\n\nKeep this too.\n",
+      "new": "# Document\n\n**New inserted paragraph**\n\nKeep this paragraph.\n\nKeep this too.\n",
+      "expected": {
+        "preserveAllExistingIds": true,
+        "newNodeCount": 1,
+        "deletedNodeCount": 1
+      }
+    },
+    {
+      "id": "case-10-list-insert",
+      "name": "Insert list item at beginning",
+      "description": "Insert a new item at the beginning of a list",
+      "old": "# List Test\n\n- Item 1\n- Item 2\n- Item 3\n",
+      "new": "# List Test\n\n- New Item\n- Item 1\n- Item 2\n- Item 3\n",
+      "expected": {
+        "preserveAllExistingIds": true,
+        "newNodeCount": 1
+      }
+    },
+    {
+      "id": "case-11-heading-insert-beginning",
+      "name": "Insert heading at beginning",
+      "description": "Insert a new heading at the very beginning of the document",
+      "old": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n",
+      "new": "# 新增标题\n\n# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-12-insert-between-title-paragraph",
+      "name": "Insert between title and first paragraph",
+      "description": "Insert emphasized content between the title and first paragraph",
+      "old": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n",
+      "new": "# 欢迎使用 Lexical Diff Demo\n\n**新增强调内容**\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-13-insert-between-headings",
+      "name": "Insert between two headings",
+      "description": "Insert content between the '特性' heading and its list",
+      "old": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n",
+      "new": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n**新增的特性说明段落**\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-15-list-insert-middle",
+      "name": "Insert in middle of unordered list",
+      "description": "Insert a new item in the middle of an unordered list",
+      "old": "- Item 1\n- Item 2\n- Item 3\n",
+      "new": "- Item 1\n- New Item\n- Item 2\n- Item 3\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-16-list-insert-end",
+      "name": "Insert at end of unordered list",
+      "description": "Insert a new item at the end of an unordered list",
+      "old": "- Item 1\n- Item 2\n- Item 3\n",
+      "new": "- Item 1\n- Item 2\n- Item 3\n- New Item\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-17-ordered-list-insert",
+      "name": "Insert in ordered list",
+      "description": "Insert a new step in the middle of an ordered list",
+      "old": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n",
+      "new": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n   1.5 新增的步骤\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-18-insert-before-blockquote",
+      "name": "Insert before blockquote",
+      "description": "Insert a paragraph before the blockquote element",
+      "old": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n",
+      "new": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n在引用块之前新增的段落。\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-19-insert-after-blockquote",
+      "name": "Insert after blockquote",
+      "description": "Insert a paragraph after the blockquote element",
+      "old": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n",
+      "new": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n\n在引用块之后新增的段落。\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-20-insert-multiple-paragraphs",
+      "name": "Insert multiple paragraphs at once",
+      "description": "Insert multiple paragraphs in the document at once",
+      "old": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n",
+      "new": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n这是新增的第一个段落。\n\n这是新增的第二个段落。\n\n这是新增的第三个段落。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-21-empty-paragraph-beginning",
+      "name": "Insert empty paragraph at beginning",
+      "description": "Insert an empty paragraph after the title",
+      "old": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n",
+      "new": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-22-empty-paragraph-middle",
+      "name": "Insert empty paragraph in middle",
+      "description": "Insert an empty paragraph between paragraphs",
+      "old": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n",
+      "new": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-23-empty-paragraph-end",
+      "name": "Insert empty paragraph at end",
+      "description": "Insert an empty paragraph at the end of document",
+      "old": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n",
+      "new": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-24-multiple-empty-paragraphs",
+      "name": "Insert multiple empty paragraphs",
+      "description": "Insert multiple consecutive empty paragraphs",
+      "old": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n",
+      "new": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-25-empty-before-heading",
+      "name": "Insert empty paragraph before heading",
+      "description": "Insert an empty paragraph before a heading",
+      "old": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n",
+      "new": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-26-empty-after-heading",
+      "name": "Insert empty paragraph after heading",
+      "description": "Insert an empty paragraph after a heading",
+      "old": "## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n",
+      "new": "## 特性\n\n- 📝 支持 Markdown 和 Lexical 双向转换\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-27-empty-in-list-gap",
+      "name": "Insert empty paragraph in list gap",
+      "description": "Insert an empty paragraph between list items",
+      "old": "- Item 1\n- Item 2\n- Item 3\n",
+      "new": "- Item 1\n\n- Item 2\n- Item 3\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-28-empty-before-blockquote",
+      "name": "Insert empty paragraph before blockquote",
+      "description": "Insert an empty paragraph before a blockquote",
+      "old": "Some text before.\n\n> This is a blockquote.\n",
+      "new": "Some text before.\n\n> This is a blockquote.\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-29-empty-after-blockquote",
+      "name": "Insert empty paragraph after blockquote",
+      "description": "Insert an empty paragraph after a blockquote",
+      "old": "> This is a blockquote.\n\nSome text after.\n",
+      "new": "> This is a blockquote.\n\nSome text after.\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-30-empty-between-paragraphs",
+      "name": "Insert empty paragraph between paragraphs",
+      "description": "Insert an empty paragraph between two regular paragraphs",
+      "old": "First paragraph.\n\nSecond paragraph.\n",
+      "new": "First paragraph.\n\nSecond paragraph.\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-31-empty-document-start",
+      "name": "Insert empty paragraph at document start",
+      "description": "Insert an empty paragraph at the very beginning of document",
+      "old": "First content line.\n\nSecond content line.\n",
+      "new": "First content line.\n\nSecond content line.\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-32-empty-between-sections",
+      "name": "Insert empty paragraph between sections",
+      "description": "Insert an empty paragraph between two sections",
+      "old": "## Section 1\n\nContent of section 1.\n\n## Section 2\n\nContent of section 2.\n",
+      "new": "## Section 1\n\nContent of section 1.\n\n## Section 2\n\nContent of section 2.\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-33-duplicate-heading",
+      "name": "Duplicate heading insertion",
+      "description": "Insert a duplicate heading that already exists",
+      "old": "# Main Title\n\nSome content here.\n",
+      "new": "# Main Title\n\n# Main Title\n\nSome content here.\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-34-duplicate-paragraph",
+      "name": "Duplicate paragraph insertion",
+      "description": "Insert a duplicate paragraph that already exists",
+      "old": "# Title\n\nThis is a unique paragraph.\n\nMore content.\n",
+      "new": "# Title\n\nThis is a unique paragraph.\n\nThis is a unique paragraph.\n\nMore content.\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-35-duplicate-list-item",
+      "name": "Duplicate list item insertion",
+      "description": "Insert a duplicate list item that already exists",
+      "old": "- Apple\n- Banana\n- Cherry\n",
+      "new": "- Apple\n- Banana\n- Apple\n- Cherry\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-36-duplicate-different-positions",
+      "name": "Duplicate content at different positions",
+      "description": "Insert duplicate content at a different position in document",
+      "old": "# Document\n\nFirst section content.\n\n## Middle\n\nMiddle section content.\n",
+      "new": "# Document\n\nFirst section content.\n\nFirst section content.\n\n## Middle\n\nMiddle section content.\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-37-multiple-duplicates",
+      "name": "Multiple duplicates insertion",
+      "description": "Insert multiple duplicate paragraphs at the end",
+      "old": "# Title\n\nParagraph one.\n\nParagraph two.\n",
+      "new": "# Title\n\nParagraph one.\n\nParagraph two.\n\nParagraph one.\n\nParagraph two.\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-38-duplicate-with-variation",
+      "name": "Duplicate with slight variation",
+      "description": "Insert content that is almost a duplicate but with slight variation (missing punctuation)",
+      "old": "# Title\n\nOriginal content here.\n",
+      "new": "# Title\n\nOriginal content here.\n\nOriginal content here\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-39-link-insert-text",
+      "name": "link-insert-text",
+      "description": "Insert link in plain text",
+      "old": "Visit our website for more info\n",
+      "new": "Visit [our website](https://example.com) for more info\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-40-link-insert-beginning",
+      "name": "link-insert-beginning",
+      "description": "Insert link at beginning of text",
+      "old": "Check this out\n",
+      "new": "[Click here](https://example.com) to check this out\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-41-link-edit-url",
+      "name": "link-edit-url",
+      "description": "Change link URL",
+      "old": "[Link](https://old.com) text\n",
+      "new": "[Link](https://new.com) text\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-42-link-edit-text",
+      "name": "link-edit-text",
+      "description": "Change link text",
+      "old": "[Old text](https://example.com) here\n",
+      "new": "[New text](https://example.com) here\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-43-link-multiple-insert",
+      "name": "link-multiple-insert",
+      "description": "Insert multiple links in text",
+      "old": "First second third\n",
+      "new": "[First](https://a.com) [second](https://b.com) [third](https://c.com)\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-44-link-to-autolink",
+      "name": "link-to-autolink",
+      "description": "Convert plain URL to autolink",
+      "old": "Visit https://example.com today\n",
+      "new": "Visit <https://example.com> today\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-45-code-block-insert",
+      "name": "code-block-insert",
+      "description": "Insert code block after text",
+      "old": "Some text\n",
+      "new": "Some text\n\n```js\nconsole.log(\"hello\")\n```\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-46-code-block-edit",
+      "name": "code-block-edit",
+      "description": "Edit code block content",
+      "old": "```js\nold code\n```\n",
+      "new": "```js\nnew code()\n```\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-47-code-block-change-lang",
+      "name": "code-block-change-lang",
+      "description": "Change code block language",
+      "old": "```python\nprint(\"hi\")\n```\n",
+      "new": "```js\nconsole.log(\"hi\")\n```\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-48-code-block-insert-beginning",
+      "name": "code-block-insert-beginning",
+      "description": "Insert code block at beginning",
+      "old": "After code\n",
+      "new": "```\nCode block\n```\n\nAfter code\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-49-inline-code-insert",
+      "name": "inline-code-insert",
+      "description": "Insert inline code in text",
+      "old": "Use the function\n",
+      "new": "Use the `getData()` function\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-50-inline-code-edit",
+      "name": "inline-code-edit",
+      "description": "Edit inline code content",
+      "old": "Call `oldFunc()` now\n",
+      "new": "Call `newFunc()` now\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-51-table-insert",
+      "name": "table-insert",
+      "description": "Insert table after text",
+      "old": "Text\n",
+      "new": "Text\n\n| A   | B   |\n| --- | --- |\n| 1   | 2   |\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-52-table-add-row",
+      "name": "table-add-row",
+      "description": "Add row to existing table",
+      "old": "| A   | B   |\n| --- | --- |\n| 1   | 2   |\n",
+      "new": "| A   | B   |\n| --- | --- |\n| 1   | 2   |\n| 3   | 4   |\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-53-table-add-column",
+      "name": "table-add-column",
+      "description": "Add column to existing table",
+      "old": "| A   | B   |\n| --- | --- |\n| 1   | 2   |\n",
+      "new": "| A   | B   | C   |\n| --- | --- | --- |\n| 1   | 2   | 3   |\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-54-table-edit-cell",
+      "name": "table-edit-cell",
+      "description": "Edit table cell content",
+      "old": "| A   | B   |\n| --- | --- |\n| 1   | 2   |\n",
+      "new": "| A   | B   |\n| --- | --- |\n| X   | 2   |\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-55-table-insert-beginning",
+      "name": "table-insert-beginning",
+      "description": "Insert table at beginning of document",
+      "old": "After table\n",
+      "new": "| A   | B   |\n| --- | --- |\n| 1   | 2   |\n\nAfter table\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-56-table-complex",
+      "name": "table-complex",
+      "description": "Complex table operations - add column and row",
+      "old": "| H1  | H2  |\n| --- | --- |\n| a   | b   |\n",
+      "new": "| Header 1 | Header 2 | Header 3 |\n| -------- | -------- | -------- |\n| a        | b        | c        |\n| d        | e        | f        |\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-57-quote-edit-content",
+      "name": "quote-edit-content",
+      "description": "Edit quote block content",
+      "old": "> Original quote\n",
+      "new": "> Modified quote text\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-58-quote-add-lines",
+      "name": "quote-add-lines",
+      "description": "Add lines to quote block",
+      "old": "> Line 1\n",
+      "new": "> Line 1\n> Line 2\n> Line 3\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-59-quote-nested",
+      "name": "quote-nested",
+      "description": "Nested quote block",
+      "old": "> Outer quote\n",
+      "new": "> Outer quote\n>\n> > Inner quote\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-60-quote-with-markdown",
+      "name": "quote-with-markdown",
+      "description": "Quote with inline markdown formatting",
+      "old": "> Plain text\n",
+      "new": "> **Bold** and _italic_ and [link](https://example.com)\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-61-bold-insert",
+      "name": "bold-insert",
+      "description": "Insert bold text formatting",
+      "old": "Normal text\n",
+      "new": "**Bold** normal text\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-62-italic-insert",
+      "name": "italic-insert",
+      "description": "Insert italic text formatting",
+      "old": "Normal text\n",
+      "new": "_Italic_ normal text\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-63-bold-italic-combined",
+      "name": "bold-italic-combined",
+      "description": "Combined bold and italic formatting",
+      "old": "Text\n",
+      "new": "**_Bold italic_** text\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-64-strikethrough-insert",
+      "name": "strikethrough-insert",
+      "description": "Insert strikethrough formatting",
+      "old": "Text\n",
+      "new": "~~Deleted~~ text\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-65-format-mixed",
+      "name": "format-mixed",
+      "description": "Mixed inline formatting",
+      "old": "Plain\n",
+      "new": "**Bold** _italic_ `code` ~~strike~~\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-66-format-edit",
+      "name": "format-edit",
+      "description": "Edit formatted text content",
+      "old": "**Old bold** text\n",
+      "new": "**New bold** text\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-67-heading-level-change",
+      "name": "heading-level-change",
+      "description": "Change heading level from h2 to h3",
+      "old": "## Level 2\n",
+      "new": "### Level 3\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-68-heading-to-paragraph",
+      "name": "heading-to-paragraph",
+      "description": "Convert heading to paragraph",
+      "old": "## Heading\n",
+      "new": "Heading\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-69-hr-insert",
+      "name": "hr-insert",
+      "description": "Insert horizontal rule between paragraphs",
+      "old": "Before\n",
+      "new": "Before\n\n---\n\nAfter\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-70-line-break",
+      "name": "line-break",
+      "description": "Insert line break with trailing spaces",
+      "old": "Line one\n",
+      "new": "Line one  \nLine two\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-71-multiple-hr",
+      "name": "multiple-hr",
+      "description": "Insert multiple horizontal rules",
+      "old": "Start\n",
+      "new": "---\nStart\n---\n\n## End\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-72-checklist-insert",
+      "name": "checklist-insert",
+      "description": "Insert check list items",
+      "old": "Text\n",
+      "new": "- [ ] Unchecked\n- [x] Checked\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-73-checklist-toggle",
+      "name": "checklist-toggle",
+      "description": "Toggle checkbox state",
+      "old": "- [ ] Todo item\n",
+      "new": "- [x] Todo item\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-74-checklist-add-item",
+      "name": "checklist-add-item",
+      "description": "Add check list item",
+      "old": "- [ ] Item 1\n",
+      "new": "- [ ] Item 1\n- [x] Item 2\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-75-checklist-mixed-list",
+      "name": "checklist-mixed-list",
+      "description": "Mixed list types - normal and check list",
+      "old": "- Normal item\n",
+      "new": "- Normal item\n- [ ] Check item\n- [x] Done item\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-76-complex-mixed-nodes",
+      "name": "complex-mixed-nodes",
+      "description": "Mixed node types - heading, paragraph with bold, list, check list, table",
+      "old": "# Title\n\nParagraph\n\n- List item\n",
+      "new": "# Title\n\nParagraph with **bold**\n\n- List item\n- [ ] Check\n\n| Col |\n| --- |\n| Val |\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-77-complex-nested-structure",
+      "name": "complex-nested-structure",
+      "description": "Nested structures - heading, nested quotes with inline formatting and list, nested list items",
+      "old": "# Doc\n\n> Quote\n>\n> > Nested\n\n- Item\n",
+      "new": "# Document\n\n> Quote with **bold**\n>\n> > Nested quote\n> >\n> > - List in quote\n\n- Item 1\n  - Nested item\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-78-complex-document-edit",
+      "name": "complex-document-edit",
+      "description": "Full document edit with headings, bold text, new subsection",
+      "old": "# Welcome\n\nIntro text.\n\n## Section 1\n\nContent 1\n\n## Section 2\n\nContent 2\n",
+      "new": "# Welcome to the App\n\n**New** intro text.\n\n## Section 1\n\nUpdated content 1\n\n### New Subsection\n\nDetails here\n\n## Section 2\n\nContent 2\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-79-complex-with-image",
+      "name": "complex-with-image",
+      "description": "Document with image node",
+      "old": "# Doc\n\nText\n",
+      "new": "# Doc\n\n![Alt text](https://example.com/image.png)\n\nText\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-80-complex-code-and-table",
+      "name": "complex-code-and-table",
+      "description": "Code block and table together",
+      "old": "```js\nconst x = 1\n```\n",
+      "new": "```js\nconst x = 1\nconst y = 2\n```\n\n| Var | Val |\n| --- | --- |\n| x   | 1   |\n| y   | 2   |\n",
+      "expected": {
+        "preserveAllExistingIds": true
+      }
+    },
+    {
+      "id": "case-81",
+      "name": "major-id-loss-title",
+      "description": "Regression case: preservation rate 60% (dropped 35%)",
+      "old": "# Title\n\nFirst paragraph.\n\nSecond paragraph.\n",
+      "new": "# Title\n\nInserted paragraph.\n\nFirst paragraph.\n\nModified second.\n",
+      "expected": {
+        "preserveAllExistingIds": false,
+        "minPreservationRate": 0.6,
+        "notes": "Original preservation rate: 60%. This case was auto-generated from lexical-diff-demo regression detection."
+      }
+    },
+    {
+      "id": "case-82",
+      "name": "major-id-loss-item-1",
+      "description": "Regression case: preservation rate 67% (dropped 33%)",
+      "old": "- Item 1\n- Item 2\n",
+      "new": "- Item 0\n- Item 1\n- Item 2 modified\n",
+      "expected": {
+        "preserveAllExistingIds": false,
+        "minPreservationRate": 0.67,
+        "notes": "Original preservation rate: 67%. This case was auto-generated from lexical-diff-demo regression detection."
+      }
+    }
+  ],
+  "lastRegressionImport": "2026-03-29T15:22:06.215Z"
+}

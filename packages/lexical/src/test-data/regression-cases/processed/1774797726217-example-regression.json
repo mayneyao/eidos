@@ -1,0 +1,30 @@
+{
+  "exportTime": "2024-03-29T12:00:00Z",
+  "totalCases": 2,
+  "cases": [
+    {
+      "id": "demo-001",
+      "timestamp": 1712345678900,
+      "oldMarkdown": "# Title\n\nFirst paragraph.\n\nSecond paragraph.\n",
+      "newMarkdown": "# Title\n\nInserted paragraph.\n\nFirst paragraph.\n\nModified second.\n",
+      "oldNodeCount": 5,
+      "newNodeCount": 6,
+      "matchedCount": 3,
+      "preservationRate": 0.6,
+      "previousRate": 0.95,
+      "rateDrop": 0.35
+    },
+    {
+      "id": "demo-002",
+      "timestamp": 1712345678901,
+      "oldMarkdown": "- Item 1\n- Item 2\n",
+      "newMarkdown": "- Item 0\n- Item 1\n- Item 2 modified\n",
+      "oldNodeCount": 3,
+      "newNodeCount": 4,
+      "matchedCount": 2,
+      "preservationRate": 0.67,
+      "previousRate": 1.0,
+      "rateDrop": 0.33
+    }
+  ]
+}

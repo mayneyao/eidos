@@ -1,7 +1,0 @@
-{
-  "name": "table-edit-cell",
-  "description": "Edit table cell content",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

@@ -418,6 +418,21 @@ function countIds(state: SerializedEditorState | null): number {
 const STORAGE_KEYS = {
   markdown: "lexical-demo-markdown",
   lexicalState: "lexical-demo-state",
+  regressionCases: "lexical-demo-regression-cases",
+}
+
+// 回归测试用例类型
+interface RegressionCase {
+  id: string
+  timestamp: number
+  oldMarkdown: string
+  newMarkdown: string
+  oldNodeCount: number
+  newNodeCount: number
+  matchedCount: number
+  preservationRate: number
+  previousRate: number | null
+  rateDrop: number
 }
 
 // 保存状态到 localStorage
@@ -684,15 +699,276 @@ function loadPersistedState(): {
   }
 }
 
+// 保存回归测试用例到 localStorage
+function saveRegressionCase(newCase: RegressionCase) {
+  try {
+    const existing = loadRegressionCases()
+    // 避免重复保存相同的内容（检查新旧 markdown 是否已存在）
+    const isDuplicate = existing.some(
+      (c) =>
+        c.oldMarkdown === newCase.oldMarkdown &&
+        c.newMarkdown === newCase.newMarkdown
+    )
+    if (isDuplicate) return false
+
+    const updated = [newCase, ...existing].slice(0, 100) // 最多保留 100 条
+    localStorage.setItem(STORAGE_KEYS.regressionCases, JSON.stringify(updated))
+    return true
+  } catch (e) {
+    console.warn("Failed to save regression case:", e)
+    return false
+  }
+}
+
+// 从 localStorage 加载回归测试用例
+function loadRegressionCases(): RegressionCase[] {
+  try {
+    const str = localStorage.getItem(STORAGE_KEYS.regressionCases)
+    return str ? JSON.parse(str) : []
+  } catch (e) {
+    console.warn("Failed to load regression cases:", e)
+    return []
+  }
+}
+
+// 删除回归测试用例
+function deleteRegressionCase(id: string) {
+  try {
+    const existing = loadRegressionCases()
+    const updated = existing.filter((c) => c.id !== id)
+    localStorage.setItem(STORAGE_KEYS.regressionCases, JSON.stringify(updated))
+  } catch (e) {
+    console.warn("Failed to delete regression case:", e)
+  }
+}
+
+// 导出回归测试用例为 JSON 文件
+function exportRegressionCases(cases: RegressionCase[]) {
+  const data = {
+    exportTime: new Date().toISOString(),
+    totalCases: cases.length,
+    cases: cases.map((c, index) => ({
+      ...c,
+      caseName: `case-${String(cases.length - index).padStart(3, "0")}-rate-${(c.preservationRate * 100).toFixed(1)}`,
+    })),
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json",
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `lexical-regression-cases-${new Date().toISOString().slice(0, 10)}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+// 导出回归测试用例为测试数据目录格式
+// 使用说明：
+// 1. 导出 JSON 文件
+// 2. 复制到 packages/lexical/src/test-data/regression-cases/
+// 3. 运行: node add-regression-cases.mjs
+function exportAsTestData(cases: RegressionCase[]) {
+  cases.forEach((c, index) => {
+    const caseNum = String(index + 1).padStart(2, "0")
+    const rateStr = (c.preservationRate * 100).toFixed(1)
+    const dropStr =
+      c.rateDrop > 0 ? `-drop-${(c.rateDrop * 100).toFixed(1)}` : ""
+    const folderName = `case-${caseNum}-preservation-${rateStr}${dropStr}`
+
+    // 简单导出：逐个下载
+    const oldBlob = new Blob([c.oldMarkdown], { type: "text/markdown" })
+    const newBlob = new Blob([c.newMarkdown], { type: "text/markdown" })
+
+    const oldUrl = URL.createObjectURL(oldBlob)
+    const newUrl = URL.createObjectURL(newBlob)
+
+    setTimeout(() => {
+      const a1 = document.createElement("a")
+      a1.href = oldUrl
+      a1.download = `${folderName}/old.md`
+      a1.click()
+
+      setTimeout(() => {
+        const a2 = document.createElement("a")
+        a2.href = newUrl
+        a2.download = `${folderName}/new.md`
+        a2.click()
+        URL.revokeObjectURL(oldUrl)
+        URL.revokeObjectURL(newUrl)
+      }, 100)
+    }, index * 200)
+  })
+}
+
+// 回归测试用例面板组件
+function RegressionCasesPanel({
+  cases,
+  onCasesChange,
+}: {
+  cases: RegressionCase[]
+  onCasesChange: () => void
+}) {
+  const [expandedCase, setExpandedCase] = useState<string | null>(null)
+  const [showDetails, setShowDetails] = useState(false)
+
+  if (cases.length === 0) {
+    return (
+      <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 text-[11px] text-gray-500">
+        📊 保留率下降时将自动收集测试用例
+      </div>
+    )
+  }
+
+  return (
+    <div className="border-t border-gray-200 bg-gray-50">
+      {/* Header */}
+      <div className="px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-medium text-gray-700">
+            🐛 回归测试用例 ({cases.length})
+          </span>
+          <span className="text-[10px] text-gray-500">
+            保留率下降时自动收集
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowDetails(!showDetails)}
+            className="text-[10px] text-blue-600 hover:text-blue-700"
+          >
+            {showDetails ? "收起" : "展开"}
+          </button>
+          <button
+            onClick={() => exportRegressionCases(cases)}
+            className="px-2 py-1 text-[10px] bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            导出 JSON
+          </button>
+          <button
+            onClick={() => {
+              if (confirm("确定要清空所有收集的测试用例吗？")) {
+                localStorage.removeItem(STORAGE_KEYS.regressionCases)
+                onCasesChange()
+              }
+            }}
+            className="px-2 py-1 text-[10px] bg-red-100 text-red-600 rounded hover:bg-red-200"
+          >
+            清空
+          </button>
+        </div>
+      </div>
+
+      {/* Cases List */}
+      {showDetails && (
+        <div className="max-h-48 overflow-auto border-t border-gray-200">
+          {cases.map((c) => (
+            <div
+              key={c.id}
+              className={`px-4 py-2 border-b border-gray-100 cursor-pointer transition-colors ${
+                expandedCase === c.id ? "bg-blue-50" : "hover:bg-gray-100"
+              }`}
+              onClick={() =>
+                setExpandedCase(expandedCase === c.id ? null : c.id)
+              }
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 text-[11px]">
+                  <span className="text-gray-500">
+                    {new Date(c.timestamp).toLocaleTimeString()}
+                  </span>
+                  <span
+                    className={`font-mono ${c.rateDrop > 0.2 ? "text-red-600 font-bold" : "text-orange-600"}`}
+                  >
+                    {(c.preservationRate * 100).toFixed(1)}%
+                  </span>
+                  {c.previousRate !== null && (
+                    <span className="text-gray-400">
+                      ↓ {(c.rateDrop * 100).toFixed(1)}%
+                    </span>
+                  )}
+                  <span className="text-gray-500">
+                    {c.oldNodeCount}→{c.newNodeCount} 节点
+                  </span>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    deleteRegressionCase(c.id)
+                    onCasesChange()
+                  }}
+                  className="text-[10px] text-red-400 hover:text-red-600"
+                >
+                  删除
+                </button>
+              </div>
+
+              {/* Expanded Details */}
+              {expandedCase === c.id && (
+                <div className="mt-2 pt-2 border-t border-gray-200">
+                  <div className="grid grid-cols-2 gap-2 text-[10px]">
+                    <div>
+                      <div className="text-gray-500 mb-1">Old Markdown:</div>
+                      <pre className="bg-white p-2 rounded border border-gray-200 overflow-auto max-h-24 text-gray-700">
+                        {c.oldMarkdown}
+                      </pre>
+                    </div>
+                    <div>
+                      <div className="text-gray-500 mb-1">New Markdown:</div>
+                      <pre className="bg-white p-2 rounded border border-gray-200 overflow-auto max-h-24 text-gray-700">
+                        {c.newMarkdown}
+                      </pre>
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const data = {
+                        old: c.oldMarkdown,
+                        new: c.newMarkdown,
+                        stats: {
+                          oldNodeCount: c.oldNodeCount,
+                          newNodeCount: c.newNodeCount,
+                          matchedCount: c.matchedCount,
+                          preservationRate: c.preservationRate,
+                        },
+                      }
+                      navigator.clipboard.writeText(
+                        JSON.stringify(data, null, 2)
+                      )
+                      alert("已复制到剪贴板")
+                    }}
+                    className="mt-2 px-2 py-1 text-[10px] bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+                  >
+                    复制为 JSON
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Debug Panel Component
 function DebugPanel({
   oldState,
   currentMarkdown,
+  previousMarkdown,
+  onRegressionDetected,
 }: {
   oldState: SerializedEditorState | null
   currentMarkdown: string
+  previousMarkdown: string
+  onRegressionDetected: () => void
 }) {
   const [stats, setStats] = useState<any>(null)
+  const prevRateRef = useRef<number | null>(null)
+  const hasCheckedRef = useRef(false)
 
   useEffect(() => {
     const run = async () => {
@@ -701,11 +977,55 @@ function DebugPanel({
       const intermediateState = JSON.parse(intermediateStr)
       const stats = getReconciliationStats(oldState, intermediateState)
       setStats(stats)
+
+      // 检测保留率下降
+      const currentRate = stats.idPreservationRate
+      const previousRate = prevRateRef.current
+
+      // 只在有前一次记录且有下降时收集
+      if (
+        hasCheckedRef.current &&
+        previousRate !== null &&
+        currentRate < previousRate
+      ) {
+        const rateDrop = previousRate - currentRate
+
+        // 收集测试用例
+        const newCase: RegressionCase = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          timestamp: Date.now(),
+          oldMarkdown: previousMarkdown,
+          newMarkdown: currentMarkdown,
+          oldNodeCount: stats.oldNodeCount,
+          newNodeCount: stats.newNodeCount,
+          matchedCount: stats.matchedCount,
+          preservationRate: currentRate,
+          previousRate: previousRate,
+          rateDrop: rateDrop,
+        }
+
+        const saved = saveRegressionCase(newCase)
+        if (saved) {
+          console.log("🐛 Regression case saved:", newCase)
+          onRegressionDetected()
+        }
+      }
+
+      prevRateRef.current = currentRate
+      hasCheckedRef.current = true
     }
     run()
-  }, [oldState, currentMarkdown])
+  }, [oldState, currentMarkdown, previousMarkdown, onRegressionDetected])
 
   if (!stats) return null
+
+  // 根据保留率显示不同颜色
+  const rateColor =
+    stats.idPreservationRate < 0.5
+      ? "text-red-600"
+      : stats.idPreservationRate < 0.8
+        ? "text-orange-600"
+        : "text-green-600"
 
   return (
     <div className="px-4 py-2 border-t border-gray-200 bg-gray-50">
@@ -725,7 +1045,7 @@ function DebugPanel({
         </span>
         <span className="text-gray-500">
           保留率{" "}
-          <span className="font-mono text-blue-600">
+          <span className={`font-mono ${rateColor}`}>
             {(stats.idPreservationRate * 100).toFixed(1)}%
           </span>
         </span>
@@ -766,6 +1086,10 @@ export default function IndexPage() {
   const [isOfflineMode, setIsOfflineMode] = useState(false)
   const [stagedMarkdown, setStagedMarkdown] = useState<string | null>(null)
 
+  // 回归测试用例状态
+  const [regressionCases, setRegressionCases] = useState<RegressionCase[]>([])
+  const previousMarkdownRef = useRef<string>(defaultMarkdown)
+
   // 用于防止循环更新
   const updatingFromMarkdown = useRef(false)
   const updatingFromLexical = useRef(false)
@@ -778,15 +1102,20 @@ export default function IndexPage() {
     if (persisted.markdown && persisted.state) {
       setMarkdown(persisted.markdown)
       setLexicalState(persisted.state)
+      previousMarkdownRef.current = persisted.markdown
     } else {
       // 没有持久化数据，生成默认内容
       const init = async () => {
         const stateStr = await markdown2lexical(defaultMarkdown)
         setMarkdown(defaultMarkdown)
         setLexicalState(JSON.parse(stateStr))
+        previousMarkdownRef.current = defaultMarkdown
       }
       init()
     }
+
+    // 加载回归测试用例
+    setRegressionCases(loadRegressionCases())
   }, [])
 
   // 使用 ref 避免闭包问题
@@ -801,6 +1130,9 @@ export default function IndexPage() {
 
     setIsSyncing(true)
     try {
+      // 保存旧的 markdown 用于回归检测
+      const oldMarkdown = markdown
+
       const intermediateStr = await markdown2lexical(stagedMarkdown, [], [], {
         useHarness: false,
       })
@@ -819,12 +1151,15 @@ export default function IndexPage() {
       setLexicalState(reconciledState)
       setMarkdown(stagedMarkdown)
       setStagedMarkdown(null)
+
+      // 更新 previous markdown 引用
+      previousMarkdownRef.current = stagedMarkdown
     } catch (error) {
       console.error("Commit error:", error)
     } finally {
       setIsSyncing(false)
     }
-  }, [stagedMarkdown])
+  }, [stagedMarkdown, markdown])
 
   // Markdown 变化时同步到 Lexical
   const handleMarkdownChange = useCallback(
@@ -839,6 +1174,9 @@ export default function IndexPage() {
         updatingFromMarkdown.current = false
         return
       }
+
+      // 保存旧的 markdown 用于回归检测
+      const oldMarkdown = previousMarkdownRef.current
 
       // 实时模式：立即提交
       setMarkdown(newMarkdown)
@@ -865,6 +1203,9 @@ export default function IndexPage() {
         } else {
           setLexicalState(intermediateState)
         }
+
+        // 更新 previous markdown 引用
+        previousMarkdownRef.current = newMarkdown
       } catch (error) {
         console.error("Markdown to Lexical error:", error)
       } finally {
@@ -1089,7 +1430,20 @@ export default function IndexPage() {
             </div>
 
             {/* Debug Info */}
-            <DebugPanel oldState={lexicalState} currentMarkdown={markdown} />
+            <DebugPanel
+              oldState={lexicalState}
+              currentMarkdown={markdown}
+              previousMarkdown={previousMarkdownRef.current}
+              onRegressionDetected={() =>
+                setRegressionCases(loadRegressionCases())
+              }
+            />
+
+            {/* Regression Cases */}
+            <RegressionCasesPanel
+              cases={regressionCases}
+              onCasesChange={() => setRegressionCases(loadRegressionCases())}
+            />
           </div>
         </div>
       </main>

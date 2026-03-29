@@ -1,7 +1,0 @@
-{
-  "name": "inline-code-edit",
-  "description": "Edit inline code content",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

@@ -1,7 +1,0 @@
-{
-  "name": "Duplicate content at different positions",
-  "description": "Insert duplicate content at a different position in document",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

@@ -1,7 +1,0 @@
-{
-  "name": "code-block-change-lang",
-  "description": "Change code block language",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

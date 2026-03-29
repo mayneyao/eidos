@@ -1,7 +1,0 @@
-{
-  "name": "link-insert-beginning",
-  "description": "Insert link at beginning of text",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

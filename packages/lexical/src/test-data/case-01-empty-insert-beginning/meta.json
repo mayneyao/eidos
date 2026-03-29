@@ -1,8 +1,0 @@
-{
-  "name": "Insert empty paragraph at beginning",
-  "description": "Insert an empty paragraph at the very beginning of document",
-  "expected": {
-    "preserveAllExistingIds": true,
-    "newNodeCount": 1
-  }
-}

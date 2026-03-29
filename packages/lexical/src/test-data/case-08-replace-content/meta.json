@@ -1,8 +1,0 @@
-{
-  "name": "Replace paragraph content",
-  "description": "Replace content of a paragraph (should be treated as new node)",
-  "expected": {
-    "preserveAllExistingIds": false,
-    "notes": "Content change may result in new ID if hash doesn't match"
-  }
-}

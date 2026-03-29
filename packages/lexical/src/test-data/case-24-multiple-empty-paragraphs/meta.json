@@ -1,7 +1,0 @@
-{
-  "name": "Insert multiple empty paragraphs",
-  "description": "Insert multiple consecutive empty paragraphs",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

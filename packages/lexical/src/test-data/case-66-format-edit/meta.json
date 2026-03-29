@@ -1,7 +1,0 @@
-{
-  "name": "format-edit",
-  "description": "Edit formatted text content",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

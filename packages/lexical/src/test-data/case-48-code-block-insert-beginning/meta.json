@@ -1,7 +1,0 @@
-{
-  "name": "code-block-insert-beginning",
-  "description": "Insert code block at beginning",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

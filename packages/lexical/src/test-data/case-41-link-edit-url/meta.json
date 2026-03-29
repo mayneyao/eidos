@@ -1,7 +1,0 @@
-{
-  "name": "link-edit-url",
-  "description": "Change link URL",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

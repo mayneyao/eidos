@@ -1,8 +1,0 @@
-{
-  "name": "Delete first paragraph",
-  "description": "Delete the first content paragraph",
-  "expected": {
-    "preserveAllExistingIds": true,
-    "deletedNodeCount": 1
-  }
-}

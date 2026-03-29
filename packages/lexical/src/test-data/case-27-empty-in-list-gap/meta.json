@@ -1,7 +1,0 @@
-{
-  "name": "Insert empty paragraph in list gap",
-  "description": "Insert an empty paragraph between list items",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

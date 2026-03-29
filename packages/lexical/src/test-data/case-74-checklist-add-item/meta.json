@@ -1,7 +1,0 @@
-{
-  "name": "checklist-add-item",
-  "description": "Add check list item",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

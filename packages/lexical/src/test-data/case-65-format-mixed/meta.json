@@ -1,7 +1,0 @@
-{
-  "name": "format-mixed",
-  "description": "Mixed inline formatting",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

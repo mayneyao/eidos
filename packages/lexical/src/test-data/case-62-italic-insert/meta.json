@@ -1,7 +1,0 @@
-{
-  "name": "italic-insert",
-  "description": "Insert italic text formatting",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

@@ -1,7 +1,0 @@
-{
-  "name": "complex-with-image",
-  "description": "Document with image node",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

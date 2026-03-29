@@ -1,7 +1,0 @@
-{
-  "name": "Insert after blockquote",
-  "description": "Insert a paragraph after the blockquote element",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

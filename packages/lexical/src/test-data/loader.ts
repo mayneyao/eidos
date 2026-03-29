@@ -1,16 +1,15 @@
 /**
  * Test case loader for state reconciliation tests
  *
- * Each test case is a directory containing:
- * - old.md: Original markdown document
- * - new.md: Modified markdown document
- * - meta.json: Expected behavior and metadata
+ * Test cases are loaded from test-cases.json
+ * To regenerate: cd src/test-data && node convert-to-json.mjs
  */
 
 import * as fs from "fs"
 import * as path from "path"
 
 const TEST_DATA_DIR = path.resolve(__dirname)
+const TEST_CASES_JSON = path.join(TEST_DATA_DIR, "test-cases.json")
 
 export interface TestCaseMeta {
   name: string
@@ -19,6 +18,7 @@ export interface TestCaseMeta {
     preserveAllExistingIds?: boolean
     newNodeCount?: number
     deletedNodeCount?: number
+    minPreservationRate?: number
     notes?: string
   }
 }
@@ -32,65 +32,58 @@ export interface TestCase {
   meta: TestCaseMeta
 }
 
-/**
- * Load all test cases from the test-data directory
- */
-export function loadAllTestCases(): TestCase[] {
-  const cases: TestCase[] = []
-
-  const entries = fs.readdirSync(TEST_DATA_DIR, { withFileTypes: true })
-
-  for (const entry of entries) {
-    if (entry.isDirectory() && entry.name.startsWith("case-")) {
-      const testCase = loadTestCase(entry.name)
-      if (testCase) {
-        cases.push(testCase)
-      }
-    }
-  }
-
-  // Sort by case number
-  return cases.sort((a, b) => {
-    const numA = parseInt(a.id.replace("case-", ""))
-    const numB = parseInt(b.id.replace("case-", ""))
-    return numA - numB
-  })
+interface TestCasesJson {
+  generatedAt: string
+  totalCases: number
+  cases: Array<{
+    id: string
+    name: string
+    description: string
+    old: string
+    new: string
+    expected: TestCaseMeta["expected"]
+  }>
 }
 
 /**
- * Load a single test case by directory name
+ * Load all test cases from test-cases.json
+ */
+export function loadAllTestCases(): TestCase[] {
+  if (!fs.existsSync(TEST_CASES_JSON)) {
+    throw new Error(
+      `test-cases.json not found. Run: cd src/test-data && node convert-to-json.mjs`
+    )
+  }
+
+  const data: TestCasesJson = JSON.parse(
+    fs.readFileSync(TEST_CASES_JSON, "utf-8")
+  )
+
+  return data.cases.map((c) => ({
+    id: c.id,
+    name: c.name,
+    description: c.description,
+    oldMarkdown: c.old,
+    newMarkdown: c.new,
+    meta: {
+      name: c.name,
+      description: c.description,
+      expected: c.expected,
+    },
+  }))
+}
+
+/**
+ * Load a single test case by ID
  */
 export function loadTestCase(caseId: string): TestCase | null {
-  const caseDir = path.join(TEST_DATA_DIR, caseId)
-
-  try {
-    const oldMarkdown = fs.readFileSync(path.join(caseDir, "old.md"), "utf-8")
-    const newMarkdown = fs.readFileSync(path.join(caseDir, "new.md"), "utf-8")
-    const meta: TestCaseMeta = JSON.parse(
-      fs.readFileSync(path.join(caseDir, "meta.json"), "utf-8")
-    )
-
-    return {
-      id: caseId,
-      name: meta.name || caseId,
-      description: meta.description || "",
-      oldMarkdown,
-      newMarkdown,
-      meta,
-    }
-  } catch (error) {
-    console.warn(`Failed to load test case ${caseId}:`, error)
-    return null
-  }
+  const cases = loadAllTestCases()
+  return cases.find((c) => c.id === caseId) || null
 }
 
 /**
  * Get test case IDs for targeted testing
  */
 export function getTestCaseIds(): string[] {
-  return fs
-    .readdirSync(TEST_DATA_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith("case-"))
-    .map((entry) => entry.name)
-    .sort()
+  return loadAllTestCases().map((c) => c.id)
 }

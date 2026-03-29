@@ -1,3 +1,0 @@
-# Title
-
-Original content here.

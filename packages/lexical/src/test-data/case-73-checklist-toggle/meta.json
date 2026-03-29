@@ -1,7 +1,0 @@
-{
-  "name": "checklist-toggle",
-  "description": "Toggle checkbox state",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

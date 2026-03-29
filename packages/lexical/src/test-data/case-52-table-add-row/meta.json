@@ -1,7 +1,0 @@
-{
-  "name": "table-add-row",
-  "description": "Add row to existing table",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

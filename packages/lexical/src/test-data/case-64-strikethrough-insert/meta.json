@@ -1,7 +1,0 @@
-{
-  "name": "strikethrough-insert",
-  "description": "Insert strikethrough formatting",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

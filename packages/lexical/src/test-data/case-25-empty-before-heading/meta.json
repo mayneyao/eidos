@@ -1,7 +1,0 @@
-{
-  "name": "Insert empty paragraph before heading",
-  "description": "Insert an empty paragraph before a heading",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

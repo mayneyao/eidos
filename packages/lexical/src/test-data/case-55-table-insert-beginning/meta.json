@@ -1,7 +1,0 @@
-{
-  "name": "table-insert-beginning",
-  "description": "Insert table at beginning of document",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

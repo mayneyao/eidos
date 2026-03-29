@@ -1,7 +1,0 @@
-{
-  "name": "link-to-autolink",
-  "description": "Convert plain URL to autolink",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

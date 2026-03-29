@@ -1,7 +1,0 @@
-{
-  "name": "multiple-hr",
-  "description": "Insert multiple horizontal rules",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

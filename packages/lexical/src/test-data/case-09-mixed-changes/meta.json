@@ -1,9 +1,0 @@
-{
-  "name": "Mixed insert and delete",
-  "description": "Insert a new paragraph and delete another in the same operation",
-  "expected": {
-    "preserveAllExistingIds": true,
-    "newNodeCount": 1,
-    "deletedNodeCount": 1
-  }
-}

@@ -1,7 +1,0 @@
-{
-  "name": "Insert empty paragraph at end",
-  "description": "Insert an empty paragraph at the end of document",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

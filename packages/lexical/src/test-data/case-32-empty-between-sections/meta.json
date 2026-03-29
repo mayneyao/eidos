@@ -1,7 +1,0 @@
-{
-  "name": "Insert empty paragraph between sections",
-  "description": "Insert an empty paragraph between two sections",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

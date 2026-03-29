@@ -1,7 +1,0 @@
-{
-  "name": "Duplicate with slight variation",
-  "description": "Insert content that is almost a duplicate but with slight variation (missing punctuation)",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

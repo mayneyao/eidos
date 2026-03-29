@@ -1,7 +1,0 @@
-{
-  "name": "bold-italic-combined",
-  "description": "Combined bold and italic formatting",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

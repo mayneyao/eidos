@@ -1,5 +1,0 @@
-```
-Code block
-```
-
-After code

@@ -1,7 +1,0 @@
-{
-  "name": "quote-with-markdown",
-  "description": "Quote with inline markdown formatting",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

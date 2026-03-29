@@ -1,7 +1,0 @@
-{
-  "name": "code-block-edit",
-  "description": "Edit code block content",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

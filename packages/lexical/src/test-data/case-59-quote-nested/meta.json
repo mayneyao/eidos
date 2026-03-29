@@ -1,7 +1,0 @@
-{
-  "name": "quote-nested",
-  "description": "Nested quote block",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}

@@ -1,7 +1,0 @@
-{
-  "name": "Insert empty paragraph in middle",
-  "description": "Insert an empty paragraph between paragraphs",
-  "expected": {
-    "preserveAllExistingIds": true
-  }
-}
