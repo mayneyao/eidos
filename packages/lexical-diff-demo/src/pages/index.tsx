@@ -152,127 +152,7 @@ function collectNodesWithPid(
   return result
 }
 
-// 单个树节点组件
-function TreeNodeItem({
-  node,
-  path,
-  depth,
-  isExpanded,
-  hasChildren,
-  onToggle,
-  isNew = false,
-}: {
-  node: any
-  path: string
-  depth: number
-  isExpanded: boolean
-  hasChildren: boolean
-  onToggle: () => void
-  isNew?: boolean
-}) {
-  // 新节点动画状态
-  const [showNewAnimation, setShowNewAnimation] = useState(isNew)
-
-  useEffect(() => {
-    if (showNewAnimation) {
-      // 2秒后动画结束
-      const timer = setTimeout(() => setShowNewAnimation(false), 2000)
-      return () => clearTimeout(timer)
-    }
-  }, [showNewAnimation])
-
-  // 当 isNew prop 变化时更新动画状态
-  useEffect(() => {
-    if (isNew) {
-      setShowNewAnimation(true)
-    }
-  }, [isNew])
-
-  const indent = depth * 16
-
-  const typeColors: Record<string, string> = {
-    root: "text-purple-600 font-semibold",
-    heading: "text-blue-600",
-    paragraph: "text-gray-700",
-    text: "text-green-600",
-    list: "text-orange-600",
-    listitem: "text-yellow-600",
-    code: "text-pink-600",
-    quote: "text-teal-600",
-    link: "text-indigo-600",
-    __ghost__: "text-gray-400 italic",
-  }
-
-  const getContent = (n: any): string => {
-    if (n.text !== undefined) return String(n.text)
-    if (n.children) {
-      return n.children.map(getContent).join("").slice(0, 40)
-    }
-    return ""
-  }
-
-  const content = getContent(node)
-  const displayContent =
-    content.length > 30 ? content.slice(0, 30) + "..." : content
-  const pid = node.$?.pid
-
-  // 新节点红色高亮，否则悬停效果
-  const rowHighlightClass = showNewAnimation
-    ? "bg-red-50/50 border-l-2 border-red-400 animate-pulse"
-    : "hover:bg-gray-50"
-
-  const pidBadgeClass = showNewAnimation
-    ? "ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded border truncate inline-block transition-all duration-700 max-w-[300px] text-red-600 bg-red-50 border-red-200"
-    : "ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded border truncate inline-block transition-all duration-700 max-w-[300px] text-green-600 bg-green-50 border-green-200"
-
-  return (
-    <div
-      className={`flex items-center py-1 rounded group transition-all duration-500 ${rowHighlightClass}`}
-      style={{ paddingLeft: `${indent}px` }}
-    >
-      {hasChildren ? (
-        <span className="w-4 h-4 mr-1 flex items-center justify-center text-gray-400 text-xs">
-          ▼
-        </span>
-      ) : (
-        <span className="w-4 h-4 mr-1" />
-      )}
-
-      <span
-        className={`text-xs font-mono mr-2 ${typeColors[node.type] || "text-gray-600"}`}
-      >
-        {node.type}
-      </span>
-
-      {node.tag && (
-        <span className="text-[10px] bg-gray-100 text-gray-600 px-1 rounded mr-2">
-          {node.tag}
-        </span>
-      )}
-
-      {displayContent && (
-        <span className="text-[10px] text-gray-500 truncate max-w-[150px] mr-2">
-          "{displayContent}"
-        </span>
-      )}
-
-      {pid ? (
-        <span className={pidBadgeClass} title={pid}>
-          {pid}
-        </span>
-      ) : (
-        <span
-          className="ml-auto text-[10px] text-gray-300 inline-block"
-          style={{ width: "22ch" }}
-        >
-          -
-        </span>
-      )}
-    </div>
-  )
-}
-
-// Lexical 树形视图组件 - 始终展开所有节点
+// 树视图 - 简化版
 function LexicalTreeView({
   state,
   scrollContainerId,
@@ -280,54 +160,51 @@ function LexicalTreeView({
   state: SerializedEditorState | null
   scrollContainerId: string
 }) {
-  const isInitialRenderRef = useRef(true)
-  const prevStateRef = useRef<SerializedEditorState | null>(null)
+  const prevPidsRef = useRef<Set<string>>(new Set())
+  const [highlightedPids, setHighlightedPids] = useState<Set<string>>(new Set())
 
-  // 第一次渲染标记 + 保存 prevState
+  // 收集所有 PID
+  const collectPids = (node: any): string[] => {
+    const pids: string[] = []
+    if (node?.$?.pid) pids.push(node.$.pid)
+    if (node?.children) {
+      node.children.forEach((child: any) => {
+        pids.push(...collectPids(child))
+      })
+    }
+    return pids
+  }
+
+  // 当 state 变化时，检测新 PID
   useEffect(() => {
-    if (state && isInitialRenderRef.current) {
-      isInitialRenderRef.current = false
-    }
-    prevStateRef.current = state
-  }, [state])
+    if (!state) return
 
-  // 计算哪些 path 的 PID 发生了变化
-  const changedPaths = useMemo(() => {
-    if (!state || !prevStateRef.current) return new Set<string>()
+    const currentPids = new Set(collectPids(state.root))
+    const prevPids = prevPidsRef.current
 
-    // 构建当前 state 的 path->pid 映射
-    const currPathToPid = new Map<string, string>()
-    const walk = (node: any, path: string) => {
-      if (node?.$?.pid) currPathToPid.set(path, node.$.pid)
-      if (node?.children?.length) {
-        node.children.forEach((child: any, index: number) => {
-          walk(child, `${path}-${index}`)
-        })
+    // 找出新出现的 PID
+    const newPids = new Set<string>()
+    for (const pid of currentPids) {
+      if (!prevPids.has(pid)) {
+        newPids.add(pid)
       }
     }
-    walk(state.root, "root")
 
-    // 构建之前 state 的 path->pid 映射
-    const prevPathToPid = new Map<string, string>()
-    const walkPrev = (node: any, path: string) => {
-      if (node?.$?.pid) prevPathToPid.set(path, node.$.pid)
-      if (node?.children?.length) {
-        node.children.forEach((child: any, index: number) => {
-          walkPrev(child, `${path}-${index}`)
-        })
-      }
-    }
-    walkPrev(prevStateRef.current.root, "root")
+    // 如果有新 PID，高亮它们
+    if (newPids.size > 0) {
+      setHighlightedPids(newPids)
+      // 2秒后取消高亮
+      const timer = setTimeout(() => {
+        setHighlightedPids(new Set())
+      }, 2000)
 
-    // 找出 PID 发生变化的 path（之前有 PID，现在 PID 不同了）
-    const changed = new Set<string>()
-    for (const [path, currPid] of currPathToPid) {
-      const prevPid = prevPathToPid.get(path)
-      if (prevPid && currPid !== prevPid) {
-        changed.add(path)
-      }
+      // 更新 prevPids 为当前所有 PID
+      prevPidsRef.current = currentPids
+
+      return () => clearTimeout(timer)
+    } else {
+      prevPidsRef.current = currentPids
     }
-    return changed
   }, [state])
 
   if (!state) {
@@ -336,95 +213,98 @@ function LexicalTreeView({
     )
   }
 
-  // 递归渲染节点 - 始终展开所有子节点
-  const renderNode = (
-    node: any,
-    path: string = "root",
-    depth: number = 0
-  ): JSX.Element | null => {
-    if (!node) return null
+  // 扁平化渲染所有节点
+  const renderTree = () => {
+    const rows: JSX.Element[] = []
+    let index = 0
 
-    // 跳过 ghost 节点（它们只用于保留未匹配的 ID，不需要显示）
-    if (node.type === "__ghost__") return null
+    const walk = (node: any, depth: number) => {
+      if (node.type === "__ghost__") return
 
-    const hasChildren = node.children && node.children.length > 0
-    const pid = node.$?.pid
+      const pid = node.$?.pid
+      const isNew = pid && highlightedPids.has(pid)
 
-    // key 必须包含 path 确保唯一性，避免同一 ID 多次渲染时共享组件
-    const key = pid ? `${pid}-${path}` : path
+      const indent = depth * 16
+      const hasChildren = node.children?.length > 0
+      const content =
+        node.text ||
+        node.children
+          ?.map((c: any) => c.text)
+          .join("")
+          .slice(0, 40) ||
+        ""
 
-    // 检测该 path 的 PID 是否变化（已有节点的 ID 被替换）
-    const isPidChanged = !isInitialRenderRef.current && changedPaths.has(path)
+      rows.push(
+        <div
+          key={`${pid || "no-pid"}-${index++}`}
+          className={`flex items-center py-1 rounded ${
+            isNew
+              ? "bg-red-50/50 border-l-2 border-red-400"
+              : "hover:bg-gray-50"
+          }`}
+          style={{ paddingLeft: `${indent}px` }}
+        >
+          <span className="w-4 h-4 mr-1 flex items-center justify-center text-gray-400 text-xs">
+            {hasChildren ? "▼" : ""}
+          </span>
+          <span
+            className={`text-xs font-mono mr-2 ${
+              {
+                root: "text-purple-600",
+                heading: "text-blue-600",
+                paragraph: "text-gray-700",
+                text: "text-green-600",
+                list: "text-orange-600",
+                listitem: "text-yellow-600",
+                code: "text-pink-600",
+                quote: "text-teal-600",
+              }[node.type] || "text-gray-600"
+            }`}
+          >
+            {node.type}
+          </span>
+          {node.tag && (
+            <span className="text-[10px] bg-gray-100 text-gray-600 px-1 rounded mr-2">
+              {node.tag}
+            </span>
+          )}
+          {content && (
+            <span className="text-[10px] text-gray-500 truncate max-w-[150px] mr-2">
+              "{content.length > 30 ? content.slice(0, 30) + "..." : content}"
+            </span>
+          )}
+          {pid ? (
+            <span
+              className={`ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded border truncate max-w-[300px] ${
+                isNew
+                  ? "text-red-600 bg-red-50 border-red-200"
+                  : "text-green-600 bg-green-50 border-green-200"
+              }`}
+            >
+              {pid}
+            </span>
+          ) : (
+            <span className="ml-auto text-[10px] text-gray-300">-</span>
+          )}
+        </div>
+      )
 
-    return (
-      <div key={key} data-path={path}>
-        <TreeNodeItem
-          node={node}
-          path={path}
-          depth={depth}
-          isExpanded={true}
-          hasChildren={hasChildren}
-          onToggle={() => {}} // 不再支持折叠
-          isNew={isPidChanged}
-        />
+      if (node.children) {
+        node.children.forEach((child: any) => walk(child, depth + 1))
+      }
+    }
 
-        {hasChildren && (
-          <div>
-            {node.children.map((child: any, index: number) =>
-              renderNode(child, `${path}-${index}`, depth + 1)
-            )}
-          </div>
-        )}
-      </div>
-    )
+    walk(state.root, 0)
+    return rows
   }
-
-  // 检测 PID 变化并滚动
-  useEffect(() => {
-    if (!state || isInitialRenderRef.current || changedPaths.size === 0) return
-
-    // 找到第一个 PID 变化的路径
-    let firstChangedPath: string | null = null
-    const findChanged = (node: any, path: string) => {
-      if (firstChangedPath) return
-      if (changedPaths.has(path)) {
-        firstChangedPath = path
-        return
-      }
-      if (node?.children?.length) {
-        node.children.forEach((child: any, index: number) => {
-          findChanged(child, `${path}-${index}`)
-        })
-      }
-    }
-    findChanged(state.root, "root")
-
-    // 滚动到 PID 变化的节点
-    if (firstChangedPath) {
-      setTimeout(() => {
-        const container = document.getElementById(scrollContainerId)
-        if (container) {
-          const element = container.querySelector(
-            `[data-path="${firstChangedPath}"]`
-          ) as HTMLElement
-          if (element) {
-            element.scrollIntoView({ behavior: "smooth", block: "center" })
-          }
-        }
-      }, 100)
-    }
-  }, [state, scrollContainerId, changedPaths])
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="flex items-center justify-between mb-2 px-1">
         <span className="text-[10px] text-gray-400">所有节点已展开</span>
       </div>
-
-      {/* Tree */}
       <div className="flex-1 overflow-auto">
-        <div className="font-mono text-sm">{renderNode(state.root)}</div>
+        <div className="font-mono text-sm">{renderTree()}</div>
       </div>
     </div>
   )
