@@ -1290,7 +1290,8 @@ export default function IndexPage() {
       const intermediateState = JSON.parse(intermediateStr)
       const reconciledState = reconcileState(
         lexicalStateRef.current,
-        intermediateState
+        intermediateState,
+        { preserveGhostNodes: false }
       )
 
       const stats = getReconciliationStats(
@@ -1343,7 +1344,8 @@ export default function IndexPage() {
         if (currentLexicalState) {
           const reconciledState = reconcileState(
             currentLexicalState,
-            intermediateState
+            intermediateState,
+            { preserveGhostNodes: false }
           )
           const stats = getReconciliationStats(
             currentLexicalState,

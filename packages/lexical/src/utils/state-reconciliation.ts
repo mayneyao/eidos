@@ -239,13 +239,23 @@ function fillMissingIds(state: SerializedEditorState): SerializedEditorState {
  */
 export function reconcileState(
   oldState: SerializedEditorState,
-  intermediateState: SerializedEditorState
+  intermediateState: SerializedEditorState,
+  options?: { preserveGhostNodes?: boolean }
 ): SerializedEditorState {
-  // Deep clone
+  // Deep clone and optionally clean ghost nodes from old state
+  // (ghost nodes are only needed for collaborative sync, not for local editing)
+  const cleanedOldState = options?.preserveGhostNodes
+    ? oldState
+    : JSON.parse(
+        JSON.stringify(oldState, (key, value) => {
+          if (value?.type === "__ghost__") return undefined
+          return value
+        })
+      )
   const newState = JSON.parse(JSON.stringify(intermediateState))
 
   // Phase 1: LCS-based alignment for content matches
-  const oldNodes = extractNodes(oldState, true)
+  const oldNodes = extractNodes(cleanedOldState, true)
   const newNodes = extractNodes(newState, false)
   const lcsMatches = computeLCSMatches(oldNodes, newNodes)
 
@@ -255,7 +265,7 @@ export function reconcileState(
   // Phase 2: Use id-harness for remaining nodes
   // But only pass old nodes that weren't matched in phase 1
   const assignedIds = collectAssignedIds(newState)
-  const remainingOldState = JSON.parse(JSON.stringify(oldState))
+  const remainingOldState = JSON.parse(JSON.stringify(cleanedOldState))
 
   // Remove already-assigned IDs from old state copy
   function removeAssignedIds(node: any) {
