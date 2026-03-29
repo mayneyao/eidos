@@ -152,7 +152,7 @@ function collectNodesWithPid(
   return result
 }
 
-// 单个树节点组件 - 用 pid 做 key，挂载时触发动画
+// 单个树节点组件
 function TreeNodeItem({
   node,
   path,
@@ -160,7 +160,7 @@ function TreeNodeItem({
   isExpanded,
   hasChildren,
   onToggle,
-  isInitialRender = false,
+  isNew = false,
 }: {
   node: any
   path: string
@@ -168,16 +168,23 @@ function TreeNodeItem({
   isExpanded: boolean
   hasChildren: boolean
   onToggle: () => void
-  isInitialRender?: boolean
+  isNew?: boolean
 }) {
-  // 组件挂载时检测是否是初始渲染
-  const [isNew, setIsNew] = useState(!isInitialRender)
+  // 新节点动画状态
+  const [showNewAnimation, setShowNewAnimation] = useState(isNew)
 
   useEffect(() => {
-    if (isNew) {
+    if (showNewAnimation) {
       // 2秒后动画结束
-      const timer = setTimeout(() => setIsNew(false), 2000)
+      const timer = setTimeout(() => setShowNewAnimation(false), 2000)
       return () => clearTimeout(timer)
+    }
+  }, [showNewAnimation])
+
+  // 当 isNew prop 变化时更新动画状态
+  useEffect(() => {
+    if (isNew) {
+      setShowNewAnimation(true)
     }
   }, [isNew])
 
@@ -210,11 +217,11 @@ function TreeNodeItem({
   const pid = node.$?.pid
 
   // 新节点红色高亮，否则悬停效果
-  const rowHighlightClass = isNew
+  const rowHighlightClass = showNewAnimation
     ? "bg-red-50/50 border-l-2 border-red-400 animate-pulse"
     : "hover:bg-gray-50"
 
-  const pidBadgeClass = isNew
+  const pidBadgeClass = showNewAnimation
     ? "ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded border truncate inline-block transition-all duration-700 max-w-[300px] text-red-600 bg-red-50 border-red-200"
     : "ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded border truncate inline-block transition-all duration-700 max-w-[300px] text-green-600 bg-green-50 border-green-200"
 
@@ -275,11 +282,26 @@ function LexicalTreeView({
 }) {
   const isInitialRenderRef = useRef(true)
   const prevStateRef = useRef<SerializedEditorState | null>(null)
+  const prevPathToPidRef = useRef<Map<string, string>>(new Map())
 
-  // 第一次渲染标记
+  // 第一次渲染标记 + 更新 prevPathToPid
   useEffect(() => {
-    if (state && isInitialRenderRef.current) {
-      isInitialRenderRef.current = false
+    if (state) {
+      if (isInitialRenderRef.current) {
+        isInitialRenderRef.current = false
+      }
+      // 保存当前状态的 path->pid 映射用于下次比较
+      const pathToPid = new Map<string, string>()
+      const walk = (node: any, path: string) => {
+        if (node?.$?.pid) pathToPid.set(path, node.$.pid)
+        if (node?.children?.length) {
+          node.children.forEach((child: any, index: number) => {
+            walk(child, `${path}-${index}`)
+          })
+        }
+      }
+      walk(state.root, "root")
+      prevPathToPidRef.current = pathToPid
       prevStateRef.current = state
     }
   }, [state])
@@ -304,9 +326,16 @@ function LexicalTreeView({
     const hasChildren = node.children && node.children.length > 0
     const pid = node.$?.pid
 
-    // 使用 pid 作为 key，如果没有 pid 则使用 path
-    // 这样当 pid 变化时，React 会重新创建组件，触发新节点动画
-    const key = pid || path
+    // key 必须包含 path 确保唯一性，避免同一 ID 多次渲染时共享组件
+    // PID 用于新节点检测动画
+    const key = pid ? `${pid}-${path}` : path
+
+    // 检测是否是新节点（该 path 之前没有，或 PID 变化了）
+    const prevPid = prevPathToPidRef.current.get(path)
+    const currPid = pid
+    const isNewNode =
+      !isInitialRenderRef.current &&
+      (!prevPid || (currPid && currPid !== prevPid))
 
     return (
       <div key={key} data-path={path}>
@@ -317,7 +346,7 @@ function LexicalTreeView({
           isExpanded={true}
           hasChildren={hasChildren}
           onToggle={() => {}} // 不再支持折叠
-          isInitialRender={isInitialRenderRef.current}
+          isNew={isNewNode}
         />
 
         {hasChildren && (
@@ -335,21 +364,28 @@ function LexicalTreeView({
   useEffect(() => {
     if (!state || isInitialRenderRef.current) return
 
-    // 获取之前的 PID 集合
-    const prevPids = new Set<string>()
+    // 获取之前的 path -> PID 映射
+    const prevPathToPid = new Map<string, string>()
     if (prevStateRef.current?.root) {
-      const walk = (node: any) => {
-        if (node?.$?.pid) prevPids.add(node.$.pid)
-        node?.children?.forEach(walk)
+      const walk = (node: any, path: string) => {
+        if (node?.$?.pid) prevPathToPid.set(path, node.$.pid)
+        if (node?.children?.length) {
+          node.children.forEach((child: any, index: number) => {
+            walk(child, `${path}-${index}`)
+          })
+        }
       }
-      walk(prevStateRef.current.root)
+      walk(prevStateRef.current.root, "root")
     }
 
-    // 找到第一个新节点的路径
+    // 找到第一个新节点的路径（基于 path 和 PID 都变化）
     let firstNewPath: string | null = null
     const findNew = (node: any, path: string) => {
       if (firstNewPath) return
-      if (node?.$?.pid && !prevPids.has(node.$.pid)) {
+      const prevPid = prevPathToPid.get(path)
+      const currPid = node?.$?.pid
+      // 新节点：path 之前不存在，或该 path 的 PID 变了
+      if (!prevPid || (currPid && currPid !== prevPid)) {
         firstNewPath = path
         return
       }
