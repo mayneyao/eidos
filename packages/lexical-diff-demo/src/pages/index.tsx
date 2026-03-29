@@ -193,6 +193,7 @@ function TreeNodeItem({
     code: "text-pink-600",
     quote: "text-teal-600",
     link: "text-indigo-600",
+    __ghost__: "text-gray-400 italic",
   }
 
   const getContent = (n: any): string => {
@@ -296,6 +297,9 @@ function LexicalTreeView({
     depth: number = 0
   ): JSX.Element | null => {
     if (!node) return null
+
+    // 跳过 ghost 节点（它们只用于保留未匹配的 ID，不需要显示）
+    if (node.type === "__ghost__") return null
 
     const hasChildren = node.children && node.children.length > 0
     const pid = node.$?.pid
