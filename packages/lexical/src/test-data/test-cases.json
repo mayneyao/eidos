@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-03-29T15:04:41.827Z",
-  "totalCases": 81,
+  "totalCases": 82,
   "cases": [
     {
       "id": "case-01-empty-insert-beginning",
@@ -826,7 +826,19 @@
         "minPreservationRate": 0.67,
         "notes": "Original preservation rate: 67%. This case was auto-generated from lexical-diff-demo regression detection."
       }
+    },
+    {
+      "id": "case-83",
+      "name": "minor-id-loss-lexical-diff",
+      "description": "Regression case: preservation rate 97% (dropped 3%)",
+      "old": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## \n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n",
+      "new": "# 欢迎使用 Lexical Diff Demo\n\n这是一个演示**持久化 ID**功能的示例文档。\n\n## \n\n- 📝 支持 Markdown 和 Lexical 双向转换\n- 🔄 自动保留节点 ID\n- 🎨 可视化展示 ID 变化\n\n## 试一试\n\n1. 在 Markdown 编辑器中修改这段文字\n2. 观察右侧 State Tree 中的 PID 变化\n3. 你会发现已有段落的 ID 被保留了！\n\n> 💡 提示：红色闪烁表示新节点，绿色表示 ID 已保留。\n",
+      "expected": {
+        "preserveAllExistingIds": false,
+        "minPreservationRate": 0.9696969696969697,
+        "notes": "Original preservation rate: 97%. This case was auto-generated from lexical-diff-demo regression detection."
+      }
     }
   ],
-  "lastRegressionImport": "2026-03-29T15:22:06.215Z"
+  "lastRegressionImport": "2026-03-29T16:38:48.223Z"
 }

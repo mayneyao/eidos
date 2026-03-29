@@ -1025,17 +1025,11 @@ function RegressionCasesPanel({
 function DebugPanel({
   oldState,
   currentMarkdown,
-  previousMarkdown,
-  onRegressionDetected,
 }: {
   oldState: SerializedEditorState | null
   currentMarkdown: string
-  previousMarkdown: string
-  onRegressionDetected: () => void
 }) {
   const [stats, setStats] = useState<any>(null)
-  const prevRateRef = useRef<number | null>(null)
-  const hasCheckedRef = useRef(false)
 
   useEffect(() => {
     const run = async () => {
@@ -1044,45 +1038,9 @@ function DebugPanel({
       const intermediateState = JSON.parse(intermediateStr)
       const stats = getReconciliationStats(oldState, intermediateState)
       setStats(stats)
-
-      // 检测保留率下降
-      const currentRate = stats.idPreservationRate
-      const previousRate = prevRateRef.current
-
-      // 只在有前一次记录且有下降时收集
-      if (
-        hasCheckedRef.current &&
-        previousRate !== null &&
-        currentRate < previousRate
-      ) {
-        const rateDrop = previousRate - currentRate
-
-        // 收集测试用例
-        const newCase: RegressionCase = {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          timestamp: Date.now(),
-          oldMarkdown: previousMarkdown,
-          newMarkdown: currentMarkdown,
-          oldNodeCount: stats.oldNodeCount,
-          newNodeCount: stats.newNodeCount,
-          matchedCount: stats.matchedCount,
-          preservationRate: currentRate,
-          previousRate: previousRate,
-          rateDrop: rateDrop,
-        }
-
-        const saved = saveRegressionCase(newCase)
-        if (saved) {
-          console.log("🐛 Regression case saved:", newCase)
-          onRegressionDetected()
-        }
-      }
-
-      prevRateRef.current = currentRate
-      hasCheckedRef.current = true
     }
     run()
-  }, [oldState, currentMarkdown, previousMarkdown, onRegressionDetected])
+  }, [oldState, currentMarkdown])
 
   if (!stats) return null
 
@@ -1155,7 +1113,10 @@ export default function IndexPage() {
 
   // 回归测试用例状态
   const [regressionCases, setRegressionCases] = useState<RegressionCase[]>([])
-  const previousMarkdownRef = useRef<string>(defaultMarkdown)
+  const [previousMarkdown, setPreviousMarkdown] =
+    useState<string>(defaultMarkdown)
+  const prevRateRef = useRef<number | null>(null)
+  const hasCheckedRef = useRef(false)
 
   // 用于防止循环更新
   const updatingFromMarkdown = useRef(false)
@@ -1169,14 +1130,14 @@ export default function IndexPage() {
     if (persisted.markdown && persisted.state) {
       setMarkdown(persisted.markdown)
       setLexicalState(persisted.state)
-      previousMarkdownRef.current = persisted.markdown
+      setPreviousMarkdown(persisted.markdown)
     } else {
       // 没有持久化数据，生成默认内容
       const init = async () => {
         const stateStr = await markdown2lexical(defaultMarkdown)
         setMarkdown(defaultMarkdown)
         setLexicalState(JSON.parse(stateStr))
-        previousMarkdownRef.current = defaultMarkdown
+        setPreviousMarkdown(defaultMarkdown)
       }
       init()
     }
@@ -1216,12 +1177,44 @@ export default function IndexPage() {
       )
       console.log("Batch commit stats:", stats)
 
+      // 检测保留率下降并收集用例
+      const currentRate = stats.idPreservationRate
+      const previousRate = prevRateRef.current
+
+      if (
+        hasCheckedRef.current &&
+        previousRate !== null &&
+        currentRate < previousRate
+      ) {
+        const rateDrop = previousRate - currentRate
+        const newCase: RegressionCase = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          timestamp: Date.now(),
+          oldMarkdown: oldMarkdown,
+          newMarkdown: stagedMarkdown,
+          oldNodeCount: stats.oldNodeCount,
+          newNodeCount: stats.newNodeCount,
+          matchedCount: stats.matchedCount,
+          preservationRate: currentRate,
+          previousRate: previousRate,
+          rateDrop: rateDrop,
+        }
+        const saved = saveRegressionCase(newCase)
+        if (saved) {
+          console.log("🐛 Regression case saved:", newCase)
+          setRegressionCases(loadRegressionCases())
+        }
+      }
+
+      prevRateRef.current = currentRate
+      hasCheckedRef.current = true
+
       setLexicalState(reconciledState)
       setMarkdown(stagedMarkdown)
       setStagedMarkdown(null)
 
-      // 更新 previous markdown 引用
-      previousMarkdownRef.current = stagedMarkdown
+      // 更新 previous markdown
+      setPreviousMarkdown(stagedMarkdown)
     } catch (error) {
       console.error("Commit error:", error)
     } finally {
@@ -1244,7 +1237,7 @@ export default function IndexPage() {
       }
 
       // 保存旧的 markdown 用于回归检测
-      const oldMarkdown = previousMarkdownRef.current
+      const oldMarkdown = previousMarkdown
 
       // 实时模式：立即提交
       setMarkdown(newMarkdown)
@@ -1273,8 +1266,40 @@ export default function IndexPage() {
           setLexicalState(intermediateState)
         }
 
-        // 更新 previous markdown 引用
-        previousMarkdownRef.current = newMarkdown
+        // 检测保留率下降并收集用例
+        const currentRate = stats.idPreservationRate
+        const previousRate = prevRateRef.current
+
+        if (
+          hasCheckedRef.current &&
+          previousRate !== null &&
+          currentRate < previousRate
+        ) {
+          const rateDrop = previousRate - currentRate
+          const newCase: RegressionCase = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            timestamp: Date.now(),
+            oldMarkdown: oldMarkdown,
+            newMarkdown: newMarkdown,
+            oldNodeCount: stats.oldNodeCount,
+            newNodeCount: stats.newNodeCount,
+            matchedCount: stats.matchedCount,
+            preservationRate: currentRate,
+            previousRate: previousRate,
+            rateDrop: rateDrop,
+          }
+          const saved = saveRegressionCase(newCase)
+          if (saved) {
+            console.log("🐛 Regression case saved:", newCase)
+            setRegressionCases(loadRegressionCases())
+          }
+        }
+
+        prevRateRef.current = currentRate
+        hasCheckedRef.current = true
+
+        // 更新 previous markdown
+        setPreviousMarkdown(newMarkdown)
       } catch (error) {
         console.error("Markdown to Lexical error:", error)
       } finally {
@@ -1282,7 +1307,7 @@ export default function IndexPage() {
         updatingFromMarkdown.current = false
       }
     },
-    [isOfflineMode]
+    [isOfflineMode, previousMarkdown]
   )
 
   // 持久化状态到 localStorage
@@ -1499,14 +1524,7 @@ export default function IndexPage() {
             </div>
 
             {/* Debug Info */}
-            <DebugPanel
-              oldState={lexicalState}
-              currentMarkdown={markdown}
-              previousMarkdown={previousMarkdownRef.current}
-              onRegressionDetected={() =>
-                setRegressionCases(loadRegressionCases())
-              }
-            />
+            <DebugPanel oldState={lexicalState} currentMarkdown={markdown} />
 
             {/* Regression Cases */}
             <RegressionCasesPanel
