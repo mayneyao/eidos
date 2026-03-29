@@ -282,24 +282,26 @@ function LexicalTreeView({
 }) {
   const isInitialRenderRef = useRef(true)
   const prevStateRef = useRef<SerializedEditorState | null>(null)
-  const prevAllPidsRef = useRef<Set<string>>(new Set())
+  const prevPathToPidRef = useRef<Map<string, string>>(new Map())
 
-  // 第一次渲染标记 + 更新 prevAllPids
+  // 第一次渲染标记 + 更新 prevPathToPid
   useEffect(() => {
     if (state) {
       if (isInitialRenderRef.current) {
         isInitialRenderRef.current = false
       }
-      // 保存当前状态的所有 PID 用于下次比较
-      const allPids = new Set<string>()
-      const walk = (node: any) => {
-        if (node?.$?.pid) allPids.add(node.$.pid)
+      // 保存当前状态的 path->pid 映射用于下次比较
+      const pathToPid = new Map<string, string>()
+      const walk = (node: any, path: string) => {
+        if (node?.$?.pid) pathToPid.set(path, node.$.pid)
         if (node?.children?.length) {
-          node.children.forEach(walk)
+          node.children.forEach((child: any, index: number) => {
+            walk(child, `${path}-${index}`)
+          })
         }
       }
-      walk(state.root)
-      prevAllPidsRef.current = allPids
+      walk(state.root, "root")
+      prevPathToPidRef.current = pathToPid
       prevStateRef.current = state
     }
   }, [state])
@@ -327,9 +329,10 @@ function LexicalTreeView({
     // key 必须包含 path 确保唯一性，避免同一 ID 多次渲染时共享组件
     const key = pid ? `${pid}-${path}` : path
 
-    // 检测是否是新 PID（之前整个文档中不存在的 PID）
-    const isNewPid =
-      !isInitialRenderRef.current && pid && !prevAllPidsRef.current.has(pid)
+    // 检测该 path 的 PID 是否变化（已有节点的 ID 被替换）
+    const prevPid = prevPathToPidRef.current.get(path)
+    const isPidChanged =
+      !isInitialRenderRef.current && pid && prevPid && pid !== prevPid
 
     return (
       <div key={key} data-path={path}>
@@ -340,7 +343,7 @@ function LexicalTreeView({
           isExpanded={true}
           hasChildren={hasChildren}
           onToggle={() => {}} // 不再支持折叠
-          isNew={isNewPid}
+          isNew={isPidChanged}
         />
 
         {hasChildren && (
@@ -354,35 +357,36 @@ function LexicalTreeView({
     )
   }
 
-  // 检测新 PID 并滚动
+  // 检测 PID 变化并滚动
   useEffect(() => {
     if (!state || isInitialRenderRef.current) return
 
-    // 找到第一个新 PID 的路径
-    let firstNewPath: string | null = null
-    const findNew = (node: any, path: string) => {
-      if (firstNewPath) return
+    // 找到第一个 PID 变化的路径
+    let firstChangedPath: string | null = null
+    const findChanged = (node: any, path: string) => {
+      if (firstChangedPath) return
       const pid = node?.$?.pid
-      // 新 PID：之前整个文档中不存在
-      if (pid && !prevAllPidsRef.current.has(pid)) {
-        firstNewPath = path
+      const prevPid = prevPathToPidRef.current.get(path)
+      // PID 变化：之前有 PID，现在 PID 不同了
+      if (pid && prevPid && pid !== prevPid) {
+        firstChangedPath = path
         return
       }
       if (node?.children?.length) {
         node.children.forEach((child: any, index: number) => {
-          findNew(child, `${path}-${index}`)
+          findChanged(child, `${path}-${index}`)
         })
       }
     }
-    findNew(state.root, "root")
+    findChanged(state.root, "root")
 
-    // 滚动到新节点
-    if (firstNewPath) {
+    // 滚动到 PID 变化的节点
+    if (firstChangedPath) {
       setTimeout(() => {
         const container = document.getElementById(scrollContainerId)
         if (container) {
           const element = container.querySelector(
-            `[data-path="${firstNewPath}"]`
+            `[data-path="${firstChangedPath}"]`
           ) as HTMLElement
           if (element) {
             element.scrollIntoView({ behavior: "smooth", block: "center" })
