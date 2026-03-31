@@ -25,6 +25,7 @@ export interface IGalleryCardProps {
   hiddenFieldIcon?: boolean
   isView?: boolean
   titleField: string
+  highlightedRowId?: string | null
 }
 
 export const GalleryCard = ({
@@ -45,6 +46,7 @@ export const GalleryCard = ({
     properties,
     isView,
     titleField,
+    highlightedRowId,
   } = data
 
   const rowId = items[rowIndex * columnCount + columnIndex]
@@ -72,13 +74,18 @@ export const GalleryCard = ({
     return <div style={style}></div>
   }
 
+  const isHighlighted = highlightedRowId === rowId
+
   // Notion-style card styling
   const notionCardClassName = cn(
     "h-full rounded-xl overflow-hidden",
     "bg-white dark:bg-gray-900",
-    "border border-gray-200 dark:border-gray-800",
+    "border",
+    isHighlighted
+      ? "border-yellow-400 dark:border-yellow-500 ring-2 ring-yellow-400/50 dark:ring-yellow-500/50"
+      : "border-gray-200 dark:border-gray-800",
     "shadow-xs hover:shadow-sm",
-    "transition-shadow duration-200 ease-out",
+    "transition-all duration-200 ease-out",
     "cursor-pointer"
   )
 

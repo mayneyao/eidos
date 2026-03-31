@@ -28,6 +28,7 @@ import {
   type StatusCount,
 } from "./hooks"
 import type { IKanbanViewProperties } from "./properties"
+import { useKanbanSearch } from "./hooks/use-kanban-search"
 
 interface ListItemData {
   items: KanbanItem[]
@@ -40,6 +41,7 @@ interface ListItemData {
   hiddenFields?: string[]
   status: StatusCount
   cardWidth: number
+  highlightedItemId?: string | null
 }
 
 const KanbanCardItem = memo(
@@ -63,10 +65,13 @@ const KanbanCardItem = memo(
       hiddenFields,
       status,
       cardWidth,
+      highlightedItemId,
     } = data
 
     const item = items[index]
     if (!item) return null
+
+    const isHighlighted = highlightedItemId === item.id
 
     return (
       <div style={style} className="px-2 py-1.5">
@@ -75,6 +80,11 @@ const KanbanCardItem = memo(
           name={item.title || item.name || item.id}
           parent={status.status}
           index={index}
+          className={
+            isHighlighted
+              ? "ring-2 ring-yellow-400/50 dark:ring-yellow-500/50 rounded-lg"
+              : undefined
+          }
         >
           <DataCard
             item={item}
@@ -88,7 +98,11 @@ const KanbanCardItem = memo(
             hideCover={!properties?.coverPreview}
             hiddenFields={hiddenFields}
             style={{ padding: 0 }}
-            cardClassName=""
+            cardClassName={
+              isHighlighted
+                ? "border-yellow-400 dark:border-yellow-500"
+                : undefined
+            }
           />
         </KanbanCard>
       </div>
@@ -143,6 +157,7 @@ export const KanbanBoard = memo(
     space,
     properties,
     hiddenFields,
+    highlightedItemId,
   }: {
     status: StatusCount
     items: KanbanItem[]
@@ -153,6 +168,7 @@ export const KanbanBoard = memo(
     space: string
     properties?: IGalleryViewProperties & IKanbanViewProperties
     hiddenFields?: string[]
+    highlightedItemId?: string | null
   }) => {
     const { resolvedTheme } = useTheme()
     const { t } = useTranslation()
@@ -169,6 +185,16 @@ export const KanbanBoard = memo(
 
     const [inViewRef, isInView] = useInView<HTMLDivElement>()
     const listRef = useRef<List>(null)
+
+    // Scroll to highlighted item when it changes and belongs to this board
+    useEffect(() => {
+      if (!highlightedItemId || !listRef.current || isCollapsed) return
+
+      const itemIndex = items.findIndex((item) => item.id === highlightedItemId)
+      if (itemIndex !== -1) {
+        listRef.current.scrollToItem(itemIndex, "center")
+      }
+    }, [highlightedItemId, items, isCollapsed])
 
     const memoizedItems = useMemo(() => items || [], [items])
 
@@ -211,6 +237,7 @@ export const KanbanBoard = memo(
         hiddenFields,
         status,
         cardWidth: innerCardWidth,
+        highlightedItemId,
       }),
       [
         memoizedItems,
@@ -223,6 +250,7 @@ export const KanbanBoard = memo(
         hiddenFields,
         status,
         innerCardWidth,
+        highlightedItemId,
       ]
     )
 

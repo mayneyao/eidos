@@ -14,6 +14,7 @@ import { useShowColumns } from "../../hooks"
 import type { KanbanItem } from "./hooks"
 import { useKanbanViewData } from "./hooks"
 import { KanbanBoard } from "./kanban-board"
+import { useKanbanSearch } from "./hooks/use-kanban-search"
 
 // Initial number of visible groups
 const INITIAL_VISIBLE_BOARDS = 10
@@ -50,6 +51,9 @@ export const KanbanView = ({
       {} as Record<string, KanbanItem[]>
     )
   }, [items])
+
+  // Search integration
+  const { highlightedItemId } = useKanbanSearch({ items })
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
@@ -112,6 +116,7 @@ export const KanbanView = ({
           tableId={view.table_id}
           properties={view.properties}
           space={space}
+          highlightedItemId={highlightedItemId}
         />
       ))}
 

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState, useCallback } from "react"
+import { useContext, useEffect, useState, useCallback } from "react"
 import AutoSizer from "react-virtualized-auto-sizer"
 import { VariableSizeGrid as Grid } from "react-window"
 
@@ -8,16 +8,15 @@ import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 
 import { TableContext, useShowColumns } from "../../hooks"
-import { GalleryCard } from "./gallery-card"
+import { GalleryCard, type IGalleryCardProps } from "./gallery-card"
 import { useGalleryViewData } from "./hooks"
 import type { IGalleryViewProperties } from "./properties"
 import {
   getColumnWidthAndCount,
-  getCardVisibleFieldCount,
   computeCardHeightSmart,
   computeCardHeightSmartDetailed,
-  type CardHeightBreakdown,
 } from "./utils"
+import { useGallerySearch } from "./hooks/use-gallery-search"
 
 interface IGalleryViewProps {
   space: string
@@ -42,7 +41,6 @@ export default function GalleryView({
   const [size, setSize] = useState<any>()
   const { data } = useGalleryViewData(view)
   const { getRowById } = useSqliteStore()
-  const ref = useRef<Grid>(null)
   const { uiColumns, uiColumnMap, rawIdNameMap } = useUiColumns(
     tableName,
     space
@@ -57,17 +55,25 @@ export default function GalleryView({
   )
   const tableId = getTableIdByRawTableName(tableName)
 
+  // Search integration hook
+  const { highlightedRowId, gridRef } = useGallerySearch<IGalleryCardProps>({
+    data,
+    columnCount,
+  })
+
   // Reset grid when configuration changes
   useEffect(() => {
-    if (ref.current) {
-      ref.current.resetAfterRowIndex(0)
+    if (gridRef.current) {
+      gridRef.current.resetAfterRowIndex(0)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showFields.length, view?.properties?.hideEmptyFields])
 
   useEffect(() => {
-    if (ref.current) {
-      ref.current.resetAfterColumnIndex(0)
+    if (gridRef.current) {
+      gridRef.current.resetAfterColumnIndex(0)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [columnCount, cardWidth])
 
   // Check if has cover
@@ -136,8 +142,6 @@ export default function GalleryView({
 
       const maxHeight = cardHeights.length > 0 ? Math.max(...cardHeights) : 300
 
-      // Debug removed - height calculation is now accurate
-
       return maxHeight
     },
     [
@@ -150,6 +154,7 @@ export default function GalleryView({
       cardWidth,
       titleField,
       hasCover,
+      isView,
     ]
   )
 
@@ -173,7 +178,7 @@ export default function GalleryView({
     <AutoSizer onResize={handleResize}>
       {({ height, width }) => (
         <Grid
-          ref={ref}
+          ref={gridRef}
           columnCount={columnCount}
           columnWidth={() => cardWidth}
           height={height}
@@ -193,6 +198,7 @@ export default function GalleryView({
             hiddenFieldIcon: true,
             isView,
             titleField,
+            highlightedRowId,
           }}
           className="pb-[128px]"
           // Optimize virtual scroll performance
