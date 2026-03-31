@@ -448,7 +448,7 @@ export const ViewToolbar = (props: {
           ref={ref2}
         >
           <div className="flex space-x-1">
-            {!isView && <ViewSearch view={currentView} />}
+            <ViewSearch view={currentView} />
             <ViewFilter view={currentView} />
             <ViewSort view={currentView} />
             <Button

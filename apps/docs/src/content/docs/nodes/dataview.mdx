@@ -171,6 +171,65 @@ You can add column type annotations directly in your SQL queries using this form
 - **url** - For web links
 - **rating** - For star ratings (1-5)
 
+## Searchable fields
+
+By default, dataviews cannot be searched using Ctrl+F because they are virtual views without a physical table to build a full-text search index. However, you can specify which fields should be searchable using the `@search` comment.
+
+### Enabling search
+
+Add a `-- @search` comment to your SQL query to mark specific fields as searchable:
+
+```sql
+-- @search {title, description}
+
+SELECT 
+  json_extract(j.value, '$.title') as title,
+  json_extract(j.value, '$.description') as description,
+  json_extract(j.value, '$.url') as url
+FROM eidos__docs d,
+  json_tree(d.content, '$.root.children') AS j
+WHERE json_extract(j.value, '$.type') = 'bookmark'
+```
+
+With this comment, pressing Ctrl+F in the dataview will search within the `title` and `description` columns using SQL `LIKE` queries.
+
+### How it works
+
+- When you add `-- @search {field1, field2}`, those fields become searchable
+- The search uses case-insensitive substring matching (`LIKE '%query%'`)
+- Multiple `@search` comments can be added; fields will be merged
+- Field names are case-insensitive and must exist in your SELECT results
+- Search results are highlighted in the view (Grid, Gallery, Kanban)
+
+### Example: Searchable bookmarks
+
+```sql
+-- [title:text]
+-- [url:url]
+-- @search {title, description}
+
+SELECT 
+  json_extract(j.value, '$.title') as title,
+  json_extract(j.value, '$.description') as description,
+  json_extract(j.value, '$.url') as url,
+  d.created_at
+FROM eidos__docs d,
+  json_tree(d.content, '$.root.children') AS j
+WHERE json_extract(j.value, '$.type') = 'bookmark'
+ORDER BY d.created_at DESC
+```
+
+Now you can:
+1. View all bookmarks in one place
+2. Press Ctrl+F to search by title or description
+3. Navigate between matches with Enter / Shift+Enter
+
+### Tips
+
+- Only text-based fields work well for search (text, url, etc.)
+- For best performance, limit searchable fields to 2-3 columns
+- If no `@search` comment is present, the search box will show a hint to configure searchable fields
+
 ## Why this matters
 
 Dataviews change your relationship with information. You no longer need to decide where information will ultimately belong when you're recording it. You can record in the most natural way, and then organize and reorganize through queries.

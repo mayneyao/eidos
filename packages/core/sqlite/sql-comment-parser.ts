@@ -2,6 +2,42 @@ import { parseWithComments } from "pgsql-ast-parser"
 import { FieldType } from "../fields/const"
 
 /**
+ * Parse searchable fields from SQL comments
+ *
+ * Supported comment format:
+ * -- @search {field1, field2, field3}
+ *
+ * @param sql SQL statement with comments
+ * @returns Array of searchable field names
+ */
+export function parseSearchableFieldsFromComments(sql: string): string[] {
+  const searchableFields: string[] = []
+  const seenFields = new Set<string>()
+
+  // Match format: -- @search {field1, field2, field3}
+  // Support multiple @search comments, fields will be merged
+  const searchRegex = /--\s*@search\s*\{([^}]+)\}/gi
+  let match
+
+  while ((match = searchRegex.exec(sql)) !== null) {
+    const fieldsStr = match[1]
+    const fields = fieldsStr
+      .split(",")
+      .map((f) => f.trim())
+      .filter((f) => f.length > 0)
+
+    for (const field of fields) {
+      if (!seenFields.has(field)) {
+        seenFields.add(field)
+        searchableFields.push(field)
+      }
+    }
+  }
+
+  return searchableFields
+}
+
+/**
  * Parse column type mapping from SQL with comments
  *
  * Supported comment formats:

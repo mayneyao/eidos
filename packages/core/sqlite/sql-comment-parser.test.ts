@@ -1,6 +1,7 @@
 import {
   parseColumnTypesFromComments,
   extractColumnTypeInfo,
+  parseSearchableFieldsFromComments,
 } from "./sql-comment-parser"
 import { FieldType } from "../fields/const"
 
@@ -219,6 +220,114 @@ describe("SQL Comment Parser", () => {
         "Invalid field type: invalid_type"
       )
       expect(result.parsedComments).toHaveLength(5)
+    })
+  })
+
+  describe("parseSearchableFieldsFromComments", () => {
+    it("should parse searchable fields from @search comment", () => {
+      const sql = `
+        -- @search {title, description}
+        SELECT title, description, url FROM bookmarks
+      `
+      const result = parseSearchableFieldsFromComments(sql)
+      expect(result).toEqual(["title", "description"])
+    })
+
+    it("should handle single field", () => {
+      const sql = `
+        -- @search {title}
+        SELECT * FROM table1
+      `
+      const result = parseSearchableFieldsFromComments(sql)
+      expect(result).toEqual(["title"])
+    })
+
+    it("should handle multiple @search comments and merge fields", () => {
+      const sql = `
+        -- @search {title}
+        -- @search {description, tags}
+        SELECT * FROM table1
+      `
+      const result = parseSearchableFieldsFromComments(sql)
+      expect(result).toEqual(["title", "description", "tags"])
+    })
+
+    it("should handle duplicate fields (deduplication)", () => {
+      const sql = `
+        -- @search {title, description}
+        -- @search {title, content}
+        SELECT * FROM table1
+      `
+      const result = parseSearchableFieldsFromComments(sql)
+      expect(result).toEqual(["title", "description", "content"])
+    })
+
+    it("should handle spaces around field names", () => {
+      const sql = `
+        -- @search { title ,  description , url }
+        SELECT * FROM table1
+      `
+      const result = parseSearchableFieldsFromComments(sql)
+      expect(result).toEqual(["title", "description", "url"])
+    })
+
+    it("should be case insensitive for @search keyword", () => {
+      const sql = `
+        -- @SEARCH {title, description}
+        -- @Search {content}
+        SELECT * FROM table1
+      `
+      const result = parseSearchableFieldsFromComments(sql)
+      expect(result).toEqual(["title", "description", "content"])
+    })
+
+    it("should return empty array when no @search comment", () => {
+      const sql = `
+        -- [title:text]
+        SELECT * FROM table1
+      `
+      const result = parseSearchableFieldsFromComments(sql)
+      expect(result).toEqual([])
+    })
+
+    it("should return empty array for empty @search comment", () => {
+      const sql = `
+        -- @search {}
+        SELECT * FROM table1
+      `
+      const result = parseSearchableFieldsFromComments(sql)
+      expect(result).toEqual([])
+    })
+
+    it("should handle inline @search comment", () => {
+      const sql = `
+        SELECT * FROM table1 -- @search {title, content}
+      `
+      const result = parseSearchableFieldsFromComments(sql)
+      expect(result).toEqual(["title", "content"])
+    })
+
+    it("should handle complex SQL with both column types and searchable fields", () => {
+      const sql = `
+        -- [id:number]
+        -- @search {title, description}
+        -- [created_at:datetime]
+        
+        SELECT 
+          id,
+          title,
+          description,
+          created_at
+        FROM articles
+      `
+      const columnTypes = parseColumnTypesFromComments(sql)
+      const searchableFields = parseSearchableFieldsFromComments(sql)
+
+      expect(columnTypes).toEqual({
+        id: FieldType.Number,
+        created_at: FieldType.DateTime,
+      })
+      expect(searchableFields).toEqual(["title", "description"])
     })
   })
 })

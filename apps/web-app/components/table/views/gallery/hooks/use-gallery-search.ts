@@ -68,10 +68,12 @@ export const useGallerySearch = <T>({
 
       setCurrentSearchIndex(newIndex)
 
-      // Get the rowId of the current search result
+      // Get the current search result
       const result = searchResults[newIndex]
-      if (result?.row?._id) {
-        const rowId = result.row._id
+      if (result) {
+        // Use rowIndex for positioning (works for both regular tables and dataviews)
+        // For highlighting, prefer _id if available, otherwise use rowIndex
+        const rowId = result.row?._id ?? result.rowIndex + ""
         setHighlightedRowId(rowId)
         scrollToRowId(rowId)
       }

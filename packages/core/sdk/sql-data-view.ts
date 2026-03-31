@@ -2,10 +2,48 @@ import { shortenId, uuidv7 } from "@/lib/utils"
 import type { DataSpace } from "../data-space"
 import { allFieldTypesMap } from "../fields"
 import { FieldType } from "../fields/const"
-import { parseColumnTypesFromComments } from "../sqlite/sql-comment-parser"
+import {
+  parseColumnTypesFromComments,
+  parseSearchableFieldsFromComments,
+} from "../sqlite/sql-comment-parser"
 import { TreeNodeType } from "../types/ITreeNode"
 import type { IField } from "../types/IField"
 import { ViewTypeEnum } from "../types/IView"
+
+/**
+ * Generate search snippet with highlight
+ * @param text Original text
+ * @param query Search query
+ * @returns Snippet with highlighted query
+ */
+function generateSnippet(text: string, query: string): string {
+  if (!text || !query) return text
+
+  const lowerText = text.toLowerCase()
+  const lowerQuery = query.toLowerCase()
+  const index = lowerText.indexOf(lowerQuery)
+
+  if (index === -1) return text
+
+  const snippetLength = 60
+  const start = Math.max(0, index - snippetLength / 2)
+  const end = Math.min(text.length, index + query.length + snippetLength / 2)
+
+  let snippet = text.slice(start, end)
+
+  // Add ellipsis if truncated
+  if (start > 0) snippet = "..." + snippet
+  if (end < text.length) snippet = snippet + "..."
+
+  // Add highlight
+  const highlightRegex = new RegExp(
+    "(" + query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")",
+    "gi"
+  )
+  snippet = snippet.replace(highlightRegex, "<mark>$1</mark>")
+
+  return snippet
+}
 
 export class SqlDataView {
   constructor(private dataSpace: DataSpace) {}
@@ -383,6 +421,169 @@ export class SqlDataView {
     } catch (error) {
       await this.dataSpace.db.prepare("ROLLBACK;").run()
       console.error("Error in createTableFromDataView transaction:", error)
+      throw error
+    }
+  }
+
+  /**
+   * Search dataview with LIKE query (not FTS)
+   * Return format is consistent with TableFullTextSearch.search()
+   *
+   * @param viewName View name (e.g., "vw_xxx")
+   * @param query Search query
+   * @param page Page number (1-based)
+   * @param pageSize Page size
+   * @returns Search result in the same format as FTS
+   */
+  async search(
+    viewName: string,
+    query: string,
+    page: number = 1,
+    pageSize: number = 20
+  ) {
+    const startTime = performance.now()
+
+    // Extract tableId from viewName (vw_xxx -> xxx)
+    const tableId = viewName.replace("vw_", "")
+
+    // Get view raw SQL from sqlite_master
+    const createViewSql = await this.getViewRawQuery(viewName)
+
+    // Parse searchable fields from SQL comments
+    const searchableFields = parseSearchableFieldsFromComments(createViewSql)
+
+    if (searchableFields.length === 0) {
+      return {
+        results: [],
+        searchTime: -1,
+        totalMatches: 0,
+        currentPage: page,
+        totalPages: 0,
+      }
+    }
+
+    // Get view by table_id (DataView uses table_id to store the node ID)
+    const views = await this.dataSpace.view.list({ table_id: tableId })
+    const view = views[0]
+    if (!view?.query) {
+      throw new Error(`View for table ${tableId} not found or has no query`)
+    }
+
+    const offset = (page - 1) * pageSize
+
+    // Get view columns
+    const tableInfo = await this.dataSpace.db.selectObjects(
+      `PRAGMA table_info(${viewName})`
+    )
+    const columns = tableInfo
+      .map((col: any) => col.name)
+      .filter((name: any) => name.toLowerCase() !== "rowid")
+
+    // Filter searchable fields to only include existing columns (case-insensitive)
+    const columnSet = new Set(columns.map((c: string) => c.toLowerCase()))
+    const validSearchableFields = searchableFields.filter((field) =>
+      columnSet.has(field.toLowerCase())
+    )
+
+    if (validSearchableFields.length === 0) {
+      return {
+        results: [],
+        searchTime: -1,
+        totalMatches: 0,
+        currentPage: page,
+        totalPages: 0,
+      }
+    }
+
+    // Build WHERE clause for LIKE search
+    const likeConditions = validSearchableFields
+      .map((field) => `${field} LIKE ?`)
+      .join(" OR ")
+    const likeParams = validSearchableFields.map(() => `%${query}%`)
+
+    // Build count SQL
+    const countSql = `
+      SELECT COUNT(*) AS total
+      FROM (${view.query})
+      WHERE ${likeConditions}
+    `
+
+    try {
+      const [{ total }] = await this.dataSpace.db.selectObjects(
+        countSql,
+        likeParams
+      )
+
+      if (total === 0) {
+        return {
+          results: [],
+          searchTime: 0,
+          totalMatches: 0,
+          currentPage: page,
+          totalPages: 0,
+        }
+      }
+
+      // Build search SQL with row numbers
+      const searchSql = `
+        WITH original_view AS (
+          SELECT 
+            *,
+            ROW_NUMBER() OVER () - 1 as row_index
+          FROM (${view.query})
+        )
+        SELECT *
+        FROM original_view
+        WHERE ${likeConditions}
+        ORDER BY row_index
+        LIMIT ? OFFSET ?
+      `
+
+      const results = await this.dataSpace.db.selectObjects(searchSql, [
+        ...likeParams,
+        pageSize,
+        offset,
+      ])
+
+      // Process results to generate matches with snippets
+      const processedResults = results.map((row: any) => {
+        const matches: Array<{ column: string; snippet: string }> = []
+
+        for (const field of validSearchableFields) {
+          const value = row[field]
+          if (value != null) {
+            const strValue = String(value)
+            if (strValue.toLowerCase().includes(query.toLowerCase())) {
+              matches.push({
+                column: field,
+                snippet: generateSnippet(strValue, query),
+              })
+            }
+          }
+        }
+
+        const rowIndex = row.row_index
+        delete row.row_index
+
+        return {
+          row,
+          matches,
+          rowIndex,
+        }
+      })
+
+      const endTime = performance.now()
+      const searchTime = Math.round(endTime - startTime)
+
+      return {
+        results: processedResults,
+        searchTime,
+        totalMatches: total,
+        currentPage: page,
+        totalPages: Math.ceil(total / pageSize),
+      }
+    } catch (error) {
+      console.error("DataView search error:", error)
       throw error
     }
   }

@@ -171,6 +171,66 @@ FROM
 - **url** - 用于网页链接
 - **rating** - 用于星级评分（1-5）
 
+## 可搜索字段
+
+默认情况下，数据视图无法使用 Ctrl+F 进行搜索，因为它们是虚拟视图，没有物理表来构建全文搜索索引。但是，你可以使用 `@search` 注释来指定哪些字段可以被搜索。
+
+### 启用搜索
+
+在 SQL 查询中添加 `-- @search` 注释，将特定字段标记为可搜索：
+
+```sql
+-- @search {title, description}
+
+SELECT
+  json_extract(j.value, '$.title') as title,
+  json_extract(j.value, '$.description') as description,
+  json_extract(j.value, '$.url') as url
+FROM eidos__docs d,
+  json_tree(d.content, '$.root.children') AS j
+WHERE json_extract(j.value, '$.type') = 'bookmark'
+```
+
+添加此注释后，在数据视图中按 Ctrl+F 将使用 SQL `LIKE` 查询在 `title` 和 `description` 列中进行搜索。
+
+### 工作原理
+
+- 当你添加 `-- @search {field1, field2}` 时，这些字段变为可搜索
+- 搜索使用不区分大小写的子字符串匹配（`LIKE '%query%'`）
+- 可以添加多个 `@search` 注释，字段将被合并
+- 字段名不区分大小写，但必须存在于 SELECT 结果中
+- 搜索结果将在视图中高亮显示（网格、画廊、看板）
+
+### 示例：可搜索的书签
+
+```sql
+-- [title:text]
+-- [url:url]
+-- @search {title, description}
+
+SELECT
+  json_extract(j.value, '$.title') as title,
+  json_extract(j.value, '$.description') as description,
+  json_extract(j.value, '$.url') as url,
+  d.created_at
+FROM eidos__docs d,
+  json_tree(d.content, '$.root.children') AS j
+WHERE json_extract(j.value, '$.type') = 'bookmark'
+ORDER BY d.created_at DESC
+```
+
+现在你可以：
+
+1. 在一个地方查看所有书签
+2. 按 Ctrl+F 按标题或描述搜索
+3. 使用 Enter / Shift+Enter 在匹配项之间导航
+
+### 提示
+
+- 只有文本类字段适合搜索（text、url 等）
+- 为了获得最佳性能，将可搜索字段限制在 2-3 列
+- 如果没有 `@search` 注释，搜索框将显示提示以配置可搜索字段
+
 ## 这为什么重要
 
 数据视图改变了你和信息的关系。你不再需要在记录信息时就决定它的最终归宿。你可以按照最自然的方式记录，然后通过查询来组织和重新组织。

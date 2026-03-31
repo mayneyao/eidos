@@ -40,13 +40,11 @@ export const useGalleryViewData = (view: IView) => {
       console.log("useGalleryViewData", { sql, nameRawIdMap })
       sqlite.sql2`${sql}`.then((data: any[]) => {
         console.log("useGalleryViewData", { data, tableId })
-        if (isView) {
-          setRows(tableId, data, 0, true)
-          setData(Array.from({ length: data.length }, (_, i) => i + ""))
-        } else {
-          setRows(tableId, data)
-          setData(data.map((d: any) => d._id))
-        }
+        // Use _id if available, otherwise use row index as identifier
+        // This supports search highlighting for both regular tables and dataviews
+        const hasId = data.length > 0 && data[0]._id !== undefined
+        setRows(tableId, data, 0, isView)
+        setData(data.map((d: any, i: number) => (hasId ? d._id : i + "")))
         setList(data as any[])
         setLoading(false)
       })

@@ -71,9 +71,14 @@ export const ViewSearch = (props: { view: IView }) => {
     clearSearch,
   } = useTableSearchStore()
 
-  const { isSearching, needsFTSSetup, setupFTS, checkFTS } = useTableSearch(
-    props.view?.id
-  )
+  const {
+    isSearching,
+    needsFTSSetup,
+    setupFTS,
+    checkFTS,
+    noSearchableFields,
+    isDataView,
+  } = useTableSearch(props.view?.id)
   const [isSettingUpFTS, setIsSettingUpFTS] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const resultsListRef = useRef<HTMLUListElement>(null)
@@ -210,15 +215,17 @@ export const ViewSearch = (props: { view: IView }) => {
             type="text"
             placeholder={
               needsFTSSetup
-                ? "Enable search to start searching..."
-                : `${t("common.search")} (alt/opt + ↩︎ for semantic)`
+                ? t("common.search.disabled")
+                : noSearchableFields
+                  ? t("common.search.noSearchableFields")
+                  : `${t("common.search")} ${t("common.search.semantic")}`
             }
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            disabled={needsFTSSetup}
+            disabled={needsFTSSetup || noSearchableFields}
             className={cn(
               "h-6 w-96 border-0 pl-8 pr-24",
-              needsFTSSetup &&
+              (needsFTSSetup || noSearchableFields) &&
                 "bg-muted text-muted-foreground cursor-not-allowed"
             )}
           />
@@ -245,14 +252,11 @@ export const ViewSearch = (props: { view: IView }) => {
                   <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <AlertTitle className="text-amber-800 dark:text-amber-200 text-xs font-medium leading-tight">
-                      Search is disabled
+                      {t("common.search.isDisabled.title")}
                     </AlertTitle>
                     <AlertDescription className="text-amber-700 dark:text-amber-300 text-xs mt-1">
                       <div className="flex flex-col gap-2">
-                        <span>
-                          Enable full-text search for this table to start
-                          searching.
-                        </span>
+                        <span>{t("common.search.isDisabled.description")}</span>
                         <Button
                           size="xs"
                           variant="secondary"
@@ -263,12 +267,38 @@ export const ViewSearch = (props: { view: IView }) => {
                           {isSettingUpFTS ? (
                             <>
                               <Spinner />
-                              <span className="ml-1">Setting up...</span>
+                              <span className="ml-1">
+                                {t("common.search.settingUp")}
+                              </span>
                             </>
                           ) : (
-                            "Enable Search"
+                            t("common.search.enable")
                           )}
                         </Button>
+                      </div>
+                    </AlertDescription>
+                  </div>
+                </div>
+              </Alert>
+            </div>
+          )}
+
+          {noSearchableFields && (
+            <div className="absolute top-full left-0 right-0 mt-1 z-30">
+              <Alert className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/50 py-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <AlertTitle className="text-amber-800 dark:text-amber-200 text-xs font-medium leading-tight">
+                      {t("common.search.noSearchableFields.title")}
+                    </AlertTitle>
+                    <AlertDescription className="text-amber-700 dark:text-amber-300 text-xs mt-1">
+                      <div className="flex flex-col gap-2">
+                        <span>
+                          {t("common.search.noSearchableFields.description", {
+                            searchComment: "-- @search {field1, field2}",
+                          })}
+                        </span>
                       </div>
                     </AlertDescription>
                   </div>
@@ -311,7 +341,7 @@ export const ViewSearch = (props: { view: IView }) => {
               ) : (
                 !isSemanticSearchActive && (
                   <div className="flex items-center text-xs text-muted-foreground whitespace-nowrap">
-                    {`Not found`}
+                    {t("common.search.notFound")}
                   </div>
                 )
               )}
@@ -334,7 +364,7 @@ export const ViewSearch = (props: { view: IView }) => {
       {isLoadingMore && (
         <div className="absolute bottom-0 left-0 right-0 flex justify-center">
           <span className="text-xs text-muted-foreground">
-            Loading more results...
+            {t("common.search.loadingMore")}
           </span>
         </div>
       )}
