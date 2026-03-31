@@ -127,9 +127,6 @@ export function useAsyncData<TRowType>(data: {
           cell.kind === GridCellKind.Custom &&
           (cell.data as any).kind === "file-cell"
         const isUrlCell = cell.kind === GridCellKind.Uri
-        if (!isReadOnly) {
-          return cell
-        }
         if (isUrlCell) {
           return {
             ...cell,
@@ -146,6 +143,9 @@ export function useAsyncData<TRowType>(data: {
               }
             },
           } as any
+        }
+        if (!isReadOnly) {
+          return cell
         }
         return {
           ...cell,

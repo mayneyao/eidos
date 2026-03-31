@@ -7,6 +7,7 @@ import {
 } from "react"
 
 import { cn } from "@/lib/utils"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import useChangeEffect from "../hooks/use-change-effect"
 import { EmptyValue, getLayoutClasses, getInputWrapperClasses } from "./common"
 import type { CellEditorRef } from "./types"
@@ -46,6 +47,7 @@ export const UrlEditor = forwardRef<CellEditorRef, IUrlEditorProps>(
     const [_value, setValue] = useState(value)
     const inputRef = useRef<HTMLInputElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
+    const { navigate } = useRouterAdapter()
 
     const { isActuallyEditing, handleKeyDown, finishEditing, cancelEditing } =
       useCellEditor({
@@ -102,6 +104,21 @@ export const UrlEditor = forwardRef<CellEditorRef, IUrlEditorProps>(
     )
     const inputWrapperClasses = getInputWrapperClasses(layout)
 
+    // Helper function to handle internal link navigation
+    const handleLinkClick = (e: React.MouseEvent, url: string) => {
+      e.stopPropagation()
+      // Internal paths starting with "/" should use navigate
+      // to avoid triggering Electron's setWindowOpenHandler which throws
+      // "Unsupported path" error for non-standalone-blocks/files paths
+      if (url.startsWith("/") && navigate) {
+        e.preventDefault()
+        const openInNewTab = e.ctrlKey || e.metaKey
+        navigate(url, {
+          target: openInNewTab ? "_blank" : undefined,
+        })
+      }
+    }
+
     // displayMode: always display full content
     if (displayMode && !isActuallyEditing) {
       return (
@@ -110,10 +127,10 @@ export const UrlEditor = forwardRef<CellEditorRef, IUrlEditorProps>(
             {_value ? (
               <a
                 href={_value}
-                target="_blank"
+                target={_value.startsWith("/") ? undefined : "_blank"}
                 rel="noopener noreferrer"
                 className="text-primary underline hover:text-primary/80"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => handleLinkClick(e, _value)}
               >
                 {_value}
               </a>
@@ -132,10 +149,10 @@ export const UrlEditor = forwardRef<CellEditorRef, IUrlEditorProps>(
           {_value ? (
             <a
               href={_value}
-              target="_blank"
+              target={_value.startsWith("/") ? undefined : "_blank"}
               rel="noopener noreferrer"
               className="text-primary underline hover:text-primary/80 truncate w-full text-sm"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => handleLinkClick(e, _value)}
             >
               {_value}
             </a>
