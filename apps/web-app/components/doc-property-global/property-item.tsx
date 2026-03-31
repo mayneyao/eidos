@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, X } from "lucide-react"
@@ -26,6 +26,9 @@ interface PropertyItemProps {
   isDragDisabled?: boolean
   allowTypeChange?: boolean
 }
+
+// Field types that need double height
+const DOUBLE_HEIGHT_FIELD_TYPES = ["file"]
 
 export const PropertyItem: React.FC<PropertyItemProps> = ({
   propertyName,
@@ -121,7 +124,7 @@ export const PropertyItem: React.FC<PropertyItemProps> = ({
         setItemRef(node)
       }}
       style={style}
-      className={`group relative flex items-center py-1 px-2 -mx-2 rounded transition-colors border border-transparent hover:border-border hover:bg-muted/50 focus:border-border focus:bg-muted/50 focus:outline-hidden ${
+      className={`group relative flex items-start py-1 px-2 -mx-2 rounded transition-colors border border-transparent hover:border-border hover:bg-muted/50 focus:border-border focus:bg-muted/50 focus:outline-hidden ${
         isDragging ? "z-50" : ""
       }`}
       tabIndex={0}
@@ -143,7 +146,7 @@ export const PropertyItem: React.FC<PropertyItemProps> = ({
         </div>
       )}
       {/* Property Name */}
-      <div className="flex items-center gap-2 w-40 flex-shrink-0 relative h-6">
+      <div className="flex items-center gap-2 w-40 flex-shrink-0 h-6">
         <div className="relative">
           {/* Property Icon - shown by default, hidden on hover */}
           {!isDragDisabled && (
@@ -185,7 +188,7 @@ export const PropertyItem: React.FC<PropertyItemProps> = ({
 
       {/* Property Value */}
       <div className="flex-1 min-w-0">
-        <div className="relative h-6 flex items-center">
+        <div className="relative min-h-[24px] py-[2px]">
           <PropertyEditorFactory
             propertyType={propertyType as PropertyType}
             value={value}

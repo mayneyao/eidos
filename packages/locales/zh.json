@@ -1134,6 +1134,8 @@
   "table.view.gallery.coverPreview.none": "无",
   "table.view.gallery.fitContent": "适应内容",
   "table.view.gallery.hideEmptyFields": "隐藏空字段",
+  "table.view.gallery.maxTextLines": "文本行数",
+  "table.view.gallery.maxTextLinesDescription": "文本字段最大显示行数（1-5行）",
   "table.view.gallery.none": "无内容",
   "table.view.grid": "网格",
   "table.view.kanban": "看板",

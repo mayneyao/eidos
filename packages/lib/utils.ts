@@ -451,6 +451,7 @@ export const getRawDocNameById = (id: string) => {
 
 // uuidv7 remove - and _ to make it shorter
 export const shortenId = (id: string) => {
+  if (!id) return ""
   return id.replace(/-/g, "").replace(/_/g, "")
 }
 

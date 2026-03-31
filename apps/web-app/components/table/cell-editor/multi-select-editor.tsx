@@ -1,4 +1,4 @@
-import React, { useMemo } from "react"
+import React, { useEffect, useMemo } from "react"
 import { SelectField, type SelectOption } from "@/packages/core/fields/select"
 import { XIcon } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
@@ -18,15 +18,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-import { EmptyValue, SelectOptionItem } from "./common"
+import { EmptyValue, SelectOptionItem, getLayoutClasses } from "./common"
+import type { CellEditorProps } from "./types"
+import { useCellEditor } from "./use-cell-editor"
 
-interface IMultiSelectEditorProps {
-  value: string
-  onChange: (value: string) => void
+interface IMultiSelectEditorProps extends CellEditorProps<string> {
   options: SelectOption[]
-  isEditing: boolean
   inline?: boolean
-  onFinishEditing?: () => void
 }
 
 export const MultiSelectEditor = ({
@@ -36,6 +34,9 @@ export const MultiSelectEditor = ({
   isEditing,
   inline = false,
   onFinishEditing,
+  onCancelEditing,
+  layout = "flow",
+  disabled = false,
 }: IMultiSelectEditorProps) => {
   const optionsMap = useMemo(
     () =>
@@ -55,6 +56,31 @@ export const MultiSelectEditor = ({
   const { resolvedTheme } = useTheme()
   const [values, setValues] = React.useState(value ? value.split(",") : [])
 
+  const { isActuallyEditing, handleKeyDown, finishEditing, cancelEditing } =
+    useCellEditor({
+      isEditing,
+      onFinishEditing,
+      onCancelEditing,
+      originalValue: value ? value.split(",") : [],
+      setValue: (v) => setValues(v),
+    })
+
+  // Auto-open popover when entering edit mode
+  useEffect(() => {
+    if (isActuallyEditing) {
+      setIsPopoverOpen(true)
+    }
+  }, [isActuallyEditing])
+
+  useEffect(() => {
+    const newValues = value ? value.split(",") : []
+    setValues(newValues)
+  }, [value])
+
+  useEffect(() => {
+    setOldOptionsMap(optionsMap)
+  }, [optionsMap])
+
   const allOptions = values
     .map((optionId) => oldOptionsMap[optionId])
     .filter(Boolean)
@@ -65,34 +91,37 @@ export const MultiSelectEditor = ({
     onChange(newValues.join(","))
   }
 
-  const clickRemoveOption = (e: any) => {
-    const optionId = e.target.dataset.id
+  const clickRemoveOption = (e: React.MouseEvent<SVGSVGElement>) => {
+    const optionId = e.currentTarget.dataset.id
+    if (!optionId) return
     const set = new Set<string>(values)
     set.delete(optionId)
     setNewValues(Array.from(set))
   }
-  const handleSelect = (value?: string) => {
-    if (!value) return
+
+  const handleSelect = (selectedValue?: string) => {
+    if (!selectedValue) return
     const set = new Set<string>(values)
-    if (set.has(value)) {
+    if (set.has(selectedValue)) {
       return
     } else {
-      set.add(value)
+      set.add(selectedValue)
     }
     setNewValues(Array.from(set))
   }
+
   const [inputValue, setInputValue] = React.useState("")
-  const handleBackspace: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+
+  const handleInputKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (
+    e
+  ) => {
+    handleKeyDown(e as unknown as React.KeyboardEvent)
+    if (e.defaultPrevented) return
+
     if (e.key === "Backspace" && !inputValue?.length) {
       const _values: string[] = Array.from(values)
       _values.pop()
       setNewValues(_values)
-    }
-    if (e.key === "Escape") {
-      if (JSON.stringify(values) == JSON.stringify(values)) {
-        return
-      }
-      setNewValues(values)
     }
     if (e.key === "Enter") {
       e.stopPropagation()
@@ -104,7 +133,6 @@ export const MultiSelectEditor = ({
         setInputValue("")
       } else {
         if (!inputValue?.length) return
-        // is creating new option
         handleSelect(inputValue)
         setInputValue("")
         setOldOptionsMap({
@@ -119,162 +147,151 @@ export const MultiSelectEditor = ({
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !isEditing) {
-      e.preventDefault()
-      setIsPopoverOpen(true)
-    }
-  }
-
   const handlePopoverOpenChange = (open: boolean) => {
     setIsPopoverOpen(open)
     if (!open) {
-      onFinishEditing?.()
+      finishEditing()
     }
   }
 
+  const containerClasses = getLayoutClasses(layout, isActuallyEditing, disabled)
+
+  // Trigger content
+  const triggerContent = value ? (
+    <div
+      className={cn(
+        "flex w-full gap-0.5",
+        inline
+          ? "h-full items-center flex-nowrap overflow-hidden"
+          : "flex-wrap py-0.5"
+      )}
+      onKeyDown={handleKeyDown}
+      onClick={() => setIsPopoverOpen(true)}
+      tabIndex={0}
+    >
+      {values.map((optionId) => {
+        const option = oldOptionsMap[optionId]
+        if (!option) return null
+        return (
+          <span
+            key={optionId}
+            className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium"
+            style={{
+              background: SelectField.getColorValue(
+                option?.color || SelectField.defaultColor,
+                resolvedTheme as any
+              ),
+            }}
+          >
+            {option.name}
+          </span>
+        )
+      })}
+    </div>
+  ) : (
+    <div
+      className="flex h-full w-full items-center"
+      onKeyDown={handleKeyDown}
+      onClick={() => setIsPopoverOpen(true)}
+      tabIndex={0}
+    >
+      <EmptyValue />
+    </div>
+  )
+
   return (
-    <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
-      <PopoverTrigger className="w-full">
-        {value ? (
-          <div
-            className={cn(
-              "flex h-full w-full items-center px-2 gap-1",
-              inline ? "flex-nowrap overflow-hidden" : "flex-wrap"
-            )}
-            onKeyDown={handleKeyDown}
-            onClick={() => setIsPopoverOpen(true)}
-            tabIndex={0}
-          >
-            {values.map((optionId) => {
-              const option = oldOptionsMap[optionId]
-              if (!option) return null
-              return inline ? (
-                <span
-                  key={optionId}
-                  className="rounded-xs px-2 text-sm whitespace-nowrap"
-                  style={{
-                    background: SelectField.getColorValue(
-                      option?.color || SelectField.defaultColor,
-                      resolvedTheme as any
-                    ),
-                  }}
-                >
-                  {option.name}
-                </span>
-              ) : (
-                <SelectOptionItem
-                  key={optionId}
-                  theme={resolvedTheme}
-                  option={option}
-                />
-              )
-            })}
-          </div>
-        ) : (
-          <div
-            className="flex h-full w-full items-center px-2"
-            onKeyDown={handleKeyDown}
-            onClick={() => setIsPopoverOpen(true)}
-            tabIndex={0}
-          >
-            <EmptyValue />
-          </div>
-        )}
-      </PopoverTrigger>
-      <PopoverContent
-        // z-index 10000 > gdg editor portal z index
-        className={cn(
-          "click-outside-ignore z-[10000] min-w-[250px] p-0",
-          inline ? "w-full" : "w-full max-w-[300px]"
-        )}
-        align="start"
-        sideOffset={-28}
-        asChild={true}
-      >
-        <Command value={currentSelect} onValueChange={setCurrentSelect}>
-          <div className="flex w-full rounded-md bg-transparent py-2 text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50">
-            <div className="flex flex-wrap gap-1 px-2">
-              {allOptions.map((option) => (
-                <div
-                  key={option.id}
-                  className="flex h-5 items-center gap-1 truncate rounded-xs px-1.5 text-xs"
-                  style={{
-                    background: SelectField.getColorValue(
-                      option.color,
-                      resolvedTheme as any
-                    ),
-                  }}
-                >
-                  {option.name}
-                  <XIcon
-                    onClick={clickRemoveOption}
-                    className="h-2.5 w-2.5 cursor-pointer opacity-60"
-                    data-id={option.id}
-                  />
-                </div>
-              ))}
-              {/* <CommandInput
-                onKeyDown={handleBackspace}
-                value={inputValue}
-                onValueChange={setInputValue}
-                className="w-full"
-                autoFocus
-              /> */}
-              <div className="[&_[cmdk-input-wrapper]_svg]:hidden [&_[cmdk-input-wrapper]]:border-none">
-                <CommandInput
-                  onKeyDown={handleBackspace}
-                  value={inputValue}
-                  onValueChange={setInputValue}
-                  className="border-none p-0 focus:ring-0 focus-visible:ring-0 h-5 text-xs"
-                  autoFocus
-                />
-              </div>
-            </div>
-          </div>
-          <CommandList
-            className={cn("max-h-[300px]", {
-              "overflow-y-scroll": options.length * 28 > 300,
-            })}
-          >
-            <CommandEmpty>Create option</CommandEmpty>
-            <CommandGroup className="h-full border-t">
-              {options.map((option) => (
-                <CommandItem
-                  key={option.id}
-                  value={option.name}
-                  onSelect={() => {
-                    handleSelect(option.id)
-                  }}
-                >
-                  <SelectOptionItem theme={resolvedTheme} option={option} />
-                </CommandItem>
-              ))}
-              {Boolean(inputValue.length) &&
-                options.findIndex((item) => item.name == inputValue) == -1 && (
-                  <CommandItem
-                    key={inputValue}
-                    value={inputValue}
-                    className="flex items-center gap-2"
-                    onSelect={(currentValue) => {
-                      handleSelect(currentValue)
+    <div className={containerClasses}>
+      <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
+        <PopoverTrigger className="w-full h-full">
+          {triggerContent}
+        </PopoverTrigger>
+        <PopoverContent
+          className={cn(
+            "click-outside-ignore z-[10000] min-w-[250px] p-0",
+            inline ? "w-full" : "w-full max-w-[300px]"
+          )}
+          align="start"
+          sideOffset={inline ? -28 : 4}
+          asChild={true}
+        >
+          <Command value={currentSelect} onValueChange={setCurrentSelect}>
+            <div className="flex w-full rounded-md bg-transparent py-2 text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50">
+              <div className="flex flex-wrap gap-1 px-2 py-1.5">
+                {allOptions.map((option) => (
+                  <div
+                    key={option.id}
+                    className="flex items-center gap-0.5 truncate rounded px-1.5 py-0.5 text-xs font-medium"
+                    style={{
+                      background: SelectField.getColorValue(
+                        option.color,
+                        resolvedTheme as any
+                      ),
                     }}
                   >
-                    <span>Create</span>
-                    <SelectOptionItem
-                      theme={resolvedTheme}
-                      option={{
-                        id: inputValue,
-                        name: inputValue,
-                        color: "default",
-                      }}
+                    {option.name}
+                    <XIcon
+                      onClick={clickRemoveOption}
+                      className="h-3 w-3 cursor-pointer opacity-60 hover:opacity-100"
+                      data-id={option.id}
                     />
+                  </div>
+                ))}
+                <div className="[&_[cmdk-input-wrapper]_svg]:hidden [&_[cmdk-input-wrapper]]:border-none flex-1 min-w-[80px]">
+                  <CommandInput
+                    onKeyDown={handleInputKeyDown}
+                    value={inputValue}
+                    onValueChange={setInputValue}
+                    className="border-none p-0 focus:ring-0 focus-visible:ring-0 h-6 text-xs bg-transparent"
+                    autoFocus
+                  />
+                </div>
+              </div>
+            </div>
+            <CommandList
+              className={cn("max-h-[300px]", {
+                "overflow-y-scroll": options.length * 28 > 300,
+              })}
+            >
+              <CommandEmpty>Create option</CommandEmpty>
+              <CommandGroup className="h-full border-t">
+                {options.map((option) => (
+                  <CommandItem
+                    key={option.id}
+                    value={option.name}
+                    onSelect={() => {
+                      handleSelect(option.id)
+                    }}
+                  >
+                    <SelectOptionItem theme={resolvedTheme} option={option} />
                   </CommandItem>
-                )}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+                ))}
+                {Boolean(inputValue.length) &&
+                  options.findIndex((item) => item.name == inputValue) ==
+                    -1 && (
+                    <CommandItem
+                      key={inputValue}
+                      value={inputValue}
+                      className="flex items-center gap-2"
+                      onSelect={(currentValue) => {
+                        handleSelect(currentValue)
+                      }}
+                    >
+                      <span>Create</span>
+                      <SelectOptionItem
+                        theme={resolvedTheme}
+                        option={{
+                          id: inputValue,
+                          name: inputValue,
+                          color: "default",
+                        }}
+                      />
+                    </CommandItem>
+                  )}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
   )
 }

@@ -15,6 +15,7 @@ export const BaseEditor: React.FC<{
   readonly?: boolean
   isSystemProperty?: boolean
   isEditing?: boolean
+  isMultiline?: boolean
 }> = ({
   children,
   className,
@@ -22,11 +23,13 @@ export const BaseEditor: React.FC<{
   readonly = false,
   isSystemProperty = false,
   isEditing = false,
+  isMultiline = false,
 }) => {
   return (
     <div
       className={cn(
-        "absolute inset-0 flex items-center px-2 text-sm",
+        "flex px-2 text-sm w-full",
+        isMultiline ? "items-start" : "items-center",
         !readonly && !isSystemProperty && onClick && "cursor-pointer",
         readonly || isSystemProperty ? "cursor-default" : "",
         isEditing && "bg-muted/30 rounded-xs",

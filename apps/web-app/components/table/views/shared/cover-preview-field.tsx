@@ -4,18 +4,12 @@ import type { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import {
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/react-hook-form/form"
 import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
 
 import { useFileFields } from "../../hooks"
@@ -32,22 +26,20 @@ interface PreviewButtonProps {
 const PreviewButton = ({ item, handleItemClick }: PreviewButtonProps) => {
   const getIcon = () => {
     if (item.value === "__CONTENT__")
-      return <FileText className="mr-2 h-4 w-4" />
-    if (item.type === "field") return <ImageIcon className="mr-2 h-4 w-4" />
-    if (item.type === "mblock") return <ToyBrickIcon className="mr-2 h-4 w-4" />
-    return <BanIcon className="mr-2 h-4 w-4" />
+      return <FileText className="h-3.5 w-3.5" />
+    if (item.type === "field") return <ImageIcon className="h-3.5 w-3.5" />
+    if (item.type === "mblock") return <ToyBrickIcon className="h-3.5 w-3.5" />
+    return <BanIcon className="h-3.5 w-3.5" />
   }
 
   return (
-    <Button
+    <button
       onClick={() => handleItemClick(item.value)}
-      variant="ghost"
-      className="justify-start"
-      size="sm"
+      className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors hover:bg-accent/50 text-foreground w-full text-left"
     >
       {getIcon()}
-      {item.label}
-    </Button>
+      <span className="truncate">{item.label}</span>
+    </button>
   )
 }
 
@@ -63,7 +55,7 @@ const PreviewSection = ({
   handleItemClick,
 }: PreviewSectionProps) => (
   <>
-    {showDivider && <hr className="my-1" />}
+    {showDivider && <div className="my-1 border-t border-border" />}
     {items.map((item) => (
       <PreviewButton
         key={item.value}
@@ -139,50 +131,46 @@ export const CoverPreviewField = ({
   }
 
   return (
-    <FormField
-      control={form.control}
-      name="coverPreview"
-      render={({ field }) => (
-        <FormItem className="flex items-center justify-between rounded-md p-1 hover:bg-secondary">
-          <FormLabel>{t(`table.view.${namespace}.coverPreview`)}</FormLabel>
-          <FormControl>
-            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-              <PopoverTrigger className="!mt-0">
-                {displayCoverPreview}
-              </PopoverTrigger>
-              <PopoverContent
-                className="p-1 max-h-[300px] overflow-y-auto"
-                align="end"
-                container={
-                  document.querySelector("#view-editor") as HTMLElement
-                }
-              >
-                <div className="flex flex-col">
-                  <PreviewSection
-                    items={coverPreviewItems.content}
-                    handleItemClick={handleItemClick}
-                  />
-                  {coverPreviewItems.fields.length > 0 && (
-                    <PreviewSection
-                      items={coverPreviewItems.fields}
-                      showDivider
-                      handleItemClick={handleItemClick}
-                    />
-                  )}
-                  {coverPreviewItems.mblocks.length > 0 && (
-                    <PreviewSection
-                      items={coverPreviewItems.mblocks}
-                      showDivider
-                      handleItemClick={handleItemClick}
-                    />
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
-          </FormControl>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
+    <div className="flex items-center justify-between py-1">
+      <Label className="text-xs font-medium text-foreground">
+        {t(`table.view.${namespace}.coverPreview`)}
+      </Label>
+      <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="xs"
+            className="h-7 text-xs max-w-[120px] truncate"
+          >
+            {displayCoverPreview}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="p-1 max-h-[280px] overflow-y-auto w-[200px]"
+          align="end"
+        >
+          <div className="flex flex-col gap-0.5">
+            <PreviewSection
+              items={coverPreviewItems.content}
+              handleItemClick={handleItemClick}
+            />
+            {coverPreviewItems.fields.length > 0 && (
+              <PreviewSection
+                items={coverPreviewItems.fields}
+                showDivider
+                handleItemClick={handleItemClick}
+              />
+            )}
+            {coverPreviewItems.mblocks.length > 0 && (
+              <PreviewSection
+                items={coverPreviewItems.mblocks}
+                showDivider
+                handleItemClick={handleItemClick}
+              />
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
   )
 }

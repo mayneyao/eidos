@@ -35,7 +35,6 @@ interface IViewItemProps {
   disabledDelete?: boolean
   isInDropdown?: boolean
   isReadOnly?: boolean
-  onEditStart?: () => void
   isDragging?: boolean
 }
 
@@ -47,7 +46,6 @@ export const ViewItem = ({
   disabledDelete,
   isInDropdown = false,
   isReadOnly: propIsReadOnly,
-  onEditStart,
   isDragging: globalIsDragging = false,
 }: IViewItemProps) => {
   const { t } = useTranslation()
@@ -82,13 +80,6 @@ export const ViewItem = ({
   const handleOpen = () => {
     if (!isReadOnly) {
       setOpen(!open)
-    }
-  }
-
-  const handleEdit = () => {
-    if (!isReadOnly) {
-      onEditStart?.()
-      setOpen(false)
     }
   }
 
@@ -139,12 +130,6 @@ export const ViewItem = ({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onSelect={handleEdit}
-                      disabled={isReadOnly}
-                    >
-                      {t("table.view.edit")}
-                    </DropdownMenuItem>
                     <DropdownMenuItem disabled={disabledDelete || isReadOnly}>
                       <DialogTrigger className="flex w-full cursor-default">
                         {t("common.delete")}
@@ -216,9 +201,6 @@ export const ViewItem = ({
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem onSelect={handleEdit} disabled={isReadOnly}>
-                {t("table.view.edit")}
-              </DropdownMenuItem>
               <DropdownMenuItem disabled={disabledDelete || isReadOnly}>
                 <DialogTrigger className="flex w-full cursor-default">
                   {t("common.delete")}

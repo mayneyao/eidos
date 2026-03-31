@@ -11,6 +11,7 @@ import {
 import { isInkServiceMode } from "@/lib/env"
 import { cn, isDayPageId } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Table2 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { ExtNodeBlockApp } from "@/components/block-renderer/ext-node-block-app"
 import { DataView } from "@/components/dataview"
@@ -60,6 +61,7 @@ export const NodeComponent = ({
 }) => {
   const { t } = useTranslation()
   const params = useCurrentPathInfo()
+  const { navigate } = useRouterAdapter()
   const { updateNodeName } = useSqlite(params.database)
   const { tableName } = params
   const nodeMap = useNodeMap()
@@ -123,6 +125,12 @@ export const NodeComponent = ({
     await updateHideProperties(node?.id!, !node?.hide_properties)
   }
   const isReadOnly = node.is_locked || isInkServiceMode || isCmdkOpen
+
+  const handleBackToTable = () => {
+    if (params.tableName) {
+      navigate(`/${params.database}/${params.tableName}`)
+    }
+  }
 
   return (
     <>

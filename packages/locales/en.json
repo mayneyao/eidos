@@ -1267,6 +1267,8 @@
   "table.view.gallery.coverPreview.none": "None",
   "table.view.gallery.fitContent": "Fit Content",
   "table.view.gallery.hideEmptyFields": "Hide empty fields",
+  "table.view.gallery.maxTextLines": "Text Lines",
+  "table.view.gallery.maxTextLinesDescription": "Maximum lines to display for text fields (1-5)",
   "table.view.gallery.none": "None",
   "table.view.grid": "Grid",
   "table.view.kanban": "Kanban",

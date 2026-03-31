@@ -1,4 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import {
   DndContext,
   KeyboardSensor,
@@ -49,6 +56,39 @@ export const DocPropertyGlobal: React.FC<DocPropertyGlobalProps> = ({
     string | undefined
   >(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState(600)
+
+  // Listen for container width changes - optimized with requestAnimationFrame
+  useLayoutEffect(() => {
+    if (!containerRef.current) return
+
+    let rafId: number
+
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.clientWidth)
+      }
+    }
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      // Batch size changes using requestAnimationFrame
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        for (const entry of entries) {
+          setContainerWidth(entry.contentRect.width)
+        }
+      })
+    })
+
+    // Initial synchronous calculation
+    updateWidth()
+    resizeObserver.observe(containerRef.current)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      resizeObserver.disconnect()
+    }
+  }, [])
 
   // Optimistic update state for drag sorting
   const [optimisticDisplayProperties, setOptimisticDisplayProperties] =

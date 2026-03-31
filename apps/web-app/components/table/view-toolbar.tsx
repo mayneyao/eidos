@@ -5,8 +5,8 @@ import {
   type ViewType,
 } from "@/packages/core/types/IView"
 import { useKeyPress } from "ahooks"
-import { ChevronDownIcon, PlusIcon } from "lucide-react"
-import ReactDOM from "react-dom"
+import { ChevronDownIcon, PlusIcon, Settings2Icon } from "lucide-react"
+
 import { useTranslation } from "react-i18next"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
@@ -26,6 +26,7 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/components/eui/sub-page-dialog"
+import ReactDOM from "react-dom"
 import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useTableOperation } from "@/apps/web-app/hooks/use-table"
@@ -33,19 +34,19 @@ import { NodeComponent } from "@/apps/web-app/pages/[database]/[node]/page"
 
 import { Button } from "../ui/button"
 import { TABLE_CONTENT_ELEMENT_ID } from "./helper"
+
 import { TableContext, useCurrentView, useViewOperation } from "./hooks"
 import { useCustomTableViews } from "./hooks/use-custom-table-views"
 import { useViewCount } from "./hooks/use-view-count"
 import { SortableContainer } from "./sortable"
 import { useTableSearchStore } from "./table-store-provider"
-import { ViewEditor } from "./view-editor/view-editor"
-import { ViewField } from "./view-field/view-field"
 import { ViewFilter } from "./view-filter"
 import { ViewIcon } from "./view-icon"
 import { ViewItem } from "./view-item"
 import { ViewRawQuery } from "./view-raw-query"
 import { ViewCreateTable } from "./view-create-table"
 import { ViewSearch } from "./view-search"
+import { ViewSettings } from "./view-settings"
 import { ViewSort } from "./view-sort"
 
 const Views = ({
@@ -58,7 +59,6 @@ const Views = ({
   onAddView,
   isView,
   isReadOnly,
-  onEditStart,
   tableName,
 }: {
   views: IView[]
@@ -74,7 +74,6 @@ const Views = ({
   onAddView: (viewType: ViewType) => void
   isView: boolean
   isReadOnly?: boolean
-  onEditStart: (viewId: string) => void
   tableName?: string
 }) => {
   const [open, setOpen] = useState(false)
@@ -174,7 +173,6 @@ const Views = ({
                 disabledDelete={onlyOneView}
                 isInDropdown={true}
                 isReadOnly={isReadOnly}
-                onEditStart={() => onEditStart(view.id)}
                 isDragging={isDragging}
               />
             )
@@ -280,6 +278,7 @@ export const ViewToolbar = (props: {
   const tableId = getTableIdByRawTableName(tableName)
   const { subPageId, setSubPage, clearSubPage } = useCurrentSubPage()
   const { t } = useTranslation()
+  const tableContentElementId = `${TABLE_CONTENT_ELEMENT_ID}-${tableName}-${isEmbed ? "embed" : "main"}`
 
   // Use context instead
   const { searchQuery, setSearchQuery, showSearch, setShowSearch } =
@@ -406,8 +405,6 @@ export const ViewToolbar = (props: {
     setShowSearch(true)
   })
 
-  const tableContentElementId = `${TABLE_CONTENT_ELEMENT_ID}-${tableName}-${isEmbed ? "embed" : "main"}`
-
   return (
     <div ref={ref}>
       <div className="flex items-center justify-between border-b pb-1">
@@ -422,7 +419,6 @@ export const ViewToolbar = (props: {
               onAddView={handleAddView}
               isView={isView}
               isReadOnly={props.isReadOnly}
-              onEditStart={setEditingViewId}
               tableName={tableName}
             />
             {currentView && (
@@ -455,7 +451,13 @@ export const ViewToolbar = (props: {
             {!isView && <ViewSearch view={currentView} />}
             <ViewFilter view={currentView} />
             <ViewSort view={currentView} />
-            <ViewField view={currentView} />
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => setEditingViewId(currentView?.id || null)}
+            >
+              <Settings2Icon className="h-4 w-4 opacity-60" />
+            </Button>
             {isView && (
               <>
                 <ViewRawQuery />
@@ -474,16 +476,19 @@ export const ViewToolbar = (props: {
       {editingViewId &&
         ReactDOM.createPortal(
           <div
-            onClick={(e) => {
-              if ((e.target as Element).closest("#view-editor")) {
-                return
+            onMouseDown={(e) => {
+              // Only close if clicking directly on the overlay background
+              // not when clicking on the view-settings panel or popover content
+              const target = e.target as HTMLElement
+              if (target.id === "view-settings-overlay") {
+                setEditingViewId(null)
               }
-              setEditingViewId(null)
             }}
+            id="view-settings-overlay"
             className="absolute inset-0 z-10"
           >
-            <ViewEditor
-              setEditDialogOpen={(open) => setEditingViewId(null)}
+            <ViewSettings
+              onClose={() => setEditingViewId(null)}
               view={views.find((v) => v.id === editingViewId)!}
             />
           </div>,

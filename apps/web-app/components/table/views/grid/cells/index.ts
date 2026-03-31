@@ -7,6 +7,7 @@ import LinkCell from "./link/link-cell"
 import MultiSelectCell from "./multi-select-cell"
 import RatingCell from "./rating-cell"
 import SelectCell from "./select-cell"
+import TextCell from "./text-cell"
 import UserProfileCell from "./user-profile-cell"
 import RangeCell from "./range-cell"
 
@@ -25,6 +26,7 @@ const cells = [
   FileCellRenderer,
   UserProfileCell,
   RangeCell,
+  TextCell,
   // LinksCell,
   // ButtonCell,
 ]
@@ -40,4 +42,6 @@ export const cellRenderMap: any = {
   [FieldType.File]: FileCellRenderer,
   [FieldType.CreatedBy]: UserProfileCell,
   [FieldType.LastEditedBy]: UserProfileCell,
+  [FieldType.Text]: TextCell,
+  [FieldType.Title]: TextCell,
 }

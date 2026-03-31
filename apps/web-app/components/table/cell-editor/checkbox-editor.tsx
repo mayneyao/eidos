@@ -1,88 +1,67 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
+import { Checkbox } from "@/apps/web-app/components/ui/checkbox"
 import useChangeEffect from "../hooks/use-change-effect"
+import type { CellEditorProps } from "./types"
+import { useCellEditor } from "./use-cell-editor"
 
-interface ICheckboxEditorProps {
-  value: boolean
-  onChange: (value: boolean) => void
-  isEditing: boolean
-  onFinishEditing?: () => void
-}
-
-const CustomCheckbox = ({
-  checked,
-  onChange,
-}: {
-  checked: boolean
-  onChange: (checked: boolean) => void
-}) => {
-  return (
-    <div
-      className="cursor-pointer select-none"
-      onClick={() => onChange(!checked)}
-    >
-      <svg width="16" height="16" viewBox="0 0 16 16" className="border-0">
-        {/* Checkbox border and background */}
-        <rect
-          x="1"
-          y="1"
-          width="14"
-          height="14"
-          rx="2"
-          ry="2"
-          fill={checked ? "#6b7280" : "transparent"}
-          stroke="#d1d5db"
-          strokeWidth="1"
-          className={checked ? "fill-gray-500" : "fill-transparent"}
-        />
-        {/* Checkmark */}
-        {checked && (
-          <path
-            d="M4.5 8.5L7 11L11.5 5.5"
-            stroke="white"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="none"
-          />
-        )}
-      </svg>
-    </div>
-  )
-}
+interface ICheckboxEditorProps extends CellEditorProps<boolean> {}
 
 export const CheckboxEditor = ({
   value,
   onChange,
+  isEditing,
   onFinishEditing,
+  onCancelEditing,
+  layout = "flow",
 }: ICheckboxEditorProps) => {
   const [_value, setValue] = useState<boolean>(value)
+
+  const { isActuallyEditing, handleKeyDown, finishEditing, cancelEditing } =
+    useCellEditor({
+      isEditing,
+      onFinishEditing,
+      onCancelEditing,
+      originalValue: value,
+      setValue,
+    })
+
+  // When entering edit mode via Enter, auto-toggle value and finish editing
+  useEffect(() => {
+    if (isActuallyEditing && isEditing) {
+      const newValue = !_value
+      setValue(newValue)
+      onChange(newValue)
+      finishEditing()
+    }
+  }, [isEditing, isActuallyEditing])
 
   useChangeEffect(() => {
     onChange(_value)
   }, [_value, onChange])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      const newValue = !_value
-      setValue(newValue)
-      onFinishEditing?.()
-    }
+  useEffect(() => {
+    setValue(value)
+  }, [value])
+
+  const handleToggle = (checked: boolean) => {
+    setValue(checked)
+    onChange(checked)
+    finishEditing()
   }
 
+  // Checkbox typically uses inline layout
+  const containerClasses =
+    layout === "inline"
+      ? "inline-flex items-center px-2"
+      : "flex items-center px-2 w-full h-full"
+
   return (
-    <div
-      className="flex h-full w-full items-center px-2"
-      onKeyDown={handleKeyDown}
-      tabIndex={0}
-    >
-      <CustomCheckbox
+    <div className={containerClasses} onKeyDown={handleKeyDown} tabIndex={0}>
+      <Checkbox
         checked={Boolean(_value)}
-        onChange={(checked: boolean) => {
-          setValue(checked)
-          onFinishEditing?.()
-        }}
+        onCheckedChange={handleToggle}
+        className="h-4 w-4"
       />
     </div>
   )

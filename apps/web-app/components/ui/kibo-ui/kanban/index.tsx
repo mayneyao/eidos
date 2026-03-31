@@ -11,7 +11,6 @@ import {
 } from "@dnd-kit/core"
 
 import { cn } from "@/lib/utils"
-import { Card } from "@/components/ui/card"
 
 export type { DragEndEvent } from "@dnd-kit/core"
 
@@ -39,8 +38,8 @@ export const KanbanBoard = ({
   return (
     <div
       className={cn(
-        "flex h-full min-h-40 flex-col gap-2 rounded-md border bg-secondary p-2 text-xs shadow-xs outline outline-2 transition-all",
-        isOver ? "outline-primary" : "outline-transparent",
+        "flex h-full min-h-40 flex-col gap-3 rounded-xl p-2 text-xs transition-all",
+        isOver && "ring-1 ring-primary/30",
         className
       )}
       style={style}
@@ -76,11 +75,16 @@ export const KanbanCard = ({
   const isRecentlyMoved = lastMovedId === id
 
   return (
-    <Card
+    <div
       className={cn(
-        "rounded-md p-3 shadow-xs transition-colors duration-300",
-        isDragging && "opacity-50",
-        isRecentlyMoved && "bg-primary/10",
+        "rounded-xl overflow-hidden",
+        "bg-white dark:bg-gray-900",
+        "border border-gray-200 dark:border-gray-800",
+        "shadow-xs hover:shadow-sm",
+        "transition-all duration-200 ease-out",
+        "cursor-pointer",
+        isDragging && "opacity-50 rotate-2 scale-105 shadow-lg",
+        isRecentlyMoved && "ring-1 ring-primary/20",
         className
       )}
       data-draggable-id={id}
@@ -88,8 +92,8 @@ export const KanbanCard = ({
       {...attributes}
       ref={setNodeRef}
     >
-      {children ?? <p className="m-0 font-medium text-sm">{name}</p>}
-    </Card>
+      {children ?? <p className="m-0 font-medium text-sm p-3">{name}</p>}
+    </div>
   )
 }
 
@@ -184,9 +188,9 @@ export const KanbanProvider = ({
       </KanbanContext.Provider>
       <DragOverlay dropAnimation={null}>
         {activeNode ? (
-          <Card className="rounded-md p-3 shadow-xs cursor-grabbing">
+          <div className="rounded-xl overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-lg cursor-grabbing rotate-2 scale-105">
             <div dangerouslySetInnerHTML={{ __html: activeNode as string }} />
-          </Card>
+          </div>
         ) : null}
       </DragOverlay>
     </DndContext>

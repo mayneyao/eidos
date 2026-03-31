@@ -72,6 +72,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   const ref = useRef<HTMLDivElement>(null)
   const ref2 = useRef<HTMLDivElement>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isAnimating, setIsAnimating] = useState(false)
   const [currentColIndex, setCurrentColIndex] = useState<number>()
   const { currentView } = useCurrentView<IGridViewProperties>()
   const { addSort, freezeColumn, updateView } = useViewOperation()
@@ -86,6 +87,10 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
       const currentField = showColumns[menu.col]
       setCurrentUiColumn(currentField)
       inputRef.current?.focus()
+      // 延迟一帧触发动画，确保 useLayer 位置计算完成
+      requestAnimationFrame(() => setIsAnimating(true))
+    } else {
+      setIsAnimating(false)
     }
   }, [menu, showColumns, setCurrentUiColumn])
 
@@ -273,7 +278,11 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
             {...layerProps}
             className={cn(
               "hidden min-w-[200px] overflow-hidden rounded-lg bg-popover p-1 shadow-xl border",
-              isOpen && "block animate-in fade-in zoom-in-95 duration-100"
+              isOpen && "block",
+              // 动画开始前保持透明，避免闪烁
+              isOpen && !isAnimating && "opacity-0",
+              isAnimating &&
+                "animate-in fade-in zoom-in-95 duration-100 origin-top-left"
             )}
             onMouseMoveCapture={(e) => e.stopPropagation()}
           >

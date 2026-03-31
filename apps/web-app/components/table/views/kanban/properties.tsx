@@ -7,6 +7,7 @@ import { z } from "zod"
 
 import { useTableFields } from "@/apps/web-app/hooks/use-table-fields"
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
 import {
   Popover,
   PopoverContent,
@@ -20,6 +21,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/react-hook-form/form"
+import { cn } from "@/lib/utils"
 
 import { useView, useViewOperation } from "../../hooks"
 import { makeHeaderIcons } from "../../fields/header-icons"
@@ -132,107 +134,100 @@ export const KanbanViewProperties = ({ viewId }: { viewId: string }) => {
           )}
         /> */}
 
-        <FormField
-          control={form.control}
-          name="groupByField"
-          render={({ field }) => (
-            <FormItem className="flex items-center justify-between rounded-md p-1 hover:bg-secondary">
-              <FormLabel>{t("table.view.kanban.groupByField")}</FormLabel>
-              <FormControl>
-                <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="sm" className="!mt-0">
-                      {displayGroupByField}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="p-1 max-h-[300px] overflow-y-auto"
-                    align="end"
-                    container={
-                      document.querySelector("#view-editor") as HTMLElement
-                    }
-                  >
-                    <div className="flex flex-col">
-                      {fields.map((f) => {
-                        const iconSvgString = icons[f.type]({
-                          bgColor: "#aaa",
-                          fgColor: "currentColor",
-                        })
-                        return (
-                          <Button
-                            key={f.name}
-                            onClick={() => handleFieldSelect(f.name)}
-                            variant="ghost"
-                            className="justify-start"
-                            size="sm"
-                          >
-                            <span
-                              className="mr-2 h-4 w-4"
-                              dangerouslySetInnerHTML={{
-                                __html: iconSvgString,
-                              }}
-                            />
-                            {f.label}
-                          </Button>
-                        )
-                      })}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="flex items-center justify-between py-1.5">
+          <Label className="text-xs font-medium text-foreground">
+            {t("table.view.kanban.groupByField")}
+          </Label>
+          <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="xs" className="h-7 text-xs">
+                {displayGroupByField}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="p-1 max-h-[280px] overflow-y-auto w-[220px]"
+              align="end"
+            >
+              <div className="flex flex-col gap-0.5">
+                {fields.map((f) => {
+                  const iconSvgString = icons[f.type]({
+                    bgColor: "#aaa",
+                    fgColor: "currentColor",
+                  })
+                  const isSelected = form.watch("groupByField") === f.name
+                  return (
+                    <button
+                      key={f.name}
+                      onClick={() => handleFieldSelect(f.name)}
+                      className={cn(
+                        "flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors",
+                        isSelected
+                          ? "bg-accent text-accent-foreground"
+                          : "hover:bg-accent/50 text-foreground"
+                      )}
+                    >
+                      <span
+                        className="h-4 w-4 shrink-0"
+                        dangerouslySetInnerHTML={{
+                          __html: iconSvgString,
+                        }}
+                      />
+                      <span className="truncate">{f.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
 
-        <FormField
-          control={form.control}
-          name="cardSize"
-          render={({ field }) => (
-            <FormItem className="flex items-center justify-between rounded-md p-1 hover:bg-secondary">
-              <FormLabel>{t("table.view.kanban.cardSize")}</FormLabel>
-              <FormControl>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="sm" className="!mt-0">
-                      {t(`table.view.kanban.size.${field.value || "medium"}`)}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="p-1"
-                    align="end"
-                    container={
-                      document.querySelector("#view-editor") as HTMLElement
-                    }
-                  >
-                    <div className="flex flex-col">
-                      {["small", "medium", "large"].map((size) => (
-                        <Button
-                          key={size}
-                          onClick={() => {
-                            field.onChange(size as "small" | "medium" | "large")
-                            updateView(viewId, {
-                              properties: {
-                                ...view.properties,
-                                cardSize: size,
-                              },
-                            })
-                          }}
-                          variant="ghost"
-                          className="justify-start"
-                          size="sm"
-                        >
-                          {t(`table.view.kanban.size.${size}`)}
-                        </Button>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="flex items-center justify-between py-1.5">
+          <Label className="text-xs font-medium text-foreground">
+            {t("table.view.kanban.cardSize")}
+          </Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="xs" className="h-7 text-xs">
+                {t(
+                  `table.view.kanban.size.${form.watch("cardSize") || "medium"}`
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="p-1 w-[160px]" align="end">
+              <div className="flex flex-col gap-0.5">
+                {["small", "medium", "large"].map((size) => {
+                  const isSelected =
+                    (form.watch("cardSize") || "medium") === size
+                  return (
+                    <button
+                      key={size}
+                      onClick={() => {
+                        form.setValue(
+                          "cardSize",
+                          size as "small" | "medium" | "large"
+                        )
+                        updateView(viewId, {
+                          properties: {
+                            ...view.properties,
+                            cardSize: size,
+                          },
+                        })
+                      }}
+                      className={cn(
+                        "flex items-center px-2 py-1.5 rounded-md text-xs transition-colors text-left",
+                        isSelected
+                          ? "bg-accent text-accent-foreground"
+                          : "hover:bg-accent/50 text-foreground"
+                      )}
+                    >
+                      {t(`table.view.kanban.size.${size}`)}
+                    </button>
+                  )
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
         {/*
         <FormField
           control={form.control}

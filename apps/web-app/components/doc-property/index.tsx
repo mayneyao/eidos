@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
 
 import { getRawTableNameById, nonNullable } from "@/lib/utils"
+import { FieldType } from "@/packages/core/fields/const"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
+import { cn } from "@/lib/utils"
 
 import { CellEditor, type CellEditorRef } from "../table/cell-editor"
 import { makeHeaderIcons } from "../table/fields/header-icons"
@@ -25,15 +27,10 @@ const TABLE_SYSTEM_COLUMNS = [
   "_last_edited_by",
 ] as const
 
-/**
- * Check if field is a table system field
- */
 const isTableSystemColumn = (uiColumn: any): boolean => {
-  // Check by field type
   if (TABLE_SYSTEM_FIELD_TYPES.includes(uiColumn.type)) {
     return true
   }
-  // Check by column name
   if (TABLE_SYSTEM_COLUMNS.includes(uiColumn.table_column_name)) {
     return true
   }
@@ -45,6 +42,8 @@ interface IDocPropertyProps {
   tableId: string
 }
 
+const icons = makeHeaderIcons(16)
+
 interface FieldItemProps {
   uiColumn: any
   iconSvgString: string
@@ -55,8 +54,6 @@ interface FieldItemProps {
   onEditEnd?: () => void
 }
 
-const icons = makeHeaderIcons(16)
-
 const FieldItem: React.FC<FieldItemProps> = ({
   uiColumn,
   iconSvgString,
@@ -66,7 +63,6 @@ const FieldItem: React.FC<FieldItemProps> = ({
   isSystemColumn = false,
   onEditEnd,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null)
   const cellEditorRef = useRef<CellEditorRef>(null)
 
   const handleCellEditorChange = (newValue: any) => {
@@ -76,9 +72,8 @@ const FieldItem: React.FC<FieldItemProps> = ({
   }
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === "Enter" && !isSystemColumn) {
+    if (event.key === "Enter" && !event.shiftKey && !isSystemColumn) {
       event.preventDefault()
-      // Trigger CellEditor's edit state
       if (cellEditorRef.current) {
         cellEditorRef.current.startEditing()
       }
@@ -91,47 +86,60 @@ const FieldItem: React.FC<FieldItemProps> = ({
     }
   }
 
+  const isFileField = uiColumn.type === FieldType.File
+
   return (
     <div
-      ref={containerRef}
-      className="group relative flex items-center py-1 px-2 -mx-2 rounded transition-colors border border-transparent hover:border-border hover:bg-muted/50 focus:border-border focus:bg-muted/50 focus:outline-hidden"
+      className={cn(
+        "group relative flex items-start px-2 -mx-2 rounded transition-colors",
+        "border border-transparent hover:border-border hover:bg-muted/50",
+        "focus:border-border focus:bg-muted/50 focus:outline-hidden",
+        "py-1"
+      )}
       tabIndex={0}
       data-property-item
       data-property-name={name}
       onKeyDown={handleKeyDown}
     >
       {/* Property Name */}
-      <div className="flex items-center gap-2 w-40 flex-shrink-0">
+      <div className="flex items-center gap-2 w-40 flex-shrink-0 h-6">
         <span
-          className="text-muted-foreground w-4 h-4 flex items-center justify-center"
+          className="text-muted-foreground w-4 h-4 flex items-center justify-center flex-shrink-0"
           dangerouslySetInnerHTML={{ __html: iconSvgString }}
         />
-        <span className="text-sm text-foreground truncate">{name}</span>
+        <span className="text-sm text-muted-foreground truncate">{name}</span>
       </div>
 
-      {/* Property Value */}
+      {/* Property Value - natural height with displayMode */}
       <div className="flex-1 min-w-0">
         <div
           data-cell-editor
-          onClick={handleCellEditorClick}
-          className={isSystemColumn ? "cursor-default" : "cursor-pointer"}
+          className={cn(
+            "min-h-[24px] py-[2px]",
+            !isFileField && !isSystemColumn && "cursor-text",
+            isFileField &&
+              (isSystemColumn ? "cursor-default" : "cursor-pointer")
+          )}
+          onClick={isFileField ? handleCellEditorClick : undefined}
         >
           <CellEditor
             ref={cellEditorRef}
             field={uiColumn}
             value={value}
             onChange={handleCellEditorChange}
-            className="h-6 text-sm"
             disabled={isSystemColumn}
-            inline={true}
+            inline={uiColumn.type !== FieldType.MultiSelect}
             onFinishEditing={onEditEnd}
+            multiline={true}
+            displayMode={true}
+            layout="flow"
           />
         </div>
       </div>
 
       {/* System Property Indicator */}
       {isSystemColumn && (
-        <span className="ml-2 px-1 py-0.5 text-[10px] text-muted-foreground bg-muted rounded">
+        <span className="ml-2 px-1 py-0.5 text-[10px] text-muted-foreground bg-muted rounded flex-shrink-0 mt-0.5">
           SYSTEM
         </span>
       )}
@@ -154,7 +162,6 @@ export const DocProperty = (props: IDocPropertyProps) => {
     return uiColumns
       .map((uiColumn: any) => {
         const name = uiColumn.name
-        // error data
         if (!uiColumn) {
           return
         }
@@ -172,27 +179,22 @@ export const DocProperty = (props: IDocPropertyProps) => {
       .filter(nonNullable)
   }, [properties, uiColumns])
 
-  // Keyboard navigation handling
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       const container = containerRef.current
       if (!container) return
 
-      // Only handle specific keyboard events, let Tab key use browser native behavior
       if (!["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) return
 
-      // Check if focus is within property panel
       if (!container.contains(document.activeElement)) return
 
       const currentFocused = document.activeElement as HTMLElement
 
-      // Get all focusable property items
       const propertyItems = container.querySelectorAll(
         "[data-property-item]"
       ) as NodeListOf<HTMLElement>
       const currentIndex = Array.from(propertyItems).indexOf(currentFocused)
 
-      // If no focusable elements found, return directly
       if (propertyItems.length === 0) {
         return
       }
@@ -203,7 +205,6 @@ export const DocProperty = (props: IDocPropertyProps) => {
           if (currentIndex < propertyItems.length - 1) {
             propertyItems[currentIndex + 1].focus()
           } else {
-            // Already at the last focusable element, jump to editor
             container.blur()
             window.dispatchEvent(new CustomEvent("eidos-editor-focus"))
           }
@@ -213,14 +214,12 @@ export const DocProperty = (props: IDocPropertyProps) => {
           if (currentIndex > 0) {
             propertyItems[currentIndex - 1].focus()
           } else if (currentIndex === 0) {
-            // Already at the first, keep focus
             propertyItems[0].focus()
           }
           break
         case "Enter":
           e.preventDefault()
           if (currentIndex >= 0) {
-            // Trigger edit mode
             const currentElement = propertyItems[currentIndex]
             const cellEditor = currentElement.querySelector(
               "[data-cell-editor]"
@@ -239,7 +238,6 @@ export const DocProperty = (props: IDocPropertyProps) => {
     [fields.length]
   )
 
-  // Add keyboard event listener
   useEffect(() => {
     document.addEventListener("keydown", handleKeyDown)
     return () => {
@@ -247,13 +245,11 @@ export const DocProperty = (props: IDocPropertyProps) => {
     }
   }, [handleKeyDown])
 
-  // Add property activation event listener
   useEffect(() => {
     const handlePropertyActivate = () => {
       const container = containerRef.current
       if (!container) return
 
-      // Focus on the last focusable element
       const propertyItems = container.querySelectorAll(
         "[data-property-item]"
       ) as NodeListOf<HTMLElement>
@@ -261,7 +257,6 @@ export const DocProperty = (props: IDocPropertyProps) => {
       if (lastItem) {
         lastItem.focus()
       } else {
-        // If no focusable elements, focus on container
         container.focus()
       }
     }
@@ -281,7 +276,6 @@ export const DocProperty = (props: IDocPropertyProps) => {
     })
   }
 
-  // Re-focus on corresponding property item after editing ends
   const handleEditEnd = useCallback((propertyName: string) => {
     setTimeout(() => {
       const container = containerRef.current
@@ -298,7 +292,7 @@ export const DocProperty = (props: IDocPropertyProps) => {
 
   return (
     <div ref={containerRef} className="focus:outline-hidden" tabIndex={0}>
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         {fields.map(
           ({ uiColumn, iconSvgString, name, value, isSystemColumn }) => (
             <FieldItem

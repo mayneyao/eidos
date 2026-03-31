@@ -84,7 +84,7 @@ export const GalleryCardCover = ({
         <img
           src={imageUrl}
           alt=""
-          className="h-[200px] w-full object-cover cursor-pointer"
+          className="h-full w-full object-cover cursor-pointer transition-transform duration-300 hover:scale-105"
           onClick={() => setShowPreview(true)}
         />
         {showPreview && (
@@ -100,7 +100,7 @@ export const GalleryCardCover = ({
 
   if (showContent) {
     return (
-      <div className="h-[200px] w-full overflow-hidden object-cover">
+      <div className="h-full w-full overflow-hidden">
         <InnerEditor
           docId={shortenId(item._id)}
           namespace="eidos-notes-home-page"
@@ -110,7 +110,7 @@ export const GalleryCardCover = ({
           disableSafeBottomPaddingPlugin
           disableUpdateTitle
           disableManuallySave
-          className="prose-sm ml-0 !h-[200px] bg-gray-50 p-2 dark:bg-gray-700"
+          className="prose-sm ml-0 !h-full bg-gray-100/80 p-3 dark:bg-gray-800/80"
         />
       </div>
     )
@@ -124,15 +124,22 @@ export const GalleryCardCover = ({
     !coverPreview.startsWith("block://")
   ) {
     const coverUrl = getCoverUrl(item, coverField)
-    if (!coverUrl) return null
+    if (!coverUrl) {
+      // Show default background when no cover
+      return (
+        <div className="h-full w-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900" />
+      )
+    }
     return (
       <>
         <img
           src={coverUrl}
           alt=""
           className={cn(
-            "h-[200px] w-full cursor-pointer",
-            fitContent ? "object-contain" : "object-cover"
+            "h-full w-full cursor-pointer transition-transform duration-300 hover:scale-105",
+            fitContent
+              ? "object-contain bg-gray-50 dark:bg-gray-900"
+              : "object-cover"
           )}
           onClick={() => setShowPreview(true)}
         />
@@ -147,5 +154,8 @@ export const GalleryCardCover = ({
     )
   }
 
-  return null
+  // Default background when no cover
+  return (
+    <div className="h-full w-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900" />
+  )
 }

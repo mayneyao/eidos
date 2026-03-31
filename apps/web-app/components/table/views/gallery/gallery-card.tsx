@@ -1,6 +1,7 @@
 import type { IField } from "@/packages/core/types/IField"
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
 import { DataCard } from "@/components/table/views/shared/data-card"
+import { cn } from "@/lib/utils"
 
 import type { IGalleryViewProperties } from "./properties"
 
@@ -49,6 +50,13 @@ export const GalleryCard = ({
   const rowId = items[rowIndex * columnCount + columnIndex]
   const { getRowById } = useSqliteStore()
   const item = getRowById(tableId, rowId)
+
+  // Check if has cover: coverPreview is not null and not empty string
+  const hasCover =
+    properties?.coverPreview !== null &&
+    properties?.coverPreview !== undefined &&
+    properties?.coverPreview !== ""
+
   const _coverField = (uiColumns as IField[]).find(
     (c) => c.table_column_name === properties?.coverPreview
   )
@@ -64,6 +72,16 @@ export const GalleryCard = ({
     return <div style={style}></div>
   }
 
+  // Notion-style card styling
+  const notionCardClassName = cn(
+    "h-full rounded-xl overflow-hidden",
+    "bg-white dark:bg-gray-900",
+    "border border-gray-200 dark:border-gray-800",
+    "shadow-xs hover:shadow-sm",
+    "transition-shadow duration-200 ease-out",
+    "cursor-pointer"
+  )
+
   return (
     <DataCard
       item={item}
@@ -76,8 +94,9 @@ export const GalleryCard = ({
       tableId={tableId}
       space={space}
       uiColumnMap={uiColumnMap}
-      padding={8}
-      cardClassName="h-full rounded-md border-t shadow-md dark:border-gray-800 dark:bg-gray-800"
+      padding={6}
+      cardClassName={notionCardClassName}
+      hasCover={hasCover}
     />
   )
 }

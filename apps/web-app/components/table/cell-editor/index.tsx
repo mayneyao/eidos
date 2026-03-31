@@ -23,17 +23,14 @@ import { MultiSelectEditor } from "./multi-select-editor"
 import { RatingEditor } from "./rating-editor"
 import { SelectEditor } from "./select-editor"
 import { TextBaseEditor } from "./text-base-editor"
+import type { CellEditorProps, CellEditorRef } from "./types"
+export type { CellEditorProps, CellEditorRef }
 import { UrlEditor } from "./url-editor"
 import { UserProfileEditor } from "./user-profile-editor"
 
 export const CellEditorMap: Record<
   FieldType,
-  React.FC<{
-    isEditing: boolean
-    value: any
-    type?: any
-    onChange: (value: any) => void
-  }> | null
+  React.FC<CellEditorProps<any>> | null
 > = {
   [FieldType.Checkbox]: CheckboxEditor,
   [FieldType.Date]: DateEditor,
@@ -66,11 +63,23 @@ interface ICellEditorProps {
   disabled?: boolean
   inline?: boolean
   onFinishEditing?: () => void
+  onCancelEditing?: () => void
+  multiline?: boolean
+  /**
+   * When true, display full content even in non-editing state (no line break truncation),
+   * used for scenarios like doc-property that need to always show complete content
+   */
+  displayMode?: boolean
+  /**
+   * Layout mode:
+   * - "fill": Absolute positioning to fill parent container (for fixed height scenarios like doc-property)
+   * - "flow": Flow layout, adaptive width and height (for gallery card, filter, etc.)
+   * - "inline": Inline layout, width adapts to content (for checkbox, etc.)
+   * @default "flow"
+   */
+  layout?: "fill" | "flow" | "inline"
 }
 
-export interface CellEditorRef {
-  startEditing: () => void
-}
 export const CellEditor = forwardRef<CellEditorRef, ICellEditorProps>(
   (
     {
@@ -83,12 +92,29 @@ export const CellEditor = forwardRef<CellEditorRef, ICellEditorProps>(
       disabled,
       inline,
       onFinishEditing,
+      onCancelEditing,
+      multiline = false,
+      displayMode = false,
+      layout = "flow",
     },
     ref
   ) => {
     const { run } = useDebounceFn(onChange, { wait: 500 })
     const [isEditing, setIsEditing] = useState(false)
     const editorRef = useRef<HTMLDivElement>(null)
+    const textBaseEditorRef = useRef<CellEditorRef>(null)
+    const urlEditorRef = useRef<CellEditorRef>(null)
+    const ratingEditorRef = useRef<CellEditorRef>(null)
+
+    const handleFinishEditing = useCallback(() => {
+      setIsEditing(false)
+      onFinishEditing?.()
+    }, [onFinishEditing])
+
+    const handleCancelEditing = useCallback(() => {
+      setIsEditing(false)
+      onCancelEditing?.()
+    }, [onCancelEditing])
 
     useImperativeHandle(
       ref,
@@ -96,10 +122,22 @@ export const CellEditor = forwardRef<CellEditorRef, ICellEditorProps>(
         startEditing: () => {
           if (!disabled) {
             setIsEditing(true)
+            setTimeout(() => {
+              textBaseEditorRef.current?.focus()
+              urlEditorRef.current?.focus()
+              ratingEditorRef.current?.focus()
+            }, 0)
           }
         },
+        finishEditing: handleFinishEditing,
+        cancelEditing: handleCancelEditing,
+        focus: () => {
+          textBaseEditorRef.current?.focus()
+          urlEditorRef.current?.focus()
+          ratingEditorRef.current?.focus()
+        },
       }),
-      [disabled, isEditing]
+      [disabled, handleFinishEditing, handleCancelEditing]
     )
 
     useClickAway(
@@ -131,11 +169,15 @@ export const CellEditor = forwardRef<CellEditorRef, ICellEditorProps>(
 
     if (!field) return null
     const _isEditing = disabled ? false : editorMode ? true : isEditing
+
     const getEditor = () => {
       const Editor = CellEditorMap[field.type]
-      const handleFinishEditing = () => {
-        setIsEditing(false)
-        onFinishEditing?.()
+      const commonProps = {
+        isEditing: _isEditing,
+        onFinishEditing: handleFinishEditing,
+        onCancelEditing: handleCancelEditing,
+        layout,
+        disabled,
       }
 
       switch (field.type) {
@@ -143,30 +185,38 @@ export const CellEditor = forwardRef<CellEditorRef, ICellEditorProps>(
         case FieldType.Title:
           return (
             <TextBaseEditor
+              ref={textBaseEditorRef}
               type="text"
               value={value}
               onChange={run}
+              {...commonProps}
               isEditing={disableTextBaseEditor ? false : _isEditing}
-              onFinishEditing={handleFinishEditing}
+              multiline={multiline}
+              displayMode={displayMode}
             />
           )
         case FieldType.URL:
           return (
             <UrlEditor
+              ref={urlEditorRef}
               value={value}
               onChange={run}
+              {...commonProps}
               isEditing={disableTextBaseEditor ? false : _isEditing}
-              onFinishEditing={handleFinishEditing}
+              multiline={multiline}
+              displayMode={displayMode}
             />
           )
         case FieldType.Number:
           return (
             <TextBaseEditor
+              ref={textBaseEditorRef}
               type="number"
               value={value}
               onChange={run}
+              {...commonProps}
               isEditing={disableTextBaseEditor ? false : _isEditing}
-              onFinishEditing={handleFinishEditing}
+              displayMode={displayMode}
             />
           )
         case FieldType.Select:
@@ -177,8 +227,7 @@ export const CellEditor = forwardRef<CellEditorRef, ICellEditorProps>(
               options={
                 (field as IField<SelectProperty>).property?.options || []
               }
-              isEditing={_isEditing}
-              onFinishEditing={handleFinishEditing}
+              {...commonProps}
             />
           )
         case FieldType.MultiSelect:
@@ -189,77 +238,85 @@ export const CellEditor = forwardRef<CellEditorRef, ICellEditorProps>(
               options={
                 (field as IField<SelectProperty>).property?.options || []
               }
-              isEditing={_isEditing}
+              {...commonProps}
               inline={inline}
-              onFinishEditing={handleFinishEditing}
             />
           )
         case FieldType.Date:
-          return (
-            <DateEditor
-              value={value}
-              onChange={run}
-              isEditing={_isEditing}
-              onFinishEditing={handleFinishEditing}
-            />
-          )
+        case FieldType.DateTime:
+          return <DateEditor value={value} onChange={run} {...commonProps} />
         case FieldType.Checkbox:
           return (
-            <CheckboxEditor
-              value={value}
-              onChange={run}
-              isEditing={_isEditing}
-              onFinishEditing={handleFinishEditing}
-            />
+            <CheckboxEditor value={value} onChange={run} {...commonProps} />
           )
         case FieldType.Rating:
           return (
             <RatingEditor
+              ref={ratingEditorRef}
               value={value}
               onChange={run}
-              isEditing={_isEditing}
-              onFinishEditing={handleFinishEditing}
+              {...commonProps}
             />
           )
         case FieldType.File:
           return (
-            <FileEditor value={cell} onChange={onFileCellChange}></FileEditor>
+            <FileEditor
+              value={cell}
+              onChange={onFileCellChange}
+              isEditing={_isEditing}
+              layout={layout}
+              disabled={disabled}
+            />
           )
         case FieldType.CreatedTime:
         case FieldType.LastEditedTime:
           return (
             <TextBaseEditor
+              ref={textBaseEditorRef}
               type="text"
               value={new Date(value).toLocaleString()}
               onChange={run}
+              {...commonProps}
               isEditing={false}
-              onFinishEditing={handleFinishEditing}
             />
           )
         case FieldType.Formula:
           return (
             <TextBaseEditor
+              ref={textBaseEditorRef}
               type="text"
               value={value}
               onChange={run}
+              {...commonProps}
               isEditing={false}
-              onFinishEditing={handleFinishEditing}
             />
           )
         default:
           return Editor ? (
-            <Editor value={value} onChange={run} isEditing={_isEditing} />
+            <Editor value={value} onChange={run} {...commonProps} />
           ) : null
       }
     }
+
     const Editor = getEditor()
+
+    // Select wrapper styles based on layout mode
+    // flow mode: no padding when disabled, px-2 when editable (for editing state visual)
+    const wrapperClasses = cn(
+      {
+        "relative w-full h-full": layout === "fill",
+        "w-full": layout === "flow" && disabled,
+        "w-full px-2": layout === "flow" && !disabled,
+        "inline-flex": layout === "inline",
+      },
+      className
+    )
+
     return (
       <div
         ref={editorRef}
         onClick={() => setIsEditing(true)}
-        className={cn("flex h-full w-full overflow-hidden", className, {
-          "hover:bg-secondary": !_isEditing,
-        })}
+        className={wrapperClasses}
       >
         {Editor}
       </div>

@@ -89,6 +89,7 @@ export const ViewFilterItemEditor = ({
           onChange={handleValueChange}
           className="max-w-[200px]"
           editorMode
+          layout="flow"
         />
       )}
     </>
