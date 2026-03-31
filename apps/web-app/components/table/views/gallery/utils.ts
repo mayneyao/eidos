@@ -150,16 +150,19 @@ const EMPTY_TITLE_HEIGHT = 21 // Same as single line with leading-[1.4]
  * Measure title height
  * Fully dynamic calculation, no line limit
  */
-function measureTitleHeight(title: string, cardWidth: number): number {
+function measureTitleHeight(title: unknown, cardWidth: number): number {
   const maxWidth = getContentTextWidth(cardWidth)
 
+  // Ensure title is a string
+  const titleStr = typeof title === "string" ? title : String(title ?? "")
+
   // If title is empty, return placeholder height for "Untitled" text
-  if (!title || title.trim().length === 0) {
+  if (!titleStr || titleStr.trim().length === 0) {
     return EMPTY_TITLE_HEIGHT
   }
 
   const result = measureTextHeight(
-    title,
+    titleStr,
     maxWidth,
     TITLE_CONFIG.fontSize,
     TITLE_CONFIG.fontWeight,
@@ -385,12 +388,13 @@ export const computeCardHeightSmartDetailed = (
   hasCover: boolean = true,
   isView: boolean = false
 ): CardHeightBreakdown => {
-  const title = item[titleField] || ""
+  const title = item[titleField]
+  const titleStr = typeof title === "string" ? title : String(title ?? "")
   const textWidth = getContentTextWidth(cardWidth)
 
   // Measure title
-  const titleHeight = measureTitleHeight(title, cardWidth)
-  const titleLineCount = title
+  const titleHeight = measureTitleHeight(titleStr, cardWidth)
+  const titleLineCount = titleStr
     ? Math.ceil(titleHeight / TITLE_CONFIG.lineHeight)
     : 1
 

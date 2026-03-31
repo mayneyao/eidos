@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { IView } from "@/packages/core/types/IView"
 import { useKeyPress } from "ahooks"
 import {
@@ -7,12 +7,14 @@ import {
   CornerDownLeft,
   OptionIcon,
   SearchIcon,
+  AlertTriangle,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { cn, getTableIdByRawTableName, shortenId } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useCurrentSubPage } from "@/apps/web-app/hooks/use-current-sub-page"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 
@@ -69,7 +71,10 @@ export const ViewSearch = (props: { view: IView }) => {
     clearSearch,
   } = useTableSearchStore()
 
-  const { isSearching } = useTableSearch(props.view?.id)
+  const { isSearching, needsFTSSetup, setupFTS, checkFTS } = useTableSearch(
+    props.view?.id
+  )
+  const [isSettingUpFTS, setIsSettingUpFTS] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const resultsListRef = useRef<HTMLUListElement>(null)
   const { search: semanticSearch } = useTableSemanticSearch()
@@ -77,8 +82,18 @@ export const ViewSearch = (props: { view: IView }) => {
   useEffect(() => {
     if (showSearch) {
       searchInputRef.current?.focus()
+      // Check FTS status when search is shown
+      checkFTS()
     }
-  }, [showSearch])
+  }, [showSearch, checkFTS])
+
+  const handleSetupFTS = async () => {
+    setIsSettingUpFTS(true)
+    await setupFTS()
+    setIsSettingUpFTS(false)
+    // Refocus search input after setup
+    searchInputRef.current?.focus()
+  }
 
   const handleClickOutside = useCallback(
     (event: MouseEvent) => {
@@ -193,10 +208,19 @@ export const ViewSearch = (props: { view: IView }) => {
           <Input
             ref={searchInputRef}
             type="text"
-            placeholder={`${t("common.search")} (alt/opt + ↩︎ for semantic)`}
+            placeholder={
+              needsFTSSetup
+                ? "Enable search to start searching..."
+                : `${t("common.search")} (alt/opt + ↩︎ for semantic)`
+            }
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-6 w-96 border-0 pl-8 pr-24"
+            disabled={needsFTSSetup}
+            className={cn(
+              "h-6 w-96 border-0 pl-8 pr-24",
+              needsFTSSetup &&
+                "bg-muted text-muted-foreground cursor-not-allowed"
+            )}
           />
           <SearchIcon className="absolute left-2 h-4 w-4 text-muted-foreground" />
 
@@ -214,7 +238,46 @@ export const ViewSearch = (props: { view: IView }) => {
             </div>
           )}
 
-          {searchQuery && (
+          {needsFTSSetup && (
+            <div className="absolute top-full left-0 right-0 mt-1 z-30">
+              <Alert className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/50 py-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <AlertTitle className="text-amber-800 dark:text-amber-200 text-xs font-medium leading-tight">
+                      Search is disabled
+                    </AlertTitle>
+                    <AlertDescription className="text-amber-700 dark:text-amber-300 text-xs mt-1">
+                      <div className="flex flex-col gap-2">
+                        <span>
+                          Enable full-text search for this table to start
+                          searching.
+                        </span>
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          onClick={handleSetupFTS}
+                          disabled={isSettingUpFTS}
+                          className="h-6 text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300 dark:bg-amber-900 dark:hover:bg-amber-800 dark:text-amber-100 dark:border-amber-700 w-fit"
+                        >
+                          {isSettingUpFTS ? (
+                            <>
+                              <Spinner />
+                              <span className="ml-1">Setting up...</span>
+                            </>
+                          ) : (
+                            "Enable Search"
+                          )}
+                        </Button>
+                      </div>
+                    </AlertDescription>
+                  </div>
+                </div>
+              </Alert>
+            </div>
+          )}
+
+          {searchQuery && !needsFTSSetup && (
             <div className="absolute right-2 flex items-center gap-1 bg-background">
               {isSearching ? (
                 <Spinner />

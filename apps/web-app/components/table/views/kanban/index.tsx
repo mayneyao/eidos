@@ -53,7 +53,7 @@ export const KanbanView = ({
   }, [items])
 
   // Search integration
-  const { highlightedItemId } = useKanbanSearch({ items })
+  const { highlightedItemId, onBoardRef } = useKanbanSearch({ items })
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
@@ -103,21 +103,22 @@ export const KanbanView = ({
   return (
     <KanbanProvider
       onDragEnd={handleDragEnd}
-      className="p-4 h-full flex w-full overflow-x-auto"
+      className="p-4 h-full flex w-full overflow-x-auto scroll-smooth"
     >
       {statusCountsToShow.map((status) => (
-        <KanbanBoard
-          key={status.status}
-          status={status}
-          items={itemsGroupByStatus[status.status]}
-          showFields={showFields}
-          uiColumnMap={uiColumnMap}
-          rawIdNameMap={rawIdNameMap}
-          tableId={view.table_id}
-          properties={view.properties}
-          space={space}
-          highlightedItemId={highlightedItemId}
-        />
+        <div key={status.status} ref={(el) => onBoardRef(status.status, el)}>
+          <KanbanBoard
+            status={status}
+            items={itemsGroupByStatus[status.status]}
+            showFields={showFields}
+            uiColumnMap={uiColumnMap}
+            rawIdNameMap={rawIdNameMap}
+            tableId={view.table_id}
+            properties={view.properties}
+            space={space}
+            highlightedItemId={highlightedItemId}
+          />
+        </div>
       ))}
 
       {hasMore && (

@@ -1,7 +1,7 @@
 import { useReadonlySqlite } from "@/apps/web-app/hooks/use-readonly-sqlite"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useThrottleFn } from "ahooks"
-import { useContext, useEffect, useRef, useState } from "react"
+import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import { TableContext, useView } from "../hooks"
 import { useTableSearchStore } from "../table-store-provider"
 
@@ -53,6 +53,31 @@ export const useTableSearch = (viewId: string) => {
 
   const searchAbortController = useRef<AbortController | null>(null)
   const [isSearching, setIsSearching] = useState(false)
+  const [needsFTSSetup, setNeedsFTSSetup] = useState(false)
+
+  const setupFTS = useCallback(async () => {
+    if (!sqlite || !tableName) return false
+
+    try {
+      await sqlite.createTableFTS(tableName)
+      setNeedsFTSSetup(false)
+      // Retry search after setup
+      if (searchQuery.length >= MIN_SEARCH_LENGTH) {
+        performSearch(searchQuery, 1)
+      }
+      return true
+    } catch (error) {
+      console.error("Failed to create FTS table:", error)
+      return false
+    }
+  }, [sqlite, tableName, searchQuery])
+
+  const checkFTS = useCallback(async () => {
+    if (!sqlite || !tableName) return false
+    const hasFTS = await sqlite.hasTableFTS(tableName)
+    setNeedsFTSSetup(!hasFTS)
+    return hasFTS
+  }, [sqlite, tableName])
 
   const performSearch = async (query: string, page: number = 1) => {
     if (
@@ -67,13 +92,11 @@ export const useTableSearch = (viewId: string) => {
       setSearchTime(0)
       return
     }
+
     const hasFTS = await sqlite.hasTableFTS(tableName)
     if (!hasFTS) {
-      sqlite.blockUIMsg(
-        "It seems that the FTS table is not created, please wait..."
-      )
-      await sqlite.createTableFTS(tableName)
-      sqlite.blockUIMsg(null)
+      setNeedsFTSSetup(true)
+      return
     }
 
     const page2Index = (page - 1) * PAGE_SIZE
@@ -157,5 +180,8 @@ export const useTableSearch = (viewId: string) => {
     showSearch,
     setShowSearch,
     isSearching,
+    needsFTSSetup,
+    setupFTS,
+    checkFTS,
   }
 }
