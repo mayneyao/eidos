@@ -5,6 +5,7 @@
  */
 
 import fs from "fs/promises"
+import fsSync from "fs"
 import path from "path"
 import { exec, spawn } from "child_process"
 import { promisify } from "util"
@@ -21,6 +22,7 @@ export function getCliBinaryPath(): string {
 
   let binaryName: string
   if (platform === "win32") {
+    // Windows: prefer eidos.exe alias, fallback to platform-specific name
     binaryName = "eidos-windows-x64.exe"
   } else if (platform === "darwin") {
     // macOS: check architecture for Intel vs ARM
@@ -30,7 +32,18 @@ export function getCliBinaryPath(): string {
     binaryName = "eidos-linux-x64"
   }
 
-  return path.join(resourcesPath, "dist-cli", binaryName)
+  const primaryPath = path.join(resourcesPath, "dist-cli", binaryName)
+
+  // On Windows, also check for eidos.exe alias
+  if (platform === "win32") {
+    const aliasPath = path.join(resourcesPath, "dist-cli", "eidos.exe")
+    // Use alias if it exists, otherwise use platform-specific name
+    if (fsSync.existsSync(aliasPath)) {
+      return aliasPath
+    }
+  }
+
+  return primaryPath
 }
 
 /**
@@ -127,12 +140,24 @@ async function installCliMacOS(
 
 /**
  * Install CLI to system PATH on Windows
- * Adds CLI directory to user PATH environment variable
+ * Copies CLI as eidos.exe and adds to user PATH environment variable
  */
 async function installCliWindows(
   cliSourcePath: string
 ): Promise<{ success: boolean; message: string }> {
   const cliDir = path.dirname(cliSourcePath)
+  const eidosExePath = path.join(cliDir, "eidos.exe")
+
+  // Copy the binary as eidos.exe so users can use 'eidos' command
+  try {
+    await fs.copyFile(cliSourcePath, eidosExePath)
+  } catch (error) {
+    // If copy fails, the file might already exist, which is fine
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+      console.error("Failed to copy CLI binary:", error)
+    }
+  }
+
   const psScript = `
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
     if (-not $userPath.Contains('${cliDir.replace(/'/g, "''")}')) {
@@ -298,6 +323,15 @@ async function uninstallCliWindows(): Promise<{
 }> {
   const cliSourcePath = getCliBinaryPath()
   const cliDir = path.dirname(cliSourcePath)
+  const eidosExePath = path.join(cliDir, "eidos.exe")
+
+  // Remove the eidos.exe copy
+  try {
+    await fs.unlink(eidosExePath)
+  } catch {
+    // File might not exist, that's fine
+  }
+
   const psScript = `
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
     $newPath = ($userPath -split ';' | Where-Object { $_ -ne '${cliDir.replace(/'/g, "''")}' }) -join ';'

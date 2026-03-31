@@ -69,12 +69,19 @@ const destBinary = path.join(distCliDir, outputName);
 // Copy binary to dist-cli
 try {
   fs.copyFileSync(sourceBinary, destBinary);
-  
+
   // Make executable on Unix systems
   if (platform !== 'win32') {
     fs.chmodSync(destBinary, 0o755);
   }
-  
+
+  // On Windows, also copy as eidos.exe for convenience
+  if (platform === 'win32') {
+    const eidosExePath = path.join(distCliDir, 'eidos.exe');
+    fs.copyFileSync(destBinary, eidosExePath);
+    console.log(`✅ Also created eidos.exe alias`);
+  }
+
   console.log(`✅ CLI built successfully: ${destBinary}`);
 } catch (error) {
   console.error(`❌ Failed to copy CLI binary: ${error.message}`);
