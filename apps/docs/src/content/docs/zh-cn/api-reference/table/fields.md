@@ -91,20 +91,68 @@ Eidos 表格中的每个字段都由 `name` (名称)、唯一的 `columnName` (�
 | `name` | `string` | UI 中显示的名称。 |
 | `color` | `string` | 标签颜色。参见 [可用颜色](#可用颜色)。 |
 
-**可用颜色:**
-`default`, `gray`, `brown`, `pink`, `red`, `orange`, `yellow`, `green`, `cyan`, `blue`, `purple`
+### 可用颜色
+
+可用于 `color` 属性的颜色名称：
+
+| 颜色名称  | 浅色模式  | 深色模式  |
+| :-------- | :-------- | :-------- |
+| `default` | `#cccccc` | `#333333` |
+| `gray`    | `#eeeeee` | `#555555` |
+| `brown`   | `#e6c9a8` | `#5b4d3d` |
+| `pink`    | `#ffd3e6` | `#9a3f5e` |
+| `red`     | `#ffadad` | `#a63232` |
+| `orange`  | `#ffd6a5` | `#ff9f4d` |
+| `yellow`  | `#fdffb6` | `#6e6620` |
+| `green`   | `#caffbf` | `#23563b` |
+| `cyan`    | `#9bf6ff` | `#1c5858` |
+| `blue`    | `#a0c4ff` | `#3168a8` |
+| `purple`  | `#bdb2ff` | `#6e33b4` |
 
 ---
 
 ## 计算字段 (Formula)
 
-用于根据记录中的其他字段执行逻辑计算。
+用于根据记录中的其他字段执行逻辑计算。计算结果可以以多种视觉格式展示。
 
 **Property 设置:**
 | 属性 | 类型 | 描述 |
 | :--- | :--- | :--- |
 | `formula` | `string` | 表达式内容。 |
-| `displayType` | `string` | 用于渲染计算结果的 [字段类型](#支持的字段类型)。 |
+| `displayType` | `string` | 展示方式：`text` (文本)、`number` (数字)、`select` (单选标签)、`multi-select` (多选标签)、`url` (链接)、`file` (文件)。 |
+| `numberConfig` | `object` | 当 `displayType` 为 `number` 时的配置。参见 [数字配置](#数字配置-number-config)。 |
+| `optionConfig` | `object` | 当 `displayType` 为 `select` 或 `multi-select` 时的配置。参见 [选项配置](#选项配置-option-config)。 |
+
+### 数字配置 (Number Config)
+
+当 `displayType` 为 `number` 时使用。
+
+| 属性         | 类型      | 描述                                              |
+| :----------- | :-------- | :------------------------------------------------ |
+| `showAs`     | `string`  | 视觉样式：`"number"` (数字) 或 `"bar"` (进度条)。 |
+| `color`      | `string`  | 进度条的颜色。参见 [可用颜色](#可用颜色)。        |
+| `divideBy`   | `number`  | 进度条的最大值（分母）。                          |
+| `showNumber` | `boolean` | 是否在进度条旁显示数值。                          |
+
+### 选项配置 (Option Config)
+
+当 `displayType` 为 `select` 或 `multi-select` 时使用。
+
+| 属性       | 类型    | 描述                                         |
+| :--------- | :------ | :------------------------------------------- |
+| `colorMap` | `array` | 值到颜色的映射列表，用于覆盖自动分配的颜色。 |
+
+**颜色映射项:**
+| 属性 | 类型 | 描述 |
+| :--- | :--- | :--- |
+| `value` | `string` | 要自定义的选项值。 |
+| `color` | `string` | 要使用的颜色。参见 [可用颜色](#可用颜色)。 |
+
+**颜色分配规则:**
+
+- 颜色根据值的哈希自动分配（相同值总是相同颜色）
+- `colorMap` 中的手动映射优先于自动分配的颜色
+- `multi-select` 模式下，值按逗号分割（如 `"标签1,标签2,标签3"`）
 
 ---
 

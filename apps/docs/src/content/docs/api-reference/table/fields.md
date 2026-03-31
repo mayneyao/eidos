@@ -91,20 +91,68 @@ Used for categorizing records using tags.
 | `name` | `string` | Display name shown in UI. |
 | `color` | `string` | Tag color. See [Available Colors](#available-colors). |
 
-**Available Colors:**
-`default`, `gray`, `brown`, `pink`, `red`, `orange`, `yellow`, `green`, `cyan`, `blue`, `purple`
+### Available Colors
+
+The following color names can be used in the `color` property:
+
+| Color Name | Light Mode | Dark Mode |
+| :--------- | :--------- | :-------- |
+| `default`  | `#cccccc`  | `#333333` |
+| `gray`     | `#eeeeee`  | `#555555` |
+| `brown`    | `#e6c9a8`  | `#5b4d3d` |
+| `pink`     | `#ffd3e6`  | `#9a3f5e` |
+| `red`      | `#ffadad`  | `#a63232` |
+| `orange`   | `#ffd6a5`  | `#ff9f4d` |
+| `yellow`   | `#fdffb6`  | `#6e6620` |
+| `green`    | `#caffbf`  | `#23563b` |
+| `cyan`     | `#9bf6ff`  | `#1c5858` |
+| `blue`     | `#a0c4ff`  | `#3168a8` |
+| `purple`   | `#bdb2ff`  | `#6e33b4` |
 
 ---
 
 ## Formula
 
-Used to perform calculations based on other fields in the record.
+Used to perform calculations based on other fields in the record. The result can be displayed using different visual formats.
 
 **Property Settings:**
 | Property | Type | Description |
 | :--- | :--- | :--- |
 | `formula` | `string` | The formula expression. |
-| `displayType` | `string` | The [FieldType](#supported-field-types) used to render the result. |
+| `displayType` | `string` | How to render the result: `text`, `number`, `select`, `multi-select`, `url`, `file`. |
+| `numberConfig` | `object` | Configuration when `displayType` is `number`. See [Number Config](#number-config). |
+| `optionConfig` | `object` | Configuration when `displayType` is `select` or `multi-select`. See [Option Config](#option-config). |
+
+### Number Config
+
+Used when `displayType` is `number`.
+
+| Property     | Type      | Description                                                         |
+| :----------- | :-------- | :------------------------------------------------------------------ |
+| `showAs`     | `string`  | Visual style: `"number"` or `"bar"`.                                |
+| `color`      | `string`  | Tag color for bar style. See [Available Colors](#available-colors). |
+| `divideBy`   | `number`  | The maximum value (denominator) for bar style.                      |
+| `showNumber` | `boolean` | Whether to display the value next to the bar.                       |
+
+### Option Config
+
+Used when `displayType` is `select` or `multi-select`.
+
+| Property   | Type    | Description                                                       |
+| :--------- | :------ | :---------------------------------------------------------------- |
+| `colorMap` | `array` | List of value-to-color mappings to override auto-assigned colors. |
+
+**Color Map Item:**
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `value` | `string` | The option value to customize. |
+| `color` | `string` | The color to use. See [Available Colors](#available-colors). |
+
+**Color Assignment:**
+
+- Colors are automatically assigned based on a hash of the value (consistent for same values)
+- Manual mappings in `colorMap` take precedence over auto-assigned colors
+- For `multi-select`, values are split by comma (e.g., `"tag1,tag2,tag3"`)
 
 ---
 

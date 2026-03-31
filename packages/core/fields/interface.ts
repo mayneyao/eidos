@@ -34,3 +34,25 @@ interface DatePickerCellProps {
 }
 
 export type DatePickerCell = CustomCell<DatePickerCellProps>
+
+// Formula option cell for readonly tag display (single select)
+export interface FormulaOptionCellProps {
+  readonly kind: "formula-option-cell"
+  readonly value: string
+  readonly color: string
+}
+
+export type FormulaOptionCell = CustomCell<FormulaOptionCellProps>
+
+// Formula multi-select cell for readonly tags display
+export interface FormulaMultiSelectOption {
+  readonly value: string
+  readonly color: string
+}
+
+export interface FormulaMultiSelectCellProps {
+  readonly kind: "formula-multi-select-cell"
+  readonly values: FormulaMultiSelectOption[]
+}
+
+export type FormulaMultiSelectCell = CustomCell<FormulaMultiSelectCellProps>

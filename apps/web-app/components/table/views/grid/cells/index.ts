@@ -3,6 +3,8 @@ import { FieldType } from "@/packages/core/fields/const"
 
 import DatePicker from "./date-picker-cell"
 import { FileCellRenderer } from "./file/file-cell"
+import FormulaMultiSelectCell from "./formula-multi-select-cell"
+import FormulaOptionCell from "./formula-option-cell"
 import LinkCell from "./link/link-cell"
 import MultiSelectCell from "./multi-select-cell"
 import RatingCell from "./rating-cell"
@@ -27,6 +29,8 @@ const cells = [
   UserProfileCell,
   RangeCell,
   TextCell,
+  FormulaOptionCell,
+  FormulaMultiSelectCell,
   // LinksCell,
   // ButtonCell,
 ]
