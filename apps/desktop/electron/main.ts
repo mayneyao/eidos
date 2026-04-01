@@ -601,7 +601,7 @@ ipcMain.handle("browser-view:capture-page", async (_, viewId: string) => {
   return { success: !!dataUrl, dataUrl }
 })
 
-ipcMain.on("browser-view:close-all-sync", () => {
+ipcMain.on("browser-view:close-all", () => {
   windowManager?.browserViewManager.closeAll()
 })
 

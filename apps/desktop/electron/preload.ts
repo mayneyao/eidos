@@ -58,7 +58,9 @@ const getModelByName = async (modelName: string) => {
 function main() {
   // Ensure BrowserViews are cleaned up before the renderer reloads/unloads
   window.addEventListener("beforeunload", () => {
-    ipcRenderer.sendSync("browser-view:close-all-sync")
+    // Use async send instead of sendSync to avoid blocking the renderer
+    // process during reload, which can cause the page to freeze.
+    ipcRenderer.send("browser-view:close-all")
   })
 
   const listenerMap = new Map<string, Map<string, IpcListener>>()
