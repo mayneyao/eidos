@@ -74,7 +74,7 @@ const KanbanCardItem = memo(
     const isHighlighted = highlightedItemId === item.id
 
     return (
-      <div style={style} className="px-2 py-1.5">
+      <div style={style} className="px-2 py-1.5 overflow-x-hidden">
         <KanbanCard
           id={item.id}
           name={item.title || item.name || item.id}
@@ -358,6 +358,7 @@ export const KanbanBoard = memo(
                         width={width}
                         overscanCount={3}
                         estimatedItemSize={212}
+                        style={{ overflowX: "hidden" }}
                       >
                         {KanbanCardItem}
                       </List>

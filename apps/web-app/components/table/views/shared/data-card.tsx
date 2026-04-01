@@ -1,18 +1,10 @@
 import { FieldType } from "@/packages/core/fields/const"
 import type { IField } from "@/packages/core/types/IField"
-import { MoreHorizontalIcon } from "lucide-react"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { cn } from "@/lib/utils"
 import { layout, prepare } from "@chenglou/pretext"
 
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { useRowDataOperation } from "../../../doc-property/hook"
 import { CellEditor } from "../../cell-editor"
 import { useTableContext } from "../../hooks"
@@ -313,39 +305,6 @@ export const DataCard = ({
                   rawIdNameMap={rawIdNameMap}
                 />
               </div>
-              {!isView && (
-                <div className="absolute top-2 right-2 opacity-0 group-hover/card:opacity-100 transition-opacity duration-200 flex gap-1">
-                  {/* <Button
-                    variant="secondary"
-                    size="icon"
-                    className="h-7 w-7 bg-white/90 hover:bg-white shadow-sm"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                    }}
-                  >
-                    <PencilIcon className="h-3.5 w-3.5 text-gray-600" />
-                  </Button> */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="icon"
-                        className="h-7 w-7 bg-white/90 hover:bg-white shadow-sm"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <MoreHorizontalIcon className="h-3.5 w-3.5 text-gray-600" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-40">
-                      <DropdownMenuItem>Open</DropdownMenuItem>
-                      <DropdownMenuItem>Open in full page</DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-600">
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              )}
             </div>
           )}
 

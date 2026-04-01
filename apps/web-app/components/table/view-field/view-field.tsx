@@ -126,30 +126,34 @@ export const ViewField = (props: { view?: IView }) => {
           <SlidersHorizontalIcon className="h-4 w-4 opacity-60"></SlidersHorizontalIcon>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-1.5">
-        <div className="flex justify-between px-1">
-          <Button
-            size="xs"
-            variant="ghost"
-            onClick={showAllFields}
-            className="h-6 text-xs"
-          >
-            {t("table.view.field.showAll")}
-          </Button>
-          <Button
-            size="xs"
-            variant="ghost"
-            onClick={hideAllFields}
-            className="h-6 text-xs"
-          >
-            {t("table.view.field.hideAll")}
-          </Button>
+      <PopoverContent className="w-auto p-0">
+        <div className="flex items-center justify-between px-1.5 py-1.5 border-b">
+          <span className="text-[11px] text-muted-foreground pl-[21px]">
+            {t("table.view.field.shownInView", "Shown in view")}
+          </span>
+          <div className="flex items-center">
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={showAllFields}
+              className="h-6 text-[11px] px-1.5"
+            >
+              {t("table.view.field.showAll")}
+            </Button>
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={hideAllFields}
+              className="h-6 text-[11px] px-1.5"
+            >
+              {t("table.view.field.hideAll")}
+            </Button>
+          </div>
         </div>
-        <hr className="my-1" />
         <SortableContainer
           items={cards.map((card) => ({ ...card, id: card.table_column_name }))}
           onReorder={handleReorder}
-          className="max-h-[320px] w-[280px] overflow-y-auto overflow-x-hidden"
+          className="max-h-[320px] w-[280px] overflow-y-auto overflow-x-hidden p-1"
           renderItem={(item, index) => {
             const card = item as IField
             const isHidden =
@@ -169,14 +173,13 @@ export const ViewField = (props: { view?: IView }) => {
         />
         {!isView && (
           <>
-            <hr className="my-1" />
-            <CommonMenuItem
-              className="pl-3 text-xs"
-              onClick={handleAddFieldClick}
-            >
-              <PlusIcon className="mr-1.5 h-3 w-3" />
-              {t("table.view.field.addField")}
-            </CommonMenuItem>
+            <div className="border-t border-border" />
+            <div className="p-1">
+              <CommonMenuItem className="text-xs" onClick={handleAddFieldClick}>
+                <PlusIcon className="mr-2 h-3.5 w-3.5" />
+                {t("table.view.field.addField")}
+              </CommonMenuItem>
+            </div>
           </>
         )}
       </PopoverContent>
