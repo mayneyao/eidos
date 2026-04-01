@@ -1,8 +1,9 @@
 name: Build Headless Docker Image
 
 on:
-  release:
-    types: [published]
+  # 暂时禁用自动触发，等有 bug 修复后再启用
+  # release:
+  #   types: [published]
   workflow_dispatch:
     inputs:
       push_image:
