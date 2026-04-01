@@ -192,6 +192,10 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
   async addField(data: IField) {
     const res = await this.add(data)
     await this.dataSpace.onTableChange(this.dataSpace.dbName, data.table_name)
+    // Smart FTS schema sync with threshold-based decision
+    await this.dataSpace.tableFullTextSearch.smartEnsureFTSSchema(
+      data.table_name
+    )
     return res
   }
 
@@ -216,28 +220,10 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
 
   async deleteField(tableName: string, tableColumnName: string) {
     const effectTables: string[] = [tableName]
+    const columnsToDelete: { tableName: string; columnName: string }[] = []
+
     try {
       await this.dataSpace.db.prepare("BEGIN TRANSACTION;").run()
-
-      const _deleteField = async (
-        tableName: string,
-        tableColumnName: string
-      ) => {
-        await this.dataSpace.tableFullTextSearch.updateTrigger(tableName, [
-          tableColumnName,
-        ])
-        await this.dataSpace.onTableChange(this.dataSpace.dbName, tableName, [
-          tableColumnName,
-        ])
-        this.dataSpace.db
-          .prepare(
-            `DELETE FROM ${ColumnTableName} WHERE table_column_name = ? AND table_name = ?;`
-          )
-          .run([tableColumnName, tableName])
-        this.dataSpace.db
-          .prepare(`ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName};`)
-          .run()
-      }
 
       const column = await this.getColumn(tableName, tableColumnName)
       const tm = new TableManager(
@@ -256,40 +242,69 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
           tableColumnName,
           this.dataSpace.db
         )
-        // delete paired field (including its __title column via _deleteField)
-        await _deleteField(
-          pairedField.table_name,
-          pairedField.table_column_name
-        )
-        // delete the __title column of paired field - need to update trigger first
-        await this.dataSpace.tableFullTextSearch.updateTrigger(
-          pairedField.table_name,
-          [`${pairedField.table_column_name}__title`]
-        )
-        await this.dataSpace.onTableChange(
-          this.dataSpace.dbName,
-          pairedField.table_name,
-          [`${pairedField.table_column_name}__title`]
-        )
-        this.dataSpace.db
-          .prepare(
-            `ALTER TABLE ${pairedField.table_name} DROP COLUMN ${pairedField.table_column_name}__title;`
-          )
-          .run()
-        // delete the __title column of current field - need to update trigger first
-        await this.dataSpace.tableFullTextSearch.updateTrigger(tableName, [
-          `${tableColumnName}__title`,
-        ])
-        await this.dataSpace.onTableChange(this.dataSpace.dbName, tableName, [
-          `${tableColumnName}__title`,
-        ])
-        this.dataSpace.db
-          .prepare(
-            `ALTER TABLE ${tableName} DROP COLUMN ${tableColumnName}__title;`
-          )
-          .run()
+        // queue paired field for deletion
+        columnsToDelete.push({
+          tableName: pairedField.table_name,
+          columnName: pairedField.table_column_name,
+        })
+        // queue paired field's __title column for deletion
+        columnsToDelete.push({
+          tableName: pairedField.table_name,
+          columnName: `${pairedField.table_column_name}__title`,
+        })
+        // queue current field's __title column for deletion
+        columnsToDelete.push({
+          tableName: tableName,
+          columnName: `${tableColumnName}__title`,
+        })
       }
-      await _deleteField(tableName, tableColumnName)
+
+      // queue main column for deletion
+      columnsToDelete.push({ tableName, columnName: tableColumnName })
+
+      const affectedTables = new Set(columnsToDelete.map((c) => c.tableName))
+
+      // Step 1: Delete all metadata records first
+      for (const { tableName: tn, columnName: cn } of columnsToDelete) {
+        // Skip __title columns as they don't have metadata records
+        if (!cn.endsWith("__title")) {
+          this.dataSpace.db
+            .prepare(
+              `DELETE FROM ${ColumnTableName} WHERE table_column_name = ? AND table_name = ?;`
+            )
+            .run([cn, tn])
+        }
+      }
+
+      // Step 2: Drop all FTS triggers to avoid errors during DROP COLUMN
+      for (const tn of affectedTables) {
+        await this.dataSpace.tableFullTextSearch.dropFTSTriggers(tn)
+      }
+
+      // Step 3: Drop all data change triggers to avoid errors during DROP COLUMN
+      for (const tn of affectedTables) {
+        await this.dataSpace.dataChangeTrigger.dropTriggers(this.dataSpace, tn)
+      }
+
+      // Step 4: Delete all columns from tables
+      for (const { tableName: tn, columnName: cn } of columnsToDelete) {
+        this.dataSpace.db.prepare(`ALTER TABLE ${tn} DROP COLUMN ${cn};`).run()
+      }
+
+      // Step 5: Rebuild FTS tables and triggers after columns are dropped
+      for (const tn of affectedTables) {
+        await this.dataSpace.tableFullTextSearch.ensureFTSSchema(tn)
+      }
+
+      // Step 6: Recreate data change triggers after columns are dropped
+      for (const tn of affectedTables) {
+        const collist = await this.dataSpace.listRawColumns(tn)
+        await this.dataSpace.dataChangeTrigger.setTrigger(
+          this.dataSpace,
+          tn,
+          collist
+        )
+      }
 
       await this.dataSpace.db.prepare("COMMIT;").run()
     } catch (error) {

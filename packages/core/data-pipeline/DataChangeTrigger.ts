@@ -40,6 +40,23 @@ export class DataChangeTrigger {
     this.triggerMap.delete(key)
   }
 
+  /**
+   * Drop data change triggers for a table.
+   * Does not recreate them - use setTrigger to recreate.
+   */
+  async dropTriggers(dataspace: DataSpace, tableName: string) {
+    await dataspace.db.exec(
+      `DROP TRIGGER IF EXISTS data_update_trigger_${tableName}`
+    )
+    await dataspace.db.exec(
+      `DROP TRIGGER IF EXISTS data_insert_trigger_${tableName}`
+    )
+    await dataspace.db.exec(
+      `DROP TRIGGER IF EXISTS data_delete_trigger_${tableName}`
+    )
+    this.unRegisterTrigger(dataspace.dbName, tableName)
+  }
+
   isTriggerChanged(
     space: string,
     tableName: string,
@@ -108,14 +125,21 @@ export class DataChangeTrigger {
     }
 
     // drop trigger if exists
-    dataspace.db.transaction((db) => {
-      db.exec(`DROP TRIGGER IF EXISTS data_update_trigger_${tableName}`)
-      db.exec(`DROP TRIGGER IF EXISTS data_insert_trigger_${tableName}`)
-      db.exec(`DROP TRIGGER IF EXISTS data_delete_trigger_${tableName}`)
-      db.exec(updateSql)
-      db.exec(insertSql)
-      db.exec(deleteSql)
-    })
+    // Note: Not using transaction() here because the caller (deleteField)
+    // is already in a transaction, and better-sqlite3's transaction()
+    // doesn't properly handle async functions.
+    await dataspace.db.exec(
+      `DROP TRIGGER IF EXISTS data_update_trigger_${tableName}`
+    )
+    await dataspace.db.exec(
+      `DROP TRIGGER IF EXISTS data_insert_trigger_${tableName}`
+    )
+    await dataspace.db.exec(
+      `DROP TRIGGER IF EXISTS data_delete_trigger_${tableName}`
+    )
+    await dataspace.db.exec(updateSql)
+    await dataspace.db.exec(insertSql)
+    await dataspace.db.exec(deleteSql)
 
     this.registerTrigger(dataspace.dbName, tableName, {
       update: updateSql,

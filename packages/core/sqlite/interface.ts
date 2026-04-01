@@ -51,6 +51,12 @@ export abstract class BaseServerDatabase {
     return true
   }
 
+  /**
+   * Check if currently inside a transaction.
+   * Returns true if a transaction is active.
+   */
+  abstract get inTransaction(): boolean
+
   // inspect
   info(): CommonVersionControlResult {
     return Promise.resolve({})

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { DevToolsToolbar } from "./dev-tools-toolbar"
 import { ClipboardPanel } from "./clipboard-panel"
 import { PerformancePanel } from "./performance-panel"
+import { useDevToolsStore } from "./store"
 
 export function DevToolsPanel() {
   const [isClipboardVisible, setIsClipboardVisible] = useState(false)
@@ -18,7 +19,7 @@ export function DevToolsPanel() {
     percentage: number
   }>({ used: 0, total: 0, limit: 0, percentage: 0 })
 
-  if (process.env.NODE_ENV === "production") return null
+  const { enabled } = useDevToolsStore()
 
   const toggleClipboard = () => {
     setIsClipboardVisible(!isClipboardVisible)
@@ -37,9 +38,12 @@ export function DevToolsPanel() {
   }
 
   // Calculate FPS
-  const calculateFPS = () => {
+  useEffect(() => {
+    if (!enabled) return
+
     let lastTime = performance.now()
     let frameCount = 0
+    let rafId: number
 
     const measureFPS = (currentTime: number) => {
       frameCount++
@@ -50,11 +54,12 @@ export function DevToolsPanel() {
         lastTime = currentTime
       }
 
-      requestAnimationFrame(measureFPS)
+      rafId = requestAnimationFrame(measureFPS)
     }
 
-    requestAnimationFrame(measureFPS)
-  }
+    rafId = requestAnimationFrame(measureFPS)
+    return () => cancelAnimationFrame(rafId)
+  }, [enabled])
 
   // Monitor memory usage
   const monitorMemoryUsage = () => {
@@ -69,18 +74,17 @@ export function DevToolsPanel() {
     }
   }
 
-  // Update node count, FPS, and memory usage
+  // Update node count and memory usage periodically
   useEffect(() => {
+    if (!enabled) return
     countNodes()
-    calculateFPS()
     monitorMemoryUsage()
-    // Update metrics periodically
     const interval = setInterval(() => {
       countNodes()
       monitorMemoryUsage()
     }, 1000)
     return () => clearInterval(interval)
-  }, [])
+  }, [enabled])
 
   const copyDebugInfo = () => {
     const debugInfo = {
@@ -95,6 +99,8 @@ export function DevToolsPanel() {
     }
     navigator.clipboard.writeText(JSON.stringify(debugInfo, null, 2))
   }
+
+  if (!enabled) return null
 
   return (
     <>

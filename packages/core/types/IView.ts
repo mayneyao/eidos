@@ -1,4 +1,5 @@
 import type { FilterValueType } from "./IViewFilter"
+import type { ViewColumnStatsConfig } from "./IColumnStats"
 
 export enum ViewTypeEnum {
   Grid = "grid",
@@ -26,4 +27,6 @@ export interface IView<T = any> {
 export interface IGridViewProperties {
   fieldWidthMap: Record<string, number>
   freezeColumns?: number
+  /** Column stats config */
+  columnStats?: ViewColumnStatsConfig
 }

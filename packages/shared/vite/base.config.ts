@@ -126,6 +126,13 @@ export const sharedConfig: UserConfig = {
     alias: sharedAlias,
   },
   optimizeDeps: {
+    include: [
+      // Fix "Prism is not defined" error in dev mode
+      // https://github.com/vitejs/vite/issues/21948
+      // Ensure prismjs loads before @lexical/code by pre-bundling them together
+      "prismjs",
+      "@lexical/code",
+    ],
     exclude: [
       "@sqlite.org/sqlite-wasm",
       "whisper-webgpu",

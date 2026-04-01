@@ -5,6 +5,7 @@ import DataEditor, {
   type GridSelection,
   type HeaderClickedEventArgs,
   type Item,
+  type Rectangle,
 } from "@glideapps/glide-data-grid"
 
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
@@ -21,6 +22,7 @@ import React, {
 } from "react"
 import { useKeyPress, useSize } from "ahooks"
 import { Plus } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { useTheme } from "@/components/theme-provider"
 
 import { cn } from "@/lib/utils"
@@ -49,6 +51,10 @@ import "./styles.css"
 import { useUndoRedo } from "./hooks/use-undo-redo"
 import { useDynamicTheme } from "./theme"
 import { useCurrentTheme } from "@/apps/web-app/hooks/use-current-theme"
+
+import { useGridStats } from "./hooks/use-grid-stats"
+import { calculatePaddingSpaces } from "@/lib/text-width"
+import type { GridColumn } from "@glideapps/glide-data-grid"
 
 // lazy import FormulaEditor
 const FormulaEditor = lazy(() => import("./plugins/formula-editor"))
@@ -89,10 +95,58 @@ export default function GridView(props: IGridProps) {
   )
   const { toCell } = useDataSource(tableName, databaseName)
   const { uiColumns } = useUiColumns(tableName, databaseName)
-  const { onColumnResize, columns, showColumns, onColumnMoved } = useColumns(
-    uiColumns,
-    currentView
-  )
+  const {
+    onColumnResize,
+    columns: _columns,
+    showColumns,
+    onColumnMoved,
+  } = useColumns(uiColumns, currentView)
+  const { t } = useTranslation()
+
+  // Use stats hook
+  const {
+    statsResults,
+    updateColumnStat,
+    getSupportedStatsForColumn,
+    refreshAllStats,
+    refreshColumnStat,
+  } = useGridStats({
+    tableName,
+    view: currentView,
+    columns: showColumns,
+    viewCount,
+  })
+
+  // Add trailingRowOptions.hint to columns to display stats (with right-aligned spaces)
+  const columns = useMemo(() => {
+    return _columns.map((col, index) => {
+      const field = showColumns[index]
+      if (!field) return col
+
+      const stat = statsResults[field.table_column_name]
+      if (!stat?.displayText) {
+        return { ...col, trailingRowOptions: { hint: "", addIcon: "" } }
+      }
+
+      // Get stat type label and combine with value
+      const statTypeLabel = t(`table.columnStats.${stat.type}`)
+      const fullText = `${statTypeLabel}: ${stat.displayText}`
+
+      // Use Canvas to precisely calculate text width for right alignment
+      const colWidth = (col as GridColumn & { width?: number }).width || 200
+      const availableWidth = colWidth - 32 // Subtract left/right padding (16px each side)
+      const { padding, displayText: finalText } = calculatePaddingSpaces(
+        fullText,
+        availableWidth
+      )
+      const hint = finalText ? padding + finalText : ""
+
+      return {
+        ...col,
+        trailingRowOptions: { hint, addIcon: "" },
+      }
+    })
+  }, [_columns, showColumns, statsResults])
 
   const getFieldByIndex = useCallback(
     (index: number) => {
@@ -110,9 +164,12 @@ export default function GridView(props: IGridProps) {
   )
   const { isReadOnly } = useContext(TableContext)
 
+  // Bottom stats bar scroll sync state
+  const [scrollLeft, setScrollLeft] = React.useState(0)
+
   const {
     getCellContent,
-    onVisibleRegionChanged,
+    onVisibleRegionChanged: _onVisibleRegionChanged,
     onCellEdited,
     onCellsEdited,
     getCellsForSelection,
@@ -130,7 +187,24 @@ export default function GridView(props: IGridProps) {
     gridRef: glideDataGridRef,
     viewCount,
     view: currentView,
+    refreshAllStats,
+    refreshColumnStat,
   })
+
+  // Wrap onVisibleRegionChanged to sync bottom stats bar scrolling
+  const onVisibleRegionChanged = useCallback(
+    (
+      range: Rectangle,
+      tx: number,
+      ty: number,
+      extras: { selected?: Item; freezeRegion?: Rectangle }
+    ) => {
+      _onVisibleRegionChanged?.(range, tx, ty, extras)
+      // tx is negative, indicating content moved left
+      setScrollLeft(Math.max(0, -tx))
+    },
+    [_onVisibleRegionChanged]
+  )
 
   const {
     gridSelection,
@@ -375,14 +449,13 @@ export default function GridView(props: IGridProps) {
       </div>
     )
   }
+
   return (
     <div
-      className={cn("h-full w-full pt-0", props.className)}
+      className={cn("h-full w-full pt-0 flex flex-col", props.className)}
       ref={containerRef}
     >
-      <div
-        className={cn("relative flex h-full w-full overflow-hidden rounded-md")}
-      >
+      <div className={cn("relative flex-1 w-full overflow-hidden rounded-md")}>
         {/* Static Freeze Column Line - Uses values from hook */}
         {columns && columns.length > 0 && freezeHandleLeft > 0 && (
           <div

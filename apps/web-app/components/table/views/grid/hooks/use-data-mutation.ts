@@ -7,7 +7,7 @@ import type {
   Item,
   Rectangle,
 } from "@glideapps/glide-data-grid"
-import { useThrottleFn } from "ahooks"
+import { useThrottleFn, useDebounceFn } from "ahooks"
 import type { IView } from "@/packages/core/types/IView"
 
 import { isFieldsInQuery } from "@/packages/core/sqlite/sql-view-query"
@@ -27,6 +27,8 @@ import { useViewCount } from "@/components/table/hooks/use-view-count"
 
 import { useTableStore } from "../../../table-store-provider"
 import { useDataSource } from "./use-data-source"
+import { useColumns } from "./use-col"
+import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 
 interface IUseDataMutationProps {
   gridRef: MutableRefObject<DataEditorRef | null>
@@ -36,6 +38,9 @@ interface IUseDataMutationProps {
   getRowDataByIndex: (index: number) => any
 
   view: IView
+  // Stats refresh callbacks
+  refreshAllStats?: () => void
+  refreshColumnStat?: (columnName: string) => void
 }
 
 export const useDataMutation = ({
@@ -45,6 +50,8 @@ export const useDataMutation = ({
   rowIdsRef,
   visiblePagesRef,
   getRowDataByIndex,
+  refreshAllStats,
+  refreshColumnStat,
 }: IUseDataMutationProps) => {
   const { addAddedRowId, addedRowIds, clearAddedRowIds } = useTableStore()
   const { setSubPage } = useCurrentSubPage()
@@ -58,12 +65,22 @@ export const useDataMutation = ({
   const { query: qs } = view
   const { sqlite } = useSqlite()
   const { toCell, onEdited } = useDataSource(tableName, space)
+  const { uiColumns } = useUiColumns(tableName, space)
+  const { showColumns } = useColumns(uiColumns, view)
 
   const { deleteRowsByRange, deleteRowsByIds, addRow } = useTableOperation(
     tableName,
     space
   )
   const tableId = view.table_id
+
+  // Debounced version of refreshColumnStat to avoid frequent SQL queries during rapid edits
+  const { run: debouncedRefreshColumnStat } = useDebounceFn(
+    (columnName: string) => {
+      refreshColumnStat?.(columnName)
+    },
+    { wait: 300 }
+  )
 
   const refreshCurrentVisible = useCallback(() => {
     const vr = visiblePagesRef.current
@@ -115,11 +132,20 @@ export const useDataMutation = ({
 
   const onCellEdited = useCallback(
     (cell: Item, newVal: EditableGridCell) => {
+      const [col] = cell
       const [, row] = cell
       const rowData = getRowDataByIndex(row)
       rowData && onEdited(cell, newVal, rowData)
+
+      // Refresh this column's stats (debounced to avoid frequent SQL queries)
+      if (debouncedRefreshColumnStat) {
+        const field = showColumns[col]
+        if (field) {
+          debouncedRefreshColumnStat(field.table_column_name)
+        }
+      }
     },
-    [getRowDataByIndex, onEdited]
+    [getRowDataByIndex, onEdited, showColumns, debouncedRefreshColumnStat]
   )
 
   const onCellsEdited = (
@@ -154,6 +180,8 @@ export const useDataMutation = ({
       } else {
         await deleteRowsByRange(_ranges, tableName, qs)
       }
+      // Refresh all stats
+      refreshAllStats?.()
     } catch (error) {
       // fallback
       setCount(oldCount)
@@ -170,12 +198,22 @@ export const useDataMutation = ({
       rowIdsRef.current.push(uuid)
       const index = rowIdsRef.current.length - 1
       dataRef.current[index] = uuid
+      // Refresh all stats
+      refreshAllStats?.()
       return index
     } catch (error) {
       // fallback
       setCount(rowIdsRef.current.length)
     }
-  }, [addAddedRowId, addRow, dataRef, increaseCount, rowIdsRef, setCount])
+  }, [
+    addAddedRowId,
+    addRow,
+    dataRef,
+    increaseCount,
+    rowIdsRef,
+    setCount,
+    refreshAllStats,
+  ])
 
   useTableRowEvent({
     tableName,
@@ -203,6 +241,8 @@ export const useDataMutation = ({
         refreshCurrentVisible()
         return
       }
+      // Refresh all stats
+      refreshAllStats?.()
     },
     onUpdate(_new, _old) {
       checkRowExistInQuery(_new._id, async (isExist) => {
@@ -220,6 +260,12 @@ export const useDataMutation = ({
           setCount(rowIdsRef.current.length)
           refreshCurrentVisible()
         }
+        // Refresh changed columns' stats (debounced)
+        diffKeys.forEach((key) => {
+          if (!key.startsWith("_")) {
+            debouncedRefreshColumnStat(key)
+          }
+        })
       })
     },
   })

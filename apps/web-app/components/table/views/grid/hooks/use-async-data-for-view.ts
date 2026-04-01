@@ -50,6 +50,9 @@ export function useAsyncDataForView<TRowType>(data: {
   viewCount: number
   view: IView
   isPreview?: boolean
+  // Stats refresh callbacks
+  refreshAllStats?: () => void
+  refreshColumnStat?: (columnName: string) => void
 }): Pick<
   DataEditorProps,
   | "getCellContent"
@@ -72,6 +75,8 @@ export function useAsyncDataForView<TRowType>(data: {
     maxConcurrency,
     view,
     isPreview,
+    refreshAllStats,
+    refreshColumnStat,
   } = data
   const tableId = view.table_id
   const isView = tableName.startsWith("vw_")
@@ -369,6 +374,8 @@ export function useAsyncDataForView<TRowType>(data: {
       dataRef,
       rowIdsRef,
       getRowDataByIndex,
+      refreshAllStats,
+      refreshColumnStat,
     })
 
   return {

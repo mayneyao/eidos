@@ -1,3 +1,4 @@
+import * as React from "react"
 import type {
   CustomCell,
   CustomRenderer,
@@ -84,31 +85,72 @@ const renderer: CustomRenderer<RatingCell> = {
     return true
   },
   provideEditor: () => {
-    return (p) => (
-      <div className="flex items-center py-[6px] text-gray-300">
-        {[0, 1, 2, 3, 4].map((index) => (
-          <div
-            key={index}
-            className={cn(
-              p.value.data.rating < index + 1 ? "inactive" : "text-gray-500",
-              "relative mr-[2px] h-[16px] w-[16px] cursor-pointer"
-            )}
-            onClick={() => {
-              p.onChange({
-                ...p.value,
-                data: {
-                  ...p.value.data,
-                  rating: index + 1,
-                },
-                copyData: `${index + 1}`,
-              })
-            }}
-          >
-            <StarSVG />
-          </div>
-        ))}
-      </div>
-    )
+    return (p) => {
+      const containerRef = React.useRef<HTMLDivElement>(null)
+      const rating = p.value.data.rating
+
+      React.useEffect(() => {
+        containerRef.current?.focus()
+      }, [])
+
+      const setRating = React.useCallback(
+        (newRating: number) => {
+          const clamped = Math.max(0, Math.min(5, newRating))
+          p.onChange({
+            ...p.value,
+            data: {
+              ...p.value.data,
+              rating: clamped,
+            },
+            copyData: `${clamped}`,
+          })
+        },
+        [p]
+      )
+
+      const handleKeyDown = React.useCallback(
+        (e: React.KeyboardEvent) => {
+          if (e.key >= "1" && e.key <= "5") {
+            e.preventDefault()
+            e.stopPropagation()
+            const num = Number.parseInt(e.key)
+            setRating(num === rating ? 0 : num)
+          } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+            e.preventDefault()
+            e.stopPropagation()
+            setRating(Math.min(5, rating + 1))
+          } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+            e.preventDefault()
+            e.stopPropagation()
+            setRating(Math.max(0, rating - 1))
+          }
+        },
+        [rating, setRating]
+      )
+
+      return (
+        <div
+          ref={containerRef}
+          className="flex items-center py-[6px] text-gray-300"
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
+          style={{ outline: "none" }}
+        >
+          {[0, 1, 2, 3, 4].map((index) => (
+            <div
+              key={index}
+              className={cn(
+                rating < index + 1 ? "inactive" : "text-gray-500",
+                "relative mr-[2px] h-[16px] w-[16px] cursor-pointer"
+              )}
+              onClick={() => setRating(index + 1)}
+            >
+              <StarSVG />
+            </div>
+          ))}
+        </div>
+      )
+    }
   },
   onPaste: (val, d) => {
     const num = Number.parseInt(val)

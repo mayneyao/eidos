@@ -1,3 +1,4 @@
+import { useState } from "react"
 import type {
   CustomCell,
   CustomRenderer,
@@ -6,6 +7,11 @@ import type {
 import { GridCellKind } from "@glideapps/glide-data-grid"
 
 import type { LinkCellData } from "@/packages/core/fields/link"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 
 import { drawDrilldownCell } from "../helper"
 import { LinkCellEditor as _LinkCellEditor } from "./link-cell-editor"
@@ -19,11 +25,13 @@ interface LinkCellProps {
 export type LinkCell = CustomCell<LinkCellProps>
 
 const LinkCellEditor: ReturnType<ProvideEditorCallback<LinkCell>> = (props) => {
-  const { value: cell, onFinishedEditing, initialValue } = props
+  const { value: cell, onFinishedEditing, onChange, initialValue } = props
   const { value: oldValue, linkTable } = cell.data
   const { space } = useTableContext()
-  const handleClick = (data: LinkCellData[]) => {
-    onFinishedEditing({
+  const [open, setOpen] = useState(true)
+
+  const handleChange = (data: LinkCellData[]) => {
+    onChange({
       ...cell,
       data: {
         ...cell.data,
@@ -31,44 +39,38 @@ const LinkCellEditor: ReturnType<ProvideEditorCallback<LinkCell>> = (props) => {
       },
     })
   }
+
+  const handleFinishedEditing = () => {
+    setOpen(false)
+    onFinishedEditing(cell)
+  }
+
+  const handleCancelEditing = () => {
+    setOpen(false)
+    onFinishedEditing(undefined, [0, 0])
+  }
+
   return (
-    <>
-      <_LinkCellEditor
-        tableName={linkTable}
-        databaseName={space}
-        value={oldValue}
-        onChange={handleClick}
-      ></_LinkCellEditor>
-      {/* {createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md">
-          <div className="/75 click-outside-ignore h-[300px] w-[500px] bg-white border ">
-          <LinkGridEditor
-              tableName={linkTable}
-              databaseName={space}
-            ></LinkGridEditor>
-          </div>
-        </div>,
-        document.body
-      )} */}
-      {/* {loading && <Loading />} */}
-      {/* {data.map((v, i) => {
-        const selected = oldValue.find((old) => old.id === v._id)
-        return (
-          <div key={v._id}>
-            <div
-              key={v._id}
-              className="flex cursor-pointer text-sm"
-              onClick={() => {
-                handleClick(v)
-              }}
-            >
-              {v.title} {selected && <CheckIcon className="ml-2 h-5 w-5" />}
-            </div>
-            <Separator className="my-2" />
-          </div>
-        )
-      })} */}
-    </>
+    <Popover open={open}>
+      <PopoverTrigger>
+        <div />
+      </PopoverTrigger>
+      <PopoverContent
+        className="click-outside-ignore z-[10000] w-auto p-0 border-0 shadow-none bg-transparent"
+        align="start"
+        sideOffset={-6}
+        alignOffset={-9}
+      >
+        <_LinkCellEditor
+          tableName={linkTable}
+          databaseName={space}
+          value={oldValue}
+          onChange={handleChange}
+          onFinishedEditing={handleFinishedEditing}
+          onCancelEditing={handleCancelEditing}
+        />
+      </PopoverContent>
+    </Popover>
   )
 }
 

@@ -35,10 +35,55 @@ All view types share these core properties in the `IView` object:
 
 Specific settings for the `grid` type:
 
-| Property        | Type                     | Description                                                           |
-| :-------------- | :----------------------- | :-------------------------------------------------------------------- |
-| `fieldWidthMap` | `Record<string, number>` | Mapping of field IDs (`columnName`) to their column widths in pixels. |
-| `freezeColumns` | `number`                 | Number of columns to freeze from the left side.                       |
+| Property        | Type                               | Description                                                           |
+| :-------------- | :--------------------------------- | :-------------------------------------------------------------------- |
+| `fieldWidthMap` | `Record<string, number>`           | Mapping of field IDs (`columnName`) to their column widths in pixels. |
+| `freezeColumns` | `number`                           | Number of columns to freeze from the left side.                       |
+| `columnStats`   | `Record<string, ColumnStatConfig>` | Column statistics configuration (see below).                          |
+
+### Column Statistics Configuration
+
+The `columnStats` property allows you to display summary statistics at the bottom of each column. Each key is a field ID (`columnName`), and the value is a `ColumnStatConfig` object:
+
+| Property    | Type             | Description                                                |
+| :---------- | :--------------- | :--------------------------------------------------------- |
+| `type`      | `ColumnStatType` | The type of statistic to display.                          |
+| `precision` | `number`         | Number of decimal places for numeric results (default: 2). |
+
+#### Supported Statistic Types
+
+| Type               | Description                                                  | Applicable Field Types         |
+| :----------------- | :----------------------------------------------------------- | :----------------------------- |
+| `countAll`         | Count all rows                                               | All types except `checkbox`    |
+| `countValues`      | Count values (for multi-value fields, counts array elements) | All types except `checkbox`    |
+| `countUnique`      | Count unique values                                          | All types except `checkbox`    |
+| `countEmpty`       | Count empty values                                           | All types except `checkbox`    |
+| `countNotEmpty`    | Count non-empty values                                       | All types except `checkbox`    |
+| `checked`          | Count checked (true) values                                  | `checkbox`                     |
+| `unchecked`        | Count unchecked (false) values                               | `checkbox`                     |
+| `percentEmpty`     | Percentage of empty values                                   | All types except `checkbox`    |
+| `percentNotEmpty`  | Percentage of non-empty values                               | All types except `checkbox`    |
+| `percentChecked`   | Percentage of checked values                                 | `checkbox`                     |
+| `percentUnchecked` | Percentage of unchecked values                               | `checkbox`                     |
+| `sum`              | Sum of numeric values                                        | `number`, `rating`             |
+| `avg`              | Average of numeric values                                    | `number`, `rating`, `checkbox` |
+| `min`              | Minimum value                                                | `number`, `rating`, `date`     |
+| `max`              | Maximum value                                                | `number`, `rating`, `date`     |
+| `median`           | Median value                                                 | `number`, `rating`             |
+| `stdDev`           | Standard deviation                                           | `number`, `rating`             |
+| `range`            | Date range (days)                                            | `date`                         |
+
+#### Example
+
+```json
+{
+  "columnStats": {
+    "price": { "type": "sum", "precision": 2 },
+    "quantity": { "type": "avg" },
+    "completed": { "type": "percentChecked" }
+  }
+}
+```
 
 ---
 
