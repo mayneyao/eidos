@@ -16,7 +16,6 @@ import {
   getSupportedStats,
   type ColumnStatConfig,
 } from "@/packages/core/types/IColumnStats"
-import { useClickAway } from "ahooks"
 import {
   ArrowDownWideNarrowIcon,
   ArrowLeftToLine,
@@ -28,6 +27,7 @@ import {
   GripVerticalIcon,
   Settings2,
   Trash2,
+  SigmaIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useLayer } from "react-laag"
@@ -104,8 +104,8 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
 
   const { isView } = useContext(TableContext)
   const isOpen = menu !== undefined
-  const ref = useRef<HTMLDivElement>(null)
-  const ref2 = useRef<HTMLDivElement>(null)
+  const ref = useRef<HTMLDivElement | null>(null)
+  const ref2 = useRef<HTMLDivElement | null>(null)
 
   // Clear submenu state when parent menu closes
   useEffect(() => {
@@ -287,19 +287,54 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   // Submenu state
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null)
   const submenuTriggerRef = useRef<HTMLDivElement>(null)
-  const submenuRef = useRef<HTMLDivElement>(null)
+  const submenuRef = useRef<HTMLDivElement | null>(null)
   const [submenuPos, setSubmenuPos] = useState<{
     top: number
     left: number
   } | null>(null)
 
-  useClickAway(
-    () => {
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleOutsideClick = (e: Event) => {
+      // Ignore clicks on elements that should be ignored
+      const ignoreElements = document.querySelectorAll(".click-outside-ignore")
+      if (
+        Array.from(ignoreElements).some((node) =>
+          node.contains(e.target as Node)
+        )
+      ) {
+        return
+      }
+
+      // Check if click is inside current menu or submenu
+      if (
+        ref2.current?.contains(e.target as Node) ||
+        submenuRef.current?.contains(e.target as Node)
+      ) {
+        return
+      }
+
       setMenu(undefined)
-    },
-    [ref, ref2, submenuRef],
-    ["mousedown", "touchstart"]
-  )
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMenu(undefined)
+      }
+    }
+
+    // Use capture phase to ensure we catch the event before it's stopped by stopPropagation
+    document.addEventListener("mousedown", handleOutsideClick, true)
+    document.addEventListener("touchstart", handleOutsideClick, true)
+    document.addEventListener("keydown", handleKeyDown, true)
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick, true)
+      document.removeEventListener("touchstart", handleOutsideClick, true)
+      document.removeEventListener("keydown", handleKeyDown, true)
+    }
+  }, [isOpen, setMenu])
 
   // Safe triangle: track mouse position and close intent
   const mousePos = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
@@ -474,6 +509,21 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
         },
       ],
     },
+    // Stat config - submenu (grouped by Count/Percent/More options)
+    ...(supportedStats.length > 0
+      ? [
+          {
+            id: "stats" as const,
+            items: [
+              {
+                icon: SigmaIcon,
+                label: t("table.columnStats"),
+                hasSubmenu: true,
+              },
+            ],
+          },
+        ]
+      : []),
     {
       id: "sort",
       items: [
@@ -518,23 +568,6 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
         },
       ],
     },
-    // Stat config - submenu (grouped by Count/Percent/More options)
-    ...(supportedStats.length > 0
-      ? [
-          {
-            id: "stats" as const,
-            items: [
-              {
-                icon: () => (
-                  <span className="mr-2 w-4 text-center text-xs">∑</span>
-                ),
-                label: t("table.columnStats"),
-                hasSubmenu: true,
-              },
-            ],
-          },
-        ]
-      : []),
     {
       id: "delete",
       items:
@@ -553,7 +586,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   ]
 
   return (
-    <div ref={ref}>
+    <div>
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         {renderLayer(
           <div
@@ -567,8 +600,13 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                 "animate-in fade-in zoom-in-95 duration-100 origin-top-left"
             )}
             onMouseMoveCapture={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            ref={(node) => {
+              layerProps.ref(node)
+              ref2.current = node
+            }}
           >
-            <div ref={ref2}>
+            <div>
               {/* Field Name Edit Section */}
               <div className="px-2 py-1.5 mb-0.5">
                 <div className="flex items-center gap-1.5 mb-1.5">
@@ -736,6 +774,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
               setActiveSubmenu("stats")
             }}
             onMouseLeave={() => setActiveSubmenu(null)}
+            onMouseDown={(e) => e.stopPropagation()}
           >
             {statSubmenuGroups.map((subGroup, sgIndex) => (
               <div key={sgIndex}>
