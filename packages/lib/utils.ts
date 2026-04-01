@@ -194,6 +194,7 @@ export const SQLITE_RESERVED_KEYWORDS = [
   "QUERY",
   "RAISE",
   "RANGE",
+  "RANK", // FTS5 reserved (built-in rank column for relevance scoring)
   "RECURSIVE",
   "REFERENCES",
   "REGEXP",
