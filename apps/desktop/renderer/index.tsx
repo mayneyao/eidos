@@ -1,6 +1,8 @@
 import React from "react"
 import ReactDOM from "react-dom/client"
 
+import "prismjs"
+
 import "@/locales/i18n"
 // space
 

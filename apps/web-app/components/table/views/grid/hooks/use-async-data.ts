@@ -53,6 +53,9 @@ export function useAsyncData<TRowType>(data: {
   gridRef: MutableRefObject<DataEditorRef | null>
   viewCount: number
   view: IView
+  // Stats refresh callbacks
+  refreshAllStats?: () => void
+  refreshColumnStat?: (columnName: string) => void
 }): Pick<
   DataEditorProps,
   | "getCellContent"
@@ -74,6 +77,8 @@ export function useAsyncData<TRowType>(data: {
     gridRef,
     maxConcurrency,
     view,
+    refreshAllStats,
+    refreshColumnStat,
   } = data
   const tableId = view.table_id
   const isView = tableName.startsWith("vw_")
@@ -451,6 +456,8 @@ export function useAsyncData<TRowType>(data: {
       dataRef,
       rowIdsRef,
       getRowDataByIndex,
+      refreshAllStats,
+      refreshColumnStat,
     })
 
   return {
