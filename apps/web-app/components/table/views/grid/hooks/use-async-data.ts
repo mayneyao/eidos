@@ -135,7 +135,7 @@ export function useAsyncData<TRowType>(data: {
         if (isUrlCell) {
           return {
             ...cell,
-            readonly: true,
+            readonly: isReadOnly,
             allowOverlay: true,
             onClickUri: (args: BaseGridMouseEventArgs) => {
               if (cell.data.startsWith("/")) {

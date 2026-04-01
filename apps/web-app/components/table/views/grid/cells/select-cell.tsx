@@ -25,7 +25,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { SelectOptionItem } from "@/components/table/cell-editor/common"
 
 import { roundedRect } from "./helper"
 
@@ -38,28 +37,63 @@ interface SelectCellProps {
 
 export type SelectCell = CustomCell<SelectCellProps>
 
-export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
-  const { value: cell, onFinishedEditing, initialValue, theme } = p
-  const { allowedValues, value: valueIn } = cell.data
+interface SelectEditorProps {
+  value: string | null
+  allowedValues: readonly SelectOption[]
+  themeName: string
+  onFinishedEditing: (value: string | null) => void
+  onCancelEditing: () => void
+}
 
-  const themeName = (theme as any).name
+function SelectEditor(props: SelectEditorProps) {
+  const {
+    value: valueIn,
+    allowedValues,
+    themeName,
+    onFinishedEditing,
+    onCancelEditing,
+  } = props
+
+  const [open, setOpen] = React.useState(true)
+  const [searchValue, setSearchValue] = React.useState("")
+  const [selectedValue, setSelectedValue] = React.useState<string | null>(
+    valueIn
+  )
+
   const oldOptionName = allowedValues.find((item) => item.id == valueIn)?.name
   const nextColorName = SelectField.getNextAvailableColor([...allowedValues])
 
-  const handleSelect = (value: string) => {
-    setValue(value)
-    onFinishedEditing({
-      ...cell,
-      data: {
-        ...cell.data,
-        value,
-      },
-    })
+  const handleSave = React.useCallback(() => {
     setOpen(false)
+    onFinishedEditing(selectedValue)
+  }, [selectedValue, onFinishedEditing])
+
+  const handleCancel = React.useCallback(() => {
+    setOpen(false)
+    onCancelEditing()
+  }, [onCancelEditing])
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Escape to cancel editing
+    if (e.key === "Escape") {
+      e.preventDefault()
+      e.stopPropagation()
+      handleCancel()
+      return
+    }
+
+    // Enter to finish editing
+    if (e.key === "Enter") {
+      return
+    }
   }
-  const [open, setOpen] = React.useState(true)
-  //  input
-  const [value, setValue] = React.useState("")
+
+  const handleSelect = (optionId: string) => {
+    setSelectedValue(optionId)
+    // 选择后立即保存（单选的常规交互）
+    setOpen(false)
+    onFinishedEditing(optionId)
+  }
 
   return (
     <Popover open={open}>
@@ -67,71 +101,121 @@ export const Editor: ReturnType<ProvideEditorCallback<SelectCell>> = (p) => {
         <div />
       </PopoverTrigger>
       <PopoverContent
-        // z-index 10000 > gdg editor portal z index
-        className="click-outside-ignore z-[10000] w-[300px] p-0"
+        className="click-outside-ignore z-[10000] w-[240px] p-0 border-0 shadow-none bg-transparent"
         align="start"
         sideOffset={-6}
         alignOffset={-9}
-        // onMouseDownCapture={console.log}
-        asChild={true}
+        onPointerDownOutside={() => {
+          handleSave()
+        }}
       >
-        <Command>
-          <CommandInput
-            placeholder="Search Option..."
-            // value={value}
-            onValueChange={setValue}
-          />
-          <CommandList
-            className={cn("max-h-[400px]", {
-              "overflow-y-scroll": allowedValues.length * 32 > 400,
-            })}
-          >
-            <CommandEmpty>Create some options</CommandEmpty>
-            <CommandGroup className="h-full">
-              {allowedValues.map((option) => (
-                <CommandItem
-                  key={option.id}
-                  value={option.name}
-                  onSelect={(currentValue) => {
-                    handleSelect(
-                      currentValue === oldOptionName ? "" : option.id
-                    )
-                  }}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      valueIn === option.id ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  <SelectOptionItem theme={themeName} option={option} />
-                </CommandItem>
-              ))}
-              {Boolean(value.length) &&
-                allowedValues.findIndex((item) => item.name == value) == -1 && (
-                  <CommandItem
-                    key={value}
-                    className="flex items-center gap-2"
-                    value={value}
-                    autoFocus
-                    onSelect={(currentValue) => {
-                      handleSelect(currentValue)
-                    }}
-                  >
-                    <span>Create</span>
-                    <SelectOptionItem
-                      theme={themeName}
-                      option={{
-                        id: value,
-                        name: value,
-                        color: nextColorName,
+        <div
+          className="bg-popover rounded-lg border shadow-lg overflow-hidden flex flex-col click-outside-ignore"
+          onKeyDown={handleKeyDown}
+        >
+          <Command className="[&_[cmdk-input-wrapper]]:px-2.5 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input]]:h-7">
+            <CommandInput
+              placeholder="Search..."
+              value={searchValue}
+              onValueChange={setSearchValue}
+              className="border-0 focus:ring-0 text-sm"
+            />
+            <CommandList className="max-h-[220px] overflow-y-auto">
+              <CommandEmpty className="py-4 text-xs text-muted-foreground text-center">
+                No options
+              </CommandEmpty>
+              <CommandGroup className="px-1 pb-1">
+                {allowedValues.map((option) => {
+                  const isSelected = selectedValue === option.id
+                  const bgColor = SelectField.getColorValue(
+                    option.color,
+                    themeName as any
+                  )
+                  return (
+                    <CommandItem
+                      key={option.id}
+                      value={option.name}
+                      onSelect={(currentValue) => {
+                        handleSelect(
+                          currentValue === oldOptionName ? "" : option.id
+                        )
                       }}
-                    />
-                  </CommandItem>
-                )}
-            </CommandGroup>
-          </CommandList>
-        </Command>
+                      className={cn(
+                        "flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer",
+                        "transition-colors duration-100",
+                        isSelected
+                          ? "bg-accent text-accent-foreground"
+                          : "hover:bg-muted"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "w-2 h-2 rounded-full shrink-0",
+                          isSelected && "ring-1 ring-current"
+                        )}
+                        style={{ backgroundColor: bgColor }}
+                      />
+
+                      <span className="flex-1 truncate text-sm">
+                        {option.name}
+                      </span>
+
+                      <Check
+                        className={cn(
+                          "h-3 w-3 shrink-0",
+                          isSelected ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                    </CommandItem>
+                  )
+                })}
+
+                {Boolean(searchValue.length) &&
+                  allowedValues.findIndex((item) => item.name == searchValue) ==
+                    -1 && (
+                    <CommandItem
+                      key={searchValue}
+                      value={searchValue}
+                      autoFocus
+                      onSelect={(currentValue) => {
+                        handleSelect(currentValue)
+                      }}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer mt-1 border-t border-dashed border-border/30 pt-1.5"
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{
+                          backgroundColor: SelectField.getColorValue(
+                            nextColorName,
+                            themeName as any
+                          ),
+                        }}
+                      />
+                      <span className="flex-1 truncate text-sm">
+                        Create "{searchValue}"
+                      </span>
+                    </CommandItem>
+                  )}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between px-2.5 py-1.5 border-t bg-muted/30 text-[10px] text-muted-foreground shrink-0">
+            <span>{allowedValues.length}</span>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1 rounded bg-muted border text-[9px] font-sans">
+                ↵
+              </kbd>
+              <span>save</span>
+              <span className="mx-0.5">·</span>
+              <kbd className="px-1 rounded bg-muted border text-[9px] font-sans">
+                Esc
+              </kbd>
+              <span>cancel</span>
+            </span>
+          </div>
+        </div>
       </PopoverContent>
     </Popover>
   )
@@ -145,8 +229,6 @@ const renderer: CustomRenderer<SelectCell> = {
     const { value, allowedValues } = cell.data
     const displayValue =
       allowedValues.find((t) => t.id === value)?.name ?? value ?? ""
-    // if (!value || !displayValue) {
-    // if has value but no displayValue, it's means the value is not in allowedValues, we will display a blank box, we don't delete the value, let user to delete it
     if (!value) {
       return true
     }
@@ -190,7 +272,34 @@ const renderer: CustomRenderer<SelectCell> = {
     return true
   },
   provideEditor: () => (p) => {
-    return <Editor {...p} />
+    const { value: cell, onFinishedEditing, theme } = p
+    const { allowedValues, value: valueIn } = cell.data
+    const themeName = (theme as any).name
+
+    const handleFinishedEditing = (finalValue: string | null) => {
+      const newCell = {
+        ...cell,
+        data: {
+          ...cell.data,
+          value: finalValue,
+        },
+      }
+      onFinishedEditing(newCell, [0, 1])
+    }
+
+    const handleCancelEditing = () => {
+      onFinishedEditing(undefined, [0, 0])
+    }
+
+    return (
+      <SelectEditor
+        value={valueIn}
+        allowedValues={allowedValues}
+        themeName={themeName}
+        onFinishedEditing={handleFinishedEditing}
+        onCancelEditing={handleCancelEditing}
+      />
+    )
   },
 
   onPaste: (v, d) => {
