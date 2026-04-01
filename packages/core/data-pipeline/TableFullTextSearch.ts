@@ -1,6 +1,13 @@
 import type { DataSpace } from "../data-space"
 import { rewriteQueryWithRowId } from "../sqlite/sql-view-query"
 
+/**
+ * Threshold for automatic FTS rebuild when adding columns.
+ * Tables with row count exceeding this will skip auto-rebuild
+ * and prompt user to manually rebuild FTS to avoid performance issues.
+ */
+const AUTO_REBUILD_ROW_THRESHOLD = 10000
+
 export class TableFullTextSearch {
   constructor(
     private dataspace: DataSpace,
@@ -231,6 +238,14 @@ export class TableFullTextSearch {
       console.warn(`Skip error updating trigger for table ${tableName}:`, error)
       return
     }
+
+    // Check if FTS schema needs rebuild (e.g., columns mismatch)
+    const needsRebuild = await this.needsRebuild(tableName)
+    if (needsRebuild) {
+      await this.rebuildFTS(tableName)
+      return
+    }
+
     const triggerNames = [
       `fts_${tableName}_ai`,
       `fts_${tableName}_ad`,
@@ -274,6 +289,35 @@ export class TableFullTextSearch {
       `INSERT INTO ${ftsTableName}(${ftsTableName}) VALUES('delete-all')`
     )
     console.log(`FTS table ${ftsTableName} has been cleared`)
+  }
+
+  /**
+   * Drop only FTS triggers without dropping the FTS table.
+   * Useful when modifying table schema (e.g., dropping columns).
+   */
+  async dropFTSTriggers(tableName: string) {
+    if (!this.enableFTS) {
+      return
+    }
+
+    try {
+      const hasFTS = await this.hasFTS(tableName)
+      if (!hasFTS) {
+        return
+      }
+    } catch (error) {
+      return
+    }
+
+    const triggerNames = [
+      `fts_${tableName}_ai`,
+      `fts_${tableName}_ad`,
+      `fts_${tableName}_au`,
+    ]
+
+    for (const triggerName of triggerNames) {
+      await this.dataspace.db.exec(`DROP TRIGGER IF EXISTS ${triggerName}`)
+    }
   }
 
   async dropFTS(tableName: string) {
@@ -329,13 +373,161 @@ export class TableFullTextSearch {
     }
   }
 
+  /**
+   * Check if FTS table needs rebuild (e.g., when new columns are added)
+   * Compares the columns in the original table with the FTS table
+   */
+  async needsRebuild(tableName: string): Promise<boolean> {
+    if (!this.enableFTS) {
+      return false
+    }
+
+    try {
+      const hasFTS = await this.hasFTS(tableName)
+      if (!hasFTS) {
+        return false
+      }
+    } catch (error) {
+      return false
+    }
+
+    const ftsTableName = `fts_${tableName}`
+
+    // Get columns from original table
+    const tableInfo = await this.dataspace.db.selectObjects(
+      `PRAGMA table_info(${tableName})`
+    )
+    const tableColumns = tableInfo
+      .map((col: any) => col.name)
+      .filter(
+        (name: string) =>
+          name.toLowerCase() !== "rowid" &&
+          !name.endsWith("__vec") &&
+          !name.endsWith("__vec_meta")
+      )
+      .sort()
+
+    // Get columns from FTS table (FTS5 stores column info in sqlite_master)
+    const ftsInfo = await this.dataspace.db.selectObjects(
+      `SELECT sql FROM sqlite_master WHERE type='table' AND name=?`,
+      [ftsTableName]
+    )
+
+    if (ftsInfo.length === 0) {
+      return true
+    }
+
+    // Parse columns from CREATE VIRTUAL TABLE statement
+    const ftsSql = ftsInfo[0].sql as string
+    const match = ftsSql.match(/USING fts5\((.+?), content='/)
+    if (!match) {
+      return true
+    }
+
+    const ftsColumns = match[1]
+      .split(",")
+      .map((c) => c.trim())
+      .sort()
+
+    // Compare columns
+    if (tableColumns.length !== ftsColumns.length) {
+      return true
+    }
+
+    for (let i = 0; i < tableColumns.length; i++) {
+      if (tableColumns[i] !== ftsColumns[i]) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  /**
+   * Get row count of a table (approximate, uses sqlite table stats if available)
+   */
+  private async getTableRowCount(tableName: string): Promise<number> {
+    try {
+      const result = await this.dataspace.db.selectObjects(
+        `SELECT COUNT(*) as count FROM ${tableName}`
+      )
+      return result[0]?.count as number
+    } catch (error) {
+      console.warn(`Failed to get row count for ${tableName}:`, error)
+      return 0
+    }
+  }
+
+  /**
+   * Check if auto-rebuild should be skipped for large tables.
+   * Returns true if table is small enough for auto-rebuild.
+   */
+  async shouldAutoRebuild(tableName: string): Promise<boolean> {
+    const rowCount = await this.getTableRowCount(tableName)
+    return rowCount <= AUTO_REBUILD_ROW_THRESHOLD
+  }
+
+  /**
+   * Smart FTS schema sync with threshold-based decision.
+   * - Small tables (< threshold): auto rebuild
+   * - Large tables (>= threshold): notify user to manually rebuild
+   * Returns object with rebuild status and message.
+   */
+  async smartEnsureFTSSchema(tableName: string): Promise<{
+    rebuilt: boolean
+    skipped: boolean
+    message?: string
+    rowCount?: number
+  }> {
+    const needsRebuild = await this.needsRebuild(tableName)
+    if (!needsRebuild) {
+      return { rebuilt: false, skipped: false }
+    }
+
+    const rowCount = await this.getTableRowCount(tableName)
+    const canAutoRebuild = rowCount <= AUTO_REBUILD_ROW_THRESHOLD
+
+    if (canAutoRebuild) {
+      await this.rebuildFTS(tableName)
+      return { rebuilt: true, skipped: false, rowCount }
+    } else {
+      // Large table: skip auto-rebuild, notify user
+      const message = `Table has ${rowCount.toLocaleString()} rows. FTS rebuild skipped to avoid performance impact. Please manually rebuild FTS when convenient.`
+      this.dataspace.notify({
+        title: "FTS Sync Deferred",
+        description: message,
+      })
+      return { rebuilt: false, skipped: true, message, rowCount }
+    }
+  }
+
+  /**
+   * Ensure FTS table schema is in sync with the original table.
+   * Only rebuilds if necessary (when columns have changed).
+   * Returns true if rebuild was performed.
+   * @deprecated Use smartEnsureFTSSchema for better UX with large tables
+   */
+  async ensureFTSSchema(tableName: string): Promise<boolean> {
+    const needsRebuild = await this.needsRebuild(tableName)
+    if (needsRebuild) {
+      await this.rebuildFTS(tableName)
+      return true
+    }
+    return false
+  }
+
   async rebuildFTS(tableName: string) {
     if (!this.enableFTS) {
       throw new Error("Full text search is not supported in web mode")
     }
 
+    // Auto-detect if we're already in a transaction
+    const alreadyInTransaction = this.dataspace.db.inTransaction
+
     try {
-      await this.dataspace.db.exec("BEGIN IMMEDIATE TRANSACTION")
+      if (!alreadyInTransaction) {
+        await this.dataspace.db.exec("BEGIN IMMEDIATE TRANSACTION")
+      }
 
       const ftsTableName = `fts_${tableName}`
       const tableExists = await this.dataspace.db.selectObjects(
@@ -362,9 +554,14 @@ export class TableFullTextSearch {
       }
 
       await this.createDynamicFTS(tableName, false, true)
-      await this.dataspace.db.exec("COMMIT")
+
+      if (!alreadyInTransaction) {
+        await this.dataspace.db.exec("COMMIT")
+      }
     } catch (error) {
-      await this.dataspace.db.exec("ROLLBACK")
+      if (!alreadyInTransaction) {
+        await this.dataspace.db.exec("ROLLBACK")
+      }
       this.dataspace.notify({
         title: "Error",
         description: "Failed to rebuild FTS table",
