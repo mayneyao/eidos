@@ -52,7 +52,7 @@ import {
 } from "./services/cli-installer"
 import { getSpaceRegistry, migrateFromLegacyConfig } from "./space-registry"
 import { AppUpdater } from "./updater"
-import { createWindow } from "./window-manager/createWindow"
+import { createWindow, windowManager } from "./window-manager/createWindow"
 import { convertToElectronMenuTemplateWithIds } from "./window-manager/menu-utils"
 import { LicenseManager } from "./license"
 import { registerElectronFetchIpc } from "./lib/electron-fetch"
@@ -541,6 +541,79 @@ ipcMain.handle("open-url", async (event, url) => {
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
+    }
+  }
+})
+
+ipcMain.handle(
+  "browser-view:open",
+  (_, viewId: string, url: string, bounds) => {
+    windowManager?.browserViewManager.create(viewId, url, bounds)
+    return { success: true }
+  }
+)
+
+ipcMain.handle("browser-view:update-bounds", (_, viewId: string, bounds) => {
+  windowManager?.browserViewManager.updateBounds(viewId, bounds)
+  return { success: true }
+})
+
+ipcMain.handle("browser-view:close", (_, viewId: string) => {
+  windowManager?.browserViewManager.close(viewId)
+  return { success: true }
+})
+
+ipcMain.handle("browser-view:close-all", () => {
+  windowManager?.browserViewManager.closeAll()
+  return { success: true }
+})
+
+ipcMain.handle("browser-view:reload", (_, viewId: string) => {
+  windowManager?.browserViewManager.reload(viewId)
+  return { success: true }
+})
+
+ipcMain.handle("browser-view:go-back", (_, viewId: string) => {
+  windowManager?.browserViewManager.goBack(viewId)
+  return { success: true }
+})
+
+ipcMain.handle("browser-view:go-forward", (_, viewId: string) => {
+  windowManager?.browserViewManager.goForward(viewId)
+  return { success: true }
+})
+
+ipcMain.handle("browser-view:load-url", (_, viewId: string, url: string) => {
+  windowManager?.browserViewManager.loadURL(viewId, url)
+  return { success: true }
+})
+
+ipcMain.handle(
+  "browser-view:set-visible",
+  (_, viewId: string, visible: boolean) => {
+    windowManager?.browserViewManager.setVisible(viewId, visible)
+    return { success: true }
+  }
+)
+
+ipcMain.handle("browser-view:capture-page", async (_, viewId: string) => {
+  const dataUrl = await windowManager?.browserViewManager.capturePage(viewId)
+  return { success: !!dataUrl, dataUrl }
+})
+
+ipcMain.on("browser-view:close-all-sync", () => {
+  windowManager?.browserViewManager.closeAll()
+})
+
+ipcMain.handle("pipeline:run", async (_, steps, args, options) => {
+  try {
+    const { result, logs, rendererLogs } =
+      await windowManager!.pipelineRunner.run(steps, args, options)
+    return { success: true, result, logs, rendererLogs }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
     }
   }
 })

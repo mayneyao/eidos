@@ -6,6 +6,7 @@ import {
   Bot,
   Clock3Icon,
   FilePlus2Icon,
+  Globe,
   Keyboard,
   LayoutGrid,
   Palette,
@@ -35,6 +36,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
@@ -116,10 +118,28 @@ export function CommandDialogDemo() {
   const today = getToday()
   const goToday = goto(`/journals/${today}`)
   const goShare = goto("/share")
+  const goPipeline = goto("/pipeline")
 
   const switchTheme = () => {
     const newTheme = resolvedTheme === "light" ? "dark" : "light"
     setTheme(newTheme)
+  }
+
+  const isUrlLike = (value: string) => {
+    if (!value || value.length < 3) return false
+    // Matches https://example.com, http://example.com, or domain-like strings like google.com
+    return /^https?:\/\/[^\s]+|^[a-z0-9]+([\-.]{1}[a-z0-9]+)*\.[a-z]{2,}(:[0-9]{1,5})?(\/.*)?$/i.test(
+      value.trim()
+    )
+  }
+
+  const { navigate } = useRouterAdapter()
+  const openUrlInWebview = () => {
+    const trimmed = input.trim()
+    setCmdkOpen(false)
+    navigate(`/webview?url=${encodeURIComponent(trimmed)}`, {
+      target: "_blank",
+    })
   }
 
   const toggleGodMode = () => {
@@ -569,6 +589,20 @@ export function CommandDialogDemo() {
               <>
                 {!isInkServiceMode && (
                   <CommandGroup heading={t("cmdk.suggestions")}>
+                    {isUrlLike(input) && (
+                      <CommandItem
+                        onSelect={openUrlInWebview}
+                        value={`open ${input} in webview`}
+                      >
+                        <Globe className="mr-2 h-4 w-4" />
+                        <div className="flex flex-col">
+                          <span>Open "{input.trim()}" in webview</span>
+                          <span className="text-xs opacity-60">
+                            Open the URL in a built-in webview
+                          </span>
+                        </div>
+                      </CommandItem>
+                    )}
                     <CommandItem onSelect={goToday} value="today">
                       <Clock3Icon className="mr-2 h-4 w-4" />
                       <span>{t("common.today")}</span>
@@ -581,6 +615,15 @@ export function CommandDialogDemo() {
                       <Bot className="mr-2 h-4 w-4" />
                       <span>{t("common.ai")}</span>
                     </CommandItem>
+                    {/* <CommandItem onSelect={goPipeline} value="pipeline runner">
+                      <Terminal className="mr-2 h-4 w-4" />
+                      <div className="flex flex-col">
+                        <span>Pipeline Runner</span>
+                        <span className="text-xs opacity-60">
+                          Run automation pipelines in the built-in browser
+                        </span>
+                      </div>
+                    </CommandItem> */}
                   </CommandGroup>
                 )}
                 <CommandSeparator />

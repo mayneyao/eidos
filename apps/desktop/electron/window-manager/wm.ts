@@ -7,6 +7,8 @@ import type { WebContents, WebContentsViewConstructorOptions } from "electron"
 import { BrowserWindow, WebContentsView, shell } from "electron"
 import path from "path"
 import { getExtensionByUrl } from "../helper"
+import { BrowserViewManager } from "./browser-view-manager"
+import { PipelineRunner } from "../services/pipeline-runner"
 
 export const defaultViewOptions: WebContentsViewConstructorOptions = {
   webPreferences: {
@@ -21,6 +23,8 @@ export class WindowManager {
   currentTab: string | null = null
   private openTabs: Map<string, WebContentsView> = new Map()
   private win: BrowserWindow
+  browserViewManager: BrowserViewManager
+  pipelineRunner: PipelineRunner
 
   get tabs() {
     return Array.from(this.openTabs.keys())
@@ -29,6 +33,8 @@ export class WindowManager {
     this.currentTab = null
     this.openTabs = new Map()
     this.win = win
+    this.browserViewManager = new BrowserViewManager(win)
+    this.pipelineRunner = new PipelineRunner(win)
     this.setWebContents(win.webContents)
   }
 

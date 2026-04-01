@@ -8,6 +8,8 @@ import { PORT } from "../main"
 import { setupGeolocationHandler } from "../services/geolocation"
 import { WindowManager } from "./wm"
 
+export let windowManager: WindowManager | null = null
+
 const defaultViewOptions: WebContentsViewConstructorOptions = {
   webPreferences: {
     preload: path.join(__dirname, "./preload.mjs"),
@@ -80,13 +82,14 @@ export function createWindow(spaceId?: string) {
   win.on("resize", persistWindowState)
   win.on("move", persistWindowState)
   win.on("close", saveWindowState)
-  const windowManager = new WindowManager(win)
+  const wm = new WindowManager(win)
+  windowManager = wm
 
   // Set up geolocation permission handler
   setupGeolocationHandler(win)
 
   ipcMain.handle("get-open-tabs", () => {
-    return windowManager.tabs
+    return wm.tabs
   })
 
   if (spaceId) {
@@ -140,6 +143,24 @@ export function createWindow(spaceId?: string) {
   win.on("unmaximize", () =>
     win.webContents.send("window-state-changed", "restored")
   )
+
+  // Intercept reload shortcuts to ensure BrowserViews are cleaned up before reload
+  win.webContents.on("before-input-event", (event, input) => {
+    const isReloadShortcut =
+      (input.key.toLowerCase() === "r" && (input.control || input.meta)) ||
+      input.key === "F5"
+
+    if (isReloadShortcut && !input.alt) {
+      event.preventDefault()
+      wm.browserViewManager.closeAll()
+      win.webContents.reload()
+    }
+  })
+
+  // Also clean up BrowserViews when the renderer crashes or is destroyed
+  win.webContents.on("render-process-gone", () => {
+    wm.browserViewManager.closeAll()
+  })
 
   return win
 }
