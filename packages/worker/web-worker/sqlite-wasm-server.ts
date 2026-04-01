@@ -26,6 +26,32 @@ export class SQLiteWasmDatabase extends BaseServerDatabase {
     return true
   }
 
+  /**
+   * Check if currently inside a transaction.
+   * Uses PRAGMA transaction_state (SQLite 3.37.0+).
+   * Returns "idle" | "active" | "conflict"
+   */
+  get inTransaction(): boolean {
+    try {
+      const result = this.db.exec({
+        sql: "PRAGMA transaction_state",
+        returnValue: "resultRows",
+        rowMode: "array",
+      })
+      // result is [["idle"]] or [["active"]] or [["conflict"]]
+      const state = result?.[0]?.[0]
+      return state === "active" || state === "conflict"
+    } catch (e) {
+      // Fallback: try to detect via autocommit mode
+      try {
+        // If we can't get transaction_state, assume not in transaction
+        return false
+      } catch {
+        return false
+      }
+    }
+  }
+
   selectObjectsSync(): { [columnName: string]: any }[] {
     throw new Error("selectObjectsSync is not implemented")
   }

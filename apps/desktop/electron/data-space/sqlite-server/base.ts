@@ -30,6 +30,14 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
     return !this.isSyncEnabled
   }
 
+  /**
+   * Check if currently inside a transaction.
+   * Uses better-sqlite3's inTransaction property.
+   */
+  get inTransaction(): boolean {
+    return this.db.inTransaction
+  }
+
   // This will be set by the initializer
   protected isSyncEnabled = false
 
