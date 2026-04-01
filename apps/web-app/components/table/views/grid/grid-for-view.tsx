@@ -71,9 +71,6 @@ export function GridViewForView(props: IGridProps) {
   const r = containerRef.current?.querySelector(".dvn-scroll-inner")
   const hasScroll = r && r?.scrollWidth > r?.clientWidth
 
-  // Bottom stats bar scroll sync state
-  const [scrollLeft, setScrollLeft] = React.useState(0)
-
   const { currentView: _currentView } = useCurrentView<IGridViewProperties>()
   const currentView = props.view || _currentView
 
@@ -139,8 +136,6 @@ export function GridViewForView(props: IGridProps) {
     },
     [showColumns]
   )
-  const { isReadOnly } = useContext(TableContext)
-
   const {
     getCellContent,
     onVisibleRegionChanged: _onVisibleRegionChanged,
@@ -163,7 +158,6 @@ export function GridViewForView(props: IGridProps) {
     refreshColumnStat,
   })
 
-  // Wrap onVisibleRegionChanged to sync bottom stats bar scrolling
   const onVisibleRegionChanged = useCallback(
     (
       range: Rectangle,
@@ -172,9 +166,6 @@ export function GridViewForView(props: IGridProps) {
       extras: { selected?: Item; freezeRegion?: Rectangle }
     ) => {
       _onVisibleRegionChanged?.(range, tx, ty, extras)
-      // Sync scroll position to bottom stats bar
-      // tx is negative, indicating content moved left
-      setScrollLeft(Math.max(0, -tx))
     },
     [_onVisibleRegionChanged]
   )
@@ -393,6 +384,8 @@ export function GridViewForView(props: IGridProps) {
           // fillHandle={true}
           columns={columns ?? []}
           rows={viewCount}
+          // Show trailing row so column stats can be displayed via trailingRowOptions
+          onRowAppended={() => {}}
         />
       </div>
     </div>
