@@ -606,7 +606,7 @@ export function CommandDialogDemo() {
                     <TableIcon className="mr-2 h-4 w-4" />
                     <div className="flex flex-col">
                       <span>Import Table Schema</span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs opacity-60">
                         Paste a base64 schema to recreate a table
                       </span>
                     </div>
@@ -624,7 +624,7 @@ export function CommandDialogDemo() {
                         <RefreshCcwIcon className="mr-2 h-4 w-4" />
                         <div className="flex flex-col">
                           <span>{t("cmdk.rebuildFTS")}</span>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs opacity-60">
                             {t("cmdk.rebuildFTS.desc")}
                           </span>
                         </div>
@@ -641,7 +641,7 @@ export function CommandDialogDemo() {
                         )}
                         <div className="flex flex-col">
                           <span>{t("cmdk.migrateTableFilePaths")}</span>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs opacity-60">
                             {t("cmdk.migrateTableFilePaths.desc")}
                           </span>
                         </div>
@@ -658,7 +658,7 @@ export function CommandDialogDemo() {
                         )}
                         <div className="flex flex-col">
                           <span>{t("cmdk.fixTableSchema")}</span>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs opacity-60">
                             {t("cmdk.fixTableSchema.desc")}
                           </span>
                         </div>
@@ -682,7 +682,7 @@ export function CommandDialogDemo() {
                         )}
                         <div className="flex flex-col">
                           <span>{t("cmdk.migrateDocPaths")}</span>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs opacity-60">
                             {t("cmdk.migrateDocPaths.desc")}
                           </span>
                         </div>
@@ -705,7 +705,7 @@ export function CommandDialogDemo() {
                 <RefreshCcwIcon className="mr-2 h-4 w-4" />
                 <div className="flex flex-col">
                   <span>{t("cmdk.reload")}</span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs opacity-60">
                     {t("cmdk.reload.desc")}
                   </span>
                 </div>
@@ -723,7 +723,7 @@ export function CommandDialogDemo() {
                 )}
                 <div className="flex flex-col">
                   <span>{t("cmdk.migrateFilePaths")}</span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs opacity-60">
                     {t("cmdk.migrateFilePaths.desc")}
                   </span>
                 </div>
@@ -735,7 +735,7 @@ export function CommandDialogDemo() {
                 <LayoutGrid className="mr-2 h-4 w-4" />
                 <div className="flex flex-col">
                   <span>{t("cmdk.resetTabs", "Reset Sidebar Tabs")}</span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs opacity-60">
                     {t("cmdk.resetTabs.desc", "Reset sidebar tabs to default")}
                   </span>
                 </div>
@@ -764,7 +764,7 @@ export function CommandDialogDemo() {
                 <Terminal className="mr-2 h-4 w-4" />
                 <div className="flex flex-col">
                   <span>{t("cmdk.toggleDevTools", "Toggle DevTools")}</span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs opacity-60">
                     {t(
                       "cmdk.toggleDevTools.desc",
                       "Enable or disable development tools"
@@ -797,7 +797,7 @@ export function CommandDialogDemo() {
                             "Install 'eidos' command in PATH"
                           )}
                     </span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs opacity-60">
                       {isCliInstalled
                         ? t(
                             "cmdk.cli.uninstallDesc",
