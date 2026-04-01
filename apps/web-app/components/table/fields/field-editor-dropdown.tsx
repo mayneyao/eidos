@@ -106,6 +106,13 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   const isOpen = menu !== undefined
   const ref = useRef<HTMLDivElement>(null)
   const ref2 = useRef<HTMLDivElement>(null)
+
+  // Clear submenu state when parent menu closes
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveSubmenu(null)
+    }
+  }, [isOpen])
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
   const [currentColIndex, setCurrentColIndex] = useState<number>()
@@ -285,10 +292,88 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   // Submenu state
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null)
   const submenuTriggerRef = useRef<HTMLDivElement>(null)
+  const submenuRef = useRef<HTMLDivElement>(null)
   const [submenuPos, setSubmenuPos] = useState<{
     top: number
     left: number
   } | null>(null)
+
+  // Safe triangle: track mouse position and close intent
+  const mousePos = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Check if mouse is moving toward the submenu (safe triangle)
+  const isMovingTowardSubmenu = useCallback(() => {
+    if (!submenuRef.current || !submenuTriggerRef.current) return false
+    const submenuRect = submenuRef.current.getBoundingClientRect()
+    const triggerRect = submenuTriggerRef.current.getBoundingClientRect()
+    const { x, y } = mousePos.current
+
+    // The submenu is to the right of the trigger
+    const isRight = submenuRect.left >= triggerRect.left
+
+    if (isRight) {
+      // Safe zone: triangle from mouse position to top-right and bottom-right of trigger
+      // If mouse is between the trigger right edge and the submenu, it's in the safe zone
+      if (x >= triggerRect.left && x <= submenuRect.right) {
+        // Check if mouse Y is within a generous band from trigger top to submenu bottom (or vice versa)
+        const safeTop = Math.min(triggerRect.top, submenuRect.top) - 20
+        const safeBottom = Math.max(triggerRect.bottom, submenuRect.bottom) + 20
+        if (y >= safeTop && y <= safeBottom) {
+          return true
+        }
+      }
+    } else {
+      // Submenu is to the left
+      if (x <= triggerRect.right && x >= submenuRect.left) {
+        const safeTop = Math.min(triggerRect.top, submenuRect.top) - 20
+        const safeBottom = Math.max(triggerRect.bottom, submenuRect.bottom) + 20
+        if (y >= safeTop && y <= safeBottom) {
+          return true
+        }
+      }
+    }
+
+    return false
+  }, [])
+
+  // Schedule closing the submenu with safe-triangle check
+  const scheduleCloseSubmenu = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current)
+    }
+    closeTimerRef.current = setTimeout(() => {
+      // Re-check: if mouse is heading toward submenu, don't close
+      if (isMovingTowardSubmenu()) {
+        // Re-schedule another check
+        scheduleCloseSubmenu()
+        return
+      }
+      setActiveSubmenu(null)
+    }, 200)
+  }, [isMovingTowardSubmenu])
+
+  // Cancel scheduled close (when mouse enters submenu or trigger)
+  const cancelCloseSubmenu = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+  }, [])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current)
+      }
+    }
+  }, [])
+
+  // Track mouse position within the main menu container
+  const handleMenuMouseMove = useCallback((e: React.MouseEvent) => {
+    mousePos.current = { x: e.clientX, y: e.clientY }
+  }, [])
 
   // Calculate submenu position with boundary detection
   const calculateSubmenuPosition = useCallback((triggerRect: DOMRect) => {
@@ -502,7 +587,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
               <Separator className="my-1" />
 
               {/* Menu Groups */}
-              <div className="relative">
+              <div className="relative" onMouseMove={handleMenuMouseMove}>
                 {menuGroups.map((group, groupIndex) =>
                   group.items.length > 0 ? (
                     <div key={group.id}>
@@ -512,6 +597,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                           // Item with submenu (stat config)
                           if (item.hasSubmenu && group.id === "stats") {
                             const handleMouseEnter = () => {
+                              cancelCloseSubmenu()
                               setActiveSubmenu(group.id)
                               // Calculate submenu position with boundary detection
                               if (submenuTriggerRef.current) {
@@ -556,7 +642,12 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                               onClick={
                                 item.dialogTrigger ? undefined : item.onClick
                               }
-                              onMouseEnter={() => setActiveSubmenu(null)}
+                              onMouseEnter={() => {
+                                if (activeSubmenu) {
+                                  // Don't close immediately; schedule with safe-triangle check
+                                  scheduleCloseSubmenu()
+                                }
+                              }}
                             >
                               <item.icon
                                 className={cn(
@@ -634,9 +725,13 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
         submenuPos &&
         createPortal(
           <div
+            ref={submenuRef}
             className="fixed min-w-[180px] rounded-lg bg-popover p-1 shadow-xl border z-[9999]"
             style={{ top: submenuPos.top, left: submenuPos.left }}
-            onMouseEnter={() => setActiveSubmenu("stats")}
+            onMouseEnter={() => {
+              cancelCloseSubmenu()
+              setActiveSubmenu("stats")
+            }}
             onMouseLeave={() => setActiveSubmenu(null)}
           >
             {statSubmenuGroups.map((subGroup, sgIndex) => (
