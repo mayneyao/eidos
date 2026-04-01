@@ -72,20 +72,21 @@ export const FieldItemCard: FC<CardProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className="group mb-0.5 flex gap-1 p-1 text-xs hover:bg-secondary min-w-0"
+      className="group flex items-center gap-1.5 py-2 px-1.5 text-xs hover:bg-secondary min-w-0 rounded-sm"
     >
       <GripVerticalIcon
-        className="cursor-grab opacity-0 group-hover:opacity-60"
-        size={16}
+        className="cursor-grab opacity-0 group-hover:opacity-60 shrink-0"
+        size={15}
         {...attributes}
         {...listeners}
       />
       <div
-        className="flex w-full justify-between pr-2 min-w-0"
+        className="flex w-full items-center justify-between min-w-0 gap-2 pr-1"
         onClick={handleFieldClick}
       >
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <span
+            className="shrink-0 text-muted-foreground"
             dangerouslySetInnerHTML={{
               __html: iconSvgString,
             }}
@@ -94,11 +95,14 @@ export const FieldItemCard: FC<CardProps> = ({
         </div>
         <span
           onClick={(e) => handleToggleHidden(e, id)}
-          className={cn("cursor-pointer", {
-            disabled: id === "title",
-          })}
+          className={cn(
+            "cursor-pointer shrink-0 text-muted-foreground hover:text-foreground",
+            {
+              disabled: id === "title",
+            }
+          )}
         >
-          {isHidden ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
+          {isHidden ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
         </span>
       </div>
     </div>

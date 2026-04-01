@@ -305,11 +305,11 @@ const PropertiesPanel = ({ view }: { view: IView }) => {
   return (
     <div className="flex flex-col h-full -m-3 p-3">
       {/* Actions Header */}
-      <div className="flex items-center justify-between px-0.5 mb-3 shrink-0">
-        <span className="text-xs text-muted-foreground">
+      <div className="flex items-center justify-between px-1.5 pb-2 shrink-0 border-b">
+        <span className="text-[11px] text-muted-foreground pl-[21px]">
           {t("table.view.field.shownInView", "Shown in view")}
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center">
           <Button
             variant="ghost"
             size="xs"
@@ -401,7 +401,7 @@ export const ViewSettings = (props: { view: IView; onClose: () => void }) => {
     >
       <div className="flex h-full flex-col">
         {/* Header */}
-        <div className="flex-none border-b bg-muted/30 px-3 py-2">
+        <div className="flex-none border-b bg-muted/30 px-2 py-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               {showBackButton && (
