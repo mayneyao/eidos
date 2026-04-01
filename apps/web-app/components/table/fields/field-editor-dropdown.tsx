@@ -245,48 +245,43 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
   }, [currentUiColumn, currentView?.properties?.columnStats])
 
   // Update column stat config
-  const handleUpdateColumnStat = (type: ColumnStatType | null) => {
-    if (!currentUiColumn || !currentView) return
+  const handleUpdateColumnStat = useCallback(
+    (type: ColumnStatType | null) => {
+      if (!currentUiColumn || !currentView) return
 
-    const colName = currentUiColumn.table_column_name
-    const currentConfig = currentView.properties?.columnStats || {}
+      const colName = currentUiColumn.table_column_name
+      const currentConfig = currentView.properties?.columnStats || {}
 
-    let newStats: Record<string, ColumnStatConfig>
-    if (type === null) {
-      // Delete config
-      const { [colName]: _, ...rest } = currentConfig
-      newStats = rest
-    } else {
-      // Update or add config
-      newStats = {
-        ...currentConfig,
-        [colName]: {
-          type,
-          precision:
-            type === ColumnStatType.PercentEmpty ||
-            type === ColumnStatType.PercentNotEmpty
-              ? 1
-              : type === ColumnStatType.Avg
+      let newStats: Record<string, ColumnStatConfig>
+      if (type === null) {
+        // Delete config
+        const { [colName]: _, ...rest } = currentConfig
+        newStats = rest
+      } else {
+        // Update or add config
+        newStats = {
+          ...currentConfig,
+          [colName]: {
+            type,
+            precision:
+              type === ColumnStatType.PercentEmpty ||
+              type === ColumnStatType.PercentNotEmpty
                 ? 1
-                : 0,
-        },
+                : type === ColumnStatType.Avg
+                  ? 1
+                  : 0,
+          },
+        }
       }
-    }
 
-    updateView(currentView.id, {
-      properties: {
-        ...currentView.properties,
-        columnStats: newStats,
-      },
-    })
-  }
-
-  useClickAway(
-    () => {
-      setMenu(undefined)
+      updateView(currentView.id, {
+        properties: {
+          ...currentView.properties,
+          columnStats: newStats,
+        },
+      })
     },
-    [ref, ref2],
-    ["mousedown", "touchstart"]
+    [currentUiColumn, currentView, updateView]
   )
 
   // Submenu state
@@ -297,6 +292,14 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
     top: number
     left: number
   } | null>(null)
+
+  useClickAway(
+    () => {
+      setMenu(undefined)
+    },
+    [ref, ref2, submenuRef],
+    ["mousedown", "touchstart"]
+  )
 
   // Safe triangle: track mouse position and close intent
   const mousePos = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
@@ -458,7 +461,7 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
     })
 
     return groups
-  }, [supportedStats, currentStatConfig, t])
+  }, [supportedStats, currentStatConfig, t, handleUpdateColumnStat])
 
   const menuGroups: { id: string; items: IMenuItem[] }[] = [
     {
@@ -748,10 +751,12 @@ export const FieldEditorDropdown = (props: IFieldEditorDropdownProps) => {
                       "pl-2 py-1",
                       subItem.checked && "bg-accent/50"
                     )}
-                    onClick={() => {
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation()
+                      e.preventDefault()
+                      subItem.onClick()
                       setActiveSubmenu(null)
                       setMenu(undefined)
-                      subItem.onClick()
                     }}
                   >
                     {typeof subItem.icon === "string" ? (
