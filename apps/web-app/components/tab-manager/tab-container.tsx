@@ -145,7 +145,7 @@ export function TabContainer({
       ref={containerRef}
     >
       <MemoryRouter initialEntries={[initialUrl]}>
-        <TabProvider value={{ tabId, containerRef }}>
+        <TabProvider value={{ tabId, containerRef, isActive }}>
           <TabUrlSyncer
             tabId={tabId}
             isUpdatingFromUrlRef={isUpdatingFromUrlRef}

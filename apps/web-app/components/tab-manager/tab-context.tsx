@@ -3,6 +3,7 @@ import { createContext, useContext, type RefObject } from "react"
 interface TabContextValue {
   tabId: string
   containerRef: RefObject<HTMLElement> | null
+  isActive: boolean
 }
 
 const TabContext = createContext<TabContextValue | null>(null)

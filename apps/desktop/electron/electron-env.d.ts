@@ -79,6 +79,53 @@ interface Window {
       error?: string
     }>
     openUrl: (url: string) => Promise<void>
+    browserView: {
+      open: (
+        viewId: string,
+        url: string,
+        bounds: { x: number; y: number; width: number; height: number }
+      ) => Promise<{ success: boolean }>
+      updateBounds: (
+        viewId: string,
+        bounds: { x: number; y: number; width: number; height: number }
+      ) => Promise<{ success: boolean }>
+      close: (viewId: string) => Promise<{ success: boolean }>
+      closeAll: () => Promise<{ success: boolean }>
+      reload: (viewId: string) => Promise<{ success: boolean }>
+      goBack: (viewId: string) => Promise<{ success: boolean }>
+      goForward: (viewId: string) => Promise<{ success: boolean }>
+      loadURL: (viewId: string, url: string) => Promise<{ success: boolean }>
+      setVisible: (
+        viewId: string,
+        visible: boolean
+      ) => Promise<{ success: boolean }>
+      capturePage: (
+        viewId: string
+      ) => Promise<{ success: boolean; dataUrl?: string }>
+      onUpdate: (
+        viewId: string,
+        callback: (data: {
+          type: "loading" | "navigate"
+          isLoading?: boolean
+          url?: string
+          canGoBack?: boolean
+          canGoForward?: boolean
+        }) => void
+      ) => () => void
+    }
+    pipeline: {
+      run: (
+        steps: any[],
+        args?: Record<string, any>,
+        options?: { debug?: boolean }
+      ) => Promise<{
+        success: boolean
+        result?: any
+        logs?: string[]
+        rendererLogs?: string[]
+        error?: string
+      }>
+    }
     AI: {
       generateText: (config: {
         model: string

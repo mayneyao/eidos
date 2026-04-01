@@ -56,6 +56,11 @@ const getModelByName = async (modelName: string) => {
 
 // this function must be a sync function, because it will be called in the main process, otherwise window.eidos will be undefined
 function main() {
+  // Ensure BrowserViews are cleaned up before the renderer reloads/unloads
+  window.addEventListener("beforeunload", () => {
+    ipcRenderer.sendSync("browser-view:close-all-sync")
+  })
+
   const listenerMap = new Map<string, Map<string, IpcListener>>()
   let listenerIdCounter = 0
 
@@ -169,6 +174,61 @@ function main() {
       ipcRenderer.invoke("show-in-file-manager", path),
     openUrl: (url: string) => ipcRenderer.invoke("open-url", url),
     reloadApp: () => ipcRenderer.invoke("reload-app"),
+    browserView: {
+      open: (
+        viewId: string,
+        url: string,
+        bounds: { x: number; y: number; width: number; height: number }
+      ) => ipcRenderer.invoke("browser-view:open", viewId, url, bounds),
+      updateBounds: (
+        viewId: string,
+        bounds: { x: number; y: number; width: number; height: number }
+      ) => ipcRenderer.invoke("browser-view:update-bounds", viewId, bounds),
+      close: (viewId: string) =>
+        ipcRenderer.invoke("browser-view:close", viewId),
+      closeAll: () => ipcRenderer.invoke("browser-view:close-all"),
+      reload: (viewId: string) =>
+        ipcRenderer.invoke("browser-view:reload", viewId),
+      goBack: (viewId: string) =>
+        ipcRenderer.invoke("browser-view:go-back", viewId),
+      goForward: (viewId: string) =>
+        ipcRenderer.invoke("browser-view:go-forward", viewId),
+      loadURL: (viewId: string, url: string) =>
+        ipcRenderer.invoke("browser-view:load-url", viewId, url),
+      setVisible: (viewId: string, visible: boolean) =>
+        ipcRenderer.invoke("browser-view:set-visible", viewId, visible),
+      capturePage: (viewId: string) =>
+        ipcRenderer.invoke("browser-view:capture-page", viewId),
+      onUpdate: (
+        viewId: string,
+        callback: (data: {
+          type: "loading" | "navigate"
+          isLoading?: boolean
+          url?: string
+          canGoBack?: boolean
+          canGoForward?: boolean
+        }) => void
+      ) => {
+        const listener = (
+          _event: Electron.IpcRendererEvent,
+          id: string,
+          data: any
+        ) => {
+          if (id === viewId) callback(data)
+        }
+        ipcRenderer.on("browser-view:update", listener)
+        return () => {
+          ipcRenderer.removeListener("browser-view:update", listener)
+        }
+      },
+    },
+    pipeline: {
+      run: (
+        steps: any[],
+        args?: Record<string, any>,
+        options?: { debug?: boolean }
+      ) => ipcRenderer.invoke("pipeline:run", steps, args, options),
+    },
     initializePlayground: (
       space: string,
       blockId: string,
