@@ -16,6 +16,21 @@ import type { Stringifier } from "csv-stringify"
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+function formatCsvParseError(err: any): Error {
+  if (err && err.code === "CSV_QUOTE_NOT_CLOSED") {
+    return new Error(
+      `CSV parsing failed: unclosed quote detected at line ${err.lines ?? "unknown"}`
+    )
+  }
+  if (err && err.code === "CSV_INVALID_CLOSING_QUOTE") {
+    return new Error("CSV parsing failed: invalid closing quote")
+  }
+  if (err && err.code === "CSV_RECORD_INCONSISTENT_FIELDS_LENGTH") {
+    return new Error("CSV parsing failed: inconsistent number of columns")
+  }
+  return new Error(`CSV parsing failed: ${err?.message || String(err)}`)
+}
+
 export class CsvImportAndExport extends BaseImportAndExport {
   useWal: boolean
   constructor({ useWal = true }: { useWal?: boolean }) {
@@ -26,11 +41,23 @@ export class CsvImportAndExport extends BaseImportAndExport {
   async guessColumnType(content: string): Promise<{
     [name: string]: "String" | "Number" | "Date"
   }> {
-    const records = parse(content, {
-      columns: true,
-      skip_empty_lines: true,
-      to: 1000,
-    })
+    let records
+    try {
+      records = parse(content, {
+        columns: true,
+        skip_empty_lines: true,
+        to: 1000,
+        relax_quotes: true,
+        bom: true,
+        skip_records_with_error: true,
+      } as any)
+    } catch (err) {
+      throw formatCsvParseError(err)
+    }
+
+    if (records.length === 0) {
+      return {}
+    }
 
     const sampleSize = Math.min(10, records.length)
     const sampledRecords: any[] = []
@@ -94,16 +121,18 @@ export class CsvImportAndExport extends BaseImportAndExport {
         throw new Error("CSV file is empty")
       }
 
-      const firstParseResult = parse(file.content, {
-        columns: (headers: string[]) => {
-          return headers.map((header, index) => {
-            const cleaned = (header || "").trim()
-            return cleaned || `unknown${index}`
-          })
-        },
-        skip_empty_lines: true,
-        to: 1,
-      })
+      let firstParseResult
+      try {
+        firstParseResult = parse(file.content, {
+          columns: false,
+          skip_empty_lines: true,
+          to: 1,
+          relax_quotes: true,
+          bom: true,
+        })
+      } catch (err) {
+        throw formatCsvParseError(err)
+      }
 
       console.log("Parse result:", firstParseResult)
       console.log("Header row:", firstParseResult[0])
@@ -113,11 +142,14 @@ export class CsvImportAndExport extends BaseImportAndExport {
       }
 
       const headerRow = firstParseResult[0]
-      if (!headerRow || typeof headerRow !== "object") {
+      if (!Array.isArray(headerRow) || headerRow.length === 0) {
         throw new Error("Invalid CSV header format")
       }
 
-      let columns = Object.keys(headerRow)
+      let columns = headerRow.map((header: string, index: number) => {
+        const cleaned = (header || "").trim()
+        return cleaned || `unknown${index}`
+      })
       if (columns.length === 0) {
         throw new Error("No columns found in CSV")
       }
@@ -126,10 +158,9 @@ export class CsvImportAndExport extends BaseImportAndExport {
       dataSpace.blockUIMsg("Analyzing file structure...")
       const types = await this.guessColumnType(previewContent)
 
-      const lines = file.content.split("\n").filter((line) => line.trim())
-      if (lines.length < 2) {
-        throw new Error("CSV file must contain at least one data row")
-      }
+      const lines = file.content
+        .split("\n")
+        .filter((line) => line.trim() !== "")
 
       const header = lines[0]
 
@@ -204,6 +235,7 @@ CREATE TABLE ${rawTableName} (
       const UI_UPDATE_INTERVAL = 500
 
       dataSpace.blockUIMsg("Importing data...")
+      let skippedRows = 0
 
       for (let i = 0; i < dataLines.length; i += batchSize) {
         const batchLines = [header, ...dataLines.slice(i, i + batchSize)]
@@ -219,7 +251,14 @@ CREATE TABLE ${rawTableName} (
             },
             skip_empty_lines: true,
             relax_column_count: true,
-          })
+            relax_quotes: true,
+            bom: true,
+            skip_records_with_error: true,
+            on_skip: (err: any) => {
+              skippedRows++
+              console.warn("Skipped malformed CSV row:", err.message)
+            },
+          } as any)
 
           records.shift()
           records = records.filter((record: any) => {
@@ -255,6 +294,11 @@ CREATE TABLE ${rawTableName} (
 
       const end = performance.now()
       console.log("import csv file done", end - start)
+      if (skippedRows > 0) {
+        dataSpace.notify(
+          `Import completed, but ${skippedRows} row(s) were skipped due to CSV formatting errors.`
+        )
+      }
       dataSpace.blockUIMsg(null)
       return tableId
     } catch (error) {

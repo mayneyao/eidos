@@ -3,6 +3,7 @@ import { Plus } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { isDesktopMode } from "@/lib/env"
+
 import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
 import {
@@ -115,25 +116,62 @@ export const CreateNodeTrigger = ({ parent_id }: { parent_id?: string }) => {
   }
 
   const handleImportCsv = async (file: File) => {
-    if (isDesktopMode) {
-      await window.eidos.invoke("reload-query-worker")
-    }
-    const tableId = await sqlite?.importCsv({
-      name: file.name,
-      content: await file.text(),
-    })
-    if (tableId) {
-      goto(space, tableId)
+    try {
+      if (isDesktopMode) {
+        await window.eidos.invoke("reload-query-worker")
+      }
+      const tableId = await sqlite?.importCsv({
+        name: file.name,
+        content: await file.text(),
+      })
+      if (tableId) {
+        goto(space, tableId)
+      }
+    } catch (error: any) {
+      const msg = error?.message || String(error)
+      let description = msg
+
+      if (msg.includes("CSV file is empty")) {
+        description = t("sidebar.importFile.error.empty")
+      } else if (
+        msg.includes("Failed to parse CSV header") ||
+        msg.includes("Invalid CSV header format")
+      ) {
+        description = t("sidebar.importFile.error.invalidHeader")
+      } else if (msg.includes("No columns found in CSV")) {
+        description = t("sidebar.importFile.error.noColumns")
+      } else if (
+        msg.includes("unclosed quote") ||
+        msg.includes("invalid closing quote")
+      ) {
+        description = t("sidebar.importFile.error.quoteNotClosed")
+      } else if (msg.includes("CSV parsing failed")) {
+        description = t("sidebar.importFile.error.parseFailed")
+      }
+
+      toast({
+        title: t("common.error"),
+        description,
+        variant: "destructive",
+      })
     }
   }
 
   const handleImportMarkdown = async (file: File) => {
-    const docId = await sqlite?.importMarkdown({
-      name: file.name,
-      content: await file.text(),
-    })
-    if (docId) {
-      goto(space, docId)
+    try {
+      const docId = await sqlite?.importMarkdown({
+        name: file.name,
+        content: await file.text(),
+      })
+      if (docId) {
+        goto(space, docId)
+      }
+    } catch (error: any) {
+      toast({
+        title: t("common.error"),
+        description: error?.message || String(error),
+        variant: "destructive",
+      })
     }
   }
 

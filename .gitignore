@@ -1,3 +1,6 @@
+# local test data
+test-csv-samples
+
 # electron
 dist-electron
 dist-app
