@@ -1,3 +1,6 @@
+// IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
+import "./env"
+
 import fs from "node:fs"
 import path from "node:path"
 import { BaseServerDatabase } from "@/packages/core/sqlite/interface"
@@ -8,7 +11,7 @@ import {
   parseGraftTags,
   parseGraftVolumes,
 } from "@/packages/sync/graft/helpers"
-import Database from "@eidos.space/better-sqlite3"
+import Database from "better-sqlite3"
 import { getSpaceRegistry } from "@eidos.space/space-manager"
 
 import { applyGraftConfigToEnv } from "../sync/helper"

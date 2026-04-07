@@ -32,7 +32,7 @@ RUN pnpm install --filter @eidos.space/headless... --ignore-scripts
 
 # Download Node.js prebuild for better-sqlite3 (the package only tries Electron by default)
 # This avoids needing build-essential and compiling from source
-RUN cd node_modules/.pnpm/@eidos.space+better-sqlite3*/node_modules/@eidos.space/better-sqlite3 \
+RUN cd node_modules/better-sqlite3 \
     && npx prebuild-install -r node || echo "Prebuild not available, will compile later"
 
 # Copy source code
@@ -56,10 +56,10 @@ RUN pnpm --filter @eidos.space/headless run setup
 RUN pnpm --filter @eidos.space/headless deploy --prod --legacy /app/deploy
 
 # Copy the prebuild binary to the deployed directory
-RUN cp -r node_modules/.pnpm/@eidos.space+better-sqlite3*/node_modules/@eidos.space/better-sqlite3/prebuilds \
-    /app/deploy/node_modules/.pnpm/@eidos.space+better-sqlite3*/node_modules/@eidos.space/better-sqlite3/ 2>/dev/null || \
-    cp -r node_modules/.pnpm/@eidos.space+better-sqlite3*/node_modules/@eidos.space/better-sqlite3/build \
-    /app/deploy/node_modules/.pnpm/@eidos.space+better-sqlite3*/node_modules/@eidos.space/better-sqlite3/ 2>/dev/null || \
+RUN cp -r node_modules/better-sqlite3/prebuilds \
+    /app/deploy/node_modules/better-sqlite3/ 2>/dev/null || \
+    cp -r node_modules/better-sqlite3/build \
+    /app/deploy/node_modules/better-sqlite3/ 2>/dev/null || \
     echo "No prebuild found, need to compile"
 
 # Stage 2: Production (minimal)

@@ -1,6 +1,9 @@
+// IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
+import "./sqlite-server/env"
+
 import path from "path"
 import fs from "fs"
-import Database from "@eidos.space/better-sqlite3"
+import Database from "better-sqlite3"
 
 export interface RelayMessage {
   id: string

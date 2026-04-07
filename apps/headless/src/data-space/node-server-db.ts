@@ -3,9 +3,12 @@
  * Based on desktop's NodeBaseServerDatabase
  */
 
+// IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
+import "./env"
+
 import fs from "node:fs"
 import path from "node:path"
-import Database from "@eidos.space/better-sqlite3"
+import Database from "better-sqlite3"
 import { BaseServerDatabase } from "../sqlite/interface"
 
 export interface NodeServerDatabaseOptions {

@@ -1,6 +1,9 @@
+// IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
+import "./sqlite-server/env"
+
 import fs from "fs"
 import path from "path"
-import Database from "@eidos.space/better-sqlite3"
+import Database from "better-sqlite3"
 import WebSocket from "ws"
 
 const RELAY_API_BASE = "https://api.eidos.space/v1/relay/channels"

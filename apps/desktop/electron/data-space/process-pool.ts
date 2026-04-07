@@ -172,7 +172,8 @@ export class DataSpaceProcessPool extends EventEmitter {
       const initMsg: InitMessage = {
         type: "init",
         spaceId,
-        ...initData,
+        spaceInfo: initData.spaceInfo,
+        paths: initData.paths,
       }
       child.postMessage(initMsg)
     })

@@ -108,7 +108,7 @@ When working with native Node.js modules (packages with `.node` binary files), s
 
 The following native packages are currently used:
 
-- `@eidos.space/better-sqlite3` - SQLite database
+- `better-sqlite3` - SQLite database
 - `@vscode/ripgrep` - Fast text search
 - `oxc-parser` - JavaScript/TypeScript parser
 - `oxc-transform` - JavaScript/TypeScript transformer
@@ -139,7 +139,7 @@ Add the package to the `externalNodeModules` array to prevent Vite from bundling
 
 ```typescript
 const externalNodeModules = [
-  "@eidos.space/better-sqlite3",
+  "better-sqlite3",
   "oxc-parser",
   "oxc-transform",
   "@vscode/ripgrep",
