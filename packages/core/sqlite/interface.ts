@@ -124,7 +124,9 @@ export abstract class BaseServerDatabase {
     sql: string,
     bind?: any[]
   ): Promise<{ [columnName: string]: any }[]>
-  abstract transaction(func: (db: BaseServerDatabase) => void): any
+  abstract transaction<T>(
+    func: (db: BaseServerDatabase) => T | Promise<T>
+  ): Promise<T>
   abstract exec(
     opts:
       | string

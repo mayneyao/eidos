@@ -79,10 +79,18 @@ export class NodeServerDatabase extends BaseServerDatabase {
     return stmt.all() as { [columnName: string]: any }[]
   }
 
-  transaction(func: (db: BaseServerDatabase) => void) {
-    const transaction = this.db!.transaction(() => func(this))
-    transaction()
-    return
+  async transaction<T>(
+    func: (db: BaseServerDatabase) => T | Promise<T>
+  ): Promise<T> {
+    this.db.exec("BEGIN")
+    try {
+      const result = await func(this)
+      this.db.exec("COMMIT")
+      return result
+    } catch (error) {
+      this.db.exec("ROLLBACK")
+      throw error
+    }
   }
 
   async exec(
