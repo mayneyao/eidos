@@ -116,11 +116,14 @@ export class SQLiteWasmDatabase extends BaseServerDatabase {
     return rows
   }
 
-  transaction(func: (db: BaseServerDatabase) => void): any {
+  async transaction<T>(
+    func: (db: BaseServerDatabase) => T | Promise<T>
+  ): Promise<T> {
     try {
       this.db.exec("BEGIN")
-      func(this as BaseServerDatabase)
+      const result = await func(this as BaseServerDatabase)
       this.db.exec("COMMIT")
+      return result
     } catch (e) {
       this.db.exec("ROLLBACK")
       throw e
