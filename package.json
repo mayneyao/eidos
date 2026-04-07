@@ -65,7 +65,9 @@
       ]
     },
     "onlyBuiltDependencies": [
-      "@vscode/ripgrep"
+      "@vscode/ripgrep",
+      "better-sqlite3",
+      "node-pty"
     ],
     "overrides": {
       "fast-xml-parser": "^5.5.1",

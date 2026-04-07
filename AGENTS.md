@@ -16,7 +16,7 @@ The project is licensed under AGPL v3, with specific packages (`@eidos.space/cor
 - **State Management**: Zustand for global state, SWR for data fetching
 - **Database**: SQLite with dual implementation:
   - Web: `@sqlite.org/sqlite-wasm` for browser compatibility
-  - Desktop: `@eidos.space/better-sqlite3` for native performance
+  - Desktop: `better-sqlite3` for native performance
 - **Desktop Framework**: Electron 32+ with native file system access
 - **AI Integration**: Multiple LLM providers via `ai` package (OpenAI, Anthropic, Google, Mistral, Cohere, Groq, and more)
 
@@ -253,7 +253,7 @@ Imports are sorted using Prettier plugin in this order:
 ## Build Considerations
 
 - **Memory allocation**: Increased to 8GB (`NODE_OPTIONS=--max-old-space-size=8192`) for complex builds
-- **Desktop builds**: Require native dependency management (better-sqlite3, bindings)
+- **Desktop builds**: Require native dependency management (`better-sqlite3`, `bindings`)
 - **Web builds**: Optimized for PWA deployment with service worker
 - **Extensions**: Compiled and sandboxed using V3 compiler for security
 - **COOP/COEP headers**: Required for SharedArrayBuffer support (WASM)

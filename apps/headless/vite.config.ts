@@ -30,7 +30,7 @@ export default defineConfig({
 
         // Native / External binary modules - MUST be external
         if (
-          id === "@eidos.space/better-sqlite3" ||
+          id === "better-sqlite3" ||
           id === "oxc-parser" ||
           id === "oxc-transform" ||
           id.includes(".node")
@@ -60,7 +60,7 @@ export default defineConfig({
       "@eidos.space/v3",
     ],
     external: [
-      "@eidos.space/better-sqlite3",
+      "better-sqlite3",
       "oxc-parser",
       "oxc-transform",
       ...Object.keys(pkg.dependencies || {}).filter(

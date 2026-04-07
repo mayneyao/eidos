@@ -1,4 +1,4 @@
-import type Database from "@eidos.space/better-sqlite3"
+import type Database from "better-sqlite3"
 
 import type { SyncBucketCredentials } from "../../credentials"
 import type { SpaceInfo } from "../../space-registry"

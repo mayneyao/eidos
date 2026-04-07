@@ -72,10 +72,10 @@ docker run -it --rm \
 pnpm install
 
 # Rebuild native binaries (if pnpm rebuild fails or for troubleshooting)
-pnpm rebuild @eidos.space/better-sqlite3
+pnpm rebuild better-sqlite3
 
 # Or use the direct command if needed
-cd node_modules/.pnpm/@eidos.space+better-sqlite3@11.9.3/node_modules/@eidos.space/better-sqlite3 && npm run build-release
+cd node_modules/better-sqlite3 && npm run build-release
 
 # Copy SQLite extensions from desktop build
 cp -r ../desktop/dist-sqlite-ext ./extensions

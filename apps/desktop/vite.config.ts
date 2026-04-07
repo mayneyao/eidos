@@ -14,7 +14,7 @@ import { createHtmlPlugin } from "../../packages/shared/vite/plugins"
 // import { visualizer } from "rollup-plugin-visualizer"
 
 const externalNodeModules = [
-  "@eidos.space/better-sqlite3",
+  "better-sqlite3",
   "oxc-parser",
   "oxc-transform",
   "@vscode/ripgrep",

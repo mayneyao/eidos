@@ -120,11 +120,14 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
       entryName = dirent.name
 
       // Calculate relative path from query directory to this entry
-      const entryAbsolutePath = path.join(dirent.path, dirent.name)
+      const direntPath = (dirent as any).path || queryAbsolutePath
+      const direntParentPath = (dirent as any).parentPath || queryAbsolutePath
+
+      const entryAbsolutePath = path.join(direntPath, dirent.name)
       relativePath = path.relative(queryAbsolutePath, entryAbsolutePath)
 
       // Calculate relative parent path
-      relativeParentPath = path.relative(queryAbsolutePath, dirent.parentPath)
+      relativeParentPath = path.relative(queryAbsolutePath, direntParentPath)
     }
 
     // Normalize to forward slashes for virtual paths
