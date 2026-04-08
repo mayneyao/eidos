@@ -149,6 +149,9 @@ interface Window {
     cli: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./modules/cli/cli.service").CliService
     >
+    webview: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./modules/window/webview.service").WebviewService
+    >
     openData: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./services/opendata-service").OpenDataService
     >
