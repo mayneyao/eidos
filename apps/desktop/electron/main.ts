@@ -54,7 +54,7 @@ import { cliService } from "./services/cli-service"
 // import { configService as legacyConfigService } from "./services/config-service"  // Migrated to DI
 import { contextMenuService } from "./services/context-menu-service"
 import { dataSpaceService } from "./services/data-space/data-space-service"
-import { fetchService } from "./services/fetch-service"
+// import { fetchService } from "./services/fetch-service"  // Migrated to DI
 // import { fileSystemService as legacyFileSystemService } from "./services/file-system-service"
 // import { licenseService } from "./services/license-service"  // Migrated to DI
 import { OpenDataService } from "./services/opendata-service"
@@ -277,6 +277,7 @@ async function main() {
     // licenseService.register()  // Migrated to DI
     // legacyFileSystemService.register()  // Migrated to DI
     // legacySyncService.register()  // Migrated to DI
+    // NOTE: DI services (Config, FileSystem, Sync, License, Network) are auto-registered via bootstrap
     relayService.register()
 
     terminalService = new TerminalService({ getWindow: () => win })
@@ -284,7 +285,7 @@ async function main() {
 
     cliService.register()
     dataSpaceService.register()
-    fetchService.register()
+    // fetchService.register()  // Migrated to DI
     contextMenuService.register()
     webviewService.register()
 
