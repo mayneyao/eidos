@@ -18,10 +18,7 @@ import { ConfigManager } from "../config/config.module"
 import { CredentialsManager } from "../sync/sync.module"
 import { SpaceRegistry } from "../space-management/space-management.module"
 import { LoggerService } from "../logger/logger.module"
-import {
-  getOrSetDataSpace,
-  getDataSpace,
-} from "../../services/data-space/data-space-manager"
+import { DataSpaceManager } from "../data-space"
 import { isPortInUse, getProcessByPort } from "./port-checker"
 
 export { PortInUseError, PortOccupancyInfo, AUTH_STATE_CHANGED_CHANNEL }
@@ -40,7 +37,8 @@ export class ApiServerService {
     @Inject(ConfigManager) private configManager: ConfigManager,
     @Inject(CredentialsManager) private credentialsManager: CredentialsManager,
     @Inject(SpaceRegistry) private spaceRegistry: SpaceRegistry,
-    @Inject(LoggerService) private logger: LoggerService
+    @Inject(LoggerService) private logger: LoggerService,
+    @Inject(DataSpaceManager) private dataSpaceManager: DataSpaceManager
   ) {
     this.logger.setPrefix("ApiServer")
   }
@@ -121,7 +119,11 @@ export class ApiServerService {
     }
 
     return {
-      dataSpaceManager: { getOrSetDataSpace, getDataSpace },
+      dataSpaceManager: {
+        getOrSetDataSpace: (spaceId: string, opts?: any) =>
+          this.dataSpaceManager.getOrSetDataSpace(spaceId, opts),
+        getDataSpace: () => this.dataSpaceManager.getDataSpace(),
+      },
       configManager: {
         get: (key: string) => this.configManager.get(key as any),
         set: (key: string, value: any) =>

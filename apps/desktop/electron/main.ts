@@ -12,7 +12,8 @@
 // Required for decorator metadata
 import "reflect-metadata"
 
-import { BrowserWindow, app, ipcMain } from "electron"
+import type { BrowserWindow } from "electron"
+import { app, ipcMain } from "electron"
 import { default as console, default as electronLog } from "electron-log"
 import path from "path"
 
@@ -31,7 +32,13 @@ import {
   SpaceRegistry,
   resolveStartupSpace,
 } from "./modules/space-management/space-management.module"
-import { getDataSpace } from "./services/data-space/data-space-manager"
+import {
+  getDataSpace,
+  DataSpaceModule,
+  DataSpaceManager,
+  DataSpaceIpcService,
+  RelayService,
+} from "./modules/data-space"
 import { ProtocolHandler } from "./services/protocol-handler"
 import { getSpacePath } from "./utils/paths"
 import { createWindow } from "./window/create-window"
@@ -42,12 +49,12 @@ import { createTray, destroyTray } from "./window/tray-manager"
 // import { cliService } from "./services/cli-service"  // Migrated to DI
 // import { configService as legacyConfigService } from "./services/config-service"  // Migrated to DI
 // import { contextMenuService } from "./services/context-menu-service"  // Migrated to DI
-import { dataSpaceService } from "./services/data-space/data-space-service"
+// import { dataSpaceService } from "./services/data-space/data-space-service"  // Migrated to DI
 // import { fetchService } from "./services/fetch-service"  // Migrated to DI
 // import { fileSystemService as legacyFileSystemService } from "./services/file-system-service"
 // import { licenseService } from "./services/license-service"  // Migrated to DI
 import { OpenDataService } from "./services/opendata-service"
-import { relayService } from "./services/relay-service"
+// import { relayService } from "./services/relay-service"  // Migrated to DI
 // import { SpaceManagementService } from "./services/space-management-service"  // Migrated to DI
 // import { syncService as legacySyncService } from "./services/sync-service"
 // import { TerminalService } from "./services/terminal-service"  // Migrated to DI
@@ -146,7 +153,11 @@ async function main() {
 
   // App event handlers
   app.on("window-all-closed", () => {
-    getDataSpace()?.close()
+    // Close dataspace via DI if available
+    try {
+      const dataSpaceManager = container.get(DataSpaceManager)
+      dataSpaceManager.getDataSpace()?.close()
+    } catch {}
     globalShortcutManager?.destroy()
     globalShortcutManager = null
     openDataService?.closeAll()
@@ -189,12 +200,14 @@ async function main() {
 
     // Register sqlite-msg handlers (need event object, manual registration)
     // These require event.sender for iterator callbacks
+    // Get DataSpaceIpcService from DI container
+    const dataSpaceIpcService = container.get(DataSpaceIpcService)
     ipcMain.handle("sqlite-msg", async (event, payload) => {
-      return dataSpaceService.sqliteMsg(event, payload)
+      return dataSpaceIpcService.sqliteMsg(event, payload)
     })
 
     ipcMain.handle("sqlite-msg-read", async (event, payload) => {
-      return dataSpaceService.sqliteMsgRead(event, payload)
+      return dataSpaceIpcService.sqliteMsgRead(event, payload)
     })
 
     // Register app-lifecycle handlers that need access to main process state
@@ -209,7 +222,11 @@ async function main() {
     ipcMain.handle("app-lifecycle:quitApp", async () => {
       forceQuit = true
       destroyTray()
-      getDataSpace()?.close()
+      // Close dataspace via DI if available
+      try {
+        const dataSpaceManager = container.get(DataSpaceManager)
+        dataSpaceManager.getDataSpace()?.close()
+      } catch {}
       app.quit()
     })
 
@@ -222,11 +239,10 @@ async function main() {
 
     // Register services
     // NOTE: DI services auto-registered via bootstrap:
-    // Config, FileSystem, Sync, License, Network, Cli, Terminal
-    relayService.register()
+    // Config, FileSystem, Sync, License, Network, Cli, Terminal, DataSpace
 
     // cliService.register()  // Migrated to DI
-    dataSpaceService.register()
+    // dataSpaceService.register()  // Migrated to DI - now auto-registered via DI
     // fetchService.register()  // Migrated to DI
     // contextMenuService.register()  // Migrated to DI
     webviewService.register()

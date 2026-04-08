@@ -6,13 +6,9 @@ import {
   IpcService,
   IpcServiceBase,
 } from "@eidos.space/electron-ipc"
-import {
-  closeDataSpace,
-  getCurrentSpaceId,
-  getDataSpace,
-  getOrSetDataSpace,
-  reloadDataSpace,
-} from "./data-space-manager"
+
+import { Injectable, Inject } from "../../common/di"
+import { DataSpaceManager } from "./data-space-manager.service"
 
 interface SqlitePayload {
   id: string
@@ -34,21 +30,34 @@ interface SpaceOperationArgs {
 }
 
 /**
- * Data Space Service - Handles SQLite database operations and sync
- * Uses "decorated" expose mode: only methods with @IpcMethod are auto-registered
+ * Data Space IPC Service - Handles SQLite database operations and sync
+ *
+ * Responsibilities:
+ * - Handle sqlite-msg and sqlite-msg-read IPC calls
+ * - Provide decorated IPC methods for space operations
+ *
  * Note: sqliteMsg and sqliteMsgRead are manually registered in main.ts
+ * for backwards compatibility with the legacy message format.
  */
 @IpcService("space", { exposeMode: "decorated" })
-export class DataSpaceService extends IpcServiceBase {
+@Injectable()
+export class DataSpaceIpcService extends IpcServiceBase {
+  constructor(
+    @Inject(DataSpaceManager) private dataSpaceManager: DataSpaceManager
+  ) {
+    super()
+  }
+
   /**
    * Handle SQLite message (write operations)
+   * Note: This is manually registered in main.ts, not auto-registered
    */
   async sqliteMsg(
     event: IpcMainInvokeEvent,
     payload: SqlitePayload
   ): Promise<any> {
     try {
-      let dataSpace = getDataSpace()
+      let dataSpace = this.dataSpaceManager.getDataSpace()
       const { space, dbName } = payload.data
       const spaceId = space || dbName
 
@@ -56,12 +65,12 @@ export class DataSpaceService extends IpcServiceBase {
         throw new Error("No space ID provided in sqlite-msg")
       }
 
-      const currentSpaceId = getCurrentSpaceId()
+      const currentSpaceId = this.dataSpaceManager.getCurrentSpaceId()
       if (!dataSpace || !currentSpaceId) {
-        dataSpace = await getOrSetDataSpace(spaceId)
+        dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceId)
       } else if (spaceId !== currentSpaceId) {
         electronLog.info("switching to data space", spaceId)
-        dataSpace = await getOrSetDataSpace(spaceId)
+        dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceId)
       }
 
       if (!dataSpace) {
@@ -112,13 +121,14 @@ export class DataSpaceService extends IpcServiceBase {
 
   /**
    * Handle SQLite message (read operations)
+   * Note: This is manually registered in main.ts, not auto-registered
    */
   async sqliteMsgRead(
     event: IpcMainInvokeEvent,
     payload: SqlitePayload
   ): Promise<any> {
     try {
-      let dataSpace = getDataSpace()
+      let dataSpace = this.dataSpaceManager.getDataSpace()
       const { space, dbName } = payload.data
       const spaceId = space || dbName
 
@@ -126,12 +136,12 @@ export class DataSpaceService extends IpcServiceBase {
         throw new Error("No space ID provided in sqlite-msg-read")
       }
 
-      const currentSpaceId = getCurrentSpaceId()
+      const currentSpaceId = this.dataSpaceManager.getCurrentSpaceId()
       if (!dataSpace || !currentSpaceId) {
-        dataSpace = await getOrSetDataSpace(spaceId)
+        dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceId)
       } else if (spaceId !== currentSpaceId) {
         electronLog.info("switching to data space", spaceId)
-        dataSpace = await getOrSetDataSpace(spaceId)
+        dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceId)
       }
 
       if (!dataSpace) {
@@ -188,7 +198,7 @@ export class DataSpaceService extends IpcServiceBase {
   ): Promise<{ id: string; data: { dbName: string } }> {
     const { databaseName, id } = args
     const data = { dbName: databaseName }
-    getOrSetDataSpace(databaseName)
+    this.dataSpaceManager.getOrSetDataSpace(databaseName)
     return { id, data }
   }
 
@@ -198,7 +208,7 @@ export class DataSpaceService extends IpcServiceBase {
   @IpcMethod()
   async pull(args: SpaceOperationArgs): Promise<any> {
     const { spaceName } = args
-    const dataSpace = await getOrSetDataSpace(spaceName)
+    const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceName)
     return dataSpace?.pull()
   }
 
@@ -208,7 +218,7 @@ export class DataSpaceService extends IpcServiceBase {
   @IpcMethod()
   async push(args: SpaceOperationArgs): Promise<any> {
     const { spaceName } = args
-    const dataSpace = await getOrSetDataSpace(spaceName)
+    const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceName)
     return dataSpace?.push()
   }
 
@@ -218,7 +228,7 @@ export class DataSpaceService extends IpcServiceBase {
   @IpcMethod()
   async fetch(args: SpaceOperationArgs): Promise<any> {
     const { spaceName } = args
-    const dataSpace = await getOrSetDataSpace(spaceName)
+    const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceName)
     return dataSpace?.fetch()
   }
 
@@ -228,7 +238,7 @@ export class DataSpaceService extends IpcServiceBase {
   @IpcMethod()
   async hydrate(args: SpaceOperationArgs): Promise<any> {
     const { spaceName } = args
-    const dataSpace = await getOrSetDataSpace(spaceName)
+    const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceName)
     return dataSpace?.hydrate()
   }
 
@@ -238,7 +248,7 @@ export class DataSpaceService extends IpcServiceBase {
   @IpcMethod()
   async snapshot(args: SpaceOperationArgs): Promise<any> {
     const { spaceName } = args
-    const dataSpace = await getOrSetDataSpace(spaceName)
+    const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceName)
     return dataSpace?.snapshot()
   }
 
@@ -248,7 +258,7 @@ export class DataSpaceService extends IpcServiceBase {
   @IpcMethod()
   async status(args: SpaceOperationArgs): Promise<any> {
     const { spaceName } = args
-    const dataSpace = await getOrSetDataSpace(spaceName)
+    const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceName)
     return dataSpace?.status()
   }
 
@@ -258,7 +268,7 @@ export class DataSpaceService extends IpcServiceBase {
   @IpcMethod()
   async volumes(args: SpaceOperationArgs): Promise<any> {
     const { spaceName } = args
-    const dataSpace = await getOrSetDataSpace(spaceName)
+    const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceName)
     return dataSpace?.volumes()
   }
 
@@ -271,7 +281,7 @@ export class DataSpaceService extends IpcServiceBase {
   ): Promise<{ data: { spaceName: string }; success: boolean }> {
     const { spaceName, enableSync } = args
     const data = { spaceName }
-    const dataSpace = await getOrSetDataSpace(spaceName)
+    const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceName)
     if (dataSpace) {
       return { data, success: true }
     } else {
@@ -295,7 +305,8 @@ export class DataSpaceService extends IpcServiceBase {
    */
   @IpcMethod()
   async reloadDataSpace() {
-    return reloadDataSpace()
+    this.dataSpaceManager.reload()
+    return { success: true }
   }
 
   /**
@@ -303,9 +314,7 @@ export class DataSpaceService extends IpcServiceBase {
    */
   @IpcMethod()
   async closeDataSpace() {
-    return closeDataSpace()
+    const success = await this.dataSpaceManager.close()
+    return { success }
   }
 }
-
-// Export singleton instance
-export const dataSpaceService = new DataSpaceService()
