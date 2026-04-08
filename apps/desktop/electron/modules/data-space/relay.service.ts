@@ -1,10 +1,6 @@
-import {
-  IpcService,
-  IpcServiceBase,
-  IpcMethod,
-} from "@eidos.space/electron-ipc"
+import { IpcServiceBase } from "@eidos.space/electron-ipc"
 
-import { Injectable, Inject } from "../../common/di"
+import { IpcInjectable, Inject } from "../../common/di"
 import { DataSpaceProcessPool } from "./data-space-process-pool.service"
 
 /**
@@ -14,8 +10,7 @@ import { DataSpaceProcessPool } from "./data-space-process-pool.service"
  * - Pull relay messages for a space
  * - Get/ack relay messages via the process pool
  */
-@IpcService("relay")
-@Injectable()
+@IpcInjectable("relay")
 export class RelayService extends IpcServiceBase {
   constructor(
     @Inject(DataSpaceProcessPool) private processPool: DataSpaceProcessPool
@@ -26,7 +21,6 @@ export class RelayService extends IpcServiceBase {
   /**
    * Pull relay messages for a space
    */
-  @IpcMethod()
   async pullRelayMessages(spaceId: string): Promise<{ success: boolean }> {
     this.processPool.sendToProcess(spaceId, { type: "pull-relay-messages" })
     return { success: true }
@@ -35,7 +29,6 @@ export class RelayService extends IpcServiceBase {
   /**
    * Get relay messages for a space
    */
-  @IpcMethod()
   async getRelayMessages(spaceId: string, data: any): Promise<any> {
     return this.processPool.callProcess(spaceId, "get-relay-messages", data)
   }
@@ -43,7 +36,6 @@ export class RelayService extends IpcServiceBase {
   /**
    * Acknowledge relay messages
    */
-  @IpcMethod()
   async ackRelayMessages(spaceId: string, data: any): Promise<any> {
     return this.processPool.callProcess(spaceId, "ack-relay-messages", data)
   }
@@ -51,7 +43,6 @@ export class RelayService extends IpcServiceBase {
   /**
    * Get relay channel counts
    */
-  @IpcMethod()
   async getRelayChannelCounts(spaceId: string, data: any): Promise<any> {
     return this.processPool.callProcess(
       spaceId,
@@ -63,7 +54,6 @@ export class RelayService extends IpcServiceBase {
   /**
    * Get relay total counts
    */
-  @IpcMethod()
   async getRelayTotalCounts(spaceId: string): Promise<any> {
     return this.processPool.callProcess(spaceId, "get-relay-total-counts", {})
   }
