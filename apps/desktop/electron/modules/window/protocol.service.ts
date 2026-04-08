@@ -1,6 +1,7 @@
 import { EidosProtocolUrlChannelName } from "@/lib/const"
-import { shell } from "electron"
+import { app, shell } from "electron"
 import { log } from "electron-log"
+import path from "path"
 
 import { Injectable, Inject } from "../../common/di"
 import { WindowService } from "./window.service"
@@ -23,8 +24,67 @@ export interface ProtocolUrlPayload {
 @Injectable()
 export class ProtocolService {
   private readonly PROTOCOL = "eidos"
+  private pendingProtocolUrl: string | null = null
 
   constructor(@Inject(WindowService) private windowService: WindowService) {}
+
+  /**
+   * Set up protocol URL handlers for the app
+   * - open-url: Handle protocol URLs on macOS
+   * - second-instance: Handle protocol URLs on Windows/Linux (single instance lock)
+   */
+  setupProtocolHandlers(): void {
+    // Handle protocol URL on macOS
+    app.on("open-url", (event, url) => {
+      event.preventDefault()
+      console.log("Received protocol URL:", url)
+
+      if (this.windowService.getMainWindow()) {
+        this.handleUrl(url)
+      } else {
+        this.pendingProtocolUrl = url
+      }
+    })
+
+    // Handle second instance (Windows/Linux)
+    app.on("second-instance", (_event, commandLine) => {
+      const protocolUrl = commandLine.find((arg) => arg.startsWith("eidos://"))
+      if (protocolUrl) {
+        this.handleUrl(protocolUrl)
+      }
+
+      if (this.windowService.isWindowMinimized()) {
+        this.windowService.restoreWindow()
+      }
+      this.windowService.focusWindow()
+    })
+  }
+
+  /**
+   * Handle any pending protocol URL (called after window is created)
+   */
+  handlePendingProtocolUrl(): void {
+    if (this.pendingProtocolUrl) {
+      console.log("Handling pending protocol URL:", this.pendingProtocolUrl)
+      this.handleUrl(this.pendingProtocolUrl)
+      this.pendingProtocolUrl = null
+    }
+  }
+
+  /**
+   * Register the app as the default protocol client for eidos://
+   */
+  registerProtocolClient(): void {
+    if (process.defaultApp) {
+      if (process.argv.length >= 2) {
+        app.setAsDefaultProtocolClient("eidos", process.execPath, [
+          path.resolve(process.argv[1]),
+        ])
+      }
+    } else {
+      app.setAsDefaultProtocolClient("eidos")
+    }
+  }
 
   handleUrl(url: string) {
     console.log("Handling URL:", url)

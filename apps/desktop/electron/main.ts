@@ -23,24 +23,23 @@ import { bootstrap, container } from "./common/di"
 
 // Import services for backward compatibility
 import { ConfigManager, ConfigService } from "./modules/config/config.module"
-import { TerminalService } from "./modules/terminal/terminal.module"
 
 // Legacy imports (will be migrated gradually)
-import { registerElectronFetchIpc } from "./modules/network/fetch-proxy"
 import { showPortInUseDialog } from "./modules/api-server/api-server.module"
+import { DataSpaceIpcService } from "./modules/data-space"
+import { registerElectronFetchIpc } from "./modules/network/fetch-proxy"
 import {
   SpaceRegistry,
   resolveStartupSpace,
 } from "./modules/space-management/space-management.module"
-import { DataSpaceManager, DataSpaceIpcService } from "./modules/data-space"
 import {
-  WindowService,
+  AppLifecycleService,
   GlobalShortcutsService,
+  ProtocolService,
   TrayService,
   WebviewService,
-  ProtocolService,
+  WindowService,
 } from "./modules/window"
-import { getSpacePath } from "./utils/paths"
 
 // Legacy service imports (migrated to DI)
 // import { cliService } from "./services/cli-service"  // Migrated to DI
@@ -149,55 +148,9 @@ async function main() {
     process.exit(0)
   }
 
-  // App event handlers
-  app.on("window-all-closed", () => {
-    // Close dataspace via DI if available
-    try {
-      const dataSpaceManager = container.get(DataSpaceManager)
-      dataSpaceManager.getDataSpace()?.close()
-    } catch {}
-    // Cleanup global shortcuts via DI
-    try {
-      const globalShortcutsService = container.get(GlobalShortcutsService)
-      globalShortcutsService.destroy()
-    } catch {}
-    // Cleanup OpenDataService via DI
-    try {
-      const openDataService = container.get(OpenDataService)
-      openDataService.closeAll()
-    } catch {}
-    // Cleanup DI terminal service
-    try {
-      const terminalService = container.get(TerminalService)
-      terminalService.cleanup()
-    } catch {}
-    win = null
-  })
+  // App event handlers - will be set up via AppLifecycleService
 
-  app.on("before-quit", () => {
-    // Cleanup OpenDataService via DI
-    try {
-      const openDataService = container.get(OpenDataService)
-      openDataService.closeAll()
-    } catch {}
-    // Cleanup DI terminal service
-    try {
-      const terminalService = container.get(TerminalService)
-      terminalService.cleanup()
-    } catch {}
-    forceQuit = true
-  })
-
-  // Protocol handling
-  if (process.defaultApp) {
-    if (process.argv.length >= 2) {
-      app.setAsDefaultProtocolClient("eidos", process.execPath, [
-        path.resolve(process.argv[1]),
-      ])
-    }
-  } else {
-    app.setAsDefaultProtocolClient("eidos")
-  }
+  // Protocol handling - will be set up after services are ready
 
   // App ready handler
   app.whenReady().then(async () => {
@@ -220,26 +173,23 @@ async function main() {
       return dataSpaceIpcService.sqliteMsgRead(event, payload)
     })
 
-    // Register app-lifecycle handlers that need access to main process state
-    ipcMain.handle("app-lifecycle:reloadApp", async () => {
-      app.relaunch()
-      win?.reload()
-    })
-
-    ipcMain.handle("app-lifecycle:quitApp", async () => {
-      forceQuit = true
-      // Destroy tray via DI
-      try {
-        const trayService = container.get(TrayService)
-        trayService.destroyTray()
-      } catch {}
-      // Close dataspace via DI if available
-      try {
-        const dataSpaceManager = container.get(DataSpaceManager)
-        dataSpaceManager.getDataSpace()?.close()
-      } catch {}
-      app.quit()
-    })
+    // Set up app lifecycle handlers
+    const appLifecycleService = container.get(AppLifecycleService)
+    appLifecycleService.setupLifecycleHandlers(
+      () => {
+        forceQuit = true
+      },
+      () => {
+        win = null
+      }
+    )
+    appLifecycleService.registerIpcHandlers(
+      () => forceQuit,
+      (value) => {
+        forceQuit = value
+      },
+      () => win
+    )
 
     // Initialize OpenDataService via DI
     const openDataService = container.get(OpenDataService)
@@ -306,19 +256,20 @@ async function main() {
     // Protocol handler via DI
     const protocolService = container.get(ProtocolService)
 
-    // Window close handler
-    win.on("close", (event) => {
-      if (!forceQuit) {
-        if (process.platform === "darwin") {
-          event.preventDefault()
-          win?.hide()
-        } else {
-          forceQuit = true
-          trayService.destroyTray()
-          app.quit()
-        }
+    // Register as default protocol client for eidos://
+    protocolService.registerProtocolClient()
+
+    // Handle any pending protocol URL (received before window was created)
+    protocolService.handlePendingProtocolUrl()
+
+    // Set up window close handler
+    windowService.setupCloseHandler(
+      win,
+      () => forceQuit,
+      (value) => {
+        forceQuit = value
       }
-    })
+    )
 
     // App updater (auto-registered via DI)
     const updaterService = container.get(UpdaterService)
@@ -329,40 +280,11 @@ async function main() {
     // Note: reloadApp and quitApp handlers are registered via IPC in main process
     // SpaceManagementService is auto-registered via DI
 
+    // Set up app event handlers via services
+    windowService.setupActivateHandler()
+    protocolService.setupProtocolHandlers()
+
     console.log("[Main] Application initialized successfully")
-  })
-
-  app.on("activate", () => {
-    const windowService = container.get(WindowService)
-    windowService.showWindow()
-  })
-
-  // Protocol URL handling
-  let pendingProtocolUrl: string | null = null
-
-  app.on("open-url", (event, url) => {
-    event.preventDefault()
-    console.log("Received protocol URL:", url)
-    const protocolService = container.get(ProtocolService)
-    const windowService = container.get(WindowService)
-    if (windowService.getMainWindow()) {
-      protocolService.handleUrl(url)
-    } else {
-      pendingProtocolUrl = url
-    }
-  })
-
-  app.on("second-instance", (event, commandLine) => {
-    const protocolUrl = commandLine.find((arg) => arg.startsWith("eidos://"))
-    const protocolService = container.get(ProtocolService)
-    if (protocolUrl) {
-      protocolService.handleUrl(protocolUrl)
-    }
-    const windowService = container.get(WindowService)
-    if (windowService.isWindowMinimized()) {
-      windowService.restoreWindow()
-    }
-    windowService.focusWindow()
   })
 }
 

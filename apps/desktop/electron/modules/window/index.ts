@@ -37,6 +37,7 @@ export { GlobalShortcutsService } from "./global-shortcuts.service"
 export { TrayService } from "./tray.service"
 export { WebviewService } from "./webview.service"
 export { ProtocolService } from "./protocol.service"
+export { AppLifecycleService } from "./app-lifecycle.service"
 
 // Re-export types
 export type { BrowserViewBounds } from "./browser-view.service"

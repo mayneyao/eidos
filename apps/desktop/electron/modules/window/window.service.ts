@@ -1,11 +1,12 @@
 import type { BrowserWindow } from "electron"
-import { BrowserWindow as ElectronBrowserWindow, ipcMain } from "electron"
+import { app, BrowserWindow as ElectronBrowserWindow, ipcMain } from "electron"
 import os from "node:os"
 import path from "path"
 import { debounce } from "@/lib/lodash"
 
 import { Injectable, Inject } from "../../common/di"
 import { ConfigManager } from "../config/config-manager"
+import type { TrayService } from "./tray.service"
 import { setupGeolocationHandler } from "./geolocation"
 
 const defaultViewOptions = {
@@ -275,6 +276,45 @@ export class WindowService {
     // Clean up reference when window is closed
     win.on("closed", () => {
       this.mainWindow = null
+    })
+  }
+
+  /**
+   * Set up app activate handler (macOS dock click)
+   */
+  setupActivateHandler(): void {
+    app.on("activate", () => {
+      this.showWindow()
+    })
+  }
+
+  /**
+   * Set up window close handler
+   * - macOS: Hide window instead of closing (dock icon stays)
+   * - Windows/Linux: Quit app and destroy tray
+   */
+  setupCloseHandler(
+    win: BrowserWindow,
+    getForceQuit: () => boolean,
+    setForceQuit: (value: boolean) => void
+  ): void {
+    win.on("close", (event) => {
+      if (!getForceQuit()) {
+        if (process.platform === "darwin") {
+          event.preventDefault()
+          win.hide()
+        } else {
+          setForceQuit(true)
+          // Get tray service from container and destroy it
+          try {
+            const { container } = require("../../common/di")
+            const { TrayService } = require("./tray.service")
+            const trayService: TrayService = container.get(TrayService)
+            trayService.destroyTray()
+          } catch {}
+          app.quit()
+        }
+      }
     })
   }
 }
