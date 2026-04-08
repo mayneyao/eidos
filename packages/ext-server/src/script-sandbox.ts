@@ -31,7 +31,8 @@ type Ctx = Context<BlankEnv, "*", {}>
 function rewriteExternalImports(
   code: string,
   externalLibs: string[],
-  excludeLibs: string[] = []
+  excludeLibs: string[] = [],
+  logger: SandboxLogger = defaultLogger
 ): string {
   if (!externalLibs.length) {
     return code
@@ -83,12 +84,12 @@ function rewriteExternalImports(
       if (extLibsSet.has(packageName)) {
         // Skip rewriting if this package is in the exclude list
         if (excludeLibs.includes(packageName)) {
-          console.log(`Skipping rewrite for excluded package: ${packageName}`)
+          logger.log(`Skipping rewrite for excluded package: ${packageName}`)
           return match
         }
 
         const esmUrl = `https://esm.sh/${packageName}`
-        console.log(`Rewriting ${type} import: ${packageName} -> ${esmUrl}`)
+        logger.log(`Rewriting ${type} import: ${packageName} -> ${esmUrl}`)
         return match.replace(packageName, esmUrl)
       }
 
@@ -158,7 +159,7 @@ export class ScriptSandboxHandler {
     }
     scriptId = decodeURIComponent(scriptId)
 
-    console.log("serveScriptFile", scriptId)
+    this.logger.log("serveScriptFile", scriptId)
     // Validate script ID: should not be empty
     if (!scriptId) {
       return c.text("Invalid script ID", 400)
@@ -196,7 +197,7 @@ export class ScriptSandboxHandler {
       // Rewrite external imports to use esm.sh URLs (unless no-rewrite=1)
       const rewrittenCode = noRewrite
         ? compiledCode
-        : rewriteExternalImports(compiledCode, deps, excludeLibs)
+        : rewriteExternalImports(compiledCode, deps, excludeLibs, this.logger)
 
       if (deps.length > 0) {
         if (noRewrite) {

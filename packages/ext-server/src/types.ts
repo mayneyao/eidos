@@ -133,6 +133,14 @@ export type GenerateImportMap = (
 export type ExtractFunction = (code: string, funcName: string) => string | null
 
 /**
+ * Logger interface for ext-server
+ */
+export interface ExtServerLogger {
+  log: (...args: any[]) => void
+  error: (...args: any[]) => void
+}
+
+/**
  * Dependencies that need to be injected
  */
 export interface ExtServerDependencies {
@@ -218,4 +226,10 @@ export interface ExtServerConfig {
    * If provided, will handle /compiled-ui/* requests
    */
   serveCompiledUI?: (pathname: string) => Buffer | null
+
+  /**
+   * Optional: Logger for ext-server
+   * If not provided, uses console
+   */
+  logger?: ExtServerLogger
 }

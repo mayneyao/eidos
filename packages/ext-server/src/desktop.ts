@@ -19,7 +19,7 @@
 
 import fs from "fs"
 import path from "path"
-import { ScriptSandboxHandler } from "./script-sandbox"
+import { ScriptSandboxHandler, type SandboxLogger } from "./script-sandbox"
 import { makeSdkInjectScript } from "./helper"
 import {
   extractFunction,
@@ -63,6 +63,11 @@ export interface DesktopConfigOptions {
    * Server port
    */
   port?: number
+
+  /**
+   * Logger for ext-server
+   */
+  logger?: SandboxLogger
 }
 
 /**
@@ -114,7 +119,7 @@ export function createDesktopConfig(
       generateImportMap,
       uiComponentsDependencies,
       createSandboxHandler: (getScriptCode) =>
-        new ScriptSandboxHandler(getScriptCode),
+        new ScriptSandboxHandler(getScriptCode, options.logger),
     },
 
     port,

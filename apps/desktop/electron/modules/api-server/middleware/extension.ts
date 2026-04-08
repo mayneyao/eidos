@@ -2,6 +2,7 @@ import {
   createDesktopConfig,
   createExtensionMiddleware,
 } from "@eidos.space/ext-server/desktop"
+import type { Logger } from "../../logger/logger.service"
 import type { ServerContext } from "../server"
 
 /**
@@ -10,7 +11,8 @@ import type { ServerContext } from "../server"
 export function createExtension(
   ctx: ServerContext,
   dist: string,
-  port: number
+  port: number,
+  logger: Logger
 ) {
   return createExtensionMiddleware(
     createDesktopConfig({
@@ -28,6 +30,7 @@ export function createExtension(
       }),
       dist,
       port,
+      logger,
     })
   )
 }
