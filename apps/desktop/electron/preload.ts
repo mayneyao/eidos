@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron"
 
 import type { AppConfig } from "./services/config-manager"
-import { installElectronFetchProxy } from "./lib/electron-fetch"
+import { installElectronFetchProxy } from "./ipc/fetch-proxy"
 import type { ApiAgentStatus } from "./server/api-agent"
 import { createPreloadApiByNamespace } from "@eidos.space/electron-ipc"
 
