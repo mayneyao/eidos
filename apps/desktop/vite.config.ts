@@ -70,8 +70,8 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
       main: {
         entry: [
           "electron/main.ts",
-          "electron/data-space/worker.ts",
-          "electron/data-space/sync-worker.ts",
+          "electron/core/data-space/worker.ts",
+          "electron/core/data-space/sync-worker.ts",
         ],
         vite: {
           assetsInclude: ["**/*.node"],

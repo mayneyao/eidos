@@ -1,7 +1,7 @@
 import { embed } from "@/packages/ai"
 import { getProvider } from "@/packages/ai/helper"
 
-import { getConfigManager } from "../services/config-manager"
+import { getConfigManager } from "../../services/config-manager"
 
 /**
  * dataspace may run in a runtime with limited environment, so some capabilities are injected through service context.

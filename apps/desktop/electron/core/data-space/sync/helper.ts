@@ -1,8 +1,8 @@
 import fs from "node:fs"
 import path from "path"
 
-import type { SyncBucketCredentials } from "../../services/credentials"
-import type { SpaceInfo } from "../../services/space-registry"
+import type { SyncBucketCredentials } from "../../../services/credentials"
+import type { SpaceInfo } from "../../../services/space-registry"
 
 // --- START: Helper function to check if this is an initialization operation ---
 export function isInitializationOperation(space: SpaceInfo): boolean {

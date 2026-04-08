@@ -17,7 +17,7 @@ Unlike traditional Electron apps that load files directly via `file://` protocol
 1. **HTTP Server in Main Process**
    - When Electron starts, the main process launches an HTTP server (default port: `13127`)
    - Server is implemented using [Hono](https://hono.dev/) framework
-   - See `electron/server/server.ts` for implementation
+   - See `electron/core/server/server.ts` for implementation
 
 2. **Renderer Loads via HTTP**
    - The renderer process loads content via `http://localhost:13127` instead of `file://`

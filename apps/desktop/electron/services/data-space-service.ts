@@ -12,7 +12,7 @@ import {
   getDataSpace,
   getOrSetDataSpace,
   reloadDataSpace,
-} from "../data-space"
+} from "../core/data-space"
 
 interface SqlitePayload {
   id: string

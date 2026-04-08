@@ -5,7 +5,7 @@ import type { RawData } from "ws"
 import WebSocket from "ws"
 import { getOrSetDataSpace } from "../data-space"
 import { z } from "zod"
-import { getConfigManager } from "../services/config-manager"
+import { getConfigManager } from "../../services/config-manager"
 import { BrowserWindow } from "electron"
 
 let wss: WebSocket | null = null

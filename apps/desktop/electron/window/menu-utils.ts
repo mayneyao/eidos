@@ -1,4 +1,4 @@
-import { BrowserWindow, Menu } from "electron"
+import { BrowserWindow } from "electron"
 import type { NativeMenuItem } from "../services/context-menu-service"
 
 /**
