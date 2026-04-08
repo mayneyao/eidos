@@ -12,7 +12,7 @@ import path from "path"
 import { EventEmitter } from "events"
 import type { AIFormValues } from "@/packages/ai/config"
 import type { CustomTheme } from "@/apps/web-app/store/theme-store"
-import { Injectable } from "../../common/di"
+import { Injectable, container } from "../../common/di"
 
 // Account configuration (eidos.space only)
 export interface AccountConfig {
@@ -422,7 +422,22 @@ export class ConfigManager extends EventEmitter {
 // Backward compatibility: singleton instance
 let configManagerInstance: ConfigManager | null = null
 
+/**
+ * Get the ConfigManager instance.
+ * If DI container is initialized and has ConfigManager bound, returns the DI instance.
+ * Otherwise, falls back to a singleton instance for backward compatibility.
+ */
 export function getConfigManager(): ConfigManager {
+  // Try to get from DI container first (preferred)
+  try {
+    if (container.isBound(ConfigManager)) {
+      return container.get(ConfigManager)
+    }
+  } catch {
+    // DI container not ready, fall back to singleton
+  }
+
+  // Fallback: create singleton instance
   if (!configManagerInstance) {
     configManagerInstance = new ConfigManager()
   }

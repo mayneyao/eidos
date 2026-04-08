@@ -5,7 +5,7 @@
  * For data-space database operations, see the (future) SpaceModule.
  */
 
-import { Module } from "../../common/di"
+import { Module, container } from "../../common/di"
 import { SpaceManagementService } from "./space-management.service"
 import { SpaceRegistry } from "./space-registry"
 import { MainWindowProvider } from "./main-window.provider"
@@ -39,7 +39,23 @@ export { resolveStartupSpace } from "./space-registry"
 
 // Backward compatibility helper
 let spaceRegistryInstance: SpaceRegistry | null = null
+
+/**
+ * Get the SpaceRegistry instance.
+ * If DI container is initialized and has SpaceRegistry bound, returns the DI instance.
+ * Otherwise, falls back to a singleton instance for backward compatibility.
+ */
 export function getSpaceRegistry(): SpaceRegistry {
+  // Try to get from DI container first (preferred)
+  try {
+    if (container.isBound(SpaceRegistry)) {
+      return container.get(SpaceRegistry)
+    }
+  } catch {
+    // DI container not ready, fall back to singleton
+  }
+
+  // Fallback: create singleton instance
   if (!spaceRegistryInstance) {
     spaceRegistryInstance = new SpaceRegistry()
   }
