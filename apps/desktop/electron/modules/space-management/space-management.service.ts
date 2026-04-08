@@ -1,43 +1,53 @@
-import type { BrowserWindow } from "electron"
-import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
-import { DataSpaceProcessPool } from "./data-space/data-space-process-pool"
-import {
-  getDataSpace,
-  getOrSetDataSpace,
-} from "./data-space/data-space-manager"
-import { getConfigManager } from "../modules/config/config-manager"
-import { getCredentialsManager } from "../modules/sync/sync.module"
-import { getSpaceRegistry } from "./space-registry"
-import { PORT } from "../main"
-
-interface SpaceManagementOptions {
-  getMainWindow: () => BrowserWindow | null
-}
-
 /**
  * Space Management Service - Handles space CRUD and switching operations
  */
-@IpcService("space-mgmt")
-export class SpaceManagementService extends IpcServiceBase {
-  private getMainWindow: () => BrowserWindow | null
 
-  constructor(options: SpaceManagementOptions) {
+import { IpcServiceBase } from "@eidos.space/electron-ipc"
+import { IpcInjectable, Inject } from "../../common/di"
+import { SpaceRegistry } from "./space-registry"
+import { MainWindowProvider } from "./main-window.provider"
+import { DataSpaceProcessPool } from "../../services/data-space/data-space-process-pool"
+import {
+  getDataSpace,
+  getOrSetDataSpace,
+} from "../../services/data-space/data-space-manager"
+import { getCredentialsManager } from "../sync/sync.module"
+import { getConfigManager } from "../config/config-manager"
+import { PORT } from "../../main"
+
+/**
+ * Space Management Service - Provides space management via IPC
+ *
+ * IPC Channels:
+ * - space-mgmt:listSpaces: List all registered spaces
+ * - space-mgmt:getCurrentSpace: Get current space
+ * - space-mgmt:getSpaceById: Get space by ID
+ * - space-mgmt:registerSpace: Register new space
+ * - space-mgmt:removeSpace: Remove space
+ * - space-mgmt:updateSpace: Update space
+ * - space-mgmt:switchSpace: Switch to different space
+ * - space-mgmt:toggleSpaceSync: Toggle sync for space
+ */
+@IpcInjectable("space-mgmt")
+export class SpaceManagementService extends IpcServiceBase {
+  constructor(
+    @Inject(SpaceRegistry) private registry: SpaceRegistry,
+    @Inject(MainWindowProvider) private windowProvider: MainWindowProvider
+  ) {
     super()
-    this.getMainWindow = options.getMainWindow
   }
 
   /**
    * List all registered spaces
+   * IPC: space-mgmt:listSpaces
    */
-  listSpaces(): ReturnType<
-    ReturnType<typeof getSpaceRegistry>["getAllSpaces"]
-  > {
-    const registry = getSpaceRegistry()
-    return registry.getAllSpaces()
+  listSpaces(): ReturnType<SpaceRegistry["getAllSpaces"]> {
+    return this.registry.getAllSpaces()
   }
 
   /**
    * Get the current space
+   * IPC: space-mgmt:getCurrentSpace
    */
   getCurrentSpace() {
     const configManager = getConfigManager()
@@ -46,28 +56,27 @@ export class SpaceManagementService extends IpcServiceBase {
       return null
     }
 
-    const registry = getSpaceRegistry()
-    return registry.getSpace(spaceId)
+    return this.registry.getSpace(spaceId)
   }
 
   /**
    * Get a space by ID
+   * IPC: space-mgmt:getSpaceById
    */
   getSpaceById(spaceId: string) {
-    const registry = getSpaceRegistry()
-    return registry.getSpace(spaceId)
+    return this.registry.getSpace(spaceId)
   }
 
   /**
    * Register a new space
+   * IPC: space-mgmt:registerSpace
    */
   registerSpace(
     spacePath: string,
     options: { customName?: string; remoteUrl?: string } = {}
   ): { success: boolean; space?: any; error?: string } {
-    const registry = getSpaceRegistry()
     try {
-      const space = registry.registerSpace(spacePath, {
+      const space = this.registry.registerSpace(spacePath, {
         customName: options.customName,
         remoteUrl: options.remoteUrl,
       })
@@ -79,28 +88,28 @@ export class SpaceManagementService extends IpcServiceBase {
 
   /**
    * Remove a space
+   * IPC: space-mgmt:removeSpace
    */
   removeSpace(spaceId: string): { success: boolean } {
-    const registry = getSpaceRegistry()
-    const success = registry.removeSpace(spaceId)
+    const success = this.registry.removeSpace(spaceId)
     return { success }
   }
 
   /**
    * Update a space
+   * IPC: space-mgmt:updateSpace
    */
   updateSpace(
     spaceId: string,
     updates: { name?: string; relay?: any }
   ): { success: boolean; error?: string } {
-    const registry = getSpaceRegistry()
     try {
-      const success = registry.updateSpace(spaceId, updates)
+      const success = this.registry.updateSpace(spaceId, updates)
       if (success) {
         const processPool = DataSpaceProcessPool.getInstance()
         processPool.sendToProcess(spaceId, {
           type: "update-space-info",
-          spaceInfo: registry.getSpace(spaceId),
+          spaceInfo: this.registry.getSpace(spaceId),
         })
         return { success: true }
       } else {
@@ -113,10 +122,10 @@ export class SpaceManagementService extends IpcServiceBase {
 
   /**
    * Switch to a different space
+   * IPC: space-mgmt:switchSpace
    */
   async switchSpace(spaceId: string): Promise<{ success: boolean }> {
-    const registry = getSpaceRegistry()
-    const space = registry.getSpace(spaceId)
+    const space = this.registry.getSpace(spaceId)
 
     if (!space) {
       throw new Error(`Space not found: ${spaceId}`)
@@ -125,24 +134,22 @@ export class SpaceManagementService extends IpcServiceBase {
     const configManager = getConfigManager()
     configManager.setLastOpenedSpace(spaceId)
 
-    // Pre-initialize DataSpace before switching URL
-    console.log(`🔧 Pre-initializing DataSpace for: ${spaceId}`)
+    console.log(`Pre-initializing DataSpace for: ${spaceId}`)
     try {
       await getOrSetDataSpace(spaceId)
-      console.log(`✅ DataSpace initialized for: ${spaceId}`)
+      console.log(`DataSpace initialized for: ${spaceId}`)
     } catch (error) {
-      console.error(`❌ Failed to initialize DataSpace for ${spaceId}:`, error)
+      console.error(`Failed to initialize DataSpace for ${spaceId}:`, error)
       throw error
     }
 
-    const win = this.getMainWindow()
+    const win = this.windowProvider.getWindow()
     if (win) {
-      // Wait for page to load before reloading to ensure URL change is applied
       const waitForLoad = () => {
         return new Promise<void>((resolve) => {
           win!.webContents.once("did-finish-load", () => {
             const currentURL = win!.webContents.getURL()
-            console.log(`📍 Page loaded at: ${currentURL}`)
+            console.log(`Page loaded at: ${currentURL}`)
             resolve()
           })
         })
@@ -152,25 +159,25 @@ export class SpaceManagementService extends IpcServiceBase {
         const devUrl = new URL(process.env.VITE_DEV_SERVER_URL)
         const devSubdomainUrl = `http://${spaceId}.eidos.localhost:${devUrl.port}/`
         console.log(
-          `🔄 Switching to space in development mode: ${devSubdomainUrl}`
+          `Switching to space in development mode: ${devSubdomainUrl}`
         )
         win.loadURL(devSubdomainUrl)
         await waitForLoad()
-        console.log(`✅ Page loaded, now reloading to ensure clean state...`)
+        console.log(`Page loaded, now reloading to ensure clean state...`)
         win.reload()
         await waitForLoad()
-        console.log(`🎉 Space switch complete to: ${spaceId}`)
+        console.log(`Space switch complete to: ${spaceId}`)
       } else {
         const prodSubdomainUrl = `http://${spaceId}.eidos.localhost:${PORT}/`
         console.log(
-          `🔄 Switching to space in production mode: ${prodSubdomainUrl}`
+          `Switching to space in production mode: ${prodSubdomainUrl}`
         )
         win.loadURL(prodSubdomainUrl)
         await waitForLoad()
-        console.log(`✅ Page loaded, now reloading to ensure clean state...`)
+        console.log(`Page loaded, now reloading to ensure clean state...`)
         win.reload()
         await waitForLoad()
-        console.log(`🎉 Space switch complete to: ${spaceId}`)
+        console.log(`Space switch complete to: ${spaceId}`)
       }
     }
 
@@ -179,6 +186,7 @@ export class SpaceManagementService extends IpcServiceBase {
 
   /**
    * Toggle sync for a space
+   * IPC: space-mgmt:toggleSpaceSync
    */
   async toggleSpaceSync(
     spaceId: string,
@@ -186,9 +194,7 @@ export class SpaceManagementService extends IpcServiceBase {
     remote?: string,
     provider?: "eidos.space" | "custom"
   ): Promise<{ success: boolean; error?: string }> {
-    const { CredentialsManager } = await import("../modules/sync/sync.module")
-    const registry = getSpaceRegistry()
-    const space = registry.getSpace(spaceId)
+    const space = this.registry.getSpace(spaceId)
     if (!space) {
       return { success: false, error: "Space not found" }
     }
@@ -198,7 +204,6 @@ export class SpaceManagementService extends IpcServiceBase {
       return { success: false, error: "Data space not initialized" }
     }
 
-    // Use provided provider, fallback to space's current provider, then default
     const configManager = getConfigManager()
     const effectiveProvider =
       provider ||
@@ -207,7 +212,6 @@ export class SpaceManagementService extends IpcServiceBase {
       "eidos.space"
 
     if (enabled) {
-      // Enable sync: convert to graft
       if (!remote) {
         return {
           success: false,
@@ -215,7 +219,6 @@ export class SpaceManagementService extends IpcServiceBase {
         }
       }
 
-      // Check if credentials exist for selected provider
       const credentialsManager = getCredentialsManager()
       const credentials =
         await credentialsManager.getSyncCredentials(effectiveProvider)
@@ -228,8 +231,7 @@ export class SpaceManagementService extends IpcServiceBase {
 
       await dataSpace.convertToGraft(remote)
 
-      // Update space registry
-      registry.setSpaceSync(spaceId, {
+      this.registry.setSpaceSync(spaceId, {
         enabled: true,
         remote: remote,
         provider: effectiveProvider,
@@ -237,11 +239,9 @@ export class SpaceManagementService extends IpcServiceBase {
 
       return { success: true }
     } else {
-      // Disable sync: export to sqlite
       await dataSpace.exportToSqlite()
 
-      // Update space registry
-      registry.setSpaceSync(spaceId, {
+      this.registry.setSpaceSync(spaceId, {
         enabled: false,
         remote: space.sync?.remote || "",
         provider: space.sync?.provider,
