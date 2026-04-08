@@ -1,7 +1,7 @@
 import { embed } from "@/packages/ai"
 import { getProvider } from "@/packages/ai/helper"
 
-import { getServerContext } from "../server/context"
+import { getConfigManager } from "../../modules/config/config-manager"
 
 /**
  * dataspace may run in a runtime with limited environment, so some capabilities are injected through service context.
@@ -44,7 +44,7 @@ export async function embedding(text: string): Promise<Array<number>> {
   }
 
   // console.log("Cache miss for:", text.substring(0, 50) + "..."); // Optional: for debugging
-  const { configManager } = getServerContext()
+  const configManager = getConfigManager()
   const aiConfig = configManager.get("ai")
   const embeddingModel = aiConfig.embeddingModel
   const getConfigByModel = (model: string) => {

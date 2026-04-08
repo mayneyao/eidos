@@ -1,6 +1,14 @@
+/**
+ * Port Checker - Port availability checking utilities
+ *
+ * This module provides port checking functionality for the API server.
+ * Migrated from services/port-checker.ts
+ */
+
 import { exec } from "child_process"
 import net from "net"
 import { promisify } from "util"
+import { dialog } from "electron"
 
 const execAsync = promisify(exec)
 
@@ -37,7 +45,6 @@ export function isPortInUse(port: number): Promise<boolean> {
 
 /**
  * Get process info occupying a port
- * Returns process ID and name if found
  */
 export async function getProcessByPort(
   port: number
@@ -64,7 +71,6 @@ async function getProcessByPortUnix(
   port: number
 ): Promise<PortOccupancyInfo | null> {
   try {
-    // Use lsof to find the process using the port
     const { stdout } = await execAsync(
       `lsof -i :${port} -sTCP:LISTEN -n -P -F pn`
     )
@@ -73,22 +79,16 @@ async function getProcessByPortUnix(
       return { port }
     }
 
-    // Parse lsof output format (-F option)
-    // p<pid>\nn<name> format
     const lines = stdout.trim().split("\n")
     let pid: number | undefined
-    let processName: string | undefined
 
     for (const line of lines) {
       if (line.startsWith("p")) {
         pid = parseInt(line.substring(1), 10)
-      } else if (line.startsWith("n")) {
-        // n format is like "*:13127" or "127.0.0.1:13127"
-        // We don't need this for process name
       }
     }
 
-    // Get process name from PID if we found one
+    let processName: string | undefined
     if (pid) {
       try {
         const { stdout: psOutput } = await execAsync(
@@ -98,7 +98,6 @@ async function getProcessByPortUnix(
         if (psLines.length > 0) {
           const parts = psLines[0].split(" ")
           processName = parts[0]
-          // Get full path if available
           const { stdout: pathOutput } = await execAsync(
             `ps -p ${pid} -o comm=`
           ).catch(() => ({ stdout: "" }))
@@ -111,11 +110,7 @@ async function getProcessByPortUnix(
       }
     }
 
-    return {
-      port,
-      pid,
-      processName,
-    }
+    return { port, pid, processName }
   } catch {
     return { port }
   }
@@ -128,7 +123,6 @@ async function getProcessByPortWindows(
   port: number
 ): Promise<PortOccupancyInfo | null> {
   try {
-    // Find PID using netstat
     const { stdout: netstatOutput } = await execAsync(
       `netstat -ano | findstr ":${port}" | findstr "LISTENING"`
     )
@@ -137,8 +131,6 @@ async function getProcessByPortWindows(
       return { port }
     }
 
-    // Parse netstat output - format:
-    // TCP    127.0.0.1:13127    0.0.0.0:0    LISTENING    12345
     const lines = netstatOutput.trim().split("\n")
     const firstLine = lines[0].trim()
     const parts = firstLine.split(/\s+/)
@@ -148,7 +140,6 @@ async function getProcessByPortWindows(
       return { port }
     }
 
-    // Get process name from PID
     let processName: string | undefined
     let processPath: string | undefined
 
@@ -156,13 +147,11 @@ async function getProcessByPortWindows(
       const { stdout: tasklistOutput } = await execAsync(
         `tasklist /FI "PID eq ${pid}" /FO CSV /NH`
       )
-      // Format: "process.exe","12345","Console","1","12,345 K"
       const match = tasklistOutput.match(/^"([^"]+)"/)
       if (match) {
         processName = match[1]
       }
 
-      // Try to get full path using wmic
       const { stdout: wmicOutput } = await execAsync(
         `wmic process where "ProcessId=${pid}" get ExecutablePath /value 2>nul`
       ).catch(() => ({ stdout: "" }))
@@ -175,12 +164,7 @@ async function getProcessByPortWindows(
       // Ignore tasklist/wmic errors
     }
 
-    return {
-      port,
-      pid,
-      processName,
-      processPath,
-    }
+    return { port, pid, processName, processPath }
   } catch {
     return { port }
   }
@@ -209,7 +193,7 @@ export function formatProcessInfo(info: PortOccupancyInfo): string {
 }
 
 /**
- * Generate platform-specific command to kill a process (for display purposes)
+ * Generate platform-specific command to kill a process
  */
 export function getKillCommand(info: PortOccupancyInfo): string | null {
   if (!info.pid) {
@@ -225,7 +209,6 @@ export function getKillCommand(info: PortOccupancyInfo): string | null {
 
 /**
  * Kill a process by PID
- * Returns true if successful, false otherwise
  */
 export async function killProcess(pid: number): Promise<boolean> {
   const platform = process.platform
@@ -234,13 +217,10 @@ export async function killProcess(pid: number): Promise<boolean> {
     if (platform === "win32") {
       await execAsync(`taskkill /F /PID ${pid}`)
     } else {
-      // Try graceful kill first
       try {
         process.kill(pid, "SIGTERM")
-        // Give it a moment to terminate gracefully
         await new Promise((resolve) => setTimeout(resolve, 500))
       } catch {
-        // If SIGTERM fails, force kill
         await execAsync(`kill -9 ${pid}`)
       }
     }
@@ -256,7 +236,6 @@ export async function killProcess(pid: number): Promise<boolean> {
  */
 export function isProcessRunning(pid: number): boolean {
   try {
-    // Sending signal 0 checks if process exists without affecting it
     process.kill(pid, 0)
     return true
   } catch {
@@ -264,11 +243,8 @@ export function isProcessRunning(pid: number): boolean {
   }
 }
 
-import { dialog } from "electron"
-
 /**
  * Show port in use dialog with process information
- * Returns the user's choice and whether the process was killed
  */
 export async function showPortInUseDialog(
   port: number,
@@ -301,7 +277,6 @@ export async function showPortInUseDialog(
     return detailLines.join("\n")
   }
 
-  // Buttons: Kill Process (if applicable), Retry, Exit
   const buttons = hasProcessInfo
     ? ["Kill Process", "Retry", "Exit"]
     : ["Retry", "Exit"]
@@ -312,19 +287,15 @@ export async function showPortInUseDialog(
     message: `Eidos cannot start because port ${port} is occupied`,
     detail: buildDetailMessage(),
     buttons,
-    defaultId: hasProcessInfo ? 1 : 0, // Default to Retry
-    cancelId: hasProcessInfo ? 2 : 1, // Cancel maps to Exit
+    defaultId: hasProcessInfo ? 1 : 0,
+    cancelId: hasProcessInfo ? 2 : 1,
   })
 
-  // Handle button clicks
   if (hasProcessInfo) {
-    // Button order: ["Kill Process", "Retry", "Exit"]
     switch (result.response) {
-      case 0: // Kill Process
+      case 0:
         if (processInfo.pid) {
-          // Check if process is still running
           if (!isProcessRunning(processInfo.pid)) {
-            // Process already exited
             await dialog.showMessageBox({
               type: "info",
               title: "Process Already Terminated",
@@ -337,7 +308,6 @@ export async function showPortInUseDialog(
 
           const success = await killProcess(processInfo.pid)
           if (success) {
-            // Verify the process is actually gone
             await new Promise((resolve) => setTimeout(resolve, 500))
             if (!isProcessRunning(processInfo.pid)) {
               await dialog.showMessageBox({
@@ -351,7 +321,6 @@ export async function showPortInUseDialog(
             }
           }
 
-          // Kill failed
           const retryResult = await dialog.showMessageBox({
             type: "error",
             title: "Failed to Kill Process",
@@ -368,15 +337,14 @@ export async function showPortInUseDialog(
         }
         return { action: "retry", killed: false }
 
-      case 1: // Retry
+      case 1:
         return { action: "retry", killed: false }
 
-      case 2: // Exit
+      case 2:
       default:
         return { action: "exit", killed: false }
     }
   } else {
-    // Button order: ["Retry", "Exit"]
     return {
       action: result.response === 0 ? "retry" : "exit",
       killed: false,
