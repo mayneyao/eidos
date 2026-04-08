@@ -70,7 +70,7 @@ export function GeneralSettings() {
 
         // Load current space info
         try {
-          const info = await window.eidos.invoke("get-current-space")
+          const info = await window.eidos.spaceMgmt.getCurrentSpace()
           if (info) {
             setSpaceInfo(info)
             setSpaceName(info.name)
@@ -116,7 +116,7 @@ export function GeneralSettings() {
       // Reload space info to get updated name
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
         try {
-          const info = await window.eidos.invoke("get-current-space")
+          const info = await window.eidos.spaceMgmt.getCurrentSpace()
           if (info) {
             setSpaceInfo(info)
             setSpaceName(info.name)
@@ -149,11 +149,10 @@ export function GeneralSettings() {
 
         if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
           // In desktop mode, switch to another space if available
-          const updatedSpaces = await window.eidos.invoke("list-spaces")
+          const updatedSpaces = await window.eidos.spaceMgmt.listSpaces()
           if (updatedSpaces && updatedSpaces.length > 0) {
             // Switch to the first available space
-            const result = await window.eidos.invoke(
-              "switch-space",
+            const result = await window.eidos.spaceMgmt.switchSpace(
               updatedSpaces[0].id
             )
             if (result.success) {
@@ -197,7 +196,7 @@ export function GeneralSettings() {
     if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
       try {
         // Get current workspace info via IPC
-        const spaceInfo = await window.eidos.invoke("get-current-space")
+        const spaceInfo = await window.eidos.spaceMgmt.getCurrentSpace()
         if (spaceInfo && spaceInfo.path) {
           window.eidos.showInFileManager(spaceInfo.path)
         } else {

@@ -120,8 +120,8 @@ export const useLayoutInit = () => {
     if (isDesktopMode && database) {
       if (lastOpenedDatabase === database) return
       const switchDdMsgId = uuidv7()
-      window.eidos
-        .invoke(MsgType.SwitchDatabase, {
+      window.eidos.space
+        .switchDatabase({
           databaseName: database,
           id: switchDdMsgId,
         })

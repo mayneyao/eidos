@@ -45,7 +45,7 @@ export interface PathConfig {
   }
 }
 
-import type { SpaceInfo } from "../../space-registry"
+import type { SpaceInfo } from "../../services/space-registry"
 
 export interface WorkerInitData {
   spaceInfo: SpaceInfo

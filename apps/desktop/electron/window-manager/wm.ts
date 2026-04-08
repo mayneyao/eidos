@@ -6,7 +6,7 @@ import {
 import type { WebContents, WebContentsViewConstructorOptions } from "electron"
 import { BrowserWindow, WebContentsView, shell } from "electron"
 import path from "path"
-import { getExtensionByUrl } from "../helper"
+import { getExtensionByUrl } from "../lib/helper"
 import { BrowserViewManager } from "./browser-view-manager"
 import { PipelineRunner } from "../services/pipeline-runner"
 

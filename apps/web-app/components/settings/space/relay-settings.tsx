@@ -109,7 +109,7 @@ export function RelaySettings({ onCloseSettings }: RelaySettingsProps) {
     const loadData = async () => {
       if (isDesktopMode) {
         try {
-          const info = await window.eidos.invoke("get-current-space")
+          const info = await window.eidos.spaceMgmt.getCurrentSpace()
           if (info) {
             // Migration: Check for legacy relays array
             let config: RelayConfig = info.relay
@@ -122,7 +122,7 @@ export function RelaySettings({ onCloseSettings }: RelaySettingsProps) {
                 })),
               }
               // Automatically save migration
-              await window.eidos.invoke("update-space", space, {
+              await window.eidos.spaceMgmt.updateSpace(space, {
                 relay: config,
                 relays: null,
               })
@@ -149,7 +149,7 @@ export function RelaySettings({ onCloseSettings }: RelaySettingsProps) {
       space
     ) {
       try {
-        await window.eidos.invoke("update-space", space, {
+        await window.eidos.spaceMgmt.updateSpace(space, {
           relay: newConfig,
         })
         setRelayConfig(newConfig)
@@ -174,17 +174,15 @@ export function RelaySettings({ onCloseSettings }: RelaySettingsProps) {
 
     try {
       // Fetch total counts
-      const total = await window.eidos.invoke("get-relay-total-counts", space)
+      const total = await window.eidos.relay.getRelayTotalCounts(space)
       setTotalCounts(total)
 
       // Fetch per-channel counts
       const counts: Record<string, { pending: number; deadLetter: number }> = {}
       for (const channel of relayConfig.channels) {
-        const result = await window.eidos.invoke(
-          "get-relay-channel-counts",
-          space,
-          { channelId: channel.id }
-        )
+        const result = await window.eidos.relay.getRelayChannelCounts(space, {
+          channelId: channel.id,
+        })
         counts[channel.id] = result
       }
       setChannelCounts(counts)

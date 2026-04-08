@@ -1,7 +1,7 @@
 import path from "path"
 import { app } from "electron"
 import { getInfoFromExtensionUrl } from "@/lib/utils"
-import { getOrSetDataSpace } from "./data-space"
+import { getOrSetDataSpace } from "../data-space"
 export function getResourcePath(relativePath: string): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, relativePath)

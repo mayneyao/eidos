@@ -34,7 +34,7 @@ export const useRelayHandler = () => {
 
       // 1. Get current space info to find bound handlers
       const spaceInfo: SpaceInfo | null =
-        await window.eidos.invoke("get-current-space")
+        await window.eidos.spaceMgmt.getCurrentSpace()
       if (!spaceInfo?.relay?.enabled) return
 
       const channels: RelayChannel[] = spaceInfo.relay.channels || []
@@ -72,11 +72,10 @@ export const useRelayHandler = () => {
             }
 
             // 3. Get messages for this specific relay from inbox.sqlite3
-            const messages: RelayMessage[] = await window.eidos.invoke(
-              "get-relay-messages",
-              space,
-              { channelId: relay.id }
-            )
+            const messages: RelayMessage[] =
+              await window.eidos.relay.getRelayMessages(space, {
+                channelId: relay.id,
+              })
             if (!messages || messages.length === 0) {
               break
             }
@@ -135,7 +134,7 @@ export const useRelayHandler = () => {
               )
 
               // 6. Update inbox.sqlite3 via IPC
-              await window.eidos.invoke("ack-relay-messages", space, {
+              await window.eidos.relay.ackRelayMessages(space, {
                 acked: finalAcked,
                 retry: retryIds,
               })
@@ -150,7 +149,7 @@ export const useRelayHandler = () => {
                 .filter((m) => !ackedIds.includes(m.id))
                 .map((m) => m.id)
 
-              await window.eidos.invoke("ack-relay-messages", space, {
+              await window.eidos.relay.ackRelayMessages(space, {
                 acked: ackedIds,
                 retry: remainingToRetry,
               })

@@ -40,7 +40,7 @@ export function useSpaceSyncStatus() {
     setIsLoading(true)
     setError(null)
     try {
-      const result = await window.eidos.invoke(MsgType.Status, {
+      const result = await window.eidos.space.status({
         spaceName: spaceId,
       })
       console.log("useSpaceSyncStatus: Status fetched successfully:", result)

@@ -4,7 +4,7 @@ import {
   getProcessByPort,
   isPortInUse,
   type PortOccupancyInfo,
-} from "../port-checker"
+} from "../services/port-checker"
 import { createProxyMiddleware } from "@eidos.space/proxy"
 import {
   containsBinaryData,
@@ -26,11 +26,11 @@ import {
   CredentialsManager,
   type OAuthTokens,
   type UserInfo,
-} from "../credentials"
+} from "../services/credentials"
 import { getConfigManager } from "../config"
 import { getOrSetDataSpace } from "../data-space"
 import { getFileFromPath, getSpaceFileFromPath } from "../file-system/space"
-import { getSpaceRegistry } from "../space-registry"
+import { getSpaceRegistry } from "../services/space-registry"
 import { serveFile } from "./serve-file"
 import { serveStatic } from "./server-static"
 

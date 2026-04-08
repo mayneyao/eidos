@@ -146,7 +146,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
 
     setLoadingProviders(true)
     try {
-      const result = await window.eidos.invoke("get-sync-providers")
+      const result = await window.eidos.credentials.getSyncProviders()
       if (result.success) {
         setProviders(result.providers || [])
       }
@@ -163,7 +163,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
 
     setLoadingRemoteSpaces(true)
     try {
-      const result = await window.eidos.invoke("list-remote-spaces", providerId)
+      const result = await window.eidos.credentials.listRemoteSpaces(providerId)
       if (result.success && result.spaces) {
         setRemoteSpaces(result.spaces)
       } else {
@@ -185,7 +185,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
 
     if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
       try {
-        const result = await window.eidos.invoke("switch-space", currentValue)
+        const result = await window.eidos.spaceMgmt.switchSpace(currentValue)
         if (!result.success) {
           console.error("Failed to switch space:", result.error)
         }
@@ -234,7 +234,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
           }
         }
 
-        const result = await window.eidos.invoke("register-space", localPath, {
+        const result = await window.eidos.spaceMgmt.registerSpace(localPath, {
           customName: spaceName || undefined,
           remoteUrl,
         })
@@ -287,7 +287,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         )
 
         // Use clone-space IPC to properly clone with sync
-        const result = await window.eidos.invoke("clone-space", {
+        const result = await window.eidos.credentials.cloneSpace({
           localPath,
           remoteUrl,
           providerId: selectedProvider,

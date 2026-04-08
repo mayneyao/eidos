@@ -56,7 +56,7 @@ const router = createBrowserRouter([
             // In desktop mode, use IPC to get workspace list
             if (typeof window !== "undefined" && window.eidos) {
               try {
-                const spaces = await window.eidos.invoke("list-spaces")
+                const spaces = await window.eidos.spaceMgmt.listSpaces()
                 spaceNames = spaces.map((space: any) => space.id)
               } catch (error) {
                 console.error("Failed to get spaces from Electron:", error)

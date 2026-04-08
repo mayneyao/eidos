@@ -19,7 +19,7 @@ export const SpaceCommandItems = () => {
     if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
       // Desktop mode: use Electron IPC to switch workspace
       try {
-        const result = await window.eidos.invoke("switch-space", spaceId)
+        const result = await window.eidos.spaceMgmt.switchSpace(spaceId)
         if (result.success) {
           // Workspace switched successfully, Electron will automatically reload to new subdomain
         } else {

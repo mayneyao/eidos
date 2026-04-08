@@ -23,7 +23,7 @@ export default function TerminalPage() {
     const getSpacePath = async () => {
       try {
         if (space) {
-          const spaceInfo = await window.eidos?.space?.getById(space)
+          const spaceInfo = await window.eidos?.spaceMgmt?.getSpaceById(space)
           if (spaceInfo?.path) {
             setSpacePath(spaceInfo.path)
             return
@@ -31,7 +31,7 @@ export default function TerminalPage() {
         }
 
         // Fallback: try get-current-space
-        const currentSpace = await window.eidos?.space?.getCurrent()
+        const currentSpace = await window.eidos?.spaceMgmt?.getCurrentSpace()
         if (currentSpace?.path) {
           setSpacePath(currentSpace.path)
           return

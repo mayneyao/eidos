@@ -41,13 +41,13 @@ const useUpdateStore = create<UpdateStore>((set) => ({
 
   checkForUpdates: () => {
     if (isDesktopMode) {
-      window.eidos.invoke("check-for-updates")
+      window.eidos.checkForUpdates()
     }
   },
 
   quitAndInstall: () => {
     if (isDesktopMode) {
-      window.eidos.invoke("quit-and-install")
+      window.eidos.quitAndInstall()
     }
   },
 }))

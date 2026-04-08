@@ -86,7 +86,7 @@ export function DesktopSpaceLayout() {
       try {
         // Try to get space by ID first (most reliable)
         if (space) {
-          const spaceInfo = await window.eidos?.space?.getById(space)
+          const spaceInfo = await window.eidos?.spaceMgmt?.getSpaceById(space)
           console.log("[Layout] Space info from getById:", spaceInfo)
           if (spaceInfo?.path) {
             console.log(
@@ -99,7 +99,7 @@ export function DesktopSpaceLayout() {
         }
 
         // Fallback: try get-current-space
-        const currentSpace = await window.eidos?.space?.getCurrent()
+        const currentSpace = await window.eidos?.spaceMgmt?.getCurrentSpace()
         console.log("[Layout] Current space from getCurrent:", currentSpace)
         if (currentSpace?.path) {
           console.log(

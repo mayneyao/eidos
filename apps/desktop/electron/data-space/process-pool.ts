@@ -4,7 +4,7 @@ import fs from "fs"
 import path from "path"
 
 import { getMainWindowWebContents } from "../main"
-import { CredentialsManager } from "../credentials"
+import { CredentialsManager } from "../services/credentials"
 import type { InitMessage } from "./rpc/rpc-types"
 
 interface ProcessItem {

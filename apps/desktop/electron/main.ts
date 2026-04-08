@@ -1,7 +1,3 @@
-import fs from "fs/promises"
-import path from "path"
-import { fetchAvailableModels } from "@/packages/ai/helper"
-import { BucketClient } from "@/packages/sync/bucket"
 import {
   BrowserWindow,
   Menu,
@@ -10,55 +6,44 @@ import {
   dialog,
   ipcMain,
   nativeImage,
-  shell,
-  webContents,
 } from "electron"
 import { default as console, default as electronLog } from "electron-log"
+import path from "path"
 
-import { MsgType } from "@/lib/const"
-
-import { getConfigManager } from "./config"
-import { corsManager } from "./cors-manager"
-import { CredentialsManager } from "./credentials"
-import { DataSpaceProcessPool } from "./data-space/process-pool"
-import {
-  closeDataSpace,
-  getCurrentSpaceId,
-  getDataSpace,
-  getOrSetDataSpace,
-  reloadDataSpace,
-} from "./data-space"
-import {
-  cleanupPlaygroundWatchers,
-  initializePlayground,
-} from "./file-system/playground"
-import { ProtocolHandler } from "./protocol-handler"
-import { getApiAgentStatus, initApiAgent } from "./server/api-agent"
-import { type PortInUseError, startServer } from "./server/server"
-import {
-  formatProcessInfo,
-  getKillCommand,
-  isProcessRunning,
-  killProcess,
-  type PortOccupancyInfo,
-} from "./port-checker"
-import { GlobalShortcutManager } from "./services/global-shortcut-manager"
-import { terminalService } from "./services/terminal-service"
-import { OpenDataService } from "./services/opendata-service"
-import {
-  getCliBinaryPath,
-  installCli,
-  isCliInstalled,
-  uninstallCli,
-} from "./services/cli-installer"
-import { getSpaceRegistry, migrateFromLegacyConfig } from "./space-registry"
-import { AppUpdater } from "./updater"
-import { createWindow, windowManager } from "./window-manager/createWindow"
-import { convertToElectronMenuTemplateWithIds } from "./window-manager/menu-utils"
-import { LicenseManager } from "./license"
-import { registerElectronFetchIpc } from "./lib/electron-fetch"
 import { setupRegistryIpc } from "@eidos.space/electron-ipc"
+import { getConfigManager } from "./config"
+import { corsManager } from "./services/cors-manager"
+import { getDataSpace } from "./data-space"
+import { cleanupPlaygroundWatchers } from "./file-system/playground"
 import { getSpacePath } from "./file-system/space"
+import { registerElectronFetchIpc } from "./lib/electron-fetch"
+import { showPortInUseDialog } from "./services/port-checker"
+import { ProtocolHandler } from "./services/protocol-handler"
+import { initApiAgent } from "./server/api-agent"
+import { startServer, type PortInUseError } from "./server/server"
+import { AppLifecycleService } from "./services/app-lifecycle-service"
+import { cliService } from "./services/cli-service"
+import { configService } from "./services/config-service"
+import { contextMenuService } from "./services/context-menu-service"
+import { dataSpaceService } from "./services/data-space-service"
+import { fetchService } from "./services/fetch-service"
+import { fileSystemService } from "./services/file-system-service"
+import { GlobalShortcutManager } from "./services/global-shortcut-manager"
+import { licenseService } from "./services/license-service"
+import { OpenDataService } from "./services/opendata-service"
+import { PipelineService } from "./services/pipeline-service"
+import { playgroundService } from "./services/playground-service"
+import { relayService } from "./services/relay-service"
+import { SpaceManagementService } from "./services/space-management-service"
+import { syncService } from "./services/sync-service"
+import { TerminalService } from "./services/terminal-service"
+import { webviewService } from "./services/webview-service"
+import {
+  getSpaceRegistry,
+  migrateFromLegacyConfig,
+} from "./services/space-registry"
+import { AppUpdater } from "./services/updater"
+import { createWindow, windowManager } from "./window-manager/createWindow"
 
 process.on("uncaughtException", (error) => {
   console.error("Unhandled Exception:", error) // Also log to console
@@ -86,6 +71,7 @@ let tray: Tray | null
 let protocolHandler: ProtocolHandler
 let globalShortcutManager: GlobalShortcutManager | null = null
 let openDataService: OpenDataService | null = null
+let terminalService: TerminalService | null = null
 let forceQuit = false
 
 export const PORT = 13127
@@ -108,124 +94,6 @@ process.env.VITE_PUBLIC = app.isPackaged
 // app.setName('Eidos')
 // not working on windows, we just change name in package.json to eidos to avoid breaking change
 // app.setPath('userData', path.join(app.getPath('appData'), 'eidos'))
-
-/**
- * Show port in use dialog with process information
- * Returns the user's choice and whether the process was killed
- */
-async function showPortInUseDialog(
-  port: number,
-  processInfo?: PortOccupancyInfo | null
-): Promise<{ action: "retry" | "exit"; killed: boolean }> {
-  const hasProcessInfo = processInfo && processInfo.pid
-  const killCmd = hasProcessInfo ? getKillCommand(processInfo) : null
-
-  const buildDetailMessage = () => {
-    const detailLines: string[] = [
-      `The port ${port} required by Eidos is already in use by another process.`,
-      "",
-    ]
-
-    if (processInfo) {
-      detailLines.push(formatProcessInfo(processInfo))
-      detailLines.push("")
-    }
-
-    if (killCmd) {
-      detailLines.push(
-        `You can click "Kill Process" to automatically terminate it, or run the following command manually:`
-      )
-      detailLines.push(``)
-      detailLines.push(`${killCmd}`)
-      detailLines.push(``)
-    }
-
-    detailLines.push("Please stop the conflicting process and try again.")
-    return detailLines.join("\n")
-  }
-
-  // Buttons: Kill Process (if applicable), Retry, Exit
-  const buttons = hasProcessInfo
-    ? ["Kill Process", "Retry", "Exit"]
-    : ["Retry", "Exit"]
-
-  const result = await dialog.showMessageBox({
-    type: "warning",
-    title: "Port Already in Use",
-    message: `Eidos cannot start because port ${port} is occupied`,
-    detail: buildDetailMessage(),
-    buttons,
-    defaultId: hasProcessInfo ? 1 : 0, // Default to Retry
-    cancelId: hasProcessInfo ? 2 : 1, // Cancel maps to Exit
-  })
-
-  // Handle button clicks
-  if (hasProcessInfo) {
-    // Button order: ["Kill Process", "Retry", "Exit"]
-    switch (result.response) {
-      case 0: // Kill Process
-        if (processInfo.pid) {
-          // Check if process is still running
-          if (!isProcessRunning(processInfo.pid)) {
-            // Process already exited
-            await dialog.showMessageBox({
-              type: "info",
-              title: "Process Already Terminated",
-              message: "The process has already been terminated.",
-              buttons: ["Retry"],
-              defaultId: 0,
-            })
-            return { action: "retry", killed: true }
-          }
-
-          const success = await killProcess(processInfo.pid)
-          if (success) {
-            // Verify the process is actually gone
-            await new Promise((resolve) => setTimeout(resolve, 500))
-            if (!isProcessRunning(processInfo.pid)) {
-              await dialog.showMessageBox({
-                type: "info",
-                title: "Process Killed",
-                message: `Process ${processInfo.processName || processInfo.pid} has been terminated.`,
-                buttons: ["Continue"],
-                defaultId: 0,
-              })
-              return { action: "retry", killed: true }
-            }
-          }
-
-          // Kill failed
-          const retryResult = await dialog.showMessageBox({
-            type: "error",
-            title: "Failed to Kill Process",
-            message: `Unable to terminate process ${processInfo.processName || processInfo.pid}.`,
-            detail:
-              "The process may require elevated privileges (administrator/root) to terminate.",
-            buttons: ["Retry", "Exit"],
-            defaultId: 0,
-          })
-          return {
-            action: retryResult.response === 0 ? "retry" : "exit",
-            killed: false,
-          }
-        }
-        return { action: "retry", killed: false }
-
-      case 1: // Retry
-        return { action: "retry", killed: false }
-
-      case 2: // Exit
-      default:
-        return { action: "exit", killed: false }
-    }
-  } else {
-    // Button order: ["Retry", "Exit"]
-    return {
-      action: result.response === 0 ? "retry" : "exit",
-      killed: false,
-    }
-  }
-}
 
 /**
  * Initialize server with port conflict handling
@@ -278,299 +146,31 @@ if (!app.requestSingleInstanceLock()) {
 
 // Set up window open handler when webview DOM is ready
 // Prevents webview from opening new windows inside the app, redirects external links to system browser
-ipcMain.on("webview-dom-ready", (_, id) => {
-  const wc = webContents.fromId(id)
-  wc?.setWindowOpenHandler(({ url }) => {
-    const protocol = new URL(url).protocol
-    // Only allow http and https protocol external links to open in system browser
-    if (["https:", "http:"].includes(protocol)) {
-      shell.openExternal(url)
-    }
-    // Deny other types of window open requests to maintain app security
-    return { action: "deny" }
-  })
-})
+// Webview IPC handlers are now handled by WebviewService
+// See: services/webview-service.ts
 
-ipcMain.handle("get-app-data-folder", () => {
-  return getConfigManager().get("dataFolder")
-})
+// Config IPC handlers are now handled by ConfigService
+// See: services/config-service.ts
 
-ipcMain.handle("get-config", (event, key) => {
-  return getConfigManager().get(key)
-})
-
-ipcMain.handle("set-config", (event, key, value) => {
-  getConfigManager().set(key, value)
-})
-
-ipcMain.handle("get-ai-config", () => {
-  return getConfigManager().get("ai")
-})
-
-ipcMain.handle("get-user-config-path", () => {
-  return path.join(app.getPath("userData"), "config.json")
-})
-
+// Data Space IPC handlers are now handled by DataSpaceService
+// Note: sqlite-msg and sqlite-msg-read require event.sender for iterator callbacks
+// These need manual registration to pass the event object
 ipcMain.handle("sqlite-msg", async (event, payload) => {
-  try {
-    let dataSpace = getDataSpace()
-    const { space, dbName } = payload.data
-    const spaceId = space || dbName
-
-    if (!spaceId) {
-      throw new Error("No space ID provided in sqlite-msg")
-    }
-
-    const currentSpaceId = getCurrentSpaceId()
-    if (!dataSpace || !currentSpaceId) {
-      dataSpace = await getOrSetDataSpace(spaceId)
-    } else if (spaceId !== currentSpaceId) {
-      electronLog.info("switching to data space", spaceId)
-      dataSpace = await getOrSetDataSpace(spaceId)
-    }
-
-    if (!dataSpace) {
-      throw new Error("Failed to initialize data space")
-    }
-
-    const res = await (dataSpace as any)._executePayload(
-      payload.data,
-      payload.id,
-      (msg: any) => {
-        event.sender.send(`sqlite-iterator-${payload.id}`, msg)
-      }
-    )
-
-    return res
-  } catch (error) {
-    console.error("sqlite-msg error:", error)
-
-    // Special handling for "An object could not be cloned" error
-    if (
-      error instanceof Error &&
-      error.message.includes("An object could not be cloned")
-    ) {
-      console.error("CLONING ERROR DETAILS:")
-      console.error("- Error message:", error.message)
-      console.error("- Error stack:", error.stack)
-      console.error("- Payload method:", payload.data?.method)
-      console.error("- Payload params count:", payload.data?.params?.length)
-      console.error("- Payload params:", payload.data?.params)
-
-      // Try to inspect the payload data
-      try {
-        console.error("- Payload data keys:", Object.keys(payload.data || {}))
-        console.error(
-          "- Payload data types:",
-          Object.fromEntries(
-            Object.entries(payload.data || {}).map(([k, v]) => [k, typeof v])
-          )
-        )
-      } catch (inspectError) {
-        console.error("- Failed to inspect payload:", inspectError)
-      }
-    }
-
-    throw error
-  }
+  return dataSpaceService.sqliteMsg(event, payload)
 })
 
 ipcMain.handle("sqlite-msg-read", async (event, payload) => {
-  try {
-    let dataSpace = getDataSpace()
-    const { space, dbName } = payload.data
-    const spaceId = space || dbName
-
-    if (!spaceId) {
-      throw new Error("No space ID provided in sqlite-msg-read")
-    }
-
-    const currentSpaceId = getCurrentSpaceId()
-    if (!dataSpace || !currentSpaceId) {
-      dataSpace = await getOrSetDataSpace(spaceId)
-    } else if (spaceId !== currentSpaceId) {
-      electronLog.info("switching to data space", spaceId)
-      dataSpace = await getOrSetDataSpace(spaceId)
-    }
-
-    if (!dataSpace) {
-      throw new Error("Failed to initialize data space")
-    }
-
-    const res = await (dataSpace as any)._executePayload(
-      payload.data,
-      payload.id,
-      (msg: any) => {
-        event.sender.send(`sqlite-iterator-${payload.id}`, msg)
-      }
-    )
-
-    return res
-  } catch (error) {
-    console.error("sqlite-msg-read error:", error)
-
-    // Special handling for "An object could not be cloned" error
-    if (
-      error instanceof Error &&
-      error.message.includes("An object could not be cloned")
-    ) {
-      console.error("CLONING ERROR DETAILS:")
-      console.error("- Error message:", error.message)
-      console.error("- Error stack:", error.stack)
-      console.error("- Payload method:", payload.data?.method)
-      console.error("- Payload params count:", payload.data?.params?.length)
-      console.error("- Payload params:", payload.data?.params)
-      console.error(
-        "- Payload data keys:",
-        payload.data ? Object.keys(payload.data) : "no data"
-      )
-      console.error(
-        "- Payload data types:",
-        payload.data
-          ? Object.fromEntries(
-              Object.entries(payload.data).map(([k, v]) => [k, typeof v])
-            )
-          : "no data"
-      )
-    }
-
-    throw error
-  }
+  return dataSpaceService.sqliteMsgRead(event, payload)
 })
 
-ipcMain.handle(MsgType.SwitchDatabase, (event, args) => {
-  const { databaseName, id } = args
-  // Perform the database switch logic here
-  const data = { dbName: databaseName } // Example response data
-  getOrSetDataSpace(databaseName)
-  return { id, data }
-})
+// File System IPC handlers are now handled by FileSystemService
+// See: services/file-system-service.ts
 
-ipcMain.handle(MsgType.Pull, async (event, args) => {
-  const { spaceName } = args
-  const dataSpace = await getOrSetDataSpace(spaceName)
-  return dataSpace?.pull()
-})
+// Pipeline IPC handlers are now handled by PipelineService
+// See: services/pipeline-service.ts
 
-ipcMain.handle(MsgType.Push, async (event, args) => {
-  const { spaceName } = args
-  const dataSpace = await getOrSetDataSpace(spaceName)
-  return dataSpace?.push()
-})
-
-ipcMain.handle(MsgType.Fetch, async (event, args) => {
-  const { spaceName } = args
-  const dataSpace = await getOrSetDataSpace(spaceName)
-  return dataSpace?.fetch()
-})
-
-ipcMain.handle(MsgType.Hydrate, async (event, args) => {
-  const { spaceName } = args
-  const dataSpace = await getOrSetDataSpace(spaceName)
-  return dataSpace?.hydrate()
-})
-
-ipcMain.handle(MsgType.Snapshot, async (event, args) => {
-  const { spaceName } = args
-  const dataSpace = await getOrSetDataSpace(spaceName)
-  return dataSpace?.snapshot()
-})
-ipcMain.handle(MsgType.Status, async (event, args) => {
-  const { spaceName } = args
-  const dataSpace = await getOrSetDataSpace(spaceName)
-  return dataSpace?.status()
-})
-
-ipcMain.handle(MsgType.Volumes, async (event, args) => {
-  const { spaceName } = args
-  const dataSpace = await getOrSetDataSpace(spaceName)
-  return dataSpace?.volumes()
-})
-
-ipcMain.handle(MsgType.CreateSpace, async (event, args) => {
-  const { spaceName, enableSync } = args
-  const data = { spaceName }
-  const dataSpace = await getOrSetDataSpace(spaceName)
-  if (dataSpace) {
-    return { data, success: true }
-  } else {
-    return { data, success: false }
-  }
-})
-
-ipcMain.handle("select-folder", async () => {
-  const result = await dialog.showOpenDialog({
-    properties: ["openDirectory", "createDirectory"],
-  })
-
-  if (result.canceled) {
-    return undefined
-  } else {
-    return result.filePaths[0]
-  }
-})
-
-ipcMain.handle("show-in-file-manager", async (event, path) => {
-  if (path) {
-    try {
-      const stats = await fs.stat(path)
-      if (stats.isFile()) {
-        shell.showItemInFolder(path)
-      } else {
-        shell.openPath(path)
-      }
-    } catch (error) {
-      electronLog.error("Error accessing path:", error)
-      return { success: false, error: "Failed to access path" }
-    }
-  } else {
-    electronLog.warn("No path provided")
-    return { success: false, error: "No path provided" }
-  }
-  return { success: true }
-})
-
-ipcMain.handle("open-url", async (event, url) => {
-  if (!url || typeof url !== "string") {
-    electronLog.warn("Invalid URL provided")
-    return { success: false, error: "Invalid URL provided" }
-  }
-
-  try {
-    await shell.openExternal(url)
-    electronLog.info(`URL opened successfully: ${url}`)
-    return { success: true }
-  } catch (error) {
-    electronLog.error(`Error opening URL: ${error}`)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    }
-  }
-})
-
-ipcMain.handle("pipeline:run", async (_, steps, args, options) => {
-  try {
-    const { result, logs, rendererLogs } =
-      await windowManager!.pipelineRunner.run(steps, args, options)
-    return { success: true, result, logs, rendererLogs }
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    }
-  }
-})
-
-ipcMain.handle("reload-app", () => {
-  // Reinitialize global shortcuts after reload
-  if (win && globalShortcutManager) {
-    globalShortcutManager.setMainWindow(win)
-    // GlobalShortcutManager will handle registration based on focus state
-  }
-  app.relaunch()
-  win?.reload()
-})
+// App lifecycle IPC handlers are now handled by AppLifecycleService
+// See: services/app-lifecycle-service.ts
 
 app.on("window-all-closed", () => {
   cleanupPlaygroundWatchers()
@@ -578,362 +178,23 @@ app.on("window-all-closed", () => {
   globalShortcutManager?.destroy()
   globalShortcutManager = null
   openDataService?.closeAll()
-  terminalService.cleanup()
+  terminalService?.cleanup()
   win = null
 })
 
-ipcMain.handle("check-for-updates", () => {
-  appUpdater.checkForUpdatesManually()
-})
+// Playground IPC handlers are now handled by PlaygroundService
+// See: services/playground-service.ts
 
-ipcMain.handle("quit-and-install", () => {
-  forceQuit = true
-  appUpdater.quitAndInstall()
-})
+// Sync IPC handlers are now handled by SyncService
+// See: services/sync-service.ts
 
-ipcMain.handle("initialize-playground", (event, space, blockId, files) => {
-  return initializePlayground(space, blockId, files)
-})
-
-// Credentials management
-ipcMain.handle(
-  "set-sync-credentials",
-  async (event, credentials, providerId) => {
-    return CredentialsManager.setSyncCredentials(credentials, providerId)
-  }
-)
-
-ipcMain.handle("get-sync-credentials", async (event, providerId) => {
-  return CredentialsManager.getSyncCredentials(providerId)
-})
-
-ipcMain.handle("clear-sync-credentials", async (event, providerId) => {
-  return CredentialsManager.clearSyncCredentials(providerId)
-})
-
-ipcMain.handle("has-sync-credentials", async (event, providerId) => {
-  return CredentialsManager.hasSyncCredentials(providerId)
-})
-
-ipcMain.handle("pull-relay-messages", async (event, spaceId) => {
-  const processPool = DataSpaceProcessPool.getInstance()
-  processPool.sendToProcess(spaceId, { type: "pull-relay-messages" })
-  return { success: true }
-})
-
-ipcMain.handle("get-relay-messages", async (event, spaceId, data) => {
-  const processPool = DataSpaceProcessPool.getInstance()
-  return processPool.callProcess(spaceId, "get-relay-messages", data)
-})
-
-ipcMain.handle("ack-relay-messages", async (event, spaceId, data) => {
-  const processPool = DataSpaceProcessPool.getInstance()
-  return processPool.callProcess(spaceId, "ack-relay-messages", data)
-})
-
-ipcMain.handle("get-relay-channel-counts", async (event, spaceId, data) => {
-  const processPool = DataSpaceProcessPool.getInstance()
-  return processPool.callProcess(spaceId, "get-relay-channel-counts", data)
-})
-
-ipcMain.handle("get-relay-total-counts", async (event, spaceId) => {
-  const processPool = DataSpaceProcessPool.getInstance()
-  return processPool.callProcess(spaceId, "get-relay-total-counts", {})
-})
-
-// Get all available sync providers (including eidos.space if connected)
-ipcMain.handle("get-sync-providers", async () => {
-  try {
-    const configManager = getConfigManager()
-    const syncConfig = configManager.getSyncConfig()
-    const accountUser = configManager.getAccountUser()
-
-    // Build list of providers with their credential status
-    const providers: Array<{
-      id: string
-      name: string
-      endpoint?: string
-      bucketName?: string
-      hasCredentials: boolean
-      isBuiltIn: boolean
-    }> = []
-
-    // Check if eidos.space should be shown
-    // Only show if user has configured eidos.space credentials
-    const hasEidosSpaceCreds =
-      await CredentialsManager.hasSyncCredentials("eidos.space")
-
-    if (hasEidosSpaceCreds) {
-      // For eidos.space, bucketName comes from credentials, not config
-      const credentials =
-        await CredentialsManager.getSyncCredentials("eidos.space")
-      providers.push({
-        id: "eidos.space",
-        name: "eidos.space",
-        bucketName: credentials?.bucketName, // Get bucketName from credentials
-        hasCredentials: true,
-        isBuiltIn: true,
-      })
-    }
-
-    // Add custom providers from config (bucketName comes from config)
-    for (const [id, provider] of Object.entries(syncConfig.providers)) {
-      const hasCreds = await CredentialsManager.hasSyncCredentials(id)
-      providers.push({
-        id,
-        name: provider.name || id,
-        endpoint: provider.endpoint,
-        bucketName: provider.bucketName, // Get bucketName from config
-        hasCredentials: hasCreds,
-        isBuiltIn: false,
-      })
-    }
-
-    return {
-      success: true,
-      providers,
-      defaultProvider: syncConfig.defaultProvider,
-    }
-  } catch (error) {
-    console.error("Failed to get sync providers:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    }
-  }
-})
-
-ipcMain.handle("list-remote-spaces", async (event, providerId: string) => {
-  try {
-    // Get sync credentials for the provider
-    const credentials = await CredentialsManager.getSyncCredentials(providerId)
-    if (!credentials) {
-      return { success: false, error: "No credentials found for provider" }
-    }
-
-    // Create S3 client with the credentials
-    const s3Client = new BucketClient({
-      endpoint: credentials.endpoint,
-      accessKeyId: credentials.accessKeyId,
-      secretAccessKey: credentials.secretAccessKey,
-      bucketName: credentials.bucketName,
-    })
-
-    // List root folders (remote spaces)
-    const spaces = await s3Client.listRootFolders(credentials.bucketName)
-
-    return { success: true, spaces }
-  } catch (error) {
-    console.error("Failed to list remote spaces:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    }
-  }
-})
-
-// Test sync connection with provided credentials
-ipcMain.handle(
-  "test-sync-connection",
-  async (
-    event,
-    config: {
-      endpoint: string
-      bucketName: string
-      region?: string
-      accessKeyId: string
-      secretAccessKey: string
-    }
-  ) => {
-    try {
-      // Create S3 client with the provided credentials
-      const s3Client = new BucketClient({
-        endpoint: config.endpoint,
-        region: config.region,
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-        bucketName: config.bucketName,
-      })
-
-      // Try to list root folders to verify connection
-      // This will fail if credentials are invalid or bucket doesn't exist
-      await s3Client.listRootFolders(config.bucketName)
-
-      return {
-        success: true,
-        message: "Connection successful! Bucket is accessible.",
-      }
-    } catch (error) {
-      console.error("Failed to test sync connection:", error)
-
-      // Provide more user-friendly error messages
-      let errorMessage =
-        error instanceof Error ? error.message : "Unknown error"
-
-      // Parse common S3 errors
-      if (errorMessage.includes("InvalidAccessKeyId")) {
-        errorMessage = "Invalid Access Key ID. Please check your credentials."
-      } else if (errorMessage.includes("SignatureDoesNotMatch")) {
-        errorMessage =
-          "Invalid Secret Access Key. Please check your credentials."
-      } else if (errorMessage.includes("NoSuchBucket")) {
-        errorMessage = `Bucket "${config.bucketName}" does not exist. Please check the bucket name.`
-      } else if (
-        errorMessage.includes("Forbidden") ||
-        errorMessage.includes("403")
-      ) {
-        errorMessage =
-          "Access denied. Please check your permissions or credentials."
-      } else if (
-        errorMessage.includes("ENOTFOUND") ||
-        errorMessage.includes("ECONNREFUSED")
-      ) {
-        errorMessage =
-          "Cannot connect to the endpoint. Please check the endpoint URL."
-      }
-
-      return {
-        success: false,
-        error: errorMessage,
-      }
-    }
-  }
-)
-
-// Clone a space from remote
-ipcMain.handle(
-  "clone-space",
-  async (
-    _,
-    {
-      localPath,
-      remoteUrl,
-      providerId,
-      spaceName,
-    }: {
-      localPath: string
-      remoteUrl: string
-      providerId: string
-      spaceName?: string
-    }
-  ) => {
-    try {
-      const registry = getSpaceRegistry()
-
-      // 1. Register the space first
-      const space = registry.registerSpace(localPath, {
-        customName: spaceName,
-        remoteUrl,
-      })
-
-      // 2. Get or initialize DataSpace with sync enabled
-      // This will automatically initialize the database and set up graft
-      const dataSpace = await getOrSetDataSpace(space.id, {
-        enabled: true,
-        remote: remoteUrl,
-      })
-
-      // 3. Pull data from remote
-      try {
-        await dataSpace.pull()
-      } catch (pullError) {
-        console.warn("Initial pull failed (remote may be empty):", pullError)
-        // Don't fail clone if pull fails - remote might be new/empty
-      }
-
-      return {
-        success: true,
-        space,
-        message: "Space cloned successfully",
-      }
-    } catch (error) {
-      console.error("Failed to clone space:", error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }
-    }
-  }
-)
-
-// License management
-ipcMain.handle("get-machine-id", async () => {
-  return LicenseManager.getMachineId()
-})
-
-ipcMain.handle(
-  "activate-license",
-  async (event, licenseKey: string, token?: string) => {
-    try {
-      const hwId = await LicenseManager.getMachineId()
-      const deviceName = LicenseManager.getDeviceName()
-      const baseUrl = app.isPackaged
-        ? "https://eidos.space"
-        : "https://local-dev.eidos.space"
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      }
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`
-      }
-      const response = await fetch(`${baseUrl}/api/license/activate`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          licenseKey,
-          hardwareId: hwId,
-          deviceName,
-          deviceInfo: {
-            os: process.platform,
-            arch: process.arch,
-            version: app.getVersion(),
-          },
-        }),
-      })
-
-      const result = await response.json()
-      if (result.success) {
-        await LicenseManager.saveLicense(licenseKey, result.certificate)
-        const payload = await LicenseManager.verifyCertificate(
-          result.certificate
-        )
-        return { success: true, payload }
-      } else {
-        return { success: false, error: result.error }
-      }
-    } catch (error) {
-      console.error("Activation error:", error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }
-    }
-  }
-)
-
-ipcMain.handle("get-license-info", async () => {
-  const stored = await LicenseManager.getLicense()
-  if (!stored) return null
-
-  const payload = await LicenseManager.verifyCertificate(stored.certificate)
-  if (!payload) return null
-
-  return {
-    licenseKey: stored.licenseKey,
-    plan: payload.plan,
-    expiresAt: payload.expiresAt,
-  }
-})
-
-ipcMain.handle("clear-license", async () => {
-  await LicenseManager.clearLicense()
-  return { success: true }
-})
+// License IPC handlers are now handled by LicenseService
+// See: services/license-service.ts
 
 app.on("before-quit", () => {
   cleanupPlaygroundWatchers()
   openDataService?.closeAll()
-  terminalService.cleanup()
+  terminalService?.cleanup()
   forceQuit = true
 })
 
@@ -1041,6 +302,28 @@ app.whenReady().then(async () => {
   // Initialize OpenDataService for opendata adapter management
   openDataService = new OpenDataService(getSpacePath, () => win?.id)
   openDataService.register()
+  configService.register()
+  licenseService.register()
+  fileSystemService.register()
+  syncService.register()
+  relayService.register()
+  // Initialize TerminalService with getWindow callback
+  terminalService = new TerminalService({
+    getWindow: () => win,
+  })
+  terminalService.register()
+  cliService.register()
+  dataSpaceService.register()
+  fetchService.register()
+  contextMenuService.register()
+  webviewService.register()
+  playgroundService.register()
+
+  // PipelineService requires windowManager, initialize after app is ready
+  const pipelineService = new PipelineService({
+    getWindowManager: () => windowManager!,
+  })
+  pipelineService.register()
 
   await migrateFromLegacyConfig()
 
@@ -1169,223 +452,32 @@ app.whenReady().then(async () => {
   appUpdater.checkForUpdates()
   initApiAgent()
 
-  ipcMain.handle("get-api-agent-status", () => {
-    return getApiAgentStatus()
-  })
-
-  ipcMain.handle("list-spaces", () => {
-    const registry = getSpaceRegistry()
-    return registry.getAllSpaces()
-  })
-
-  ipcMain.handle("switch-space", async (_, spaceId: string) => {
-    const registry = getSpaceRegistry()
-    const space = registry.getSpace(spaceId)
-
-    if (!space) {
-      throw new Error(`Space not found: ${spaceId}`)
-    }
-
-    const configManager = getConfigManager()
-    configManager.setLastOpenedSpace(spaceId)
-
-    // Pre-initialize DataSpace before switching URL
-    // This ensures the backend is ready when the frontend starts querying
-    console.log(`🔧 Pre-initializing DataSpace for: ${spaceId}`)
-    try {
-      await getOrSetDataSpace(spaceId)
-      console.log(`✅ DataSpace initialized for: ${spaceId}`)
-    } catch (error) {
-      console.error(`❌ Failed to initialize DataSpace for ${spaceId}:`, error)
-      throw error
-    }
-
-    if (win) {
-      // Wait for page to load before reloading to ensure URL change is applied
-      const waitForLoad = () => {
-        return new Promise<void>((resolve) => {
-          win!.webContents.once("did-finish-load", () => {
-            const currentURL = win!.webContents.getURL()
-            console.log(`📍 Page loaded at: ${currentURL}`)
-            resolve()
-          })
-        })
+  // Initialize AppLifecycleService with callbacks
+  const appLifecycleService = new AppLifecycleService({
+    appUpdater,
+    onReloadApp: () => {
+      // Reinitialize global shortcuts after reload
+      if (win && globalShortcutManager) {
+        globalShortcutManager.setMainWindow(win)
       }
-
-      if (process.env.VITE_DEV_SERVER_URL) {
-        const devUrl = new URL(process.env.VITE_DEV_SERVER_URL)
-        const devSubdomainUrl = `http://${spaceId}.eidos.localhost:${devUrl.port}/`
-        console.log(
-          `🔄 Switching to space in development mode: ${devSubdomainUrl}`
-        )
-        win.loadURL(devSubdomainUrl)
-        await waitForLoad()
-        console.log(`✅ Page loaded, now reloading to ensure clean state...`)
-        win.reload()
-        await waitForLoad()
-        console.log(`🎉 Space switch complete to: ${spaceId}`)
-      } else {
-        const prodSubdomainUrl = `http://${spaceId}.eidos.localhost:${PORT}/`
-        console.log(
-          `🔄 Switching to space in production mode: ${prodSubdomainUrl}`
-        )
-        win.loadURL(prodSubdomainUrl)
-        await waitForLoad()
-        console.log(`✅ Page loaded, now reloading to ensure clean state...`)
-        win.reload()
-        await waitForLoad()
-        console.log(`🎉 Space switch complete to: ${spaceId}`)
-      }
-    }
-
-    return { success: true }
+      app.relaunch()
+      win?.reload()
+    },
+    onQuitApp: () => {
+      cleanupPlaygroundWatchers()
+      forceQuit = true
+      destroyTray()
+      getDataSpace()?.close()
+      app.quit()
+    },
   })
+  appLifecycleService.register()
 
-  ipcMain.handle(
-    "register-space",
-    async (
-      _,
-      spacePath: string,
-      options: {
-        customName?: string
-        remoteUrl?: string
-      } = {}
-    ) => {
-      const registry = getSpaceRegistry()
-      try {
-        const space = registry.registerSpace(spacePath, {
-          customName: options.customName,
-          remoteUrl: options.remoteUrl,
-        })
-        return { success: true, space }
-      } catch (error: any) {
-        return { success: false, error: error.message }
-      }
-    }
-  )
-
-  ipcMain.handle("remove-space", async (_, spaceId: string) => {
-    const registry = getSpaceRegistry()
-    const success = registry.removeSpace(spaceId)
-    return { success }
+  // Initialize and register SpaceManagementService
+  const spaceManagementService = new SpaceManagementService({
+    getMainWindow: () => win,
   })
-
-  ipcMain.handle("get-current-space", () => {
-    const configManager = getConfigManager()
-    const spaceId = configManager.getLastOpenedSpace()
-    if (!spaceId) {
-      return null
-    }
-
-    const registry = getSpaceRegistry()
-    return registry.getSpace(spaceId)
-  })
-
-  ipcMain.handle("get-space-by-id", (_, spaceId: string) => {
-    const registry = getSpaceRegistry()
-    return registry.getSpace(spaceId)
-  })
-
-  ipcMain.handle(
-    "update-space",
-    async (_, spaceId: string, updates: { name?: string; relay?: any }) => {
-      const registry = getSpaceRegistry()
-      try {
-        const success = registry.updateSpace(spaceId, updates)
-        if (success) {
-          const processPool = DataSpaceProcessPool.getInstance()
-          processPool.sendToProcess(spaceId, {
-            type: "update-space-info",
-            spaceInfo: registry.getSpace(spaceId),
-          })
-          return { success: true }
-        } else {
-          return { success: false, error: "Space not found" }
-        }
-      } catch (error: any) {
-        return { success: false, error: error.message }
-      }
-    }
-  )
-
-  // Toggle space sync on/off
-  ipcMain.handle(
-    "toggle-space-sync",
-    async (
-      _,
-      spaceId: string,
-      enabled: boolean,
-      remote?: string,
-      provider?: "eidos.space" | "custom"
-    ) => {
-      try {
-        const registry = getSpaceRegistry()
-        const space = registry.getSpace(spaceId)
-        if (!space) {
-          return { success: false, error: "Space not found" }
-        }
-
-        const dataSpace = getDataSpace()
-        if (!dataSpace) {
-          return { success: false, error: "Data space not initialized" }
-        }
-
-        // Use provided provider, fallback to space's current provider, then default
-        const configManager = getConfigManager()
-        const effectiveProvider =
-          provider ||
-          space.sync?.provider ||
-          configManager.getDefaultSyncProvider() ||
-          "eidos.space"
-
-        if (enabled) {
-          // Enable sync: convert to graft
-          if (!remote) {
-            return {
-              success: false,
-              error: "Remote URL is required to enable sync",
-            }
-          }
-
-          // Check if credentials exist for selected provider
-          const credentials =
-            await CredentialsManager.getSyncCredentials(effectiveProvider)
-          if (!credentials) {
-            return {
-              success: false,
-              error: `No sync credentials found for ${effectiveProvider}. Please configure sync settings first.`,
-            }
-          }
-
-          await dataSpace.convertToGraft(remote)
-
-          // Update space registry
-          registry.setSpaceSync(spaceId, {
-            enabled: true,
-            remote: remote,
-            provider: effectiveProvider,
-          })
-
-          return { success: true }
-        } else {
-          // Disable sync: export to sqlite
-          await dataSpace.exportToSqlite()
-
-          // Update space registry
-          registry.setSpaceSync(spaceId, {
-            enabled: false,
-            remote: space.sync?.remote || "",
-            provider: space.sync?.provider,
-          })
-
-          return { success: true }
-        }
-      } catch (error: any) {
-        console.error("Failed to toggle space sync:", error)
-        return { success: false, error: error.message }
-      }
-    }
-  )
+  spaceManagementService.register()
 })
 
 app.on("activate", () => {
@@ -1394,128 +486,14 @@ app.on("activate", () => {
   }
 })
 
-ipcMain.handle("quit-app", () => {
-  cleanupPlaygroundWatchers()
-  forceQuit = true
-  destroyTray()
-  getDataSpace()?.close()
-  app.quit()
-})
+// quit-app is now handled by AppLifecycleService
 
-ipcMain.handle("reload-query-worker", async () => {
-  console.log("prepare for import")
-  // Importing CSV will enable exclusive locks, causing read-only sqlite worker queries to timeout. We directly shut down all workers before importing CSV
-  return { success: true }
-})
+// Fetch IPC handlers are now handled by FetchService
+// See: services/fetch-service.ts
 
-ipcMain.handle("reload-data-space", async () => {
-  return reloadDataSpace()
-})
-
-ipcMain.handle("close-data-space", async () => {
-  return closeDataSpace()
-})
-
-// Simple fetch proxy - just forward to Node.js fetch (no CORS restrictions)
-ipcMain.handle("fetch", async (_, url, options) => {
-  const res = await fetch(url, options)
-  const body = await res.arrayBuffer()
-
-  return {
-    ok: res.ok,
-    status: res.status,
-    statusText: res.statusText,
-    headers: Object.fromEntries(res.headers.entries()),
-    url: res.url,
-    body: body,
-  }
-})
-
-ipcMain.handle(
-  "fetch-available-models",
-  async (event, apiKey: string, providerType: string, baseUrl?: string) => {
-    try {
-      const models = await fetchAvailableModels(
-        apiKey,
-        providerType as any,
-        baseUrl
-      )
-      return { success: true, models }
-    } catch (error) {
-      console.error("Error fetching available models:", error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }
-    }
-  }
-)
-
-// Native context menu handling
-ipcMain.handle(
-  "show-native-context-menu",
-  async (
-    event,
-    options: { items: NativeMenuItem[]; x?: number; y?: number }
-  ) => {
-    try {
-      const { items, x, y } = options
-
-      // Convert menu items to Electron menu template with click handlers
-      const menuTemplate = convertToElectronMenuTemplateWithIds(items)
-
-      // Create and show the menu
-      const menu = Menu.buildFromTemplate(menuTemplate)
-
-      // Get the window from the event sender
-      const window = BrowserWindow.fromWebContents(event.sender)
-      if (!window) {
-        throw new Error("Cannot find window from event sender")
-      }
-
-      // Show the menu at the specified position or at cursor
-      if (x !== undefined && y !== undefined) {
-        menu.popup({
-          window,
-          x: Math.round(x),
-          y: Math.round(y),
-          callback: () => {
-            // Menu closed - cleanup if needed
-          },
-        })
-      } else {
-        menu.popup({
-          window,
-          callback: () => {
-            // Menu closed - cleanup if needed
-          },
-        })
-      }
-
-      return { success: true }
-    } catch (error) {
-      console.error("Error showing native context menu:", error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }
-    }
-  }
-)
+// Context menu IPC handlers are now handled by ContextMenuService
+// See: services/context-menu-service.ts
 
 // CLI installation IPC handlers
-ipcMain.handle("cli:is-installed", async () => {
-  return isCliInstalled()
-})
-
-ipcMain.handle("cli:install", async () => {
-  return installCli()
-})
-
-ipcMain.handle("cli:uninstall", async () => {
-  return uninstallCli()
-})
-
-ipcMain.handle("cli:get-path", async () => {
-  return getCliBinaryPath()
-})
+// CLI IPC handlers are now handled by CliService
+// See: services/cli-service.ts
