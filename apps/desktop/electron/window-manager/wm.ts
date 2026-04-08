@@ -34,6 +34,7 @@ export class WindowManager {
     this.openTabs = new Map()
     this.win = win
     this.browserViewManager = new BrowserViewManager(win)
+    this.browserViewManager.register()
     this.pipelineRunner = new PipelineRunner(win)
     this.setWebContents(win.webContents)
   }

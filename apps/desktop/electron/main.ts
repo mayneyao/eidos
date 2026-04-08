@@ -44,6 +44,7 @@ import {
 } from "./port-checker"
 import { GlobalShortcutManager } from "./services/global-shortcut-manager"
 import { terminalService } from "./services/terminal-service"
+import { OpenDataService } from "./services/opendata-service"
 import {
   getCliBinaryPath,
   installCli,
@@ -56,6 +57,8 @@ import { createWindow, windowManager } from "./window-manager/createWindow"
 import { convertToElectronMenuTemplateWithIds } from "./window-manager/menu-utils"
 import { LicenseManager } from "./license"
 import { registerElectronFetchIpc } from "./lib/electron-fetch"
+import { setupRegistryIpc } from "@eidos.space/electron-ipc"
+import { getSpacePath } from "./file-system/space"
 
 process.on("uncaughtException", (error) => {
   console.error("Unhandled Exception:", error) // Also log to console
@@ -82,6 +85,7 @@ let appUpdater: AppUpdater
 let tray: Tray | null
 let protocolHandler: ProtocolHandler
 let globalShortcutManager: GlobalShortcutManager | null = null
+let openDataService: OpenDataService | null = null
 let forceQuit = false
 
 export const PORT = 13127
@@ -545,66 +549,6 @@ ipcMain.handle("open-url", async (event, url) => {
   }
 })
 
-ipcMain.handle(
-  "browser-view:open",
-  (_, viewId: string, url: string, bounds) => {
-    windowManager?.browserViewManager.create(viewId, url, bounds)
-    return { success: true }
-  }
-)
-
-ipcMain.handle("browser-view:update-bounds", (_, viewId: string, bounds) => {
-  windowManager?.browserViewManager.updateBounds(viewId, bounds)
-  return { success: true }
-})
-
-ipcMain.handle("browser-view:close", (_, viewId: string) => {
-  windowManager?.browserViewManager.close(viewId)
-  return { success: true }
-})
-
-ipcMain.handle("browser-view:close-all", () => {
-  windowManager?.browserViewManager.closeAll()
-  return { success: true }
-})
-
-ipcMain.handle("browser-view:reload", (_, viewId: string) => {
-  windowManager?.browserViewManager.reload(viewId)
-  return { success: true }
-})
-
-ipcMain.handle("browser-view:go-back", (_, viewId: string) => {
-  windowManager?.browserViewManager.goBack(viewId)
-  return { success: true }
-})
-
-ipcMain.handle("browser-view:go-forward", (_, viewId: string) => {
-  windowManager?.browserViewManager.goForward(viewId)
-  return { success: true }
-})
-
-ipcMain.handle("browser-view:load-url", (_, viewId: string, url: string) => {
-  windowManager?.browserViewManager.loadURL(viewId, url)
-  return { success: true }
-})
-
-ipcMain.handle(
-  "browser-view:set-visible",
-  (_, viewId: string, visible: boolean) => {
-    windowManager?.browserViewManager.setVisible(viewId, visible)
-    return { success: true }
-  }
-)
-
-ipcMain.handle("browser-view:capture-page", async (_, viewId: string) => {
-  const dataUrl = await windowManager?.browserViewManager.capturePage(viewId)
-  return { success: !!dataUrl, dataUrl }
-})
-
-ipcMain.on("browser-view:close-all", () => {
-  windowManager?.browserViewManager.closeAll()
-})
-
 ipcMain.handle("pipeline:run", async (_, steps, args, options) => {
   try {
     const { result, logs, rendererLogs } =
@@ -633,6 +577,7 @@ app.on("window-all-closed", () => {
   getDataSpace()?.close()
   globalShortcutManager?.destroy()
   globalShortcutManager = null
+  openDataService?.closeAll()
   terminalService.cleanup()
   win = null
 })
@@ -987,6 +932,7 @@ ipcMain.handle("clear-license", async () => {
 
 app.on("before-quit", () => {
   cleanupPlaygroundWatchers()
+  openDataService?.closeAll()
   terminalService.cleanup()
   forceQuit = true
 })
@@ -1088,6 +1034,13 @@ app.whenReady().then(async () => {
 
   // Register IPC handler for fetch proxy (bypass CORS)
   registerElectronFetchIpc()
+
+  // Setup IPC registry for preload service discovery
+  setupRegistryIpc()
+
+  // Initialize OpenDataService for opendata adapter management
+  openDataService = new OpenDataService(getSpacePath, () => win?.id)
+  openDataService.register()
 
   await migrateFromLegacyConfig()
 
