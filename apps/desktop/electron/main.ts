@@ -51,12 +51,12 @@ import {
 // Legacy service imports
 import { AppLifecycleService } from "./services/app-lifecycle-service"
 import { cliService } from "./services/cli-service"
-import { configService as legacyConfigService } from "./services/config-service"
+// import { configService as legacyConfigService } from "./services/config-service"  // Migrated to DI
 import { contextMenuService } from "./services/context-menu-service"
 import { dataSpaceService } from "./services/data-space/data-space-service"
 import { fetchService } from "./services/fetch-service"
 // import { fileSystemService as legacyFileSystemService } from "./services/file-system-service"
-import { licenseService } from "./services/license-service"
+// import { licenseService } from "./services/license-service"  // Migrated to DI
 import { OpenDataService } from "./services/opendata-service"
 import { relayService } from "./services/relay-service"
 import { SpaceManagementService } from "./services/space-management-service"
@@ -113,12 +113,8 @@ async function initializeServer(): Promise<void> {
     credentialsManager = getService(CredentialsManager)
   } catch (e) {
     console.error("Failed to get DI services, falling back to legacy", e)
-    // Fallback to legacy
-    const { getConfigManager } = await import("./services/config-manager")
-    const { CredentialsManager: LegacyCM } =
-      await import("./services/credentials")
-    configManager = getConfigManager() as any
-    credentialsManager = LegacyCM as any
+    // Fallback should not happen if DI is working
+    throw new Error("DI services not available")
   }
 
   // Broadcast auth state change
@@ -272,15 +268,13 @@ async function main() {
     openDataService = new OpenDataService(getSpacePath, () => win?.id)
     openDataService.register()
 
-    // Use DI services where available
-    const configService = container.isBound(ConfigService)
-      ? container.get(ConfigService)
-      : legacyConfigService
+    // Use DI ConfigService
+    const configService = container.get(ConfigService)
 
     // Register services
-    // NOTE: DI services (Config, FileSystem, Sync) are auto-registered via bootstrap
+    // NOTE: DI services (Config, FileSystem, Sync, License) are auto-registered via bootstrap
     // legacyConfigService.register()  // Migrated to DI
-    licenseService.register()
+    // licenseService.register()  // Migrated to DI
     // legacyFileSystemService.register()  // Migrated to DI
     // legacySyncService.register()  // Migrated to DI
     relayService.register()
@@ -310,9 +304,7 @@ async function main() {
     globalShortcutManager = new GlobalShortcutManager(win)
 
     // Config change listener
-    const configManager = container.isBound(ConfigManager)
-      ? container.get(ConfigManager)
-      : (legacyConfigService as any)
+    const configManager = container.get(ConfigManager)
 
     configManager.on(
       "configChanged",

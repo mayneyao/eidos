@@ -71,3 +71,13 @@ export class CredentialsManager {
     return this.tokens?.access_token || null
   }
 }
+
+// Backward compatibility: singleton instance
+let credentialsManagerInstance: CredentialsManager | null = null
+
+export function getCredentialsManager(): CredentialsManager {
+  if (!credentialsManagerInstance) {
+    credentialsManagerInstance = new CredentialsManager()
+  }
+  return credentialsManagerInstance
+}

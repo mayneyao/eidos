@@ -1,29 +1,46 @@
+/**
+ * License Service - IPC service for license management
+ */
+
 import { app } from "electron"
-import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
-import { LicenseManager, type LicensePayload } from "./license"
+import { IpcServiceBase } from "@eidos.space/electron-ipc"
+import { IpcInjectable, Inject } from "../../common/di"
+import { LicenseManager, type LicensePayload } from "./license-manager"
 
 /**
- * License Service - Manages license activation and validation
+ * License Service - Manages license activation and validation via IPC
+ *
+ * IPC Channels:
+ * - license:getMachineId: Get hardware ID
+ * - license:activateLicense: Activate with license key
+ * - license:getLicenseInfo: Get current license info
+ * - license:clearLicense: Clear stored license
  */
-@IpcService("license")
+@IpcInjectable("license")
 export class LicenseService extends IpcServiceBase {
+  constructor(@Inject(LicenseManager) private licenseManager: LicenseManager) {
+    super()
+  }
+
   /**
    * Get the machine's unique hardware ID
+   * IPC: license:getMachineId
    */
   async getMachineId(): Promise<string> {
-    return LicenseManager.getMachineId()
+    return this.licenseManager.getMachineId()
   }
 
   /**
    * Activate a license with the provided key
+   * IPC: license:activateLicense
    */
   async activateLicense(
     licenseKey: string,
     token?: string
   ): Promise<{ success: boolean; payload?: LicensePayload; error?: string }> {
     try {
-      const hwId = await LicenseManager.getMachineId()
-      const deviceName = LicenseManager.getDeviceName()
+      const hwId = await this.licenseManager.getMachineId()
+      const deviceName = this.licenseManager.getDeviceName()
       const baseUrl = app.isPackaged
         ? "https://eidos.space"
         : "https://local-dev.eidos.space"
@@ -52,8 +69,8 @@ export class LicenseService extends IpcServiceBase {
 
       const result = await response.json()
       if (result.success) {
-        await LicenseManager.saveLicense(licenseKey, result.certificate)
-        const payload = await LicenseManager.verifyCertificate(
+        await this.licenseManager.saveLicense(licenseKey, result.certificate)
+        const payload = await this.licenseManager.verifyCertificate(
           result.certificate
         )
         return { success: true, payload: payload || undefined }
@@ -71,16 +88,19 @@ export class LicenseService extends IpcServiceBase {
 
   /**
    * Get current license information
+   * IPC: license:getLicenseInfo
    */
   async getLicenseInfo(): Promise<{
     licenseKey: string
     plan: string
     expiresAt: string
   } | null> {
-    const stored = await LicenseManager.getLicense()
+    const stored = await this.licenseManager.getLicense()
     if (!stored) return null
 
-    const payload = await LicenseManager.verifyCertificate(stored.certificate)
+    const payload = await this.licenseManager.verifyCertificate(
+      stored.certificate
+    )
     if (!payload) return null
 
     return {
@@ -92,12 +112,10 @@ export class LicenseService extends IpcServiceBase {
 
   /**
    * Clear the stored license
+   * IPC: license:clearLicense
    */
   async clearLicense(): Promise<{ success: true }> {
-    await LicenseManager.clearLicense()
+    await this.licenseManager.clearLicense()
     return { success: true }
   }
 }
-
-// Export singleton instance
-export const licenseService = new LicenseService()

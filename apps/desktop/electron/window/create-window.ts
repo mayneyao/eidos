@@ -2,7 +2,7 @@ import { BrowserWindow, ipcMain } from "electron"
 import os from "node:os"
 import path from "path"
 import { debounce } from "@/lib/lodash"
-import { getConfigManager } from "../services/config-manager"
+import { getConfigManager } from "../modules/config/config-manager"
 import { PORT } from "../main"
 import { setupGeolocationHandler } from "./geolocation"
 

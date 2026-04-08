@@ -8,7 +8,7 @@ import {
   type SpacesConfig,
   type GlobalConfig,
 } from "@eidos.space/space-manager"
-import { getConfigManager } from "./config-manager"
+import { getConfigManager } from "../modules/config/config-manager"
 
 export type { SpaceInfo, SpacesConfig, GlobalConfig }
 

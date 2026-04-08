@@ -4,7 +4,7 @@ import fs from "fs"
 import path from "path"
 
 import { getMainWindowWebContents } from "../../main"
-import { CredentialsManager } from "../credentials"
+import { getCredentialsManager } from "../../modules/sync/sync.module"
 import type { InitMessage } from "../../core/data-space/rpc/rpc-types"
 
 interface ProcessItem {
@@ -131,7 +131,9 @@ export class DataSpaceProcessPool extends EventEmitter {
           })
         }
       } else if (payload.type === "get-access-token") {
-        CredentialsManager.getAccessToken()
+        const credentialsManager = getCredentialsManager()
+        credentialsManager
+          .getAccessToken()
           .then((token) => {
             child.postMessage({
               type: "access-token-response",

@@ -1,6 +1,8 @@
-import { describe, it, expect, vi } from "vitest"
+import { describe, it, expect, vi, beforeAll } from "vitest"
 import crypto from "node:crypto"
-import { LicenseManager } from "./license"
+import { LicenseManager } from "../modules/license/license.module"
+
+let licenseManager: LicenseManager
 
 // Mock machine-id
 vi.mock("node-machine-id", () => ({
@@ -22,6 +24,10 @@ vi.mock("electron", () => ({
   },
 }))
 
+beforeAll(() => {
+  licenseManager = new LicenseManager()
+})
+
 describe("LicenseManager", () => {
   const PRIVATE_KEY_PEM = `-----BEGIN PRIVATE KEY-----
 MC4CAQAwBQYDK2VwBCIEIBj5VHVJOW4PKE4vFwSF8LYbQDYK5fwXFq7OWdlxvDO+
@@ -41,7 +47,7 @@ MC4CAQAwBQYDK2VwBCIEIBj5VHVJOW4PKE4vFwSF8LYbQDYK5fwXFq7OWdlxvDO+
       .toString("base64")
     const certificate = JSON.stringify({ payload, signature })
 
-    const result = await LicenseManager.verifyCertificate(certificate)
+    const result = await licenseManager.verifyCertificate(certificate)
     expect(result).not.toBeNull()
     expect(result?.plan).toBe("spark")
   })
@@ -60,7 +66,7 @@ MC4CAQAwBQYDK2VwBCIEIBj5VHVJOW4PKE4vFwSF8LYbQDYK5fwXFq7OWdlxvDO+
       .toString("base64")
     const certificate = JSON.stringify({ payload, signature })
 
-    const result = await LicenseManager.verifyCertificate(certificate)
+    const result = await licenseManager.verifyCertificate(certificate)
     expect(result).toBeNull()
   })
 
@@ -78,7 +84,7 @@ MC4CAQAwBQYDK2VwBCIEIBj5VHVJOW4PKE4vFwSF8LYbQDYK5fwXFq7OWdlxvDO+
       .toString("base64")
     const certificate = JSON.stringify({ payload, signature })
 
-    const result = await LicenseManager.verifyCertificate(certificate)
+    const result = await licenseManager.verifyCertificate(certificate)
     expect(result).toBeNull()
   })
 })

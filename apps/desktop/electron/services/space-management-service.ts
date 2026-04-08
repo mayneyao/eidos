@@ -5,7 +5,8 @@ import {
   getDataSpace,
   getOrSetDataSpace,
 } from "./data-space/data-space-manager"
-import { getConfigManager } from "./config-manager"
+import { getConfigManager } from "../modules/config/config-manager"
+import { getCredentialsManager } from "../modules/sync/sync.module"
 import { getSpaceRegistry } from "./space-registry"
 import { PORT } from "../main"
 
@@ -185,7 +186,7 @@ export class SpaceManagementService extends IpcServiceBase {
     remote?: string,
     provider?: "eidos.space" | "custom"
   ): Promise<{ success: boolean; error?: string }> {
-    const { CredentialsManager } = await import("./credentials")
+    const { CredentialsManager } = await import("../modules/sync/sync.module")
     const registry = getSpaceRegistry()
     const space = registry.getSpace(spaceId)
     if (!space) {
@@ -215,8 +216,9 @@ export class SpaceManagementService extends IpcServiceBase {
       }
 
       // Check if credentials exist for selected provider
+      const credentialsManager = getCredentialsManager()
       const credentials =
-        await CredentialsManager.getSyncCredentials(effectiveProvider)
+        await credentialsManager.getSyncCredentials(effectiveProvider)
       if (!credentials) {
         return {
           success: false,
