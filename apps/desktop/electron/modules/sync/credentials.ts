@@ -1,9 +1,15 @@
 /**
  * Credentials Manager - Manages secure credentials storage
- * Simplified version for DI demo
+ * Uses Electron safeStorage for secure persistence
  */
 
-import { Injectable } from "../../common/di"
+import { app, safeStorage } from "electron"
+import crypto from "crypto"
+import fs from "fs/promises"
+import path from "path"
+import log from "electron-log"
+import { Injectable, container } from "../../common/di"
+import { OAUTH_CONFIG } from "@/lib/const"
 
 interface SyncCredentials {
   endpoint: string
@@ -14,70 +20,498 @@ interface SyncCredentials {
   region?: string
 }
 
+export interface OAuthTokens {
+  access_token: string
+  refresh_token?: string
+  token_type?: string
+  expires_in?: number
+  id_token?: string
+  _stored_at?: number
+}
+
+export interface UserInfo {
+  id: string
+  email?: string
+  name?: string
+  picture?: string
+  [key: string]: any
+}
+
+export interface PKCEParams {
+  codeVerifier: string
+  codeChallenge: string
+  codeChallengeMethod: "S256"
+}
+
+const TOKENS_DIR = "auth"
+const TOKENS_FILE_NAME = "oauth_tokens.bin"
+const SYNC_CREDENTIALS_FILE_NAME = "sync_credentials.bin"
+let warnedAboutPlaintextStorage = false
+
+// PKCE utilities
+function base64URLEncode(buffer: Buffer): string {
+  return buffer
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "")
+}
+
+function sha256(str: string): Buffer {
+  return crypto.createHash("sha256").update(str).digest()
+}
+
+// In-memory storage for PKCE code_verifier (temporary, only needed during auth flow)
+let pendingCodeVerifier: string | null = null
+
+async function ensureAppReady() {
+  if (!app.isReady()) {
+    await app.whenReady()
+  }
+}
+
+async function getTokensFilePath(): Promise<string> {
+  await ensureAppReady()
+  return path.join(app.getPath("userData"), TOKENS_DIR, TOKENS_FILE_NAME)
+}
+
+async function getSyncCredentialsFilePath(
+  providerId: string = "eidos.space"
+): Promise<string> {
+  await ensureAppReady()
+  return path.join(
+    app.getPath("userData"),
+    TOKENS_DIR,
+    providerId,
+    SYNC_CREDENTIALS_FILE_NAME
+  )
+}
+
+async function writeSecureTokens(tokensJson: string): Promise<void> {
+  const filePath = await getTokensFilePath()
+  await fs.mkdir(path.dirname(filePath), { recursive: true })
+
+  const encryptionAvailable = safeStorage.isEncryptionAvailable()
+  if (!encryptionAvailable && !warnedAboutPlaintextStorage) {
+    log.warn(
+      "Electron safeStorage encryption unavailable; storing tokens unencrypted on disk."
+    )
+    warnedAboutPlaintextStorage = true
+  }
+
+  const payload = encryptionAvailable
+    ? safeStorage.encryptString(tokensJson)
+    : Buffer.from(tokensJson, "utf-8")
+
+  await fs.writeFile(filePath, payload)
+}
+
+async function readSecureTokens(): Promise<string | null> {
+  try {
+    const filePath = await getTokensFilePath()
+    const raw = await fs.readFile(filePath)
+    if (!raw?.length) {
+      return null
+    }
+
+    return safeStorage.isEncryptionAvailable()
+      ? safeStorage.decryptString(raw)
+      : raw.toString("utf-8")
+  } catch (error: any) {
+    if (error?.code === "ENOENT") {
+      return null
+    }
+    log.error("Failed to read stored tokens:", error)
+    return null
+  }
+}
+
+async function clearSecureTokens(): Promise<void> {
+  try {
+    const filePath = await getTokensFilePath()
+    await fs.unlink(filePath)
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") {
+      log.warn("Failed to clear tokens from storage:", error)
+    }
+  }
+}
+
+async function writeSecureSyncCredentials(
+  credentialsJson: string,
+  providerId: string = "eidos.space"
+): Promise<void> {
+  const filePath = await getSyncCredentialsFilePath(providerId)
+  await fs.mkdir(path.dirname(filePath), { recursive: true })
+
+  const encryptionAvailable = safeStorage.isEncryptionAvailable()
+  if (!encryptionAvailable && !warnedAboutPlaintextStorage) {
+    log.warn(
+      "Electron safeStorage encryption unavailable; storing sync credentials unencrypted on disk."
+    )
+    warnedAboutPlaintextStorage = true
+  }
+
+  const payload = encryptionAvailable
+    ? safeStorage.encryptString(credentialsJson)
+    : Buffer.from(credentialsJson, "utf-8")
+
+  await fs.writeFile(filePath, payload)
+}
+
+async function readSecureSyncCredentials(
+  providerId: string = "eidos.space"
+): Promise<string | null> {
+  try {
+    const filePath = await getSyncCredentialsFilePath(providerId)
+    const raw = await fs.readFile(filePath)
+    if (!raw?.length) {
+      return null
+    }
+
+    return safeStorage.isEncryptionAvailable()
+      ? safeStorage.decryptString(raw)
+      : raw.toString("utf-8")
+  } catch (error: any) {
+    if (error?.code === "ENOENT") {
+      return null
+    }
+    log.error("Failed to read stored sync credentials:", error)
+    return null
+  }
+}
+
+async function clearSecureSyncCredentials(
+  providerId: string = "eidos.space"
+): Promise<void> {
+  try {
+    const filePath = await getSyncCredentialsFilePath(providerId)
+    await fs.unlink(filePath)
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") {
+      log.warn("Failed to clear sync credentials from storage:", error)
+    }
+  }
+}
+
 @Injectable()
 export class CredentialsManager {
-  private credentials = new Map<string, SyncCredentials>()
-  private tokens: any = null
-  private userInfo: any = null
+  private instanceId = Math.random().toString(36).substring(2, 9)
 
+  constructor() {
+    console.log(`[CredentialsManager] Instance created: ${this.instanceId}`)
+  }
+
+  /**
+   * Generate PKCE code_verifier and code_challenge
+   */
+  generatePKCE(): PKCEParams {
+    const codeVerifier = base64URLEncode(crypto.randomBytes(32))
+    const codeChallenge = base64URLEncode(sha256(codeVerifier))
+
+    return {
+      codeVerifier,
+      codeChallenge,
+      codeChallengeMethod: "S256",
+    }
+  }
+
+  /**
+   * Store PKCE code_verifier temporarily in memory during auth flow
+   */
+  setCodeVerifier(codeVerifier: string): void {
+    pendingCodeVerifier = codeVerifier
+  }
+
+  /**
+   * Retrieve and clear PKCE code_verifier (one-time use)
+   */
+  getAndClearCodeVerifier(): string | null {
+    const codeVerifier = pendingCodeVerifier
+    pendingCodeVerifier = null
+    return codeVerifier
+  }
+
+  /**
+   * Store OAuth tokens securely using Electron safeStorage
+   */
+  async setTokens(tokens: OAuthTokens): Promise<void> {
+    console.log(`[CredentialsManager:${this.instanceId}] setTokens called`)
+    try {
+      const tokensWithTimestamp = {
+        ...tokens,
+        _stored_at: Date.now(),
+      }
+      const tokensJson = JSON.stringify(tokensWithTimestamp)
+      await writeSecureTokens(tokensJson)
+      console.log(
+        `[CredentialsManager:${this.instanceId}] Tokens stored to disk`
+      )
+    } catch (error) {
+      log.error("Failed to store OAuth tokens:", error)
+      throw new Error("Failed to securely store authentication tokens")
+    }
+  }
+
+  /**
+   * Internal helper to read raw tokens from disk
+   */
+  private async readStoredTokens(): Promise<OAuthTokens | null> {
+    const tokensJson = await readSecureTokens()
+    if (!tokensJson) {
+      return null
+    }
+
+    try {
+      return JSON.parse(tokensJson) as OAuthTokens
+    } catch (error) {
+      log.error("Failed to parse stored tokens:", error)
+      return null
+    }
+  }
+
+  /**
+   * Retrieve OAuth tokens from disk
+   */
+  async getTokens(): Promise<OAuthTokens | null> {
+    try {
+      const tokens = await this.readStoredTokens()
+      if (!tokens) return null
+      const { _stored_at, ...publicTokens } = tokens
+      return publicTokens
+    } catch (error) {
+      log.error("Failed to retrieve OAuth tokens:", error)
+      return null
+    }
+  }
+
+  /**
+   * Store user information
+   */
+  async setUserInfo(userInfo: UserInfo): Promise<void> {
+    const { getConfigManager } = await import("../config/config-manager")
+    const configManager = getConfigManager()
+    configManager.setUser(userInfo)
+  }
+
+  /**
+   * Get user information
+   */
+  async getUserInfo(): Promise<UserInfo | null> {
+    const { getConfigManager } = await import("../config/config-manager")
+    const configManager = getConfigManager()
+    return configManager.getUser()
+  }
+
+  /**
+   * Check if user is authenticated
+   */
+  async isAuthenticated(): Promise<boolean> {
+    const userInfo = await this.getUserInfo()
+    const tokens = await this.getTokens()
+    return !!(userInfo && tokens?.access_token)
+  }
+
+  /**
+   * Clear all authentication data (logout)
+   */
+  async clearAll(): Promise<void> {
+    try {
+      await clearSecureTokens()
+    } catch (error) {
+      log.warn("Failed to clear tokens from storage:", error)
+    }
+
+    const { getConfigManager } = await import("../config/config-manager")
+    const configManager = getConfigManager()
+    configManager.setUser(undefined)
+  }
+
+  /**
+   * Refresh tokens if refresh token is available
+   */
+  async refreshTokens(): Promise<OAuthTokens | null> {
+    const tokens = await this.getTokens()
+    if (!tokens?.refresh_token) {
+      log.warn("No refresh token available")
+      return null
+    }
+
+    try {
+      const tokenUrl = `${OAUTH_CONFIG.AUTH_SERVER_BASE_URL}${OAUTH_CONFIG.ENDPOINTS.TOKEN}`
+      const tokenResponse = await fetch(tokenUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          client_id: OAUTH_CONFIG.CLIENT_ID,
+          grant_type: "refresh_token",
+          refresh_token: tokens.refresh_token,
+        }),
+      })
+
+      if (!tokenResponse.ok) {
+        const error = await tokenResponse.text()
+        log.error("Token refresh failed:", error)
+        await this.clearAll()
+        return null
+      }
+
+      const newTokens: OAuthTokens = await tokenResponse.json()
+
+      const updatedTokens = {
+        ...tokens,
+        ...newTokens,
+        refresh_token: newTokens.refresh_token || tokens.refresh_token,
+      }
+
+      await this.setTokens(updatedTokens)
+      log.info("Tokens refreshed successfully")
+      return updatedTokens
+    } catch (error) {
+      log.error("Error refreshing tokens:", error)
+      return null
+    }
+  }
+
+  /**
+   * Check if access token is expired or expiring soon
+   */
+  async isAccessTokenExpired(): Promise<boolean> {
+    try {
+      const tokens = await this.readStoredTokens()
+      if (!tokens) return true
+      if (!tokens.access_token) return true
+      if (!tokens.expires_in || !tokens._stored_at) return true
+
+      const storedAt = tokens._stored_at
+      const expiresAt = storedAt + tokens.expires_in * 1000
+      const now = Date.now()
+
+      return now >= expiresAt - OAUTH_CONFIG.TOKEN_REFRESH_BUFFER_MS
+    } catch (error) {
+      log.error("Error checking token expiration:", error)
+      return true
+    }
+  }
+
+  /**
+   * Get access token, refreshing if necessary
+   */
+  async getAccessToken(): Promise<string | null> {
+    const tokens = await this.getTokens()
+    if (!tokens?.access_token) {
+      console.log(
+        `[CredentialsManager:${this.instanceId}] getAccessToken: no tokens found`
+      )
+      return null
+    }
+
+    if (await this.isAccessTokenExpired()) {
+      log.info("Access token expired or expiring soon, attempting refresh")
+      const refreshedTokens = await this.refreshTokens()
+      if (refreshedTokens?.access_token) {
+        return refreshedTokens.access_token
+      } else {
+        log.warn("Failed to refresh tokens")
+        return null
+      }
+    }
+
+    return tokens.access_token
+  }
+
+  /**
+   * Store sync credentials securely
+   */
   async setSyncCredentials(
     credentials: SyncCredentials,
-    providerId: string
+    providerId: string = "eidos.space"
   ): Promise<void> {
-    this.credentials.set(providerId, credentials)
+    try {
+      const credentialsJson = JSON.stringify(credentials)
+      await writeSecureSyncCredentials(credentialsJson, providerId)
+    } catch (error) {
+      log.error("Failed to store sync credentials:", error)
+      throw new Error("Failed to securely store sync credentials")
+    }
   }
 
+  /**
+   * Retrieve sync credentials from disk
+   */
   async getSyncCredentials(
-    providerId: string
+    providerId: string = "eidos.space"
   ): Promise<SyncCredentials | null> {
-    return this.credentials.get(providerId) || null
+    try {
+      const credentialsJson = await readSecureSyncCredentials(providerId)
+      if (!credentialsJson) {
+        return null
+      }
+
+      return JSON.parse(credentialsJson) as SyncCredentials
+    } catch (error) {
+      log.error("Failed to retrieve sync credentials:", error)
+      return null
+    }
   }
 
-  async clearSyncCredentials(providerId: string): Promise<void> {
-    this.credentials.delete(providerId)
+  /**
+   * Clear sync credentials
+   */
+  async clearSyncCredentials(
+    providerId: string = "eidos.space"
+  ): Promise<void> {
+    try {
+      await clearSecureSyncCredentials(providerId)
+    } catch (error) {
+      log.warn("Failed to clear sync credentials from storage:", error)
+    }
   }
 
-  async hasSyncCredentials(providerId: string): Promise<boolean> {
-    return this.credentials.has(providerId)
-  }
-
-  async setTokens(tokens: any): Promise<void> {
-    this.tokens = tokens
-  }
-
-  async getTokens(): Promise<any> {
-    return this.tokens
-  }
-
-  async setUserInfo(userInfo: any): Promise<void> {
-    this.userInfo = userInfo
-  }
-
-  async getUserInfo(): Promise<any> {
-    return this.userInfo
-  }
-
-  async isAuthenticated(): Promise<boolean> {
-    return !!this.tokens
-  }
-
-  async clearAll(): Promise<void> {
-    this.credentials.clear()
-    this.tokens = null
-    this.userInfo = null
-  }
-
-  async getAccessToken(): Promise<string | null> {
-    return this.tokens?.access_token || null
+  /**
+   * Check if sync credentials are available
+   */
+  async hasSyncCredentials(
+    providerId: string = "eidos.space"
+  ): Promise<boolean> {
+    const credentials = await this.getSyncCredentials(providerId)
+    return !!credentials
   }
 }
 
 // Backward compatibility: singleton instance
 let credentialsManagerInstance: CredentialsManager | null = null
 
+/**
+ * Get the CredentialsManager instance.
+ * If DI container is initialized and has CredentialsManager bound, returns the DI instance.
+ * Otherwise, falls back to a singleton instance for backward compatibility.
+ */
 export function getCredentialsManager(): CredentialsManager {
+  // Try to get from DI container first (preferred)
+  try {
+    if (container.isBound(CredentialsManager)) {
+      const instance = container.get(CredentialsManager)
+      console.log(
+        `[getCredentialsManager] Returning DI instance: ${(instance as any).instanceId}`
+      )
+      return instance
+    }
+  } catch (e) {
+    // DI container not ready, fall back to singleton
+    console.log(
+      `[getCredentialsManager] DI container not ready, using singleton fallback`
+    )
+  }
+
+  // Fallback: create singleton instance
   if (!credentialsManagerInstance) {
     credentialsManagerInstance = new CredentialsManager()
   }
+  console.log(
+    `[getCredentialsManager] Returning singleton instance: ${(credentialsManagerInstance as any).instanceId}`
+  )
   return credentialsManagerInstance
 }

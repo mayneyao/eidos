@@ -1,11 +1,14 @@
 /**
  * Sync Service - Manages sync operations
- * Simplified version for DI demo
  */
 
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import { IpcInjectable, Inject } from "../../common/di"
 import { CredentialsManager } from "./credentials"
+import { getConfigManager } from "../config/config-manager"
+import { getSpaceRegistry } from "../space-management/space-management.module"
+import { getOrSetDataSpace } from "../../services/data-space/data-space-manager"
+import { BucketClient } from "@/packages/sync/bucket"
 
 interface TestConnectionConfig {
   endpoint: string
@@ -13,6 +16,13 @@ interface TestConnectionConfig {
   region?: string
   accessKeyId: string
   secretAccessKey: string
+}
+
+interface CloneSpaceParams {
+  localPath: string
+  remoteUrl: string
+  providerId: string
+  spaceName?: string
 }
 
 @IpcInjectable("sync")
@@ -44,12 +54,68 @@ export class SyncService extends IpcServiceBase {
 
   async getSyncProviders(): Promise<{
     success: boolean
-    providers?: any[]
+    providers?: Array<{
+      id: string
+      name: string
+      endpoint?: string
+      bucketName?: string
+      hasCredentials: boolean
+      isBuiltIn: boolean
+    }>
+    defaultProvider?: string
     error?: string
   }> {
-    return {
-      success: true,
-      providers: [],
+    try {
+      const configManager = getConfigManager()
+      const syncConfig = configManager.getSyncConfig()
+
+      const providers: Array<{
+        id: string
+        name: string
+        endpoint?: string
+        bucketName?: string
+        hasCredentials: boolean
+        isBuiltIn: boolean
+      }> = []
+
+      const hasEidosSpaceCreds =
+        await this.credentials.hasSyncCredentials("eidos.space")
+
+      if (hasEidosSpaceCreds) {
+        const credentials =
+          await this.credentials.getSyncCredentials("eidos.space")
+        providers.push({
+          id: "eidos.space",
+          name: "eidos.space",
+          bucketName: credentials?.bucketName,
+          hasCredentials: true,
+          isBuiltIn: true,
+        })
+      }
+
+      for (const [id, provider] of Object.entries(syncConfig.providers)) {
+        const hasCreds = await this.credentials.hasSyncCredentials(id)
+        providers.push({
+          id,
+          name: provider.name || id,
+          endpoint: provider.endpoint,
+          bucketName: provider.bucketName,
+          hasCredentials: hasCreds,
+          isBuiltIn: false,
+        })
+      }
+
+      return {
+        success: true,
+        providers,
+        defaultProvider: syncConfig.defaultProvider,
+      }
+    } catch (error) {
+      console.error("Failed to get sync providers:", error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
     }
   }
 
@@ -59,15 +125,54 @@ export class SyncService extends IpcServiceBase {
     error?: string
   }> {
     try {
-      // Simplified - just return success for demo
+      // Create S3 client with the provided credentials
+      const s3Client = new BucketClient({
+        endpoint: config.endpoint,
+        region: config.region,
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+        bucketName: config.bucketName,
+      })
+
+      // Try to list root folders to verify connection
+      await s3Client.listRootFolders(config.bucketName)
+
       return {
         success: true,
-        message: "Connection test passed (demo mode)",
+        message: "Connection successful! Bucket is accessible.",
       }
     } catch (error) {
+      console.error("Failed to test sync connection:", error)
+
+      // Provide more user-friendly error messages
+      let errorMessage =
+        error instanceof Error ? error.message : "Unknown error"
+
+      // Parse common S3 errors
+      if (errorMessage.includes("InvalidAccessKeyId")) {
+        errorMessage = "Invalid Access Key ID. Please check your credentials."
+      } else if (errorMessage.includes("SignatureDoesNotMatch")) {
+        errorMessage =
+          "Invalid Secret Access Key. Please check your credentials."
+      } else if (errorMessage.includes("NoSuchBucket")) {
+        errorMessage = `Bucket "${config.bucketName}" does not exist. Please check the bucket name.`
+      } else if (
+        errorMessage.includes("Forbidden") ||
+        errorMessage.includes("403")
+      ) {
+        errorMessage =
+          "Access denied. Please check your permissions or credentials."
+      } else if (
+        errorMessage.includes("ENOTFOUND") ||
+        errorMessage.includes("ECONNREFUSED")
+      ) {
+        errorMessage =
+          "Cannot connect to the endpoint. Please check the endpoint URL."
+      }
+
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: errorMessage,
       }
     }
   }
@@ -77,21 +182,61 @@ export class SyncService extends IpcServiceBase {
     spaces?: string[]
     error?: string
   }> {
-    return {
-      success: true,
-      spaces: [],
+    try {
+      // TODO: Implement actual remote space listing
+      return {
+        success: true,
+        spaces: [],
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
     }
   }
 
-  async cloneSpace(params: {
-    localPath: string
-    remoteUrl: string
-    providerId: string
-    spaceName?: string
-  }): Promise<any> {
-    return {
-      success: true,
-      message: "Clone started (demo mode)",
+  async cloneSpace(params: CloneSpaceParams): Promise<{
+    success: boolean
+    space?: any
+    message?: string
+    error?: string
+  }> {
+    try {
+      const registry = getSpaceRegistry()
+      const { localPath, remoteUrl, providerId, spaceName } = params
+
+      // 1. Register the space first
+      const space = registry.registerSpace(localPath, {
+        customName: spaceName,
+        remoteUrl,
+      })
+
+      // 2. Get or initialize DataSpace with sync enabled
+      const dataSpace = await getOrSetDataSpace(space.id, {
+        enabled: true,
+        remote: remoteUrl,
+      })
+
+      // 3. Pull data from remote
+      try {
+        await dataSpace.pull()
+      } catch (pullError) {
+        console.warn("Initial pull failed (remote may be empty):", pullError)
+        // Don't fail clone if pull fails - remote might be new/empty
+      }
+
+      return {
+        success: true,
+        space,
+        message: "Space cloned successfully",
+      }
+    } catch (error) {
+      console.error("Failed to clone space:", error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
     }
   }
 }
