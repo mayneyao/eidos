@@ -1,6 +1,6 @@
 import { app } from "electron"
 import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
-import { getApiAgentStatus } from "../server/api-agent"
+import { getApiAgentStatus } from "../core/server/api-agent"
 import type { AppUpdater } from "./updater"
 
 interface AppLifecycleOptions {
