@@ -1,6 +1,9 @@
 import type { BrowserWindow } from "electron"
 import { globalShortcut } from "electron"
 
+import { Injectable, Inject } from "../../common/di"
+import { WindowService } from "./window.service"
+
 export interface ShortcutAction {
   id: string
   accelerator: string
@@ -12,20 +15,25 @@ export interface ShortcutHandler {
 }
 
 /**
- * Global Shortcut Manager
+ * Global Shortcuts Service
  * Manages global keyboard shortcuts that work across the entire application,
  * including when focus is in webview or iframe elements.
  */
-export class GlobalShortcutManager {
+@Injectable()
+export class GlobalShortcutsService {
   private shortcuts: Map<string, ShortcutAction> = new Map()
-  private mainWindow: BrowserWindow | null = null
   private isRegistered = false
   private isWindowFocused = false
 
-  constructor(mainWindow: BrowserWindow) {
-    this.mainWindow = mainWindow
+  constructor(@Inject(WindowService) private windowService: WindowService) {
     this.initializeShortcuts()
-    this.setupWindowFocusListeners()
+  }
+
+  /**
+   * Get the main window from window service
+   */
+  private get mainWindow(): BrowserWindow | null {
+    return this.windowService.getMainWindow()
   }
 
   /**
@@ -150,23 +158,24 @@ export class GlobalShortcutManager {
   /**
    * Setup window focus/blur event listeners
    */
-  private setupWindowFocusListeners() {
-    if (!this.mainWindow) return
+  setupWindowFocusListeners(): void {
+    const win = this.mainWindow
+    if (!win) return
 
-    this.mainWindow.on("focus", () => {
+    win.on("focus", () => {
       console.log("Window gained focus, registering global shortcuts")
       this.isWindowFocused = true
       this.registerShortcuts()
     })
 
-    this.mainWindow.on("blur", () => {
+    win.on("blur", () => {
       console.log("Window lost focus, unregistering global shortcuts")
       this.isWindowFocused = false
       this.unregisterShortcuts()
     })
 
     // Check initial focus state
-    if (this.mainWindow.isFocused()) {
+    if (win.isFocused()) {
       this.isWindowFocused = true
     }
   }
@@ -174,7 +183,7 @@ export class GlobalShortcutManager {
   /**
    * Register all global shortcuts
    */
-  public registerShortcuts(): boolean {
+  registerShortcuts(): boolean {
     if (this.isRegistered) {
       console.log("Global shortcuts already registered")
       return true
@@ -201,8 +210,6 @@ export class GlobalShortcutManager {
 
         if (!success) {
           console.error(`Failed to register global shortcut: ${accelerator}`)
-        } else {
-          // console.log(`Successfully registered global shortcut: ${accelerator} -> ${action.id}`);
         }
       }
 
@@ -218,7 +225,7 @@ export class GlobalShortcutManager {
   /**
    * Unregister all global shortcuts
    */
-  public unregisterShortcuts(): void {
+  unregisterShortcuts(): void {
     globalShortcut.unregisterAll()
     this.isRegistered = false
     console.log("Global shortcuts unregistered")
@@ -227,7 +234,7 @@ export class GlobalShortcutManager {
   /**
    * Check if window is currently focused
    */
-  public getWindowFocusState(): boolean {
+  getWindowFocusState(): boolean {
     return this.isWindowFocused
   }
 
@@ -235,13 +242,14 @@ export class GlobalShortcutManager {
    * Handle shortcut activation by sending message to renderer
    */
   private handleShortcut(action: ShortcutAction): void {
-    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+    const win = this.mainWindow
+    if (!win || win.isDestroyed()) {
       console.warn("Main window not available for shortcut handling")
       return
     }
 
     // Send message to renderer process
-    this.mainWindow.webContents.send("global-shortcut-triggered", action)
+    win.webContents.send("global-shortcut-triggered", action)
 
     console.log(`Global shortcut triggered: ${action.id}`)
   }
@@ -249,30 +257,24 @@ export class GlobalShortcutManager {
   /**
    * Check if shortcuts are registered
    */
-  public isShortcutsRegistered(): boolean {
+  isShortcutsRegistered(): boolean {
     return this.isRegistered
   }
 
   /**
    * Get all registered shortcuts
    */
-  public getShortcuts(): ShortcutAction[] {
+  getShortcuts(): ShortcutAction[] {
     return Array.from(this.shortcuts.values())
-  }
-
-  /**
-   * Update main window reference (useful when window is recreated)
-   */
-  public setMainWindow(window: BrowserWindow): void {
-    this.mainWindow = window
-    this.setupWindowFocusListeners()
   }
 
   /**
    * Cleanup resources
    */
-  public destroy(): void {
+  destroy(): void {
     this.unregisterShortcuts()
-    this.mainWindow = null
   }
 }
+
+// Backward compatibility export
+export { GlobalShortcutsService as GlobalShortcutManager }

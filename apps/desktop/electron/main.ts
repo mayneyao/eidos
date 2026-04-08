@@ -32,18 +32,14 @@ import {
   SpaceRegistry,
   resolveStartupSpace,
 } from "./modules/space-management/space-management.module"
+import { DataSpaceManager, DataSpaceIpcService } from "./modules/data-space"
 import {
-  getDataSpace,
-  DataSpaceModule,
-  DataSpaceManager,
-  DataSpaceIpcService,
-  RelayService,
-} from "./modules/data-space"
+  WindowService,
+  GlobalShortcutsService,
+  TrayService,
+} from "./modules/window"
 import { ProtocolHandler } from "./services/protocol-handler"
 import { getSpacePath } from "./utils/paths"
-import { createWindow } from "./window/create-window"
-import { GlobalShortcutManager } from "./window/global-shortcuts"
-import { createTray, destroyTray } from "./window/tray-manager"
 
 // Legacy service imports (migrated to DI)
 // import { cliService } from "./services/cli-service"  // Migrated to DI
@@ -60,7 +56,6 @@ import { OpenDataService } from "./services/opendata-service"
 // import { TerminalService } from "./services/terminal-service"  // Migrated to DI
 import { corsManager } from "./services/cors-manager"
 import { webviewService } from "./services/webview-service"
-import { BrowserViewManager } from "./window/browser-view-manager"
 
 // DI imports for window providers
 import {
@@ -74,14 +69,15 @@ import { UpdaterService } from "./modules/updater/updater.module"
 // Export main window for other modules
 export let win: BrowserWindow | null
 export function getMainWindowWebContents() {
-  return win?.webContents || null
+  const windowService = container.get(WindowService)
+  return windowService.getMainWindowWebContents()
 }
 
 // App state
 let protocolHandler: ProtocolHandler
-let globalShortcutManager: GlobalShortcutManager | null = null
 let openDataService: OpenDataService | null = null
-// let terminalService: TerminalService | null = null  // Now via DI
+// let terminalService: TerminalService | null =  // Now via DI
+// let globalShortcutManager: GlobalShortcutsService | null = null  // Now via DI
 let forceQuit = false
 
 export const PORT = 13127
@@ -158,8 +154,11 @@ async function main() {
       const dataSpaceManager = container.get(DataSpaceManager)
       dataSpaceManager.getDataSpace()?.close()
     } catch {}
-    globalShortcutManager?.destroy()
-    globalShortcutManager = null
+    // Cleanup global shortcuts via DI
+    try {
+      const globalShortcutsService = container.get(GlobalShortcutsService)
+      globalShortcutsService.destroy()
+    } catch {}
     openDataService?.closeAll()
     // Cleanup DI terminal service
     try {
@@ -212,16 +211,17 @@ async function main() {
 
     // Register app-lifecycle handlers that need access to main process state
     ipcMain.handle("app-lifecycle:reloadApp", async () => {
-      if (win && globalShortcutManager) {
-        globalShortcutManager.setMainWindow(win)
-      }
       app.relaunch()
       win?.reload()
     })
 
     ipcMain.handle("app-lifecycle:quitApp", async () => {
       forceQuit = true
-      destroyTray()
+      // Destroy tray via DI
+      try {
+        const trayService = container.get(TrayService)
+        trayService.destroyTray()
+      } catch {}
       // Close dataspace via DI if available
       try {
         const dataSpaceManager = container.get(DataSpaceManager)
@@ -239,7 +239,7 @@ async function main() {
 
     // Register services
     // NOTE: DI services auto-registered via bootstrap:
-    // Config, FileSystem, Sync, License, Network, Cli, Terminal, DataSpace
+    // Config, FileSystem, Sync, License, Network, Cli, Terminal, DataSpace, Window
 
     // cliService.register()  // Migrated to DI
     // dataSpaceService.register()  // Migrated to DI - now auto-registered via DI
@@ -254,8 +254,10 @@ async function main() {
     // Determine startup space
     let spaceId = resolveStartupSpace(null, spaceRegistry)
 
-    // Create window
-    win = createWindow(spaceId)
+    // Get WindowService and create window
+    const windowService = container.get(WindowService)
+    windowService.setPort(PORT)
+    win = windowService.createWindow(spaceId)
 
     // Setup window providers (must be after win is created)
     const terminalWindowProvider = container.get(TerminalWindowProvider)
@@ -264,11 +266,9 @@ async function main() {
     const mainWindowProvider = container.get(MainWindowProvider)
     mainWindowProvider.setWindowProvider(() => win)
 
-    // Initialize window-related services
-    const browserViewManager = new BrowserViewManager(win)
-    browserViewManager.register()
-
-    globalShortcutManager = new GlobalShortcutManager(win)
+    // Initialize global shortcuts service
+    const globalShortcutsService = container.get(GlobalShortcutsService)
+    globalShortcutsService.setupWindowFocusListeners()
 
     // Config change listener
     const configManager = container.get(ConfigManager)
@@ -282,12 +282,10 @@ async function main() {
       }
     )
 
-    // Create tray
-    createTray({
-      getWindow: () => win,
-      onQuit: () => {
-        forceQuit = true
-      },
+    // Create tray via DI
+    const trayService = container.get(TrayService)
+    trayService.createTray(() => {
+      forceQuit = true
     })
 
     // Protocol handler
@@ -301,7 +299,7 @@ async function main() {
           win?.hide()
         } else {
           forceQuit = true
-          destroyTray()
+          trayService.destroyTray()
           app.quit()
         }
       }
@@ -320,9 +318,8 @@ async function main() {
   })
 
   app.on("activate", () => {
-    if (win) {
-      win.show()
-    }
+    const windowService = container.get(WindowService)
+    windowService.showWindow()
   })
 
   // Protocol URL handling
@@ -343,10 +340,11 @@ async function main() {
     if (protocolUrl && protocolHandler) {
       protocolHandler.handleUrl(protocolUrl)
     }
-    if (win) {
-      if (win.isMinimized()) win.restore()
-      win.focus()
+    const windowService = container.get(WindowService)
+    if (windowService.isWindowMinimized()) {
+      windowService.restoreWindow()
     }
+    windowService.focusWindow()
   })
 }
 

@@ -1,6 +1,13 @@
 import { shell, WebContentsView } from "electron"
 import type { BrowserWindow } from "electron"
-import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
+import {
+  IpcService,
+  IpcServiceBase,
+  IpcMethod,
+} from "@eidos.space/electron-ipc"
+
+import { Injectable, Inject } from "../../common/di"
+import { WindowService } from "./window.service"
 
 export interface BrowserViewBounds {
   x: number
@@ -9,17 +16,36 @@ export interface BrowserViewBounds {
   height: number
 }
 
+/**
+ * Browser View Service - Manages WebContentsView instances
+ *
+ * Responsibilities:
+ * - Create and manage BrowserView instances
+ * - Handle navigation (back, forward, reload)
+ * - Manage view bounds and visibility
+ * - Capture page screenshots
+ */
 @IpcService("browser-view")
-export class BrowserViewManager extends IpcServiceBase {
+@Injectable()
+export class BrowserViewService extends IpcServiceBase {
   private views = new Map<string, WebContentsView>()
-  private win: BrowserWindow
 
-  constructor(win: BrowserWindow) {
+  constructor(@Inject(WindowService) private windowService: WindowService) {
     super()
-    this.win = win
   }
 
+  /**
+   * Get the main window from window service
+   */
+  private get win(): BrowserWindow | null {
+    return this.windowService.getMainWindow()
+  }
+
+  @IpcMethod()
   open(viewId: string, url: string, bounds: BrowserViewBounds) {
+    const win = this.win
+    if (!win) return
+
     if (this.views.has(viewId)) {
       this.updateBounds(viewId, bounds)
       return
@@ -34,7 +60,7 @@ export class BrowserViewManager extends IpcServiceBase {
     })
     view.webContents.loadURL(url)
     view.setBounds(bounds)
-    this.win.contentView.addChildView(view)
+    win.contentView.addChildView(view)
 
     view.webContents.setWindowOpenHandler(({ url }) => {
       const protocol = new URL(url).protocol
@@ -49,9 +75,12 @@ export class BrowserViewManager extends IpcServiceBase {
   }
 
   private _attachEventListeners(viewId: string, view: WebContentsView) {
+    const win = this.win
+    if (!win) return
+
     const wc = view.webContents
     const send = (data: any) => {
-      this.win.webContents.send("browser-view:update", viewId, data)
+      win.webContents.send("browser-view:update", viewId, data)
     }
 
     wc.on("did-start-loading", () => send({ type: "loading", isLoading: true }))
@@ -75,11 +104,13 @@ export class BrowserViewManager extends IpcServiceBase {
     )
   }
 
+  @IpcMethod()
   reload(viewId: string) {
     const view = this.views.get(viewId)
     view?.webContents.reload()
   }
 
+  @IpcMethod()
   goBack(viewId: string) {
     const view = this.views.get(viewId)
     if (view?.webContents.canGoBack()) {
@@ -87,6 +118,7 @@ export class BrowserViewManager extends IpcServiceBase {
     }
   }
 
+  @IpcMethod()
   goForward(viewId: string) {
     const view = this.views.get(viewId)
     if (view?.webContents.canGoForward()) {
@@ -94,11 +126,13 @@ export class BrowserViewManager extends IpcServiceBase {
     }
   }
 
+  @IpcMethod()
   loadURL(viewId: string, url: string) {
     const view = this.views.get(viewId)
     view?.webContents.loadURL(url)
   }
 
+  @IpcMethod()
   updateBounds(viewId: string, bounds: BrowserViewBounds) {
     const view = this.views.get(viewId)
     if (view) {
@@ -106,15 +140,20 @@ export class BrowserViewManager extends IpcServiceBase {
     }
   }
 
+  @IpcMethod()
   close(viewId: string) {
+    const win = this.win
+    if (!win) return
+
     const view = this.views.get(viewId)
     if (view) {
-      this.win.contentView.removeChildView(view)
+      win.contentView.removeChildView(view)
       view.webContents.close()
       this.views.delete(viewId)
     }
   }
 
+  @IpcMethod()
   setVisible(viewId: string, visible: boolean) {
     const view = this.views.get(viewId)
     if (view) {
@@ -122,6 +161,7 @@ export class BrowserViewManager extends IpcServiceBase {
     }
   }
 
+  @IpcMethod()
   async capturePage(viewId: string): Promise<string | null> {
     const view = this.views.get(viewId)
     if (!view) return null
@@ -129,14 +169,19 @@ export class BrowserViewManager extends IpcServiceBase {
     return image.toDataURL()
   }
 
+  @IpcMethod()
   closeAll() {
+    const win = this.win
+    if (!win) return
+
     for (const [viewId, view] of this.views) {
-      this.win.contentView.removeChildView(view)
+      win.contentView.removeChildView(view)
       view.webContents.close()
     }
     this.views.clear()
   }
 
+  @IpcMethod()
   openDevTools(
     viewId: string,
     options?: { mode: "right" | "bottom" | "undocked" | "detach" }
@@ -147,6 +192,7 @@ export class BrowserViewManager extends IpcServiceBase {
     }
   }
 
+  @IpcMethod()
   closeDevTools(viewId: string) {
     const view = this.views.get(viewId)
     if (view) {
@@ -154,6 +200,7 @@ export class BrowserViewManager extends IpcServiceBase {
     }
   }
 
+  @IpcMethod()
   setUserAgent(viewId: string, userAgent: string) {
     const view = this.views.get(viewId)
     if (view) {
@@ -161,8 +208,12 @@ export class BrowserViewManager extends IpcServiceBase {
     }
   }
 
+  @IpcMethod()
   getUserAgent(viewId: string): string | undefined {
     const view = this.views.get(viewId)
     return view?.webContents.getUserAgent()
   }
 }
+
+// Backward compatibility export
+export { BrowserViewService as BrowserViewManager }
