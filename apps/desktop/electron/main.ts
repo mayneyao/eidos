@@ -24,6 +24,7 @@ import { AppModule } from "./app.module"
 import { ConfigService, ConfigManager } from "./modules/config/config.module"
 import { FileSystemService } from "./modules/file-system/file-system.module"
 import { SyncService, CredentialsManager } from "./modules/sync/sync.module"
+import { TerminalService } from "./modules/terminal/terminal.module"
 
 // Legacy imports (will be migrated gradually)
 import { getSpacePath } from "./utils/paths"
@@ -50,7 +51,7 @@ import {
 
 // Legacy service imports
 import { AppLifecycleService } from "./services/app-lifecycle-service"
-import { cliService } from "./services/cli-service"
+// import { cliService } from "./services/cli-service"  // Migrated to DI
 // import { configService as legacyConfigService } from "./services/config-service"  // Migrated to DI
 import { contextMenuService } from "./services/context-menu-service"
 import { dataSpaceService } from "./services/data-space/data-space-service"
@@ -61,10 +62,13 @@ import { OpenDataService } from "./services/opendata-service"
 import { relayService } from "./services/relay-service"
 import { SpaceManagementService } from "./services/space-management-service"
 // import { syncService as legacySyncService } from "./services/sync-service"
-import { TerminalService } from "./services/terminal-service"
+// import { TerminalService } from "./services/terminal-service"  // Migrated to DI
 import { webviewService } from "./services/webview-service"
 import { BrowserViewManager } from "./window/browser-view-manager"
 import { corsManager } from "./services/cors-manager"
+
+// DI imports for window provider
+import { TerminalWindowProvider } from "./modules/terminal/terminal.module"
 
 // Export main window for other modules
 export let win: BrowserWindow | null
@@ -77,7 +81,7 @@ let appUpdater: AppUpdater
 let protocolHandler: ProtocolHandler
 let globalShortcutManager: GlobalShortcutManager | null = null
 let openDataService: OpenDataService | null = null
-let terminalService: TerminalService | null = null
+// let terminalService: TerminalService | null = null  // Now via DI
 let forceQuit = false
 
 export const PORT = 13127
@@ -225,13 +229,21 @@ async function main() {
     globalShortcutManager?.destroy()
     globalShortcutManager = null
     openDataService?.closeAll()
-    terminalService?.cleanup()
+    // Cleanup DI terminal service
+    try {
+      const terminalService = container.get(TerminalService)
+      terminalService.cleanup()
+    } catch {}
     win = null
   })
 
   app.on("before-quit", () => {
     openDataService?.closeAll()
-    terminalService?.cleanup()
+    // Cleanup DI terminal service
+    try {
+      const terminalService = container.get(TerminalService)
+      terminalService.cleanup()
+    } catch {}
     forceQuit = true
   })
 
@@ -271,19 +283,16 @@ async function main() {
     // Use DI ConfigService
     const configService = container.get(ConfigService)
 
+    // Setup TerminalWindowProvider with window getter
+    const terminalWindowProvider = container.get(TerminalWindowProvider)
+    terminalWindowProvider.setWindowProvider(() => win)
+
     // Register services
-    // NOTE: DI services (Config, FileSystem, Sync, License) are auto-registered via bootstrap
-    // legacyConfigService.register()  // Migrated to DI
-    // licenseService.register()  // Migrated to DI
-    // legacyFileSystemService.register()  // Migrated to DI
-    // legacySyncService.register()  // Migrated to DI
-    // NOTE: DI services (Config, FileSystem, Sync, License, Network) are auto-registered via bootstrap
+    // NOTE: DI services auto-registered via bootstrap:
+    // Config, FileSystem, Sync, License, Network, Cli, Terminal
     relayService.register()
 
-    terminalService = new TerminalService({ getWindow: () => win })
-    terminalService.register()
-
-    cliService.register()
+    // cliService.register()  // Migrated to DI
     dataSpaceService.register()
     // fetchService.register()  // Migrated to DI
     contextMenuService.register()

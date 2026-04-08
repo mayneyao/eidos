@@ -11,6 +11,8 @@ import { FileSystemModule } from "./modules/file-system/file-system.module"
 import { SyncModule } from "./modules/sync/sync.module"
 import { LicenseModule } from "./modules/license/license.module"
 import { NetworkModule } from "./modules/network/network.module"
+import { CliModule } from "./modules/cli/cli.module"
+import { TerminalModule } from "./modules/terminal/terminal.module"
 import { ExampleModule } from "./modules/example/example.module"
 
 /**
@@ -22,6 +24,8 @@ import { ExampleModule } from "./modules/example/example.module"
  * - SyncModule: Data synchronization
  * - LicenseModule: License management
  * - NetworkModule: HTTP fetch operations
+ * - CliModule: CLI installation and management
+ * - TerminalModule: Terminal session management
  * - ExampleModule: DI demonstration (can be removed)
  */
 @Module({
@@ -31,6 +35,8 @@ import { ExampleModule } from "./modules/example/example.module"
     SyncModule,
     LicenseModule,
     NetworkModule,
+    CliModule,
+    TerminalModule,
     ExampleModule,
   ],
   providers: [],

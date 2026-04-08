@@ -1,9 +1,14 @@
+/**
+ * Terminal Service - Manages terminal sessions using node-pty
+ */
+
 import { BrowserWindow } from "electron"
 import * as fs from "fs"
 import * as os from "os"
 import * as path from "path"
 import electronLog from "electron-log"
-import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
+import { IpcServiceBase } from "@eidos.space/electron-ipc"
+import { IpcInjectable, Inject, Injectable } from "../../common/di"
 
 const logger = electronLog
 
@@ -42,24 +47,42 @@ export interface TerminalCreateOptions {
   rows?: number
 }
 
-interface TerminalServiceOptions {
-  getWindow: () => BrowserWindow | null
+@Injectable()
+export class TerminalWindowProvider {
+  private windowGetter: (() => BrowserWindow | null) | null = null
+
+  setWindowProvider(fn: () => BrowserWindow | null) {
+    this.windowGetter = fn
+  }
+
+  getWindow(): BrowserWindow | null {
+    return this.windowGetter ? this.windowGetter() : null
+  }
 }
 
 /**
- * Terminal Service - Manages terminal sessions using node-pty
+ * Terminal Service - Provides terminal sessions via IPC
+ *
+ * IPC Channels:
+ * - terminal:create: Create new terminal session
+ * - terminal:write: Write data to session
+ * - terminal:resize: Resize session
+ * - terminal:kill: Kill session
+ * - terminal:list: List all sessions
+ * - terminal:getDefaultShell: Get default shell
  */
-@IpcService("terminal")
+@IpcInjectable("terminal")
 export class TerminalService extends IpcServiceBase {
   private sessions: Map<string, TerminalSession> = new Map()
   private defaultShell: string
   private isReady: boolean = false
-  private getWindow: () => BrowserWindow | null
 
-  constructor(options: TerminalServiceOptions) {
+  constructor(
+    @Inject(TerminalWindowProvider)
+    private windowProvider: TerminalWindowProvider
+  ) {
     super()
     logger.info("[Terminal] TerminalService constructor starting...")
-    this.getWindow = options.getWindow
     this.defaultShell = this.detectDefaultShell()
     logger.info("[Terminal] Default shell detected:", this.defaultShell)
     this.initialize()
@@ -68,7 +91,6 @@ export class TerminalService extends IpcServiceBase {
   private async initialize(): Promise<void> {
     try {
       logger.info("[Terminal] Initializing terminal service...")
-      // Pre-load the pty module to detect issues early
       await getPty()
       this.isReady = true
       logger.info("[Terminal] Terminal service initialized successfully")
@@ -86,7 +108,6 @@ export class TerminalService extends IpcServiceBase {
       return process.env.COMSPEC || "cmd.exe"
     }
 
-    // macOS/Linux: use user's preferred shell
     const shell = process.env.SHELL || "/bin/bash"
     logger.info("[Terminal] SHELL env variable:", process.env.SHELL)
 
@@ -95,7 +116,6 @@ export class TerminalService extends IpcServiceBase {
       return shell
     }
 
-    // Fallback
     const fallbackShells = ["/bin/bash", "/bin/sh", "/bin/zsh"]
     for (const fallback of fallbackShells) {
       if (fs.existsSync(fallback)) {
@@ -113,6 +133,7 @@ export class TerminalService extends IpcServiceBase {
 
   /**
    * Create a new terminal session
+   * IPC: terminal:create
    */
   async create(
     options: TerminalCreateOptions = {}
@@ -141,24 +162,8 @@ export class TerminalService extends IpcServiceBase {
       const cols = options.cols || 80
       const rows = options.rows || 24
 
-      // Log system info
-      logger.info("[Terminal] ========== SYSTEM INFO ==========")
-      logger.info("[Terminal] Platform:", os.platform())
-      logger.info("[Terminal] Release:", os.release())
-      logger.info("[Terminal] Arch:", os.arch())
-      logger.info("[Terminal] Home dir:", os.homedir())
-      logger.info("[Terminal] UID:", process.getuid?.())
-      logger.info("[Terminal] GID:", process.getgid?.())
-      logger.info("[Terminal] EUID:", process.geteuid?.())
-      logger.info("[Terminal] =====================================")
+      logger.info("[Terminal] Session config:", { shell, cwd, cols, rows })
 
-      logger.info("[Terminal] Session config:")
-      logger.info("  - shell:", shell)
-      logger.info("  - cwd:", cwd)
-      logger.info("  - cols:", cols)
-      logger.info("  - rows:", rows)
-
-      // Check shell exists
       if (!fs.existsSync(shell)) {
         logger.error("[Terminal] Shell does not exist:", shell)
         return {
@@ -166,17 +171,7 @@ export class TerminalService extends IpcServiceBase {
           error: `Shell "${shell}" does not exist`,
         }
       }
-      logger.info("[Terminal] Shell exists:", shell)
 
-      // Check shell is executable
-      try {
-        fs.accessSync(shell, fs.constants.X_OK)
-        logger.info("[Terminal] Shell is executable:", shell)
-      } catch (e) {
-        logger.error("[Terminal] Shell is not executable:", shell, e)
-      }
-
-      // Check directory exists
       let resolvedCwd = cwd
       if (cwd.startsWith("~")) {
         resolvedCwd = path.join(os.homedir(), cwd.slice(1))
@@ -195,25 +190,7 @@ export class TerminalService extends IpcServiceBase {
         )
         resolvedCwd = os.homedir()
       }
-      logger.info("[Terminal] Resolved CWD:", resolvedCwd)
 
-      // Check directory permissions
-      try {
-        fs.accessSync(resolvedCwd, fs.constants.R_OK | fs.constants.X_OK)
-        logger.info("[Terminal] CWD is accessible:", resolvedCwd)
-      } catch (permError) {
-        logger.error(
-          "[Terminal] CWD is not accessible:",
-          resolvedCwd,
-          permError
-        )
-        resolvedCwd = os.homedir()
-        logger.info("[Terminal] Fallback to home:", resolvedCwd)
-      }
-
-      // Prepare environment
-      // Ensure we have UTF-8 locale set, otherwise non-ASCII characters (like Chinese)
-      // may be garbled in build mode where process.env.LANG might be missing.
       const env = {
         LANG: "en_US.UTF-8",
         LC_ALL: "en_US.UTF-8",
@@ -227,23 +204,9 @@ export class TerminalService extends IpcServiceBase {
           process.env.PATH || "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin",
       }
 
-      // If LANG was already in process.env or options.env, it will be kept because they are spread after.
-      // But if it's completely missing, our defaults will ensure UTF-8 support.
-
-      logger.info("[Terminal] Environment PATH:", env.PATH)
-      logger.info("[Terminal] Environment TERM:", env.TERM)
-
-      // Try to spawn
       let ptyProcess: import("node-pty").IPty
 
       try {
-        logger.info("[Terminal] Calling pty.spawn with:")
-        logger.info("  - shell:", shell)
-        logger.info("  - args: []")
-        logger.info("  - cwd:", resolvedCwd)
-        logger.info("  - cols:", cols)
-        logger.info("  - rows:", rows)
-
         ptyProcess = pty.spawn(shell, [], {
           name: "xterm-256color",
           cols,
@@ -251,18 +214,10 @@ export class TerminalService extends IpcServiceBase {
           cwd: resolvedCwd,
           env,
         })
-
         logger.info("[Terminal] pty.spawn succeeded!")
       } catch (spawnError) {
         logger.error("[Terminal] pty.spawn failed:", spawnError)
-        logger.error("[Terminal] Error details:", {
-          name: (spawnError as Error).name,
-          message: (spawnError as Error).message,
-          stack: (spawnError as Error).stack,
-        })
 
-        // Try fallback to /bin/bash
-        logger.info("[Terminal] Trying fallback to /bin/bash...")
         try {
           ptyProcess = pty.spawn("/bin/bash", [], {
             name: "xterm-256color",
@@ -278,7 +233,6 @@ export class TerminalService extends IpcServiceBase {
         }
       }
 
-      // Store session
       const session: TerminalSession = {
         id: sessionId,
         ptyProcess,
@@ -291,12 +245,8 @@ export class TerminalService extends IpcServiceBase {
 
       // Handle data from PTY
       ptyProcess.onData((data: string) => {
-        // logger.info(
-        //   `[Terminal] Data from session ${sessionId}:`,
-        //   data.length,
-        //   "bytes"
-        // )
-        this.getWindow()?.webContents.send("terminal:data", sessionId, data)
+        const window = this.windowProvider.getWindow()
+        window?.webContents.send("terminal:data", sessionId, data)
       })
 
       // Handle PTY exit
@@ -304,12 +254,8 @@ export class TerminalService extends IpcServiceBase {
         logger.info(
           `[Terminal] Session ${sessionId} exited, code=${exitCode}, signal=${signal}`
         )
-        this.getWindow()?.webContents.send(
-          "terminal:exit",
-          sessionId,
-          exitCode,
-          signal
-        )
+        const window = this.windowProvider.getWindow()
+        window?.webContents.send("terminal:exit", sessionId, exitCode, signal)
         this.sessions.delete(sessionId)
       })
 
@@ -317,7 +263,6 @@ export class TerminalService extends IpcServiceBase {
       return { success: true, sessionId }
     } catch (error) {
       logger.error("[Terminal] Failed to create terminal session:", error)
-      logger.error("[Terminal] Error stack:", (error as Error).stack)
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
@@ -327,6 +272,7 @@ export class TerminalService extends IpcServiceBase {
 
   /**
    * Write data to a terminal session
+   * IPC: terminal:write
    */
   write(sessionId: string, data: string): { success: boolean; error?: string } {
     const session = this.sessions.get(sessionId)
@@ -349,6 +295,7 @@ export class TerminalService extends IpcServiceBase {
 
   /**
    * Resize a terminal session
+   * IPC: terminal:resize
    */
   resize(
     sessionId: string,
@@ -374,6 +321,7 @@ export class TerminalService extends IpcServiceBase {
 
   /**
    * Kill a terminal session
+   * IPC: terminal:kill
    */
   kill(sessionId: string): { success: boolean; error?: string } {
     const session = this.sessions.get(sessionId)
@@ -397,13 +345,9 @@ export class TerminalService extends IpcServiceBase {
 
   /**
    * List all terminal sessions
+   * IPC: terminal:list
    */
-  list(): Array<{
-    id: string
-    shell: string
-    cwd: string
-    createdAt: number
-  }> {
+  list(): Array<{ id: string; shell: string; cwd: string; createdAt: number }> {
     return Array.from(this.sessions.values()).map((session) => ({
       id: session.id,
       shell: session.shell,
@@ -414,6 +358,7 @@ export class TerminalService extends IpcServiceBase {
 
   /**
    * Get the default shell
+   * IPC: terminal:getDefaultShell
    */
   getDefaultShell(): string {
     return this.defaultShell
