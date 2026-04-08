@@ -153,7 +153,7 @@ interface Window {
       typeof import("./modules/window/webview.service").WebviewService
     >
     openData: import("@eidos.space/electron-ipc").ExtractIpcApi<
-      typeof import("./services/opendata-service").OpenDataService
+      typeof import("./modules/opendata/opendata.service").OpenDataService
     >
   }
 }
