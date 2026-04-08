@@ -21,14 +21,14 @@ export class CliService extends IpcServiceBase {
   /**
    * Install the CLI
    */
-  async install(): Promise<{ success: boolean; error?: string }> {
+  async install(): Promise<{ success: boolean; message: string }> {
     return installCli()
   }
 
   /**
    * Uninstall the CLI
    */
-  async uninstall(): Promise<{ success: boolean; error?: string }> {
+  async uninstall(): Promise<{ success: boolean; message: string }> {
     return uninstallCli()
   }
 

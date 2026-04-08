@@ -185,10 +185,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
 
     if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
       try {
-        const result = await window.eidos.spaceMgmt.switchSpace(currentValue)
-        if (!result.success) {
-          console.error("Failed to switch space:", result.error)
-        }
+        await window.eidos.spaceMgmt.switchSpace(currentValue)
       } catch (error) {
         console.error("Error switching space:", error)
       }

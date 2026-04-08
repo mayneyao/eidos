@@ -244,11 +244,7 @@ function main() {
     relay: createPreloadApiByNamespace("relay"),
     contextMenu: createPreloadApiByNamespace("context-menu"),
     // License management
-    license: {
-      activate: (licenseKey: string, token?: string) =>
-        ipcRenderer.invoke("license:activateLicense", licenseKey, token),
-      getInfo: () => ipcRenderer.invoke("license:getLicenseInfo"),
-    },
+    license: createPreloadApiByNamespace("license"),
     space: createPreloadApiByNamespace("space"),
     spaceMgmt: createPreloadApiByNamespace("space-mgmt"),
 

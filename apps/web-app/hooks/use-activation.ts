@@ -86,7 +86,7 @@ export const useActivation = () => {
 
       setIsLoading(true)
       try {
-        const info = await window.eidos.license.getInfo()
+        const info = await window.eidos.license.getLicenseInfo()
         if (info && isLicenseValid(info)) {
           setLicense(info)
           licenseStatus = "valid"
@@ -129,9 +129,12 @@ export const useActivation = () => {
       }
 
       try {
-        const result = await window.eidos.license.activate(licenseKey, token)
+        const result = await window.eidos.license.activateLicense(
+          licenseKey,
+          token
+        )
         if (result.success) {
-          setLicense(result.payload)
+          setLicense(result.payload ?? null)
           setIsActivated(true)
           toast({
             title: "License activated",
@@ -174,7 +177,7 @@ export const useActivation = () => {
 
     setIsLoading(true)
     try {
-      const info = await window.eidos.license.getInfo()
+      const info = await window.eidos.license.getLicenseInfo()
       if (info && isLicenseValid(info)) {
         setLicense(info)
         setIsActivated(true)

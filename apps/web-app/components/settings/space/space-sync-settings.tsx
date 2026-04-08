@@ -188,7 +188,7 @@ export function SpaceSyncSettings() {
         spaceInfo.id,
         enabled,
         remote,
-        providerId
+        providerId as "eidos.space" | "custom"
       )
 
       if (result.success) {
