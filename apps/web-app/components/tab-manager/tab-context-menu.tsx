@@ -492,10 +492,6 @@ export function TabContextMenu({
               )}
               <ContextMenuSeparator />
               <NodeExportContextMenu node={node} />
-              {/* <NodeOpenInCursor
-                  node={node}
-                  openInPlayground={openInPlayground}
-                /> */}
               {node.type === "dataview" && (
                 <ContextMenuItem onClick={handleAddToPanel}>
                   <PanelRightIcon className="mr-2 h-4 w-4" />

@@ -56,11 +56,6 @@ interface Window {
     onWindowStateChange: (
       callback: (state: "maximized" | "restored") => void
     ) => () => void
-    initializePlayground: (
-      space: string,
-      blockId: string,
-      files: PlaygroundFile[]
-    ) => Promise<string>
     getApiAgentStatus: () => Promise<
       import("./server/api-agent").ApiAgentStatus
     >
