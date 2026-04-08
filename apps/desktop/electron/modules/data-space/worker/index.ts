@@ -4,7 +4,7 @@
  * This module contains the core DataSpace implementation that runs
  * in the worker process (Node.js environment, no Electron APIs).
  *
- * For Electron main process APIs, use services/data-space-manager.ts
+ * For Electron main process APIs, use modules/data-space
  */
 
 // Re-export RPC types

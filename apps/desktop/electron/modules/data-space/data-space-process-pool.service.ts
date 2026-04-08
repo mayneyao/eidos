@@ -3,9 +3,10 @@ import { EventEmitter } from "events"
 import fs from "fs"
 import path from "path"
 
-import { getMainWindowWebContents } from "../../main"
-import { getCredentialsManager } from "../../modules/sync/sync.module"
-import type { InitMessage } from "../../core/data-space/rpc/rpc-types"
+import { Injectable, container } from "../../common/di"
+import { MainWindowProvider } from "../space-management/main-window.provider"
+import { CredentialsManager } from "../sync/credentials"
+import type { InitMessage } from "./worker/rpc/rpc-types"
 
 interface ProcessItem {
   process: Electron.UtilityProcess
@@ -14,20 +15,34 @@ interface ProcessItem {
   lastUsed: number
 }
 
+/**
+ * DataSpace Process Pool - Manages UtilityProcess workers
+ *
+ * Responsibilities:
+ * - Spawn and manage utility processes for each space
+ * - Handle IPC message forwarding between worker and renderer
+ * - Provide RPC call mechanism
+ */
+@Injectable()
 export class DataSpaceProcessPool extends EventEmitter {
-  private static instance: DataSpaceProcessPool
   private processes: Map<string, ProcessItem> = new Map()
-  // We can implement a pool limit later, for now 1:1 map
 
-  private constructor() {
+  constructor() {
     super()
   }
 
-  public static getInstance(): DataSpaceProcessPool {
-    if (!DataSpaceProcessPool.instance) {
-      DataSpaceProcessPool.instance = new DataSpaceProcessPool()
-    }
-    return DataSpaceProcessPool.instance
+  /**
+   * Get MainWindowProvider from DI container
+   */
+  private get windowProvider(): MainWindowProvider {
+    return container.get(MainWindowProvider)
+  }
+
+  /**
+   * Get CredentialsManager from DI container
+   */
+  private get credentialsManager(): CredentialsManager {
+    return container.get(CredentialsManager)
   }
 
   public getProcess(
@@ -91,7 +106,8 @@ export class DataSpaceProcessPool extends EventEmitter {
 
       if (payload.type === "forward-to-renderer") {
         // Forward message to renderer process
-        const webContents = getMainWindowWebContents()
+        const window = this.windowProvider.getWindow()
+        const webContents = window?.webContents
         if (webContents) {
           webContents.send(payload.channel, payload.data)
         } else {
@@ -101,7 +117,8 @@ export class DataSpaceProcessPool extends EventEmitter {
         }
       } else if (payload.type === "call-renderer") {
         // Handle call-renderer requests (bidirectional)
-        const webContents = getMainWindowWebContents()
+        const window = this.windowProvider.getWindow()
+        const webContents = window?.webContents
         if (webContents) {
           // Set up response listener
           const responseHandler = (event: any, result: any) => {
@@ -131,8 +148,7 @@ export class DataSpaceProcessPool extends EventEmitter {
           })
         }
       } else if (payload.type === "get-access-token") {
-        const credentialsManager = getCredentialsManager()
-        credentialsManager
+        this.credentialsManager
           .getAccessToken()
           .then((token) => {
             child.postMessage({

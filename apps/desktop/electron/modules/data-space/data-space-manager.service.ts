@@ -4,28 +4,48 @@ import { Worker } from "worker_threads"
 import type { DataSpace } from "@/packages/core/data-space"
 import log from "electron-log"
 
-import { getCredentialsManager } from "../../modules/sync/sync.module"
-import { getConfigManager } from "../../modules/config/config-manager"
+import { Injectable, Inject, container } from "../../common/di"
+import { ConfigManager } from "../config/config-manager"
+import { CredentialsManager } from "../sync/credentials"
+import { SpaceRegistry } from "../space-management/space-registry"
 import { getSpacePath } from "../../utils/paths"
 import { getResourcePath } from "../../utils/resources"
-import { getSpaceRegistry } from "../../modules/space-management/space-management.module"
-import { DataSpaceProcessPool } from "./data-space-process-pool"
-import { RpcClient } from "../../core/data-space/rpc/rpc-client"
-import type { WorkerInitData } from "../../core/data-space/rpc/rpc-types"
+import { DataSpaceProcessPool } from "./data-space-process-pool.service"
+import { RpcClient } from "./worker/rpc/rpc-client"
+import type { WorkerInitData } from "./worker/rpc/rpc-types"
 
+/**
+ * DataSpace Manager - Manages DataSpace instance lifecycle
+ *
+ * Responsibilities:
+ * - Initialize and manage DataSpace instances
+ * - Handle space switching
+ * - Manage sync workers
+ */
+@Injectable()
 export class DataSpaceManager {
-  private static instance: DataSpaceManager
   private dataSpaceProxy: DataSpace | null = null
   private currentSpaceId: string | null = null
   private initializationPromise: Promise<DataSpace> | null = null
+  private syncWorkers: Map<string, Worker> = new Map()
 
-  private constructor() {}
+  constructor(
+    @Inject(ConfigManager) private configManager: ConfigManager,
+    @Inject(DataSpaceProcessPool) private processPool: DataSpaceProcessPool
+  ) {}
 
-  public static getInstance(): DataSpaceManager {
-    if (!DataSpaceManager.instance) {
-      DataSpaceManager.instance = new DataSpaceManager()
-    }
-    return DataSpaceManager.instance
+  /**
+   * Get CredentialsManager from DI container
+   */
+  private get credentialsManager(): CredentialsManager {
+    return container.get(CredentialsManager)
+  }
+
+  /**
+   * Get SpaceRegistry from DI container
+   */
+  private get spaceRegistry(): SpaceRegistry {
+    return container.get(SpaceRegistry)
   }
 
   public getCurrentSpaceId(): string | null {
@@ -42,14 +62,6 @@ export class DataSpaceManager {
       return null
     }
 
-    // Close proxy/connection?
-    // The pool handles checking if process is dead.
-    // To force reload, we might want to kill the process in the pool
-    // But for now, just re-getting it serves as 'reload' for the variable
-
-    // If we want a hard reload:
-    // DataSpaceProcessPool.getInstance().terminate(this.currentSpaceId);
-
     // Reinitialize with the same space name
     return this.getOrSetDataSpace(this.currentSpaceId)
   }
@@ -59,10 +71,8 @@ export class DataSpaceManager {
       return false
     }
 
-    // Terminate the process via pool? Or just nullify proxy?
-    // Generally 'close' in single-process meant closing db connection.
-    // Here it means terminating the worker.
-    DataSpaceProcessPool.getInstance().killAll() // or terminate specific
+    // Terminate the process via pool
+    this.processPool.killAll()
 
     // Stop sync worker
     this.stopSyncWorker(this.currentSpaceId)
@@ -95,8 +105,7 @@ export class DataSpaceManager {
       const vecLibPath = getResourcePath("dist-sqlite-ext/libvec")
 
       // Get current sync provider from config
-      const configManager = getConfigManager()
-      const spaceInfo = getSpaceRegistry().getSpace(spaceId)
+      const spaceInfo = this.spaceRegistry.getSpace(spaceId)
       if (!spaceInfo) {
         throw new Error(`Space not found: ${spaceId}`)
       }
@@ -104,16 +113,11 @@ export class DataSpaceManager {
       // Use space's provider if set, otherwise use default
       const providerId =
         spaceInfo.sync?.provider ||
-        configManager.getDefaultSyncProvider() ||
+        this.configManager.getDefaultSyncProvider() ||
         "eidos.space"
 
-      const credentialsManager = getCredentialsManager()
       const credentials =
-        await credentialsManager.getSyncCredentials(providerId)
-      if (!credentials) {
-        // throw new Error(`Credentials for ${providerId} not found`)
-        // Keep existing logic, maybe it works without credentials for local?
-      }
+        await this.credentialsManager.getSyncCredentials(providerId)
 
       const initData: WorkerInitData = {
         spaceInfo,
@@ -131,8 +135,7 @@ export class DataSpaceManager {
         },
       }
 
-      const pool = DataSpaceProcessPool.getInstance()
-      const childProcess = await pool.getProcess(spaceId, initData)
+      const childProcess = await this.processPool.getProcess(spaceId, initData)
 
       // Create RPC Client and Proxy
       const client = new RpcClient(childProcess as any)
@@ -176,8 +179,6 @@ export class DataSpaceManager {
     return this.initializationPromise
   }
 
-  private syncWorkers: Map<string, Worker> = new Map()
-
   private startSyncWorker(
     spaceId: string,
     spaceInfo: any,
@@ -217,14 +218,7 @@ export class DataSpaceManager {
 
     try {
       log.info(`Starting sync worker for space ${spaceId}...`)
-      // Use require.resolve to find the worker file.
-      // In dev (ts-node), this might point to .ts, in prod .js.
-      // Since we are in the main process, we can use standard node modules.
       const workerPath = path.join(__dirname, "sync-worker.js")
-      // Note: In prod, files are bundled. We might need to ensure sync-worker is emitted as a separate file
-      // or use a specific loader.
-      // Assuming similar setup to 'worker.js' which is used by utilityProcess.fork
-      // But here we use worker_threads.
 
       // Verify if sync-worker.js exists, or try .ts if in dev
       let actualWorkerPath = workerPath
@@ -264,36 +258,5 @@ export class DataSpaceManager {
       worker.terminate()
       this.syncWorkers.delete(spaceId)
     }
-  }
-}
-
-// Export convenience functions
-export function getDataSpace(): DataSpace | null {
-  return DataSpaceManager.getInstance().getDataSpace()
-}
-
-export function getCurrentSpaceId(): string | null {
-  return DataSpaceManager.getInstance().getCurrentSpaceId()
-}
-
-export function getOrSetDataSpace(
-  spaceId: string,
-  syncOptions?: { enabled: boolean; remote?: string }
-): Promise<DataSpace> {
-  // We can just proxy to the manager
-  return DataSpaceManager.getInstance().getOrSetDataSpace(spaceId, syncOptions)
-}
-
-export function reloadDataSpace(): Promise<{ success: boolean }> {
-  DataSpaceManager.getInstance().reload()
-  return Promise.resolve({
-    success: true,
-  })
-}
-
-export async function closeDataSpace(): Promise<{ success: boolean }> {
-  const success = await DataSpaceManager.getInstance().close()
-  return {
-    success,
   }
 }

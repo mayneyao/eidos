@@ -7,7 +7,7 @@ import { IpcInjectable, Inject } from "../../common/di"
 import { CredentialsManager } from "./credentials"
 import { getConfigManager } from "../config/config-manager"
 import { getSpaceRegistry } from "../space-management/space-management.module"
-import { getOrSetDataSpace } from "../../services/data-space/data-space-manager"
+import { DataSpaceManager } from "../data-space"
 import { BucketClient } from "@/packages/sync/bucket"
 
 interface TestConnectionConfig {
@@ -28,7 +28,8 @@ interface CloneSpaceParams {
 @IpcInjectable("sync")
 export class SyncService extends IpcServiceBase {
   constructor(
-    @Inject(CredentialsManager) private credentials: CredentialsManager
+    @Inject(CredentialsManager) private credentials: CredentialsManager,
+    @Inject(DataSpaceManager) private dataSpaceManager: DataSpaceManager
   ) {
     super()
   }
@@ -213,10 +214,13 @@ export class SyncService extends IpcServiceBase {
       })
 
       // 2. Get or initialize DataSpace with sync enabled
-      const dataSpace = await getOrSetDataSpace(space.id, {
-        enabled: true,
-        remote: remoteUrl,
-      })
+      const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(
+        space.id,
+        {
+          enabled: true,
+          remote: remoteUrl,
+        }
+      )
 
       // 3. Pull data from remote
       try {

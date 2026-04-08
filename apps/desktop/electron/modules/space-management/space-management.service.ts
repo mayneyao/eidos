@@ -6,11 +6,7 @@ import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import { IpcInjectable, Inject } from "../../common/di"
 import { SpaceRegistry } from "./space-registry"
 import { MainWindowProvider } from "./main-window.provider"
-import { DataSpaceProcessPool } from "../../services/data-space/data-space-process-pool"
-import {
-  getDataSpace,
-  getOrSetDataSpace,
-} from "../../services/data-space/data-space-manager"
+import { DataSpaceManager, DataSpaceProcessPool } from "../data-space"
 import { getCredentialsManager } from "../sync/sync.module"
 import { getConfigManager } from "../config/config-manager"
 import { PORT } from "../../main"
@@ -32,7 +28,9 @@ import { PORT } from "../../main"
 export class SpaceManagementService extends IpcServiceBase {
   constructor(
     @Inject(SpaceRegistry) private registry: SpaceRegistry,
-    @Inject(MainWindowProvider) private windowProvider: MainWindowProvider
+    @Inject(MainWindowProvider) private windowProvider: MainWindowProvider,
+    @Inject(DataSpaceManager) private dataSpaceManager: DataSpaceManager,
+    @Inject(DataSpaceProcessPool) private processPool: DataSpaceProcessPool
   ) {
     super()
   }
@@ -106,8 +104,7 @@ export class SpaceManagementService extends IpcServiceBase {
     try {
       const success = this.registry.updateSpace(spaceId, updates)
       if (success) {
-        const processPool = DataSpaceProcessPool.getInstance()
-        processPool.sendToProcess(spaceId, {
+        this.processPool.sendToProcess(spaceId, {
           type: "update-space-info",
           spaceInfo: this.registry.getSpace(spaceId),
         })
@@ -136,7 +133,7 @@ export class SpaceManagementService extends IpcServiceBase {
 
     console.log(`Pre-initializing DataSpace for: ${spaceId}`)
     try {
-      await getOrSetDataSpace(spaceId)
+      await this.dataSpaceManager.getOrSetDataSpace(spaceId)
       console.log(`DataSpace initialized for: ${spaceId}`)
     } catch (error) {
       console.error(`Failed to initialize DataSpace for ${spaceId}:`, error)
@@ -199,7 +196,7 @@ export class SpaceManagementService extends IpcServiceBase {
       return { success: false, error: "Space not found" }
     }
 
-    const dataSpace = getDataSpace()
+    const dataSpace = this.dataSpaceManager.getDataSpace()
     if (!dataSpace) {
       return { success: false, error: "Data space not initialized" }
     }
