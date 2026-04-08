@@ -6,6 +6,7 @@
  */
 
 import { Module } from "./common/di"
+import { LoggerModule } from "./modules/logger/logger.module"
 import { ConfigModule } from "./modules/config/config.module"
 import { FileSystemModule } from "./modules/file-system/file-system.module"
 import { SyncModule } from "./modules/sync/sync.module"
@@ -19,6 +20,7 @@ import { ExampleModule } from "./modules/example/example.module"
  * App Module - Root module
  *
  * Imports:
+ * - LoggerModule: Global logging service (must be first)
  * - ConfigModule: Configuration management
  * - FileSystemModule: File operations
  * - SyncModule: Data synchronization
@@ -30,6 +32,7 @@ import { ExampleModule } from "./modules/example/example.module"
  */
 @Module({
   imports: [
+    LoggerModule, // Global logger, must be first
     ConfigModule,
     FileSystemModule,
     SyncModule,

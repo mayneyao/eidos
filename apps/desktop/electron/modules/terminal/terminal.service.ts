@@ -6,30 +6,12 @@ import { BrowserWindow } from "electron"
 import * as fs from "fs"
 import * as os from "os"
 import * as path from "path"
-import electronLog from "electron-log"
+import { LoggerService } from "../logger/logger.module"
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import { IpcInjectable, Inject, Injectable } from "../../common/di"
 
-const logger = electronLog
-
 // Dynamic import for node-pty to handle native module loading
 let ptyModule: typeof import("node-pty") | null = null
-
-async function getPty(): Promise<typeof import("node-pty")> {
-  if (!ptyModule) {
-    try {
-      logger.info("[Terminal] Loading node-pty module...")
-      ptyModule = await import("node-pty")
-      logger.info("[Terminal] node-pty module loaded successfully")
-    } catch (error) {
-      logger.error("[Terminal] Failed to load node-pty module:", error)
-      throw new Error(
-        `Failed to load node-pty: ${error instanceof Error ? error.message : "Unknown error"}`
-      )
-    }
-  }
-  return ptyModule
-}
 
 export interface TerminalSession {
   id: string
@@ -76,50 +58,70 @@ export class TerminalService extends IpcServiceBase {
   private sessions: Map<string, TerminalSession> = new Map()
   private defaultShell: string
   private isReady: boolean = false
+  private logger: LoggerService
 
   constructor(
     @Inject(TerminalWindowProvider)
-    private windowProvider: TerminalWindowProvider
+    private windowProvider: TerminalWindowProvider,
+    @Inject(LoggerService)
+    loggerService: LoggerService
   ) {
     super()
-    logger.info("[Terminal] TerminalService constructor starting...")
+    this.logger = loggerService.child("Terminal")
+    this.logger.info("TerminalService constructor starting...")
     this.defaultShell = this.detectDefaultShell()
-    logger.info("[Terminal] Default shell detected:", this.defaultShell)
+    this.logger.info("Default shell detected:", this.defaultShell)
     this.initialize()
   }
 
   private async initialize(): Promise<void> {
     try {
-      logger.info("[Terminal] Initializing terminal service...")
-      await getPty()
+      this.logger.info("Initializing terminal service...")
+      await this.getPty()
       this.isReady = true
-      logger.info("[Terminal] Terminal service initialized successfully")
+      this.logger.info("Terminal service initialized successfully")
     } catch (error) {
-      logger.error("[Terminal] Terminal service initialization failed:", error)
+      this.logger.error("Terminal service initialization failed:", error)
       this.isReady = false
     }
   }
 
+  private async getPty(): Promise<typeof import("node-pty")> {
+    if (!ptyModule) {
+      try {
+        this.logger.info("Loading node-pty module...")
+        ptyModule = await import("node-pty")
+        this.logger.info("node-pty module loaded successfully")
+      } catch (error) {
+        this.logger.error("Failed to load node-pty module:", error)
+        throw new Error(
+          `Failed to load node-pty: ${error instanceof Error ? error.message : "Unknown error"}`
+        )
+      }
+    }
+    return ptyModule
+  }
+
   private detectDefaultShell(): string {
     const platform = os.platform()
-    logger.info("[Terminal] Detecting shell for platform:", platform)
+    this.logger.info("Detecting shell for platform:", platform)
 
     if (platform === "win32") {
       return process.env.COMSPEC || "cmd.exe"
     }
 
     const shell = process.env.SHELL || "/bin/bash"
-    logger.info("[Terminal] SHELL env variable:", process.env.SHELL)
+    this.logger.info("SHELL env variable:", process.env.SHELL)
 
     if (fs.existsSync(shell)) {
-      logger.info("[Terminal] Shell exists:", shell)
+      this.logger.info("Shell exists:", shell)
       return shell
     }
 
     const fallbackShells = ["/bin/bash", "/bin/sh", "/bin/zsh"]
     for (const fallback of fallbackShells) {
       if (fs.existsSync(fallback)) {
-        logger.warn("[Terminal] Using fallback shell:", fallback)
+        this.logger.warn("Using fallback shell:", fallback)
         return fallback
       }
     }
@@ -138,16 +140,16 @@ export class TerminalService extends IpcServiceBase {
   async create(
     options: TerminalCreateOptions = {}
   ): Promise<{ success: boolean; sessionId?: string; error?: string }> {
-    logger.info(
-      "[Terminal] Creating new session with options:",
+    this.logger.info(
+      "Creating new session with options:",
       JSON.stringify(options, null, 2)
     )
 
     try {
-      const pty = await getPty()
+      const pty = await this.getPty()
 
       if (!this.isReady) {
-        logger.error("[Terminal] Service not ready")
+        this.logger.error("Service not ready")
         return {
           success: false,
           error: "Terminal service is not ready. Please try again.",
@@ -155,17 +157,17 @@ export class TerminalService extends IpcServiceBase {
       }
 
       const sessionId = this.generateSessionId()
-      logger.info("[Terminal] Generated session ID:", sessionId)
+      this.logger.info("Generated session ID:", sessionId)
 
       const shell = options.shell || this.defaultShell
       const cwd = options.cwd || os.homedir()
       const cols = options.cols || 80
       const rows = options.rows || 24
 
-      logger.info("[Terminal] Session config:", { shell, cwd, cols, rows })
+      this.logger.info("Session config:", { shell, cwd, cols, rows })
 
       if (!fs.existsSync(shell)) {
-        logger.error("[Terminal] Shell does not exist:", shell)
+        this.logger.error("Shell does not exist:", shell)
         return {
           success: false,
           error: `Shell "${shell}" does not exist`,
@@ -178,16 +180,13 @@ export class TerminalService extends IpcServiceBase {
       }
 
       if (!fs.existsSync(resolvedCwd)) {
-        logger.warn("[Terminal] CWD does not exist, using home:", resolvedCwd)
+        this.logger.warn("CWD does not exist, using home:", resolvedCwd)
         resolvedCwd = os.homedir()
       }
 
       const stats = fs.statSync(resolvedCwd)
       if (!stats.isDirectory()) {
-        logger.warn(
-          "[Terminal] CWD is not a directory, using home:",
-          resolvedCwd
-        )
+        this.logger.warn("CWD is not a directory, using home:", resolvedCwd)
         resolvedCwd = os.homedir()
       }
 
@@ -214,9 +213,9 @@ export class TerminalService extends IpcServiceBase {
           cwd: resolvedCwd,
           env,
         })
-        logger.info("[Terminal] pty.spawn succeeded!")
+        this.logger.info("pty.spawn succeeded!")
       } catch (spawnError) {
-        logger.error("[Terminal] pty.spawn failed:", spawnError)
+        this.logger.error("pty.spawn failed:", spawnError)
 
         try {
           ptyProcess = pty.spawn("/bin/bash", [], {
@@ -226,9 +225,9 @@ export class TerminalService extends IpcServiceBase {
             cwd: resolvedCwd,
             env,
           })
-          logger.info("[Terminal] Fallback to /bin/bash succeeded!")
+          this.logger.info("Fallback to /bin/bash succeeded!")
         } catch (fallbackError) {
-          logger.error("[Terminal] Fallback also failed:", fallbackError)
+          this.logger.error("Fallback also failed:", fallbackError)
           throw spawnError
         }
       }
@@ -241,7 +240,7 @@ export class TerminalService extends IpcServiceBase {
         createdAt: Date.now(),
       }
       this.sessions.set(sessionId, session)
-      logger.info("[Terminal] Session stored:", sessionId)
+      this.logger.info("Session stored:", sessionId)
 
       // Handle data from PTY
       ptyProcess.onData((data: string) => {
@@ -251,18 +250,18 @@ export class TerminalService extends IpcServiceBase {
 
       // Handle PTY exit
       ptyProcess.onExit(({ exitCode, signal }) => {
-        logger.info(
-          `[Terminal] Session ${sessionId} exited, code=${exitCode}, signal=${signal}`
+        this.logger.info(
+          `Session ${sessionId} exited, code=${exitCode}, signal=${signal}`
         )
         const window = this.windowProvider.getWindow()
         window?.webContents.send("terminal:exit", sessionId, exitCode, signal)
         this.sessions.delete(sessionId)
       })
 
-      logger.info(`[Terminal] Session ${sessionId} created successfully`)
+      this.logger.info(`Session ${sessionId} created successfully`)
       return { success: true, sessionId }
     } catch (error) {
-      logger.error("[Terminal] Failed to create terminal session:", error)
+      this.logger.error("Failed to create terminal session:", error)
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
@@ -277,7 +276,7 @@ export class TerminalService extends IpcServiceBase {
   write(sessionId: string, data: string): { success: boolean; error?: string } {
     const session = this.sessions.get(sessionId)
     if (!session) {
-      logger.warn("[Terminal] Write to unknown session:", sessionId)
+      this.logger.warn("Write to unknown session:", sessionId)
       return { success: false, error: "Session not found" }
     }
 
@@ -285,7 +284,7 @@ export class TerminalService extends IpcServiceBase {
       session.ptyProcess.write(data)
       return { success: true }
     } catch (error) {
-      logger.error(`[Terminal] Failed to write to session ${sessionId}:`, error)
+      this.logger.error(`Failed to write to session ${sessionId}:`, error)
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
@@ -311,7 +310,7 @@ export class TerminalService extends IpcServiceBase {
       session.ptyProcess.resize(cols, rows)
       return { success: true }
     } catch (error) {
-      logger.error(`[Terminal] Failed to resize session ${sessionId}:`, error)
+      this.logger.error(`Failed to resize session ${sessionId}:`, error)
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
@@ -332,10 +331,10 @@ export class TerminalService extends IpcServiceBase {
     try {
       session.ptyProcess.kill()
       this.sessions.delete(sessionId)
-      logger.info("[Terminal] Killed session:", sessionId)
+      this.logger.info("Killed session:", sessionId)
       return { success: true }
     } catch (error) {
-      logger.error(`[Terminal] Failed to kill session ${sessionId}:`, error)
+      this.logger.error(`Failed to kill session ${sessionId}:`, error)
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
@@ -368,13 +367,13 @@ export class TerminalService extends IpcServiceBase {
    * Cleanup all sessions
    */
   cleanup(): void {
-    logger.info(`[Terminal] Cleaning up ${this.sessions.size} sessions`)
+    this.logger.info(`Cleaning up ${this.sessions.size} sessions`)
     for (const [sessionId, session] of this.sessions) {
       try {
         session.ptyProcess.kill()
-        logger.info("[Terminal] Killed session:", sessionId)
+        this.logger.info("Killed session:", sessionId)
       } catch (error) {
-        logger.error(`[Terminal] Failed to kill session ${sessionId}:`, error)
+        this.logger.error(`Failed to kill session ${sessionId}:`, error)
       }
     }
     this.sessions.clear()
