@@ -12,11 +12,11 @@ import { DataSpaceManager } from "../data-space"
 import { OpenDataService } from "../opendata"
 import { TerminalService } from "../terminal/terminal.module"
 import { GlobalShortcutsService } from "./global-shortcuts.service"
+import { WindowService } from "./window.service"
 
 @IpcInjectable("app-lifecycle")
 export class AppLifecycleService extends IpcServiceBase {
   private forceQuit = false
-  private mainWindow: Electron.BrowserWindow | null = null
 
   constructor(
     @Inject(UpdaterService) private updaterService: UpdaterService,
@@ -25,23 +25,17 @@ export class AppLifecycleService extends IpcServiceBase {
     @Inject(OpenDataService) private openDataService: OpenDataService,
     @Inject(TerminalService) private terminalService: TerminalService,
     @Inject(GlobalShortcutsService)
-    private globalShortcutsService: GlobalShortcutsService
+    private globalShortcutsService: GlobalShortcutsService,
+    @Inject(WindowService) private windowService: WindowService
   ) {
     super()
-  }
-
-  /**
-   * Set the main window reference
-   */
-  setMainWindow(win: Electron.BrowserWindow | null): void {
-    this.mainWindow = win
   }
 
   /**
    * Get the main window reference
    */
   getMainWindow(): Electron.BrowserWindow | null {
-    return this.mainWindow
+    return this.windowService.getMainWindow()
   }
 
   /**
@@ -61,7 +55,7 @@ export class AppLifecycleService extends IpcServiceBase {
   /**
    * Set up app lifecycle event handlers
    */
-  setupLifecycleHandlers(onWindowAllClosed?: () => void): void {
+  setupLifecycleHandlers(): void {
     // Window all closed - cleanup resources
     app.on("window-all-closed", () => {
       // Close dataspace via DI if available
@@ -80,8 +74,6 @@ export class AppLifecycleService extends IpcServiceBase {
       try {
         this.terminalService.cleanup()
       } catch {}
-      this.mainWindow = null
-      onWindowAllClosed?.()
     })
 
     // Before quit - final cleanup
@@ -105,7 +97,7 @@ export class AppLifecycleService extends IpcServiceBase {
     // Register app-lifecycle handlers
     ipcMain.handle("app-lifecycle:reloadApp", async () => {
       app.relaunch()
-      this.mainWindow?.reload()
+      this.windowService.getMainWindow()?.reload()
     })
 
     ipcMain.handle("app-lifecycle:quitApp", async () => {

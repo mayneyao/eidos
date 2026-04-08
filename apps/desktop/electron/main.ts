@@ -12,7 +12,7 @@
 // Required for decorator metadata
 import "reflect-metadata"
 
-import type { BrowserWindow } from "electron"
+// No direct Electron type imports needed
 import { app, ipcMain } from "electron"
 import { default as console, default as electronLog } from "electron-log"
 import path from "path"
@@ -48,19 +48,16 @@ import {
   ApiServerService,
   type PortInUseError,
 } from "./modules/api-server/api-server.module"
-import { MainWindowProvider } from "./modules/space-management/space-management.module"
-import { TerminalWindowProvider } from "./modules/terminal/terminal.module"
+// Window providers now get window reference via WindowService DI
 import { UpdaterService } from "./modules/updater/updater.module"
 
-// Export main window for other modules
-export let win: BrowserWindow | null
+// Export helper to get main window web contents
 export function getMainWindowWebContents() {
   const windowService = container.get(WindowService)
   return windowService.getMainWindowWebContents()
 }
 
-// App state
-// let globalShortcutManager: GlobalShortcutsService | null = null  // Now via DI
+// App state - now managed by services via DI
 
 export const PORT = 13127
 
@@ -156,9 +153,7 @@ async function main() {
 
     // Set up app lifecycle handlers
     const appLifecycleService = container.get(AppLifecycleService)
-    appLifecycleService.setupLifecycleHandlers(() => {
-      win = null
-    })
+    appLifecycleService.setupLifecycleHandlers()
     appLifecycleService.registerIpcHandlers()
 
     // Initialize webview service (for backward compatibility)
@@ -176,14 +171,7 @@ async function main() {
     // Get WindowService and create window
     const windowService = container.get(WindowService)
     windowService.setPort(PORT)
-    win = windowService.createWindow(spaceId)
-
-    // Setup window providers (must be after win is created)
-    const terminalWindowProvider = container.get(TerminalWindowProvider)
-    terminalWindowProvider.setWindowProvider(() => win)
-
-    const mainWindowProvider = container.get(MainWindowProvider)
-    mainWindowProvider.setWindowProvider(() => win)
+    windowService.createWindow(spaceId)
 
     // Initialize global shortcuts service
     const globalShortcutsService = container.get(GlobalShortcutsService)
@@ -204,9 +192,8 @@ async function main() {
     // Handle any pending protocol URL (received before window was created)
     protocolService.handlePendingProtocolUrl()
 
-    // Set main window reference and set up close handler
-    appLifecycleService.setMainWindow(win)
-    windowService.setupCloseHandler(win, appLifecycleService)
+    // Set up window close handler
+    windowService.setupCloseHandler(appLifecycleService)
 
     // App updater (auto-registered via DI)
     const updaterService = container.get(UpdaterService)
