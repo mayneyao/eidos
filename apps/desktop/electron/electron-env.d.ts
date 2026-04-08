@@ -158,8 +158,5 @@ interface Window {
     openData: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./services/opendata-service").OpenDataService
     >
-    pipeline: import("@eidos.space/electron-ipc").ExtractIpcApi<
-      typeof import("./services/pipeline-service").PipelineService
-    >
   }
 }
