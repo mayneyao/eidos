@@ -1,4 +1,3 @@
-import type { WebContentsViewConstructorOptions } from "electron"
 import { BrowserWindow, ipcMain } from "electron"
 import os from "node:os"
 import path from "path"
@@ -6,11 +5,8 @@ import { debounce } from "@/lib/lodash"
 import { getConfigManager } from "../services/config-manager"
 import { PORT } from "../main"
 import { setupGeolocationHandler } from "../services/geolocation"
-import { WindowManager } from "./wm"
 
-export let windowManager: WindowManager | null = null
-
-const defaultViewOptions: WebContentsViewConstructorOptions = {
+const defaultViewOptions = {
   webPreferences: {
     preload: path.join(__dirname, "./preload.mjs"),
     nodeIntegration: true,
@@ -82,15 +78,9 @@ export function createWindow(spaceId?: string) {
   win.on("resize", persistWindowState)
   win.on("move", persistWindowState)
   win.on("close", saveWindowState)
-  const wm = new WindowManager(win)
-  windowManager = wm
 
   // Set up geolocation permission handler
   setupGeolocationHandler(win)
-
-  ipcMain.handle("get-open-tabs", () => {
-    return wm.tabs
-  })
 
   if (spaceId) {
     if (process.env.VITE_DEV_SERVER_URL) {
@@ -144,7 +134,7 @@ export function createWindow(spaceId?: string) {
     win.webContents.send("window-state-changed", "restored")
   )
 
-  // Intercept reload shortcuts to ensure BrowserViews are cleaned up before reload
+  // Intercept reload shortcuts
   win.webContents.on("before-input-event", (event, input) => {
     const isReloadShortcut =
       (input.key.toLowerCase() === "r" && (input.control || input.meta)) ||
@@ -152,14 +142,8 @@ export function createWindow(spaceId?: string) {
 
     if (isReloadShortcut && !input.alt) {
       event.preventDefault()
-      wm.browserViewManager.closeAll()
       win.webContents.reload()
     }
-  })
-
-  // Also clean up BrowserViews when the renderer crashes or is destroyed
-  win.webContents.on("render-process-gone", () => {
-    wm.browserViewManager.closeAll()
   })
 
   return win

@@ -30,7 +30,6 @@ import { fileSystemService } from "./services/file-system-service"
 import { GlobalShortcutManager } from "./services/global-shortcut-manager"
 import { licenseService } from "./services/license-service"
 import { OpenDataService } from "./services/opendata-service"
-import { PipelineService } from "./services/pipeline-service"
 import { relayService } from "./services/relay-service"
 import { SpaceManagementService } from "./services/space-management-service"
 import { syncService } from "./services/sync-service"
@@ -41,7 +40,7 @@ import {
   migrateFromLegacyConfig,
 } from "./services/space-registry"
 import { AppUpdater } from "./services/updater"
-import { createWindow, windowManager } from "./window-manager/createWindow"
+import { createWindow } from "./window-manager/createWindow"
 
 process.on("uncaughtException", (error) => {
   console.error("Unhandled Exception:", error) // Also log to console
@@ -163,9 +162,6 @@ ipcMain.handle("sqlite-msg-read", async (event, payload) => {
 
 // File System IPC handlers are now handled by FileSystemService
 // See: services/file-system-service.ts
-
-// Pipeline IPC handlers are now handled by PipelineService
-// See: services/pipeline-service.ts
 
 // App lifecycle IPC handlers are now handled by AppLifecycleService
 // See: services/app-lifecycle-service.ts
@@ -310,12 +306,6 @@ app.whenReady().then(async () => {
   fetchService.register()
   contextMenuService.register()
   webviewService.register()
-
-  // PipelineService requires windowManager, initialize after app is ready
-  const pipelineService = new PipelineService({
-    getWindowManager: () => windowManager!,
-  })
-  pipelineService.register()
 
   await migrateFromLegacyConfig()
 

@@ -200,7 +200,6 @@ function main() {
         }
       },
     },
-    pipeline: createPreloadApiByNamespace("pipeline"),
     minimizeWindow: () => ipcRenderer.send("window-control", "minimize"),
     maximizeWindow: () => ipcRenderer.send("window-control", "maximize"),
     unmaximizeWindow: () => ipcRenderer.send("window-control", "unmaximize"),
