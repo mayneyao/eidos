@@ -29,7 +29,7 @@ import {
 } from "../services/credentials"
 import { getConfigManager } from "../services/config-manager"
 import { getOrSetDataSpace } from "../data-space"
-import { getFileFromPath, getSpaceFileFromPath } from "../file-system/space"
+import { getFileFromPath, getSpaceFileFromPath } from "../utils/paths"
 import { getSpaceRegistry } from "../services/space-registry"
 import { serveFile } from "./serve-file"
 import { serveStatic } from "./server-static"

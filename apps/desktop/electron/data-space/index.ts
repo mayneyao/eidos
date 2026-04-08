@@ -6,7 +6,7 @@ import log from "electron-log"
 
 import { CredentialsManager } from "../services/credentials"
 import { getConfigManager } from "../services/config-manager"
-import { getSpacePath } from "../file-system/space"
+import { getSpacePath } from "../utils/paths"
 import { getResourcePath } from "../lib/helper"
 import { getSpaceRegistry } from "../services/space-registry"
 import { DataSpaceProcessPool } from "./process-pool"
