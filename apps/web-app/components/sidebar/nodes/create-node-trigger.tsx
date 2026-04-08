@@ -118,7 +118,7 @@ export const CreateNodeTrigger = ({ parent_id }: { parent_id?: string }) => {
   const handleImportCsv = async (file: File) => {
     try {
       if (isDesktopMode) {
-        await window.eidos.invoke("reload-query-worker")
+        await window.eidos.space.reloadQueryWorker()
       }
       const tableId = await sqlite?.importCsv({
         name: file.name,

@@ -34,9 +34,14 @@ interface Window {
     getEfsManager: () => Promise<
       import("@/lib/storage/eidos-file-system").EidosFileSystemManager
     >
-    config: import("./config/index").ConfigManager
+    config: {
+      get: (key: string) => Promise<any>
+      set: (key: string, value: any) => Promise<void>
+    }
     selectFolder: () => Promise<string | undefined>
-    showInFileManager: (path: string) => Promise<void>
+    showInFileManager: (
+      path: string
+    ) => Promise<{ success: boolean; error?: string }>
     checkIsDataFolderSet: () => Promise<boolean>
     reloadApp: () => Promise<void>
     minimizeWindow: () => void
@@ -59,6 +64,8 @@ interface Window {
     getApiAgentStatus: () => Promise<
       import("./server/api-agent").ApiAgentStatus
     >
+    checkForUpdates: () => Promise<void>
+    quitAndInstall: () => Promise<void>
     onApiAgentStatusChanged: (
       callback: (status: import("./server/api-agent").ApiAgentStatus) => void
     ) => () => void
@@ -67,6 +74,7 @@ interface Window {
       providerType: string,
       baseUrl?: string
     ) => Promise<{ success: boolean; models?: any[]; error?: string }>
+    quitApp: () => Promise<void>
     fetch: (
       url: string,
       options: RequestInit
@@ -78,7 +86,7 @@ interface Window {
       data: any
       error?: string
     }>
-    openUrl: (url: string) => Promise<void>
+    openUrl: (url: string) => Promise<{ success: boolean; error?: string }>
     browserView: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./window-manager/browser-view-manager").BrowserViewManager
     > & {
@@ -116,69 +124,32 @@ interface Window {
       items: NativeMenuItem[],
       position?: { clientX: number; clientY: number }
     ) => Promise<void>
+    contextMenu: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./services/context-menu-service").ContextMenuService
+    >
     on: (
       channel: string,
       listener: (...args: any[]) => void
     ) => string | undefined
     off: (channel: string, listenerId: string) => void
-    credentials: {
-      setSyncCredentials: (
-        credentials: SyncBucketCredentials,
-        providerId: string = "eidos.space"
-      ) => Promise<void>
-      getSyncCredentials: (
-        providerId: string = "eidos.space"
-      ) => Promise<SyncBucketCredentials | null>
-      clearSyncCredentials: (
-        providerId: string = "eidos.space"
-      ) => Promise<void>
-      hasSyncCredentials: (
-        providerId: string = "eidos.space"
-      ) => Promise<boolean>
-      testSyncConnection: (config: {
-        endpoint: string
-        bucketName: string
-        region?: string
-        accessKeyId: string
-        secretAccessKey: string
-      }) => Promise<{ success: boolean; message?: string; error?: string }>
-    }
-    license: {
-      activate: (licenseKey: string, token?: string | null) => Promise<any>
-      getInfo: () => Promise<any>
-    }
-    space: {
-      getCurrent: () => Promise<{
-        id: string
-        name: string
-        path: string
-      } | null>
-      getById: (
-        spaceId: string
-      ) => Promise<{ id: string; name: string; path: string } | null>
-    }
-    terminal: {
-      create: (options?: {
-        cwd?: string
-        shell?: string
-        env?: Record<string, string>
-        cols?: number
-        rows?: number
-      }) => Promise<{ success: boolean; sessionId?: string; error?: string }>
-      write: (
-        sessionId: string,
-        data: string
-      ) => Promise<{ success: boolean; error?: string }>
-      resize: (
-        sessionId: string,
-        cols: number,
-        rows: number
-      ) => Promise<{ success: boolean; error?: string }>
-      kill: (sessionId: string) => Promise<{ success: boolean; error?: string }>
-      list: () => Promise<
-        Array<{ id: string; shell: string; cwd: string; createdAt: number }>
-      >
-      getDefaultShell: () => Promise<string>
+    credentials: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./services/sync-service").SyncService
+    >
+    relay: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./services/relay-service").RelayService
+    >
+    license: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./services/license-service").LicenseService
+    >
+    space: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./services/data-space-service").DataSpaceService
+    >
+    spaceMgmt: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./services/space-management-service").SpaceManagementService
+    >
+    terminal: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./services/terminal-service").TerminalService
+    > & {
       onData: (
         callback: (sessionId: string, data: string) => void
       ) => () => void
@@ -186,14 +157,14 @@ interface Window {
         callback: (sessionId: string, exitCode: number, signal?: number) => void
       ) => () => void
     }
-    cli: {
-      isInstalled: () => Promise<boolean>
-      install: () => Promise<{ success: boolean; message: string }>
-      uninstall: () => Promise<{ success: boolean; message: string }>
-      getPath: () => Promise<string>
-    }
+    cli: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./services/cli-service").CliService
+    >
     openData: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./services/opendata-service").OpenDataService
+    >
+    pipeline: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./services/pipeline-service").PipelineService
     >
   }
 }

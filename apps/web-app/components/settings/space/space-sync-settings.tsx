@@ -184,8 +184,7 @@ export function SpaceSyncSettings() {
         }
       }
 
-      const result = await window.eidos.invoke(
-        "toggle-space-sync",
+      const result = await window.eidos.spaceMgmt.toggleSpaceSync(
         spaceInfo.id,
         enabled,
         remote,
@@ -201,7 +200,7 @@ export function SpaceSyncSettings() {
         })
 
         // Refresh space info to get updated sync status
-        const updatedSpace = await window.eidos.invoke("get-current-space")
+        const updatedSpace = await window.eidos.spaceMgmt.getCurrentSpace()
         useSpaceStore.getState().setSpaceInfo(updatedSpace)
       } else {
         toast({

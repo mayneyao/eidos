@@ -5,7 +5,7 @@ import path from "path"
 import { EventEmitter } from "events"
 import type { AIFormValues } from "@/packages/ai/config"
 import type { CustomTheme } from "@/apps/web-app/store/theme-store"
-import { getSpaceRegistry } from "../space-registry"
+import { getSpaceRegistry } from "../services/space-registry"
 
 // Account configuration (eidos.space only)
 export interface AccountConfig {

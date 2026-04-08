@@ -8,7 +8,7 @@ export const useEngine = () => {
     if (!isDesktopMode) {
       return
     }
-    const { success } = await window.eidos.invoke("close-data-space")
+    const { success } = await window.eidos.space.closeDataSpace()
     if (!success) {
       toast({
         title: "Close data space failed",
@@ -19,10 +19,8 @@ export const useEngine = () => {
     if (!isDesktopMode) {
       return
     }
-    const { success } = await window.eidos.invoke("reload-data-space")
-    const { success: success2 } = await window.eidos.invoke(
-      "reload-query-worker"
-    )
+    const { success } = await window.eidos.space.reloadDataSpace()
+    const { success: success2 } = await window.eidos.space.reloadQueryWorker()
     const reloadDone = success && success2
     if (!reloadDone) {
       toast({

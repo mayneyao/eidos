@@ -21,7 +21,7 @@ export function useShowInFileManager() {
 
       let absolutePath = ""
       if (filePath.startsWith("~/")) {
-        const spaceInfo = await eidos.invoke("get-current-space")
+        const spaceInfo = await eidos.spaceMgmt.getCurrentSpace()
         if (spaceInfo && spaceInfo.path) {
           // Remove ~/ and join with space path
           const relativePath = filePath.substring(2)

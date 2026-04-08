@@ -19,7 +19,7 @@ export const useSpace = () => {
     if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
       // In desktop mode, use IPC to get workspace list
       try {
-        const spaces: SpaceInfo[] = await window.eidos.invoke("list-spaces")
+        const spaces: SpaceInfo[] = await window.eidos.spaceMgmt.listSpaces()
         console.log("spaces", spaces)
         setSpaceList(spaces)
       } catch (error) {
@@ -38,7 +38,7 @@ export const useSpace = () => {
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
         // In desktop mode, use IPC to delete workspace
         try {
-          const result = await window.eidos.invoke("remove-space", spaceId)
+          const result = await window.eidos.spaceMgmt.removeSpace(spaceId)
           if (result.success) {
             setLastOpenedDatabase("")
             await updateSpaceList()
@@ -59,7 +59,7 @@ export const useSpace = () => {
     async (spaceId: string, newName: string) => {
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
         try {
-          const result = await window.eidos.invoke("update-space", spaceId, {
+          const result = await window.eidos.spaceMgmt.updateSpace(spaceId, {
             name: newName,
           })
           if (result.success) {
@@ -95,14 +95,10 @@ export const useSpace = () => {
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
         // In desktop mode, use new IPC interface
         try {
-          const result = await window.eidos.invoke(
-            "register-space",
-            spaceName,
-            {
-              customName: spaceName,
-              remoteUrl: enableSync ? volumeId : undefined,
-            }
-          )
+          const result = await window.eidos.spaceMgmt.registerSpace(spaceName, {
+            customName: spaceName,
+            remoteUrl: enableSync ? volumeId : undefined,
+          })
           if (result.success) {
             await updateSpaceList()
             return result

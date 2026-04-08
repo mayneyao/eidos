@@ -1,8 +1,9 @@
-import { ipcMain, type IpcMainInvokeEvent } from "electron"
+import { BrowserWindow } from "electron"
 import * as fs from "fs"
 import * as os from "os"
 import * as path from "path"
 import electronLog from "electron-log"
+import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
 
 const logger = electronLog
 
@@ -41,16 +42,26 @@ export interface TerminalCreateOptions {
   rows?: number
 }
 
-export class TerminalService {
+interface TerminalServiceOptions {
+  getWindow: () => BrowserWindow | null
+}
+
+/**
+ * Terminal Service - Manages terminal sessions using node-pty
+ */
+@IpcService("terminal")
+export class TerminalService extends IpcServiceBase {
   private sessions: Map<string, TerminalSession> = new Map()
   private defaultShell: string
   private isReady: boolean = false
+  private getWindow: () => BrowserWindow | null
 
-  constructor() {
+  constructor(options: TerminalServiceOptions) {
+    super()
     logger.info("[Terminal] TerminalService constructor starting...")
+    this.getWindow = options.getWindow
     this.defaultShell = this.detectDefaultShell()
     logger.info("[Terminal] Default shell detected:", this.defaultShell)
-    this.registerIpcHandlers()
     this.initialize()
   }
 
@@ -100,70 +111,11 @@ export class TerminalService {
     return `term_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   }
 
-  private registerIpcHandlers(): void {
-    logger.info("[Terminal] Registering IPC handlers...")
-
-    ipcMain.handle(
-      "terminal:create",
-      async (
-        event: IpcMainInvokeEvent,
-        options: TerminalCreateOptions = {}
-      ) => {
-        logger.info(
-          "[Terminal] IPC: terminal:create called with options:",
-          options
-        )
-        return this.createSession(event, options)
-      }
-    )
-
-    ipcMain.handle(
-      "terminal:write",
-      async (_event: IpcMainInvokeEvent, sessionId: string, data: string) => {
-        logger.info(`[Terminal] IPC: terminal:write for session ${sessionId}`)
-        return this.writeToSession(sessionId, data)
-      }
-    )
-
-    ipcMain.handle(
-      "terminal:resize",
-      async (
-        _event: IpcMainInvokeEvent,
-        sessionId: string,
-        cols: number,
-        rows: number
-      ) => {
-        logger.info(
-          `[Terminal] IPC: terminal:resize for session ${sessionId}, cols=${cols}, rows=${rows}`
-        )
-        return this.resizeSession(sessionId, cols, rows)
-      }
-    )
-
-    ipcMain.handle(
-      "terminal:kill",
-      async (_event: IpcMainInvokeEvent, sessionId: string) => {
-        logger.info(`[Terminal] IPC: terminal:kill for session ${sessionId}`)
-        return this.killSession(sessionId)
-      }
-    )
-
-    ipcMain.handle("terminal:list", async () => {
-      logger.info("[Terminal] IPC: terminal:list called")
-      return this.listSessions()
-    })
-
-    ipcMain.handle("terminal:get-default-shell", async () => {
-      logger.info("[Terminal] IPC: terminal:get-default-shell called")
-      return this.defaultShell
-    })
-
-    logger.info("[Terminal] IPC handlers registered")
-  }
-
-  private async createSession(
-    event: IpcMainInvokeEvent,
-    options: TerminalCreateOptions
+  /**
+   * Create a new terminal session
+   */
+  async create(
+    options: TerminalCreateOptions = {}
   ): Promise<{ success: boolean; sessionId?: string; error?: string }> {
     logger.info(
       "[Terminal] Creating new session with options:",
@@ -339,12 +291,12 @@ export class TerminalService {
 
       // Handle data from PTY
       ptyProcess.onData((data: string) => {
-        logger.info(
-          `[Terminal] Data from session ${sessionId}:`,
-          data.length,
-          "bytes"
-        )
-        event.sender.send("terminal:data", sessionId, data)
+        // logger.info(
+        //   `[Terminal] Data from session ${sessionId}:`,
+        //   data.length,
+        //   "bytes"
+        // )
+        this.getWindow()?.webContents.send("terminal:data", sessionId, data)
       })
 
       // Handle PTY exit
@@ -352,7 +304,12 @@ export class TerminalService {
         logger.info(
           `[Terminal] Session ${sessionId} exited, code=${exitCode}, signal=${signal}`
         )
-        event.sender.send("terminal:exit", sessionId, exitCode, signal)
+        this.getWindow()?.webContents.send(
+          "terminal:exit",
+          sessionId,
+          exitCode,
+          signal
+        )
         this.sessions.delete(sessionId)
       })
 
@@ -368,10 +325,10 @@ export class TerminalService {
     }
   }
 
-  private writeToSession(
-    sessionId: string,
-    data: string
-  ): { success: boolean; error?: string } {
+  /**
+   * Write data to a terminal session
+   */
+  write(sessionId: string, data: string): { success: boolean; error?: string } {
     const session = this.sessions.get(sessionId)
     if (!session) {
       logger.warn("[Terminal] Write to unknown session:", sessionId)
@@ -390,7 +347,10 @@ export class TerminalService {
     }
   }
 
-  private resizeSession(
+  /**
+   * Resize a terminal session
+   */
+  resize(
     sessionId: string,
     cols: number,
     rows: number
@@ -412,7 +372,10 @@ export class TerminalService {
     }
   }
 
-  private killSession(sessionId: string): { success: boolean; error?: string } {
+  /**
+   * Kill a terminal session
+   */
+  kill(sessionId: string): { success: boolean; error?: string } {
     const session = this.sessions.get(sessionId)
     if (!session) {
       return { success: false, error: "Session not found" }
@@ -432,7 +395,10 @@ export class TerminalService {
     }
   }
 
-  private listSessions(): Array<{
+  /**
+   * List all terminal sessions
+   */
+  list(): Array<{
     id: string
     shell: string
     cwd: string
@@ -446,7 +412,17 @@ export class TerminalService {
     }))
   }
 
-  public cleanup(): void {
+  /**
+   * Get the default shell
+   */
+  getDefaultShell(): string {
+    return this.defaultShell
+  }
+
+  /**
+   * Cleanup all sessions
+   */
+  cleanup(): void {
     logger.info(`[Terminal] Cleaning up ${this.sessions.size} sessions`)
     for (const [sessionId, session] of this.sessions) {
       try {
@@ -459,7 +435,3 @@ export class TerminalService {
     this.sessions.clear()
   }
 }
-
-// Export singleton instance
-export const terminalService = new TerminalService()
-logger.info("[Terminal] TerminalService singleton created")

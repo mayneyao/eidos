@@ -4,6 +4,7 @@ import type { AppConfig } from "./config/index"
 import type { PlaygroundFile } from "./file-system/playground"
 import { installElectronFetchProxy } from "./lib/electron-fetch"
 import type { ApiAgentStatus } from "./server/api-agent"
+import { createPreloadApiByNamespace } from "@eidos.space/electron-ipc"
 
 // AI related
 import { applyCode as _applyCode } from "@/packages/ai/generate"
@@ -17,7 +18,7 @@ installElectronFetchProxy()
 type IpcListener = (event: Electron.IpcRendererEvent, ...args: any[]) => void
 
 const checkIsDataFolderSet = async () => {
-  const dataFolder = await ipcRenderer.invoke("get-config", "dataFolder")
+  const dataFolder = await ipcRenderer.invoke("config:getConfig", "dataFolder")
   return !!dataFolder
 }
 
@@ -58,7 +59,7 @@ function main() {
   window.addEventListener("beforeunload", () => {
     // Use async send instead of sendSync to avoid blocking the renderer
     // process during reload, which can cause the page to freeze.
-    ipcRenderer.send("browser-view:close-all")
+    ipcRenderer.send("browser-view:closeAll")
   })
 
   const listenerMap = new Map<string, Map<string, IpcListener>>()
@@ -164,41 +165,19 @@ function main() {
     platform: process.platform,
     arch: process.arch,
     config: {
-      get: (key: keyof AppConfig) => ipcRenderer.invoke("get-config", key),
+      get: (key: keyof AppConfig) =>
+        ipcRenderer.invoke("config:getConfig", key),
       set: (key: keyof AppConfig, value: any) =>
-        ipcRenderer.invoke("set-config", key, value),
+        ipcRenderer.invoke("config:setConfig", key, value),
     },
     checkIsDataFolderSet: checkIsDataFolderSet,
-    selectFolder: () => ipcRenderer.invoke("select-folder"),
+    selectFolder: () => ipcRenderer.invoke("file-system:selectFolder"),
     showInFileManager: (path: string) =>
-      ipcRenderer.invoke("show-in-file-manager", path),
-    openUrl: (url: string) => ipcRenderer.invoke("open-url", url),
-    reloadApp: () => ipcRenderer.invoke("reload-app"),
+      ipcRenderer.invoke("file-system:showInFileManager", path),
+    openUrl: (url: string) => ipcRenderer.invoke("file-system:openUrl", url),
+    reloadApp: () => ipcRenderer.invoke("app-lifecycle:reloadApp"),
     browserView: {
-      open: (
-        viewId: string,
-        url: string,
-        bounds: { x: number; y: number; width: number; height: number }
-      ) => ipcRenderer.invoke("browser-view:open", viewId, url, bounds),
-      updateBounds: (
-        viewId: string,
-        bounds: { x: number; y: number; width: number; height: number }
-      ) => ipcRenderer.invoke("browser-view:update-bounds", viewId, bounds),
-      close: (viewId: string) =>
-        ipcRenderer.invoke("browser-view:close", viewId),
-      closeAll: () => ipcRenderer.invoke("browser-view:close-all"),
-      reload: (viewId: string) =>
-        ipcRenderer.invoke("browser-view:reload", viewId),
-      goBack: (viewId: string) =>
-        ipcRenderer.invoke("browser-view:go-back", viewId),
-      goForward: (viewId: string) =>
-        ipcRenderer.invoke("browser-view:go-forward", viewId),
-      loadURL: (viewId: string, url: string) =>
-        ipcRenderer.invoke("browser-view:load-url", viewId, url),
-      setVisible: (viewId: string, visible: boolean) =>
-        ipcRenderer.invoke("browser-view:set-visible", viewId, visible),
-      capturePage: (viewId: string) =>
-        ipcRenderer.invoke("browser-view:capture-page", viewId),
+      ...createPreloadApiByNamespace("browser-view"),
       onUpdate: (
         viewId: string,
         callback: (data: {
@@ -222,18 +201,12 @@ function main() {
         }
       },
     },
-    pipeline: {
-      run: (
-        steps: any[],
-        args?: Record<string, any>,
-        options?: { debug?: boolean }
-      ) => ipcRenderer.invoke("pipeline:run", steps, args, options),
-    },
+    pipeline: createPreloadApiByNamespace("pipeline"),
     initializePlayground: (
       space: string,
       blockId: string,
       files: PlaygroundFile[]
-    ) => ipcRenderer.invoke("initialize-playground", space, blockId, files),
+    ) => ipcRenderer.invoke("playground:initialize", space, blockId, files),
     minimizeWindow: () => ipcRenderer.send("window-control", "minimize"),
     maximizeWindow: () => ipcRenderer.send("window-control", "maximize"),
     unmaximizeWindow: () => ipcRenderer.send("window-control", "unmaximize"),
@@ -267,37 +240,23 @@ function main() {
         ipcRenderer.removeListener("api-agent-status-changed", listener)
       }
     },
-    getApiAgentStatus: () => ipcRenderer.invoke("get-api-agent-status"),
+    getApiAgentStatus: () =>
+      ipcRenderer.invoke("app-lifecycle:getApiAgentStatus"),
+    checkForUpdates: () => ipcRenderer.invoke("app-lifecycle:checkForUpdates"),
+    quitAndInstall: () => ipcRenderer.invoke("app-lifecycle:quitAndInstall"),
 
-    // Credentials management
-    credentials: {
-      setSyncCredentials: (credentials: any, providerId?: string) =>
-        ipcRenderer.invoke("set-sync-credentials", credentials, providerId),
-      getSyncCredentials: (providerId?: string) =>
-        ipcRenderer.invoke("get-sync-credentials", providerId),
-      clearSyncCredentials: (providerId?: string) =>
-        ipcRenderer.invoke("clear-sync-credentials", providerId),
-      hasSyncCredentials: (providerId?: string) =>
-        ipcRenderer.invoke("has-sync-credentials", providerId),
-      testSyncConnection: (config: {
-        endpoint: string
-        bucketName: string
-        region?: string
-        accessKeyId: string
-        secretAccessKey: string
-      }) => ipcRenderer.invoke("test-sync-connection", config),
-    },
+    // Credentials management (includes sync and relay operations)
+    credentials: createPreloadApiByNamespace("sync"),
+    relay: createPreloadApiByNamespace("relay"),
+    contextMenu: createPreloadApiByNamespace("context-menu"),
     // License management
     license: {
       activate: (licenseKey: string, token?: string) =>
-        ipcRenderer.invoke("activate-license", licenseKey, token),
-      getInfo: () => ipcRenderer.invoke("get-license-info"),
+        ipcRenderer.invoke("license:activateLicense", licenseKey, token),
+      getInfo: () => ipcRenderer.invoke("license:getLicenseInfo"),
     },
-    space: {
-      getCurrent: () => ipcRenderer.invoke("get-current-space"),
-      getById: (spaceId: string) =>
-        ipcRenderer.invoke("get-space-by-id", spaceId),
-    },
+    space: createPreloadApiByNamespace("space"),
+    spaceMgmt: createPreloadApiByNamespace("space-mgmt"),
 
     // AI helper functions
     fetchAvailableModels: (
@@ -306,42 +265,44 @@ function main() {
       baseUrl?: string
     ) =>
       ipcRenderer.invoke(
-        "fetch-available-models",
+        "fetch:fetchAvailableModels",
         apiKey,
         providerType,
         baseUrl
       ),
 
     fetch(url: string, options: RequestInit = {}): Promise<Response> {
-      return ipcRenderer.invoke("fetch", url, options).then((data: any) => {
-        // Create a simple Response-like object
-        return {
-          ok: data.ok,
-          status: data.status,
-          statusText: data.statusText,
-          headers: new Headers(data.headers),
-          url: data.url,
+      return ipcRenderer
+        .invoke("fetch:fetch", url, options)
+        .then((data: any) => {
+          // Create a simple Response-like object
+          return {
+            ok: data.ok,
+            status: data.status,
+            statusText: data.statusText,
+            headers: new Headers(data.headers),
+            url: data.url,
 
-          async text() {
-            return new TextDecoder().decode(data.body)
-          },
+            async text() {
+              return new TextDecoder().decode(data.body)
+            },
 
-          async json() {
-            const text = new TextDecoder().decode(data.body)
-            return JSON.parse(text)
-          },
+            async json() {
+              const text = new TextDecoder().decode(data.body)
+              return JSON.parse(text)
+            },
 
-          async blob() {
-            const contentType =
-              data.headers["content-type"] || "application/octet-stream"
-            return new Blob([data.body], { type: contentType })
-          },
+            async blob() {
+              const contentType =
+                data.headers["content-type"] || "application/octet-stream"
+              return new Blob([data.body], { type: contentType })
+            },
 
-          async arrayBuffer() {
-            return data.body
-          },
-        } as Response
-      })
+            async arrayBuffer() {
+              return data.body
+            },
+          } as Response
+        })
     },
 
     /**
@@ -372,7 +333,7 @@ function main() {
       }
 
       try {
-        await ipcRenderer.invoke("show-native-context-menu", {
+        await ipcRenderer.invoke("context-menu:showNativeContextMenu", {
           items: filteredItems,
           x,
           y,
@@ -429,23 +390,9 @@ function main() {
       },
     },
 
-    // Terminal integration
+    // Terminal integration (uses traditional naming, not migrated to service yet)
     terminal: {
-      create: (options?: {
-        cwd?: string
-        shell?: string
-        env?: Record<string, string>
-        cols?: number
-        rows?: number
-      }) => ipcRenderer.invoke("terminal:create", options),
-      write: (sessionId: string, data: string) =>
-        ipcRenderer.invoke("terminal:write", sessionId, data),
-      resize: (sessionId: string, cols: number, rows: number) =>
-        ipcRenderer.invoke("terminal:resize", sessionId, cols, rows),
-      kill: (sessionId: string) =>
-        ipcRenderer.invoke("terminal:kill", sessionId),
-      list: () => ipcRenderer.invoke("terminal:list"),
-      getDefaultShell: () => ipcRenderer.invoke("terminal:get-default-shell"),
+      ...createPreloadApiByNamespace("terminal"),
       onData: (callback: (sessionId: string, data: string) => void) => {
         const listener = (
           _event: Electron.IpcRendererEvent,
@@ -469,13 +416,11 @@ function main() {
       },
     },
 
+    // OpenData service
+    openData: createPreloadApiByNamespace("opendata"),
+
     // CLI installation
-    cli: {
-      isInstalled: () => ipcRenderer.invoke("cli:is-installed"),
-      install: () => ipcRenderer.invoke("cli:install"),
-      uninstall: () => ipcRenderer.invoke("cli:uninstall"),
-      getPath: () => ipcRenderer.invoke("cli:get-path"),
-    },
+    cli: createPreloadApiByNamespace("cli"),
   })
 }
 main()

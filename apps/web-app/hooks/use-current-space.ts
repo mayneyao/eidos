@@ -110,7 +110,7 @@ export const useCurrentSpace = () => {
 
     try {
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
-        const info = await window.eidos.invoke("get-current-space")
+        const info = await window.eidos.spaceMgmt.getCurrentSpace()
         setSpaceInfo(info || null)
         setLastFetched(new Date())
       } else {

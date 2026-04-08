@@ -1,5 +1,5 @@
 import { session } from "electron"
-import { getConfigManager } from "./config"
+import { getConfigManager } from "../config"
 
 /**
  * CORS Manager - Unified CORS handling for Eidos Desktop

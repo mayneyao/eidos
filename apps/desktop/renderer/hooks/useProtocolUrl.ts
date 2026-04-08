@@ -87,10 +87,7 @@ export const useProtocolUrl = () => {
               window.eidos
             ) {
               try {
-                const result = await window.eidos.invoke(
-                  "switch-space",
-                  spaceId
-                )
+                const result = await window.eidos.spaceMgmt.switchSpace(spaceId)
                 if (result.success) {
                   console.log(`✓ Successfully switched to space: ${spaceId}`)
                   // Electron will automatically reload to new subdomain
