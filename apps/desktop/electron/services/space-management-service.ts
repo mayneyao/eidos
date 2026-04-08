@@ -1,7 +1,10 @@
 import type { BrowserWindow } from "electron"
 import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
-import { DataSpaceProcessPool } from "../core/data-space/process-pool"
-import { getDataSpace, getOrSetDataSpace } from "../core/data-space"
+import { DataSpaceProcessPool } from "./data-space/data-space-process-pool"
+import {
+  getDataSpace,
+  getOrSetDataSpace,
+} from "./data-space/data-space-manager"
 import { getConfigManager } from "./config-manager"
 import { getSpaceRegistry } from "./space-registry"
 import { PORT } from "../main"

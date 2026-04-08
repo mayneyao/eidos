@@ -1,7 +1,7 @@
 import { BucketClient } from "@/packages/sync/bucket"
 import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
 import { CredentialsManager } from "./credentials"
-import { getOrSetDataSpace } from "../core/data-space"
+import { getOrSetDataSpace } from "./data-space/data-space-manager"
 import { getConfigManager } from "./config-manager"
 import { getSpaceRegistry } from "./space-registry"
 

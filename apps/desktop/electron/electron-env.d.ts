@@ -137,7 +137,7 @@ interface Window {
       typeof import("./services/license-service").LicenseService
     >
     space: import("@eidos.space/electron-ipc").ExtractIpcApi<
-      typeof import("./services/data-space-service").DataSpaceService
+      typeof import("./services/data-space/data-space-service").DataSpaceService
     >
     spaceMgmt: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./services/space-management-service").SpaceManagementService
