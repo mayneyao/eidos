@@ -1,6 +1,6 @@
 import { BrowserWindow, Menu, webContents } from "electron"
 import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
-import { convertToElectronMenuTemplateWithIds } from "../window-manager/menu-utils"
+import { convertToElectronMenuTemplateWithIds } from "../window/menu-utils"
 
 export interface NativeMenuItem {
   id: string
