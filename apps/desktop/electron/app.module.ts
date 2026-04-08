@@ -17,6 +17,7 @@ import { TerminalModule } from "./modules/terminal/terminal.module"
 import { ContextMenuModule } from "./modules/context-menu/context-menu.module"
 import { SpaceManagementModule } from "./modules/space-management/space-management.module"
 import { ApiServerModule } from "./modules/api-server/api-server.module"
+import { UpdaterModule } from "./modules/updater/updater.module"
 import { ExampleModule } from "./modules/example/example.module"
 
 /**
@@ -34,6 +35,7 @@ import { ExampleModule } from "./modules/example/example.module"
  * - ContextMenuModule: Native context menu display
  * - SpaceManagementModule: Space CRUD and switching
  * - ApiServerModule: HTTP server for API and static files
+ * - UpdaterModule: Auto-update and app lifecycle
  * - ExampleModule: DI demonstration (can be removed)
  */
 @Module({
@@ -49,6 +51,7 @@ import { ExampleModule } from "./modules/example/example.module"
     ContextMenuModule,
     SpaceManagementModule,
     ApiServerModule,
+    UpdaterModule,
     ExampleModule,
   ],
   providers: [],
