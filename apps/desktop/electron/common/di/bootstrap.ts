@@ -2,13 +2,18 @@
  * Bootstrap - Application entry point for DI-based initialization
  */
 
+import electronLog from "electron-log"
+import { setIpcLogger, setupRegistryIpc } from "@eidos.space/electron-ipc"
+
 import { container } from "./container"
 import {
   bootstrapModule,
   clearRegistrations,
   instantiateIpcServices,
 } from "./module-scanner"
-import { setupRegistryIpc } from "@eidos.space/electron-ipc"
+
+// Configure IPC logger to use electron-log
+setIpcLogger(electronLog)
 
 export interface BootstrapOptions {
   /** Whether to auto-register IPC handlers */
@@ -47,7 +52,7 @@ export async function bootstrap(
     afterInit,
   } = options
 
-  console.log("[Bootstrap] Starting application...")
+  electronLog.info("[Bootstrap] Starting application...")
 
   // Clear previous registrations (for hot reload scenarios)
   clearRegistrations()
@@ -59,12 +64,12 @@ export async function bootstrap(
 
   // Setup registry IPC for preload discovery
   if (setupRegistry) {
-    console.log("[Bootstrap] Setting up registry IPC...")
+    electronLog.info("[Bootstrap] Setting up registry IPC...")
     setupRegistryIpc()
   }
 
   // Bootstrap the DI container with all modules
-  console.log("[Bootstrap] Initializing DI container...")
+  electronLog.info("[Bootstrap] Initializing DI container...")
   const scanResult = bootstrapModule(container, rootModule)
 
   // Instantiate IPC services (triggers auto-registration via onActivation)
@@ -73,7 +78,7 @@ export async function bootstrap(
   }
 
   // Instantiate the root module (triggers all eager singletons)
-  console.log("[Bootstrap] Instantiating root module...")
+  electronLog.info("[Bootstrap] Instantiating root module...")
   container.get(rootModule)
 
   // Post-initialization hook
@@ -81,7 +86,7 @@ export async function bootstrap(
     await afterInit()
   }
 
-  console.log("[Bootstrap] Application ready!")
+  electronLog.info("[Bootstrap] Application ready!")
 }
 
 /**

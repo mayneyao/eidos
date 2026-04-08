@@ -6,6 +6,7 @@ export {
   IpcServiceBase,
   createPreloadApi,
   getIpcMethodNames,
+  setIpcLogger,
 } from "./decorators"
 
 export type {

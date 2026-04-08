@@ -3,6 +3,25 @@ import type { IpcMainInvokeEvent } from "electron"
 import { ipcMain } from "electron"
 import { registry } from "./registry"
 
+// Logger interface for IPC logging
+interface IpcLogger {
+  log: (...args: any[]) => void
+  info: (...args: any[]) => void
+  warn: (...args: any[]) => void
+  error: (...args: any[]) => void
+}
+
+// Default logger uses console
+let defaultLogger: IpcLogger = console
+
+/**
+ * Set the default logger for IPC services
+ * Call this in your main process to use a custom logger (e.g., electron-log)
+ */
+export function setIpcLogger(logger: IpcLogger): void {
+  defaultLogger = logger
+}
+
 // Metadata keys for storing decorator metadata
 const NAMESPACE_KEY = Symbol("ipc:namespace")
 const METHODS_KEY = Symbol("ipc:methods")
@@ -143,7 +162,7 @@ export abstract class IpcServiceBase {
       )
 
       this._channels.push(fullChannel)
-      console.log(`[IPC] Registered: ${fullChannel}`)
+      defaultLogger.info(`[IPC] Registered: ${fullChannel}`)
     }
 
     this._registered = true
