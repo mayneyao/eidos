@@ -1,35 +1,30 @@
 import { session } from "electron"
-import { getConfigManager } from "../modules/config/config-manager"
+
+import { Injectable, Inject } from "../../common/di"
+import { ConfigManager } from "../config/config-manager"
 
 /**
- * CORS Manager - Unified CORS handling for Eidos Desktop
+ * CORS Service - Unified CORS handling for Eidos Desktop
  *
  * Philosophy: All CORS handling is done at the Hono server level (server.ts),
  * not at the Electron webRequest level. This avoids conflicts and makes
  * CORS behavior predictable and debuggable.
  *
- * This class now only handles:
+ * This service only handles:
  * 1. Security-related header filtering (Origin modification for trusted domains)
  * 2. COOP/COEP headers for cross-origin isolation (required for SharedArrayBuffer)
  */
-export class CorsManager {
-  private static instance: CorsManager
+@Injectable()
+export class CorsService {
   private isInitialized = false
 
-  private constructor() {}
-
-  public static getInstance(): CorsManager {
-    if (!CorsManager.instance) {
-      CorsManager.instance = new CorsManager()
-    }
-    return CorsManager.instance
-  }
+  constructor(@Inject(ConfigManager) private configManager: ConfigManager) {}
 
   public initialize() {
     if (this.isInitialized) return
     this.isInitialized = true
 
-    getConfigManager().on("configChanged", (data) => {
+    this.configManager.on("configChanged", (data) => {
       if (data.key === "security") {
         this.updateSettings()
       }
@@ -39,7 +34,7 @@ export class CorsManager {
   }
 
   private updateSettings() {
-    const securityConfig = getConfigManager().get("security")
+    const securityConfig = this.configManager.get("security")
     const domains = securityConfig.crossOriginDomains || []
     const allDomains = [...domains, "*.eidos.localhost"]
 
@@ -126,4 +121,13 @@ export class CorsManager {
   }
 }
 
-export const corsManager = CorsManager.getInstance()
+// Backward compatibility
+export const CorsManager = CorsService
+export const corsManager = {
+  initialize() {
+    const { container } = require("../../common/di")
+    const { CorsService } = require("./cors.service")
+    const corsService = container.get(CorsService)
+    corsService.initialize()
+  },
+}

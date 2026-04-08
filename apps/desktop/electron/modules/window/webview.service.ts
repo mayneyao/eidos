@@ -1,11 +1,14 @@
 import { ipcMain, shell, webContents } from "electron"
 import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
 
+import { Injectable } from "../../common/di"
+
 /**
  * Webview Service - Handles webview-related IPC
  * Note: This uses ipcMain.on instead of ipcMain.handle for event-based communication
  */
 @IpcService("webview")
+@Injectable()
 export class WebviewService extends IpcServiceBase {
   /**
    * Register the webview-dom-ready handler
@@ -30,5 +33,12 @@ export class WebviewService extends IpcServiceBase {
   }
 }
 
-// Export singleton instance
-export const webviewService = new WebviewService()
+// Backward compatibility
+export const webviewService = {
+  register() {
+    const { container } = require("../../common/di")
+    const { WebviewService } = require("./webview.service")
+    const service = container.get(WebviewService)
+    service.register()
+  },
+}

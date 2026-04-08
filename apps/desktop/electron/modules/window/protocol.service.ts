@@ -1,7 +1,9 @@
 import { EidosProtocolUrlChannelName } from "@/lib/const"
-import type { BrowserWindow } from "electron"
-import { log } from "electron-log"
 import { shell } from "electron"
+import { log } from "electron-log"
+
+import { Injectable, Inject } from "../../common/di"
+import { WindowService } from "./window.service"
 
 export interface ProtocolUrlPayload {
   url: string
@@ -10,13 +12,19 @@ export interface ProtocolUrlPayload {
   extensionId?: string
 }
 
-export class ProtocolHandler {
-  private mainWindow: BrowserWindow
+/**
+ * Protocol Service - Handles eidos:// protocol URLs
+ *
+ * Responsibilities:
+ * - Handle protocol URL actions (block, extension, open-space, etc.)
+ * - Send protocol events to renderer process
+ * - Manage window focus for protocol handling
+ */
+@Injectable()
+export class ProtocolService {
   private readonly PROTOCOL = "eidos"
 
-  constructor(window: BrowserWindow) {
-    this.mainWindow = window
-  }
+  constructor(@Inject(WindowService) private windowService: WindowService) {}
 
   handleUrl(url: string) {
     console.log("Handling URL:", url)
@@ -63,15 +71,26 @@ export class ProtocolHandler {
       }
 
       console.log("Main process sending protocol-url event:", payload)
-      this.mainWindow.webContents.send(EidosProtocolUrlChannelName, payload)
-      if (this.mainWindow.isMinimized()) {
-        this.mainWindow.restore()
-      }
-      this.mainWindow.focus()
+      this.sendToRenderer(payload)
     } catch (error) {
       log("Error handling protocol URL:", error)
       throw error
     }
+  }
+
+  private sendToRenderer(payload: ProtocolUrlPayload) {
+    const win = this.windowService.getMainWindow()
+    if (!win || win.isDestroyed()) {
+      console.warn("Main window not available for protocol handling")
+      return
+    }
+
+    win.webContents.send(EidosProtocolUrlChannelName, payload)
+
+    if (win.isMinimized()) {
+      win.restore()
+    }
+    win.focus()
   }
 
   private handleExtensionAction(
@@ -93,12 +112,7 @@ export class ProtocolHandler {
       searchParams: searchParams,
     }
     console.log("Main process sending protocol-url event (extension):", payload)
-    this.mainWindow.webContents.send(EidosProtocolUrlChannelName, payload)
-    if (this.mainWindow.isMinimized()) {
-      this.mainWindow.restore()
-    }
-    this.mainWindow.focus()
-    return // Exit after handling extension
+    this.sendToRenderer(payload)
   }
 
   private handleOpenSpaceAction(searchParams: Record<string, string>) {
@@ -121,13 +135,7 @@ export class ProtocolHandler {
         searchParams,
       }
 
-      this.mainWindow.webContents.send(EidosProtocolUrlChannelName, payload)
-
-      // Focus the window
-      if (this.mainWindow.isMinimized()) {
-        this.mainWindow.restore()
-      }
-      this.mainWindow.focus()
+      this.sendToRenderer(payload)
 
       console.log("Space open request sent to renderer")
     } catch (error) {
@@ -159,12 +167,15 @@ export class ProtocolHandler {
       const blockId = blockInfo[0]
       const database = blockInfo[1]
 
+      const win = this.windowService.getMainWindow()
+      if (!win || win.isDestroyed()) {
+        console.warn("Main window not available for block handling")
+        return
+      }
+
       // Create URL to the standalone blocks page
-      const currentUrl = this.mainWindow.webContents.getURL()
+      const currentUrl = win.webContents.getURL()
       const currentUrlObj = new URL(currentUrl)
-      // Only keep the origin part (protocol + hostname + port)
-      // // now the url change to <extensionId>.block.<spaceId>.eidos.localhost:13127/
-      // const standaloneBlockUrl = new URL(`${blockId}.block.${database}.eidos.localhost:13127`);
       const baseUrl = currentUrlObj.origin + "/"
       // Format should be /:space/standalone-blocks/:id
       const standaloneBlockUrl = new URL(
@@ -183,13 +194,25 @@ export class ProtocolHandler {
       shell.openExternal(standaloneBlockUrl.toString())
 
       // Focus the main window
-      if (this.mainWindow.isMinimized()) {
-        this.mainWindow.restore()
+      if (win.isMinimized()) {
+        win.restore()
       }
-      this.mainWindow.focus()
+      win.focus()
     } catch (error) {
       log("Error handling block action:", error)
       throw error
     }
+  }
+}
+
+// Backward compatibility
+export class ProtocolHandler {
+  constructor(private window: any) {}
+
+  handleUrl(url: string) {
+    const { container } = require("../../common/di")
+    const { ProtocolService } = require("./protocol.service")
+    const protocolService = container.get(ProtocolService)
+    protocolService.handleUrl(url)
   }
 }

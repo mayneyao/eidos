@@ -7,6 +7,8 @@
  * - BrowserView management
  * - Global shortcuts
  * - System tray
+ * - Webview handling
+ * - Protocol URL handling
  *
  * Dependencies:
  * - ConfigModule (for window state persistence)
@@ -18,6 +20,8 @@ import { WindowService } from "./window.service"
 import { BrowserViewService } from "./browser-view.service"
 import { GlobalShortcutsService } from "./global-shortcuts.service"
 import { TrayService } from "./tray.service"
+import { WebviewService } from "./webview.service"
+import { ProtocolService } from "./protocol.service"
 
 @Module({
   imports: [ConfigModule],
@@ -26,12 +30,16 @@ import { TrayService } from "./tray.service"
     BrowserViewService,
     GlobalShortcutsService,
     TrayService,
+    WebviewService,
+    ProtocolService,
   ],
   exports: [
     WindowService,
     BrowserViewService,
     GlobalShortcutsService,
     TrayService,
+    WebviewService,
+    ProtocolService,
   ],
 })
 export class WindowModule {}
@@ -41,3 +49,5 @@ export { WindowService } from "./window.service"
 export { BrowserViewService } from "./browser-view.service"
 export { GlobalShortcutsService } from "./global-shortcuts.service"
 export { TrayService } from "./tray.service"
+export { WebviewService } from "./webview.service"
+export { ProtocolService } from "./protocol.service"

@@ -7,6 +7,8 @@
  * - BrowserView management
  * - Global shortcuts
  * - System tray
+ * - Webview handling
+ * - Protocol URL handling
  *
  * @example
  * ```typescript
@@ -33,6 +35,8 @@ export { WindowService } from "./window.service"
 export { BrowserViewService } from "./browser-view.service"
 export { GlobalShortcutsService } from "./global-shortcuts.service"
 export { TrayService } from "./tray.service"
+export { WebviewService } from "./webview.service"
+export { ProtocolService } from "./protocol.service"
 
 // Re-export types
 export type { BrowserViewBounds } from "./browser-view.service"
@@ -40,11 +44,14 @@ export type {
   ShortcutAction,
   ShortcutHandler,
 } from "./global-shortcuts.service"
+export type { ProtocolUrlPayload } from "./protocol.service"
 
 // Backward compatibility helpers
 import { container } from "../../common/di"
 import { WindowService } from "./window.service"
 import { TrayService } from "./tray.service"
+import { ProtocolService } from "./protocol.service"
+import { WebviewService } from "./webview.service"
 
 /**
  * Get the main window.
@@ -89,4 +96,22 @@ export function createTray(options: { onQuit: () => void }): void {
 export function destroyTray(): void {
   const trayService = container.get(TrayService)
   trayService.destroyTray()
+}
+
+/**
+ * Register webview service.
+ * @deprecated Use WebviewService.register() via DI injection instead
+ */
+export function registerWebviewService(): void {
+  const webviewService = container.get(WebviewService)
+  webviewService.register()
+}
+
+/**
+ * Handle protocol URL.
+ * @deprecated Use ProtocolService.handleUrl() via DI injection instead
+ */
+export function handleProtocolUrl(url: string): void {
+  const protocolService = container.get(ProtocolService)
+  protocolService.handleUrl(url)
 }

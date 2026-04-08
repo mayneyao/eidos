@@ -37,8 +37,9 @@ import {
   WindowService,
   GlobalShortcutsService,
   TrayService,
+  WebviewService,
+  ProtocolService,
 } from "./modules/window"
-import { ProtocolHandler } from "./services/protocol-handler"
 import { getSpacePath } from "./utils/paths"
 
 // Legacy service imports (migrated to DI)
@@ -54,8 +55,9 @@ import { OpenDataService } from "./services/opendata-service"
 // import { SpaceManagementService } from "./services/space-management-service"  // Migrated to DI
 // import { syncService as legacySyncService } from "./services/sync-service"
 // import { TerminalService } from "./services/terminal-service"  // Migrated to DI
-import { corsManager } from "./services/cors-manager"
-import { webviewService } from "./services/webview-service"
+// import { corsManager } from "./services/cors-manager"  // Migrated to DI
+// import { webviewService } from "./services/webview-service"  // Migrated to DI
+import { CorsService } from "./modules/network/network.module"
 
 // DI imports for window providers
 import {
@@ -74,7 +76,6 @@ export function getMainWindowWebContents() {
 }
 
 // App state
-let protocolHandler: ProtocolHandler
 let openDataService: OpenDataService | null = null
 // let terminalService: TerminalService | null =  // Now via DI
 // let globalShortcutManager: GlobalShortcutsService | null = null  // Now via DI
@@ -191,8 +192,9 @@ async function main() {
 
   // App ready handler
   app.whenReady().then(async () => {
-    // Initialize CORS
-    corsManager.initialize()
+    // Initialize CORS via DI
+    const corsService = container.get(CorsService)
+    corsService.initialize()
 
     // Register fetch proxy
     registerElectronFetchIpc()
@@ -245,6 +247,10 @@ async function main() {
     // dataSpaceService.register()  // Migrated to DI - now auto-registered via DI
     // fetchService.register()  // Migrated to DI
     // contextMenuService.register()  // Migrated to DI
+    // webviewService.register()  // Migrated to DI - now auto-registered via DI
+
+    // Initialize window-related DI services
+    const webviewService = container.get(WebviewService)
     webviewService.register()
 
     // Migrate legacy config
@@ -288,8 +294,8 @@ async function main() {
       forceQuit = true
     })
 
-    // Protocol handler
-    protocolHandler = new ProtocolHandler(win)
+    // Protocol handler via DI
+    const protocolService = container.get(ProtocolService)
 
     // Window close handler
     win.on("close", (event) => {
@@ -328,8 +334,10 @@ async function main() {
   app.on("open-url", (event, url) => {
     event.preventDefault()
     console.log("Received protocol URL:", url)
-    if (protocolHandler && win) {
-      protocolHandler.handleUrl(url)
+    const protocolService = container.get(ProtocolService)
+    const windowService = container.get(WindowService)
+    if (windowService.getMainWindow()) {
+      protocolService.handleUrl(url)
     } else {
       pendingProtocolUrl = url
     }
@@ -337,8 +345,9 @@ async function main() {
 
   app.on("second-instance", (event, commandLine) => {
     const protocolUrl = commandLine.find((arg) => arg.startsWith("eidos://"))
-    if (protocolUrl && protocolHandler) {
-      protocolHandler.handleUrl(protocolUrl)
+    const protocolService = container.get(ProtocolService)
+    if (protocolUrl) {
+      protocolService.handleUrl(protocolUrl)
     }
     const windowService = container.get(WindowService)
     if (windowService.isWindowMinimized()) {
