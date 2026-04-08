@@ -7,6 +7,7 @@ import { debounce } from "@/lib/lodash"
 import { Injectable, Inject } from "../../common/di"
 import { ConfigManager } from "../config/config-manager"
 import type { TrayService } from "./tray.service"
+import type { AppLifecycleService } from "./app-lifecycle.service"
 import { setupGeolocationHandler } from "./geolocation"
 
 const defaultViewOptions = {
@@ -295,16 +296,15 @@ export class WindowService {
    */
   setupCloseHandler(
     win: BrowserWindow,
-    getForceQuit: () => boolean,
-    setForceQuit: (value: boolean) => void
+    appLifecycleService: AppLifecycleService
   ): void {
     win.on("close", (event) => {
-      if (!getForceQuit()) {
+      if (!appLifecycleService.isForceQuit()) {
         if (process.platform === "darwin") {
           event.preventDefault()
           win.hide()
         } else {
-          setForceQuit(true)
+          appLifecycleService.setForceQuit(true)
           // Get tray service from container and destroy it
           try {
             const { container } = require("../../common/di")
