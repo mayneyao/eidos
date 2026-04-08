@@ -140,6 +140,7 @@ async function initializeServer(): Promise<void> {
       getAccessToken: () => CredentialsManager.getAccessToken(),
     },
     broadcastAuthStateChange,
+    logger: electronLog,
   })
 
   while (true) {

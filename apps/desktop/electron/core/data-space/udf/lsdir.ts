@@ -1,7 +1,6 @@
 import { type EidosDatabase } from "@/packages/core/data-space"
 import fs from "node:fs"
 import path from "node:path"
-import console from "electron-log"
 import { resolveFsPath } from "./utils"
 
 function* walkSync(

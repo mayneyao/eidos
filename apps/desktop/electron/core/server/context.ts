@@ -21,6 +21,7 @@
 
 import type { DataSpace } from "@/packages/core/data-space"
 import type { SpaceInfo } from "@eidos.space/space-manager"
+import type { PortOccupancyInfo } from "../../services/port-checker"
 
 // Re-export types from packages
 export interface OAuthTokens {
@@ -73,9 +74,6 @@ export interface PortChecker {
   getProcessByPort(port: number): Promise<PortOccupancyInfo | null>
 }
 
-// Re-export from services to ensure consistency
-export type { PortOccupancyInfo } from "../../services/port-checker"
-
 export interface ServerResult {
   port: number
   stop: () => Promise<void>
@@ -113,6 +111,17 @@ export interface BroadcastAuthStateChange {
   ): void
 }
 
+// Logger interface for dependency injection
+export interface Logger {
+  debug(...args: any[]): void
+  log(...args: any[]): void
+  info(...args: any[]): void
+  warn(...args: any[]): void
+  error(...args: any[]): void
+  verbose?(...args: any[]): void
+  silly?(...args: any[]): void
+}
+
 // Server context interface
 export interface ServerContext {
   dataSpaceManager: DataSpaceManager
@@ -121,6 +130,7 @@ export interface ServerContext {
   portChecker: PortChecker
   credentialsManager: CredentialsManager
   broadcastAuthStateChange: BroadcastAuthStateChange
+  logger: Logger
 }
 
 // Global context instance
@@ -142,3 +152,6 @@ export function getServerContext(): ServerContext {
 export function clearServerContext(): void {
   serverContext = null
 }
+
+// Re-export types for convenience
+export type { PortOccupancyInfo }
