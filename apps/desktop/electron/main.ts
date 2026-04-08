@@ -53,7 +53,7 @@ import {
 import { AppLifecycleService } from "./services/app-lifecycle-service"
 // import { cliService } from "./services/cli-service"  // Migrated to DI
 // import { configService as legacyConfigService } from "./services/config-service"  // Migrated to DI
-import { contextMenuService } from "./services/context-menu-service"
+// import { contextMenuService } from "./services/context-menu-service"  // Migrated to DI
 import { dataSpaceService } from "./services/data-space/data-space-service"
 // import { fetchService } from "./services/fetch-service"  // Migrated to DI
 // import { fileSystemService as legacyFileSystemService } from "./services/file-system-service"
@@ -295,7 +295,7 @@ async function main() {
     // cliService.register()  // Migrated to DI
     dataSpaceService.register()
     // fetchService.register()  // Migrated to DI
-    contextMenuService.register()
+    // contextMenuService.register()  // Migrated to DI
     webviewService.register()
 
     // Migrate legacy config

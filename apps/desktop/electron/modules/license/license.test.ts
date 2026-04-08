@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeAll } from "vitest"
 import crypto from "node:crypto"
-import { LicenseManager } from "../modules/license/license.module"
+import { LicenseManager } from "./license.module"
 
 let licenseManager: LicenseManager
 

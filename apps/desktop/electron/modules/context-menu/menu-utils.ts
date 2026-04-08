@@ -1,5 +1,5 @@
 import { BrowserWindow } from "electron"
-import type { NativeMenuItem } from "../services/context-menu-service"
+import type { NativeMenuItem } from "./context-menu.module"
 
 /**
  * Helper function to convert menu items with IDs for click handling
