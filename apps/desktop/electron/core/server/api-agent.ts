@@ -3,10 +3,9 @@ import { getUuid } from "@/lib/utils"
 import { log } from "electron-log"
 import type { RawData } from "ws"
 import WebSocket from "ws"
-import { getOrSetDataSpace } from "../../services/data-space/data-space-manager"
 import { z } from "zod"
-import { getConfigManager } from "../../services/config-manager"
 import { BrowserWindow } from "electron"
+import { getServerContext } from "./context"
 
 let wss: WebSocket | null = null
 let reconnectAttempts = 0
@@ -62,7 +61,7 @@ function deserializeMsg(str: string): IMsg {
 }
 
 export function initApiAgent() {
-  const configManager = getConfigManager()
+  const { configManager } = getServerContext()
   const apiConfig = configManager.get("apiAgentConfig")
 
   currentConfig = apiConfig
@@ -123,7 +122,8 @@ export function startApiAgent({
           const { id, data } = msg
           const { space, method, params } = data
 
-          const dataSpace = await getOrSetDataSpace(space)
+          const { dataSpaceManager } = getServerContext()
+          const dataSpace = await dataSpaceManager.getOrSetDataSpace(space)
           const result = await handleFunctionCall(
             {
               method,

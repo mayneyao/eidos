@@ -6,12 +6,26 @@ import { setupRegistryIpc } from "@eidos.space/electron-ipc"
 import { getConfigManager } from "./services/config-manager"
 import { corsManager } from "./services/cors-manager"
 import { getDataSpace } from "./services/data-space/data-space-manager"
+
+// Broadcast auth state change to all renderer windows
+const broadcastAuthStateChange = (
+  authenticated: boolean,
+  user?: { id: string; email?: string; name?: string; picture?: string } | null
+) => {
+  BrowserWindow.getAllWindows().forEach((window) => {
+    window.webContents.send("auth-state-changed", { authenticated, user })
+  })
+}
 import { getSpacePath } from "./utils/paths"
 import { registerElectronFetchIpc } from "./ipc/fetch-proxy"
 import { showPortInUseDialog } from "./services/port-checker"
 import { ProtocolHandler } from "./services/protocol-handler"
 import { initApiAgent } from "./core/server/api-agent"
+import { setServerContext } from "./core/server/context"
 import { startServer, type PortInUseError } from "./core/server/server"
+import { getOrSetDataSpace } from "./services/data-space/data-space-manager"
+import { CredentialsManager } from "./services/credentials"
+import { isPortInUse, getProcessByPort } from "./services/port-checker"
 import { AppLifecycleService } from "./services/app-lifecycle-service"
 import { cliService } from "./services/cli-service"
 import { configService } from "./services/config-service"
@@ -90,6 +104,44 @@ process.env.VITE_PUBLIC = app.isPackaged
  * Initialize server with port conflict handling
  */
 async function initializeServer(): Promise<void> {
+  // Initialize server context with dependencies
+  setServerContext({
+    dataSpaceManager: {
+      getOrSetDataSpace,
+      getDataSpace,
+    },
+    configManager: {
+      get: (key: string) => getConfigManager().get(key as any),
+      set: (key: string, value: any) =>
+        getConfigManager().set(key as any, value),
+      getDefaultSyncProvider: () => getConfigManager().getDefaultSyncProvider(),
+      getSyncProvider: (id: string) => getConfigManager().getSyncProvider(id),
+      on: (event: string, callback: Function) =>
+        getConfigManager().on(event, callback as any),
+    },
+    spaceRegistry: {
+      getSpace: (id: string) => getSpaceRegistry().getSpace(id),
+      getAllSpaces: () => getSpaceRegistry().getAllSpaces(),
+      validateSpace: (id: string) => getSpaceRegistry().validateSpace(id),
+    },
+    portChecker: {
+      isPortInUse,
+      getProcessByPort,
+    },
+    credentialsManager: {
+      getSyncCredentials: (providerId: string) =>
+        CredentialsManager.getSyncCredentials(providerId),
+      getTokens: () => CredentialsManager.getTokens(),
+      setTokens: (tokens) => CredentialsManager.setTokens(tokens),
+      getUserInfo: () => CredentialsManager.getUserInfo(),
+      setUserInfo: (userInfo) => CredentialsManager.setUserInfo(userInfo),
+      isAuthenticated: () => CredentialsManager.isAuthenticated(),
+      clearAll: () => CredentialsManager.clearAll(),
+      getAccessToken: () => CredentialsManager.getAccessToken(),
+    },
+    broadcastAuthStateChange,
+  })
+
   while (true) {
     try {
       await startServer({ dist: process.env.DIST, port: PORT })
