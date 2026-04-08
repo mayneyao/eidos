@@ -78,6 +78,10 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
           resolve: {
             alias: sharedAlias,
           },
+          esbuild: {
+            // Support for TypeScript decorators used by inversify
+            target: "es2022",
+          },
           define: {
             // Explicitly define process.env.NODE_ENV for electron main process
             // This ensures it's replaced at build time, not evaluated at runtime
