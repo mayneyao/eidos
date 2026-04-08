@@ -8,6 +8,7 @@ import {
   type SpacesConfig,
   type GlobalConfig,
 } from "@eidos.space/space-manager"
+import { getConfigManager } from "./config-manager"
 
 export type { SpaceInfo, SpacesConfig, GlobalConfig }
 
@@ -173,4 +174,59 @@ export function getSpaceRegistry(): SpaceRegistry {
 export async function migrateFromLegacyConfig(): Promise<void> {
   const registry = getSpaceRegistry()
   await registry.migrateFromLegacyConfig()
+}
+
+/**
+ * Resolve which space to open on app startup
+ * @param protocolSpaceId - Space ID from protocol URL (if any)
+ * @returns The space ID to open
+ */
+export function resolveStartupSpace(
+  protocolSpaceId: string | null
+): string | undefined {
+  const registry = getSpaceRegistry()
+  const configManager = getConfigManager()
+
+  let spaceId: string | undefined
+
+  if (protocolSpaceId) {
+    // Protocol URL takes precedence - validate it exists
+    if (registry.validateSpace(protocolSpaceId)) {
+      spaceId = protocolSpaceId
+      console.log("Opening space from protocol URL:", spaceId)
+      // Update last opened space
+      configManager.setLastOpenedSpace(spaceId)
+    } else {
+      console.warn(`Space from protocol URL not found: ${protocolSpaceId}`)
+      // Fall back to last opened or first space
+      spaceId = configManager.getLastOpenedSpace()
+    }
+  } else {
+    // Normal startup - use last opened space
+    spaceId = configManager.getLastOpenedSpace()
+  }
+
+  // Fallback to first available space if needed
+  if (!spaceId) {
+    const firstSpace = registry.getFirstSpace()
+    spaceId = firstSpace?.id
+
+    if (spaceId) {
+      configManager.setLastOpenedSpace(spaceId)
+    }
+  }
+
+  // Validate the final space selection
+  if (spaceId && !registry.validateSpace(spaceId)) {
+    console.warn(
+      `Space ${spaceId} is invalid, falling back to first available space`
+    )
+    const firstSpace = registry.getFirstSpace()
+    spaceId = firstSpace?.id
+    if (spaceId) {
+      configManager.setLastOpenedSpace(spaceId)
+    }
+  }
+
+  return spaceId
 }
