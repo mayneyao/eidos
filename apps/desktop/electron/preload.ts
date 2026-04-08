@@ -1,17 +1,17 @@
 import { contextBridge, ipcRenderer } from "electron"
-import { createPreloadApiByNamespace } from "@eidos.space/electron-ipc"
-import { getOriginPrivateDirectory } from "native-file-system-adapter"
+
+import type { AppConfig } from "./config/index"
+import type { PlaygroundFile } from "./file-system/playground"
+import { installElectronFetchProxy } from "./lib/electron-fetch"
+import type { ApiAgentStatus } from "./server/api-agent"
 
 // AI related
-import { generateText, generateObject } from "ai"
-import { getProvider } from "@/packages/ai/helper"
 import { applyCode as _applyCode } from "@/packages/ai/generate"
-import { installElectronFetchProxy } from "./lib/electron-fetch"
-import { AppConfig } from "./config"
-import { PlaygroundFile } from "./file-system/playground"
-import { ApiAgentStatus } from "./server/api-agent"
+import { getProvider } from "@/packages/ai/helper"
+import { generateObject, generateText } from "ai"
 
 // Install fetch proxy to bypass CORS in preload context
+// This allows AI SDK to make requests to external APIs without CORS restrictions
 installElectronFetchProxy()
 
 type IpcListener = (event: Electron.IpcRendererEvent, ...args: any[]) => void
@@ -32,64 +32,137 @@ const getConfigByModel = async (model: string) => {
     (item: any) =>
       item?.name?.toLowerCase() === provider?.toLowerCase() && item.enabled
   )
-
-  if (!llmProvider) {
-    throw new Error(`Provider ${provider} is not enabled`)
-  }
-  return { modelId, provider: llmProvider }
-}
-
-function main() {
-  const initAI = () => {
+  if (llmProvider) {
     return {
-      generateText: async (config: {
-        model: string
-        prompt: string
-        [key: string]: any
-      }) => {
-        const { modelId, provider } = await getConfigByModel(config.model)
-        const providerInstance = getProvider(provider)
-        const result = await generateText({
-          ...config,
-          model: providerInstance(modelId),
-        })
-        return { text: result.text }
-      },
-      generateObject: async (config: {
-        model: string
-        prompt: string
-        schema: any
-        [key: string]: any
-      }) => {
-        const { modelId, provider } = await getConfigByModel(config.model)
-        const providerInstance = getProvider(provider)
-        const result = await generateObject({
-          ...config,
-          model: providerInstance(modelId),
-        })
-        return { object: result.object }
-      },
-      applyCode: async (config: {
-        model: string
-        originalCode: string
-        updateSnippet: string
-      }) => {
-        const { modelId, provider } = await getConfigByModel(config.model)
-        const providerInstance = getProvider(provider)
-        return _applyCode({
-          ...config,
-          model: providerInstance(modelId),
-        })
-      },
+      baseUrl: llmProvider.baseUrl || "",
+      apiKey: llmProvider.apiKey || "",
+      modelId: modelId || "",
+      type: llmProvider.type,
     }
   }
+  throw new Error(`Provider ${provider} not found`)
+}
 
+const getModelByName = async (modelName: string) => {
+  const modelConfig = await getConfigByModel(modelName)
+  return getProvider({
+    apiKey: modelConfig.apiKey,
+    baseUrl: modelConfig.baseUrl,
+    type: modelConfig.type,
+  })(modelConfig.modelId)
+}
+
+// this function must be a sync function, because it will be called in the main process, otherwise window.eidos will be undefined
+function main() {
+  // Ensure BrowserViews are cleaned up before the renderer reloads/unloads
+  window.addEventListener("beforeunload", () => {
+    // Use async send instead of sendSync to avoid blocking the renderer
+    // process during reload, which can cause the page to freeze.
+    ipcRenderer.send("browser-view:close-all")
+  })
+
+  const listenerMap = new Map<string, Map<string, IpcListener>>()
+  let listenerIdCounter = 0
+
+  // we expose a readonly version of eidos, which only contains a invoke method
+  //  eidosReadonly -> sqlite-msg-read -> main -> worker
+  contextBridge.exposeInMainWorld("eidosReadonly", {
+    invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
+      const [channel, ...omit] = args
+      return ipcRenderer.invoke(channel, ...omit)
+    },
+  })
+
+  // --------- Expose some API to the Renderer process ---------
   contextBridge.exposeInMainWorld("eidos", {
-    platform: process.platform,
-    arch: process.arch,
+    on(channel: string, listener: IpcListener) {
+      if (typeof channel !== "string" || typeof listener !== "function") {
+        throw new Error(
+          "Invalid parameters for add listener for channel: " + channel
+        )
+      }
+      if (!listenerMap.has(channel)) {
+        listenerMap.set(channel, new Map())
+      }
+
+      const channelListeners = listenerMap.get(channel)!
+      const listenerId = `listener_${++listenerIdCounter}`
+
+      const wrappedListener = (
+        event: Electron.IpcRendererEvent,
+        ...args: any[]
+      ) => {
+        try {
+          listener(event, ...args)
+        } catch (error) {
+          console.error(`Error in listener for ${channel}:`, error)
+        }
+      }
+
+      channelListeners.set(listenerId, wrappedListener)
+      ipcRenderer.on(channel, wrappedListener)
+
+      return listenerId
+    },
+
+    off(channel: string, listenerId: string) {
+      if (typeof channel !== "string" || typeof listenerId !== "string") {
+        throw new Error(
+          "Invalid parameters for remove listener for channel: " + channel
+        )
+      }
+
+      const channelListeners = listenerMap.get(channel)
+      if (!channelListeners) return
+
+      const wrappedListener = channelListeners.get(listenerId)
+      if (!wrappedListener) return
+
+      channelListeners.delete(listenerId)
+      ipcRenderer.removeListener(channel, wrappedListener)
+
+      if (channelListeners.size === 0) {
+        listenerMap.delete(channel)
+      }
+    },
+
+    removeAllListeners(channel?: string) {
+      if (channel) {
+        const channelListeners = listenerMap.get(channel)
+        if (channelListeners) {
+          for (const [_, listener] of channelListeners) {
+            ipcRenderer.removeListener(channel, listener)
+          }
+          listenerMap.delete(channel)
+        }
+      } else {
+        for (const [channel, listeners] of listenerMap) {
+          for (const [_, listener] of listeners) {
+            ipcRenderer.removeListener(channel, listener)
+          }
+        }
+        listenerMap.clear()
+      }
+    },
+
+    send(...args: Parameters<typeof ipcRenderer.send>) {
+      const [channel, ...omit] = args
+      return ipcRenderer.send(channel, ...omit)
+    },
+    invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
+      const [channel, ...omit] = args
+      return ipcRenderer.invoke(channel, ...omit)
+    },
+    postMessage(...args: Parameters<typeof ipcRenderer.postMessage>) {
+      const [channel, ...omit] = args
+      return ipcRenderer.postMessage(channel, ...omit)
+    },
+    // versions
     chrome: process.versions.chrome,
     node: process.versions.node,
-    getEfsManager: () => getOriginPrivateDirectory(),
+    // system info
+    platform: process.platform,
+    arch: process.arch,
     config: {
       get: (key: keyof AppConfig) => ipcRenderer.invoke("get-config", key),
       set: (key: keyof AppConfig, value: any) =>
@@ -101,29 +174,61 @@ function main() {
       ipcRenderer.invoke("show-in-file-manager", path),
     openUrl: (url: string) => ipcRenderer.invoke("open-url", url),
     reloadApp: () => ipcRenderer.invoke("reload-app"),
-
-    // ===== IPC Services (auto-discovered via registry) =====
-    // Just specify namespace, methods are fetched automatically
     browserView: {
-      ...createPreloadApiByNamespace("browser-view"),
-      // Event listener for browser view updates (not an IPC method, uses send/on)
-      onUpdate: (viewId: string, callback: (data: any) => void) => {
+      open: (
+        viewId: string,
+        url: string,
+        bounds: { x: number; y: number; width: number; height: number }
+      ) => ipcRenderer.invoke("browser-view:open", viewId, url, bounds),
+      updateBounds: (
+        viewId: string,
+        bounds: { x: number; y: number; width: number; height: number }
+      ) => ipcRenderer.invoke("browser-view:update-bounds", viewId, bounds),
+      close: (viewId: string) =>
+        ipcRenderer.invoke("browser-view:close", viewId),
+      closeAll: () => ipcRenderer.invoke("browser-view:close-all"),
+      reload: (viewId: string) =>
+        ipcRenderer.invoke("browser-view:reload", viewId),
+      goBack: (viewId: string) =>
+        ipcRenderer.invoke("browser-view:go-back", viewId),
+      goForward: (viewId: string) =>
+        ipcRenderer.invoke("browser-view:go-forward", viewId),
+      loadURL: (viewId: string, url: string) =>
+        ipcRenderer.invoke("browser-view:load-url", viewId, url),
+      setVisible: (viewId: string, visible: boolean) =>
+        ipcRenderer.invoke("browser-view:set-visible", viewId, visible),
+      capturePage: (viewId: string) =>
+        ipcRenderer.invoke("browser-view:capture-page", viewId),
+      onUpdate: (
+        viewId: string,
+        callback: (data: {
+          type: "loading" | "navigate"
+          isLoading?: boolean
+          url?: string
+          canGoBack?: boolean
+          canGoForward?: boolean
+        }) => void
+      ) => {
         const listener = (
           _event: Electron.IpcRendererEvent,
           id: string,
           data: any
         ) => {
-          if (id === viewId) {
-            callback(data)
-          }
+          if (id === viewId) callback(data)
         }
         ipcRenderer.on("browser-view:update", listener)
-        return () => ipcRenderer.removeListener("browser-view:update", listener)
+        return () => {
+          ipcRenderer.removeListener("browser-view:update", listener)
+        }
       },
     },
-    openData: createPreloadApiByNamespace("opendata"),
-    // ======================================================
-
+    pipeline: {
+      run: (
+        steps: any[],
+        args?: Record<string, any>,
+        options?: { debug?: boolean }
+      ) => ipcRenderer.invoke("pipeline:run", steps, args, options),
+    },
     initializePlayground: (
       space: string,
       blockId: string,
@@ -146,6 +251,10 @@ function main() {
       return () => ipcRenderer.removeListener("window-state-changed", listener)
     },
 
+    // You can expose other APIs you need here.
+    // ...
+
+    // Add these new properties to eidos object
     onApiAgentStatusChanged: (callback: (status: ApiAgentStatus) => void) => {
       const listener = (
         _event: Electron.IpcRendererEvent,
@@ -160,6 +269,7 @@ function main() {
     },
     getApiAgentStatus: () => ipcRenderer.invoke("get-api-agent-status"),
 
+    // Credentials management
     credentials: {
       setSyncCredentials: (credentials: any, providerId?: string) =>
         ipcRenderer.invoke("set-sync-credentials", credentials, providerId),
@@ -177,21 +287,19 @@ function main() {
         secretAccessKey: string
       }) => ipcRenderer.invoke("test-sync-connection", config),
     },
-
-    showNativeMenu: (
-      items: { id: string; label: string; type?: "normal" | "separator" }[],
-      position?: { clientX: number; clientY: number }
-    ) => ipcRenderer.invoke("show-native-menu", items, position),
-
+    // License management
     license: {
-      activate: (licenseKey: string, token?: string | null) =>
+      activate: (licenseKey: string, token?: string) =>
         ipcRenderer.invoke("activate-license", licenseKey, token),
       getInfo: () => ipcRenderer.invoke("get-license-info"),
     },
+    space: {
+      getCurrent: () => ipcRenderer.invoke("get-current-space"),
+      getById: (spaceId: string) =>
+        ipcRenderer.invoke("get-space-by-id", spaceId),
+    },
 
-    fetch: (url: string, options: RequestInit) =>
-      ipcRenderer.invoke("electron-fetch", url, options),
-
+    // AI helper functions
     fetchAvailableModels: (
       apiKey: string,
       providerType: string,
@@ -204,33 +312,132 @@ function main() {
         baseUrl
       ),
 
-    AI: initAI(),
+    fetch(url: string, options: RequestInit = {}): Promise<Response> {
+      return ipcRenderer.invoke("fetch", url, options).then((data: any) => {
+        // Create a simple Response-like object
+        return {
+          ok: data.ok,
+          status: data.status,
+          statusText: data.statusText,
+          headers: new Headers(data.headers),
+          url: data.url,
 
-    send: ipcRenderer.send,
-    invoke: ipcRenderer.invoke,
-    on: (channel: string, listener: IpcListener) => {
-      const id = Math.random().toString(36).slice(2)
-      const wrappedListener = (
-        event: Electron.IpcRendererEvent,
-        ...args: any[]
-      ) => {
-        listener(event, ...args)
+          async text() {
+            return new TextDecoder().decode(data.body)
+          },
+
+          async json() {
+            const text = new TextDecoder().decode(data.body)
+            return JSON.parse(text)
+          },
+
+          async blob() {
+            const contentType =
+              data.headers["content-type"] || "application/octet-stream"
+            return new Blob([data.body], { type: contentType })
+          },
+
+          async arrayBuffer() {
+            return data.body
+          },
+        } as Response
+      })
+    },
+
+    /**
+     * Show native context menu (only available in desktop Electron app)
+     * @param items Menu items to display
+     * @param event Optional mouse event to position the menu
+     */
+    showNativeMenu: async (
+      items: Array<NativeMenuItem | null | undefined | false>,
+      position?: { clientX: number; clientY: number }
+    ): Promise<void> => {
+      // Filter out null, undefined, and false items
+      const filteredItems = items.filter(
+        (item): item is NativeMenuItem => !!item
+      )
+
+      if (filteredItems.length === 0) {
+        return
       }
-      ipcRenderer.on(channel, wrappedListener)
-      return id
+
+      // Get position from position object
+      let x: number | undefined
+      let y: number | undefined
+
+      if (position) {
+        x = position.clientX
+        y = position.clientY
+      }
+
+      try {
+        await ipcRenderer.invoke("show-native-context-menu", {
+          items: filteredItems,
+          x,
+          y,
+        })
+      } catch (error) {
+        console.error("Error showing native context menu:", error)
+        throw error
+      }
     },
-    off: (channel: string, listenerId: string) => {
-      // Note: electron's ipcRenderer doesn't support removing by ID
+    AI: {
+      generateText: async (config: {
+        model: string
+        prompt: string
+        [key: string]: any
+      }) => {
+        console.log("preload generateText", config)
+        const { model, ...restConfig } = config
+        const reconstructedModel = await getModelByName(model)
+
+        return generateText({
+          ...restConfig,
+          model: reconstructedModel,
+        })
+      },
+      generateObject: async (config: {
+        model: string
+        prompt: string
+        schema: any
+        [key: string]: any
+      }) => {
+        console.log("preload generateObject", config)
+        const { model, ...restConfig } = config
+        const reconstructedModel = await getModelByName(model)
+
+        return generateObject({
+          ...restConfig,
+          model: reconstructedModel,
+        })
+      },
+      applyCode: async (config: {
+        model: string
+        originalCode: string
+        updateSnippet: string
+      }) => {
+        console.log("preload applyCode", config)
+        const { model, originalCode, updateSnippet } = config
+        const reconstructedModel = await getModelByName(model)
+
+        return _applyCode({
+          originalCode,
+          updateSnippet,
+          model: reconstructedModel,
+        })
+      },
     },
 
-    space: {
-      getCurrent: () => ipcRenderer.invoke("space:get-current"),
-      getById: (spaceId: string) =>
-        ipcRenderer.invoke("space:get-by-id", spaceId),
-    },
-
+    // Terminal integration
     terminal: {
-      create: (options?: any) => ipcRenderer.invoke("terminal:create", options),
+      create: (options?: {
+        cwd?: string
+        shell?: string
+        env?: Record<string, string>
+        cols?: number
+        rows?: number
+      }) => ipcRenderer.invoke("terminal:create", options),
       write: (sessionId: string, data: string) =>
         ipcRenderer.invoke("terminal:write", sessionId, data),
       resize: (sessionId: string, cols: number, rows: number) =>
@@ -262,6 +469,7 @@ function main() {
       },
     },
 
+    // CLI installation
     cli: {
       isInstalled: () => ipcRenderer.invoke("cli:is-installed"),
       install: () => ipcRenderer.invoke("cli:install"),
