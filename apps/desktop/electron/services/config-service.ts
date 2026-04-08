@@ -1,7 +1,7 @@
 import path from "path"
 import { app } from "electron"
 import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
-import { getConfigManager } from "../config"
+import { getConfigManager } from "./config-manager"
 
 /**
  * Config Service - Manages application configuration

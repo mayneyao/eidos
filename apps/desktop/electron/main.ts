@@ -11,7 +11,7 @@ import { default as console, default as electronLog } from "electron-log"
 import path from "path"
 
 import { setupRegistryIpc } from "@eidos.space/electron-ipc"
-import { getConfigManager } from "./config"
+import { getConfigManager } from "./services/config-manager"
 import { corsManager } from "./services/cors-manager"
 import { getDataSpace } from "./data-space"
 import { cleanupPlaygroundWatchers } from "./file-system/playground"

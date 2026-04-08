@@ -5,7 +5,7 @@ import type { DataSpace } from "@/packages/core/data-space"
 import log from "electron-log"
 
 import { CredentialsManager } from "../services/credentials"
-import { getConfigManager } from "../config"
+import { getConfigManager } from "../services/config-manager"
 import { getSpacePath } from "../file-system/space"
 import { getResourcePath } from "../lib/helper"
 import { getSpaceRegistry } from "../services/space-registry"

@@ -1,4 +1,4 @@
-import { getConfigManager } from "../config"
+import { getConfigManager } from "../services/config-manager"
 import path from "path"
 import fs from "fs/promises"
 import { watch } from "fs"

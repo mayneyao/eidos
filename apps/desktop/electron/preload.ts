@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron"
 
-import type { AppConfig } from "./config/index"
+import type { AppConfig } from "./services/config-manager"
 import type { PlaygroundFile } from "./file-system/playground"
 import { installElectronFetchProxy } from "./lib/electron-fetch"
 import type { ApiAgentStatus } from "./server/api-agent"
