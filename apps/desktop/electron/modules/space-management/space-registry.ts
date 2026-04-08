@@ -1,32 +1,26 @@
+/**
+ * Space Registry - Extended with Electron-specific migration logic
+ * DI-compatible version with @Injectable
+ */
+
 import { app } from "electron"
 import fs from "fs"
 import path from "path"
+import { Injectable } from "../../common/di"
 import {
   SpaceRegistry as BaseSpaceRegistry,
-  getSpaceRegistry as getBaseSpaceRegistry,
   type SpaceInfo,
   type SpacesConfig,
   type GlobalConfig,
 } from "@eidos.space/space-manager"
-import { getConfigManager } from "../modules/config/config-manager"
+import { getConfigManager } from "../config/config-manager"
 
 export type { SpaceInfo, SpacesConfig, GlobalConfig }
 
-/**
- * Extended SpaceRegistry with Electron-specific migration logic
- */
+@Injectable()
 export class SpaceRegistry extends BaseSpaceRegistry {
-  private static electronInstance: SpaceRegistry
-
-  private constructor() {
+  constructor() {
     super()
-  }
-
-  public static getInstance(): SpaceRegistry {
-    if (!SpaceRegistry.electronInstance) {
-      SpaceRegistry.electronInstance = new SpaceRegistry()
-    }
-    return SpaceRegistry.electronInstance
   }
 
   /**
@@ -53,19 +47,15 @@ export class SpaceRegistry extends BaseSpaceRegistry {
 
   /**
    * Migrate from legacy Electron config to new space-manager structure
-   * This is Electron-specific and not in the base SpaceRegistry
    */
-  public async migrateFromLegacyConfig(): Promise<void> {
-    // Check if new config already exists using base class method
+  async migrateFromLegacyConfig(): Promise<void> {
     const existingSpaces = this.getAllSpaces()
     if (existingSpaces.length > 0) {
       return
     }
 
-    // Read legacy config
     const legacyConfigPath = path.join(app.getPath("userData"), "config.json")
     if (!fs.existsSync(legacyConfigPath)) {
-      // Fresh installation, create default space
       await this.createDefaultSpace()
       return
     }
@@ -81,7 +71,6 @@ export class SpaceRegistry extends BaseSpaceRegistry {
         return
       }
 
-      // Scan spaces directory
       const spacesDir = path.join(dataFolder, "spaces")
       if (!fs.existsSync(spacesDir)) {
         await this.createDefaultSpace()
@@ -96,31 +85,25 @@ export class SpaceRegistry extends BaseSpaceRegistry {
         const oldDbPath = path.join(oldSpacePath, "db.sqlite3")
         const oldFilesPath = path.join(oldSpacePath, "files")
 
-        // Only migrate spaces that have database files
         if (fs.existsSync(oldDbPath)) {
-          // Keep the same space path (in-place migration)
           const spacePath = oldSpacePath
           const eidosDir = path.join(spacePath, ".eidos")
           const newDbPath = path.join(eidosDir, "db.sqlite3")
           const newFilesPath = path.join(eidosDir, "files")
 
-          // Create new directory structure within the existing space
           fs.mkdirSync(eidosDir, { recursive: true })
           fs.mkdirSync(newFilesPath, { recursive: true })
 
-          // Migrate database file
           if (fs.existsSync(oldDbPath)) {
             fs.copyFileSync(oldDbPath, newDbPath)
             console.log(`Migrated database: ${oldDbPath} -> ${newDbPath}`)
           }
 
-          // Migrate files directory
           if (fs.existsSync(oldFilesPath)) {
             this.copyDirectoryRecursive(oldFilesPath, newFilesPath)
             console.log(`Migrated files: ${oldFilesPath} -> ${newFilesPath}`)
           }
 
-          // Register the migrated space using base class method
           const space = this.registerSpace(spacePath, {
             customName: folder.charAt(0).toUpperCase() + folder.slice(1),
           })
@@ -133,9 +116,7 @@ export class SpaceRegistry extends BaseSpaceRegistry {
         return
       }
 
-      // Set the first migrated space as the last opened
       this.setLastOpenedSpace(migratedSpaces[0].id)
-
       console.log(`Migrated ${migratedSpaces.length} spaces from legacy config`)
     } catch (error) {
       console.error("Error migrating from legacy config:", error)
@@ -145,7 +126,6 @@ export class SpaceRegistry extends BaseSpaceRegistry {
 
   /**
    * Create a default space for fresh installations
-   * This is Electron-specific
    */
   private async createDefaultSpace(): Promise<void> {
     const defaultSpacePath = path.join(
@@ -154,10 +134,8 @@ export class SpaceRegistry extends BaseSpaceRegistry {
       "default"
     )
 
-    // Ensure directory exists
     fs.mkdirSync(defaultSpacePath, { recursive: true })
 
-    // Register the default space using base class method
     const space = this.registerSpace(defaultSpacePath, {
       customName: "Default",
     })
@@ -167,46 +145,30 @@ export class SpaceRegistry extends BaseSpaceRegistry {
   }
 }
 
-export function getSpaceRegistry(): SpaceRegistry {
-  return SpaceRegistry.getInstance()
-}
-
-export async function migrateFromLegacyConfig(): Promise<void> {
-  const registry = getSpaceRegistry()
-  await registry.migrateFromLegacyConfig()
-}
-
 /**
  * Resolve which space to open on app startup
- * @param protocolSpaceId - Space ID from protocol URL (if any)
- * @returns The space ID to open
  */
 export function resolveStartupSpace(
-  protocolSpaceId: string | null
+  protocolSpaceId: string | null,
+  registry: SpaceRegistry
 ): string | undefined {
-  const registry = getSpaceRegistry()
   const configManager = getConfigManager()
 
   let spaceId: string | undefined
 
   if (protocolSpaceId) {
-    // Protocol URL takes precedence - validate it exists
     if (registry.validateSpace(protocolSpaceId)) {
       spaceId = protocolSpaceId
       console.log("Opening space from protocol URL:", spaceId)
-      // Update last opened space
       configManager.setLastOpenedSpace(spaceId)
     } else {
       console.warn(`Space from protocol URL not found: ${protocolSpaceId}`)
-      // Fall back to last opened or first space
       spaceId = configManager.getLastOpenedSpace()
     }
   } else {
-    // Normal startup - use last opened space
     spaceId = configManager.getLastOpenedSpace()
   }
 
-  // Fallback to first available space if needed
   if (!spaceId) {
     const firstSpace = registry.getFirstSpace()
     spaceId = firstSpace?.id
@@ -216,7 +178,6 @@ export function resolveStartupSpace(
     }
   }
 
-  // Validate the final space selection
   if (spaceId && !registry.validateSpace(spaceId)) {
     console.warn(
       `Space ${spaceId} is invalid, falling back to first available space`

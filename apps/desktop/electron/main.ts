@@ -44,10 +44,10 @@ import { AppUpdater } from "./services/updater"
 import { createWindow } from "./window/create-window"
 import { createTray, destroyTray } from "./window/tray-manager"
 import {
+  SpaceRegistry,
   getSpaceRegistry,
-  migrateFromLegacyConfig,
   resolveStartupSpace,
-} from "./services/space-registry"
+} from "./modules/space-management/space-management.module"
 
 // Legacy service imports
 import { AppLifecycleService } from "./services/app-lifecycle-service"
@@ -60,15 +60,16 @@ import { dataSpaceService } from "./services/data-space/data-space-service"
 // import { licenseService } from "./services/license-service"  // Migrated to DI
 import { OpenDataService } from "./services/opendata-service"
 import { relayService } from "./services/relay-service"
-import { SpaceManagementService } from "./services/space-management-service"
+// import { SpaceManagementService } from "./services/space-management-service"  // Migrated to DI
 // import { syncService as legacySyncService } from "./services/sync-service"
 // import { TerminalService } from "./services/terminal-service"  // Migrated to DI
 import { webviewService } from "./services/webview-service"
 import { BrowserViewManager } from "./window/browser-view-manager"
 import { corsManager } from "./services/cors-manager"
 
-// DI imports for window provider
+// DI imports for window providers
 import { TerminalWindowProvider } from "./modules/terminal/terminal.module"
+import { MainWindowProvider } from "./modules/space-management/space-management.module"
 
 // Export main window for other modules
 export let win: BrowserWindow | null
@@ -283,10 +284,6 @@ async function main() {
     // Use DI ConfigService
     const configService = container.get(ConfigService)
 
-    // Setup TerminalWindowProvider with window getter
-    const terminalWindowProvider = container.get(TerminalWindowProvider)
-    terminalWindowProvider.setWindowProvider(() => win)
-
     // Register services
     // NOTE: DI services auto-registered via bootstrap:
     // Config, FileSystem, Sync, License, Network, Cli, Terminal
@@ -299,13 +296,21 @@ async function main() {
     webviewService.register()
 
     // Migrate legacy config
-    await migrateFromLegacyConfig()
+    const spaceRegistry = container.get(SpaceRegistry)
+    await spaceRegistry.migrateFromLegacyConfig()
 
     // Determine startup space
-    let spaceId = resolveStartupSpace(null)
+    let spaceId = resolveStartupSpace(null, spaceRegistry)
 
     // Create window
     win = createWindow(spaceId)
+
+    // Setup window providers (must be after win is created)
+    const terminalWindowProvider = container.get(TerminalWindowProvider)
+    terminalWindowProvider.setWindowProvider(() => win)
+
+    const mainWindowProvider = container.get(MainWindowProvider)
+    mainWindowProvider.setWindowProvider(() => win)
 
     // Initialize window-related services
     const browserViewManager = new BrowserViewManager(win)
@@ -374,11 +379,7 @@ async function main() {
     })
     appLifecycleService.register()
 
-    // Space management service
-    const spaceManagementService = new SpaceManagementService({
-      getMainWindow: () => win,
-    })
-    spaceManagementService.register()
+    // SpaceManagementService is auto-registered via DI
 
     console.log("[Main] Application initialized successfully")
   })

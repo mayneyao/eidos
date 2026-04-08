@@ -15,6 +15,7 @@ import { NetworkModule } from "./modules/network/network.module"
 import { CliModule } from "./modules/cli/cli.module"
 import { TerminalModule } from "./modules/terminal/terminal.module"
 import { ContextMenuModule } from "./modules/context-menu/context-menu.module"
+import { SpaceManagementModule } from "./modules/space-management/space-management.module"
 import { ExampleModule } from "./modules/example/example.module"
 
 /**
@@ -30,6 +31,7 @@ import { ExampleModule } from "./modules/example/example.module"
  * - CliModule: CLI installation and management
  * - TerminalModule: Terminal session management
  * - ContextMenuModule: Native context menu display
+ * - SpaceManagementModule: Space CRUD and switching
  * - ExampleModule: DI demonstration (can be removed)
  */
 @Module({
@@ -43,6 +45,7 @@ import { ExampleModule } from "./modules/example/example.module"
     CliModule,
     TerminalModule,
     ContextMenuModule,
+    SpaceManagementModule,
     ExampleModule,
   ],
   providers: [],
