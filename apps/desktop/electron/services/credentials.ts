@@ -280,7 +280,7 @@ export class CredentialsManager {
    * Sensitive tokens are stored separately via safeStorage
    */
   static async setUserInfo(userInfo: UserInfo): Promise<void> {
-    const { getConfigManager } = await import("../config")
+    const { getConfigManager } = await import("./config-manager")
     const configManager = getConfigManager()
     configManager.setUser(userInfo)
   }
@@ -289,7 +289,7 @@ export class CredentialsManager {
    * Get user information from config
    */
   static async getUserInfo(): Promise<UserInfo | null> {
-    const { getConfigManager } = await import("../config")
+    const { getConfigManager } = await import("./config-manager")
     const configManager = getConfigManager()
     return configManager.getUser()
   }
@@ -315,7 +315,7 @@ export class CredentialsManager {
     }
 
     // Clear user info from config
-    const { getConfigManager } = await import("../config")
+    const { getConfigManager } = await import("./config-manager")
     const configManager = getConfigManager()
     configManager.setUser(undefined)
   }

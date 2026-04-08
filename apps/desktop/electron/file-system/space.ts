@@ -1,7 +1,7 @@
 import { lookup } from "@/lib/mime/mime"
 import fs from "node:fs"
 import path from "path"
-import { getConfigManager } from "../config"
+import { getConfigManager } from "../services/config-manager"
 import { getSpaceRegistry } from "../services/space-registry"
 
 export const createSpace = (spaceId: string) => {

@@ -27,7 +27,7 @@ import {
   type OAuthTokens,
   type UserInfo,
 } from "../services/credentials"
-import { getConfigManager } from "../config"
+import { getConfigManager } from "../services/config-manager"
 import { getOrSetDataSpace } from "../data-space"
 import { getFileFromPath, getSpaceFileFromPath } from "../file-system/space"
 import { getSpaceRegistry } from "../services/space-registry"

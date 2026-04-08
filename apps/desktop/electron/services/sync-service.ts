@@ -2,7 +2,7 @@ import { BucketClient } from "@/packages/sync/bucket"
 import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
 import { CredentialsManager } from "./credentials"
 import { getOrSetDataSpace } from "../data-space"
-import { getConfigManager } from "../config"
+import { getConfigManager } from "./config-manager"
 import { getSpaceRegistry } from "./space-registry"
 
 interface SyncCredentials {
@@ -238,9 +238,7 @@ export class SyncService extends IpcServiceBase {
   /**
    * Clone a space from remote
    */
-  async cloneSpace(
-    params: CloneSpaceParams
-  ): Promise<{
+  async cloneSpace(params: CloneSpaceParams): Promise<{
     success: boolean
     space?: any
     message?: string

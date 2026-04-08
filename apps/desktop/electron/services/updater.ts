@@ -1,7 +1,7 @@
 import { autoUpdater } from "electron-updater"
 import type { BrowserWindow } from "electron"
 import log from "electron-log"
-import { getConfigManager } from "../config"
+import { getConfigManager } from "./config-manager"
 
 export class AppUpdater {
   constructor(private mainWindow: BrowserWindow) {
