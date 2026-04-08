@@ -38,6 +38,7 @@ import { webviewService } from "./services/webview-service"
 import {
   getSpaceRegistry,
   migrateFromLegacyConfig,
+  resolveStartupSpace,
 } from "./services/space-registry"
 import { AppUpdater } from "./services/updater"
 import { createWindow } from "./window-manager/createWindow"
@@ -309,9 +310,6 @@ app.whenReady().then(async () => {
 
   await migrateFromLegacyConfig()
 
-  const registry = getSpaceRegistry()
-  const configManager = getConfigManager()
-
   // Check if app was launched with a protocol URL
   let launchProtocolUrl: string | null = null
   let spaceIdFromProtocol: string | null = null
@@ -344,46 +342,7 @@ app.whenReady().then(async () => {
   }
 
   // Determine which space to open
-  let spaceId: string | undefined
-
-  if (spaceIdFromProtocol) {
-    // Protocol URL takes precedence - validate it exists
-    if (registry.validateSpace(spaceIdFromProtocol)) {
-      spaceId = spaceIdFromProtocol
-      console.log("Opening space from protocol URL:", spaceId)
-      // Update last opened space
-      configManager.setLastOpenedSpace(spaceId)
-    } else {
-      console.warn(`Space from protocol URL not found: ${spaceIdFromProtocol}`)
-      // Fall back to last opened or first space
-      spaceId = configManager.getLastOpenedSpace()
-    }
-  } else {
-    // Normal startup - use last opened space
-    spaceId = configManager.getLastOpenedSpace()
-  }
-
-  // Fallback to first available space if needed
-  if (!spaceId) {
-    const firstSpace = registry.getFirstSpace()
-    spaceId = firstSpace?.id
-
-    if (spaceId) {
-      configManager.setLastOpenedSpace(spaceId)
-    }
-  }
-
-  // Validate the final space selection
-  if (spaceId && !registry.validateSpace(spaceId)) {
-    console.warn(
-      `Space ${spaceId} is invalid, falling back to first available space`
-    )
-    const firstSpace = registry.getFirstSpace()
-    spaceId = firstSpace?.id
-    if (spaceId) {
-      configManager.setLastOpenedSpace(spaceId)
-    }
-  }
+  const spaceId = resolveStartupSpace(spaceIdFromProtocol)
 
   // Create window with the determined spaceId
   win = createWindow(spaceId)
@@ -391,6 +350,7 @@ app.whenReady().then(async () => {
   // Initialize global shortcut manager (will register shortcuts when window gains focus)
   globalShortcutManager = new GlobalShortcutManager(win)
 
+  const configManager = getConfigManager()
   configManager.on(
     "configChanged",
     ({ key, newValue }: { key: string; newValue: unknown }) => {
