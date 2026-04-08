@@ -1,10 +1,6 @@
 import { OAUTH_CONFIG } from "@/lib/const"
 import aiHandler, { pathname as aiPath } from "@/worker/service-worker/ai"
-import {
-  getProcessByPort,
-  isPortInUse,
-  type PortOccupancyInfo,
-} from "../../services/port-checker"
+import { getServerContext, type PortOccupancyInfo } from "./context"
 import { createProxyMiddleware } from "@eidos.space/proxy"
 import {
   containsBinaryData,
@@ -22,32 +18,36 @@ import { BrowserWindow } from "electron"
 import log from "electron-log"
 import { Hono } from "hono"
 import path from "path"
-import {
-  CredentialsManager,
-  type OAuthTokens,
-  type UserInfo,
-} from "../../services/credentials"
-import { getConfigManager } from "../../services/config-manager"
-import { getOrSetDataSpace } from "../../services/data-space/data-space-manager"
+import type { OAuthTokens, UserInfo } from "./context"
+
+// Simple PKCE implementation for server context
+let codeVerifierStore: string | null = null
+
+function generateCodeVerifier(): string {
+  const array = new Uint8Array(32)
+  crypto.getRandomValues(array)
+  return base64URLEncode(array)
+}
+
+async function generateCodeChallenge(verifier: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(verifier)
+  const hash = await crypto.subtle.digest("SHA-256", data)
+  return base64URLEncode(new Uint8Array(hash))
+}
+
+function base64URLEncode(buffer: Uint8Array): string {
+  return btoa(String.fromCharCode(...buffer))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "")
+}
 import { getFileFromPath, getSpaceFileFromPath } from "../../utils/paths"
-import { getSpaceRegistry } from "../../services/space-registry"
 import { serveFile } from "./serve-file"
 import { serveStatic } from "./server-static"
 
 // Channel name for auth state changes
 export const AUTH_STATE_CHANGED_CHANNEL = "auth-state-changed"
-
-/**
- * Broadcast auth state change to all renderer windows
- */
-function broadcastAuthStateChange(
-  authenticated: boolean,
-  user?: UserInfo | null
-) {
-  BrowserWindow.getAllWindows().forEach((window) => {
-    window.webContents.send(AUTH_STATE_CHANGED_CHANNEL, { authenticated, user })
-  })
-}
 
 const app = new Hono()
 
@@ -247,9 +247,10 @@ export async function startServer({
   port: number
 }): Promise<void> {
   // Check if port is already in use
-  const portOccupied = await isPortInUse(port)
+  const ctx = getServerContext()
+  const portOccupied = await ctx.portChecker.isPortInUse(port)
   if (portOccupied) {
-    const processInfo = await getProcessByPort(port)
+    const processInfo = await ctx.portChecker.getProcessByPort(port)
     const error = new Error(`Port ${port} is already in use`) as PortInUseError
     error.port = port
     error.processInfo = processInfo
@@ -261,13 +262,13 @@ export async function startServer({
     "*",
     createBucketBrowserMiddleware({
       getCredentials: async () => {
-        const configManager = getConfigManager()
-        const defaultProviderId = configManager.getDefaultSyncProvider()
+        const defaultProviderId = ctx.configManager.getDefaultSyncProvider()
         if (!defaultProviderId) return null
 
         const credentials =
-          await CredentialsManager.getSyncCredentials(defaultProviderId)
-        const providerConfig = configManager.getSyncProvider(defaultProviderId)
+          await ctx.credentialsManager.getSyncCredentials(defaultProviderId)
+        const providerConfig =
+          ctx.configManager.getSyncProvider(defaultProviderId)
 
         if (!credentials || !providerConfig) return null
 
@@ -291,9 +292,20 @@ export async function startServer({
     "*",
     createExtensionMiddleware(
       createDesktopConfig({
-        getDataSpace: getOrSetDataSpace,
-        getConfigManager,
-        getSpaceRegistry,
+        getDataSpace: ctx.dataSpaceManager.getOrSetDataSpace.bind(
+          ctx.dataSpaceManager
+        ),
+        getConfigManager: () => ({
+          get: ctx.configManager.get.bind(ctx.configManager),
+          set: ctx.configManager.set.bind(ctx.configManager),
+        }),
+        getSpaceRegistry: () => ({
+          getSpace: ctx.spaceRegistry.getSpace.bind(ctx.spaceRegistry),
+          getAllSpaces: ctx.spaceRegistry.getAllSpaces.bind(ctx.spaceRegistry),
+          validateSpace: ctx.spaceRegistry.validateSpace.bind(
+            ctx.spaceRegistry
+          ),
+        }),
         dist,
         port,
       })
@@ -310,10 +322,17 @@ export async function startServer({
   app.get("/api/auth/login", async (c) => {
     try {
       // Generate PKCE parameters
-      const pkce = CredentialsManager.generatePKCE()
+      // Note: PKCE generation is now handled in context/credentials service
+      const pkce = {
+        codeVerifier: generateCodeVerifier(),
+        codeChallenge: "",
+        codeChallengeMethod: "S256" as const,
+      }
+      pkce.codeChallenge = await generateCodeChallenge(pkce.codeVerifier)
 
       // Store code_verifier in memory for later use in callback
-      CredentialsManager.setCodeVerifier(pkce.codeVerifier)
+      // This should be handled by the credentials service
+      codeVerifierStore = pkce.codeVerifier
 
       // Build authorization URL with PKCE parameters
       const authUrl = new URL(
@@ -361,7 +380,8 @@ export async function startServer({
 
     try {
       // Retrieve the stored code_verifier from memory
-      const codeVerifier = CredentialsManager.getAndClearCodeVerifier()
+      const codeVerifier = codeVerifierStore
+      codeVerifierStore = null // Clear after use
       if (!codeVerifier) {
         return c.text(
           "PKCE code_verifier not found. Please start the login process again.",
@@ -394,7 +414,7 @@ export async function startServer({
 
       log.info("tokens", tokens)
       // Store tokens securely
-      await CredentialsManager.setTokens(tokens)
+      await ctx.credentialsManager.setTokens(tokens)
 
       // Fetch user info using the access token
       const userInfoUrl = `${OAUTH_CONFIG.AUTH_SERVER_BASE_URL}${OAUTH_CONFIG.ENDPOINTS.USERINFO}`
@@ -408,14 +428,14 @@ export async function startServer({
       if (userInfoResponse.ok) {
         user = await userInfoResponse.json()
         // Store user info separately (non-sensitive data)
-        await CredentialsManager.setUserInfo(user!)
+        await ctx.credentialsManager.setUserInfo(user!)
       } else {
         // Fallback if userinfo fails
         log.error("Failed to fetch user info")
       }
 
       // Broadcast auth state change to frontend
-      broadcastAuthStateChange(true, user)
+      ctx.broadcastAuthStateChange(true, user)
 
       return c.html(`
                 <html>
@@ -438,14 +458,14 @@ export async function startServer({
     try {
       // Try to get a valid access token (will auto-refresh if needed)
       // This call will automatically refresh the token if it's expired
-      const accessToken = await CredentialsManager.getAccessToken()
+      const accessToken = await ctx.credentialsManager.getAccessToken()
       if (!accessToken) {
         // Token refresh failed, broadcast logout event to frontend
-        broadcastAuthStateChange(false, null)
+        ctx.broadcastAuthStateChange(false, null)
         return c.json({ authenticated: false }, 401)
       }
 
-      const user = await CredentialsManager.getUserInfo()
+      const user = await ctx.credentialsManager.getUserInfo()
 
       return c.json({
         authenticated: true,
@@ -462,7 +482,7 @@ export async function startServer({
   app.post("/api/auth/logout", async (c) => {
     try {
       // Get tokens before clearing for server-side logout
-      const tokens = await CredentialsManager.getTokens()
+      const tokens = await ctx.credentialsManager.getTokens()
 
       // Notify server to end session if we have an id_token
       if (tokens?.id_token) {
@@ -482,9 +502,9 @@ export async function startServer({
       }
 
       // Clear local credentials
-      await CredentialsManager.clearAll()
+      await ctx.credentialsManager.clearAll()
       // Broadcast auth state change to frontend
-      broadcastAuthStateChange(false, null)
+      ctx.broadcastAuthStateChange(false, null)
       return c.json({ success: true })
     } catch (error: any) {
       log.error("Error during logout:", error)
@@ -497,10 +517,10 @@ export async function startServer({
   app.get("/api/auth/token", async (c) => {
     try {
       // Try to get a valid access token (will auto-refresh if needed)
-      const accessToken = await CredentialsManager.getAccessToken()
+      const accessToken = await ctx.credentialsManager.getAccessToken()
       if (!accessToken) {
         // Token refresh failed, broadcast logout event to frontend
-        broadcastAuthStateChange(false, null)
+        ctx.broadcastAuthStateChange(false, null)
         return c.json({ error: "Failed to get access token" }, 401)
       }
 
@@ -520,8 +540,7 @@ export async function startServer({
         throw new Error("Invalid request, space ID not found in hostname")
       }
 
-      const registry = getSpaceRegistry()
-      const space = registry.getSpace(spaceId)
+      const space = ctx.spaceRegistry.getSpace(spaceId)
       if (!space) {
         throw new Error(`Space not found: ${spaceId}`)
       }
@@ -554,7 +573,7 @@ export async function startServer({
         scope = jsonData.scope
       }
 
-      const dataSpace = await getOrSetDataSpace(spaceId)
+      const dataSpace = await ctx.dataSpaceManager.getOrSetDataSpace(spaceId)
       log.info(`rpc[${spaceId}]`, method)
       const result = await (dataSpace as any)._executePayload({
         method,
@@ -617,7 +636,9 @@ export async function startServer({
       } as unknown as FetchEvent,
       {
         getDataspace: (space) =>
-          space ? getOrSetDataSpace(space) : Promise.resolve(null),
+          space
+            ? ctx.dataSpaceManager.getOrSetDataSpace(space)
+            : Promise.resolve(null),
       }
     )
     return response
@@ -631,8 +652,7 @@ export async function startServer({
         return c.text("Space ID not found in hostname", 400)
       }
 
-      const registry = getSpaceRegistry()
-      const space = registry.getSpace(spaceId)
+      const space = ctx.spaceRegistry.getSpace(spaceId)
       if (!space) {
         return c.text(`Space not found: ${spaceId}`, 404)
       }
@@ -678,8 +698,7 @@ export async function startServer({
         return c.text("Space ID not found in hostname", 400)
       }
 
-      const registry = getSpaceRegistry()
-      const space = registry.getSpace(spaceId)
+      const space = ctx.spaceRegistry.getSpace(spaceId)
       if (!space) {
         return c.text(`Space not found: ${spaceId}`, 404)
       }
@@ -701,7 +720,10 @@ export async function startServer({
         return c.text("Space ID not found in hostname", 400)
       }
 
-      const dataSpace = await getOrSetDataSpace(spaceId)
+      const dataSpace = await ctx.dataSpaceManager.getOrSetDataSpace(spaceId)
+      if (!dataSpace) {
+        return c.text(`Space not available: ${spaceId}`, 503)
+      }
       const requestPath = c.req.path.replace("/@/", "")
       const parts = requestPath.split("/")
       const mountName = parts[0]
