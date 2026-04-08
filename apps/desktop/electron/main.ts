@@ -26,7 +26,7 @@ import { ConfigManager, ConfigService } from "./modules/config/config.module"
 import { TerminalService } from "./modules/terminal/terminal.module"
 
 // Legacy imports (will be migrated gradually)
-import { registerElectronFetchIpc } from "./ipc/fetch-proxy"
+import { registerElectronFetchIpc } from "./modules/network/fetch-proxy"
 import { showPortInUseDialog } from "./modules/api-server/api-server.module"
 import {
   SpaceRegistry,
