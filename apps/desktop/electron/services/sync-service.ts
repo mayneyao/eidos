@@ -10,6 +10,7 @@ interface SyncCredentials {
   bucketName: string
   accessKeyId: string
   secretAccessKey: string
+  tokenId: string
   region?: string
 }
 

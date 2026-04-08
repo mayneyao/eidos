@@ -1,4 +1,5 @@
 import { BrowserWindow, Menu } from "electron"
+import type { NativeMenuItem } from "../services/context-menu-service"
 
 /**
  * Helper function to convert menu items with IDs for click handling
@@ -17,7 +18,7 @@ export function convertToElectronMenuTemplateWithIds(
       return {
         label: item.label,
         enabled: item.enabled ?? true,
-        submenu: convertToElectronMenuTemplateWithIds(item.submenu),
+        submenu: convertToElectronMenuTemplateWithIds(item.submenu ?? []),
         icon: item.icon,
         click: item.id
           ? () => {
