@@ -3,7 +3,8 @@ import { EventEmitter } from "events"
 import fs from "fs"
 import path from "path"
 
-import { Injectable, container } from "../../common/di"
+import { Injectable, Inject, container } from "../../common/di"
+import { LoggerService } from "../logger/logger.service"
 import { MainWindowProvider } from "../space-management/main-window.provider"
 import { CredentialsManager } from "../sync/credentials"
 import type { InitMessage } from "./worker/rpc/rpc-types"
@@ -27,7 +28,7 @@ interface ProcessItem {
 export class DataSpaceProcessPool extends EventEmitter {
   private processes: Map<string, ProcessItem> = new Map()
 
-  constructor() {
+  constructor(@Inject(LoggerService) private logger: LoggerService) {
     super()
   }
 
@@ -53,7 +54,7 @@ export class DataSpaceProcessPool extends EventEmitter {
 
     if (item) {
       if (this.isProcessDead(item.process)) {
-        console.log(`Process for space ${spaceId} is dead, restarting...`)
+        this.logger.info(`Process for space ${spaceId} is dead, restarting...`)
         this.processes.delete(spaceId)
       } else {
         item.lastUsed = Date.now()
@@ -63,18 +64,39 @@ export class DataSpaceProcessPool extends EventEmitter {
 
     const processPath = path.join(__dirname, "worker.js")
 
-    console.log(`Spawning utility process for ${spaceId} at ${processPath}`)
+    this.logger.info(
+      `Spawning utility process for ${spaceId} at ${processPath}`
+    )
 
     // Check if worker file exists before attempting to fork
     if (!fs.existsSync(processPath)) {
       const errorMsg = `Worker file not found at ${processPath}. This will prevent space ${spaceId} from loading.`
-      console.error(errorMsg)
+      this.logger.error(errorMsg)
       throw new Error(errorMsg)
     }
 
     const child = utilityProcess.fork(processPath, [], {
       serviceName: `eidos-space-${spaceId}`,
-      stdio: "inherit",
+      stdio: "pipe",
+    })
+
+    // Intercept worker stdout/stderr and log with timestamp
+    child.stdout?.on("data", (data: Buffer) => {
+      const lines = data.toString().trim().split("\n")
+      for (const line of lines) {
+        if (line.trim()) {
+          this.logger.info(`[worker:${spaceId}] ${line}`)
+        }
+      }
+    })
+
+    child.stderr?.on("data", (data: Buffer) => {
+      const lines = data.toString().trim().split("\n")
+      for (const line of lines) {
+        if (line.trim()) {
+          this.logger.error(`[worker:${spaceId}] ${line}`)
+        }
+      }
     })
 
     let resolveReady: () => void
@@ -111,7 +133,7 @@ export class DataSpaceProcessPool extends EventEmitter {
         if (webContents) {
           webContents.send(payload.channel, payload.data)
         } else {
-          console.warn(
+          this.logger.warn(
             "[ProcessPool] No main window webContents available, skipping message forward"
           )
         }
@@ -136,7 +158,7 @@ export class DataSpaceProcessPool extends EventEmitter {
           // Send request to renderer
           webContents.send("request-from-main", payload.requestId, payload.data)
         } else {
-          console.warn(
+          this.logger.warn(
             "[ProcessPool] No main window webContents available, cannot call renderer"
           )
           // Send error response back to worker
@@ -157,7 +179,7 @@ export class DataSpaceProcessPool extends EventEmitter {
             })
           })
           .catch((err) => {
-            console.error("Failed to get access token for worker", err)
+            this.logger.error("Failed to get access token for worker", err)
             child.postMessage({
               type: "access-token-response",
               requestId: payload.requestId,
@@ -171,7 +193,7 @@ export class DataSpaceProcessPool extends EventEmitter {
 
     // Setup lifecycle handlers
     child.on("exit", (code) => {
-      console.log(`Process for ${spaceId} exited with code ${code}`)
+      this.logger.info(`Process for ${spaceId} exited with code ${code}`)
       this.processes.delete(spaceId)
       // If process exits with non-zero code before ready, reject the promise
       if (code !== 0 && !isReady) {
@@ -184,7 +206,7 @@ export class DataSpaceProcessPool extends EventEmitter {
     })
 
     child.on("spawn", () => {
-      console.log(`Process spawned for ${spaceId}`)
+      this.logger.info(`Process spawned for ${spaceId}`)
       // Send init message
       const initMsg: InitMessage = {
         type: "init",
@@ -216,7 +238,7 @@ export class DataSpaceProcessPool extends EventEmitter {
       try {
         item.process.kill()
       } catch (e) {
-        console.error(`Failed to kill process for ${item.spaceId}`, e)
+        this.logger.error(`Failed to kill process for ${item.spaceId}`, e)
       }
     }
     this.processes.clear()
@@ -227,7 +249,7 @@ export class DataSpaceProcessPool extends EventEmitter {
     if (item && !this.isProcessDead(item.process)) {
       item.process.postMessage(message)
     } else {
-      console.warn(
+      this.logger.warn(
         `[ProcessPool] Cannot send message, process for ${spaceId} is dead or not found`
       )
     }

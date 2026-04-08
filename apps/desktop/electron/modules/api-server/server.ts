@@ -124,7 +124,7 @@ function createApp(dist: string, port: number, ctx: ServerContext): Hono {
   app.use("*", createProxy())
 
   // Extension middleware
-  app.use("*", createExtension(ctx, dist, port))
+  app.use("*", createExtension(ctx, dist, port, ctx.logger))
 
   // Static files
   app.use("/*", createStaticFiles(dist))

@@ -1,7 +1,8 @@
 import type { BrowserWindow } from "electron"
 import { globalShortcut } from "electron"
 
-import { Injectable } from "../../common/di"
+import { Injectable, Inject } from "../../common/di"
+import { LoggerService } from "../logger/logger.service"
 import type { WindowService } from "./window.service"
 
 export interface ShortcutAction {
@@ -25,6 +26,8 @@ export class GlobalShortcutsService {
   private isRegistered = false
   private isWindowFocused = false
   private windowService: WindowService | null = null
+
+  constructor(@Inject(LoggerService) private logger: LoggerService) {}
 
   setWindowService(windowService: WindowService): void {
     this.windowService = windowService
@@ -165,13 +168,13 @@ export class GlobalShortcutsService {
     if (!win) return
 
     win.on("focus", () => {
-      console.log("Window gained focus, registering global shortcuts")
+      this.logger.info("Window gained focus, registering global shortcuts")
       this.isWindowFocused = true
       this.registerShortcuts()
     })
 
     win.on("blur", () => {
-      console.log("Window lost focus, unregistering global shortcuts")
+      this.logger.info("Window lost focus, unregistering global shortcuts")
       this.isWindowFocused = false
       this.unregisterShortcuts()
     })
@@ -187,13 +190,15 @@ export class GlobalShortcutsService {
    */
   registerShortcuts(): boolean {
     if (this.isRegistered) {
-      console.log("Global shortcuts already registered")
+      this.logger.info("Global shortcuts already registered")
       return true
     }
 
     // Only register shortcuts if window is focused
     if (!this.isWindowFocused) {
-      console.log("Window not focused, skipping global shortcut registration")
+      this.logger.info(
+        "Window not focused, skipping global shortcut registration"
+      )
       return false
     }
 
@@ -204,22 +209,24 @@ export class GlobalShortcutsService {
       // Register each shortcut
       for (const [accelerator, action] of this.shortcuts) {
         const success = globalShortcut.register(accelerator, () => {
-          console.log(
+          this.logger.info(
             `Global shortcut activated: ${accelerator} -> ${action.id}`
           )
           this.handleShortcut(action)
         })
 
         if (!success) {
-          console.error(`Failed to register global shortcut: ${accelerator}`)
+          this.logger.error(
+            `Failed to register global shortcut: ${accelerator}`
+          )
         }
       }
 
       this.isRegistered = true
-      console.log("Global shortcuts registered successfully")
+      this.logger.info("Global shortcuts registered successfully")
       return true
     } catch (error) {
-      console.error("Failed to register global shortcuts:", error)
+      this.logger.error("Failed to register global shortcuts:", error)
       return false
     }
   }
@@ -230,7 +237,7 @@ export class GlobalShortcutsService {
   unregisterShortcuts(): void {
     globalShortcut.unregisterAll()
     this.isRegistered = false
-    console.log("Global shortcuts unregistered")
+    this.logger.info("Global shortcuts unregistered")
   }
 
   /**
@@ -246,14 +253,14 @@ export class GlobalShortcutsService {
   private handleShortcut(action: ShortcutAction): void {
     const win = this.mainWindow
     if (!win || win.isDestroyed()) {
-      console.warn("Main window not available for shortcut handling")
+      this.logger.warn("Main window not available for shortcut handling")
       return
     }
 
     // Send message to renderer process
     win.webContents.send("global-shortcut-triggered", action)
 
-    console.log(`Global shortcut triggered: ${action.id}`)
+    this.logger.info(`Global shortcut triggered: ${action.id}`)
   }
 
   /**

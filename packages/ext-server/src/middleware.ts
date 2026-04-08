@@ -19,10 +19,17 @@ import {
 import { presetThemes } from "./helper"
 import type {
   ExtServerConfig,
+  ExtServerLogger,
   ExtensionProvider,
   IBindings,
   IExtension,
 } from "./types"
+
+// Default logger using console
+const defaultLogger: ExtServerLogger = {
+  log: (...args) => console.log("[ExtServer]", ...args),
+  error: (...args) => console.error("[ExtServer]", ...args),
+}
 
 type Ctx = Context<BlankEnv, "*", {}>
 
@@ -54,7 +61,8 @@ async function renderExtension(
   provider: ExtensionProvider,
   spaceId: string,
   extension: IExtension,
-  url: string
+  url: string,
+  logger: ExtServerLogger = defaultLogger
 ): Promise<string> {
   const start = performance.now()
   const { dependencies } = config
@@ -109,7 +117,7 @@ async function renderExtension(
       )
       serverSideProps = result?.props || {}
     } catch (error) {
-      console.error("[ExtServer] Error running server action:", error)
+      logger.error("Error running server action:", error)
     }
   }
 
@@ -176,7 +184,7 @@ async function renderExtension(
   })
 
   const end = performance.now()
-  console.log(`[ExtServer] Rendered in ${(end - start).toFixed(2)}ms`)
+  logger.log(`Rendered in ${(end - start).toFixed(2)}ms`)
   return html
 }
 
@@ -207,6 +215,7 @@ export const createExtensionMiddleware = (config: ExtServerConfig) => {
   const extensionPattern = config.hostnamePattern || DEFAULT_EXTENSION_PATTERN
   const sandboxPattern =
     config.sandboxHostnamePattern || DEFAULT_SANDBOX_PATTERN
+  const logger = config.logger || defaultLogger
 
   return async (c: Ctx, next: () => Promise<void>) => {
     const url = new URL(c.req.url)
@@ -272,7 +281,7 @@ export const createExtensionMiddleware = (config: ExtServerConfig) => {
 
       const sandboxHandler =
         config.dependencies.createSandboxHandler(getScriptCode)
-      console.log("[ExtServer] Intercepting sandbox request:", c.req.url)
+      logger.log("Intercepting sandbox request:", c.req.url)
       return sandboxHandler.handleSandboxRequest(spaceId, url, c)
     }
 
@@ -315,7 +324,8 @@ export const createExtensionMiddleware = (config: ExtServerConfig) => {
           provider,
           spaceId,
           extension,
-          url.toString()
+          url.toString(),
+          logger
         )
 
         const htmlHeaders = new Headers()
@@ -332,10 +342,7 @@ export const createExtensionMiddleware = (config: ExtServerConfig) => {
 
         return c.html(html, { headers: htmlHeaders })
       } catch (error: any) {
-        console.error(
-          `[ExtServer] Error processing request for ${hostname}:`,
-          error.message
-        )
+        logger.error(`Error processing request for ${hostname}:`, error.message)
         return c.text(
           `Error processing extension request: ${error.message}`,
           500
