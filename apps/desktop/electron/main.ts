@@ -61,7 +61,6 @@ export function getMainWindowWebContents() {
 
 // App state
 // let globalShortcutManager: GlobalShortcutsService | null = null  // Now via DI
-let forceQuit = false
 
 export const PORT = 13127
 
@@ -157,21 +156,10 @@ async function main() {
 
     // Set up app lifecycle handlers
     const appLifecycleService = container.get(AppLifecycleService)
-    appLifecycleService.setupLifecycleHandlers(
-      () => {
-        forceQuit = true
-      },
-      () => {
-        win = null
-      }
-    )
-    appLifecycleService.registerIpcHandlers(
-      () => forceQuit,
-      (value) => {
-        forceQuit = value
-      },
-      () => win
-    )
+    appLifecycleService.setupLifecycleHandlers(() => {
+      win = null
+    })
+    appLifecycleService.registerIpcHandlers()
 
     // Initialize webview service (for backward compatibility)
     // NOTE: DI services are auto-registered via bootstrap, but we need to
@@ -204,7 +192,7 @@ async function main() {
     // Create tray via DI
     const trayService = container.get(TrayService)
     trayService.createTray(() => {
-      forceQuit = true
+      appLifecycleService.setForceQuit(true)
     })
 
     // Protocol handler via DI
@@ -216,14 +204,9 @@ async function main() {
     // Handle any pending protocol URL (received before window was created)
     protocolService.handlePendingProtocolUrl()
 
-    // Set up window close handler
-    windowService.setupCloseHandler(
-      win,
-      () => forceQuit,
-      (value) => {
-        forceQuit = value
-      }
-    )
+    // Set main window reference and set up close handler
+    appLifecycleService.setMainWindow(win)
+    windowService.setupCloseHandler(win, appLifecycleService)
 
     // App updater (auto-registered via DI)
     const updaterService = container.get(UpdaterService)

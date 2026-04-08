@@ -15,6 +15,9 @@ import { GlobalShortcutsService } from "./global-shortcuts.service"
 
 @IpcInjectable("app-lifecycle")
 export class AppLifecycleService extends IpcServiceBase {
+  private forceQuit = false
+  private mainWindow: Electron.BrowserWindow | null = null
+
   constructor(
     @Inject(UpdaterService) private updaterService: UpdaterService,
     @Inject(TrayService) private trayService: TrayService,
@@ -28,12 +31,37 @@ export class AppLifecycleService extends IpcServiceBase {
   }
 
   /**
+   * Set the main window reference
+   */
+  setMainWindow(win: Electron.BrowserWindow | null): void {
+    this.mainWindow = win
+  }
+
+  /**
+   * Get the main window reference
+   */
+  getMainWindow(): Electron.BrowserWindow | null {
+    return this.mainWindow
+  }
+
+  /**
+   * Check if force quit is enabled
+   */
+  isForceQuit(): boolean {
+    return this.forceQuit
+  }
+
+  /**
+   * Set force quit state
+   */
+  setForceQuit(value: boolean): void {
+    this.forceQuit = value
+  }
+
+  /**
    * Set up app lifecycle event handlers
    */
-  setupLifecycleHandlers(
-    onBeforeQuit: () => void,
-    onWindowAllClosed: () => void
-  ): void {
+  setupLifecycleHandlers(onWindowAllClosed?: () => void): void {
     // Window all closed - cleanup resources
     app.on("window-all-closed", () => {
       // Close dataspace via DI if available
@@ -52,7 +80,8 @@ export class AppLifecycleService extends IpcServiceBase {
       try {
         this.terminalService.cleanup()
       } catch {}
-      onWindowAllClosed()
+      this.mainWindow = null
+      onWindowAllClosed?.()
     })
 
     // Before quit - final cleanup
@@ -65,26 +94,22 @@ export class AppLifecycleService extends IpcServiceBase {
       try {
         this.terminalService.cleanup()
       } catch {}
-      onBeforeQuit()
+      this.forceQuit = true
     })
   }
 
   /**
-   * Register IPC handlers that need access to main process state
+   * Register IPC handlers for app lifecycle
    */
-  registerIpcHandlers(
-    getForceQuit: () => boolean,
-    setForceQuit: (value: boolean) => void,
-    getMainWindow: () => Electron.BrowserWindow | null
-  ): void {
+  registerIpcHandlers(): void {
     // Register app-lifecycle handlers
     ipcMain.handle("app-lifecycle:reloadApp", async () => {
       app.relaunch()
-      getMainWindow()?.reload()
+      this.mainWindow?.reload()
     })
 
     ipcMain.handle("app-lifecycle:quitApp", async () => {
-      setForceQuit(true)
+      this.forceQuit = true
       // Destroy tray via DI
       try {
         this.trayService.destroyTray()
