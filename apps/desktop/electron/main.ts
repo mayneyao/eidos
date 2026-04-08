@@ -1,12 +1,4 @@
-import {
-  BrowserWindow,
-  Menu,
-  Tray,
-  app,
-  dialog,
-  ipcMain,
-  nativeImage,
-} from "electron"
+import { BrowserWindow, app, dialog, ipcMain } from "electron"
 import { default as console, default as electronLog } from "electron-log"
 import path from "path"
 
@@ -27,7 +19,7 @@ import { contextMenuService } from "./services/context-menu-service"
 import { dataSpaceService } from "./services/data-space-service"
 import { fetchService } from "./services/fetch-service"
 import { fileSystemService } from "./services/file-system-service"
-import { GlobalShortcutManager } from "./services/global-shortcut-manager"
+import { GlobalShortcutManager } from "./window/global-shortcuts"
 import { licenseService } from "./services/license-service"
 import { OpenDataService } from "./services/opendata-service"
 import { relayService } from "./services/relay-service"
@@ -35,13 +27,15 @@ import { SpaceManagementService } from "./services/space-management-service"
 import { syncService } from "./services/sync-service"
 import { TerminalService } from "./services/terminal-service"
 import { webviewService } from "./services/webview-service"
+import { BrowserViewManager } from "./window/browser-view-manager"
 import {
   getSpaceRegistry,
   migrateFromLegacyConfig,
   resolveStartupSpace,
 } from "./services/space-registry"
 import { AppUpdater } from "./services/updater"
-import { createWindow } from "./window-manager/createWindow"
+import { createWindow } from "./window/create-window"
+import { createTray, destroyTray } from "./window/tray-manager"
 
 process.on("uncaughtException", (error) => {
   console.error("Unhandled Exception:", error) // Also log to console
@@ -65,7 +59,6 @@ export function getMainWindowWebContents() {
   return win?.webContents || null
 }
 let appUpdater: AppUpdater
-let tray: Tray | null
 let protocolHandler: ProtocolHandler
 let globalShortcutManager: GlobalShortcutManager | null = null
 let openDataService: OpenDataService | null = null
@@ -188,44 +181,6 @@ app.on("before-quit", () => {
   forceQuit = true
 })
 
-function createTray() {
-  if (process.platform === "darwin") {
-    return
-  }
-  try {
-    const iconPath = path.join(process.env.VITE_PUBLIC || "", "logo.png")
-    electronLog.info("Tray icon path:", iconPath)
-
-    const icon = nativeImage.createFromPath(iconPath)
-    tray = new Tray(icon)
-
-    const contextMenu = Menu.buildFromTemplate([
-      { label: "show", click: () => win?.show() },
-      {
-        label: "exit",
-        click: () => {
-          forceQuit = true
-          app.quit()
-        },
-      },
-    ])
-
-    tray.setToolTip("Eidos")
-    tray.setContextMenu(contextMenu)
-
-    electronLog.info("Tray created successfully")
-  } catch (error) {
-    electronLog.error("Error creating tray:", error)
-  }
-}
-
-function destroyTray() {
-  if (tray) {
-    tray.destroy()
-    tray = null
-  }
-}
-
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
     app.setAsDefaultProtocolClient("eidos", process.execPath, [
@@ -347,6 +302,10 @@ app.whenReady().then(async () => {
   // Create window with the determined spaceId
   win = createWindow(spaceId)
 
+  // Initialize and register BrowserViewManager (must be after win is created)
+  const browserViewManager = new BrowserViewManager(win)
+  browserViewManager.register()
+
   // Initialize global shortcut manager (will register shortcuts when window gains focus)
   globalShortcutManager = new GlobalShortcutManager(win)
 
@@ -359,7 +318,12 @@ app.whenReady().then(async () => {
       }
     }
   )
-  createTray()
+  createTray({
+    getWindow: () => win,
+    onQuit: () => {
+      forceQuit = true
+    },
+  })
 
   protocolHandler = new ProtocolHandler(win)
 

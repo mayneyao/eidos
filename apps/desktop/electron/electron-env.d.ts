@@ -83,7 +83,7 @@ interface Window {
     }>
     openUrl: (url: string) => Promise<{ success: boolean; error?: string }>
     browserView: import("@eidos.space/electron-ipc").ExtractIpcApi<
-      typeof import("./window-manager/browser-view-manager").BrowserViewManager
+      typeof import("./window/browser-view-manager").BrowserViewManager
     > & {
       // Event listener for browser view state updates
       onUpdate: (

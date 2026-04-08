@@ -4,7 +4,7 @@ import path from "path"
 import { debounce } from "@/lib/lodash"
 import { getConfigManager } from "../services/config-manager"
 import { PORT } from "../main"
-import { setupGeolocationHandler } from "../services/geolocation"
+import { setupGeolocationHandler } from "./geolocation"
 
 const defaultViewOptions = {
   webPreferences: {
@@ -12,7 +12,7 @@ const defaultViewOptions = {
     nodeIntegration: true,
     contextIsolation: true,
     webviewTag: true,
-    webSecurity: getConfigManager().get("security")?.webSecurity ?? true,
+    webSecurity: true,
   },
 }
 
