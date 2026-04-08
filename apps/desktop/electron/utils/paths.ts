@@ -4,18 +4,6 @@ import path from "path"
 import { getConfigManager } from "../services/config-manager"
 import { getSpaceRegistry } from "../services/space-registry"
 
-export const createSpace = (spaceId: string) => {
-  const registry = getSpaceRegistry()
-  const space = registry.getSpace(spaceId)
-  if (!space) {
-    throw new Error(`Space not found: ${spaceId}`)
-  }
-
-  if (!fs.existsSync(space.path)) {
-    fs.mkdirSync(space.path, { recursive: true })
-  }
-}
-
 export const getSpacePath = (spaceId: string) => {
   const registry = getSpaceRegistry()
   const space = registry.getSpace(spaceId)
@@ -24,21 +12,6 @@ export const getSpacePath = (spaceId: string) => {
   }
 
   return space.path
-}
-
-export const getSpaceDbPath = (spaceId: string) => {
-  const registry = getSpaceRegistry()
-  const space = registry.getSpace(spaceId)
-  if (!space) {
-    throw new Error(`Space not found: ${spaceId}`)
-  }
-
-  const eidosDir = path.join(space.path, ".eidos")
-  if (!fs.existsSync(eidosDir)) {
-    fs.mkdirSync(eidosDir, { recursive: true })
-  }
-
-  return path.join(eidosDir, "db.sqlite3")
 }
 
 export const getSpaceFileFromPath = (spaceId: string, filename: string) => {
