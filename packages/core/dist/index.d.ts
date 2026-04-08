@@ -495,6 +495,11 @@ type CommonVersionControlResult = Promise<Record<string, any>>;
 declare abstract class BaseServerDatabase {
   filename?: string;
   get isWalMode(): boolean;
+  /**
+   * Check if currently inside a transaction.
+   * Returns true if a transaction is active.
+   */
+  abstract get inTransaction(): boolean;
   info(): CommonVersionControlResult;
   status(): CommonVersionControlResult;
   snapshot(): CommonVersionControlResult;
@@ -527,7 +532,19 @@ declare abstract class BaseServerDatabase {
   abstract createFunction(opt: {
     name: string;
     xFunc: (...args: any[]) => any;
+    deterministic: boolean;
+    nArg?: number;
   }): any;
+  abstract table(name: string, options: {
+    rows: (...params: unknown[]) => Generator;
+    columns: string[];
+    parameters?: string[];
+    safeIntegers?: boolean;
+    directOnly?: boolean;
+  }): any;
+  abstract selectObjectsSync(sql: string, bind?: any[]): {
+    [columnName: string]: any;
+  }[];
 }
 //#endregion
 //#region sdk/service/link.d.ts
@@ -785,6 +802,20 @@ declare class TableManager {
     errors: number;
   }>;
   /**
+   * Detect and fix orphan __title columns that don't have corresponding link fields
+   * This can happen when link fields were deleted incorrectly in older versions
+   * @returns Object with arrays of fixed columns and any errors
+   */
+  fixOrphanTitleColumns(): Promise<{
+    fixed: string[];
+    errors: string[];
+  }>;
+  /**
+   * Check if this table has orphan __title columns that need fixing
+   * @returns True if there are orphan columns
+   */
+  hasOrphanTitleColumns(): Promise<boolean>;
+  /**
    * Check if this table needs file path migration
    * @returns True if migration is needed
    */
@@ -1025,6 +1056,11 @@ declare class NodeClient {
    */
   isPathEnabled(): Promise<boolean>;
   /**
+   * Ensure path-based operations are enabled
+   * @throws Error if path resolution is disabled
+   */
+  private ensurePathEnabled;
+  /**
    * Parse a path into parent path and name
    * Paths are relative to space root, no "/" prefix
    * @example "folder/doc" -> { parentPath: "folder", name: "doc" }
@@ -1259,6 +1295,11 @@ declare class DataChangeTrigger {
   private getRowJSONObj;
   registerTrigger(space: string, tableName: string, trigger: IRegisterTrigger): Promise<void>;
   unRegisterTrigger(space: string, tableName: string): Promise<void>;
+  /**
+   * Drop data change triggers for a table.
+   * Does not recreate them - use setTrigger to recreate.
+   */
+  dropTriggers(dataspace: DataSpace, tableName: string): Promise<void>;
   isTriggerChanged(space: string, tableName: string, trigger: IRegisterTrigger): boolean;
   setTrigger(dataspace: DataSpace, tableName: string, collist: any[], toDeleteColumns?: string[]): Promise<void>;
 }
@@ -1296,8 +1337,46 @@ declare class TableFullTextSearch {
   }>;
   updateTrigger(tableName: string, toDeleteColumns: string[]): Promise<void>;
   clearFTS(tableName: string): Promise<void>;
+  /**
+   * Drop only FTS triggers without dropping the FTS table.
+   * Useful when modifying table schema (e.g., dropping columns).
+   */
+  dropFTSTriggers(tableName: string): Promise<void>;
   dropFTS(tableName: string): Promise<void>;
   hasFTS(tableName: string): Promise<boolean>;
+  /**
+   * Check if FTS table needs rebuild (e.g., when new columns are added)
+   * Compares the columns in the original table with the FTS table
+   */
+  needsRebuild(tableName: string): Promise<boolean>;
+  /**
+   * Get row count of a table (approximate, uses sqlite table stats if available)
+   */
+  private getTableRowCount;
+  /**
+   * Check if auto-rebuild should be skipped for large tables.
+   * Returns true if table is small enough for auto-rebuild.
+   */
+  shouldAutoRebuild(tableName: string): Promise<boolean>;
+  /**
+   * Smart FTS schema sync with threshold-based decision.
+   * - Small tables (< threshold): auto rebuild
+   * - Large tables (>= threshold): notify user to manually rebuild
+   * Returns object with rebuild status and message.
+   */
+  smartEnsureFTSSchema(tableName: string): Promise<{
+    rebuilt: boolean;
+    skipped: boolean;
+    message?: string;
+    rowCount?: number;
+  }>;
+  /**
+   * Ensure FTS table schema is in sync with the original table.
+   * Only rebuilds if necessary (when columns have changed).
+   * Returns true if rebuild was performed.
+   * @deprecated Use smartEnsureFTSSchema for better UX with large tables
+   */
+  ensureFTSSchema(tableName: string): Promise<boolean>;
   rebuildFTS(tableName: string): Promise<void>;
 }
 //# sourceMappingURL=TableFullTextSearch.d.ts.map
@@ -1736,7 +1815,7 @@ declare class EmbeddingTable extends BaseTableImpl implements BaseTable<IEmbeddi
 //#region types/IExtension.d.ts
 type ExtensionStatus = "all" | "enabled" | "disabled";
 type BindingType = "table" | "secret" | "text";
-type ExtensionMeta = TableViewMeta | ExtNodeMeta | FileHandlerMeta | ToolMeta | TableActionMeta | DocActionMeta | FileActionMeta | UDFMeta | RelayHandlerMeta;
+type ExtensionMeta = TableViewMeta | ExtNodeMeta | FileHandlerMeta | FolderHandlerMeta | ToolMeta | TableActionMeta | DocActionMeta | FileActionMeta | UDFMeta | RelayHandlerMeta;
 type IBinding = {
   type: BindingType;
   value: string;
@@ -1771,6 +1850,7 @@ declare enum BlockExtensionType {
   TableView = "tableView",
   ExtNode = "extNode",
   FileHandler = "fileHandler",
+  FolderHandler = "folderHandler",
 }
 interface TableViewMeta {
   type: BlockExtensionType.TableView;
@@ -1799,6 +1879,19 @@ interface FileHandlerMeta {
     description: string;
     extensions: string[];
     icon?: string;
+  };
+}
+interface FolderHandlerMeta {
+  type: BlockExtensionType.FolderHandler;
+  componentName: string;
+  folderHandler: {
+    title: string;
+    description: string;
+    patterns: string[];
+    folderNames?: string[];
+    icon?: string;
+    allowRoot?: boolean;
+    priority?: number;
   };
 }
 interface ToolMeta {
@@ -2107,7 +2200,7 @@ declare class BaseTreeTable extends BaseTableImpl implements BaseTable<ITreeNode
   getNextRowId: () => Promise<any>;
   add(data: ITreeNode & {
     _skipAutoRename?: boolean;
-  }): Promise<ITreeNode>;
+  }, db?: BaseServerDatabase): Promise<ITreeNode>;
   get(id: string): Promise<ITreeNode | null>;
   updateName(id: string, name: string): Promise<boolean>;
   pin(id: string, is_pinned: boolean): Promise<boolean>;
@@ -2202,7 +2295,7 @@ declare const ComposedTreeTable: {
     getNextRowId: () => Promise<any>;
     add(data: ITreeNode & {
       _skipAutoRename?: boolean;
-    }): Promise<ITreeNode>;
+    }, db?: BaseServerDatabase): Promise<ITreeNode>;
     get(id: string): Promise<ITreeNode | null>;
     updateName(id: string, name: string): Promise<boolean>;
     pin(id: string, is_pinned: boolean): Promise<boolean>;
@@ -2297,7 +2390,7 @@ declare const ComposedTreeTable: {
     getNextRowId: () => Promise<any>;
     add(data: ITreeNode & {
       _skipAutoRename?: boolean;
-    }): Promise<ITreeNode>;
+    }, db?: BaseServerDatabase): Promise<ITreeNode>;
     get(id: string): Promise<ITreeNode | null>;
     updateName(id: string, name: string): Promise<boolean>;
     pin(id: string, is_pinned: boolean): Promise<boolean>;
@@ -2401,7 +2494,7 @@ declare const ComposedTreeTable: {
     getNextRowId: () => Promise<any>;
     add(data: ITreeNode & {
       _skipAutoRename?: boolean;
-    }): Promise<ITreeNode>;
+    }, db?: BaseServerDatabase): Promise<ITreeNode>;
     get(id: string): Promise<ITreeNode | null>;
     updateName(id: string, name: string): Promise<boolean>;
     pin(id: string, is_pinned: boolean): Promise<boolean>;
@@ -2522,10 +2615,20 @@ declare class ViewTable extends BaseTableImpl implements BaseTable<IView> {
 declare class SqlDataView {
   private dataSpace;
   constructor(dataSpace: DataSpace);
+  /**
+   * Get the appropriate database connection based on db hint
+   * @param dbHint Database hint ('opendata' or undefined for default)
+   * @returns Database connection
+   */
+  private getDb;
+  /**
+   * Get database hint from view metadata
+   */
+  private getViewDbHint;
   delete(id: string): Promise<void>;
-  getAllDataViewIds(): Promise<any>;
+  getAllDataViewIds(): Promise<any[]>;
   isDataViewExist(id: string): Promise<boolean>;
-  getViewRawQuery(tableName: string): Promise<any>;
+  getViewRawQuery(tableName: string, dbHint?: string): Promise<any>;
   getViewColumns(id: string): Promise<any[]>;
   getViewFields(id: string): Promise<IField[]>;
   updateViewColumn({
@@ -2546,18 +2649,71 @@ declare class SqlDataView {
    * @param createViewSql The SQL used to create the view
    */
   private createColumnMetadataFromComments;
+  createTableFromDataView(viewNodeId: string, newTableName: string, titleColumnName?: string): Promise<string>;
+  /**
+   * Search dataview with LIKE query (not FTS)
+   * Return format is consistent with TableFullTextSearch.search()
+   *
+   * @param viewName View name (e.g., "vw_xxx")
+   * @param query Search query
+   * @param page Page number (1-based)
+   * @param pageSize Page size
+   * @returns Search result in the same format as FTS
+   */
+  search(viewName: string, query: string, page?: number, pageSize?: number): Promise<{
+    results: {
+      row: any;
+      matches: {
+        column: string;
+        snippet: string;
+      }[];
+      rowIndex: any;
+    }[];
+    searchTime: number;
+    totalMatches: any;
+    currentPage: number;
+    totalPages: number;
+  }>;
 }
 //# sourceMappingURL=sql-data-view.d.ts.map
 //#endregion
 //#region sdk/theme-manager.d.ts
+/**
+ * Theme manager for space-based themes
+ * Themes are stored in <space>/.eidos/themes/<theme-name>/theme.css
+ */
 declare class ThemeManager {
   private dataSpace;
   constructor(dataSpace: DataSpace);
-  getTheme(name: string): Promise<any>;
-  setTheme(name: string, css: string): Promise<void>;
-  listThemes(): Promise<any>;
-  applyTheme(name: string, css: string): Promise<void>;
-  setCurrentTheme(name: string): Promise<void>;
+  private get fs();
+  /**
+   * List all available theme names
+   */
+  list(): Promise<string[]>;
+  /**
+   * Get theme CSS content
+   */
+  get(name: string): Promise<string | null>;
+  /**
+   * Install or update a theme
+   */
+  install(name: string, css: string): Promise<void>;
+  /**
+   * Uninstall a theme
+   */
+  uninstall(name: string): Promise<void>;
+  /**
+   * Get current theme name
+   */
+  getCurrent(): Promise<string | null>;
+  /**
+   * Set current theme (null to reset to default)
+   */
+  setCurrent(name: string | null): Promise<void>;
+  /**
+   * Get theme directory path
+   */
+  getDirectory(): string;
 }
 //# sourceMappingURL=theme-manager.d.ts.map
 //#endregion
@@ -2738,9 +2894,10 @@ interface IExternalFileSystem {
   /**
    * Search for files
    * @param query Search query
+   * @param searchPaths Optional array of paths to search within (defaults to all)
    * @returns Array of matching file paths (virtual paths)
    */
-  search(query: string): Promise<string[]>;
+  search(query: string, searchPaths?: string[]): Promise<string[]>;
 }
 //# sourceMappingURL=IExternalFileSystem.d.ts.map
 //#endregion
@@ -2749,6 +2906,7 @@ type EidosDatabase = BaseServerDatabase;
 declare abstract class BaseDataSpace {
   db: EidosDatabase;
   draftDb: BaseServerDatabase | undefined;
+  opendataDb?: EidosDatabase;
   undoRedoManager: SQLiteUndoRedo;
   activeUndoManager: boolean;
   dbName: string;
@@ -2798,6 +2956,7 @@ declare abstract class BaseDataSpace {
   };
   constructor(config: {
     db: EidosDatabase;
+    opendataDb?: EidosDatabase;
     activeUndoManager: boolean;
     dbName: string;
     context: {
@@ -2870,14 +3029,18 @@ declare abstract class BaseDataSpace {
   /**
    * navigate to node in the same space
    * @param path e.g. "/<nodeId>"
+   * @param options navigation options
    * @example
    * eidos.currentSpace.navigate("/<tableId>")
    * eidos.currentSpace.navigate("/<docId>")
    * eidos.currentSpace.navigate("/2025-09-30")
    * eidos.currentSpace.navigate("/extensions/<extensionId>")
    * eidos.currentSpace.navigate("/blocks/<blockId>")
+   * eidos.currentSpace.navigate("/<docId>", { target: "_blank" }) // open in new tab
    */
-  navigate(path: string): void;
+  navigate(path: string, options?: {
+    target?: "_blank" | "_self";
+  }): void;
   blockUIMsg(msg: string | null, data?: {
     progress?: number;
   }): void;
@@ -3081,7 +3244,7 @@ declare class FSManager {
    * @example
    * const results = await eidos.currentSpace.fs.search("query")
    */
-  search(query: string): Promise<string[]>;
+  search(query: string, searchPaths?: string[]): Promise<string[]>;
 }
 //# sourceMappingURL=fs.d.ts.map
 //#endregion
@@ -3108,7 +3271,7 @@ declare class DataSpaceWithDatabase extends BaseDataSpace {
     fetchall: () => any[];
   }>;
   exec(sql: string, bind?: any[]): void;
-  protected execSqlWithBind(sql: string, bind?: any[], rowMode?: "object" | "array"): Promise<any[]>;
+  protected execSqlWithBind(sql: string, bind?: any[], rowMode?: "object" | "array", db?: BaseServerDatabase): Promise<any[]>;
   /**
    * it's a template string function, to execute sql. safe from sql injection
    * table name and column name need to be Symbol, like Symbol('table_name') or Symbol('column_name')
@@ -3125,6 +3288,23 @@ declare class DataSpaceWithDatabase extends BaseDataSpace {
   sql2: (strings: TemplateStringsArray, ...values: any[]) => Promise<any[]>;
   sqlQuery2(sql: string, bind?: any[]): Promise<any[]>;
   sqlQuery: (sql: string, bind?: any[], rowMode?: "object" | "array") => Promise<any[]>;
+  /**
+   * Get the appropriate database connection based on db hint
+   * @param dbHint Database hint ('opendata' or undefined for default)
+   * @returns Database connection
+   */
+  private getDbByHint;
+  /**
+   * Extract table name from SQL query (simple regex-based extraction)
+   * Supports: SELECT ... FROM tableName, SELECT ... FROM tableName WHERE ..., etc.
+   */
+  private extractTableNameFromSql;
+  /**
+   * Resolve target database for SQL execution
+   * Only DataViews (vw_*) may need to switch database based on _db_hint
+   * All other queries use the default database
+   */
+  private resolveTargetDb;
   /**
    * Symbol can't be transformed between main thread and worker thread.
    * so we need to parse sql in main thread, then call this function. it will equal to call `sql` function in worker thread
@@ -3405,6 +3585,22 @@ declare class DataSpaceWithTable extends DataSpaceWithNode {
    * @returns True if migration is needed
    */
   needsTableFilePathMigration(tableId: string): Promise<boolean>;
+  /**
+   * Fix orphan __title columns in a table that don't have corresponding link fields
+   * This can happen when link fields were deleted incorrectly in older versions
+   * @param tableId The table ID to fix
+   * @returns Object with arrays of fixed columns and any errors
+   */
+  fixTableSchema(tableId: string): Promise<{
+    fixed: string[];
+    errors: string[];
+  }>;
+  /**
+   * Check if a table has orphan __title columns that need fixing
+   * @param tableId The table ID to check
+   * @returns True if there are orphan columns that need fixing
+   */
+  needsTableSchemaFix(tableId: string): Promise<boolean>;
 }
 //# sourceMappingURL=table.d.ts.map
 //#endregion

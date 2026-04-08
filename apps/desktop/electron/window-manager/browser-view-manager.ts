@@ -1,5 +1,6 @@
 import { shell, WebContentsView } from "electron"
 import type { BrowserWindow } from "electron"
+import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
 
 export interface BrowserViewBounds {
   x: number
@@ -8,15 +9,17 @@ export interface BrowserViewBounds {
   height: number
 }
 
-export class BrowserViewManager {
+@IpcService("browser-view")
+export class BrowserViewManager extends IpcServiceBase {
   private views = new Map<string, WebContentsView>()
   private win: BrowserWindow
 
   constructor(win: BrowserWindow) {
+    super()
     this.win = win
   }
 
-  create(viewId: string, url: string, bounds: BrowserViewBounds) {
+  open(viewId: string, url: string, bounds: BrowserViewBounds) {
     if (this.views.has(viewId)) {
       this.updateBounds(viewId, bounds)
       return
@@ -41,11 +44,11 @@ export class BrowserViewManager {
       return { action: "deny" }
     })
 
-    this.attachEventListeners(viewId, view)
+    this._attachEventListeners(viewId, view)
     this.views.set(viewId, view)
   }
 
-  private attachEventListeners(viewId: string, view: WebContentsView) {
+  private _attachEventListeners(viewId: string, view: WebContentsView) {
     const wc = view.webContents
     const send = (data: any) => {
       this.win.webContents.send("browser-view:update", viewId, data)
@@ -132,5 +135,34 @@ export class BrowserViewManager {
       view.webContents.close()
     }
     this.views.clear()
+  }
+
+  openDevTools(
+    viewId: string,
+    options?: { mode: "right" | "bottom" | "undocked" | "detach" }
+  ) {
+    const view = this.views.get(viewId)
+    if (view) {
+      view.webContents.openDevTools(options)
+    }
+  }
+
+  closeDevTools(viewId: string) {
+    const view = this.views.get(viewId)
+    if (view) {
+      view.webContents.closeDevTools()
+    }
+  }
+
+  setUserAgent(viewId: string, userAgent: string) {
+    const view = this.views.get(viewId)
+    if (view) {
+      view.webContents.setUserAgent(userAgent)
+    }
+  }
+
+  getUserAgent(viewId: string): string | undefined {
+    const view = this.views.get(viewId)
+    return view?.webContents.getUserAgent()
   }
 }

@@ -2,14 +2,22 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "react-router-dom"
-import { ArrowLeft, ArrowRight, Globe, RefreshCcw } from "lucide-react"
+import { Globe } from "lucide-react"
 
 import { isDesktopMode } from "@/lib/env"
-import { cn } from "@/lib/utils"
 import { useTabTitle } from "@/hooks/use-tab-title"
-import { Button } from "@/components/ui/button"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useToast } from "@/components/ui/use-toast"
+
+import {
+  OpenDataTableView,
+  WebviewToolbar,
+  BrowserViewContainer,
+  type OpenDataAdapter,
+  type ViewMode,
+} from "./components"
 
 function generateViewId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -18,14 +26,28 @@ function generateViewId() {
 export default function WebviewPage() {
   const [searchParams] = useSearchParams()
   const rawUrl = searchParams.get("url") || ""
-  const containerRef = useRef<HTMLDivElement>(null)
   const viewIdRef = useRef<string>(generateViewId())
   const committedUrlRef = useRef<string>("")
+
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [displayUrl, setDisplayUrl] = useState("")
-  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null)
+  const [matchedAdapters, setMatchedAdapters] = useState<OpenDataAdapter[]>([])
+  const matchedAdaptersRef = useRef(matchedAdapters)
+  const [hasOpenData, setHasOpenData] = useState(false)
+  const [isLoadingAdapters, setIsLoadingAdapters] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>("browser")
+  const [selectedAdapter, setSelectedAdapter] =
+    useState<OpenDataAdapter | null>(null)
+
+  // Use store state for opendata popover so it triggers overlay detection
+  const isOpenDataOpen = useAppRuntimeStore(
+    (state) => state.isOpenDataPopoverOpen
+  )
+  const setIsOpenDataOpen = useAppRuntimeStore(
+    (state) => state.setOpenDataPopoverOpen
+  )
 
   const url = useMemo(() => {
     if (!rawUrl) return ""
@@ -38,9 +60,13 @@ export default function WebviewPage() {
       state.isCmdkOpen ||
       state.isKeyboardShortcutsOpen ||
       state.isSpaceSettingsOpen ||
-      state.isGlobalSearchOpen
+      state.isGlobalSearchOpen ||
+      state.isOpenDataPopoverOpen ||
+      state.isTerminalVisible
   )
   const { isActive } = useTabContext()
+  const { space } = useCurrentPathInfo()
+  const { toast } = useToast()
 
   useTabTitle(displayUrl || url || "Webview")
 
@@ -50,90 +76,87 @@ export default function WebviewPage() {
   }, [url])
 
   useEffect(() => {
-    if (!isDesktopMode || !url) return
-    const content = containerRef.current
-    if (!content) return
+    matchedAdaptersRef.current = matchedAdapters
+  }, [matchedAdapters])
 
-    const viewId = viewIdRef.current
-
-    const syncBounds = () => {
-      const rect = content.getBoundingClientRect()
-      window.eidos.browserView.updateBounds(viewId, {
-        x: Math.round(rect.x),
-        y: Math.round(rect.y),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-      })
-    }
-
-    const open = async () => {
-      const rect = content.getBoundingClientRect()
-      await window.eidos.browserView.open(viewId, url, {
-        x: Math.round(rect.x),
-        y: Math.round(rect.y),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-      })
-    }
-
-    open()
-
-    const ro = new ResizeObserver(syncBounds)
-    ro.observe(content)
-
-    const unsubscribe = window.eidos.browserView.onUpdate(viewId, (data) => {
-      if (data.type === "navigate") {
-        const u = data.url || ""
-        setDisplayUrl(u)
-        committedUrlRef.current = u
-        setCanGoBack(data.canGoBack ?? false)
-        setCanGoForward(data.canGoForward ?? false)
-      } else if (data.type === "loading") {
-        setIsLoading(data.isLoading ?? false)
-      }
-    })
-
-    return () => {
-      ro.disconnect()
-      unsubscribe()
-      window.eidos.browserView.close(viewId)
-    }
-  }, [url])
-
+  // Check for OpenData adapters when URL changes
   useEffect(() => {
-    if (!isDesktopMode || !url) return
-    const viewId = viewIdRef.current
-    const shouldShow = isActive && !isAnyOverlayOpen
+    if (!isDesktopMode || !url || !space) return
 
-    const update = async () => {
-      if (!shouldShow) {
-        if (isAnyOverlayOpen) {
-          const res = await window.eidos.browserView.capturePage(viewId)
-          if (res.success && res.dataUrl) {
-            setScreenshotUrl(res.dataUrl)
-          }
-        } else {
-          setScreenshotUrl(null)
-        }
-        window.eidos.browserView.setVisible(viewId, false)
-      } else {
-        const content = containerRef.current
-        if (content) {
-          const rect = content.getBoundingClientRect()
-          window.eidos.browserView.updateBounds(viewId, {
-            x: Math.round(rect.x),
-            y: Math.round(rect.y),
-            width: Math.round(rect.width),
-            height: Math.round(rect.height),
-          })
-        }
-        window.eidos.browserView.setVisible(viewId, true)
-        setScreenshotUrl(null)
+    const checkAdapters = async () => {
+      setIsLoadingAdapters(true)
+      try {
+        console.log("[WebView] Checking adapters for:", { space, url })
+        const adapters = await window.eidos.openData.findListAdapters(
+          space,
+          url
+        )
+        console.log("[WebView] findListAdapters result:", adapters)
+        setMatchedAdapters(adapters)
+        setHasOpenData(adapters.length > 0)
+      } catch (error) {
+        console.error("Failed to check OpenData adapters:", error)
+      } finally {
+        setIsLoadingAdapters(false)
       }
     }
 
-    update()
-  }, [isActive, isAnyOverlayOpen, url])
+    checkAdapters()
+  }, [url, space])
+
+  const handleNavigate = ({
+    url,
+    canGoBack,
+    canGoForward,
+  }: {
+    url: string
+    canGoBack: boolean
+    canGoForward: boolean
+  }) => {
+    setDisplayUrl(url)
+    committedUrlRef.current = url
+    setCanGoBack(canGoBack)
+    setCanGoForward(canGoForward)
+  }
+
+  const handleRawdataNavigation = (rawdataUrl: string) => {
+    console.log("[WebView] rawdata navigation:", rawdataUrl)
+    try {
+      const urlObj = new URL(rawdataUrl)
+      const host = urlObj.hostname
+      const adapters = matchedAdaptersRef.current
+
+      const matchingAdapter = adapters.find((a) => {
+        const adapterDomain = a.domain?.toLowerCase()
+        const adapterSite = a.site?.toLowerCase()
+        const targetHost = host.toLowerCase()
+        return (
+          adapterDomain?.includes(targetHost) ||
+          targetHost.includes(adapterDomain || "") ||
+          adapterSite?.includes(targetHost) ||
+          targetHost.includes(adapterSite || "")
+        )
+      })
+
+      if (matchingAdapter) {
+        setSelectedAdapter(matchingAdapter)
+        setViewMode("table")
+        setIsOpenDataOpen(false)
+        toast({
+          title: `Switched to ${matchingAdapter.name}`,
+          description: `Viewing raw data for ${host}`,
+        })
+      } else {
+        toast({
+          title: "No adapter found",
+          description: `No raw data adapter available for ${host}`,
+          variant: "destructive",
+        })
+      }
+    } catch (e) {
+      console.error("[WebView] Failed to parse rawdata URL:", e)
+    }
+  }
 
   const handleReload = () => {
     if (!isDesktopMode) return
@@ -150,9 +173,20 @@ export default function WebviewPage() {
     window.eidos.browserView.goForward(viewIdRef.current)
   }
 
+  const handleOpenDevTools = () => {
+    if (!isDesktopMode) return
+    window.eidos.browserView.openDevTools(viewIdRef.current, { mode: "detach" })
+  }
+
   const handleLoadUrl = () => {
     if (!isDesktopMode || !displayUrl.trim()) return
     let target = displayUrl.trim()
+
+    if (/^rawdata:\/\//i.test(target)) {
+      handleRawdataNavigation(target)
+      return
+    }
+
     if (!/^https?:\/\//i.test(target)) {
       target = `https://${target}`
     }
@@ -170,6 +204,18 @@ export default function WebviewPage() {
     setDisplayUrl(committedUrlRef.current)
   }
 
+  const handleRunAdapter = (adapter: OpenDataAdapter) => {
+    if (!space) return
+    setSelectedAdapter(adapter)
+    setViewMode("table")
+    setIsOpenDataOpen(false)
+  }
+
+  const handleBackToBrowser = () => {
+    setViewMode("browser")
+    setSelectedAdapter(null)
+  }
+
   if (!url) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -184,59 +230,52 @@ export default function WebviewPage() {
   if (isDesktopMode) {
     return (
       <div className="flex h-full w-full flex-col">
-        <div className="flex h-10 shrink-0 items-center gap-1 border-b bg-background px-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            disabled={!canGoBack}
-            onClick={handleGoBack}
-            title="Back"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            disabled={!canGoForward}
-            onClick={handleGoForward}
-            title="Forward"
-          >
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={handleReload}
-            title="Reload"
-          >
-            <RefreshCcw
-              className={cn("h-4 w-4", isLoading && "animate-spin")}
-            />
-          </Button>
-          <div className="mx-2 flex flex-1 items-center overflow-hidden rounded-md border bg-muted/40 px-2 py-1">
-            <Globe className="mr-2 h-3 w-3 shrink-0 text-muted-foreground" />
-            <input
-              type="text"
-              value={displayUrl}
-              onChange={(e) => setDisplayUrl(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onBlur={handleBlur}
-              className="w-full bg-transparent text-xs text-muted-foreground outline-none"
-            />
+        <WebviewToolbar
+          viewId={viewIdRef.current}
+          displayUrl={displayUrl}
+          isLoading={isLoading}
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
+          viewMode={viewMode}
+          hasOpenData={hasOpenData}
+          isLoadingAdapters={isLoadingAdapters}
+          matchedAdapters={matchedAdapters}
+          isOpenDataOpen={isOpenDataOpen}
+          setIsOpenDataOpen={setIsOpenDataOpen}
+          onDisplayUrlChange={setDisplayUrl}
+          onKeyDown={handleKeyDown}
+          onBlur={handleBlur}
+          onGoBack={handleGoBack}
+          onGoForward={handleGoForward}
+          onReload={handleReload}
+          onOpenDevTools={handleOpenDevTools}
+          onLoadUrl={handleLoadUrl}
+          onRunAdapter={handleRunAdapter}
+          onBackToBrowser={handleBackToBrowser}
+        />
+
+        {viewMode === "browser" ? (
+          <div className="relative flex flex-1 min-h-0">
+            <div className="flex flex-1 min-h-0">
+              <BrowserViewContainer
+                viewId={viewIdRef.current}
+                url={url}
+                isActive={isActive}
+                isAnyOverlayOpen={isAnyOverlayOpen}
+                viewMode={viewMode}
+                onNavigate={handleNavigate}
+                onLoadingChange={setIsLoading}
+                onRawdataNavigation={handleRawdataNavigation}
+              />
+            </div>
           </div>
-        </div>
-        <div ref={containerRef} className="relative flex-1">
-          {screenshotUrl && (
-            <img
-              src={screenshotUrl}
-              alt="Screenshot"
-              className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-            />
-          )}
-        </div>
+        ) : selectedAdapter ? (
+          <OpenDataTableView
+            adapter={selectedAdapter}
+            space={space}
+            url={url}
+          />
+        ) : null}
       </div>
     )
   }
