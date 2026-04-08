@@ -4,6 +4,7 @@ import path from "path"
 import { app, safeStorage } from "electron"
 import log from "electron-log"
 import { OAUTH_CONFIG } from "@/lib/const"
+import type { SyncCredentials } from "@eidos.space/sync"
 
 // PKCE utilities
 function base64URLEncode(buffer: Buffer): string {
@@ -42,13 +43,10 @@ export interface UserInfo {
   [key: string]: any
 }
 
-export interface SyncBucketCredentials {
-  bucketName: string
-  accessKeyId: string
-  secretAccessKey: string
-  tokenId: string
-  endpoint: string
-}
+/**
+ * @deprecated Use SyncCredentials from @eidos.space/sync instead
+ */
+export type SyncBucketCredentials = SyncCredentials
 
 const TOKENS_DIR = "auth"
 const TOKENS_FILE_NAME = "oauth_tokens.bin"

@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3"
 
-import type { SyncBucketCredentials } from "../../../services/credentials"
-import type { SpaceInfo } from "../../../services/space-registry"
+import type { SyncCredentials } from "@eidos.space/sync"
+import type { SpaceInfo } from "@eidos.space/space-manager"
 import { NodeBaseServerDatabase } from "./base"
 import { NodeDatabaseInitializer } from "./initializer"
 
@@ -26,7 +26,7 @@ interface NodeServerDatabaseOptions {
     enabled?: boolean
     remote?: string
     provider?: string
-    credentials?: SyncBucketCredentials
+    credentials?: SyncCredentials
     isVFSInitialized?: boolean
     remoteLogId?: string
   }

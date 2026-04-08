@@ -5,8 +5,8 @@ import fs from "fs"
 import path from "path"
 import Database from "better-sqlite3"
 
-import type { SyncBucketCredentials } from "../../../services/credentials"
-import type { SpaceInfo } from "../../../services/space-registry"
+import type { SyncCredentials } from "@eidos.space/sync"
+import type { SpaceInfo } from "@eidos.space/space-manager"
 import {
   applyGraftConfigToEnv,
   isInitializationOperation,
@@ -35,7 +35,7 @@ interface NodeServerDatabaseOptions {
     libPath: string
     enabled?: boolean
     remote?: string
-    credentials?: SyncBucketCredentials
+    credentials?: SyncCredentials
     isVFSInitialized?: boolean
     provider?: string
   }

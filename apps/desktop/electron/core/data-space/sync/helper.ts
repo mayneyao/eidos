@@ -1,8 +1,8 @@
 import fs from "node:fs"
 import path from "path"
 
-import type { SyncBucketCredentials } from "../../../services/credentials"
-import type { SpaceInfo } from "../../../services/space-registry"
+import type { SyncCredentials } from "@eidos.space/sync"
+import type { SpaceInfo } from "@eidos.space/space-manager"
 
 // --- START: Helper function to check if this is an initialization operation ---
 export function isInitializationOperation(space: SpaceInfo): boolean {
@@ -26,7 +26,7 @@ export function isInitializationOperation(space: SpaceInfo): boolean {
 // --- START: Helper function to apply Graft Config to Environment ---
 export function applyGraftConfigToEnv(
   space: SpaceInfo,
-  credentials: SyncBucketCredentials
+  credentials: SyncCredentials
 ) {
   try {
     const eidosDirPath = path.join(space.path, ".eidos")

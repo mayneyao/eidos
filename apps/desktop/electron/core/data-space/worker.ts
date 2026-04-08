@@ -12,7 +12,7 @@ import {
   EidosMessageChannelName,
 } from "@/lib/const"
 
-import type { SpaceInfo } from "../../services/space-registry"
+import type { SpaceInfo } from "@eidos.space/space-manager"
 import { createDataEventChannel } from "./data-event-channel"
 import { createExternalFileSystem } from "./external-fs/external-fs"
 import { initUDF } from "./init-udf"

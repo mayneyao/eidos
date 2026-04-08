@@ -45,7 +45,7 @@ export interface PathConfig {
   }
 }
 
-import type { SpaceInfo } from "../../../services/space-registry"
+import type { SpaceInfo } from "@eidos.space/space-manager"
 
 export interface WorkerInitData {
   spaceInfo: SpaceInfo
