@@ -1,20 +1,17 @@
 /**
  * Main Window Provider - Provides access to main BrowserWindow
- * Similar to TerminalWindowProvider
+ * Uses WindowService internally
  */
 
-import { BrowserWindow } from "electron"
-import { Injectable } from "../../common/di"
+import type { BrowserWindow } from "electron"
+import { Injectable, Inject } from "../../common/di"
+import { WindowService } from "../window/window.service"
 
 @Injectable()
 export class MainWindowProvider {
-  private windowGetter: (() => BrowserWindow | null) | null = null
-
-  setWindowProvider(fn: () => BrowserWindow | null) {
-    this.windowGetter = fn
-  }
+  constructor(@Inject(WindowService) private windowService: WindowService) {}
 
   getWindow(): BrowserWindow | null {
-    return this.windowGetter ? this.windowGetter() : null
+    return this.windowService.getMainWindow()
   }
 }

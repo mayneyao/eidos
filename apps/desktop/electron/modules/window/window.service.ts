@@ -294,15 +294,14 @@ export class WindowService {
    * - macOS: Hide window instead of closing (dock icon stays)
    * - Windows/Linux: Quit app and destroy tray
    */
-  setupCloseHandler(
-    win: BrowserWindow,
-    appLifecycleService: AppLifecycleService
-  ): void {
-    win.on("close", (event) => {
+  setupCloseHandler(appLifecycleService: AppLifecycleService): void {
+    if (!this.mainWindow) return
+
+    this.mainWindow.on("close", (event) => {
       if (!appLifecycleService.isForceQuit()) {
         if (process.platform === "darwin") {
           event.preventDefault()
-          win.hide()
+          this.mainWindow?.hide()
         } else {
           appLifecycleService.setForceQuit(true)
           // Get tray service from container and destroy it
