@@ -111,23 +111,7 @@ export function RelaySettings({ onCloseSettings }: RelaySettingsProps) {
         try {
           const info = await window.eidos.spaceMgmt.getCurrentSpace()
           if (info) {
-            // Migration: Check for legacy relays array
-            let config: RelayConfig = info.relay
-            if (!config && info.relays?.length > 0) {
-              config = {
-                enabled: true,
-                channels: info.relays.map((r: any) => ({
-                  id: r.id || crypto.randomUUID().replace(/-/g, ""),
-                  handlerScriptId: r.handlerScriptId,
-                })),
-              }
-              // Automatically save migration
-              await window.eidos.spaceMgmt.updateSpace(space, {
-                relay: config,
-                relays: null,
-              })
-            }
-            setRelayConfig(config || { enabled: false, channels: [] })
+            setRelayConfig(info.relay || { enabled: false, channels: [] })
           }
         } catch (error) {
           console.error("Error loading relay info:", error)

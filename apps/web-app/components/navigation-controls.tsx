@@ -14,24 +14,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-// Add type declaration for the experimental Navigation API
-declare global {
-  interface Window {
-    navigation?: {
-      canGoBack: boolean
-      canGoForward: boolean
-      addEventListener(
-        type: "currententrychange",
-        listener: EventListenerOrEventListenerObject
-      ): void
-      removeEventListener(
-        type: "currententrychange",
-        listener: EventListenerOrEventListenerObject
-      ): void
-      // Add other properties/methods if needed
-    }
-  }
-}
+// Navigation API types are provided by TypeScript 2.9+
 
 export function NavigationControls() {
   const { t } = useTranslation()

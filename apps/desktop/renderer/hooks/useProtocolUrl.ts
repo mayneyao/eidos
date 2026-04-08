@@ -87,13 +87,9 @@ export const useProtocolUrl = () => {
               window.eidos
             ) {
               try {
-                const result = await window.eidos.spaceMgmt.switchSpace(spaceId)
-                if (result.success) {
-                  console.log(`✓ Successfully switched to space: ${spaceId}`)
-                  // Electron will automatically reload to new subdomain
-                } else {
-                  console.error("Failed to switch space:", result.error)
-                }
+                await window.eidos.spaceMgmt.switchSpace(spaceId)
+                console.log(`✓ Successfully switched to space: ${spaceId}`)
+                // Electron will automatically reload to new subdomain
               } catch (error) {
                 console.error("Error switching space:", error)
               }

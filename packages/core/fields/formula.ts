@@ -74,7 +74,12 @@ export class FormulaField extends BaseField<
 
   getCellContent(
     rawData: string | number
-  ): TextCell | NumberCell | RangeCell | FormulaOptionCell {
+  ):
+    | TextCell
+    | NumberCell
+    | RangeCell
+    | FormulaOptionCell
+    | FormulaMultiSelectCell {
     const displayType = this.column.property.displayType ?? FieldType.Text
     const fieldConfig: any = {
       ...this.column,
