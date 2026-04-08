@@ -26,8 +26,8 @@ import {
   IpcServiceBase,
 } from "@eidos.space/electron-ipc"
 
-import { Injectable, Inject } from "../../common/di"
-import { WindowService } from "../window/window.service"
+import { Injectable } from "../../common/di"
+import type { WindowService } from "../window/window.service"
 import { getSpacePath } from "../../utils/paths"
 
 /**
@@ -130,10 +130,25 @@ export class OpenDataService extends IpcServiceBase {
   private databases: Map<string, Database.Database> = new Map()
   // Running locks to prevent duplicate execution
   private runningAdapters: Map<string, Promise<any>> = new Map()
+  private windowService: WindowService | null = null
 
-  constructor(@Inject(WindowService) private windowService: WindowService) {
+  constructor() {
     super()
     console.log("[OpenData] OpenDataService constructor called")
+  }
+
+  /**
+   * Set WindowService (called during initialization to avoid circular deps)
+   */
+  setWindowService(windowService: WindowService): void {
+    this.windowService = windowService
+  }
+
+  /**
+   * Get the WindowService instance
+   */
+  private getWindowService(): WindowService | null {
+    return this.windowService
   }
 
   /**
@@ -1639,7 +1654,7 @@ export class OpenDataService extends IpcServiceBase {
     if (windowId) {
       browserWindow = BrowserWindow.fromId(windowId) || undefined
     } else {
-      browserWindow = this.windowService.getMainWindow() || undefined
+      browserWindow = this.getWindowService()?.getMainWindow() || undefined
     }
 
     const result = await this._runAdapter(

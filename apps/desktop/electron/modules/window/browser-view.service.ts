@@ -6,8 +6,8 @@ import {
   IpcMethod,
 } from "@eidos.space/electron-ipc"
 
-import { Injectable, Inject } from "../../common/di"
-import { WindowService } from "./window.service"
+import { Injectable } from "../../common/di"
+import type { WindowService } from "./window.service"
 
 export interface BrowserViewBounds {
   x: number
@@ -29,16 +29,17 @@ export interface BrowserViewBounds {
 @Injectable()
 export class BrowserViewService extends IpcServiceBase {
   private views = new Map<string, WebContentsView>()
+  private windowService: WindowService | null = null
 
-  constructor(@Inject(WindowService) private windowService: WindowService) {
-    super()
+  setWindowService(windowService: WindowService): void {
+    this.windowService = windowService
   }
 
   /**
    * Get the main window from window service
    */
   private get win(): BrowserWindow | null {
-    return this.windowService.getMainWindow()
+    return this.windowService?.getMainWindow() ?? null
   }
 
   @IpcMethod()

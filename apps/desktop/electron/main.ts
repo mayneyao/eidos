@@ -22,7 +22,8 @@ import { AppModule } from "./app.module"
 import { bootstrap, container } from "./common/di"
 
 // Import services for backward compatibility
-// (none currently)
+import { OpenDataService } from "./modules/opendata"
+import { TerminalService } from "./modules/terminal/terminal.module"
 
 // Legacy imports (will be migrated gradually)
 import { showPortInUseDialog } from "./modules/api-server/api-server.module"
@@ -32,14 +33,14 @@ import {
   SpaceRegistry,
   resolveStartupSpace,
 } from "./modules/space-management/space-management.module"
-import {
-  AppLifecycleService,
-  GlobalShortcutsService,
-  ProtocolService,
-  TrayService,
-  WebviewService,
-  WindowService,
-} from "./modules/window"
+// Import window services directly from their files to avoid circular deps
+import { AppLifecycleService } from "./modules/window/app-lifecycle.service"
+import { BrowserViewService } from "./modules/window/browser-view.service"
+import { GlobalShortcutsService } from "./modules/window/global-shortcuts.service"
+import { ProtocolService } from "./modules/window/protocol.service"
+import { TrayService } from "./modules/window/tray.service"
+import { WebviewService } from "./modules/window/webview.service"
+import { WindowService } from "./modules/window/window.service"
 
 import { CorsService } from "./modules/network/network.module"
 
@@ -48,7 +49,9 @@ import {
   ApiServerService,
   type PortInUseError,
 } from "./modules/api-server/api-server.module"
-// Window providers now get window reference via WindowService DI
+// Window providers get window reference via setter injection
+import { MainWindowProvider } from "./modules/space-management/space-management.module"
+import { TerminalWindowProvider } from "./modules/terminal/terminal.module"
 import { UpdaterService } from "./modules/updater/updater.module"
 
 // Export helper to get main window web contents
@@ -151,9 +154,29 @@ async function main() {
       return dataSpaceIpcService.sqliteMsgRead(event, payload)
     })
 
+    // Get WindowService early (needed by other services)
+    const windowService = container.get(WindowService)
+    windowService.setPort(PORT)
+
     // Set up app lifecycle handlers
     const appLifecycleService = container.get(AppLifecycleService)
-    appLifecycleService.setupLifecycleHandlers()
+    const openDataService = container.get(OpenDataService)
+    const terminalService = container.get(TerminalService)
+
+    // Register cleanup callbacks
+    appLifecycleService.onCleanup(() => openDataService.closeAll())
+    appLifecycleService.onCleanup(() => terminalService.cleanup())
+
+    // Set WindowService for services that need it (avoid circular deps)
+    openDataService.setWindowService(windowService)
+    container.get(MainWindowProvider).setWindowService(windowService)
+    container.get(TerminalWindowProvider).setWindowService(windowService)
+
+    appLifecycleService.setupLifecycleHandlers(() => {
+      // before-quit cleanup
+      openDataService.closeAll()
+      terminalService.cleanup()
+    })
     appLifecycleService.registerIpcHandlers()
 
     // Initialize webview service (for backward compatibility)
@@ -168,17 +191,20 @@ async function main() {
     // Determine startup space
     let spaceId = resolveStartupSpace(null, spaceRegistry)
 
-    // Get WindowService and create window
-    const windowService = container.get(WindowService)
-    windowService.setPort(PORT)
+    // Create window
     windowService.createWindow(spaceId)
 
     // Initialize global shortcuts service
     const globalShortcutsService = container.get(GlobalShortcutsService)
+    globalShortcutsService.setWindowService(windowService)
     globalShortcutsService.setupWindowFocusListeners()
+
+    // Set WindowService on BrowserViewService
+    container.get(BrowserViewService).setWindowService(windowService)
 
     // Create tray via DI
     const trayService = container.get(TrayService)
+    trayService.setWindowService(windowService)
     trayService.createTray(() => {
       appLifecycleService.setForceQuit(true)
     })

@@ -1,8 +1,8 @@
 import type { BrowserWindow } from "electron"
 import { globalShortcut } from "electron"
 
-import { Injectable, Inject } from "../../common/di"
-import { WindowService } from "./window.service"
+import { Injectable } from "../../common/di"
+import type { WindowService } from "./window.service"
 
 export interface ShortcutAction {
   id: string
@@ -24,8 +24,10 @@ export class GlobalShortcutsService {
   private shortcuts: Map<string, ShortcutAction> = new Map()
   private isRegistered = false
   private isWindowFocused = false
+  private windowService: WindowService | null = null
 
-  constructor(@Inject(WindowService) private windowService: WindowService) {
+  setWindowService(windowService: WindowService): void {
+    this.windowService = windowService
     this.initializeShortcuts()
   }
 
@@ -33,7 +35,7 @@ export class GlobalShortcutsService {
    * Get the main window from window service
    */
   private get mainWindow(): BrowserWindow | null {
-    return this.windowService.getMainWindow()
+    return this.windowService?.getMainWindow() ?? null
   }
 
   /**

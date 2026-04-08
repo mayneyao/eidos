@@ -1,6 +1,6 @@
 import { session } from "electron"
 
-import { Injectable, Inject } from "../../common/di"
+import { Injectable, Inject, container } from "../../common/di"
 import { ConfigManager } from "../config/config-manager"
 
 /**
@@ -125,8 +125,6 @@ export class CorsService {
 export const CorsManager = CorsService
 export const corsManager = {
   initialize() {
-    const { container } = require("../../common/di")
-    const { CorsService } = require("./cors.service")
     const corsService = container.get(CorsService)
     corsService.initialize()
   },

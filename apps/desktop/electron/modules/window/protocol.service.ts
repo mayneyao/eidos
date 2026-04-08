@@ -3,7 +3,7 @@ import { app, shell } from "electron"
 import { log } from "electron-log"
 import path from "path"
 
-import { Injectable, Inject } from "../../common/di"
+import { Injectable, Inject, container } from "../../common/di"
 import { WindowService } from "./window.service"
 
 export interface ProtocolUrlPayload {
@@ -270,9 +270,6 @@ export class ProtocolHandler {
   constructor(private window: any) {}
 
   handleUrl(url: string) {
-    const { container } = require("../../common/di")
-    const { ProtocolService } = require("./protocol.service")
-    const protocolService = container.get(ProtocolService)
-    protocolService.handleUrl(url)
+    container.get(ProtocolService).handleUrl(url)
   }
 }

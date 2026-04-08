@@ -1,4 +1,4 @@
-import { utilityProcess } from "electron"
+import { ipcMain, utilityProcess } from "electron"
 import { EventEmitter } from "events"
 import fs from "fs"
 import path from "path"
@@ -131,7 +131,6 @@ export class DataSpaceProcessPool extends EventEmitter {
           }
 
           // Listen for response from renderer
-          const { ipcMain } = require("electron")
           ipcMain.once(`response-${payload.requestId}`, responseHandler)
 
           // Send request to renderer
