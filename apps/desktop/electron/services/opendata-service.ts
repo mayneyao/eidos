@@ -1,5 +1,5 @@
 // IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
-import "../data-space/sqlite-server/env"
+import "../core/data-space/sqlite-server/env"
 
 import {
   OpenData,

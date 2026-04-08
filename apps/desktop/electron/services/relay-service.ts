@@ -1,5 +1,5 @@
 import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
-import { DataSpaceProcessPool } from "../core/data-space/process-pool"
+import { DataSpaceProcessPool } from "./data-space/data-space-process-pool"
 
 /**
  * Relay Service - Handles relay message operations

@@ -28,7 +28,7 @@ import {
   type UserInfo,
 } from "../../services/credentials"
 import { getConfigManager } from "../../services/config-manager"
-import { getOrSetDataSpace } from "../data-space"
+import { getOrSetDataSpace } from "../../services/data-space/data-space-manager"
 import { getFileFromPath, getSpaceFileFromPath } from "../../utils/paths"
 import { getSpaceRegistry } from "../../services/space-registry"
 import { serveFile } from "./serve-file"
