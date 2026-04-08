@@ -1,7 +1,6 @@
 import { type EidosDatabase } from "@/packages/core/data-space"
 import { ExtensionTableName } from "@/packages/core/sqlite/const"
 import { extractUDF, validateUDFCode } from "@eidos.space/v3"
-import console from "electron-log"
 import { registerDesktopUDFs } from "./udf"
 
 export async function initUDF(

@@ -15,7 +15,6 @@ import {
 import { createBucketBrowserMiddleware } from "@eidos.space/sync"
 import { serve } from "@hono/node-server"
 import { BrowserWindow } from "electron"
-import log from "electron-log"
 import { Hono } from "hono"
 import path from "path"
 import type { OAuthTokens, UserInfo } from "./context"
@@ -314,7 +313,7 @@ export async function startServer({
 
   // host static files
   app.use("/*", serveStatic({ root: dist }))
-  log.info("static files served from", dist)
+  ctx.logger.info("static files served from", dist)
 
   // OIDC Implementation with PKCE
 
@@ -412,7 +411,7 @@ export async function startServer({
 
       const tokens: OAuthTokens = await tokenResponse.json()
 
-      log.info("tokens", tokens)
+      ctx.logger.info("tokens", tokens)
       // Store tokens securely
       await ctx.credentialsManager.setTokens(tokens)
 
@@ -431,7 +430,7 @@ export async function startServer({
         await ctx.credentialsManager.setUserInfo(user!)
       } else {
         // Fallback if userinfo fails
-        log.error("Failed to fetch user info")
+        ctx.logger.error("Failed to fetch user info")
       }
 
       // Broadcast auth state change to frontend
@@ -474,7 +473,7 @@ export async function startServer({
         hasValidTokens: true,
       })
     } catch (error: any) {
-      log.error("Error checking authentication status:", error)
+      ctx.logger.error("Error checking authentication status:", error)
       return c.json({ authenticated: false, error: error.message }, 500)
     }
   })
@@ -497,7 +496,7 @@ export async function startServer({
           })
         } catch (endSessionError) {
           // Log but don't fail - still clear local credentials
-          log.error("Failed to end session on server:", endSessionError)
+          ctx.logger.error("Failed to end session on server:", endSessionError)
         }
       }
 
@@ -507,7 +506,7 @@ export async function startServer({
       ctx.broadcastAuthStateChange(false, null)
       return c.json({ success: true })
     } catch (error: any) {
-      log.error("Error during logout:", error)
+      ctx.logger.error("Error during logout:", error)
       return c.json({ success: false, error: error.message }, 500)
     }
   })
@@ -526,7 +525,7 @@ export async function startServer({
 
       return c.json({ access_token: accessToken })
     } catch (error: any) {
-      log.error("Error getting access token:", error)
+      ctx.logger.error("Error getting access token:", error)
       return c.json({ error: error.message }, 500)
     }
   })
@@ -574,7 +573,7 @@ export async function startServer({
       }
 
       const dataSpace = await ctx.dataSpaceManager.getOrSetDataSpace(spaceId)
-      log.info(`rpc[${spaceId}]`, method)
+      ctx.logger.info(`rpc[${spaceId}]`, method)
       const result = await (dataSpace as any)._executePayload({
         method,
         params,
@@ -763,7 +762,7 @@ export async function startServer({
       fetch: app.fetch,
     },
     (info) => {
-      log.info(`Server is running on ${info.address}:${info.port}`)
+      ctx.logger.info(`Server is running on ${info.address}:${info.port}`)
     }
   )
 }

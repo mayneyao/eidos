@@ -1,6 +1,5 @@
 import { handleFunctionCall } from "@/packages/core/rpc"
 import { getUuid } from "@/lib/utils"
-import { log } from "electron-log"
 import type { RawData } from "ws"
 import WebSocket from "ws"
 import { z } from "zod"
@@ -86,8 +85,10 @@ export function startApiAgent({
   enabled: boolean
   url: string
 }): WebSocket | null {
+  const { logger: log } = getServerContext()
+
   if (!enabled) {
-    log("API Agent is disabled")
+    log.log("API Agent is disabled")
     updateStatus({ enabled: false, connected: false, url: null })
     return null
   }
@@ -101,7 +102,7 @@ export function startApiAgent({
         _url = url.replace("https://", "wss://").replace("rpc", "websocket")
       }
 
-      log("Attempting to connect to:", _url)
+      log.log("Attempting to connect to:", _url)
 
       wss = new WebSocket(_url, {
         followRedirects: true,
@@ -110,13 +111,13 @@ export function startApiAgent({
       })
 
       wss.onopen = () => {
-        log("Connected to API Agent WebSocket server")
+        log.log("Connected to API Agent WebSocket server")
         reconnectAttempts = 0
         updateStatus({ connected: true, reconnectAttempts: 0 })
       }
 
       wss.on("message", async (message: RawData) => {
-        log("Received message:", message.toString())
+        log.log("Received message:", message.toString())
         try {
           const msg = deserializeMsg(message.toString())
           const { id, data } = msg
@@ -143,7 +144,7 @@ export function startApiAgent({
                 data: result,
               },
             }
-            log("Sending response:", response)
+            log.log("Sending response:", response)
             wss.send(JSON.stringify(response))
           }
         } catch (error: unknown) {
@@ -157,16 +158,16 @@ export function startApiAgent({
                 error: errorMessage,
               },
             }
-            log("Sending error response:", errorResponse)
+            log.log("Sending error response:", errorResponse)
             wss.send(JSON.stringify(errorResponse))
           }
-          log("Error handling message:", error)
+          log.error("Error handling message:", error)
         }
       })
 
       wss.on("close", (code: number, reason: Buffer) => {
         const reasonStr = reason.toString() || "No reason provided"
-        log(`WebSocket closed with code ${code}. Reason: ${reasonStr}`)
+        log.log(`WebSocket closed with code ${code}. Reason: ${reasonStr}`)
         updateStatus({
           connected: false,
           lastError: `Connection closed: ${reasonStr}`,
@@ -174,33 +175,33 @@ export function startApiAgent({
         })
 
         if (code === 1000) {
-          log("Connection closed normally")
+          log.log("Connection closed normally")
           return
         }
 
         if (enabled && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
           reconnectAttempts++
           const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttempts - 1) // Exponential backoff
-          log(
+          log.log(
             `Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}) in ${delay}ms...`
           )
           setTimeout(connect, delay)
         } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-          log("Max reconnection attempts reached. Giving up.")
+          log.log("Max reconnection attempts reached. Giving up.")
         }
       })
 
       wss.on("error", (error: Error) => {
-        log("WebSocket connection error:", error)
+        log.error("WebSocket connection error:", error)
         updateStatus({
           connected: false,
           lastError: error.message,
         })
         if ("code" in error) {
-          log("Error code:", (error as any).code)
+          log.log("Error code:", (error as any).code)
         }
         if ("message" in error) {
-          log("Error message:", error.message)
+          log.log("Error message:", error.message)
         }
       })
 
@@ -214,7 +215,7 @@ export function startApiAgent({
 
       return wss
     } catch (error) {
-      log("Failed to create WebSocket client:", error)
+      log.error("Failed to create WebSocket client:", error)
       return null
     }
   }
