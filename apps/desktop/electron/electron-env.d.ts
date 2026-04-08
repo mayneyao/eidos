@@ -77,7 +77,7 @@ interface Window {
     }>
     openUrl: (url: string) => Promise<{ success: boolean; error?: string }>
     browserView: import("@eidos.space/electron-ipc").ExtractIpcApi<
-      typeof import("./window/browser-view-manager").BrowserViewManager
+      typeof import("./modules/window/browser-view.service").BrowserViewService
     > & {
       // Event listener for browser view state updates
       onUpdate: (
@@ -114,7 +114,7 @@ interface Window {
       position?: { clientX: number; clientY: number }
     ) => Promise<void>
     contextMenu: import("@eidos.space/electron-ipc").ExtractIpcApi<
-      typeof import("./services/context-menu-service").ContextMenuService
+      typeof import("./modules/context-menu/context-menu.service").ContextMenuService
     >
     on: (
       channel: string,
@@ -122,22 +122,22 @@ interface Window {
     ) => string | undefined
     off: (channel: string, listenerId: string) => void
     credentials: import("@eidos.space/electron-ipc").ExtractIpcApi<
-      typeof import("./services/sync-service").SyncService
+      typeof import("./modules/sync/sync.service").SyncService
     >
     relay: import("@eidos.space/electron-ipc").ExtractIpcApi<
-      typeof import("./services/relay-service").RelayService
+      typeof import("./modules/data-space/relay.service").RelayService
     >
     license: import("@eidos.space/electron-ipc").ExtractIpcApi<
-      typeof import("./services/license-service").LicenseService
+      typeof import("./modules/license/license.service").LicenseService
     >
     space: import("@eidos.space/electron-ipc").ExtractIpcApi<
-      typeof import("./services/data-space/data-space-service").DataSpaceService
+      typeof import("./modules/data-space/data-space-ipc.service").DataSpaceIpcService
     >
     spaceMgmt: import("@eidos.space/electron-ipc").ExtractIpcApi<
-      typeof import("./services/space-management-service").SpaceManagementService
+      typeof import("./modules/space-management/space-management.service").SpaceManagementService
     >
     terminal: import("@eidos.space/electron-ipc").ExtractIpcApi<
-      typeof import("./services/terminal-service").TerminalService
+      typeof import("./modules/terminal/terminal.service").TerminalService
     > & {
       onData: (
         callback: (sessionId: string, data: string) => void
@@ -147,7 +147,7 @@ interface Window {
       ) => () => void
     }
     cli: import("@eidos.space/electron-ipc").ExtractIpcApi<
-      typeof import("./services/cli-service").CliService
+      typeof import("./modules/cli/cli.service").CliService
     >
     openData: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./services/opendata-service").OpenDataService
