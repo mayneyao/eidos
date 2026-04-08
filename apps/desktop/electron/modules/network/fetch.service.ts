@@ -1,13 +1,23 @@
-import { fetchAvailableModels } from "@/packages/ai/helper"
-import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
-
 /**
  * Fetch Service - Handles HTTP fetch operations and AI model fetching
  */
-@IpcService("fetch")
+
+import { fetchAvailableModels } from "@/packages/ai/helper"
+import { IpcServiceBase } from "@eidos.space/electron-ipc"
+import { IpcInjectable } from "../../common/di"
+
+/**
+ * Fetch Service - Provides HTTP fetch via IPC
+ *
+ * IPC Channels:
+ * - fetch:fetch: Simple fetch proxy (no CORS)
+ * - fetch:fetchAvailableModels: Get AI models from provider
+ */
+@IpcInjectable("fetch")
 export class FetchService extends IpcServiceBase {
   /**
    * Simple fetch proxy - forwards to Node.js fetch (no CORS restrictions)
+   * IPC: fetch:fetch
    */
   async fetch(
     url: string,
@@ -35,6 +45,7 @@ export class FetchService extends IpcServiceBase {
 
   /**
    * Fetch available AI models from a provider
+   * IPC: fetch:fetchAvailableModels
    */
   async fetchAvailableModels(
     apiKey: string,
@@ -57,6 +68,3 @@ export class FetchService extends IpcServiceBase {
     }
   }
 }
-
-// Export singleton instance
-export const fetchService = new FetchService()
