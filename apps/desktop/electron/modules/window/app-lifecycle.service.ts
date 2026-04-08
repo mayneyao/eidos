@@ -9,26 +9,30 @@ import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import { UpdaterService } from "../updater/updater.service"
 import { TrayService } from "./tray.service"
 import { DataSpaceManager } from "../data-space"
-import { OpenDataService } from "../opendata"
-import { TerminalService } from "../terminal/terminal.module"
 import { GlobalShortcutsService } from "./global-shortcuts.service"
 import { WindowService } from "./window.service"
 
 @IpcInjectable("app-lifecycle")
 export class AppLifecycleService extends IpcServiceBase {
   private forceQuit = false
+  private cleanupCallbacks: Array<() => void> = []
 
   constructor(
     @Inject(UpdaterService) private updaterService: UpdaterService,
     @Inject(TrayService) private trayService: TrayService,
     @Inject(DataSpaceManager) private dataSpaceManager: DataSpaceManager,
-    @Inject(OpenDataService) private openDataService: OpenDataService,
-    @Inject(TerminalService) private terminalService: TerminalService,
     @Inject(GlobalShortcutsService)
     private globalShortcutsService: GlobalShortcutsService,
     @Inject(WindowService) private windowService: WindowService
   ) {
     super()
+  }
+
+  /**
+   * Register a callback to be called during cleanup (window-all-closed)
+   */
+  onCleanup(callback: () => void): void {
+    this.cleanupCallbacks.push(callback)
   }
 
   /**
@@ -55,7 +59,10 @@ export class AppLifecycleService extends IpcServiceBase {
   /**
    * Set up app lifecycle event handlers
    */
-  setupLifecycleHandlers(): void {
+  setupLifecycleHandlers(
+    onBeforeQuit?: () => void,
+    onWindowAllClosed?: () => void
+  ): void {
     // Window all closed - cleanup resources
     app.on("window-all-closed", () => {
       // Close dataspace via DI if available
@@ -66,26 +73,18 @@ export class AppLifecycleService extends IpcServiceBase {
       try {
         this.globalShortcutsService.destroy()
       } catch {}
-      // Cleanup OpenDataService via DI
-      try {
-        this.openDataService.closeAll()
-      } catch {}
-      // Cleanup DI terminal service
-      try {
-        this.terminalService.cleanup()
-      } catch {}
+      // Call registered cleanup callbacks
+      this.cleanupCallbacks.forEach((cb) => {
+        try {
+          cb()
+        } catch {}
+      })
+      onWindowAllClosed?.()
     })
 
     // Before quit - final cleanup
     app.on("before-quit", () => {
-      // Cleanup OpenDataService via DI
-      try {
-        this.openDataService.closeAll()
-      } catch {}
-      // Cleanup DI terminal service
-      try {
-        this.terminalService.cleanup()
-      } catch {}
+      onBeforeQuit?.()
       this.forceQuit = true
     })
   }

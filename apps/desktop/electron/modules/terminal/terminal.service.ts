@@ -7,7 +7,6 @@ import * as fs from "fs"
 import * as os from "os"
 import * as path from "path"
 import { LoggerService } from "../logger/logger.module"
-import { WindowService } from "../window/window.service"
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import { IpcInjectable, Inject, Injectable } from "../../common/di"
 
@@ -32,14 +31,18 @@ export interface TerminalCreateOptions {
 
 /**
  * Terminal Window Provider - Provides access to main BrowserWindow for terminal
- * Uses WindowService internally
+ * Uses setter injection to avoid circular dependencies
  */
 @Injectable()
 export class TerminalWindowProvider {
-  constructor(@Inject(WindowService) private windowService: WindowService) {}
+  private windowService: WindowService | null = null
+
+  setWindowService(windowService: WindowService): void {
+    this.windowService = windowService
+  }
 
   getWindow(): BrowserWindow | null {
-    return this.windowService.getMainWindow()
+    return this.windowService?.getMainWindow() ?? null
   }
 }
 

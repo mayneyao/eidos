@@ -1,17 +1,21 @@
 /**
  * Main Window Provider - Provides access to main BrowserWindow
- * Uses WindowService internally
+ * Uses setter injection to avoid circular dependencies
  */
 
 import type { BrowserWindow } from "electron"
-import { Injectable, Inject } from "../../common/di"
-import { WindowService } from "../window/window.service"
+import { Injectable } from "../../common/di"
+import type { WindowService } from "../window/window.service"
 
 @Injectable()
 export class MainWindowProvider {
-  constructor(@Inject(WindowService) private windowService: WindowService) {}
+  private windowService: WindowService | null = null
+
+  setWindowService(windowService: WindowService): void {
+    this.windowService = windowService
+  }
 
   getWindow(): BrowserWindow | null {
-    return this.windowService.getMainWindow()
+    return this.windowService?.getMainWindow() ?? null
   }
 }

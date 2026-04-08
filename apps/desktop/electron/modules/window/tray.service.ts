@@ -2,8 +2,8 @@ import { Menu, Tray, app, nativeImage } from "electron"
 import electronLog from "electron-log"
 import path from "path"
 
-import { Injectable, Inject } from "../../common/di"
-import { WindowService } from "./window.service"
+import { Injectable, container } from "../../common/di"
+import type { WindowService } from "./window.service"
 
 /**
  * Tray Service - Manages system tray icon and menu
@@ -16,8 +16,11 @@ import { WindowService } from "./window.service"
 export class TrayService {
   private tray: Tray | null = null
   private onQuitCallback: (() => void) | null = null
+  private windowService: WindowService | null = null
 
-  constructor(@Inject(WindowService) private windowService: WindowService) {}
+  setWindowService(windowService: WindowService): void {
+    this.windowService = windowService
+  }
 
   /**
    * Create system tray icon and menu
@@ -40,7 +43,7 @@ export class TrayService {
       const contextMenu = Menu.buildFromTemplate([
         {
           label: "show",
-          click: () => this.windowService.showWindow(),
+          click: () => this.windowService?.showWindow(),
         },
         {
           label: "exit",
@@ -56,7 +59,7 @@ export class TrayService {
 
       // Handle tray click to show window
       this.tray.on("click", () => {
-        this.windowService.showWindow()
+        this.windowService?.showWindow()
       })
 
       electronLog.info("Tray created successfully")
@@ -90,15 +93,9 @@ export interface TrayManagerOptions {
 }
 
 export function createTray(options: TrayManagerOptions): void {
-  const { container } = require("../../common/di")
-  const { TrayService } = require("./tray.service")
-  const trayService = container.get(TrayService)
-  trayService.createTray(options.onQuit)
+  container.get(TrayService).createTray(options.onQuit)
 }
 
 export function destroyTray(): void {
-  const { container } = require("../../common/di")
-  const { TrayService } = require("./tray.service")
-  const trayService = container.get(TrayService)
-  trayService.destroyTray()
+  container.get(TrayService).destroyTray()
 }

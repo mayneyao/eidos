@@ -8,15 +8,13 @@
  * - Raw data storage
  *
  * Dependencies:
- * - WindowModule: For accessing main window
+ * - WindowService: For accessing main window (via lazy injection)
  */
 
 import { Module } from "../../common/di"
-import { WindowModule } from "../window/window.module"
 import { OpenDataService } from "./opendata.service"
 
 @Module({
-  imports: [WindowModule],
   providers: [OpenDataService],
   exports: [OpenDataService],
 })

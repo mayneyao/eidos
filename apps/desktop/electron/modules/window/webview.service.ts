@@ -1,7 +1,7 @@
 import { ipcMain, shell, webContents } from "electron"
 import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
 
-import { Injectable } from "../../common/di"
+import { Injectable, container } from "../../common/di"
 
 /**
  * Webview Service - Handles webview-related IPC
@@ -36,9 +36,6 @@ export class WebviewService extends IpcServiceBase {
 // Backward compatibility
 export const webviewService = {
   register() {
-    const { container } = require("../../common/di")
-    const { WebviewService } = require("./webview.service")
-    const service = container.get(WebviewService)
-    service.register()
+    container.get(WebviewService).register()
   },
 }

@@ -4,7 +4,7 @@ import os from "node:os"
 import path from "path"
 import { debounce } from "@/lib/lodash"
 
-import { Injectable, Inject } from "../../common/di"
+import { Injectable, Inject, container } from "../../common/di"
 import { ConfigManager } from "../config/config-manager"
 import type { TrayService } from "./tray.service"
 import type { AppLifecycleService } from "./app-lifecycle.service"
@@ -306,10 +306,7 @@ export class WindowService {
           appLifecycleService.setForceQuit(true)
           // Get tray service from container and destroy it
           try {
-            const { container } = require("../../common/di")
-            const { TrayService } = require("./tray.service")
-            const trayService: TrayService = container.get(TrayService)
-            trayService.destroyTray()
+            container.get(TrayService).destroyTray()
           } catch {}
           app.quit()
         }
@@ -320,8 +317,6 @@ export class WindowService {
 
 // Backward compatibility function
 export function createWindow(spaceId?: string, port?: number): BrowserWindow {
-  const { container } = require("../../common/di")
-  const { WindowService } = require("./window.service")
   const windowService = container.get(WindowService)
   if (port) {
     windowService.setPort(port)

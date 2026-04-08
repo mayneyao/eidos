@@ -15,16 +15,13 @@
  * - ConfigModule (for window state persistence)
  * - UpdaterModule (for app lifecycle)
  * - DataSpaceModule (for cleanup on exit)
- * - OpenDataModule (for cleanup on exit)
- * - TerminalModule (for cleanup on exit)
+ * - OpenDataService, TerminalService (via lazy injection to avoid circular deps)
  */
 
 import { Module } from "../../common/di"
 import { ConfigModule } from "../config/config.module"
 import { UpdaterModule } from "../updater/updater.module"
 import { DataSpaceModule } from "../data-space"
-import { OpenDataModule } from "../opendata"
-import { TerminalModule } from "../terminal/terminal.module"
 import { WindowService } from "./window.service"
 import { BrowserViewService } from "./browser-view.service"
 import { GlobalShortcutsService } from "./global-shortcuts.service"
@@ -38,8 +35,7 @@ import { AppLifecycleService } from "./app-lifecycle.service"
     ConfigModule,
     UpdaterModule,
     DataSpaceModule,
-    OpenDataModule,
-    TerminalModule,
+    // OpenDataModule and TerminalModule use lazy injection to avoid circular deps
   ],
   providers: [
     WindowService,
@@ -62,11 +58,5 @@ import { AppLifecycleService } from "./app-lifecycle.service"
 })
 export class WindowModule {}
 
-// Re-exports for convenience
-export { WindowService } from "./window.service"
-export { BrowserViewService } from "./browser-view.service"
-export { GlobalShortcutsService } from "./global-shortcuts.service"
-export { TrayService } from "./tray.service"
-export { WebviewService } from "./webview.service"
-export { ProtocolService } from "./protocol.service"
-export { AppLifecycleService } from "./app-lifecycle.service"
+// Note: Services are imported directly from their files to avoid
+// circular dependency issues during module initialization
