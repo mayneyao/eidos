@@ -7,6 +7,7 @@
 
 import type { Container } from "inversify"
 import { ipcMain } from "electron"
+import electronLog from "electron-log"
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import { getModuleMetadata, getIpcNamespace } from "./decorators"
 
@@ -41,11 +42,11 @@ export function scanModule(
 
   const metadata = getModuleMetadata(moduleClass)
   if (!metadata) {
-    console.warn(`[DI] Class ${moduleClass.name} is not a module`)
+    electronLog.warn(`[DI] Class ${moduleClass.name} is not a module`)
     return result
   }
 
-  console.log(`[DI] Scanning module: ${moduleClass.name}`)
+  electronLog.info(`[DI] Scanning module: ${moduleClass.name}`)
   registeredModules.add(moduleClass)
   result.modules.push(moduleClass)
 
@@ -87,11 +88,13 @@ export function registerServices(
   for (const service of services) {
     // Skip if already registered
     if (container.isBound(service)) {
-      console.log(`[DI] Service ${service.name} already registered, skipping`)
+      electronLog.info(
+        `[DI] Service ${service.name} already registered, skipping`
+      )
       continue
     }
 
-    console.log(`[DI] Registering service: ${service.name}`)
+    electronLog.info(`[DI] Registering service: ${service.name}`)
 
     // If it's an IPC service, bind with activation callback for auto-registration
     if (service.prototype instanceof IpcServiceBase) {
@@ -102,7 +105,7 @@ export function registerServices(
           // Auto-register IPC handlers when service is instantiated
           const isRegistered = (instance as any)._registered === true
           if (instance instanceof IpcServiceBase && !isRegistered) {
-            console.log(
+            electronLog.info(
               `[DI] Auto-registering IPC handlers for: ${service.name}`
             )
             instance.register()
@@ -124,11 +127,11 @@ export function bootstrapModule(
   container: Container,
   rootModule: any
 ): ScanResult {
-  console.log(`[DI] Bootstrapping root module: ${rootModule.name}`)
+  electronLog.info(`[DI] Bootstrapping root module: ${rootModule.name}`)
 
   const scanResult = scanModule(rootModule)
 
-  console.log(
+  electronLog.info(
     `[DI] Found ${scanResult.modules.length} modules, ${scanResult.providers.length} providers`
   )
 
@@ -140,7 +143,7 @@ export function bootstrapModule(
     container.bind(rootModule).toSelf()
   }
 
-  console.log(`[DI] Bootstrap complete`)
+  electronLog.info(`[DI] Bootstrap complete`)
 
   return scanResult
 }
@@ -161,15 +164,15 @@ export function instantiateIpcServices(
   container: Container,
   scanResult: ScanResult
 ): void {
-  console.log(`[DI] Instantiating IPC services...`)
+  electronLog.info(`[DI] Instantiating IPC services...`)
 
   for (const { service, namespace } of scanResult.ipcServices) {
     try {
       // Instantiation triggers onActivation which registers IPC handlers
       const instance = container.get<IpcServiceBase>(service)
-      console.log(`[DI] IPC service ready: ${namespace}`)
+      electronLog.info(`[DI] IPC service ready: ${namespace}`)
     } catch (error) {
-      console.error(
+      electronLog.error(
         `[DI] Failed to instantiate IPC service ${service.name}:`,
         error
       )
