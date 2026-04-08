@@ -20,9 +20,9 @@ export interface PortOccupancyInfo {
 }
 
 /**
- * Check if a port is in use
+ * Check if a port is in use on a specific host
  */
-export function isPortInUse(port: number): Promise<boolean> {
+function checkPortOnHost(port: number, host: string): Promise<boolean> {
   return new Promise((resolve) => {
     const server = net.createServer()
 
@@ -39,8 +39,21 @@ export function isPortInUse(port: number): Promise<boolean> {
       resolve(false)
     })
 
-    server.listen(port, "127.0.0.1")
+    server.listen(port, host)
   })
+}
+
+/**
+ * Check if a port is in use
+ * Checks on all interfaces (IPv4 and IPv6) to detect any binding
+ */
+export async function isPortInUse(port: number): Promise<boolean> {
+  // Check both IPv4 and IPv6 to ensure comprehensive detection
+  const [ipv4InUse, ipv6InUse] = await Promise.all([
+    checkPortOnHost(port, "0.0.0.0"),
+    checkPortOnHost(port, "::").catch(() => false), // IPv6 might not be available
+  ])
+  return ipv4InUse || ipv6InUse
 }
 
 /**
