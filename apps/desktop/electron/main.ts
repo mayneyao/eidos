@@ -33,14 +33,12 @@ import {
 } from "./modules/space-management/space-management.module"
 import { getDataSpace } from "./services/data-space/data-space-manager"
 import { ProtocolHandler } from "./services/protocol-handler"
-import { AppUpdater } from "./services/updater"
 import { getSpacePath } from "./utils/paths"
 import { createWindow } from "./window/create-window"
 import { GlobalShortcutManager } from "./window/global-shortcuts"
 import { createTray, destroyTray } from "./window/tray-manager"
 
-// Legacy service imports
-import { AppLifecycleService } from "./services/app-lifecycle-service"
+// Legacy service imports (migrated to DI)
 // import { cliService } from "./services/cli-service"  // Migrated to DI
 // import { configService as legacyConfigService } from "./services/config-service"  // Migrated to DI
 // import { contextMenuService } from "./services/context-menu-service"  // Migrated to DI
@@ -64,6 +62,7 @@ import {
 } from "./modules/api-server/api-server.module"
 import { MainWindowProvider } from "./modules/space-management/space-management.module"
 import { TerminalWindowProvider } from "./modules/terminal/terminal.module"
+import { UpdaterService } from "./modules/updater/updater.module"
 
 // Export main window for other modules
 export let win: BrowserWindow | null
@@ -72,7 +71,6 @@ export function getMainWindowWebContents() {
 }
 
 // App state
-let appUpdater: AppUpdater
 let protocolHandler: ProtocolHandler
 let globalShortcutManager: GlobalShortcutManager | null = null
 let openDataService: OpenDataService | null = null
@@ -199,6 +197,22 @@ async function main() {
       return dataSpaceService.sqliteMsgRead(event, payload)
     })
 
+    // Register app-lifecycle handlers that need access to main process state
+    ipcMain.handle("app-lifecycle:reloadApp", async () => {
+      if (win && globalShortcutManager) {
+        globalShortcutManager.setMainWindow(win)
+      }
+      app.relaunch()
+      win?.reload()
+    })
+
+    ipcMain.handle("app-lifecycle:quitApp", async () => {
+      forceQuit = true
+      destroyTray()
+      getDataSpace()?.close()
+      app.quit()
+    })
+
     // Register legacy services (gradually migrate to DI)
     openDataService = new OpenDataService(getSpacePath, () => win?.id)
     openDataService.register()
@@ -277,29 +291,13 @@ async function main() {
       }
     })
 
-    // App updater
-    appUpdater = new AppUpdater(win)
-    appUpdater.checkForUpdates()
+    // App updater (auto-registered via DI)
+    const updaterService = container.get(UpdaterService)
+    updaterService.initialize()
+    updaterService.checkForUpdates()
 
-    // App lifecycle service
-    const appLifecycleService = new AppLifecycleService({
-      appUpdater,
-      onReloadApp: () => {
-        if (win && globalShortcutManager) {
-          globalShortcutManager.setMainWindow(win)
-        }
-        app.relaunch()
-        win?.reload()
-      },
-      onQuitApp: () => {
-        forceQuit = true
-        destroyTray()
-        getDataSpace()?.close()
-        app.quit()
-      },
-    })
-    appLifecycleService.register()
-
+    // App lifecycle service (auto-registered via DI)
+    // Note: reloadApp and quitApp handlers are registered via IPC in main process
     // SpaceManagementService is auto-registered via DI
 
     console.log("[Main] Application initialized successfully")
