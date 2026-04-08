@@ -39,11 +39,6 @@ export interface SyncConfig {
 export interface AppConfig {
   // the folder where the data is stored (deprecated, use space registry instead)
   dataFolder?: string
-  // the api agent config
-  apiAgentConfig: {
-    url: string
-    enabled: boolean
-  }
   ai: AIFormValues
   // Security configuration
   security: {
@@ -78,10 +73,6 @@ export interface AppConfig {
 
 const emptyConfig: AppConfig = {
   dataFolder: undefined,
-  apiAgentConfig: {
-    url: "",
-    enabled: false,
-  },
   ai: {
     localModels: [],
     llmProviders: [],

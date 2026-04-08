@@ -56,14 +56,8 @@ interface Window {
     onWindowStateChange: (
       callback: (state: "maximized" | "restored") => void
     ) => () => void
-    getApiAgentStatus: () => Promise<
-      import("./server/api-agent").ApiAgentStatus
-    >
     checkForUpdates: () => Promise<void>
     quitAndInstall: () => Promise<void>
-    onApiAgentStatusChanged: (
-      callback: (status: import("./server/api-agent").ApiAgentStatus) => void
-    ) => () => void
     fetchAvailableModels: (
       apiKey: string,
       providerType: string,

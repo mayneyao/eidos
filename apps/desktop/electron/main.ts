@@ -12,42 +12,32 @@
 // Required for decorator metadata
 import "reflect-metadata"
 
-import { BrowserWindow, app, dialog, ipcMain } from "electron"
+import { BrowserWindow, app, ipcMain } from "electron"
 import { default as console, default as electronLog } from "electron-log"
 import path from "path"
 
 // DI System
-import { bootstrap, container, getService } from "./common/di"
 import { AppModule } from "./app.module"
+import { bootstrap, container } from "./common/di"
 
 // Import services for backward compatibility
-import { ConfigService, ConfigManager } from "./modules/config/config.module"
-import { FileSystemService } from "./modules/file-system/file-system.module"
-import { SyncService, CredentialsManager } from "./modules/sync/sync.module"
+import { ConfigManager, ConfigService } from "./modules/config/config.module"
 import { TerminalService } from "./modules/terminal/terminal.module"
 
 // Legacy imports (will be migrated gradually)
-import { getSpacePath } from "./utils/paths"
 import { registerElectronFetchIpc } from "./ipc/fetch-proxy"
-import { showPortInUseDialog } from "./services/port-checker"
-import { ProtocolHandler } from "./services/protocol-handler"
-import { initApiAgent } from "./core/server/api-agent"
-import { setServerContext } from "./core/server/context"
-import { startServer, type PortInUseError } from "./core/server/server"
-import {
-  getOrSetDataSpace,
-  getDataSpace,
-} from "./services/data-space/data-space-manager"
-import { isPortInUse, getProcessByPort } from "./services/port-checker"
-import { GlobalShortcutManager } from "./window/global-shortcuts"
-import { AppUpdater } from "./services/updater"
-import { createWindow } from "./window/create-window"
-import { createTray, destroyTray } from "./window/tray-manager"
+import { showPortInUseDialog } from "./modules/api-server/api-server.module"
 import {
   SpaceRegistry,
-  getSpaceRegistry,
   resolveStartupSpace,
 } from "./modules/space-management/space-management.module"
+import { getDataSpace } from "./services/data-space/data-space-manager"
+import { ProtocolHandler } from "./services/protocol-handler"
+import { AppUpdater } from "./services/updater"
+import { getSpacePath } from "./utils/paths"
+import { createWindow } from "./window/create-window"
+import { GlobalShortcutManager } from "./window/global-shortcuts"
+import { createTray, destroyTray } from "./window/tray-manager"
 
 // Legacy service imports
 import { AppLifecycleService } from "./services/app-lifecycle-service"
@@ -63,13 +53,17 @@ import { relayService } from "./services/relay-service"
 // import { SpaceManagementService } from "./services/space-management-service"  // Migrated to DI
 // import { syncService as legacySyncService } from "./services/sync-service"
 // import { TerminalService } from "./services/terminal-service"  // Migrated to DI
+import { corsManager } from "./services/cors-manager"
 import { webviewService } from "./services/webview-service"
 import { BrowserViewManager } from "./window/browser-view-manager"
-import { corsManager } from "./services/cors-manager"
 
 // DI imports for window providers
-import { TerminalWindowProvider } from "./modules/terminal/terminal.module"
+import {
+  ApiServerService,
+  type PortInUseError,
+} from "./modules/api-server/api-server.module"
 import { MainWindowProvider } from "./modules/space-management/space-management.module"
+import { TerminalWindowProvider } from "./modules/terminal/terminal.module"
 
 // Export main window for other modules
 export let win: BrowserWindow | null
@@ -109,97 +103,25 @@ process.on("unhandledRejection", (reason, promise) => {
  * Initialize server with port conflict handling
  */
 async function initializeServer(): Promise<void> {
-  // Get DI services
-  let configManager: ConfigManager
-  let credentialsManager: CredentialsManager
+  const apiServer = container.get(ApiServerService)
 
-  try {
-    configManager = getService(ConfigManager)
-    credentialsManager = getService(CredentialsManager)
-  } catch (e) {
-    console.error("Failed to get DI services, falling back to legacy", e)
-    // Fallback should not happen if DI is working
-    throw new Error("DI services not available")
-  }
-
-  // Broadcast auth state change
-  const broadcastAuthStateChange = (
-    authenticated: boolean,
-    user?: {
-      id: string
-      email?: string
-      name?: string
-      picture?: string
-    } | null
-  ) => {
-    BrowserWindow.getAllWindows().forEach((window) => {
-      window.webContents.send("auth-state-changed", { authenticated, user })
-    })
-  }
-
-  setServerContext({
-    dataSpaceManager: { getOrSetDataSpace, getDataSpace },
-    configManager: {
-      get: (key: string) => configManager.get(key as any),
-      set: (key: string, value: any) => configManager.set(key as any, value),
-      getDefaultSyncProvider: () => configManager.getDefaultSyncProvider(),
-      getSyncProvider: (id: string) => configManager.getSyncProvider(id),
-      on: (event: string, callback: Function) =>
-        configManager.on(event, callback as any),
-    },
-    spaceRegistry: {
-      getSpace: (id: string) => getSpaceRegistry().getSpace(id),
-      getAllSpaces: () => getSpaceRegistry().getAllSpaces(),
-      validateSpace: (id: string) => getSpaceRegistry().validateSpace(id),
-    },
-    portChecker: { isPortInUse, getProcessByPort },
-    credentialsManager: {
-      getSyncCredentials: (providerId: string) =>
-        credentialsManager.getSyncCredentials(providerId),
-      getTokens: () => credentialsManager.getTokens(),
-      setTokens: (tokens) => credentialsManager.setTokens(tokens),
-      getUserInfo: () => credentialsManager.getUserInfo(),
-      setUserInfo: (userInfo) => credentialsManager.setUserInfo(userInfo),
-      isAuthenticated: () => credentialsManager.isAuthenticated(),
-      clearAll: () => credentialsManager.clearAll(),
-      getAccessToken: () => credentialsManager.getAccessToken(),
-    },
-    broadcastAuthStateChange,
-    logger: electronLog,
-  })
-
-  while (true) {
-    try {
-      await startServer({ dist: process.env.DIST, port: PORT })
-      console.log(`Server started successfully on port ${PORT}`)
-      return
-    } catch (error) {
-      const portError = error as PortInUseError
-      if (portError.port && portError.port === PORT) {
-        console.error(`Port ${PORT} is in use:`, error)
-        const result = await showPortInUseDialog(PORT, portError.processInfo)
-        if (result.action === "exit") {
-          console.log("User chose to exit due to port conflict")
-          app.quit()
-          process.exit(0)
-        }
-        if (result.killed) {
-          console.log("Process was killed, retrying immediately...")
-        } else {
-          console.log("User chose to retry, waiting for port to be freed...")
-        }
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-      } else {
-        console.error("Failed to start server:", error)
-        await dialog.showErrorBox(
-          "Server Error",
-          `Failed to start Eidos server: ${error instanceof Error ? error.message : String(error)}`
-        )
+  await apiServer.startServer(process.env.DIST, PORT, {
+    onPortConflict: async (error: PortInUseError) => {
+      const result = await showPortInUseDialog(PORT, error.processInfo)
+      if (result.action === "exit") {
+        console.log("User chose to exit due to port conflict")
         app.quit()
-        process.exit(1)
+        process.exit(0)
       }
-    }
-  }
+      if (result.killed) {
+        console.log("Process was killed, retrying immediately...")
+      } else {
+        console.log("User chose to retry, waiting for port to be freed...")
+      }
+      return result
+    },
+  })
+  console.log(`Server started successfully on port ${PORT}`)
 }
 
 /**
@@ -358,7 +280,6 @@ async function main() {
     // App updater
     appUpdater = new AppUpdater(win)
     appUpdater.checkForUpdates()
-    initApiAgent()
 
     // App lifecycle service
     const appLifecycleService = new AppLifecycleService({

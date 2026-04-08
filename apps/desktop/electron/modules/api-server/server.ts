@@ -1,7 +1,12 @@
+/**
+ * API Server - HTTP server implementation for Eidos Desktop
+ *
+ * This module provides the HTTP server using Hono framework.
+ * It handles static files, RPC calls, OAuth, and extension middleware.
+ */
+
 import { OAUTH_CONFIG } from "@/lib/const"
 import aiHandler, { pathname as aiPath } from "@/worker/service-worker/ai"
-import { getServerContext, type PortOccupancyInfo } from "./context"
-import { createProxyMiddleware } from "@eidos.space/proxy"
 import {
   containsBinaryData,
   parseMultipartFormData,
@@ -9,17 +14,94 @@ import {
   restoreBinaryData,
 } from "@eidos.space/client"
 import {
-  createExtensionMiddleware,
   createDesktopConfig,
+  createExtensionMiddleware,
 } from "@eidos.space/ext-server/desktop"
+import { createProxyMiddleware } from "@eidos.space/proxy"
 import { createBucketBrowserMiddleware } from "@eidos.space/sync"
 import { serve } from "@hono/node-server"
-import { BrowserWindow } from "electron"
 import { Hono } from "hono"
 import path from "path"
-import type { OAuthTokens, UserInfo } from "./context"
+import { getSpaceFileFromPath } from "../../utils/paths"
+import { serveFile } from "./serve-file"
+import { serveStatic } from "./server-static"
+import type { Logger } from "../logger/logger.module"
 
-// Simple PKCE implementation for server context
+// Re-export types
+export interface OAuthTokens {
+  access_token: string
+  refresh_token?: string
+  token_type?: string
+  expires_in?: number
+  id_token?: string
+}
+
+export interface UserInfo {
+  id: string
+  email?: string
+  name?: string
+  picture?: string
+  [key: string]: any
+}
+
+export interface PortOccupancyInfo {
+  port: number
+  pid?: number
+  processName?: string
+  processPath?: string
+}
+
+export interface PortInUseError extends Error {
+  port: number
+  processInfo?: PortOccupancyInfo | null
+}
+
+// Port checker interface
+export interface PortChecker {
+  isPortInUse(port: number): Promise<boolean>
+  getProcessByPort(port: number): Promise<PortOccupancyInfo | null>
+}
+
+// Server context interface (passed during server start)
+export interface ServerContext {
+  dataSpaceManager: {
+    getOrSetDataSpace(spaceId: string): Promise<any | null>
+    getDataSpace(): any | null
+  }
+  configManager: {
+    get(key: string): any
+    set(key: string, value: any): void
+    getDefaultSyncProvider(): string | undefined
+    getSyncProvider(id: string): { region?: string } | undefined
+    on(event: string, callback: Function): void
+  }
+  spaceRegistry: {
+    getSpace(spaceId: string): any | undefined | null
+    getAllSpaces(): any[]
+    validateSpace(spaceId: string): boolean
+  }
+  portChecker: PortChecker
+  credentialsManager: {
+    getSyncCredentials(providerId: string): Promise<any | null>
+    getTokens(): Promise<OAuthTokens | null>
+    setTokens(tokens: OAuthTokens): Promise<void>
+    getUserInfo(): Promise<UserInfo | null>
+    setUserInfo(userInfo: UserInfo): Promise<void>
+    isAuthenticated(): Promise<boolean>
+    clearAll(): Promise<void>
+    getAccessToken(): Promise<string | null>
+  }
+  broadcastAuthStateChange: (
+    authenticated: boolean,
+    user?: UserInfo | null
+  ) => void
+  logger: Logger
+}
+
+// Channel name for auth state changes
+export const AUTH_STATE_CHANGED_CHANNEL = "auth-state-changed"
+
+// Simple PKCE implementation
 let codeVerifierStore: string | null = null
 
 function generateCodeVerifier(): string {
@@ -41,100 +123,61 @@ function base64URLEncode(buffer: Uint8Array): string {
     .replace(/\//g, "_")
     .replace(/=/g, "")
 }
-import { getFileFromPath, getSpaceFileFromPath } from "../../utils/paths"
-import { serveFile } from "./serve-file"
-import { serveStatic } from "./server-static"
-
-// Channel name for auth state changes
-export const AUTH_STATE_CHANGED_CHANNEL = "auth-state-changed"
-
-const app = new Hono()
 
 /**
  * Extract spaceId from hostname using regex patterns
- *
- * Supported patterns:
- * - <spaceId>.eidos.localhost -> spaceId
- * - <extId>.block.<spaceId>.eidos.localhost -> spaceId
- * - sandbox.<spaceId>.eidos.localhost -> spaceId
- *
- * @param hostname like sandbox.<spaceId>.eidos.localhost or <extensionId>.block.<spaceId>.eidos.localhost
- * @returns spaceId
  */
 function extractSpaceIdFromHostname(hostname: string): string | null {
-  // Pattern: <extId>.block.<spaceId>.eidos.localhost
   const blockPattern = /^[\w-]+\.block\.([\w-]+)\.eidos\.localhost$/
-  // Pattern: sandbox.<spaceId>.eidos.localhost
   const sandboxPattern = /^sandbox\.([\w-]+)\.eidos\.localhost$/
-  // Pattern: <spaceId>.eidos.localhost
   const standardPattern = /^([\w-]+)\.eidos\.localhost$/
 
   const blockMatch = hostname.match(blockPattern)
-  if (blockMatch) {
-    return blockMatch[1]
-  }
+  if (blockMatch) return blockMatch[1]
 
   const sandboxMatch = hostname.match(sandboxPattern)
-  if (sandboxMatch) {
-    return sandboxMatch[1]
-  }
+  if (sandboxMatch) return sandboxMatch[1]
 
   const standardMatch = hostname.match(standardPattern)
-  if (standardMatch) {
-    return standardMatch[1]
-  }
+  if (standardMatch) return standardMatch[1]
 
   return null
 }
 
 /**
  * Extract spaceId from request, considering X-Forwarded-Host header
- * This supports DNS workaround where *.localhost is rewritten to 127.0.0.1
  */
 function extractSpaceIdFromRequest(c: any): string | null {
-  // Try X-Forwarded-Host first (for DNS workaround)
   const forwardedHost = c.req.header("X-Forwarded-Host")
   if (forwardedHost) {
-    // Remove port if present (e.g., "host:13127" -> "host")
     const hostWithoutPort = forwardedHost.split(":")[0]
     const spaceId = extractSpaceIdFromHostname(hostWithoutPort)
-    if (spaceId) {
-      return spaceId
-    }
+    if (spaceId) return spaceId
   }
 
-  // Fallback to URL hostname
   const url = new URL(c.req.url)
   return extractSpaceIdFromHostname(url.hostname)
 }
 
 /**
  * Unified CORS Configuration
- * Single source of truth for all CORS settings
  */
 const CORS_CONFIG = {
-  // Origins that are allowed to make requests
   allowedOrigins: ["*.eidos.localhost"],
-  // Whether to allow credentials (cookies, auth headers)
   allowCredentials: true,
-  // Allowed HTTP methods
   allowedMethods: "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH",
-  // Allowed headers
   allowedHeaders:
     "Content-Type, Authorization, X-Requested-With, X-Forwarded-Host",
 }
 
 /**
  * Check if an origin is allowed
- * Handles both normal origins and "null" (opaque origin from sandboxed iframe)
  */
 function isAllowedOrigin(
   origin: string | null | undefined,
   hostname: string
 ): boolean {
-  // Handle opaque origin (sandboxed iframe sends "null")
   if (origin === "null") {
-    // Allow opaque origins from sandbox subdomains or localhost (desktop mode)
     return (
       (hostname.startsWith("sandbox.") &&
         hostname.endsWith(".eidos.localhost")) ||
@@ -143,7 +186,6 @@ function isAllowedOrigin(
     )
   }
 
-  // No origin header - allow if from sandbox subdomain or localhost (desktop mode)
   if (!origin) {
     return (
       (hostname.startsWith("sandbox.") &&
@@ -155,7 +197,6 @@ function isAllowedOrigin(
 
   try {
     const originUrl = new URL(origin)
-    // Allow all *.eidos.localhost origins
     return originUrl.hostname.endsWith(".eidos.localhost")
   } catch {
     return false
@@ -169,7 +210,6 @@ function getAllowOrigin(
   origin: string | null | undefined,
   hostname: string
 ): string {
-  // For sandbox requests with opaque/null origin, use wildcard
   if (
     (origin === "null" || !origin) &&
     hostname.startsWith("sandbox.") &&
@@ -177,86 +217,53 @@ function getAllowOrigin(
   ) {
     return "*"
   }
-  // For normal cross-origin requests, echo the origin
   return origin || "*"
 }
 
 /**
- * Unified CORS middleware
- * All CORS handling happens here - no other layer should set CORS headers
+ * Create and configure the Hono app with all middleware and routes
  */
-app.use("*", async (c, next) => {
-  const url = new URL(c.req.url)
-  const hostname = url.hostname
-  const requestOrigin = c.req.header("Origin")
+function createApp(dist: string, port: number, ctx: ServerContext): Hono {
+  const app = new Hono()
 
-  // Skip CORS handling for proxy subdomains - they handle their own CORS
-  // Pattern: *.proxy.eidos.localhost (e.g., api.openai.com.proxy.eidos.localhost)
-  if (hostname.endsWith(".proxy.eidos.localhost")) {
-    await next()
-    return
-  }
+  // CORS middleware
+  app.use("*", async (c, next) => {
+    const url = new URL(c.req.url)
+    const hostname = url.hostname
+    const requestOrigin = c.req.header("Origin")
 
-  const allowed = isAllowedOrigin(requestOrigin, hostname)
-
-  if (allowed) {
-    c.header(
-      "Access-Control-Allow-Origin",
-      getAllowOrigin(requestOrigin, hostname)
-    )
-    c.header("Vary", "Origin")
-    c.header("Access-Control-Allow-Methods", CORS_CONFIG.allowedMethods)
-    c.header("Access-Control-Allow-Headers", CORS_CONFIG.allowedHeaders)
-    if (CORS_CONFIG.allowCredentials) {
-      c.header("Access-Control-Allow-Credentials", "true")
+    // Skip CORS handling for proxy subdomains
+    if (hostname.endsWith(".proxy.eidos.localhost")) {
+      await next()
+      return
     }
-  }
 
-  // Handle preflight (OPTIONS) requests
-  if (c.req.method === "OPTIONS" && allowed) {
-    return c.body(null, 204)
-  }
+    const allowed = isAllowedOrigin(requestOrigin, hostname)
 
-  // COOP/COEP headers for cross-origin isolation (required for SharedArrayBuffer/WASM)
-  c.header("Cross-Origin-Opener-Policy", "same-origin")
-  c.header("Cross-Origin-Embedder-Policy", "require-corp")
+    if (allowed) {
+      c.header(
+        "Access-Control-Allow-Origin",
+        getAllowOrigin(requestOrigin, hostname)
+      )
+      c.header("Vary", "Origin")
+      c.header("Access-Control-Allow-Methods", CORS_CONFIG.allowedMethods)
+      c.header("Access-Control-Allow-Headers", CORS_CONFIG.allowedHeaders)
+      if (CORS_CONFIG.allowCredentials) {
+        c.header("Access-Control-Allow-Credentials", "true")
+      }
+    }
 
-  await next()
-})
+    if (c.req.method === "OPTIONS" && allowed) {
+      return c.body(null, 204)
+    }
 
-const handleStaticFile = async (c: any) => {
-  const pathname = new URL(c.req.url).pathname
-  const file = getFileFromPath(pathname)
-  const headers = new Headers()
-  headers.append("Content-Type", file.type)
-  headers.append("Cross-Origin-Embedder-Policy", "require-corp")
-  return c.newResponse(file as any, { headers })
-}
+    c.header("Cross-Origin-Opener-Policy", "same-origin")
+    c.header("Cross-Origin-Embedder-Policy", "require-corp")
 
-export interface PortInUseError extends Error {
-  port: number
-  processInfo?: PortOccupancyInfo | null
-}
+    await next()
+  })
 
-export async function startServer({
-  dist,
-  port,
-}: {
-  dist: string
-  port: number
-}): Promise<void> {
-  // Check if port is already in use
-  const ctx = getServerContext()
-  const portOccupied = await ctx.portChecker.isPortInUse(port)
-  if (portOccupied) {
-    const processInfo = await ctx.portChecker.getProcessByPort(port)
-    const error = new Error(`Port ${port} is already in use`) as PortInUseError
-    error.port = port
-    error.processInfo = processInfo
-    throw error
-  }
-  // Bucket browser middleware: handles storage.eidos.localhost
-  // Provides a simple web UI for browsing S3-compatible buckets
+  // Bucket browser middleware
   app.use(
     "*",
     createBucketBrowserMiddleware({
@@ -282,11 +289,10 @@ export async function startServer({
     })
   )
 
-  // Proxy middleware: handles *.proxy.eidos.localhost subdomains
-  // Pattern: <target-host>.proxy.eidos.localhost/<path> -> https://<target-host>/<path>
+  // Proxy middleware
   app.use("*", createProxyMiddleware({ baseDomain: "eidos.localhost" }))
 
-  // New middleware to intercept *.eidos.localhost requests
+  // Extension middleware
   app.use(
     "*",
     createExtensionMiddleware(
@@ -311,29 +317,40 @@ export async function startServer({
     )
   )
 
-  // host static files
+  // Static files
   app.use("/*", serveStatic({ root: dist }))
   ctx.logger.info("static files served from", dist)
 
-  // OIDC Implementation with PKCE
+  // OAuth routes
+  setupOAuthRoutes(app, ctx)
 
+  // API routes
+  setupApiRoutes(app, ctx)
+
+  // File serving routes
+  setupFileRoutes(app, ctx)
+
+  // Fallback to index.html
+  app.use("*", serveStatic({ path: `${dist}/index.html` }))
+
+  return app
+}
+
+/**
+ * Setup OAuth authentication routes
+ */
+function setupOAuthRoutes(app: Hono, ctx: ServerContext) {
   // Initiate OAuth flow with PKCE
   app.get("/api/auth/login", async (c) => {
     try {
-      // Generate PKCE parameters
-      // Note: PKCE generation is now handled in context/credentials service
       const pkce = {
         codeVerifier: generateCodeVerifier(),
         codeChallenge: "",
         codeChallengeMethod: "S256" as const,
       }
       pkce.codeChallenge = await generateCodeChallenge(pkce.codeVerifier)
-
-      // Store code_verifier in memory for later use in callback
-      // This should be handled by the credentials service
       codeVerifierStore = pkce.codeVerifier
 
-      // Build authorization URL with PKCE parameters
       const authUrl = new URL(
         `${OAUTH_CONFIG.AUTH_SERVER_BASE_URL}${OAUTH_CONFIG.ENDPOINTS.AUTHORIZE}`
       )
@@ -354,6 +371,7 @@ export async function startServer({
     }
   })
 
+  // OAuth callback
   app.get("/oauth/callback", async (c) => {
     const url = new URL(c.req.url)
     const code = url.searchParams.get("code")
@@ -363,14 +381,14 @@ export async function startServer({
       const errorDescription =
         url.searchParams.get("error_description") || error
       return c.html(`
-                <html>
-                    <body>
-                        <h1>Login Failed</h1>
-                        <p>${errorDescription}</p>
-                        <p>You can close this window and try again.</p>
-                    </body>
-                </html>
-            `)
+        <html>
+          <body>
+            <h1>Login Failed</h1>
+            <p>${errorDescription}</p>
+            <p>You can close this window and try again.</p>
+          </body>
+        </html>
+      `)
     }
 
     if (!code) {
@@ -378,9 +396,8 @@ export async function startServer({
     }
 
     try {
-      // Retrieve the stored code_verifier from memory
       const codeVerifier = codeVerifierStore
-      codeVerifierStore = null // Clear after use
+      codeVerifierStore = null
       if (!codeVerifier) {
         return c.text(
           "PKCE code_verifier not found. Please start the login process again.",
@@ -388,7 +405,6 @@ export async function startServer({
         )
       }
 
-      // Exchange code for tokens using PKCE (no client_secret needed)
       const tokenUrl = `${OAUTH_CONFIG.AUTH_SERVER_BASE_URL}${OAUTH_CONFIG.ENDPOINTS.TOKEN}`
       const tokenResponse = await fetch(tokenUrl, {
         method: "POST",
@@ -410,12 +426,9 @@ export async function startServer({
       }
 
       const tokens: OAuthTokens = await tokenResponse.json()
-
       ctx.logger.info("tokens", tokens)
-      // Store tokens securely
       await ctx.credentialsManager.setTokens(tokens)
 
-      // Fetch user info using the access token
       const userInfoUrl = `${OAUTH_CONFIG.AUTH_SERVER_BASE_URL}${OAUTH_CONFIG.ENDPOINTS.USERINFO}`
       const userInfoResponse = await fetch(userInfoUrl, {
         headers: {
@@ -426,40 +439,31 @@ export async function startServer({
       let user: UserInfo | null = null
       if (userInfoResponse.ok) {
         user = await userInfoResponse.json()
-        // Store user info separately (non-sensitive data)
         await ctx.credentialsManager.setUserInfo(user!)
       } else {
-        // Fallback if userinfo fails
         ctx.logger.error("Failed to fetch user info")
       }
 
-      // Broadcast auth state change to frontend
       ctx.broadcastAuthStateChange(true, user)
 
       return c.html(`
-                <html>
-                    <body>
-                        <h1>Login Successful</h1>
-                        <p>You can close this window and return to Eidos.</p>
-                        <script>
-                            // Optional: Try to close window or focus app
-                            // window.close();
-                        </script>
-                    </body>
-                </html>
-            `)
+        <html>
+          <body>
+            <h1>Login Successful</h1>
+            <p>You can close this window and return to Eidos.</p>
+          </body>
+        </html>
+      `)
     } catch (error: any) {
       return c.text(`Authentication error: ${error.message}`, 500)
     }
   })
 
+  // Get current user
   app.get("/api/auth/user", async (c) => {
     try {
-      // Try to get a valid access token (will auto-refresh if needed)
-      // This call will automatically refresh the token if it's expired
       const accessToken = await ctx.credentialsManager.getAccessToken()
       if (!accessToken) {
-        // Token refresh failed, broadcast logout event to frontend
         ctx.broadcastAuthStateChange(false, null)
         return c.json({ authenticated: false }, 401)
       }
@@ -469,7 +473,6 @@ export async function startServer({
       return c.json({
         authenticated: true,
         user: user,
-        // Don't expose tokens in the API response for security
         hasValidTokens: true,
       })
     } catch (error: any) {
@@ -478,31 +481,24 @@ export async function startServer({
     }
   })
 
+  // Logout
   app.post("/api/auth/logout", async (c) => {
     try {
-      // Get tokens before clearing for server-side logout
       const tokens = await ctx.credentialsManager.getTokens()
 
-      // Notify server to end session if we have an id_token
       if (tokens?.id_token) {
         try {
           const endSessionUrl = new URL(
             `${OAUTH_CONFIG.AUTH_SERVER_BASE_URL}${OAUTH_CONFIG.ENDPOINTS.END_SESSION}`
           )
           endSessionUrl.searchParams.set("id_token_hint", tokens.id_token)
-
-          await fetch(endSessionUrl.toString(), {
-            method: "GET",
-          })
+          await fetch(endSessionUrl.toString(), { method: "GET" })
         } catch (endSessionError) {
-          // Log but don't fail - still clear local credentials
           ctx.logger.error("Failed to end session on server:", endSessionError)
         }
       }
 
-      // Clear local credentials
       await ctx.credentialsManager.clearAll()
-      // Broadcast auth state change to frontend
       ctx.broadcastAuthStateChange(false, null)
       return c.json({ success: true })
     } catch (error: any) {
@@ -511,14 +507,11 @@ export async function startServer({
     }
   })
 
-  // Get access token for authenticated API requests
-  // This endpoint should only be called from trusted frontend code
+  // Get access token
   app.get("/api/auth/token", async (c) => {
     try {
-      // Try to get a valid access token (will auto-refresh if needed)
       const accessToken = await ctx.credentialsManager.getAccessToken()
       if (!accessToken) {
-        // Token refresh failed, broadcast logout event to frontend
         ctx.broadcastAuthStateChange(false, null)
         return c.json({ error: "Failed to get access token" }, 401)
       }
@@ -529,8 +522,13 @@ export async function startServer({
       return c.json({ error: error.message }, 500)
     }
   })
+}
 
-  // handle api calls
+/**
+ * Setup API routes (RPC, AI)
+ */
+function setupApiRoutes(app: Hono, ctx: ServerContext) {
+  // RPC endpoint
   app.post("/rpc", async (c) => {
     try {
       const spaceId = extractSpaceIdFromRequest(c)
@@ -548,11 +546,9 @@ export async function startServer({
       const contentType = c.req.header("content-type") || ""
 
       if (contentType.includes("multipart/form-data")) {
-        // Handle form-data request with binary data
         const formData = await parseMultipartFormData(c.req.raw)
         const jsonData = JSON.parse(formData.json || "{}")
 
-        // Restore binary data from form fields
         const binaryDataMap: Record<string, any> = {}
         for (const [key, value] of Object.entries(formData)) {
           if (key.startsWith("binary_")) {
@@ -560,12 +556,10 @@ export async function startServer({
           }
         }
 
-        // Replace binary references with actual data
         method = jsonData.method
         params = restoreBinaryData(jsonData.params, binaryDataMap)
         scope = jsonData.scope
       } else {
-        // Handle regular JSON request
         const jsonData = await c.req.json()
         method = jsonData.method
         params = jsonData.params
@@ -581,15 +575,11 @@ export async function startServer({
         dbName: spaceId,
         userId: "unknown",
       })
-      // const result = await handleFunctionCall({ method, params, space: spaceId, dbName: spaceId, userId: 'unknown' }, dataSpace);
 
-      // Check if result contains binary data and handle accordingly
       if (containsBinaryData(result)) {
-        // Use multipart form data for binary responses
         const formData = new FormData()
         formData.append("json", JSON.stringify({ success: true }))
 
-        // Extract binary data and add as separate fields
         let binaryIndex = 0
         const processedResult = processBinaryDataForResponse(
           result,
@@ -600,31 +590,19 @@ export async function startServer({
           }
         )
 
-        // Update the JSON data to include the processed result
         formData.set(
           "json",
           JSON.stringify({ success: true, data: processedResult })
         )
 
-        // Note: CORS headers are set by the global middleware above
         return c.newResponse(formData as any)
       } else {
-        // Regular JSON response
         return c.json({ success: true, data: result })
       }
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400)
     }
   })
-
-  // AI completion route
-  // app.post(aiCompletionPath, async (c) => {
-  //     const response = await aiCompletionHandler({
-  //         request: c.req,
-  //         respondWith: (response: Response) => response,
-  //     } as unknown as FetchEvent);
-  //     return response;
-  // });
 
   // AI route
   app.all(aiPath, async (c) => {
@@ -642,7 +620,13 @@ export async function startServer({
     )
     return response
   })
+}
 
+/**
+ * Setup file serving routes
+ */
+function setupFileRoutes(app: Hono, ctx: ServerContext) {
+  // Files from space storage
   app.get("/files/*", async (c) => {
     try {
       const spaceId = extractSpaceIdFromRequest(c)
@@ -689,6 +673,7 @@ export async function startServer({
     }
   })
 
+  // Project files
   app.get("/~/*", async (c) => {
     try {
       const spaceId = extractSpaceIdFromRequest(c)
@@ -702,7 +687,7 @@ export async function startServer({
         return c.text(`Space not found: ${spaceId}`, 404)
       }
 
-      const requestPath = c.req.path.replace("/~/", "")
+      const requestPath = c.req.path.replace("/~", "")
       const fullPath = path.join(space.path, requestPath)
 
       return serveFile(fullPath, c)
@@ -711,6 +696,7 @@ export async function startServer({
     }
   })
 
+  // Mounted files
   app.get("/@/*", async (c) => {
     try {
       const spaceId = extractSpaceIdFromRequest(c)
@@ -723,7 +709,8 @@ export async function startServer({
       if (!dataSpace) {
         return c.text(`Space not available: ${spaceId}`, 503)
       }
-      const requestPath = c.req.path.replace("/@/", "")
+
+      const requestPath = c.req.path.replace("/@", "")
       const parts = requestPath.split("/")
       const mountName = parts[0]
       const relativePath = parts.slice(1).join("/")
@@ -739,7 +726,6 @@ export async function startServer({
 
       const fullPath = path.join(mountPath, relativePath)
 
-      // Security check - ensure path is within mount directory
       if (
         !fullPath.startsWith(mountPath + path.sep) &&
         fullPath !== mountPath
@@ -752,9 +738,32 @@ export async function startServer({
       return c.text(`Error serving mounted file: ${error.message}`, 500)
     }
   })
+}
 
-  // Fallback to index.html for non-existent paths
-  app.use("*", serveStatic({ path: `${dist}/index.html` }))
+/**
+ * Start the HTTP server
+ */
+export async function startServer(
+  {
+    dist,
+    port,
+  }: {
+    dist: string
+    port: number
+  },
+  ctx: ServerContext
+): Promise<void> {
+  // Check if port is already in use
+  const portOccupied = await ctx.portChecker.isPortInUse(port)
+  if (portOccupied) {
+    const processInfo = await ctx.portChecker.getProcessByPort(port)
+    const error = new Error(`Port ${port} is already in use`) as PortInUseError
+    error.port = port
+    error.processInfo = processInfo
+    throw error
+  }
+
+  const app = createApp(dist, port, ctx)
 
   serve(
     {

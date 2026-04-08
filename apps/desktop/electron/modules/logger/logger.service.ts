@@ -9,6 +9,7 @@ import electronLog from "electron-log"
 import { Injectable } from "../../common/di"
 
 export interface Logger {
+  log(...params: any[]): void
   info(...params: any[]): void
   warn(...params: any[]): void
   error(...params: any[]): void
@@ -49,6 +50,14 @@ export class LoggerService implements Logger {
     const childLogger = new LoggerService()
     childLogger.setPrefix(prefix)
     return childLogger
+  }
+
+  log(...params: any[]): void {
+    if (this.prefix) {
+      electronLog.log(this.prefix, ...params)
+    } else {
+      electronLog.log(...params)
+    }
   }
 
   info(...params: any[]): void {

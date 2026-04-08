@@ -2,7 +2,6 @@ import { contextBridge, ipcRenderer } from "electron"
 
 import type { AppConfig } from "./modules/config/config-manager"
 import { installElectronFetchProxy } from "./ipc/fetch-proxy"
-import type { ApiAgentStatus } from "./core/server/api-agent"
 import { createPreloadApiByNamespace } from "@eidos.space/electron-ipc"
 
 // AI related
@@ -220,21 +219,6 @@ function main() {
     // You can expose other APIs you need here.
     // ...
 
-    // Add these new properties to eidos object
-    onApiAgentStatusChanged: (callback: (status: ApiAgentStatus) => void) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        status: ApiAgentStatus
-      ) => callback(status)
-      ipcRenderer.on("api-agent-status-changed", listener)
-
-      return () => {
-        console.log("remove listener")
-        ipcRenderer.removeListener("api-agent-status-changed", listener)
-      }
-    },
-    getApiAgentStatus: () =>
-      ipcRenderer.invoke("app-lifecycle:getApiAgentStatus"),
     checkForUpdates: () => ipcRenderer.invoke("app-lifecycle:checkForUpdates"),
     quitAndInstall: () => ipcRenderer.invoke("app-lifecycle:quitAndInstall"),
 

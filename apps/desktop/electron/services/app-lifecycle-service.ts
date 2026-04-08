@@ -1,6 +1,5 @@
 import { app } from "electron"
 import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
-import { getApiAgentStatus } from "../core/server/api-agent"
 import type { AppUpdater } from "./updater"
 
 interface AppLifecycleOptions {
@@ -24,13 +23,6 @@ export class AppLifecycleService extends IpcServiceBase {
     this.appUpdater = options.appUpdater
     this.onReloadApp = options.onReloadApp
     this.onQuitApp = options.onQuitApp
-  }
-
-  /**
-   * Get the API agent status
-   */
-  getApiAgentStatus(): ReturnType<typeof getApiAgentStatus> {
-    return getApiAgentStatus()
   }
 
   /**
