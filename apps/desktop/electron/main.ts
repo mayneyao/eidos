@@ -22,7 +22,7 @@ import { AppModule } from "./app.module"
 import { bootstrap, container } from "./common/di"
 
 // Import services for backward compatibility
-import { ConfigManager, ConfigService } from "./modules/config/config.module"
+import { ConfigManager } from "./modules/config/config.module"
 
 // Legacy imports (will be migrated gradually)
 import { showPortInUseDialog } from "./modules/api-server/api-server.module"
@@ -41,22 +41,6 @@ import {
   WindowService,
 } from "./modules/window"
 
-// Legacy service imports (migrated to DI)
-// import { cliService } from "./services/cli-service"  // Migrated to DI
-// import { configService as legacyConfigService } from "./services/config-service"  // Migrated to DI
-// import { contextMenuService } from "./services/context-menu-service"  // Migrated to DI
-// import { dataSpaceService } from "./services/data-space/data-space-service"  // Migrated to DI
-// import { fetchService } from "./services/fetch-service"  // Migrated to DI
-// import { fileSystemService as legacyFileSystemService } from "./services/file-system-service"
-// import { licenseService } from "./services/license-service"  // Migrated to DI
-// import { OpenDataService } from "./services/opendata-service"  // Migrated to DI
-import { OpenDataService } from "./modules/opendata"
-// import { relayService } from "./services/relay-service"  // Migrated to DI
-// import { SpaceManagementService } from "./services/space-management-service"  // Migrated to DI
-// import { syncService as legacySyncService } from "./services/sync-service"
-// import { TerminalService } from "./services/terminal-service"  // Migrated to DI
-// import { corsManager } from "./services/cors-manager"  // Migrated to DI
-// import { webviewService } from "./services/webview-service"  // Migrated to DI
 import { CorsService } from "./modules/network/network.module"
 
 // DI imports for window providers
@@ -76,8 +60,6 @@ export function getMainWindowWebContents() {
 }
 
 // App state
-// let openDataService: OpenDataService | null = null  // Now via DI
-// let terminalService: TerminalService | null =  // Now via DI
 // let globalShortcutManager: GlobalShortcutsService | null = null  // Now via DI
 let forceQuit = false
 
@@ -191,26 +173,10 @@ async function main() {
       () => win
     )
 
-    // Initialize OpenDataService via DI
-    const openDataService = container.get(OpenDataService)
-    openDataService.register()
-
-    // Use DI ConfigService
-    const configService = container.get(ConfigService)
-
-    // Register services
-    // NOTE: DI services auto-registered via bootstrap:
-    // Config, FileSystem, Sync, License, Network, Cli, Terminal, DataSpace, Window, OpenData
-
-    // cliService.register()  // Migrated to DI
-    // dataSpaceService.register()  // Migrated to DI - now auto-registered via DI
-    // fetchService.register()  // Migrated to DI
-    // contextMenuService.register()  // Migrated to DI
-    // webviewService.register()  // Migrated to DI - now auto-registered via DI
-
-    // Initialize window-related DI services
-    const webviewService = container.get(WebviewService)
-    webviewService.register()
+    // Initialize webview service (for backward compatibility)
+    // NOTE: DI services are auto-registered via bootstrap, but we need to
+    // instantiate webviewService to ensure it's ready for window creation
+    container.get(WebviewService)
 
     // Migrate legacy config
     const spaceRegistry = container.get(SpaceRegistry)
