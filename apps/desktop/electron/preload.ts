@@ -1,7 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron"
 
 import type { AppConfig } from "./services/config-manager"
-import type { PlaygroundFile } from "./file-system/playground"
 import { installElectronFetchProxy } from "./lib/electron-fetch"
 import type { ApiAgentStatus } from "./server/api-agent"
 import { createPreloadApiByNamespace } from "@eidos.space/electron-ipc"
@@ -202,11 +201,6 @@ function main() {
       },
     },
     pipeline: createPreloadApiByNamespace("pipeline"),
-    initializePlayground: (
-      space: string,
-      blockId: string,
-      files: PlaygroundFile[]
-    ) => ipcRenderer.invoke("playground:initialize", space, blockId, files),
     minimizeWindow: () => ipcRenderer.send("window-control", "minimize"),
     maximizeWindow: () => ipcRenderer.send("window-control", "maximize"),
     unmaximizeWindow: () => ipcRenderer.send("window-control", "unmaximize"),

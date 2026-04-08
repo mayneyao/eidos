@@ -9,7 +9,6 @@ import { isDesktopMode } from "@/lib/env"
 import { getExtensionUrl, isUuid } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
-import { usePlayground } from "@/apps/desktop/renderer/hooks/usePlayground"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
@@ -65,11 +64,6 @@ const ExtensionToolbarContent = ({
     editorRef.current?.save()
   }
 
-  const blockCodeCompile = async (ts_code: string) => {
-    const result = await compileCode(ts_code)
-    return result.code
-  }
-
   const handleCopyCode = useCallback(() => {
     const codeToCopy = script.ts_code || script.code
     navigator.clipboard.writeText(codeToCopy)
@@ -78,19 +72,6 @@ const ExtensionToolbarContent = ({
       duration: 2000,
     })
   }, [script.ts_code, script.code, toast, t])
-
-  const { initializePlayground } = usePlayground({
-    onChange: (filename, content, spaceName, blockId) => {
-      if (spaceName !== space || blockId !== script.id) {
-        return
-      }
-      if (filename === "index.jsx") {
-        blockCodeCompile(content).then((code) => {
-          onSubmit(code, content)
-        })
-      }
-    },
-  })
 
   const { isRemixMode, setIsRemixMode } = useEditorStore()
   const { isFavorite, toggleFavBlock } = useFavBlocks()

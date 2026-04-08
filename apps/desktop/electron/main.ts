@@ -14,7 +14,6 @@ import { setupRegistryIpc } from "@eidos.space/electron-ipc"
 import { getConfigManager } from "./services/config-manager"
 import { corsManager } from "./services/cors-manager"
 import { getDataSpace } from "./data-space"
-import { cleanupPlaygroundWatchers } from "./file-system/playground"
 import { getSpacePath } from "./file-system/space"
 import { registerElectronFetchIpc } from "./lib/electron-fetch"
 import { showPortInUseDialog } from "./services/port-checker"
@@ -32,7 +31,6 @@ import { GlobalShortcutManager } from "./services/global-shortcut-manager"
 import { licenseService } from "./services/license-service"
 import { OpenDataService } from "./services/opendata-service"
 import { PipelineService } from "./services/pipeline-service"
-import { playgroundService } from "./services/playground-service"
 import { relayService } from "./services/relay-service"
 import { SpaceManagementService } from "./services/space-management-service"
 import { syncService } from "./services/sync-service"
@@ -173,7 +171,6 @@ ipcMain.handle("sqlite-msg-read", async (event, payload) => {
 // See: services/app-lifecycle-service.ts
 
 app.on("window-all-closed", () => {
-  cleanupPlaygroundWatchers()
   getDataSpace()?.close()
   globalShortcutManager?.destroy()
   globalShortcutManager = null
@@ -182,9 +179,6 @@ app.on("window-all-closed", () => {
   win = null
 })
 
-// Playground IPC handlers are now handled by PlaygroundService
-// See: services/playground-service.ts
-
 // Sync IPC handlers are now handled by SyncService
 // See: services/sync-service.ts
 
@@ -192,7 +186,6 @@ app.on("window-all-closed", () => {
 // See: services/license-service.ts
 
 app.on("before-quit", () => {
-  cleanupPlaygroundWatchers()
   openDataService?.closeAll()
   terminalService?.cleanup()
   forceQuit = true
@@ -317,7 +310,6 @@ app.whenReady().then(async () => {
   fetchService.register()
   contextMenuService.register()
   webviewService.register()
-  playgroundService.register()
 
   // PipelineService requires windowManager, initialize after app is ready
   const pipelineService = new PipelineService({
@@ -441,7 +433,6 @@ app.whenReady().then(async () => {
         event.preventDefault()
         win?.hide()
       } else {
-        cleanupPlaygroundWatchers()
         forceQuit = true
         destroyTray()
         app.quit()
@@ -464,7 +455,6 @@ app.whenReady().then(async () => {
       win?.reload()
     },
     onQuitApp: () => {
-      cleanupPlaygroundWatchers()
       forceQuit = true
       destroyTray()
       getDataSpace()?.close()
