@@ -1,9 +1,15 @@
+/**
+ * License Manager - Manages license storage and verification
+ * DI-compatible version with @Injectable
+ */
+
 import { app, safeStorage } from "electron"
 import fs from "fs/promises"
 import path from "path"
 import crypto from "node:crypto"
 import os from "node:os"
 import { machineId } from "node-machine-id"
+import { Injectable } from "../../common/di"
 
 const PUBLIC_KEY =
   "MCowBQYDK2VwAyEAWUPm84Yth9VFvOMNjoGnqjFmO2c20leVkiqM0F5S7U0="
@@ -23,15 +29,16 @@ export interface StoredLicense {
 
 const LICENSE_PATH = "license.bin"
 
+@Injectable()
 export class LicenseManager {
-  private static async getLicenseFilePath(): Promise<string> {
+  async getLicenseFilePath(): Promise<string> {
     if (!app.isReady()) {
       await app.whenReady()
     }
     return path.join(app.getPath("userData"), LICENSE_PATH)
   }
 
-  static async getMachineId(): Promise<string> {
+  async getMachineId(): Promise<string> {
     try {
       return await machineId()
     } catch (e) {
@@ -40,14 +47,11 @@ export class LicenseManager {
     }
   }
 
-  static getDeviceName(): string {
+  getDeviceName(): string {
     return os.hostname()
   }
 
-  static async saveLicense(
-    licenseKey: string,
-    certificate: string
-  ): Promise<void> {
+  async saveLicense(licenseKey: string, certificate: string): Promise<void> {
     const filePath = await this.getLicenseFilePath()
     const data = JSON.stringify({ licenseKey, certificate })
 
@@ -59,7 +63,7 @@ export class LicenseManager {
     }
   }
 
-  static async getLicense(): Promise<StoredLicense | null> {
+  async getLicense(): Promise<StoredLicense | null> {
     try {
       const filePath = await this.getLicenseFilePath()
       const raw = await fs.readFile(filePath)
@@ -78,7 +82,7 @@ export class LicenseManager {
     }
   }
 
-  static async clearLicense(): Promise<void> {
+  async clearLicense(): Promise<void> {
     try {
       const filePath = await this.getLicenseFilePath()
       await fs.unlink(filePath)
@@ -89,9 +93,7 @@ export class LicenseManager {
     }
   }
 
-  static async verifyCertificate(
-    certStr: string
-  ): Promise<LicensePayload | null> {
+  async verifyCertificate(certStr: string): Promise<LicensePayload | null> {
     try {
       const { payload, signature } = JSON.parse(certStr)
       const data = Buffer.from(JSON.stringify(payload))
@@ -128,4 +130,14 @@ export class LicenseManager {
       return null
     }
   }
+}
+
+// Backward compatibility: static methods delegate to singleton
+let licenseManagerInstance: LicenseManager | null = null
+
+export function getLicenseManager(): LicenseManager {
+  if (!licenseManagerInstance) {
+    licenseManagerInstance = new LicenseManager()
+  }
+  return licenseManagerInstance
 }

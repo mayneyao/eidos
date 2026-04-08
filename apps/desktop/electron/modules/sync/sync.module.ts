@@ -13,4 +13,4 @@ import { CredentialsManager } from "./credentials"
 export class SyncModule {}
 
 export { SyncService } from "./sync.service"
-export { CredentialsManager } from "./credentials"
+export { CredentialsManager, getCredentialsManager } from "./credentials"

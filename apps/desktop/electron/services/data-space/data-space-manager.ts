@@ -4,8 +4,8 @@ import { Worker } from "worker_threads"
 import type { DataSpace } from "@/packages/core/data-space"
 import log from "electron-log"
 
-import { CredentialsManager } from "../credentials"
-import { getConfigManager } from "../config-manager"
+import { getCredentialsManager } from "../../modules/sync/sync.module"
+import { getConfigManager } from "../../modules/config/config-manager"
 import { getSpacePath } from "../../utils/paths"
 import { getResourcePath } from "../../utils/resources"
 import { getSpaceRegistry } from "../space-registry"
@@ -107,8 +107,9 @@ export class DataSpaceManager {
         configManager.getDefaultSyncProvider() ||
         "eidos.space"
 
+      const credentialsManager = getCredentialsManager()
       const credentials =
-        await CredentialsManager.getSyncCredentials(providerId)
+        await credentialsManager.getSyncCredentials(providerId)
       if (!credentials) {
         // throw new Error(`Credentials for ${providerId} not found`)
         // Keep existing logic, maybe it works without credentials for local?

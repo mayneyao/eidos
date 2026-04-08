@@ -9,6 +9,7 @@ import { Module } from "./common/di"
 import { ConfigModule } from "./modules/config/config.module"
 import { FileSystemModule } from "./modules/file-system/file-system.module"
 import { SyncModule } from "./modules/sync/sync.module"
+import { LicenseModule } from "./modules/license/license.module"
 import { ExampleModule } from "./modules/example/example.module"
 
 /**
@@ -18,10 +19,17 @@ import { ExampleModule } from "./modules/example/example.module"
  * - ConfigModule: Configuration management
  * - FileSystemModule: File operations
  * - SyncModule: Data synchronization
+ * - LicenseModule: License management
  * - ExampleModule: DI demonstration (can be removed)
  */
 @Module({
-  imports: [ConfigModule, FileSystemModule, SyncModule, ExampleModule],
+  imports: [
+    ConfigModule,
+    FileSystemModule,
+    SyncModule,
+    LicenseModule,
+    ExampleModule,
+  ],
   providers: [],
   exports: [],
 })
