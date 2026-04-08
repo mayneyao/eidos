@@ -1,5 +1,5 @@
 // IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
-import "../modules/data-space/worker/sqlite-server/env"
+import "../data-space/worker/sqlite-server/env"
 
 import {
   OpenData,
@@ -25,6 +25,10 @@ import {
   IpcService,
   IpcServiceBase,
 } from "@eidos.space/electron-ipc"
+
+import { Injectable, Inject } from "../../common/di"
+import { WindowService } from "../window/window.service"
+import { getSpacePath } from "../../utils/paths"
 
 /**
  * File system wrapper for OpenDataManager
@@ -119,24 +123,17 @@ class ElectronFileSystem {
  * Manages adapters, runs pipelines, and persists data to local database
  */
 @IpcService("opendata", { exposeMode: "decorated" })
+@Injectable()
 export class OpenDataService extends IpcServiceBase {
   private managers: Map<string, OpenDataManager> = new Map()
   private dataStores: Map<string, OpenData> = new Map()
   private databases: Map<string, Database.Database> = new Map()
-  private getSpacePath: (spaceId: string) => string
   // Running locks to prevent duplicate execution
   private runningAdapters: Map<string, Promise<any>> = new Map()
 
-  private getWindowId: () => number | undefined
-
-  constructor(
-    getSpacePath: (spaceId: string) => string,
-    getWindowId?: () => number | undefined
-  ) {
+  constructor(@Inject(WindowService) private windowService: WindowService) {
     super()
     console.log("[OpenData] OpenDataService constructor called")
-    this.getSpacePath = getSpacePath
-    this.getWindowId = getWindowId || (() => undefined)
   }
 
   /**
@@ -229,7 +226,7 @@ export class OpenDataService extends IpcServiceBase {
 
     if (!this.managers.has(spaceId)) {
       console.log("[OpenData] Creating new manager for space:", spaceId)
-      const spacePath = this.getSpacePath(spaceId)
+      const spacePath = getSpacePath(spaceId)
       console.log("[OpenData] Space path:", spacePath)
       const fs = new ElectronFileSystem(spacePath)
 
@@ -257,7 +254,7 @@ export class OpenDataService extends IpcServiceBase {
    */
   private getDatabase(spaceId: string): Database.Database {
     if (!this.databases.has(spaceId)) {
-      const spacePath = this.getSpacePath(spaceId)
+      const spacePath = getSpacePath(spaceId)
       const dbPath = path.join(spacePath, ".eidos", "opendata.db")
 
       // Ensure directory exists
@@ -1481,7 +1478,7 @@ export class OpenDataService extends IpcServiceBase {
     filePath: string,
     content: string
   ): Promise<void> {
-    const spacePath = this.getSpacePath(spaceId)
+    const spacePath = getSpacePath(spaceId)
     const adaptersDir = path.join(spacePath, ".eidos", ".opendata")
     const fullPath = path.join(adaptersDir, filePath)
 
@@ -1492,7 +1489,7 @@ export class OpenDataService extends IpcServiceBase {
 
   @IpcMethod()
   async deleteAdapter(spaceId: string, filePath: string): Promise<void> {
-    const spacePath = this.getSpacePath(spaceId)
+    const spacePath = getSpacePath(spaceId)
     const fullPath = path.join(spacePath, ".eidos", ".opendata", filePath)
     await fsNode.unlink(fullPath)
     await this.reloadAdapters(spaceId)
@@ -1637,11 +1634,12 @@ export class OpenDataService extends IpcServiceBase {
     }
     persisted: { agents: number; goods: number; relations: number }
   }> {
-    // Get browser window from windowId or use current window
+    // Get browser window from windowId or use main window
     let browserWindow: BrowserWindow | undefined
-    const windowIdToUse = windowId || this.getWindowId()
-    if (windowIdToUse) {
-      browserWindow = BrowserWindow.fromId(windowIdToUse) || undefined
+    if (windowId) {
+      browserWindow = BrowserWindow.fromId(windowId) || undefined
+    } else {
+      browserWindow = this.windowService.getMainWindow() || undefined
     }
 
     const result = await this._runAdapter(

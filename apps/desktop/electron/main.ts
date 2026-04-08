@@ -50,7 +50,8 @@ import { getSpacePath } from "./utils/paths"
 // import { fetchService } from "./services/fetch-service"  // Migrated to DI
 // import { fileSystemService as legacyFileSystemService } from "./services/file-system-service"
 // import { licenseService } from "./services/license-service"  // Migrated to DI
-import { OpenDataService } from "./services/opendata-service"
+// import { OpenDataService } from "./services/opendata-service"  // Migrated to DI
+import { OpenDataService } from "./modules/opendata"
 // import { relayService } from "./services/relay-service"  // Migrated to DI
 // import { SpaceManagementService } from "./services/space-management-service"  // Migrated to DI
 // import { syncService as legacySyncService } from "./services/sync-service"
@@ -76,7 +77,7 @@ export function getMainWindowWebContents() {
 }
 
 // App state
-let openDataService: OpenDataService | null = null
+// let openDataService: OpenDataService | null = null  // Now via DI
 // let terminalService: TerminalService | null =  // Now via DI
 // let globalShortcutManager: GlobalShortcutsService | null = null  // Now via DI
 let forceQuit = false
@@ -160,7 +161,11 @@ async function main() {
       const globalShortcutsService = container.get(GlobalShortcutsService)
       globalShortcutsService.destroy()
     } catch {}
-    openDataService?.closeAll()
+    // Cleanup OpenDataService via DI
+    try {
+      const openDataService = container.get(OpenDataService)
+      openDataService.closeAll()
+    } catch {}
     // Cleanup DI terminal service
     try {
       const terminalService = container.get(TerminalService)
@@ -170,7 +175,11 @@ async function main() {
   })
 
   app.on("before-quit", () => {
-    openDataService?.closeAll()
+    // Cleanup OpenDataService via DI
+    try {
+      const openDataService = container.get(OpenDataService)
+      openDataService.closeAll()
+    } catch {}
     // Cleanup DI terminal service
     try {
       const terminalService = container.get(TerminalService)
@@ -232,8 +241,8 @@ async function main() {
       app.quit()
     })
 
-    // Register legacy services (gradually migrate to DI)
-    openDataService = new OpenDataService(getSpacePath, () => win?.id)
+    // Initialize OpenDataService via DI
+    const openDataService = container.get(OpenDataService)
     openDataService.register()
 
     // Use DI ConfigService
@@ -241,7 +250,7 @@ async function main() {
 
     // Register services
     // NOTE: DI services auto-registered via bootstrap:
-    // Config, FileSystem, Sync, License, Network, Cli, Terminal, DataSpace, Window
+    // Config, FileSystem, Sync, License, Network, Cli, Terminal, DataSpace, Window, OpenData
 
     // cliService.register()  // Migrated to DI
     // dataSpaceService.register()  // Migrated to DI - now auto-registered via DI
