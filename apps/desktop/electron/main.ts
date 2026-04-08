@@ -22,7 +22,7 @@ import { AppModule } from "./app.module"
 import { bootstrap, container } from "./common/di"
 
 // Import services for backward compatibility
-import { ConfigManager } from "./modules/config/config.module"
+// (none currently)
 
 // Legacy imports (will be migrated gradually)
 import { showPortInUseDialog } from "./modules/api-server/api-server.module"
@@ -200,18 +200,6 @@ async function main() {
     // Initialize global shortcuts service
     const globalShortcutsService = container.get(GlobalShortcutsService)
     globalShortcutsService.setupWindowFocusListeners()
-
-    // Config change listener
-    const configManager = container.get(ConfigManager)
-
-    configManager.on(
-      "configChanged",
-      ({ key, newValue }: { key: string; newValue: unknown }) => {
-        if (key === "security") {
-          console.log("security changed", newValue)
-        }
-      }
-    )
 
     // Create tray via DI
     const trayService = container.get(TrayService)
