@@ -1,7 +1,7 @@
 import path from "path"
 import { app } from "electron"
 import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
-import { getConfigManager } from "./config-manager"
+import { getConfigManager, type AppConfig } from "./config-manager"
 
 /**
  * Config Service - Manages application configuration
@@ -12,21 +12,21 @@ export class ConfigService extends IpcServiceBase {
   /**
    * Get the application data folder path
    */
-  getAppDataFolder(): string {
+  getAppDataFolder(): string | undefined {
     return getConfigManager().get("dataFolder")
   }
 
   /**
    * Get a config value by key
    */
-  getConfig(key: string): any {
+  getConfig<K extends keyof AppConfig>(key: K): AppConfig[K] {
     return getConfigManager().get(key)
   }
 
   /**
    * Set a config value
    */
-  setConfig(key: string, value: any): void {
+  setConfig<K extends keyof AppConfig>(key: K, value: AppConfig[K]): void {
     getConfigManager().set(key, value)
   }
 

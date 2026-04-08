@@ -2,7 +2,7 @@ import { BrowserWindow, Menu, webContents } from "electron"
 import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
 import { convertToElectronMenuTemplateWithIds } from "../window-manager/menu-utils"
 
-interface NativeMenuItem {
+export interface NativeMenuItem {
   id: string
   label?: string
   type?: "normal" | "separator" | "submenu" | "checkbox" | "radio"
@@ -10,6 +10,7 @@ interface NativeMenuItem {
   visible?: boolean
   checked?: boolean
   accelerator?: string
+  icon?: string
   submenu?: NativeMenuItem[]
 }
 
