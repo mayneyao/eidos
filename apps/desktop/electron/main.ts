@@ -112,6 +112,11 @@ async function initializeServer(): Promise<void> {
  */
 async function main() {
   console.log("[Main] Starting Eidos Desktop...")
+  // Check for single instance
+  if (!app.requestSingleInstanceLock()) {
+    app.quit()
+    process.exit(0)
+  }
 
   // Bootstrap DI container
   console.log("[Main] Bootstrapping DI container...")
@@ -122,12 +127,6 @@ async function main() {
 
   // Initialize server first
   await initializeServer()
-
-  // Check for single instance
-  if (!app.requestSingleInstanceLock()) {
-    app.quit()
-    process.exit(0)
-  }
 
   // App event handlers - will be set up via AppLifecycleService
 

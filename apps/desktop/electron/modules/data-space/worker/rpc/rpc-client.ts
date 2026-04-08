@@ -78,11 +78,13 @@ export class RpcClient {
     onIterator?: (msg: any) => void
   ): Promise<any> {
     const messageId = id || Math.random().toString(36).substring(2)
-    const methodStr = path.join(".")
+    // Filter out any non-string values (like Symbols) from path
+    const stringPath = path.filter((p): p is string => typeof p === "string")
+    const methodStr = stringPath.join(".")
     const isIter = isIteratorFunction(methodStr)
 
     if (isIter) {
-      const iter = this.createAsyncIterable(messageId, path, args)
+      const iter = this.createAsyncIterable(messageId, stringPath, args)
       if (onIterator) {
         this.startForwarding(messageId, iter, onIterator)
         return { type: "iterator-started", id: messageId }
@@ -95,7 +97,7 @@ export class RpcClient {
       this.transport.postMessage({
         id: messageId,
         type: "call",
-        path,
+        path: stringPath,
         args,
       } as RpcRequest)
     })
