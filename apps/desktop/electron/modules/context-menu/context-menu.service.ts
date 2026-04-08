@@ -1,6 +1,11 @@
-import { BrowserWindow, Menu, webContents } from "electron"
-import { IpcService, IpcServiceBase } from "@eidos.space/electron-ipc"
-import { convertToElectronMenuTemplateWithIds } from "../window/menu-utils"
+/**
+ * Context Menu Service - Handles native context menu display
+ */
+
+import { BrowserWindow, Menu } from "electron"
+import { IpcServiceBase } from "@eidos.space/electron-ipc"
+import { IpcInjectable } from "../../common/di"
+import { convertToElectronMenuTemplateWithIds } from "./menu-utils"
 
 export interface NativeMenuItem {
   id: string
@@ -21,12 +26,16 @@ interface ContextMenuOptions {
 }
 
 /**
- * Context Menu Service - Handles native context menu display
+ * Context Menu Service - Provides native context menus via IPC
+ *
+ * IPC Channels:
+ * - context-menu:showNativeContextMenu: Show native context menu
  */
-@IpcService("context-menu")
+@IpcInjectable("context-menu")
 export class ContextMenuService extends IpcServiceBase {
   /**
    * Show a native context menu
+   * IPC: context-menu:showNativeContextMenu
    */
   async showNativeContextMenu(
     options: ContextMenuOptions
@@ -75,6 +84,3 @@ export class ContextMenuService extends IpcServiceBase {
     }
   }
 }
-
-// Export singleton instance
-export const contextMenuService = new ContextMenuService()

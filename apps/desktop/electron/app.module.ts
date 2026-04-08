@@ -14,6 +14,7 @@ import { LicenseModule } from "./modules/license/license.module"
 import { NetworkModule } from "./modules/network/network.module"
 import { CliModule } from "./modules/cli/cli.module"
 import { TerminalModule } from "./modules/terminal/terminal.module"
+import { ContextMenuModule } from "./modules/context-menu/context-menu.module"
 import { ExampleModule } from "./modules/example/example.module"
 
 /**
@@ -28,6 +29,7 @@ import { ExampleModule } from "./modules/example/example.module"
  * - NetworkModule: HTTP fetch operations
  * - CliModule: CLI installation and management
  * - TerminalModule: Terminal session management
+ * - ContextMenuModule: Native context menu display
  * - ExampleModule: DI demonstration (can be removed)
  */
 @Module({
@@ -40,6 +42,7 @@ import { ExampleModule } from "./modules/example/example.module"
     NetworkModule,
     CliModule,
     TerminalModule,
+    ContextMenuModule,
     ExampleModule,
   ],
   providers: [],
