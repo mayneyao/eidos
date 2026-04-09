@@ -1,7 +1,5 @@
 "use client"
 
-import { Suspense, lazy } from "react"
-
 import { cn } from "@/lib/utils"
 import {
   ResizableHandle,
@@ -11,13 +9,11 @@ import {
 
 import { Loading } from "@/components/loading"
 import { ScriptContainer } from "@/components/script-container"
-import { TempPanel } from "@/components/nav/temp-panel"
+import { RightPanelContent } from "@/components/nav/right-panel-content"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
 import { useSpaceAppStore } from "./store"
-
-const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 
 export function DatabasePWALayoutBase({
   children,
@@ -28,9 +24,7 @@ export function DatabasePWALayoutBase({
 }) {
   const { sqlite } = useSqlite()
   const { isShareMode } = useAppRuntimeStore()
-  const { isRightPanelOpen, currentAppIndex, apps, tempPanelNode } =
-    useSpaceAppStore()
-  const currentApp = apps[currentAppIndex]
+  const { isRightPanelOpen } = useSpaceAppStore()
 
   if (!isShareMode && !sqlite) {
     return (
@@ -61,23 +55,13 @@ export function DatabasePWALayoutBase({
                 <>
                   <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
                   <ResizablePanel
-                    className={cn("min-w-[400px]")}
+                    className="min-w-[400px]"
                     defaultSize={isRightPanelOpen ? 20 : 0}
                     minSize={20}
                     maxSize={50}
                   >
-                    <div className={cn("h-full shrink-0 overflow-x-hidden")}>
-                      {tempPanelNode ? (
-                        <TempPanel />
-                      ) : (
-                        <>
-                          {currentApp === "chat" && (
-                            <Suspense fallback={<Loading />}>
-                              <AIChat />
-                            </Suspense>
-                          )}
-                        </>
-                      )}
+                    <div className="h-full shrink-0 overflow-x-hidden">
+                      <RightPanelContent />
                     </div>
                   </ResizablePanel>
                 </>

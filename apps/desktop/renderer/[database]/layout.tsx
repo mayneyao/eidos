@@ -1,6 +1,6 @@
-import { Suspense, lazy, useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { useLocalStorageState, useSize } from "ahooks"
-import { Outlet, useLocation, useRoutes, useParams } from "react-router-dom"
+import { Outlet, useRoutes, useParams } from "react-router-dom"
 
 import { EidosDataEventChannelName } from "@/lib/const"
 import { cn, isStandaloneBlocksPath } from "@/lib/utils"
@@ -10,15 +10,13 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
-import { BlockApp } from "@/components/block-renderer/block-app"
 import { DevTools } from "@/components/dev-tools"
 import { DocExtBlockLoader } from "@/components/doc-ext-block-loader"
 import { KeyboardShortCuts } from "@/components/keyboard-shortcuts"
 import { Loading } from "@/components/loading"
 import { Nav } from "@/components/nav"
-import { NodeAppPanel } from "@/components/nav/node-app-panel"
+import { RightPanelContent } from "@/components/nav/right-panel-content"
 import { RightPanelNav } from "@/components/nav/right-panel-nav"
-import { TempPanel } from "@/components/nav/temp-panel"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 import { TabManager } from "@/apps/web-app/components/tab-manager"
@@ -34,8 +32,6 @@ import { useLayoutInit } from "../../../web-app/pages/[database]/hook"
 import { useSpaceAppStore } from "../../../web-app/pages/[database]/store"
 import { useRelayHandler } from "@/apps/web-app/hooks/use-relay-handler"
 import { TabErrorBoundary } from "../TabErrorBoundary"
-
-const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 
 // Component for tab-specific content (only the main content area)
 function TabContentLayout() {
@@ -61,8 +57,7 @@ export function DesktopSpaceLayout() {
     isTerminalVisible,
     setIsTerminalVisible,
   } = useAppRuntimeStore()
-  const { isRightPanelOpen, currentApp, resetCurrentApp, tempPanelNode } =
-    useSpaceAppStore()
+  const { isRightPanelOpen, resetCurrentApp } = useSpaceAppStore()
   const isBlocksPath = isStandaloneBlocksPath(window.location.pathname)
   const [spacePath, setSpacePath] = useState<string>("")
 
@@ -161,8 +156,6 @@ export function DesktopSpaceLayout() {
     }
   }, [])
 
-  const isCurrentAppABlock = currentApp?.startsWith("block://")
-
   if (!isShareMode && !sqlite) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
@@ -236,28 +229,10 @@ export function DesktopSpaceLayout() {
                     <RightPanelNav />
                   </div>
                   <div
-                    className="grow  h-[calc(100%-38px)] overflow-y-auto"
+                    className="grow h-[calc(100%-38px)] overflow-y-auto"
                     ref={rightPanelRef}
                   >
-                    {tempPanelNode ? (
-                      <TempPanel />
-                    ) : (
-                      <>
-                        {currentApp === "chat" && (
-                          <Suspense fallback={<Loading />}>
-                            <AIChat />
-                          </Suspense>
-                        )}
-                        {isCurrentAppABlock && (
-                          <Suspense fallback={<Loading />}>
-                            <BlockApp url={currentApp} height={size?.height} />
-                          </Suspense>
-                        )}
-                        {currentApp && currentApp.startsWith("node://") && (
-                          <NodeAppPanel />
-                        )}
-                      </>
-                    )}
+                    <RightPanelContent />
                   </div>
                 </ResizablePanel>
               </>

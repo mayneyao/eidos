@@ -40,6 +40,11 @@ interface ISpaceAppState {
 
   // Helper to check if currentApp and tempPanelNode are mutually exclusive
   hasActivePanel: () => boolean
+
+  // Terminal sessions in right panel
+  rightPanelTerminals: string[]
+  addRightPanelTerminal: (sessionId: string) => void
+  removeRightPanelTerminal: (sessionId: string) => void
 }
 
 interface IAppsState {
@@ -122,4 +127,17 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set, get) => ({
       Boolean(state.tempPanelNode)
     )
   },
+
+  // Terminal sessions in right panel
+  rightPanelTerminals: [],
+  addRightPanelTerminal: (sessionId) =>
+    set((state) => ({
+      rightPanelTerminals: [...state.rightPanelTerminals, sessionId],
+    })),
+  removeRightPanelTerminal: (sessionId) =>
+    set((state) => ({
+      rightPanelTerminals: state.rightPanelTerminals.filter(
+        (id) => id !== sessionId
+      ),
+    })),
 }))

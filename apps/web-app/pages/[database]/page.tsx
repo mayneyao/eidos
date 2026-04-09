@@ -65,13 +65,6 @@ export default function DatabaseHome() {
     toggleSidebar()
   }, [toggleSidebar])
 
-  const handleOpenTerminal = useCallback(() => {
-    // Navigate to terminal page
-    if (space) {
-      goto(space, "terminal")
-    }
-  }, [space, goto])
-
   if (newTabBlockId) {
     return (
       <BlockApp
@@ -134,22 +127,6 @@ export default function DatabaseHome() {
             </div>
             <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
               Ctrl + `
-            </kbd>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className="justify-between h-auto px-3 py-2"
-            onClick={handleOpenTerminal}
-          >
-            <div className="flex items-center gap-2">
-              <Terminal className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                {t("welcome.openTerminalInTab", "Open Terminal in New Tab")}
-              </span>
-            </div>
-            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-              {space}/terminal
             </kbd>
           </Button>
 

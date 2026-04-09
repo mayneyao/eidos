@@ -5,6 +5,7 @@ import {
   FileIcon,
   MoreHorizontalIcon,
   PanelRightIcon,
+  TerminalIcon,
   ToyBrickIcon,
   Trash2,
   ViewIcon,
@@ -81,6 +82,7 @@ export const RightPanelNav = () => {
     setApps,
     tempPanelNode,
     setTempPanelNode,
+    addRightPanelTerminal,
   } = useSpaceAppStore()
   const { apps, addApp, deleteApp } = useAppsStore()
   const { space } = useCurrentPathInfo()
@@ -175,6 +177,16 @@ export const RightPanelNav = () => {
         available: true,
       }
     }
+    if (app.startsWith("terminal://")) {
+      // Extract session info if available
+      const sessionId = app.replace("terminal://", "")
+      return {
+        icon: TerminalIcon,
+        title: `Terminal`,
+        shortcut: undefined,
+        available: true,
+      }
+    }
     return DefaultAppInfoMap[app]
   }
   const updateApp = (app: string, newUrl: string) => {
@@ -227,8 +239,38 @@ export const RightPanelNav = () => {
     setIsRightPanelOpen(false)
   }
 
+  // Handle drop from terminal
+  const handleDragOver = (e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes("terminal/session")) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = "move"
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    const sessionId = e.dataTransfer.getData("terminal/session")
+    const title = e.dataTransfer.getData("terminal/title")
+    if (sessionId) {
+      e.preventDefault()
+      // Add terminal to right panel tracking
+      addRightPanelTerminal(sessionId)
+      // Add terminal to right panel
+      const terminalAppId = `terminal://${sessionId}`
+      if (!apps.includes(terminalAppId)) {
+        addApp(terminalAppId)
+      }
+      setCurrentApp(terminalAppId)
+      setIsRightPanelOpen(true, apps.indexOf(terminalAppId))
+    }
+  }
+
   return (
-    <div className="flex gap-2 justify-between w-full" ref={containerRef}>
+    <div
+      className="flex gap-2 justify-between w-full"
+      ref={containerRef}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       <div className="flex gap-2 overflow-hidden">
         {displayApps.slice(0, visibleCount).map((app, index) => {
           const appInfo = getAppInfo(app)
@@ -236,9 +278,10 @@ export const RightPanelNav = () => {
           const isCurrentApp = app === currentApp
           const isBlock = app.startsWith("block://")
           const isNode = app.startsWith("node://")
+          const isTerminal = app.startsWith("terminal://")
           return (
             <div key={app} className="relative">
-              {isBlock || isNode ? (
+              {isBlock || isNode || isTerminal ? (
                 <ContextMenu>
                   <ContextMenuTrigger asChild>
                     <Button
@@ -283,6 +326,22 @@ export const RightPanelNav = () => {
                       />
                     )}
                     {isNode && <NodeContextMenu url={app} />}
+                    {isTerminal && (
+                      <>
+                        <ContextMenuItem
+                          onClick={() => {
+                            // Kill the terminal session
+                            const sessionId = app.replace("terminal://", "")
+                            window.eidos?.terminal?.kill(sessionId)
+                            deleteApp(app)
+                            setCurrentApp("chat")
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Close Terminal
+                        </ContextMenuItem>
+                      </>
+                    )}
                   </ContextMenuContent>
                 </ContextMenu>
               ) : (
@@ -322,6 +381,7 @@ export const RightPanelNav = () => {
               {displayApps.slice(visibleCount).map((app, index) => {
                 const appInfo = getAppInfo(app)
                 const { icon: IconOrUri, title } = appInfo ?? {}
+                const isTerminal = app.startsWith("terminal://")
                 return (
                   <DropdownMenuItem
                     key={app}
@@ -333,7 +393,7 @@ export const RightPanelNav = () => {
                       ) : (
                         IconOrUri && <IconOrUri className="h-4 w-4" />
                       )}
-                      <span>{title}</span>
+                      <span>{isTerminal ? "Terminal" : title}</span>
                     </div>
                   </DropdownMenuItem>
                 )

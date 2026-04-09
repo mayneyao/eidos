@@ -9,6 +9,7 @@ import * as path from "path"
 import { LoggerService } from "../logger/logger.module"
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import { IpcInjectable, Inject, Injectable } from "../../common/di"
+import type { WindowService } from "../window/window.service"
 
 // Dynamic import for node-pty to handle native module loading
 let ptyModule: typeof import("node-pty") | null = null
@@ -19,6 +20,7 @@ export interface TerminalSession {
   shell: string
   cwd: string
   createdAt: number
+  outputBuffer: string[] // Store output history for replay
 }
 
 export interface TerminalCreateOptions {
@@ -242,12 +244,19 @@ export class TerminalService extends IpcServiceBase {
         shell,
         cwd: resolvedCwd,
         createdAt: Date.now(),
+        outputBuffer: [],
       }
       this.sessions.set(sessionId, session)
       this.logger.info("Session stored:", sessionId)
 
       // Handle data from PTY
       ptyProcess.onData((data: string) => {
+        // Store output in buffer for replay (limit to last 10000 lines worth of data)
+        session.outputBuffer.push(data)
+        // Keep buffer size reasonable (roughly 10000 lines * 200 chars)
+        if (session.outputBuffer.length > 1000) {
+          session.outputBuffer.shift()
+        }
         const window = this.windowProvider.getWindow()
         window?.webContents.send("terminal:data", sessionId, data)
       })
@@ -365,6 +374,23 @@ export class TerminalService extends IpcServiceBase {
    */
   getDefaultShell(): string {
     return this.defaultShell
+  }
+
+  /**
+   * Get session output history for replay
+   * IPC: terminal:getHistory
+   */
+  getHistory(sessionId: string): {
+    success: boolean
+    history?: string[]
+    error?: string
+  } {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      return { success: false, error: "Session not found" }
+    }
+
+    return { success: true, history: [...session.outputBuffer] }
   }
 
   /**

@@ -1,10 +1,16 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
-import { Plus, X } from "lucide-react"
+import { Plus, X, GripVertical, ArrowUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { TerminalInstance } from "./terminal-instance"
+import {
+  useAppsStore,
+  useSpaceAppStore,
+} from "@/apps/web-app/pages/[database]/store"
+import { useToast } from "@/hooks/use-toast"
+import { useRouterAdapter } from "@/hooks/use-router-adapter"
 
 interface TerminalSession {
   id: string
@@ -19,6 +25,60 @@ interface IntegratedTerminalProps {
   spacePath?: string
 }
 
+// Draggable tab component
+interface DraggableTerminalTabProps {
+  session: TerminalSession
+  isActive: boolean
+  onClick: () => void
+  onClose: (e: React.MouseEvent) => void
+}
+
+function DraggableTerminalTab({
+  session,
+  isActive,
+  onClick,
+  onClose,
+}: DraggableTerminalTabProps) {
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleDragStart = (e: React.DragEvent) => {
+    setIsDragging(true)
+    // Set drag data with session ID
+    e.dataTransfer.setData("terminal/session", session.id)
+    e.dataTransfer.setData("terminal/title", session.title)
+    e.dataTransfer.effectAllowed = "move"
+  }
+
+  const handleDragEnd = () => {
+    setIsDragging(false)
+  }
+
+  return (
+    <div
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-1 px-3 py-1.5 text-xs border-r border-border transition-colors group cursor-pointer select-none",
+        isActive
+          ? "bg-background text-foreground"
+          : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground",
+        isDragging && "opacity-50"
+      )}
+    >
+      <GripVertical className="h-3 w-3 text-muted-foreground/50 cursor-grab active:cursor-grabbing" />
+      <span className="max-w-[120px] truncate">{session.title}</span>
+      <span
+        onClick={onClose}
+        className="ml-1 p-0.5 rounded-xs opacity-0 group-hover:opacity-100 hover:bg-muted-foreground/20 transition-opacity"
+      >
+        <X className="h-3 w-3" />
+      </span>
+    </div>
+  )
+}
+
 export function IntegratedTerminal({
   isVisible,
   onToggleVisibility,
@@ -31,6 +91,16 @@ export function IntegratedTerminal({
   const [isResizing, setIsResizing] = useState(false)
   const [hasAttemptedInitialCreate, setHasAttemptedInitialCreate] =
     useState(false)
+  const { toast } = useToast()
+
+  // Get right panel state
+  const {
+    setCurrentApp,
+    setIsRightPanelOpen,
+    rightPanelTerminals,
+    addRightPanelTerminal,
+  } = useSpaceAppStore()
+  const { addApp, apps } = useAppsStore()
 
   // Create terminal function
   const createTerminal = useCallback(
@@ -105,8 +175,6 @@ export function IntegratedTerminal({
       console.log(
         "[Terminal] No spacePath available, waiting for user to manually create terminal"
       )
-      // Don't auto-create - wait for user to click "New Terminal" button
-      // This will use the latest spacePath at that time
     }
   }, [
     isVisible,
@@ -250,6 +318,75 @@ export function IntegratedTerminal({
     createTerminal(spacePath)
   }, [createTerminal, spacePath])
 
+  // Handle dragging/moving terminal to right panel
+  const handleMoveToSidePanel = useCallback(
+    async (sessionId: string) => {
+      const session = sessions.find((s) => s.id === sessionId)
+      if (!session) return
+
+      // Mark as moved to right panel
+      addRightPanelTerminal(sessionId)
+
+      // Close terminal in bottom panel (but don't kill it)
+      setSessions((prev) => {
+        const filtered = prev.filter((s) => s.id !== sessionId)
+        // If moving active session, switch to another
+        if (activeSessionId === sessionId) {
+          const index = prev.findIndex((s) => s.id === sessionId)
+          const nextSession =
+            filtered[index] || filtered[index - 1] || filtered[0]
+          setActiveSessionId(nextSession?.id || null)
+        }
+        return filtered
+      })
+
+      // Add to right panel apps
+      const terminalAppId = `terminal://${sessionId}`
+      if (!apps.includes(terminalAppId)) {
+        addApp(terminalAppId)
+      }
+
+      // Switch to terminal app in right panel
+      setCurrentApp(terminalAppId)
+      setIsRightPanelOpen(true, apps.indexOf(terminalAppId))
+
+      toast({
+        title: "Terminal moved",
+        description: `Moved "${session.title}" to side panel`,
+      })
+    },
+    [
+      sessions,
+      activeSessionId,
+      apps,
+      addApp,
+      setCurrentApp,
+      setIsRightPanelOpen,
+      toast,
+      addRightPanelTerminal,
+    ]
+  )
+
+  // Listen for terminals that were moved to right panel via drag
+  useEffect(() => {
+    if (rightPanelTerminals.length === 0) return
+
+    // Remove any sessions that have been moved to right panel
+    setSessions((prev) => {
+      const filtered = prev.filter((s) => !rightPanelTerminals.includes(s.id))
+      // Update active session if needed
+      const movedActiveSession = rightPanelTerminals.includes(
+        activeSessionId || ""
+      )
+      if (movedActiveSession && filtered.length > 0) {
+        setActiveSessionId(filtered[0].id)
+      } else if (filtered.length === 0) {
+        setActiveSessionId(null)
+      }
+      return filtered
+    })
+  }, [rightPanelTerminals])
+
   return (
     <div
       className={cn(
@@ -270,29 +407,16 @@ export function IntegratedTerminal({
           {sessions.length > 0 && (
             <>
               {sessions.map((session) => (
-                <button
+                <DraggableTerminalTab
                   key={session.id}
+                  session={session}
+                  isActive={session.id === activeSessionId}
                   onClick={() => setActiveSessionId(session.id)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 text-xs border-r border-border transition-colors group",
-                    activeSessionId === session.id
-                      ? "bg-background text-foreground"
-                      : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <span className="max-w-[120px] truncate">
-                    {session.title}
-                  </span>
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      closeTerminal(session.id)
-                    }}
-                    className="ml-1 p-0.5 rounded-xs opacity-0 group-hover:opacity-100 hover:bg-muted-foreground/20 transition-opacity"
-                  >
-                    <X className="h-3 w-3" />
-                  </span>
-                </button>
+                  onClose={(e) => {
+                    e.stopPropagation()
+                    closeTerminal(session.id)
+                  }}
+                />
               ))}
             </>
           )}
@@ -308,7 +432,17 @@ export function IntegratedTerminal({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center px-2 border-l border-border">
+        <div className="flex items-center px-2 border-l border-border gap-1">
+          {/* Move to side panel hint */}
+          {sessions.length > 0 && activeSessionId && (
+            <button
+              onClick={() => handleMoveToSidePanel(activeSessionId)}
+              className="p-1.5 text-muted-foreground hover:text-foreground transition-colors text-xs"
+              title="Move to side panel"
+            >
+              →
+            </button>
+          )}
           <button
             onClick={onToggleVisibility}
             className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
