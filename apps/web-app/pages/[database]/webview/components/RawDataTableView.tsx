@@ -5,19 +5,19 @@ import { useDataView } from "@/hooks/use-data-view"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { Loader2 } from "lucide-react"
 
-import type { OpenDataAdapter } from "./types"
+import type { RawDataAdapter } from "./types"
 
-interface OpenDataTableViewProps {
-  adapter: OpenDataAdapter
+interface RawDataTableViewProps {
+  adapter: RawDataAdapter
   space: string
   url: string
 }
 
-export function OpenDataTableView({
+export function RawDataTableView({
   adapter,
   space,
   url,
-}: OpenDataTableViewProps) {
+}: RawDataTableViewProps) {
   const { sqlite } = useSqlite()
   const { createTempDataView } = useDataView()
   const [isLoading, setIsLoading] = useState(true)
@@ -25,7 +25,7 @@ export function OpenDataTableView({
   const [viewCreated, setViewCreated] = useState(false)
 
   // Generate a unique view ID based on adapter
-  const viewId = `opendata_${adapter.name}`
+  const viewId = `rawdata_${adapter.name}`
   const viewName = `vw_${viewId}`
 
   // Create view (cache first - just query existing data)
@@ -46,7 +46,7 @@ export function OpenDataTableView({
         }
 
         // Create temporary view with the query
-        // Uses cached data from opendata database
+        // Uses cached data from rawdata database
         await createTempDataView(viewId, rawQuery)
         setViewCreated(true)
       } catch (err) {

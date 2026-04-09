@@ -1,7 +1,7 @@
 {
-  "name": "@eidos.space/opendata",
+  "name": "@eidos.space/rawdata",
   "version": "1.0.0",
-  "description": "OpenData personal data management for Eidos",
+  "description": "RawData personal data management for Eidos",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,7 +21,7 @@
   "type": "module",
   "keywords": [
     "eidos",
-    "opendata",
+    "rawdata",
     "personal-data"
   ],
   "author": "mayneyao",

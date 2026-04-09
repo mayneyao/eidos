@@ -1,12 +1,12 @@
 /**
- * OpenData Database Schema
+ * RawData Database Schema
  */
 
 export const SCHEMA_VERSION = 1
 
 export const CREATE_TABLES_SQL = `
--- 0. raw_data table - Store raw API responses
-CREATE TABLE IF NOT EXISTS raw_data (
+-- 0. data table - Store raw API responses
+CREATE TABLE IF NOT EXISTS data (
   id TEXT PRIMARY KEY,
   source TEXT NOT NULL,
   entity_type TEXT NOT NULL,
@@ -18,10 +18,10 @@ CREATE TABLE IF NOT EXISTS raw_data (
   transform_version INTEGER DEFAULT 0
 );
 
-CREATE INDEX IF NOT EXISTS idx_raw_data_source ON raw_data(source);
-CREATE INDEX IF NOT EXISTS idx_raw_data_entity ON raw_data(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_raw_data_fetched ON raw_data(fetched_at);
-CREATE INDEX IF NOT EXISTS idx_raw_data_transformed ON raw_data(transformed_at) WHERE transformed_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_data_source ON data(source);
+CREATE INDEX IF NOT EXISTS idx_data_entity ON data(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_data_fetched ON data(fetched_at);
+CREATE INDEX IF NOT EXISTS idx_data_transformed ON data(transformed_at) WHERE transformed_at IS NULL;
 
 -- 1. agents table
 CREATE TABLE IF NOT EXISTS agents (

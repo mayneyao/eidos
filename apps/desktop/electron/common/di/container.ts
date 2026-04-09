@@ -36,7 +36,7 @@ export const TYPES = {
   LicenseService: Symbol.for("LicenseService"),
   RelayService: Symbol.for("RelayService"),
   CorsManager: Symbol.for("CorsManager"),
-  OpenDataService: Symbol.for("OpenDataService"),
+  RawDataService: Symbol.for("RawDataService"),
   SpaceManagementService: Symbol.for("SpaceManagementService"),
   BrowserViewManager: Symbol.for("BrowserViewManager"),
   GlobalShortcutManager: Symbol.for("GlobalShortcutManager"),

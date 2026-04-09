@@ -1,11 +1,11 @@
 /**
- * OpenData Manager
+ * RawData Manager
  *
- * Manages adapters stored in <space>/.eidos/.opendata/
+ * Manages adapters stored in <space>/.eidos/.rawdata/
  * Only supports TypeScript/JavaScript adapters (defineAdapter)
  */
 
-import type { OpenDataAdapter, MatchedAdapter } from "./types.js"
+import type { RawDataAdapter, MatchedAdapter } from "./types.js"
 import { findMatchingAdapters, loadAdapter } from "./parser.js"
 
 // Re-export FileSystem interface
@@ -27,35 +27,35 @@ export interface FileSystem {
 export type AdapterLoader = (
   fs: FileSystem,
   filePath: string
-) => Promise<OpenDataAdapter | null>
+) => Promise<RawDataAdapter | null>
 
 /**
- * OpenData Manager
+ * RawData Manager
  */
-export class OpenDataManager {
-  private adapters: Map<string, OpenDataAdapter> = new Map()
+export class RawDataManager {
+  private adapters: Map<string, RawDataAdapter> = new Map()
   private adaptersDir: string
   private fs: FileSystem
   private customLoader?: AdapterLoader
 
   constructor(
     fs: FileSystem,
-    adaptersDir: string = "~/.eidos/.opendata",
+    adaptersDir: string = "~/.eidos/.rawdata",
     loader?: AdapterLoader
   ) {
     this.fs = fs
     this.adaptersDir = adaptersDir
     this.customLoader = loader
-    console.log("[OpenDataManager] Constructor called, customLoader:", !!loader)
+    console.log("[RawDataManager] Constructor called, customLoader:", !!loader)
   }
 
   /**
    * Load all adapters from the adapters directory
    */
-  async loadAdapters(): Promise<Map<string, OpenDataAdapter>> {
+  async loadAdapters(): Promise<Map<string, RawDataAdapter>> {
     this.adapters.clear()
     console.log(
-      "[OpenDataManager] loadAdapters called, customLoader exists:",
+      "[RawDataManager] loadAdapters called, customLoader exists:",
       !!this.customLoader
     )
 
@@ -63,7 +63,7 @@ export class OpenDataManager {
       const exists = await this.fs.exists(this.adaptersDir)
       if (!exists) {
         console.log(
-          "[OpenDataManager] adaptersDir does not exist:",
+          "[RawDataManager] adaptersDir does not exist:",
           this.adaptersDir
         )
         return this.adapters
@@ -72,14 +72,14 @@ export class OpenDataManager {
       const files = await this.fs.readdir(this.adaptersDir, {
         recursive: true,
       })
-      console.log("[OpenDataManager] Found files:", files.length)
+      console.log("[RawDataManager] Found files:", files.length)
 
       for (const file of files) {
         // Only load .ts, .js, .mjs files
         if (/\.(ts|js|mjs)$/.test(file) && !file.endsWith(".d.ts")) {
           try {
             const fullPath = `${this.adaptersDir}/${file}`
-            console.log("[OpenDataManager] Loading adapter:", {
+            console.log("[RawDataManager] Loading adapter:", {
               file,
               fullPath,
               hasCustomLoader: !!this.customLoader,
@@ -87,14 +87,14 @@ export class OpenDataManager {
 
             const loader = this.customLoader || loadAdapter
             console.log(
-              "[OpenDataManager] Using loader:",
+              "[RawDataManager] Using loader:",
               this.customLoader ? "custom" : "default",
               "loader type:",
               typeof loader
             )
             const adapter = await loader(this.fs, fullPath)
             if (adapter) {
-              console.log("[OpenDataManager] Loaded:", {
+              console.log("[RawDataManager] Loaded:", {
                 site: adapter.meta.site,
                 name: adapter.meta.name,
                 domain: adapter.meta.domain,
@@ -116,7 +116,7 @@ export class OpenDataManager {
   /**
    * Get all loaded adapters
    */
-  getAdapters(): Map<string, OpenDataAdapter> {
+  getAdapters(): Map<string, RawDataAdapter> {
     return this.adapters
   }
 
@@ -132,7 +132,7 @@ export class OpenDataManager {
    *
    * Backwards compatibility: automatically converts .yaml/.yml paths to .ts
    */
-  async getAdapter(filePath: string): Promise<OpenDataAdapter | undefined> {
+  async getAdapter(filePath: string): Promise<RawDataAdapter | undefined> {
     // Try direct match
     if (this.adapters.has(filePath)) {
       return this.adapters.get(filePath)

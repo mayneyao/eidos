@@ -61,7 +61,7 @@ export class NodeDatabaseInitializer {
 
   constructor(options: NodeServerDatabaseOptions) {
     this.options = options
-    this.logger = options.logger || console
+    this.logger = console
   }
 
   /**
@@ -112,7 +112,7 @@ export class NodeDatabaseInitializer {
       // Load Vec extension
       this.loadVecExtension(db)
 
-      // Attach opendata database if configured
+      // Attach rawdata database if configured
       this.attachDatabase(db)
 
       this.logger.log("Database initialized successfully.")
@@ -292,27 +292,20 @@ export class NodeDatabaseInitializer {
       return
     }
 
-    // Derive opendata path from spacePath
-    // Expected location: spacePath/.eidos/opendata.db
-    const opendataPath = path.join(
-      this.options.spacePath,
-      ".eidos",
-      "opendata.sqlite3"
-    )
+    // Derive raw path from spacePath
+    // Expected location: spacePath/.eidos/raw.sqlite3
+    const rawPath = path.join(this.options.spacePath, ".eidos", "raw.sqlite3")
 
-    if (fs.existsSync(opendataPath)) {
+    if (fs.existsSync(rawPath)) {
       try {
-        this.logger.log("Attaching opendata database...", opendataPath)
-        db.prepare(`ATTACH DATABASE ? AS opendata`).run(opendataPath)
-        this.logger.log("Opendata database attached successfully.")
+        this.logger.log("Attaching raw database...", rawPath)
+        db.prepare(`ATTACH DATABASE ? AS raw`).run(rawPath)
+        this.logger.log("Raw database attached successfully.")
       } catch (err) {
-        this.logger.error("Failed to attach opendata database:", err)
+        this.logger.error("Failed to attach raw database:", err)
       }
     } else {
-      this.logger.log(
-        "Opendata database not found, skipping attach:",
-        opendataPath
-      )
+      this.logger.log("Raw database not found, skipping attach:", rawPath)
     }
 
     // Derive inbox path from spacePath

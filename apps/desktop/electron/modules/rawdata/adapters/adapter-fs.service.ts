@@ -2,7 +2,7 @@ import * as fsNode from "node:fs/promises"
 import * as path from "node:path"
 
 /**
- * File system wrapper for OpenDataManager
+ * File system wrapper for RawDataManager
  * Provides sandboxed file access within a base path
  */
 export class AdapterFsService {

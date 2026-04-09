@@ -12,10 +12,10 @@ import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useToast } from "@/components/ui/use-toast"
 
 import {
-  OpenDataTableView,
+  RawDataTableView,
   WebviewToolbar,
   BrowserViewContainer,
-  type OpenDataAdapter,
+  type RawDataAdapter,
   type ViewMode,
 } from "./components"
 
@@ -41,21 +41,22 @@ export default function WebviewPage() {
   const [canGoForward, setCanGoForward] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [displayUrl, setDisplayUrl] = useState("")
-  const [matchedAdapters, setMatchedAdapters] = useState<OpenDataAdapter[]>([])
+  const [matchedAdapters, setMatchedAdapters] = useState<RawDataAdapter[]>([])
   const matchedAdaptersRef = useRef(matchedAdapters)
-  const [hasOpenData, setHasOpenData] = useState(false)
+  const [hasRawData, setHasRawData] = useState(false)
   const [isLoadingAdapters, setIsLoadingAdapters] = useState(false)
   const [isRefreshingAdapter, setIsRefreshingAdapter] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>("browser")
-  const [selectedAdapter, setSelectedAdapter] =
-    useState<OpenDataAdapter | null>(null)
-
-  // Use store state for opendata popover so it triggers overlay detection
-  const isOpenDataOpen = useAppRuntimeStore(
-    (state) => state.isOpenDataPopoverOpen
+  const [selectedAdapter, setSelectedAdapter] = useState<RawDataAdapter | null>(
+    null
   )
-  const setIsOpenDataOpen = useAppRuntimeStore(
-    (state) => state.setOpenDataPopoverOpen
+
+  // Use store state for rawdata popover so it triggers overlay detection
+  const isRawDataOpen = useAppRuntimeStore(
+    (state) => state.isRawDataPopoverOpen
+  )
+  const setIsRawDataOpen = useAppRuntimeStore(
+    (state) => state.setRawDataPopoverOpen
   )
 
   const url = useMemo(() => {
@@ -70,7 +71,7 @@ export default function WebviewPage() {
       state.isKeyboardShortcutsOpen ||
       state.isSpaceSettingsOpen ||
       state.isGlobalSearchOpen ||
-      state.isOpenDataPopoverOpen ||
+      state.isRawDataPopoverOpen ||
       state.isTerminalVisible
   )
   const { isActive } = useTabContext()
@@ -104,7 +105,7 @@ export default function WebviewPage() {
     }
   }, [])
 
-  // Check for OpenData adapters when URL changes
+  // Check for RawData adapters when URL changes
   useEffect(() => {
     if (!isDesktopMode || !url || !space) return
 
@@ -112,15 +113,12 @@ export default function WebviewPage() {
       setIsLoadingAdapters(true)
       try {
         console.log("[WebView] Checking adapters for:", { space, url })
-        const adapters = await window.eidos.openData.findListAdapters(
-          space,
-          url
-        )
+        const adapters = await window.eidos.rawData.findListAdapters(space, url)
         console.log("[WebView] findListAdapters result:", adapters)
         setMatchedAdapters(adapters)
-        setHasOpenData(adapters.length > 0)
+        setHasRawData(adapters.length > 0)
       } catch (error) {
-        console.error("Failed to check OpenData adapters:", error)
+        console.error("Failed to check RawData adapters:", error)
       } finally {
         setIsLoadingAdapters(false)
       }
@@ -144,8 +142,8 @@ export default function WebviewPage() {
     setCanGoForward(canGoForward)
   }
 
-  const handleRawdataNavigation = (rawdataUrl: string) => {
-    console.log("[WebView] rawdata navigation:", rawdataUrl)
+  const handleRawDataNavigation = (rawDataUrl: string) => {
+    console.log("[WebView] rawdata navigation:", rawDataUrl)
     try {
       const urlObj = new URL(rawdataUrl)
       const host = urlObj.hostname
@@ -166,7 +164,7 @@ export default function WebviewPage() {
       if (matchingAdapter) {
         setSelectedAdapter(matchingAdapter)
         setViewMode("table")
-        setIsOpenDataOpen(false)
+        setIsRawDataOpen(false)
         toast({
           title: `Switched to ${matchingAdapter.name}`,
           description: `Viewing raw data for ${host}`,
@@ -214,7 +212,7 @@ export default function WebviewPage() {
     let target = displayUrl.trim()
 
     if (/^rawdata:\/\//i.test(target)) {
-      handleRawdataNavigation(target)
+      handleRawDataNavigation(target)
       return
     }
 
@@ -235,15 +233,15 @@ export default function WebviewPage() {
     setDisplayUrl(committedUrlRef.current)
   }
 
-  const handleRunAdapter = (adapter: OpenDataAdapter) => {
+  const handleRunAdapter = (adapter: RawDataAdapter) => {
     if (!space) return
 
-    // Switch to table view directly, the view will be created by OpenDataTableView
+    // Switch to table view directly, the view will be created by RawDataTableView
     setSelectedAdapter(adapter)
     setViewMode("table")
-    setIsOpenDataOpen(false)
-    // Update address bar to show opendata: protocol
-    setDisplayUrl(`opendata:${url}`)
+    setIsRawDataOpen(false)
+    // Update address bar to show rawdata: protocol
+    setDisplayUrl(`rawdata:${url}`)
 
     toast({
       title: `Opening ${adapter.name}`,
@@ -268,7 +266,7 @@ export default function WebviewPage() {
         description: "Fetching data from source...",
       })
 
-      const result = await window.eidos.openData.runAdapter(
+      const result = await window.eidos.rawData.runAdapter(
         space,
         selectedAdapter.filePath,
         {}
@@ -316,11 +314,11 @@ export default function WebviewPage() {
           canGoBack={canGoBack}
           canGoForward={canGoForward}
           viewMode={viewMode}
-          hasOpenData={hasOpenData}
+          hasRawData={hasRawData}
           isLoadingAdapters={isLoadingAdapters}
           matchedAdapters={matchedAdapters}
-          isOpenDataOpen={isOpenDataOpen}
-          setIsOpenDataOpen={setIsOpenDataOpen}
+          isRawDataOpen={isRawDataOpen}
+          setIsRawDataOpen={setIsRawDataOpen}
           onDisplayUrlChange={setDisplayUrl}
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
@@ -345,16 +343,12 @@ export default function WebviewPage() {
                 viewMode={viewMode}
                 onNavigate={handleNavigate}
                 onLoadingChange={setIsLoading}
-                onRawdataNavigation={handleRawdataNavigation}
+                onRawDataNavigation={handleRawDataNavigation}
               />
             </div>
           </div>
         ) : selectedAdapter ? (
-          <OpenDataTableView
-            adapter={selectedAdapter}
-            space={space}
-            url={url}
-          />
+          <RawDataTableView adapter={selectedAdapter} space={space} url={url} />
         ) : null}
       </div>
     )

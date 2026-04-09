@@ -1,9 +1,9 @@
 /**
- * Raw Data Storage Module
+ * Source Data Storage Module
  * Stores original API responses for debugging and custom transformation
  */
 
-import type { IOpenDataDatabase } from "./types.js"
+import type { IRawDataDatabase } from "./types.js"
 
 export interface RawDataRecord {
   id: string // Composite key: source#entity_id
@@ -17,8 +17,8 @@ export interface RawDataRecord {
   transform_version?: number // Transformation schema version
 }
 
-export class RawDataStore {
-  constructor(private db: IOpenDataDatabase) {}
+export class SourceDataStore {
+  constructor(private db: IRawDataDatabase) {}
 
   /**
    * Store or update raw data
@@ -37,7 +37,7 @@ export class RawDataStore {
     } = record
 
     const stmt = this.db.prepare(`
-      INSERT INTO raw_data 
+      INSERT INTO data 
         (id, source, entity_type, entity_id, data, checksum, fetched_at, transformed_at, transform_version)
       VALUES 
         (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -47,7 +47,7 @@ export class RawDataStore {
         fetched_at = excluded.fetched_at,
         transformed_at = NULL,
         transform_version = 0
-      WHERE excluded.checksum != raw_data.checksum
+      WHERE excluded.checksum != data.checksum
     `)
 
     const result = stmt.run(
@@ -84,7 +84,7 @@ export class RawDataStore {
    */
   get(id: string): RawDataRecord | undefined {
     const stmt = this.db.prepare(`
-      SELECT * FROM raw_data WHERE id = ?
+      SELECT * FROM data WHERE id = ?
     `)
     const row = stmt.get(id)
     return row ? this.parseRow(row) : undefined
@@ -113,7 +113,7 @@ export class RawDataStore {
       untransformed?: boolean
     }
   ): RawDataRecord[] {
-    let sql = `SELECT * FROM raw_data WHERE source = ?`
+    let sql = `SELECT * FROM data WHERE source = ?`
     const params: any[] = [source]
 
     if (options?.entityType) {
@@ -147,7 +147,7 @@ export class RawDataStore {
    */
   getSources(): string[] {
     const stmt = this.db.prepare(`
-      SELECT DISTINCT source FROM raw_data ORDER BY source
+      SELECT DISTINCT source FROM data ORDER BY source
     `)
     const rows = stmt.all()
     return rows.map((r: any) => r.source)
@@ -158,7 +158,7 @@ export class RawDataStore {
    */
   getEntityTypes(source: string): string[] {
     const stmt = this.db.prepare(`
-      SELECT DISTINCT entity_type FROM raw_data 
+      SELECT DISTINCT entity_type FROM data 
       WHERE source = ? ORDER BY entity_type
     `)
     const rows = stmt.all(source)
@@ -170,7 +170,7 @@ export class RawDataStore {
    */
   markTransformed(id: string, version: number = 1): void {
     const stmt = this.db.prepare(`
-      UPDATE raw_data 
+      UPDATE data 
       SET transformed_at = ?, transform_version = ?
       WHERE id = ?
     `)
@@ -181,7 +181,7 @@ export class RawDataStore {
    * Get untransformed records
    */
   getUntransformed(source?: string, limit?: number): RawDataRecord[] {
-    let sql = `SELECT * FROM raw_data WHERE transformed_at IS NULL`
+    let sql = `SELECT * FROM data WHERE transformed_at IS NULL`
     const params: any[] = []
 
     if (source) {
@@ -206,7 +206,7 @@ export class RawDataStore {
    */
   deleteOlderThan(source: string, beforeTimestamp: number): number {
     const stmt = this.db.prepare(`
-      DELETE FROM raw_data 
+      DELETE FROM data 
       WHERE source = ? AND fetched_at < ?
     `)
     const result = stmt.run(source, beforeTimestamp)
@@ -223,7 +223,7 @@ export class RawDataStore {
   } {
     let sql = `SELECT entity_type, COUNT(*) as count, 
       SUM(CASE WHEN transformed_at IS NULL THEN 1 ELSE 0 END) as untransformed
-      FROM raw_data`
+      FROM data`
 
     if (source) {
       sql += ` WHERE source = ?`

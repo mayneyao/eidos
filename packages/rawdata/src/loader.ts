@@ -1,11 +1,10 @@
 /**
- * Adapter Parser
+ * Adapter Loader
  *
- * Only supports TypeScript/JavaScript Adapters (defineAdapter)
- * YAML support has been removed
+ * Supports loading TypeScript/JavaScript Adapters (defineAdapter)
  */
 
-import type { OpenDataAdapter, MatchedAdapter } from "./types.js"
+import type { RawDataAdapter } from "./types.js"
 
 export interface FileSystem {
   readFile(path: string): Promise<Uint8Array>
@@ -15,61 +14,13 @@ export interface FileSystem {
 }
 
 /**
- * Check if a URL matches an adapter domain
- */
-export function isDomainMatch(url: string, domain: string): boolean {
-  try {
-    const urlObj = new URL(url)
-    const hostname = urlObj.hostname
-
-    if (hostname === domain) return true
-
-    if (domain.startsWith("*.")) {
-      const suffix = domain.slice(2)
-      return hostname.endsWith(suffix)
-    }
-
-    if (hostname.endsWith(`.${domain}`)) return true
-
-    return false
-  } catch {
-    return false
-  }
-}
-
-/**
- * Find matching adapters for a given URL
- */
-export function findMatchingAdapters(
-  url: string,
-  adapters: Map<string, OpenDataAdapter>
-): MatchedAdapter[] {
-  const matches: MatchedAdapter[] = []
-
-  for (const [filePath, adapter] of adapters.entries()) {
-    if (isDomainMatch(url, adapter.meta.domain)) {
-      matches.push({
-        site: adapter.meta.site,
-        name: adapter.meta.name,
-        description: adapter.meta.description,
-        domain: adapter.meta.domain,
-        adapter,
-        filePath,
-      })
-    }
-  }
-
-  return matches
-}
-
-/**
  * Load adapter from file
  * Only supports .ts, .js, .mjs
  */
 export async function loadAdapter(
   fs: FileSystem,
   filePath: string
-): Promise<OpenDataAdapter | null> {
+): Promise<RawDataAdapter | null> {
   const exists = await fs.exists(filePath)
   if (!exists) return null
 
@@ -86,7 +37,6 @@ export async function loadAdapter(
     }
 
     // Development: Try loading .ts (requires ts-node or esbuild-register)
-    // const content = await fs.readFile(filePath, { encoding: "utf8" })
     throw new Error(
       `TypeScript files must be compiled to JavaScript before loading. ` +
         `Please compile ${filePath} to ${jsPath}`
@@ -103,8 +53,8 @@ export async function loadAdapter(
 export async function findAdapters(
   fs: FileSystem,
   dir: string
-): Promise<Map<string, OpenDataAdapter>> {
-  const adapters = new Map<string, OpenDataAdapter>()
+): Promise<Map<string, RawDataAdapter>> {
+  const adapters = new Map<string, RawDataAdapter>()
 
   try {
     const exists = await fs.exists(dir)
@@ -127,23 +77,4 @@ export async function findAdapters(
   }
 
   return adapters
-}
-
-/**
- * Group adapters by site
- */
-export function groupAdaptersBySite(
-  adapters: MatchedAdapter[]
-): Map<string, MatchedAdapter[]> {
-  const grouped = new Map<string, MatchedAdapter[]>()
-
-  for (const adapter of adapters) {
-    const site = adapter.site
-    if (!grouped.has(site)) {
-      grouped.set(site, [])
-    }
-    grouped.get(site)!.push(adapter)
-  }
-
-  return grouped
 }

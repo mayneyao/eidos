@@ -78,15 +78,15 @@ export interface IpcServiceOptions {
 
 /**
  * Class decorator to mark a service as an IPC service
- * @param namespace - The IPC channel namespace (e.g., "browser-view", "opendata")
+ * @param namespace - The IPC channel namespace (e.g., "browser-view", "rawdata")
  * @param options - Configuration options for exposure mode
  *
  * @example
  * @IpcService("browser-view")
  * class BrowserViewManager extends IpcServiceBase {}
  *
- * @IpcService("opendata", { exposeMode: "decorated" })
- * class OpenDataService extends IpcServiceBase {}
+ * @IpcService("rawdata", { exposeMode: "decorated" })
+ * class RawDataService extends IpcServiceBase {}
  */
 export function IpcService(
   namespace: string,

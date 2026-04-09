@@ -19,7 +19,7 @@
  */
 
 import type {
-  OpenDataAdapter,
+  RawDataAdapter,
   FetchContext,
   RawEntity,
   TransformResult,
@@ -99,8 +99,8 @@ export const helpers = $
  * Define Adapter
  */
 export function defineAdapter<T = Record<string, any>>(options: {
-  meta: OpenDataAdapter["meta"]
-  protocol: OpenDataAdapter["protocol"]
+  meta: RawDataAdapter["meta"]
+  protocol: RawDataAdapter["protocol"]
   args?: {
     [K in keyof T]: {
       type: "string" | "int" | "float" | "bool"
@@ -112,8 +112,8 @@ export function defineAdapter<T = Record<string, any>>(options: {
   fetch: (ctx: FetchContext & { args: T }) => Promise<RawEntity[]>
   transform?: (raw: RawEntity) => TransformResult | Promise<TransformResult>
   queries?: Record<string, string>
-  sync?: OpenDataAdapter["sync"]
-}): OpenDataAdapter {
+  sync?: RawDataAdapter["sync"]
+}): RawDataAdapter {
   // Runtime validation
   if (!options.meta?.site) throw new Error("meta.site is required")
   if (!options.meta?.name) throw new Error("meta.name is required")
@@ -138,7 +138,7 @@ export function defineAdapter<T = Record<string, any>>(options: {
  */
 export function defineRawAdapter(
   options: Omit<Parameters<typeof defineAdapter>[0], "transform">
-): OpenDataAdapter {
+): RawDataAdapter {
   return defineAdapter(options as any)
 }
 
@@ -147,9 +147,9 @@ export function defineRawAdapter(
  */
 export function defineCookieAdapter<T = Record<string, any>>(
   options: Omit<Parameters<typeof defineAdapter<T>>[0], "protocol"> & {
-    protocol?: Partial<OpenDataAdapter["protocol"]>
+    protocol?: Partial<RawDataAdapter["protocol"]>
   }
-): OpenDataAdapter {
+): RawDataAdapter {
   return defineAdapter({
     ...options,
     protocol: {
@@ -165,9 +165,9 @@ export function defineCookieAdapter<T = Record<string, any>>(
  */
 export function definePublicAdapter<T = Record<string, any>>(
   options: Omit<Parameters<typeof defineAdapter<T>>[0], "protocol"> & {
-    protocol?: Partial<OpenDataAdapter["protocol"]>
+    protocol?: Partial<RawDataAdapter["protocol"]>
   }
-): OpenDataAdapter {
+): RawDataAdapter {
   return defineAdapter({
     ...options,
     protocol: {

@@ -2,10 +2,10 @@
 import "../../data-space/worker/sqlite-server/env"
 
 import {
-  OpenData,
-  type OpenDataAdapter,
-  type OpenDataResult,
-} from "@eidos.space/opendata"
+  RawData,
+  type RawDataAdapter,
+  type RawDataResult,
+} from "@eidos.space/rawdata"
 import type Database from "better-sqlite3"
 import { BrowserWindow, WebContentsView } from "electron"
 
@@ -28,17 +28,17 @@ export class BrowserRunnerService {
    */
   async runAdapter(
     spaceId: string,
-    adapter: OpenDataAdapter,
+    adapter: RawDataAdapter,
     args: Record<string, any>,
     browserWindow: BrowserWindow,
-    store: OpenData,
+    store: RawData,
     db: Database.Database
   ): Promise<
-    OpenDataResult & {
+    RawDataResult & {
       persisted: { agents: number; goods: number; relations: number }
     }
   > {
-    console.log("[OpenData] runBrowserAdapter V3:", {
+    console.log("[RawData] runBrowserAdapter V3:", {
       site: adapter.meta.site,
       name: adapter.meta.name,
     })
@@ -67,7 +67,7 @@ export class BrowserRunnerService {
       view.webContents.openDevTools({ mode: "detach" })
     }
 
-    console.log("[OpenData] WebContentsView created")
+    console.log("[RawData] WebContentsView created")
 
     // Track current navigation state
     let currentUrl = ""
@@ -76,25 +76,25 @@ export class BrowserRunnerService {
     // Set up event listeners
     view.webContents.on("did-start-loading", () => {
       isLoading = true
-      console.log("[OpenData] Event: did-start-loading")
+      console.log("[RawData] Event: did-start-loading")
     })
 
     view.webContents.on("did-stop-loading", () => {
       isLoading = false
       console.log(
-        "[OpenData] Event: did-stop-loading, URL:",
+        "[RawData] Event: did-stop-loading, URL:",
         view.webContents.getURL()
       )
     })
 
     view.webContents.on("did-finish-load", () => {
       currentUrl = view.webContents.getURL()
-      console.log("[OpenData] Event: did-finish-load, URL:", currentUrl)
+      console.log("[RawData] Event: did-finish-load, URL:", currentUrl)
     })
 
     view.webContents.on("did-fail-load", (e, code, desc, validatedUrl) => {
       console.log(
-        "[OpenData] Event: did-fail-load, code:",
+        "[RawData] Event: did-fail-load, code:",
         code,
         "desc:",
         desc,
@@ -107,15 +107,15 @@ export class BrowserRunnerService {
       // Create BrowserContext implementation
       const browserContext = {
         navigate: async (url: string) => {
-          console.log("[OpenData] === NAVIGATE ===")
-          console.log("[OpenData] Navigate to:", url)
+          console.log("[RawData] === NAVIGATE ===")
+          console.log("[RawData] Navigate to:", url)
           console.log(
-            "[OpenData] Current URL before navigate:",
+            "[RawData] Current URL before navigate:",
             view.webContents.getURL()
           )
 
           await view.webContents.loadURL(url)
-          console.log("[OpenData] loadURL called, waiting for page load...")
+          console.log("[RawData] loadURL called, waiting for page load...")
 
           // Wait for page to finish loading
           await new Promise<void>((resolve, reject) => {
@@ -127,7 +127,7 @@ export class BrowserRunnerService {
               if (!view.webContents.isLoadingMainFrame()) {
                 clearTimeout(timeout)
                 console.log(
-                  "[OpenData] Page loaded, URL:",
+                  "[RawData] Page loaded, URL:",
                   view.webContents.getURL()
                 )
                 resolve()
@@ -139,26 +139,22 @@ export class BrowserRunnerService {
             checkLoaded()
           })
 
-          console.log("[OpenData] === NAVIGATE COMPLETE ===")
+          console.log("[RawData] === NAVIGATE COMPLETE ===")
         },
 
         settle: async (ms: number) => {
-          console.log("[OpenData] Settle for", ms, "ms...")
+          console.log("[RawData] Settle for", ms, "ms...")
           await new Promise((r) => setTimeout(r, ms))
-          console.log("[OpenData] Settle complete")
+          console.log("[RawData] Settle complete")
         },
 
         evaluate: async <T, Args extends any[]>(
           fn: (...args: Args) => T | Promise<T>,
           ...fnArgs: Args
         ): Promise<T> => {
-          console.log("[OpenData] === EVALUATE ===")
-          console.log("[OpenData] Current URL:", view.webContents.getURL())
-          console.log(
-            "[OpenData] Function:",
-            fn.toString().slice(0, 200),
-            "..."
-          )
+          console.log("[RawData] === EVALUATE ===")
+          console.log("[RawData] Current URL:", view.webContents.getURL())
+          console.log("[RawData] Function:", fn.toString().slice(0, 200), "...")
 
           const fnStr = fn.toString()
           const argsStr = fnArgs.map((a) => JSON.stringify(a)).join(",")
@@ -175,16 +171,16 @@ export class BrowserRunnerService {
             })()
           `
 
-          console.log("[OpenData] Executing in page context...")
+          console.log("[RawData] Executing in page context...")
           const result = await view.webContents.executeJavaScript(code, true)
 
           if (result && result.__error) {
-            console.error("[OpenData] Evaluate error:", result.message)
+            console.error("[RawData] Evaluate error:", result.message)
             throw new Error(result.message)
           }
 
           console.log(
-            "[OpenData] Result:",
+            "[RawData] Result:",
             typeof result,
             Array.isArray(result)
               ? `array[${result.length}]`
@@ -192,20 +188,20 @@ export class BrowserRunnerService {
                 ? `object{${Object.keys(result).join(",")}}`
                 : String(result).slice(0, 100)
           )
-          console.log("[OpenData] === EVALUATE COMPLETE ===")
+          console.log("[RawData] === EVALUATE COMPLETE ===")
 
           return result
         },
 
         click: async (selector: string) => {
-          console.log("[OpenData] Click:", selector)
+          console.log("[RawData] Click:", selector)
           await view.webContents.executeJavaScript(`
             document.querySelector(${JSON.stringify(selector)})?.click()
           `)
         },
 
         fill: async (selector: string, value: string) => {
-          console.log("[OpenData] Fill:", selector, "=", value)
+          console.log("[RawData] Fill:", selector, "=", value)
           await view.webContents.executeJavaScript(`
             const el = document.querySelector(${JSON.stringify(selector)});
             if (el) { el.value = ${JSON.stringify(value)}; el.dispatchEvent(new Event('input')); }
@@ -216,13 +212,13 @@ export class BrowserRunnerService {
       // Create HttpContext - makes requests in the context of the current page
       const httpContext = {
         get: async (url: string, params?: Record<string, any>) => {
-          console.log("[OpenData] === HTTP GET ===")
+          console.log("[RawData] === HTTP GET ===")
           const queryString = params
             ? "?" + new URLSearchParams(params).toString()
             : ""
           const fullUrl = url + queryString
-          console.log("[OpenData] URL:", fullUrl)
-          console.log("[OpenData] Current page:", view.webContents.getURL())
+          console.log("[RawData] URL:", fullUrl)
+          console.log("[RawData] Current page:", view.webContents.getURL())
 
           const result = await view.webContents.executeJavaScript(`
             fetch(${JSON.stringify(fullUrl)}, { 
@@ -238,8 +234,8 @@ export class BrowserRunnerService {
             throw new Error(result.message)
           }
 
-          console.log("[OpenData] HTTP GET result:", typeof result)
-          console.log("[OpenData] === HTTP GET COMPLETE ===")
+          console.log("[RawData] HTTP GET result:", typeof result)
+          console.log("[RawData] === HTTP GET COMPLETE ===")
           return result
         },
 
@@ -248,8 +244,8 @@ export class BrowserRunnerService {
           body?: any,
           headers?: Record<string, string>
         ) => {
-          console.log("[OpenData] === HTTP POST ===")
-          console.log("[OpenData] URL:", url)
+          console.log("[RawData] === HTTP POST ===")
+          console.log("[RawData] URL:", url)
 
           const result = await view.webContents.executeJavaScript(`
             fetch(${JSON.stringify(url)}, {
@@ -267,7 +263,7 @@ export class BrowserRunnerService {
             throw new Error(result.message)
           }
 
-          console.log("[OpenData] === HTTP POST COMPLETE ===")
+          console.log("[RawData] === HTTP POST COMPLETE ===")
           return result
         },
       }
@@ -283,24 +279,24 @@ export class BrowserRunnerService {
       }
 
       // Step 1: Fetch raw data
-      console.log("[OpenData] === STEP 1: FETCH ===")
-      console.log("[OpenData] Calling adapter.fetch()...")
+      console.log("[RawData] === STEP 1: FETCH ===")
+      console.log("[RawData] Calling adapter.fetch()...")
       console.log(
-        "[OpenData] This will navigate and then evaluate in page context"
+        "[RawData] This will navigate and then evaluate in page context"
       )
 
       let rawEntities: any[] = []
       const startTime = Date.now()
 
       try {
-        console.log("[OpenData] Executing adapter.fetch...")
+        console.log("[RawData] Executing adapter.fetch...")
         const fetchResult = await adapter.fetch(fetchContext)
         const elapsed = Date.now() - startTime
 
         // Validate result
         if (!Array.isArray(fetchResult)) {
           console.error(
-            "[OpenData] Fetch returned non-array:",
+            "[RawData] Fetch returned non-array:",
             typeof fetchResult,
             fetchResult
           )
@@ -311,23 +307,23 @@ export class BrowserRunnerService {
 
         rawEntities = fetchResult
         console.log(
-          `[OpenData] Fetch completed in ${elapsed}ms, got ${rawEntities.length} entities`
+          `[RawData] Fetch completed in ${elapsed}ms, got ${rawEntities.length} entities`
         )
 
         if (rawEntities.length > 0) {
-          console.log("[OpenData] First entity sample:", {
+          console.log("[RawData] First entity sample:", {
             entityType: rawEntities[0]?.entityType,
             entityId: rawEntities[0]?.entityId,
             dataKeys: Object.keys(rawEntities[0]?.data || {}),
           })
         }
       } catch (fetchError) {
-        console.error("[OpenData] Fetch FAILED:", fetchError)
+        console.error("[RawData] Fetch FAILED:", fetchError)
         throw fetchError
       }
 
-      // Step 1.5: Store raw data to raw_data table
-      console.log("[OpenData] === STORING RAW DATA ===")
+      // Step 1.5: Store raw data to data table
+      console.log("[RawData] === STORING RAW DATA ===")
       try {
         await this.dataPersister.storeRawData(
           db,
@@ -335,19 +331,19 @@ export class BrowserRunnerService {
           rawEntities
         )
       } catch (storeError) {
-        console.error("[OpenData] Failed to store raw data:", storeError)
+        console.error("[RawData] Failed to store raw data:", storeError)
         // Continue anyway, don't block transform
       }
 
       // Step 2: Transform to economic model
-      console.log("[OpenData] === STEP 2: TRANSFORM ===")
+      console.log("[RawData] === STEP 2: TRANSFORM ===")
       let agents: any[] = []
       let goods: any[] = []
       let relations: any[] = []
 
       if (adapter.transform) {
         console.log(
-          "[OpenData] adapter.transform exists, processing",
+          "[RawData] adapter.transform exists, processing",
           rawEntities.length,
           "entities..."
         )
@@ -355,11 +351,11 @@ export class BrowserRunnerService {
           const entity = rawEntities[i]
           try {
             console.log(
-              `[OpenData] Transforming entity ${i + 1}/${rawEntities.length}:`,
+              `[RawData] Transforming entity ${i + 1}/${rawEntities.length}:`,
               entity.entityId
             )
             const result = await adapter.transform(entity)
-            console.log(`[OpenData] Entity ${i + 1} transformed:`, {
+            console.log(`[RawData] Entity ${i + 1} transformed:`, {
               agents: result.agents?.length || 0,
               goods: result.goods?.length || 0,
               relations: result.relations?.length || 0,
@@ -369,13 +365,13 @@ export class BrowserRunnerService {
             if (result.relations) relations.push(...result.relations)
           } catch (error) {
             console.error(
-              `[OpenData] Transform FAILED for entity ${entity.entityId}:`,
+              `[RawData] Transform FAILED for entity ${entity.entityId}:`,
               error
             )
           }
         }
       } else {
-        console.log("[OpenData] No transform function, using raw data as goods")
+        console.log("[RawData] No transform function, using raw data as goods")
         goods = rawEntities.map((e) => ({
           id: e.entityId,
           category: "unknown",
@@ -384,8 +380,8 @@ export class BrowserRunnerService {
         }))
       }
 
-      console.log("[OpenData] === TRANSFORM COMPLETE ===")
-      console.log("[OpenData] Total:", {
+      console.log("[RawData] === TRANSFORM COMPLETE ===")
+      console.log("[RawData] Total:", {
         agents: agents.length,
         goods: goods.length,
         relations: relations.length,
@@ -408,9 +404,9 @@ export class BrowserRunnerService {
         return filtered
       })
 
-      console.log("[OpenData] Building result...")
+      console.log("[RawData] Building result...")
       // Build result
-      const result: OpenDataResult = {
+      const result: RawDataResult = {
         source: adapter.meta.site,
         data,
         columns,
@@ -422,28 +418,28 @@ export class BrowserRunnerService {
       ;(result as any).goods = goods
       ;(result as any).relations = relations
 
-      console.log("[OpenData] Returning result from runBrowserAdapter")
+      console.log("[RawData] Returning result from runBrowserAdapter")
 
       // Step 3: Persist results
-      console.log("[OpenDataService] Persisting results...")
+      console.log("[RawDataService] Persisting results...")
       const persisted = await this.dataPersister.persistResults(
         store,
         db,
         adapter,
         result
       )
-      console.log("[OpenDataService] Persist complete:", persisted)
+      console.log("[RawDataService] Persist complete:", persisted)
 
       return { ...result, persisted }
     } catch (error) {
-      console.error("[OpenData] runBrowserAdapter ERROR:", error)
+      console.error("[RawData] runBrowserAdapter ERROR:", error)
       throw error
     } finally {
       // Cleanup
-      console.log("[OpenData] Cleaning up WebContentsView...")
+      console.log("[RawData] Cleaning up WebContentsView...")
       browserWindow.contentView.removeChildView(view)
       view.webContents.close()
-      console.log("[OpenData] Cleaned up WebContentsView")
+      console.log("[RawData] Cleaned up WebContentsView")
     }
   }
 }

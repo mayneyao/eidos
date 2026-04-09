@@ -1,7 +1,7 @@
 // IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
 import "../../data-space/worker/sqlite-server/env"
 
-import { OpenData } from "@eidos.space/opendata"
+import { RawData } from "@eidos.space/rawdata"
 import Database from "better-sqlite3"
 import * as path from "node:path"
 
@@ -11,11 +11,11 @@ import { AdapterFsService } from "../adapters/adapter-fs.service"
 
 /**
  * DataStore Service
- * Manages SQLite database and OpenData store instances per space
+ * Manages SQLite database and RawData store instances per space
  */
 @Injectable()
 export class DataStoreService {
-  private dataStores: Map<string, OpenData> = new Map()
+  private dataStores: Map<string, RawData> = new Map()
   private databases: Map<string, Database.Database> = new Map()
 
   /**
@@ -24,7 +24,7 @@ export class DataStoreService {
   getDatabase(spaceId: string): Database.Database {
     if (!this.databases.has(spaceId)) {
       const spacePath = getSpacePath(spaceId)
-      const dbPath = path.join(spacePath, ".eidos", "opendata.sqlite3")
+      const dbPath = path.join(spacePath, ".eidos", "raw.sqlite3")
 
       // Ensure directory exists
       const fs = new AdapterFsService(spacePath)
@@ -38,12 +38,12 @@ export class DataStoreService {
   }
 
   /**
-   * Get or create OpenData store for a space
+   * Get or create RawData store for a space
    */
-  getDataStore(spaceId: string): OpenData {
+  getDataStore(spaceId: string): RawData {
     if (!this.dataStores.has(spaceId)) {
       const db = this.getDatabase(spaceId)
-      const store = new OpenData(db, { debug: false })
+      const store = new RawData(db, { debug: false })
       this.dataStores.set(spaceId, store)
     }
     return this.dataStores.get(spaceId)!
@@ -65,6 +65,6 @@ export class DataStoreService {
    */
   getDatabasePath(spaceId: string): string {
     const spacePath = getSpacePath(spaceId)
-    return path.join(spacePath, ".eidos", "opendata.sqlite3")
+    return path.join(spacePath, ".eidos", "raw.sqlite3")
   }
 }

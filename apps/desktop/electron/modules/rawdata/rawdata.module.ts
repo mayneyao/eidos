@@ -1,8 +1,8 @@
 /**
- * OpenData Module - Open data management and adapter execution
+ * RawData Module - Open data management and adapter execution
  *
  * This module provides:
- * - OpenDataManager lifecycle management
+ * - RawDataManager lifecycle management
  * - Adapter loading and execution
  * - Data store management
  * - Raw data storage
@@ -17,7 +17,7 @@ import { BrowserExplorerService } from "./explorer/browser-explorer.service"
 import { BrowserRunnerService } from "./runner/browser-runner.service"
 import { DataPersisterService } from "./persistence/data-persister.service"
 import { DataStoreService } from "./store/datastore.service"
-import { OpenDataService } from "./opendata.service"
+import { RawDataService } from "./rawdata.service"
 
 @Module({
   providers: [
@@ -26,13 +26,13 @@ import { OpenDataService } from "./opendata.service"
     AdapterLoaderService,
     BrowserRunnerService,
     BrowserExplorerService,
-    OpenDataService,
+    RawDataService,
   ],
-  exports: [OpenDataService],
+  exports: [RawDataService],
 })
-export class OpenDataModule {}
+export class RawDataModule {}
 
-export { OpenDataService } from "./opendata.service"
+export { RawDataService } from "./rawdata.service"
 export { AdapterLoaderService } from "./adapters/adapter-loader.service"
 export { BrowserRunnerService } from "./runner/browser-runner.service"
 export { BrowserExplorerService } from "./explorer/browser-explorer.service"

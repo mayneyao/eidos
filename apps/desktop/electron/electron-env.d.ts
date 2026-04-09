@@ -152,8 +152,8 @@ interface Window {
     webview: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./modules/window/webview.service").WebviewService
     >
-    openData: import("@eidos.space/electron-ipc").ExtractIpcApi<
-      typeof import("./modules/opendata/opendata.service").OpenDataService
+    rawData: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./modules/rawdata/rawdata.service").RawDataService
     >
   }
 }

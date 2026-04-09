@@ -1,4 +1,4 @@
-export interface OpenDataAdapter {
+export interface RawDataAdapter {
   site: string
   name: string
   description?: string
@@ -6,7 +6,7 @@ export interface OpenDataAdapter {
   filePath: string
   /**
    * Pre-defined SQL queries for displaying data in table view.
-   * Each query should include -- @db: opendata header.
+   * Each query should include -- @db: rawdata header.
    * Use -- @search {field1,field2} to enable search on specific fields.
    *
    */

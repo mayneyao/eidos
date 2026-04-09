@@ -1,5 +1,5 @@
 /**
- * OpenData Types - V3 (Clean)
+ * RawData Types - V3 (Clean)
  *
  * Code-based Adapter definition (defineAdapter)
  */
@@ -183,7 +183,7 @@ export interface FetchContext {
 // Adapter V3 Interface (defineAdapter)
 // ============================================
 
-export interface OpenDataAdapter {
+export interface RawDataAdapter {
   meta: {
     site: string
     name: string
@@ -242,7 +242,7 @@ export interface OpenDataAdapter {
 // Database Interface
 // ============================================
 
-export interface IOpenDataDatabase {
+export interface IRawDataDatabase {
   prepare(sql: string): {
     get: (...params: any[]) => any
     all: (...params: any[]) => any[]
@@ -261,7 +261,7 @@ export interface MatchedAdapter {
   name: string
   description?: string
   domain: string
-  adapter: OpenDataAdapter
+  adapter: RawDataAdapter
   filePath: string
 }
 
@@ -290,11 +290,11 @@ export interface QueryRelationsOptions {
 // Result Types
 // ============================================
 
-export interface OpenDataResult {
+export interface RawDataResult {
   source: string
   data: any[]
   columns?: string[]
-  adapter: OpenDataAdapter
+  adapter: RawDataAdapter
   persisted?: {
     agents: number
     goods: number
