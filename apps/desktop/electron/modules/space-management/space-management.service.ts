@@ -3,13 +3,14 @@
  */
 
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
-import { IpcInjectable, Inject } from "../../common/di"
+import { IpcInjectable, Inject, container } from "../../common/di"
 import { SpaceRegistry } from "./space-registry"
 import { MainWindowProvider } from "./main-window.provider"
 import { DataSpaceManager, DataSpaceProcessPool } from "../data-space"
 import { getCredentialsManager } from "../sync/sync.module"
 import { getConfigManager } from "../config/config-manager"
 import { PORT } from "../../main"
+import { BrowserViewService } from "../window/browser-view.service"
 
 /**
  * Space Management Service - Provides space management via IPC
@@ -150,6 +151,14 @@ export class SpaceManagementService extends IpcServiceBase {
             resolve()
           })
         })
+      }
+
+      // Close all BrowserViews before switching space to prevent them from covering the main window
+      try {
+        const browserViewService = container.get(BrowserViewService)
+        browserViewService.closeAll()
+      } catch {
+        // BrowserViewService might not be available, ignore
       }
 
       if (process.env.VITE_DEV_SERVER_URL) {
