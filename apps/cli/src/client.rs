@@ -160,6 +160,52 @@ impl EidosClient {
         anyhow::bail!("Unexpected response format: {}", text);
     }
 
+    /// Make a direct HTTP POST request to the API server
+    /// 
+    /// This is used for non-RPC endpoints like /api/explore
+    pub async fn post_json(&self, path: &str, body: serde_json::Value) -> Result<serde_json::Value> {
+        let port = self.config.endpoint
+            .split(':')
+            .last()
+            .and_then(|p| p.parse::<u16>().ok())
+            .unwrap_or(13127);
+        
+        let url = format!("http://127.0.0.1:{}{}", port, path);
+        
+        let host = if let Some(space_id) = &self.config.space_id {
+            format!("{}.eidos.localhost", space_id)
+        } else {
+            "localhost".to_string()
+        };
+        
+        let mut request = self.http
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .header("Host", &host);
+
+        if let Some(api_key) = &self.config.api_key {
+            request = request.header("Authorization", format!("Bearer {}", api_key));
+        }
+
+        let response = request
+            .json(&body)
+            .send()
+            .await
+            .context(format!("Failed to POST {}", url))?;
+
+        let status = response.status();
+        let text = response.text().await.unwrap_or_default();
+
+        if !status.is_success() {
+            anyhow::bail!("HTTP {}: {}", status, text);
+        }
+
+        let json: serde_json::Value = serde_json::from_str(&text)
+            .context("Failed to parse JSON response")?;
+        
+        Ok(json)
+    }
+
     /// Check if the server is healthy
     /// 
     /// Desktop uses hostname-based routing, so we need a space ID

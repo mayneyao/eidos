@@ -6,7 +6,7 @@ export const SCHEMA_VERSION = 1
 
 export const CREATE_TABLES_SQL = `
 -- 0. raw_data table - Store raw API responses
-CREATE TABLE IF NOT EXISTS opendata_raw_data (
+CREATE TABLE IF NOT EXISTS raw_data (
   id TEXT PRIMARY KEY,
   source TEXT NOT NULL,
   entity_type TEXT NOT NULL,
@@ -18,13 +18,13 @@ CREATE TABLE IF NOT EXISTS opendata_raw_data (
   transform_version INTEGER DEFAULT 0
 );
 
-CREATE INDEX IF NOT EXISTS idx_raw_data_source ON opendata_raw_data(source);
-CREATE INDEX IF NOT EXISTS idx_raw_data_entity ON opendata_raw_data(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_raw_data_fetched ON opendata_raw_data(fetched_at);
-CREATE INDEX IF NOT EXISTS idx_raw_data_transformed ON opendata_raw_data(transformed_at) WHERE transformed_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_raw_data_source ON raw_data(source);
+CREATE INDEX IF NOT EXISTS idx_raw_data_entity ON raw_data(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_raw_data_fetched ON raw_data(fetched_at);
+CREATE INDEX IF NOT EXISTS idx_raw_data_transformed ON raw_data(transformed_at) WHERE transformed_at IS NULL;
 
 -- 1. agents table
-CREATE TABLE IF NOT EXISTS opendata_agents (
+CREATE TABLE IF NOT EXISTS agents (
   id TEXT PRIMARY KEY,
   role TEXT CHECK(role IN ('consumer', 'producer', 'platform')),
   is_consumer BOOLEAN DEFAULT FALSE,
@@ -36,11 +36,11 @@ CREATE TABLE IF NOT EXISTS opendata_agents (
   updated_at INTEGER DEFAULT (strftime('%s', 'now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_agents_consumer ON opendata_agents(is_consumer);
-CREATE INDEX IF NOT EXISTS idx_agents_role ON opendata_agents(role);
+CREATE INDEX IF NOT EXISTS idx_agents_consumer ON agents(is_consumer);
+CREATE INDEX IF NOT EXISTS idx_agents_role ON agents(role);
 
 -- 2. goods table
-CREATE TABLE IF NOT EXISTS opendata_goods (
+CREATE TABLE IF NOT EXISTS goods (
   id TEXT PRIMARY KEY,
   category TEXT CHECK(category IN (
     'book', 'article', 'video', 'audio', 'course', 'movie',
@@ -50,8 +50,8 @@ CREATE TABLE IF NOT EXISTS opendata_goods (
   title TEXT NOT NULL,
   summary TEXT,
   is_container BOOLEAN DEFAULT FALSE,
-  owner_id TEXT REFERENCES opendata_agents(id),
-  produced_by TEXT REFERENCES opendata_agents(id),
+  owner_id TEXT REFERENCES agents(id),
+  produced_by TEXT REFERENCES agents(id),
   co_producers TEXT DEFAULT '[]',
   fingerprints TEXT DEFAULT '{}',
   use_value TEXT DEFAULT '{}',
@@ -64,14 +64,14 @@ CREATE TABLE IF NOT EXISTS opendata_goods (
   updated_at INTEGER DEFAULT (strftime('%s', 'now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_goods_category ON opendata_goods(category);
-CREATE INDEX IF NOT EXISTS idx_goods_producer ON opendata_goods(produced_by);
-CREATE INDEX IF NOT EXISTS idx_goods_owner ON opendata_goods(owner_id);
-CREATE INDEX IF NOT EXISTS idx_goods_status ON opendata_goods(status);
-CREATE INDEX IF NOT EXISTS idx_goods_container ON opendata_goods(is_container);
+CREATE INDEX IF NOT EXISTS idx_goods_category ON goods(category);
+CREATE INDEX IF NOT EXISTS idx_goods_producer ON goods(produced_by);
+CREATE INDEX IF NOT EXISTS idx_goods_owner ON goods(owner_id);
+CREATE INDEX IF NOT EXISTS idx_goods_status ON goods(status);
+CREATE INDEX IF NOT EXISTS idx_goods_container ON goods(is_container);
 
 -- 3. relations table
-CREATE TABLE IF NOT EXISTS opendata_relations (
+CREATE TABLE IF NOT EXISTS relations (
   id TEXT PRIMARY KEY,
   type TEXT CHECK(type IN ('PRODUCES', 'CONSUMES', 'OWNS', 'FOLLOWS', 'CONTAINS', 'REFERENCES')),
   subject_type TEXT CHECK(subject_type IN ('agent', 'good')),
@@ -86,15 +86,15 @@ CREATE TABLE IF NOT EXISTS opendata_relations (
   UNIQUE(type, subject_id, object_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_relations_type ON opendata_relations(type);
-CREATE INDEX IF NOT EXISTS idx_relations_subject ON opendata_relations(subject_type, subject_id);
-CREATE INDEX IF NOT EXISTS idx_relations_object ON opendata_relations(object_type, object_id);
-CREATE INDEX IF NOT EXISTS idx_relations_consumes ON opendata_relations(type, subject_id) WHERE type = 'CONSUMES';
-CREATE INDEX IF NOT EXISTS idx_relations_owns ON opendata_relations(type, subject_id) WHERE type = 'OWNS';
-CREATE INDEX IF NOT EXISTS idx_relations_follows ON opendata_relations(type, subject_id) WHERE type = 'FOLLOWS';
+CREATE INDEX IF NOT EXISTS idx_relations_type ON relations(type);
+CREATE INDEX IF NOT EXISTS idx_relations_subject ON relations(subject_type, subject_id);
+CREATE INDEX IF NOT EXISTS idx_relations_object ON relations(object_type, object_id);
+CREATE INDEX IF NOT EXISTS idx_relations_consumes ON relations(type, subject_id) WHERE type = 'CONSUMES';
+CREATE INDEX IF NOT EXISTS idx_relations_owns ON relations(type, subject_id) WHERE type = 'OWNS';
+CREATE INDEX IF NOT EXISTS idx_relations_follows ON relations(type, subject_id) WHERE type = 'FOLLOWS';
 
 -- 4. sync_states table
-CREATE TABLE IF NOT EXISTS opendata_sync_states (
+CREATE TABLE IF NOT EXISTS sync_states (
   source TEXT PRIMARY KEY,
   adapter_id TEXT,
   cursor TEXT,
@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS opendata_sync_states (
 );
 
 -- 5. sync_logs table
-CREATE TABLE IF NOT EXISTS opendata_sync_logs (
+CREATE TABLE IF NOT EXISTS sync_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source TEXT NOT NULL,
   started_at INTEGER,
@@ -118,15 +118,15 @@ CREATE TABLE IF NOT EXISTS opendata_sync_logs (
   checksum TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_sync_logs_source ON opendata_sync_logs(source);
-CREATE INDEX IF NOT EXISTS idx_sync_logs_time ON opendata_sync_logs(completed_at);
+CREATE INDEX IF NOT EXISTS idx_sync_logs_source ON sync_logs(source);
+CREATE INDEX IF NOT EXISTS idx_sync_logs_time ON sync_logs(completed_at);
 `
 
 export const INIT_DATA_SQL = `
-INSERT OR IGNORE INTO opendata_agents (id, role, is_consumer, name, fingerprints)
+INSERT OR IGNORE INTO agents (id, role, is_consumer, name, fingerprints)
 VALUES ('me', 'consumer', TRUE, 'Me', '{}');
 
-INSERT OR IGNORE INTO opendata_goods (id, category, title, is_container, owner_id, status)
+INSERT OR IGNORE INTO goods (id, category, title, is_container, owner_id, status)
 VALUES 
   ('inbox-default', 'inbox', 'Inbox', TRUE, 'me', 'active'),
   ('shelf-default', 'shelf', 'Default Bookshelf', TRUE, 'me', 'active'),

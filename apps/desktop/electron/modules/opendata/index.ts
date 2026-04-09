@@ -29,6 +29,17 @@
 
 export { OpenDataModule } from "./opendata.module"
 export { OpenDataService } from "./opendata.service"
+export { AdapterLoaderService } from "./adapters/adapter-loader.service"
+export { BrowserRunnerService } from "./runner/browser-runner.service"
+export {
+  BrowserExplorerService,
+  type NetworkRequest,
+  type NetworkResponse,
+  type ExploreOptions,
+  type ExploreResult,
+} from "./explorer/browser-explorer.service"
+export { DataPersisterService } from "./persistence/data-persister.service"
+export { DataStoreService } from "./store/datastore.service"
 
 // Backward compatibility helpers
 import { container } from "../../common/di"

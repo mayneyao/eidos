@@ -45,6 +45,7 @@ export default function WebviewPage() {
   const matchedAdaptersRef = useRef(matchedAdapters)
   const [hasOpenData, setHasOpenData] = useState(false)
   const [isLoadingAdapters, setIsLoadingAdapters] = useState(false)
+  const [isRefreshingAdapter, setIsRefreshingAdapter] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>("browser")
   const [selectedAdapter, setSelectedAdapter] =
     useState<OpenDataAdapter | null>(null)
@@ -183,8 +184,14 @@ export default function WebviewPage() {
   }
 
   const handleReload = () => {
-    if (!isDesktopMode) return
-    window.eidos.browserView.reload(viewIdRef.current)
+    if (viewMode === "table" && selectedAdapter) {
+      // In table view, reload triggers adapter refresh
+      handleRefreshAdapter()
+    } else {
+      // In browser view, reload the webview
+      if (!isDesktopMode) return
+      window.eidos.browserView.reload(viewIdRef.current)
+    }
   }
 
   const handleGoBack = () => {
@@ -230,14 +237,62 @@ export default function WebviewPage() {
 
   const handleRunAdapter = (adapter: OpenDataAdapter) => {
     if (!space) return
+
+    // Switch to table view directly, the view will be created by OpenDataTableView
     setSelectedAdapter(adapter)
     setViewMode("table")
     setIsOpenDataOpen(false)
+    // Update address bar to show opendata: protocol
+    setDisplayUrl(`opendata:${url}`)
+
+    toast({
+      title: `Opening ${adapter.name}`,
+      description: "Loading data view...",
+    })
   }
 
   const handleBackToBrowser = () => {
     setViewMode("browser")
     setSelectedAdapter(null)
+    // Restore original URL
+    setDisplayUrl(committedUrlRef.current)
+  }
+
+  const handleRefreshAdapter = async () => {
+    if (!space || !selectedAdapter) return
+
+    setIsRefreshingAdapter(true)
+    try {
+      toast({
+        title: `Syncing ${selectedAdapter.name}...`,
+        description: "Fetching data from source...",
+      })
+
+      const result = await window.eidos.openData.runAdapter(
+        space,
+        selectedAdapter.filePath,
+        {}
+      )
+
+      toast({
+        title: `${selectedAdapter.name} synced`,
+        description: `Persisted ${result.persisted.agents} agents, ${result.persisted.goods} goods, ${result.persisted.relations} relations`,
+      })
+
+      // Force re-create view to refresh data
+      // By toggling viewMode briefly
+      setViewMode("browser")
+      setTimeout(() => setViewMode("table"), 0)
+    } catch (error) {
+      console.error("Failed to refresh adapter:", error)
+      toast({
+        title: "Sync failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      })
+    } finally {
+      setIsRefreshingAdapter(false)
+    }
   }
 
   if (!url) {
@@ -257,7 +312,7 @@ export default function WebviewPage() {
         <WebviewToolbar
           viewId={viewIdRef.current}
           displayUrl={displayUrl}
-          isLoading={isLoading}
+          isLoading={isLoading || isRefreshingAdapter}
           canGoBack={canGoBack}
           canGoForward={canGoForward}
           viewMode={viewMode}

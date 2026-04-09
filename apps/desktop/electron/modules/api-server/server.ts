@@ -13,6 +13,7 @@ import type { Logger } from "../logger/logger.module"
 import { setupOAuthRoutes } from "./routes/oauth"
 import { setupApiRoutes } from "./routes/api"
 import { setupFileRoutes } from "./routes/files"
+import { setupExplorerRoutes } from "./routes/explorer"
 
 // Import middleware
 import { createCorsMiddleware } from "./middleware/cors"
@@ -103,6 +104,9 @@ export interface ServerContext {
     user?: UserInfo | null
   ) => void
   logger: Logger
+  // Browser explorer service for adapter generation
+  browserExplorer?: any
+  windowService?: any
 }
 
 // Channel name for auth state changes
@@ -138,6 +142,11 @@ function createApp(dist: string, port: number, ctx: ServerContext): Hono {
 
   // File serving routes
   setupFileRoutes(app, ctx)
+
+  // Browser explorer routes
+  if (ctx.browserExplorer && ctx.windowService) {
+    setupExplorerRoutes(app, ctx, ctx.browserExplorer, ctx.windowService)
+  }
 
   // Fallback to index.html
   app.use("*", createSpaFallback(dist))

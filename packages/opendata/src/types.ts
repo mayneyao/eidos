@@ -198,6 +198,8 @@ export interface OpenDataAdapter {
     strategy: "public" | "cookie" | "auth" | "oauth"
     browser?: boolean
     entryPoint?: string
+    /** Enable DevTools for debugging (default: false) */
+    devTools?: boolean
   }
 
   args?: Record<

@@ -96,7 +96,7 @@ export class OpenData {
     const now = Math.floor(Date.now() / 1000)
 
     const stmt = this.db.prepare(`
-      INSERT INTO opendata_agents (id, role, is_consumer, name, avatar_url, fingerprints, description, created_at, updated_at)
+      INSERT INTO agents (id, role, is_consumer, name, avatar_url, fingerprints, description, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         role = excluded.role,
@@ -125,7 +125,7 @@ export class OpenData {
 
   findAgentByFingerprint(platform: string, externalId: string): Agent | null {
     const stmt = this.db.prepare(`
-      SELECT * FROM opendata_agents
+      SELECT * FROM agents
       WHERE json_extract(fingerprints, '$.${platform}') = ?
       LIMIT 1
     `)
@@ -135,14 +135,14 @@ export class OpenData {
 
   getConsumer(): Agent {
     const stmt = this.db.prepare(
-      `SELECT * FROM opendata_agents WHERE is_consumer = 1 LIMIT 1`
+      `SELECT * FROM agents WHERE is_consumer = 1 LIMIT 1`
     )
     const result = stmt.get() as Record<string, unknown>
     return this.parseAgent(result)
   }
 
   getAgent(id: string): Agent | null {
-    const stmt = this.db.prepare(`SELECT * FROM opendata_agents WHERE id = ?`)
+    const stmt = this.db.prepare(`SELECT * FROM agents WHERE id = ?`)
     const result = stmt.get(id) as Record<string, unknown> | undefined
     return result ? this.parseAgent(result) : null
   }
@@ -157,7 +157,7 @@ export class OpenData {
     const now = Math.floor(Date.now() / 1000)
 
     const stmt = this.db.prepare(`
-      INSERT INTO opendata_goods (
+      INSERT INTO goods (
         id, category, title, summary, is_container, owner_id, produced_by,
         co_producers, fingerprints, use_value, exchange_value, production_data,
         published_at, created_at, updated_at
@@ -199,7 +199,7 @@ export class OpenData {
 
   findGoodByFingerprint(key: string, value: string): Good | null {
     const stmt = this.db.prepare(`
-      SELECT * FROM opendata_goods
+      SELECT * FROM goods
       WHERE json_extract(fingerprints, '$.${key}') = ?
       LIMIT 1
     `)
@@ -208,7 +208,7 @@ export class OpenData {
   }
 
   queryGoods(options: QueryGoodsOptions = {}): Good[] {
-    let sql = `SELECT * FROM opendata_goods WHERE 1=1`
+    let sql = `SELECT * FROM goods WHERE 1=1`
     const params: unknown[] = []
 
     if (options.category) {
@@ -245,7 +245,7 @@ export class OpenData {
   }
 
   getGood(id: string): Good | null {
-    const stmt = this.db.prepare(`SELECT * FROM opendata_goods WHERE id = ?`)
+    const stmt = this.db.prepare(`SELECT * FROM goods WHERE id = ?`)
     const result = stmt.get(id) as Record<string, unknown> | undefined
     return result ? this.parseGood(result) : null
   }
@@ -259,7 +259,7 @@ export class OpenData {
     const now = Math.floor(Date.now() / 1000)
 
     const stmt = this.db.prepare(`
-      INSERT INTO opendata_relations (id, type, subject_type, subject_id, object_type, object_id, context, source, source_id, created_at, updated_at)
+      INSERT INTO relations (id, type, subject_type, subject_id, object_type, object_id, context, source, source_id, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(type, subject_id, object_id) DO UPDATE SET
         context = json_patch(context, excluded.context),
@@ -286,7 +286,7 @@ export class OpenData {
   }
 
   queryRelations(options: QueryRelationsOptions = {}): Relation[] {
-    let sql = `SELECT * FROM opendata_relations WHERE 1=1`
+    let sql = `SELECT * FROM relations WHERE 1=1`
     const params: unknown[] = []
 
     if (options.type) {

@@ -20,6 +20,8 @@ import { SpaceRegistry } from "../space-management/space-management.module"
 import { LoggerService } from "../logger/logger.module"
 import { DataSpaceManager } from "../data-space"
 import { isPortInUse, getProcessByPort } from "./port-checker"
+import { WindowService } from "../window/window.service"
+import { BrowserExplorerService } from "../opendata/explorer/browser-explorer.service"
 
 export { PortInUseError, PortOccupancyInfo, AUTH_STATE_CHANGED_CHANNEL }
 
@@ -38,7 +40,10 @@ export class ApiServerService {
     @Inject(CredentialsManager) private credentialsManager: CredentialsManager,
     @Inject(SpaceRegistry) private spaceRegistry: SpaceRegistry,
     @Inject(LoggerService) private logger: LoggerService,
-    @Inject(DataSpaceManager) private dataSpaceManager: DataSpaceManager
+    @Inject(DataSpaceManager) private dataSpaceManager: DataSpaceManager,
+    @Inject(WindowService) private windowService: WindowService,
+    @Inject(BrowserExplorerService)
+    private browserExplorer: BrowserExplorerService
   ) {
     this.logger.setPrefix("ApiServer")
   }
@@ -158,6 +163,8 @@ export class ApiServerService {
       },
       broadcastAuthStateChange,
       logger: this.logger,
+      browserExplorer: this.browserExplorer,
+      windowService: this.windowService,
     }
   }
 

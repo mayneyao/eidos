@@ -86,7 +86,13 @@ export class SqlDataView {
       sql: `SELECT sql FROM sqlite_master WHERE type='view' and name = ?;`,
       bind: [tableName],
     })
-    const fullSql = view[0]?.sql || ""
+
+    const tmpView = await this.dataSpace.db.exec({
+      sql: `SELECT sql FROM temp.sqlite_master WHERE type='view' and name = ?;`,
+      bind: [tableName],
+    })
+
+    const fullSql = view[0]?.sql || tmpView[0]?.sql || ""
 
     // Extract only the query part, removing CREATE VIEW statement
     // Match pattern: CREATE VIEW view_name AS query_statement

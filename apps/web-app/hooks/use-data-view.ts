@@ -16,9 +16,12 @@ export const useDataView = () => {
     return await sqlite?.dataView.isDataViewExist(id)
   }
 
-  const createTempDataView = async (id: string, createViewSql: string) => {
-    return await sqlite?.dataView.createDataView(id, createViewSql, true)
-  }
+  const createTempDataView = useCallback(
+    async (id: string, createViewSql: string) => {
+      return await sqlite?.dataView.createDataView(id, createViewSql, true)
+    },
+    []
+  )
 
   const createCustomPropertyDataView = async (
     propertyKey: string,

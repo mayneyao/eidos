@@ -1,4 +1,5 @@
 pub mod completions;
+pub mod explore;
 pub mod ext;
 pub mod mount;
 pub mod status;
@@ -111,6 +112,13 @@ pub enum Commands {
     /// Check Eidos Desktop status
     Status,
 
+    /// Explore a URL and capture network requests
+    /// 
+    /// Uses Eidos Desktop's browser to visit a URL and capture all API calls.
+    /// Useful for discovering APIs to create OpenData adapters.
+    #[command(name = "explore")]
+    Explore(explore::ExploreArgs),
+
     /// Generate shell completions
     #[command(hide = true)]
     Completions {
@@ -178,6 +186,7 @@ impl Commands {
             Commands::Theme(cmd) => cmd.execute(client, config).await,
             Commands::Mount(args) => args.execute(client).await,
             Commands::Status => status::execute(client).await,
+            Commands::Explore(args) => explore::execute(args, client, format).await,
             Commands::Completions { shell } => completions::execute(shell),
         }
     }
