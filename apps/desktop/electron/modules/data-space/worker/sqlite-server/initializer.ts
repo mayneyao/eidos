@@ -112,6 +112,9 @@ export class NodeDatabaseInitializer {
       // Load Vec extension
       this.loadVecExtension(db)
 
+      // Attach opendata database if configured
+      this.attachDatabase(db)
+
       this.logger.log("Database initialized successfully.")
 
       return { db, isSyncEnabled }
@@ -282,5 +285,54 @@ export class NodeDatabaseInitializer {
       .get() as any
     this.logger.log(row.query)
     db.prepare("select jieba_dict(?)").run(options.dictPath)
+  }
+
+  private attachDatabase(db: Database.Database) {
+    if (!this.options.spacePath) {
+      return
+    }
+
+    // Derive opendata path from spacePath
+    // Expected location: spacePath/.eidos/opendata.db
+    const opendataPath = path.join(
+      this.options.spacePath,
+      ".eidos",
+      "opendata.sqlite3"
+    )
+
+    if (fs.existsSync(opendataPath)) {
+      try {
+        this.logger.log("Attaching opendata database...", opendataPath)
+        db.prepare(`ATTACH DATABASE ? AS opendata`).run(opendataPath)
+        this.logger.log("Opendata database attached successfully.")
+      } catch (err) {
+        this.logger.error("Failed to attach opendata database:", err)
+      }
+    } else {
+      this.logger.log(
+        "Opendata database not found, skipping attach:",
+        opendataPath
+      )
+    }
+
+    // Derive inbox path from spacePath
+    // Expected location: spacePath/.eidos/inbox.db
+    const inboxPath = path.join(
+      this.options.spacePath,
+      ".eidos",
+      "inbox.sqlite3"
+    )
+
+    if (fs.existsSync(inboxPath)) {
+      try {
+        this.logger.log("Attaching inbox database...", inboxPath)
+        db.prepare(`ATTACH DATABASE ? AS inbox`).run(inboxPath)
+        this.logger.log("Inbox database attached successfully.")
+      } catch (err) {
+        this.logger.error("Failed to attach inbox database:", err)
+      }
+    } else {
+      this.logger.log("Inbox database not found, skipping attach:", inboxPath)
+    }
   }
 }

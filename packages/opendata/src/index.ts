@@ -28,8 +28,8 @@ export {
 } from "./define.js"
 
 // Raw Data
-export { RawDataStore, CREATE_RAW_DATA_TABLE_SQL } from "./db/raw-data.js"
-export type { RawDataRecord } from "./db/raw-data.js"
+export { RawDataStore } from "./raw-data.js"
+export type { RawDataRecord } from "./raw-data.js"
 
 // Schema
 export { CREATE_TABLES_SQL, INIT_DATA_SQL, SCHEMA_VERSION } from "./schema.js"

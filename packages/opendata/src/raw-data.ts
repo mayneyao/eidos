@@ -3,7 +3,7 @@
  * Stores original API responses for debugging and custom transformation
  */
 
-import type { IOpenDataDatabase } from "../types.js"
+import type { IOpenDataDatabase } from "./types.js"
 
 export interface RawDataRecord {
   id: string // Composite key: source#entity_id
@@ -16,25 +16,6 @@ export interface RawDataRecord {
   transformed_at?: number // Last transformation timestamp
   transform_version?: number // Transformation schema version
 }
-
-export const CREATE_RAW_DATA_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS opendata_raw_data (
-  id TEXT PRIMARY KEY,
-  source TEXT NOT NULL,
-  entity_type TEXT NOT NULL,
-  entity_id TEXT NOT NULL,
-  data TEXT NOT NULL,
-  checksum TEXT,
-  fetched_at INTEGER DEFAULT (strftime('%s', 'now')),
-  transformed_at INTEGER,
-  transform_version INTEGER DEFAULT 0
-);
-
-CREATE INDEX IF NOT EXISTS idx_raw_data_source ON opendata_raw_data(source);
-CREATE INDEX IF NOT EXISTS idx_raw_data_entity ON opendata_raw_data(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_raw_data_fetched ON opendata_raw_data(fetched_at);
-CREATE INDEX IF NOT EXISTS idx_raw_data_transformed ON opendata_raw_data(transformed_at) WHERE transformed_at IS NULL;
-`
 
 export class RawDataStore {
   constructor(private db: IOpenDataDatabase) {}
@@ -56,7 +37,7 @@ export class RawDataStore {
     } = record
 
     const stmt = this.db.prepare(`
-      INSERT INTO opendata_raw_data 
+      INSERT INTO raw_data 
         (id, source, entity_type, entity_id, data, checksum, fetched_at, transformed_at, transform_version)
       VALUES 
         (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -66,7 +47,7 @@ export class RawDataStore {
         fetched_at = excluded.fetched_at,
         transformed_at = NULL,
         transform_version = 0
-      WHERE excluded.checksum != opendata_raw_data.checksum
+      WHERE excluded.checksum != raw_data.checksum
     `)
 
     const result = stmt.run(
@@ -103,7 +84,7 @@ export class RawDataStore {
    */
   get(id: string): RawDataRecord | undefined {
     const stmt = this.db.prepare(`
-      SELECT * FROM opendata_raw_data WHERE id = ?
+      SELECT * FROM raw_data WHERE id = ?
     `)
     const row = stmt.get(id)
     return row ? this.parseRow(row) : undefined
@@ -132,7 +113,7 @@ export class RawDataStore {
       untransformed?: boolean
     }
   ): RawDataRecord[] {
-    let sql = `SELECT * FROM opendata_raw_data WHERE source = ?`
+    let sql = `SELECT * FROM raw_data WHERE source = ?`
     const params: any[] = [source]
 
     if (options?.entityType) {
@@ -166,7 +147,7 @@ export class RawDataStore {
    */
   getSources(): string[] {
     const stmt = this.db.prepare(`
-      SELECT DISTINCT source FROM opendata_raw_data ORDER BY source
+      SELECT DISTINCT source FROM raw_data ORDER BY source
     `)
     const rows = stmt.all()
     return rows.map((r: any) => r.source)
@@ -177,7 +158,7 @@ export class RawDataStore {
    */
   getEntityTypes(source: string): string[] {
     const stmt = this.db.prepare(`
-      SELECT DISTINCT entity_type FROM opendata_raw_data 
+      SELECT DISTINCT entity_type FROM raw_data 
       WHERE source = ? ORDER BY entity_type
     `)
     const rows = stmt.all(source)
@@ -189,7 +170,7 @@ export class RawDataStore {
    */
   markTransformed(id: string, version: number = 1): void {
     const stmt = this.db.prepare(`
-      UPDATE opendata_raw_data 
+      UPDATE raw_data 
       SET transformed_at = ?, transform_version = ?
       WHERE id = ?
     `)
@@ -200,7 +181,7 @@ export class RawDataStore {
    * Get untransformed records
    */
   getUntransformed(source?: string, limit?: number): RawDataRecord[] {
-    let sql = `SELECT * FROM opendata_raw_data WHERE transformed_at IS NULL`
+    let sql = `SELECT * FROM raw_data WHERE transformed_at IS NULL`
     const params: any[] = []
 
     if (source) {
@@ -225,7 +206,7 @@ export class RawDataStore {
    */
   deleteOlderThan(source: string, beforeTimestamp: number): number {
     const stmt = this.db.prepare(`
-      DELETE FROM opendata_raw_data 
+      DELETE FROM raw_data 
       WHERE source = ? AND fetched_at < ?
     `)
     const result = stmt.run(source, beforeTimestamp)
@@ -242,7 +223,7 @@ export class RawDataStore {
   } {
     let sql = `SELECT entity_type, COUNT(*) as count, 
       SUM(CASE WHEN transformed_at IS NULL THEN 1 ELSE 0 END) as untransformed
-      FROM opendata_raw_data`
+      FROM raw_data`
 
     if (source) {
       sql += ` WHERE source = ?`
