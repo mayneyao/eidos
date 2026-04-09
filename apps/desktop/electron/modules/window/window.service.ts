@@ -11,9 +11,10 @@ import { debounce } from "@/lib/lodash"
 
 import { Injectable, Inject, container } from "../../common/di"
 import { ConfigManager } from "../config/config-manager"
-import type { TrayService } from "./tray.service"
+import { TrayService } from "./tray.service"
 import type { AppLifecycleService } from "./app-lifecycle.service"
 import { setupGeolocationHandler } from "./geolocation"
+import { BrowserViewService } from "./browser-view.service"
 
 const defaultViewOptions = {
   webPreferences: {
@@ -275,6 +276,13 @@ export class WindowService {
 
       if (isReloadShortcut && !input.alt) {
         event.preventDefault()
+        // Close all BrowserViews before reloading to prevent them from covering the main window
+        try {
+          const browserViewService = container.get(BrowserViewService)
+          browserViewService.closeAll()
+        } catch {
+          // BrowserViewService might not be available yet, ignore
+        }
         win.webContents.reload()
       }
     })
