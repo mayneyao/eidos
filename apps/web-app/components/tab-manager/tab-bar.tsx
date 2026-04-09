@@ -1,4 +1,4 @@
-import React, { useCallback } from "react"
+import React, { useCallback, useState } from "react"
 import {
   ChevronLeft,
   ChevronRight,
@@ -6,6 +6,24 @@ import {
   Plus,
   X,
 } from "lucide-react"
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers"
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 import { isDesktopMode } from "@/lib/env"
 import { cn, isDayPageId } from "@/lib/utils"
@@ -19,6 +37,147 @@ import { useAppStore } from "@/apps/web-app/store/app-store"
 import { NavStatus } from "@/components/nav/nav-status"
 
 import { TabContextMenu } from "./tab-context-menu"
+import type { Tab } from "@/apps/web-app/store/tabs"
+
+// Sortable tab item component
+interface SortableTabItemProps {
+  tab: Tab
+  isActive: boolean
+  index: number
+  totalTabs: number
+  onTabClick: (tabId: string, e: React.MouseEvent) => void
+  onTabActivate: (tabId: string) => void
+  onCloseTab: (tabId: string) => void
+  canGoBack: (tabId: string) => boolean
+  canGoForward: (tabId: string) => boolean
+  goInTabHistory: (tabId: string, delta: number) => void
+  closeOtherTabs: (tabId: string) => void
+  closeTabsToRight: (tabId: string) => void
+  closeAllTabs: () => void
+}
+
+function SortableTabItem({
+  tab,
+  isActive,
+  index,
+  totalTabs,
+  onTabClick,
+  onTabActivate,
+  onCloseTab,
+  canGoBack,
+  canGoForward,
+  goInTabHistory,
+  closeOtherTabs,
+  closeTabsToRight,
+  closeAllTabs,
+}: SortableTabItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: tab.id,
+    disabled: false,
+  })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1000 : "auto",
+  }
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <TabContextMenu
+        tabId={tab.id}
+        tabIndex={index}
+        totalTabs={totalTabs}
+        onClose={() => onCloseTab(tab.id)}
+        onCloseOthers={() => closeOtherTabs(tab.id)}
+        onCloseToRight={() => closeTabsToRight(tab.id)}
+        onCloseAll={closeAllTabs}
+      >
+        <div
+          className={cn(
+            "group relative flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer transition-colors leading-5",
+            "w-[200px] min-w-0 max-w-[200px] border-r border-border/50",
+            isActive
+              ? "bg-background text-foreground"
+              : "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+          )}
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          onClick={() => {
+            onTabActivate(tab.id)
+          }}
+          onMouseDown={(e) => onTabClick(tab.id, e)}
+        >
+          {/* Active tab indicator */}
+          {isActive && (
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+          )}
+
+          <span className="truncate flex-1 select-none">{tab.title}</span>
+
+          {isActive && (
+            <div className="flex items-center gap-1">
+              <button
+                className={cn(
+                  "rounded p-0.5 transition-opacity shrink-0 hover:bg-accent",
+                  canGoBack(tab.id)
+                    ? "opacity-70 hover:opacity-100"
+                    : "opacity-30 cursor-not-allowed"
+                )}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  goInTabHistory(tab.id, -1)
+                }}
+                disabled={!canGoBack(tab.id)}
+                title="Back"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <button
+                className={cn(
+                  "rounded p-0.5 transition-opacity shrink-0 hover:bg-accent",
+                  canGoForward(tab.id)
+                    ? "opacity-70 hover:opacity-100"
+                    : "opacity-30 cursor-not-allowed"
+                )}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  goInTabHistory(tab.id, 1)
+                }}
+                disabled={!canGoForward(tab.id)}
+                title="Forward"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+
+          <button
+            className={cn(
+              "hover:bg-accent rounded p-0.5 transition-opacity shrink-0",
+              isActive
+                ? "opacity-60 hover:opacity-100"
+                : "opacity-0 group-hover:opacity-60 hover:!opacity-100"
+            )}
+            onClick={(e) => {
+              e.stopPropagation()
+              onCloseTab(tab.id)
+            }}
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      </TabContextMenu>
+    </div>
+  )
+}
 
 interface TabBarProps {
   panelId?: string
@@ -79,6 +238,44 @@ export function TabBar({
   const handleNewTab = useCallback(() => {
     openTab("/", "New Tab", currentPanelId || undefined)
   }, [openTab, currentPanelId])
+
+  // Local state for optimistic UI updates during drag
+  const [localPanelTabs, setLocalPanelTabs] = useState(panelTabs)
+
+  // Update local state when external tabs change
+  React.useEffect(() => {
+    setLocalPanelTabs(panelTabs)
+  }, [panelTabs])
+
+  // Setup dnd-kit sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  // Handle drag end
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+
+      const oldIndex = localPanelTabs.findIndex((tab) => tab.id === active.id)
+      const newIndex = localPanelTabs.findIndex((tab) => tab.id === over.id)
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newTabs = arrayMove(localPanelTabs, oldIndex, newIndex)
+        setLocalPanelTabs(newTabs)
+        reorderTabs(newTabs, currentPanelId || undefined)
+      }
+    },
+    [localPanelTabs, reorderTabs, currentPanelId]
+  )
 
   const handleTabClick = (tabId: string, e: React.MouseEvent) => {
     // Middle-click to close
@@ -200,99 +397,41 @@ export function TabBar({
       id="drag-region"
     >
       {/* Tabs container - can compress with overflow hidden */}
-      <div className="flex items-center gap-0 min-w-0 overflow-hidden">
-        {panelTabs.map((tab, index) => {
-          const isActive = activeTabId === tab.id
-          return (
-            <TabContextMenu
-              key={tab.id}
-              tabId={tab.id}
-              tabIndex={index}
-              totalTabs={panelTabs.length}
-              onClose={() => closeTab(tab.id)}
-              onCloseOthers={() => closeOtherTabs(tab.id)}
-              onCloseToRight={() => closeTabsToRight(tab.id)}
-              onCloseAll={closeAllTabs}
-            >
-              <div
-                className={cn(
-                  "group relative flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer transition-colors leading-5",
-                  "w-[200px] min-w-0 max-w-[200px] border-r border-border/50",
-                  isActive
-                    ? "bg-background text-foreground"
-                    : "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                )}
-                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                onClick={() => {
-                  setActiveTab(tab.id)
-                  // Fire and forget; location handled asynchronously
-                  void locateTabInFileTree(tab.id)
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+        modifiers={[restrictToHorizontalAxis]}
+      >
+        <SortableContext
+          items={localPanelTabs.map((tab) => tab.id)}
+          strategy={horizontalListSortingStrategy}
+        >
+          <div className="flex items-center gap-0 min-w-0 overflow-hidden">
+            {localPanelTabs.map((tab, index) => (
+              <SortableTabItem
+                key={tab.id}
+                tab={tab}
+                isActive={activeTabId === tab.id}
+                index={index}
+                totalTabs={localPanelTabs.length}
+                onTabClick={handleTabClick}
+                onTabActivate={(tabId) => {
+                  setActiveTab(tabId)
+                  void locateTabInFileTree(tabId)
                 }}
-                onMouseDown={(e) => handleTabClick(tab.id, e)}
-              >
-                {/* Active tab indicator */}
-                {isActive && (
-                  <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
-                )}
-
-                <span className="truncate flex-1 select-none">{tab.title}</span>
-
-                {isActive && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      className={cn(
-                        "rounded p-0.5 transition-opacity shrink-0 hover:bg-accent",
-                        canGoBack(tab.id)
-                          ? "opacity-70 hover:opacity-100"
-                          : "opacity-30 cursor-not-allowed"
-                      )}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        goInTabHistory(tab.id, -1)
-                      }}
-                      disabled={!canGoBack(tab.id)}
-                      title="Back"
-                    >
-                      <ChevronLeft className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      className={cn(
-                        "rounded p-0.5 transition-opacity shrink-0 hover:bg-accent",
-                        canGoForward(tab.id)
-                          ? "opacity-70 hover:opacity-100"
-                          : "opacity-30 cursor-not-allowed"
-                      )}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        goInTabHistory(tab.id, 1)
-                      }}
-                      disabled={!canGoForward(tab.id)}
-                      title="Forward"
-                    >
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )}
-
-                <button
-                  className={cn(
-                    "hover:bg-accent rounded p-0.5 transition-opacity shrink-0",
-                    isActive
-                      ? "opacity-60 hover:opacity-100"
-                      : "opacity-0 group-hover:opacity-60 hover:!opacity-100"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    closeTab(tab.id)
-                  }}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            </TabContextMenu>
-          )
-        })}
-      </div>
+                onCloseTab={closeTab}
+                canGoBack={canGoBack}
+                canGoForward={canGoForward}
+                goInTabHistory={goInTabHistory}
+                closeOtherTabs={closeOtherTabs}
+                closeTabsToRight={closeTabsToRight}
+                closeAllTabs={closeAllTabs}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
 
       {/* New tab button - outside container so always visible */}
       <button
