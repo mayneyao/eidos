@@ -113,6 +113,11 @@ export class GlobalShortcutsService {
         description: "Toggle global search",
       },
       {
+        id: "focus-address-bar",
+        accelerator: "CommandOrControl+L",
+        description: "Focus address bar",
+      },
+      {
         id: "open-space-settings",
         accelerator: "CommandOrControl+,",
         description: "Open space settings",
