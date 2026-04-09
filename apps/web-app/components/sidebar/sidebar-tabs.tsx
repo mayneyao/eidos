@@ -4,15 +4,31 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   BlocksIcon,
   CalendarDays,
-  ChevronDownIcon,
   FolderOpen,
   GitBranch,
-  GripVertical,
   ListTreeIcon,
   SettingsIcon,
   ToyBrickIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers"
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 import { cn } from "@/lib/utils"
 import { isMacDesktop } from "@/lib/web/helper"
@@ -29,14 +45,7 @@ import {
 } from "@/apps/web-app/store/sidebar-store"
 import { useSidebar } from "@/components/ui/sidebar"
 
-import { SortableContainer, SortableItem } from "../table/sortable"
 import { Button } from "../ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu"
 import { IconRenderer } from "../ui/icon-picker"
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -69,74 +78,150 @@ const BlockIcon = ({ id }: { id: string }) => {
   return <IconRenderer name={extension.icon as any} className="h-4 w-4" />
 }
 
-// Memoized component to render block tab with name
-const BlockTab = memo(
-  ({
-    tabId,
-    index,
-    isVisible,
-    blocks,
-    currentApp,
-    setCurrentApp,
-    navigate,
-    space,
-    onBlockTabClick,
-  }: {
-    tabId: string
-    index: number
-    isVisible: boolean
-    blocks: Record<string, any>
-    currentApp: string
-    setCurrentApp: (app: string) => void
-    navigate: (path: string) => void
-    space: string
-    onBlockTabClick: (tabId: string, target?: "_blank" | "_self") => void
-  }) => {
-    const block = blocks[tabId]
-    const shortcutNum = index + 1
-    const Icon = useMemo(() => getIconForTab(tabId), [tabId])
-    const isActive = currentApp === tabId
-    const label = block?.name || tabId
+// Sortable tab item component for sidebar
+interface SortableSidebarTabProps {
+  tabId: string
+  index: number
+  isActive: boolean
+  shortcutNum: number
+  onTabClick: (tabId: string, event?: React.MouseEvent) => void
+}
 
-    const handleClick = useCallback(
-      (event: React.MouseEvent) => {
-        const target =
-          event.metaKey || event.ctrlKey || event.altKey ? "_blank" : undefined
-        onBlockTabClick(tabId, target)
-      },
-      [onBlockTabClick, tabId]
-    )
+function SortableSidebarTab({
+  tabId,
+  index,
+  isActive,
+  shortcutNum,
+  onTabClick,
+}: SortableSidebarTabProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: tabId,
+    disabled: false,
+  })
 
-    return (
-      <div key={tabId}>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn(
-            "h-8 w-8 p-0 transition-colors flex-shrink-0 relative",
-            isActive
-              ? "bg-background text-foreground"
-              : "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-          )}
-          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-          onClick={handleClick}
-          title={`${label} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
-        >
-          {/* Active tab indicator */}
-          {isActive && (
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
-          )}
-          <Icon className="h-4 w-4" />
-        </Button>
-      </div>
-    )
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1000 : "auto",
   }
-)
+
+  const Icon = getIconForTab(tabId)
+  const tabConfig = TAB_CONFIG[tabId]
+  const isFixedTab = DEFAULT_TABS.includes(tabId)
+  const label = isFixedTab ? tabConfig?.label || tabId : tabId
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className={cn(
+          "h-8 w-8 p-0 transition-colors flex-shrink-0 relative cursor-pointer",
+          isActive
+            ? "bg-background text-foreground"
+            : "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+        )}
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        onClick={(e) => onTabClick(tabId, e)}
+        title={`${label} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
+      >
+        {/* Active tab indicator */}
+        {isActive && (
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+        )}
+        <Icon className="h-4 w-4" />
+      </Button>
+    </div>
+  )
+}
+
+// Sortable wrapper for BlockTab
+interface SortableBlockTabProps {
+  tabId: string
+  index: number
+  isActive: boolean
+  shortcutNum: number
+  blocks: Record<string, any>
+  onBlockTabClick: (tabId: string, target?: "_blank" | "_self") => void
+}
+
+function SortableBlockTab({
+  tabId,
+  index,
+  isActive,
+  shortcutNum,
+  blocks,
+  onBlockTabClick,
+}: SortableBlockTabProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: tabId,
+    disabled: false,
+  })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1000 : "auto",
+  }
+
+  const block = blocks[tabId]
+  const Icon = useMemo(() => getIconForTab(tabId), [tabId])
+  const label = block?.name || tabId
+
+  const handleClick = useCallback(
+    (event: React.MouseEvent) => {
+      const target =
+        event.metaKey || event.ctrlKey || event.altKey ? "_blank" : undefined
+      onBlockTabClick(tabId, target)
+    },
+    [onBlockTabClick, tabId]
+  )
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className={cn(
+          "h-8 w-8 p-0 transition-colors flex-shrink-0 relative cursor-pointer",
+          isActive
+            ? "bg-background text-foreground"
+            : "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+        )}
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        onClick={handleClick}
+        title={`${label} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
+      >
+        {/* Active tab indicator */}
+        {isActive && (
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+        )}
+        <Icon className="h-4 w-4" />
+      </Button>
+    </div>
+  )
+}
 
 export const SidebarTabs = () => {
   const { t } = useTranslation()
   const { currentApp, setCurrentApp } = useSidebarStore()
-  const { tabs: tabIds, addTab, removeTab, reorderTabs } = useTabsKV()
+  const { tabs: tabIds, reorderTabs } = useTabsKV()
   const { space } = useCurrentPathInfo()
   const { navigate } = useRouterAdapter()
   const { open } = useSidebar()
@@ -153,8 +238,6 @@ export const SidebarTabs = () => {
   // Unified block tab click handler
   const handleBlockTabClick = useBlockTabClick(blocks)
 
-  const [visibleTabsCount, setVisibleTabsCount] = useState(tabIds.length)
-  const [showDropdown, setShowDropdown] = useState(true) // Always show dropdown
   const [sortedTabs, setSortedTabs] = useState(tabIds)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -217,75 +300,40 @@ export const SidebarTabs = () => {
     return () => document.removeEventListener("keydown", handleKeyDown)
   }, [handleKeyDown])
 
-  // Calculate how many tabs can fit (with dropdown always visible)
-  useEffect(() => {
-    const calculateVisibleTabs = () => {
-      if (!containerRef.current) return
-
-      // Measure sidebar/container width dynamically instead of hardcoding.
-      // Prefer the parent element of the header bar (sidebar container) when available.
-      const sidebarEl =
-        containerRef.current?.parentElement ?? containerRef.current
-      const sidebarWidth = sidebarEl ? Math.floor(sidebarEl.clientWidth) : 320
-      const tabWidth = 32 // w-8 = 32px
-      const gap = 2 // gap-0.5 = 2px
-      const dropdownWidth = 32 // dropdown button width
-      const padding = isMacDesktop() ? 60 : 0 // Account for Mac padding
-      const sidePadding = 4 // px-1 = 2px on each side
-
-      const totalTabs = tabIds.length
-      const availableWidth = sidebarWidth - padding - sidePadding
-
-      // Calculate how many tabs can fit with dropdown always visible
-      const dropdownSpace = dropdownWidth + gap
-      const availableWidthForTabs = availableWidth - dropdownSpace
-
-      // Dynamically calculate how many tabs can fit
-      // Formula: n tabs need n * tabWidth + (n-1) * gap pixels
-      let tabsWithDropdown = 0
-      for (let i = 1; i <= totalTabs; i++) {
-        const spaceNeeded = i * tabWidth + (i - 1) * gap
-        if (spaceNeeded <= availableWidthForTabs) {
-          tabsWithDropdown = i
-        } else {
-          break
-        }
-      }
-
-      // Show as many tabs as possible, but always keep dropdown
-      const visibleCount = Math.max(0, tabsWithDropdown)
-
-      setVisibleTabsCount(visibleCount)
-      setShowDropdown(true) // Always show dropdown
-    }
-
-    // Initial calculation
-    calculateVisibleTabs()
-
-    // Use ResizeObserver to monitor container width changes
-    const sidebarEl =
-      containerRef.current?.parentElement ?? containerRef.current
-    if (!sidebarEl) return
-
-    const resizeObserver = new ResizeObserver(() => {
-      calculateVisibleTabs()
-    })
-
-    resizeObserver.observe(sidebarEl)
-
-    return () => {
-      resizeObserver.disconnect()
-    }
-  }, [tabIds.length])
-
   // Sync sorted state with external data
   useEffect(() => {
     setSortedTabs(tabIds)
   }, [tabIds])
 
-  // Create list for display - convert string IDs to SortableItem objects
-  const allTabs = sortedTabs.map((id) => ({ id }))
-  const visibleItems = allTabs.slice(0, visibleTabsCount)
+  // Setup dnd-kit sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  // Handle drag end
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+
+      const oldIndex = sortedTabs.findIndex((id) => id === active.id)
+      const newIndex = sortedTabs.findIndex((id) => id === over.id)
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newTabIds = arrayMove(sortedTabs, oldIndex, newIndex)
+        setSortedTabs(newTabIds)
+        reorderTabs(newTabIds)
+      }
+    },
+    [sortedTabs, reorderTabs]
+  )
 
   // Hide tabs when sidebar is collapsed
   if (!open) {
@@ -296,7 +344,7 @@ export const SidebarTabs = () => {
     <div
       ref={containerRef}
       className={cn(
-        "flex h-[38px] items-center justify-between px-1 border-b border-border/60 bg-muted/60 transition-all duration-200",
+        "flex h-[38px] items-center px-1 border-b border-border/60 bg-muted/60 transition-all duration-200",
         {
           "pl-[76px]": isMacDesktop(),
           "pl-4": !isMacDesktop(),
@@ -304,160 +352,52 @@ export const SidebarTabs = () => {
       )}
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
-      {/* Left side - Visible items in unified order */}
-      <div className="flex items-center gap-0.5">
-        {visibleItems.map((tab, index) => {
-          const tabId = tab.id
-          const tabConfig = TAB_CONFIG[tabId]
-          const isFixedTab = DEFAULT_TABS.includes(tabId)
+      {/* Draggable tabs */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+        modifiers={[restrictToHorizontalAxis]}
+      >
+        <SortableContext
+          items={sortedTabs}
+          strategy={horizontalListSortingStrategy}
+        >
+          <div className="flex items-center gap-0.5">
+            {sortedTabs.map((tabId, index) => {
+              const isFixedTab = DEFAULT_TABS.includes(tabId)
+              const isActive = currentApp === tabId
 
-          if (isFixedTab) {
-            // Fixed tabs (nodes, extensions, today, files)
-            const shortcutNum = index + 1
-            const Icon = getIconForTab(tabId)
-            const isActive = currentApp === tabId
-            const label = tabConfig?.label || tabId
-
-            return (
-              <div key={tabId}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-8 w-8 p-0 transition-colors flex-shrink-0 relative",
-                    isActive
-                      ? "bg-background text-foreground"
-                      : "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                  )}
-                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                  onClick={(e) => handleTabClick(tabId, e)}
-                  title={`${label} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
-                >
-                  {/* Active tab indicator */}
-                  {isActive && (
-                    <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
-                  )}
-                  <Icon className="h-4 w-4" />
-                </Button>
-              </div>
-            )
-          } else {
-            // Block tabs - use BlockTab component
-            return (
-              <BlockTab
-                key={tabId}
-                tabId={tabId}
-                index={index}
-                isVisible={true}
-                blocks={blocks}
-                currentApp={currentApp}
-                setCurrentApp={setCurrentApp}
-                navigate={navigate}
-                space={space}
-                onBlockTabClick={handleBlockTabClick}
-              />
-            )
-          }
-        })}
-      </div>
-
-      {/* Right side - Overflow dropdown (aligned with + button below) */}
-      {showDropdown && (
-        <div className="flex items-center">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "h-8 w-8 p-0 transition-all duration-200 flex-shrink-0 relative",
-                  "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                )}
-                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                title="More tabs"
-              >
-                <ChevronDownIcon className="h-4 w-4 transition-transform duration-200" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              {/* Unified sortable list */}
-              <div className="p-1">
-                <SortableContainer
-                  items={allTabs}
-                  onReorder={(newTabs) => {
-                    // Extract IDs from SortableItem objects
-                    const newTabIds = newTabs.map((tab) => tab.id)
-                    // Update tabs with their new order
-                    setSortedTabs(newTabIds)
-                    reorderTabs(newTabIds)
-                  }}
-                  className="space-y-1"
-                  itemClassName=""
-                  renderItem={(tab, index) => {
-                    const tabId = tab.id
-                    const shortcutNum = index + 1 // Based on display order
-                    const Icon = getIconForTab(tabId)
-                    const isVisible = visibleItems.some((vt) => vt.id === tabId)
-                    const isFixedTab = DEFAULT_TABS.includes(tabId)
-                    const tabConfig = TAB_CONFIG[tabId]
-                    const label = isFixedTab ? tabConfig?.label || tabId : null
-
-                    const handleClick = (event: React.MouseEvent) => {
-                      const target =
-                        event.metaKey || event.ctrlKey || event.altKey
-                          ? "_blank"
-                          : undefined
-                      if (tabConfig?.isNavigation && tabConfig?.href) {
-                        // Navigation type tab - set current app and navigate
-                        setCurrentApp(tabId as SidebarApp)
-                        const href =
-                          tabId === "today"
-                            ? `/journals/${new Date().toLocaleDateString("en-CA")}`
-                            : tabConfig.href
-                        navigate(href, { target })
-                      } else {
-                        // Regular tab or block tab
-                        if (isFixedTab) {
-                          setCurrentApp(tabId as SidebarApp)
-                        } else {
-                          // Block tab - use unified handling logic
-                          handleBlockTabClick(tabId, target)
-                        }
-                      }
-                    }
-
-                    return (
-                      <SortableItem key={tabId} id={tabId} className="">
-                        <div className="flex items-center gap-1">
-                          <DropdownMenuItem
-                            onClick={handleClick}
-                            className={cn(
-                              "flex items-center gap-2 cursor-pointer flex-1 min-w-0",
-                              isVisible && "bg-sidebar-accent/50"
-                            )}
-                            title={`${isFixedTab ? label : tabId} (${isMacDesktop() ? "⌘" : "Ctrl"}+${shortcutNum})`}
-                          >
-                            <GripVertical className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                            <Icon className="h-4 w-4 flex-shrink-0" />
-                            <span className="flex-1 min-w-0 truncate">
-                              {isFixedTab
-                                ? label
-                                : blocks[tabId]?.name || tabId}
-                            </span>
-                            <span className="text-xs text-muted-foreground shrink-0">
-                              {isMacDesktop() ? "⌘" : "Ctrl"}+{shortcutNum}
-                            </span>
-                          </DropdownMenuItem>
-                        </div>
-                      </SortableItem>
-                    )
-                  }}
-                />
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
+              if (isFixedTab) {
+                // Fixed tabs - use SortableSidebarTab
+                return (
+                  <SortableSidebarTab
+                    key={tabId}
+                    tabId={tabId}
+                    index={index}
+                    isActive={isActive}
+                    shortcutNum={index + 1}
+                    onTabClick={handleTabClick}
+                  />
+                )
+              } else {
+                // Block tabs - use SortableBlockTab
+                return (
+                  <SortableBlockTab
+                    key={tabId}
+                    tabId={tabId}
+                    index={index}
+                    isActive={isActive}
+                    shortcutNum={index + 1}
+                    blocks={blocks}
+                    onBlockTabClick={handleBlockTabClick}
+                  />
+                )
+              }
+            })}
+          </div>
+        </SortableContext>
+      </DndContext>
     </div>
   )
 }
