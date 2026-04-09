@@ -1,7 +1,7 @@
 // IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
 import "../../data-space/worker/sqlite-server/env"
 
-import { OpenDataManager, type OpenDataAdapter } from "@eidos.space/opendata"
+import { RawDataManager, type RawDataAdapter } from "@eidos.space/rawdata"
 import { app } from "electron"
 import * as fsNode from "node:fs/promises"
 import * as path from "node:path"
@@ -17,14 +17,14 @@ import { AdapterFsService } from "./adapter-fs.service"
  */
 @Injectable()
 export class AdapterLoaderService {
-  private managers: Map<string, OpenDataManager> = new Map()
+  private managers: Map<string, RawDataManager> = new Map()
 
   /**
-   * Get or create OpenDataManager for a space
+   * Get or create RawDataManager for a space
    */
-  async getManager(spaceId: string): Promise<OpenDataManager> {
+  async getManager(spaceId: string): Promise<RawDataManager> {
     console.log(
-      "[OpenData] getManager called for:",
+      "[RawData] getManager called for:",
       spaceId,
       "exists:",
       this.managers.has(spaceId)
@@ -35,14 +35,14 @@ export class AdapterLoaderService {
     this.managers.delete(spaceId)
 
     if (!this.managers.has(spaceId)) {
-      console.log("[OpenData] Creating new manager for space:", spaceId)
+      console.log("[RawData] Creating new manager for space:", spaceId)
       const spacePath = getSpacePath(spaceId)
-      console.log("[OpenData] Space path:", spacePath)
+      console.log("[RawData] Space path:", spacePath)
       const fs = new AdapterFsService(spacePath)
 
       // Create bound loader function
       const loader = (fsInstance: any, filePath: string) => {
-        console.log("[OpenData] Custom loader called for:", filePath)
+        console.log("[RawData] Custom loader called for:", filePath)
         return this.loadAdapterWithTransform(
           fsInstance as AdapterFsService,
           filePath
@@ -50,13 +50,13 @@ export class AdapterLoaderService {
       }
 
       console.log(
-        "[OpenData] Creating OpenDataManager with custom loader:",
+        "[RawData] Creating RawDataManager with custom loader:",
         !!loader
       )
-      const manager = new OpenDataManager(fs, "~/.eidos/.opendata", loader)
-      console.log("[OpenData] Calling manager.loadAdapters()...")
+      const manager = new RawDataManager(fs, "~/.eidos/.rawdata", loader)
+      console.log("[RawData] Calling manager.loadAdapters()...")
       await manager.loadAdapters()
-      console.log("[OpenData] Loaded adapters:", manager.getAdapters().size)
+      console.log("[RawData] Loaded adapters:", manager.getAdapters().size)
       this.managers.set(spaceId, manager)
     }
     return this.managers.get(spaceId)!
@@ -90,51 +90,50 @@ export class AdapterLoaderService {
   async loadAdapterWithTransform(
     fs: AdapterFsService,
     filePath: string
-  ): Promise<OpenDataAdapter | null> {
-    console.log("[OpenData] loadAdapterWithTransform:", filePath)
+  ): Promise<RawDataAdapter | null> {
+    console.log("[RawData] loadAdapterWithTransform:", filePath)
     const exists = await fs.exists(filePath)
     if (!exists) {
-      console.log("[OpenData] File does not exist:", filePath)
+      console.log("[RawData] File does not exist:", filePath)
       return null
     }
 
     if (!/\.(ts|js|mjs)$/.test(filePath)) {
-      console.log("[OpenData] Invalid file extension:", filePath)
+      console.log("[RawData] Invalid file extension:", filePath)
       return null
     }
 
     try {
       // For .js/.mjs files, try direct import first
       if (!filePath.endsWith(".ts")) {
-        console.log("[OpenData] Loading JS file directly:", filePath)
+        console.log("[RawData] Loading JS file directly:", filePath)
         // Add cache-busting query param based on file mtime
         const stat = await fsNode.stat(filePath).catch(() => null)
         const mtime = stat?.mtimeMs || Date.now()
         const module = await import(`${filePath}?t=${mtime}`)
-        console.log("[OpenData] JS module loaded:", Object.keys(module))
+        console.log("[RawData] JS module loaded:", Object.keys(module))
         return module.default || module
       }
 
       // For .ts files, use oxc-transform to transpile
-      console.log("[OpenData] Reading TS file:", filePath)
+      console.log("[RawData] Reading TS file:", filePath)
       const content = await fs.readFile(filePath, { encoding: "utf8" })
 
-      console.log("[OpenData] Transforming with oxc-transform...")
+      console.log("[RawData] Transforming with oxc-transform...")
       const result = transform(filePath, content, {
         target: "node20",
         sourcemap: false,
       })
-      console.log("[OpenData] Transform result length:", result.code.length)
+      console.log("[RawData] Transform result length:", result.code.length)
 
-      // Replace @eidos.space/opendata imports with inline defineAdapter
+      // Replace @eidos.space/rawdata imports with inline defineAdapter
       // defineAdapter is just: (options) => options
       const transformedCode = result.code.replace(
-        /import\s*{\s*[^}]*}\s*from\s*["']@eidos\.space\/opendata["'];?\n?/g,
+        /import\s*{\s*[^}]*}\s*from\s*["']@eidos\.space\/rawdata["'];?\n?/g,
         "const defineAdapter = (opts) => opts; const $ = { id: (...parts) => parts.join('_'), get: (obj, path, def) => path.split('.').reduce((o,p)=>o?.[p], obj) ?? def, string: (obj, path, def) => $.get(obj, path, def), number: (obj, path, def) => Number($.get(obj, path, def)) ?? def, fingerprint: (...pairs) => { const result = {}; for (let i = 0; i < pairs.length; i += 2) { const key = String(pairs[i]); const value = pairs[i + 1]; if (value != null) result[key] = String(value); } return result; }, has: (obj, path) => $.get(obj, path) !== undefined };\n"
       )
-
       // Create a temporary file with the compiled code in Electron's userData folder
-      const tmpDir = path.join(app.getPath("userData"), "opendata-cache")
+      const tmpDir = path.join(app.getPath("userData"), "rawdata-cache")
       await fsNode.mkdir(tmpDir, { recursive: true })
 
       const hash = Buffer.from(filePath)
@@ -146,7 +145,7 @@ export class AdapterLoaderService {
       const tmpFile = path.join(tmpDir, `adapter_${hash}_${mtime}.mjs`)
 
       await fsNode.writeFile(tmpFile, transformedCode, "utf8")
-      console.log("[OpenData] Written temp file:", tmpFile)
+      console.log("[RawData] Written temp file:", tmpFile)
 
       // Clean up old temp files with same hash
       try {
@@ -159,20 +158,20 @@ export class AdapterLoaderService {
           await fsNode.unlink(path.join(tmpDir, oldFile)).catch(() => {})
         }
         if (oldFiles.length > 0) {
-          console.log("[OpenData] Cleaned up old cache files:", oldFiles.length)
+          console.log("[RawData] Cleaned up old cache files:", oldFiles.length)
         }
       } catch {}
 
       // Import the compiled module with cache-busting query param
       const module = await import(`${tmpFile}?t=${mtime}`)
-      console.log("[OpenData] Imported module keys:", Object.keys(module))
-      console.log("[OpenData] module.default:", module.default)
+      console.log("[RawData] Imported module keys:", Object.keys(module))
+      console.log("[RawData] module.default:", module.default)
 
       const adapter = module.default || module
-      console.log("[OpenData] Loaded adapter:", adapter?.meta)
+      console.log("[RawData] Loaded adapter:", adapter?.meta)
       return adapter
     } catch (error) {
-      console.error(`[OpenData] Failed to load adapter ${filePath}:`, error)
+      console.error(`[RawData] Failed to load adapter ${filePath}:`, error)
       return null
     }
   }

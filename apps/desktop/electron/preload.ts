@@ -389,8 +389,8 @@ function main() {
       },
     },
 
-    // OpenData service
-    openData: createPreloadApiByNamespace("opendata"),
+    // RawData service
+    rawData: createPreloadApiByNamespace("rawdata"),
 
     // CLI installation
     cli: createPreloadApiByNamespace("cli"),

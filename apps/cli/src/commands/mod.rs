@@ -115,7 +115,7 @@ pub enum Commands {
     /// Explore a URL and capture network requests
     /// 
     /// Uses Eidos Desktop's browser to visit a URL and capture all API calls.
-    /// Useful for discovering APIs to create OpenData adapters.
+    /// Useful for discovering APIs to create RawData adapters.
     #[command(name = "explore")]
     Explore(explore::ExploreArgs),
 

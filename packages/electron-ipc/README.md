@@ -84,7 +84,7 @@ try {
 
 Class decorator to mark a service as an IPC service.
 
-- `namespace`: The IPC channel namespace (e.g., "browser-view", "opendata")
+- `namespace`: The IPC channel namespace (e.g., "browser-view", "rawdata")
 - `options?.exposeMode`:
   - `"all"` (default): Expose all public methods
   - `"decorated"`: Only expose methods with `@IpcMethod` decorator
@@ -95,8 +95,8 @@ class BrowserViewManager extends IpcServiceBase {
   // All public methods are exposed
 }
 
-@IpcService("opendata", { exposeMode: "decorated" })
-class OpenDataService extends IpcServiceBase {
+@IpcService("rawdata", { exposeMode: "decorated" })
+class RawDataService extends IpcServiceBase {
   @IpcMethod()
   async findAdapters() {
     /* exposed */

@@ -18,7 +18,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import type { OpenDataAdapter, ViewMode } from "./types"
+import type { RawDataAdapter, ViewMode } from "./types"
 
 interface WebviewToolbarProps {
   viewId: string
@@ -27,11 +27,11 @@ interface WebviewToolbarProps {
   canGoBack: boolean
   canGoForward: boolean
   viewMode: ViewMode
-  hasOpenData: boolean
+  hasRawData: boolean
   isLoadingAdapters: boolean
-  matchedAdapters: OpenDataAdapter[]
-  isOpenDataOpen: boolean
-  setIsOpenDataOpen: (open: boolean) => void
+  matchedAdapters: RawDataAdapter[]
+  isRawDataOpen: boolean
+  setIsRawDataOpen: (open: boolean) => void
   onDisplayUrlChange: (url: string) => void
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
   onBlur: () => void
@@ -40,7 +40,7 @@ interface WebviewToolbarProps {
   onReload: () => void
   onOpenDevTools: () => void
   onLoadUrl: () => void
-  onRunAdapter: (adapter: OpenDataAdapter) => void
+  onRunAdapter: (adapter: RawDataAdapter) => void
   onBackToBrowser: () => void
   addressBarRef?: Ref<HTMLInputElement>
 }
@@ -52,11 +52,11 @@ export function WebviewToolbar({
   canGoBack,
   canGoForward,
   viewMode,
-  hasOpenData,
+  hasRawData,
   isLoadingAdapters,
   matchedAdapters,
-  isOpenDataOpen,
-  setIsOpenDataOpen,
+  isRawDataOpen,
+  setIsRawDataOpen,
   onDisplayUrlChange,
   onKeyDown,
   onBlur,
@@ -142,21 +142,21 @@ export function WebviewToolbar({
       </div>
 
       {viewMode === "browser" && (
-        <Popover open={isOpenDataOpen} onOpenChange={setIsOpenDataOpen}>
+        <Popover open={isRawDataOpen} onOpenChange={setIsRawDataOpen}>
           <PopoverTrigger asChild>
             <Button
-              variant={hasOpenData ? "default" : "ghost"}
+              variant={hasRawData ? "default" : "ghost"}
               size="sm"
               className={cn(
                 "h-7 gap-1.5 px-2",
-                hasOpenData &&
+                hasRawData &&
                   "bg-primary text-primary-foreground hover:bg-primary/90"
               )}
               disabled={isLoadingAdapters}
             >
               <Database className="h-3.5 w-3.5" />
               <span className="text-xs">Raw Data</span>
-              {hasOpenData && (
+              {hasRawData && (
                 <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-foreground/20 px-1 text-[10px]">
                   {matchedAdapters.length}
                 </span>
@@ -201,7 +201,7 @@ export function WebviewToolbar({
                     <br />
                     Add adapters to{" "}
                     <code className="rounded bg-muted px-1">
-                      .eidos/.opendata/
+                      .eidos/.rawdata/
                     </code>
                   </p>
                 </div>

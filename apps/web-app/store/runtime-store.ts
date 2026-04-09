@@ -53,9 +53,9 @@ interface AppRuntimeState {
   isGlobalSearchOpen: boolean
   setGlobalSearchOpen: (isGlobalSearchOpen: boolean) => void
 
-  // opendata popover visibility
-  isOpenDataPopoverOpen: boolean
-  setOpenDataPopoverOpen: (isOpenDataPopoverOpen: boolean) => void
+  // rawdata popover visibility
+  isRawDataPopoverOpen: boolean
+  setRawDataPopoverOpen: (isRawDataPopoverOpen: boolean) => void
 
   // terminal panel visibility
   isTerminalVisible: boolean
@@ -114,9 +114,9 @@ export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
   isGlobalSearchOpen: false,
   setGlobalSearchOpen: (isGlobalSearchOpen) => set({ isGlobalSearchOpen }),
 
-  isOpenDataPopoverOpen: false,
-  setOpenDataPopoverOpen: (isOpenDataPopoverOpen) =>
-    set({ isOpenDataPopoverOpen }),
+  isRawDataPopoverOpen: false,
+  setRawDataPopoverOpen: (isRawDataPopoverOpen) =>
+    set({ isRawDataPopoverOpen }),
 
   isTerminalVisible: false,
   setIsTerminalVisible: (isTerminalVisible) => set({ isTerminalVisible }),

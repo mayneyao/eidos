@@ -1,6 +1,6 @@
-# @eidos.space/opendata
+# @eidos.space/rawdata
 
-OpenData - A personal data management framework based on an economics perspective.
+RawData - A personal data management framework based on an economics perspective.
 
 ## Core Philosophy
 

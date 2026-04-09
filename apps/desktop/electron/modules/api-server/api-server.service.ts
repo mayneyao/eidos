@@ -21,7 +21,7 @@ import { LoggerService } from "../logger/logger.module"
 import { DataSpaceManager } from "../data-space"
 import { isPortInUse, getProcessByPort } from "./port-checker"
 import { WindowService } from "../window/window.service"
-import { BrowserExplorerService } from "../opendata/explorer/browser-explorer.service"
+import { BrowserExplorerService } from "../rawdata/explorer/browser-explorer.service"
 
 export { PortInUseError, PortOccupancyInfo, AUTH_STATE_CHANGED_CHANNEL }
 

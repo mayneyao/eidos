@@ -1,9 +1,9 @@
 // Core
-export { OpenData } from "./opendata.js"
+export { RawData } from "./rawdata.js"
 
 // Manager
 export {
-  OpenDataManager,
+  RawDataManager,
   type FileSystem,
   type AdapterLoader,
 } from "./manager.js"
@@ -28,8 +28,8 @@ export {
 } from "./define.js"
 
 // Raw Data
-export { RawDataStore } from "./raw-data.js"
-export type { RawDataRecord } from "./raw-data.js"
+export { SourceDataStore } from "./source.js"
+export type { RawDataRecord } from "./source.js"
 
 // Schema
 export { CREATE_TABLES_SQL, INIT_DATA_SQL, SCHEMA_VERSION } from "./schema.js"
@@ -54,17 +54,17 @@ export type {
   CreateRelationInput,
 
   // Adapter
-  OpenDataAdapter,
+  RawDataAdapter,
   FetchContext,
   BrowserContext,
   HttpContext,
   RawEntity,
   TransformResult,
   MatchedAdapter,
-  OpenDataResult,
+  RawDataResult,
 
   // Database
-  IOpenDataDatabase,
+  IRawDataDatabase,
   QueryGoodsOptions,
   QueryRelationsOptions,
 } from "./types.js"

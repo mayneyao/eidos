@@ -47,7 +47,7 @@ export type EidosDatabase = BaseServerDatabase
 export abstract class BaseDataSpace {
   db: EidosDatabase
   draftDb: BaseServerDatabase | undefined
-  opendataDb?: EidosDatabase // Optional opendata database connection
+  rawdataDb?: EidosDatabase // Optional rawdata database connection
   undoRedoManager: SQLiteUndoRedo
   activeUndoManager: boolean
   dbName: string
@@ -109,7 +109,7 @@ export abstract class BaseDataSpace {
   }
   constructor(config: {
     db: EidosDatabase
-    opendataDb?: EidosDatabase
+    rawdataDb?: EidosDatabase
     activeUndoManager: boolean
     dbName: string
     context: {
@@ -140,7 +140,7 @@ export abstract class BaseDataSpace {
   }) {
     const {
       db,
-      opendataDb,
+      rawdataDb,
       activeUndoManager,
       dbName,
       draftDb,
@@ -156,7 +156,7 @@ export abstract class BaseDataSpace {
       syncClient,
     } = config
     this.db = db
-    this.opendataDb = opendataDb
+    this.rawdataDb = rawdataDb
     this.context = context
     this.syncClient = syncClient
 

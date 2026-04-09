@@ -10,7 +10,7 @@ use crate::utils::OutputFormat;
 /// 
 /// This command uses Eidos Desktop's browser to visit a URL and capture
 /// all network requests (API calls) made by the page. This is useful for
-/// discovering APIs that can be used to create OpenData adapters.
+/// discovering APIs that can be used to create RawData adapters.
 /// 
 /// Examples:
 ///   eidos explore https://weread.qq.com/web/shelf

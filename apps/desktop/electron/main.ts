@@ -22,7 +22,7 @@ import { AppModule } from "./app.module"
 import { bootstrap, container } from "./common/di"
 
 // Import services for backward compatibility
-import { OpenDataService } from "./modules/opendata"
+import { RawDataService } from "./modules/rawdata"
 import { TerminalService } from "./modules/terminal/terminal.module"
 
 // Legacy imports (will be migrated gradually)
@@ -159,21 +159,21 @@ async function main() {
 
     // Set up app lifecycle handlers
     const appLifecycleService = container.get(AppLifecycleService)
-    const openDataService = container.get(OpenDataService)
+    const rawDataService = container.get(RawDataService)
     const terminalService = container.get(TerminalService)
 
     // Register cleanup callbacks
-    appLifecycleService.onCleanup(() => openDataService.closeAll())
+    appLifecycleService.onCleanup(() => rawDataService.closeAll())
     appLifecycleService.onCleanup(() => terminalService.cleanup())
 
     // Set WindowService for services that need it (avoid circular deps)
-    openDataService.setWindowService(windowService)
+    rawDataService.setWindowService(windowService)
     container.get(MainWindowProvider).setWindowService(windowService)
     container.get(TerminalWindowProvider).setWindowService(windowService)
 
     appLifecycleService.setupLifecycleHandlers(() => {
       // before-quit cleanup
-      openDataService.closeAll()
+      rawDataService.closeAll()
       terminalService.cleanup()
     })
     appLifecycleService.registerIpcHandlers()

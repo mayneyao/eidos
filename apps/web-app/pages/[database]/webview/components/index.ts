@@ -1,4 +1,4 @@
-export { OpenDataTableView } from "./OpenDataTableView"
+export { RawDataTableView } from "./RawDataTableView"
 export { WebviewToolbar } from "./WebviewToolbar"
 export { BrowserViewContainer } from "./BrowserViewContainer"
-export type { OpenDataAdapter, ViewMode } from "./types"
+export type { RawDataAdapter, ViewMode } from "./types"

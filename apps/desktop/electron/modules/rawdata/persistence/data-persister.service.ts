@@ -2,13 +2,13 @@
 import "../../data-space/worker/sqlite-server/env"
 
 import {
-  OpenData,
-  RawDataStore,
+  RawData,
+  SourceDataStore,
   type GoodCategory,
-  type OpenDataAdapter,
-  type OpenDataResult,
+  type RawDataAdapter,
+  type RawDataResult,
   type RelationType,
-} from "@eidos.space/opendata"
+} from "@eidos.space/rawdata"
 import Database from "better-sqlite3"
 
 import { Injectable } from "../../../common/di"
@@ -24,10 +24,10 @@ export class DataPersisterService {
    * Supports both economic format (agent/good/relations) and legacy format
    */
   async persistResults(
-    store: OpenData,
+    store: RawData,
     db: Database.Database,
-    adapter: OpenDataAdapter,
-    result: OpenDataResult
+    adapter: RawDataAdapter,
+    result: RawDataResult
   ): Promise<{ agents: number; goods: number; relations: number }> {
     const source = adapter.meta.site
 
@@ -39,30 +39,27 @@ export class DataPersisterService {
       resultWithModel.relations?.length > 0
 
     console.log(
-      `[OpenDataService] Format detection: isV3EconomicFormat=${isV3EconomicFormat}`
+      `[RawDataService] Format detection: isV3EconomicFormat=${isV3EconomicFormat}`
     )
+    console.log(`[RawDataService] Agents:`, resultWithModel.agents?.length || 0)
+    console.log(`[RawDataService] Goods:`, resultWithModel.goods?.length || 0)
     console.log(
-      `[OpenDataService] Agents:`,
-      resultWithModel.agents?.length || 0
-    )
-    console.log(`[OpenDataService] Goods:`, resultWithModel.goods?.length || 0)
-    console.log(
-      `[OpenDataService] Relations:`,
+      `[RawDataService] Relations:`,
       resultWithModel.relations?.length || 0
     )
 
     const transaction = store["db"].transaction(() => {
       if (isV3EconomicFormat) {
-        console.log("[OpenDataService] Using V3 economic format persister")
+        console.log("[RawDataService] Using V3 economic format persister")
         return this.persistV3EconomicFormat(store, source, resultWithModel)
       } else if (
         result.data.length > 0 &&
         (result.data[0].agent || result.data[0].good)
       ) {
-        console.log("[OpenDataService] Using legacy economic format persister")
+        console.log("[RawDataService] Using legacy economic format persister")
         return this.persistEconomicFormat(store, source, result.data)
       } else {
-        console.log("[OpenDataService] Using legacy format persister")
+        console.log("[RawDataService] Using legacy format persister")
         return this.persistLegacyFormat(store, adapter, result.data)
       }
     })
@@ -71,14 +68,14 @@ export class DataPersisterService {
   }
 
   /**
-   * Store raw data to raw_data table
+   * Store raw data to data table
    */
   async storeRawData(
     db: Database.Database,
     source: string,
     rawEntities: any[]
   ): Promise<{ stored: number; changed: number }> {
-    const rawDataStore = new RawDataStore(db)
+    const sourceDataStore = new SourceDataStore(db)
 
     const rawDataRecords = rawEntities.map((entity) => ({
       source,
@@ -91,9 +88,9 @@ export class DataPersisterService {
       transform_version: 0,
     }))
 
-    const changed = await rawDataStore.upsertMany(rawDataRecords)
+    const changed = await sourceDataStore.upsertMany(rawDataRecords)
     console.log(
-      `[OpenData] Stored ${rawDataRecords.length} raw records, ${changed} changed`
+      `[RawData] Stored ${rawDataRecords.length} raw records, ${changed} changed`
     )
 
     return { stored: rawDataRecords.length, changed }
@@ -103,7 +100,7 @@ export class DataPersisterService {
    * Persist economic format data (trade protocol)
    */
   private persistEconomicFormat(
-    store: OpenData,
+    store: RawData,
     source: string,
     data: any[]
   ): { agents: number; goods: number; relations: number } {
@@ -182,10 +179,10 @@ export class DataPersisterService {
 
     // 3. Process all relations
     console.log(
-      `[OpenDataService] Processing relations for ${data.length} items`
+      `[RawDataService] Processing relations for ${data.length} items`
     )
     console.log(
-      `[OpenDataService] goodIdMap keys:`,
+      `[RawDataService] goodIdMap keys:`,
       Array.from(goodIdMap.keys())
     )
 
@@ -195,7 +192,7 @@ export class DataPersisterService {
       if (item.relations) {
         for (const rel of item.relations) {
           console.log(
-            `[OpenDataService] Checking relation: type=${rel.type}, subject=${rel.subject_external_id}, subject_type=${rel.subject_type}`
+            `[RawDataService] Checking relation: type=${rel.type}, subject=${rel.subject_external_id}, subject_type=${rel.subject_type}`
           )
           if (
             rel.subject_type === "good" &&
@@ -203,17 +200,17 @@ export class DataPersisterService {
           ) {
             // Try to find shelf by ID (for pre-created shelves like 'shelf-default')
             console.log(
-              `[OpenDataService] Looking for pre-created shelf: ${rel.subject_external_id}`
+              `[RawDataService] Looking for pre-created shelf: ${rel.subject_external_id}`
             )
             const shelf = store.getGood(rel.subject_external_id)
             if (shelf) {
               shelfIds.set(rel.subject_external_id, shelf.id)
               console.log(
-                `[OpenDataService] Found pre-created shelf: ${rel.subject_external_id} -> ${shelf.id}`
+                `[RawDataService] Found pre-created shelf: ${rel.subject_external_id} -> ${shelf.id}`
               )
             } else {
               console.log(
-                `[OpenDataService] Shelf not found: ${rel.subject_external_id}`
+                `[RawDataService] Shelf not found: ${rel.subject_external_id}`
               )
             }
           }
@@ -221,14 +218,14 @@ export class DataPersisterService {
       }
     }
     console.log(
-      `[OpenDataService] shelfIds map:`,
+      `[RawDataService] shelfIds map:`,
       Array.from(shelfIds.entries())
     )
 
     for (const item of data) {
       if (item.relations && Array.isArray(item.relations)) {
         console.log(
-          `[OpenDataService] Processing ${item.relations.length} relations for item`
+          `[RawDataService] Processing ${item.relations.length} relations for item`
         )
         for (const rel of item.relations) {
           const subjectId =
@@ -247,7 +244,7 @@ export class DataPersisterService {
                 rel.object_external_id
 
           console.log(
-            `[OpenDataService] Creating relation: ${rel.type} ${subjectId} -> ${objectId}`
+            `[RawDataService] Creating relation: ${rel.type} ${subjectId} -> ${objectId}`
           )
 
           store.createRelation({
@@ -265,7 +262,7 @@ export class DataPersisterService {
     }
 
     console.log(
-      `[OpenDataService] Persisted: ${agents} agents, ${goods} goods, ${relations} relations`
+      `[RawDataService] Persisted: ${agents} agents, ${goods} goods, ${relations} relations`
     )
     return { agents, goods, relations }
   }
@@ -274,7 +271,7 @@ export class DataPersisterService {
    * Persist V3 economic format data (agents/goods/relations arrays)
    */
   private persistV3EconomicFormat(
-    store: OpenData,
+    store: RawData,
     source: string,
     result: { agents: any[]; goods: any[]; relations: any[] }
   ): { agents: number; goods: number; relations: number } {
@@ -386,7 +383,7 @@ export class DataPersisterService {
     }
 
     console.log(
-      `[OpenDataService] V3 Persisted: ${agents} agents, ${goods} goods, ${relations} relations`
+      `[RawDataService] V3 Persisted: ${agents} agents, ${goods} goods, ${relations} relations`
     )
     return { agents, goods, relations }
   }
@@ -395,8 +392,8 @@ export class DataPersisterService {
    * Persist legacy format data (backward compatibility)
    */
   private persistLegacyFormat(
-    store: OpenData,
-    adapter: OpenDataAdapter,
+    store: RawData,
+    adapter: RawDataAdapter,
     data: any[]
   ): { agents: number; goods: number; relations: number } {
     const source = adapter.meta.site
@@ -503,7 +500,7 @@ export class DataPersisterService {
    * Infer good category from adapter and data
    */
   private inferCategory(
-    adapter: OpenDataAdapter,
+    adapter: RawDataAdapter,
     row: Record<string, any>
   ): GoodCategory {
     const site = adapter.meta.site.toLowerCase()

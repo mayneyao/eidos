@@ -6,10 +6,10 @@ import {
   type Good,
   type GoodCategory,
   type MatchedAdapter,
-  type OpenDataAdapter,
+  type RawDataAdapter,
   type Relation,
   type RelationType,
-} from "@eidos.space/opendata"
+} from "@eidos.space/rawdata"
 import { BrowserWindow } from "electron"
 import * as fsNode from "node:fs/promises"
 import * as path from "node:path"
@@ -32,13 +32,13 @@ import { DataPersisterService } from "./persistence/data-persister.service"
 import { DataStoreService } from "./store/datastore.service"
 
 /**
- * OpenData Service for Electron
+ * RawData Service for Electron
  * Manages adapters, runs pipelines, and persists data to local database
  * Delegates to specialized services for specific concerns
  */
-@IpcService("opendata", { exposeMode: "decorated" })
+@IpcService("rawdata", { exposeMode: "decorated" })
 @Injectable()
-export class OpenDataService extends IpcServiceBase {
+export class RawDataService extends IpcServiceBase {
   // Running locks to prevent duplicate execution
   private runningAdapters: Map<string, Promise<any>> = new Map()
   private windowService: WindowService | null = null
@@ -56,7 +56,7 @@ export class OpenDataService extends IpcServiceBase {
     private browserExplorer: BrowserExplorerService
   ) {
     super()
-    console.log("[OpenData] OpenDataService constructor called")
+    console.log("[RawData] RawDataService constructor called")
   }
 
   /**
@@ -92,11 +92,11 @@ export class OpenDataService extends IpcServiceBase {
    * Find adapters matching a URL
    */
   async _findAdapters(spaceId: string, url: string): Promise<MatchedAdapter[]> {
-    console.log("[OpenDataService] findAdapters:", { spaceId, url })
+    console.log("[RawDataService] findAdapters:", { spaceId, url })
     const manager = await this.adapterLoader.getManager(spaceId)
     const adapters = manager.findAdaptersForUrl(url)
     console.log(
-      "[OpenDataService] Found adapters:",
+      "[RawDataService] Found adapters:",
       adapters.length,
       adapters.map((a) => ({ site: a.site, name: a.name, domain: a.domain }))
     )
@@ -110,7 +110,7 @@ export class OpenDataService extends IpcServiceBase {
     spaceId: string,
     url: string
   ): Promise<MatchedAdapter[]> {
-    console.log("[OpenDataService] findListAdapters:", { spaceId, url })
+    console.log("[RawDataService] findListAdapters:", { spaceId, url })
     const adapters = await this._findAdapters(spaceId, url)
     // Filter out search-oriented adapters (those with required positional args)
     const filtered = adapters.filter((m) => {
@@ -122,7 +122,7 @@ export class OpenDataService extends IpcServiceBase {
       )
       return !hasRequiredSearchArg
     })
-    console.log("[OpenDataService] Filtered adapters:", filtered.length)
+    console.log("[RawDataService] Filtered adapters:", filtered.length)
     return filtered
   }
 
@@ -139,7 +139,7 @@ export class OpenDataService extends IpcServiceBase {
     source: string
     data: any[]
     columns?: string[]
-    adapter: OpenDataAdapter
+    adapter: RawDataAdapter
     persisted: { agents: number; goods: number; relations: number }
   }> {
     // Create unique key for this adapter run
@@ -149,7 +149,7 @@ export class OpenDataService extends IpcServiceBase {
     const existingRun = this.runningAdapters.get(runKey)
     if (existingRun) {
       console.log(
-        "[OpenDataService] Adapter already running, returning existing promise:",
+        "[RawDataService] Adapter already running, returning existing promise:",
         runKey
       )
       return existingRun
@@ -184,10 +184,10 @@ export class OpenDataService extends IpcServiceBase {
     source: string
     data: any[]
     columns?: string[]
-    adapter: OpenDataAdapter
+    adapter: RawDataAdapter
     persisted: { agents: number; goods: number; relations: number }
   }> {
-    console.log("[OpenDataService] runAdapter:", { spaceId, adapterPath, args })
+    console.log("[RawDataService] runAdapter:", { spaceId, adapterPath, args })
     const manager = await this.adapterLoader.getManager(spaceId)
     const adapter = await manager.getAdapter(adapterPath)
 
@@ -198,14 +198,14 @@ export class OpenDataService extends IpcServiceBase {
     // Run adapter
     const isBrowserAdapter = adapter.protocol?.browser
     console.log(
-      "[OpenDataService] isBrowserAdapter:",
+      "[RawDataService] isBrowserAdapter:",
       isBrowserAdapter,
       "hasBrowserWindow:",
       !!browserWindow
     )
 
     if (isBrowserAdapter && browserWindow) {
-      console.log("[OpenDataService] Running browser adapter...")
+      console.log("[RawDataService] Running browser adapter...")
       const store = this.dataStore.getDataStore(spaceId)
       const db = this.dataStore.getDatabase(spaceId)
       const result = await this.browserRunner.runAdapter(
@@ -216,7 +216,7 @@ export class OpenDataService extends IpcServiceBase {
         store,
         db
       )
-      console.log("[OpenDataService] Browser adapter completed")
+      console.log("[RawDataService] Browser adapter completed")
       return result
     } else {
       throw new Error(
@@ -290,7 +290,7 @@ export class OpenDataService extends IpcServiceBase {
   @IpcMethod()
   async getAdapters(
     spaceId: string
-  ): Promise<{ path: string; adapter: OpenDataAdapter }[]> {
+  ): Promise<{ path: string; adapter: RawDataAdapter }[]> {
     const manager = await this.adapterLoader.getManager(spaceId)
     const adapters = manager.getAdapters()
     return Array.from(adapters.entries()).map(([p, adapter]) => ({
@@ -306,7 +306,7 @@ export class OpenDataService extends IpcServiceBase {
     content: string
   ): Promise<void> {
     const spacePath = getSpacePath(spaceId)
-    const adaptersDir = path.join(spacePath, ".eidos", ".opendata")
+    const adaptersDir = path.join(spacePath, ".eidos", ".rawdata")
     const fullPath = path.join(adaptersDir, filePath)
 
     await fsNode.mkdir(path.dirname(fullPath), { recursive: true })
@@ -317,7 +317,7 @@ export class OpenDataService extends IpcServiceBase {
   @IpcMethod()
   async deleteAdapter(spaceId: string, filePath: string): Promise<void> {
     const spacePath = getSpacePath(spaceId)
-    const fullPath = path.join(spacePath, ".eidos", ".opendata", filePath)
+    const fullPath = path.join(spacePath, ".eidos", ".rawdata", filePath)
     await fsNode.unlink(fullPath)
     await this._reloadAdapters(spaceId)
   }

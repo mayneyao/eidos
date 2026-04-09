@@ -15,7 +15,7 @@
  * - ConfigModule (for window state persistence)
  * - UpdaterModule (for app lifecycle)
  * - DataSpaceModule (for cleanup on exit)
- * - OpenDataService, TerminalService (via lazy injection to avoid circular deps)
+ * - RawDataService, TerminalService (via lazy injection to avoid circular deps)
  */
 
 import { Module } from "../../common/di"
@@ -35,7 +35,7 @@ import { AppLifecycleService } from "./app-lifecycle.service"
     ConfigModule,
     UpdaterModule,
     DataSpaceModule,
-    // OpenDataModule and TerminalModule use lazy injection to avoid circular deps
+    // RawDataModule and TerminalModule use lazy injection to avoid circular deps
   ],
   providers: [
     WindowService,

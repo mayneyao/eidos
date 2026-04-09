@@ -1,5 +1,5 @@
 import { Hono } from "hono"
-import type { BrowserExplorerService } from "../../opendata/explorer/browser-explorer.service"
+import type { BrowserExplorerService } from "../../rawdata/explorer/browser-explorer.service"
 import type { WindowService } from "../../window/window.service"
 import type { ServerContext } from "../server"
 

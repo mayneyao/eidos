@@ -10,7 +10,7 @@ import type {
   QueryRelationsOptions,
   Relation,
   RelationType,
-  IOpenDataDatabase,
+  IRawDataDatabase,
 } from "./types.js"
 
 // Adapter sync result interface
@@ -46,18 +46,18 @@ interface AdapterSyncResult {
 import { CREATE_TABLES_SQL, INIT_DATA_SQL } from "./schema.js"
 
 /**
- * OpenData - Core personal data management class
+ * RawData - Core personal data management class
  *
  * Based on economics model:
  * - Agents: Economic agents (consumers, producers)
  * - Goods: Goods (content, containers)
  * - Relations: Production relations
  */
-export class OpenData {
-  private db: IOpenDataDatabase
+export class RawData {
+  private db: IRawDataDatabase
   private debug: boolean
 
-  constructor(db: IOpenDataDatabase, options: { debug?: boolean } = {}) {
+  constructor(db: IRawDataDatabase, options: { debug?: boolean } = {}) {
     this.db = db
     this.debug = options.debug ?? false
     this.init()
@@ -65,7 +65,7 @@ export class OpenData {
 
   private log(...args: unknown[]) {
     if (this.debug) {
-      console.log("[OpenData]", ...args)
+      console.log("[RawData]", ...args)
     }
   }
 
@@ -81,7 +81,7 @@ export class OpenData {
   /**
    * Get underlying database instance (for advanced operations like transactions)
    */
-  getDatabase(): IOpenDataDatabase {
+  getDatabase(): IRawDataDatabase {
     return this.db
   }
 

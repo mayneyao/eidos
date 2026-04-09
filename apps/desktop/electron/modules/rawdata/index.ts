@@ -1,19 +1,19 @@
 /**
- * OpenData Module - Open data management and adapter execution
+ * RawData Module - Raw data management and adapter execution
  *
- * This module provides OpenData management capabilities:
- * - OpenDataManager lifecycle management
+ * This module provides RawData management capabilities:
+ * - RawDataManager lifecycle management
  * - Adapter loading and execution
  * - Data store management
  * - Raw data storage
  *
  * @example
  * ```typescript
- * import { OpenDataModule, OpenDataService } from "./modules/opendata"
+ * import { RawDataModule, RawDataService } from "./modules/rawdata"
  *
  * // In your module:
  * @Module({
- *   imports: [OpenDataModule],
+ *   imports: [RawDataModule],
  * })
  * export class YourModule {}
  *
@@ -21,14 +21,14 @@
  * @Injectable()
  * export class YourService {
  *   constructor(
- *     @Inject(OpenDataService) private openDataService: OpenDataService
+ *     @Inject(RawDataService) private rawDataService: RawDataService
  *   ) {}
  * }
  * ```
  */
 
-export { OpenDataModule } from "./opendata.module"
-export { OpenDataService } from "./opendata.service"
+export { RawDataModule } from "./rawdata.module"
+export { RawDataService } from "./rawdata.service"
 export { AdapterLoaderService } from "./adapters/adapter-loader.service"
 export { BrowserRunnerService } from "./runner/browser-runner.service"
 export {
@@ -43,21 +43,21 @@ export { DataStoreService } from "./store/datastore.service"
 
 // Backward compatibility helpers
 import { container } from "../../common/di"
-import { OpenDataService } from "./opendata.service"
+import { RawDataService } from "./rawdata.service"
 
 /**
- * Get the OpenDataService instance.
- * @deprecated Use DI injection instead: `constructor(@Inject(OpenDataService) private service: OpenDataService) {}`
+ * Get the RawDataService instance.
+ * @deprecated Use DI injection instead: `constructor(@Inject(RawDataService) private service: RawDataService) {}`
  */
-export function getOpenDataService(): OpenDataService {
+export function getRawDataService(): RawDataService {
   try {
-    if (container.isBound(OpenDataService)) {
-      return container.get(OpenDataService)
+    if (container.isBound(RawDataService)) {
+      return container.get(RawDataService)
     }
   } catch {
     // DI container not ready
   }
   throw new Error(
-    "OpenDataService not available. Ensure OpenDataModule is imported and DI container is bootstrapped."
+    "RawDataService not available. Ensure RawDataModule is imported and DI container is bootstrapped."
   )
 }
