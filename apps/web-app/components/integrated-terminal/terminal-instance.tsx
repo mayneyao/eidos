@@ -159,11 +159,26 @@ export function TerminalInstance({
     terminal.open(containerRef.current)
     fitAddon.fit()
 
-    // Focus the terminal immediately after opening
-    terminal.focus()
-
     terminalRef.current = terminal
     fitAddonRef.current = fitAddon
+
+    // Load and replay history
+    const loadHistory = async () => {
+      try {
+        const result = await window.eidos?.terminal?.getHistory(sessionId)
+        if (result?.success && result.history && result.history.length > 0) {
+          // Replay history
+          result.history.forEach((data) => {
+            terminal.write(data)
+          })
+        }
+      } catch (error) {
+        console.error("[TerminalInstance] Failed to load history:", error)
+      }
+      // Focus after loading history
+      terminal.focus()
+    }
+    loadHistory()
 
     // Handle input from user
     const disposable = terminal.onData((data) => {
