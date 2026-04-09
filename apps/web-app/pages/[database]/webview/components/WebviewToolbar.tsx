@@ -1,9 +1,11 @@
+import type { Ref } from "react"
 import {
   ArrowLeft,
   ArrowRight,
   Bug,
   Database,
   Globe,
+  Loader2,
   RefreshCcw,
   Table2,
 } from "lucide-react"
@@ -40,6 +42,7 @@ interface WebviewToolbarProps {
   onLoadUrl: () => void
   onRunAdapter: (adapter: OpenDataAdapter) => void
   onBackToBrowser: () => void
+  addressBarRef?: Ref<HTMLInputElement>
 }
 
 export function WebviewToolbar({
@@ -64,6 +67,7 @@ export function WebviewToolbar({
   onLoadUrl,
   onRunAdapter,
   onBackToBrowser,
+  addressBarRef,
 }: WebviewToolbarProps) {
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 border-b bg-background px-2">
@@ -105,16 +109,36 @@ export function WebviewToolbar({
       >
         <Bug className="h-4 w-4" />
       </Button>
-      <div className="mx-2 flex flex-1 items-center overflow-hidden rounded-md border bg-muted/40 px-2 py-1">
-        <Globe className="mr-2 h-3 w-3 shrink-0 text-muted-foreground" />
+      <div
+        className={cn(
+          "mx-2 flex flex-1 items-center overflow-hidden rounded-md border px-2 py-1 transition-colors duration-200",
+          isLoading
+            ? "border-primary/50 bg-primary/5"
+            : "border-input bg-muted/40"
+        )}
+      >
+        {isLoading ? (
+          <Loader2 className="mr-2 h-3 w-3 shrink-0 animate-spin text-primary" />
+        ) : (
+          <Globe className="mr-2 h-3 w-3 shrink-0 text-muted-foreground" />
+        )}
         <input
+          ref={addressBarRef}
           type="text"
           value={displayUrl}
           onChange={(e) => onDisplayUrlChange(e.target.value)}
           onKeyDown={onKeyDown}
           onBlur={onBlur}
-          className="w-full bg-transparent text-xs text-muted-foreground outline-none"
+          className={cn(
+            "w-full bg-transparent text-xs outline-none transition-colors duration-200",
+            isLoading ? "text-primary" : "text-muted-foreground"
+          )}
         />
+        {isLoading && (
+          <div className="ml-2 h-1 w-16 overflow-hidden rounded-full bg-primary/20">
+            <div className="h-full w-full animate-shimmer bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+          </div>
+        )}
       </div>
 
       {viewMode === "browser" && (

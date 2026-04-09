@@ -19,6 +19,13 @@ import {
   type ViewMode,
 } from "./components"
 
+// Declare global event listener type
+declare global {
+  interface WindowEventMap {
+    "focus-webview-address-bar": CustomEvent
+  }
+}
+
 function generateViewId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
@@ -28,6 +35,7 @@ export default function WebviewPage() {
   const rawUrl = searchParams.get("url") || ""
   const viewIdRef = useRef<string>(generateViewId())
   const committedUrlRef = useRef<string>("")
+  const addressBarRef = useRef<HTMLInputElement>(null)
 
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
@@ -78,6 +86,22 @@ export default function WebviewPage() {
   useEffect(() => {
     matchedAdaptersRef.current = matchedAdapters
   }, [matchedAdapters])
+
+  // Listen for focus address bar event from global shortcuts
+  useEffect(() => {
+    const handleFocusAddressBar = () => {
+      addressBarRef.current?.focus()
+      addressBarRef.current?.select()
+    }
+
+    window.addEventListener("focus-webview-address-bar", handleFocusAddressBar)
+    return () => {
+      window.removeEventListener(
+        "focus-webview-address-bar",
+        handleFocusAddressBar
+      )
+    }
+  }, [])
 
   // Check for OpenData adapters when URL changes
   useEffect(() => {
@@ -252,6 +276,7 @@ export default function WebviewPage() {
           onLoadUrl={handleLoadUrl}
           onRunAdapter={handleRunAdapter}
           onBackToBrowser={handleBackToBrowser}
+          addressBarRef={addressBarRef}
         />
 
         {viewMode === "browser" ? (

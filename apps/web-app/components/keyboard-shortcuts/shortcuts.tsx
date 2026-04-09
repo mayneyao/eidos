@@ -17,6 +17,7 @@ import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppStore } from "@/apps/web-app/store/app-store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 
 interface ShortcutAction {
   id: string
@@ -58,6 +59,16 @@ export function ShortCuts() {
   )
   const { blocks } = useMblocksBatch(blockIds)
   const handleBlockTabClick = useBlockTabClick(blocks)
+
+  // Helper function to check if current active tab is a webview
+  const checkIsWebviewTab = () => {
+    const activeTabId = useTabStore.getState().getActiveTabId()
+    if (!activeTabId) return false
+    const activeTab = useTabStore
+      .getState()
+      .tabs.find((t) => t.id === activeTabId)
+    return activeTab?.url.includes("/webview?") ?? false
+  }
 
   // Listen for global shortcut events from main process
   useEffect(() => {
@@ -126,6 +137,14 @@ export function ShortCuts() {
 
         case "toggle-global-search":
           setGlobalSearchOpen(!isGlobalSearchOpen)
+          break
+
+        case "focus-address-bar":
+          // Only focus address bar if current tab is a webview
+          if (checkIsWebviewTab()) {
+            // Dispatch custom event to focus webview address bar
+            window.dispatchEvent(new CustomEvent("focus-webview-address-bar"))
+          }
           break
 
         case "open-space-settings":
@@ -301,6 +320,16 @@ export function ShortCuts() {
         duration: 2000,
       })
     })
+  })
+
+  // Focus address bar - only works in webview tabs
+  useKeyPress(["ctrl.l", "meta.l"], (e) => {
+    e.preventDefault()
+    // Only focus address bar if current tab is a webview
+    if (checkIsWebviewTab()) {
+      // Dispatch custom event to focus webview address bar
+      window.dispatchEvent(new CustomEvent("focus-webview-address-bar"))
+    }
   })
 
   return null
