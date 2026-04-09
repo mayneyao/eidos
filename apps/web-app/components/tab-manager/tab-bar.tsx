@@ -243,9 +243,11 @@ export function TabBar({
   const [localPanelTabs, setLocalPanelTabs] = useState(panelTabs)
 
   // Update local state when external tabs change
+  // Use stable dependencies: tabIds from panel and tabs array reference
+  const tabIdsKey = currentPanel?.tabIds.join(",") ?? ""
   React.useEffect(() => {
     setLocalPanelTabs(panelTabs)
-  }, [panelTabs])
+  }, [tabIdsKey, tabs])
 
   // Setup dnd-kit sensors
   const sensors = useSensors(
