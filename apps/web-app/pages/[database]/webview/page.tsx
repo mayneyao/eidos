@@ -26,14 +26,12 @@ declare global {
   }
 }
 
-function generateViewId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-}
-
 export default function WebviewPage() {
   const [searchParams] = useSearchParams()
   const rawUrl = searchParams.get("url") || ""
-  const viewIdRef = useRef<string>(generateViewId())
+  // Use tabId as viewId to ensure 1:1 relationship between tab and webview
+  // This prevents webview leakage when tab closes
+  const { tabId } = useTabContext()
   const committedUrlRef = useRef<string>("")
   const addressBarRef = useRef<HTMLInputElement>(null)
 
@@ -188,23 +186,23 @@ export default function WebviewPage() {
     } else {
       // In browser view, reload the webview
       if (!isDesktopMode) return
-      window.eidos.browserView.reload(viewIdRef.current)
+      window.eidos.browserView.reload(tabId)
     }
   }
 
   const handleGoBack = () => {
     if (!isDesktopMode) return
-    window.eidos.browserView.goBack(viewIdRef.current)
+    window.eidos.browserView.goBack(tabId)
   }
 
   const handleGoForward = () => {
     if (!isDesktopMode) return
-    window.eidos.browserView.goForward(viewIdRef.current)
+    window.eidos.browserView.goForward(tabId)
   }
 
   const handleOpenDevTools = () => {
     if (!isDesktopMode) return
-    window.eidos.browserView.openDevTools(viewIdRef.current, { mode: "detach" })
+    window.eidos.browserView.openDevTools(tabId, { mode: "detach" })
   }
 
   const handleLoadUrl = () => {
@@ -219,7 +217,7 @@ export default function WebviewPage() {
     if (!/^https?:\/\//i.test(target)) {
       target = `https://${target}`
     }
-    window.eidos.browserView.loadURL(viewIdRef.current, target)
+    window.eidos.browserView.loadURL(tabId, target)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -308,7 +306,7 @@ export default function WebviewPage() {
     return (
       <div className="flex h-full w-full flex-col">
         <WebviewToolbar
-          viewId={viewIdRef.current}
+          viewId={tabId}
           displayUrl={displayUrl}
           isLoading={isLoading || isRefreshingAdapter}
           canGoBack={canGoBack}
@@ -336,7 +334,7 @@ export default function WebviewPage() {
           <div className="relative flex flex-1 min-h-0">
             <div className="flex flex-1 min-h-0">
               <BrowserViewContainer
-                viewId={viewIdRef.current}
+                viewId={tabId}
                 url={url}
                 isActive={isActive}
                 isAnyOverlayOpen={isAnyOverlayOpen}
