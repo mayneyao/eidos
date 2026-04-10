@@ -92,27 +92,20 @@ export function BrowserViewContainer({
 
     const shouldShow = isActive && !isAnyOverlayOpen && viewMode === "browser"
 
-    const update = async () => {
-      if (!shouldShow) {
-        // Hide BrowserView when overlay is open or not in browser mode
-        window.eidos.browserView.setVisible(viewId, false)
-      } else {
-        // Show BrowserView
-        const content = containerRef.current
-        if (content) {
-          const rect = content.getBoundingClientRect()
-          window.eidos.browserView.updateBounds(viewId, {
-            x: Math.round(rect.x),
-            y: Math.round(rect.y),
-            width: Math.round(Math.max(rect.width, 100)),
-            height: Math.round(Math.max(rect.height, 100)),
-          })
-        }
-        window.eidos.browserView.setVisible(viewId, true)
+    window.eidos.browserView.setVisible(viewId, shouldShow)
+
+    if (shouldShow) {
+      const content = containerRef.current
+      if (content) {
+        const rect = content.getBoundingClientRect()
+        window.eidos.browserView.updateBounds(viewId, {
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+          width: Math.round(Math.max(rect.width, 100)),
+          height: Math.round(Math.max(rect.height, 100)),
+        })
       }
     }
-
-    update()
   }, [isActive, isAnyOverlayOpen, url, viewMode, viewId])
 
   return (
