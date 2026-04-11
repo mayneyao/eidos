@@ -137,7 +137,7 @@ export function CommandDialogDemo() {
   const openUrlInWebview = () => {
     const trimmed = input.trim()
     setCmdkOpen(false)
-    navigate(`/webview?url=${encodeURIComponent(trimmed)}`, {
+    navigate(trimmed, {
       target: "_blank",
     })
   }

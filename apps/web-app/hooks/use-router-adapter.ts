@@ -76,7 +76,23 @@ export const useRouterAdapter = () => {
       const resolveUrl = (rawTo: string) => {
         let newUrl = rawTo
         const currentLocation = adapterLocationRef.current
-        if (!newUrl.startsWith("/") && !newUrl.startsWith("http")) {
+
+        // Check if it's an external URL (http:// or https://)
+        if (/^https?:\/\//i.test(newUrl)) {
+          return newUrl
+        }
+
+        // Check if it's a domain-like string (e.g., google.com, example.co.uk)
+        // Domain pattern: something.something with valid TLD
+        if (
+          /^[a-z0-9]+([\-.]{1}[a-z0-9]+)*\.[a-z]{2,}(:[0-9]{1,5})?(\/.*)?$/i.test(
+            newUrl
+          )
+        ) {
+          return `https://${newUrl}`
+        }
+
+        if (!newUrl.startsWith("/")) {
           // Simple relative path handling
           const currentPath = currentLocation.pathname
           if (currentPath.endsWith("/")) {

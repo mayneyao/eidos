@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useLocalStorageState, useSize } from "ahooks"
-import { Outlet, useRoutes, useParams } from "react-router-dom"
+import { Outlet, useRoutes, useParams, useLocation } from "react-router-dom"
 
 import { EidosDataEventChannelName } from "@/lib/const"
 import { cn, isStandaloneBlocksPath } from "@/lib/utils"
@@ -32,18 +33,26 @@ import { useLayoutInit } from "../../../web-app/pages/[database]/hook"
 import { useSpaceAppStore } from "../../../web-app/pages/[database]/store"
 import { useRelayHandler } from "@/apps/web-app/hooks/use-relay-handler"
 import { TabErrorBoundary } from "../TabErrorBoundary"
+import { Webview } from "@/apps/web-app/components/webview"
 
 // Component for tab-specific content (only the main content area)
 function TabContentLayout() {
   const { tabId } = useTabContext()
   const element = useRoutes(spaceRoutes)
+  const location = useLocation()
+
+  const isExternalUrl =
+    location.pathname.startsWith("https:") ||
+    location.pathname.startsWith("http:")
   return (
     <div className="flex flex-col h-full min-w-0">
       <div
         id="main-content"
         className="z-[1] flex w-full grow flex-col overflow-y-auto min-w-0"
       >
-        <TabErrorBoundary tabId={tabId}>{element}</TabErrorBoundary>
+        <TabErrorBoundary tabId={tabId}>
+          {isExternalUrl ? <Webview url={location.pathname} /> : element}
+        </TabErrorBoundary>
       </div>
     </div>
   )
@@ -128,6 +137,26 @@ export function DesktopSpaceLayout() {
   useEffect(() => {
     resetCurrentApp()
   }, [space])
+
+  // Listen for new tab requests from browser views
+  useEffect(() => {
+    console.log("[DesktopLayout] Setting up onNewTab listener")
+    if (
+      typeof window !== "undefined" &&
+      window.eidos?.browser?.view?.onNewTab
+    ) {
+      const unsubscribe = window.eidos.browser.view.onNewTab(({ url }) => {
+        console.log("[DesktopLayout] Received newTab event:", url)
+        // Open with the actual URL (https://...) as tab URL
+        // TabContentLayout will detect this and render webview
+        useTabStore.getState().openTab(url, url)
+        console.log("[DesktopLayout] Opened new tab for:", url)
+      })
+      return unsubscribe
+    } else {
+      console.warn("[DesktopLayout] onNewTab not available")
+    }
+  }, [])
 
   useLayoutInit()
   useRelayHandler()

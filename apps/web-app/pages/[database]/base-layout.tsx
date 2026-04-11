@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { cn } from "@/lib/utils"
 import {
   ResizableHandle,
@@ -23,6 +24,29 @@ export function DatabaseLayoutBase({
   children: React.ReactNode
   className?: string
 }) {
+  // Listen for new tab requests from browser views
+  useEffect(() => {
+    console.log(
+      "[BaseLayout] Setting up onNewTab listener, eidos available:",
+      !!window.eidos?.browser?.view?.onNewTab
+    )
+    if (
+      typeof window !== "undefined" &&
+      window.eidos?.browser?.view?.onNewTab
+    ) {
+      const unsubscribe = window.eidos.browser.view.onNewTab(({ url }) => {
+        console.log("[BaseLayout] Received newTab event:", url)
+        // Open with the actual URL (https://...) as tab URL
+        // TabContentLayout will detect this and render webview
+        useTabStore.getState().openTab(url, url)
+        console.log("[BaseLayout] Opened new tab for:", url)
+      })
+      return unsubscribe
+    } else {
+      console.warn("[BaseLayout] onNewTab not available")
+    }
+  }, [])
+
   const { sqlite } = useSqlite()
   const { isShareMode, currentPreviewFile } = useAppRuntimeStore()
   const { isSidebarOpen } = useAppStore()

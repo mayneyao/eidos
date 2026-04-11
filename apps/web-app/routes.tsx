@@ -11,7 +11,6 @@ import EverydayPage from "@/apps/web-app/pages/[database]/journals/[day]/page"
 import EverydayHomePage from "@/apps/web-app/pages/[database]/journals/page"
 import SpaceHomePage from "@/apps/web-app/pages/[database]/page"
 import TerminalPage from "@/apps/web-app/pages/[database]/terminal/page"
-import WebviewPage from "@/apps/web-app/pages/[database]/webview/page"
 
 export const spaceRoutes: RouteObject[] = [
   {
@@ -66,10 +65,7 @@ export const spaceRoutes: RouteObject[] = [
     path: "terminal",
     element: <TerminalPage />,
   },
-  {
-    path: "webview",
-    element: <WebviewPage />,
-  },
+
   {
     path: ":table",
     element: <NodePage />,

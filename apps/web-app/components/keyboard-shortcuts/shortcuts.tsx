@@ -60,14 +60,15 @@ export function ShortCuts() {
   const { blocks } = useMblocksBatch(blockIds)
   const handleBlockTabClick = useBlockTabClick(blocks)
 
-  // Helper function to check if current active tab is a webview
+  // Helper function to check if current active tab is a webview (external URL)
   const checkIsWebviewTab = () => {
     const activeTabId = useTabStore.getState().getActiveTabId()
     if (!activeTabId) return false
     const activeTab = useTabStore
       .getState()
       .tabs.find((t) => t.id === activeTabId)
-    return activeTab?.url.includes("/webview?") ?? false
+    // Check if URL is external (http/https)
+    return activeTab?.url && /^https?:\/\//i.test(activeTab.url)
   }
 
   // Listen for global shortcut events from main process
