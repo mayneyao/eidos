@@ -8,6 +8,7 @@ import {
   Loader2,
   RefreshCcw,
   Table2,
+  X,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -38,6 +39,7 @@ interface WebviewToolbarProps {
   onGoBack: () => void
   onGoForward: () => void
   onReload: () => void
+  onStop: () => void
   onOpenDevTools: () => void
   onLoadUrl: () => void
   onRunAdapter: (adapter: RawDataAdapter) => void
@@ -63,6 +65,7 @@ export function WebviewToolbar({
   onGoBack,
   onGoForward,
   onReload,
+  onStop,
   onOpenDevTools,
   onLoadUrl,
   onRunAdapter,
@@ -91,15 +94,27 @@ export function WebviewToolbar({
       >
         <ArrowRight className="h-4 w-4" />
       </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-7 w-7"
-        onClick={onReload}
-        title="Reload"
-      >
-        <RefreshCcw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-      </Button>
+      {isLoading ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={onStop}
+          title="Stop"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      ) : (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={onReload}
+          title="Reload"
+        >
+          <RefreshCcw className="h-4 w-4" />
+        </Button>
+      )}
       <Button
         variant="ghost"
         size="icon"

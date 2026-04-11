@@ -1,10 +1,5 @@
 import type { BrowserWindow } from "electron"
-import {
-  app,
-  BrowserWindow as ElectronBrowserWindow,
-  ipcMain,
-  shell,
-} from "electron"
+import { app, BrowserWindow as ElectronBrowserWindow, ipcMain } from "electron"
 import os from "node:os"
 import path from "path"
 import { debounce } from "@/lib/lodash"
@@ -287,12 +282,14 @@ export class WindowService {
       }
     })
 
-    // Handle external links - open in default browser instead of new window
+    // Handle external links - open in new tab instead of system browser
     win.webContents.setWindowOpenHandler(({ url }) => {
+      console.log("[WindowService] Window open handler triggered:", url)
       const protocol = new URL(url).protocol
-      // Only allow http and https protocol external links to open in system browser
+      // Open http/https links in new tab via renderer
       if (["https:", "http:"].includes(protocol)) {
-        shell.openExternal(url)
+        win.webContents.send("browser.view:newTab", { url })
+        console.log("[WindowService] Sent newTab event:", url)
       }
       // Deny other types of window open requests to maintain app security
       return { action: "deny" }

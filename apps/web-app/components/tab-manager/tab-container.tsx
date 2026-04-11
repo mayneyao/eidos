@@ -95,6 +95,13 @@ function TabNavigator({
     }
 
     if (tabUrl && tabUrl !== prevTabUrlRef.current) {
+      // Skip external URLs (http/https) - they are handled by webview directly
+      // and should not be processed by react-router
+      if (/^https?:\/\//i.test(tabUrl)) {
+        prevTabUrlRef.current = tabUrl
+        return
+      }
+
       const currentPath = location.pathname + location.search + location.hash
 
       // Only navigate if the tab URL is different from current location

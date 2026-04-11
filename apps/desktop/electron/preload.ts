@@ -55,7 +55,7 @@ const getModelByName = async (modelName: string) => {
 function main() {
   // Ensure BrowserViews are cleaned up before the renderer reloads/unloads
   window.addEventListener("beforeunload", () => {
-    ipcRenderer.send("browser-view:closeAll")
+    ipcRenderer.send("browser.view:closeAll")
   })
 
   const listenerMap = new Map<string, Map<string, IpcListener>>()
@@ -172,29 +172,60 @@ function main() {
       ipcRenderer.invoke("file-system:showInFileManager", path),
     openUrl: (url: string) => ipcRenderer.invoke("file-system:openUrl", url),
     reloadApp: () => ipcRenderer.invoke("app-lifecycle:reloadApp"),
-    browserView: {
-      ...createPreloadApiByNamespace("browser-view"),
-      onUpdate: (
-        viewId: string,
-        callback: (data: {
-          type: "loading" | "navigate"
-          isLoading?: boolean
-          url?: string
-          canGoBack?: boolean
-          canGoForward?: boolean
-        }) => void
-      ) => {
-        const listener = (
-          _event: Electron.IpcRendererEvent,
-          id: string,
-          data: any
+    // Browser view namespace
+    browser: {
+      view: {
+        ...createPreloadApiByNamespace("browser.view"),
+        onUpdate: (
+          viewId: string,
+          callback: (data: {
+            type: "loading" | "navigate" | "rawdata-navigation"
+            isLoading?: boolean
+            url?: string
+            canGoBack?: boolean
+            canGoForward?: boolean
+          }) => void
         ) => {
-          if (id === viewId) callback(data)
-        }
-        ipcRenderer.on("browser-view:update", listener)
-        return () => {
-          ipcRenderer.removeListener("browser-view:update", listener)
-        }
+          const listener = (
+            _event: Electron.IpcRendererEvent,
+            id: string,
+            data: any
+          ) => {
+            if (id === viewId) callback(data)
+          }
+          ipcRenderer.on("browser.view:update", listener)
+          return () => {
+            ipcRenderer.removeListener("browser.view:update", listener)
+          }
+        },
+        // Event listener for bounds update requests (after leaving fullscreen)
+        onRequestBoundsUpdate: (viewId: string, callback: () => void) => {
+          const listener = (_event: Electron.IpcRendererEvent, id: string) => {
+            if (id === viewId) callback()
+          }
+          ipcRenderer.on("browser.view:requestBoundsUpdate", listener)
+          return () => {
+            ipcRenderer.removeListener(
+              "browser.view:requestBoundsUpdate",
+              listener
+            )
+          }
+        },
+        onNewTab: (
+          callback: (data: {
+            url: string
+            frameName?: string
+            features?: string
+          }) => void
+        ) => {
+          const listener = (_event: Electron.IpcRendererEvent, data: any) => {
+            callback(data)
+          }
+          ipcRenderer.on("browser.view:newTab", listener)
+          return () => {
+            ipcRenderer.removeListener("browser.view:newTab", listener)
+          }
+        },
       },
     },
     minimizeWindow: () => ipcRenderer.send("window-control", "minimize"),

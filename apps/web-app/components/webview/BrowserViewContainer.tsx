@@ -35,7 +35,7 @@ export function BrowserViewContainer({
 
     const syncBounds = () => {
       const rect = content.getBoundingClientRect()
-      window.eidos.browserView.updateBounds(viewId, {
+      window.eidos.browser.view.updateBounds(viewId, {
         x: Math.round(rect.x),
         y: Math.round(rect.y),
         width: Math.round(rect.width),
@@ -53,7 +53,7 @@ export function BrowserViewContainer({
         rect = content.getBoundingClientRect()
       }
 
-      await window.eidos.browserView.open(viewId, url, {
+      await window.eidos.browser.view.open(viewId, url, {
         x: Math.round(rect.x),
         y: Math.round(rect.y),
         width: Math.round(Math.max(rect.width, 100)),
@@ -66,7 +66,7 @@ export function BrowserViewContainer({
     const ro = new ResizeObserver(syncBounds)
     ro.observe(content)
 
-    const unsubscribe = window.eidos.browserView.onUpdate(viewId, (data) => {
+    const unsubscribe = window.eidos.browser.view.onUpdate(viewId, (data) => {
       if (data.type === "navigate") {
         onNavigate({
           url: data.url || "",
@@ -80,10 +80,28 @@ export function BrowserViewContainer({
       }
     })
 
+    // Listen for bounds update requests (after leaving fullscreen)
+    const unsubscribeBounds = window.eidos.browser.view.onRequestBoundsUpdate?.(
+      viewId,
+      () => {
+        const content = containerRef.current
+        if (content) {
+          const rect = content.getBoundingClientRect()
+          window.eidos.browser.view.updateBounds(viewId, {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+          })
+        }
+      }
+    )
+
     return () => {
       ro.disconnect()
       unsubscribe()
-      window.eidos.browserView.close(viewId)
+      unsubscribeBounds?.()
+      window.eidos.browser.view.close(viewId)
     }
   }, [url, viewId])
 
@@ -92,13 +110,13 @@ export function BrowserViewContainer({
 
     const shouldShow = isActive && !isAnyOverlayOpen && viewMode === "browser"
 
-    window.eidos.browserView.setVisible(viewId, shouldShow)
+    window.eidos.browser.view.setVisible(viewId, shouldShow)
 
     if (shouldShow) {
       const content = containerRef.current
       if (content) {
         const rect = content.getBoundingClientRect()
-        window.eidos.browserView.updateBounds(viewId, {
+        window.eidos.browser.view.updateBounds(viewId, {
           x: Math.round(rect.x),
           y: Math.round(rect.y),
           width: Math.round(Math.max(rect.width, 100)),

@@ -7,17 +7,14 @@ import { Globe } from "lucide-react"
 import { isDesktopMode } from "@/lib/env"
 import { useTabTitle } from "@/hooks/use-tab-title"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useToast } from "@/components/ui/use-toast"
-
-import {
-  RawDataTableView,
-  WebviewToolbar,
-  BrowserViewContainer,
-  type RawDataAdapter,
-  type ViewMode,
-} from "./components"
+import { BrowserViewContainer } from "./BrowserViewContainer"
+import { RawDataTableView } from "./RawDataTableView"
+import { RawDataAdapter, ViewMode } from "./types"
+import { WebviewToolbar } from "./WebviewToolbar"
 
 // Declare global event listener type
 declare global {
@@ -26,9 +23,7 @@ declare global {
   }
 }
 
-export default function WebviewPage() {
-  const [searchParams] = useSearchParams()
-  const rawUrl = searchParams.get("url") || ""
+export function Webview({ url }: { url: string }) {
   // Use tabId as viewId to ensure 1:1 relationship between tab and webview
   // This prevents webview leakage when tab closes
   const { tabId } = useTabContext()
@@ -56,12 +51,6 @@ export default function WebviewPage() {
   const setIsRawDataOpen = useAppRuntimeStore(
     (state) => state.setRawDataPopoverOpen
   )
-
-  const url = useMemo(() => {
-    if (!rawUrl) return ""
-    if (/^https?:\/\//i.test(rawUrl)) return rawUrl
-    return `https://${rawUrl}`
-  }, [rawUrl])
 
   const isAnyOverlayOpen = useAppRuntimeStore(
     (state) =>
@@ -138,12 +127,16 @@ export default function WebviewPage() {
     committedUrlRef.current = url
     setCanGoBack(canGoBack)
     setCanGoForward(canGoForward)
+
+    // Sync the navigation URL to the tab store so tab shows correct URL
+    const updateTab = useTabStore.getState().updateTab
+    updateTab(tabId, { url })
   }
 
   const handleRawDataNavigation = (rawDataUrl: string) => {
     console.log("[WebView] rawdata navigation:", rawDataUrl)
     try {
-      const urlObj = new URL(rawdataUrl)
+      const urlObj = new URL(rawDataUrl)
       const host = urlObj.hostname
       const adapters = matchedAdaptersRef.current
 
@@ -186,23 +179,28 @@ export default function WebviewPage() {
     } else {
       // In browser view, reload the webview
       if (!isDesktopMode) return
-      window.eidos.browserView.reload(tabId)
+      window.eidos.browser.view.reload(tabId)
     }
+  }
+
+  const handleStop = () => {
+    if (!isDesktopMode) return
+    window.eidos.browser.view.stop(tabId)
   }
 
   const handleGoBack = () => {
     if (!isDesktopMode) return
-    window.eidos.browserView.goBack(tabId)
+    window.eidos.browser.view.goBack(tabId)
   }
 
   const handleGoForward = () => {
     if (!isDesktopMode) return
-    window.eidos.browserView.goForward(tabId)
+    window.eidos.browser.view.goForward(tabId)
   }
 
   const handleOpenDevTools = () => {
     if (!isDesktopMode) return
-    window.eidos.browserView.openDevTools(tabId, { mode: "detach" })
+    window.eidos.browser.view.openDevTools(tabId, { mode: "detach" })
   }
 
   const handleLoadUrl = () => {
@@ -217,7 +215,7 @@ export default function WebviewPage() {
     if (!/^https?:\/\//i.test(target)) {
       target = `https://${target}`
     }
-    window.eidos.browserView.loadURL(tabId, target)
+    window.eidos.browser.view.loadURL(tabId, target)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -323,6 +321,7 @@ export default function WebviewPage() {
           onGoBack={handleGoBack}
           onGoForward={handleGoForward}
           onReload={handleReload}
+          onStop={handleStop}
           onOpenDevTools={handleOpenDevTools}
           onLoadUrl={handleLoadUrl}
           onRunAdapter={handleRunAdapter}
@@ -341,7 +340,7 @@ export default function WebviewPage() {
                 viewMode={viewMode}
                 onNavigate={handleNavigate}
                 onLoadingChange={setIsLoading}
-                onRawDataNavigation={handleRawDataNavigation}
+                onRawdataNavigation={handleRawDataNavigation}
               />
             </div>
           </div>

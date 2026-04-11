@@ -76,20 +76,35 @@ interface Window {
       error?: string
     }>
     openUrl: (url: string) => Promise<{ success: boolean; error?: string }>
-    browserView: import("@eidos.space/electron-ipc").ExtractIpcApi<
-      typeof import("./modules/window/browser-view.service").BrowserViewService
-    > & {
-      // Event listener for browser view state updates
-      onUpdate: (
-        viewId: string,
-        callback: (data: {
-          type: "navigate" | "loading" | "rawdata-navigation"
-          url?: string
-          canGoBack?: boolean
-          canGoForward?: boolean
-          isLoading?: boolean
-        }) => void
-      ) => () => void
+    browser: {
+      view: import("@eidos.space/electron-ipc").ExtractIpcApi<
+        typeof import("./modules/window/browser-view.service").BrowserViewService
+      > & {
+        // Event listener for browser view state updates
+        onUpdate: (
+          viewId: string,
+          callback: (data: {
+            type: "navigate" | "loading" | "rawdata-navigation"
+            url?: string
+            canGoBack?: boolean
+            canGoForward?: boolean
+            isLoading?: boolean
+          }) => void
+        ) => () => void
+        // Event listener for new tab requests (window.open interception)
+        onNewTab: (
+          callback: (data: {
+            url: string
+            frameName?: string
+            features?: string
+          }) => void
+        ) => () => void
+        // Event listener for bounds update requests (after leaving fullscreen)
+        onRequestBoundsUpdate: (
+          viewId: string,
+          callback: () => void
+        ) => () => void
+      }
     }
     AI: {
       generateText: (config: {
