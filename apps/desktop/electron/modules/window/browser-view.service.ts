@@ -91,16 +91,16 @@ export class BrowserViewService extends IpcServiceBase {
       send({
         type: "navigate",
         url: wc.getURL(),
-        canGoBack: wc.canGoBack(),
-        canGoForward: wc.canGoForward(),
+        canGoBack: wc.navigationHistory.canGoBack(),
+        canGoForward: wc.navigationHistory.canGoForward(),
       })
     )
     wc.on("did-navigate-in-page", () =>
       send({
         type: "navigate",
         url: wc.getURL(),
-        canGoBack: wc.canGoBack(),
-        canGoForward: wc.canGoForward(),
+        canGoBack: wc.navigationHistory.canGoBack(),
+        canGoForward: wc.navigationHistory.canGoForward(),
       })
     )
   }
@@ -114,16 +114,16 @@ export class BrowserViewService extends IpcServiceBase {
   @IpcMethod()
   goBack(viewId: string) {
     const view = this.views.get(viewId)
-    if (view?.webContents.canGoBack()) {
-      view.webContents.goBack()
+    if (view?.webContents.navigationHistory.canGoBack()) {
+      view.webContents.navigationHistory.goBack()
     }
   }
 
   @IpcMethod()
   goForward(viewId: string) {
     const view = this.views.get(viewId)
-    if (view?.webContents.canGoForward()) {
-      view.webContents.goForward()
+    if (view?.webContents.navigationHistory.canGoForward()) {
+      view.webContents.navigationHistory.goForward()
     }
   }
 
