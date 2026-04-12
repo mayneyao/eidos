@@ -11,6 +11,8 @@ import {
   ScreenshotService,
   DevToolsService,
   UserAgentService,
+  FindService,
+  OverlayService,
 } from "./services"
 
 /**
@@ -36,6 +38,8 @@ import {
     ScreenshotService,
     DevToolsService,
     UserAgentService,
+    FindService,
+    OverlayService,
     // Main facade service
     BrowserService,
   ],

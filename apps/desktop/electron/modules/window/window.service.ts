@@ -247,7 +247,15 @@ export class WindowService {
         case "close":
           win.close()
           break
+        case "focus":
+          win.focus()
+          break
       }
+    })
+
+    // Handle find overlay close from overlay view
+    ipcMain.on("browser.find:close", (_, viewId: string) => {
+      win.webContents.send("browser.find:close", viewId)
     })
   }
 
