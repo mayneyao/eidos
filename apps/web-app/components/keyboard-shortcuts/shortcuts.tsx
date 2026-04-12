@@ -141,11 +141,15 @@ export function ShortCuts() {
           break
 
         case "focus-address-bar":
-          // Only focus address bar if current tab is a webview
-          if (checkIsWebviewTab()) {
-            // Dispatch custom event to focus webview address bar
-            window.dispatchEvent(new CustomEvent("focus-webview-address-bar"))
-          }
+          // Dispatch custom event to focus webview address bar
+          // Components will check if current tab is active
+          window.dispatchEvent(new CustomEvent("focus-webview-address-bar"))
+          break
+
+        case "find-in-page":
+          // Dispatch custom event to toggle find in page
+          // Components will check if current tab is active
+          window.dispatchEvent(new CustomEvent("toggle-find-in-page"))
           break
 
         case "open-space-settings":

@@ -1,5 +1,7 @@
 import { useRef, useEffect } from "react"
 import { isDesktopMode } from "@/lib/env"
+import { useTabStore } from "@/apps/web-app/store/tabs"
+import { useWebviewStore } from "@/apps/web-app/store/webview-store"
 
 interface BrowserViewContainerProps {
   viewId: string
@@ -39,12 +41,15 @@ export function BrowserViewContainer({
 
     const syncBounds = () => {
       const rect = content.getBoundingClientRect()
-      window.eidos.browser.view.updateBounds(viewId, {
+      const bounds = {
         x: Math.round(rect.x),
         y: Math.round(rect.y),
         width: Math.round(rect.width),
         height: Math.round(rect.height),
-      })
+      }
+      window.eidos.browser.view.updateBounds(viewId, bounds)
+      // Sync find overlay position if open
+      window.eidos.browser.find?.syncFindOverlayPosition?.(viewId, bounds)
     }
 
     const open = async () => {
@@ -86,6 +91,14 @@ export function BrowserViewContainer({
       }
     })
 
+    // Listen for find in page results
+    const unsubscribeFind = window.eidos.browser.view.onFindInPageResult?.(
+      viewId,
+      (result) => {
+        useWebviewStore.getState().onFindInPageResult(viewId, result)
+      }
+    )
+
     // Listen for bounds update requests (after leaving fullscreen)
     const unsubscribeBounds = window.eidos.browser.view.onRequestBoundsUpdate?.(
       viewId,
@@ -119,11 +132,33 @@ export function BrowserViewContainer({
       }
     })
 
+    // Listen for focus events from BrowserView to activate this tab
+    const handleFocus = (eventViewId: string) => {
+      if (eventViewId === viewId) {
+        const { setActiveTab, getPanelForTab, setActivePanel } =
+          useTabStore.getState()
+        setActiveTab(viewId)
+        const panel = getPanelForTab(viewId)
+        if (panel) {
+          setActivePanel(panel.id)
+        }
+      }
+    }
+
+    const focusListenerId = window.eidos?.on?.(
+      "browser.view:focus",
+      (_event: any, id: string) => handleFocus(id)
+    )
+
     return () => {
       ro.disconnect()
       unsubscribe()
       unsubscribeBounds?.()
       unsubscribeZoom?.()
+      unsubscribeFind?.()
+      if (focusListenerId) {
+        window.eidos?.off?.("browser.view:focus", focusListenerId)
+      }
       window.eidos.browser.view.close(viewId)
     }
   }, [url, viewId])

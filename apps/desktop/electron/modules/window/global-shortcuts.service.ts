@@ -118,6 +118,11 @@ export class GlobalShortcutsService {
         description: "Focus address bar",
       },
       {
+        id: "find-in-page",
+        accelerator: "CommandOrControl+F",
+        description: "Find in page",
+      },
+      {
         id: "open-space-settings",
         accelerator: "CommandOrControl+,",
         description: "Open space settings",

@@ -14,12 +14,14 @@ import {
 
 import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useWebviewStore } from "@/apps/web-app/store/webview-store"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import type { NativeMenuItem } from "@/components/ui/native-context-menu"
 import type { RawDataAdapter, ViewMode } from "./types"
+import { isDesktopMode } from "@/lib/env"
 
 interface WebviewToolbarProps {
   // No props needed! Everything is cohesive
@@ -94,6 +96,10 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
   // Focus address bar listener
   useEffect(() => {
     const handleFocusAddressBar = () => {
+      // Only respond if this tab is the active tab
+      const activeTabId = useTabStore.getState().getActiveTabId()
+      if (activeTabId !== tabId) return
+
       addressBarRef.current?.focus()
       addressBarRef.current?.select()
     }
@@ -105,7 +111,60 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
         handleFocusAddressBar
       )
     }
-  }, [])
+  }, [tabId])
+
+  // Listen for toggle-find-in-page custom event from shortcuts.tsx
+  useEffect(() => {
+    if (!isDesktopMode) return
+
+    const handleToggleFindInPage = async () => {
+      // Only respond if this tab is the active tab
+      const activeTabId = useTabStore.getState().getActiveTabId()
+      if (activeTabId !== tabId) return
+
+      // Toggle find overlay
+      const isOpen =
+        await window.eidos?.browser?.find?.isFindOverlayOpen?.(tabId)
+      if (isOpen) {
+        await window.eidos?.browser?.find?.closeFindOverlay?.(tabId)
+        useWebviewStore.getState().stopFindInPage(tabId)
+      } else {
+        await window.eidos?.browser?.find?.showFindOverlay?.(tabId, {
+          findText: "",
+          findMatches: 0,
+          findActiveMatch: 0,
+        })
+      }
+    }
+
+    window.addEventListener("toggle-find-in-page", handleToggleFindInPage)
+
+    return () => {
+      window.removeEventListener("toggle-find-in-page", handleToggleFindInPage)
+    }
+  }, [tabId])
+
+  // Listen for find overlay close from main process
+  useEffect(() => {
+    if (!isDesktopMode) return
+
+    const handleFindClose = (eventViewId: string) => {
+      if (eventViewId === tabId) {
+        useWebviewStore.getState().stopFindInPage(tabId)
+      }
+    }
+
+    const listenerId = window.eidos?.on?.(
+      "browser.find:close",
+      (_event: any, id: string) => handleFindClose(id)
+    )
+
+    return () => {
+      if (listenerId) {
+        window.eidos?.off?.("browser.find:close", listenerId)
+      }
+    }
+  }, [tabId])
 
   const onDisplayUrlChange = (url: string) =>
     setWebviewState(tabId, { displayUrl: url })

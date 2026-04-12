@@ -11,6 +11,8 @@ import {
   ScreenshotService,
   DevToolsService,
   UserAgentService,
+  FindService,
+  OverlayService,
 } from "./services"
 
 /**
@@ -30,7 +32,9 @@ export class BrowserService extends IpcServiceBase {
     @Inject(EventHandlerService) private events: EventHandlerService,
     @Inject(ScreenshotService) private screenshot: ScreenshotService,
     @Inject(DevToolsService) private devtools: DevToolsService,
-    @Inject(UserAgentService) private userAgent: UserAgentService
+    @Inject(UserAgentService) private userAgent: UserAgentService,
+    @Inject(FindService) private find: FindService,
+    @Inject(OverlayService) private overlay: OverlayService
   ) {
     super()
   }
@@ -183,6 +187,39 @@ export class BrowserService extends IpcServiceBase {
   @IpcMethod()
   getUserAgent(viewId: string): string | undefined {
     return this.userAgent.getUserAgent(viewId)
+  }
+
+  // ============================================================
+  // Find in Page (delegated to FindService)
+  // ============================================================
+
+  @IpcMethod()
+  findInPage(
+    viewId: string,
+    text: string,
+    options?: { forward?: boolean; findNext?: boolean; matchCase?: boolean }
+  ): number {
+    return this.find.findInPage(viewId, text, options)
+  }
+
+  @IpcMethod()
+  stopFindInPage(
+    viewId: string,
+    action?: "clearSelection" | "keepSelection"
+  ): void {
+    this.find.stopFindInPage(viewId, action)
+  }
+
+  // ============================================================
+  // Find Overlay Position Sync
+  // ============================================================
+
+  @IpcMethod()
+  syncFindOverlayPosition(
+    viewId: string,
+    bounds: { x: number; y: number; width: number; height: number }
+  ): void {
+    this.overlay.updateOverlayPosition(viewId, bounds)
   }
 
   // Note: Event subscription methods (onUpdate, onNewTab, onRequestBoundsUpdate, onZoomChanged)

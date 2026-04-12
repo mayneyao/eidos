@@ -27,11 +27,16 @@ export class EventHandlerService {
    * Attach event listeners to a view
    */
   attachEventListeners(viewId: string): void {
-    if (this.attachedViews.has(viewId)) return
+    if (this.attachedViews.has(viewId)) {
+      return
+    }
 
     const view = this.viewManager.getView(viewId)
     const win = this.win
-    if (!view || !win) return
+
+    if (!view || !win) {
+      return
+    }
 
     this.attachedViews.add(viewId)
 
@@ -114,7 +119,6 @@ export class EventHandlerService {
 
     // Window open handler (for new tabs)
     wc.setWindowOpenHandler(({ url, frameName, features }) => {
-      console.log("[EventHandlerService] Window open:", url)
       const protocol = new URL(url).protocol
       if (protocol === "https:" || protocol === "http:") {
         const win = this.win

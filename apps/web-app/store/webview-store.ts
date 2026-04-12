@@ -24,6 +24,11 @@ export interface WebviewState {
   readerViewMarkdown: string
   isParsingReaderView: boolean
   readerViewOriginalUrl: string // Store original URL to return to after reader view
+  // Find in page
+  isFindInPageOpen: boolean
+  findText: string
+  findMatches: number
+  findActiveMatch: number
 }
 
 interface WebviewStore {
@@ -70,6 +75,18 @@ interface WebviewStore {
     canGoBack: boolean,
     canGoForward: boolean
   ) => void
+
+  // Find in Page Actions
+  findInPage: (
+    tabId: string,
+    text: string,
+    options?: { forward?: boolean; findNext?: boolean }
+  ) => void
+  stopFindInPage: (tabId: string) => void
+  onFindInPageResult: (
+    tabId: string,
+    result: { requestId: number; activeMatchOrdinal: number; matches: number }
+  ) => void
 }
 
 export const defaultWebviewState: WebviewState = {
@@ -89,6 +106,11 @@ export const defaultWebviewState: WebviewState = {
   readerViewMarkdown: "",
   isParsingReaderView: false,
   readerViewOriginalUrl: "",
+  // Find in page
+  isFindInPageOpen: false,
+  findText: "",
+  findMatches: 0,
+  findActiveMatch: 0,
 }
 
 export const useWebviewStore = create<WebviewStore>((set, get) => ({
@@ -317,6 +339,32 @@ export const useWebviewStore = create<WebviewStore>((set, get) => ({
     get().setWebviewState(tabId, { displayUrl: url, canGoBack, canGoForward })
     // Sync the navigation URL to the tab store so tab shows correct URL
     useTabStore.getState().updateTab(tabId, { url })
+  },
+
+  // Find in Page Actions
+  findInPage: (tabId, text, options) => {
+    if (!isDesktopMode) return
+    if (!text) {
+      get().stopFindInPage(tabId)
+      return
+    }
+    window.eidos?.browser?.view?.findInPage(tabId, text, options)
+  },
+
+  stopFindInPage: (tabId) => {
+    if (!isDesktopMode) return
+    window.eidos?.browser?.view?.stopFindInPage(tabId)
+    get().setWebviewState(tabId, {
+      findMatches: 0,
+      findActiveMatch: 0,
+    })
+  },
+
+  onFindInPageResult: (tabId, result) => {
+    get().setWebviewState(tabId, {
+      findMatches: result.matches,
+      findActiveMatch: result.activeMatchOrdinal,
+    })
   },
 }))
 

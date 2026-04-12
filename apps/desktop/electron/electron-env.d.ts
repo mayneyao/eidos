@@ -48,6 +48,7 @@ interface Window {
     maximizeWindow: () => void
     unmaximizeWindow: () => void
     closeWindow: () => void
+    focusWindow: () => void
     // system info
     platform: string
     arch: string
@@ -107,6 +108,37 @@ interface Window {
         ) => () => void
         // Event listener for zoom level changes
         onZoomChanged: (callback: () => void) => () => void
+        // Event listener for find in page results
+        onFindInPageResult: (
+          viewId: string,
+          callback: (result: {
+            requestId: number
+            activeMatchOrdinal: number
+            matches: number
+          }) => void
+        ) => () => void
+      }
+      find: import("@eidos.space/electron-ipc").ExtractIpcApi<
+        typeof import("./modules/browser/services/find.service").FindService
+      > & {
+        // Overlay position sync
+        syncFindOverlayPosition: (
+          viewId: string,
+          bounds: {
+            x: number
+            y: number
+            width: number
+            height: number
+          }
+        ) => void
+        // Event listener for find overlay updates
+        onUpdate: (
+          callback: (data: {
+            findText?: string
+            findMatches?: number
+            findActiveMatch?: number
+          }) => void
+        ) => () => void
       }
     }
     AI: {

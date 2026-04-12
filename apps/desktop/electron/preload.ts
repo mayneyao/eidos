@@ -237,12 +237,51 @@ function main() {
             ipcRenderer.removeListener("browser.view:zoomChanged", listener)
           }
         },
+        // Event listener for find in page results
+        onFindInPageResult: (
+          viewId: string,
+          callback: (result: {
+            requestId: number
+            activeMatchOrdinal: number
+            matches: number
+          }) => void
+        ) => {
+          const listener = (
+            _event: Electron.IpcRendererEvent,
+            id: string,
+            result: any
+          ) => {
+            if (id === viewId) callback(result)
+          }
+          ipcRenderer.on("browser.view:foundInPage", listener)
+          return () => {
+            ipcRenderer.removeListener("browser.view:foundInPage", listener)
+          }
+        },
+      },
+      find: {
+        ...createPreloadApiByNamespace("browser.find"),
+        // Event listener for find overlay updates
+        onUpdate: (
+          callback: (data: {
+            findText?: string
+            findMatches?: number
+            findActiveMatch?: number
+          }) => void
+        ) => {
+          const listener = (_event: Electron.IpcRendererEvent, data: any) =>
+            callback(data)
+          ipcRenderer.on("browser.find:update", listener)
+          return () =>
+            ipcRenderer.removeListener("browser.find:update", listener)
+        },
       },
     },
     minimizeWindow: () => ipcRenderer.send("window-control", "minimize"),
     maximizeWindow: () => ipcRenderer.send("window-control", "maximize"),
     unmaximizeWindow: () => ipcRenderer.send("window-control", "unmaximize"),
     closeWindow: () => ipcRenderer.send("window-control", "close"),
+    focusWindow: () => ipcRenderer.send("window-control", "focus"),
 
     onWindowStateChange: (
       callback: (state: "maximized" | "restored") => void

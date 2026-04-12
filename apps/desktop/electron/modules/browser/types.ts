@@ -25,6 +25,7 @@ export interface ReaderViewData {
 export interface ViewState {
   view: WebContentsView
   isFullscreen: boolean
+  originalBounds?: BrowserViewBounds
 }
 
 /**

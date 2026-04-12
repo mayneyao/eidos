@@ -45,6 +45,14 @@ export class ViewManagerService {
 
     view.webContents.loadURL(url)
 
+    // Listen for focus events to activate the corresponding tab
+    view.webContents.on("focus", () => {
+      const win = this.win
+      if (win) {
+        win.webContents.send("browser.view:focus", viewId)
+      }
+    })
+
     // Set initial bounds with zoom factor
     const zoomFactor = this.zoomService.getZoomFactor()
     view.setBounds({
@@ -95,6 +103,49 @@ export class ViewManagerService {
     if (state) {
       state.view.setVisible(visible)
     }
+  }
+
+  /**
+   * Set find in page mode - adjusts view bounds to make room for find UI
+   * @param viewId - The view ID
+   * @param findUiHeight - Height of the find UI in pixels (default: 40)
+   */
+  setFindMode(viewId: string, findUiHeight: number = 40): void {
+    const state = this.views.get(viewId)
+    const win = this.win
+    if (!state || !win) return
+
+    // Store original bounds if not already stored
+    if (!state.originalBounds) {
+      state.originalBounds = state.view.getBounds()
+    }
+
+    // Adjust bounds to make room for find UI at the top
+    const zoomFactor = this.zoomService.getZoomFactor()
+    const bounds = state.originalBounds
+    state.view.setBounds({
+      x: bounds.x,
+      y: Math.round((bounds.y + findUiHeight) * zoomFactor),
+      width: Math.round(bounds.width * zoomFactor),
+      height: Math.round((bounds.height - findUiHeight) * zoomFactor),
+    })
+  }
+
+  /**
+   * Exit find in page mode - restore original view bounds
+   */
+  exitFindMode(viewId: string): void {
+    const state = this.views.get(viewId)
+    if (!state || !state.originalBounds) return
+
+    const zoomFactor = this.zoomService.getZoomFactor()
+    state.view.setBounds({
+      x: state.originalBounds.x,
+      y: Math.round(state.originalBounds.y * zoomFactor),
+      width: Math.round(state.originalBounds.width * zoomFactor),
+      height: Math.round(state.originalBounds.height * zoomFactor),
+    })
+    state.originalBounds = undefined
   }
 
   /**
