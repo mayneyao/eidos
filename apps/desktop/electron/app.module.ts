@@ -18,6 +18,7 @@ import { ContextMenuModule } from "./modules/context-menu/context-menu.module"
 import { SpaceManagementModule } from "./modules/space-management/space-management.module"
 import { DataSpaceModule } from "./modules/data-space"
 import { WindowModule } from "./modules/window"
+import { BrowserModule } from "./modules/browser"
 import { RawDataModule } from "./modules/rawdata"
 import { ApiServerModule } from "./modules/api-server/api-server.module"
 import { UpdaterModule } from "./modules/updater/updater.module"
@@ -58,6 +59,7 @@ import { ExampleModule } from "./modules/example/example.module"
     SpaceManagementModule,
     DataSpaceModule,
     WindowModule,
+    BrowserModule, // BrowserView management (new modular version)
     RawDataModule,
     ApiServerModule,
     UpdaterModule,

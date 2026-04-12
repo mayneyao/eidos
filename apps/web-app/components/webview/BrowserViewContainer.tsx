@@ -7,6 +7,7 @@ interface BrowserViewContainerProps {
   isActive: boolean
   isAnyOverlayOpen: boolean
   viewMode: "browser" | "table"
+  isReaderViewMode?: boolean
   onNavigate: (data: {
     url: string
     canGoBack: boolean
@@ -23,6 +24,7 @@ export function BrowserViewContainer({
   isActive,
   isAnyOverlayOpen,
   viewMode,
+  isReaderViewMode,
   onNavigate,
   onLoadingChange,
   onRawdataNavigation,
@@ -129,7 +131,11 @@ export function BrowserViewContainer({
   useEffect(() => {
     if (!isDesktopMode || !url) return
 
-    const shouldShow = isActive && !isAnyOverlayOpen && viewMode === "browser"
+    // Show BrowserView in browser mode or reader view mode
+    const shouldShow =
+      isActive &&
+      !isAnyOverlayOpen &&
+      (viewMode === "browser" || isReaderViewMode)
 
     if (shouldShow) {
       // Update bounds before showing to ensure correct position
@@ -145,7 +151,7 @@ export function BrowserViewContainer({
       }
     }
 
-    window.eidos.browser.view.setVisible(viewId, shouldShow)
+    window.eidos.browser.view.setVisible(viewId, !!shouldShow)
   }, [isActive, isAnyOverlayOpen, url, viewMode, viewId])
 
   return (

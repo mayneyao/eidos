@@ -1,0 +1,325 @@
+import { create } from "zustand"
+
+import { isDesktopMode } from "@/lib/env"
+import { useTabStore } from "@/apps/web-app/store/tabs"
+import type {
+  RawDataAdapter,
+  ViewMode,
+} from "@/apps/web-app/components/webview/types"
+
+export interface WebviewState {
+  canGoBack: boolean
+  canGoForward: boolean
+  isLoading: boolean
+  displayUrl: string
+  matchedAdapters: RawDataAdapter[]
+  hasRawData: boolean
+  isLoadingAdapters: boolean
+  isRefreshingAdapter: boolean
+  viewMode: ViewMode
+  selectedAdapter: RawDataAdapter | null
+  pageTitle: string
+  isReaderViewMode: boolean
+  readerViewContent: string
+  readerViewMarkdown: string
+  isParsingReaderView: boolean
+  readerViewOriginalUrl: string // Store original URL to return to after reader view
+}
+
+interface WebviewStore {
+  states: Record<string, WebviewState>
+  setWebviewState: (
+    tabId: string,
+    updates:
+      | Partial<WebviewState>
+      | ((prev: WebviewState) => Partial<WebviewState>)
+  ) => void
+  clearWebviewState: (tabId: string) => void
+
+  // Basic Navigation Actions
+  goBack: (tabId: string) => void
+  goForward: (tabId: string) => void
+  reload: (tabId: string) => void
+  stop: (tabId: string) => void
+  openDevTools: (tabId: string) => void
+  loadURL: (tabId: string, url: string) => void
+
+  // Logic Actions
+  refreshAdapters: (tabId: string, space: string, url: string) => Promise<void>
+  captureReaderView: (
+    tabId: string
+  ) => Promise<{ success: boolean; error?: string }>
+  exitReaderView: (tabId: string) => void
+  runAdapter: (
+    tabId: string,
+    space: string,
+    adapter: RawDataAdapter
+  ) => Promise<{ success: boolean; error?: string; result?: any }>
+  navigateRawData: (
+    tabId: string,
+    rawDataUrl: string
+  ) => {
+    success: boolean
+    host?: string
+    adapter?: RawDataAdapter
+    error?: string
+  }
+  onNavigate: (
+    tabId: string,
+    url: string,
+    canGoBack: boolean,
+    canGoForward: boolean
+  ) => void
+}
+
+export const defaultWebviewState: WebviewState = {
+  canGoBack: false,
+  canGoForward: false,
+  isLoading: false,
+  displayUrl: "",
+  matchedAdapters: [],
+  hasRawData: false,
+  isLoadingAdapters: false,
+  isRefreshingAdapter: false,
+  viewMode: "browser",
+  selectedAdapter: null,
+  pageTitle: "",
+  isReaderViewMode: false,
+  readerViewContent: "",
+  readerViewMarkdown: "",
+  isParsingReaderView: false,
+  readerViewOriginalUrl: "",
+}
+
+export const useWebviewStore = create<WebviewStore>((set, get) => ({
+  states: {},
+  setWebviewState: (tabId, updates) =>
+    set((state) => {
+      const currentState = state.states[tabId] || defaultWebviewState
+      const nextUpdates =
+        typeof updates === "function" ? updates(currentState) : updates
+      return {
+        states: {
+          ...state.states,
+          [tabId]: { ...currentState, ...nextUpdates },
+        },
+      }
+    }),
+  clearWebviewState: (tabId) =>
+    set((state) => {
+      const newStates = { ...state.states }
+      delete newStates[tabId]
+      return { states: newStates }
+    }),
+
+  goBack: (tabId) => {
+    if (!isDesktopMode) return
+    // If in reader view mode, exit it first
+    const state = get().states[tabId]
+    if (state?.isReaderViewMode) {
+      get().exitReaderView(tabId)
+      return
+    }
+    window.eidos?.browser?.view?.goBack(tabId)
+  },
+  exitReaderView: (tabId) => {
+    if (!isDesktopMode) return
+    const state = get().states[tabId]
+    if (!state?.isReaderViewMode) return
+
+    // Use the saved original URL, not the current displayUrl (which is eidos-read://...)
+    const originalUrl = state.readerViewOriginalUrl || state.displayUrl || ""
+    window.eidos?.browser?.view?.exitReaderView(tabId, originalUrl)
+    get().setWebviewState(tabId, {
+      isReaderViewMode: false,
+      readerViewOriginalUrl: "",
+    })
+  },
+  goForward: (tabId) => {
+    if (!isDesktopMode) return
+    window.eidos?.browser?.view?.goForward(tabId)
+  },
+  reload: (tabId) => {
+    if (!isDesktopMode) return
+    window.eidos?.browser?.view?.reload(tabId)
+  },
+  stop: (tabId) => {
+    if (!isDesktopMode) return
+    window.eidos?.browser?.view?.stop(tabId)
+  },
+  openDevTools: (tabId) => {
+    if (!isDesktopMode) return
+    window.eidos?.browser?.view?.openDevTools(tabId, { mode: "detach" })
+  },
+  loadURL: (tabId, url) => {
+    if (!isDesktopMode) return
+    window.eidos?.browser?.view?.loadURL(tabId, url)
+  },
+
+  refreshAdapters: async (tabId, space, url) => {
+    if (!isDesktopMode || !url || !space) return
+
+    get().setWebviewState(tabId, { isLoadingAdapters: true })
+    try {
+      const adapters = await window.eidos.rawData.findListAdapters(space, url)
+      get().setWebviewState(tabId, {
+        matchedAdapters: adapters,
+        hasRawData: adapters.length > 0,
+      })
+    } catch (error) {
+      console.error("Failed to check RawData adapters:", error)
+    } finally {
+      get().setWebviewState(tabId, { isLoadingAdapters: false })
+    }
+  },
+
+  captureReaderView: async (tabId) => {
+    if (!isDesktopMode) return { success: false, error: "Not in desktop mode" }
+
+    const state = get().states[tabId]
+    const originalUrl = state?.displayUrl || ""
+
+    get().setWebviewState(tabId, { isParsingReaderView: true })
+    try {
+      // First, capture the content from current page
+      const result = await window.eidos.browser.view.captureAsReaderView(tabId)
+      if (result.success && result.content) {
+        // Set isReaderViewMode BEFORE opening reader view to prevent
+        // onNavigate from updating displayUrl with the eidos-read:// URL
+        get().setWebviewState(tabId, {
+          isReaderViewMode: true,
+          readerViewMarkdown: result.contentMarkdown || "",
+          readerViewOriginalUrl: originalUrl,
+        })
+
+        // Open reader view in the BrowserView via custom protocol
+        const openResult = await window.eidos.browser.view.openReaderView(
+          tabId,
+          {
+            html: result.content,
+            title: result.title || "Reader View",
+            originalUrl: originalUrl,
+          }
+        )
+
+        if (!openResult.success) {
+          // Reset reader view mode if failed
+          get().setWebviewState(tabId, {
+            isReaderViewMode: false,
+            readerViewOriginalUrl: "",
+          })
+          return {
+            success: false,
+            error: openResult.error || "Failed to open reader view",
+          }
+        }
+
+        return { success: true }
+      } else {
+        return {
+          success: false,
+          error: result.error || "Could not extract content",
+        }
+      }
+    } catch (error) {
+      console.error("Failed to capture reader view:", error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
+    } finally {
+      get().setWebviewState(tabId, { isParsingReaderView: false })
+    }
+  },
+
+  runAdapter: async (tabId, space, adapter) => {
+    get().setWebviewState(tabId, { isRefreshingAdapter: true })
+    try {
+      const result = await window.eidos.rawData.runAdapter(
+        space,
+        adapter.filePath,
+        {}
+      )
+
+      // Force re-create view to refresh data by toggling viewMode briefly
+      get().setWebviewState(tabId, { viewMode: "browser" })
+      setTimeout(
+        () =>
+          get().setWebviewState(tabId, {
+            viewMode: "table",
+            selectedAdapter: adapter,
+          }),
+        0
+      )
+
+      return { success: true, result }
+    } catch (error) {
+      console.error("Failed to refresh adapter:", error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
+    } finally {
+      get().setWebviewState(tabId, { isRefreshingAdapter: false })
+    }
+  },
+
+  navigateRawData: (tabId, rawDataUrl) => {
+    console.log("[WebViewStore] navigateRawData:", rawDataUrl)
+    try {
+      const urlObj = new URL(rawDataUrl)
+      const host = urlObj.hostname
+      const { matchedAdapters } = get().states[tabId] || defaultWebviewState
+
+      const matchingAdapter = matchedAdapters.find((a) => {
+        const adapterDomain = a.domain?.toLowerCase()
+        const adapterSite = a.site?.toLowerCase()
+        const targetHost = host.toLowerCase()
+        return (
+          adapterDomain?.includes(targetHost) ||
+          targetHost.includes(adapterDomain || "") ||
+          adapterSite?.includes(targetHost) ||
+          targetHost.includes(adapterSite || "")
+        )
+      })
+
+      if (matchingAdapter) {
+        get().setWebviewState(tabId, {
+          selectedAdapter: matchingAdapter,
+          viewMode: "table",
+        })
+        return { success: true, host, adapter: matchingAdapter }
+      }
+      return { success: false, host }
+    } catch (e) {
+      console.error("[WebViewStore] Failed to parse rawdata URL:", e)
+      return { success: false, error: "Failed to parse URL" }
+    }
+  },
+
+  onNavigate: (tabId, url, canGoBack, canGoForward) => {
+    const state = get().states[tabId]
+
+    // Never update URL if it's the reader view protocol URL
+    if (url.startsWith("eidos-read://")) {
+      // Still update navigation state for goBack/goForward
+      get().setWebviewState(tabId, { canGoBack, canGoForward })
+      return
+    }
+
+    // Don't update displayUrl when in reader view mode
+    // But still update canGoBack/canGoForward for navigation state
+    if (state?.isReaderViewMode) {
+      get().setWebviewState(tabId, { canGoBack, canGoForward })
+      return
+    }
+
+    get().setWebviewState(tabId, { displayUrl: url, canGoBack, canGoForward })
+    // Sync the navigation URL to the tab store so tab shows correct URL
+    useTabStore.getState().updateTab(tabId, { url })
+  },
+}))
+
+export const getWebviewState = (tabId: string) => {
+  return useWebviewStore.getState().states[tabId] || defaultWebviewState
+}

@@ -11,7 +11,7 @@ import { TrayService } from "./tray.service"
 import { DataSpaceManager } from "../data-space"
 import { GlobalShortcutsService } from "./global-shortcuts.service"
 import { WindowService } from "./window.service"
-import { BrowserViewService } from "./browser-view.service"
+import { BrowserService } from "../browser/browser.service"
 
 @IpcInjectable("app-lifecycle")
 export class AppLifecycleService extends IpcServiceBase {
@@ -98,10 +98,10 @@ export class AppLifecycleService extends IpcServiceBase {
     ipcMain.handle("app-lifecycle:reloadApp", async () => {
       // Close all BrowserViews before reloading to prevent them from covering the main window
       try {
-        const browserViewService = container.get(BrowserViewService)
-        browserViewService.closeAll()
+        const browserService = container.get(BrowserService)
+        browserService.closeAll()
       } catch {
-        // BrowserViewService might not be available, ignore
+        // BrowserService might not be available, ignore
       }
       app.relaunch()
       this.windowService.getMainWindow()?.reload()

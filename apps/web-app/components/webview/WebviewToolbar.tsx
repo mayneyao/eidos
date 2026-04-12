@@ -1,8 +1,10 @@
-import type { Ref } from "react"
+import { useEffect, useRef } from "react"
 import {
   ArrowLeft,
   ArrowRight,
+  BookOpen,
   Bug,
+  Copy,
   Database,
   Globe,
   Loader2,
@@ -10,33 +12,17 @@ import {
   X,
 } from "lucide-react"
 
-import { cn } from "@/lib/utils"
+import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useWebviewStore } from "@/apps/web-app/store/webview-store"
 import { Button } from "@/components/ui/button"
-import type { RawDataAdapter, ViewMode } from "./types"
+import { useToast } from "@/components/ui/use-toast"
+import { cn } from "@/lib/utils"
 import type { NativeMenuItem } from "@/components/ui/native-context-menu"
+import type { RawDataAdapter, ViewMode } from "./types"
 
 interface WebviewToolbarProps {
-  viewId: string
-  displayUrl: string
-  isLoading: boolean
-  canGoBack: boolean
-  canGoForward: boolean
-  viewMode: ViewMode
-  hasRawData: boolean
-  isLoadingAdapters: boolean
-  matchedAdapters: RawDataAdapter[]
-  onDisplayUrlChange: (url: string) => void
-  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
-  onBlur: () => void
-  onGoBack: () => void
-  onGoForward: () => void
-  onReload: () => void
-  onStop: () => void
-  onOpenDevTools: () => void
-  onLoadUrl: () => void
-  onRunAdapter: (adapter: RawDataAdapter) => void
-  onBackToBrowser: () => void
-  addressBarRef?: Ref<HTMLInputElement>
+  // No props needed! Everything is cohesive
 }
 
 // Build native menu items for rawdata adapters
@@ -70,29 +56,175 @@ function buildRawDataMenuItems(adapters: RawDataAdapter[]): NativeMenuItem[] {
   return items
 }
 
-export function WebviewToolbar({
-  viewId,
-  displayUrl,
-  isLoading,
-  canGoBack,
-  canGoForward,
-  viewMode,
-  hasRawData,
-  isLoadingAdapters,
-  matchedAdapters,
-  onDisplayUrlChange,
-  onKeyDown,
-  onBlur,
-  onGoBack,
-  onGoForward,
-  onReload,
-  onStop,
-  onOpenDevTools,
-  onLoadUrl,
-  onRunAdapter,
-  onBackToBrowser,
-  addressBarRef,
-}: WebviewToolbarProps) {
+export function WebviewToolbar({}: WebviewToolbarProps) {
+  const { tabId } = useTabContext()
+  const { space } = useCurrentPathInfo()
+  const { toast } = useToast()
+
+  const addressBarRef = useRef<HTMLInputElement>(null)
+  const committedUrlRef = useRef<string>("")
+  const state = useWebviewStore((s) => s.states[tabId])
+  const setWebviewState = useWebviewStore((s) => s.setWebviewState)
+
+  const {
+    displayUrl = "",
+    isLoading: isViewLoading = false,
+    isRefreshingAdapter = false,
+    isParsingReaderView = false,
+    canGoBack = false,
+    canGoForward = false,
+    viewMode = "browser" as ViewMode,
+    selectedAdapter = null as RawDataAdapter | null,
+    hasRawData = false,
+    isLoadingAdapters = false,
+    matchedAdapters = [],
+    isReaderViewMode = false,
+    readerViewMarkdown = "",
+  } = state || {}
+
+  const isLoading = isViewLoading || isRefreshingAdapter || isParsingReaderView
+
+  // Sync committed URL ref
+  useEffect(() => {
+    if (state?.displayUrl) {
+      committedUrlRef.current = state.displayUrl
+    }
+  }, [state?.displayUrl])
+
+  // Focus address bar listener
+  useEffect(() => {
+    const handleFocusAddressBar = () => {
+      addressBarRef.current?.focus()
+      addressBarRef.current?.select()
+    }
+
+    window.addEventListener("focus-webview-address-bar", handleFocusAddressBar)
+    return () => {
+      window.removeEventListener(
+        "focus-webview-address-bar",
+        handleFocusAddressBar
+      )
+    }
+  }, [])
+
+  const onDisplayUrlChange = (url: string) =>
+    setWebviewState(tabId, { displayUrl: url })
+
+  const handleGoBack = () => useWebviewStore.getState().goBack(tabId)
+  const handleGoForward = () => useWebviewStore.getState().goForward(tabId)
+  const handleStop = () => useWebviewStore.getState().stop(tabId)
+  const handleOpenDevTools = () =>
+    useWebviewStore.getState().openDevTools(tabId)
+
+  const handleLoadUrl = () => {
+    if (!displayUrl.trim()) return
+    let target = displayUrl.trim()
+
+    if (/^rawdata:\/\//i.test(target)) {
+      const result = useWebviewStore.getState().navigateRawData(tabId, target)
+      if (result.success) {
+        toast({
+          title: `Switched to ${result.adapter?.name}`,
+          description: `Viewing raw data for ${result.host}`,
+        })
+      } else {
+        toast({
+          title: "No adapter found",
+          description: `No raw data adapter available for ${result.host}`,
+          variant: "destructive",
+        })
+      }
+      return
+    }
+
+    if (!/^https?:\/\//i.test(target)) {
+      target = `https://${target}`
+    }
+    useWebviewStore.getState().loadURL(tabId, target)
+  }
+
+  const handleReload = () => {
+    if (viewMode === "table" && selectedAdapter) {
+      handleRunAdapter(selectedAdapter)
+    } else {
+      useWebviewStore.getState().reload(tabId)
+    }
+  }
+
+  const handleRunAdapter = async (adapter: RawDataAdapter) => {
+    if (!space) return
+
+    const result = await useWebviewStore
+      .getState()
+      .runAdapter(tabId, space, adapter)
+    if (result.success && result.result) {
+      toast({
+        title: `${adapter.name} synced`,
+        description: `Persisted ${result.result.persisted.agents} agents, ${result.result.persisted.goods} goods, ${result.result.persisted.relations} relations`,
+      })
+    } else {
+      toast({
+        title: "Sync failed",
+        description: result.error,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleToggleReaderView = async () => {
+    if (isReaderViewMode) {
+      useWebviewStore.getState().exitReaderView(tabId)
+      return
+    }
+
+    const result = await useWebviewStore.getState().captureReaderView(tabId)
+    if (!result.success) {
+      toast({
+        title: "Failed to parse content",
+        description: result.error,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleCopyMarkdown = async () => {
+    if (!readerViewMarkdown) return
+    try {
+      await navigator.clipboard.writeText(readerViewMarkdown)
+      toast({
+        title: "Copied",
+        description: "Markdown copied to clipboard",
+      })
+    } catch (error) {
+      toast({
+        title: "Failed to copy",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleBackToBrowser = () => {
+    setWebviewState(tabId, {
+      viewMode: "browser",
+      selectedAdapter: null,
+      displayUrl: committedUrlRef.current,
+    })
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.currentTarget.blur()
+      handleLoadUrl()
+    }
+  }
+
+  const handleBlur = () => {
+    // Don't reset displayUrl in reader view mode
+    if (isReaderViewMode) return
+    setWebviewState(tabId, { displayUrl: committedUrlRef.current })
+  }
+
   const handleRawDataButtonClick = async (
     event: React.MouseEvent<HTMLButtonElement>
   ) => {
@@ -108,7 +240,7 @@ export function WebviewToolbar({
       if (match) {
         const adapterIndex = parseInt(match[1], 10)
         if (matchedAdapters[adapterIndex]) {
-          onRunAdapter(matchedAdapters[adapterIndex])
+          handleRunAdapter(matchedAdapters[adapterIndex])
         }
       }
       // Remove this listener
@@ -140,7 +272,7 @@ export function WebviewToolbar({
         size="icon"
         className="h-7 w-7"
         disabled={!canGoBack}
-        onClick={onGoBack}
+        onClick={handleGoBack}
         title="Back"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -150,7 +282,7 @@ export function WebviewToolbar({
         size="icon"
         className="h-7 w-7"
         disabled={!canGoForward}
-        onClick={onGoForward}
+        onClick={handleGoForward}
         title="Forward"
       >
         <ArrowRight className="h-4 w-4" />
@@ -160,7 +292,7 @@ export function WebviewToolbar({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          onClick={onStop}
+          onClick={handleStop}
           title="Stop"
         >
           <X className="h-4 w-4" />
@@ -170,7 +302,7 @@ export function WebviewToolbar({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          onClick={onReload}
+          onClick={handleReload}
           title="Reload"
         >
           <RefreshCcw className="h-4 w-4" />
@@ -180,7 +312,7 @@ export function WebviewToolbar({
         variant="ghost"
         size="icon"
         className="h-7 w-7"
-        onClick={onOpenDevTools}
+        onClick={handleOpenDevTools}
         title="Open DevTools"
       >
         <Bug className="h-4 w-4" />
@@ -201,6 +333,30 @@ export function WebviewToolbar({
           <Database className="h-4 w-4" />
         </Button>
       )}
+      <Button
+        variant={isReaderViewMode ? "default" : "ghost"}
+        size="icon"
+        className={cn(
+          "h-7 w-7",
+          isReaderViewMode &&
+            "bg-primary text-primary-foreground hover:bg-primary/90"
+        )}
+        onClick={handleToggleReaderView}
+        title={isReaderViewMode ? "Show Web Page" : "Reader View"}
+      >
+        <BookOpen className="h-4 w-4" />
+      </Button>
+      {isReaderViewMode && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={handleCopyMarkdown}
+          title="Copy Markdown"
+        >
+          <Copy className="h-4 w-4" />
+        </Button>
+      )}
       <div
         className={cn(
           "mx-2 flex flex-1 items-center overflow-hidden rounded-md border px-2 py-1 transition-colors duration-200",
@@ -219,29 +375,15 @@ export function WebviewToolbar({
           type="text"
           value={displayUrl}
           onChange={(e) => onDisplayUrlChange(e.target.value)}
-          onKeyDown={onKeyDown}
-          onBlur={onBlur}
-          className={cn(
-            "w-full bg-transparent text-xs outline-none transition-colors duration-200",
-            isLoading ? "text-primary" : "text-muted-foreground"
-          )}
+          onKeyDown={handleKeyDown}
+          onBlur={handleBlur}
+          className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          placeholder="Enter URL..."
         />
-        {isLoading && (
-          <div className="ml-2 h-1 w-16 overflow-hidden rounded-full bg-primary/20">
-            <div className="h-full w-full animate-shimmer bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
-          </div>
-        )}
       </div>
-
       {viewMode === "table" && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1.5 px-2"
-          onClick={onBackToBrowser}
-        >
-          <Globe className="h-3.5 w-3.5" />
-          <span className="text-xs">Back to Browser</span>
+        <Button variant="outline" size="sm" onClick={handleBackToBrowser}>
+          Back to Browser
         </Button>
       )}
     </div>

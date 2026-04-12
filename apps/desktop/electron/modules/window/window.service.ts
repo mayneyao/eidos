@@ -9,7 +9,7 @@ import { ConfigManager } from "../config/config-manager"
 import { TrayService } from "./tray.service"
 import type { AppLifecycleService } from "./app-lifecycle.service"
 import { setupGeolocationHandler } from "./geolocation"
-import { BrowserViewService } from "./browser-view.service"
+import { BrowserService } from "../browser/browser.service"
 
 const defaultViewOptions = {
   webPreferences: {
@@ -273,10 +273,10 @@ export class WindowService {
         event.preventDefault()
         // Close all BrowserViews before reloading to prevent them from covering the main window
         try {
-          const browserViewService = container.get(BrowserViewService)
-          browserViewService.closeAll()
+          const browserService = container.get(BrowserService)
+          browserService.closeAll()
         } catch {
-          // BrowserViewService might not be available yet, ignore
+          // BrowserService might not be available yet, ignore
         }
         win.webContents.reload()
       }

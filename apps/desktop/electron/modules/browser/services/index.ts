@@ -1,0 +1,8 @@
+export { ViewManagerService } from "./view-manager.service"
+export { NavigationService } from "./navigation.service"
+export { ReaderViewService } from "./reader-view.service"
+export { ZoomService } from "./zoom.service"
+export { EventHandlerService } from "./event-handler.service"
+export { ScreenshotService } from "./screenshot.service"
+export { DevToolsService } from "./devtools.service"
+export { UserAgentService } from "./user-agent.service"

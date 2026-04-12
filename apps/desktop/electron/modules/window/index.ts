@@ -32,15 +32,14 @@
 
 export { WindowModule } from "./window.module"
 export { WindowService } from "./window.service"
-export { BrowserViewService } from "./browser-view.service"
 export { GlobalShortcutsService } from "./global-shortcuts.service"
 export { TrayService } from "./tray.service"
 export { WebviewService } from "./webview.service"
 export { ProtocolService } from "./protocol.service"
 export { AppLifecycleService } from "./app-lifecycle.service"
 
-// Re-export types
-export type { BrowserViewBounds } from "./browser-view.service"
+// Note: BrowserViewService has been moved to the Browser module
+// Import from "./modules/browser" instead
 export type {
   ShortcutAction,
   ShortcutHandler,
