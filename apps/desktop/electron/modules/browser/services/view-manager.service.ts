@@ -1,9 +1,16 @@
-import { WebContentsView } from "electron"
+import { WebContentsView, Menu, MenuItem, dialog } from "electron"
 
-import { Inject } from "../../../common/di"
+import { Inject, getService } from "../../../common/di"
 import { WindowService } from "../../window/window.service"
 import type { BrowserViewBounds, ViewState } from "../types"
 import { ZoomService } from "./zoom.service"
+import { ReaderViewService } from "./reader-view.service"
+import { RawDataService } from "../../rawdata/rawdata.service"
+
+// Extended view state with space info
+interface ExtendedViewState extends ViewState {
+  space?: string
+}
 
 /**
  * View Manager Service - Manages BrowserView lifecycle (create, update, close)
@@ -12,12 +19,34 @@ import { ZoomService } from "./zoom.service"
  * Use BrowserService for IPC access.
  */
 export class ViewManagerService {
-  private views = new Map<string, ViewState>()
+  private views = new Map<string, ExtendedViewState>()
 
   constructor(
     @Inject(WindowService) private windowService: WindowService,
     @Inject(ZoomService) private zoomService: ZoomService
   ) {}
+
+  /**
+   * Get ReaderViewService lazily to avoid circular dependency
+   */
+  private get readerViewService(): ReaderViewService | undefined {
+    try {
+      return getService(ReaderViewService)
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
+   * Get RawDataService lazily to avoid circular dependency
+   */
+  private get rawDataService(): RawDataService | undefined {
+    try {
+      return getService(RawDataService)
+    } catch {
+      return undefined
+    }
+  }
 
   private get win() {
     return this.windowService?.getMainWindow() ?? null
@@ -51,6 +80,72 @@ export class ViewManagerService {
       if (win) {
         win.webContents.send("browser.view:focus", viewId)
       }
+    })
+
+    // Handle context menu for webview
+    view.webContents.on("context-menu", async (event, params) => {
+      const win = this.win
+      if (!win) return
+
+      const menu = new Menu()
+      const state = this.views.get(viewId)
+      const space = state?.space
+
+      // Check if currently in reader view
+      const readerViewService = this.readerViewService
+      const isReaderView =
+        readerViewService?.isReaderViewActive(viewId) ?? false
+
+      // Add Inspect option (Developer Tools) - handled entirely in backend
+      menu.append(
+        new MenuItem({
+          label: "Inspect",
+          click: () => {
+            view.webContents.openDevTools({ mode: "detach" })
+          },
+        })
+      )
+
+      // Add Read Mode / Exit Read Mode option - handled entirely in backend
+      menu.append(
+        new MenuItem({
+          label: isReaderView ? "Exit Read Mode" : "Read Mode",
+          click: async () => {
+            await this.handleReadMode(viewId)
+          },
+        })
+      )
+
+      // Add Adapter submenu - only in normal mode, handled entirely in backend
+      if (!isReaderView && space && this.rawDataService) {
+        const currentUrl = view.webContents.getURL()
+        const adapters = await this.rawDataService.findListAdapters(
+          space,
+          currentUrl
+        )
+
+        if (adapters.length > 0) {
+          menu.append(
+            new MenuItem({
+              label: "Adapter",
+              submenu: adapters.map((adapter) => ({
+                label: adapter.name,
+                click: async () => {
+                  await this.handleAdapter(viewId, space, adapter.filePath)
+                },
+              })),
+            })
+          )
+        }
+      }
+
+      // Convert BrowserView coordinates to window coordinates
+      const viewBounds = view.getBounds()
+      menu.popup({
+        window: win,
+        x: viewBounds.x + params.x,
+        y: viewBounds.y + params.y,
+      })
     })
 
     // Set initial bounds with zoom factor
@@ -241,5 +336,90 @@ export class ViewManagerService {
    */
   isFullscreen(viewId: string): boolean {
     return this.views.get(viewId)?.isFullscreen ?? false
+  }
+
+  /**
+   * Set the space for a view (called by frontend when tab is created/updated)
+   */
+  setViewSpace(viewId: string, space: string): void {
+    const state = this.views.get(viewId)
+    if (state) {
+      state.space = space
+    }
+  }
+
+  /**
+   * Handle Read Mode toggle - backend only
+   */
+  private async handleReadMode(viewId: string): Promise<void> {
+    const view = this.views.get(viewId)?.view
+    if (!view) return
+
+    const readerViewService = this.readerViewService
+    if (!readerViewService) {
+      dialog.showErrorBox(
+        "Read Mode Error",
+        "Reader View service not available"
+      )
+      return
+    }
+
+    // Check if already in reader view
+    const isReaderView = readerViewService.isReaderViewActive(viewId)
+    if (isReaderView) {
+      // Get current URL and exit reader view
+      const currentUrl = view.webContents.getURL()
+      await readerViewService.exitReaderView(viewId, currentUrl)
+    } else {
+      const result = await readerViewService.captureAsReaderView(viewId)
+      if (result.success && result.content) {
+        await readerViewService.openReaderView(viewId, {
+          html: result.content,
+          title: result.title || "Reader View",
+          originalUrl: result.url || view.webContents.getURL(),
+        })
+      } else {
+        dialog.showErrorBox(
+          "Read Mode Failed",
+          result.error || "Could not extract content"
+        )
+      }
+    }
+  }
+
+  /**
+   * Handle Adapter run - backend only
+   */
+  private async handleAdapter(
+    viewId: string,
+    space: string,
+    adapterPath: string
+  ): Promise<void> {
+    if (!this.rawDataService) {
+      dialog.showErrorBox("Adapter Error", "RawData service not available")
+      return
+    }
+
+    try {
+      const result = await this.rawDataService.runAdapter(
+        space,
+        adapterPath,
+        {}
+      )
+
+      // Show success notification
+      dialog.showMessageBox(this.win!, {
+        type: "info",
+        title: "Adapter Sync Complete",
+        message: `${result.adapter.name} synced successfully`,
+        detail: `Persisted ${result.persisted.agents} agents, ${result.persisted.goods} goods, ${result.persisted.relations} relations`,
+        buttons: ["OK"],
+      })
+    } catch (error) {
+      dialog.showErrorBox(
+        "Adapter Sync Failed",
+        error instanceof Error ? error.message : String(error)
+      )
+    }
   }
 }

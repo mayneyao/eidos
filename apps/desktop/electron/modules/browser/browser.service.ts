@@ -2,6 +2,7 @@ import { IpcServiceBase, IpcMethod } from "@eidos.space/electron-ipc"
 
 import { IpcInjectable, Inject } from "../../common/di"
 import { WindowService } from "../window/window.service"
+import { RawDataService } from "../rawdata/rawdata.service"
 import {
   ViewManagerService,
   NavigationService,
@@ -220,6 +221,15 @@ export class BrowserService extends IpcServiceBase {
     bounds: { x: number; y: number; width: number; height: number }
   ): void {
     this.overlay.updateOverlayPosition(viewId, bounds)
+  }
+
+  // ============================================================
+  // View Space Management (for context menu adapter functionality)
+  // ============================================================
+
+  @IpcMethod()
+  setViewSpace(viewId: string, space: string): void {
+    this.viewManager.setViewSpace(viewId, space)
   }
 
   // Note: Event subscription methods (onUpdate, onNewTab, onRequestBoundsUpdate, onZoomChanged)

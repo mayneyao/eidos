@@ -1,7 +1,7 @@
-import { protocol, app } from "electron"
+import { protocol, app, WebContentsView } from "electron"
 import { IpcMethod } from "@eidos.space/electron-ipc"
 
-import { IpcInjectable, Inject } from "../../../common/di"
+import { IpcInjectable, getService } from "../../../common/di"
 import type { ReaderViewData } from "../types"
 import { ViewManagerService } from "./view-manager.service"
 
@@ -14,9 +14,7 @@ export class ReaderViewService {
   private static readonly READER_PROTOCOL = "eidos-read"
   private static readonly READER_PROTOCOL_PREFIX = "eidos-read://"
 
-  constructor(
-    @Inject(ViewManagerService) private viewManager: ViewManagerService
-  ) {
+  constructor() {
     // Register protocol handler after app is ready
     if (app.isReady()) {
       this.registerProtocol()
@@ -26,6 +24,24 @@ export class ReaderViewService {
         this.registerProtocol()
       })
     }
+  }
+
+  /**
+   * Get ViewManagerService lazily to avoid circular dependency
+   */
+  private get viewManager(): ViewManagerService | undefined {
+    try {
+      return getService(ViewManagerService)
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
+   * Get view by ID (helper to handle undefined viewManager)
+   */
+  private getView(viewId: string): WebContentsView | undefined {
+    return this.viewManager?.getView(viewId)
   }
 
   /**
@@ -107,7 +123,7 @@ export class ReaderViewService {
     viewId: string,
     data: { html: string; title: string; originalUrl: string }
   ): Promise<{ success: boolean; error?: string }> {
-    const view = this.viewManager.getView(viewId)
+    const view = this.getView(viewId)
     if (!view) {
       return { success: false, error: "View not found" }
     }
@@ -139,7 +155,7 @@ export class ReaderViewService {
    */
   @IpcMethod()
   async exitReaderView(viewId: string, originalUrl: string): Promise<void> {
-    const view = this.viewManager.getView(viewId)
+    const view = this.getView(viewId)
     if (!view) return
 
     // Validate original URL
@@ -163,7 +179,7 @@ export class ReaderViewService {
    */
   @IpcMethod()
   isReaderViewActive(viewId: string): boolean {
-    const view = this.viewManager.getView(viewId)
+    const view = this.getView(viewId)
     if (!view) return false
 
     const url = view.webContents.getURL()
@@ -182,7 +198,7 @@ export class ReaderViewService {
     title?: string
     url?: string
   }> {
-    const view = this.viewManager.getView(viewId)
+    const view = this.getView(viewId)
     if (!view) {
       return { success: false, error: "View not found" }
     }
