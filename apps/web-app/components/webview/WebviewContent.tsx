@@ -36,6 +36,7 @@ export function WebviewContent({ url }: { url: string }) {
         <BrowserViewContainer
           viewId={tabId}
           url={url}
+          space={space}
           isActive={isActive}
           isAnyOverlayOpen={isAnyOverlayOpen}
           viewMode={

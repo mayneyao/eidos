@@ -6,6 +6,7 @@ import { useWebviewStore } from "@/apps/web-app/store/webview-store"
 interface BrowserViewContainerProps {
   viewId: string
   url: string
+  space?: string
   isActive: boolean
   isAnyOverlayOpen: boolean
   viewMode: "browser" | "table"
@@ -23,6 +24,7 @@ interface BrowserViewContainerProps {
 export function BrowserViewContainer({
   viewId,
   url,
+  space,
   isActive,
   isAnyOverlayOpen,
   viewMode,
@@ -33,6 +35,12 @@ export function BrowserViewContainer({
   onTitleChange,
 }: BrowserViewContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Set view space when it changes
+  useEffect(() => {
+    if (!isDesktopMode || !space) return
+    window.eidos?.browser?.view?.setViewSpace?.(viewId, space)
+  }, [viewId, space])
 
   useEffect(() => {
     if (!isDesktopMode || !url) return
