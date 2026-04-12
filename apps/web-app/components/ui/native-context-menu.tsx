@@ -20,7 +20,7 @@ import {
 } from "./context-menu"
 
 // Native menu item types - import from shared types
-type NativeMenuItem =
+export type NativeMenuItem =
   | {
       type: "text"
       label: string

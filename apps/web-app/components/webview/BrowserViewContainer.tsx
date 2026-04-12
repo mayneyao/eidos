@@ -14,6 +14,7 @@ interface BrowserViewContainerProps {
   }) => void
   onLoadingChange: (isLoading: boolean) => void
   onRawdataNavigation: (url: string) => void
+  onTitleChange?: (title: string) => void
 }
 
 export function BrowserViewContainer({
@@ -25,6 +26,7 @@ export function BrowserViewContainer({
   onNavigate,
   onLoadingChange,
   onRawdataNavigation,
+  onTitleChange,
 }: BrowserViewContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -77,6 +79,8 @@ export function BrowserViewContainer({
         onLoadingChange(data.isLoading ?? false)
       } else if (data.type === "rawdata-navigation") {
         onRawdataNavigation(data.url || "")
+      } else if (data.type === "title") {
+        onTitleChange?.(data.title || "")
       }
     })
 
@@ -97,10 +101,27 @@ export function BrowserViewContainer({
       }
     )
 
+    // Listen for zoom changes and update bounds
+    const unsubscribeZoom = window.eidos.browser.view.onZoomChanged?.(() => {
+      const content = containerRef.current
+      if (content) {
+        // Force layout recalculation after zoom change
+        void content.offsetHeight
+        const rect = content.getBoundingClientRect()
+        window.eidos.browser.view.updateBounds(viewId, {
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        })
+      }
+    })
+
     return () => {
       ro.disconnect()
       unsubscribe()
       unsubscribeBounds?.()
+      unsubscribeZoom?.()
       window.eidos.browser.view.close(viewId)
     }
   }, [url, viewId])
