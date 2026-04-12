@@ -13,4 +13,4 @@ export interface RawDataAdapter {
   queries?: Record<string, string>
 }
 
-export type ViewMode = "browser" | "table"
+export type ViewMode = "browser" | "table" | "raw"

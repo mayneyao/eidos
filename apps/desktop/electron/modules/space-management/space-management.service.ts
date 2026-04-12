@@ -10,7 +10,7 @@ import { DataSpaceManager, DataSpaceProcessPool } from "../data-space"
 import { getCredentialsManager } from "../sync/sync.module"
 import { getConfigManager } from "../config/config-manager"
 import { PORT } from "../../main"
-import { BrowserViewService } from "../window/browser-view.service"
+import { BrowserService } from "../browser/browser.service"
 
 /**
  * Space Management Service - Provides space management via IPC
@@ -155,10 +155,10 @@ export class SpaceManagementService extends IpcServiceBase {
 
       // Close all BrowserViews before switching space to prevent them from covering the main window
       try {
-        const browserViewService = container.get(BrowserViewService)
-        browserViewService.closeAll()
+        const browserService = container.get(BrowserService)
+        browserService.closeAll()
       } catch {
-        // BrowserViewService might not be available, ignore
+        // BrowserService might not be available, ignore
       }
 
       if (process.env.VITE_DEV_SERVER_URL) {

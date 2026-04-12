@@ -1,0 +1,89 @@
+import { useToast } from "@/components/ui/use-toast"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import {
+  useWebviewStore,
+  defaultWebviewState,
+} from "@/apps/web-app/store/webview-store"
+import { BrowserViewContainer } from "./BrowserViewContainer"
+import { RawDataTableView } from "./RawDataTableView"
+
+export function WebviewContent({ url }: { url: string }) {
+  const { tabId, isActive } = useTabContext()
+  const { space } = useCurrentPathInfo()
+  const { toast } = useToast()
+  const state = useWebviewStore((s) => s.states[tabId])
+  const setWebviewState = useWebviewStore((s) => s.setWebviewState)
+
+  const { viewMode, isReaderViewMode, selectedAdapter } =
+    state || defaultWebviewState
+
+  const isAnyOverlayOpen = useAppRuntimeStore(
+    (state) =>
+      state.isCmdkOpen ||
+      state.isKeyboardShortcutsOpen ||
+      state.isSpaceSettingsOpen ||
+      state.isGlobalSearchOpen ||
+      state.isTerminalVisible
+  )
+
+  // Note: Reader view is now rendered inside BrowserView via eidos-read:// protocol
+  // We still render BrowserViewContainer when in reader view mode
+  if (viewMode === "browser" || isReaderViewMode) {
+    return (
+      <div className="relative flex flex-1 min-h-0">
+        <BrowserViewContainer
+          viewId={tabId}
+          url={url}
+          isActive={isActive}
+          isAnyOverlayOpen={isAnyOverlayOpen}
+          viewMode={
+            isReaderViewMode
+              ? "browser"
+              : viewMode === "table"
+                ? "table"
+                : "browser"
+          }
+          isReaderViewMode={isReaderViewMode}
+          onNavigate={({ url, canGoBack, canGoForward }) => {
+            useWebviewStore
+              .getState()
+              .onNavigate(tabId, url, canGoBack, canGoForward)
+          }}
+          onLoadingChange={(loading) =>
+            setWebviewState(tabId, { isLoading: loading })
+          }
+          onRawdataNavigation={(target) => {
+            const result = useWebviewStore
+              .getState()
+              .navigateRawData(tabId, target)
+            if (result.success) {
+              toast({
+                title: `Switched to ${result.adapter?.name}`,
+                description: `Viewing raw data for ${result.host}`,
+              })
+            } else {
+              toast({
+                title: "No adapter found",
+                description: `No raw data adapter available for ${result.host}`,
+                variant: "destructive",
+              })
+            }
+          }}
+          onTitleChange={(title) =>
+            setWebviewState(tabId, { pageTitle: title })
+          }
+        />
+      </div>
+    )
+  }
+
+  if (selectedAdapter && space) {
+    return (
+      <RawDataTableView adapter={selectedAdapter} space={space} url={url} />
+    )
+  }
+
+  return null
+}

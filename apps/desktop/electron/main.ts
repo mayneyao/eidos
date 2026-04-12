@@ -35,7 +35,7 @@ import {
 } from "./modules/space-management/space-management.module"
 // Import window services directly from their files to avoid circular deps
 import { AppLifecycleService } from "./modules/window/app-lifecycle.service"
-import { BrowserViewService } from "./modules/window/browser-view.service"
+import { BrowserService } from "./modules/browser/browser.service"
 import { GlobalShortcutsService } from "./modules/window/global-shortcuts.service"
 import { ProtocolService } from "./modules/window/protocol.service"
 import { TrayService } from "./modules/window/tray.service"
@@ -70,6 +70,21 @@ process.env.DIST = path.join(__dirname, "../dist")
 process.env.VITE_PUBLIC = app.isPackaged
   ? process.env.DIST
   : path.join(process.env.DIST, "../public")
+
+// Register custom protocols before app ready
+// Reader View protocol: eidos-read://
+import { protocol } from "electron"
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "eidos-read",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      bypassCSP: false,
+    },
+  },
+])
 
 // Error handling
 process.on("uncaughtException", (error) => {
@@ -198,8 +213,8 @@ async function main() {
     globalShortcutsService.setWindowService(windowService)
     globalShortcutsService.setupWindowFocusListeners()
 
-    // Set WindowService on BrowserViewService
-    container.get(BrowserViewService).setWindowService(windowService)
+    // Set WindowService on BrowserService
+    container.get(BrowserService).setWindowService(windowService)
 
     // Create tray via DI
     const trayService = container.get(TrayService)

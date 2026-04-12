@@ -23,7 +23,6 @@ import { ConfigModule } from "../config/config.module"
 import { UpdaterModule } from "../updater/updater.module"
 import { DataSpaceModule } from "../data-space"
 import { WindowService } from "./window.service"
-import { BrowserViewService } from "./browser-view.service"
 import { GlobalShortcutsService } from "./global-shortcuts.service"
 import { TrayService } from "./tray.service"
 import { WebviewService } from "./webview.service"
@@ -39,7 +38,6 @@ import { AppLifecycleService } from "./app-lifecycle.service"
   ],
   providers: [
     WindowService,
-    BrowserViewService,
     GlobalShortcutsService,
     TrayService,
     WebviewService,
@@ -48,7 +46,6 @@ import { AppLifecycleService } from "./app-lifecycle.service"
   ],
   exports: [
     WindowService,
-    BrowserViewService,
     GlobalShortcutsService,
     TrayService,
     WebviewService,
