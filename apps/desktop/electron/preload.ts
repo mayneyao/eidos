@@ -179,11 +179,12 @@ function main() {
         onUpdate: (
           viewId: string,
           callback: (data: {
-            type: "loading" | "navigate" | "rawdata-navigation"
+            type: "loading" | "navigate" | "rawdata-navigation" | "title"
             isLoading?: boolean
             url?: string
             canGoBack?: boolean
             canGoForward?: boolean
+            title?: string
           }) => void
         ) => {
           const listener = (
@@ -224,6 +225,16 @@ function main() {
           ipcRenderer.on("browser.view:newTab", listener)
           return () => {
             ipcRenderer.removeListener("browser.view:newTab", listener)
+          }
+        },
+        // Event listener for zoom level changes
+        onZoomChanged: (callback: () => void) => {
+          const listener = () => {
+            callback()
+          }
+          ipcRenderer.on("browser.view:zoomChanged", listener)
+          return () => {
+            ipcRenderer.removeListener("browser.view:zoomChanged", listener)
           }
         },
       },

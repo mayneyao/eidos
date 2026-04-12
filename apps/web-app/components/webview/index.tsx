@@ -43,14 +43,7 @@ export function Webview({ url }: { url: string }) {
   const [selectedAdapter, setSelectedAdapter] = useState<RawDataAdapter | null>(
     null
   )
-
-  // Use store state for rawdata popover so it triggers overlay detection
-  const isRawDataOpen = useAppRuntimeStore(
-    (state) => state.isRawDataPopoverOpen
-  )
-  const setIsRawDataOpen = useAppRuntimeStore(
-    (state) => state.setRawDataPopoverOpen
-  )
+  const [pageTitle, setPageTitle] = useState<string>("")
 
   const isAnyOverlayOpen = useAppRuntimeStore(
     (state) =>
@@ -58,14 +51,13 @@ export function Webview({ url }: { url: string }) {
       state.isKeyboardShortcutsOpen ||
       state.isSpaceSettingsOpen ||
       state.isGlobalSearchOpen ||
-      state.isRawDataPopoverOpen ||
       state.isTerminalVisible
   )
   const { isActive } = useTabContext()
   const { space } = useCurrentPathInfo()
   const { toast } = useToast()
 
-  useTabTitle(displayUrl || url || "Webview")
+  useTabTitle(pageTitle || displayUrl || url || "Webview")
 
   useEffect(() => {
     setDisplayUrl(url)
@@ -155,7 +147,6 @@ export function Webview({ url }: { url: string }) {
       if (matchingAdapter) {
         setSelectedAdapter(matchingAdapter)
         setViewMode("table")
-        setIsRawDataOpen(false)
         toast({
           title: `Switched to ${matchingAdapter.name}`,
           description: `Viewing raw data for ${host}`,
@@ -235,7 +226,6 @@ export function Webview({ url }: { url: string }) {
     // Switch to table view directly, the view will be created by RawDataTableView
     setSelectedAdapter(adapter)
     setViewMode("table")
-    setIsRawDataOpen(false)
     // Update address bar to show rawdata: protocol
     setDisplayUrl(`rawdata:${url}`)
 
@@ -313,8 +303,6 @@ export function Webview({ url }: { url: string }) {
           hasRawData={hasRawData}
           isLoadingAdapters={isLoadingAdapters}
           matchedAdapters={matchedAdapters}
-          isRawDataOpen={isRawDataOpen}
-          setIsRawDataOpen={setIsRawDataOpen}
           onDisplayUrlChange={setDisplayUrl}
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
@@ -341,6 +329,7 @@ export function Webview({ url }: { url: string }) {
                 onNavigate={handleNavigate}
                 onLoadingChange={setIsLoading}
                 onRawdataNavigation={handleRawDataNavigation}
+                onTitleChange={setPageTitle}
               />
             </div>
           </div>

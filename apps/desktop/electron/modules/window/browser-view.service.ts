@@ -38,6 +38,35 @@ export class BrowserViewService extends IpcServiceBase {
 
   setWindowService(windowService: WindowService): void {
     this.windowService = windowService
+    this._setupZoomSync()
+  }
+
+  /**
+   * Setup zoom level synchronization between main window and all BrowserViews
+   */
+  private _setupZoomSync(): void {
+    const win = this.win
+    if (!win) return
+
+    // Listen for zoom level changes on main window
+    win.webContents.on("zoom-changed", (_, direction) => {
+      const newZoomLevel = win.webContents.getZoomLevel()
+      this._syncZoomToAllViews(newZoomLevel)
+    })
+  }
+
+  /**
+   * Sync zoom level to all BrowserViews
+   */
+  private _syncZoomToAllViews(zoomLevel: number): void {
+    for (const [, view] of this.views) {
+      view.webContents.setZoomLevel(zoomLevel)
+    }
+    // Notify renderer to update bounds after zoom change
+    const win = this.win
+    if (win) {
+      win.webContents.send("browser.view:zoomChanged", zoomLevel)
+    }
   }
 
   /**
@@ -65,8 +94,21 @@ export class BrowserViewService extends IpcServiceBase {
       },
     })
     view.webContents.loadURL(url)
-    view.setBounds(bounds)
+
+    // Convert CSS pixels to physical pixels for initial bounds
+    const zoomFactor = win.webContents.getZoomFactor()
+    view.setBounds({
+      x: Math.round(bounds.x * zoomFactor),
+      y: Math.round(bounds.y * zoomFactor),
+      width: Math.round(bounds.width * zoomFactor),
+      height: Math.round(bounds.height * zoomFactor),
+    })
+
     win.contentView.addChildView(view)
+
+    // Sync current zoom level to new view
+    const currentZoomLevel = win.webContents.getZoomLevel()
+    view.webContents.setZoomLevel(currentZoomLevel)
 
     view.webContents.setWindowOpenHandler(
       ({ url, frameName, features, disposition }) => {
@@ -178,6 +220,11 @@ export class BrowserViewService extends IpcServiceBase {
         win.webContents.send("browser.view:requestBoundsUpdate", viewId)
       }
     })
+
+    // Update title when page title changes
+    wc.on("page-title-updated", (_, title) => {
+      send({ type: "title", title })
+    })
   }
 
   @IpcMethod()
@@ -215,8 +262,17 @@ export class BrowserViewService extends IpcServiceBase {
       return
     }
     const view = this.views.get(viewId)
-    if (view) {
-      view.setBounds(bounds)
+    const win = this.win
+    if (view && win) {
+      // Convert CSS pixels (from getBoundingClientRect) to physical pixels
+      // by multiplying by zoom factor
+      const zoomFactor = win.webContents.getZoomFactor()
+      view.setBounds({
+        x: Math.round(bounds.x * zoomFactor),
+        y: Math.round(bounds.y * zoomFactor),
+        width: Math.round(bounds.width * zoomFactor),
+        height: Math.round(bounds.height * zoomFactor),
+      })
     }
   }
 

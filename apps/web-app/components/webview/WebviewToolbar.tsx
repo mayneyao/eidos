@@ -7,19 +7,13 @@ import {
   Globe,
   Loader2,
   RefreshCcw,
-  Table2,
   X,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import type { RawDataAdapter, ViewMode } from "./types"
+import type { NativeMenuItem } from "@/components/ui/native-context-menu"
 
 interface WebviewToolbarProps {
   viewId: string
@@ -31,8 +25,6 @@ interface WebviewToolbarProps {
   hasRawData: boolean
   isLoadingAdapters: boolean
   matchedAdapters: RawDataAdapter[]
-  isRawDataOpen: boolean
-  setIsRawDataOpen: (open: boolean) => void
   onDisplayUrlChange: (url: string) => void
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
   onBlur: () => void
@@ -47,6 +39,37 @@ interface WebviewToolbarProps {
   addressBarRef?: Ref<HTMLInputElement>
 }
 
+// Build native menu items for rawdata adapters
+function buildRawDataMenuItems(adapters: RawDataAdapter[]): NativeMenuItem[] {
+  if (adapters.length === 0) {
+    return [
+      { type: "text", label: "No adapters available", enabled: false },
+      { type: "separator" },
+      { type: "text", label: "Add adapters to .eidos/.rawdata/" },
+    ]
+  }
+
+  const items: NativeMenuItem[] = [
+    {
+      type: "text",
+      label: `Available Data (${adapters.length})`,
+      enabled: false,
+    },
+    { type: "separator" },
+  ]
+
+  adapters.forEach((adapter, index) => {
+    items.push({
+      type: "text",
+      label: adapter.name,
+      enabled: true,
+      id: `rawdata-adapter-${index}`,
+    })
+  })
+
+  return items
+}
+
 export function WebviewToolbar({
   viewId,
   displayUrl,
@@ -57,8 +80,6 @@ export function WebviewToolbar({
   hasRawData,
   isLoadingAdapters,
   matchedAdapters,
-  isRawDataOpen,
-  setIsRawDataOpen,
   onDisplayUrlChange,
   onKeyDown,
   onBlur,
@@ -72,6 +93,46 @@ export function WebviewToolbar({
   onBackToBrowser,
   addressBarRef,
 }: WebviewToolbarProps) {
+  const handleRawDataButtonClick = async (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    if (!window.eidos?.showNativeMenu) return
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const menuItems = buildRawDataMenuItems(matchedAdapters)
+
+    // Create a one-time click handler
+    const clickHandler = (e: any, itemId: string) => {
+      // Extract adapter index from item id (format: "rawdata-adapter-{index}")
+      const match = itemId.match(/rawdata-adapter-(\d+)/)
+      if (match) {
+        const adapterIndex = parseInt(match[1], 10)
+        if (matchedAdapters[adapterIndex]) {
+          onRunAdapter(matchedAdapters[adapterIndex])
+        }
+      }
+      // Remove this listener
+      if (listenerId) {
+        window.eidos?.off?.("native-menu-click", listenerId)
+      }
+    }
+
+    // Register listener and store the listener ID
+    const listenerId = window.eidos.on("native-menu-click", clickHandler)
+
+    try {
+      await window.eidos.showNativeMenu(menuItems, {
+        clientX: rect.left,
+        clientY: rect.bottom + 4,
+      })
+    } catch (error) {
+      console.error("Failed to show native menu:", error)
+      // Clean up listener on error
+      if (listenerId) {
+        window.eidos?.off?.("native-menu-click", listenerId)
+      }
+    }
+  }
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 border-b bg-background px-2">
       <Button
@@ -124,6 +185,22 @@ export function WebviewToolbar({
       >
         <Bug className="h-4 w-4" />
       </Button>
+      {viewMode === "browser" && (
+        <Button
+          variant={hasRawData ? "default" : "ghost"}
+          size="icon"
+          className={cn(
+            "h-7 w-7",
+            hasRawData &&
+              "bg-primary text-primary-foreground hover:bg-primary/90"
+          )}
+          disabled={isLoadingAdapters}
+          onClick={handleRawDataButtonClick}
+          title="Raw Data"
+        >
+          <Database className="h-4 w-4" />
+        </Button>
+      )}
       <div
         className={cn(
           "mx-2 flex flex-1 items-center overflow-hidden rounded-md border px-2 py-1 transition-colors duration-200",
@@ -155,76 +232,6 @@ export function WebviewToolbar({
           </div>
         )}
       </div>
-
-      {viewMode === "browser" && (
-        <Popover open={isRawDataOpen} onOpenChange={setIsRawDataOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant={hasRawData ? "default" : "ghost"}
-              size="sm"
-              className={cn(
-                "h-7 gap-1.5 px-2",
-                hasRawData &&
-                  "bg-primary text-primary-foreground hover:bg-primary/90"
-              )}
-              disabled={isLoadingAdapters}
-            >
-              <Database className="h-3.5 w-3.5" />
-              <span className="text-xs">Raw Data</span>
-              {hasRawData && (
-                <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-foreground/20 px-1 text-[10px]">
-                  {matchedAdapters.length}
-                </span>
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-72 p-0" sideOffset={4}>
-            <div className="border-b px-3 py-2">
-              <h4 className="text-sm font-medium">Available Data</h4>
-              <p className="text-xs text-muted-foreground">
-                {matchedAdapters.length > 0
-                  ? "Raw data available for this site"
-                  : "No raw data available for this site"}
-              </p>
-            </div>
-            <ScrollArea className="h-[200px]">
-              {matchedAdapters.length > 0 ? (
-                <div className="p-1">
-                  {matchedAdapters.map((adapter) => (
-                    <button
-                      key={`${adapter.site}-${adapter.name}`}
-                      onClick={() => onRunAdapter(adapter)}
-                      className="flex w-full items-start gap-2 rounded-sm px-2 py-2 text-left hover:bg-accent"
-                    >
-                      <Table2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">{adapter.name}</p>
-                        {adapter.description && (
-                          <p className="truncate text-xs text-muted-foreground">
-                            {adapter.description}
-                          </p>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
-                  <Database className="h-8 w-8 text-muted-foreground/50" />
-                  <p className="text-xs text-muted-foreground">
-                    No adapters available for this domain.
-                    <br />
-                    Add adapters to{" "}
-                    <code className="rounded bg-muted px-1">
-                      .eidos/.rawdata/
-                    </code>
-                  </p>
-                </div>
-              )}
-            </ScrollArea>
-          </PopoverContent>
-        </Popover>
-      )}
 
       {viewMode === "table" && (
         <Button

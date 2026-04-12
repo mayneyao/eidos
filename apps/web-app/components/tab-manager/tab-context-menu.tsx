@@ -3,6 +3,7 @@ import type { FileHandlerMeta } from "@/packages/core/types/IExtension"
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 import {
   CopyIcon,
+  ExternalLink,
   FileCodeIcon,
   FileIcon,
   FolderOpen,
@@ -17,6 +18,7 @@ import {
 import { useTranslation } from "react-i18next"
 
 import { isDayPageId } from "@/lib/utils"
+import { isDesktopMode } from "@/lib/env"
 // import { getFileExtension } from "@/hooks/use-file-handlers"
 import { getFileExtension, useFileHandlers } from "@/hooks/use-file-handlers"
 import { useFileItemActions } from "@/hooks/use-file-item-actions"
@@ -356,6 +358,20 @@ export function TabContextMenu({
     setCurrentApp(nodeApp)
   }
 
+  // Check if tab URL is an external URL (not internal Eidos route)
+  const isExternalUrl = (url: string): boolean => {
+    return url.startsWith("http://") || url.startsWith("https://")
+  }
+
+  const handleOpenInBrowser = async () => {
+    if (!currentTab?.url) return
+    if (isDesktopMode && window.eidos?.openUrl) {
+      await window.eidos.openUrl(currentTab.url)
+    } else {
+      window.open(currentTab.url, "_blank")
+    }
+  }
+
   return (
     <>
       {/* Key forces remount when tab or file type changes, ensuring fresh menu registrations */}
@@ -377,6 +393,22 @@ export function TabContextMenu({
           </ContextMenuItem>
 
           <ContextMenuItem onClick={onCloseAll}>Close All</ContextMenuItem>
+
+          {/* Open in Browser (external URLs only) */}
+          {isExternalUrl(tabUrl) && (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem onClick={handleOpenInBrowser}>
+                <ExternalLink className="mr-2 h-4 w-4" />
+                <span>
+                  {t(
+                    "tab.menu.openInDefaultBrowser",
+                    "Open in Default Browser"
+                  )}
+                </span>
+              </ContextMenuItem>
+            </>
+          )}
 
           {/* Split View Options */}
           <ContextMenuSeparator />

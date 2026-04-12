@@ -84,11 +84,12 @@ interface Window {
         onUpdate: (
           viewId: string,
           callback: (data: {
-            type: "navigate" | "loading" | "rawdata-navigation"
+            type: "navigate" | "loading" | "rawdata-navigation" | "title"
             url?: string
             canGoBack?: boolean
             canGoForward?: boolean
             isLoading?: boolean
+            title?: string
           }) => void
         ) => () => void
         // Event listener for new tab requests (window.open interception)
@@ -104,6 +105,8 @@ interface Window {
           viewId: string,
           callback: () => void
         ) => () => void
+        // Event listener for zoom level changes
+        onZoomChanged: (callback: () => void) => () => void
       }
     }
     AI: {
