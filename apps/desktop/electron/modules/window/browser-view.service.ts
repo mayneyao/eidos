@@ -106,6 +106,9 @@ export class BrowserViewService extends IpcServiceBase {
 
     win.contentView.addChildView(view)
 
+    // Start as hidden, frontend will control visibility
+    view.setVisible(false)
+
     // Sync current zoom level to new view
     const currentZoomLevel = win.webContents.getZoomLevel()
     view.webContents.setZoomLevel(currentZoomLevel)

@@ -131,9 +131,8 @@ export function BrowserViewContainer({
 
     const shouldShow = isActive && !isAnyOverlayOpen && viewMode === "browser"
 
-    window.eidos.browser.view.setVisible(viewId, shouldShow)
-
     if (shouldShow) {
+      // Update bounds before showing to ensure correct position
       const content = containerRef.current
       if (content) {
         const rect = content.getBoundingClientRect()
@@ -145,6 +144,8 @@ export function BrowserViewContainer({
         })
       }
     }
+
+    window.eidos.browser.view.setVisible(viewId, shouldShow)
   }, [isActive, isAnyOverlayOpen, url, viewMode, viewId])
 
   return (
