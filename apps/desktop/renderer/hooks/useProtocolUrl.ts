@@ -163,18 +163,12 @@ export const useProtocolUrl = () => {
 
   useEffect(() => {
     if (!isDesktopMode) return
-
     listenerRef.current = handleProtocolUrl
-
-    console.log("register protocol url listener")
     const listenerId = window.eidos.on(
       EidosProtocolUrlChannelName,
       listenerRef.current
     )
-    console.log("listenerId", listenerId)
-
     return () => {
-      console.log("unregister protocol url listener")
       if (listenerId) {
         window.eidos.off(EidosProtocolUrlChannelName, listenerId)
       }

@@ -146,17 +146,6 @@ export function IntegratedTerminal({
 
   // Create initial terminal when first shown and spacePath is available
   useEffect(() => {
-    console.log(
-      "[Terminal] Effect - isVisible:",
-      isVisible,
-      "sessions:",
-      sessions.length,
-      "spacePath:",
-      spacePath,
-      "hasAttempted:",
-      hasAttemptedInitialCreate
-    )
-
     if (!isVisible) return
     if (sessions.length > 0) return
     if (hasAttemptedInitialCreate) return

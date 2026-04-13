@@ -156,12 +156,6 @@ export function TabContainer({
   // For external URLs, use a placeholder path and store the actual URL in ref
   const externalUrlRef = useRef<string | null>(null)
   const routerInitialEntries = useMemo(() => {
-    console.log(
-      "[TabContainer] initialUrl:",
-      initialUrl,
-      "isExternal:",
-      isExternalUrl(initialUrl)
-    )
     if (isExternalUrl(initialUrl)) {
       externalUrlRef.current = initialUrl
       return ["/external"]
@@ -190,17 +184,6 @@ export function TabContainer({
             isUpdatingFromUrlRef={isUpdatingFromUrlRef}
           />
           <div className="flex-1 overflow-y-auto min-h-0 h-full">
-            {(() => {
-              console.log(
-                "[TabContainer] Rendering children for tabId:",
-                tabId,
-                "isActive:",
-                isActive,
-                "children:",
-                children
-              )
-              return null
-            })()}
             {children}
           </div>
         </TabProvider>

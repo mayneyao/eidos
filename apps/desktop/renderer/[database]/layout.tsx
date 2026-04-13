@@ -49,17 +49,6 @@ function TabContentLayout() {
   // Check if this is an external URL (http/https)
   const isExternalUrl = !!tabUrl && /^https?:\/\//i.test(tabUrl)
 
-  console.log(
-    "[Desktop TabContentLayout] tabId:",
-    tabId,
-    "tabUrl:",
-    tabUrl,
-    "pathname:",
-    location.pathname,
-    "isExternalUrl:",
-    isExternalUrl
-  )
-
   return (
     <div className="flex flex-col h-full min-w-0">
       <div
@@ -96,23 +85,12 @@ export function DesktopSpaceLayout() {
 
   // Get space path for terminal
   useEffect(() => {
-    console.log(
-      "[Layout] spacePath effect - space:",
-      space,
-      "params.database:",
-      params.database
-    )
     const getSpacePath = async () => {
       try {
         // Try to get space by ID first (most reliable)
         if (space) {
           const spaceInfo = await window.eidos?.spaceMgmt?.getSpaceById(space)
-          console.log("[Layout] Space info from getById:", spaceInfo)
           if (spaceInfo?.path) {
-            console.log(
-              "[Layout] Setting spacePath from getById:",
-              spaceInfo.path
-            )
             setSpacePath(spaceInfo.path)
             return
           }
@@ -120,12 +98,7 @@ export function DesktopSpaceLayout() {
 
         // Fallback: try get-current-space
         const currentSpace = await window.eidos?.spaceMgmt?.getCurrentSpace()
-        console.log("[Layout] Current space from getCurrent:", currentSpace)
         if (currentSpace?.path) {
-          console.log(
-            "[Layout] Setting spacePath from getCurrent:",
-            currentSpace.path
-          )
           setSpacePath(currentSpace.path)
           return
         }
@@ -133,16 +106,12 @@ export function DesktopSpaceLayout() {
         // Fallback: try to construct from dataFolder (legacy)
         if (space) {
           const dataFolder = await window.eidos?.config?.get("dataFolder")
-          console.log("[Layout] dataFolder:", dataFolder)
           if (dataFolder) {
             const fullPath = `${dataFolder}/${space}`
-            console.log("[Layout] Setting spacePath from dataFolder:", fullPath)
             setSpacePath(fullPath)
             return
           }
         }
-
-        console.log("[Layout] Could not determine space path")
       } catch (e) {
         console.error("[Layout] Failed to get space path:", e)
       }
@@ -156,17 +125,14 @@ export function DesktopSpaceLayout() {
 
   // Listen for new tab requests from browser views
   useEffect(() => {
-    console.log("[DesktopLayout] Setting up onNewTab listener")
     if (
       typeof window !== "undefined" &&
       window.eidos?.browser?.view?.onNewTab
     ) {
       const unsubscribe = window.eidos.browser.view.onNewTab(({ url }) => {
-        console.log("[DesktopLayout] Received newTab event:", url)
         // Open with the actual URL (https://...) as tab URL
         // TabContentLayout will detect this and render webview
         useTabStore.getState().openTab(url, url)
-        console.log("[DesktopLayout] Opened new tab for:", url)
       })
       return unsubscribe
     } else {
