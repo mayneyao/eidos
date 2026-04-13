@@ -236,7 +236,7 @@ export function TabBar({
 
   // Use useCallback to stabilize handleNewTab reference
   const handleNewTab = useCallback(() => {
-    openTab("/", "New Tab", currentPanelId || undefined)
+    openTab("/", "New Tab", { panelId: currentPanelId || undefined })
   }, [openTab, currentPanelId])
 
   // Local state for optimistic UI updates during drag

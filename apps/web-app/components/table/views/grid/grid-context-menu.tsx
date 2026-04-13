@@ -5,6 +5,7 @@ import {
   ExternalLinkIcon,
   MoveDiagonalIcon,
   MoveUpRightIcon,
+  PanelRightIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -35,6 +36,7 @@ import { useTranslation } from "react-i18next"
 import { TableContext, useTableContext } from "../../hooks"
 import { ScriptContextMenu } from "./script-context-menu"
 import { useTableStore } from "../../table-store-provider"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 
 export function GridContextMenu({
   children,
@@ -128,6 +130,13 @@ export function GridContextMenu({
     if (!cell) return
     window.open(cell, "_blank")
   }
+
+  const openUrlInRightPanel = () => {
+    const cell = getCell()
+    if (!cell) return
+    const { openTab } = useTabStore.getState()
+    openTab(cell, "URL", { openInRightPanel: true })
+  }
   const handleDelete = () => {
     setShowDeleteDialog(true)
   }
@@ -175,10 +184,16 @@ export function GridContextMenu({
           Open in full page
         </ContextMenuItem>
         {currentField?.type === "url" && (
-          <ContextMenuItem onSelect={openURl}>
-            <ExternalLinkIcon className="pr-2" />
-            Open URL
-          </ContextMenuItem>
+          <>
+            <ContextMenuItem onSelect={openUrlInRightPanel}>
+              <PanelRightIcon className="pr-2" />
+              Open URL in right panel
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={openURl}>
+              <ExternalLinkIcon className="pr-2" />
+              Open URL
+            </ContextMenuItem>
+          </>
         )}
 
         {/* Script actions */}
