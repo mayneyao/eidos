@@ -17,6 +17,7 @@ import {
   FileType,
   LayoutTemplate,
   User,
+  Globe,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -25,21 +26,7 @@ import { useEffect, useState } from "react"
 import { isDesktopMode } from "@/lib/env"
 import { useCurrentSpace } from "@/hooks/use-current-space"
 import { SettingsExternalLinks } from "./settings-external-links"
-
-type SettingsSection =
-  | "space-general"
-  | "space-document"
-  | "space-mounts"
-  | "space-extensions"
-  | "space-newtab"
-  | "space-relay"
-  | "space-theme"
-  | "general"
-  | "account"
-  | "ai"
-  | "api"
-  | "sync"
-  | "security"
+import { type SettingsSection } from "./settings-events"
 
 interface SettingsItem {
   id: SettingsSection
@@ -209,6 +196,17 @@ export function SettingsSidebar({
       ),
       icon: <Cloud className="h-5 w-5" />,
       disabled: !isDesktopMode,
+      isBeta: true,
+      category: "global",
+    },
+    {
+      id: "browser",
+      title: t("settings.browser", "Browser"),
+      description: t(
+        "settings.browserDescription",
+        "Configure search engine and link handling preferences"
+      ),
+      icon: <Globe className="h-5 w-5" />,
       isBeta: true,
       category: "global",
     },

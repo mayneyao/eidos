@@ -43,9 +43,15 @@ import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useDevToolsStore } from "@/components/dev-tools"
+import {
+  useBrowserSettingsStore,
+  getSearchUrl,
+  getAllSearchEngines,
+  getDefaultSearchEngine,
+} from "@/components/settings/stores/browser-settings-store"
 
 import { DocActionCommandItems } from "./doc-actions"
-import { useCMDKGoto, useInput } from "./hooks"
+import { useCMDKGoto, useInput, useCMDKStore } from "./hooks"
 import { ImportSchema } from "./import-schema"
 import { SecondaryView } from "./secondary-view"
 
@@ -73,6 +79,12 @@ export function CommandDialogDemo() {
   const { resetTabs } = useFavBlocks()
 
   const currentNode = useCurrentNode()
+
+  // Initialize browser settings
+  const { initialize: initializeBrowserSettings } = useBrowserSettingsStore()
+  useEffect(() => {
+    void initializeBrowserSettings()
+  }, [initializeBrowserSettings])
 
   useKeyPress(["ctrl.k", "meta.k"], (e) => {
     e.preventDefault()
@@ -140,6 +152,39 @@ export function CommandDialogDemo() {
     navigate(trimmed, {
       target: "_blank",
     })
+  }
+
+  const { config } = useBrowserSettingsStore()
+
+  const searchWithDefaultEngine = async () => {
+    // Get fresh input value from store
+    const currentInput = useCMDKStore.getState().input
+    const trimmed = currentInput.trim()
+    console.log("[CMDK Debug] input:", currentInput, "trimmed:", trimmed)
+    if (!trimmed) return
+    // Use configured default search engine
+    const searchUrl = getSearchUrl(config.defaultSearchEngine, trimmed, config)
+    console.log("[CMDK Debug] final searchUrl:", searchUrl)
+    setCmdkOpen(false)
+
+    if (config.openLinksInBuiltInBrowser) {
+      // Open in built-in browser (new tab)
+      navigate(searchUrl, {
+        target: "_blank",
+      })
+    } else {
+      // Open in system default browser
+      if (isDesktopMode && window.eidos?.openUrl) {
+        await window.eidos.openUrl(searchUrl)
+      } else {
+        window.open(searchUrl, "_blank")
+      }
+    }
+  }
+
+  const getCurrentSearchEngineName = () => {
+    const engine = getDefaultSearchEngine(config)
+    return engine.name
   }
 
   const toggleGodMode = () => {
@@ -599,6 +644,25 @@ export function CommandDialogDemo() {
                           <span>Open "{input.trim()}" in webview</span>
                           <span className="text-xs opacity-60">
                             Open the URL in a built-in webview
+                          </span>
+                        </div>
+                      </CommandItem>
+                    )}
+                    {input.trim().length > 0 && !isUrlLike(input) && (
+                      <CommandItem
+                        onSelect={searchWithDefaultEngine}
+                        value={`search ${input} with ${getCurrentSearchEngineName()}`}
+                      >
+                        <Globe className="mr-2 h-4 w-4 text-primary" />
+                        <div className="flex flex-col">
+                          <span className="font-medium">
+                            {t("cmdk.searchWithEngine", {
+                              engine: getCurrentSearchEngineName(),
+                              input: input.trim(),
+                            })}
+                          </span>
+                          <span className="text-xs opacity-60">
+                            {t("cmdk.searchWithEngineDescription")}
                           </span>
                         </div>
                       </CommandItem>

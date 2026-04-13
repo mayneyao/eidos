@@ -11,8 +11,10 @@ export type SettingsSection =
   | "account"
   | "ai"
   | "api"
+  | "storage"
   | "sync"
   | "security"
+  | "browser"
 
 export interface SettingsOpenEvent {
   section?: SettingsSection
