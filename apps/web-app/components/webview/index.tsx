@@ -20,19 +20,9 @@ export function Webview({ url }: { url: string }) {
 
   const { displayUrl = "", pageTitle = "" } = state || defaultWebviewState
 
-  console.log(
-    "[Webview] Rendering with url:",
-    url,
-    "tabId:",
-    tabId,
-    "isDesktop:",
-    isDesktopMode
-  )
-
   useTabTitle(pageTitle || displayUrl || url || "Webview")
 
   useEffect(() => {
-    console.log("[Webview] Setting displayUrl for tabId:", tabId, "url:", url)
     setWebviewState(tabId, { displayUrl: url })
   }, [url, tabId, setWebviewState])
 

@@ -20,7 +20,6 @@ export const useSpace = () => {
       // In desktop mode, use IPC to get workspace list
       try {
         const spaces: SpaceInfo[] = await window.eidos.spaceMgmt.listSpaces()
-        console.log("spaces", spaces)
         setSpaceList(spaces)
       } catch (error) {
         console.error("Failed to get spaces from Electron:", error)

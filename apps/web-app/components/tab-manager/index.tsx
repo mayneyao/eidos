@@ -163,7 +163,6 @@ export function TabManager({ children }: { children: React.ReactNode }) {
     }
   }, [goInTabHistory])
 
-  console.log("[TabManager] Rendering with children:", children)
   return (
     <div className="relative flex-1 min-h-0 flex flex-col">
       <SplitPanelManager>{children}</SplitPanelManager>
