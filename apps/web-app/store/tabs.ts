@@ -47,7 +47,11 @@ interface TabState {
   splitDirection: "horizontal" | "vertical"
 
   // Tab Actions
-  openTab: (url: string, title?: string, panelId?: string) => void
+  openTab: (
+    url: string,
+    title?: string,
+    options?: { panelId?: string; openInRightPanel?: boolean }
+  ) => void
   closeTab: (id: string) => void
   closeOtherTabs: (id: string) => void
   closeTabsToRight: (id: string) => void
@@ -111,14 +115,55 @@ export const useTabStore = create<TabState>()(
       closedTabsStack: [],
       splitDirection: "horizontal",
 
-      openTab: (url, title = "New Tab", panelId) => {
+      openTab: (url, title = "New Tab", options) => {
         const { tabs, panels, activePanelId } = get()
+        const { panelId, openInRightPanel } = options || {}
 
         const newTab: Tab = {
           id: nanoid(),
           url,
           title,
           lastAccessTime: Date.now(),
+        }
+
+        // Handle openInRightPanel option
+        if (openInRightPanel) {
+          const currentPanelIndex = panels.findIndex(
+            (p) => p.id === activePanelId
+          )
+          const rightPanelIndex = currentPanelIndex + 1
+
+          if (rightPanelIndex < panels.length) {
+            // There's a panel to the right, use it
+            const rightPanel = panels[rightPanelIndex]
+            set({
+              tabs: [...tabs, newTab],
+              panels: panels.map((p) =>
+                p.id === rightPanel.id
+                  ? {
+                      ...p,
+                      tabIds: [...p.tabIds, newTab.id],
+                      activeTabId: newTab.id,
+                    }
+                  : p
+              ),
+              activePanelId: rightPanel.id,
+            })
+          } else {
+            // No panel to the right, create new one
+            const newPanel: Panel = {
+              id: nanoid(),
+              tabIds: [newTab.id],
+              activeTabId: newTab.id,
+            }
+            set({
+              tabs: [...tabs, newTab],
+              panels: [...panels, newPanel],
+              activePanelId: newPanel.id,
+              splitDirection: "horizontal",
+            })
+          }
+          return
         }
 
         // Determine which panel to add the tab to
