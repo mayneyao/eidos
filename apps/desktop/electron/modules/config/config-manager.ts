@@ -36,6 +36,23 @@ export interface SyncConfig {
   defaultProvider?: string
 }
 
+// Search engine configuration
+export interface SearchEngineConfig {
+  id: string
+  name: string
+  url: string
+  shortcut?: string // e.g., "google.com", "bing.com"
+}
+
+export interface BrowserConfig {
+  // Default search engine ID
+  defaultSearchEngine: string
+  // Whether to open links in built-in browser
+  openLinksInBuiltInBrowser: boolean
+  // Custom search engines (user-defined)
+  customSearchEngines: SearchEngineConfig[]
+}
+
 export interface AppConfig {
   // the folder where the data is stored (deprecated, use space registry instead)
   dataFolder?: string
@@ -69,6 +86,8 @@ export interface AppConfig {
     y?: number
     isMaximized?: boolean
   }
+  // Browser configuration
+  browser: BrowserConfig
 }
 
 const emptyConfig: AppConfig = {
@@ -101,6 +120,11 @@ const emptyConfig: AppConfig = {
   user: undefined,
   account: undefined,
   windowState: undefined,
+  browser: {
+    defaultSearchEngine: "google",
+    openLinksInBuiltInBrowser: true,
+    customSearchEngines: [],
+  },
 }
 
 @Injectable()

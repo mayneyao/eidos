@@ -1,6 +1,7 @@
 import { shell } from "electron"
 
 import { Inject } from "../../../common/di"
+import { ConfigManager } from "../../config/config-manager"
 import { WindowService } from "../../window/window.service"
 import type { ViewEventData } from "../types"
 import { ViewManagerService } from "./view-manager.service"
@@ -16,7 +17,8 @@ export class EventHandlerService {
 
   constructor(
     @Inject(ViewManagerService) private viewManager: ViewManagerService,
-    @Inject(WindowService) private windowService: WindowService
+    @Inject(WindowService) private windowService: WindowService,
+    @Inject(ConfigManager) private configManager: ConfigManager
   ) {}
 
   private get win() {
@@ -121,13 +123,21 @@ export class EventHandlerService {
     wc.setWindowOpenHandler(({ url, frameName, features }) => {
       const protocol = new URL(url).protocol
       if (protocol === "https:" || protocol === "http:") {
-        const win = this.win
-        if (win) {
-          win.webContents.send("browser.view:newTab", {
-            url,
-            frameName,
-            features,
-          })
+        // Check browser config to determine where to open the link
+        const browserConfig = this.configManager.get("browser")
+        if (browserConfig?.openLinksInBuiltInBrowser !== false) {
+          // Open in built-in browser
+          const win = this.win
+          if (win) {
+            win.webContents.send("browser.view:newTab", {
+              url,
+              frameName,
+              features,
+            })
+          }
+        } else {
+          // Open in system default browser
+          shell.openExternal(url)
         }
       }
       return { action: "deny" }

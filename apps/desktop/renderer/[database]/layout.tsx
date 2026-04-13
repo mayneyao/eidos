@@ -41,9 +41,25 @@ function TabContentLayout() {
   const element = useRoutes(spaceRoutes)
   const location = useLocation()
 
-  const isExternalUrl =
-    location.pathname.startsWith("https:") ||
-    location.pathname.startsWith("http:")
+  // Get the actual tab URL from store to check if it's an external URL
+  const tabUrl = useTabStore(
+    (state) => state.tabs.find((t) => t.id === tabId)?.url
+  )
+
+  // Check if this is an external URL (http/https)
+  const isExternalUrl = !!tabUrl && /^https?:\/\//i.test(tabUrl)
+
+  console.log(
+    "[Desktop TabContentLayout] tabId:",
+    tabId,
+    "tabUrl:",
+    tabUrl,
+    "pathname:",
+    location.pathname,
+    "isExternalUrl:",
+    isExternalUrl
+  )
+
   return (
     <div className="flex flex-col h-full min-w-0">
       <div
@@ -51,7 +67,7 @@ function TabContentLayout() {
         className="z-[1] flex w-full grow flex-col overflow-y-auto min-w-0"
       >
         <TabErrorBoundary tabId={tabId}>
-          {isExternalUrl ? <Webview url={location.pathname} /> : element}
+          {isExternalUrl ? <Webview url={tabUrl!} /> : element}
         </TabErrorBoundary>
       </div>
     </div>

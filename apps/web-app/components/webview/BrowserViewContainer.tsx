@@ -43,9 +43,29 @@ export function BrowserViewContainer({
   }, [viewId, space])
 
   useEffect(() => {
-    if (!isDesktopMode || !url) return
+    console.log(
+      "[BrowserViewContainer] useEffect triggered, url:",
+      url,
+      "viewId:",
+      viewId,
+      "isDesktop:",
+      isDesktopMode
+    )
+    if (!isDesktopMode || !url) {
+      console.log(
+        "[BrowserViewContainer] Early return - isDesktop:",
+        isDesktopMode,
+        "url:",
+        url
+      )
+      return
+    }
     const content = containerRef.current
-    if (!content) return
+    if (!content) {
+      console.log("[BrowserViewContainer] Early return - no content ref")
+      return
+    }
+    console.log("[BrowserViewContainer] Opening view with url:", url)
 
     const syncBounds = () => {
       const rect = content.getBoundingClientRect()
@@ -179,6 +199,17 @@ export function BrowserViewContainer({
       isActive &&
       !isAnyOverlayOpen &&
       (viewMode === "browser" || isReaderViewMode)
+
+    console.log(
+      "[BrowserViewContainer] Visibility effect - shouldShow:",
+      shouldShow,
+      "isActive:",
+      isActive,
+      "isAnyOverlayOpen:",
+      isAnyOverlayOpen,
+      "viewMode:",
+      viewMode
+    )
 
     if (shouldShow) {
       // Update bounds before showing to ensure correct position

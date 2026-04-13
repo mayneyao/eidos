@@ -59,16 +59,29 @@ function PanelView({
 
       {/* Tab content area */}
       <div className="relative flex-1 min-h-0">
-        {panelTabs.map((tab) => (
-          <TabContainer
-            key={tab.id}
-            tabId={tab.id}
-            initialUrl={tab.url}
-            isActive={panel.activeTabId === tab.id}
-          >
-            {children}
-          </TabContainer>
-        ))}
+        {panelTabs.map((tab) => {
+          const isTabActive = panel.activeTabId === tab.id
+          console.log(
+            "[SplitPanelManager] rendering TabContainer for tab:",
+            tab.id,
+            "url:",
+            tab.url,
+            "isActive:",
+            isTabActive,
+            "panel.activeTabId:",
+            panel.activeTabId
+          )
+          return (
+            <TabContainer
+              key={tab.id}
+              tabId={tab.id}
+              initialUrl={tab.url || "/"}
+              isActive={isTabActive}
+            >
+              {children}
+            </TabContainer>
+          )
+        })}
       </div>
     </div>
   )
@@ -79,6 +92,7 @@ interface SplitPanelManagerProps {
 }
 
 export function SplitPanelManager({ children }: SplitPanelManagerProps) {
+  console.log("[SplitPanelManager] Rendering with children:", children)
   const { panels, activePanelId, splitDirection } = useTabStore()
 
   // No panels at all - this shouldn't happen normally

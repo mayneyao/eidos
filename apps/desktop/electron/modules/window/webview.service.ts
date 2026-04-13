@@ -1,7 +1,8 @@
-import { ipcMain, webContents, BrowserWindow } from "electron"
+import { ipcMain, webContents, BrowserWindow, shell } from "electron"
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
 
-import { IpcInjectable, Injectable, container } from "../../common/di"
+import { IpcInjectable, Injectable, container, Inject } from "../../common/di"
+import { ConfigManager } from "../config/config-manager"
 
 /**
  * Webview Service - Handles webview-related IPC
@@ -9,6 +10,10 @@ import { IpcInjectable, Injectable, container } from "../../common/di"
  */
 @IpcInjectable("webview")
 export class WebviewService extends IpcServiceBase {
+  constructor(@Inject(ConfigManager) private configManager: ConfigManager) {
+    super()
+  }
+
   /**
    * Register the webview-dom-ready handler
    * This uses ipcMain.on (event-based) instead of handle (request-response)
@@ -39,10 +44,18 @@ export class WebviewService extends IpcServiceBase {
       wc.setWindowOpenHandler(({ url }) => {
         console.log("[WebviewService] Window open requested:", url)
         const protocol = new URL(url).protocol
-        // Open http/https links in new tab via renderer
         if (["https:", "http:"].includes(protocol)) {
-          senderWin.webContents.send("browser.view:newTab", { url })
-          console.log("[WebviewService] Sent newTab event to renderer:", url)
+          // Check browser config to determine where to open the link
+          const browserConfig = this.configManager.get("browser")
+          if (browserConfig?.openLinksInBuiltInBrowser !== false) {
+            // Open in built-in browser
+            senderWin.webContents.send("browser.view:newTab", { url })
+            console.log("[WebviewService] Sent newTab event to renderer:", url)
+          } else {
+            // Open in system default browser
+            shell.openExternal(url)
+            console.log("[WebviewService] Opened in system browser:", url)
+          }
         }
         // Deny other types of window open requests to maintain app security
         return { action: "deny" }

@@ -60,7 +60,15 @@ export class ViewManagerService {
     if (!win) return
 
     if (this.views.has(viewId)) {
-      this.updateBounds(viewId, bounds)
+      const view = this.views.get(viewId)?.view
+      if (view) {
+        // Update bounds and reload URL if changed
+        this.updateBounds(viewId, bounds)
+        const currentUrl = view.webContents.getURL()
+        if (currentUrl !== url) {
+          view.webContents.loadURL(url)
+        }
+      }
       return
     }
 

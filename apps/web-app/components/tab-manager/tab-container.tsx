@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react"
+import React, { useEffect, useMemo, useRef } from "react"
 import {
   MemoryRouter,
   useLocation,
@@ -29,6 +29,13 @@ function TabUrlSyncer({
 
   useEffect(() => {
     const fullPath = location.pathname + location.search + location.hash
+
+    // Skip updating store for external URL placeholder paths
+    // External URLs are handled separately and should not be overwritten
+    if (location.pathname === "/external") {
+      prevUrlRef.current = fullPath
+      return
+    }
 
     // Only update if the URL actually changed
     if (fullPath !== prevUrlRef.current) {
@@ -132,6 +139,11 @@ interface TabContainerProps {
   children: React.ReactNode
 }
 
+// Check if URL is an external URL (http/https)
+const isExternalUrl = (url: string): boolean => {
+  return !!url && /^https?:\/\//i.test(url)
+}
+
 export function TabContainer({
   tabId,
   initialUrl,
@@ -140,6 +152,22 @@ export function TabContainer({
 }: TabContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const isUpdatingFromUrlRef = useRef(false)
+
+  // For external URLs, use a placeholder path and store the actual URL in ref
+  const externalUrlRef = useRef<string | null>(null)
+  const routerInitialEntries = useMemo(() => {
+    console.log(
+      "[TabContainer] initialUrl:",
+      initialUrl,
+      "isExternal:",
+      isExternalUrl(initialUrl)
+    )
+    if (isExternalUrl(initialUrl)) {
+      externalUrlRef.current = initialUrl
+      return ["/external"]
+    }
+    return [initialUrl]
+  }, [initialUrl])
 
   return (
     <div
@@ -151,7 +179,7 @@ export function TabContainer({
       data-tab-id={tabId}
       ref={containerRef}
     >
-      <MemoryRouter initialEntries={[initialUrl]}>
+      <MemoryRouter initialEntries={routerInitialEntries}>
         <TabProvider value={{ tabId, containerRef, isActive }}>
           <TabUrlSyncer
             tabId={tabId}
@@ -162,6 +190,17 @@ export function TabContainer({
             isUpdatingFromUrlRef={isUpdatingFromUrlRef}
           />
           <div className="flex-1 overflow-y-auto min-h-0 h-full">
+            {(() => {
+              console.log(
+                "[TabContainer] Rendering children for tabId:",
+                tabId,
+                "isActive:",
+                isActive,
+                "children:",
+                children
+              )
+              return null
+            })()}
             {children}
           </div>
         </TabProvider>

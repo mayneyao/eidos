@@ -3,9 +3,11 @@ import { useTranslation } from "react-i18next"
 
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
+import { type SettingsSection } from "./settings-events"
 import { GlobalAccountSettings } from "./global/global-account-settings"
 import { GlobalAISettings } from "./global/global-ai-settings"
 import { GlobalAPISettings } from "./global/global-api-settings"
+import { GlobalBrowserSettings } from "./global/global-browser-settings"
 import { GlobalGeneralSettings } from "./global/global-general-settings"
 import { GlobalSecuritySettings } from "./global/global-security-settings"
 import { GlobalStorageSettings } from "./global/global-storage-settings"
@@ -19,22 +21,6 @@ import { MountSettings } from "./space/mount-settings"
 import { NewTabSettings } from "./space/new-tab-settings"
 import { RelaySettings } from "./space/relay-settings"
 import { ThemeSettings } from "./space/theme-settings"
-
-type SettingsSection =
-  | "space-general"
-  | "space-document"
-  | "space-mounts"
-  | "space-extensions"
-  | "space-newtab"
-  | "space-relay"
-  | "space-theme"
-  | "general"
-  | "account"
-  | "ai"
-  | "api"
-  | "storage"
-  | "sync"
-  | "security"
 
 interface SettingsContentProps {
   activeSection: SettingsSection
@@ -81,6 +67,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return t("settings.sync")
       case "security":
         return t("settings.security")
+      case "browser":
+        return t("settings.browser", "Browser")
       default:
         return t("space.settings.title")
     }
@@ -124,6 +112,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return <GlobalSyncSettings />
       case "security":
         return <GlobalSecuritySettings />
+      case "browser":
+        return <GlobalBrowserSettings />
       default:
         return null
     }
