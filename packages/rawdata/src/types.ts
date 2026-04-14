@@ -172,10 +172,26 @@ export interface HttpContext {
   post(url: string, body?: any, headers?: Record<string, string>): Promise<any>
 }
 
+export interface ExecContext {
+  run(
+    bin: string,
+    args: string[],
+    opts?: { timeout?: number; cwd?: string }
+  ): Promise<{ stdout: string; stderr: string; exitCode: number }>
+}
+
+export interface SyncState {
+  exists(entityId: string): boolean
+  getCursor(): string | number | undefined
+  setCursor(value: string | number): void
+}
+
 export interface FetchContext {
   args: Record<string, any>
   browser: BrowserContext
   http: HttpContext
+  exec?: ExecContext
+  sync?: SyncState
   log: (message: string, ...args: any[]) => void
 }
 
@@ -197,6 +213,7 @@ export interface RawDataAdapter {
   protocol: {
     strategy: "public" | "cookie" | "auth" | "oauth"
     browser?: boolean
+    cli?: boolean
     entryPoint?: string
     /** Enable DevTools for debugging (default: false) */
     devTools?: boolean

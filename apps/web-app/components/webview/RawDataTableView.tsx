@@ -3,6 +3,8 @@ import { useEffect, useState } from "react"
 import { Table } from "@/components/table"
 import { useDataView } from "@/hooks/use-data-view"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
+import { useWebviewStore } from "@/apps/web-app/store/webview-store"
 import { Loader2 } from "lucide-react"
 
 import type { RawDataAdapter } from "./types"
@@ -20,6 +22,7 @@ export function RawDataTableView({
 }: RawDataTableViewProps) {
   const { sqlite } = useSqlite()
   const { createTempDataView } = useDataView()
+  const { tabId } = useTabContext()
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewCreated, setViewCreated] = useState(false)
@@ -49,6 +52,20 @@ export function RawDataTableView({
         // Uses cached data from rawdata database
         await createTempDataView(viewId, rawQuery)
         setViewCreated(true)
+
+        // Check if view has data; if not, auto-run adapter once
+        const countResult = await sqlite.sql4mainThread(
+          `SELECT COUNT(*) as count FROM ${viewName}`,
+          [],
+          "object"
+        )
+        const count = (countResult[0] as any)?.count ?? 0
+        if (Number(count) === 0) {
+          console.log(
+            `[RawDataTableView] ${adapter.name} has 0 rows, auto-running adapter`
+          )
+          await useWebviewStore.getState().runAdapter(tabId, space, adapter)
+        }
       } catch (err) {
         console.error("Failed to create temp view:", err)
         setError(err instanceof Error ? err.message : "Failed to create view")
@@ -58,7 +75,7 @@ export function RawDataTableView({
     }
 
     setupView()
-  }, [adapter, sqlite, createTempDataView, viewId])
+  }, [adapter, sqlite, createTempDataView, viewId, tabId, space, viewName])
 
   if (isLoading) {
     return (

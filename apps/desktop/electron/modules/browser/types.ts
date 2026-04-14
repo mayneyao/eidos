@@ -58,4 +58,5 @@ export interface ViewEventData {
   canGoForward?: boolean
   isLoading?: boolean
   title?: string
+  adapterPath?: string
 }

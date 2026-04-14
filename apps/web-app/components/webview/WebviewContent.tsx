@@ -54,21 +54,34 @@ export function WebviewContent({ url }: { url: string }) {
           onLoadingChange={(loading) =>
             setWebviewState(tabId, { isLoading: loading })
           }
-          onRawdataNavigation={(target) => {
-            const result = useWebviewStore
-              .getState()
-              .navigateRawData(tabId, target)
-            if (result.success) {
-              toast({
-                title: `Switched to ${result.adapter?.name}`,
-                description: `Viewing raw data for ${result.host}`,
-              })
+          onRawdataNavigation={async (target, adapterPath) => {
+            if (adapterPath && space) {
+              const result = await useWebviewStore
+                .getState()
+                .enterRawDataView(tabId, space, adapterPath)
+              if (!result.success) {
+                toast({
+                  title: "Failed to enter raw data view",
+                  description: result.error,
+                  variant: "destructive",
+                })
+              }
             } else {
-              toast({
-                title: "No adapter found",
-                description: `No raw data adapter available for ${result.host}`,
-                variant: "destructive",
-              })
+              const result = useWebviewStore
+                .getState()
+                .navigateRawData(tabId, target)
+              if (result.success) {
+                toast({
+                  title: `Switched to ${result.adapter?.name}`,
+                  description: `Viewing raw data for ${result.host}`,
+                })
+              } else {
+                toast({
+                  title: "No adapter found",
+                  description: `No raw data adapter available for ${result.host}`,
+                  variant: "destructive",
+                })
+              }
             }
           }}
           onTitleChange={(title) =>

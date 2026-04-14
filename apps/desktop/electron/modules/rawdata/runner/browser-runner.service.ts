@@ -62,6 +62,27 @@ export class BrowserRunnerService {
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
 
+    // Relax CORS for cross-origin API calls with credentials (e.g., GitHub GraphQL)
+    const corsFilter = { urls: ["<all_urls>"] }
+    const corsHandler = (details: any, callback: any) => {
+      const headers = details.responseHeaders || {}
+      const origin = details.referrer || ""
+      // Rewrite wildcard CORS to allow specific origin with credentials
+      if (
+        origin &&
+        headers["access-control-allow-origin"] &&
+        headers["access-control-allow-origin"].includes("*")
+      ) {
+        headers["access-control-allow-origin"] = [origin]
+        headers["access-control-allow-credentials"] = ["true"]
+      }
+      callback({ responseHeaders: headers })
+    }
+    view.webContents.session.webRequest.onHeadersReceived(
+      corsFilter,
+      corsHandler
+    )
+
     // Open DevTools only if adapter explicitly enables it
     if (adapter.protocol?.devTools) {
       view.webContents.openDevTools({ mode: "detach" })
@@ -268,11 +289,55 @@ export class BrowserRunnerService {
         },
       }
 
+      // Build incremental sync state
+      const source = `${adapter.meta.site}/${adapter.meta.name}`
+      const existingIds = new Set<string>()
+      let cursorValue: string | number | undefined
+
+      if (adapter.sync?.incremental) {
+        const rows = db
+          .prepare(
+            `SELECT entity_id FROM data WHERE source = ? AND entity_type != '__meta__'`
+          )
+          .all(source) as { entity_id: string }[]
+        for (const r of rows) existingIds.add(r.entity_id)
+
+        const cursorRow = db
+          .prepare(
+            `SELECT data FROM data WHERE source = ? AND entity_type = '__meta__' AND entity_id = '__cursor__'`
+          )
+          .get(source) as { data: string } | undefined
+        if (cursorRow?.data) {
+          try {
+            cursorValue = JSON.parse(cursorRow.data).value
+          } catch {}
+        }
+      }
+
+      const syncContext = {
+        exists: (id: string) => existingIds.has(id),
+        getCursor: () => cursorValue,
+        setCursor: (value: string | number) => {
+          cursorValue = value
+          db.prepare(`
+            INSERT INTO data (id, source, entity_type, entity_id, data, fetched_at)
+            VALUES (?, ?, '__meta__', '__cursor__', ?, ?)
+            ON CONFLICT(id) DO UPDATE SET data = excluded.data, fetched_at = excluded.fetched_at
+          `).run(
+            `${source}#__meta__#__cursor__`,
+            source,
+            JSON.stringify({ value }),
+            Date.now()
+          )
+        },
+      }
+
       // Create FetchContext
       const fetchContext = {
         args,
         browser: browserContext,
         http: httpContext,
+        sync: adapter.sync?.incremental ? syncContext : undefined,
         log: (message: string, ...logArgs: any[]) => {
           console.log("[Adapter]", message, ...logArgs)
         },
@@ -327,7 +392,7 @@ export class BrowserRunnerService {
       try {
         await this.dataPersister.storeRawData(
           db,
-          adapter.meta.site,
+          `${adapter.meta.site}/${adapter.meta.name}`,
           rawEntities
         )
       } catch (storeError) {
@@ -407,7 +472,7 @@ export class BrowserRunnerService {
       console.log("[RawData] Building result...")
       // Build result
       const result: RawDataResult = {
-        source: adapter.meta.site,
+        source: `${adapter.meta.site}/${adapter.meta.name}`,
         data,
         columns,
         adapter,
@@ -438,6 +503,10 @@ export class BrowserRunnerService {
       // Cleanup
       console.log("[RawData] Cleaning up WebContentsView...")
       browserWindow.contentView.removeChildView(view)
+      view.webContents.session.webRequest.onHeadersReceived(
+        corsFilter,
+        null as any
+      )
       view.webContents.close()
       console.log("[RawData] Cleaned up WebContentsView")
     }

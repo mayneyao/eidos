@@ -60,6 +60,15 @@ interface WebviewStore {
     space: string,
     adapter: RawDataAdapter
   ) => Promise<{ success: boolean; error?: string; result?: any }>
+  enterRawDataView: (
+    tabId: string,
+    space: string,
+    adapterPath: string
+  ) => Promise<{
+    success: boolean
+    adapter?: RawDataAdapter
+    error?: string
+  }>
   navigateRawData: (
     tabId: string,
     rawDataUrl: string
@@ -263,13 +272,19 @@ export const useWebviewStore = create<WebviewStore>((set, get) => ({
         {}
       )
 
+      // Preserve the full adapter object (including queries) if available
+      const fullAdapter =
+        get().states[tabId]?.matchedAdapters.find(
+          (a) => a.filePath === adapter.filePath
+        ) || adapter
+
       // Force re-create view to refresh data by toggling viewMode briefly
       get().setWebviewState(tabId, { viewMode: "browser" })
       setTimeout(
         () =>
           get().setWebviewState(tabId, {
             viewMode: "table",
-            selectedAdapter: adapter,
+            selectedAdapter: fullAdapter,
           }),
         0
       )
@@ -283,6 +298,39 @@ export const useWebviewStore = create<WebviewStore>((set, get) => ({
       }
     } finally {
       get().setWebviewState(tabId, { isRefreshingAdapter: false })
+    }
+  },
+
+  enterRawDataView: async (tabId, space, adapterPath) => {
+    try {
+      const adapters = await window.eidos.rawData.getAdapters(space)
+      const found = adapters.find((a) => a.path === adapterPath)
+      if (!found) {
+        return {
+          success: false,
+          error: `Adapter not found: ${adapterPath}`,
+        }
+      }
+      const adapter: RawDataAdapter = {
+        site: found.adapter.meta.site,
+        name: found.adapter.meta.name,
+        description: found.adapter.meta.description,
+        domain: found.adapter.meta.domain,
+        filePath: found.path,
+        queries: found.adapter.queries,
+      }
+
+      get().setWebviewState(tabId, {
+        viewMode: "table",
+        selectedAdapter: adapter,
+      })
+      return { success: true, adapter }
+    } catch (error) {
+      console.error("Failed to enter raw data view:", error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
     }
   },
 

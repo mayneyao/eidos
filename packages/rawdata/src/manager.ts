@@ -37,16 +37,24 @@ export class RawDataManager {
   private adaptersDir: string
   private fs: FileSystem
   private customLoader?: AdapterLoader
+  private builtInAdapters?: Map<string, RawDataAdapter>
 
   constructor(
     fs: FileSystem,
     adaptersDir: string = "~/.eidos/.rawdata",
-    loader?: AdapterLoader
+    loader?: AdapterLoader,
+    builtInAdapters?: Map<string, RawDataAdapter>
   ) {
     this.fs = fs
     this.adaptersDir = adaptersDir
     this.customLoader = loader
-    console.log("[RawDataManager] Constructor called, customLoader:", !!loader)
+    this.builtInAdapters = builtInAdapters
+    console.log(
+      "[RawDataManager] Constructor called, customLoader:",
+      !!loader,
+      "builtInAdapters:",
+      builtInAdapters?.size ?? 0
+    )
   }
 
   /**
@@ -56,8 +64,18 @@ export class RawDataManager {
     this.adapters.clear()
     console.log(
       "[RawDataManager] loadAdapters called, customLoader exists:",
-      !!this.customLoader
+      !!this.customLoader,
+      "builtInAdapters:",
+      this.builtInAdapters?.size ?? 0
     )
+
+    // Load built-in adapters first
+    if (this.builtInAdapters) {
+      for (const [key, adapter] of this.builtInAdapters.entries()) {
+        this.adapters.set(key, adapter)
+        console.log("[RawDataManager] Loaded built-in adapter:", key)
+      }
+    }
 
     try {
       const exists = await this.fs.exists(this.adaptersDir)

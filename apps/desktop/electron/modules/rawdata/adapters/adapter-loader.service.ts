@@ -1,7 +1,11 @@
 // IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
 import "../../data-space/worker/sqlite-server/env"
 
-import { RawDataManager, type RawDataAdapter } from "@eidos.space/rawdata"
+import {
+  RawDataManager,
+  type RawDataAdapter,
+  builtInAdapters,
+} from "@eidos.space/rawdata"
 import { app } from "electron"
 import * as fsNode from "node:fs/promises"
 import * as path from "node:path"
@@ -53,7 +57,12 @@ export class AdapterLoaderService {
         "[RawData] Creating RawDataManager with custom loader:",
         !!loader
       )
-      const manager = new RawDataManager(fs, "~/.eidos/.rawdata", loader)
+      const manager = new RawDataManager(
+        fs,
+        "~/.eidos/.rawdata",
+        loader,
+        builtInAdapters
+      )
       console.log("[RawData] Calling manager.loadAdapters()...")
       await manager.loadAdapters()
       console.log("[RawData] Loaded adapters:", manager.getAdapters().size)

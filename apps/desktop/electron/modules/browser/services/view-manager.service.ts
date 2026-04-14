@@ -127,17 +127,28 @@ export class ViewManagerService {
       )
 
       // Add Adapter submenu - only in normal mode, handled entirely in backend
+      console.log("[BrowserContextMenu] Checking adapter menu:", {
+        isReaderView,
+        hasSpace: !!space,
+        hasRawDataService: !!this.rawDataService,
+      })
       if (!isReaderView && space && this.rawDataService) {
         const currentUrl = view.webContents.getURL()
+        console.log(
+          "[BrowserContextMenu] Finding adapters for:",
+          space,
+          currentUrl
+        )
         const adapters = await this.rawDataService.findListAdapters(
           space,
           currentUrl
         )
+        console.log("[BrowserContextMenu] Found adapters:", adapters.length)
 
         if (adapters.length > 0) {
           menu.append(
             new MenuItem({
-              label: "Adapter",
+              label: "Raw Data",
               submenu: adapters.map((adapter) => ({
                 label: adapter.name,
                 click: async () => {
@@ -434,31 +445,16 @@ export class ViewManagerService {
     space: string,
     adapterPath: string
   ): Promise<void> {
-    if (!this.rawDataService) {
-      dialog.showErrorBox("Adapter Error", "RawData service not available")
-      return
-    }
+    const view = this.views.get(viewId)?.view
+    const win = this.win
+    if (!view || !win) return
 
-    try {
-      const result = await this.rawDataService.runAdapter(
-        space,
-        adapterPath,
-        {}
-      )
-
-      // Show success notification
-      dialog.showMessageBox(this.win!, {
-        type: "info",
-        title: "Adapter Sync Complete",
-        message: `${result.adapter.name} synced successfully`,
-        detail: `Persisted ${result.persisted.agents} agents, ${result.persisted.goods} goods, ${result.persisted.relations} relations`,
-        buttons: ["OK"],
-      })
-    } catch (error) {
-      dialog.showErrorBox(
-        "Adapter Sync Failed",
-        error instanceof Error ? error.message : String(error)
-      )
-    }
+    // Notify frontend to switch to rawdata table view.
+    // Adapter execution is handled by the frontend (auto-run when no data, or manual refresh).
+    win.webContents.send("browser.view:update", viewId, {
+      type: "rawdata-navigation",
+      url: view.webContents.getURL(),
+      adapterPath,
+    })
   }
 }

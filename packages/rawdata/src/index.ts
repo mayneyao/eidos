@@ -17,6 +17,9 @@ export {
   isDomainMatch,
 } from "./parser.js"
 
+// Built-in Adapters
+export { builtInAdapters } from "./adapters/index.js"
+
 // Define Adapter (Main API)
 export {
   defineAdapter,
@@ -58,6 +61,8 @@ export type {
   FetchContext,
   BrowserContext,
   HttpContext,
+  ExecContext,
+  SyncState,
   RawEntity,
   TransformResult,
   MatchedAdapter,
