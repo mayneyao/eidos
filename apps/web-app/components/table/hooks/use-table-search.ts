@@ -15,6 +15,11 @@ const isDataView = (tableName: string): boolean => {
   return tableName.startsWith("vw_")
 }
 
+// Module-level map to track pending FTS setup promises across component lifecycles.
+// This prevents users from seeing a clickable "Enable Search" button when the
+// setup is still running after the component unmounted and remounted.
+const ftsSetupPending = new Map<string, Promise<boolean>>()
+
 export const useTableSearch = (viewId: string) => {
   const readonlySqlite = useReadonlySqlite()
   const { sqlite } = useSqlite()
@@ -61,6 +66,9 @@ export const useTableSearch = (viewId: string) => {
   const searchAbortController = useRef<AbortController | null>(null)
   const [isSearching, setIsSearching] = useState(false)
   const [needsFTSSetup, setNeedsFTSSetup] = useState(false)
+  const [ftsSetupVersion, setFtsSetupVersion] = useState(0)
+  // Derived from module-level map so it survives component unmount/remount
+  const isSettingUpFTS = Boolean(tableName && ftsSetupPending.has(tableName))
   // For dataview: no searchable fields configured
   const [noSearchableFields, setNoSearchableFields] = useState(false)
 
@@ -72,18 +80,37 @@ export const useTableSearch = (viewId: string) => {
       return true
     }
 
-    try {
-      await sqlite.createTableFTS(tableName)
+    // If already pending, wait for the existing promise
+    if (ftsSetupPending.has(tableName)) {
+      return (await ftsSetupPending.get(tableName))!
+    }
+
+    const promise = (async () => {
+      try {
+        await sqlite.createTableFTS(tableName)
+        return true
+      } catch (error) {
+        console.error("Failed to create FTS table:", error)
+        return false
+      }
+    })()
+
+    ftsSetupPending.set(tableName, promise)
+    setFtsSetupVersion((v) => v + 1)
+
+    const success = await promise
+
+    ftsSetupPending.delete(tableName)
+    setFtsSetupVersion((v) => v + 1)
+
+    if (success) {
       setNeedsFTSSetup(false)
       // Retry search after setup
       if (searchQuery.length >= MIN_SEARCH_LENGTH) {
         performSearch(searchQuery, 1)
       }
-      return true
-    } catch (error) {
-      console.error("Failed to create FTS table:", error)
-      return false
     }
+    return success
   }, [sqlite, tableName, searchQuery])
 
   const checkFTS = useCallback(async () => {
@@ -95,9 +122,22 @@ export const useTableSearch = (viewId: string) => {
       return true
     }
 
-    const hasFTS = await sqlite.hasTableFTS(tableName)
-    setNeedsFTSSetup(!hasFTS)
-    return hasFTS
+    // If setup is still running globally, keep the alert visible (with loading state)
+    // and don't call hasTableFTS yet, to avoid falsely showing "Enable Search".
+    if (ftsSetupPending.has(tableName)) {
+      setNeedsFTSSetup(true)
+      return false
+    }
+
+    try {
+      const hasFTS = await sqlite.hasTableFTS(tableName)
+      setNeedsFTSSetup(!hasFTS)
+      return hasFTS
+    } catch (error) {
+      console.error("Error checking FTS status:", error)
+      setNeedsFTSSetup(true)
+      return false
+    }
   }, [sqlite, tableName])
 
   const performSearch = async (query: string, page: number = 1) => {
@@ -233,6 +273,7 @@ export const useTableSearch = (viewId: string) => {
     setShowSearch,
     isSearching,
     needsFTSSetup,
+    isSettingUpFTS,
     setupFTS,
     checkFTS,
     noSearchableFields,
