@@ -136,6 +136,7 @@ interface TabContainerProps {
   tabId: string
   initialUrl: string
   isActive: boolean
+  isFocused: boolean
   children: React.ReactNode
 }
 
@@ -148,6 +149,7 @@ export function TabContainer({
   tabId,
   initialUrl,
   isActive,
+  isFocused,
   children,
 }: TabContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -174,7 +176,7 @@ export function TabContainer({
       ref={containerRef}
     >
       <MemoryRouter initialEntries={routerInitialEntries}>
-        <TabProvider value={{ tabId, containerRef, isActive }}>
+        <TabProvider value={{ tabId, containerRef, isActive, isFocused }}>
           <TabUrlSyncer
             tabId={tabId}
             isUpdatingFromUrlRef={isUpdatingFromUrlRef}

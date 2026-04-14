@@ -67,6 +67,7 @@ function PanelView({
               tabId={tab.id}
               initialUrl={tab.url || "/"}
               isActive={isTabActive}
+              isFocused={isActive && isTabActive}
             >
               {children}
             </TabContainer>

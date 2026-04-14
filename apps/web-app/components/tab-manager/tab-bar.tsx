@@ -43,6 +43,7 @@ import type { Tab } from "@/apps/web-app/store/tabs"
 interface SortableTabItemProps {
   tab: Tab
   isActive: boolean
+  isFocused: boolean
   index: number
   totalTabs: number
   onTabClick: (tabId: string, e: React.MouseEvent) => void
@@ -59,6 +60,7 @@ interface SortableTabItemProps {
 function SortableTabItem({
   tab,
   isActive,
+  isFocused,
   index,
   totalTabs,
   onTabClick,
@@ -106,7 +108,9 @@ function SortableTabItem({
             "group relative flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer transition-colors leading-5",
             "w-[200px] min-w-0 max-w-[200px] border-r border-border/50",
             isActive
-              ? "bg-background text-foreground"
+              ? isFocused
+                ? "bg-background text-foreground"
+                : "bg-background/80 text-foreground/80"
               : "bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
           )}
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
@@ -117,7 +121,12 @@ function SortableTabItem({
         >
           {/* Active tab indicator */}
           {isActive && (
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+            <div
+              className={cn(
+                "absolute top-0 left-0 right-0 h-[2px]",
+                isFocused ? "bg-primary" : "bg-primary/40"
+              )}
+            />
           )}
 
           <span className="truncate flex-1 select-none">{tab.title}</span>
@@ -211,6 +220,7 @@ export function TabBar({
   // Get the panel to work with
   const currentPanelId = panelId || activePanelId
   const currentPanel = panels.find((p) => p.id === currentPanelId)
+  const isPanelFocused = currentPanelId === activePanelId
 
   // Filter tabs to only show those in this panel
   const panelTabs = currentPanel
@@ -415,6 +425,7 @@ export function TabBar({
                 key={tab.id}
                 tab={tab}
                 isActive={activeTabId === tab.id}
+                isFocused={isPanelFocused && activeTabId === tab.id}
                 index={index}
                 totalTabs={localPanelTabs.length}
                 onTabClick={handleTabClick}

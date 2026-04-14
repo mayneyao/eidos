@@ -4,6 +4,7 @@ interface TabContextValue {
   tabId: string
   containerRef: RefObject<HTMLElement> | null
   isActive: boolean
+  isFocused: boolean
 }
 
 const TabContext = createContext<TabContextValue | null>(null)

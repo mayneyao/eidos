@@ -399,7 +399,7 @@ export const ViewToolbar = (props: {
       setSearchQuery("")
     }
   })
-  const { tabId } = useTabContext()
+  const { isFocused } = useTabContext()
 
   useKeyPress(["ctrl.f", "meta.f"], (event) => {
     event.preventDefault()
@@ -412,16 +412,14 @@ export const ViewToolbar = (props: {
   useEffect(() => {
     if (!isDesktopMode) return
     const handleToggleFindInPage = async () => {
-      // Only respond if this tab is the active tab
-      const activeTabId = useTabStore.getState().getActiveTabId()
-      if (activeTabId !== tabId) return
+      if (!isFocused) return
       setShowSearch(!showSearch)
     }
     window.addEventListener("toggle-find-in-page", handleToggleFindInPage)
     return () => {
       window.removeEventListener("toggle-find-in-page", handleToggleFindInPage)
     }
-  }, [tabId, showSearch])
+  }, [isFocused, showSearch])
 
   return (
     <div ref={ref}>

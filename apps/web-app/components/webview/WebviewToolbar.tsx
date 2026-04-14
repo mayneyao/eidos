@@ -21,7 +21,7 @@ interface WebviewToolbarProps {
 }
 
 export function WebviewToolbar({}: WebviewToolbarProps) {
-  const { tabId } = useTabContext()
+  const { tabId, isFocused } = useTabContext()
 
   const addressBarRef = useRef<HTMLInputElement>(null)
   const committedUrlRef = useRef<string>("")
@@ -49,8 +49,7 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
   useEffect(() => {
     const handleFocusAddressBar = () => {
       // Only respond if this tab is the active tab
-      const activeTabId = useTabStore.getState().getActiveTabId()
-      if (activeTabId !== tabId) return
+      if (!isFocused) return
 
       addressBarRef.current?.focus()
       addressBarRef.current?.select()
@@ -63,7 +62,7 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
         handleFocusAddressBar
       )
     }
-  }, [tabId])
+  }, [isFocused])
 
   // Listen for toggle-find-in-page custom event from shortcuts.tsx
   useEffect(() => {
@@ -71,8 +70,7 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
 
     const handleToggleFindInPage = async () => {
       // Only respond if this tab is the active tab
-      const activeTabId = useTabStore.getState().getActiveTabId()
-      if (activeTabId !== tabId) return
+      if (!isFocused) return
 
       // Toggle find overlay
       const isOpen =
@@ -94,7 +92,7 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
     return () => {
       window.removeEventListener("toggle-find-in-page", handleToggleFindInPage)
     }
-  }, [tabId])
+  }, [isFocused, tabId])
 
   // Listen for find overlay close from main process
   useEffect(() => {
