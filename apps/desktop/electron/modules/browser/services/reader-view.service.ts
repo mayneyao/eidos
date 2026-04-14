@@ -1,5 +1,7 @@
 import { protocol, app, WebContentsView } from "electron"
 import { IpcMethod } from "@eidos.space/electron-ipc"
+import { parseHTML } from "linkedom"
+import { Defuddle } from "defuddle/node"
 
 import { IpcInjectable, getService } from "../../../common/di"
 import type { ReaderViewData } from "../types"
@@ -187,7 +189,10 @@ export class ReaderViewService {
   }
 
   /**
-   * Capture page content as Reader View using Defuddle
+   * Capture page content as Reader View using Defuddle (backend implementation)
+   *
+   * Fetches the rendered HTML from the BrowserView and runs defuddle/node
+   * in the main process instead of injecting a CDN script into the page.
    */
   @IpcMethod()
   async captureAsReaderView(viewId: string): Promise<{
@@ -204,21 +209,25 @@ export class ReaderViewService {
     }
 
     try {
-      const result = await view.webContents.executeJavaScript(`
-        (async () => {
-          try {
-            const DefuddleModule = await import('https://esm.sh/defuddle@0.16.0/full')
-            const result = new DefuddleModule.default(document, {
-              separateMarkdown: true
-            }).parse()
-            return { success: true, ...result }
-          } catch (err) {
-            return { success: false, error: err?.message || String(err) }
-          }
+      const url = view.webContents.getURL()
+      const html = await view.webContents.executeJavaScript(`
+        (function() {
+          return document.documentElement.outerHTML;
         })()
       `)
 
-      return result
+      const { document } = parseHTML(html)
+      const result = await Defuddle(document, url, {
+        separateMarkdown: true,
+      })
+
+      return {
+        success: true,
+        content: result.content,
+        contentMarkdown: result.contentMarkdown,
+        title: result.title,
+        url,
+      }
     } catch (error) {
       return {
         success: false,

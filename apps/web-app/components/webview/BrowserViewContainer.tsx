@@ -196,6 +196,10 @@ export function BrowserViewContainer({
           height: Math.round(Math.max(rect.height, 100)),
         })
       }
+    } else if (isAnyOverlayOpen) {
+      // Blur the webview to return focus to the main window when an overlay (cmdk, global search, etc.) opens.
+      // Without this, the webview keeps focus and React UI inputs (e.g. cmdk search box) cannot be focused.
+      window.eidos.browser.find?.blurWebview?.(viewId)
     }
 
     window.eidos.browser.view.setVisible(viewId, !!shouldShow)
