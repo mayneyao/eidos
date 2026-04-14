@@ -295,8 +295,13 @@ export default defineAdapter({
       -- [replies:number]
       -- [quotes:number]
       -- [url:url]
+      -- [media:file]
       SELECT 
         id,
+        COALESCE(
+          json_extract(data, '$.mediaUrls'),
+          (SELECT GROUP_CONCAT(json_extract(value, '$.url')) FROM json_each(json_extract(data, '$.media')))
+        ) as media,
         json_extract(data, '$.text') as title,
         json_extract(data, '$.authorName') as author_name,
         json_extract(data, '$.authorHandle') as author_handle,

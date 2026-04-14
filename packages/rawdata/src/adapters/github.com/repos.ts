@@ -159,7 +159,7 @@ export default defineAdapter({
       -- [forks:number]
       -- [language:text]
       -- [url:url]
-      -- [is_private:boolean]
+      -- [is_private:checkbox]
       SELECT 
         id,
         json_extract(data, '$.name') as title,
