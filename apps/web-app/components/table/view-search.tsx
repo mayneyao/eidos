@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import type { IView } from "@/packages/core/types/IView"
 import { useKeyPress } from "ahooks"
 import {
@@ -74,14 +74,15 @@ export const ViewSearch = (props: { view: IView }) => {
   const {
     isSearching,
     needsFTSSetup,
+    isSettingUpFTS,
     setupFTS,
     checkFTS,
     noSearchableFields,
     isDataView,
   } = useTableSearch(props.view?.id)
-  const [isSettingUpFTS, setIsSettingUpFTS] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const resultsListRef = useRef<HTMLUListElement>(null)
+  const searchContainerRef = useRef<HTMLDivElement>(null)
   const { search: semanticSearch } = useTableSemanticSearch()
 
   useEffect(() => {
@@ -93,9 +94,7 @@ export const ViewSearch = (props: { view: IView }) => {
   }, [showSearch, checkFTS])
 
   const handleSetupFTS = async () => {
-    setIsSettingUpFTS(true)
     await setupFTS()
-    setIsSettingUpFTS(false)
     // Refocus search input after setup
     searchInputRef.current?.focus()
   }
@@ -103,8 +102,8 @@ export const ViewSearch = (props: { view: IView }) => {
   const handleClickOutside = useCallback(
     (event: MouseEvent) => {
       if (
-        searchInputRef.current &&
-        !searchInputRef.current.contains(event.target as Node) &&
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target as Node) &&
         searchQuery === ""
       ) {
         setShowSearch(false)
@@ -195,7 +194,7 @@ export const ViewSearch = (props: { view: IView }) => {
   })
 
   return (
-    <div className="relative flex items-center">
+    <div ref={searchContainerRef} className="relative flex items-center">
       <div
         className={cn(
           "absolute right-0 z-10 flex items-center gap-1",
