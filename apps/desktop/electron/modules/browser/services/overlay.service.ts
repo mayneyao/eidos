@@ -134,8 +134,22 @@ export class OverlayService {
     this.closeOverlay(overlayId)
 
     // Get parent view bounds
-    const parentView = this.viewManager.getView(viewId)
-    if (!parentView) return
+    const isMainWindow = viewId === "__main__"
+    let bounds: { x: number; y: number; width: number; height: number }
+
+    if (isMainWindow) {
+      const contentBounds = win.getContentBounds()
+      bounds = {
+        x: 0,
+        y: 0,
+        width: contentBounds.width,
+        height: contentBounds.height,
+      }
+    } else {
+      const parentView = this.viewManager.getView(viewId)
+      if (!parentView) return
+      bounds = parentView.getBounds()
+    }
 
     // Store data for protocol handler
     const data: FindOverlayData = {
@@ -161,7 +175,6 @@ export class OverlayService {
 
     // Position at top-right of parent view
     const zoomFactor = this.zoomService.getZoomFactor()
-    const bounds = parentView.getBounds()
     const overlayWidth = 320
     const overlayHeight = 60
 
@@ -264,6 +277,32 @@ export class OverlayService {
     const newBounds = {
       x: Math.round((bounds.x + bounds.width - overlayWidth - 8) * zoomFactor),
       y: Math.round((bounds.y + 8) * zoomFactor),
+      width: Math.round(overlayWidth * zoomFactor),
+      height: Math.round(overlayHeight * zoomFactor),
+    }
+
+    state.view.setBounds(newBounds)
+  }
+
+  /**
+   * Update main window find overlay position (called on resize)
+   */
+  updateMainWindowFindOverlayPosition(): void {
+    const overlayId = `find:__main__`
+    const state = this.overlays.get(overlayId)
+    if (!state) return
+
+    const win = this.win
+    if (!win) return
+
+    const contentBounds = win.getContentBounds()
+    const zoomFactor = this.zoomService.getZoomFactor()
+    const overlayWidth = 320
+    const overlayHeight = 60
+
+    const newBounds = {
+      x: Math.round((contentBounds.width - overlayWidth - 8) * zoomFactor),
+      y: Math.round(8 * zoomFactor),
       width: Math.round(overlayWidth * zoomFactor),
       height: Math.round(overlayHeight * zoomFactor),
     }

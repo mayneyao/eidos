@@ -3,6 +3,7 @@
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useDocFindInPage } from "@/apps/web-app/hooks/use-doc-find-in-page"
 import { Editor } from "@/components/doc/editor"
 import { Table } from "@/components/table"
 
@@ -10,6 +11,8 @@ export default function ShareNodePage() {
   const params = useCurrentPathInfo()
   const node = useCurrentNode()
   const { updateNodeName } = useSqlite(params.database)
+
+  useDocFindInPage()
 
   return (
     <>

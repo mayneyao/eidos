@@ -8,6 +8,7 @@ import { Loading } from "@/components/loading"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useDocFindInPage } from "@/apps/web-app/hooks/use-doc-find-in-page"
 
 import { useAllDays, useDays } from "./hooks"
 import { getDisplayTitle } from "./utils"
@@ -47,6 +48,8 @@ export default function EverydayPage() {
   const startDate = useMemo(() => {
     return new Date(year, 0, 1)
   }, [year])
+
+  useDocFindInPage()
 
   return (
     <ScrollArea className="mx-auto flex w-full">

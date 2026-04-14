@@ -15,6 +15,7 @@ import { useTabTitle } from "@/apps/web-app/hooks/use-tab-title"
 //   PopoverTrigger,
 // } from "@/components/ui/popover"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useDocFindInPage } from "@/apps/web-app/hooks/use-doc-find-in-page"
 
 import { WeekPage } from "../[week]/page"
 import { useDays } from "../hooks"
@@ -42,6 +43,8 @@ export function EverydayPageContent({
   const weekNodeId =
     day && formattedWeek ? `${weekYear}-w${formattedWeek}` : null
   useTabTitle(day)
+  useDocFindInPage()
+
   const handleDayClick = (date: Date, closePopover = false) => {
     const day = getLocalDate(date)
     setMonth(date)

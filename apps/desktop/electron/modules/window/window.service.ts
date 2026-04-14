@@ -193,7 +193,19 @@ export class WindowService {
       win.maximize()
     }
 
-    win.on("resize", persistWindowState)
+    win.on("resize", () => {
+      persistWindowState()
+      // Update main window find overlay position on resize
+      try {
+        const {
+          OverlayService,
+        } = require("../browser/services/overlay.service")
+        const overlayService = container.get(OverlayService)
+        overlayService.updateMainWindowFindOverlayPosition()
+      } catch {
+        // OverlayService might not be available yet, ignore
+      }
+    })
     win.on("move", persistWindowState)
     win.on("close", saveWindowState)
   }
