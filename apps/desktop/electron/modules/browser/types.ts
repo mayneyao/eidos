@@ -17,6 +17,7 @@ export interface ReaderViewData {
   html: string
   title: string
   originalUrl: string
+  markdown?: string
 }
 
 /**

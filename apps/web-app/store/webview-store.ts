@@ -230,6 +230,7 @@ export const useWebviewStore = create<WebviewStore>((set, get) => ({
             html: result.content,
             title: result.title || "Reader View",
             originalUrl: originalUrl,
+            markdown: result.contentMarkdown,
           }
         )
 

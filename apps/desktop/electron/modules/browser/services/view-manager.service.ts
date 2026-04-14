@@ -1,4 +1,4 @@
-import { WebContentsView, Menu, MenuItem, dialog } from "electron"
+import { WebContentsView, Menu, MenuItem, dialog, clipboard } from "electron"
 
 import { Inject, getService } from "../../../common/di"
 import { WindowService } from "../../window/window.service"
@@ -106,15 +106,57 @@ export class ViewManagerService {
       const isReaderView =
         readerViewService?.isReaderViewActive(viewId) ?? false
 
-      // Add Inspect option (Developer Tools) - handled entirely in backend
+      // ── Navigation ──
       menu.append(
         new MenuItem({
-          label: "Inspect",
+          label: "Back",
+          enabled: view.webContents.navigationHistory.canGoBack(),
+          click: () => view.webContents.navigationHistory.goBack(),
+        })
+      )
+      menu.append(
+        new MenuItem({
+          label: "Forward",
+          enabled: view.webContents.navigationHistory.canGoForward(),
+          click: () => view.webContents.navigationHistory.goForward(),
+        })
+      )
+      menu.append(
+        new MenuItem({
+          label: "Copy URL",
           click: () => {
-            view.webContents.openDevTools({ mode: "detach" })
+            clipboard.writeText(view.webContents.getURL())
           },
         })
       )
+      menu.append(
+        new MenuItem({
+          label: "Reload",
+          click: () => view.webContents.reload(),
+        })
+      )
+      menu.append(new MenuItem({ type: "separator" }))
+
+      // ── Image ──
+      if (params.mediaType === "image" && params.srcURL) {
+        menu.append(
+          new MenuItem({
+            label: "Copy Image",
+            click: () => {
+              view.webContents.copyImageAt(params.x, params.y)
+            },
+          })
+        )
+        menu.append(
+          new MenuItem({
+            label: "Copy Image URL",
+            click: () => {
+              clipboard.writeText(params.srcURL)
+            },
+          })
+        )
+        menu.append(new MenuItem({ type: "separator" }))
+      }
 
       // Add Read Mode / Exit Read Mode option - handled entirely in backend
       menu.append(
@@ -125,6 +167,20 @@ export class ViewManagerService {
           },
         })
       )
+
+      if (isReaderView && readerViewService) {
+        const readerData = readerViewService.getReaderViewData(viewId)
+        if (readerData?.markdown) {
+          menu.append(
+            new MenuItem({
+              label: "Copy as Markdown",
+              click: () => {
+                clipboard.writeText(readerData.markdown!)
+              },
+            })
+          )
+        }
+      }
 
       // Add Adapter submenu - only in normal mode, handled entirely in backend
       console.log("[BrowserContextMenu] Checking adapter menu:", {
@@ -159,6 +215,18 @@ export class ViewManagerService {
           )
         }
       }
+
+      menu.append(new MenuItem({ type: "separator" }))
+
+      // Add Inspect option (Developer Tools) - handled entirely in backend
+      menu.append(
+        new MenuItem({
+          label: "Inspect",
+          click: () => {
+            view.webContents.openDevTools({ mode: "detach" })
+          },
+        })
+      )
 
       // Convert BrowserView coordinates to window coordinates
       const viewBounds = view.getBounds()
@@ -424,6 +492,7 @@ export class ViewManagerService {
             html: result.content,
             title: result.title || "Reader View",
             originalUrl: result.url || view.webContents.getURL(),
+            markdown: result.contentMarkdown,
           })
         } else {
           dialog.showErrorBox(

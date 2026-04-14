@@ -123,7 +123,12 @@ export class ReaderViewService {
   @IpcMethod()
   async openReaderView(
     viewId: string,
-    data: { html: string; title: string; originalUrl: string }
+    data: {
+      html: string
+      title: string
+      originalUrl: string
+      markdown?: string
+    }
   ): Promise<{ success: boolean; error?: string }> {
     const view = this.getView(viewId)
     if (!view) {
@@ -174,6 +179,14 @@ export class ReaderViewService {
     }
 
     await view.webContents.loadURL(originalUrl)
+  }
+
+  /**
+   * Get Reader View data for a view
+   */
+  @IpcMethod()
+  getReaderViewData(viewId: string): ReaderViewData | undefined {
+    return this.readerViewData.get(viewId)
   }
 
   /**

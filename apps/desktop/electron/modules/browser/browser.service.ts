@@ -130,7 +130,12 @@ export class BrowserService extends IpcServiceBase {
   @IpcMethod()
   openReaderView(
     viewId: string,
-    data: { html: string; title: string; originalUrl: string }
+    data: {
+      html: string
+      title: string
+      originalUrl: string
+      markdown?: string
+    }
   ) {
     return this.readerView.openReaderView(viewId, data)
   }
