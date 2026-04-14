@@ -1,4 +1,4 @@
-export const getTemplates = () => [
+export const getTemplates = (): Template[] => [
   {
     name: "queryAllFiles",
     i18nKey: "dataview.template.queryAllFiles",
@@ -452,3 +452,47 @@ WHERE
     `,
   },
 ]
+
+export interface Template {
+  name: string
+  i18nKey: string
+  descriptionKey: string
+  tags: string[]
+  category: string
+  difficulty: "beginner" | "intermediate"
+  sql: string
+  /** Optional display name to bypass i18n for dynamic templates */
+  displayName?: string
+  /** Optional display description to bypass i18n for dynamic templates */
+  displayDescription?: string
+}
+
+export const getAdapterTemplates = async (
+  space?: string
+): Promise<Template[]> => {
+  if (!space || typeof window === "undefined" || !window.eidos?.rawData) {
+    return []
+  }
+  try {
+    const adapters = await window.eidos.rawData.getAdapters(space)
+    return adapters
+      .filter((a) => a.adapter.queries?.raw)
+      .map((a) => {
+        const meta = a.adapter.meta
+        const rawQuery = a.adapter.queries!.raw
+        return {
+          name: `adapter_${meta.site}_${meta.name}`,
+          i18nKey: `dataview.template.adapter.${meta.site}.${meta.name}`,
+          descriptionKey: `dataview.template.adapter.${meta.site}.${meta.name}.description`,
+          displayName: meta.description || `${meta.site}/${meta.name}`,
+          displayDescription: `Source: ${meta.domain || meta.site} · ${meta.name}`,
+          tags: ["adapter", meta.site, meta.name],
+          category: "adapter",
+          difficulty: "intermediate" as const,
+          sql: rawQuery,
+        }
+      })
+  } catch {
+    return []
+  }
+}

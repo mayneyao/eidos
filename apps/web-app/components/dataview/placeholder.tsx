@@ -2,8 +2,11 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react"
 import { formatSql } from "@/packages/core/sqlite/helper"
 import { ViewTypeEnum } from "@/packages/core/types/IView"
 import type { SQLNamespace } from "@codemirror/lang-sql"
-import { BookOpen, Database, ExternalLink } from "lucide-react"
+import { AlertTriangle, BookOpen, Database, ExternalLink } from "lucide-react"
 import { useTranslation } from "react-i18next"
+
+import { getAttachedDatabaseReferences } from "@/packages/core/sqlite/sql-parser"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 import { shortenId } from "@/lib/utils"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
@@ -88,6 +91,12 @@ export const DataViewPlaceholder = ({
   }, [sqlite])
 
   const { space } = useCurrentPathInfo()
+
+  const attachedDbRefs = useMemo(
+    () => getAttachedDatabaseReferences(sql),
+    [sql]
+  )
+  const hasAttachedDbRefs = attachedDbRefs.length > 0
 
   // Auto-focus SQL editor when component mounts
   useEffect(() => {
@@ -238,7 +247,10 @@ export const DataViewPlaceholder = ({
                       {t("common.sqlQuery")}
                     </label>
                   </div>
-                  <TemplateModal onTemplateSelect={handleTemplateSelect}>
+                  <TemplateModal
+                    onTemplateSelect={handleTemplateSelect}
+                    space={space}
+                  >
                     <Button variant="outline" size="xs" className="gap-1 mx-2">
                       <Database className="h-3 w-3" />
                       {t("common.templates")}
@@ -250,6 +262,16 @@ export const DataViewPlaceholder = ({
                 <div className="mb-2 p-2 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded">
                   {previewError}
                 </div>
+              )}
+              {hasAttachedDbRefs && (
+                <Alert variant="destructive" className="mb-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    {t("dataview.attachedDbWarning", {
+                      tables: attachedDbRefs.join(", "),
+                    })}
+                  </AlertDescription>
+                </Alert>
               )}
               <div className="flex-1 min-h-0 px-2">
                 <Suspense
@@ -291,7 +313,12 @@ export const DataViewPlaceholder = ({
                 <span className="ml-1 text-xs opacity-60">⌘⏎</span>
               </Button>
               {isPreviewMode && <ViewCreateTable viewNodeId={nodeId} />}
-              <Button size="xs" onClick={handleCreate} className="ml-2">
+              <Button
+                size="xs"
+                onClick={handleCreate}
+                className="ml-2"
+                disabled={hasAttachedDbRefs}
+              >
                 {t("common.createDataView")}
               </Button>
             </div>
