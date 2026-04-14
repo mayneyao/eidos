@@ -36,9 +36,15 @@ export function BrowserViewContainer({
   onTitleChange,
 }: BrowserViewContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const urlRef = useRef(url)
+  const lastNavigatedUrlRef = useRef(url)
 
   useEffect(() => {
-    if (!isDesktopMode || !url) {
+    urlRef.current = url
+  }, [url])
+
+  useEffect(() => {
+    if (!isDesktopMode || !urlRef.current) {
       return
     }
     const content = containerRef.current
@@ -69,7 +75,7 @@ export function BrowserViewContainer({
         rect = content.getBoundingClientRect()
       }
 
-      await window.eidos.browser.view.open(viewId, url, {
+      await window.eidos.browser.view.open(viewId, urlRef.current, {
         x: Math.round(rect.x),
         y: Math.round(rect.y),
         width: Math.round(Math.max(rect.width, 100)),
@@ -89,6 +95,7 @@ export function BrowserViewContainer({
 
     const unsubscribe = window.eidos.browser.view.onUpdate(viewId, (data) => {
       if (data.type === "navigate") {
+        lastNavigatedUrlRef.current = data.url || ""
         onNavigate({
           url: data.url || "",
           canGoBack: data.canGoBack ?? false,
@@ -191,7 +198,7 @@ export function BrowserViewContainer({
       }
       window.eidos.browser.view.close(viewId)
     }
-  }, [url, viewId])
+  }, [viewId])
 
   useEffect(() => {
     if (!isDesktopMode || !url) return
@@ -221,7 +228,15 @@ export function BrowserViewContainer({
     }
 
     window.eidos.browser.view.setVisible(viewId, !!shouldShow)
-  }, [isActive, isAnyOverlayOpen, url, viewMode, viewId])
+  }, [isActive, isAnyOverlayOpen, viewMode, viewId])
+
+  // Load URL changes without recreating the BrowserView
+  useEffect(() => {
+    if (!isDesktopMode || !url) return
+    if (url !== lastNavigatedUrlRef.current) {
+      window.eidos.browser.view.loadURL(viewId, url)
+    }
+  }, [url, viewId])
 
   const isParsingReaderView = useWebviewStore(
     (s) => s.states[viewId]?.isParsingReaderView ?? false
