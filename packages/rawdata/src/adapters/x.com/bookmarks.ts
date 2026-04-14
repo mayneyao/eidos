@@ -72,7 +72,7 @@ export default defineAdapter({
   meta: {
     site: "x",
     name: "bookmarks",
-    description: "X (Twitter) Bookmarks 同步",
+    description: "X (Twitter) Bookmarks",
     domain: "x.com",
     version: "1.0",
   },

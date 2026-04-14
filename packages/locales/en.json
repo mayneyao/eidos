@@ -97,6 +97,7 @@
   "dataview.createTableFromResults": "Create Table from results",
   "dataview.mapToTitle": "Map to Title",
   "dataview.createTableDescription": "This feature exports the current query results into a standalone table. The exported table is a <strong>static snapshot</strong> and will not update automatically if the original query or underlying data changes.",
+  "dataview.attachedDbWarning": "This query references attached database tables ({{tables}}). Persistent DataViews cannot be created from attached databases.",
   "common.delete": "Delete",
   "common.description": "Description",
   "common.download": "Download",

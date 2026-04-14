@@ -1,6 +1,38 @@
 import type { SelectFromStatement, Statement } from "pgsql-ast-parser"
 import { astMapper, parse, parseFirst, toSql } from "pgsql-ast-parser"
 
+const ATTACHED_DB_SCHEMAS = new Set(["raw", "inbox"])
+
+export const getAttachedDatabaseReferences = (sql?: string): string[] => {
+  if (!sql?.trim()) return []
+  try {
+    const ast: Statement = parseFirst(sql)
+    const refs: string[] = []
+    const visit = (node: any) => {
+      if (!node || typeof node !== "object") return
+      if (
+        node.type === "table" &&
+        node.name?.schema &&
+        ATTACHED_DB_SCHEMAS.has(node.name.schema)
+      ) {
+        refs.push(`${node.name.schema}.${node.name.name}`)
+      }
+      for (const key of Object.keys(node)) {
+        const val = node[key]
+        if (Array.isArray(val)) {
+          val.forEach(visit)
+        } else if (val && typeof val === "object") {
+          visit(val)
+        }
+      }
+    }
+    visit(ast)
+    return [...new Set(refs)]
+  } catch {
+    return []
+  }
+}
+
 export const getRawTableNameFromQuery = (sql?: string) => {
   if (!sql) return ""
   const ast: Statement[] = parse(sql)

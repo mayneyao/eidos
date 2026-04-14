@@ -13,28 +13,68 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 
-import { getTemplates } from "./template"
+import type { Template } from "./template"
+import { getAdapterTemplates, getTemplates } from "./template"
 
 interface TemplateModalProps {
   onTemplateSelect: (sql: string) => void
   children: React.ReactNode
+  space?: string
 }
 
 export const TemplateModal = ({
   onTemplateSelect,
   children,
+  space,
 }: TemplateModalProps) => {
   const [templateSearchQuery, setTemplateSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string | null>("all")
   const [isOpen, setIsOpen] = useState(false)
   const [focusedIndex, setFocusedIndex] = useState(-1)
+  const [adapterTemplates, setAdapterTemplates] = useState<Template[]>([])
+  const [isLoadingAdapters, setIsLoadingAdapters] = useState(false)
   const { t } = useTranslation()
 
   const searchInputRef = useRef<HTMLInputElement>(null)
   const templateRefs = useRef<(HTMLButtonElement | null)[]>([])
 
-  // Get templates (memoized)
-  const templates = useMemo(() => getTemplates(), [])
+  // Static templates (memoized)
+  const staticTemplates = useMemo(() => getTemplates(), [])
+
+  // Load adapter templates when modal opens
+  useEffect(() => {
+    if (!isOpen || !space) {
+      setAdapterTemplates([])
+      return
+    }
+    let cancelled = false
+    setIsLoadingAdapters(true)
+    getAdapterTemplates(space)
+      .then((templates) => {
+        if (!cancelled) {
+          setAdapterTemplates(templates)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAdapterTemplates([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingAdapters(false)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, space])
+
+  // Merge static and dynamic templates
+  const templates = useMemo(
+    () => [...staticTemplates, ...adapterTemplates],
+    [staticTemplates, adapterTemplates]
+  )
 
   // Template categorization and filtering logic (memoized)
   const templateCategories = useMemo(
@@ -55,23 +95,35 @@ export const TemplateModal = ({
         icon: "⚙️",
         count: templates.filter((t) => t.category === "system").length,
       },
+      adapter: {
+        label: "Adapter",
+        icon: "🔌",
+        count: templates.filter((t) => t.category === "adapter").length,
+      },
     }),
     [templates]
   )
 
+  const getTemplateDisplayName = (template: Template) =>
+    template.displayName || t(template.i18nKey)
+
+  const getTemplateDisplayDescription = (template: Template) =>
+    template.displayDescription || t(template.descriptionKey)
+
   const filteredTemplates = useMemo(
     () =>
       templates.filter((template) => {
+        const searchLower = templateSearchQuery.toLowerCase()
         const matchesSearch =
-          template.name
-            .toLowerCase()
-            .includes(templateSearchQuery.toLowerCase()) ||
+          template.name.toLowerCase().includes(searchLower) ||
           template.tags.some((tag) =>
-            tag.toLowerCase().includes(templateSearchQuery.toLowerCase())
+            tag.toLowerCase().includes(searchLower)
           ) ||
-          template.i18nKey
-            .toLowerCase()
-            .includes(templateSearchQuery.toLowerCase())
+          template.i18nKey.toLowerCase().includes(searchLower) ||
+          (template.displayName?.toLowerCase().includes(searchLower) ??
+            false) ||
+          (template.displayDescription?.toLowerCase().includes(searchLower) ??
+            false)
 
         if (selectedCategory === null || selectedCategory === "all") {
           return matchesSearch
@@ -199,7 +251,12 @@ export const TemplateModal = ({
 
           {/* Template list */}
           <div className="flex flex-col gap-2 flex-1 overflow-y-auto min-h-0 p-1">
-            {filteredTemplates.length === 0 ? (
+            {isLoadingAdapters && adapterTemplates.length === 0 && (
+              <div className="text-center text-sm text-muted-foreground py-8">
+                Loading adapter templates...
+              </div>
+            )}
+            {!isLoadingAdapters && filteredTemplates.length === 0 ? (
               <div className="text-center text-sm text-muted-foreground py-8">
                 No templates found
               </div>
@@ -216,7 +273,7 @@ export const TemplateModal = ({
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="font-medium text-sm">
-                      {t(template.i18nKey)}
+                      {getTemplateDisplayName(template)}
                     </div>
                     <div className="flex items-center gap-1">
                       <Badge
@@ -229,7 +286,7 @@ export const TemplateModal = ({
                     </div>
                   </div>
                   <div className="text-xs text-muted-foreground mb-2 line-clamp-2">
-                    {t(template.descriptionKey)}
+                    {getTemplateDisplayDescription(template)}
                   </div>
                   {template.tags && template.tags.length > 0 && (
                     <div className="flex gap-1 flex-wrap">
