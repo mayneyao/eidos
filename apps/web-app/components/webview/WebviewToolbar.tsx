@@ -40,7 +40,10 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
   const isParsingReaderView = useWebviewStore(
     (s) => s.states[tabId]?.isParsingReaderView ?? false
   )
-  const isLoading = isViewLoading || isParsingReaderView
+  const isRefreshingAdapter = useWebviewStore(
+    (s) => s.states[tabId]?.isRefreshingAdapter ?? false
+  )
+  const isLoading = isViewLoading || isParsingReaderView || isRefreshingAdapter
 
   // Sync committed URL ref
   useEffect(() => {
@@ -142,7 +145,11 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
   }
 
   const handleReload = () => {
-    useWebviewStore.getState().reload(tabId)
+    if (viewMode === "table") {
+      handleRefreshAdapter()
+    } else {
+      useWebviewStore.getState().reload(tabId)
+    }
   }
 
   const { space } = useCurrentPathInfo()
@@ -243,14 +250,9 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
         />
       </div>
       {viewMode === "table" && (
-        <>
-          <Button variant="outline" size="sm" onClick={handleRefreshAdapter}>
-            Refresh
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleBackToBrowser}>
-            Back to Browser
-          </Button>
-        </>
+        <Button variant="outline" size="sm" onClick={handleBackToBrowser}>
+          Back to Browser
+        </Button>
       )}
     </div>
   )
