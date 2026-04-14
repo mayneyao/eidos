@@ -10,6 +10,8 @@ import { RawDataService } from "../../rawdata/rawdata.service"
 // Extended view state with space info
 interface ExtendedViewState extends ViewState {
   space?: string
+  visible: boolean
+  wasVisibleBeforeFullscreen?: boolean
 }
 
 /**
@@ -175,7 +177,7 @@ export class ViewManagerService {
     // Register for zoom sync
     this.zoomService.registerView(viewId, view)
 
-    this.views.set(viewId, { view, isFullscreen: false })
+    this.views.set(viewId, { view, isFullscreen: false, visible: false })
   }
 
   /**
@@ -205,6 +207,7 @@ export class ViewManagerService {
     const state = this.views.get(viewId)
     if (state) {
       state.view.setVisible(visible)
+      state.visible = visible
     }
   }
 
@@ -330,13 +333,35 @@ export class ViewManagerService {
   }
 
   /**
-   * Set fullscreen state for a view
+   * Set fullscreen state for a view.
+   * When entering fullscreen, hides all other views and records their visibility.
+   * When leaving fullscreen, restores the previous visibility of other views.
    */
   setFullscreen(viewId: string, isFullscreen: boolean): void {
     const state = this.views.get(viewId)
-    if (state) {
-      state.isFullscreen = isFullscreen
+    if (!state) return
+
+    if (isFullscreen) {
+      for (const [otherViewId, otherState] of this.views) {
+        if (otherViewId !== viewId) {
+          otherState.wasVisibleBeforeFullscreen = otherState.visible
+          otherState.view.setVisible(false)
+          otherState.visible = false
+        }
+      }
+    } else {
+      for (const [otherViewId, otherState] of this.views) {
+        if (otherViewId !== viewId) {
+          if (otherState.wasVisibleBeforeFullscreen) {
+            otherState.view.setVisible(true)
+            otherState.visible = true
+          }
+          otherState.wasVisibleBeforeFullscreen = undefined
+        }
+      }
     }
+
+    state.isFullscreen = isFullscreen
   }
 
   /**
