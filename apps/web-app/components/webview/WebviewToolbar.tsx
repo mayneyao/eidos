@@ -51,6 +51,11 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
       // Only respond if this tab is the active tab
       if (!isFocused) return
 
+      // Blur the webview so focus returns to the main window and the address bar can be focused
+      if (isDesktopMode) {
+        window.eidos.browser.find?.blurWebview?.(tabId)
+      }
+
       addressBarRef.current?.focus()
       addressBarRef.current?.select()
     }

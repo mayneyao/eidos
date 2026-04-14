@@ -12,6 +12,8 @@ import {
 } from "lexical"
 
 import { useEditorInstance } from "../../hooks/editor-instance-context"
+import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import {
   findFirstBlockElement,
   getSelectedNode,
@@ -34,6 +36,14 @@ export function useKeyboardSelection() {
     isSelecting: isGlobalSelecting,
   } = useEditorInstance()
   const [editor] = useLexicalComposerContext()
+  const { isFocused } = useTabContext()
+  const isAnyOverlayOpen = useAppRuntimeStore(
+    (state) =>
+      state.isCmdkOpen ||
+      state.isKeyboardShortcutsOpen ||
+      state.isSpaceSettingsOpen ||
+      state.isGlobalSearchOpen
+  )
   const [selectedKeySet, setSelectedKeySet] = useState(new Set<string>())
   const [currentNodeKey, setCurrentNodeKey] = useState<string | null>(null)
 
@@ -171,15 +181,13 @@ export function useKeyboardSelection() {
 
   // Use ahooks useKeyPress for keyboard events
   useKeyPress(["uparrow"], (event) => {
-    if (isGlobalSelecting) {
-      handleArrowSelection("up", event.shiftKey)
-    }
+    if (!isFocused || isAnyOverlayOpen || !isGlobalSelecting) return
+    handleArrowSelection("up", event.shiftKey)
   })
 
   useKeyPress(["downarrow"], (event) => {
-    if (isGlobalSelecting) {
-      handleArrowSelection("down", event.shiftKey)
-    }
+    if (!isFocused || isAnyOverlayOpen || !isGlobalSelecting) return
+    handleArrowSelection("down", event.shiftKey)
   })
 
   const handleEscape = useCallback(() => {
@@ -235,45 +243,51 @@ export function useKeyboardSelection() {
   }, [editor, selectedKeySet, currentNodeKey])
 
   useKeyPress(["esc"], () => {
+    if (!isFocused || isAnyOverlayOpen) return
     handleEscape()
   })
 
   // Handle backspace to delete selected nodes
   useKeyPress(["backspace"], (e) => {
-    if (isGlobalSelecting && selectedKeySet.size > 0) {
-      e.preventDefault()
-      editor.update(() => {
-        selectedKeySet.forEach((nodeKey) => {
-          const node = $getNodeByKey(nodeKey)
-          if (node) {
-            node.remove()
-          }
-        })
-        clearSelectedKeySet()
-        setGlobalIsSelecting(false)
+    if (
+      !isFocused ||
+      isAnyOverlayOpen ||
+      !isGlobalSelecting ||
+      selectedKeySet.size === 0
+    )
+      return
+    e.preventDefault()
+    editor.update(() => {
+      selectedKeySet.forEach((nodeKey) => {
+        const node = $getNodeByKey(nodeKey)
+        if (node) {
+          node.remove()
+        }
       })
-    }
+      clearSelectedKeySet()
+      setGlobalIsSelecting(false)
+    })
   })
 
   // Handle enter key to focus on selected node
   useKeyPress(["enter"], (e) => {
-    if (isGlobalSelecting && currentNodeKey) {
-      e.preventDefault()
-      editor.update(() => {
-        console.log(currentNodeKey)
-        const node = $getNodeByKey(currentNodeKey)
-        if (node) {
-          selectedKeySet.forEach(clearNodeHighlight)
-          clearSelectedKeySet()
-          setGlobalIsSelecting(false)
+    if (!isFocused || isAnyOverlayOpen || !isGlobalSelecting || !currentNodeKey)
+      return
+    e.preventDefault()
+    editor.update(() => {
+      console.log(currentNodeKey)
+      const node = $getNodeByKey(currentNodeKey)
+      if (node) {
+        selectedKeySet.forEach(clearNodeHighlight)
+        clearSelectedKeySet()
+        setGlobalIsSelecting(false)
 
-          // Focus first
-          editor.focus()
-          // (node as any).select()
-          node.selectEnd()
-        }
-      })
-    }
+        // Focus first
+        editor.focus()
+        // (node as any).select()
+        node.selectEnd()
+      }
+    })
   })
 
   // Handle editor focus
@@ -298,29 +312,28 @@ export function useKeyboardSelection() {
 
   // Handle Command/Ctrl + A to select all nodes
   useKeyPress(["meta.a", "ctrl.a"], (e) => {
-    if (isGlobalSelecting) {
-      e.preventDefault()
-      editor.update(() => {
-        // Clear existing selections
-        selectedKeySet.forEach(clearNodeHighlight)
-        selectedKeySet.clear()
+    if (!isFocused || isAnyOverlayOpen || !isGlobalSelecting) return
+    e.preventDefault()
+    editor.update(() => {
+      // Clear existing selections
+      selectedKeySet.forEach(clearNodeHighlight)
+      selectedKeySet.clear()
 
-        // Get all top-level nodes
-        const nodes = editor.getEditorState().read(() => {
-          const rootNode = $getRoot()
-          return rootNode.getChildren()
-        })
-
-        // Select all nodes
-        nodes.forEach((node) => {
-          const nodeKey = node.getKey()
-          selectedKeySet.add(nodeKey)
-          highlightNode(nodeKey)
-        })
-
-        setSelectedKeySet(new Set(selectedKeySet))
+      // Get all top-level nodes
+      const nodes = editor.getEditorState().read(() => {
+        const rootNode = $getRoot()
+        return rootNode.getChildren()
       })
-    }
+
+      // Select all nodes
+      nodes.forEach((node) => {
+        const nodeKey = node.getKey()
+        selectedKeySet.add(nodeKey)
+        highlightNode(nodeKey)
+      })
+
+      setSelectedKeySet(new Set(selectedKeySet))
+    })
   })
 
   return {
