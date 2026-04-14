@@ -77,7 +77,7 @@ export const NodeComponent = ({
   const node = nodeId ? nodeMap[nodeId] : null
 
   useTabTitle(node?.name)
-  useDocFindInPage()
+  useDocFindInPage(node?.type)
 
   useEffect(() => {
     const bc = new BroadcastChannel(EidosDataEventChannelName)
