@@ -185,6 +185,7 @@ function main() {
             canGoBack?: boolean
             canGoForward?: boolean
             title?: string
+            adapterPath?: string
           }) => void
         ) => {
           const listener = (

@@ -11,6 +11,7 @@ import {
 import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useWebviewStore } from "@/apps/web-app/store/webview-store"
+import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { ViewMode } from "./types"
@@ -144,6 +145,16 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
     useWebviewStore.getState().reload(tabId)
   }
 
+  const { space } = useCurrentPathInfo()
+  const selectedAdapter = useWebviewStore(
+    (s) => s.states[tabId]?.selectedAdapter
+  )
+
+  const handleRefreshAdapter = () => {
+    if (!space || !selectedAdapter) return
+    useWebviewStore.getState().runAdapter(tabId, space, selectedAdapter)
+  }
+
   const handleBackToBrowser = () => {
     setWebviewState(tabId, {
       viewMode: "browser",
@@ -232,9 +243,14 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
         />
       </div>
       {viewMode === "table" && (
-        <Button variant="outline" size="sm" onClick={handleBackToBrowser}>
-          Back to Browser
-        </Button>
+        <>
+          <Button variant="outline" size="sm" onClick={handleRefreshAdapter}>
+            Refresh
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleBackToBrowser}>
+            Back to Browser
+          </Button>
+        </>
       )}
     </div>
   )

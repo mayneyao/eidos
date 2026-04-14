@@ -28,6 +28,7 @@ import {
   type ExploreResult,
 } from "./explorer/browser-explorer.service"
 import { BrowserRunnerService } from "./runner/browser-runner.service"
+import { CliRunnerService } from "./runner/cli-runner.service"
 import { DataPersisterService } from "./persistence/data-persister.service"
 import { DataStoreService } from "./store/datastore.service"
 
@@ -48,6 +49,8 @@ export class RawDataService extends IpcServiceBase {
     private adapterLoader: AdapterLoaderService,
     @Inject(BrowserRunnerService)
     private browserRunner: BrowserRunnerService,
+    @Inject(CliRunnerService)
+    private cliRunner: CliRunnerService,
     @Inject(DataPersisterService)
     private dataPersister: DataPersisterService,
     @Inject(DataStoreService)
@@ -197,14 +200,30 @@ export class RawDataService extends IpcServiceBase {
 
     // Run adapter
     const isBrowserAdapter = adapter.protocol?.browser
+    const isCliAdapter = adapter.protocol?.cli
     console.log(
       "[RawDataService] isBrowserAdapter:",
       isBrowserAdapter,
+      "isCliAdapter:",
+      isCliAdapter,
       "hasBrowserWindow:",
       !!browserWindow
     )
 
-    if (isBrowserAdapter && browserWindow) {
+    if (isCliAdapter) {
+      console.log("[RawDataService] Running CLI adapter...")
+      const store = this.dataStore.getDataStore(spaceId)
+      const db = this.dataStore.getDatabase(spaceId)
+      const result = await this.cliRunner.runAdapter(
+        spaceId,
+        adapter,
+        args,
+        store,
+        db
+      )
+      console.log("[RawDataService] CLI adapter completed")
+      return result
+    } else if (isBrowserAdapter && browserWindow) {
       console.log("[RawDataService] Running browser adapter...")
       const store = this.dataStore.getDataStore(spaceId)
       const db = this.dataStore.getDatabase(spaceId)
@@ -220,8 +239,8 @@ export class RawDataService extends IpcServiceBase {
       return result
     } else {
       throw new Error(
-        "V3 adapter runner not yet implemented. " +
-          "Adapters must be run through the browser for now."
+        "Adapter protocol not supported. " +
+          "Adapters must specify protocol.browser or protocol.cli."
       )
     }
   }
@@ -288,14 +307,29 @@ export class RawDataService extends IpcServiceBase {
   // ============================================
 
   @IpcMethod()
-  async getAdapters(
-    spaceId: string
-  ): Promise<{ path: string; adapter: RawDataAdapter }[]> {
+  async getAdapters(spaceId: string): Promise<
+    {
+      path: string
+      adapter: {
+        meta: RawDataAdapter["meta"]
+        protocol: RawDataAdapter["protocol"]
+        args?: RawDataAdapter["args"]
+        queries?: RawDataAdapter["queries"]
+        sync?: RawDataAdapter["sync"]
+      }
+    }[]
+  > {
     const manager = await this.adapterLoader.getManager(spaceId)
     const adapters = manager.getAdapters()
     return Array.from(adapters.entries()).map(([p, adapter]) => ({
       path: p,
-      adapter,
+      adapter: {
+        meta: adapter.meta,
+        protocol: adapter.protocol,
+        args: adapter.args,
+        queries: adapter.queries,
+        sync: adapter.sync,
+      },
     }))
   }
 

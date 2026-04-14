@@ -18,7 +18,7 @@ interface BrowserViewContainerProps {
     canGoForward: boolean
   }) => void
   onLoadingChange: (isLoading: boolean) => void
-  onRawdataNavigation: (url: string) => void
+  onRawdataNavigation: (url: string, adapterPath?: string) => void
   onTitleChange?: (title: string) => void
 }
 
@@ -36,12 +36,6 @@ export function BrowserViewContainer({
   onTitleChange,
 }: BrowserViewContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-
-  // Set view space when it changes
-  useEffect(() => {
-    if (!isDesktopMode || !space) return
-    window.eidos?.browser?.view?.setViewSpace?.(viewId, space)
-  }, [viewId, space])
 
   useEffect(() => {
     if (!isDesktopMode || !url) {
@@ -81,6 +75,11 @@ export function BrowserViewContainer({
         width: Math.round(Math.max(rect.width, 100)),
         height: Math.round(Math.max(rect.height, 100)),
       })
+
+      // Set view space after open to avoid race condition in main process
+      if (space) {
+        window.eidos?.browser?.view?.setViewSpace?.(viewId, space)
+      }
     }
 
     open()
@@ -98,7 +97,7 @@ export function BrowserViewContainer({
       } else if (data.type === "loading") {
         onLoadingChange(data.isLoading ?? false)
       } else if (data.type === "rawdata-navigation") {
-        onRawdataNavigation(data.url || "")
+        onRawdataNavigation(data.url || "", data.adapterPath)
       } else if (data.type === "title") {
         onTitleChange?.(data.title || "")
       }

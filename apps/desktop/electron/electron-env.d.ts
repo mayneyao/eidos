@@ -91,6 +91,7 @@ interface Window {
             canGoForward?: boolean
             isLoading?: boolean
             title?: string
+            adapterPath?: string
           }) => void
         ) => () => void
         // Event listener for new tab requests (window.open interception)

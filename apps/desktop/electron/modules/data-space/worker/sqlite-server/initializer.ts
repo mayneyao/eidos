@@ -7,6 +7,7 @@ import Database from "better-sqlite3"
 
 import type { SyncCredentials } from "@eidos.space/sync"
 import type { SpaceInfo } from "@eidos.space/space-manager"
+import { CREATE_TABLES_SQL, INIT_DATA_SQL } from "@eidos.space/rawdata"
 import {
   applyGraftConfigToEnv,
   isInitializationOperation,
@@ -113,7 +114,7 @@ export class NodeDatabaseInitializer {
       this.loadVecExtension(db)
 
       // Attach rawdata database if configured
-      this.attachDatabase(db)
+      this.attachDatabase(db, isSyncEnabled)
 
       this.logger.log("Database initialized successfully.")
 
@@ -287,45 +288,124 @@ export class NodeDatabaseInitializer {
     db.prepare("select jieba_dict(?)").run(options.dictPath)
   }
 
-  private attachDatabase(db: Database.Database) {
+  private ensureAuxDatabaseInitialized(
+    filePath: string,
+    alias: "raw" | "inbox"
+  ) {
+    try {
+      const dir = path.dirname(filePath)
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
+
+      // Open the auxiliary database directly to initialize schema
+      const auxDb = new Database(filePath)
+      if (alias === "raw") {
+        auxDb.exec(CREATE_TABLES_SQL)
+        auxDb.exec(INIT_DATA_SQL)
+        this.logger.log(
+          "[attachDatabase] Initialized raw database schema:",
+          filePath
+        )
+      } else if (alias === "inbox") {
+        auxDb.exec(`
+          CREATE TABLE IF NOT EXISTS messages (
+            id TEXT PRIMARY KEY,
+            channel_id TEXT,
+            body TEXT NOT NULL,
+            content_type TEXT DEFAULT 'json',
+            timestamp_ms INTEGER NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            metadata TEXT,
+            processed INTEGER DEFAULT 0,
+            created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+          )
+        `)
+        this.logger.log(
+          "[attachDatabase] Initialized inbox database schema:",
+          filePath
+        )
+      }
+      auxDb.close()
+    } catch (err) {
+      this.logger.error(
+        `[attachDatabase] Failed to initialize ${alias} database:`,
+        err
+      )
+    }
+  }
+
+  private attachDatabase(db: Database.Database, isSyncEnabled: boolean) {
     if (!this.options.spacePath) {
       return
     }
 
-    // Derive raw path from spacePath
-    // Expected location: spacePath/.eidos/raw.sqlite3
-    const rawPath = path.join(this.options.spacePath, ".eidos", "raw.sqlite3")
+    const attached = db.prepare("PRAGMA database_list").all() as any[]
+    this.logger.log("[attachDatabase] isSyncEnabled:", isSyncEnabled)
 
-    if (fs.existsSync(rawPath)) {
-      try {
-        this.logger.log("Attaching raw database...", rawPath)
-        db.prepare(`ATTACH DATABASE ? AS raw`).run(rawPath)
-        this.logger.log("Raw database attached successfully.")
-      } catch (err) {
-        this.logger.error("Failed to attach raw database:", err)
+    const attachIfNeeded = (filePath: string, alias: string) => {
+      if (attached.some((d) => d.name === alias)) return
+      if (!isSyncEnabled && !fs.existsSync(filePath)) {
+        this.logger.log(
+          `[attachDatabase] ${alias} database not found, skipping:`,
+          filePath
+        )
+        return
       }
-    } else {
-      this.logger.log("Raw database not found, skipping attach:", rawPath)
+
+      try {
+        let attachPath = filePath
+        if (isSyncEnabled) {
+          const defaultVfs = process.platform === "win32" ? "win32" : "unix"
+          const normalized = filePath.replace(/\\/g, "/")
+          attachPath = normalized.startsWith("/")
+            ? `file://${normalized}?vfs=${defaultVfs}`
+            : `file:///${normalized}?vfs=${defaultVfs}`
+        }
+        this.logger.log(
+          `[attachDatabase] Attaching ${alias} database:`,
+          attachPath
+        )
+        db.prepare(`ATTACH DATABASE ? AS ${alias}`).run(attachPath)
+        this.logger.log(
+          `[attachDatabase] ${alias} database attached successfully.`
+        )
+      } catch (err) {
+        this.logger.error(
+          `[attachDatabase] Failed to attach ${alias} database:`,
+          err
+        )
+      }
     }
 
-    // Derive inbox path from spacePath
-    // Expected location: spacePath/.eidos/inbox.db
+    const rawPath = path.join(this.options.spacePath, ".eidos", "raw.sqlite3")
+    this.ensureAuxDatabaseInitialized(rawPath, "raw")
+    attachIfNeeded(rawPath, "raw")
+
+    // Verify raw schema
+    try {
+      const rawTables = db
+        .prepare(
+          "SELECT name FROM raw.sqlite_master WHERE type='table' LIMIT 5"
+        )
+        .all()
+      this.logger.log(
+        "[attachDatabase] Raw tables:",
+        rawTables.map((t: any) => t.name)
+      )
+    } catch (verifyErr) {
+      this.logger.error(
+        "[attachDatabase] Failed to verify raw schema:",
+        verifyErr
+      )
+    }
+
     const inboxPath = path.join(
       this.options.spacePath,
       ".eidos",
       "inbox.sqlite3"
     )
-
-    if (fs.existsSync(inboxPath)) {
-      try {
-        this.logger.log("Attaching inbox database...", inboxPath)
-        db.prepare(`ATTACH DATABASE ? AS inbox`).run(inboxPath)
-        this.logger.log("Inbox database attached successfully.")
-      } catch (err) {
-        this.logger.error("Failed to attach inbox database:", err)
-      }
-    } else {
-      this.logger.log("Inbox database not found, skipping attach:", inboxPath)
-    }
+    this.ensureAuxDatabaseInitialized(inboxPath, "inbox")
+    attachIfNeeded(inboxPath, "inbox")
   }
 }
