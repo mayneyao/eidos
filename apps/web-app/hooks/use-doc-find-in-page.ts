@@ -1,7 +1,8 @@
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 
 import { isDesktopMode } from "@/lib/env"
 import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
+import { ITreeNode } from "@eidos.space/core/types/ITreeNode"
 
 const MAIN_WINDOW_VIEW_ID = "__main__"
 
@@ -9,11 +10,15 @@ const MAIN_WINDOW_VIEW_ID = "__main__"
  * Hook to enable find-in-page for document content in the Desktop app.
  * Wires up the main window's native Electron find overlay.
  */
-export function useDocFindInPage() {
+export function useDocFindInPage(nodeType: ITreeNode["type"] = "doc") {
   const { isFocused } = useTabContext()
 
+  const shouldShowFindInPage = useMemo(() => {
+    return isDesktopMode && ["doc", "day"].includes(nodeType)
+  }, [isDesktopMode, nodeType])
+
   useEffect(() => {
-    if (!isDesktopMode) return
+    if (!shouldShowFindInPage) return
 
     // Close find overlay when doc tab loses focus
     if (!isFocused) {
@@ -23,10 +28,10 @@ export function useDocFindInPage() {
         "clearSelection"
       )
     }
-  }, [isFocused])
+  }, [isFocused, shouldShowFindInPage])
 
   useEffect(() => {
-    if (!isDesktopMode) return
+    if (!shouldShowFindInPage) return
 
     const handleToggleFindInPage = async () => {
       if (!isFocused) return
@@ -58,16 +63,16 @@ export function useDocFindInPage() {
     return () => {
       window.removeEventListener("toggle-find-in-page", handleToggleFindInPage)
     }
-  }, [isFocused])
+  }, [isFocused, shouldShowFindInPage])
 
   useEffect(() => {
     return () => {
-      if (!isDesktopMode) return
+      if (!shouldShowFindInPage) return
       window.eidos?.browser?.find?.closeFindOverlay?.(MAIN_WINDOW_VIEW_ID)
       window.eidos?.browser?.find?.stopFindInPage?.(
         MAIN_WINDOW_VIEW_ID,
         "clearSelection"
       )
     }
-  }, [])
+  }, [shouldShowFindInPage])
 }
