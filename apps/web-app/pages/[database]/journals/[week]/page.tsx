@@ -5,6 +5,7 @@ import { getDaysByYearWeek } from "@/lib/utils"
 import { Editor } from "@/components/doc/editor"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useDocFindInPage } from "@/apps/web-app/hooks/use-doc-find-in-page"
 
 import { getDisplayTitle } from "../utils"
 
@@ -13,6 +14,8 @@ export const WeekPage = () => {
   const { day } = params
   const [currentDay, setCurrentDay] = useState<string>("")
   const { isCmdkOpen } = useAppRuntimeStore()
+  useDocFindInPage()
+
   const days: any[] = getDaysByYearWeek(day!).map((day) => {
     return {
       id: day,

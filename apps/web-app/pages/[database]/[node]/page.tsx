@@ -19,6 +19,7 @@ import { PropertyTabs } from "@/components/doc-property-global/property-tabs"
 import { Editor } from "@/components/doc/editor"
 import { FolderTree } from "@/components/folder"
 import { Table } from "@/components/table"
+
 import {
   useCurrentExtNodeHandleBlockId,
   useCurrentNode,
@@ -32,6 +33,7 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useTabTitle } from "@/apps/web-app/hooks/use-tab-title"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useDocFindInPage } from "@/apps/web-app/hooks/use-doc-find-in-page"
 
 import { EverydayPageContent } from "../journals/[day]/page"
 import { NodeCover } from "./node-cover"
@@ -75,6 +77,7 @@ export const NodeComponent = ({
   const node = nodeId ? nodeMap[nodeId] : null
 
   useTabTitle(node?.name)
+  useDocFindInPage()
 
   useEffect(() => {
     const bc = new BroadcastChannel(EidosDataEventChannelName)
