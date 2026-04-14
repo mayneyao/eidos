@@ -36,7 +36,10 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
     viewMode = "browser" as ViewMode,
   } = state || {}
 
-  const isLoading = isViewLoading
+  const isParsingReaderView = useWebviewStore(
+    (s) => s.states[tabId]?.isParsingReaderView ?? false
+  )
+  const isLoading = isViewLoading || isParsingReaderView
 
   // Sync committed URL ref
   useEffect(() => {
