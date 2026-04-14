@@ -48,6 +48,9 @@ import { ViewCreateTable } from "./view-create-table"
 import { ViewSearch } from "./view-search"
 import { ViewSettings } from "./view-settings"
 import { ViewSort } from "./view-sort"
+import { isDesktopMode } from "@/lib/env"
+import { useTabStore } from "../../store/tabs"
+import { useTabContext } from "../tab-manager/tab-context"
 
 const Views = ({
   views,
@@ -396,6 +399,7 @@ export const ViewToolbar = (props: {
       setSearchQuery("")
     }
   })
+  const { tabId } = useTabContext()
 
   useKeyPress(["ctrl.f", "meta.f"], (event) => {
     event.preventDefault()
@@ -404,6 +408,20 @@ export const ViewToolbar = (props: {
     }
     setShowSearch(true)
   })
+
+  useEffect(() => {
+    if (!isDesktopMode) return
+    const handleToggleFindInPage = async () => {
+      // Only respond if this tab is the active tab
+      const activeTabId = useTabStore.getState().getActiveTabId()
+      if (activeTabId !== tabId) return
+      setShowSearch(!showSearch)
+    }
+    window.addEventListener("toggle-find-in-page", handleToggleFindInPage)
+    return () => {
+      window.removeEventListener("toggle-find-in-page", handleToggleFindInPage)
+    }
+  }, [tabId, showSearch])
 
   return (
     <div ref={ref}>
