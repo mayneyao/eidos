@@ -10,10 +10,6 @@ import SpaceLayout from "@/apps/web-app/pages/[database]/layout"
 // extensions
 import RootLayout from "@/apps/web-app/pages/layout"
 import { LandingPage } from "@/apps/web-app/pages/page"
-import ShareNodePage from "@/apps/web-app/pages/share/[database]/[table]/page"
-import ShareLayout from "@/apps/web-app/pages/share/[database]/layout"
-// share
-import SharePage from "@/apps/web-app/pages/share/page"
 
 import { spaceRoutes } from "../routes"
 import { NotFound } from "./404"
@@ -78,25 +74,6 @@ const router = createBrowserRouter([
           }
         },
         children: spaceRoutes,
-      },
-      {
-        path: "share",
-        children: [
-          {
-            index: true,
-            element: <SharePage />,
-          },
-          {
-            path: ":database",
-            element: <ShareLayout />,
-            children: [
-              {
-                path: ":table",
-                element: <ShareNodePage />,
-              },
-            ],
-          },
-        ],
       },
     ],
   },
