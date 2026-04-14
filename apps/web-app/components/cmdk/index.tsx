@@ -54,6 +54,7 @@ import { DocActionCommandItems } from "./doc-actions"
 import { useCMDKGoto, useInput, useCMDKStore } from "./hooks"
 import { ImportSchema } from "./import-schema"
 import { SecondaryView } from "./secondary-view"
+import { TabCommandItems } from "./tabs"
 
 type SecondaryView = {
   component: React.ReactNode
@@ -79,6 +80,13 @@ export function CommandDialogDemo() {
   const { resetTabs } = useFavBlocks()
 
   const currentNode = useCurrentNode()
+
+  // Reset input when CMDK is closed
+  useEffect(() => {
+    if (!isCmdkOpen) {
+      setInput("")
+    }
+  }, [isCmdkOpen, setInput])
 
   // Initialize browser settings
   const { initialize: initializeBrowserSettings } = useBrowserSettingsStore()
@@ -801,7 +809,7 @@ export function CommandDialogDemo() {
               </>
             )}
 
-            <CommandSeparator />
+            <TabCommandItems />
             <CommandGroup heading={t("common.settings")}>
               <CommandItem onSelect={switchTheme}>
                 <Palette className="mr-2 h-4 w-4" />
