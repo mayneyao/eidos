@@ -1,4 +1,5 @@
 import { useRef, useEffect } from "react"
+import { Loader2 } from "lucide-react"
 import { isDesktopMode } from "@/lib/env"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useWebviewStore } from "@/apps/web-app/store/webview-store"
@@ -162,6 +163,18 @@ export function BrowserViewContainer({
       (_event: any, id: string) => handleFocus(id)
     )
 
+    // Listen for reader view loading state from main process
+    const readerViewLoadingListenerId = window.eidos?.on?.(
+      "browser.readerview:loading",
+      (_event: any, id: string, loading: boolean) => {
+        if (id === viewId) {
+          useWebviewStore
+            .getState()
+            .setWebviewState(viewId, { isParsingReaderView: loading })
+        }
+      }
+    )
+
     return () => {
       ro.disconnect()
       unsubscribe()
@@ -170,6 +183,12 @@ export function BrowserViewContainer({
       unsubscribeFind?.()
       if (focusListenerId) {
         window.eidos?.off?.("browser.view:focus", focusListenerId)
+      }
+      if (readerViewLoadingListenerId) {
+        window.eidos?.off?.(
+          "browser.readerview:loading",
+          readerViewLoadingListenerId
+        )
       }
       window.eidos.browser.view.close(viewId)
     }
@@ -205,7 +224,19 @@ export function BrowserViewContainer({
     window.eidos.browser.view.setVisible(viewId, !!shouldShow)
   }, [isActive, isAnyOverlayOpen, url, viewMode, viewId])
 
+  const isParsingReaderView = useWebviewStore(
+    (s) => s.states[viewId]?.isParsingReaderView ?? false
+  )
+
   return (
-    <div ref={containerRef} className="flex-1 w-full h-full min-h-[100px]" />
+    <div className="relative flex-1 w-full h-full min-h-[100px]">
+      <div ref={containerRef} className="absolute inset-0" />
+      {isParsingReaderView && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Parsing read mode...</p>
+        </div>
+      )}
+    </div>
   )
 }

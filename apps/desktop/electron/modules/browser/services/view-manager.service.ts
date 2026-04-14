@@ -404,18 +404,24 @@ export class ViewManagerService {
       const currentUrl = view.webContents.getURL()
       await readerViewService.exitReaderView(viewId, currentUrl)
     } else {
-      const result = await readerViewService.captureAsReaderView(viewId)
-      if (result.success && result.content) {
-        await readerViewService.openReaderView(viewId, {
-          html: result.content,
-          title: result.title || "Reader View",
-          originalUrl: result.url || view.webContents.getURL(),
-        })
-      } else {
-        dialog.showErrorBox(
-          "Read Mode Failed",
-          result.error || "Could not extract content"
-        )
+      const win = this.win
+      win?.webContents.send("browser.readerview:loading", viewId, true)
+      try {
+        const result = await readerViewService.captureAsReaderView(viewId)
+        if (result.success && result.content) {
+          await readerViewService.openReaderView(viewId, {
+            html: result.content,
+            title: result.title || "Reader View",
+            originalUrl: result.url || view.webContents.getURL(),
+          })
+        } else {
+          dialog.showErrorBox(
+            "Read Mode Failed",
+            result.error || "Could not extract content"
+          )
+        }
+      } finally {
+        win?.webContents.send("browser.readerview:loading", viewId, false)
       }
     }
   }
