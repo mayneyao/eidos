@@ -32,7 +32,8 @@ export class BrowserRunnerService {
     args: Record<string, any>,
     browserWindow: BrowserWindow,
     store: RawData,
-    db: Database.Database
+    db: Database.Database,
+    sendLog?: (message: string) => void
   ): Promise<
     RawDataResult & {
       persisted: { agents: number; goods: number; relations: number }
@@ -124,6 +125,22 @@ export class BrowserRunnerService {
       )
     })
 
+    view.webContents.on(
+      "console-message",
+      (event, level, message, line, sourceId) => {
+        const prefix = `[Console ${level}]`
+        if (level === 3) {
+          console.error(
+            "[RawData] Renderer Error:",
+            message,
+            `at ${sourceId}:${line}`
+          )
+        } else {
+          console.log("[RawData] Renderer Log:", prefix, message)
+        }
+      }
+    )
+
     try {
       // Create BrowserContext implementation
       const browserContext = {
@@ -193,7 +210,15 @@ export class BrowserRunnerService {
           `
 
           console.log("[RawData] Executing in page context...")
-          const result = await view.webContents.executeJavaScript(code, true)
+          let result: any
+          try {
+            result = await view.webContents.executeJavaScript(code, true)
+          } catch (execErr: any) {
+            console.error("[RawData] executeJavaScript FAILED:", execErr)
+            console.error("[RawData] Generated code length:", code.length)
+            console.error("[RawData] Generated code:\n", code)
+            throw execErr
+          }
 
           if (result && result.__error) {
             console.error("[RawData] Evaluate error:", result.message)

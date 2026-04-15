@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import { Table } from "@/components/table"
 import { useDataView } from "@/hooks/use-data-view"
@@ -20,12 +21,18 @@ export function RawDataTableView({
   space,
   url,
 }: RawDataTableViewProps) {
+  const { t } = useTranslation()
   const { sqlite } = useSqlite()
   const { createTempDataView } = useDataView()
   const { tabId } = useTabContext()
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewCreated, setViewCreated] = useState(false)
+
+  const adapterLogs = useWebviewStore((s) => s.states[tabId]?.adapterLogs || [])
+  const adapterHint = useWebviewStore(
+    (s) => s.states[tabId]?.adapterProgressHint
+  )
 
   // Generate a unique view ID based on adapter
   const viewId = `rawdata_${adapter.name}`
@@ -43,7 +50,7 @@ export function RawDataTableView({
         const rawQuery = adapter.queries?.raw
 
         if (!rawQuery) {
-          setError(`No 'raw' query defined in adapter ${adapter.name}`)
+          setError(t("rawdata.error.noRawQuery", { name: adapter.name }))
           setIsLoading(false)
           return
         }
@@ -64,7 +71,14 @@ export function RawDataTableView({
           console.log(
             `[RawDataTableView] ${adapter.name} has 0 rows, auto-running adapter`
           )
-          await useWebviewStore.getState().runAdapter(tabId, space, adapter)
+          const runResult = await useWebviewStore
+            .getState()
+            .runAdapter(tabId, space, adapter)
+          if (!runResult.success) {
+            setError(runResult.error || t("rawdata.error.syncFailed"))
+            setIsLoading(false)
+            return
+          }
         }
       } catch (err) {
         console.error("Failed to create temp view:", err)
@@ -80,11 +94,27 @@ export function RawDataTableView({
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
+        <div className="flex flex-col items-center gap-4 max-w-md w-full px-6">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
-            Loading {adapter.name}...
-          </p>
+          <div className="text-center space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Loading {adapter.name}...
+            </p>
+            {adapterHint && (
+              <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-3 py-1.5 rounded-md">
+                {adapterHint}
+              </p>
+            )}
+          </div>
+          {adapterLogs.length > 0 && (
+            <div className="w-full max-h-48 overflow-auto rounded border bg-muted/50 p-3 text-xs font-mono text-muted-foreground space-y-1">
+              {adapterLogs.map((log, i) => (
+                <div key={i} className="break-words">
+                  {log}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     )
@@ -110,7 +140,7 @@ export function RawDataTableView({
             </svg>
           </div>
           <div>
-            <h3 className="font-medium">Failed to load data view</h3>
+            <h3 className="font-medium">{t("rawdata.error.failedToLoad")}</h3>
             <p className="text-sm text-muted-foreground mt-1">{error}</p>
           </div>
         </div>
@@ -121,10 +151,29 @@ export function RawDataTableView({
   if (!viewCreated) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-sm text-muted-foreground">View not created</p>
+        <p className="text-sm text-muted-foreground">
+          {t("rawdata.error.viewNotCreated")}
+        </p>
       </div>
     )
   }
 
-  return <Table tableName={viewName} space={space} />
+  return (
+    <div className="flex h-full flex-col">
+      {adapterHint && (
+        <div
+          className={`border-b px-4 py-2 text-xs ${
+            adapterHint.startsWith("未找到命令") || adapterHint.includes("错误")
+              ? "bg-red-50 text-red-700 dark:bg-red-950/30"
+              : "bg-amber-50 text-amber-700 dark:bg-amber-950/30"
+          }`}
+        >
+          {adapterHint}
+        </div>
+      )}
+      <div className="flex-1 overflow-auto">
+        <Table tableName={viewName} space={space} />
+      </div>
+    </div>
+  )
 }

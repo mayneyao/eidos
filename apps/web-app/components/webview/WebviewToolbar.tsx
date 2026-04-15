@@ -157,9 +157,14 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
     (s) => s.states[tabId]?.selectedAdapter
   )
 
-  const handleRefreshAdapter = () => {
+  const handleRefreshAdapter = async () => {
     if (!space || !selectedAdapter) return
-    useWebviewStore.getState().runAdapter(tabId, space, selectedAdapter)
+    const result = await useWebviewStore
+      .getState()
+      .runAdapter(tabId, space, selectedAdapter)
+    if (!result.success) {
+      console.error("Adapter refresh failed:", result.error)
+    }
   }
 
   const handleBackToBrowser = () => {

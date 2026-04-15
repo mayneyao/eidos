@@ -1418,5 +1418,21 @@
   "space.settings.newtab.noDescription": "暂无描述",
   "space.settings.newtab.noBlocks": "未找到带有 \"use newtab\" 指令的块。",
   "space.settings.newtab.addDirectiveHint": "在块代码顶部添加 \"use newtab\"; 以使其在此处可用。",
-  "space.settings.mounts.docsLink": "文件挂载"
+  "space.settings.mounts.docsLink": "文件挂载",
+  "rawdata.loading": "正在加载 {{name}}...",
+  "rawdata.firstSyncHint": "首次同步数据量较大时可能需要一些时间，请耐心等待...",
+  "rawdata.log.error": "错误: {{message}}",
+  "rawdata.error.syncFailed": "同步失败",
+  "rawdata.error.noRawQuery": "适配器 {{name}} 未定义 'raw' 查询",
+  "rawdata.error.viewNotCreated": "视图未创建",
+  "rawdata.error.failedToLoad": "加载数据视图失败",
+  "rawdata.error.cliNotFound": "未找到命令 \"{{bin}}\"，请先安装并确保它在 PATH 环境变量中可用。",
+  "rawdata.error.adapterNotFound": "未找到适配器: {{path}}",
+  "rawdata.error.unsupportedProtocol": "不支持的适配器协议。适配器必须指定 protocol.browser 或 protocol.cli。",
+  "rawdata.status.started": "开始同步数据...",
+  "rawdata.status.done": "同步完成",
+  "rawdata.status.commandCompleted": "命令执行完成",
+  "rawdata.status.commandTimeout": "命令执行超时 ({{timeout}}ms): {{cmd}}",
+  "rawdata.status.executingCommand": "执行命令: {{cmd}}",
+  "rawdata.status.commandExitCode": "命令退出码 {{code}}: {{stderr}}"
 }

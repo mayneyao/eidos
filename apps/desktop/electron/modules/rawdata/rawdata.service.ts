@@ -77,6 +77,38 @@ export class RawDataService extends IpcServiceBase {
   }
 
   /**
+   * Send log message to renderer
+   */
+  private sendLog(
+    browserWindow: BrowserWindow | undefined,
+    adapterPath: string,
+    message: string
+  ): void {
+    if (!browserWindow || browserWindow.isDestroyed()) return
+    browserWindow.webContents.send("rawdata:log", { adapterPath, message })
+  }
+
+  /**
+   * Send progress update to renderer
+   */
+  private sendProgress(
+    browserWindow: BrowserWindow | undefined,
+    adapterPath: string,
+    payload: {
+      status: "running" | "done" | "error"
+      hint?: string
+      persisted?: { agents: number; goods: number; relations: number }
+      error?: string
+    }
+  ): void {
+    if (!browserWindow || browserWindow.isDestroyed()) return
+    browserWindow.webContents.send("rawdata:progress", {
+      adapterPath,
+      ...payload,
+    })
+  }
+
+  /**
    * Close all data stores and database connections
    */
   closeAll(): void {
@@ -198,6 +230,17 @@ export class RawDataService extends IpcServiceBase {
       throw new Error(`Adapter not found: ${adapterPath}`)
     }
 
+    const targetWindow =
+      browserWindow || this.getWindowService()?.getMainWindow() || undefined
+    const sendLog = (message: string) =>
+      this.sendLog(targetWindow, adapterPath, message)
+    const sendProgress = (payload: {
+      status: "running" | "done" | "error"
+      hint?: string
+      persisted?: { agents: number; goods: number; relations: number }
+      error?: string
+    }) => this.sendProgress(targetWindow, adapterPath, payload)
+
     // Run adapter
     const isBrowserAdapter = adapter.protocol?.browser
     const isCliAdapter = adapter.protocol?.cli
@@ -210,38 +253,53 @@ export class RawDataService extends IpcServiceBase {
       !!browserWindow
     )
 
-    if (isCliAdapter) {
-      console.log("[RawDataService] Running CLI adapter...")
-      const store = this.dataStore.getDataStore(spaceId)
-      const db = this.dataStore.getDatabase(spaceId)
-      const result = await this.cliRunner.runAdapter(
-        spaceId,
-        adapter,
-        args,
-        store,
-        db
-      )
-      console.log("[RawDataService] CLI adapter completed")
-      return result
-    } else if (isBrowserAdapter && browserWindow) {
-      console.log("[RawDataService] Running browser adapter...")
-      const store = this.dataStore.getDataStore(spaceId)
-      const db = this.dataStore.getDatabase(spaceId)
-      const result = await this.browserRunner.runAdapter(
-        spaceId,
-        adapter,
-        args,
-        browserWindow,
-        store,
-        db
-      )
-      console.log("[RawDataService] Browser adapter completed")
-      return result
-    } else {
-      throw new Error(
-        "Adapter protocol not supported. " +
-          "Adapters must specify protocol.browser or protocol.cli."
-      )
+    sendProgress({
+      status: "running",
+      hint: "The first sync may take a while depending on your data size. Please be patient...",
+    })
+    sendLog("Starting data sync...")
+
+    try {
+      if (isCliAdapter) {
+        console.log("[RawDataService] Running CLI adapter...")
+        const store = this.dataStore.getDataStore(spaceId)
+        const db = this.dataStore.getDatabase(spaceId)
+        const result = await this.cliRunner.runAdapter(
+          spaceId,
+          adapter,
+          args,
+          store,
+          db,
+          sendLog
+        )
+        console.log("[RawDataService] CLI adapter completed")
+        sendProgress({ status: "done", persisted: result.persisted })
+        return result
+      } else if (isBrowserAdapter && targetWindow) {
+        console.log("[RawDataService] Running browser adapter...")
+        const store = this.dataStore.getDataStore(spaceId)
+        const db = this.dataStore.getDatabase(spaceId)
+        const result = await this.browserRunner.runAdapter(
+          spaceId,
+          adapter,
+          args,
+          targetWindow,
+          store,
+          db,
+          sendLog
+        )
+        console.log("[RawDataService] Browser adapter completed")
+        sendProgress({ status: "done", persisted: result.persisted })
+        return result
+      } else {
+        throw new Error(
+          "Adapter protocol not supported. " +
+            "Adapters must specify protocol.browser or protocol.cli."
+        )
+      }
+    } catch (error: any) {
+      sendProgress({ status: "error", error: error?.message || String(error) })
+      throw error
     }
   }
 

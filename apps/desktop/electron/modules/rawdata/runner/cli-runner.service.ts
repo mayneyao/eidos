@@ -57,7 +57,8 @@ export class CliRunnerService {
     adapter: RawDataAdapter,
     args: Record<string, any>,
     store: RawData,
-    db: Database.Database
+    db: Database.Database,
+    sendLog?: (message: string) => void
   ): Promise<
     RawDataResult & {
       persisted: { agents: number; goods: number; relations: number }
@@ -132,15 +133,29 @@ export class CliRunnerService {
         args: string[],
         opts?: { timeout?: number; cwd?: string }
       ): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
-        console.log("[RawData] EXEC:", bin, args.join(" "))
+        const cmdStr = `${bin} ${args.join(" ")}`
+        console.log("[RawData] EXEC:", cmdStr)
+        sendLog?.(`Executing command: ${cmdStr}`)
         const timeout = opts?.timeout ?? 60000
 
         return new Promise((resolve, reject) => {
-          const proc = spawn(bin, args, {
-            stdio: ["pipe", "pipe", "pipe"],
-            env: { ...process.env, PATH: enrichedPath },
-            cwd: opts?.cwd,
-          })
+          let proc: ReturnType<typeof spawn>
+          try {
+            proc = spawn(bin, args, {
+              stdio: ["pipe", "pipe", "pipe"],
+              env: { ...process.env, PATH: enrichedPath },
+              cwd: opts?.cwd,
+            })
+          } catch (err: any) {
+            if (err.code === "ENOENT" || err.errno === -2) {
+              const friendly = `Command "${bin}" not found. Please install it and make sure it's available in your PATH.`
+              sendLog?.(friendly)
+              reject(new Error(friendly))
+            } else {
+              reject(err)
+            }
+            return
+          }
 
           let stdout = ""
           let stderr = ""
@@ -149,11 +164,9 @@ export class CliRunnerService {
           const timer = setTimeout(() => {
             killed = true
             proc.kill()
-            reject(
-              new Error(
-                `Exec timeout after ${timeout}ms: ${bin} ${args.join(" ")}`
-              )
-            )
+            const msg = `命令执行超时 (${timeout}ms): ${cmdStr}`
+            sendLog?.(msg)
+            reject(new Error(msg))
           }, timeout)
 
           proc.stdout?.on("data", (data) => {
@@ -164,14 +177,27 @@ export class CliRunnerService {
             stderr += data
           })
 
-          proc.on("error", (err) => {
+          proc.on("error", (err: any) => {
             clearTimeout(timer)
-            reject(err)
+            if (err.code === "ENOENT" || err.errno === -2) {
+              const friendly = `Command "${bin}" not found. Please install it and make sure it's available in your PATH.`
+              sendLog?.(friendly)
+              reject(new Error(friendly))
+            } else {
+              reject(err)
+            }
           })
 
           proc.on("close", (code) => {
             clearTimeout(timer)
             if (!killed) {
+              if (code !== 0) {
+                sendLog?.(
+                  `Command exited with code ${code}: ${stderr.slice(0, 200)}`
+                )
+              } else {
+                sendLog?.(`Command execution completed`)
+              }
               resolve({ stdout, stderr, exitCode: code ?? 0 })
             }
           })
@@ -229,7 +255,11 @@ export class CliRunnerService {
       exec: execContext,
       sync: adapter.sync?.incremental ? syncContext : undefined,
       log: (message: string, ...logArgs: any[]) => {
-        console.log("[Adapter]", message, ...logArgs)
+        const line = [message, ...logArgs]
+          .map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a)))
+          .join(" ")
+        console.log("[Adapter]", line)
+        sendLog?.(line)
       },
     }
 

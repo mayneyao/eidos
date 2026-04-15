@@ -1,5 +1,6 @@
 import { create } from "zustand"
 
+import i18n from "@/locales/i18n"
 import { isDesktopMode } from "@/lib/env"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import type {
@@ -29,6 +30,9 @@ export interface WebviewState {
   findText: string
   findMatches: number
   findActiveMatch: number
+  // RawData adapter sync
+  adapterLogs: string[]
+  adapterProgressHint: string | null
 }
 
 interface WebviewStore {
@@ -120,6 +124,9 @@ export const defaultWebviewState: WebviewState = {
   findText: "",
   findMatches: 0,
   findActiveMatch: 0,
+  // RawData adapter sync
+  adapterLogs: [],
+  adapterProgressHint: null,
 }
 
 export const useWebviewStore = create<WebviewStore>((set, get) => ({
@@ -265,7 +272,52 @@ export const useWebviewStore = create<WebviewStore>((set, get) => ({
   },
 
   runAdapter: async (tabId, space, adapter) => {
-    get().setWebviewState(tabId, { isRefreshingAdapter: true })
+    get().setWebviewState(tabId, {
+      isRefreshingAdapter: true,
+      adapterLogs: [],
+      adapterProgressHint: i18n.t("rawdata.firstSyncHint"),
+    })
+
+    const onLog = (
+      _event: any,
+      data: { adapterPath: string; message: string }
+    ) => {
+      if (data.adapterPath !== adapter.filePath) return
+      get().setWebviewState(tabId, (prev) => ({
+        adapterLogs: [...prev.adapterLogs, data.message].slice(-50),
+      }))
+    }
+
+    const onProgress = (
+      _event: any,
+      data: {
+        adapterPath: string
+        status: string
+        hint?: string
+        error?: string
+      }
+    ) => {
+      if (data.adapterPath !== adapter.filePath) return
+      if (data.hint) {
+        get().setWebviewState(tabId, { adapterProgressHint: data.hint })
+      }
+      if (data.status === "error" && data.error) {
+        get().setWebviewState(tabId, {
+          adapterProgressHint: data.error,
+          adapterLogs: [
+            ...(get().states[tabId]?.adapterLogs || []),
+            i18n.t("rawdata.log.error", { message: data.error }),
+          ].slice(-50),
+        })
+      }
+    }
+
+    const logListenerId = window.eidos?.on?.("rawdata:log", onLog)
+    const progressListenerId = window.eidos?.on?.(
+      "rawdata:progress",
+      onProgress
+    )
+
     try {
       const result = await window.eidos.rawData.runAdapter(
         space,
@@ -286,6 +338,7 @@ export const useWebviewStore = create<WebviewStore>((set, get) => ({
           get().setWebviewState(tabId, {
             viewMode: "table",
             selectedAdapter: fullAdapter,
+            adapterProgressHint: null,
           }),
         0
       )
@@ -293,11 +346,15 @@ export const useWebviewStore = create<WebviewStore>((set, get) => ({
       return { success: true, result }
     } catch (error) {
       console.error("Failed to refresh adapter:", error)
+      // Keep viewMode unchanged on error to avoid remount loop
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       }
     } finally {
+      if (logListenerId) window.eidos?.off?.("rawdata:log", logListenerId)
+      if (progressListenerId)
+        window.eidos?.off?.("rawdata:progress", progressListenerId)
       get().setWebviewState(tabId, { isRefreshingAdapter: false })
     }
   },

@@ -1423,5 +1423,21 @@
   "welcome.getStarted": "Get Started",
   "welcome.settingUp": "Setting up...",
   "welcome.subtitle": "Personal Data Management Framework",
-  "welcome.title": "Welcome to Eidos"
+  "welcome.title": "Welcome to Eidos",
+  "rawdata.loading": "Loading {{name}}...",
+  "rawdata.firstSyncHint": "The first sync may take a while depending on your data size. Please be patient...",
+  "rawdata.log.error": "Error: {{message}}",
+  "rawdata.error.syncFailed": "Sync failed",
+  "rawdata.error.noRawQuery": "No 'raw' query defined in adapter {{name}}",
+  "rawdata.error.viewNotCreated": "View not created",
+  "rawdata.error.failedToLoad": "Failed to load data view",
+  "rawdata.error.cliNotFound": "Command \"{{bin}}\" not found. Please install it and make sure it's available in your PATH.",
+  "rawdata.error.adapterNotFound": "Adapter not found: {{path}}",
+  "rawdata.error.unsupportedProtocol": "Adapter protocol not supported. Adapters must specify protocol.browser or protocol.cli.",
+  "rawdata.status.started": "Starting data sync...",
+  "rawdata.status.done": "Sync completed",
+  "rawdata.status.commandCompleted": "Command execution completed",
+  "rawdata.status.commandTimeout": "Command execution timed out ({{timeout}}ms): {{cmd}}",
+  "rawdata.status.executingCommand": "Executing command: {{cmd}}",
+  "rawdata.status.commandExitCode": "Command exited with code {{code}}: {{stderr}}"
 }
