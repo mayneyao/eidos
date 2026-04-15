@@ -20,7 +20,7 @@
     "hono": "^4.12.7"
   },
   "devDependencies": {
-    "vitest": "^3.0.0"
+    "vitest": "^3.2.4"
   },
   "keywords": [
     "eidos.space",
