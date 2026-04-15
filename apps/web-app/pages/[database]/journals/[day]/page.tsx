@@ -63,6 +63,7 @@ export function EverydayPageContent({
         showTitle
         namespace="eidos-notes"
         docId={day}
+        topComponent={<div className="h-[28px]" />}
         renderTitle={() => {
           if (!day) return null
           return (

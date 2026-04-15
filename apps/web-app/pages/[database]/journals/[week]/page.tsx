@@ -22,7 +22,7 @@ export const WeekPage = () => {
     }
   })
   return (
-    <div className="container prose mx-auto mt-2 flex flex-col gap-2 px-10 dark:prose-invert">
+    <div className="container prose mx-auto flex flex-col gap-2 px-10 pt-10 dark:prose-invert">
       {days.map((day, index) => {
         return (
           <div
