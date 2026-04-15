@@ -98,6 +98,8 @@ export class ProxyHandler {
       "proxy-authorization",
       "te",
       "trailers",
+      "referer",
+      "origin",
     ])
 
     // Forward safe headers

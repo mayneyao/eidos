@@ -43,6 +43,8 @@ function buildProxyHeaders(c: Context): Record<string, string | undefined> {
     "proxy-authorization",
     "te",
     "trailers",
+    "referer",
+    "origin",
   ])
 
   // Forward safe headers
