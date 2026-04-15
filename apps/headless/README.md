@@ -1,6 +1,6 @@
 # Eidos Headless Server
 
-Headless Eidos server with Graft sync support. Run your Eidos space as a server and access it via HTTP API.
+Headless Eidos server with Graft-based sync and backup support. Run your Eidos space as a server, access it via HTTP API, and connect it to remote S3-compatible storage for sync and recovery workflows.
 
 ## Quick Start
 
@@ -106,6 +106,27 @@ Extensions are loaded from `SQLITE_EXTENSIONS_DIR` or auto-detected from:
 | POST   | `/graft/pull`       | Pull from remote                  |
 | POST   | `/graft/push`       | Push to remote                    |
 | GET    | `*` (Match Pattern) | Extension Rendering (Server-side) |
+
+## Sync and Backup Model
+
+The headless server uses Graft as a Git-like sync transport for Eidos spaces.
+
+- Best for **single-user, multi-device** workflows
+- Useful for both **cross-device sync** and **remote backup**
+- Designed around **pull before editing** and **push after editing**
+- Not a real-time collaborative editing layer with automatic conflict merging
+
+If your main goal is disaster recovery, the same remote S3-compatible storage used for sync can also act as an off-device backup source for cloning and restoring a space onto another machine.
+
+## Conflict Handling
+
+Current conflict handling is conservative:
+
+- Concurrent edits on multiple devices are discouraged
+- Eidos currently does not expose a full diff-based merge flow
+- In conflict scenarios, local updates may be discarded in favor of the remote state
+
+For the safest workflow, follow **Pull -> Edit -> Push** whenever switching between devices.
 
 ## Extension Rendering
 

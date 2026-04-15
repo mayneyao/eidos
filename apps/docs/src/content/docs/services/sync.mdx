@@ -1,6 +1,6 @@
 ---
 title: Sync
-description: Synchronize your spaces across devices with Eidos
+description: Sync, back up, and restore your spaces across devices with Eidos
 tableOfContents:
   maxHeadingLevel: 4
 sidebar:
@@ -9,7 +9,7 @@ sidebar:
 
 import { FileTree } from "@astrojs/starlight/components"
 
-Eidos follows the **Local-First** principle. Your data is stored on your local device by default, and sync is treated as an optional tool for backup and collaboration.
+Eidos follows the **Local-First** principle. Your data is stored on your local device by default, and sync is treated as an optional layer for cross-device continuity, remote backup, and recovery.
 
 ## Evolution of Sync Solutions
 
@@ -29,7 +29,20 @@ Placing your Space's physical directory in a Git repository or on a cloud drive 
 
 ### 3. Eidos Native Sync (Graft)
 
-To overcome these limitations, Eidos employs a native sync solution based on [Graft](https://graft.rs/). It transforms the single `db.sqlite3` file into an objectified storage format, enabling more efficient incremental synchronization.
+To overcome these limitations, Eidos employs a native sync solution based on [Graft](https://graft.rs/). It transforms the single `db.sqlite3` file into an objectified storage format, enabling more efficient incremental synchronization and remote backup.
+
+## What Sync Is Good At Today
+
+Today, Eidos Sync is best understood as a **single-user, multi-device sync and backup service**.
+
+It is especially useful for:
+
+- Moving a Space safely between your laptop, desktop, and other personal devices
+- Keeping a remote backup of your `.eidos` data in S3-compatible storage
+- Restoring a Space onto a new machine by cloning from remote storage
+- Preserving history so sync failures are less likely to become silent data loss
+
+It is **not** yet positioned as a real-time collaborative editing system for multiple people editing the same content concurrently.
 
 ## Architecture Overview
 
@@ -99,19 +112,31 @@ To reduce conflicts, it is recommended to follow the **Pull → Edit → Push** 
 
 - **Pull → Edit**: Before starting work, ensure you have pulled the latest changes from other devices.
 - **Edit → Push**: After finishing work, promptly push your changes to the cloud.
+- **Conflict Avoidance First**: Eidos works best when one device is actively editing a Space at a time.
+- **Remote Backup Always Matters**: Even when sync is not perfectly automatic, the remote copy still acts as an off-device backup and recovery source.
 - **Manual Conflict Resolution**: If multiple devices modify the same data simultaneously, Graft will identify the conflict and prompt you for manual arbitration.
 
 :::caution[Current Limitation]
-Currently, Eidos does not have a diff mechanism. When a conflict occurs, local updates will be discarded in favor of the remote state. We recommend following the **Pull → Edit → Push** workflow strictly to avoid conflicts.
+Currently, Eidos does not have a diff mechanism. When a conflict occurs, local updates may be discarded in favor of the remote state. We recommend following the **Pull → Edit → Push** workflow strictly and treating sync as a backup-aware handoff between devices rather than real-time co-editing.
 
 In future updates, we will provide diff and automatic merge capabilities to better handle conflicts.
 :::
+
+## Backup and Restore
+
+Sync is also the foundation of Eidos backup:
+
+- **Off-device backup**: Your Space data can be stored in a remote S3-compatible bucket instead of existing only on one machine.
+- **Space recovery**: If you lose a device or set up a new one, you can clone the synced Space again from the remote provider.
+- **History-aware storage**: Graft keeps versioned data locally and remotely, which provides a stronger recovery story than copying a single SQLite file around.
+
+If your primary goal is disaster recovery rather than frequent device switching, Eidos Sync is still valuable because it gives you a structured remote backup for the entire `.eidos` directory.
 
 ## Sync Providers
 
 Eidos supports multiple sync providers:
 
-- **eidos.space (Official Managed)**: Zero configuration, just log in to your account. Data is stored in an encrypted S3 bucket provided officially.
+- **eidos.space (Official Managed)**: Zero configuration, just log in to your account. Data is stored in an encrypted S3 bucket provided officially for sync, backup, and restore.
 - **Custom S3-Compatible Service**: Use your own S3 storage (AWS S3, Cloudflare R2, MinIO, etc.) for full data control.
 
 :::note[Spark License Benefit]
