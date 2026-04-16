@@ -20,6 +20,7 @@ import { CodeHighlightPlugin } from "./CodeHighlightPlugin"
 import { ComponentPickerMenuPlugin } from "./ComponentPickerMenuPlugin"
 import DragDropPaste from "./DragDropPaste"
 import AdvancedListPlugin from "./DraggableBlockPlugin/advanced-list"
+import { MarkdownPastePlugin } from "./MarkdownPastePlugin"
 import FloatingLinkEditorPlugin from "./FloatingLinkEditorPlugin"
 import ListMaxIndentLevelPlugin from "./ListMaxIndentLevelPlugin"
 import { PrettierPlugin } from "./PrettierPlugin"
@@ -74,6 +75,7 @@ export const AllPlugins = ({
       <ClickableLinkPlugin />
       <ComponentPickerMenuPlugin />
       <HashNavigationPlugin />
+      <MarkdownPastePlugin transformers={__allTransformers} />
       <MarkdownShortcutPlugin transformers={__allTransformers} />
       <FloatingLinkEditorPlugin />
       {BuiltInBlocks.map((block) => (
