@@ -491,23 +491,11 @@ export const ViewToolbar = (props: {
 
       {editingViewId &&
         ReactDOM.createPortal(
-          <div
-            onMouseDown={(e) => {
-              // Only close if clicking directly on the overlay background
-              // not when clicking on the view-settings panel or popover content
-              const target = e.target as HTMLElement
-              if (target.id === "view-settings-overlay") {
-                setEditingViewId(null)
-              }
-            }}
-            id="view-settings-overlay"
-            className="absolute inset-0 z-10"
-          >
-            <ViewSettings
-              onClose={() => setEditingViewId(null)}
-              view={views.find((v) => v.id === editingViewId)!}
-            />
-          </div>,
+          <ViewSettings
+            onClose={() => setEditingViewId(null)}
+            view={views.find((v) => v.id === editingViewId)!}
+            onlyOneView={views.length === 1}
+          />,
           document.getElementById(tableContentElementId)!
         )}
     </div>
