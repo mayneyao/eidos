@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react"
+import { useCallback, useContext, useEffect, useMemo, useState } from "react"
 import type { IField } from "@/packages/core/types/IField"
 import { ViewTypeEnum, type IView } from "@/packages/core/types/IView"
 import {
@@ -8,15 +8,27 @@ import {
   LayoutGridIcon,
   SquareKanbanIcon,
   Table2Icon,
+  Trash2Icon,
   XIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useTableOperation } from "@/apps/web-app/hooks/use-table"
 import { useUiColumns } from "@/apps/web-app/hooks/use-ui-columns"
+import { getTableIdByRawTableName } from "@/lib/utils"
 import { sortBy } from "@/lib/lodash"
 
 import { TableContext, useTableContext, useViewOperation } from "./hooks"
@@ -30,7 +42,7 @@ import { DocListViewProperties } from "./views/doc-list/properties"
 
 const LIMIT_ROWS_FOR_OPTIMIZE_VIEW = 88888
 
-type SettingsPanel = "main" | "layout" | "properties"
+type SettingsPanel = "main" | "properties"
 
 // View type option component
 const ViewTypeOption = ({
@@ -114,60 +126,43 @@ const MenuItem = ({
   )
 }
 
-// Main settings menu (first level)
+// Main settings menu (first level) - now includes view type selection inline
 const MainMenu = ({
   view,
   onSelectPanel,
+  onClose,
+  onlyOneView,
+  name,
+  onNameChange,
+  onNameBlur,
 }: {
   view: IView
   onSelectPanel: (panel: SettingsPanel) => void
+  onClose: () => void
+  onlyOneView?: boolean
+  name: string
+  onNameChange: (name: string) => void
+  onNameBlur: () => void
 }) => {
   const { t } = useTranslation()
   const { tableName, space } = useContext(TableContext)
   const { uiColumns } = useUiColumns(tableName, space)
+  const { updateView, delView } = useViewOperation()
+  const { updateViews } = useTableOperation(tableName, space)
+  const { sqlite } = useSqlite()
+  const { setViewId } = useContext(TableContext)
+  const tableId = getTableIdByRawTableName(tableName)
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const { count, loading } = useViewCount(view)
+  const disabledViewType = loading || count > LIMIT_ROWS_FOR_OPTIMIZE_VIEW
 
   const hiddenFieldsCount = view?.hidden_fields?.length || 0
   const totalFieldsCount = uiColumns.length
   const visibleFieldsCount = totalFieldsCount - hiddenFieldsCount
 
-  return (
-    <div className="space-y-0.5">
-      <MenuItem
-        icon={LayoutGridIcon}
-        label={t("table.viewType", "Layout")}
-        value={<span className="capitalize">{view?.type}</span>}
-        onClick={() => onSelectPanel("layout")}
-      />
-      <MenuItem
-        icon={EyeIcon}
-        label={t("table.view.propertyVisibility", "Property visibility")}
-        value={visibleFieldsCount}
-        onClick={() => onSelectPanel("properties")}
-      />
-    </div>
-  )
-}
-
-// Layout settings panel (second level)
-const LayoutPanel = ({ view }: { view: IView }) => {
-  const { t } = useTranslation()
-  const { updateView } = useViewOperation()
-  const { count, loading } = useViewCount(view)
-  const disabled = loading || count > LIMIT_ROWS_FOR_OPTIMIZE_VIEW
-  const [name, setName] = useState(view?.name || "")
-
-  useEffect(() => {
-    setName(view?.name || "")
-  }, [view?.name])
-
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setName(e.target.value)
-  }
-
-  const handleNameBlur = () => {
-    if (name !== view?.name) {
-      updateView(view.id, { name })
-    }
+    onNameChange(e.target.value)
   }
 
   const handleChangeViewType = (type: ViewTypeEnum) => {
@@ -175,9 +170,25 @@ const LayoutPanel = ({ view }: { view: IView }) => {
     updateView(view.id, { type })
   }
 
+  const handleDeleteView = async () => {
+    await delView(view.id)
+    await updateViews()
+    const updatedViews = await sqlite?.view.list(
+      { table_id: tableId },
+      {
+        order: "ASC",
+        orderBy: "position",
+      }
+    )
+    if (updatedViews && updatedViews.length > 0) {
+      setViewId?.(updatedViews[0].id)
+    }
+    onClose()
+  }
+
   return (
-    <div className="space-y-4">
-      {/* Name Field */}
+    <div className="space-y-3">
+      {/* View Name */}
       <div className="space-y-1.5">
         <Label className="text-xs font-medium text-foreground">
           {t("common.name")}
@@ -185,7 +196,12 @@ const LayoutPanel = ({ view }: { view: IView }) => {
         <Input
           value={name}
           onChange={handleNameChange}
-          onBlur={handleNameBlur}
+          onBlur={onNameBlur}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.currentTarget.blur()
+            }
+          }}
           className="h-8 text-sm"
         />
       </div>
@@ -193,7 +209,7 @@ const LayoutPanel = ({ view }: { view: IView }) => {
       {/* View Type Selection */}
       <div className="space-y-2">
         <Label className="text-xs font-medium text-foreground">
-          {t("table.viewType")}
+          {t("table.viewType", "Layout")}
         </Label>
         <div className="grid grid-cols-3 gap-2">
           <ViewTypeOption
@@ -207,17 +223,17 @@ const LayoutPanel = ({ view }: { view: IView }) => {
             title={t("table.view.gallery")}
             isActive={view?.type === "gallery"}
             onClick={() => handleChangeViewType(ViewTypeEnum.Gallery)}
-            disabled={disabled}
+            disabled={disabledViewType}
           />
           <ViewTypeOption
             icon={SquareKanbanIcon}
             title={t("table.view.kanban")}
             isActive={view?.type === "kanban"}
             onClick={() => handleChangeViewType(ViewTypeEnum.Kanban)}
-            disabled={disabled}
+            disabled={disabledViewType}
           />
         </div>
-        {disabled && (
+        {disabledViewType && (
           <p className="text-xs text-muted-foreground">
             {t("table.view.disabledViewTypesWarning")}
           </p>
@@ -235,6 +251,61 @@ const LayoutPanel = ({ view }: { view: IView }) => {
           <KanbanViewProperties viewId={view.id} />
         )}
       </div>
+
+      {/* Property Visibility */}
+      <div className="border-t" />
+      <MenuItem
+        icon={EyeIcon}
+        label={t("table.view.propertyVisibility", "Property visibility")}
+        value={visibleFieldsCount}
+        onClick={() => onSelectPanel("properties")}
+      />
+
+      {/* Delete View */}
+      {!onlyOneView && (
+        <>
+          <div className="border-t" />
+          <button
+            onClick={() => setDeleteDialogOpen(true)}
+            className={cn(
+              "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md",
+              "text-sm text-destructive",
+              "hover:bg-destructive/10 transition-colors duration-150 cursor-pointer"
+            )}
+          >
+            <Trash2Icon className="h-4 w-4" />
+            <span>{t("table.view.deleteView", "Delete view")}</span>
+          </button>
+
+          <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {t("table.view.deleteViewConfirmTitle", "Delete view?")}
+                </DialogTitle>
+                <DialogDescription>
+                  {t(
+                    "table.view.deleteViewConfirmDesc",
+                    `Are you sure you want to delete "${view?.name}"? This action cannot be undone.`,
+                    { name: view?.name }
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button
+                  variant="ghost"
+                  onClick={() => setDeleteDialogOpen(false)}
+                >
+                  {t("common.cancel")}
+                </Button>
+                <Button variant="destructive" onClick={handleDeleteView}>
+                  {t("common.delete")}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
     </div>
   )
 }
@@ -361,12 +432,46 @@ const PropertiesPanel = ({ view }: { view: IView }) => {
 }
 
 // Main ViewSettings component
-export const ViewSettings = (props: { view: IView; onClose: () => void }) => {
+export const ViewSettings = (props: {
+  view: IView
+  onClose: () => void
+  onlyOneView?: boolean
+}) => {
   const { t } = useTranslation()
   const [currentPanel, setCurrentPanel] = useState<SettingsPanel>("main")
-  const { view, onClose } = props
+  const { view, onClose, onlyOneView } = props
+  const { updateView } = useViewOperation()
+
+  // Lift name state to this level so we can save on close
+  const [name, setName] = useState(view?.name || "")
+
+  useEffect(() => {
+    setName(view?.name || "")
+  }, [view?.name])
+
+  // Save name if changed
+  const saveNameIfNeeded = useCallback(() => {
+    if (name !== view?.name && name.trim() !== "") {
+      updateView(view.id, { name })
+    }
+  }, [name, view?.name, view?.id, updateView])
+
+  // Save name changes before closing
+  const handleClose = useCallback(() => {
+    saveNameIfNeeded()
+    onClose()
+  }, [saveNameIfNeeded, onClose])
+
+  // Save name when input loses focus
+  const handleNameBlur = useCallback(() => {
+    saveNameIfNeeded()
+  }, [saveNameIfNeeded])
 
   const handleSelectPanel = (panel: SettingsPanel) => {
+    // Save name when navigating away from main panel
+    if (currentPanel === "main") {
+      saveNameIfNeeded()
+    }
     setCurrentPanel(panel)
   }
 
@@ -379,8 +484,6 @@ export const ViewSettings = (props: { view: IView; onClose: () => void }) => {
     switch (currentPanel) {
       case "main":
         return t("table.view.settings", "View settings")
-      case "layout":
-        return t("table.viewType", "Layout")
       case "properties":
         return t("table.view.propertyVisibility", "Property visibility")
       default:
@@ -393,66 +496,85 @@ export const ViewSettings = (props: { view: IView; onClose: () => void }) => {
 
   return (
     <div
-      className={cn(
-        "absolute right-0 top-0 h-full w-[280px] border-l bg-popover shadow-xl",
-        "animate-in fade-in slide-in-from-right-2 duration-150"
-      )}
-      id="view-settings"
+      className="absolute inset-0 z-10"
+      id="view-settings-overlay"
+      onMouseDown={(e) => {
+        // Only close if clicking directly on the overlay background
+        const target = e.target as HTMLElement
+        if (target.id === "view-settings-overlay") {
+          handleClose()
+        }
+      }}
     >
-      <div className="flex h-full flex-col">
-        {/* Header */}
-        <div className="flex-none border-b bg-muted/30 px-2 py-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              {showBackButton && (
-                <button
-                  onClick={handleBackToMain}
-                  className={cn(
-                    "p-1 rounded-md shrink-0",
-                    "text-muted-foreground hover:text-foreground",
-                    "hover:bg-accent transition-colors"
-                  )}
-                >
-                  <ArrowLeftIcon className="h-3.5 w-3.5" />
-                </button>
-              )}
-              <h3 className="text-xs font-semibold text-foreground truncate">
-                {getPanelTitle()}
-              </h3>
+      <div
+        className={cn(
+          "absolute right-0 top-0 h-full w-[280px] border-l bg-popover shadow-xl",
+          "animate-in fade-in slide-in-from-right-2 duration-150"
+        )}
+        id="view-settings"
+      >
+        <div className="flex h-full flex-col">
+          {/* Header */}
+          <div className="flex-none border-b bg-muted/30 px-2 py-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                {showBackButton && (
+                  <button
+                    onClick={handleBackToMain}
+                    className={cn(
+                      "p-1 rounded-md shrink-0",
+                      "text-muted-foreground hover:text-foreground",
+                      "hover:bg-accent transition-colors"
+                    )}
+                  >
+                    <ArrowLeftIcon className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <h3 className="text-xs font-semibold text-foreground truncate">
+                  {getPanelTitle()}
+                </h3>
+              </div>
+              <button
+                onClick={handleClose}
+                className={cn(
+                  "ml-2 p-1 rounded-md shrink-0",
+                  "text-muted-foreground hover:text-foreground",
+                  "hover:bg-accent transition-colors"
+                )}
+              >
+                <XIcon className="h-3.5 w-3.5" />
+              </button>
             </div>
-            <button
-              onClick={onClose}
-              className={cn(
-                "ml-2 p-1 rounded-md shrink-0",
-                "text-muted-foreground hover:text-foreground",
-                "hover:bg-accent transition-colors"
-              )}
-            >
-              <XIcon className="h-3.5 w-3.5" />
-            </button>
           </div>
-        </div>
 
-        {/* Content */}
-        <div
-          className={cn(
-            "flex-1 min-h-0",
-            currentPanel === "properties"
-              ? "flex flex-col overflow-hidden"
-              : "overflow-y-auto"
-          )}
-        >
+          {/* Content */}
           <div
             className={cn(
-              "h-full",
-              currentPanel !== "properties" && "p-3 overflow-y-auto"
+              "flex-1 min-h-0",
+              currentPanel === "properties"
+                ? "flex flex-col overflow-hidden"
+                : "overflow-y-auto"
             )}
           >
-            {currentPanel === "main" && (
-              <MainMenu view={view} onSelectPanel={handleSelectPanel} />
-            )}
-            {currentPanel === "layout" && <LayoutPanel view={view} />}
-            {currentPanel === "properties" && <PropertiesPanel view={view} />}
+            <div
+              className={cn(
+                "h-full",
+                currentPanel !== "properties" && "p-3 overflow-y-auto"
+              )}
+            >
+              {currentPanel === "main" && (
+                <MainMenu
+                  view={view}
+                  onSelectPanel={handleSelectPanel}
+                  onClose={handleClose}
+                  onlyOneView={onlyOneView}
+                  name={name}
+                  onNameChange={setName}
+                  onNameBlur={handleNameBlur}
+                />
+              )}
+              {currentPanel === "properties" && <PropertiesPanel view={view} />}
+            </div>
           </div>
         </div>
       </div>
