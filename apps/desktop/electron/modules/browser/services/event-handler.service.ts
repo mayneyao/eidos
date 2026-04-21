@@ -161,6 +161,22 @@ export class EventHandlerService {
   ): void {
     this.viewManager.open(viewId, url, bounds)
     this.attachEventListeners(viewId)
+
+    // Sync initial loading state to the frontend.
+    // The frontend registers its onUpdate listener after await open() returns,
+    // so loading events fired before that registration will be lost.
+    // We proactively send the current loading state here to avoid that race.
+    const view = this.viewManager.getView(viewId)
+    const win = this.win
+    if (view && win) {
+      const isLoading = view.webContents.isLoading()
+      if (isLoading) {
+        win.webContents.send("browser.view:update", viewId, {
+          type: "loading",
+          isLoading: true,
+        })
+      }
+    }
   }
 
   /**
