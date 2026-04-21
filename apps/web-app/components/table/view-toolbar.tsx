@@ -1,4 +1,11 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react"
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import {
   ViewTypeEnum,
   type IView,
@@ -282,6 +289,10 @@ export const ViewToolbar = (props: {
   const { subPageId, setSubPage, clearSubPage } = useCurrentSubPage()
   const { t } = useTranslation()
   const tableContentElementId = `${TABLE_CONTENT_ELEMENT_ID}-${tableName}-${isEmbed ? "embed" : "main"}`
+  const editingView = useMemo(
+    () => views.find((v) => v.id === editingViewId),
+    [views, editingViewId]
+  )
 
   // Use context instead
   const { searchQuery, setSearchQuery, showSearch, setShowSearch } =
@@ -489,11 +500,11 @@ export const ViewToolbar = (props: {
         </div>
       </div>
 
-      {editingViewId &&
+      {editingView &&
         ReactDOM.createPortal(
           <ViewSettings
             onClose={() => setEditingViewId(null)}
-            view={views.find((v) => v.id === editingViewId)!}
+            view={editingView}
             onlyOneView={views.length === 1}
           />,
           document.getElementById(tableContentElementId)!

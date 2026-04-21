@@ -157,6 +157,8 @@ const MainMenu = ({
   const { count, loading } = useViewCount(view)
   const disabledViewType = loading || count > LIMIT_ROWS_FOR_OPTIMIZE_VIEW
 
+  if (!view) return null
+
   const hiddenFieldsCount = view?.hidden_fields?.length || 0
   const totalFieldsCount = uiColumns.length
   const visibleFieldsCount = totalFieldsCount - hiddenFieldsCount
