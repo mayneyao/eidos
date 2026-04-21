@@ -117,8 +117,8 @@ export function SpaceSyncSettings() {
     // If sync is already enabled, warn user about provider change
     if (isSyncEnabled && providerId !== spaceInfo?.sync?.provider) {
       toast({
-        title: "Provider Changed",
-        description: "Toggle sync off and on to apply the new provider.",
+        title: t("space.settings.sync.providerChanged"),
+        description: t("space.settings.sync.providerChangeHint"),
       })
     }
   }
@@ -127,8 +127,8 @@ export function SpaceSyncSettings() {
   const handleToggleSync = async (enabled: boolean) => {
     if (!isDesktopMode) {
       toast({
-        title: "Sync Not Available",
-        description: "Sync is only available in the desktop application.",
+        title: t("space.settings.sync.syncNotAvailable"),
+        description: t("space.settings.sync.desktopOnly"),
         variant: "destructive",
       })
       return
@@ -136,8 +136,8 @@ export function SpaceSyncSettings() {
 
     if (!spaceInfo?.id) {
       toast({
-        title: "Error",
-        description: "Space not found.",
+        title: t("common.error"),
+        description: t("space.settings.sync.spaceNotFound"),
         variant: "destructive",
       })
       return
@@ -150,9 +150,8 @@ export function SpaceSyncSettings() {
     // Check license for custom provider
     if (enabled && isCustomProvider && !hasValidLicense) {
       toast({
-        title: "License Required",
-        description:
-          "Custom sync providers require an active license. Please activate your license in Account settings.",
+        title: t("space.settings.sync.licenseRequired"),
+        description: t("space.settings.sync.licenseRequiredFullDescription"),
         variant: "destructive",
       })
       return
@@ -165,8 +164,10 @@ export function SpaceSyncSettings() {
           ? "eidos.space"
           : globalConfig.providers[providerId]?.name || providerId
       toast({
-        title: "Credentials Required",
-        description: `Please configure credentials for "${providerName}" in Global Settings first.`,
+        title: t("space.settings.sync.credentialsRequired"),
+        description: t("space.settings.sync.credentialsRequiredDescription", {
+          provider: providerName,
+        }),
         variant: "destructive",
       })
       return
@@ -192,11 +193,19 @@ export function SpaceSyncSettings() {
       )
 
       if (result.success) {
+        const providerDisplayName =
+          providerId === "eidos.space"
+            ? "eidos.space"
+            : globalConfig.providers[providerId]?.name || providerId
         toast({
-          title: enabled ? "Sync Enabled" : "Sync Disabled",
+          title: enabled
+            ? t("space.settings.sync.enabledStatus")
+            : t("space.settings.sync.disabledStatus"),
           description: enabled
-            ? `This space will now sync using "${providerId === "eidos.space" ? "eidos.space" : globalConfig.providers[providerId]?.name || providerId}".`
-            : "This space will no longer sync.",
+            ? t("space.settings.sync.nowSyncingWith", {
+                provider: providerDisplayName,
+              })
+            : t("space.settings.sync.disabledDescription"),
         })
 
         // Refresh space info to get updated sync status
@@ -204,16 +213,16 @@ export function SpaceSyncSettings() {
         useSpaceStore.getState().setSpaceInfo(updatedSpace)
       } else {
         toast({
-          title: "Error",
-          description: result.error || "Failed to toggle synchronization.",
+          title: t("common.error"),
+          description: result.error || t("space.settings.sync.toggleFailed"),
           variant: "destructive",
         })
       }
     } catch (error) {
       console.error("Failed to toggle sync:", error)
       toast({
-        title: "Error",
-        description: "Failed to toggle synchronization.",
+        title: t("common.error"),
+        description: t("space.settings.sync.toggleFailed"),
         variant: "destructive",
       })
     } finally {
@@ -225,7 +234,7 @@ export function SpaceSyncSettings() {
     return (
       <div className="space-y-4">
         <div className="text-sm text-muted-foreground">
-          Loading sync settings...
+          {t("space.settings.sync.loading")}
         </div>
       </div>
     )
@@ -247,10 +256,10 @@ export function SpaceSyncSettings() {
               <Lock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="font-medium text-amber-800 dark:text-amber-200">
-                  License Required for Custom Providers
+                  {t("space.settings.sync.licenseRequiredForCustomProviders")}
                 </p>
                 <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                  To sync with custom providers, an active license is required.
+                  {t("space.settings.sync.customProvidersLicenseRequired")}
                 </p>
                 <Button
                   variant="link"
@@ -264,7 +273,7 @@ export function SpaceSyncSettings() {
                     )
                   }
                 >
-                  Go to Account Settings →
+                  {t("space.settings.sync.goToAccountSettings")} →
                 </Button>
               </div>
             </div>
@@ -274,18 +283,22 @@ export function SpaceSyncSettings() {
       {/* Provider Selection */}
       <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-4">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Sync Provider</span>
+          <span className="text-sm font-medium">
+            {t("space.settings.sync.provider")}
+          </span>
           {spaceInfo?.sync?.provider ? (
-            <Badge variant="default">Custom</Badge>
+            <Badge variant="default">{t("space.settings.sync.custom")}</Badge>
           ) : (
-            <Badge variant="secondary">Default</Badge>
+            <Badge variant="secondary">
+              {t("space.settings.sync.default")}
+            </Badge>
           )}
         </div>
 
         {customProviders.length === 0 && !eidosSpaceCredentials ? (
           <div className="p-4 text-center border border-dashed rounded-lg">
             <p className="text-sm text-muted-foreground">
-              No sync providers configured.
+              {t("space.settings.sync.noProviders")}
             </p>
             <Button
               variant="link"
@@ -296,7 +309,7 @@ export function SpaceSyncSettings() {
                 )
               }
             >
-              Configure in Global Settings →
+              {t("space.settings.sync.goToGlobalSettings")}
             </Button>
           </div>
         ) : (
@@ -335,7 +348,9 @@ export function SpaceSyncSettings() {
                   ) : (
                     <Server className="h-4 w-4 text-muted-foreground" />
                   )}
-                  <span className="font-medium">Use Default</span>
+                  <span className="font-medium">
+                    {t("space.settings.sync.useDefault")}
+                  </span>
                   {(globalConfig.defaultProvider || "eidos.space") ===
                   "eidos.space" ? (
                     <span className="text-sm text-muted-foreground">
@@ -357,7 +372,7 @@ export function SpaceSyncSettings() {
                   globalConfig.defaultProvider || "eidos.space"
                 ) && (
                   <p className="text-sm text-orange-600 mt-1">
-                    Credentials not configured
+                    {t("space.settings.sync.credentialsNotConfigured")}
                   </p>
                 )}
               </div>
@@ -409,13 +424,13 @@ export function SpaceSyncSettings() {
                     </p>
                     {!customProviderCredentials[provider.id] && !isDisabled && (
                       <p className="text-sm text-orange-600 mt-1">
-                        Credentials not configured
+                        {t("space.settings.sync.credentialsNotConfigured")}
                       </p>
                     )}
                     {isDisabled && (
                       <p className="text-sm text-amber-600 mt-1 flex items-center gap-1">
                         <Lock className="h-3 w-3" />
-                        License required
+                        {t("space.settings.sync.licenseRequired")}
                       </p>
                     )}
                   </div>
@@ -430,14 +445,28 @@ export function SpaceSyncSettings() {
       <div className="p-4 rounded-lg bg-muted/50 border border-border">
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-sm font-medium">Space Sync</span>
+            <span className="text-sm font-medium">
+              {t("space.settings.sync.spaceSync")}
+            </span>
             <p className="text-sm text-muted-foreground">
               {isSyncEnabled
-                ? `Syncing with "${effectiveProviderId === "eidos.space" ? "eidos.space" : globalConfig.providers[effectiveProviderId]?.name || effectiveProviderId}"`
+                ? t("space.settings.sync.syncingWith", {
+                    provider:
+                      effectiveProviderId === "eidos.space"
+                        ? "eidos.space"
+                        : globalConfig.providers[effectiveProviderId]?.name ||
+                          effectiveProviderId,
+                  })
                 : effectiveProviderId &&
                     hasCredentialsForProvider(effectiveProviderId)
-                  ? `Will sync using "${effectiveProviderId === "eidos.space" ? "eidos.space" : globalConfig.providers[effectiveProviderId]?.name || effectiveProviderId}"`
-                  : "Configure a provider first"}
+                  ? t("space.settings.sync.willSyncWith", {
+                      provider:
+                        effectiveProviderId === "eidos.space"
+                          ? "eidos.space"
+                          : globalConfig.providers[effectiveProviderId]?.name ||
+                            effectiveProviderId,
+                    })
+                  : t("space.settings.sync.configureProviderFirst")}
             </p>
           </div>
           <Switch
@@ -492,7 +521,8 @@ export function SpaceSyncSettings() {
       {/* Info */}
       <div className="p-3 rounded-lg bg-muted/50 border border-border text-sm text-muted-foreground">
         <p>
-          <strong>Note:</strong> Configure sync providers in{" "}
+          <strong>{t("space.settings.sync.noteLabel")}:</strong>{" "}
+          {t("space.settings.sync.globalSettingsNote")}{" "}
           <Button
             variant="link"
             size="sm"
@@ -503,7 +533,7 @@ export function SpaceSyncSettings() {
               )
             }
           >
-            Global Settings → Sync
+            {t("space.settings.sync.globalSyncSettings")}
           </Button>
           .
         </p>
