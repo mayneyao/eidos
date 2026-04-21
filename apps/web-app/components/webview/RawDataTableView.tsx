@@ -116,7 +116,7 @@ export function RawDataTableView({
 
   if (isEnabled === false) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-center max-w-md p-6">
           <div className="rounded-full bg-muted p-3">
             <svg
@@ -151,7 +151,7 @@ export function RawDataTableView({
 
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <div className="flex flex-col items-center gap-4 max-w-md w-full px-6">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           <div className="text-center space-y-2">
@@ -180,7 +180,7 @@ export function RawDataTableView({
 
   if (error) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-center max-w-md p-6">
           <div className="rounded-full bg-destructive/10 p-3">
             <svg
@@ -208,7 +208,7 @@ export function RawDataTableView({
 
   if (!viewCreated) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <p className="text-sm text-muted-foreground">
           {t("rawdata.error.viewNotCreated")}
         </p>
@@ -217,7 +217,7 @@ export function RawDataTableView({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-1 flex-col min-h-0">
       {adapterHint && (
         <div
           className={`border-b px-4 py-2 text-xs ${
@@ -229,7 +229,7 @@ export function RawDataTableView({
           {adapterHint}
         </div>
       )}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-hidden">
         <Table tableName={viewName} space={space} />
       </div>
     </div>

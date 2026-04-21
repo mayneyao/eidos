@@ -105,7 +105,9 @@ export function WebviewContent({ url }: { url: string }) {
 
   if (selectedAdapter && space) {
     return (
-      <RawDataTableView adapter={selectedAdapter} space={space} url={url} />
+      <div className="relative flex flex-1 min-h-0">
+        <RawDataTableView adapter={selectedAdapter} space={space} url={url} />
+      </div>
     )
   }
 
