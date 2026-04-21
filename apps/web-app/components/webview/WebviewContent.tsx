@@ -55,6 +55,17 @@ export function WebviewContent({ url }: { url: string }) {
             setWebviewState(tabId, { isLoading: loading })
           }
           onRawdataNavigation={async (target, adapterPath) => {
+            // Check if raw data is enabled
+            const browserConfig = await window.eidos?.config?.get("browser")
+            if (!browserConfig?.enableRawData) {
+              toast({
+                title: "Raw Data is disabled",
+                description:
+                  "Enable it in Settings > Browser to use this feature.",
+                variant: "destructive",
+              })
+              return
+            }
             if (adapterPath && space) {
               const result = await useWebviewStore
                 .getState()

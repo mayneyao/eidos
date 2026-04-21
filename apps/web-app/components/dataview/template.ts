@@ -474,6 +474,11 @@ export const getAdapterTemplates = async (
     return []
   }
   try {
+    // Check if raw data is enabled
+    const browserConfig = await window.eidos?.config?.get("browser")
+    if (!browserConfig?.enableRawData) {
+      return []
+    }
     const adapters = await window.eidos.rawData.getAdapters(space)
     return adapters
       .filter((a) => a.adapter.queries?.raw)

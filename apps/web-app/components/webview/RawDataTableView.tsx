@@ -28,11 +28,25 @@ export function RawDataTableView({
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewCreated, setViewCreated] = useState(false)
+  const [isEnabled, setIsEnabled] = useState<boolean | null>(null)
 
   const adapterLogs = useWebviewStore((s) => s.states[tabId]?.adapterLogs || [])
   const adapterHint = useWebviewStore(
     (s) => s.states[tabId]?.adapterProgressHint
   )
+
+  // Check if raw data is enabled
+  useEffect(() => {
+    const checkEnabled = async () => {
+      try {
+        const browserConfig = await window.eidos?.config?.get("browser")
+        setIsEnabled(!!browserConfig?.enableRawData)
+      } catch {
+        setIsEnabled(false)
+      }
+    }
+    checkEnabled()
+  }, [])
 
   // Generate a unique view ID based on adapter
   const viewId = `rawdata_${adapter.name}`
@@ -41,7 +55,7 @@ export function RawDataTableView({
   // Create view (cache first - just query existing data)
   useEffect(() => {
     const setupView = async () => {
-      if (!sqlite) return
+      if (!sqlite || isEnabled === false) return
 
       setIsLoading(true)
       setError(null)
@@ -89,7 +103,51 @@ export function RawDataTableView({
     }
 
     setupView()
-  }, [adapter, sqlite, createTempDataView, viewId, tabId, space, viewName])
+  }, [
+    adapter,
+    sqlite,
+    createTempDataView,
+    viewId,
+    tabId,
+    space,
+    viewName,
+    isEnabled,
+  ])
+
+  if (isEnabled === false) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="flex flex-col items-center gap-4 text-center max-w-md p-6">
+          <div className="rounded-full bg-muted p-3">
+            <svg
+              className="h-6 w-6 text-muted-foreground"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+              />
+            </svg>
+          </div>
+          <div>
+            <h3 className="font-medium">
+              {t("rawdata.error.disabled", "Raw Data is Disabled")}
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              {t(
+                "rawdata.error.disabledDescription",
+                "Enable Raw Data in Settings > Browser to use this feature."
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (

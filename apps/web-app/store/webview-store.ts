@@ -197,6 +197,16 @@ export const useWebviewStore = create<WebviewStore>((set, get) => ({
   refreshAdapters: async (tabId, space, url) => {
     if (!isDesktopMode || !url || !space) return
 
+    // Check if raw data is enabled
+    const browserConfig = await window.eidos?.config?.get("browser")
+    if (!browserConfig?.enableRawData) {
+      get().setWebviewState(tabId, {
+        matchedAdapters: [],
+        hasRawData: false,
+      })
+      return
+    }
+
     get().setWebviewState(tabId, { isLoadingAdapters: true })
     try {
       const adapters = await window.eidos.rawData.findListAdapters(space, url)
@@ -272,6 +282,15 @@ export const useWebviewStore = create<WebviewStore>((set, get) => ({
   },
 
   runAdapter: async (tabId, space, adapter) => {
+    // Check if raw data is enabled
+    const browserConfig = await window.eidos?.config?.get("browser")
+    if (!browserConfig?.enableRawData) {
+      return {
+        success: false,
+        error: "Raw Data is disabled. Enable it in Settings > Browser.",
+      }
+    }
+
     get().setWebviewState(tabId, {
       isRefreshingAdapter: true,
       adapterLogs: [],
@@ -360,6 +379,15 @@ export const useWebviewStore = create<WebviewStore>((set, get) => ({
   },
 
   enterRawDataView: async (tabId, space, adapterPath) => {
+    // Check if raw data is enabled
+    const browserConfig = await window.eidos?.config?.get("browser")
+    if (!browserConfig?.enableRawData) {
+      return {
+        success: false,
+        error: "Raw Data is disabled. Enable it in Settings > Browser.",
+      }
+    }
+
     try {
       const adapters = await window.eidos.rawData.getAdapters(space)
       const found = adapters.find((a) => a.path === adapterPath)
@@ -394,6 +422,9 @@ export const useWebviewStore = create<WebviewStore>((set, get) => ({
 
   navigateRawData: (tabId, rawDataUrl) => {
     console.log("[WebViewStore] navigateRawData:", rawDataUrl)
+    // Note: navigateRawData is called from the renderer synchronously;
+    // we skip the async config check here because the user arrived via
+    // the context-menu which is already gated in the main process.
     try {
       const urlObj = new URL(rawDataUrl)
       const host = urlObj.hostname

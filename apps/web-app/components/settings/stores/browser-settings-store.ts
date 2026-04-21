@@ -24,12 +24,14 @@ export interface BrowserConfig {
   defaultSearchEngine: string
   openLinksInBuiltInBrowser: boolean
   customSearchEngines: SearchEngineConfig[]
+  enableRawData: boolean
 }
 
 const DEFAULT_BROWSER_CONFIG: BrowserConfig = {
   defaultSearchEngine: "google",
   openLinksInBuiltInBrowser: true,
   customSearchEngines: [],
+  enableRawData: false,
 }
 
 interface BrowserSettingsState {
@@ -38,6 +40,7 @@ interface BrowserSettingsState {
   initialize: () => Promise<void>
   setDefaultSearchEngine: (engineId: string) => Promise<void>
   setOpenLinksInBuiltInBrowser: (value: boolean) => Promise<void>
+  setEnableRawData: (value: boolean) => Promise<void>
   addCustomSearchEngine: (engine: SearchEngineConfig) => Promise<void>
   updateCustomSearchEngine: (engine: SearchEngineConfig) => Promise<void>
   removeCustomSearchEngine: (engineId: string) => Promise<void>
@@ -109,6 +112,13 @@ export const useBrowserSettingsStore = create<BrowserSettingsState>(
     setOpenLinksInBuiltInBrowser: async (value: boolean) => {
       const current = get().config
       const newConfig = { ...current, openLinksInBuiltInBrowser: value }
+      await saveConfig(newConfig)
+      set({ config: newConfig })
+    },
+
+    setEnableRawData: async (value: boolean) => {
+      const current = get().config
+      const newConfig = { ...current, enableRawData: value }
       await saveConfig(newConfig)
       set({ config: newConfig })
     },

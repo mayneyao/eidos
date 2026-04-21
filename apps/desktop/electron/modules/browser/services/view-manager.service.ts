@@ -6,6 +6,7 @@ import type { BrowserViewBounds, ViewState } from "../types"
 import { ZoomService } from "./zoom.service"
 import { ReaderViewService } from "./reader-view.service"
 import { RawDataService } from "../../rawdata/rawdata.service"
+import { ConfigManager } from "../../config/config.module"
 
 // Extended view state with space info
 interface ExtendedViewState extends ViewState {
@@ -25,7 +26,8 @@ export class ViewManagerService {
 
   constructor(
     @Inject(WindowService) private windowService: WindowService,
-    @Inject(ZoomService) private zoomService: ZoomService
+    @Inject(ZoomService) private zoomService: ZoomService,
+    @Inject(ConfigManager) private configManager: ConfigManager
   ) {}
 
   /**
@@ -183,12 +185,19 @@ export class ViewManagerService {
       }
 
       // Add Adapter submenu - only in normal mode, handled entirely in backend
+      const browserConfig = this.configManager.get("browser")
       console.log("[BrowserContextMenu] Checking adapter menu:", {
         isReaderView,
         hasSpace: !!space,
         hasRawDataService: !!this.rawDataService,
+        enableRawData: browserConfig?.enableRawData,
       })
-      if (!isReaderView && space && this.rawDataService) {
+      if (
+        browserConfig?.enableRawData &&
+        !isReaderView &&
+        space &&
+        this.rawDataService
+      ) {
         const currentUrl = view.webContents.getURL()
         console.log(
           "[BrowserContextMenu] Finding adapters for:",

@@ -51,6 +51,8 @@ export interface BrowserConfig {
   openLinksInBuiltInBrowser: boolean
   // Custom search engines (user-defined)
   customSearchEngines: SearchEngineConfig[]
+  // Whether to enable RawData module
+  enableRawData: boolean
 }
 
 export interface AppConfig {
@@ -124,6 +126,7 @@ const emptyConfig: AppConfig = {
     defaultSearchEngine: "google",
     openLinksInBuiltInBrowser: true,
     customSearchEngines: [],
+    enableRawData: false,
   },
 }
 

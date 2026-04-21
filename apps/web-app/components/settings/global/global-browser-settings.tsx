@@ -34,6 +34,7 @@ export function GlobalBrowserSettings() {
     isLoading,
     setDefaultSearchEngine,
     setOpenLinksInBuiltInBrowser,
+    setEnableRawData,
     addCustomSearchEngine,
     updateCustomSearchEngine,
     removeCustomSearchEngine,
@@ -393,6 +394,33 @@ export function GlobalBrowserSettings() {
           <Switch
             checked={config.openLinksInBuiltInBrowser}
             onCheckedChange={setOpenLinksInBuiltInBrowser}
+            disabled={isLoading}
+            className="shrink-0"
+          />
+        </div>
+      </div>
+
+      <hr className="border-border" />
+
+      <div className="py-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <Label className="text-sm flex items-center gap-1.5">
+              {t("settings.browser.enableRawData", "Enable Raw Data")}
+              <span className="px-1.5 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">
+                {t("common.badge.alpha")}
+              </span>
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "settings.browser.enableRawDataDescription",
+                "When enabled, allows syncing external data via adapters in the built-in browser."
+              )}
+            </p>
+          </div>
+          <Switch
+            checked={config.enableRawData}
+            onCheckedChange={setEnableRawData}
             disabled={isLoading}
             className="shrink-0"
           />
