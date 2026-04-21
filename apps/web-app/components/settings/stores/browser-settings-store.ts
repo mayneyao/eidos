@@ -29,7 +29,7 @@ export interface BrowserConfig {
 
 const DEFAULT_BROWSER_CONFIG: BrowserConfig = {
   defaultSearchEngine: "google",
-  openLinksInBuiltInBrowser: true,
+  openLinksInBuiltInBrowser: false,
   customSearchEngines: [],
   enableRawData: false,
 }

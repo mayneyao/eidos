@@ -124,7 +124,7 @@ const emptyConfig: AppConfig = {
   windowState: undefined,
   browser: {
     defaultSearchEngine: "google",
-    openLinksInBuiltInBrowser: true,
+    openLinksInBuiltInBrowser: false,
     customSearchEngines: [],
     enableRawData: false,
   },
