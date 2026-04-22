@@ -12,6 +12,7 @@
     }
   ],
   "npmRebuild": true,
+  "generateUpdatesFilesForAllChannels": true,
   "files": [
     "dist/**/*",
     "dist-electron/**/*",

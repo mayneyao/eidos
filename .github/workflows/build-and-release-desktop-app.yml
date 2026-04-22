@@ -204,6 +204,20 @@ jobs:
       - name: Merge macOS update files
         run: chmod +x scripts/merge-macos-updates.sh && ./scripts/merge-macos-updates.sh ./artifacts ${{ steps.channel.outputs.channel }}
 
+      - name: Clean up yml files for release channel
+        run: |
+          CHANNEL="${{ steps.channel.outputs.channel }}"
+          if [ "$CHANNEL" = "beta" ]; then
+            # Beta release: remove latest yml files so stable users don't receive beta updates
+            rm -f ./artifacts/latest-mac.yml
+            rm -f ./artifacts/windows-artifacts/latest.yml
+            rm -f ./artifacts/linux-artifacts/latest-linux.yml
+            echo "Removed latest-*.yml files for beta release"
+          else
+            # Stable release: keep both latest and beta yml files so beta users can upgrade to stable
+            echo "Stable release: keeping all yml files"
+          fi
+
       - name: Update Release
         uses: softprops/action-gh-release@v2
         with:
