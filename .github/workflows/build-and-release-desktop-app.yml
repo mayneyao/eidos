@@ -30,21 +30,25 @@ jobs:
 
       - name: Sync version from tag
         if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
-          const fs = require('fs');
-          const version = process.env.GITHUB_REF.replace('refs/tags/v', '');
-          const updateJson = (path) => { const p = JSON.parse(fs.readFileSync(path)); p.version = version; fs.writeFileSync(path, JSON.stringify(p, null, 2) + '\n'); };
-          updateJson('./package.json');
-          updateJson('./apps/desktop/package.json');
-          updateJson('./apps/web-app/package.json');
-          let envTs = fs.readFileSync('packages/lib/env.ts', 'utf8');
-          envTs = envTs.replace(/EIDOS_VERSION = ".*"/, `EIDOS_VERSION = "${version}"`);
-          fs.writeFileSync('packages/lib/env.ts', envTs);
-          let cargoToml = fs.readFileSync('apps/cli/Cargo.toml', 'utf8');
-          cargoToml = cargoToml.replace(/version = ".*"/m, `version = "${version}"`);
-          fs.writeFileSync('apps/cli/Cargo.toml', cargoToml);
-          console.log('Synced version to', version);
-        shell: node
+          node -e "
+            const fs = require('fs');
+            const v = process.env.TAG.replace(/^v/, '');
+            const u = (p) => { const d = JSON.parse(fs.readFileSync(p)); d.version = v; fs.writeFileSync(p, JSON.stringify(d, null, 2) + '\n'); };
+            u('./package.json');
+            u('./apps/desktop/package.json');
+            u('./apps/web-app/package.json');
+            let e = fs.readFileSync('packages/lib/env.ts', 'utf8');
+            e = e.replace(/EIDOS_VERSION = \".*\"/, 'EIDOS_VERSION = \"' + v + '\"');
+            fs.writeFileSync('packages/lib/env.ts', e);
+            let c = fs.readFileSync('apps/cli/Cargo.toml', 'utf8');
+            c = c.replace(/version = \".*\"/, 'version = \"' + v + '\"');
+            fs.writeFileSync('apps/cli/Cargo.toml', c);
+            console.log('Synced version to', v);
+          "
 
       - name: Build frontend application
         env:
@@ -115,21 +119,25 @@ jobs:
 
       - name: Sync version from tag
         if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
-          const fs = require('fs');
-          const version = process.env.GITHUB_REF.replace('refs/tags/v', '');
-          const updateJson = (path) => { const p = JSON.parse(fs.readFileSync(path)); p.version = version; fs.writeFileSync(path, JSON.stringify(p, null, 2) + '\n'); };
-          updateJson('./package.json');
-          updateJson('./apps/desktop/package.json');
-          updateJson('./apps/web-app/package.json');
-          let envTs = fs.readFileSync('packages/lib/env.ts', 'utf8');
-          envTs = envTs.replace(/EIDOS_VERSION = ".*"/, `EIDOS_VERSION = "${version}"`);
-          fs.writeFileSync('packages/lib/env.ts', envTs);
-          let cargoToml = fs.readFileSync('apps/cli/Cargo.toml', 'utf8');
-          cargoToml = cargoToml.replace(/version = ".*"/m, `version = "${version}"`);
-          fs.writeFileSync('apps/cli/Cargo.toml', cargoToml);
-          console.log('Synced version to', version);
-        shell: node
+          node -e "
+            const fs = require('fs');
+            const v = process.env.TAG.replace(/^v/, '');
+            const u = (p) => { const d = JSON.parse(fs.readFileSync(p)); d.version = v; fs.writeFileSync(p, JSON.stringify(d, null, 2) + '\n'); };
+            u('./package.json');
+            u('./apps/desktop/package.json');
+            u('./apps/web-app/package.json');
+            let e = fs.readFileSync('packages/lib/env.ts', 'utf8');
+            e = e.replace(/EIDOS_VERSION = \".*\"/, 'EIDOS_VERSION = \"' + v + '\"');
+            fs.writeFileSync('packages/lib/env.ts', e);
+            let c = fs.readFileSync('apps/cli/Cargo.toml', 'utf8');
+            c = c.replace(/version = \".*\"/, 'version = \"' + v + '\"');
+            fs.writeFileSync('apps/cli/Cargo.toml', c);
+            console.log('Synced version to', v);
+          "
 
       - name: Build CLI (local script)
         run: node apps/desktop/scripts/build-cli-local.cjs
