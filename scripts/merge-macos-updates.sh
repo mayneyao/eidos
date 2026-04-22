@@ -8,8 +8,9 @@ set -euo pipefail
 
 ARTIFACTS_DIR="${1:-./artifacts}"
 CHANNEL="${2:-latest}"
-INTEL_FILE="$ARTIFACTS_DIR/macos-intel-artifacts/${CHANNEL}-mac.yml"
-ARM_FILE="$ARTIFACTS_DIR/macos-arm-artifacts/${CHANNEL}-mac.yml"
+# electron-builder always generates latest-mac.yml regardless of channel
+INTEL_FILE="$ARTIFACTS_DIR/macos-intel-artifacts/latest-mac.yml"
+ARM_FILE="$ARTIFACTS_DIR/macos-arm-artifacts/latest-mac.yml"
 MERGED_FILE="$ARTIFACTS_DIR/${CHANNEL}-mac.yml"
 
 # Colors for output

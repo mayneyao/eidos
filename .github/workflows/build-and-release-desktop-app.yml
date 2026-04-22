@@ -222,9 +222,9 @@ jobs:
           # For beta releases, electron-builder generates latest-*.yml instead of beta-*.yml.
           # Rename them so electron-updater can find the correct channel files.
           if [ "$CHANNEL" = "beta" ]; then
-            [ -f "./artifacts/beta-mac.yml" ] || cp "./artifacts/latest-mac.yml" "./artifacts/beta-mac.yml"
-            [ -f "./artifacts/windows-artifacts/beta.yml" ] || cp "./artifacts/windows-artifacts/latest.yml" "./artifacts/windows-artifacts/beta.yml"
-            [ -f "./artifacts/linux-artifacts/beta-linux.yml" ] || cp "./artifacts/linux-artifacts/latest-linux.yml" "./artifacts/linux-artifacts/beta-linux.yml"
+            [ -f "./artifacts/beta-mac.yml" ] || cp "./artifacts/latest-mac.yml" "./artifacts/beta-mac.yml" 2>/dev/null || true
+            [ -f "./artifacts/windows-artifacts/beta.yml" ] || cp "./artifacts/windows-artifacts/latest.yml" "./artifacts/windows-artifacts/beta.yml" 2>/dev/null || true
+            [ -f "./artifacts/linux-artifacts/beta-linux.yml" ] || cp "./artifacts/linux-artifacts/latest-linux.yml" "./artifacts/linux-artifacts/beta-linux.yml" 2>/dev/null || true
           fi
           # Copy yml files for this channel
           cp "./artifacts/${CHANNEL}-mac.yml" ./release-upload/ 2>/dev/null || true
