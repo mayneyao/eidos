@@ -3,12 +3,14 @@
 set -euo pipefail
 
 # Merge macOS update files from Intel and ARM builds
-# Usage: ./merge-macos-updates.sh [artifacts_dir]
+# Usage: ./merge-macos-updates.sh [artifacts_dir] [channel]
+#   channel: "latest" (default) or "beta"
 
 ARTIFACTS_DIR="${1:-./artifacts}"
-INTEL_FILE="$ARTIFACTS_DIR/macos-intel-artifacts/latest-mac.yml"
-ARM_FILE="$ARTIFACTS_DIR/macos-arm-artifacts/latest-mac.yml"
-MERGED_FILE="$ARTIFACTS_DIR/latest-mac.yml"
+CHANNEL="${2:-latest}"
+INTEL_FILE="$ARTIFACTS_DIR/macos-intel-artifacts/${CHANNEL}-mac.yml"
+ARM_FILE="$ARTIFACTS_DIR/macos-arm-artifacts/${CHANNEL}-mac.yml"
+MERGED_FILE="$ARTIFACTS_DIR/${CHANNEL}-mac.yml"
 
 # Colors for output
 RED='\033[0;31m'

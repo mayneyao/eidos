@@ -69,6 +69,7 @@ export interface AppConfig {
   // Auto-update configuration
   autoUpdate: {
     enabled: boolean
+    channel: "stable" | "beta"
   }
   theme: {
     currentThemeName: string
@@ -113,6 +114,7 @@ const emptyConfig: AppConfig = {
   },
   autoUpdate: {
     enabled: true,
+    channel: "stable" as const,
   },
   theme: {
     currentThemeName: "Default",
@@ -246,6 +248,17 @@ export class ConfigManager extends EventEmitter {
       needsSave = true
     }
 
+    // Migrate autoUpdate config to include channel
+    if (!this.config.autoUpdate) {
+      this.config.autoUpdate = JSON.parse(
+        JSON.stringify(emptyConfig.autoUpdate)
+      )
+      needsSave = true
+    } else if (!this.config.autoUpdate.channel) {
+      this.config.autoUpdate.channel = emptyConfig.autoUpdate.channel
+      needsSave = true
+    }
+
     if (needsSave) {
       this.saveConfig()
     }
@@ -290,6 +303,23 @@ export class ConfigManager extends EventEmitter {
         key: "autoUpdate.enabled",
         oldValue,
         newValue: enabled,
+      })
+    }
+  }
+
+  public getUpdateChannel(): "stable" | "beta" {
+    return this.config.autoUpdate?.channel ?? emptyConfig.autoUpdate.channel
+  }
+
+  public setUpdateChannel(channel: "stable" | "beta"): void {
+    const oldValue = this.config.autoUpdate.channel
+    if (oldValue !== channel) {
+      this.config.autoUpdate.channel = channel
+      this.saveConfig()
+      this.emit("configChanged", {
+        key: "autoUpdate.channel",
+        oldValue,
+        newValue: channel,
       })
     }
   }

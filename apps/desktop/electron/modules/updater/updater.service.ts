@@ -78,6 +78,12 @@ export class UpdaterService {
     this.mainWindow?.webContents.send("update-ready", info)
   }
 
+  private applyUpdateChannel(): void {
+    const channel = this.configManager.getUpdateChannel()
+    autoUpdater.channel = channel === "beta" ? "beta" : "latest"
+    this.logger.info(`Update channel set to: ${autoUpdater.channel}`)
+  }
+
   /**
    * Check for updates on startup (respects auto-update setting)
    */
@@ -86,6 +92,7 @@ export class UpdaterService {
 
     if (isAutoUpdateEnabled) {
       this.logger.info("Auto-update is enabled, checking for updates...")
+      this.applyUpdateChannel()
       autoUpdater.checkForUpdatesAndNotify()
     } else {
       this.logger.info("Auto-update is disabled, skipping update check.")
@@ -97,6 +104,7 @@ export class UpdaterService {
    */
   checkForUpdatesManually(): void {
     this.logger.info("Manual update check requested, checking for updates...")
+    this.applyUpdateChannel()
     autoUpdater.checkForUpdatesAndNotify()
   }
 

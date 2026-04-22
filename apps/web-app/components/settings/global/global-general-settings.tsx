@@ -76,6 +76,9 @@ export function GlobalGeneralSettings() {
 
   // Auto update state
   const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true)
+  const [updateChannel, setUpdateChannel] = useState<"stable" | "beta">(
+    "stable"
+  )
   const [isLoadingConfig, setIsLoadingConfig] = useState(true)
 
   // Load appearance preferences
@@ -108,9 +111,11 @@ export function GlobalGeneralSettings() {
         // Load auto update config
         const autoUpdateConfig = await window.eidos.config.get("autoUpdate")
         setAutoUpdateEnabled(autoUpdateConfig?.enabled ?? true)
+        setUpdateChannel(autoUpdateConfig?.channel ?? "stable")
       } catch (error) {
         console.error("Failed to load auto-update config:", error)
         setAutoUpdateEnabled(true)
+        setUpdateChannel("stable")
       } finally {
         setIsLoadingConfig(false)
       }
@@ -129,8 +134,31 @@ export function GlobalGeneralSettings() {
     if (!isDesktop) return
 
     try {
-      await window.eidos.config.set("autoUpdate", { enabled })
+      await window.eidos.config.set("autoUpdate", {
+        enabled,
+        channel: updateChannel,
+      })
       setAutoUpdateEnabled(enabled)
+    } catch (error) {
+      toast({
+        title: t("settings.general.autoUpdateUpdateFailed"),
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleChangeChannel = async (channel: "stable" | "beta") => {
+    if (!isDesktop) return
+
+    try {
+      await window.eidos.config.set("autoUpdate", {
+        enabled: autoUpdateEnabled,
+        channel,
+      })
+      setUpdateChannel(channel)
+      // Trigger a manual update check when channel changes
+      checkForUpdates()
     } catch (error) {
       toast({
         title: t("settings.general.autoUpdateUpdateFailed"),
@@ -299,6 +327,39 @@ export function GlobalGeneralSettings() {
                 disabled={isLoadingConfig}
                 className="shrink-0"
               />
+            </div>
+          )}
+
+          {/* Update Channel */}
+          {isDesktop && (
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-0.5 flex-[5] min-w-[240px]">
+                <Label>{t("settings.general.updateChannel")}</Label>
+                <p className="text-sm text-muted-foreground">
+                  {t("settings.general.updateChannelDescription")}
+                </p>
+              </div>
+              <div className="w-full sm:w-64 shrink-0">
+                <div className="relative">
+                  <select
+                    className={cn(
+                      buttonVariants({ variant: "outline" }),
+                      "w-full appearance-none bg-transparent font-normal"
+                    )}
+                    value={updateChannel}
+                    onChange={(e) =>
+                      handleChangeChannel(e.target.value as "stable" | "beta")
+                    }
+                    disabled={isLoadingConfig}
+                  >
+                    <option value="stable">
+                      {t("settings.general.stable")}
+                    </option>
+                    <option value="beta">{t("settings.general.beta")}</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-3 h-4 w-4 opacity-50 pointer-events-none" />
+                </div>
+              </div>
             </div>
           )}
         </div>

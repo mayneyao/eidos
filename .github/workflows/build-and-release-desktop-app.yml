@@ -28,6 +28,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: pnpm install
 
+      - name: Sync version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          node -e "const f='./package.json',p=require(f);p.version='$VERSION';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+          node -e "const f='./apps/desktop/package.json',p=require(f);p.version='$VERSION';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+          node -e "const f='./apps/web-app/package.json',p=require(f);p.version='$VERSION';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+          sed -i.bak "s/EIDOS_VERSION = \".*\"/EIDOS_VERSION = \"$VERSION\"/" packages/lib/env.ts && rm -f packages/lib/env.ts.bak
+          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" apps/cli/Cargo.toml && rm -f apps/cli/Cargo.toml.bak
+          echo "Synced version to $VERSION"
+
       - name: Build frontend application
         env:
           NODE_OPTIONS: "--max_old_space_size=8192"
@@ -95,6 +106,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: pnpm install
 
+      - name: Sync version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          node -e "const f='./package.json',p=require(f);p.version='$VERSION';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+          node -e "const f='./apps/desktop/package.json',p=require(f);p.version='$VERSION';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+          node -e "const f='./apps/web-app/package.json',p=require(f);p.version='$VERSION';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+          sed -i.bak "s/EIDOS_VERSION = \".*\"/EIDOS_VERSION = \"$VERSION\"/" packages/lib/env.ts && rm -f packages/lib/env.ts.bak
+          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" apps/cli/Cargo.toml && rm -f apps/cli/Cargo.toml.bak
+          echo "Synced version to $VERSION"
+
       - name: Build CLI (local script)
         run: node apps/desktop/scripts/build-cli-local.cjs
 
@@ -146,8 +168,19 @@ jobs:
         with:
           path: ./artifacts/
 
+      - name: Determine release channel
+        id: channel
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          if [[ "$TAG" == *"-beta"* ]]; then
+            echo "channel=beta" >> $GITHUB_OUTPUT
+          else
+            echo "channel=latest" >> $GITHUB_OUTPUT
+          fi
+          echo "Release channel: $(cat $GITHUB_OUTPUT | grep channel)"
+
       - name: Merge macOS update files
-        run: chmod +x scripts/merge-macos-updates.sh && ./scripts/merge-macos-updates.sh ./artifacts
+        run: chmod +x scripts/merge-macos-updates.sh && ./scripts/merge-macos-updates.sh ./artifacts ${{ steps.channel.outputs.channel }}
 
       - name: Update Release
         uses: softprops/action-gh-release@v2
@@ -161,8 +194,8 @@ jobs:
             ./artifacts/macos-arm-artifacts/*.zip
             ./artifacts/linux-artifacts/*.AppImage
             ./artifacts/linux-artifacts/*.zip
-            ./artifacts/latest-mac.yml
-            ./artifacts/windows-artifacts/latest.yml
-            ./artifacts/linux-artifacts/latest-linux.yml
+            ./artifacts/${{ steps.channel.outputs.channel }}-mac.yml
+            ./artifacts/windows-artifacts/${{ steps.channel.outputs.channel }}.yml
+            ./artifacts/linux-artifacts/${{ steps.channel.outputs.channel }}-linux.yml
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
