@@ -194,44 +194,48 @@ jobs:
         id: channel
         run: |
           TAG=${GITHUB_REF#refs/tags/}
-          if [[ "$TAG" == *"-beta"* ]]; then
+          if [[ "$TAG" =~ -(beta|alpha|rc) ]]; then
             echo "channel=beta" >> $GITHUB_OUTPUT
+            echo "prerelease=true" >> $GITHUB_OUTPUT
           else
             echo "channel=latest" >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
           fi
-          echo "Release channel: $(cat $GITHUB_OUTPUT | grep channel)"
+          echo "Release channel: $(cat $GITHUB_OUTPUT | grep -E 'channel|prerelease')"
 
       - name: Merge macOS update files
         run: chmod +x scripts/merge-macos-updates.sh && ./scripts/merge-macos-updates.sh ./artifacts ${{ steps.channel.outputs.channel }}
 
-      - name: Clean up yml files for release channel
+      - name: Prepare release files
         run: |
           CHANNEL="${{ steps.channel.outputs.channel }}"
-          if [ "$CHANNEL" = "beta" ]; then
-            # Beta release: remove latest yml files so stable users don't receive beta updates
-            rm -f ./artifacts/latest-mac.yml
-            rm -f ./artifacts/windows-artifacts/latest.yml
-            rm -f ./artifacts/linux-artifacts/latest-linux.yml
-            echo "Removed latest-*.yml files for beta release"
-          else
-            # Stable release: keep both latest and beta yml files so beta users can upgrade to stable
-            echo "Stable release: keeping all yml files"
+          mkdir -p ./release-upload
+          # Copy installers (ignore errors if glob doesn't match)
+          cp ./artifacts/windows-artifacts/*.exe ./release-upload/ 2>/dev/null || true
+          cp ./artifacts/windows-artifacts/*.zip ./release-upload/ 2>/dev/null || true
+          cp ./artifacts/macos-intel-artifacts/*.dmg ./release-upload/ 2>/dev/null || true
+          cp ./artifacts/macos-intel-artifacts/*.zip ./release-upload/ 2>/dev/null || true
+          cp ./artifacts/macos-arm-artifacts/*.dmg ./release-upload/ 2>/dev/null || true
+          cp ./artifacts/macos-arm-artifacts/*.zip ./release-upload/ 2>/dev/null || true
+          cp ./artifacts/linux-artifacts/*.AppImage ./release-upload/ 2>/dev/null || true
+          cp ./artifacts/linux-artifacts/*.zip ./release-upload/ 2>/dev/null || true
+          # Copy yml files for this channel
+          cp "./artifacts/${CHANNEL}-mac.yml" ./release-upload/ 2>/dev/null || true
+          cp "./artifacts/windows-artifacts/${CHANNEL}.yml" ./release-upload/ 2>/dev/null || true
+          cp "./artifacts/linux-artifacts/${CHANNEL}-linux.yml" ./release-upload/ 2>/dev/null || true
+          # For stable release, also include beta yml so beta-channel users can upgrade to stable
+          if [ "$CHANNEL" = "latest" ]; then
+            [ -f "./artifacts/beta-mac.yml" ] && cp "./artifacts/beta-mac.yml" ./release-upload/
+            [ -f "./artifacts/windows-artifacts/beta.yml" ] && cp "./artifacts/windows-artifacts/beta.yml" ./release-upload/
+            [ -f "./artifacts/linux-artifacts/beta-linux.yml" ] && cp "./artifacts/linux-artifacts/beta-linux.yml" ./release-upload/
           fi
+          echo "Files to upload:"
+          ls -la ./release-upload/
 
       - name: Update Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            ./artifacts/windows-artifacts/*.exe
-            ./artifacts/windows-artifacts/*.zip
-            ./artifacts/macos-intel-artifacts/*.dmg
-            ./artifacts/macos-intel-artifacts/*.zip
-            ./artifacts/macos-arm-artifacts/*.dmg
-            ./artifacts/macos-arm-artifacts/*.zip
-            ./artifacts/linux-artifacts/*.AppImage
-            ./artifacts/linux-artifacts/*.zip
-            ./artifacts/${{ steps.channel.outputs.channel }}-mac.yml
-            ./artifacts/windows-artifacts/${{ steps.channel.outputs.channel }}.yml
-            ./artifacts/linux-artifacts/${{ steps.channel.outputs.channel }}-linux.yml
+          prerelease: ${{ steps.channel.outputs.prerelease == 'true' }}
+          files: ./release-upload/*
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
