@@ -132,6 +132,7 @@ export class AppLifecycleService extends IpcServiceBase {
    * Quit and install updates
    */
   quitAndInstall(): void {
+    this.forceQuit = true
     this.updaterService.quitAndInstall()
   }
 }
