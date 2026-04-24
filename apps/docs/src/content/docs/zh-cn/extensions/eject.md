@@ -3,7 +3,6 @@ title: Eject（导出）
 description: 导出内置扩展以进行自定义。
 sidebar:
   order: 4
-  badge: New
 ---
 
 **Eject** 允许你将内置扩展（如 Journal、Monaco Editor）导出到用户空间，以便编辑和自定义。

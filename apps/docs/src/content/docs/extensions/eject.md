@@ -3,7 +3,6 @@ title: Eject
 description: Export built-in extensions to customize them.
 sidebar:
   order: 4
-  badge: New
 ---
 
 **Eject** lets you export built-in extensions (like Journal, Monaco Editor) to user-space so you can edit and customize them.

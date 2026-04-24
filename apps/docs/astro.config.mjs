@@ -97,7 +97,6 @@ export default defineConfig({
               {
                 label: "CLI",
                 link: "/api-reference/cli/",
-                badge: "New",
               },
               {
                 label: "Extension API",
@@ -106,7 +105,6 @@ export default defineConfig({
               {
                 label: "Relay API",
                 link: "/api-reference/relay/",
-                badge: "New",
               },
               {
                 label: "Space API",

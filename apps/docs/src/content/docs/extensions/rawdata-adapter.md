@@ -3,6 +3,7 @@ title: RawData Adapter
 description: A protocol for synchronizing external data into the Eidos personal economic model.
 sidebar:
   order: 5
+  badge: New
 ---
 
 RawData adapters are TypeScript modules that enable Eidos to pull, transform, and store data from external websites and services into a unified personal database.

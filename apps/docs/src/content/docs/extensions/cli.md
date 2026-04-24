@@ -3,7 +3,6 @@ title: CLI
 description: Command-line interface for Eidos Desktop
 sidebar:
   order: 5
-  badge: New
 ---
 
 The `eidos` CLI provides a command-line interface for interacting with Eidos Desktop. It is designed for automation, AI agents, and power users who prefer terminal-based workflows.

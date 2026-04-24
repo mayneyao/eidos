@@ -3,6 +3,7 @@ title: RawData 适配器
 description: 将外部数据同步到 Eidos 个人经济模型的协议。
 sidebar:
   order: 5
+  badge: New
 ---
 
 RawData 适配器是基于 TypeScript 的模块，它允许 Eidos 从外部网站和服务器获取数据，并将其转换并存储到统一的个人数据库中。

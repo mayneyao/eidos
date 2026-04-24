@@ -3,7 +3,6 @@ title: CLI
 description: Eidos Desktop 的命令行界面
 sidebar:
   order: 5
-  badge: New
 ---
 
 `eidos` CLI 提供了一个命令行界面来与 Eidos Desktop 交互。它专为自动化、AI 代理和偏好终端工作流的高级用户设计。
