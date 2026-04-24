@@ -174,7 +174,6 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
       displayUrl: committedUrlRef.current,
     })
   }
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.currentTarget.blur()
@@ -241,7 +240,9 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
         {isLoading ? (
           <Loader2 className="mr-2 h-3 w-3 shrink-0 animate-spin text-primary" />
         ) : (
-          <Globe className="mr-2 h-3 w-3 shrink-0 text-muted-foreground" />
+          <div className="mr-2 flex shrink-0 items-center gap-1 text-muted-foreground">
+            <Globe className="h-3 w-3" />
+          </div>
         )}
         <input
           ref={addressBarRef}

@@ -2,6 +2,7 @@ import { create } from "zustand"
 
 import i18n from "@/locales/i18n"
 import { isDesktopMode } from "@/lib/env"
+import { detectCurrentSpaceId } from "@/apps/web-app/hooks/use-current-space"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import type {
   RawDataAdapter,
@@ -476,6 +477,12 @@ export const useWebviewStore = create<WebviewStore>((set, get) => ({
     get().setWebviewState(tabId, { displayUrl: url, canGoBack, canGoForward })
     // Sync the navigation URL to the tab store so tab shows correct URL
     useTabStore.getState().updateTab(tabId, { url })
+
+    // Refresh adapters for the new URL
+    const space = detectCurrentSpaceId()
+    if (space) {
+      get().refreshAdapters(tabId, space, url)
+    }
   },
 
   // Find in Page Actions

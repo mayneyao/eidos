@@ -2,6 +2,7 @@ import React, { useCallback, useState } from "react"
 import {
   ChevronLeft,
   ChevronRight,
+  Database,
   PanelRightIcon,
   Plus,
   X,
@@ -35,6 +36,7 @@ import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppStore } from "@/apps/web-app/store/app-store"
 import { NavStatus } from "@/components/nav/nav-status"
+import { useWebviewStore } from "@/apps/web-app/store/webview-store"
 
 import { TabContextMenu } from "./tab-context-menu"
 import type { Tab } from "@/apps/web-app/store/tabs"
@@ -131,42 +133,7 @@ function SortableTabItem({
 
           <span className="truncate flex-1 select-none">{tab.title}</span>
 
-          {isActive && (
-            <div className="flex items-center gap-1">
-              <button
-                className={cn(
-                  "rounded p-0.5 transition-opacity shrink-0 hover:bg-accent",
-                  canGoBack(tab.id)
-                    ? "opacity-70 hover:opacity-100"
-                    : "opacity-30 cursor-not-allowed"
-                )}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  goInTabHistory(tab.id, -1)
-                }}
-                disabled={!canGoBack(tab.id)}
-                title="Back"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <button
-                className={cn(
-                  "rounded p-0.5 transition-opacity shrink-0 hover:bg-accent",
-                  canGoForward(tab.id)
-                    ? "opacity-70 hover:opacity-100"
-                    : "opacity-30 cursor-not-allowed"
-                )}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  goInTabHistory(tab.id, 1)
-                }}
-                disabled={!canGoForward(tab.id)}
-                title="Forward"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          )}
+          <TabRawDataHint tabId={tab.id} />
 
           <button
             className={cn(
@@ -184,6 +151,28 @@ function SortableTabItem({
           </button>
         </div>
       </TabContextMenu>
+    </div>
+  )
+}
+
+function TabRawDataHint({ tabId }: { tabId: string }) {
+  const hasRawData = useWebviewStore((s) => s.states[tabId]?.hasRawData)
+  const matchedAdapters = useWebviewStore(
+    (s) => s.states[tabId]?.matchedAdapters || []
+  )
+
+  if (!hasRawData || matchedAdapters.length === 0) return null
+
+  return (
+    <div
+      className="flex shrink-0 items-center justify-center text-primary/60"
+      title={
+        matchedAdapters.length === 1
+          ? `Raw Data available for ${matchedAdapters[0].name}`
+          : `Raw Data available (${matchedAdapters.length} matches)`
+      }
+    >
+      <Database className="h-3 w-3" />
     </div>
   )
 }
