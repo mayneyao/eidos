@@ -13,9 +13,10 @@ The essence of personal data management is **ownership records of digital assets
 1. [Foundation Concepts](#foundation-concepts)
 2. [Data Model](#data-model)
 3. [Behavior & Interactions](#behavior--interactions)
-4. [Scenario Validation](#scenario-validation)
-5. [Design Decisions](#design-decisions)
-6. [Future Extensions](#future-extensions)
+4. [Creating Custom Adapters](https://docs.eidos.space/extensions/rawdata-adapter/)
+5. [Scenario Validation](#scenario-validation)
+6. [Design Decisions](#design-decisions)
+7. [Future Extensions](#future-extensions)
 
 ---
 

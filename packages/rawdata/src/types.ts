@@ -214,6 +214,8 @@ export interface RawDataAdapter {
     strategy: "public" | "cookie" | "auth" | "oauth"
     browser?: boolean
     cli?: boolean
+    /** Required binary executables for this adapter (e.g., ["gh"]) */
+    binaries?: string[]
     entryPoint?: string
     /** Enable DevTools for debugging (default: false) */
     devTools?: boolean

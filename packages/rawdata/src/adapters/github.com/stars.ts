@@ -12,6 +12,7 @@ export default defineAdapter({
   protocol: {
     strategy: "auth",
     cli: true,
+    binaries: ["gh"],
   },
 
   sync: {
