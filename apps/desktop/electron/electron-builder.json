@@ -47,7 +47,7 @@
   ],
   "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
   "win": {
-    "target": ["nsis", "zip"],
+    "target": ["nsis"],
     "icon": "dist/logo.png"
   },
   "afterSign": "scripts/notarize.cjs",
@@ -61,7 +61,7 @@
     "notarize": false
   },
   "linux": {
-    "target": ["AppImage", "zip"]
+    "target": ["AppImage"]
   },
   "protocols": {
     "name": "eidos",

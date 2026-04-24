@@ -212,13 +212,11 @@ jobs:
           mkdir -p ./release-upload
           # Copy installers (ignore errors if glob doesn't match)
           cp ./artifacts/windows-artifacts/*.exe ./release-upload/ 2>/dev/null || true
-          cp ./artifacts/windows-artifacts/*.zip ./release-upload/ 2>/dev/null || true
           cp ./artifacts/macos-intel-artifacts/*.dmg ./release-upload/ 2>/dev/null || true
           cp ./artifacts/macos-intel-artifacts/*.zip ./release-upload/ 2>/dev/null || true
           cp ./artifacts/macos-arm-artifacts/*.dmg ./release-upload/ 2>/dev/null || true
           cp ./artifacts/macos-arm-artifacts/*.zip ./release-upload/ 2>/dev/null || true
           cp ./artifacts/linux-artifacts/*.AppImage ./release-upload/ 2>/dev/null || true
-          cp ./artifacts/linux-artifacts/*.zip ./release-upload/ 2>/dev/null || true
           # For beta releases, electron-builder generates latest-*.yml instead of beta-*.yml.
           # Rename them so electron-updater can find the correct channel files.
           if [ "$CHANNEL" = "beta" ]; then
