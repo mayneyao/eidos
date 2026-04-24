@@ -105,6 +105,7 @@ export class UpdaterService {
   checkForUpdatesManually(): void {
     this.logger.info("Manual update check requested, checking for updates...")
     this.applyUpdateChannel()
+    this.sendStatusToWindow("checking")
     autoUpdater.checkForUpdatesAndNotify()
   }
 

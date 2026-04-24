@@ -41,6 +41,7 @@ const useUpdateStore = create<UpdateStore>((set) => ({
 
   checkForUpdates: () => {
     if (isDesktopMode) {
+      useUpdateStore.setState({ updateStatus: "checking" })
       window.eidos.checkForUpdates()
     }
   },
