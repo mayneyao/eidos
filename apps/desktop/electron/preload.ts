@@ -21,7 +21,7 @@ const checkIsDataFolderSet = async () => {
 }
 
 const getConfigByModel = async (model: string) => {
-  const aiConfig = await ipcRenderer.invoke("get-ai-config")
+  const aiConfig = await ipcRenderer.invoke("config:getAiConfig")
 
   if (!model?.includes("@")) {
     throw new Error(`Model ${model} is not valid`)
