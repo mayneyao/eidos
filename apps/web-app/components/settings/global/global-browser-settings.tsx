@@ -25,6 +25,7 @@ import {
   getAllSearchEngines,
   BUILT_IN_SEARCH_ENGINES,
 } from "../stores/browser-settings-store"
+import { useCurrentSpaceId } from "@/hooks/use-current-space"
 
 export function GlobalBrowserSettings() {
   const { t } = useTranslation()
@@ -58,6 +59,56 @@ export function GlobalBrowserSettings() {
   useEffect(() => {
     initialize()
   }, [initialize])
+
+  const spaceId = useCurrentSpaceId()
+  const [supportedWebsites, setSupportedWebsites] = useState<
+    { site: string; domain: string; binaries?: string[]; resources: string[] }[]
+  >([])
+
+  useEffect(() => {
+    const fetchSupportedWebsites = async () => {
+      if (config.enableRawData && spaceId && window.eidos?.rawData) {
+        try {
+          const adapters = await window.eidos.rawData.getAdapters(spaceId)
+          const sites = adapters.map((a: any) => ({
+            site: a.adapter.meta.site,
+            domain: a.adapter.meta.domain,
+            resource: a.adapter.meta.name,
+            binaries: a.adapter.protocol?.binaries,
+          }))
+          // Group by domain or site to unique list, merging binaries and collecting resources
+          const siteMap = new Map<string, any>()
+          sites.forEach((s: any) => {
+            if (!siteMap.has(s.domain)) {
+              siteMap.set(s.domain, {
+                ...s,
+                binaries: new Set(s.binaries || []),
+                resources: new Set([s.resource]),
+              })
+            } else {
+              const existing = siteMap.get(s.domain)
+              if (s.binaries) {
+                s.binaries.forEach((b: string) => existing.binaries.add(b))
+              }
+              existing.resources.add(s.resource)
+            }
+          })
+
+          const uniqueSites = Array.from(siteMap.values()).map((s: any) => ({
+            ...s,
+            binaries: Array.from(s.binaries) as string[],
+            resources: Array.from(s.resources) as string[],
+          }))
+          setSupportedWebsites(uniqueSites)
+        } catch (e) {
+          console.error("Failed to fetch supported websites:", e)
+        }
+      } else {
+        setSupportedWebsites([])
+      }
+    }
+    fetchSupportedWebsites()
+  }, [config.enableRawData, spaceId])
 
   const allEngines = getAllSearchEngines(config)
   const customEngines = config.customSearchEngines
@@ -416,6 +467,15 @@ export function GlobalBrowserSettings() {
                 "settings.browser.enableRawDataDescription",
                 "When enabled, allows syncing external data via adapters in the built-in browser."
               )}
+              <a
+                href="https://docs.eidos.space/extensions/rawdata-adapter/#custom-adapters"
+                target="_blank"
+                rel="noreferrer"
+                className="ml-1 text-primary hover:underline inline-flex items-center gap-0.5"
+              >
+                {t("settings.browser.howToCustomizeAdapters")}
+                <ExternalLink className="h-3 w-3" />
+              </a>
             </p>
           </div>
           <Switch
@@ -425,6 +485,71 @@ export function GlobalBrowserSettings() {
             className="shrink-0"
           />
         </div>
+
+        {config.enableRawData && supportedWebsites.length > 0 && (
+          <div className="mt-4 ml-1 pl-4 border-l-2 border-muted/50 space-y-3">
+            <div className="space-y-1">
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                {t("settings.browser.supportedWebsites", "Supported Websites")}
+              </h4>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {supportedWebsites.map((site) => (
+                <div
+                  key={site.domain}
+                  className="flex items-center gap-2.5 p-2 rounded-md border bg-muted/20 hover:bg-muted/40 transition-colors"
+                >
+                  <div className="h-7 w-7 rounded bg-background border flex items-center justify-center shrink-0 relative overflow-hidden">
+                    <img
+                      src={`https://www.google.com/s2/favicons?domain=${site.domain}&sz=64`}
+                      alt={site.site}
+                      className="h-4 w-4 z-10"
+                      onError={(e) => {
+                        ;(e.target as HTMLImageElement).style.display = "none"
+                      }}
+                    />
+                    <Globe className="h-3 w-3 text-muted-foreground absolute inset-0 m-auto" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 overflow-hidden">
+                      <div className="text-xs font-medium truncate">
+                        {site.site}
+                      </div>
+                      {site.binaries && site.binaries.length > 0 && (
+                        <div className="flex gap-1 shrink-0">
+                          {site.binaries.map((bin) => (
+                            <span
+                              key={bin}
+                              className="px-1 py-0.5 text-[9px] font-mono rounded bg-amber-100 text-amber-700 border border-amber-200"
+                              title={`${bin} CLI required`}
+                            >
+                              {bin}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground truncate font-mono opacity-70">
+                      {site.domain}
+                    </div>
+                    {site.resources && site.resources.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {site.resources.map((res) => (
+                          <span
+                            key={res}
+                            className="px-1 py-0.5 text-[9px] rounded bg-muted text-muted-foreground border border-border/50"
+                          >
+                            {res}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Delete Confirmation Dialog */}
