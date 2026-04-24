@@ -434,7 +434,7 @@ export const ViewToolbar = (props: {
 
   return (
     <div ref={ref}>
-      <div className="flex items-center justify-between border-b pb-1">
+      <div className="flex h-9 items-center justify-between border-b bg-background">
         <div className="flex items-center min-w-0" ref={ref1}>
           <div className="flex items-center min-w-0">
             <Views

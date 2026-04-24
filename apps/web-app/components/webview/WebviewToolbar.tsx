@@ -186,7 +186,7 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
   }
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-1 border-b bg-background px-2">
+    <div className="flex h-9 shrink-0 items-center gap-1 border-b bg-background px-2">
       <Button
         variant="ghost"
         size="icon"
