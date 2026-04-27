@@ -80,13 +80,19 @@ Eidos 通过中心化的 S3 兼容存储桶作为中转，实现跨设备的数�
 #### 未启用同步
 
 <FileTree>
-  - my-space/ - .eidos/ - db.sqlite3 (数据库文件) - files/ (静态资源)
+- my-space/
+  - .eidos/
+    - db.sqlite3 (数据库文件)
+    - files/ (静态资源)
 </FileTree>
 
 #### 已启用同步
 
 <FileTree>
-  - my-space/ - .eidos/ - .graft/ (VFS 存储目录) - files/ (静态资源)
+- my-space/
+  - .eidos/
+    - .graft/ (VFS 存储目录)
+    - files/ (静态资源)
 </FileTree>
 
 ## 冲突处理

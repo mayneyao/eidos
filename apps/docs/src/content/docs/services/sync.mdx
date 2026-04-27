@@ -80,14 +80,19 @@ The physical storage structure of a Space differs depending on whether sync is e
 #### Sync Disabled
 
 <FileTree>
-  - my-space/ - .eidos/ - db.sqlite3 (Database file) - files/ (Static assets)
+- my-space/
+  - .eidos/
+    - db.sqlite3 (Database file)
+    - files/ (Static assets)
 </FileTree>
 
 #### Sync Enabled
 
 <FileTree>
-  - my-space/ - .eidos/ - .graft/ (VFS storage directory) - files/ (Static
-  assets)
+- my-space/
+  - .eidos/
+    - .graft/ (VFS storage directory)
+    - files/ (Static assets)
 </FileTree>
 
 ## Conflict Handling

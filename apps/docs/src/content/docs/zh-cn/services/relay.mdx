@@ -67,8 +67,10 @@ curl -X POST https://api.eidos.space/v1/relay/channels/{channelId}/messages \
 Eidos 从云端中转站取回消息后，不会直接写入主数据库，而是先落到一个独立的本地文件：`inbox.sqlite3`，这扮演了**消息暂存队列**的角色。
 
 <FileTree>
-  - my-space/ - .eidos/ - db.sqlite3 (主数据库) - **inbox.sqlite3**
-  (消息队列暂存区)
+- my-space/
+  - .eidos/
+    - db.sqlite3 (主数据库)
+    - inbox.sqlite3 (消息队列暂存区)
 </FileTree>
 
 分开存储的理由很简单。Eidos 会追踪 `db.sqlite3` 的每一次变动，它受版本控制。如果把成百上千条原始的 Webhook 数据直接塞进去，历史记录会迅速膨胀。`inbox.sqlite3` 是刻意不纳入版本控制的，作为一块干净的消息缓存区，等待消费者读取。
