@@ -32,6 +32,7 @@ import { isInkServiceMode, isDesktopMode } from "@/lib/env"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useDataMutation } from "./use-data-mutation"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 
 export type RowRange = readonly [number, number]
 type RowCallback<T> = (range: RowRange, qs?: string) => Promise<readonly T[]>
@@ -144,7 +145,13 @@ export function useAsyncData<TRowType>(data: {
                   target: openInNewTab ? "_blank" : undefined,
                 })
               } else {
-                window.open(cell.data, "_blank")
+                const openInRightPanel = args.metaKey || args.ctrlKey
+                if (openInRightPanel) {
+                  const { openTab } = useTabStore.getState()
+                  openTab(cell.data, "URL", { openInRightPanel: true })
+                } else {
+                  window.open(cell.data, "_blank")
+                }
               }
             },
           } as any
