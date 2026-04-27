@@ -23,6 +23,7 @@ import { RawDataModule } from "./modules/rawdata"
 import { ApiServerModule } from "./modules/api-server/api-server.module"
 import { UpdaterModule } from "./modules/updater/updater.module"
 import { ExampleModule } from "./modules/example/example.module"
+import { MarketModule } from "./modules/market/market.module"
 
 /**
  * App Module - Root module
@@ -64,6 +65,7 @@ import { ExampleModule } from "./modules/example/example.module"
     ApiServerModule,
     UpdaterModule,
     ExampleModule,
+    MarketModule,
   ],
   providers: [],
   exports: [],

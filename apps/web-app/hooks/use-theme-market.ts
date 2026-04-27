@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useState } from "react"
 
-import { ThemeRegistryItem } from "@/apps/desktop/src/services/theme-market"
-import { getThemeMarket } from "@/apps/desktop/src/services/theme-market"
-
-const market = getThemeMarket()
+// Interface for theme registry items from desktop service
+export interface ThemeRegistryItem {
+  name: string
+  author: string
+  repo: string
+  screenshot: string
+  modes: ("light" | "dark")[]
+  legacy?: boolean
+}
 
 // Extended theme type with UI state
 export interface ThemeWithStatus extends ThemeRegistryItem {
@@ -18,10 +23,15 @@ export function useThemeMarket() {
   const [error, setError] = useState<string | null>(null)
 
   const loadThemes = useCallback(async () => {
+    // Only available in desktop environment
+    if (!window.eidos?.market) {
+      return
+    }
+
     setIsLoading(true)
     setError(null)
     try {
-      const list = await market.list()
+      const list = await window.eidos.market.list()
       setThemes(list)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load themes")
@@ -31,7 +41,10 @@ export function useThemeMarket() {
   }, [])
 
   const downloadTheme = useCallback(async (repo: string) => {
-    return await market.download(repo)
+    if (!window.eidos?.market) {
+      return null
+    }
+    return await window.eidos.market.download(repo)
   }, [])
 
   useEffect(() => {

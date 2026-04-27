@@ -206,5 +206,8 @@ interface Window {
     rawData: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./modules/rawdata/rawdata.service").RawDataService
     >
+    market: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./modules/market/market.service").MarketService
+    >
   }
 }

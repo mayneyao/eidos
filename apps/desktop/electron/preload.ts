@@ -474,6 +474,8 @@ function main() {
 
     // CLI installation
     cli: createPreloadApiByNamespace("cli"),
+    // Market service
+    market: createPreloadApiByNamespace("market"),
   })
 }
 main()
