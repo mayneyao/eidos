@@ -57,6 +57,8 @@ interface ExtensionContextMenuProps {
   selectionHasDataview?: boolean
 }
 
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+
 /**
  * Context menu specifically for extension nodes
  */
@@ -77,7 +79,8 @@ export const ExtensionContextMenu = ({
 }: ExtensionContextMenuProps) => {
   const { t } = useTranslation()
   const { isFavorite, toggleFavBlock } = useFavBlocks()
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const showDeleteDialog = useAppRuntimeStore((s) => s.isDeleteDialogOpen)
+  const setShowDeleteDialog = useAppRuntimeStore((s) => s.setDeleteDialogOpen)
 
   const extensionType = node.metadata?.extensionType || "script"
   const extensionIcon = node.metadata?.icon

@@ -74,6 +74,8 @@ const CopyTableSchemaWrapper = ({ tableId }: { tableId: string }) => {
   )
 }
 
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+
 /**
  * Context menu specifically for node types (table, doc, folder, etc.)
  */
@@ -95,7 +97,8 @@ export const NodeContextMenu = ({
 }: NodeContextMenuProps) => {
   const { t } = useTranslation()
   const { toast } = useToast()
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const deleteDialogOpen = useAppRuntimeStore((s) => s.isDeleteDialogOpen)
+  const setDeleteDialogOpen = useAppRuntimeStore((s) => s.setDeleteDialogOpen)
 
   const isPinned = node.metadata?.isPinned
   const isFolder =

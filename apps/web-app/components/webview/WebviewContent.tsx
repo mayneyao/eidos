@@ -24,7 +24,9 @@ export function WebviewContent({ url }: { url: string }) {
       state.isCmdkOpen ||
       state.isKeyboardShortcutsOpen ||
       state.isSpaceSettingsOpen ||
-      state.isGlobalSearchOpen
+      state.isGlobalSearchOpen ||
+      state.isDeleteDialogOpen ||
+      state.isMoveToFolderOpen
   )
 
   // Note: Reader view is now rendered inside BrowserView via eidos-read:// protocol

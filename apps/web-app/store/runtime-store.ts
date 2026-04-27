@@ -60,6 +60,14 @@ interface AppRuntimeState {
   // terminal panel visibility
   isTerminalVisible: boolean
   setIsTerminalVisible: (isTerminalVisible: boolean) => void
+
+  // delete node dialog visibility
+  isDeleteDialogOpen: boolean
+  setDeleteDialogOpen: (isDeleteDialogOpen: boolean) => void
+
+  // move to folder dialog visibility
+  isMoveToFolderOpen: boolean
+  setMoveToFolderOpen: (isMoveToFolderOpen: boolean) => void
 }
 
 export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
@@ -120,4 +128,10 @@ export const useAppRuntimeStore = create<AppRuntimeState>()((set) => ({
 
   isTerminalVisible: false,
   setIsTerminalVisible: (isTerminalVisible) => set({ isTerminalVisible }),
+
+  isDeleteDialogOpen: false,
+  setDeleteDialogOpen: (isDeleteDialogOpen) => set({ isDeleteDialogOpen }),
+
+  isMoveToFolderOpen: false,
+  setMoveToFolderOpen: (isMoveToFolderOpen) => set({ isMoveToFolderOpen }),
 }))

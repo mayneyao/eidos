@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { FileTreeNode } from "./file-tree-node"
 import { useFileTreeData } from "./use-file-tree-data"
 import { useFileTreeDragDrop } from "./use-file-tree-drag-drop"
@@ -59,7 +60,9 @@ const FileTree = ({
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const containerRef = useRef<HTMLDivElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
-  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false)
+  const isMoveDialogOpen = useAppRuntimeStore((s) => s.isMoveToFolderOpen)
+  const setIsMoveDialogOpen = useAppRuntimeStore((s) => s.setMoveToFolderOpen)
+
   const [pendingMove, setPendingMove] = useState<{
     sources: FileTreeNode[]
     target: FileTreeNode
@@ -223,7 +226,12 @@ const FileTree = ({
     // Determine navigation path
     console.log("node", node)
     let targetPath = ""
-    if (node.metadata?.nodeType && node.metadata?.nodeType !== "extension") {
+    if (node.metadata?.nodeType === "link" && node.metadata?.ref) {
+      targetPath = node.metadata.ref
+    } else if (
+      node.metadata?.nodeType &&
+      node.metadata?.nodeType !== "extension"
+    ) {
       // Navigate to node (table, doc, folder, dataview)
       targetPath = `/${node.metadata.nodeId}`
     } else if (node.metadata?.nodeType === "extension") {
