@@ -11,6 +11,14 @@ import type { DataSpace } from "@/packages/core/data-space"
 import { AgentSessionStore } from "@/packages/core/agent-session/agent-session-store"
 import type { IAgentData } from "./interface"
 
+function extractText(parts: unknown[] | undefined): string {
+  if (!parts) return ""
+  return parts
+    .filter((p: any) => p?.type === "text")
+    .map((p: any) => p.text ?? "")
+    .join("")
+}
+
 function buildAgentSystemPrompt(goal: string, tools: string[]): string {
   return `You are an autonomous AI agent running in the Eidos data workspace.
 Your goal is: ${goal}
@@ -69,7 +77,7 @@ export async function handleAgentApi(
     experimental_transform: smoothStream({ delayInMs: 20 }),
     messages: clientMessages.map((m) => ({
       role: m.role as "user" | "assistant" | "system",
-      content: m.content,
+      content: extractText((m as any).parts),
     })),
     tools: (tools ?? {}) as Record<string, any>,
     stopWhen: stepCountIs(maxSteps),
@@ -91,7 +99,7 @@ export async function handleAgentApi(
             messages: clientMessages.map((m) => ({
               id: m.id ?? uuidv7(),
               role: m.role,
-              content: m.content,
+              content: extractText((m as any).parts),
             })),
             model: modelAndProvider,
             space: space ?? "",
@@ -110,8 +118,8 @@ export async function handleAgentApi(
     originalMessages: clientMessages.map((m) => ({
       id: m.id ?? uuidv7(),
       role: m.role as "user" | "assistant" | "system",
-      content: m.content,
-      parts: (m.parts ?? []) as any,
+      content: extractText((m as any).parts),
+      parts: ((m as any).parts ?? []) as any,
     })) as any,
   })
 }
