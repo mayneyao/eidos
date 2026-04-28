@@ -342,6 +342,8 @@ export const useSqlite = (dbName?: string) => {
     if (!sqlWorker) return
     if (node.type === TreeNodeType.Dataview) {
       await deleteView(node.id)
+    } else if (node.type === TreeNodeType.Link) {
+      sqlWorker.tree.permanentlyDeleteNode(node.id)
     } else {
       sqlWorker.tree.deleteNode(node.id)
       // State will be updated automatically via database triggers

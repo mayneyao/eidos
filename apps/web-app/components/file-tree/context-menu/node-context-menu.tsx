@@ -14,7 +14,7 @@ import {
   Share2Icon,
   Trash2Icon,
 } from "lucide-react"
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import {
@@ -60,6 +60,7 @@ interface NodeContextMenuProps {
   isMultiSelection?: boolean
   selectionCount?: number
   selectionHasDataview?: boolean
+  selectionHasLink?: boolean
 }
 
 const CopyTableSchemaWrapper = ({ tableId }: { tableId: string }) => {
@@ -94,11 +95,15 @@ export const NodeContextMenu = ({
   isMultiSelection = false,
   selectionCount = 1,
   selectionHasDataview = false,
+  selectionHasLink = false,
 }: NodeContextMenuProps) => {
   const { t } = useTranslation()
   const { toast } = useToast()
-  const deleteDialogOpen = useAppRuntimeStore((s) => s.isDeleteDialogOpen)
-  const setDeleteDialogOpen = useAppRuntimeStore((s) => s.setDeleteDialogOpen)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const syncDeleteDialogOpen = useAppRuntimeStore((s) => s.setDeleteDialogOpen)
+  useEffect(() => {
+    syncDeleteDialogOpen(deleteDialogOpen)
+  }, [deleteDialogOpen, syncDeleteDialogOpen])
 
   const isPinned = node.metadata?.isPinned
   const isFolder =
@@ -273,6 +278,16 @@ export const NodeContextMenu = ({
                         "node.menu.deleteDescMultiple",
                         `This will delete ${count} items.`
                       )
+                if (selectionHasDataview && selectionHasLink) {
+                  return (
+                    base +
+                    " " +
+                    t(
+                      "node.menu.deleteDataviewLinkNotice",
+                      "Regular items can be restored from Trash, but dataview and link items will be permanently removed."
+                    )
+                  )
+                }
                 if (selectionHasDataview) {
                   return (
                     base +
@@ -280,6 +295,16 @@ export const NodeContextMenu = ({
                     t(
                       "node.menu.deleteDataviewNotice",
                       "Regular items can be restored from Trash, but dataview items will be permanently removed."
+                    )
+                  )
+                }
+                if (selectionHasLink) {
+                  return (
+                    base +
+                    " " +
+                    t(
+                      "node.menu.deleteLinkNotice",
+                      "Regular items can be restored from Trash, but link items will be permanently removed."
                     )
                   )
                 }

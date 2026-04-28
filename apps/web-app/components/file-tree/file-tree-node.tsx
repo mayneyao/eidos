@@ -58,6 +58,7 @@ interface FileTreeNodeProps {
   isMultiSelection: boolean
   selectionCount: number
   selectionHasDataview: boolean
+  selectionHasLink: boolean
 }
 
 export const FileTreeNode = ({
@@ -110,6 +111,7 @@ export const FileTreeNode = ({
   isMultiSelection,
   selectionCount,
   selectionHasDataview,
+  selectionHasLink,
 }: FileTreeNodeProps) => {
   const canDrop = hasChildren && !isDragging
 
@@ -175,6 +177,7 @@ export const FileTreeNode = ({
         isMultiSelection={isMultiSelection}
         selectionCount={selectionCount}
         selectionHasDataview={selectionHasDataview}
+        selectionHasLink={selectionHasLink}
       >
         <div
           ref={nodeRef}

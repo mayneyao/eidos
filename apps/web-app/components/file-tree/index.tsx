@@ -776,6 +776,9 @@ const FileTree = ({
     const selectionHasDataview = selectionNodes.some(
       (n) => n.metadata?.nodeType === "dataview"
     )
+    const selectionHasLink = selectionNodes.some(
+      (n) => n.metadata?.nodeType === "link"
+    )
 
     // Check if extension is pinned (for extensions)
     const isExtension = node.metadata?.nodeType === "extension"
@@ -867,6 +870,7 @@ const FileTree = ({
           isMultiSelection={isMultiSelection}
           selectionCount={selectionCount}
           selectionHasDataview={selectionHasDataview}
+          selectionHasLink={selectionHasLink}
         />
       </div>
     )

@@ -51,6 +51,7 @@ interface FileContextMenuProps {
   isMultiSelection?: boolean
   selectionCount?: number
   selectionHasDataview?: boolean
+  selectionHasLink?: boolean
 }
 
 /**
@@ -66,6 +67,7 @@ export const FileContextMenu = ({
   isMultiSelection = false,
   selectionCount = 1,
   selectionHasDataview = false, // unused but kept for API symmetry
+  selectionHasLink = false, // unused but kept for API symmetry
 }: FileContextMenuProps) => {
   const { t } = useTranslation()
   const { navigate } = useRouterAdapter()

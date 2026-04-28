@@ -32,6 +32,7 @@ interface FileTreeContextMenuProps {
   isMultiSelection?: boolean
   selectionCount?: number
   selectionHasDataview?: boolean
+  selectionHasLink?: boolean
 }
 
 /**
@@ -59,6 +60,7 @@ export const FileTreeContextMenu = ({
   isMultiSelection = false,
   selectionCount = 1,
   selectionHasDataview = false,
+  selectionHasLink = false,
 }: FileTreeContextMenuProps) => {
   const nodeType = node.metadata?.nodeType
   const isExtension = nodeType === "extension"
@@ -95,6 +97,7 @@ export const FileTreeContextMenu = ({
         isMultiSelection={isMultiSelection}
         selectionCount={selectionCount}
         selectionHasDataview={selectionHasDataview}
+        selectionHasLink={selectionHasLink}
         // onRename={onRename}
         // onDelete={onDelete}
       >
@@ -141,6 +144,7 @@ export const FileTreeContextMenu = ({
       isMultiSelection={isMultiSelection}
       selectionCount={selectionCount}
       selectionHasDataview={selectionHasDataview}
+      selectionHasLink={selectionHasLink}
     >
       {children}
     </NodeContextMenu>

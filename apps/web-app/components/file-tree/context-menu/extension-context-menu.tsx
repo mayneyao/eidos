@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import type { IDirectoryEntry } from "@eidos.space/core/types/IExternalFileSystem"
 import {
   CopyIcon,
@@ -79,8 +79,11 @@ export const ExtensionContextMenu = ({
 }: ExtensionContextMenuProps) => {
   const { t } = useTranslation()
   const { isFavorite, toggleFavBlock } = useFavBlocks()
-  const showDeleteDialog = useAppRuntimeStore((s) => s.isDeleteDialogOpen)
-  const setShowDeleteDialog = useAppRuntimeStore((s) => s.setDeleteDialogOpen)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const syncDeleteDialogOpen = useAppRuntimeStore((s) => s.setDeleteDialogOpen)
+  useEffect(() => {
+    syncDeleteDialogOpen(showDeleteDialog)
+  }, [showDeleteDialog, syncDeleteDialogOpen])
 
   const extensionType = node.metadata?.extensionType || "script"
   const extensionIcon = node.metadata?.icon
