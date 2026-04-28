@@ -476,7 +476,6 @@ export const useWebviewStore = create<WebviewStore>((set, get) => ({
 
     get().setWebviewState(tabId, {
       displayUrl: url,
-      pageTitle: "",
       canGoBack,
       canGoForward,
     })
