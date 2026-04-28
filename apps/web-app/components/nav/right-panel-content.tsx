@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, lazy, useEffect } from "react"
+import { Suspense } from "react"
 
 import { Loading } from "@/components/loading"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
@@ -10,8 +10,6 @@ import { BlockApp } from "@/components/block-renderer/block-app"
 
 import { TempPanel } from "./temp-panel"
 import { NodeAppPanel } from "./node-app-panel"
-
-const AIChat = lazy(() => import("@/components/ai-chat/ai-chat-new"))
 
 // Terminal panel component for existing session (dragged from bottom panel)
 interface ExistingTerminalPanelProps {
@@ -30,9 +28,9 @@ const ExistingTerminalPanel = ({ sessionId }: ExistingTerminalPanelProps) => {
     if (apps.includes(terminalAppId)) {
       deleteApp(terminalAppId)
 
-      // If this was the current app, switch to chat
+      // If this was the current app, close the panel
       if (currentApp === terminalAppId) {
-        setCurrentApp("chat")
+        setCurrentApp("")
       }
     }
   }
@@ -60,17 +58,7 @@ export const RightPanelContent = ({ height }: RightPanelContentProps = {}) => {
     return <TempPanel />
   }
 
-  // Render based on currentApp
-  if (currentApp === "chat") {
-    return (
-      <Suspense fallback={<Loading />}>
-        <AIChat />
-      </Suspense>
-    )
-  }
-
   // Terminal session dragged from bottom panel
-  // Format: terminal://{sessionId}
   if (currentApp && currentApp.startsWith("terminal://")) {
     const sessionId = currentApp.replace("terminal://", "")
     return <ExistingTerminalPanel sessionId={sessionId} />
@@ -88,10 +76,6 @@ export const RightPanelContent = ({ height }: RightPanelContentProps = {}) => {
     return <NodeAppPanel />
   }
 
-  // Default: render chat
-  return (
-    <Suspense fallback={<Loading />}>
-      <AIChat />
-    </Suspense>
-  )
+  // Empty panel — no default app
+  return null
 }

@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { useAIConfigStore } from "@/components/settings/stores"
-import { AIModelSelect } from "@/components/ai-chat/ai-chat-model-select"
+import { AIModelSelect } from "@/components/ai/ai-model-select"
 import {
   Form,
   FormControl,

@@ -27,8 +27,10 @@ import {
 } from "./use-doc-editor"
 import { useCurrentUser } from "./user-current-user"
 
-const Markdown = lazy(
-  () => import("@/components/remix-chat/components/markdown")
+const Markdown = lazy(() =>
+  import("@/components/markdown-renderer").then((m) => ({
+    default: m.MarkdownRenderer,
+  }))
 )
 
 export const useWorker = () => {

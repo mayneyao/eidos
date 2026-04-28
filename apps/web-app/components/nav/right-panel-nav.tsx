@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
-  BotIcon,
   ExternalLinkIcon,
   FileIcon,
   MoreHorizontalIcon,
@@ -24,14 +23,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Link } from "@/components/ui/link"
 import {
   NativeContextMenu as ContextMenu,
   NativeContextMenuContent as ContextMenuContent,
   NativeContextMenuItem as ContextMenuItem,
   NativeContextMenuTrigger as ContextMenuTrigger,
 } from "@/components/ui/native-context-menu"
-import { AIChatHeader } from "@/components/ai-chat/ai-chat-header"
 import { useAllMblocks } from "@/apps/web-app/hooks/use-all-mblocks"
 import { useNodeMap } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
@@ -42,25 +39,6 @@ import {
 
 import { BlockContextMenu } from "./block-context-menu"
 import { NodeContextMenu } from "./node-context-menu"
-
-const DefaultAppInfoMap: Record<
-  string,
-  {
-    icon: LucideIcon | string
-    title: string
-    description: string
-    shortcut?: string
-    available: boolean
-  }
-> = {
-  chat: {
-    icon: BotIcon,
-    title: "Chat with AI",
-    description: "Chat with AI",
-    // shortcut: "ctrl/cmd + /",
-    available: true,
-  },
-}
 
 const tabButtonBaseClass =
   "relative h-8 w-8 p-0 transition-colors flex-shrink-0"
@@ -187,7 +165,7 @@ export const RightPanelNav = () => {
         available: true,
       }
     }
-    return DefaultAppInfoMap[app]
+    return undefined
   }
   const updateApp = (app: string, newUrl: string) => {
     const newApps = apps.map((oldUrl) => (oldUrl === app ? newUrl : oldUrl))
@@ -214,10 +192,6 @@ export const RightPanelNav = () => {
     return () => resizeObserver.disconnect()
   }, [])
 
-  const cleanMessages = () => {
-    // setChatHistory([])
-  }
-
   const handleOpenTempNode = () => {
     if (!tempPanelNode) return
 
@@ -228,14 +202,14 @@ export const RightPanelNav = () => {
     }
     // Clear temp node and close panel to ensure mutual exclusion
     setTempPanelNode(null)
-    setCurrentApp("chat")
+    setCurrentApp("")
     setIsRightPanelOpen(false)
   }
 
   const handleCloseTempNode = () => {
     // Clear temp node to ensure mutual exclusion
     setTempPanelNode(null)
-    setCurrentApp("chat")
+    setCurrentApp("")
     setIsRightPanelOpen(false)
   }
 
@@ -313,7 +287,7 @@ export const RightPanelNav = () => {
                     <ContextMenuItem
                       onClick={() => {
                         deleteApp(app)
-                        setCurrentApp("chat")
+                        setCurrentApp("")
                       }}
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
@@ -334,7 +308,7 @@ export const RightPanelNav = () => {
                             const sessionId = app.replace("terminal://", "")
                             window.eidos?.terminal?.kill(sessionId)
                             deleteApp(app)
-                            setCurrentApp("chat")
+                            setCurrentApp("")
                           }}
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
@@ -403,8 +377,6 @@ export const RightPanelNav = () => {
         )}
       </div>
       <div className="drag-region grow"></div>
-      {/* Only show currentApp UI when tempPanelNode is not active */}
-      {!tempPanelNode && currentApp === "chat" && <AIChatHeader />}
       {/* Only show tempPanelNode UI when currentApp is not active */}
       {tempPanelNode && !currentApp && (
         <>

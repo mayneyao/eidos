@@ -1,4 +1,3 @@
-import aiHandler, { pathname as aiPath } from "@/worker/service-worker/ai"
 import {
   containsBinaryData,
   parseMultipartFormData,
@@ -6,8 +5,6 @@ import {
   restoreBinaryData,
 } from "@eidos.space/client"
 import { Hono } from "hono"
-// @ts-ignore - FetchEvent is not exported from ai module
-type FetchEvent = any
 import { extractSpaceIdFromRequest } from "../utils/extract-space"
 import type { ServerContext } from "../server"
 
@@ -90,22 +87,5 @@ export function setupApiRoutes(app: Hono, ctx: ServerContext) {
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400)
     }
-  })
-
-  // AI route
-  app.all(aiPath, async (c) => {
-    const response = await aiHandler(
-      {
-        request: c.req,
-        respondWith: (response: Response) => response,
-      } as unknown as FetchEvent,
-      {
-        getDataspace: (space) =>
-          space
-            ? ctx.dataSpaceManager.getOrSetDataSpace(space)
-            : Promise.resolve(null),
-      }
-    )
-    return response
   })
 }

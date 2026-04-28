@@ -186,7 +186,6 @@ const FileTree = ({
     handleDelete,
     handlePin,
     handleUnpin,
-    handleAddToChat,
     handleOpenInNewTab,
     handleCreateDoc,
     handleCreateTable,
@@ -848,7 +847,6 @@ const FileTree = ({
           onDelete={(n) => handleDeleteRequest(n)}
           onPin={handlePin}
           onUnpin={handleUnpin}
-          onAddToChat={handleAddToChat}
           onOpenInNewTab={handleOpenInNewTab}
           onCreateDoc={handleCreateDoc}
           onCreateTable={handleCreateTable}

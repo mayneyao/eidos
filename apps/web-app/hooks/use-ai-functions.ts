@@ -20,7 +20,6 @@ export const useAIFunctions = () => {
   const { callScript } = useScriptCall()
 
   const { handleSql, sqlite } = useSqlite(database)
-  // FIXME: now ai-chat is global, maybe not in table page
   const { runQuery } = useTableOperation(table ?? "", database)
 
   const handleRunSql = useCallback(

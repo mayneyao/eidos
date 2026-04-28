@@ -43,7 +43,6 @@ import {
   NativeContextMenuSubTrigger as ContextMenuSubTrigger,
   NativeContextMenuTrigger as ContextMenuTrigger,
 } from "@/components/ui/native-context-menu"
-import { useContextNodes } from "@/components/ai-chat/hooks/use-context-nodes"
 import { NodeUpdateTime } from "@/components/nav/node-update-time"
 import { useExperimentConfigStore } from "@/components/settings/stores"
 // import {
@@ -227,7 +226,6 @@ export function TabContextMenu({
   const { sqlite, deleteNode, toggleNodeFullWidth, toggleNodeLock } =
     useSqlite()
   const { setIsRightPanelOpen, setCurrentApp } = useSpaceAppStore()
-  const { addNode } = useContextNodes()
   const { addApp } = useAppsStore()
 
   const { isEmbeddingModeLoaded } = useAppRuntimeStore()

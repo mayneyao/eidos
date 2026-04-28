@@ -38,7 +38,6 @@ interface FileTreeNodeProps {
   onDelete?: (node: FileTreeNodeType) => void
   onPin?: (node: FileTreeNodeType) => void
   onUnpin?: (node: FileTreeNodeType) => void
-  onAddToChat?: (node: FileTreeNodeType) => void
   onCreateDoc?: (node: FileTreeNodeType) => void
   onCreateTable?: (node: FileTreeNodeType) => void
   onCreateFolder?: (node: FileTreeNodeType) => void
@@ -91,7 +90,6 @@ export const FileTreeNode = ({
   onDelete,
   onPin,
   onUnpin,
-  onAddToChat,
   onCreateDoc,
   onCreateTable,
   onCreateFolder,
@@ -123,11 +121,6 @@ export const FileTreeNode = ({
         onDelete={isVirtualNode ? onDelete : undefined}
         onPin={isVirtualNode && !isPinned ? onPin : undefined}
         onUnpin={isVirtualNode && isPinned ? onUnpin : undefined}
-        onAddToChat={
-          isVirtualNode && node.metadata?.nodeType !== "extension"
-            ? onAddToChat
-            : undefined
-        }
         onCreateDoc={
           hasChildren &&
           node.metadata?.nodeType === "folder" &&

@@ -36,7 +36,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useContextNodes } from "@/components/ai-chat/hooks/use-context-nodes"
 import { useAllExtNodes } from "@/apps/web-app/hooks/use-all-ext-nodes"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
@@ -87,7 +86,6 @@ export function NodeItem({
   const { handleCut, handlePaste } = useTreeOperations()
   const { currentCut } = useFolderStore()
   const { setIsRightPanelOpen, setCurrentApp } = useSpaceAppStore()
-  const { addNode } = useContextNodes()
   const { addApp } = useAppsStore()
   const { toast } = useToast()
 
@@ -173,18 +171,6 @@ export function NodeItem({
         variant: "destructive",
       })
     }
-  }
-
-  const handleAddToChat = () => {
-    // Open right panel if not already open
-    setIsRightPanelOpen(true)
-    // Set current app to chat
-    setCurrentApp("chat")
-
-    // Add the node to chat context (duplicates are handled in the store)
-    setTimeout(() => {
-      addNode(node)
-    }, 100)
   }
 
   const handleAddToPanel = () => {
@@ -289,11 +275,6 @@ export function NodeItem({
         <ContextMenuItem onClick={() => navigator.clipboard.writeText(node.id)}>
           <CopyIcon className="pr-1.5" />
           {t("node.menu.copyId")}
-        </ContextMenuItem>
-
-        <ContextMenuItem onClick={handleAddToChat}>
-          <MessageSquareIcon className="pr-1.5" />
-          {t("node.menu.addToChat", "Add to Chat")}
         </ContextMenuItem>
 
         <ContextMenuItem

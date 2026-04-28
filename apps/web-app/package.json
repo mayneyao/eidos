@@ -99,7 +99,7 @@
     "@uiw/react-heat-map": "^2.2.1",
     "@xenova/transformers": "^2.17.1",
     "ahooks": "^3.7.8",
-    "ai": "^4.3.16",
+    "ai": "^6.0.168",
     "aws-sdk": "^2.1526.0",
     "aws4fetch": "^1.0.17",
     "bindings": "^1.5.0",

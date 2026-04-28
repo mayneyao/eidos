@@ -19,9 +19,6 @@ interface ISpaceAppState {
   isExtAppOpen: boolean
   setIsExtAppOpen: (isExtAppOpen: boolean) => void
 
-  aiMessages: any[]
-  setAiMessages: (aiMessages: any[]) => void
-
   currentTableSchema: string
   setCurrentTableSchema: (currentTableSchema: string) => void
 
@@ -57,7 +54,7 @@ interface IAppsState {
 export const useAppsStore = create<IAppsState>()(
   persist(
     (set) => ({
-      apps: ["chat"],
+      apps: [],
       setApps: (apps) => set({ apps }),
       addApp: (app) => set((state) => ({ apps: [...state.apps, app] })),
       deleteApp: (app) =>
@@ -78,9 +75,9 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set, get) => ({
   currentAppIndex: -1,
   setCurrentAppIndex: (currentAppIndex) => set({ currentAppIndex }),
 
-  currentApp: "chat",
+  currentApp: "",
   setCurrentApp: (currentApp) => set({ currentApp, tempPanelNode: null }),
-  resetCurrentApp: () => set({ currentApp: "chat", tempPanelNode: null }),
+  resetCurrentApp: () => set({ currentApp: "", tempPanelNode: null }),
   isRightPanelOpen: false,
   setIsRightPanelOpen: (isRightPanelOpen, index) => {
     if (index == null) {
@@ -97,9 +94,6 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set, get) => ({
 
   isExtAppOpen: false,
   setIsExtAppOpen: (isExtAppOpen) => set({ isExtAppOpen }),
-
-  aiMessages: [],
-  setAiMessages: (aiMessages) => set({ aiMessages }),
 
   currentTableSchema: "",
   setCurrentTableSchema: (currentTableSchema) => set({ currentTableSchema }),

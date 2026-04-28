@@ -2,7 +2,7 @@ import { toast } from "@/components/ui/use-toast"
 import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 import { getProvider } from "@/packages/ai/helper"
 import { isDesktopMode } from "@/lib/env"
-import type { LanguageModelV1 } from "ai"
+import type { LanguageModel } from "ai"
 import { embedMany, generateText } from "ai"
 import { useState } from "react"
 
@@ -79,7 +79,7 @@ export const useModelTest = () => {
               })
             } else {
               const res = await generateText({
-                model: modelProvider(config.modelId) as LanguageModelV1,
+                model: modelProvider(config.modelId) as LanguageModel,
                 prompt: `Translate the following text to ${targetLanguage}: ${text}`,
               })
             }
@@ -107,7 +107,7 @@ export const useModelTest = () => {
               })
             } else {
               await generateText({
-                model: modelProvider(config.modelId) as LanguageModelV1,
+                model: modelProvider(config.modelId) as LanguageModel,
                 prompt: `just write a function that takes a list of numbers and returns the sum of the numbers. don't include any other text.`,
               })
             }
@@ -162,7 +162,7 @@ Return the complete modified code with the changes applied.`
               patchCodeText = text
             } else {
               const patchCode = await generateText({
-                model: modelProvider(config.modelId) as LanguageModelV1,
+                model: modelProvider(config.modelId) as LanguageModel,
                 prompt,
               })
               patchCodeText = patchCode.text
