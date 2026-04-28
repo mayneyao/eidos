@@ -31,38 +31,38 @@ export interface AgentSession {
 }
 
 interface AgentStore {
-  // Session management
   sessions: AgentSession[]
   currentSessionId: string | null
-  addSession: (session: AgentSession) => void
+
+  // Session list management (loaded from API)
+  setSessions: (sessions: AgentSession[]) => void
+  setCurrentSession: (id: string | null) => void
+
+  // Active session (created in current page lifecycle)
+  addActiveSession: (session: AgentSession) => void
   updateSessionMessages: (
-    sessionId: string,
+    id: string,
     messages: StoredMessage[],
     status: AgentSession["status"]
   ) => void
-  removeSession: (id: string) => void
-  setCurrentSession: (id: string | null) => void
 
-  // UI state
+  // UI state (not persisted)
   isRunning: boolean
   setIsRunning: (running: boolean) => void
   goalInput: string
   setGoalInput: (goal: string) => void
 
-  // Plan management
-  setPlanSteps: (sessionId: string, steps: AgentStep[]) => void
+  planSteps: AgentStep[]
+  setPlanSteps: (steps: AgentStep[]) => void
   updateStepStatus: (
-    sessionId: string,
     stepId: string,
     status: AgentStep["status"],
     result?: unknown,
     error?: string
   ) => void
 
-  // Config (per-space)
-  maxSteps: Record<string, number>
-  getMaxSteps: (space: string) => number
-  setMaxSteps: (space: string, steps: number) => void
+  maxSteps: number
+  setMaxSteps: (steps: number) => void
 }
 
 export const useAgentStore = create<AgentStore>()(
@@ -70,12 +70,16 @@ export const useAgentStore = create<AgentStore>()(
     (set, get) => ({
       sessions: [],
       currentSessionId: null,
-      addSession: (session) =>
+
+      setSessions: (sessions) => set({ sessions }),
+      setCurrentSession: (id) => set({ currentSessionId: id }),
+
+      addActiveSession: (session) =>
         set((state) => ({ sessions: [session, ...state.sessions] })),
-      updateSessionMessages: (sessionId, messages, status) =>
+      updateSessionMessages: (id, messages, status) =>
         set((state) => ({
           sessions: state.sessions.map((s) =>
-            s.id === sessionId
+            s.id === id
               ? {
                   ...s,
                   messages,
@@ -85,60 +89,55 @@ export const useAgentStore = create<AgentStore>()(
               : s
           ),
         })),
-      removeSession: (id) =>
-        set((state) => ({
-          sessions: state.sessions.filter((s) => s.id !== id),
-          currentSessionId:
-            state.currentSessionId === id ? null : state.currentSessionId,
-        })),
-      setCurrentSession: (id) => set({ currentSessionId: id }),
 
       isRunning: false,
       setIsRunning: (running) => set({ isRunning: running }),
       goalInput: "",
       setGoalInput: (goal) => set({ goalInput: goal }),
 
-      setPlanSteps: (sessionId, steps) =>
+      planSteps: [],
+      setPlanSteps: (steps) => set({ planSteps: steps }),
+      updateStepStatus: (stepId, status, result, error) =>
         set((state) => ({
-          sessions: state.sessions.map((s) =>
-            s.id === sessionId ? { ...s, planSteps: steps } : s
-          ),
-        })),
-      updateStepStatus: (sessionId, stepId, status, result, error) =>
-        set((state) => ({
-          sessions: state.sessions.map((s) =>
-            s.id === sessionId
+          planSteps: state.planSteps.map((step) =>
+            step.id === stepId
               ? {
-                  ...s,
-                  planSteps: s.planSteps.map((step) =>
-                    step.id === stepId
-                      ? {
-                          ...step,
-                          status,
-                          toolResult: result ?? step.toolResult,
-                          error: error ?? step.error,
-                        }
-                      : step
-                  ),
+                  ...step,
+                  status,
+                  toolResult: result ?? step.toolResult,
+                  error: error ?? step.error,
                 }
-              : s
+              : step
           ),
         })),
 
-      maxSteps: {},
-      getMaxSteps: (space) => get().maxSteps[space] || 10,
-      setMaxSteps: (space, steps) =>
-        set((state) => ({
-          maxSteps: { ...state.maxSteps, [space]: steps },
-        })),
+      maxSteps: 10,
+      setMaxSteps: (steps) => set({ maxSteps: steps }),
     }),
     {
-      name: "ai-agent-store",
+      name: "ai-agent-ui-state",
       getStorage: () => localStorage,
       partialize: (state) => ({
-        sessions: state.sessions,
         maxSteps: state.maxSteps,
       }),
     }
   )
 )
+
+// API helpers
+export async function fetchSessions(space: string): Promise<AgentSession[]> {
+  const res = await fetch(`/api/agent?space=${encodeURIComponent(space)}`)
+  if (!res.ok) return []
+  return res.json()
+}
+
+export async function fetchSession(
+  space: string,
+  id: string
+): Promise<AgentSession | null> {
+  const res = await fetch(
+    `/api/agent?space=${encodeURIComponent(space)}&id=${encodeURIComponent(id)}`
+  )
+  if (!res.ok) return null
+  return res.json()
+}

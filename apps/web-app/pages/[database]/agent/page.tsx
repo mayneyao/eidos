@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useChat } from "@/packages/ai"
 import { DefaultChatTransport } from "ai"
 
@@ -10,7 +10,12 @@ import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 import { useAIFunctions } from "@/apps/web-app/hooks/use-ai-functions"
 import { useAllTools } from "@/apps/web-app/hooks/use-all-tools"
-import { useAgentStore } from "@/components/ai-agent/agent-store"
+import {
+  useAgentStore,
+  fetchSessions,
+  fetchSession,
+  type AgentSession,
+} from "@/components/ai-agent/agent-store"
 import { AgentHeader } from "@/components/ai-agent/agent-header"
 import { AgentGoalInput } from "@/components/ai-agent/agent-goal-input"
 import { AgentStatusBar } from "@/components/ai-agent/agent-status-bar"
@@ -25,10 +30,10 @@ export default function AgentPage() {
   useTabTitle("AI Agent")
 
   const {
-    sessions,
-    currentSessionId: storeSessionId,
+    currentSessionId,
+    setSessions,
     setCurrentSession,
-    addSession,
+    addActiveSession,
     updateSessionMessages,
     isRunning,
     setIsRunning,
@@ -36,13 +41,14 @@ export default function AgentPage() {
 
   const [startTime, setStartTime] = useState(0)
   const [stepCount, setStepCount] = useState(0)
+  const [loadedSession, setLoadedSession] = useState<AgentSession | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Messages from past session (read-only view)
-  const pastSession = storeSessionId
-    ? sessions.find((s) => s.id === storeSessionId)
-    : null
-  const pastMessages = pastSession?.messages ?? []
+  // Load sessions from API on mount
+  useEffect(() => {
+    if (!space) return
+    fetchSessions(space).then(setSessions)
+  }, [space, setSessions])
 
   const transport = useRef(
     new DefaultChatTransport({ api: "/api/agent" })
@@ -61,15 +67,13 @@ export default function AgentPage() {
     },
     onFinish: ({ message }: { message: any }) => {
       setIsRunning(false)
-      const sessionId = storeSessionId
+      const sessionId = currentSessionId
       if (!sessionId) return
-      // Extract text from the response message parts
       const assistantText =
         message?.parts
           ?.filter((p: any) => p.type === "text")
           .map((p: any) => p.text)
           .join("") ?? ""
-      // Build stored messages from current messages + assistant response
       const stored = messages.map((m) => ({
         id: m.id,
         role: m.role,
@@ -87,6 +91,8 @@ export default function AgentPage() {
         })
       }
       updateSessionMessages(sessionId, stored, "completed")
+      // Refresh session list from API
+      if (space) fetchSessions(space).then(setSessions)
     },
     onError: (error) => {
       console.error("Agent error:", error)
@@ -94,16 +100,30 @@ export default function AgentPage() {
     },
   })
 
+  const handleSelectSession = useCallback(
+    async (id: string | null) => {
+      setCurrentSession(id)
+      if (id && space) {
+        const session = await fetchSession(space, id)
+        setLoadedSession(session)
+      } else {
+        setLoadedSession(null)
+      }
+    },
+    [space, setCurrentSession]
+  )
+
   const handleSubmit = useCallback(
     (goal: string, model: string) => {
       const sessionId = uuidv7()
       setStartTime(Date.now())
       setStepCount(0)
+      setLoadedSession(null)
       setIsRunning(true)
 
       const config = getConfigByModel(model)
 
-      addSession({
+      addActiveSession({
         id: sessionId,
         goal,
         status: "executing",
@@ -136,7 +156,7 @@ export default function AgentPage() {
       getConfigByModel,
       allTools,
       setCurrentSession,
-      addSession,
+      addActiveSession,
       setIsRunning,
       sendMessage,
     ]
@@ -147,19 +167,23 @@ export default function AgentPage() {
     setIsRunning(false)
   }, [stop, setIsRunning])
 
+  // Determine what to show
+  const pastMessages = loadedSession?.messages ?? []
+  const showMessages =
+    messages.length > 0
+      ? messages
+      : pastMessages.length > 0
+        ? (pastMessages as any)
+        : []
+
   return (
     <div className="flex h-full flex-col bg-background">
-      <AgentHeader />
+      <AgentHeader onSelectSession={handleSelectSession} />
       <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-6">
         <div className="flex-1 overflow-auto py-4">
-          {messages.length > 0 ? (
+          {showMessages.length > 0 ? (
             <AgentChatArea
-              messages={messages}
-              messagesEndRef={messagesEndRef}
-            />
-          ) : pastMessages.length > 0 ? (
-            <AgentChatArea
-              messages={pastMessages as any}
+              messages={showMessages}
               messagesEndRef={messagesEndRef}
             />
           ) : (

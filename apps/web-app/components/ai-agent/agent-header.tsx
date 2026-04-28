@@ -1,5 +1,5 @@
 import { PlusIcon, HistoryIcon } from "lucide-react"
-import { useState } from "react"
+import { useCallback, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -10,20 +10,28 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useAgentStore } from "./agent-store"
 
-export function AgentHeader() {
-  const { sessions, currentSessionId, setCurrentSession, removeSession } =
-    useAgentStore()
+interface AgentHeaderProps {
+  onSelectSession: (id: string | null) => Promise<void>
+}
+
+export function AgentHeader({ onSelectSession }: AgentHeaderProps) {
+  const { sessions, setCurrentSession } = useAgentStore()
   const [open, setOpen] = useState(false)
 
-  const handleNewSession = () => {
+  const handleNewSession = useCallback(() => {
     setCurrentSession(null)
+    onSelectSession(null)
     setOpen(false)
-  }
+  }, [setCurrentSession, onSelectSession])
 
-  const handleSelectSession = (id: string) => {
-    setCurrentSession(id)
-    setOpen(false)
-  }
+  const handleSelectSession = useCallback(
+    (id: string) => {
+      setCurrentSession(id)
+      onSelectSession(id)
+      setOpen(false)
+    },
+    [setCurrentSession, onSelectSession]
+  )
 
   return (
     <div className="flex items-center justify-between px-6 py-3 border-b">
