@@ -115,16 +115,20 @@ export class AgentSessionStore {
   }
 
   private async writeFile(path: string, content: string): Promise<void> {
-    await this.space.externalFS?.writeFile(path, content)
+    const encoder = new TextEncoder()
+    await this.space.externalFS?.writeFile(path, encoder.encode(content))
   }
 
   private async readFile(path: string): Promise<string> {
-    return (await this.space.externalFS?.readFile(path)) ?? ""
+    const data = await this.space.externalFS?.readFile(path)
+    if (!data) return ""
+    if (typeof data === "string") return data
+    return new TextDecoder().decode(data as Uint8Array)
   }
 
   private async listDir(path: string): Promise<string[]> {
     const entries = await this.space.externalFS?.readdir(path)
-    return entries?.map((e) => e.name) ?? []
+    return entries?.map((e: any) => e.name ?? e) ?? []
   }
 
   private async deleteFile(path: string): Promise<void> {

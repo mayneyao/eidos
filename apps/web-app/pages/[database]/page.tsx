@@ -1,5 +1,6 @@
 import { useCallback } from "react"
 import {
+  Bot,
   Command,
   FileText,
   PanelLeft,
@@ -14,6 +15,7 @@ import { useSidebar } from "@/components/ui/sidebar"
 import { EidosIcon } from "@/components/icons/eidos"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useTabTitle } from "@/hooks/use-tab-title"
@@ -25,6 +27,7 @@ export default function DatabaseHome() {
   const { space } = useCurrentPathInfo()
   const { createDoc } = useSqlite(space)
   const goto = useGoto()
+  const { navigate } = useRouterAdapter()
   const { setCmdkOpen, setGlobalSearchOpen, setSpaceSettingsOpen } =
     useAppRuntimeStore()
   const { toggle: toggleSidebar } = useSidebar()
@@ -64,6 +67,10 @@ export default function DatabaseHome() {
   const handleToggleSidebar = useCallback(() => {
     toggleSidebar()
   }, [toggleSidebar])
+
+  const handleOpenAgent = useCallback(() => {
+    navigate("/agent")
+  }, [navigate])
 
   if (newTabBlockId) {
     return (
@@ -127,6 +134,20 @@ export default function DatabaseHome() {
             </div>
             <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
               Ctrl + `
+            </kbd>
+          </Button>
+
+          <Button
+            variant="ghost"
+            className="justify-between h-auto px-3 py-2"
+            onClick={handleOpenAgent}
+          >
+            <div className="flex items-center gap-2">
+              <Bot className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">AI Agent</span>
+            </div>
+            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+              ⌘ + Shift + A
             </kbd>
           </Button>
 
