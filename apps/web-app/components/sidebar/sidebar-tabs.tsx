@@ -38,6 +38,7 @@ import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
 import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
 import { DEFAULT_TABS, useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 import {
   TAB_CONFIG,
   useSidebarStore,
@@ -45,6 +46,7 @@ import {
 } from "@/apps/web-app/store/sidebar-store"
 import { useSidebar } from "@/components/ui/sidebar"
 
+import { getToday } from "@/lib/utils"
 import { Button } from "../ui/button"
 import { IconRenderer } from "../ui/icon-picker"
 
@@ -251,10 +253,42 @@ export const SidebarTabs = () => {
     if (tabConfig?.isNavigation && tabConfig?.href) {
       // Navigation type tab - set current app and navigate
       setCurrentApp(tabId as SidebarApp)
-      const href =
-        tabId === "today"
-          ? `/journals/${new Date().toLocaleDateString("en-CA")}`
-          : tabConfig.href
+
+      if (tabId === "today") {
+        const today = getToday()
+        const href = `/journals/${today}`
+        const { tabs, openTab, setActiveTab, updateTab } =
+          useTabStore.getState()
+
+        if (target === "_blank") {
+          openTab(href, undefined, { forceNewTab: true })
+          return
+        }
+
+        // Check if today's tab (exact match) already exists
+        const exactTab = tabs.find((t) => t.url === href)
+        if (exactTab) {
+          setActiveTab(exactTab.id)
+          return
+        }
+
+        // Check if any journal tab (related) already exists to reuse
+        const journalTab = tabs
+          .filter((t) => t.url.startsWith("/journals/"))
+          .sort((a, b) => b.lastAccessTime - a.lastAccessTime)[0]
+
+        if (journalTab) {
+          // Reuse existing journal tab and update to today
+          updateTab(journalTab.id, { url: href })
+          setActiveTab(journalTab.id)
+        } else {
+          // Create a new tab for today
+          openTab(href)
+        }
+        return
+      }
+
+      const href = tabConfig.href
       navigate(href, { target })
     } else {
       // Regular tab or block tab

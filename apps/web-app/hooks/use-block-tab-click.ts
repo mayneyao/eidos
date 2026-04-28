@@ -1,8 +1,8 @@
 import { useCallback } from "react"
-import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
-
 import { detectDirective } from "@eidos.space/v3"
+
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 
 /**
  * Custom hook for handling block tab clicks with unified logic
@@ -10,7 +10,6 @@ import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
  */
 export const useBlockTabClick = (blocks: Record<string, any>) => {
   const { setCurrentApp } = useSidebarStore()
-  const { navigate } = useRouterAdapter()
 
   return useCallback(
     (tabId: string, target?: "_blank" | "_self") => {
@@ -23,10 +22,26 @@ export const useBlockTabClick = (blocks: Record<string, any>) => {
 
       if (!hasUseSidebar) {
         // If block does not contain 'use sidebar' directive, navigate to block page
-        navigate(`/blocks/${tabId}`, { target })
+        const href = `/blocks/${tabId}`
+        const { tabs, openTab, setActiveTab } = useTabStore.getState()
+
+        if (target === "_blank") {
+          openTab(href, undefined, { forceNewTab: true })
+          return
+        }
+
+        // Check if tab with same block already exists
+        const existingTab = tabs.find((t) => t.url === href)
+        if (existingTab) {
+          // If it exists, just activate it
+          setActiveTab(existingTab.id)
+        } else {
+          // Otherwise open a new tab
+          openTab(href)
+        }
       }
       // If block has 'use sidebar' directive, it will render in sidebar automatically
     },
-    [blocks, setCurrentApp, navigate]
+    [blocks, setCurrentApp]
   )
 }
