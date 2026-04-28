@@ -3,6 +3,7 @@ export enum TreeNodeType {
   Doc = "doc",
   Folder = "folder",
   Dataview = "dataview",
+  Link = "link",
 }
 
 export interface ITreeNode {
@@ -16,6 +17,7 @@ export interface ITreeNode {
     | "doc"
     | "folder"
     | "dataview"
+    | "link"
     | "extension"
   position?: number
   parent_id?: string
@@ -26,6 +28,12 @@ export interface ITreeNode {
   hide_properties?: boolean
   icon?: string
   cover?: string
+  /**
+   * ref: stores the link target.
+   * For external links: a URL string (e.g. "https://example.com")
+   * For internal nodes: an eidos node ID (e.g. "abc123")
+   */
+  ref?: string
   created_at?: string
   updated_at?: string
 }

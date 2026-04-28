@@ -271,6 +271,22 @@ importers:
         specifier: ^4.20.3
         version: 4.22.0(@cloudflare/workers-types@4.20250620.0)(bufferutil@4.0.9)(utf-8-validate@6.0.5)
 
+  apps/edge-kit:
+    dependencies:
+      hono:
+        specifier: ^4.12.7
+        version: 4.12.7
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20250620.0
+        version: 4.20250620.0
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      wrangler:
+        specifier: ^4.20.3
+        version: 4.22.0(@cloudflare/workers-types@4.20250620.0)(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+
   apps/headless:
     dependencies:
       '@aws-sdk/client-s3':
@@ -16677,7 +16693,7 @@ snapshots:
 
   '@img/sharp-wasm32@0.33.5':
     dependencies:
-      '@emnapi/runtime': 1.4.3
+      '@emnapi/runtime': 1.9.2
     optional: true
 
   '@img/sharp-wasm32@0.34.2':
@@ -17088,7 +17104,7 @@ snapshots:
   '@libsql/isomorphic-ws@0.1.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@types/ws': 8.18.1
-      ws: 8.18.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      ws: 8.20.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -28086,11 +28102,11 @@ snapshots:
 
   unenv@2.0.0-rc.17:
     dependencies:
-      defu: 6.1.4
+      defu: 6.1.7
       exsolve: 1.0.7
       ohash: 2.0.11
       pathe: 2.0.3
-      ufo: 1.6.1
+      ufo: 1.6.3
 
   unicode-canonical-property-names-ecmascript@2.0.1: {}
 

@@ -153,6 +153,11 @@ export class GlobalShortcutsService {
         accelerator: "Control+Shift+Tab",
         description: "Switch to previous tab",
       },
+      {
+        id: "bookmark-current-tab",
+        accelerator: "CommandOrControl+D",
+        description: "Bookmark current browser tab as a Link node",
+      },
     ]
 
     // Add shortcuts for switching sidebar tabs (Ctrl+1 through Ctrl+9)

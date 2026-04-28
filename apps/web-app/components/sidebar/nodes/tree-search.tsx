@@ -94,6 +94,11 @@ export const TreeSearch = () => {
       e.preventDefault()
       const selectedNode = visibleNodes[selectedIndex]
       if (selectedNode) {
+        if (selectedNode.type === "link" && selectedNode.ref) {
+          navigate(selectedNode.ref)
+          return
+        }
+
         const id = selectedNode.id
         if (id.length === 10) {
           navigate(`/journals/${id}`)

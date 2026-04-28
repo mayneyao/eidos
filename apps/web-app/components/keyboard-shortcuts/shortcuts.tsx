@@ -48,7 +48,7 @@ export function ShortCuts() {
   const { tabs: sortedTabs } = useTabsKV()
   const { navigate, params } = useRouterAdapter()
   const { toast } = useToast()
-  const { createDoc } = useSqlite()
+  const { createDoc, createLink } = useSqlite()
   const { day } = params
   const { space } = useCurrentPathInfo()
 
@@ -169,6 +169,49 @@ export function ShortCuts() {
           setIsTerminalVisible(!isTerminalVisible)
           break
 
+        case "bookmark-current-tab": {
+          const activeTabId = useTabStore.getState().getActiveTabId()
+          if (!activeTabId) break
+          const activeTab = useTabStore
+            .getState()
+            .tabs.find((t) => t.id === activeTabId)
+          if (!activeTab?.url || !/^https?:\/\//i.test(activeTab.url)) break
+
+          const bookmarkUrl = activeTab.url
+          const bookmarkName = activeTab.title || bookmarkUrl
+
+          let icon: string | undefined
+          if (
+            bookmarkUrl.startsWith("http://") ||
+            bookmarkUrl.startsWith("https://")
+          ) {
+            try {
+              const url = new URL(bookmarkUrl)
+              icon = `https://edge-kit.eidos.space/favicon?domain=${url.hostname}&sz=64`
+            } catch (e) {
+              // invalid url
+            }
+          }
+
+          createLink(bookmarkName, bookmarkUrl, undefined, icon)
+            .then(() => {
+              toast({
+                title: t("node.link.bookmarked", "Bookmarked"),
+                description: bookmarkName,
+                duration: 2500,
+              })
+            })
+            .catch((err: any) => {
+              toast({
+                title: t("common.error"),
+                description: err?.message || String(err),
+                variant: "destructive",
+                duration: 3000,
+              })
+            })
+          break
+        }
+
         default:
           // Handle sidebar tab switching (switch-sidebar-tab-1 through switch-sidebar-tab-9)
           if (action.id.startsWith("switch-sidebar-tab-")) {
@@ -251,6 +294,7 @@ export function ShortCuts() {
     day,
     navigate,
     createDoc,
+    createLink,
     setTheme,
     setIsAiOpen,
     setSpaceSettingsOpen,

@@ -1,6 +1,7 @@
 import { TreeTableName } from "../../sqlite/const"
 import type { ITreeNode } from "../../types/ITreeNode"
 import { createTriggersForFields } from "../../sqlite/sql-meta-table-trigger"
+
 import { extractIdFromShortId, getRawTableNameById, uuidv7 } from "@/lib/utils"
 
 import type { BaseTable } from "../base"
@@ -24,15 +25,16 @@ export class BaseTreeTable
     cover TEXT NULL,
     is_deleted BOOLEAN DEFAULT 0,
     hide_properties BOOLEAN DEFAULT 0,
+    ref TEXT NULL,
     position REAL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
-  
+
   -- Note: Unique index is NOT created automatically here.
   -- It's created when user explicitly enables node name uniqueness
   -- via enableNameUniqueness() which handles duplicate migration first.
-  
+
   ${createTriggersForFields(
     TreeTableName,
     [
@@ -47,6 +49,7 @@ export class BaseTreeTable
       "cover",
       "is_deleted",
       "hide_properties",
+      "ref",
       "position",
       "created_at",
       "updated_at",
@@ -83,7 +86,7 @@ export class BaseTreeTable
     const nextPosition = await this.getNextRowId()
     try {
       await this.dataSpace.syncExec2(
-        `INSERT INTO ${TreeTableName} (id,name,type,parent_id,position,hide_properties) VALUES (? , ? , ? , ?,?,?);`,
+        `INSERT INTO ${TreeTableName} (id,name,type,parent_id,position,hide_properties,ref,icon) VALUES (? , ? , ? , ?,?,?,?,?);`,
         [
           data.id,
           data.name,
@@ -91,6 +94,8 @@ export class BaseTreeTable
           data.parent_id,
           nextPosition,
           data.hide_properties ?? 0,
+          data.ref ?? null,
+          data.icon ?? null,
         ],
         db as any
       )

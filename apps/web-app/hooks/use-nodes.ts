@@ -23,6 +23,7 @@ export const useAllNodes = (opts?: {
           TreeNodeType.Doc,
           TreeNodeType.Folder,
           TreeNodeType.Dataview,
+          TreeNodeType.Link,
         ]
 
     if (isDeleted) {

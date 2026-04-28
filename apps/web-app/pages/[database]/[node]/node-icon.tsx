@@ -64,14 +64,34 @@ export const NodeIconEditor = (props: {
     setOpen(false)
   }
 
+  const renderIcon = (iconValue: string) => {
+    if (
+      iconValue.startsWith("http://") ||
+      iconValue.startsWith("https://") ||
+      iconValue.startsWith("data:image/")
+    ) {
+      return (
+        <div
+          style={{ width: props.size || "2em", height: props.size || "2em" }}
+          className="flex items-center justify-center"
+        >
+          <img
+            src={iconValue}
+            alt="icon"
+            className="w-full h-full rounded-sm object-contain"
+          />
+        </div>
+      )
+    }
+    return <em-emoji native={iconValue} size={props.size || "2em"}></em-emoji>
+  }
+
   if (props.disabled || isInkServiceMode) {
     // just show the icon
     return (
       <>
         {icon ? (
-          <div className={props.className}>
-            <em-emoji native={icon} size={props.size || "2em"}></em-emoji>
-          </div>
+          <div className={props.className}>{renderIcon(icon)}</div>
         ) : (
           props.customTrigger
         )}
@@ -82,9 +102,7 @@ export const NodeIconEditor = (props: {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className="[&>svg]:!size-5" tabIndex={-1}>
         {icon ? (
-          <div className={props.className}>
-            <em-emoji native={icon} size={props.size || "2em"}></em-emoji>
-          </div>
+          <div className={props.className}>{renderIcon(icon)}</div>
         ) : (
           props.customTrigger
         )}

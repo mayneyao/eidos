@@ -37,15 +37,20 @@ export const SearchResults = ({
   const { navigate } = useRouterAdapter()
   const selectedRef = useRef<HTMLButtonElement>(null)
 
-  const handleNavigate = (id: string) => {
+  const handleNavigate = (item: any) => {
     if (type === "extensions") {
-      navigate(`/extensions/${id}`)
+      navigate(`/extensions/${item.id}`)
     } else {
       // nodes
-      if (id.length === 10) {
-        navigate(`/journals/${id}`)
+      if (item.type === "link" && item.ref) {
+        navigate(item.ref)
+        return
+      }
+
+      if (item.id.length === 10) {
+        navigate(`/journals/${item.id}`)
       } else {
-        navigate(`/${id}`)
+        navigate(`/${item.id}`)
       }
     }
   }
@@ -114,12 +119,12 @@ export const SearchResults = ({
                       type="button"
                       key={item.id}
                       ref={isSelected ? selectedRef : null}
-                      onClick={() => handleNavigate(item.id)}
+                      onClick={() => handleNavigate(item)}
                       onFocus={() => setSelectedIndex(currentIndex)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault()
-                          handleNavigate(item.id)
+                          handleNavigate(item)
                         }
                       }}
                       className={cn(
@@ -210,12 +215,12 @@ export const SearchResults = ({
                       type="button"
                       key={item.id}
                       ref={isSelected ? selectedRef : null}
-                      onClick={() => handleNavigate(item.id)}
+                      onClick={() => handleNavigate(item)}
                       onFocus={() => setSelectedIndex(currentIndex)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault()
-                          handleNavigate(item.id)
+                          handleNavigate(item)
                         }
                       }}
                       className={cn(

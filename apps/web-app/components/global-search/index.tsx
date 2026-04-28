@@ -68,8 +68,10 @@ export function GlobalSearch() {
   const handleSelect = useCallback(
     (result: SearchResult) => {
       if (result.type === "node") {
-        // Check if it's a journal (10 character date format)
-        if (result.id.length === 10) {
+        // Link nodes navigate to their target ref
+        if (result.nodeType === "link" && result.ref) {
+          navigate(result.ref, { target: "_blank" })
+        } else if (result.id.length === 10) {
           navigate(`/journals/${result.id}`, { target: "_blank" })
         } else {
           navigate(`/${result.id}`, { target: "_blank" })

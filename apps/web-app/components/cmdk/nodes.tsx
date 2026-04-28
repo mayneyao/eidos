@@ -16,11 +16,14 @@ export const NodeCommandItems = () => {
   const { searchNodes } = useCMDKStore()
   const { input } = useInput()
   const goto = useCMDKGoto()
-  const handleGoto = (id: string) => {
-    if (id.length === 10) {
-      return goto(`/journals/${id}`)
+  const handleGoto = (node: any) => () => {
+    if (node.type === "link" && node.ref) {
+      return goto(node.ref)()
     }
-    return goto(`/${id}`)
+    if (node.id.length === 10) {
+      return goto(`/journals/${node.id}`)()
+    }
+    return goto(`/${node.id}`)()
   }
   return (
     <>
@@ -32,7 +35,7 @@ export const NodeCommandItems = () => {
               .map((node) => (
                 <CommandItem
                   key={node.id}
-                  onSelect={handleGoto(node.id)}
+                  onSelect={handleGoto(node)}
                   value={`${input} - ${node.id} - ${node.mode}`}
                 >
                   <ItemIcon type={node.type} className="mr-2 h-4 w-4" />
@@ -49,7 +52,7 @@ export const NodeCommandItems = () => {
               .map((node) => (
                 <CommandItem
                   key={node.id}
-                  onSelect={handleGoto(node.id)}
+                  onSelect={handleGoto(node)}
                   value={`${input} - ${node.id} - ${node.mode}`}
                 >
                   <div className="flex flex-col">

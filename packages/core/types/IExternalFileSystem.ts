@@ -26,6 +26,7 @@ export interface IDirectoryEntry {
       | "folder"
       | "extension"
       | "dataview"
+      | "link"
       | `ext__${string}`
     nodeId?: string
     isPinned?: boolean
@@ -40,6 +41,8 @@ export interface IDirectoryEntry {
     slug?: string
     /** Whether this is a virtual folder created from slug prefix */
     isVirtualFolder?: boolean
+    /** Reference for links (same as ITreeNode.ref) */
+    ref?: string
   }
 }
 

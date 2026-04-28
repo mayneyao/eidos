@@ -123,13 +123,18 @@ export const useRouterAdapter = () => {
 
       if (forceNewTab) {
         const { openTab: openTabAction } = useTabStore.getState()
-        openTabAction(resolveUrl(to))
+        openTabAction(resolveUrl(to), undefined, { forceNewTab: true })
         return
       }
 
       if (inRouter && navigate) {
-        navigate(to as any, options)
-        return
+        // External URLs can't be handled by react-router; delegate to tab-based navigation
+        if (typeof to === "string" && /^https?:\/\//i.test(to)) {
+          // Fall through to the tab-based navigation below
+        } else {
+          navigate(to as any, options)
+          return
+        }
       }
 
       const newUrl = resolveUrl(to)
@@ -143,6 +148,14 @@ export const useRouterAdapter = () => {
         updateTab,
         setNextNavigationOptions,
       } = useTabStore.getState()
+
+      // Check if a tab with the same url already exists
+      const existingTab = tabs.find((t) => t.url === newUrl)
+      if (existingTab) {
+        setActiveTabAction(existingTab.id)
+        return
+      }
+
       const storeActiveTabId = getStoreActiveTabId()
 
       const targetId = storeActiveTabId || tabs[0]?.id

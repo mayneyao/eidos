@@ -110,6 +110,10 @@ export function WithNodeOperations<T extends Constructor>(Base: T) {
           // DataView deletion already handles tree node deletion
           await this.dataSpace.dataView.delete(node.id)
           break
+        case TreeNodeType.Link:
+          // Link nodes have no associated content, just delete from tree
+          await this.del(node.id)
+          break
         default:
           if (node.type.startsWith("ext__")) {
             // ExtNode deletion already handles tree node deletion

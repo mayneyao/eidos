@@ -6,6 +6,7 @@ import {
   Folder,
   FolderOpenIcon,
   Hash,
+  Link2,
   ViewIcon,
 } from "lucide-react"
 
@@ -26,6 +27,8 @@ export const ItemIcon = ({
       return <File className={_className} />
     case TreeNodeType.Dataview:
       return <ViewIcon className={_className} />
+    case TreeNodeType.Link:
+      return <Link2 className={_className} />
     case "folder":
       return <Folder className={_className} />
     case "folder-open":

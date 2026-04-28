@@ -11,6 +11,7 @@ export interface SearchResult {
   path: string
   isDirectory?: boolean
   nodeType?: string
+  ref?: string
 }
 
 export function useGlobalSearch(sqlite: any, isGlobalSearchOpen: boolean) {
@@ -63,6 +64,7 @@ export function useGlobalSearch(sqlite: any, isGlobalSearchOpen: boolean) {
           path: displayPath,
           isDirectory: type === "node" ? entry.kind === "directory" : undefined,
           nodeType: entry.metadata?.nodeType,
+          ref: entry.metadata?.ref,
         }
       } catch (error) {
         console.error(`Error processing ${type} entry:`, entry, error)

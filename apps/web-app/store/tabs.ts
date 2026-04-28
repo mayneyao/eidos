@@ -50,7 +50,11 @@ interface TabState {
   openTab: (
     url: string,
     title?: string,
-    options?: { panelId?: string; openInRightPanel?: boolean }
+    options?: {
+      panelId?: string
+      openInRightPanel?: boolean
+      forceNewTab?: boolean
+    }
   ) => void
   closeTab: (id: string) => void
   closeOtherTabs: (id: string) => void
@@ -116,8 +120,18 @@ export const useTabStore = create<TabState>()(
       splitDirection: "horizontal",
 
       openTab: (url, title = "New Tab", options) => {
-        const { tabs, panels, activePanelId } = get()
-        const { panelId, openInRightPanel } = options || {}
+        const { tabs, panels, activePanelId, setActiveTab } = get()
+        const { panelId, openInRightPanel, forceNewTab } = options || {}
+
+        // Check if tab with same url already exists (unless forced to open new)
+        if (!forceNewTab) {
+          const existingTab = tabs.find((t) => t.url === url)
+          if (existingTab) {
+            // If it exists, just activate it
+            setActiveTab(existingTab.id)
+            return
+          }
+        }
 
         const newTab: Tab = {
           id: nanoid(),

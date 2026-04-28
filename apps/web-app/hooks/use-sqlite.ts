@@ -99,6 +99,26 @@ export const useSqlite = (dbName?: string) => {
     return nodeId
   }
 
+  const createLink = async (
+    name: string,
+    ref: string,
+    parent_id?: string,
+    icon?: string
+  ) => {
+    if (!sqlWorker) return
+    const nodeId = uuidv7().split("-").join("")
+    const node = await sqlWorker.tree.addNode({
+      id: nodeId,
+      name: name || ref,
+      type: TreeNodeType.Link,
+      parent_id,
+      ref,
+      icon,
+    })
+    node && addNode(node)
+    return nodeId
+  }
+
   // create table with default template
   const createTable = async (tableName: string, parent_id?: string) => {
     if (!sqlWorker) return
@@ -570,6 +590,7 @@ export const useSqlite = (dbName?: string) => {
     deleteTable,
     createFolder,
     createExtNode,
+    createLink,
     createView,
     duplicateTable,
     queryAllTables: queryAllNodes,

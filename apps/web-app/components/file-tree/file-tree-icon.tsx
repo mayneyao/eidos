@@ -38,6 +38,22 @@ export const FileTreeIcon = ({ node }: FileTreeIconProps) => {
         </span>
       )
     }
+
+    // If icon is a URL or data URI, render as image
+    if (
+      iconValue.startsWith("http://") ||
+      iconValue.startsWith("https://") ||
+      iconValue.startsWith("data:image/")
+    ) {
+      return (
+        <img
+          src={iconValue}
+          alt=""
+          className="w-4 h-4 rounded-sm object-contain"
+        />
+      )
+    }
+
     // Otherwise use IconRenderer
     return <IconRenderer name={node.metadata.icon as any} className="w-4 h-4" />
   }
