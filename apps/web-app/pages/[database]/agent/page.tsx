@@ -3,7 +3,6 @@
 import { useCallback, useRef, useState } from "react"
 import { useChat } from "@/packages/ai"
 import { DefaultChatTransport } from "ai"
-import { useTranslation } from "react-i18next"
 
 import { uuidv7 } from "@/lib/utils"
 import { useTabTitle } from "@/hooks/use-tab-title"
@@ -18,7 +17,6 @@ import { AgentStatusBar } from "@/components/ai-agent/agent-status-bar"
 import { AgentChatArea } from "@/components/ai-agent/agent-chat-area"
 
 export default function AgentPage() {
-  const { t } = useTranslation()
   const { space } = useCurrentPathInfo()
   const { getConfigByModel } = useAiConfig()
   const { handleToolsCall } = useAIFunctions()
@@ -27,22 +25,25 @@ export default function AgentPage() {
   useTabTitle("AI Agent")
 
   const {
-    currentSessionId,
+    currentSessionId: storeSessionId,
     setCurrentSession,
     addSession,
     isRunning,
     setIsRunning,
-    setPlanSteps,
   } = useAgentStore()
 
   const [startTime, setStartTime] = useState(0)
-  const [chatId, setChatId] = useState<string>("")
   const [stepCount, setStepCount] = useState(0)
+  const [currentGoal, setCurrentGoal] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  const transport = useRef(
+    new DefaultChatTransport({ api: "/api/agent" })
+  ).current
+
   const { messages, sendMessage, stop, status } = useChat({
-    id: chatId,
-    transport: new DefaultChatTransport({ api: "/api/agent" }),
+    transport,
+    generateId: uuidv7,
     onToolCall: async ({ toolCall }) => {
       const res = await handleToolsCall(
         toolCall.toolName,
@@ -51,21 +52,8 @@ export default function AgentPage() {
       setStepCount((c) => c + 1)
       return res
     },
-    onFinish: ({ message }) => {
+    onFinish: () => {
       setIsRunning(false)
-      if (chatId && startTime) {
-        addSession({
-          id: chatId,
-          goal: "",
-          status: "completed",
-          planSteps: [],
-          model: "",
-          space: space ?? "",
-          createdAt: new Date(startTime).toISOString(),
-          completedAt: new Date().toISOString(),
-          maxSteps: 10,
-        })
-      }
     },
     onError: (error) => {
       console.error("Agent error:", error)
@@ -75,15 +63,25 @@ export default function AgentPage() {
 
   const handleSubmit = useCallback(
     (goal: string, model: string) => {
-      const id = uuidv7()
-      setChatId(id)
+      const sessionId = uuidv7()
+      setCurrentGoal(goal)
       setStartTime(Date.now())
       setStepCount(0)
+      setIsRunning(true)
 
       const config = getConfigByModel(model)
 
-      setIsRunning(true)
-      setCurrentSession(id)
+      addSession({
+        id: sessionId,
+        goal,
+        status: "executing",
+        planSteps: [],
+        model,
+        space: space ?? "",
+        createdAt: new Date().toISOString(),
+        maxSteps: 10,
+      })
+      setCurrentSession(sessionId)
 
       sendMessage(
         { text: goal },
@@ -91,7 +89,7 @@ export default function AgentPage() {
           body: {
             goal,
             model,
-            id,
+            id: sessionId,
             space,
             tools: allTools,
             maxSteps: 10,
@@ -105,6 +103,7 @@ export default function AgentPage() {
       getConfigByModel,
       allTools,
       setCurrentSession,
+      addSession,
       setIsRunning,
       sendMessage,
     ]

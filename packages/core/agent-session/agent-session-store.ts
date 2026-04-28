@@ -28,7 +28,7 @@ export interface AgentSession {
   maxSteps: number
 }
 
-const SESSIONS_DIR = ".eidos/agent-sessions"
+const SESSIONS_DIR = "~/.eidos/agent-sessions"
 
 /**
  * File-based agent session storage, similar to Claude Code's conversation storage.
@@ -108,15 +108,14 @@ export class AgentSessionStore {
 
   private async ensureDir(): Promise<void> {
     try {
-      await this.space.externalFS?.mkdir(SESSIONS_DIR)
+      await this.space.externalFS?.mkdir(SESSIONS_DIR, { recursive: true })
     } catch {
       // Directory may already exist
     }
   }
 
   private async writeFile(path: string, content: string): Promise<void> {
-    const encoder = new TextEncoder()
-    await this.space.externalFS?.writeFile(path, encoder.encode(content))
+    await this.space.externalFS?.writeFile(path, content)
   }
 
   private async readFile(path: string): Promise<string> {
