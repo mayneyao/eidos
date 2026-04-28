@@ -2,7 +2,7 @@ import type { Transformer } from "@lexical/markdown"
 import { $convertFromMarkdownString } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useClickAway, useKeyPress } from "ahooks"
-import { useChat } from "ai/react"
+import { useChat } from "@/packages/ai"
 import type { LexicalNode, RangeSelection } from "lexical"
 import { $createParagraphNode, $getRoot, $isTextNode } from "lexical"
 import { PauseIcon, RefreshCcwIcon } from "lucide-react"
@@ -125,7 +125,7 @@ export function AITools({
       return {}
     }
   }, [currentModel, getConfigByModel])
-  const { messages, setMessages, reload, isLoading, stop } = useChat({
+  const { messages, setMessages, status, stop, sendMessage } = useChat({
     onError(error) {
       console.log("error:", error)
       toast({
@@ -133,18 +133,35 @@ export function AITools({
         description: t("common.error.modelLimitation"),
       })
     },
-    onFinish(message) {
-      setAiResult(message.content)
+    onFinish({ message }: { message: any }) {
+      const text =
+        message?.parts
+          ?.filter((p: any) => p.type === "text")
+          .map((p: any) => p.text)
+          .join("") ?? ""
+      setAiResult(text)
       setActionOpen(true)
     },
-    body: {
-      ...config,
-      model: currentModel,
-      useTools: false,
-      // use word chunking for
-      chunking: "word",
-    },
   })
+
+  const isLoading = status === "streaming" || status === "submitted"
+
+  const reload = useCallback(() => {
+    if (messages.length < 2) return
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
+    if (!lastUserMsg) return
+    sendMessage(
+      { role: "user", content: lastUserMsg.content },
+      {
+        body: {
+          ...config,
+          model: currentModel,
+          useTools: false,
+          chunking: "word",
+        },
+      }
+    )
+  }, [messages, sendMessage, config, currentModel])
 
   const handleAction = useCallback(
     async (action: AIActionEnum) => {
@@ -297,34 +314,32 @@ export function AITools({
     setIsFinished(false)
     setCurrentModel(model)
     setTimeout(() => {
-      if (isCustomPrompt) {
-        setMessages([
+      const systemMsg = {
+        id: uuidv7(),
+        role: "system" as const,
+        parts: [
           {
-            id: uuidv7(),
-            content: `You serve as an assistant, tasked with transforming user inputs, and the current directive is *${prompt}*，user's input will
-be between <content-begin> and <content-end>. you just output the transformed content without any other information.`,
-            role: "system",
+            type: "text" as const,
+            text: isCustomPrompt
+              ? `You serve as an assistant, tasked with transforming user inputs, and the current directive is *${prompt}*，user's input will
+be between <content-begin> and <content-end>. you just output the transformed content without any other information.`
+              : prompt,
           },
-          {
-            id: uuidv7(),
-            content: `<content-begin>\n${content}\n<content-end>`,
-            role: "user",
-          },
-        ])
-      } else {
-        setMessages([
-          {
-            id: uuidv7(),
-            content: prompt,
-            role: "system",
-          },
-          {
-            id: uuidv7(),
-            content: content,
-            role: "user",
-          },
-        ])
+        ],
       }
+      const userMsg = {
+        id: uuidv7(),
+        role: "user" as const,
+        parts: [
+          {
+            type: "text" as const,
+            text: isCustomPrompt
+              ? `<content-begin>\n${content}\n<content-end>`
+              : content,
+          },
+        ],
+      }
+      setMessages([systemMsg, userMsg] as any)
       reload()
       setPromptListOpen(false)
     }, 100)
@@ -379,7 +394,14 @@ be between <content-begin> and <content-end>. you just output the transformed co
               </div>
             )}
             {!isGenerateChartRef.current && (
-              <AIContentEditor markdown={messages[2]?.content} />
+              <AIContentEditor
+                markdown={
+                  (messages[2] as any)?.parts
+                    ?.filter((p: any) => p.type === "text")
+                    .map((p: any) => p.text)
+                    .join("") ?? ""
+                }
+              />
             )}
             <div className="flex  w-full items-center justify-end opacity-50">
               {isLoading && (
