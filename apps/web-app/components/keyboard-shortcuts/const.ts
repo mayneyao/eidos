@@ -184,10 +184,6 @@ export const useCommonKeyboardShortcuts = () => {
       description: t("kbd.shortcuts.common.toggleThemeDescription"),
     },
     {
-      key: "Ctrl/Cmd + K",
-      description: t("kbd.shortcuts.common.toggleCommandPaletteDescription"),
-    },
-    {
       key: "Ctrl/Cmd + ,",
       description: t("kbd.shortcuts.common.openSettingsDescription"),
     },
@@ -196,6 +192,10 @@ export const useCommonKeyboardShortcuts = () => {
       description: t("kbd.shortcuts.common.switchToSidebarTabDescription", {
         tab: "1-9",
       }),
+    },
+    {
+      key: "Ctrl/Cmd + D",
+      description: t("kbd.shortcuts.common.bookmarkCurrentTabDescription"),
     },
   ]
 }

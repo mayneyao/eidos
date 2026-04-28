@@ -421,6 +421,7 @@
   "kbd.shortcuts.common.searchByNameDescription": "Search by name",
   "kbd.shortcuts.common.toggleSidebarDescription": "Shows or hides the sidebar",
   "kbd.shortcuts.common.toggleThemeDescription": "Switches between light and dark themes",
+  "kbd.shortcuts.common.bookmarkCurrentTabDescription": "Bookmark current browser tab as link node",
   "kbd.shortcuts.document.altIDescription": "Opens AI tools for selected text",
   "kbd.shortcuts.document.checkboxDescription": "Creates a checkbox",
   "kbd.shortcuts.document.codeBlockDescription": "Creates a code block",
