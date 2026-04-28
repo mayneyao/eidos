@@ -25,23 +25,30 @@ export default function AgentPage() {
   useTabTitle("AI Agent")
 
   const {
+    sessions,
     currentSessionId: storeSessionId,
     setCurrentSession,
     addSession,
+    updateSessionMessages,
     isRunning,
     setIsRunning,
   } = useAgentStore()
 
   const [startTime, setStartTime] = useState(0)
   const [stepCount, setStepCount] = useState(0)
-  const [currentGoal, setCurrentGoal] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Messages from past session (read-only view)
+  const pastSession = storeSessionId
+    ? sessions.find((s) => s.id === storeSessionId)
+    : null
+  const pastMessages = pastSession?.messages ?? []
 
   const transport = useRef(
     new DefaultChatTransport({ api: "/api/agent" })
   ).current
 
-  const { messages, sendMessage, stop, status } = useChat({
+  const { messages, sendMessage, stop } = useChat({
     transport,
     generateId: uuidv7,
     onToolCall: async ({ toolCall }) => {
@@ -52,8 +59,34 @@ export default function AgentPage() {
       setStepCount((c) => c + 1)
       return res
     },
-    onFinish: () => {
+    onFinish: ({ message }: { message: any }) => {
       setIsRunning(false)
+      const sessionId = storeSessionId
+      if (!sessionId) return
+      // Extract text from the response message parts
+      const assistantText =
+        message?.parts
+          ?.filter((p: any) => p.type === "text")
+          .map((p: any) => p.text)
+          .join("") ?? ""
+      // Build stored messages from current messages + assistant response
+      const stored = messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        text:
+          (m as any).parts
+            ?.filter((p: any) => p.type === "text")
+            .map((p: any) => p.text)
+            .join("") ?? "",
+      }))
+      if (assistantText) {
+        stored.push({
+          id: message.id ?? uuidv7(),
+          role: "assistant",
+          text: assistantText,
+        })
+      }
+      updateSessionMessages(sessionId, stored, "completed")
     },
     onError: (error) => {
       console.error("Agent error:", error)
@@ -64,7 +97,6 @@ export default function AgentPage() {
   const handleSubmit = useCallback(
     (goal: string, model: string) => {
       const sessionId = uuidv7()
-      setCurrentGoal(goal)
       setStartTime(Date.now())
       setStepCount(0)
       setIsRunning(true)
@@ -76,6 +108,7 @@ export default function AgentPage() {
         goal,
         status: "executing",
         planSteps: [],
+        messages: [],
         model,
         space: space ?? "",
         createdAt: new Date().toISOString(),
@@ -122,6 +155,11 @@ export default function AgentPage() {
           {messages.length > 0 ? (
             <AgentChatArea
               messages={messages}
+              messagesEndRef={messagesEndRef}
+            />
+          ) : pastMessages.length > 0 ? (
+            <AgentChatArea
+              messages={pastMessages as any}
               messagesEndRef={messagesEndRef}
             />
           ) : (

@@ -11,11 +11,18 @@ export interface AgentStep {
   error?: string
 }
 
+export interface StoredMessage {
+  id: string
+  role: string
+  text: string
+}
+
 export interface AgentSession {
   id: string
   goal: string
   status: "planning" | "executing" | "completed" | "error" | "stopped"
   planSteps: AgentStep[]
+  messages: StoredMessage[]
   model: string
   space: string
   createdAt: string
@@ -28,6 +35,11 @@ interface AgentStore {
   sessions: AgentSession[]
   currentSessionId: string | null
   addSession: (session: AgentSession) => void
+  updateSessionMessages: (
+    sessionId: string,
+    messages: StoredMessage[],
+    status: AgentSession["status"]
+  ) => void
   removeSession: (id: string) => void
   setCurrentSession: (id: string | null) => void
 
@@ -60,6 +72,19 @@ export const useAgentStore = create<AgentStore>()(
       currentSessionId: null,
       addSession: (session) =>
         set((state) => ({ sessions: [session, ...state.sessions] })),
+      updateSessionMessages: (sessionId, messages, status) =>
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === sessionId
+              ? {
+                  ...s,
+                  messages,
+                  status,
+                  completedAt: new Date().toISOString(),
+                }
+              : s
+          ),
+        })),
       removeSession: (id) =>
         set((state) => ({
           sessions: state.sessions.filter((s) => s.id !== id),
