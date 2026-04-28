@@ -81,6 +81,12 @@ export class UpdaterService {
   private applyUpdateChannel(): void {
     const channel = this.configManager.getUpdateChannel()
     autoUpdater.channel = channel === "beta" ? "beta" : "latest"
+    // electron-updater's channel setter only sets allowDowngrade, not allowPrerelease.
+    // Without this, a stable-version app switching to beta channel will never find
+    // prereleases — it falls into the else branch and calls /releases/latest (stable only).
+    if (channel === "beta") {
+      autoUpdater.allowPrerelease = true
+    }
     this.logger.info(`Update channel set to: ${autoUpdater.channel}`)
   }
 
