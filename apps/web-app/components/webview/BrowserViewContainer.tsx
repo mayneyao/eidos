@@ -38,10 +38,15 @@ export function BrowserViewContainer({
   const containerRef = useRef<HTMLDivElement>(null)
   const urlRef = useRef(url)
   const lastNavigatedUrlRef = useRef(url)
+  const isActiveRef = useRef(isActive)
 
   useEffect(() => {
     urlRef.current = url
   }, [url])
+
+  useEffect(() => {
+    isActiveRef.current = isActive
+  }, [isActive])
 
   useEffect(() => {
     if (!isDesktopMode || !urlRef.current) {
@@ -153,7 +158,7 @@ export function BrowserViewContainer({
 
     // Listen for focus events from BrowserView to activate this tab
     const handleFocus = (eventViewId: string) => {
-      if (eventViewId === viewId) {
+      if (eventViewId === viewId && isActiveRef.current) {
         const { setActiveTab, getPanelForTab, setActivePanel } =
           useTabStore.getState()
         setActiveTab(viewId)

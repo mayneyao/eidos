@@ -88,9 +88,12 @@ export class ViewManagerService {
 
     // Listen for focus events to activate the corresponding tab
     view.webContents.on("focus", () => {
-      const win = this.win
-      if (win) {
-        win.webContents.send("browser.view:focus", viewId)
+      const state = this.views.get(viewId)
+      if (state?.visible) {
+        const win = this.win
+        if (win) {
+          win.webContents.send("browser.view:focus", viewId)
+        }
       }
     })
 
