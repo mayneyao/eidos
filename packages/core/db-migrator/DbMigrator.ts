@@ -122,7 +122,7 @@ export class DbMigrator {
       sql += columnDefineSql
       try {
         console.log(sql)
-        this.exec(this.db, sql)
+        await this.exec(this.db, sql)
         console.log(`migrateTable ${tableName} add column ${name}`)
       } catch (error) {
         if (
@@ -143,7 +143,7 @@ export class DbMigrator {
             columnDefineSql
           )
           console.log("use newSql to migrate", newSql.sql)
-          this.exec(this.db, newSql.sql)
+          await this.exec(this.db, newSql.sql)
         } else {
           console.log(error)
         }

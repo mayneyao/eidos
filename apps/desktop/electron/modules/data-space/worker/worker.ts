@@ -1,3 +1,4 @@
+import Database from "better-sqlite3"
 import { DataSpace } from "@/packages/core/data-space"
 import { BucketClient } from "@/packages/sync/bucket"
 import {
@@ -19,6 +20,7 @@ import { initUDF } from "./init-udf"
 import { RpcServer } from "./rpc/rpc-server"
 import type { InitMessage, WorkerInitData } from "./rpc/rpc-types"
 import { NodeServerDatabase } from "./sqlite-server"
+import { NodeBaseServerDatabase } from "./sqlite-server/base"
 import { isInitializationOperation } from "./sync/helper"
 import { RelayClient } from "./relay-client"
 import { RelayDispatcher } from "./relay-dispatcher"
@@ -206,6 +208,12 @@ class DataSpaceManager {
       }
     )
 
+    // Create an in-memory draftDb so DbMigrator can detect and apply schema
+    // changes (e.g. new columns on eidos__tree) to the live database.
+    // This mirrors what the web-worker does via sqlite.draftDb().
+    const draftDatabase = new Database(":memory:")
+    const draftDb = new NodeBaseServerDatabase(draftDatabase)
+
     this.dataSpace = new DataSpace({
       db: serverDb,
       activeUndoManager: false,
@@ -390,6 +398,7 @@ class DataSpaceManager {
       externalFS: externalFS,
       enableFTS: true,
       syncClient: syncClient,
+      draftDb: draftDb,
     })
 
     this.dataSpace.initFileWatcher()

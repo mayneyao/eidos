@@ -125,7 +125,7 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
       }
       let res = null
       if (stmt.readonly) {
-        res = stmt.all(_bind)
+        res = _bind == null ? stmt.all() : stmt.all(_bind)
       } else {
         if (_bind == null) {
           return stmt.run()
