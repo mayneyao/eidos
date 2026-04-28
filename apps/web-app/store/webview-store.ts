@@ -474,7 +474,12 @@ export const useWebviewStore = create<WebviewStore>((set, get) => ({
       return
     }
 
-    get().setWebviewState(tabId, { displayUrl: url, canGoBack, canGoForward })
+    get().setWebviewState(tabId, {
+      displayUrl: url,
+      pageTitle: "",
+      canGoBack,
+      canGoForward,
+    })
     // Sync the navigation URL to the tab store so tab shows correct URL
     useTabStore.getState().updateTab(tabId, { url })
 
