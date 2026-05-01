@@ -22,12 +22,24 @@ import { AgentGoalInput } from "@/components/ai-agent/agent-goal-input"
 import { AgentChatArea } from "@/components/ai-agent/agent-chat-area"
 
 export default function AgentPage() {
+  const navigate = useNavigate()
   const { space } = useCurrentPathInfo()
   const { params } = useRouterAdapter()
   const routeSessionId = params.sessionId
 
+  useEffect(() => {
+    if (!routeSessionId) {
+      const newSessionId = uuidv7()
+      navigate(`/agent/${newSessionId}`, { replace: true })
+    }
+  }, [routeSessionId, navigate])
+
+  if (!routeSessionId) {
+    return null
+  }
+
   return (
-    <div key={routeSessionId || "new-session"} className="h-full">
+    <div key={routeSessionId} className="h-full">
       <AgentPageContent space={space} routeSessionId={routeSessionId} />
     </div>
   )

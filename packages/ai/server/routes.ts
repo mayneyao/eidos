@@ -27,7 +27,7 @@ export function createAgentMiddleware(options: {
     if (id) {
       const session = await store.load(id)
       if (!session) {
-        return c.json({ error: "session not found" }, 404)
+        return c.json({ id, messages: [], status: "new" })
       }
       return c.json(session)
     }
