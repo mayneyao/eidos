@@ -59,7 +59,6 @@ import { useExperimentConfigStore } from "@/components/settings/stores"
 
 import { useNodeMap } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useHnsw } from "@/apps/web-app/hooks/use-hnsw"
 import { useVCardEmail } from "@/apps/web-app/hooks/use-vcard-email"
 // import { useFilePathFromHash } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-file-path-from-hash"
 import { useHandlerSelection } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-handler-selection"
@@ -267,7 +266,6 @@ export function TabContextMenu({
   }
   const node = getCurrentNode()
 
-  const { createEmbedding } = useHnsw()
   const { experiment } = useExperimentConfigStore()
   const { space } = useCurrentPathInfo()
   const { toast } = useToast()

@@ -198,6 +198,11 @@ export const useRouterAdapter = () => {
       } else if (parts[0] === "journals" && parts.length >= 2) {
         // /journals/:day
         result.day = parts[1]
+      } else if (parts[0] === "agent") {
+        // /agent/:sessionId?
+        if (parts.length >= 2) {
+          result.sessionId = parts[1]
+        }
       } else {
         // /:table (node page) - first part is the table/node ID
         result.table = parts[0]

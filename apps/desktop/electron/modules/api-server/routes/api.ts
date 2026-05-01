@@ -1,4 +1,4 @@
-import agentHandler, { pathname as agentPath } from "@/worker/service-worker/ai"
+import { createAgentMiddleware } from "@/packages/ai/index"
 import {
   containsBinaryData,
   parseMultipartFormData,
@@ -6,8 +6,6 @@ import {
   restoreBinaryData,
 } from "@eidos.space/client"
 import { Hono } from "hono"
-// @ts-ignore - FetchEvent is not exported from ai module
-type FetchEvent = any
 import { extractSpaceIdFromRequest } from "../utils/extract-space"
 import type { ServerContext } from "../server"
 
@@ -92,20 +90,14 @@ export function setupApiRoutes(app: Hono, ctx: ServerContext) {
     }
   })
 
-  // AI Agent route
-  app.all(agentPath, async (c) => {
-    const response = await agentHandler(
-      {
-        request: c.req,
-        respondWith: (r: Response) => r,
-      } as unknown as FetchEvent,
-      {
-        getDataspace: (space: string) =>
-          space
-            ? ctx.dataSpaceManager.getOrSetDataSpace(space)
-            : Promise.resolve(null),
-      }
-    )
-    return response
-  })
+  // AI Agent routes
+  app.route(
+    "/",
+    createAgentMiddleware({
+      getDataspace: (space: string) =>
+        space
+          ? ctx.dataSpaceManager.getOrSetDataSpace(space)
+          : Promise.resolve(null),
+    })
+  )
 }

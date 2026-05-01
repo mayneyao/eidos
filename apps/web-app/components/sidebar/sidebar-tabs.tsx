@@ -7,6 +7,7 @@ import {
   FolderOpen,
   GitBranch,
   ListTreeIcon,
+  MessageSquareIcon,
   SettingsIcon,
   ToyBrickIcon,
 } from "lucide-react"
@@ -57,6 +58,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   settings: SettingsIcon,
   today: CalendarDays,
   graft: GitBranch,
+  "agent-history": MessageSquareIcon,
 }
 
 const getIconForTab = (tabId: string) => {

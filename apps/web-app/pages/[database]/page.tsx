@@ -22,6 +22,8 @@ import { useTabTitle } from "@/hooks/use-tab-title"
 import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 import { BlockApp } from "@/apps/web-app/components/block-renderer/block-app"
 
+import AgentPage from "./agent/page"
+
 export default function DatabaseHome() {
   const { t } = useTranslation()
   const { space } = useCurrentPathInfo()
@@ -71,6 +73,10 @@ export default function DatabaseHome() {
   const handleOpenAgent = useCallback(() => {
     navigate("/agent")
   }, [navigate])
+
+  if (newTabBlockId === "agent") {
+    return <AgentPage />
+  }
 
   if (newTabBlockId) {
     return (

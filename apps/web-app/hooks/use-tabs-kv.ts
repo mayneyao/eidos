@@ -17,6 +17,7 @@ export const DEFAULT_TABS: TabId[] = [
   "files",
   "today",
   "graft",
+  "agent-history",
 ]
 
 export const useTabsKV = () => {

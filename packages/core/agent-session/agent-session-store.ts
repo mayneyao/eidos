@@ -18,7 +18,7 @@ export interface AgentSession {
   messages: Array<{
     id: string
     role: string
-    content: string
+    content?: string
     parts?: unknown[]
   }>
   model: string

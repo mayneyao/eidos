@@ -1,28 +1,10 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
-export interface AgentStep {
-  id: string
-  description: string
-  status: "pending" | "in_progress" | "completed" | "failed"
-  toolName?: string
-  toolArgs?: Record<string, unknown>
-  toolResult?: unknown
-  error?: string
-}
-
-export interface StoredMessage {
-  id: string
-  role: string
-  text: string
-}
-
-export interface AgentSession {
+export interface SessionMeta {
   id: string
   goal: string
-  status: "planning" | "executing" | "completed" | "error" | "stopped"
-  planSteps: AgentStep[]
-  messages: StoredMessage[]
+  status: string
   model: string
   space: string
   createdAt: string
@@ -31,35 +13,17 @@ export interface AgentSession {
 }
 
 interface AgentStore {
-  sessions: AgentSession[]
-  currentSessionId: string | null
+  sessions: SessionMeta[]
+  setSessions: (sessions: SessionMeta[]) => void
 
-  // Session list management (loaded from API)
-  setSessions: (sessions: AgentSession[]) => void
-  setCurrentSession: (id: string | null) => void
-
-  // Active session (created in current page lifecycle)
-  addActiveSession: (session: AgentSession) => void
-  updateSessionMessages: (
-    id: string,
-    messages: StoredMessage[],
-    status: AgentSession["status"]
-  ) => void
-
-  // UI state (not persisted)
   isRunning: boolean
   setIsRunning: (running: boolean) => void
+
   goalInput: string
   setGoalInput: (goal: string) => void
 
-  planSteps: AgentStep[]
-  setPlanSteps: (steps: AgentStep[]) => void
-  updateStepStatus: (
-    stepId: string,
-    status: AgentStep["status"],
-    result?: unknown,
-    error?: string
-  ) => void
+  currentSessionId: string | null
+  setCurrentSession: (id: string | null) => void
 
   maxSteps: number
   setMaxSteps: (steps: number) => void
@@ -67,77 +31,48 @@ interface AgentStore {
 
 export const useAgentStore = create<AgentStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       sessions: [],
-      currentSessionId: null,
-
       setSessions: (sessions) => set({ sessions }),
-      setCurrentSession: (id) => set({ currentSessionId: id }),
-
-      addActiveSession: (session) =>
-        set((state) => ({ sessions: [session, ...state.sessions] })),
-      updateSessionMessages: (id, messages, status) =>
-        set((state) => ({
-          sessions: state.sessions.map((s) =>
-            s.id === id
-              ? {
-                  ...s,
-                  messages,
-                  status,
-                  completedAt: new Date().toISOString(),
-                }
-              : s
-          ),
-        })),
 
       isRunning: false,
       setIsRunning: (running) => set({ isRunning: running }),
+
       goalInput: "",
       setGoalInput: (goal) => set({ goalInput: goal }),
 
-      planSteps: [],
-      setPlanSteps: (steps) => set({ planSteps: steps }),
-      updateStepStatus: (stepId, status, result, error) =>
-        set((state) => ({
-          planSteps: state.planSteps.map((step) =>
-            step.id === stepId
-              ? {
-                  ...step,
-                  status,
-                  toolResult: result ?? step.toolResult,
-                  error: error ?? step.error,
-                }
-              : step
-          ),
-        })),
+      currentSessionId: null,
+      setCurrentSession: (id) => set({ currentSessionId: id }),
 
       maxSteps: 10,
       setMaxSteps: (steps) => set({ maxSteps: steps }),
     }),
     {
-      name: "ai-agent-ui-state",
+      name: "ai-agent-store",
       getStorage: () => localStorage,
-      partialize: (state) => ({
-        maxSteps: state.maxSteps,
-      }),
+      partialize: (state) => ({ maxSteps: state.maxSteps }),
     }
   )
 )
 
-// API helpers
-export async function fetchSessions(space: string): Promise<AgentSession[]> {
-  const res = await fetch(`/api/agent?space=${encodeURIComponent(space)}`)
+// API helpers — fetch raw session data (messages stored in UIMessage format in JSON)
+export async function fetchSessions(): Promise<SessionMeta[]> {
+  const res = await fetch(`/api/agent/sessions`)
   if (!res.ok) return []
   return res.json()
 }
 
 export async function fetchSession(
-  space: string,
   id: string
-): Promise<AgentSession | null> {
-  const res = await fetch(
-    `/api/agent?space=${encodeURIComponent(space)}&id=${encodeURIComponent(id)}`
-  )
+): Promise<{ messages: unknown[] } | null> {
+  const res = await fetch(`/api/agent/sessions/${encodeURIComponent(id)}`)
   if (!res.ok) return null
   return res.json()
+}
+
+export async function deleteSession(id: string): Promise<boolean> {
+  const res = await fetch(`/api/agent/sessions/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  })
+  return res.ok
 }

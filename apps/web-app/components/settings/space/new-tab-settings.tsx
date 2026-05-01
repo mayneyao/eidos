@@ -7,6 +7,7 @@ import {
   SquareMousePointer,
   Plus,
   LayoutGrid,
+  Bot,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -97,13 +98,13 @@ export function NewTabSettings() {
           >
             {/* Default Option */}
             <div
-              className="flex items-start gap-3 p-4 rounded-lg border hover:border-primary/50 transition-colors cursor-pointer"
+              className="flex items-center gap-3 p-4 rounded-lg border hover:border-primary/50 transition-colors cursor-pointer"
               onClick={() => handleSelect("default")}
             >
               <RadioGroupItem
                 value="default"
                 id="default"
-                className="mt-0.5 shrink-0"
+                className="shrink-0"
               />
               <div className="p-2 rounded-md bg-muted shrink-0">
                 <LayoutTemplate className="h-4 w-4 text-muted-foreground" />
@@ -121,17 +122,39 @@ export function NewTabSettings() {
               </div>
             </div>
 
+            {/* AI Agent Option */}
+            <div
+              className="flex items-center gap-3 p-4 rounded-lg border hover:border-primary/50 transition-colors cursor-pointer"
+              onClick={() => handleSelect("agent")}
+            >
+              <RadioGroupItem value="agent" id="agent" className="shrink-0" />
+              <div className="p-2 rounded-md bg-muted shrink-0">
+                <Bot className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <Label htmlFor="agent" className="font-medium cursor-pointer">
+                  {t("space.settings.newtab.agent", "AI Agent")}
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {t(
+                    "space.settings.newtab.agentDescription",
+                    "Open the AI Agent interface for automated tasks and assistance."
+                  )}
+                </p>
+              </div>
+            </div>
+
             {/* Custom Blocks */}
             {newTabBlocks.map((block) => (
               <div
                 key={block.id}
-                className="flex items-start gap-3 p-4 rounded-lg border hover:border-primary/50 transition-colors cursor-pointer group"
+                className="flex items-center gap-3 p-4 rounded-lg border hover:border-primary/50 transition-colors cursor-pointer group"
                 onClick={() => handleSelect(block.id)}
               >
                 <RadioGroupItem
                   value={block.id}
                   id={block.id}
-                  className="mt-0.5 shrink-0"
+                  className="shrink-0"
                 />
                 <div className="p-2 rounded-md bg-muted shrink-0">
                   <SquareMousePointer className="h-4 w-4 text-muted-foreground" />

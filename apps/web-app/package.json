@@ -121,7 +121,6 @@
     "express": "^4.19.2",
     "fuse.js": "^7.1.0",
     "gpt-tokenizer": "^2.1.1",
-    "hnswlib-wasm": "^0.8.2",
     "html2canvas": "^1.4.1",
     "i18next": "^23.16.2",
     "i18next-browser-languagedetector": "^8.0.0",

@@ -52,6 +52,11 @@ export const TAB_CONFIG: Record<string, Omit<SidebarTab, "id">> = {
     icon: () => null,
     isNavigation: false,
   },
+  "agent-history": {
+    label: "agent-history",
+    icon: () => null,
+    isNavigation: false,
+  },
 }
 
 interface SidebarState {

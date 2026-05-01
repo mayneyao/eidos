@@ -67,7 +67,7 @@ export const spaceRoutes: RouteObject[] = [
     element: <TerminalPage />,
   },
   {
-    path: "agent",
+    path: "agent/:sessionId?",
     element: <AgentPage />,
   },
 
