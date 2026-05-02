@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react"
 import i18n from "@/locales/i18n"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { CheckCircle, ChevronDown, RefreshCw } from "lucide-react"
+import {
+  CheckCircle,
+  ChevronDown,
+  ExternalLink,
+  Github,
+  RefreshCw,
+} from "lucide-react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import * as z from "zod"
@@ -22,10 +28,12 @@ import {
   FormMessage,
 } from "@/components/react-hook-form/form"
 import { useTheme } from "@/components/theme-provider"
+import { DiscordIcon } from "@/components/icons/discord"
+import { SETTINGS_EXTERNAL_LINKS } from "@/components/settings/settings-events"
 import { useDesktopClient } from "@/apps/web-app/hooks/use-desktop-client"
 import { useUpdateStatus } from "@/apps/web-app/hooks/use-update-status"
 import { useSpaceTheme } from "@/apps/web-app/hooks/use-space-theme"
-import { navigateToSection } from "@/apps/web-app/components/settings/settings-events"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 const appearanceFormSchema = z.object({
   theme: z.enum(["light", "dark"], {
@@ -62,6 +70,7 @@ export function GlobalGeneralSettings() {
   } = useUpdateStatus()
 
   const { themes, currentTheme: spaceTheme, applyTheme } = useSpaceTheme()
+  const { navigate } = useRouterAdapter()
 
   const { toast } = useToast()
 
@@ -458,7 +467,9 @@ export function GlobalGeneralSettings() {
                   {t("settings.appearance.themeStyleDescription")}{" "}
                   <button
                     type="button"
-                    onClick={() => navigateToSection("space-theme")}
+                    onClick={() =>
+                      navigate("/settings/space-theme", { replace: true })
+                    }
                     className="text-primary hover:underline font-medium inline-flex items-center gap-0.5 cursor-pointer"
                   >
                     {t("settings.appearance.manageThemes")}
@@ -491,6 +502,59 @@ export function GlobalGeneralSettings() {
             </div>
           </form>
         </Form>
+      </div>
+
+      {/* About Section */}
+      <div className="py-4">
+        <h3 className="text-lg font-medium">{t("settings.about", "About")}</h3>
+      </div>
+
+      <hr className="border-border" />
+
+      <div className="py-6">
+        <div className="space-y-4">
+          {/* Links */}
+          {[
+            {
+              label: "GitHub",
+              url: SETTINGS_EXTERNAL_LINKS.github,
+              icon: <Github className="h-4 w-4" />,
+              description: t("settings.about.github", "Source code and issues"),
+            },
+            {
+              label: "Discord",
+              url: SETTINGS_EXTERNAL_LINKS.discord,
+              icon: <DiscordIcon className="h-4 w-4" />,
+              description: t("settings.about.discord", "Join the community"),
+            },
+            {
+              label: t("settings.about.website", "Website"),
+              url: SETTINGS_EXTERNAL_LINKS.website,
+              icon: <ExternalLink className="h-4 w-4" />,
+              description: t(
+                "settings.about.websiteDescription",
+                "Official website"
+              ),
+            },
+          ].map((link) => (
+            <a
+              key={link.label}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 px-3 py-2 -mx-3 rounded-md hover:bg-muted transition-colors"
+            >
+              <div className="text-muted-foreground">{link.icon}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">{link.label}</div>
+                <div className="text-xs text-muted-foreground">
+                  {link.description}
+                </div>
+              </div>
+              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+            </a>
+          ))}
+        </div>
       </div>
     </div>
   )

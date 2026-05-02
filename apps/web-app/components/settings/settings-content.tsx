@@ -1,5 +1,6 @@
 import { BookOpenText } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { useParams } from "react-router-dom"
 
 import { type SettingsSection } from "./settings-events"
 import { GlobalAccountSettings } from "./global/global-account-settings"
@@ -20,11 +21,10 @@ import { NewTabSettings } from "./space/new-tab-settings"
 import { RelaySettings } from "./space/relay-settings"
 import { ThemeSettings } from "./space/theme-settings"
 
-interface SettingsContentProps {
-  activeSection: SettingsSection
-}
-
-export function SettingsContent({ activeSection }: SettingsContentProps) {
+export function SettingsContent() {
+  const { section } = useParams<{ section?: string }>()
+  const activeSection: SettingsSection =
+    (section as SettingsSection) || "general"
   const { t, i18n } = useTranslation()
 
   const getDocsUrl = (path: string) => {

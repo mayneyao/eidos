@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "@/components/ui/use-toast"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useActivation } from "@/hooks/use-activation"
 import { useCurrentSpace, useSpaceStore } from "@/hooks/use-current-space"
 import { isDesktopMode } from "@/lib/env"
@@ -27,6 +28,7 @@ interface GlobalSyncConfig {
 
 export function SpaceSyncSettings() {
   const { t } = useTranslation()
+  const { navigate } = useRouterAdapter()
   const { currentSpace: spaceInfo } = useCurrentSpace()
   const { license, isLoading: isLicenseLoading } = useActivation()
   const hasValidLicense = license !== null
@@ -266,11 +268,7 @@ export function SpaceSyncSettings() {
                   size="sm"
                   className="h-auto p-0 text-amber-700 dark:text-amber-300 mt-2"
                   onClick={() =>
-                    window.dispatchEvent(
-                      new CustomEvent("settings-navigate", {
-                        detail: "account",
-                      })
-                    )
+                    navigate("/settings/account", { replace: true })
                   }
                 >
                   {t("space.settings.sync.goToAccountSettings")} →
@@ -303,11 +301,7 @@ export function SpaceSyncSettings() {
             <Button
               variant="link"
               size="sm"
-              onClick={() =>
-                window.dispatchEvent(
-                  new CustomEvent("settings-navigate", { detail: "sync" })
-                )
-              }
+              onClick={() => navigate("/settings/sync", { replace: true })}
             >
               {t("space.settings.sync.goToGlobalSettings")}
             </Button>
@@ -527,11 +521,7 @@ export function SpaceSyncSettings() {
             variant="link"
             size="sm"
             className="h-auto p-0"
-            onClick={() =>
-              window.dispatchEvent(
-                new CustomEvent("settings-navigate", { detail: "sync" })
-              )
-            }
+            onClick={() => navigate("/settings/sync", { replace: true })}
           >
             {t("space.settings.sync.globalSyncSettings")}
           </Button>
