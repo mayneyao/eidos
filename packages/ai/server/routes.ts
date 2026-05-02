@@ -32,7 +32,7 @@ export function createAgentMiddleware(options: {
       return c.json(session)
     }
 
-    const sessions = await store.list()
+    const sessions = await store.listMeta()
     return c.json(sessions)
   }
 
@@ -45,7 +45,24 @@ export function createAgentMiddleware(options: {
       data.space = space
     }
 
-    return await handleAgentApi(data, options)
+    console.log("[agent-route] POST /api/agent/sessions", {
+      id: data.id,
+      space: data.space,
+      model: data.model,
+    })
+
+    try {
+      const result = await handleAgentApi(data, options)
+      console.log("[agent-route] ▶ response ready", { id: data.id })
+      return result
+    } catch (err) {
+      console.error("[agent-route] ✖ error", {
+        id: data.id,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack?.slice(0, 500) : undefined,
+      })
+      throw err
+    }
   }
 
   const handleDeleteRequest = async (c: any) => {
@@ -66,10 +83,45 @@ export function createAgentMiddleware(options: {
     return c.json({ success: true })
   }
 
+  const handleSaveRequest = async (c: any) => {
+    const space = extractSpace(c)
+    const id = c.req.param("id") || c.req.query("id")
+    const body = await c.req.json()
+
+    if (!space || !id) {
+      return c.json({ error: "space and id are required" }, 400)
+    }
+
+    const dataspace = await options.getDataspace(space)
+    if (!dataspace) {
+      return c.json({ error: "space not found" }, 404)
+    }
+
+    const store = new AgentSessionStore(dataspace)
+    const existing = await store.load(id)
+
+    const session: any = {
+      id,
+      goal: existing?.goal ?? body.goal ?? "",
+      status: "completed",
+      planSteps: [],
+      messages: body.messages ?? [],
+      model: body.model ?? existing?.model,
+      space: space ?? "",
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      maxSteps: body.maxSteps ?? 10,
+    }
+
+    await store.save(session)
+    return c.json({ success: true })
+  }
+
   // Handle GET requests
   app.get("/api/agent/sessions/:id?", handleGetRequest)
 
   // Handle POST requests
+  app.post("/api/agent/sessions/:id/save", handleSaveRequest)
   app.post("/api/agent/sessions", handlePostRequest)
 
   // Handle DELETE requests

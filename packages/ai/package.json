@@ -32,8 +32,11 @@
     "@ai-sdk/xai": "^3.0.83",
     "@openrouter/ai-sdk-provider": "^2.8.1",
     "ai": "^6.0.168",
-    "openai": "^4.104.0",
-    "hono": "^4.12.7"
+    "defuddle": "^0.16.0",
+    "hono": "^4.12.7",
+    "just-bash": "^2.14.3",
+    "linkedom": "^0.18.12",
+    "openai": "^4.104.0"
   },
   "peerDependencies": {
     "zod": "^3.23.8"

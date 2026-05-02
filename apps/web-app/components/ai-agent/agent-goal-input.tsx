@@ -65,28 +65,29 @@ export function AgentGoalInput({
   )
 
   return (
-    <div className="border rounded-2xl p-4 bg-background shadow-sm border-border">
-      <div className="flex flex-col gap-3">
+    <div className="border border-zinc-200/50 dark:border-zinc-800/50 rounded-xl p-2 bg-zinc-50/60 dark:bg-zinc-900/60 backdrop-blur-md shadow-sm">
+      <div className="flex flex-col">
         <textarea
           ref={textareaRef}
           value={goalInput}
           onChange={(e) => setGoalInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="What do you want the AI Agent to do? (e.g., 'List all documents and create a summary table')"
-          className="min-h-[60px] w-full resize-none bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none"
+          placeholder="What do you want the AI Agent to do?"
+          className="min-h-[36px] w-full resize-none bg-transparent px-2 pt-1 text-[13px] leading-normal placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none"
           disabled={isRunning}
           autoFocus
         />
-        <div className="flex items-center justify-between border-t border-border/50 pt-3">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between px-1.5 mt-1.5">
+          <div className="flex items-center gap-2">
             <AIModelSelect
               value={aiModel}
               onValueChange={setAIModel}
+              noBorder
               size="sm"
             />
             {isRunning && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground border-l border-border/50 pl-3 animate-in fade-in duration-300">
-                <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 bg-zinc-100/60 dark:bg-zinc-800/60 px-2 py-0.5 rounded-md animate-in fade-in duration-300 select-none">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
                 <span>
                   Step {stepCount}/{maxSteps}
                 </span>
@@ -96,30 +97,25 @@ export function AgentGoalInput({
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            {!isRunning && (
-              <span className="text-xs text-muted-foreground mr-1 hidden sm:inline">
-                Enter to send
-              </span>
-            )}
+          <div className="flex items-center gap-2 select-none">
             {isRunning ? (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={onStop}
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20 h-9 px-4 rounded-xl"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20 h-7 px-2.5 rounded-lg text-xs"
               >
-                <StopCircleIcon className="h-4 w-4 mr-2" />
-                Stop Agent
+                <StopCircleIcon className="h-3.5 w-3.5 mr-1" />
+                Stop
               </Button>
             ) : (
               <Button
                 size="sm"
                 onClick={handleSubmit}
                 disabled={!goalInput.trim() || isRunning}
-                className="h-9 px-4 rounded-xl"
+                className="h-7 px-3 rounded-lg text-xs font-normal"
               >
-                <SendIcon className="h-4 w-4 mr-2" />
+                <SendIcon className="h-3 w-3 mr-1" />
                 Send
               </Button>
             )}

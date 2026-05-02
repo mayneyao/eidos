@@ -10,8 +10,6 @@ import { uuidv7 } from "@/lib/utils"
 import { useTabTitle } from "@/hooks/use-tab-title"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
-import { useAIFunctions } from "@/apps/web-app/hooks/use-ai-functions"
-import { useAllTools } from "@/apps/web-app/hooks/use-all-tools"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 import {
   useAgentStore,
@@ -54,11 +52,7 @@ function AgentPageContent({
 }) {
   const navigate = useNavigate()
   const { getConfigByModel } = useAiConfig()
-  const { handleToolsCall } = useAIFunctions()
-  const allTools = useAllTools()
   const { setCurrentApp } = useSidebarStore()
-
-  useTabTitle("AI Agent")
 
   const {
     setSessions,
@@ -75,7 +69,6 @@ function AgentPageContent({
 
   const [startTime, setStartTime] = useState(0)
   const [stepCount, setStepCount] = useState(0)
-  const [loadedMessages, setLoadedMessages] = useState<unknown[] | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -91,13 +84,8 @@ function AgentPageContent({
     transport,
     id: routeSessionId || "new-agent-session",
     generateId: uuidv7,
-    onToolCall: async ({ toolCall }) => {
-      const res = await handleToolsCall(
-        toolCall.toolName,
-        (toolCall as any).input ?? (toolCall as any).args ?? {}
-      )
+    onToolCall: async () => {
       setStepCount((c) => c + 1)
-      return res
     },
     onFinish: () => {
       setIsRunning(false)
@@ -110,6 +98,19 @@ function AgentPageContent({
     },
   })
 
+  const firstUserMessage = messages.find((m) => m.role === "user")
+  const goalText = firstUserMessage
+    ? (firstUserMessage as any).content ||
+      (
+        (firstUserMessage.parts ?? []).find(
+          (p: any) => p.type === "text"
+        ) as any
+      )?.text ||
+      ""
+    : ""
+
+  useTabTitle(goalText ? goalText : "AI Agent")
+
   const lastSyncedSessionId = useRef<string | null | undefined>(undefined)
 
   const handleSelectSession = useCallback(
@@ -121,11 +122,9 @@ function AgentPageContent({
 
       if (id && space) {
         const data = await fetchSession(id)
-        const msgs = (data?.messages ?? []) as any[]
-        setLoadedMessages(msgs)
-        setMessages(msgs)
+        // Session now stores UIMessage[] directly — pass straight to useChat
+        setMessages((data?.messages ?? []) as any)
       } else {
-        setLoadedMessages(null)
         setMessages([])
       }
     },
@@ -173,8 +172,7 @@ function AgentPageContent({
             model,
             id: sessionId,
             space,
-            tools: allTools,
-            maxSteps: 10,
+            maxSteps: 100,
             ...config,
           },
         }
@@ -185,7 +183,6 @@ function AgentPageContent({
       routeSessionId,
       currentSessionId,
       getConfigByModel,
-      allTools,
       setStoreSessionId,
       setIsRunning,
       sendMessage,
@@ -193,10 +190,14 @@ function AgentPageContent({
     ]
   )
 
-  const handleStop = useCallback(() => {
+  const handleStop = useCallback(async () => {
     stop()
     setIsRunning(false)
-  }, [stop, setIsRunning])
+    // Note: partial session state is saved server-side via onFinish when
+    // the stream completes. A mid-stream stop may result in an incomplete
+    // session — acceptable for now.
+    if (space) fetchSessions().then(setSessions)
+  }, [stop, setIsRunning, space, setSessions])
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -235,7 +236,7 @@ function AgentPageContent({
               onSubmit={handleSubmit}
               isRunning={isRunning}
               stepCount={stepCount}
-              maxSteps={10}
+              maxSteps={100}
               elapsedMs={elapsed}
               onStop={handleStop}
             />

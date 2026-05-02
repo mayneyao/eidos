@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('deps:', json.dumps\\(d.get\\('dependencies',{}\\), indent=2\\)\\)\")",
+      "Bash(pnpm ls *)",
+      "WebSearch",
+      "Bash(pnpm info *)"
+    ]
+  }
+}

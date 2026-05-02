@@ -1,28 +1,23 @@
-import { uuidv7 } from "@/lib/utils"
 import type { AgentSession } from "@/packages/core/agent-session/agent-session-store"
 import { AgentSessionStore } from "@/packages/core/agent-session/agent-session-store"
 import type { DataSpace } from "@/packages/core/data-space"
 import {
   ToolLoopAgent,
+  convertToModelMessages,
   extractReasoningMiddleware,
   smoothStream,
   stepCountIs,
   wrapLanguageModel,
 } from "ai"
+import type { UIMessage } from "ai"
 import { getProvider } from "../helper"
-import { extractText } from "./utils"
-
-export interface IAgentMessage {
-  id?: string
-  role: string
-  content: string
-  parts?: unknown[]
-}
+import { serverTools } from "../tools"
+import { createTableTools } from "../tools/table"
 
 export interface IAgentData {
   goal: string
-  messages: IAgentMessage[]
-  previousMessages?: IAgentMessage[]
+  /** UIMessage[] from useChat — the source of truth for the conversation */
+  messages: UIMessage[]
   apiKey?: string
   baseUrl?: string
   systemPrompt?: string
@@ -56,7 +51,7 @@ export async function handleAgentApi(
 ) {
   const {
     goal,
-    messages: clientMessages,
+    messages,
     apiKey,
     baseUrl,
     systemPrompt,
@@ -64,17 +59,34 @@ export async function handleAgentApi(
     space,
     id,
     tools,
-    maxSteps = 10,
+    maxSteps = 100,
   } = data
+
+  console.log("[agent] ▶ start", {
+    id,
+    goal: goal.slice(0, 80),
+    model: modelAndProvider,
+    space,
+    messageCount: messages.length,
+    toolCount: Object.keys(tools ?? {}).length,
+    maxSteps,
+  })
 
   const provider = getProvider({ apiKey, baseUrl, type: data.type })
   const modelId = modelAndProvider.split("@")[0]
   const llmodel = provider(modelId)
   const dataspace = space ? await ctx?.getDataspace(space) : null
+  const dsTools = dataspace ? createTableTools(dataspace) : {}
+  const mergedTools = { ...serverTools, ...dsTools, ...(tools ?? {}) }
   const agentPrompt =
-    systemPrompt || buildAgentSystemPrompt(goal, Object.keys(tools ?? {}))
+    systemPrompt || buildAgentSystemPrompt(goal, Object.keys(mergedTools))
 
-  const allClientMessages = clientMessages
+  console.log("[agent] ▶ tools merged", {
+    serverTools: Object.keys(serverTools),
+    dsTools: Object.keys(dsTools),
+    clientTools: Object.keys(tools ?? {}),
+    total: Object.keys(mergedTools).length,
+  })
 
   const agent = new ToolLoopAgent({
     model: wrapLanguageModel({
@@ -82,94 +94,60 @@ export async function handleAgentApi(
       middleware: extractReasoningMiddleware({ tagName: "think" }),
     }),
     instructions: agentPrompt,
-    tools: (tools ?? {}) as Record<string, any>,
+    tools: mergedTools as Record<string, any>,
     stopWhen: stepCountIs(maxSteps),
-    onFinish: async ({ steps }) => {
-      if (!dataspace || !id) return
-
-      const allMessages: AgentSession["messages"] = allClientMessages.map(
-        (m) => ({
-          id: m.id ?? uuidv7(),
-          role: m.role as string,
-          parts: ((m as any).parts ?? []) as any,
-        })
-      )
-
-      for (const step of steps) {
-        if (step.text) {
-          allMessages.push({
-            id: uuidv7(),
-            role: "assistant",
-            parts: [{ type: "text", text: step.text }],
-          })
-        }
-        for (const tc of step.toolCalls ?? []) {
-          const t = tc as any
-          allMessages.push({
-            id: uuidv7(),
-            role: "assistant",
-            parts: [
-              {
-                type: "tool-call",
-                toolCallId: t.toolCallId,
-                toolName: t.toolName,
-                args: t.args ?? t.input,
-              },
-            ],
-          })
-        }
-        for (const tr of step.toolResults ?? []) {
-          const r = tr as any
-          allMessages.push({
-            id: uuidv7(),
-            role: "tool",
-            parts: [
-              {
-                type: "tool-result",
-                toolCallId: r.toolCallId,
-                toolName: r.toolName,
-                output: r.result ?? r.output,
-                state: "result",
-              },
-            ],
-          })
-        }
-      }
-
-      const store = new AgentSessionStore(dataspace)
-      const existing = await store.load(id)
-
-      const session: AgentSession = {
-        id,
-        goal: existing?.goal ?? goal,
-        status: "completed",
-        planSteps: [],
-        messages: allMessages,
-        model: modelAndProvider,
-        space: space ?? "",
-        createdAt: existing?.createdAt ?? new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        maxSteps,
-      }
-
-      await store.save(session)
-    },
   })
 
+  // convertToModelMessages handles all UIMessage parts (tool-call, tool-result,
+  // reasoning, etc.) correctly — this is the official SDK conversion path.
+  const modelMessages = await convertToModelMessages(messages)
+
+  console.log("[agent] ▶ calling agent.stream()")
   const result = await agent.stream({
     experimental_transform: smoothStream({ delayInMs: 20 }),
-    messages: allClientMessages.map((m) => ({
-      role: m.role as "user" | "assistant" | "system",
-      content: extractText((m as any).parts),
-    })),
+    messages: modelMessages as any,
   })
+  console.log("[agent] ▶ stream created, returning response")
 
   return result.toUIMessageStreamResponse({
-    originalMessages: clientMessages.map((m) => ({
-      id: m.id ?? uuidv7(),
-      role: m.role as "user" | "assistant" | "system",
-      content: extractText((m as any).parts),
-      parts: ((m as any).parts ?? []) as any,
-    })) as any,
+    originalMessages: messages,
+    onFinish: async ({ messages: finalMessages }) => {
+      if (!dataspace || !id) return
+
+      console.log("[agent] ▶ onFinish — saving session", {
+        id,
+        messageCount: finalMessages.length,
+      })
+
+      try {
+        const store = new AgentSessionStore(dataspace)
+        const existing = await store.load(id)
+
+        const session: AgentSession = {
+          id,
+          goal: existing?.goal ?? goal,
+          status: "completed",
+          planSteps: [],
+          // finalMessages is UIMessage[] — the canonical format recommended by AI SDK
+          messages: finalMessages,
+          model: modelAndProvider,
+          space: space ?? "",
+          createdAt: existing?.createdAt ?? new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          maxSteps,
+        }
+
+        await store.save(session)
+        console.log("[agent] ▶ session saved", {
+          id,
+          messageCount: finalMessages.length,
+        })
+      } catch (err) {
+        console.error("[agent] ✖ onFinish error", {
+          id,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    },
   })
 }

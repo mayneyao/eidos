@@ -34,7 +34,7 @@
     "@tailwindcss/vite": "^4.2.2",
     "@types/wicg-file-system-access": "^2023.10.5",
     "@vscode/ripgrep": "^1.17.0",
-    "ai": "^4.3.16",
+    "ai": "^6.0.168",
     "aws-sdk": "^2.1526.0",
     "aws4fetch": "^1.0.17",
     "better-sqlite3": "^12.0.0",
