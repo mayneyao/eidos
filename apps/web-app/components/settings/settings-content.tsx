@@ -1,8 +1,6 @@
 import { BookOpenText } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
-
 import { type SettingsSection } from "./settings-events"
 import { GlobalAccountSettings } from "./global/global-account-settings"
 import { GlobalAISettings } from "./global/global-ai-settings"
@@ -89,13 +87,7 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return <NewTabSettings />
 
       case "space-relay":
-        return (
-          <RelaySettings
-            onCloseSettings={() =>
-              useAppRuntimeStore.getState().setSpaceSettingsOpen(false)
-            }
-          />
-        )
+        return <RelaySettings onCloseSettings={() => window.history.back()} />
       case "space-theme":
         return <ThemeSettings />
       case "general":

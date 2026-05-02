@@ -37,7 +37,6 @@ import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
-import { useSettings } from "@/apps/web-app/hooks/use-settings"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
@@ -72,7 +71,6 @@ export function CommandDialogDemo() {
   } = useAppRuntimeStore()
   const { enabled: isDevToolsEnabled, toggle: toggleDevTools } =
     useDevToolsStore()
-  const { openSettingsModal } = useSettings()
   const { input, setInput, mode } = useInput()
   const { resolvedTheme, setTheme } = useTheme()
   const { space } = useCurrentPathInfo()
@@ -871,7 +869,12 @@ export function CommandDialogDemo() {
                   </span>
                 </CommandItem>
               )}
-              <CommandItem onSelect={() => openSettingsModal("general")}>
+              <CommandItem
+                onSelect={() => {
+                  setCmdkOpen(false)
+                  navigate("/settings/general", { target: "_blank" })
+                }}
+              >
                 <Settings className="mr-2 h-4 w-4" />
                 <span>{t("common.settings")}</span>
               </CommandItem>

@@ -36,7 +36,6 @@ export function ShortCuts() {
   const { isRightPanelOpen: isAiOpen, setIsRightPanelOpen: setIsAiOpen } =
     useSpaceAppStore()
   const {
-    setSpaceSettingsOpen,
     setCmdkOpen,
     isGlobalSearchOpen,
     setGlobalSearchOpen,
@@ -153,7 +152,7 @@ export function ShortCuts() {
           break
 
         case "open-space-settings":
-          setSpaceSettingsOpen(true)
+          navigate("/settings", { target: "_blank" })
           break
 
         case "copy-current-url":
@@ -297,7 +296,6 @@ export function ShortCuts() {
     createLink,
     setTheme,
     setIsAiOpen,
-    setSpaceSettingsOpen,
     setCmdkOpen,
     toast,
     isSidebarOpen,
@@ -357,7 +355,7 @@ export function ShortCuts() {
   })
 
   useKeyPress(["ctrl.comma", "meta.comma"], () => {
-    setSpaceSettingsOpen(true)
+    navigate("/settings", { target: "_blank" })
   })
 
   // Add new shortcut for copying current URL

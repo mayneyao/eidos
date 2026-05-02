@@ -23,7 +23,6 @@ export function WebviewContent({ url }: { url: string }) {
     (state) =>
       state.isCmdkOpen ||
       state.isKeyboardShortcutsOpen ||
-      state.isSpaceSettingsOpen ||
       state.isGlobalSearchOpen ||
       state.isDeleteDialogOpen ||
       state.isMoveToFolderOpen

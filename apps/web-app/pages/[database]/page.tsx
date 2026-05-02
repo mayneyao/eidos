@@ -30,8 +30,7 @@ export default function DatabaseHome() {
   const { createDoc } = useSqlite(space)
   const goto = useGoto()
   const { navigate } = useRouterAdapter()
-  const { setCmdkOpen, setGlobalSearchOpen, setSpaceSettingsOpen } =
-    useAppRuntimeStore()
+  const { setCmdkOpen, setGlobalSearchOpen } = useAppRuntimeStore()
   const { toggle: toggleSidebar } = useSidebar()
   const [newTabBlockId] = useSqliteKV<string | null>(
     "eidos:space:settings:newtab",
@@ -57,8 +56,8 @@ export default function DatabaseHome() {
   }, [setGlobalSearchOpen])
 
   const handleOpenSettings = useCallback(() => {
-    setSpaceSettingsOpen(true)
-  }, [setSpaceSettingsOpen])
+    navigate("/settings", { target: "_blank" })
+  }, [navigate])
 
   const { setIsTerminalVisible, isTerminalVisible } = useAppRuntimeStore()
 

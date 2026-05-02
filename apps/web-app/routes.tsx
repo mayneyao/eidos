@@ -12,6 +12,7 @@ import EverydayHomePage from "@/apps/web-app/pages/[database]/journals/page"
 import SpaceHomePage from "@/apps/web-app/pages/[database]/page"
 import AgentPage from "@/apps/web-app/pages/[database]/agent/page"
 import TerminalPage from "@/apps/web-app/pages/[database]/terminal/page"
+import SettingsPage from "@/apps/web-app/pages/[database]/settings/page"
 
 export const spaceRoutes: RouteObject[] = [
   {
@@ -70,7 +71,10 @@ export const spaceRoutes: RouteObject[] = [
     path: "agent/:sessionId?",
     element: <AgentPage />,
   },
-
+  {
+    path: "settings/:section?",
+    element: <SettingsPage />,
+  },
   {
     path: ":table",
     element: <NodePage />,

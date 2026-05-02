@@ -15,7 +15,6 @@ import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { closeSettings } from "@/components/settings/settings-events"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 
@@ -180,7 +179,6 @@ export function NewTabSettings() {
                   className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={(e) => {
                     e.stopPropagation()
-                    closeSettings()
                     navigate(`/blocks/${block.id}`)
                   }}
                 >
