@@ -122,8 +122,40 @@ export const useRouterAdapter = () => {
       const forceNewTab = options?.target === "_blank"
 
       if (forceNewTab) {
-        const { openTab: openTabAction } = useTabStore.getState()
-        openTabAction(resolveUrl(to), undefined, { forceNewTab: true })
+        const resolvedUrl = resolveUrl(to)
+        const {
+          tabs,
+          openTab: openTabAction,
+          setActiveTab,
+          updateTab,
+        } = useTabStore.getState()
+
+        // Check if an existing tab is already showing the same "type" of page
+        // (same first path segment), and reuse it instead of opening a duplicate
+        try {
+          const targetPath = new URL(resolvedUrl, window.location.origin)
+            .pathname
+          const targetSegment = targetPath.split("/").filter(Boolean)[0]
+          if (targetSegment) {
+            const sameTypeTab = tabs.find((t) => {
+              try {
+                const tabPath = new URL(t.url, window.location.origin).pathname
+                return tabPath.split("/").filter(Boolean)[0] === targetSegment
+              } catch {
+                return false
+              }
+            })
+            if (sameTypeTab) {
+              updateTab(sameTypeTab.id, { url: resolvedUrl })
+              setActiveTab(sameTypeTab.id)
+              return
+            }
+          }
+        } catch {
+          // fall through to open new tab
+        }
+
+        openTabAction(resolvedUrl, undefined, { forceNewTab: true })
         return
       }
 
