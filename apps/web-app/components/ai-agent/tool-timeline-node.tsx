@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { ChevronDown, ChevronUp } from "lucide-react"
+import { useState, useEffect } from "react"
+import { ChevronDown, ChevronRight } from "lucide-react"
 import { type serverTools } from "@/packages/ai"
 import { getToolConfig } from "./tools"
 
@@ -12,6 +12,7 @@ export interface ToolCallData {
 
 export function ToolTimelineNode({ tool }: { tool: ToolCallData }) {
   const [expanded, setExpanded] = useState(false)
+
   const toolName = tool.toolName || tool.type || ""
   const args = tool.args || {}
 
@@ -55,9 +56,9 @@ export function ToolTimelineNode({ tool }: { tool: ToolCallData }) {
           )}
           {!config.isWasmInteractive &&
             (expanded ? (
-              <ChevronUp className="h-3.5 w-3.5 stroke-[1.5] opacity-80 flex-shrink-0 text-zinc-400" />
-            ) : (
               <ChevronDown className="h-3.5 w-3.5 stroke-[1.5] opacity-80 flex-shrink-0 text-zinc-400" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 stroke-[1.5] opacity-80 flex-shrink-0 text-zinc-400" />
             ))}
         </button>
 

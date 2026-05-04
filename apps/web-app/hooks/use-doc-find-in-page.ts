@@ -10,11 +10,11 @@ const MAIN_WINDOW_VIEW_ID = "__main__"
  * Hook to enable find-in-page for document content in the Desktop app.
  * Wires up the main window's native Electron find overlay.
  */
-export function useDocFindInPage(nodeType: ITreeNode["type"] = "doc") {
+export function useDocFindInPage(nodeType: string = "doc") {
   const { isFocused } = useTabContext()
 
   const shouldShowFindInPage = useMemo(() => {
-    return isDesktopMode && ["doc", "day"].includes(nodeType)
+    return isDesktopMode && ["doc", "day", "agent"].includes(nodeType)
   }, [isDesktopMode, nodeType])
 
   useEffect(() => {

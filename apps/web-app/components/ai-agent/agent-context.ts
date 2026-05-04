@@ -6,6 +6,8 @@ export interface AgentSessionContextType {
   setIsRunning: (running: boolean) => void
   goalInput: string
   setGoalInput: (goal: string) => void
+  isAllExpanded?: boolean
+  setIsAllExpanded?: (val: boolean) => void
 }
 
 export const AgentSessionContext =

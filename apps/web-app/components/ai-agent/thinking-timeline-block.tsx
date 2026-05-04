@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react"
-import { ChevronDown, ChevronUp } from "lucide-react"
+import { ChevronDown, ChevronRight } from "lucide-react"
 
 import { Streamdown } from "streamdown"
 import { code } from "@streamdown/code"
+import { useAgentSession } from "./agent-context"
 
 // @streamdown/code and streamdown bundle different shiki versions; cast to bypass type mismatch
 const plugins = { code: code as any }
@@ -58,7 +59,14 @@ export function ThinkingTimelineBlock({
   text,
   isThinking,
 }: ThinkingTimelineBlockProps) {
+  const { isAllExpanded } = useAgentSession()
   const [expanded, setExpanded] = useState(isThinking || false)
+
+  useEffect(() => {
+    if (isAllExpanded !== undefined) {
+      setExpanded(isAllExpanded)
+    }
+  }, [isAllExpanded])
 
   useEffect(() => {
     if (isThinking) {
@@ -93,9 +101,9 @@ export function ThinkingTimelineBlock({
             <>
               <span>Thought</span>
               {expanded ? (
-                <ChevronUp className="h-3.5 w-3.5 stroke-[1.5] opacity-80 flex-shrink-0" />
-              ) : (
                 <ChevronDown className="h-3.5 w-3.5 stroke-[1.5] opacity-80 flex-shrink-0" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 stroke-[1.5] opacity-80 flex-shrink-0" />
               )}
             </>
           )}

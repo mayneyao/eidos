@@ -11,6 +11,8 @@ import { useTabTitle } from "@/hooks/use-tab-title"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
+import { useIsActiveTab } from "@/apps/web-app/hooks/use-is-active-tab"
+import { useDocFindInPage } from "@/apps/web-app/hooks/use-doc-find-in-page"
 import {
   useAgentStore,
   fetchSessions,
@@ -59,6 +61,9 @@ function AgentPageContent({
 
   const [goalInput, setGoalInput] = useState("")
   const [isRunning, setIsRunning] = useState(false)
+  const [isAllExpanded, setIsAllExpanded] = useState<boolean | undefined>(
+    undefined
+  )
 
   const contextValue = useMemo(
     () => ({
@@ -67,9 +72,38 @@ function AgentPageContent({
       setIsRunning,
       goalInput,
       setGoalInput,
+      isAllExpanded,
+      setIsAllExpanded,
     }),
-    [routeSessionId, isRunning, goalInput]
+    [routeSessionId, isRunning, goalInput, isAllExpanded]
   )
+
+  useDocFindInPage("agent")
+
+  const isActiveTab = useIsActiveTab()
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isActiveTab) return
+
+      const isMac =
+        typeof window !== "undefined" &&
+        /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
+      const modifierPressed = isMac
+        ? e.metaKey && e.altKey
+        : e.ctrlKey && e.altKey
+
+      if (
+        modifierPressed &&
+        (e.code === "KeyT" || e.key.toLowerCase() === "t")
+      ) {
+        e.preventDefault()
+        setIsAllExpanded((prev) => !prev)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown, true)
+    return () => window.removeEventListener("keydown", handleKeyDown, true)
+  }, [isActiveTab])
 
   // Sync sidebar tab
   useEffect(() => {
@@ -204,7 +238,11 @@ function AgentPageContent({
     <AgentSessionContext.Provider value={contextValue}>
       <div className="flex h-full flex-col bg-background overflow-hidden relative">
         <div className="flex-1 relative w-full min-h-0">
-          <div className="h-full overflow-auto min-h-0">
+          <div
+            id="agent-chat-scroll-container"
+            className="h-full overflow-auto min-h-0 focus:outline-none"
+            tabIndex={-1}
+          >
             <div className="max-w-3xl mx-auto w-full px-6 py-4 pb-64">
               {messages.length > 0 ? (
                 <AgentChatArea

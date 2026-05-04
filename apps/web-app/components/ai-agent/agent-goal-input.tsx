@@ -1,9 +1,11 @@
 import { SendIcon, Loader2, StopCircleIcon } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, useMemo } from "react"
 
 import { Button } from "@/components/ui/button"
 import { AIModelSelect } from "@/components/ai/ai-model-select"
 import { useAppStore } from "@/apps/web-app/store/app-store"
+import { useIsActiveTab } from "@/apps/web-app/hooks/use-is-active-tab"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useAgentSession } from "./agent-context"
 
 interface AgentGoalInputProps {
@@ -30,7 +32,7 @@ export function AgentGoalInput({
   elapsedMs,
   onStop,
 }: AgentGoalInputProps) {
-  const { goalInput, setGoalInput } = useAgentSession()
+  const { goalInput, setGoalInput, sessionId } = useAgentSession()
   const { aiModel, setAIModel } = useAppStore()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [elapsed, setElapsed] = useState(elapsedMs)
@@ -47,6 +49,49 @@ export function AgentGoalInput({
     return () => clearInterval(interval)
   }, [isRunning, elapsedMs])
 
+  const isActiveTab = useIsActiveTab()
+
+  useEffect(() => {
+    const unsubscribe = useTabStore.subscribe((state) => {
+      if (state.getActiveTabId() !== sessionId) {
+        textareaRef.current?.blur()
+      }
+    })
+    return unsubscribe
+  }, [sessionId])
+
+  useEffect(() => {
+    if (isActiveTab && !isRunning) {
+      const timer = setTimeout(() => {
+        textareaRef.current?.focus()
+      }, 150)
+      return () => clearTimeout(timer)
+    }
+  }, [isActiveTab, isRunning])
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (!isActiveTab) return
+
+      if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const target = e.target as HTMLElement
+        const isInput =
+          target &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.isContentEditable)
+
+        if (!isInput) {
+          e.preventDefault()
+          textareaRef.current?.focus()
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleGlobalKeyDown)
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown)
+  }, [isActiveTab])
+
   const handleSubmit = useCallback(() => {
     const goal = goalInput.trim()
     if (!goal || isRunning) return
@@ -59,6 +104,15 @@ export function AgentGoalInput({
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault()
         handleSubmit()
+      } else if (e.key === "Escape") {
+        e.preventDefault()
+        textareaRef.current?.blur()
+        const scrollContainer = document.getElementById(
+          "agent-chat-scroll-container"
+        )
+        if (scrollContainer) {
+          scrollContainer.focus()
+        }
       }
     },
     [handleSubmit]
@@ -72,7 +126,7 @@ export function AgentGoalInput({
           value={goalInput}
           onChange={(e) => setGoalInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="What do you want the AI Agent to do?"
+          placeholder="What do you want the AI Agent to do? (Press / to focus)"
           className="min-h-[36px] w-full resize-none bg-transparent px-2 pt-1 text-[13px] leading-normal placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none"
           disabled={isRunning}
           autoFocus
@@ -98,6 +152,13 @@ export function AgentGoalInput({
             )}
           </div>
           <div className="flex items-center gap-2 select-none">
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono select-none opacity-60">
+              Toggle thoughts:{" "}
+              {typeof window !== "undefined" &&
+              /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
+                ? "⌥⌘T"
+                : "Ctrl+Alt+T"}
+            </span>
             {isRunning ? (
               <Button
                 variant="outline"
