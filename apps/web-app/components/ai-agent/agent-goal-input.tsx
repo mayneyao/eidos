@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { AIModelSelect } from "@/components/ai/ai-model-select"
 import { useAppStore } from "@/apps/web-app/store/app-store"
-import { useAgentStore } from "./agent-store"
+import { useAgentSession } from "./agent-context"
 
 interface AgentGoalInputProps {
   onSubmit: (goal: string, model: string) => void
@@ -30,7 +30,7 @@ export function AgentGoalInput({
   elapsedMs,
   onStop,
 }: AgentGoalInputProps) {
-  const { goalInput, setGoalInput } = useAgentStore()
+  const { goalInput, setGoalInput } = useAgentSession()
   const { aiModel, setAIModel } = useAppStore()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [elapsed, setElapsed] = useState(elapsedMs)

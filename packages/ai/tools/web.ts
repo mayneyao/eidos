@@ -1,7 +1,6 @@
-import type { Tool } from "ai"
-import { z } from "zod"
-import { parseHTML } from "linkedom"
 import { Defuddle } from "defuddle/node"
+import { parseHTML } from "linkedom"
+import { z } from "zod"
 
 const MAX_CONTENT_LENGTH = 30000
 const REQUEST_TIMEOUT_MS = 25_000
@@ -48,12 +47,32 @@ async function fetchAndExtract(url: string) {
   }
 }
 
+export interface WebSearchItem {
+  title: string
+  url: string
+  snippet: string
+}
+
+export interface WebSearchResult {
+  results: WebSearchItem[]
+  query: string
+}
+
+export interface WebFetchResult {
+  title: string
+  url: string
+  content: string
+}
+
 // ── Exa search ──────────────────────────────────────────────────────────
 
 const EXA_API_URL = "https://api.exa.ai/search"
 const EXA_API_KEY = "7d8f3234-dcdc-454b-bb93-b865567d8688"
 
-async function exaSearch(query: string, numResults: number) {
+async function exaSearch(
+  query: string,
+  numResults: number
+): Promise<WebSearchItem[]> {
   const res = await withTimeout(
     fetch(EXA_API_URL, {
       method: "POST",
@@ -77,6 +96,7 @@ async function exaSearch(query: string, numResults: number) {
     throw new Error(`Exa search failed: ${res.status} ${body}`)
   }
   const data = await res.json()
+  console.log("⚡ Exa cost:", data.costDollars)
   return (data.results ?? []).map((r: any) => ({
     title: r.title ?? "",
     url: r.url ?? "",
@@ -95,18 +115,18 @@ const fetchParams = z.object({
   url: z.string().url().describe("The URL to fetch and extract content from"),
 })
 
-export const webSearchTool: Tool = {
+export const webSearchTool = {
   description:
     "Search the web for information. Returns relevant results with titles, URLs, and snippets.",
   inputSchema: searchParams,
-  execute: async (args) => {
+  execute: async (args: unknown) => {
     const { query, num } = args as z.infer<typeof searchParams>
     const count = Math.min(num ?? 5, 10)
     console.log("[tool:webSearch] ▶", { query, count })
     try {
       const results = await exaSearch(query, count)
       console.log("[tool:webSearch] ✔", { resultCount: results.length })
-      return { results, query }
+      return { results, query } as WebSearchResult
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error("[tool:webSearch] ✖", msg)
@@ -115,11 +135,11 @@ export const webSearchTool: Tool = {
   },
 }
 
-export const webFetchTool: Tool = {
+export const webFetchTool = {
   description:
     "Fetch a web page and extract its main content as clean markdown. Removes ads, navigation, and other boilerplate.",
   inputSchema: fetchParams,
-  execute: async (args) => {
+  execute: async (args: unknown) => {
     const { url } = args as z.infer<typeof fetchParams>
     console.log("[tool:webFetch] ▶", { url })
     try {
@@ -128,7 +148,7 @@ export const webFetchTool: Tool = {
         title: result.title,
         contentLength: result.content.length,
       })
-      return result
+      return result as WebFetchResult
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error("[tool:webFetch] ✖", msg)

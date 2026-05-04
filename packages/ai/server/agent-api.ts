@@ -11,8 +11,7 @@ import {
 } from "ai"
 import type { UIMessage } from "ai"
 import { getProvider } from "../helper"
-import { serverTools } from "../tools"
-import { createTableTools } from "../tools/table"
+import { createBashTool, serverTools } from "../tools"
 
 export interface IAgentData {
   goal: string
@@ -76,14 +75,21 @@ export async function handleAgentApi(
   const modelId = modelAndProvider.split("@")[0]
   const llmodel = provider(modelId)
   const dataspace = space ? await ctx?.getDataspace(space) : null
-  const dsTools = dataspace ? createTableTools(dataspace) : {}
-  const mergedTools = { ...serverTools, ...dsTools, ...(tools ?? {}) }
+  console.log("[agent] ▶ dataspace resolved", {
+    space,
+    hasDataspace: !!dataspace,
+    hasCtx: !!ctx,
+  })
+  // const dsTools = dataspace ? createTableTools(dataspace) : {}
+  const bashWithDs = dataspace ? { bash: createBashTool(dataspace) } : {}
+  // const mergedTools = { ...serverTools, ...bashWithDs, ...dsTools, ...(tools ?? {}) }
+  const mergedTools = { ...serverTools, ...bashWithDs, ...(tools ?? {}) }
   const agentPrompt =
     systemPrompt || buildAgentSystemPrompt(goal, Object.keys(mergedTools))
 
   console.log("[agent] ▶ tools merged", {
     serverTools: Object.keys(serverTools),
-    dsTools: Object.keys(dsTools),
+    // dsTools: Object.keys(dsTools),
     clientTools: Object.keys(tools ?? {}),
     total: Object.keys(mergedTools).length,
   })

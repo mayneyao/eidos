@@ -1,5 +1,7 @@
 import { bashTool } from "./bash"
 import { webFetchTool, webSearchTool } from "./web"
+export { createBashTool } from "./bash"
+export * from "./web"
 
 export const serverTools = {
   webSearch: webSearchTool,
@@ -12,13 +14,13 @@ export const serverToolNames = [
   "webSearch",
   "webFetch",
   "bash",
-  "listTables",
-  "getTableSchema",
-  "createTable",
-  "deleteTable",
-  "addField",
-  "queryRecords",
-  "createRecords",
-  "updateRecords",
-  "deleteRecords",
+  // "listTables",
+  // "getTableSchema",
+  // "createTable",
+  // "deleteTable",
+  // "addField",
+  // "queryRecords",
+  // "createRecords",
+  // "updateRecords",
+  // "deleteRecords",
 ]

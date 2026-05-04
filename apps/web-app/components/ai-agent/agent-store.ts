@@ -16,12 +16,11 @@ interface AgentStore {
   sessions: SessionMeta[]
   setSessions: (sessions: SessionMeta[]) => void
 
+  // Backward-compatibility stubs
   isRunning: boolean
   setIsRunning: (running: boolean) => void
-
   goalInput: string
   setGoalInput: (goal: string) => void
-
   currentSessionId: string | null
   setCurrentSession: (id: string | null) => void
 
@@ -36,13 +35,11 @@ export const useAgentStore = create<AgentStore>()(
       setSessions: (sessions) => set({ sessions }),
 
       isRunning: false,
-      setIsRunning: (running) => set({ isRunning: running }),
-
+      setIsRunning: () => {},
       goalInput: "",
-      setGoalInput: (goal) => set({ goalInput: goal }),
-
+      setGoalInput: () => {},
       currentSessionId: null,
-      setCurrentSession: (id) => set({ currentSessionId: id }),
+      setCurrentSession: () => {},
 
       maxSteps: 10,
       setMaxSteps: (steps) => set({ maxSteps: steps }),
