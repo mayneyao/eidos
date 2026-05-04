@@ -184,12 +184,33 @@ export class SyncService extends IpcServiceBase {
     error?: string
   }> {
     try {
-      // TODO: Implement actual remote space listing
+      const credentials = await this.credentials.getSyncCredentials(providerId)
+      if (!credentials) {
+        return {
+          success: false,
+          error: "No credentials found for this provider",
+        }
+      }
+
+      const s3Client = new BucketClient({
+        endpoint: credentials.endpoint,
+        region: credentials.region,
+        accessKeyId: credentials.accessKeyId,
+        secretAccessKey: credentials.secretAccessKey,
+        bucketName: credentials.bucketName,
+      })
+
+      const folders = await s3Client.listRootFolders(credentials.bucketName)
+
+      // Strip trailing "/" from folder paths to get space names
+      const spaces = folders.map((f) => f.replace(/\/$/, ""))
+
       return {
         success: true,
-        spaces: [],
+        spaces,
       }
     } catch (error) {
+      console.error("Failed to list remote spaces:", error)
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
