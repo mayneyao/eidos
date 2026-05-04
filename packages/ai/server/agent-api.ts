@@ -47,7 +47,10 @@ Be proactive. Don't ask for confirmation — just execute the plan.`
 
 export async function handleAgentApi(
   data: IAgentData,
-  ctx?: { getDataspace: (space: string) => Promise<DataSpace | null> }
+  ctx?: {
+    getDataspace: (space: string) => Promise<DataSpace | null>
+    getSpaceInfo?: (space: string) => { path: string } | null
+  }
 ) {
   const {
     goal,
@@ -82,7 +85,11 @@ export async function handleAgentApi(
     hasCtx: !!ctx,
   })
   // const dsTools = dataspace ? createTableTools(dataspace) : {}
-  const bashWithDs = dataspace ? { bash: createBashTool(dataspace) } : {}
+  const spaceInfo = space && ctx?.getSpaceInfo ? ctx.getSpaceInfo(space) : null
+  const bashWithDs =
+    dataspace && spaceInfo
+      ? { bash: createBashTool({ dataspace, spaceInfo }) }
+      : {}
   // const mergedTools = { ...serverTools, ...bashWithDs, ...dsTools, ...(tools ?? {}) }
   const mergedTools = { ...serverTools, ...bashWithDs, ...(tools ?? {}) }
   const agentPrompt =

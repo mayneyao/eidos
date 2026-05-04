@@ -1,4 +1,4 @@
-import { createAgentMiddleware } from "@/packages/ai/index"
+import { createAgentMiddleware } from "@/packages/ai/server"
 import {
   containsBinaryData,
   parseMultipartFormData,
@@ -98,6 +98,10 @@ export function setupApiRoutes(app: Hono, ctx: ServerContext) {
         space
           ? ctx.dataSpaceManager.getOrSetDataSpace(space)
           : Promise.resolve(null),
+      getSpaceInfo: (space: string) => {
+        const info = ctx.spaceRegistry.getSpace(space)
+        return info ? { path: info.path } : null
+      },
     })
   )
 }

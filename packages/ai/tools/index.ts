@@ -1,12 +1,10 @@
-import { bashTool } from "./bash"
 import { webFetchTool, webSearchTool } from "./web"
-export { createBashTool } from "./bash"
+export { createBashTool, type BashToolContext, type SpaceInfo } from "./bash"
 export * from "./web"
 
 export const serverTools = {
   webSearch: webSearchTool,
   webFetch: webFetchTool,
-  bash: bashTool,
 }
 
 /** Names of tools that run server-side (executed by ToolLoopAgent, not the frontend) */

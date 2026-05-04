@@ -6,6 +6,7 @@ import { handleAgentApi, type IAgentData } from "./agent-api"
 
 export function createAgentMiddleware(options: {
   getDataspace: (space: string) => Promise<DataSpace | null>
+  getSpaceInfo?: (space: string) => { path: string } | null
 }) {
   const app = new Hono()
 

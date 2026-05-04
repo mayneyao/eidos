@@ -1,31 +1,94 @@
 import type { Tool } from "ai"
 import { z } from "zod"
-import { Bash, InMemoryFs } from "just-bash"
+import { Bash, InMemoryFs, MountableFs, ReadWriteFs } from "just-bash"
 import type { DataSpace } from "@/packages/core/data-space"
 import { EidosTreeFs } from "./eidos-tree-fs"
 
 const MAX_OUTPUT_LENGTH = 30000
+
+const MOUNT_PREFIX = "eidos:space:files:mount:"
+
+export interface SpaceInfo {
+  path: string
+}
+
+export interface BashToolContext {
+  dataspace: DataSpace
+  spaceInfo: SpaceInfo
+}
 
 const bashParams = z.object({
   command: z.string().describe("The bash command to execute"),
 })
 
 /**
- * Create a sandboxed bash tool.
- * When dataspace is provided, uses EidosTreeFs as the root filesystem.
+ * Load mount configs from the KV store.
+ * Returns an array of { name, physicalPath } entries.
  */
-export function createBashTool(dataspace?: DataSpace): Tool {
+async function loadMounts(
+  ds: DataSpace
+): Promise<Array<{ name: string; physicalPath: string }>> {
+  try {
+    const records = await ds.kv.listWithPrefix({ prefix: MOUNT_PREFIX })
+    return records
+      .filter((r) => r.value)
+      .map((r) => ({
+        name: r.key.slice(MOUNT_PREFIX.length),
+        physicalPath: r.value,
+      }))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Build the composite filesystem for the AI agent:
+ *
+ *   /            → InMemoryFs (base, mostly unused)
+ *   /dataspace/  → EidosTreeFs (read-only SQLite virtual fs)
+ *   /~/          → ReadWriteFs (space physical directory)
+ *   /@/<mount>/  → ReadWriteFs (each mounted external directory)
+ */
+async function buildAgentFs(ctx: BashToolContext) {
+  const { dataspace, spaceInfo } = ctx
+
+  const treeFs = new EidosTreeFs(dataspace)
+  await treeFs.healthCheck()
+
+  const mounts = await loadMounts(dataspace)
+
+  const fs = new MountableFs({
+    base: new InMemoryFs(),
+    mounts: [
+      { mountPoint: "/dataspace", filesystem: treeFs },
+      {
+        mountPoint: "/~",
+        filesystem: new ReadWriteFs({ root: spaceInfo.path }),
+      },
+      ...mounts.map((m) => ({
+        mountPoint: `/@/${m.name}`,
+        filesystem: new ReadWriteFs({ root: m.physicalPath }),
+      })),
+    ],
+  })
+
+  return fs
+}
+
+/**
+ * Create a sandboxed bash tool.
+ * When ctx is provided, composes a MountableFs with:
+ *   /dataspace/  → EidosTreeFs (knowledge base, read-only)
+ *   /~/          → space physical directory (read-write)
+ *   /@/<mount>/  → mounted external directories (read-write)
+ */
+export function createBashTool(ctx: BashToolContext): Tool {
   let bashInstance: Bash | null = null
 
   async function getBash(): Promise<Bash> {
     if (bashInstance) return bashInstance
 
-    let fs: InMemoryFs | EidosTreeFs = new InMemoryFs()
-    if (dataspace) {
-      const treeFs = new EidosTreeFs(dataspace)
-      await treeFs.healthCheck()
-      fs = treeFs
-    }
+    const fs = await buildAgentFs(ctx)
 
     bashInstance = new Bash({
       fs,
@@ -39,9 +102,11 @@ export function createBashTool(dataspace?: DataSpace): Tool {
     return bashInstance
   }
 
-  const description = dataspace
-    ? `Execute a bash command in a sandboxed virtual filesystem backed by the user's knowledge base. The root / contains the user's tree nodes (folders, docs, tables). Use ls, cat, find to explore. Supports pipes, redirections, variables, and common Unix tools (grep, sed, awk, find, sort, uniq, wc, head, tail, cat, echo, etc.).`
-    : `Execute a bash command in a sandboxed virtual environment with an in-memory filesystem. Supports pipes, redirections, variables, subshells, and common Unix tools (grep, sed, awk, find, sort, uniq, wc, head, tail, cat, echo, etc.). The working directory is /workspace.`
+  const description = `Execute a bash command in a sandboxed filesystem. Available mounts:
+  /dataspace/  — knowledge base (read-only): tree nodes, docs, tables
+  /~/          — space project folder (read-write)
+  /@/<name>/   — mounted external directories (read-write)
+Use ls, cat, rg (ripgrep) to explore. Prefer using rg for searching rather than find. Supports pipes, redirections, variables, and common Unix tools.`
 
   return {
     description,
@@ -76,6 +141,3 @@ export function createBashTool(dataspace?: DataSpace): Tool {
     },
   }
 }
-
-/** Default bash tool without dataspace (no /dataspace mount) */
-export const bashTool = createBashTool()
