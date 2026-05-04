@@ -297,4 +297,15 @@ export class FSManager {
   async search(query: string, searchPaths?: string[]): Promise<string[]> {
     return await this.externalFS.search(query, searchPaths)
   }
+
+  /**
+   * Search file contents
+   */
+  async searchContent(
+    query: string,
+    searchPaths?: string[],
+    options?: { maxResults?: number; filePattern?: string }
+  ): Promise<Array<{ filePath: string; lineNumber: number; content: string }>> {
+    return await this.externalFS.searchContent(query, searchPaths, options)
+  }
 }

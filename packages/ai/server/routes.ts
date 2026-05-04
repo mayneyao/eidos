@@ -98,24 +98,41 @@ export function createAgentMiddleware(options: {
     }
 
     const store = new AgentSessionStore(dataspace)
-    const existing = await store.load(id)
+    const existing = await store.loadMeta(id)
 
-    const session: any = {
+    await store.saveMeta(id, {
       id,
       goal: existing?.goal ?? body.goal ?? "",
       status: "completed",
-      planSteps: [],
-      messages: body.messages ?? [],
-      model: body.model ?? existing?.model,
+      model: body.model ?? existing?.model ?? "",
       space: space ?? "",
       createdAt: existing?.createdAt ?? new Date().toISOString(),
       completedAt: new Date().toISOString(),
       maxSteps: body.maxSteps ?? 10,
+    })
+
+    if (body.messages) {
+      await store.saveMessages(id, body.messages)
     }
 
-    await store.save(session)
     return c.json({ success: true })
   }
+
+  // Search agent sessions (must be before :id route)
+  app.get("/api/agent/sessions/search", async (c: any) => {
+    const space = extractSpace(c)
+    const q = c.req.query("q")
+
+    if (!space) return c.json({ error: "space is required" }, 400)
+    if (!q) return c.json({ results: [] })
+
+    const dataspace = await options.getDataspace(space)
+    if (!dataspace) return c.json({ error: "space not found" }, 404)
+
+    const store = new AgentSessionStore(dataspace)
+    const results = await store.search(q)
+    return c.json({ results })
+  })
 
   // Handle GET requests
   app.get("/api/agent/sessions/:id?", handleGetRequest)

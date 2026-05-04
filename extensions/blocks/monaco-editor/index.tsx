@@ -60,6 +60,7 @@ export const meta = {
       ".sass",
       // Data & Config
       ".json",
+      ".jsonl",
       ".yaml",
       ".yml",
       ".toml",
@@ -118,6 +119,7 @@ function getLanguageFromPath(filePath: string): string {
     sass: "scss",
     // Data
     json: "json",
+    jsonl: "json",
     yaml: "yaml",
     yml: "yaml",
     xml: "xml",

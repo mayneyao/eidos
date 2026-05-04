@@ -52,11 +52,31 @@ export const useAgentStore = create<AgentStore>()(
   )
 )
 
+export interface SessionSearchResult {
+  sessionId: string
+  goal: string
+  status: string
+  createdAt: string
+  completedAt?: string
+  snippets: Array<{ lineNumber: number; content: string }>
+}
+
 // API helpers — fetch raw session data (messages stored in UIMessage format in JSON)
 export async function fetchSessions(): Promise<SessionMeta[]> {
   const res = await fetch(`/api/agent/sessions`)
   if (!res.ok) return []
   return res.json()
+}
+
+export async function searchSessions(
+  query: string
+): Promise<SessionSearchResult[]> {
+  const res = await fetch(
+    `/api/agent/sessions/search?q=${encodeURIComponent(query)}`
+  )
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.results ?? []
 }
 
 export async function fetchSession(

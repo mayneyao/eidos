@@ -94,10 +94,10 @@ export function AgentGoalInput({
 
   const handleSubmit = useCallback(() => {
     const goal = goalInput.trim()
-    if (!goal || isRunning) return
+    if (!goal) return
     onSubmit(goal, aiModel)
     setGoalInput("")
-  }, [goalInput, isRunning, aiModel, onSubmit, setGoalInput])
+  }, [goalInput, aiModel, onSubmit, setGoalInput])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -128,7 +128,6 @@ export function AgentGoalInput({
           onKeyDown={handleKeyDown}
           placeholder="What do you want the AI Agent to do? (Press / to focus)"
           className="min-h-[36px] w-full resize-none bg-transparent px-2 pt-1 text-[13px] leading-normal placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none"
-          disabled={isRunning}
           autoFocus
         />
         <div className="flex items-center justify-between px-1.5 mt-1.5">
@@ -159,7 +158,7 @@ export function AgentGoalInput({
                 ? "⌥⌘T"
                 : "Ctrl+Alt+T"}
             </span>
-            {isRunning ? (
+            {isRunning && (
               <Button
                 variant="outline"
                 size="sm"
@@ -169,15 +168,16 @@ export function AgentGoalInput({
                 <StopCircleIcon className="h-3.5 w-3.5 mr-1" />
                 Stop
               </Button>
-            ) : (
+            )}
+            {(!isRunning || goalInput.trim()) && (
               <Button
                 size="sm"
                 onClick={handleSubmit}
-                disabled={!goalInput.trim() || isRunning}
+                disabled={!goalInput.trim()}
                 className="h-7 px-3 rounded-lg text-xs font-normal"
               >
                 <SendIcon className="h-3 w-3 mr-1" />
-                Send
+                {isRunning ? "Interrupt & Send" : "Send"}
               </Button>
             )}
           </div>

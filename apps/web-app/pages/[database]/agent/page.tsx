@@ -188,6 +188,10 @@ function AgentPageContent({
       setStartTime(Date.now())
       setStepCount(0)
 
+      if (isRunning) {
+        stop()
+      }
+
       if (!routeSessionId) {
         // If it's a new session, update URL
         navigate(`/agent/${sessionId}`, { replace: true })
@@ -199,19 +203,27 @@ function AgentPageContent({
 
       const config = getConfigByModel(model)
 
-      sendMessage(
-        { text: goal },
-        {
-          body: {
-            goal,
-            model,
-            id: sessionId,
-            space,
-            maxSteps: 100,
-            ...config,
-          },
-        }
-      )
+      const proceed = () => {
+        sendMessage(
+          { text: goal },
+          {
+            body: {
+              goal,
+              model,
+              id: sessionId,
+              space,
+              maxSteps: 100,
+              ...config,
+            },
+          }
+        )
+      }
+
+      if (isRunning) {
+        setTimeout(proceed, 50)
+      } else {
+        proceed()
+      }
     },
     [
       space,
@@ -220,6 +232,8 @@ function AgentPageContent({
       setStoreSessionId,
       sendMessage,
       navigate,
+      isRunning,
+      stop,
     ]
   )
 

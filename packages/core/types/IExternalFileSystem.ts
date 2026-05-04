@@ -226,4 +226,17 @@ export interface IExternalFileSystem {
    * @returns Array of matching file paths (virtual paths)
    */
   search(query: string, searchPaths?: string[]): Promise<string[]>
+
+  /**
+   * Search file contents
+   * @param query Search query
+   * @param searchPaths Optional array of paths to search within
+   * @param options Optional search options
+   * @returns Array of matching content results
+   */
+  searchContent(
+    query: string,
+    searchPaths?: string[],
+    options?: { maxResults?: number; filePattern?: string }
+  ): Promise<Array<{ filePath: string; lineNumber: number; content: string }>>
 }

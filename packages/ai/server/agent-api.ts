@@ -1,9 +1,10 @@
-import type { AgentSession } from "@/packages/core/agent-session/agent-session-store"
 import { AgentSessionStore } from "@/packages/core/agent-session/agent-session-store"
 import type { DataSpace } from "@/packages/core/data-space"
 import {
   ToolLoopAgent,
   convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
   extractReasoningMiddleware,
   smoothStream,
   stepCountIs,
@@ -108,45 +109,80 @@ export async function handleAgentApi(
   // reasoning, etc.) correctly — this is the official SDK conversion path.
   const modelMessages = await convertToModelMessages(messages)
 
-  console.log("[agent] ▶ calling agent.stream()")
-  const result = await agent.stream({
-    experimental_transform: smoothStream({ delayInMs: 20 }),
-    messages: modelMessages as any,
-  })
-  console.log("[agent] ▶ stream created, returning response")
+  const store = dataspace ? new AgentSessionStore(dataspace) : null
 
-  return result.toUIMessageStreamResponse({
+  // Write initial meta.json (status: executing)
+  const createdAt = new Date().toISOString()
+  if (store) {
+    await store.saveMeta(id, {
+      id,
+      goal,
+      status: "executing",
+      model: modelAndProvider,
+      space: space ?? "",
+      createdAt,
+      maxSteps,
+    })
+    // Persist the latest user message so it's not lost if the stream crashes
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
+    if (lastUserMsg) await store.appendUserMessage(id, lastUserMsg)
+  }
+
+  console.log("[agent] ▶ creating UI message stream")
+
+  // Track how many parts have been written per messageId to avoid duplicates.
+  // onStepFinish provides accumulated parts (all steps so far), not just the new ones.
+  const writtenParts = new Map<string, number>()
+
+  const uiStream = createUIMessageStream({
+    execute: async ({ writer }) => {
+      const result = await agent.stream({
+        experimental_transform: smoothStream({ delayInMs: 20 }),
+        messages: modelMessages as any,
+      })
+      const stream = result.toUIMessageStream({ originalMessages: messages })
+      for await (const chunk of stream) {
+        writer.write(chunk)
+      }
+    },
     originalMessages: messages,
+    onStepFinish: async ({ responseMessage }) => {
+      if (!store) return
+      const msgId = responseMessage.id
+      const prevCount = writtenParts.get(msgId) ?? 0
+      const newParts = responseMessage.parts.slice(prevCount)
+      if (newParts.length === 0) return
+      writtenParts.set(msgId, responseMessage.parts.length)
+      console.log("[agent] ▶ onStepFinish — appending new parts", {
+        id,
+        newCount: newParts.length,
+        totalCount: responseMessage.parts.length,
+      })
+      try {
+        await store.appendStepMessage(id, msgId, newParts)
+      } catch (err) {
+        console.error("[agent] ✖ onStepFinish error", {
+          id,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    },
     onFinish: async ({ messages: finalMessages }) => {
-      if (!dataspace || !id) return
-
-      console.log("[agent] ▶ onFinish — saving session", {
+      if (!store) return
+      console.log("[agent] ▶ onFinish — saving meta", {
         id,
         messageCount: finalMessages.length,
       })
-
       try {
-        const store = new AgentSessionStore(dataspace)
-        const existing = await store.load(id)
-
-        const session: AgentSession = {
+        await store.saveMeta(id, {
           id,
-          goal: existing?.goal ?? goal,
+          goal,
           status: "completed",
-          planSteps: [],
-          // finalMessages is UIMessage[] — the canonical format recommended by AI SDK
-          messages: finalMessages,
           model: modelAndProvider,
           space: space ?? "",
-          createdAt: existing?.createdAt ?? new Date().toISOString(),
+          createdAt,
           completedAt: new Date().toISOString(),
           maxSteps,
-        }
-
-        await store.save(session)
-        console.log("[agent] ▶ session saved", {
-          id,
-          messageCount: finalMessages.length,
         })
       } catch (err) {
         console.error("[agent] ✖ onFinish error", {
@@ -156,4 +192,6 @@ export async function handleAgentApi(
       }
     },
   })
+
+  return createUIMessageStreamResponse({ stream: uiStream })
 }

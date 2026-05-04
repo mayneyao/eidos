@@ -990,6 +990,17 @@ export class VirtualFsAdapter implements IExternalFileSystem {
   }
 
   /**
+   * Search file contents
+   */
+  async searchContent(
+    query: string,
+    searchPaths?: string[],
+    options?: { maxResults?: number; filePattern?: string }
+  ): Promise<Array<{ filePath: string; lineNumber: number; content: string }>> {
+    return this.underlyingFS.searchContent(query, searchPaths, options)
+  }
+
+  /**
    * Rename a file or directory
    * For virtual paths, this updates the database
    */

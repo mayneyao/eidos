@@ -17,7 +17,7 @@ import type {
  * Helper to get the path to the ripgrep binary
  * Handles both development and production (ASAR) environments
  */
-import { searchWithRg } from "./search"
+import { searchWithRg, searchContentWithRg } from "./search"
 
 /**
  * Node.js implementation for desktop environment
@@ -605,5 +605,86 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
       console.error("Search failed:", error)
       return []
     }
+  }
+
+  /**
+   * Search file contents using ripgrep
+   */
+  async searchContent(
+    query: string,
+    searchPaths?: string[],
+    options?: { maxResults?: number; filePattern?: string }
+  ): Promise<Array<{ filePath: string; lineNumber: number; content: string }>> {
+    const mounts = await this.getMounts()
+    const projectRoot = await this.resolvePath("~/")
+
+    if (!projectRoot) return []
+
+    const validMounts: typeof mounts = []
+    for (const mount of mounts) {
+      try {
+        await fs.access(mount.path)
+        validMounts.push(mount)
+      } catch {
+        // Skip unavailable mounts
+      }
+    }
+
+    let absoluteSearchPaths: string[]
+
+    if (searchPaths && searchPaths.length > 0) {
+      absoluteSearchPaths = []
+      for (const virtualPath of searchPaths) {
+        try {
+          const absolutePath = await this.resolvePath(virtualPath)
+          if (absolutePath) {
+            try {
+              await fs.access(absolutePath)
+              absoluteSearchPaths.push(absolutePath)
+            } catch {
+              // Path doesn't exist
+            }
+          }
+        } catch {
+          // Failed to resolve
+        }
+      }
+    } else {
+      absoluteSearchPaths = [projectRoot, ...validMounts.map((m) => m.path)]
+    }
+
+    if (absoluteSearchPaths.length === 0) return []
+
+    const results = await searchContentWithRg(
+      query,
+      absoluteSearchPaths,
+      options
+    )
+
+    // Map absolute paths back to virtual paths
+    return results.map((r) => {
+      let virtualPath = r.filePath
+
+      for (const mount of validMounts) {
+        if (r.filePath.startsWith(mount.path)) {
+          const relative = path
+            .relative(mount.path, r.filePath)
+            .replace(/\\/g, "/")
+          virtualPath = relative
+            ? `@/${mount.name}/${relative}`
+            : `@/${mount.name}`
+          break
+        }
+      }
+
+      if (r.filePath.startsWith(projectRoot)) {
+        const relative = path
+          .relative(projectRoot, r.filePath)
+          .replace(/\\/g, "/")
+        virtualPath = `~/${relative}`
+      }
+
+      return { ...r, filePath: virtualPath }
+    })
   }
 }

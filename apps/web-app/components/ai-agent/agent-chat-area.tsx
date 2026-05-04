@@ -69,9 +69,9 @@ export function AgentChatArea({
 
   return (
     <div className="flex flex-col w-full space-y-2 select-text">
-      {mergedMessages.map((m) => (
+      {mergedMessages.map((m, i) => (
         <MessageBubble
-          key={m.id}
+          key={m.id || `msg-${i}`}
           message={m}
           globalResults={results}
           isLastMessage={m.id === lastMessageId}
