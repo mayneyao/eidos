@@ -1,4 +1,4 @@
-import { SendIcon, Loader2, StopCircleIcon } from "lucide-react"
+import { SendIcon, Loader2, StopCircleIcon, Brain } from "lucide-react"
 import { useCallback, useEffect, useRef, useState, useMemo } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -32,7 +32,13 @@ export function AgentGoalInput({
   elapsedMs,
   onStop,
 }: AgentGoalInputProps) {
-  const { goalInput, setGoalInput, sessionId } = useAgentSession()
+  const {
+    goalInput,
+    setGoalInput,
+    sessionId,
+    thinkingLevel,
+    setThinkingLevel,
+  } = useAgentSession()
   const { aiModel, setAIModel } = useAppStore()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [elapsed, setElapsed] = useState(elapsedMs)
@@ -151,13 +157,28 @@ export function AgentGoalInput({
             )}
           </div>
           <div className="flex items-center gap-2 select-none">
-            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono select-none opacity-60">
-              Toggle thoughts:{" "}
-              {typeof window !== "undefined" &&
-              /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
-                ? "⌥⌘T"
-                : "Ctrl+Alt+T"}
-            </span>
+            <div className="flex items-center gap-1">
+              <Brain className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500" />
+              <select
+                value={thinkingLevel ?? "off"}
+                onChange={(e) =>
+                  setThinkingLevel?.(
+                    e.target.value as "off" | "low" | "medium" | "high"
+                  )
+                }
+                className="h-7 text-[11px] bg-transparent border-none focus:outline-none focus:ring-0 cursor-pointer text-zinc-500 dark:text-zinc-400 appearance-none pr-4"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "right 0 center",
+                }}
+              >
+                <option value="off">Thinking: off</option>
+                <option value="low">Thinking: low</option>
+                <option value="medium">Thinking: medium</option>
+                <option value="high">Thinking: high</option>
+              </select>
+            </div>
             {isRunning && (
               <Button
                 variant="outline"

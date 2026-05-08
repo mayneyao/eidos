@@ -8,6 +8,8 @@ export interface AgentSessionContextType {
   setGoalInput: (goal: string) => void
   isAllExpanded?: boolean
   setIsAllExpanded?: (val: boolean) => void
+  thinkingLevel?: "off" | "low" | "medium" | "high"
+  setThinkingLevel?: (val: "off" | "low" | "medium" | "high") => void
 }
 
 export const AgentSessionContext =

@@ -62,6 +62,9 @@ function AgentPageContent({
   const [isAllExpanded, setIsAllExpanded] = useState<boolean | undefined>(
     undefined
   )
+  const [thinkingLevel, setThinkingLevel] = useState<
+    "off" | "low" | "medium" | "high"
+  >("off")
 
   const contextValue = useMemo(
     () => ({
@@ -72,8 +75,10 @@ function AgentPageContent({
       setGoalInput,
       isAllExpanded,
       setIsAllExpanded,
+      thinkingLevel,
+      setThinkingLevel,
     }),
-    [routeSessionId, isRunning, goalInput, isAllExpanded]
+    [routeSessionId, isRunning, goalInput, isAllExpanded, thinkingLevel]
   )
 
   useDocFindInPage("agent")
@@ -216,6 +221,7 @@ function AgentPageContent({
               id: sessionId,
               space,
               maxSteps: 100,
+              thinking: thinkingLevel,
             },
           }
         )
@@ -235,6 +241,7 @@ function AgentPageContent({
       navigate,
       isRunning,
       stop,
+      thinkingLevel,
     ]
   )
 

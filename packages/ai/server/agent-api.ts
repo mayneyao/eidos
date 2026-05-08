@@ -28,12 +28,30 @@ export interface IAgentData {
   id: string
   tools?: Record<string, unknown>
   maxSteps?: number
+  thinking?: "off" | "low" | "medium" | "high"
 }
+
+export type ThinkingLevel = NonNullable<IAgentData["thinking"]>
 
 /**
  * Resolve LLM provider credentials from the AI config using the model string.
  * Model format: "modelId@providerName" (e.g. "gpt-4o@openai")
  */
+function buildProviderOptions(
+  providerType: string | undefined,
+  thinking: ThinkingLevel
+): Record<string, any> | undefined {
+  if (thinking === "off") return undefined
+  switch (providerType) {
+    case "anthropic":
+      return { anthropic: { thinking: { type: "enabled" }, effort: thinking } }
+    case "openai":
+      return { openai: { reasoningEffort: thinking } }
+    default:
+      return undefined
+  }
+}
+
 function resolveProviderFromConfig(
   modelAndProvider: string,
   aiConfig: AIFormValues | undefined
@@ -43,7 +61,7 @@ function resolveProviderFromConfig(
   const providerName = parts[1]
 
   if (!aiConfig || !providerName) {
-    return { modelId, provider: getProvider({}) }
+    return { modelId, provider: getProvider({}), providerType: undefined }
   }
 
   const llmProvider = aiConfig.llmProviders.find(
@@ -51,7 +69,7 @@ function resolveProviderFromConfig(
   )
 
   if (!llmProvider) {
-    return { modelId, provider: getProvider({}) }
+    return { modelId, provider: getProvider({}), providerType: undefined }
   }
 
   return {
@@ -61,6 +79,7 @@ function resolveProviderFromConfig(
       baseUrl: llmProvider.baseUrl,
       type: llmProvider.type,
     }),
+    providerType: llmProvider.type,
   }
 }
 
@@ -82,6 +101,7 @@ export async function handleAgentApi(
     id,
     tools,
     maxSteps = 100,
+    thinking,
   } = data
 
   const aiConfig = ctx?.getAIConfig?.()
@@ -96,7 +116,7 @@ export async function handleAgentApi(
     maxSteps,
   })
 
-  const { modelId, provider } = resolveProviderFromConfig(
+  const { modelId, provider, providerType } = resolveProviderFromConfig(
     modelAndProvider,
     aiConfig
   )
@@ -134,6 +154,8 @@ export async function handleAgentApi(
     total: Object.keys(mergedTools).length,
   })
 
+  const providerOptions = buildProviderOptions(providerType, thinking ?? "off")
+
   const agent = new ToolLoopAgent({
     model: wrapLanguageModel({
       model: llmodel,
@@ -142,6 +164,7 @@ export async function handleAgentApi(
     instructions: agentCtx.buildInstructions(),
     tools: mergedTools as Record<string, any>,
     stopWhen: stepCountIs(maxSteps),
+    ...(providerOptions ? { providerOptions } : {}),
   })
 
   // convertToModelMessages handles all UIMessage parts (tool-call, tool-result,
