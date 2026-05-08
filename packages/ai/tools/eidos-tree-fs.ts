@@ -1,4 +1,4 @@
-import type { IFileSystem, FsStat } from "just-bash"
+import type { IFileSystem, FsStat, FileContent } from "just-bash"
 import type { DataSpace } from "@/packages/core/data-space"
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 
@@ -25,8 +25,12 @@ function permDenied(path: string): never {
 }
 
 /**
- * A read-only IFileSystem backed by eidos__tree.
+ * An IFileSystem backed by eidos__tree.
  * Loads all nodes into memory on first access for fast traversal.
+ * Doc nodes are writable via writeFile/appendFile (markdown content).
+ * writeFile auto-creates doc nodes when the target path does not exist.
+ * mkdir creates folder nodes (supports recursive mode).
+ * All other write operations remain read-only (EPERM).
  */
 export class EidosTreeFs implements IFileSystem {
   private ds: DataSpace
@@ -113,6 +117,33 @@ export class EidosTreeFs implements IFileSystem {
     if (!path.startsWith("/")) path = "/" + path
     if (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1)
     return path
+  }
+
+  private decodeContent(
+    content: FileContent,
+    options?: { encoding?: string } | string
+  ): string {
+    if (typeof content === "string") return content
+    const encoding =
+      typeof options === "string" ? options : (options?.encoding ?? "utf-8")
+    return new TextDecoder(encoding).decode(content)
+  }
+
+  private async resolveWritableDoc(path: string): Promise<ITreeNode> {
+    await this.ensureLoaded()
+    const node = this.resolveNodeSync(path)
+    if (!node) notFound(path)
+    if (node.type === "folder") {
+      const err = new Error(
+        `EISDIR: illegal operation on a directory, '${path}'`
+      ) as any
+      err.code = "EISDIR"
+      throw err
+    }
+    if (node.type !== "doc") {
+      permDenied(path)
+    }
+    return node
   }
 
   private nodeToStat(node: ITreeNode): FsStat {
@@ -269,16 +300,173 @@ export class EidosTreeFs implements IFileSystem {
     return []
   }
 
-  // ── Write operations — all rejected ────────────────────────────────
+  // ── Write operations ───────────────────────────────────────────────
 
-  async writeFile(path: string): Promise<void> {
-    permDenied(path)
+  async writeFile(
+    path: string,
+    content: FileContent,
+    options?: { encoding?: string } | string
+  ): Promise<void> {
+    await this.ensureLoaded()
+    const normalized = this.normalize(path)
+    let node = this.resolveNodeSync(normalized)
+
+    if (!node) {
+      // Auto-create doc node: extract parent path and node name
+      const segments = normalized.split("/").filter(Boolean)
+      const name = segments.pop()!
+      const parentPath = segments.length > 0 ? "/" + segments.join("/") : "/"
+      let parentId: string | null = null
+
+      if (parentPath !== "/") {
+        const parentNode = this.resolveNodeSync(parentPath)
+        if (!parentNode) notFound(path)
+        if (parentNode.type !== "folder") {
+          const err = new Error(
+            `ENOTDIR: not a directory, '${parentPath}'`
+          ) as any
+          err.code = "ENOTDIR"
+          throw err
+        }
+        parentId = parentNode.id
+      }
+
+      const id = crypto.randomUUID().replace(/-/g, "")
+      node = await this.ds.tree.add({
+        id,
+        name,
+        type: "doc",
+        parent_id: parentId || undefined,
+        hide_properties: true,
+      } as any)
+
+      // Update in-memory caches
+      this.idToNode.set(node.id, node)
+      const pid = node.parent_id ?? null
+      let list = this.parentToChildren.get(pid)
+      if (!list) {
+        list = []
+        this.parentToChildren.set(pid, list)
+      }
+      list.push(node)
+      list.sort((a, b) => a.name.localeCompare(b.name))
+      this.pathCache.clear()
+    } else {
+      if (node.type === "folder") {
+        const err = new Error(
+          `EISDIR: illegal operation on a directory, '${path}'`
+        ) as any
+        err.code = "EISDIR"
+        throw err
+      }
+      if (node.type !== "doc") {
+        permDenied(path)
+      }
+    }
+
+    const markdown = this.decodeContent(content, options)
+    try {
+      await this.ds.doc.createOrUpdateWithMarkdown(node.id, markdown)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      const eio = new Error(
+        `EIO: i/o error writing '${path}': ${message}`
+      ) as any
+      eio.code = "EIO"
+      throw eio
+    }
   }
-  async appendFile(path: string): Promise<void> {
-    permDenied(path)
+
+  async appendFile(
+    path: string,
+    content: FileContent,
+    options?: { encoding?: string } | string
+  ): Promise<void> {
+    const node = await this.resolveWritableDoc(path)
+    const markdown = this.decodeContent(content, options)
+    try {
+      await this.ds.doc.createOrUpdate({
+        id: node.id,
+        text: markdown,
+        type: "markdown",
+        mode: "append",
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      const eio = new Error(
+        `EIO: i/o error appending '${path}': ${message}`
+      ) as any
+      eio.code = "EIO"
+      throw eio
+    }
   }
-  async mkdir(path: string): Promise<void> {
-    permDenied(path)
+  async mkdir(
+    path: string,
+    options?: { recursive?: boolean } | boolean
+  ): Promise<void> {
+    const recursive =
+      typeof options === "boolean" ? options : (options?.recursive ?? false)
+    await this.ensureLoaded()
+    const normalized = this.normalize(path)
+    const segments = normalized.split("/").filter(Boolean)
+
+    if (segments.length === 0) return // root always exists
+
+    let parentId: string | null = null
+
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i]
+      const children = this.getChildren(parentId)
+      const existing = children.find((c) => c.name === seg)
+
+      if (existing) {
+        if (i === segments.length - 1) {
+          // Target already exists
+          if (existing.type === "folder") return // EEXIST equivalent: just succeed
+          const err = new Error(`ENOTDIR: not a directory, '${path}'`) as any
+          err.code = "ENOTDIR"
+          throw err
+        }
+        if (existing.type !== "folder") {
+          if (!recursive) {
+            const err = new Error(
+              `ENOTDIR: not a directory, '${normalized}'`
+            ) as any
+            err.code = "ENOTDIR"
+            throw err
+          }
+          permDenied(path)
+        }
+        parentId = existing.id
+      } else {
+        // Segment doesn't exist
+        if (!recursive && i < segments.length - 1) {
+          notFound(path)
+        }
+        // Create folder node
+        const id = crypto.randomUUID().replace(/-/g, "")
+        const node = await this.ds.tree.add({
+          id,
+          name: seg,
+          type: "folder",
+          parent_id: parentId || undefined,
+        } as any)
+
+        // Update in-memory caches
+        this.idToNode.set(node.id, node)
+        const pid = node.parent_id ?? null
+        let list = this.parentToChildren.get(pid)
+        if (!list) {
+          list = []
+          this.parentToChildren.set(pid, list)
+        }
+        list.push(node)
+        list.sort((a, b) => a.name.localeCompare(b.name))
+        this.pathCache.clear()
+
+        parentId = node.id
+      }
+    }
   }
   async rm(path: string): Promise<void> {
     permDenied(path)

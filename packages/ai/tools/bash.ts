@@ -103,7 +103,7 @@ export function createBashTool(ctx: BashToolContext): Tool {
   }
 
   const description = `Execute a bash command in a sandboxed filesystem. Available mounts:
-  /dataspace/  — knowledge base (read-only): tree nodes, docs, tables
+  /dataspace/  — knowledge base: docs (writable via > and >>), mkdir supported, tables (read-only)
   /~/          — space project folder (read-write)
   /@/<name>/   — mounted external directories (read-write)
 Use ls, cat, rg (ripgrep) to explore. Prefer using rg for searching rather than find. Supports pipes, redirections, variables, and common Unix tools.`
