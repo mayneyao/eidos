@@ -13,6 +13,7 @@ import {
 import type { UIMessage } from "ai"
 import { getProvider } from "../helper"
 import { createBashTool, serverTools } from "../tools"
+import { AgentContext } from "./agent-context"
 
 export interface IAgentData {
   goal: string
@@ -29,27 +30,12 @@ export interface IAgentData {
   maxSteps?: number
 }
 
-function buildAgentSystemPrompt(goal: string, tools: string[]): string {
-  return `You are an autonomous AI agent running in the Eidos data workspace.
-Your goal is: ${goal}
-
-Available tools: ${tools.join(", ")}
-
-Instructions:
-1. First, analyze the goal and plan your approach silently.
-2. Execute the plan step-by-step using the available tools.
-3. After each tool call, evaluate the result and decide the next action.
-4. When the goal is fully achieved, provide a clear **Summary** of what was done.
-5. If you encounter errors, try an alternative approach.
-
-Be proactive. Don't ask for confirmation — just execute the plan.`
-}
-
 export async function handleAgentApi(
   data: IAgentData,
   ctx?: {
     getDataspace: (space: string) => Promise<DataSpace | null>
     getSpaceInfo?: (space: string) => { path: string } | null
+    signal?: AbortSignal
   }
 ) {
   const {
@@ -92,8 +78,12 @@ export async function handleAgentApi(
       : {}
   // const mergedTools = { ...serverTools, ...bashWithDs, ...dsTools, ...(tools ?? {}) }
   const mergedTools = { ...serverTools, ...bashWithDs, ...(tools ?? {}) }
-  const agentPrompt =
-    systemPrompt || buildAgentSystemPrompt(goal, Object.keys(mergedTools))
+
+  const agentCtx = AgentContext.create({
+    goal,
+    tools: Object.keys(mergedTools),
+    systemPrompt,
+  })
 
   console.log("[agent] ▶ tools merged", {
     serverTools: Object.keys(serverTools),
@@ -107,14 +97,16 @@ export async function handleAgentApi(
       model: llmodel,
       middleware: extractReasoningMiddleware({ tagName: "think" }),
     }),
-    instructions: agentPrompt,
+    instructions: agentCtx.buildInstructions(),
     tools: mergedTools as Record<string, any>,
     stopWhen: stepCountIs(maxSteps),
   })
 
   // convertToModelMessages handles all UIMessage parts (tool-call, tool-result,
   // reasoning, etc.) correctly — this is the official SDK conversion path.
-  const modelMessages = await convertToModelMessages(messages)
+  const modelMessages = await convertToModelMessages(
+    agentCtx.buildMessages(messages)
+  )
 
   const store = dataspace ? new AgentSessionStore(dataspace) : null
 
@@ -141,9 +133,12 @@ export async function handleAgentApi(
   // onStepFinish provides accumulated parts (all steps so far), not just the new ones.
   const writtenParts = new Map<string, number>()
 
+  const signal = ctx?.signal
+
   const uiStream = createUIMessageStream({
     execute: async ({ writer }) => {
       const result = await agent.stream({
+        abortSignal: signal,
         experimental_transform: smoothStream({ delayInMs: 20 }),
         messages: modelMessages as any,
       })
@@ -174,17 +169,18 @@ export async function handleAgentApi(
         })
       }
     },
-    onFinish: async ({ messages: finalMessages }) => {
+    onFinish: async ({ isAborted }) => {
       if (!store) return
+      const status = isAborted ? "stopped" : "completed"
       console.log("[agent] ▶ onFinish — saving meta", {
         id,
-        messageCount: finalMessages.length,
+        status,
       })
       try {
         await store.saveMeta(id, {
           id,
           goal,
-          status: "completed",
+          status,
           model: modelAndProvider,
           space: space ?? "",
           createdAt,

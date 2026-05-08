@@ -53,7 +53,10 @@ export function createAgentMiddleware(options: {
     })
 
     try {
-      const result = await handleAgentApi(data, options)
+      const result = await handleAgentApi(data, {
+        ...options,
+        signal: c.req.raw.signal,
+      })
       console.log("[agent-route] ▶ response ready", { id: data.id })
       return result
     } catch (err) {

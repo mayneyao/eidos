@@ -141,6 +141,13 @@ function AgentPageContent({
     },
   })
 
+  // Abort the stream when the component unmounts (e.g. tab closed or navigated away)
+  useEffect(() => {
+    return () => {
+      stop()
+    }
+  }, [stop])
+
   const firstUserMessage = messages.find((m) => m.role === "user")
   const goalText = firstUserMessage
     ? (firstUserMessage as any).content ||
