@@ -9,7 +9,6 @@ import { DefaultChatTransport } from "ai"
 import { uuidv7 } from "@/lib/utils"
 import { useTabTitle } from "@/hooks/use-tab-title"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 import { useIsActiveTab } from "@/apps/web-app/hooks/use-is-active-tab"
 import { useDocFindInPage } from "@/apps/web-app/hooks/use-doc-find-in-page"
@@ -54,7 +53,6 @@ function AgentPageContent({
   routeSessionId: string | undefined
 }) {
   const navigate = useNavigate()
-  const { getConfigByModel } = useAiConfig()
   const { setCurrentApp } = useSidebarStore()
 
   const { setSessions, setCurrentSession: setStoreSessionId } = useAgentStore()
@@ -208,8 +206,6 @@ function AgentPageContent({
 
       setIsRunning(true)
 
-      const config = getConfigByModel(model)
-
       const proceed = () => {
         sendMessage(
           { text: goal },
@@ -220,7 +216,6 @@ function AgentPageContent({
               id: sessionId,
               space,
               maxSteps: 100,
-              ...config,
             },
           }
         )
@@ -235,7 +230,6 @@ function AgentPageContent({
     [
       space,
       routeSessionId,
-      getConfigByModel,
       setStoreSessionId,
       sendMessage,
       navigate,

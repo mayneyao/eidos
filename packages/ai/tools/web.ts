@@ -67,9 +67,9 @@ export interface WebFetchResult {
 // ── Exa search ──────────────────────────────────────────────────────────
 
 const EXA_API_URL = "https://api.exa.ai/search"
-const EXA_API_KEY = "7d8f3234-dcdc-454b-bb93-b865567d8688"
 
 async function exaSearch(
+  apiKey: string,
   query: string,
   numResults: number
 ): Promise<WebSearchItem[]> {
@@ -77,7 +77,7 @@ async function exaSearch(
     fetch(EXA_API_URL, {
       method: "POST",
       headers: {
-        "x-api-key": EXA_API_KEY,
+        "x-api-key": apiKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -115,24 +115,32 @@ const fetchParams = z.object({
   url: z.string().url().describe("The URL to fetch and extract content from"),
 })
 
-export const webSearchTool = {
-  description:
-    "Search the web for information. Returns relevant results with titles, URLs, and snippets.",
-  inputSchema: searchParams,
-  execute: async (args: unknown) => {
-    const { query, num } = args as z.infer<typeof searchParams>
-    const count = Math.min(num ?? 5, 10)
-    console.log("[tool:webSearch] ▶", { query, count })
-    try {
-      const results = await exaSearch(query, count)
-      console.log("[tool:webSearch] ✔", { resultCount: results.length })
-      return { results, query } as WebSearchResult
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error("[tool:webSearch] ✖", msg)
-      return { error: `Search failed: ${msg}` }
-    }
-  },
+export function createWebSearchTool(apiKey?: string) {
+  return {
+    description:
+      "Search the web for information. Returns relevant results with titles, URLs, and snippets.",
+    inputSchema: searchParams,
+    execute: async (args: unknown) => {
+      if (!apiKey) {
+        return {
+          error:
+            "Web search requires an Exa API key. Please configure it in Settings → AI → Tool API Keys.",
+        }
+      }
+      const { query, num } = args as z.infer<typeof searchParams>
+      const count = Math.min(num ?? 5, 10)
+      console.log("[tool:webSearch] ▶", { query, count })
+      try {
+        const results = await exaSearch(apiKey, query, count)
+        console.log("[tool:webSearch] ✔", { resultCount: results.length })
+        return { results, query } as WebSearchResult
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error("[tool:webSearch] ✖", msg)
+        return { error: `Search failed: ${msg}` }
+      }
+    },
+  }
 }
 
 export const webFetchTool = {

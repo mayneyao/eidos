@@ -102,6 +102,7 @@ export function setupApiRoutes(app: Hono, ctx: ServerContext) {
         const info = ctx.spaceRegistry.getSpace(space)
         return info ? { path: info.path } : null
       },
+      getAIConfig: () => ctx.configManager.get("ai"),
     })
   )
 }

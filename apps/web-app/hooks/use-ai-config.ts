@@ -123,5 +123,6 @@ export const useAiConfig = () => {
     textModel,
     embeddingModel,
     textModelConfig,
+    exaApiKey: aiConfig.exaApiKey,
   }
 }

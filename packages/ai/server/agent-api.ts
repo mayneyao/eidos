@@ -12,23 +12,56 @@ import {
   wrapLanguageModel,
 } from "ai"
 import type { UIMessage } from "ai"
+import type { AIFormValues } from "../config"
 import { getProvider } from "../helper"
-import { createBashTool, serverTools } from "../tools"
+import { createBashTool, createWebSearchTool, serverTools } from "../tools"
 import { AgentContext } from "./agent-context"
 
 export interface IAgentData {
   goal: string
   /** UIMessage[] from useChat — the source of truth for the conversation */
   messages: UIMessage[]
-  apiKey?: string
-  baseUrl?: string
   systemPrompt?: string
+  /** Model identifier in "modelId@providerName" format */
   model: string
-  type?: any
   space?: string
   id: string
   tools?: Record<string, unknown>
   maxSteps?: number
+}
+
+/**
+ * Resolve LLM provider credentials from the AI config using the model string.
+ * Model format: "modelId@providerName" (e.g. "gpt-4o@openai")
+ */
+function resolveProviderFromConfig(
+  modelAndProvider: string,
+  aiConfig: AIFormValues | undefined
+) {
+  const parts = modelAndProvider.split("@")
+  const modelId = parts[0]
+  const providerName = parts[1]
+
+  if (!aiConfig || !providerName) {
+    return { modelId, provider: getProvider({}) }
+  }
+
+  const llmProvider = aiConfig.llmProviders.find(
+    (p) => p.name === providerName && p.enabled !== false
+  )
+
+  if (!llmProvider) {
+    return { modelId, provider: getProvider({}) }
+  }
+
+  return {
+    modelId,
+    provider: getProvider({
+      apiKey: llmProvider.apiKey,
+      baseUrl: llmProvider.baseUrl,
+      type: llmProvider.type,
+    }),
+  }
 }
 
 export async function handleAgentApi(
@@ -37,13 +70,12 @@ export async function handleAgentApi(
     getDataspace: (space: string) => Promise<DataSpace | null>
     getSpaceInfo?: (space: string) => { path: string } | null
     signal?: AbortSignal
+    getAIConfig?: () => AIFormValues | undefined
   }
 ) {
   const {
     goal,
     messages,
-    apiKey,
-    baseUrl,
     systemPrompt,
     model: modelAndProvider,
     space,
@@ -51,6 +83,8 @@ export async function handleAgentApi(
     tools,
     maxSteps = 100,
   } = data
+
+  const aiConfig = ctx?.getAIConfig?.()
 
   console.log("[agent] ▶ start", {
     id,
@@ -62,8 +96,10 @@ export async function handleAgentApi(
     maxSteps,
   })
 
-  const provider = getProvider({ apiKey, baseUrl, type: data.type })
-  const modelId = modelAndProvider.split("@")[0]
+  const { modelId, provider } = resolveProviderFromConfig(
+    modelAndProvider,
+    aiConfig
+  )
   const llmodel = provider(modelId)
   const dataspace = space ? await ctx?.getDataspace(space) : null
   console.log("[agent] ▶ dataspace resolved", {
@@ -78,7 +114,12 @@ export async function handleAgentApi(
       ? { bash: createBashTool({ dataspace, spaceInfo }) }
       : {}
   // const mergedTools = { ...serverTools, ...bashWithDs, ...dsTools, ...(tools ?? {}) }
-  const mergedTools = { ...serverTools, ...bashWithDs, ...(tools ?? {}) }
+  const mergedTools = {
+    ...serverTools,
+    webSearch: createWebSearchTool(aiConfig?.exaApiKey),
+    ...bashWithDs,
+    ...(tools ?? {}),
+  }
 
   const agentCtx = AgentContext.create({
     goal,

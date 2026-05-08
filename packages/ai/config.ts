@@ -48,6 +48,8 @@ export const aiFormSchema = z.object({
   translationModel: z.string().optional(),
   codingModel: z.string().optional(),
   applyCodeModel: z.string().optional(),
+  // tool api keys
+  exaApiKey: z.string().optional(),
   // version
   version: z.number().default(0),
 })

@@ -1,12 +1,14 @@
 import { Hono } from "hono"
 import { AgentSessionStore } from "@/packages/core/agent-session/agent-session-store"
 import type { DataSpace } from "@/packages/core/data-space"
+import type { AIFormValues } from "../config"
 import { extractSpace } from "./utils"
 import { handleAgentApi, type IAgentData } from "./agent-api"
 
 export function createAgentMiddleware(options: {
   getDataspace: (space: string) => Promise<DataSpace | null>
   getSpaceInfo?: (space: string) => { path: string } | null
+  getAIConfig?: () => AIFormValues | undefined
 }) {
   const app = new Hono()
 

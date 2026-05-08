@@ -1,7 +1,15 @@
 import { Suspense, lazy, useState } from "react"
 import type { LLMProvider } from "@/packages/ai/config"
 import { ALL_PROVIDERS, type LLMProviderType } from "@/packages/ai/helper"
-import { Edit, Plus, Trash2, AlertTriangle, Bot, Sparkles } from "lucide-react"
+import {
+  Edit,
+  Plus,
+  Trash2,
+  AlertTriangle,
+  Bot,
+  Sparkles,
+  Globe,
+} from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import {
@@ -22,6 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/use-toast"
 import { useAIConfigStore } from "@/components/settings/stores"
 
@@ -354,6 +363,51 @@ export function GlobalAISettings() {
 
       <div className="py-6">
         <AITaskConfigForm onDirtyChange={setIsFormDirty} />
+      </div>
+
+      {/* Tool API Keys Section */}
+      <div className="py-4 flex items-center gap-2">
+        <Globe className="h-5 w-5 text-muted-foreground" />
+        <h3 className="text-lg font-medium">Tool API Keys</h3>
+      </div>
+
+      <hr className="border-border" />
+
+      <div className="py-6">
+        <div className="space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+            <div className="space-y-0.5 flex-1 min-w-0">
+              <label className="text-sm font-medium">Exa API Key</label>
+              <p className="text-sm text-muted-foreground">
+                Used for web search. Get your key at{" "}
+                <a
+                  href="https://exa.ai"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  exa.ai
+                </a>
+              </p>
+            </div>
+            <div className="w-full lg:w-80 flex-shrink-0">
+              <Input
+                type="password"
+                placeholder="Enter your Exa API key"
+                defaultValue={aiConfig.exaApiKey ?? ""}
+                onBlur={(e) => {
+                  const val = e.target.value.trim()
+                  if (val !== (aiConfig.exaApiKey ?? "")) {
+                    useAIConfigStore.getState().setAiConfig({
+                      ...aiConfig,
+                      exaApiKey: val || undefined,
+                    })
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Provider Configuration Modal */}
