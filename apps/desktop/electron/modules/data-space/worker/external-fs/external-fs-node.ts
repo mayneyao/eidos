@@ -288,6 +288,29 @@ export class NodeExternalFileSystem implements IExternalFileSystem {
   }
 
   /**
+   * Append data to a file
+   */
+  async appendFile(
+    fsPath: string,
+    data: string | Uint8Array,
+    options?: IWriteFileOptions | BufferEncoding
+  ): Promise<void> {
+    const absolutePath = await this.getAbsolutePath(fsPath)
+    const nodeData = data instanceof Uint8Array ? Buffer.from(data) : data
+
+    if (!options) {
+      await fs.appendFile(absolutePath, nodeData)
+      return
+    }
+
+    if (typeof options === "string") {
+      await fs.appendFile(absolutePath, nodeData, { encoding: options })
+    } else {
+      await fs.appendFile(absolutePath, nodeData, options)
+    }
+  }
+
+  /**
    * Get file stats
    */
   async stat(fsPath: string): Promise<IStats> {

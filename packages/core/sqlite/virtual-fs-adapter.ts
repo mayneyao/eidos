@@ -933,6 +933,17 @@ export class VirtualFsAdapter implements IExternalFileSystem {
     return this.underlyingFS.writeFile(path, data, options)
   }
 
+  async appendFile(
+    path: string,
+    data: string | Uint8Array,
+    options?: any
+  ): Promise<void> {
+    if (this.isVirtualPath(path)) {
+      throw new Error("appendFile not supported for virtual paths")
+    }
+    return this.underlyingFS.appendFile(path, data, options)
+  }
+
   async stat(path: string): Promise<any> {
     // Virtual paths don't support stat
     if (this.isVirtualPath(path)) {

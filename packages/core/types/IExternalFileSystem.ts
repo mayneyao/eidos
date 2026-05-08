@@ -186,6 +186,19 @@ export interface IExternalFileSystem {
   ): Promise<void>
 
   /**
+   * Append data to a file (like fs.appendFile)
+   * Creates the file if it doesn't exist.
+   * @param path File path (~/ or @/)
+   * @param data Data to append as string or Uint8Array
+   * @param options Encoding or write options
+   */
+  appendFile(
+    path: string,
+    data: string | Uint8Array,
+    options?: IWriteFileOptions | BufferEncoding
+  ): Promise<void>
+
+  /**
    * Get file stats (like fs.stat)
    * @param path File path (~/ or @/)
    * @returns Serializable file stats object

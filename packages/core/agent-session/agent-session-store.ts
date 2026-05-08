@@ -240,13 +240,7 @@ export class AgentSessionStore {
    */
   private async appendLine(sessionId: string, line: string): Promise<void> {
     const path = this.getJsonlPath(sessionId)
-    try {
-      const existing = await this.readFile(path)
-      await this.writeFile(path, existing + line + "\n")
-    } catch {
-      // File doesn't exist yet
-      await this.writeFile(path, line + "\n")
-    }
+    await this.appendFile(path, line + "\n")
   }
 
   // ── Load ──────────────────────────────────────────────
@@ -411,6 +405,10 @@ export class AgentSessionStore {
 
   private async writeFile(path: string, content: string): Promise<void> {
     await this.space.externalFS?.writeFile(path, content)
+  }
+
+  private async appendFile(path: string, content: string): Promise<void> {
+    await this.space.externalFS?.appendFile(path, content)
   }
 
   private async readFile(path: string): Promise<string> {

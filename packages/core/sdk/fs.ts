@@ -173,6 +173,20 @@ export class FSManager {
   }
 
   /**
+   * Append data to a file (creates if it doesn't exist)
+   *
+   * @example
+   * await eidos.currentSpace.fs.appendFile("~/log.txt", "new line\n")
+   */
+  async appendFile(
+    path: string,
+    data: string | Uint8Array,
+    options?: IWriteFileOptions | BufferEncoding
+  ): Promise<void> {
+    return await this.externalFS.appendFile(path, data, options)
+  }
+
+  /**
    * Get file statistics
    *
    * @example
