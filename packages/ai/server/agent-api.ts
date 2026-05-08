@@ -169,14 +169,22 @@ export async function handleAgentApi(
         })
       }
     },
-    onFinish: async ({ isAborted }) => {
+    onFinish: async ({ responseMessage, isAborted }) => {
       if (!store) return
       const status = isAborted ? "stopped" : "completed"
-      console.log("[agent] ▶ onFinish — saving meta", {
+      console.log("[agent] ▶ onFinish — saving", {
         id,
         status,
+        partCount: responseMessage.parts.length,
       })
       try {
+        // Flush any parts that onStepFinish didn't persist (e.g. mid-step abort)
+        const msgId = responseMessage.id
+        const prevCount = writtenParts.get(msgId) ?? 0
+        const remaining = responseMessage.parts.slice(prevCount)
+        if (remaining.length > 0) {
+          await store.appendStepMessage(id, msgId, remaining)
+        }
         await store.saveMeta(id, {
           id,
           goal,
