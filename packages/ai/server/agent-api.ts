@@ -6,6 +6,7 @@ import {
   createUIMessageStream,
   createUIMessageStreamResponse,
   extractReasoningMiddleware,
+  isToolUIPart,
   smoothStream,
   stepCountIs,
   wrapLanguageModel,
@@ -104,8 +105,34 @@ export async function handleAgentApi(
 
   // convertToModelMessages handles all UIMessage parts (tool-call, tool-result,
   // reasoning, etc.) correctly — this is the official SDK conversion path.
+  //
+  // Sanitize messages first: an aborted stream may leave tool invocations in
+  // an incomplete state (e.g. input-streaming / input-available without output).
+  // convertToModelMessages rejects these, so strip them before conversion.
+  const sanitized = messages.map((msg) => {
+    if (msg.role !== "assistant" || !msg.parts) return msg
+    const hasIncompleteTool = msg.parts.some(
+      (p) =>
+        isToolUIPart(p) &&
+        p.state !== "output-available" &&
+        p.state !== "output-error" &&
+        p.state !== "output-denied"
+    )
+    if (!hasIncompleteTool) return msg
+    return {
+      ...msg,
+      parts: msg.parts.filter(
+        (p) =>
+          !isToolUIPart(p) ||
+          p.state === "output-available" ||
+          p.state === "output-error" ||
+          p.state === "output-denied"
+      ),
+    }
+  })
+
   const modelMessages = await convertToModelMessages(
-    agentCtx.buildMessages(messages)
+    agentCtx.buildMessages(sanitized)
   )
 
   const store = dataspace ? new AgentSessionStore(dataspace) : null
