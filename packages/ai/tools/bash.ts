@@ -2,7 +2,7 @@ import type { Tool } from "ai"
 import { z } from "zod"
 import { Bash, InMemoryFs, MountableFs, ReadWriteFs } from "just-bash"
 import type { DataSpace } from "@/packages/core/data-space"
-import { EidosTreeFs } from "./eidos-tree-fs"
+import { EidosAgentFs } from "./eidos-agent-fs"
 
 const MAX_OUTPUT_LENGTH = 30000
 
@@ -45,14 +45,14 @@ async function loadMounts(
  * Build the composite filesystem for the AI agent:
  *
  *   /            → InMemoryFs (base, mostly unused)
- *   /dataspace/  → EidosTreeFs (read-only SQLite virtual fs)
+ *   /dataspace/  → EidosAgentFs (read-only SQLite virtual fs)
  *   /~/          → ReadWriteFs (space physical directory)
  *   /@/<mount>/  → ReadWriteFs (each mounted external directory)
  */
 async function buildAgentFs(ctx: BashToolContext) {
   const { dataspace, spaceInfo } = ctx
 
-  const treeFs = new EidosTreeFs(dataspace)
+  const treeFs = new EidosAgentFs(dataspace)
   await treeFs.healthCheck()
 
   const mounts = await loadMounts(dataspace)
@@ -78,7 +78,7 @@ async function buildAgentFs(ctx: BashToolContext) {
 /**
  * Create a sandboxed bash tool.
  * When ctx is provided, composes a MountableFs with:
- *   /dataspace/  → EidosTreeFs (knowledge base, read-only)
+ *   /dataspace/  → EidosAgentFs (knowledge base, read-only)
  *   /~/          → space physical directory (read-write)
  *   /@/<mount>/  → mounted external directories (read-write)
  */

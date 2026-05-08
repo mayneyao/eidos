@@ -32,7 +32,7 @@ function permDenied(path: string): never {
  * mkdir creates folder nodes (supports recursive mode).
  * All other write operations remain read-only (EPERM).
  */
-export class EidosTreeFs implements IFileSystem {
+export class EidosAgentFs implements IFileSystem {
   private ds: DataSpace
   private loaded = false
   /** id → node */
