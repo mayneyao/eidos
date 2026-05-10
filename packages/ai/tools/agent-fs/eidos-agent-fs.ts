@@ -88,6 +88,22 @@ export class EidosAgentFs implements IFileSystem {
     return this.parentToChildren.get(parentId) ?? []
   }
 
+  private getVirtualName(node: ITreeNode): string {
+    if (node.type === "table") return `${node.name}.table`
+    if (node.type === "doc") return `${node.name}.md`
+    return node.name
+  }
+
+  private stripExtension(seg: string): { name: string; type?: string } {
+    if (seg.endsWith(".table")) {
+      return { name: seg.slice(0, -6), type: "table" }
+    }
+    if (seg.endsWith(".md")) {
+      return { name: seg.slice(0, -3), type: "doc" }
+    }
+    return { name: seg }
+  }
+
   private resolveNodeSync(path: string): ITreeNode | null {
     const normalized = this.normalize(path)
     if (normalized === "/" || normalized === "") return null
@@ -101,7 +117,14 @@ export class EidosAgentFs implements IFileSystem {
 
     for (const seg of segments) {
       const children = this.getChildren(parentId)
-      node = children.find((c) => c.name === seg) || null
+      const { name, type } = this.stripExtension(seg)
+      node =
+        children.find((c) => {
+          // If we explicitly used a virtual extension, it MUST match the type
+          if (type && c.type !== type) return false
+          // Match virtual name OR original name (for compatibility)
+          return this.getVirtualName(c) === seg || c.name === seg
+        }) || null
       if (!node) {
         this.pathCache.set(normalized, null)
         return null
@@ -176,7 +199,7 @@ export class EidosAgentFs implements IFileSystem {
       parentId = node.id
     }
 
-    return this.getChildren(parentId).map((c) => c.name)
+    return this.getChildren(parentId).map((c) => this.getVirtualName(c))
   }
 
   async readdirWithFileTypes(path: string): Promise<DirentEntry[]> {
@@ -196,7 +219,7 @@ export class EidosAgentFs implements IFileSystem {
     }
 
     return this.getChildren(parentId).map((r) => ({
-      name: r.name,
+      name: this.getVirtualName(r),
       isFile: r.type !== "folder",
       isDirectory: r.type === "folder",
       isSymbolicLink: false,
@@ -314,7 +337,8 @@ export class EidosAgentFs implements IFileSystem {
     if (!node) {
       // Auto-create doc node: extract parent path and node name
       const segments = normalized.split("/").filter(Boolean)
-      const name = segments.pop()!
+      const rawName = segments.pop()!
+      const { name } = this.stripExtension(rawName)
       const parentPath = segments.length > 0 ? "/" + segments.join("/") : "/"
       let parentId: string | null = null
 

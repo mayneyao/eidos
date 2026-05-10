@@ -136,7 +136,6 @@ export async function handleAgentApi(
     hasDataspace: !!dataspace,
     hasCtx: !!ctx,
   })
-  // const dsTools = dataspace ? createTableTools(dataspace) : {}
   // AgentContext handles skill discovery, instruction injection, and exposes skill assets
   const agentCtx = await AgentContext.create({
     goal,
@@ -151,7 +150,11 @@ export async function handleAgentApi(
   if (dataspace) {
     const fs = await buildAgentFs({ dataspace })
     bashWithDs = {
-      bash: createBashTool(fs, agentCtx.skillInstructions ?? undefined),
+      bash: createBashTool(
+        fs,
+        agentCtx.skillInstructions ?? undefined,
+        dataspace
+      ),
     }
     fsTools = createFileTools(fs)
   }
@@ -167,7 +170,6 @@ export async function handleAgentApi(
 
   console.log("[agent] ▶ tools merged", {
     serverTools: Object.keys(serverTools),
-    // dsTools: Object.keys(dsTools),
     clientTools: Object.keys(tools ?? {}),
     total: Object.keys(mergedTools).length,
   })

@@ -4,7 +4,8 @@ import type { Tool } from "ai"
 import { z } from "zod"
 import { Bash, InMemoryFs, MountableFs, ReadWriteFs } from "just-bash"
 import type { DataSpace } from "@/packages/core/data-space"
-import { EidosAgentFs, ExtensionsAgentFs, JournalsAgentFs } from "./agent-fs"
+import { EidosAgentFs, ExtensionsAgentFs, JournalsAgentFs } from "../agent-fs"
+import { registerTableCommands } from "./table-commands"
 
 const MAX_OUTPUT_LENGTH = 30000
 
@@ -61,7 +62,8 @@ export async function buildAgentFs(ctx: BashToolContext) {
  */
 export function createBashTool(
   fs: InstanceType<typeof MountableFs>,
-  extraInstructions?: string
+  extraInstructions?: string,
+  dataspace?: DataSpace
 ): Tool {
   const bash = new Bash({
     fs,
@@ -73,12 +75,25 @@ export function createBashTool(
     defenseInDepth: false,
   })
 
+  if (dataspace) {
+    registerTableCommands(bash, dataspace)
+  }
+
   const description = `Execute a bash command in a sandboxed filesystem. Available mounts:
-  /dataspace/  — knowledge base: docs (writable via > and >>), mkdir supported, tables (read-only)
+  /dataspace/  — knowledge base: docs (with .md extension, writable), tables (with .table extension, read-only)
   /skills/     — skills directory at ~/.agents/skills/ (read-write, create/edit/delete skills)
   /journals/   — journal day pages as YYYY-MM-DD.md files (read-write, create/update journals)
   /extensions/ — installed extensions as .ts/.tsx files organized by slug (read-only)
-Use ls, cat, rg (ripgrep) to explore. Prefer using rg for searching rather than find. Supports pipes, redirections, variables, and common Unix tools.${extraInstructions ? `\n\n${extraInstructions}` : ""}`
+Use ls, cat, rg (ripgrep) to explore. Prefer using rg for searching rather than find. Supports pipes, redirections, variables, and common Unix tools.
+Custom built-in commands:
+  eidos-table-create <name> - Create a new table.
+  eidos-column-create <table_id> <name> <type> - Add a column to a table.
+  eidos-record-query <table_id> [options] - Query records. (e.g., eidos-record-query 8444... --where '{"status":"done"}')
+  eidos-record-insert <table_id> - Insert records from stdin. (e.g., cat data.json | eidos-record-insert 8444...)
+  eidos-record-update <table_id> - Update records from stdin. (e.g., echo '[{"where":{"id":1}, "data":{"s":"ok"}}]' | eidos-record-update 8444...)
+  eidos-record-delete <table_id> [options] - Delete records. (e.g., eidos-record-delete 8444... --where '{"id":1}')
+Note: Always use the 'id' found in the .table file (e.g., 844482a7...) for table_id. The physical table name (tb_xxx) is also supported but not recommended.
+${extraInstructions ? `\n\n${extraInstructions}` : ""}`
 
   return {
     description,

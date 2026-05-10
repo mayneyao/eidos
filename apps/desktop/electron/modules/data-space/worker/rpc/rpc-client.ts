@@ -249,6 +249,17 @@ export class RpcClient {
               onIterator?: (msg: any) => void
             ) => self.executePayload(payload, id, onIterator)
           }
+          // Special handling for `table(id).method()` chained calls.
+          // Without this, `ds.table("xxx")` would immediately fire an RPC call
+          // via apply() and return a Promise, breaking any subsequent .findMany() etc.
+          // Instead we intercept here, accept the id synchronously, and return a
+          // sub-proxy whose path encodes the call as `"table(id)"` so that the
+          // final method call produces path=["table(xxx)","findMany"] which
+          // rpc-server joins to "table(xxx).findMany" — exactly what
+          // handleFunctionCall() expects.
+          if (prop === "table" && path.length === 0) {
+            return (id: string) => createLevel([`table(${id})`])
+          }
           return createLevel([...path, prop as string])
         },
         apply(_, __, args) {
