@@ -2,19 +2,19 @@ import { webSearchConfig } from "./web-search"
 import { webFetchConfig } from "./web-fetch"
 import { justBashConfig } from "./just-bash"
 import { skillConfig } from "./skill"
+import { readConfig, writeConfig, editConfig } from "./file-tools"
 import { type ToolUIConfig } from "./types"
 
 export { type ToolUIConfig } from "./types"
 
 export const TOOL_UI_CONFIGS: Record<string, ToolUIConfig> = {
-  webSearch: webSearchConfig,
-  webSearchTool: webSearchConfig,
-  webFetch: webFetchConfig,
-  webFetchTool: webFetchConfig,
+  "web-search": webSearchConfig,
+  "web-fetch": webFetchConfig,
   bash: justBashConfig,
-  just_bash: justBashConfig,
-  bashTool: justBashConfig,
   skill: skillConfig,
+  "file-read": readConfig,
+  "file-write": writeConfig,
+  "file-edit": editConfig,
 }
 
 export function getToolConfig(toolName: string): ToolUIConfig {
@@ -32,10 +32,10 @@ export function getToolConfig(toolName: string): ToolUIConfig {
     return TOOL_UI_CONFIGS.bash
   }
   if (lower.includes("search")) {
-    return TOOL_UI_CONFIGS.webSearch
+    return TOOL_UI_CONFIGS["web-search"]
   }
   if (lower.includes("fetch")) {
-    return TOOL_UI_CONFIGS.webFetch
+    return TOOL_UI_CONFIGS["web-fetch"]
   }
 
   // Fallback

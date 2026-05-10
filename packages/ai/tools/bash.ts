@@ -4,7 +4,7 @@ import type { Tool } from "ai"
 import { z } from "zod"
 import { Bash, InMemoryFs, MountableFs, ReadWriteFs } from "just-bash"
 import type { DataSpace } from "@/packages/core/data-space"
-import { EidosAgentFs } from "./eidos-agent-fs"
+import { EidosAgentFs, ExtensionsAgentFs, JournalsAgentFs } from "./agent-fs"
 
 const MAX_OUTPUT_LENGTH = 30000
 
@@ -24,12 +24,20 @@ const bashParams = z.object({
  *   /            → InMemoryFs (base, mostly unused)
  *   /dataspace/  → EidosAgentFs (read-only SQLite virtual fs)
  *   /skills/     → ReadWriteFs backed by ~/.agents/skills/ (read-write)
+ *   /journals/   → JournalsAgentFs (day pages from eidos__docs)
+ *   /extensions/ → ExtensionsAgentFs (extensions from eidos__extensions, read-only)
  */
-async function buildAgentFs(ctx: BashToolContext) {
+export async function buildAgentFs(ctx: BashToolContext) {
   const { dataspace } = ctx
 
   const treeFs = new EidosAgentFs(dataspace)
   await treeFs.healthCheck()
+
+  const journalsFs = new JournalsAgentFs(dataspace)
+  await journalsFs.healthCheck()
+
+  const extensionsFs = new ExtensionsAgentFs(dataspace)
+  await extensionsFs.healthCheck()
 
   const skillsDir = path.join(os.homedir(), ".agents", "skills")
   const skillFs = new ReadWriteFs({ root: skillsDir })
@@ -39,6 +47,8 @@ async function buildAgentFs(ctx: BashToolContext) {
     mounts: [
       { mountPoint: "/skills", filesystem: skillFs },
       { mountPoint: "/dataspace", filesystem: treeFs },
+      { mountPoint: "/journals", filesystem: journalsFs },
+      { mountPoint: "/extensions", filesystem: extensionsFs },
     ],
   })
 
@@ -47,35 +57,28 @@ async function buildAgentFs(ctx: BashToolContext) {
 
 /**
  * Create a sandboxed bash tool.
- * When ctx is provided, composes a MountableFs with:
- *   /dataspace/  → EidosAgentFs (knowledge base, read-only)
- *   /~/          → space physical directory (read-write)
- *   /@/<mount>/  → mounted external directories (read-write)
+ * Accepts a pre-built MountableFs (from buildAgentFs) to share with file-tools.
  */
-export function createBashTool(ctx: BashToolContext): Tool {
-  let bashInstance: Bash | null = null
-
-  async function getBash(): Promise<Bash> {
-    if (bashInstance) return bashInstance
-
-    const fs = await buildAgentFs(ctx)
-
-    bashInstance = new Bash({
-      fs,
-      cwd: "/",
-      executionLimits: {
-        maxCommandCount: 10000,
-        maxLoopIterations: 100,
-      },
-      defenseInDepth: false,
-    })
-    return bashInstance
-  }
+export function createBashTool(
+  fs: InstanceType<typeof MountableFs>,
+  extraInstructions?: string
+): Tool {
+  const bash = new Bash({
+    fs,
+    cwd: "/",
+    executionLimits: {
+      maxCommandCount: 10000,
+      maxLoopIterations: 100,
+    },
+    defenseInDepth: false,
+  })
 
   const description = `Execute a bash command in a sandboxed filesystem. Available mounts:
   /dataspace/  — knowledge base: docs (writable via > and >>), mkdir supported, tables (read-only)
   /skills/     — skills directory at ~/.agents/skills/ (read-write, create/edit/delete skills)
-Use ls, cat, rg (ripgrep) to explore. Prefer using rg for searching rather than find. Supports pipes, redirections, variables, and common Unix tools.${ctx.extraInstructions ? `\n\n${ctx.extraInstructions}` : ""}`
+  /journals/   — journal day pages as YYYY-MM-DD.md files (read-write, create/update journals)
+  /extensions/ — installed extensions as .ts/.tsx files organized by slug (read-only)
+Use ls, cat, rg (ripgrep) to explore. Prefer using rg for searching rather than find. Supports pipes, redirections, variables, and common Unix tools.${extraInstructions ? `\n\n${extraInstructions}` : ""}`
 
   return {
     description,
@@ -84,7 +87,6 @@ Use ls, cat, rg (ripgrep) to explore. Prefer using rg for searching rather than 
       const { command } = args as z.infer<typeof bashParams>
       console.log("[tool:bash] ▶", { command: command.slice(0, 200) })
       try {
-        const bash = await getBash()
         const result = await bash.exec(command)
         const stdout =
           result.stdout.length > MAX_OUTPUT_LENGTH

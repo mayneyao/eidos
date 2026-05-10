@@ -129,14 +129,14 @@ export function createWebSearchTool(apiKey?: string) {
       }
       const { query, num } = args as z.infer<typeof searchParams>
       const count = Math.min(num ?? 5, 10)
-      console.log("[tool:webSearch] ▶", { query, count })
+      console.log("[tool:web-search] ▶", { query, count })
       try {
         const results = await exaSearch(apiKey, query, count)
-        console.log("[tool:webSearch] ✔", { resultCount: results.length })
+        console.log("[tool:web-search] ✔", { resultCount: results.length })
         return { results, query } as WebSearchResult
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        console.error("[tool:webSearch] ✖", msg)
+        console.error("[tool:web-search] ✖", msg)
         return { error: `Search failed: ${msg}` }
       }
     },
@@ -149,17 +149,17 @@ export const webFetchTool = {
   inputSchema: fetchParams,
   execute: async (args: unknown) => {
     const { url } = args as z.infer<typeof fetchParams>
-    console.log("[tool:webFetch] ▶", { url })
+    console.log("[tool:web-fetch] ▶", { url })
     try {
       const result = await fetchAndExtract(url)
-      console.log("[tool:webFetch] ✔", {
+      console.log("[tool:web-fetch] ✔", {
         title: result.title,
         contentLength: result.content.length,
       })
       return result as WebFetchResult
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      console.error("[tool:webFetch] ✖", msg)
+      console.error("[tool:web-fetch] ✖", msg)
       return { error: `Fetch failed: ${msg}` }
     }
   },

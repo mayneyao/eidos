@@ -14,7 +14,13 @@ import {
 import type { UIMessage } from "ai"
 import type { AIFormValues } from "../config"
 import { getProvider } from "../helper"
-import { createBashTool, createWebSearchTool, serverTools } from "../tools"
+import {
+  buildAgentFs,
+  createBashTool,
+  createFileTools,
+  createWebSearchTool,
+  serverTools,
+} from "../tools"
 import { AgentContext } from "./agent-context"
 
 export interface IAgentData {
@@ -105,6 +111,8 @@ export async function handleAgentApi(
     skills,
   } = data
 
+  const startTime = performance.now()
+
   const aiConfig = ctx?.getAIConfig?.()
 
   console.log("[agent] ▶ start", {
@@ -137,21 +145,21 @@ export async function handleAgentApi(
     skills,
   })
 
-  // Build bash tool with skill instructions injected
-  const bashWithDs = dataspace
-    ? {
-        bash: createBashTool({
-          dataspace,
-          ...(agentCtx.skillInstructions
-            ? { extraInstructions: agentCtx.skillInstructions }
-            : {}),
-        }),
-      }
-    : {}
+  // Build shared filesystem and tools (bash + read/write/edit)
+  let fsTools: Record<string, any> = {}
+  let bashWithDs: Record<string, any> = {}
+  if (dataspace) {
+    const fs = await buildAgentFs({ dataspace })
+    bashWithDs = {
+      bash: createBashTool(fs, agentCtx.skillInstructions ?? undefined),
+    }
+    fsTools = createFileTools(fs)
+  }
 
   const mergedTools = {
     ...serverTools,
-    webSearch: createWebSearchTool(aiConfig?.exaApiKey),
+    "web-search": createWebSearchTool(aiConfig?.exaApiKey),
+    ...fsTools,
     ...bashWithDs,
     ...(agentCtx.skillTool ?? {}),
     ...(tools ?? {}),
@@ -244,7 +252,16 @@ export async function handleAgentApi(
         messages: modelMessages as any,
       })
       const stream = result.toUIMessageStream({ originalMessages: messages })
+      let firstChunk = true
       for await (const chunk of stream) {
+        if (firstChunk) {
+          console.log(
+            `[agent] ⏱️ time to first chunk: ${(
+              performance.now() - startTime
+            ).toFixed(2)}ms`
+          )
+          firstChunk = false
+        }
         writer.write(chunk)
       }
     },
@@ -305,5 +322,11 @@ export async function handleAgentApi(
     },
   })
 
-  return createUIMessageStreamResponse({ stream: uiStream })
+  const response = createUIMessageStreamResponse({ stream: uiStream })
+  console.log(
+    `[agent] ⏱️ time to response: ${(performance.now() - startTime).toFixed(
+      2
+    )}ms`
+  )
+  return response
 }
