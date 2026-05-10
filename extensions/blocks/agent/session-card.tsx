@@ -61,7 +61,7 @@ export function SessionCard({
         </div>
         <button
           onClick={onDelete}
-          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-all shrink-0"
+          className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 p-1 bg-muted/80 hover:bg-destructive/10 hover:text-destructive rounded-md transition-all shadow-sm backdrop-blur-sm shrink-0"
         >
           <Trash2Icon className="h-3.5 w-3.5" />
         </button>

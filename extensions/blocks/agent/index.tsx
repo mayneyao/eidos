@@ -320,7 +320,11 @@ export function AgentHistorySidebar() {
     }
 
     return (
-      <div ref={containerRef} className="h-full w-full overflow-y-auto pr-1">
+      <div
+        ref={containerRef}
+        className="h-full w-full overflow-y-auto pr-1"
+        style={{ scrollbarGutter: "stable" }}
+      >
         <div ref={wrapperRef} className="space-y-1">
           {virtualList.map((item) => {
             const idx = item.index
@@ -375,7 +379,7 @@ export function AgentHistorySidebar() {
   return (
     <div className="flex h-full w-full flex-col px-3 py-2 overflow-hidden">
       {/* Tab header */}
-      <div className="mb-2 px-1 flex items-center justify-between">
+      <div className="mb-2 px-1 flex items-center justify-between h-8">
         <div className="flex items-center gap-1">
           <button
             onClick={() => setTab("sessions")}

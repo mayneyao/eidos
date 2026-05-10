@@ -66,7 +66,10 @@ export function SkillsList({
       )
     }
     return (
-      <div className="h-full w-full overflow-y-auto pr-1">
+      <div
+        className="h-full w-full overflow-y-auto pr-1"
+        style={{ scrollbarGutter: "stable" }}
+      >
         <div className="space-y-1">
           {searchResults.map((result) => {
             const skill: SkillMeta = {
@@ -80,7 +83,7 @@ export function SkillsList({
                 onClick={() => onSkillClick(skill)}
                 className="group flex flex-col gap-1 rounded-lg border border-transparent px-3 py-2 cursor-pointer hover:bg-muted/50 transition-all duration-200"
               >
-                <div className="flex items-start gap-2 overflow-hidden">
+                <div className="relative flex items-start gap-2 overflow-hidden">
                   <div className="mt-0.5 shrink-0">
                     <SparklesIcon className="h-3.5 w-3.5 text-muted-foreground/50" />
                   </div>
@@ -89,7 +92,7 @@ export function SkillsList({
                   </span>
                   <button
                     onClick={(e) => onTrySkill(e, skill)}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-primary/10 hover:text-primary rounded transition-all shrink-0"
+                    className="absolute right-0 top-[-2px] opacity-0 group-hover:opacity-100 p-1 bg-muted/80 hover:bg-primary/20 hover:text-primary rounded-md transition-all shadow-sm backdrop-blur-sm"
                     title="Try in Chat"
                   >
                     <PlayIcon className="h-3.5 w-3.5" />
@@ -121,13 +124,16 @@ export function SkillsList({
   }
 
   return (
-    <div className="h-full w-full overflow-y-auto pr-1">
+    <div
+      className="h-full w-full overflow-y-auto pr-1"
+      style={{ scrollbarGutter: "stable" }}
+    >
       <div className="space-y-1">
         {skills.map((skill) => (
           <div
             key={skill.dirName}
             onClick={() => onSkillClick(skill)}
-            className="group flex items-start gap-2 rounded-lg border border-transparent px-3 py-2 cursor-pointer hover:bg-muted/50 transition-all duration-200"
+            className="group relative flex items-start gap-2 rounded-lg border border-transparent px-3 py-2 cursor-pointer hover:bg-muted/50 transition-all duration-200"
           >
             <div className="mt-0.5 shrink-0">
               <SparklesIcon className="h-3.5 w-3.5 text-muted-foreground/50" />
@@ -142,7 +148,7 @@ export function SkillsList({
             </div>
             <button
               onClick={(e) => onTrySkill(e, skill)}
-              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-primary/10 hover:text-primary rounded transition-all shrink-0"
+              className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 p-1 bg-muted/80 hover:bg-primary/20 hover:text-primary rounded-md transition-all shadow-sm backdrop-blur-sm"
               title="Try in Chat"
             >
               <PlayIcon className="h-3.5 w-3.5" />

@@ -48,7 +48,7 @@ const Input = ({
     ref={ref}
     {...props}
     className={cn(
-      "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+      "flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
       props.className
     )}
   />
@@ -142,7 +142,7 @@ export function JournalsSidebar() {
   })
 
   const renderSection = (label: string) => (
-    <div className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+    <div className="px-2.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
       {label}
     </div>
   )
@@ -161,9 +161,9 @@ export function JournalsSidebar() {
   }, [])
 
   return (
-    <div className="flex h-full w-full flex-col px-3 py-2">
-      <div className="mb-2 px-1 text-xs font-semibold uppercase text-muted-foreground">
-        Journals
+    <div className="flex h-full w-full flex-col px-3 py-2 overflow-hidden">
+      <div className="mb-2 px-1 h-8 flex items-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="px-1.5">Journals</span>
       </div>
       <div className="mb-2 px-1">
         <Input
@@ -197,6 +197,7 @@ export function JournalsSidebar() {
           <div
             ref={containerRef}
             className="h-full w-full overflow-y-auto pr-1"
+            style={{ scrollbarGutter: "stable" }}
           >
             <div ref={wrapperRef} className="space-y-2">
               {virtualData.length ? (
