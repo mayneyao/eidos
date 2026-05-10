@@ -1,6 +1,7 @@
 import type { IFileSystem, FsStat, FileContent } from "just-bash"
 import type { DataSpace } from "@/packages/core/data-space"
 import type { IExtension } from "@/packages/core/types/IExtension"
+import { getUuid } from "@/lib/utils"
 
 const DEFAULT_FILE_MODE = 0o644
 const DEFAULT_DIR_MODE = 0o755
@@ -281,34 +282,173 @@ export class ExtensionsAgentFs implements IFileSystem {
     return []
   }
 
-  // ── All write operations are read-only ─────────────────────────────
+  // ── Write operations ───────────────────────────────────────────────
 
-  async writeFile(path: string): Promise<void> {
-    permDenied(path)
+  private decodeContent(
+    content: FileContent,
+    options?: { encoding?: string } | string
+  ): string {
+    if (typeof content === "string") return content
+    const encoding =
+      typeof options === "string" ? options : (options?.encoding ?? "utf-8")
+    return new TextDecoder(encoding).decode(content)
   }
 
-  async appendFile(path: string): Promise<void> {
-    permDenied(path)
+  private extractSlugAndType(normalizedPath: string): {
+    slug: string
+    type: "script" | "block"
+  } | null {
+    const match = normalizedPath.match(/^\/(.+)\.(ts|tsx)$/)
+    if (!match) return null
+    return {
+      slug: match[1],
+      type: match[2] === "ts" ? "script" : "block",
+    }
+  }
+
+  async writeFile(
+    path: string,
+    content: FileContent,
+    options?: { encoding?: string } | string
+  ): Promise<void> {
+    await this.ensureLoaded()
+    const normalized = this.normalize(path)
+    const info = this.extractSlugAndType(normalized)
+    if (!info) {
+      const err = new Error(
+        `EINVAL: invalid extension filename, '${path}' (expected .ts or .tsx)`
+      ) as any
+      err.code = "EINVAL"
+      throw err
+    }
+
+    const { slug, type } = info
+    const tsCode = this.decodeContent(content, options)
+
+    // Try to find existing extension by slug
+    const existing = await this.ds.extension.getExtensionBySlug(slug)
+
+    // Compile extension if compiler is available to get meta/compiled code
+    let compileRes: any = null
+    if (this.ds.context.compileExtension) {
+      try {
+        compileRes = await this.ds.context.compileExtension(tsCode, normalized)
+      } catch (e) {
+        console.warn("[ExtensionsAgentFs] compilation failed:", e)
+      }
+    }
+
+    if (existing) {
+      const updateData: Partial<IExtension> = {
+        ts_code: tsCode,
+      }
+      if (compileRes) {
+        updateData.code = compileRes.compiledCode
+        updateData.meta = compileRes.meta
+        updateData.type = compileRes.type
+        updateData.name = compileRes.name || existing.name
+        updateData.description = compileRes.description || existing.description
+      }
+      await this.ds.extension.set(existing.id, updateData)
+    } else {
+      const newData: Partial<IExtension> = {
+        id: getUuid(),
+        slug,
+        ts_code: tsCode,
+        type,
+        enabled: true,
+        name: slug,
+        version: "0.0.1",
+      }
+      if (compileRes) {
+        newData.code = compileRes.compiledCode
+        newData.meta = compileRes.meta
+        newData.type = compileRes.type
+        newData.name = compileRes.name || slug
+        newData.description = compileRes.description
+      }
+      await this.ds.extension.add(newData)
+    }
+
+    // Force reload on next access
+    this.loaded = false
+    await this.ensureLoaded()
+  }
+
+  async appendFile(
+    path: string,
+    content: FileContent,
+    options?: { encoding?: string } | string
+  ): Promise<void> {
+    const existing = await this.readFile(path)
+    const extra = this.decodeContent(content, options)
+    await this.writeFile(path, existing + extra, options)
   }
 
   async mkdir(path: string): Promise<void> {
-    permDenied(path)
+    // Virtual directories are implicitly supported via hierarchical slugs.
+    // We just ensure the path doesn't conflict with a file.
+    await this.ensureLoaded()
+    const normalized = this.normalize(path)
+    if (this.isFile(normalized)) {
+      const err = new Error(`EEXIST: file already exists, '${path}'`) as any
+      err.code = "EEXIST"
+      throw err
+    }
+    // No-op otherwise, as directory existence is derived from slugs
   }
 
   async rm(path: string): Promise<void> {
-    permDenied(path)
+    await this.ensureLoaded()
+    const normalized = this.normalize(path)
+    const slug = this.resolveSlug(normalized)
+    if (!slug) notFound(path)
+
+    const ext = this.extensions.get(slug!)
+    if (!ext) notFound(path)
+
+    await this.ds.extension.del(ext.id)
+
+    this.loaded = false
+    await this.ensureLoaded()
   }
 
-  async cp(_src: string, dest: string): Promise<void> {
-    permDenied(dest)
+  async cp(src: string, dest: string): Promise<void> {
+    const content = await this.readFile(src)
+    await this.writeFile(dest, content)
   }
 
-  async mv(_src: string, dest: string): Promise<void> {
-    permDenied(dest)
+  async mv(src: string, dest: string): Promise<void> {
+    await this.ensureLoaded()
+    const normalizedSrc = this.normalize(src)
+    const normalizedDest = this.normalize(dest)
+
+    const srcSlug = this.resolveSlug(normalizedSrc)
+    if (!srcSlug) notFound(src)
+
+    const ext = this.extensions.get(srcSlug!)
+    if (!ext) notFound(src)
+
+    const destInfo = this.extractSlugAndType(normalizedDest)
+    if (!destInfo) {
+      const err = new Error(
+        `EINVAL: invalid destination filename, '${dest}'`
+      ) as any
+      err.code = "EINVAL"
+      throw err
+    }
+
+    await this.ds.extension.set(ext.id, {
+      slug: destInfo.slug,
+      type: destInfo.type,
+    })
+
+    this.loaded = false
+    await this.ensureLoaded()
   }
 
   async chmod(path: string): Promise<void> {
-    permDenied(path)
+    await this.stat(path) // check existence
   }
 
   async symlink(_target: string, linkPath: string): Promise<void> {
@@ -324,6 +464,6 @@ export class ExtensionsAgentFs implements IFileSystem {
   }
 
   async utimes(path: string): Promise<void> {
-    permDenied(path)
+    await this.stat(path) // check existence
   }
 }

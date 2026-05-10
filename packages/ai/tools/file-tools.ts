@@ -52,7 +52,7 @@ const editParams = z.object({
         hashes: z
           .string()
           .describe(
-            "Concatenated hashes of the lines being replaced (from the | separator in read output)"
+            "Concatenated 2-character hashes of the lines being replaced. These are the strings BEFORE the '>' in each line of the file-read output (e.g. if lines start with 'ab>1|', 'cd>2|', then hashes should be 'abcd')."
           ),
         new_content: z
           .string()
@@ -165,7 +165,10 @@ export function createFileTools(fs: IFileSystem): Record<string, Tool> {
             .join("")
           if (expectedHashes !== hashes) {
             return {
-              error: `Hash mismatch at lines ${start_line}-${end_line} — the file has changed since you last read it. Read the file again to get updated hashes.`,
+              error:
+                `Hash mismatch at lines ${start_line}-${end_line}. Expected hashes: "${expectedHashes}". ` +
+                `Please ensure you are concatenating ONLY the 2-character prefixes (the part before '>') from the latest file-read output. ` +
+                `You can use the expected hashes provided here to retry if you are sure about the line range.`,
             }
           }
 

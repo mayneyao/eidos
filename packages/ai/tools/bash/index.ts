@@ -83,7 +83,7 @@ export function createBashTool(
   /dataspace/  — knowledge base: docs (with .md extension, writable), tables (with .table extension, read-only)
   /skills/     — skills directory at ~/.agents/skills/ (read-write, create/edit/delete skills)
   /journals/   — journal day pages as YYYY-MM-DD.md files (read-write, create/update journals)
-  /extensions/ — installed extensions as .ts/.tsx files organized by slug (read-only)
+  /extensions/ — installed extensions as .ts/.tsx files organized by slug (read-write, create/edit/delete extensions)
 Use ls, cat, rg (ripgrep) to explore. Prefer using rg for searching rather than find. Supports pipes, redirections, variables, and common Unix tools.
 Custom built-in commands:
   eidos-table-create <name> - Create a new table.
