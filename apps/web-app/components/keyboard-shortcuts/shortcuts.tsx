@@ -33,8 +33,6 @@ interface ShortcutAction {
 export function ShortCuts() {
   const { t } = useTranslation()
   const { setTheme, resolvedTheme } = useTheme()
-  const { isRightPanelOpen: isAiOpen, setIsRightPanelOpen: setIsAiOpen } =
-    useSpaceAppStore()
   const {
     setCmdkOpen,
     isGlobalSearchOpen,
@@ -87,10 +85,6 @@ export function ShortCuts() {
 
         case "toggle-theme":
           setTheme(resolvedTheme === "dark" ? "light" : "dark")
-          break
-
-        case "toggle-ai-panel":
-          setIsAiOpen(!isAiOpen)
           break
 
         case "toggle-sidebar":
@@ -288,14 +282,12 @@ export function ShortCuts() {
   }, [
     t,
     resolvedTheme,
-    isAiOpen,
     space,
     day,
     navigate,
     createDoc,
     createLink,
     setTheme,
-    setIsAiOpen,
     setCmdkOpen,
     toast,
     isSidebarOpen,
@@ -306,6 +298,7 @@ export function ShortCuts() {
     setGlobalSearchOpen,
     isTerminalVisible,
     setIsTerminalVisible,
+    handleBlockTabClick,
   ])
 
   // navigate to today - now handled by global shortcut (Cmd+Shift+T)
@@ -328,10 +321,6 @@ export function ShortCuts() {
   useKeyPress(["shift.ctrl.l", "shift.meta.l"], (e) => {
     e.preventDefault()
     setTheme(resolvedTheme === "dark" ? "light" : "dark")
-  })
-
-  useKeyPress(["ctrl.alt.backslash", "meta.alt.backslash"], () => {
-    setIsAiOpen(!isAiOpen)
   })
 
   useKeyPress(["ctrl.openbracket", "meta.openbracket"], (e) => {

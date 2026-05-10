@@ -97,8 +97,6 @@ export function CommandDialogDemo() {
     setCmdkOpen(!isCmdkOpen)
   })
 
-  const { isRightPanelOpen: isAiOpen, setIsRightPanelOpen: setIsAiOpen } =
-    useSpaceAppStore()
   const { lastOpenedDatabase } = useLastOpened()
 
   const {
@@ -512,11 +510,6 @@ export function CommandDialogDemo() {
     } finally {
       setIsMigrating(false)
     }
-  }
-
-  const toggleAI = () => {
-    setCmdkOpen(false)
-    setIsAiOpen(!isAiOpen)
   }
 
   const createNewDoc = async () => {

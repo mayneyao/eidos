@@ -10,7 +10,6 @@ import {
   FolderPlusIcon,
   MessageSquareIcon,
   PackageIcon,
-  PanelRightIcon,
   PencilLineIcon,
   PinIcon,
   PinOffIcon,
@@ -85,7 +84,7 @@ export function NodeItem({
   const { pin, unpin } = useNode()
   const { handleCut, handlePaste } = useTreeOperations()
   const { currentCut } = useFolderStore()
-  const { setIsRightPanelOpen, setCurrentApp } = useSpaceAppStore()
+  const { setCurrentApp } = useSpaceAppStore()
   const { addApp } = useAppsStore()
   const { toast } = useToast()
 
@@ -171,18 +170,6 @@ export function NodeItem({
         variant: "destructive",
       })
     }
-  }
-
-  const handleAddToPanel = () => {
-    // Create node app URL in the format node://<nodeid>@<space>
-    const nodeApp = `node://${node.id}@${space}`
-
-    // Add the node app to the apps list
-    addApp(nodeApp)
-
-    // Open right panel and set the current app to the node
-    setIsRightPanelOpen(true)
-    setCurrentApp(nodeApp)
   }
 
   useClickAway(() => {
@@ -311,14 +298,6 @@ export function NodeItem({
               </ContextMenuItem>
             )}
           </>
-        )}
-
-        <ContextMenuSeparator />
-        {node.type === "dataview" && (
-          <ContextMenuItem onClick={handleAddToPanel}>
-            <PanelRightIcon className="pr-1.5" />
-            {t("node.menu.addToPanel", "Add to Panel")}
-          </ContextMenuItem>
         )}
 
         {node.type === "folder" && (

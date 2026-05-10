@@ -11,7 +11,6 @@ import {
   LockOpenIcon,
   MailIcon,
   MoveHorizontal,
-  PanelRightIcon,
   SplitSquareHorizontal,
   SplitSquareVertical,
 } from "lucide-react"
@@ -224,7 +223,7 @@ export function TabContextMenu({
 
   const { sqlite, deleteNode, toggleNodeFullWidth, toggleNodeLock } =
     useSqlite()
-  const { setIsRightPanelOpen, setCurrentApp } = useSpaceAppStore()
+  const { setCurrentApp } = useSpaceAppStore()
   const { addApp } = useAppsStore()
 
   const { isEmbeddingModeLoaded } = useAppRuntimeStore()
@@ -340,19 +339,6 @@ export function TabContextMenu({
     },
     [tabNavigate]
   )
-
-  const handleAddToPanel = () => {
-    if (!node) return
-    // Create node app URL in the format node://<nodeid>@<space>
-    const nodeApp = `node://${node.id}@${space}`
-
-    // Add the node app to the apps list
-    addApp(nodeApp)
-
-    // Open right panel and set the current app to the node
-    setIsRightPanelOpen(true)
-    setCurrentApp(nodeApp)
-  }
 
   // Check if tab URL is an external URL (not internal Eidos route)
   const isExternalUrl = (url: string): boolean => {
@@ -520,12 +506,6 @@ export function TabContextMenu({
               )}
               <ContextMenuSeparator />
               <NodeExportContextMenu node={node} />
-              {node.type === "dataview" && (
-                <ContextMenuItem onClick={handleAddToPanel}>
-                  <PanelRightIcon className="mr-2 h-4 w-4" />
-                  {t("node.menu.addToPanel", "Add to Panel")}
-                </ContextMenuItem>
-              )}
               {/* TODO: NodeMoveInto with Command component not supported in native context menu */}
               {/* {node.type === "doc" && !isDayPageId(node.id) && (
                 <>

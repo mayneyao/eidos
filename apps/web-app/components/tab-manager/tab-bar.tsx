@@ -1,12 +1,5 @@
 import React, { useCallback, useState } from "react"
-import {
-  ChevronLeft,
-  ChevronRight,
-  Database,
-  PanelRightIcon,
-  Plus,
-  X,
-} from "lucide-react"
+import { ChevronLeft, ChevronRight, Database, Plus, X } from "lucide-react"
 import {
   DndContext,
   KeyboardSensor,
@@ -222,16 +215,6 @@ export function TabBar({
 
   // For right panel toggle button
   const { isSidebarOpen } = useAppStore()
-  const { isRightPanelOpen, setIsRightPanelOpen, currentAppIndex } =
-    useSpaceAppStore()
-
-  const handleAppChange = (index: number) => {
-    if (index === currentAppIndex) {
-      setIsRightPanelOpen(false)
-    } else {
-      setIsRightPanelOpen(true, index)
-    }
-  }
 
   // Use useCallback to stabilize handleNewTab reference
   const handleNewTab = useCallback(() => {
@@ -406,7 +389,7 @@ export function TabBar({
             isMac() &&
             !isSidebarOpen,
           // Windows: add right padding when on last panel
-          "pr-[112px]": isLastPanel && isWindowsDesktop && !isRightPanelOpen,
+          "pr-[112px]": isLastPanel && isWindowsDesktop,
         }
       )}
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
@@ -470,27 +453,6 @@ export function TabBar({
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         >
           <NavStatus />
-          {isDesktopMode && !isRightPanelOpen && (
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() => handleAppChange(0)}
-              className={cn({
-                "mr-1": !isWindowsDesktop && !isRightPanelOpen,
-              })}
-            >
-              <PanelRightIcon className="h-4 w-4" />
-            </Button>
-          )}
-          {!isDesktopMode && (
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() => handleAppChange(0)}
-            >
-              <PanelRightIcon className="h-4 w-4" />
-            </Button>
-          )}
         </div>
       )}
     </div>

@@ -1,30 +1,19 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { useTabStore } from "@/apps/web-app/store/tabs"
-import { useLocalStorageState, useSize } from "ahooks"
+import { useSize } from "ahooks"
 import { Outlet, useRoutes, useParams, useLocation } from "react-router-dom"
 
 import { EidosDataEventChannelName } from "@/lib/const"
 import { cn, isStandaloneBlocksPath } from "@/lib/utils"
-import { isWindowsDesktop } from "@/lib/web/helper"
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable"
-import { DevTools } from "@/components/dev-tools"
-import { DocExtBlockLoader } from "@/components/doc-ext-block-loader"
 import { KeyboardShortCuts } from "@/components/keyboard-shortcuts"
 import { Loading } from "@/components/loading"
 import { Nav } from "@/components/nav"
-import { RightPanelContent } from "@/components/nav/right-panel-content"
-import { RightPanelNav } from "@/components/nav/right-panel-nav"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
 import { TabManager } from "@/apps/web-app/components/tab-manager"
 import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { ScriptBreadcrumb } from "@/apps/web-app/pages/[database]/extensions/components/extension-breadcrumb"
 import { spaceRoutes } from "@/apps/web-app/routes"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { IntegratedTerminal } from "@/components/integrated-terminal"
@@ -65,19 +54,13 @@ function TabContentLayout() {
 
 export function DesktopSpaceLayout() {
   const { sqlite } = useSqlite()
-  const {
-    isShareMode,
-    currentPreviewFile,
-    isTerminalVisible,
-    setIsTerminalVisible,
-  } = useAppRuntimeStore()
-  const { isRightPanelOpen, resetCurrentApp } = useSpaceAppStore()
+  const { isShareMode, isTerminalVisible, setIsTerminalVisible } =
+    useAppRuntimeStore()
+  const { resetCurrentApp } = useSpaceAppStore()
   const isBlocksPath = isStandaloneBlocksPath(window.location.pathname)
   const [spacePath, setSpacePath] = useState<string>("")
 
   const params = useParams()
-  const rightPanelRef = useRef<HTMLDivElement>(null)
-  const size = useSize(rightPanelRef)
   const { space: spaceFromPath } = useCurrentPathInfo()
 
   // Use space from path info or from route params
@@ -143,13 +126,6 @@ export function DesktopSpaceLayout() {
   useLayoutInit()
   useRelayHandler()
 
-  const [rightPanelSize, setRightPanelSize] = useLocalStorageState<number>(
-    "rightPanelSize",
-    {
-      defaultValue: 20,
-    }
-  )
-
   const toggleTerminal = useCallback(() => {
     setIsTerminalVisible(!isTerminalVisible)
   }, [isTerminalVisible, setIsTerminalVisible])
@@ -197,58 +173,18 @@ export function DesktopSpaceLayout() {
         <ScriptContainer />
         <SideBar />
         <main className="flex min-w-0 grow">
-          {/* Main Content Area - grows to fill available space */}
-          <ResizablePanelGroup
-            direction="horizontal"
-            className="h-screen w-full"
-          >
-            <ResizablePanel
-              defaultSize={100 - (isRightPanelOpen ? rightPanelSize! : 0)}
-              minSize={50}
-            >
-              <div className="h-full flex flex-col">
-                <Nav />
-                <TabManager>
-                  <TabContentLayout />
-                </TabManager>
-                {/* Terminal Panel - at bottom of main content area */}
-                <IntegratedTerminal
-                  isVisible={isTerminalVisible}
-                  onToggleVisibility={toggleTerminal}
-                  spacePath={spacePath}
-                />
-              </div>
-            </ResizablePanel>
-            {isRightPanelOpen && (
-              <>
-                <ResizableHandle className="hover:cursor-col-resize w-[2px] opacity-55" />
-                <ResizablePanel
-                  defaultSize={rightPanelSize}
-                  minSize={20}
-                  maxSize={50}
-                  className="min-w-[450px]"
-                  onResize={(size) => setRightPanelSize(size)}
-                >
-                  <div
-                    className={cn(
-                      "px-1 flex justify-end h-[38px] items-center shrink-0 border-b border-border/60 bg-muted/60",
-                      {
-                        "pr-[116px]": isWindowsDesktop && isRightPanelOpen,
-                      }
-                    )}
-                  >
-                    <RightPanelNav />
-                  </div>
-                  <div
-                    className="grow h-[calc(100%-38px)] overflow-y-auto"
-                    ref={rightPanelRef}
-                  >
-                    <RightPanelContent />
-                  </div>
-                </ResizablePanel>
-              </>
-            )}
-          </ResizablePanelGroup>
+          <div className="h-screen w-full flex flex-col">
+            <Nav />
+            <TabManager>
+              <TabContentLayout />
+            </TabManager>
+            {/* Terminal Panel - at bottom of main content area */}
+            <IntegratedTerminal
+              isVisible={isTerminalVisible}
+              onToggleVisibility={toggleTerminal}
+              spacePath={spacePath}
+            />
+          </div>
         </main>
       </div>
     </>

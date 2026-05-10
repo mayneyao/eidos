@@ -13,9 +13,6 @@ interface ISpaceAppState {
   setCurrentApp: (currentApp: string) => void
   resetCurrentApp: () => void
 
-  isRightPanelOpen: boolean
-  setIsRightPanelOpen: (isAiOpen: boolean, index?: number) => void
-
   isExtAppOpen: boolean
   setIsExtAppOpen: (isExtAppOpen: boolean) => void
 
@@ -37,11 +34,6 @@ interface ISpaceAppState {
 
   // Helper to check if currentApp and tempPanelNode are mutually exclusive
   hasActivePanel: () => boolean
-
-  // Terminal sessions in right panel
-  rightPanelTerminals: string[]
-  addRightPanelTerminal: (sessionId: string) => void
-  removeRightPanelTerminal: (sessionId: string) => void
 }
 
 interface IAppsState {
@@ -78,19 +70,6 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set, get) => ({
   currentApp: "",
   setCurrentApp: (currentApp) => set({ currentApp, tempPanelNode: null }),
   resetCurrentApp: () => set({ currentApp: "", tempPanelNode: null }),
-  isRightPanelOpen: false,
-  setIsRightPanelOpen: (isRightPanelOpen, index) => {
-    if (index == null) {
-      return set({
-        isRightPanelOpen: isRightPanelOpen,
-        currentAppIndex: isRightPanelOpen ? 0 : -1,
-      })
-    }
-    return set({
-      isRightPanelOpen: isRightPanelOpen,
-      currentAppIndex: index ?? get().currentAppIndex,
-    })
-  },
 
   isExtAppOpen: false,
   setIsExtAppOpen: (isExtAppOpen) => set({ isExtAppOpen }),
@@ -121,17 +100,4 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set, get) => ({
       Boolean(state.tempPanelNode)
     )
   },
-
-  // Terminal sessions in right panel
-  rightPanelTerminals: [],
-  addRightPanelTerminal: (sessionId) =>
-    set((state) => ({
-      rightPanelTerminals: [...state.rightPanelTerminals, sessionId],
-    })),
-  removeRightPanelTerminal: (sessionId) =>
-    set((state) => ({
-      rightPanelTerminals: state.rightPanelTerminals.filter(
-        (id) => id !== sessionId
-      ),
-    })),
 }))
