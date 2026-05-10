@@ -1,6 +1,7 @@
 import { webSearchConfig } from "./web-search"
 import { webFetchConfig } from "./web-fetch"
 import { justBashConfig } from "./just-bash"
+import { skillConfig } from "./skill"
 import { type ToolUIConfig } from "./types"
 
 export { type ToolUIConfig } from "./types"
@@ -13,6 +14,7 @@ export const TOOL_UI_CONFIGS: Record<string, ToolUIConfig> = {
   bash: justBashConfig,
   just_bash: justBashConfig,
   bashTool: justBashConfig,
+  skill: skillConfig,
 }
 
 export function getToolConfig(toolName: string): ToolUIConfig {

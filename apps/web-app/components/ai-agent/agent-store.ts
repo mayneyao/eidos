@@ -79,6 +79,23 @@ export async function searchSessions(
   return data.results ?? []
 }
 
+export interface SkillSearchResult {
+  name: string
+  dirName: string
+  snippets: Array<{ content: string; line: number }>
+}
+
+export async function searchSkills(
+  query: string
+): Promise<SkillSearchResult[]> {
+  const res = await fetch(
+    `/api/agent/skills/search?q=${encodeURIComponent(query)}`
+  )
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.results ?? []
+}
+
 export async function fetchSession(
   id: string
 ): Promise<{ messages: unknown[] } | null> {

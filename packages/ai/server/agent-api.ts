@@ -29,6 +29,7 @@ export interface IAgentData {
   tools?: Record<string, unknown>
   maxSteps?: number
   thinking?: "off" | "low" | "medium" | "high"
+  skills?: string[]
 }
 
 export type ThinkingLevel = NonNullable<IAgentData["thinking"]>
@@ -87,7 +88,6 @@ export async function handleAgentApi(
   data: IAgentData,
   ctx?: {
     getDataspace: (space: string) => Promise<DataSpace | null>
-    getSpaceInfo?: (space: string) => { path: string } | null
     signal?: AbortSignal
     getAIConfig?: () => AIFormValues | undefined
   }
@@ -102,6 +102,7 @@ export async function handleAgentApi(
     tools,
     maxSteps = 100,
     thinking,
+    skills,
   } = data
 
   const aiConfig = ctx?.getAIConfig?.()
@@ -128,24 +129,33 @@ export async function handleAgentApi(
     hasCtx: !!ctx,
   })
   // const dsTools = dataspace ? createTableTools(dataspace) : {}
-  const spaceInfo = space && ctx?.getSpaceInfo ? ctx.getSpaceInfo(space) : null
-  const bashWithDs =
-    dataspace && spaceInfo
-      ? { bash: createBashTool({ dataspace, spaceInfo }) }
-      : {}
-  // const mergedTools = { ...serverTools, ...bashWithDs, ...dsTools, ...(tools ?? {}) }
+  // AgentContext handles skill discovery, instruction injection, and exposes skill assets
+  const agentCtx = await AgentContext.create({
+    goal,
+    tools: [],
+    systemPrompt,
+    skills,
+  })
+
+  // Build bash tool with skill instructions injected
+  const bashWithDs = dataspace
+    ? {
+        bash: createBashTool({
+          dataspace,
+          ...(agentCtx.skillInstructions
+            ? { extraInstructions: agentCtx.skillInstructions }
+            : {}),
+        }),
+      }
+    : {}
+
   const mergedTools = {
     ...serverTools,
     webSearch: createWebSearchTool(aiConfig?.exaApiKey),
     ...bashWithDs,
+    ...(agentCtx.skillTool ?? {}),
     ...(tools ?? {}),
   }
-
-  const agentCtx = AgentContext.create({
-    goal,
-    tools: Object.keys(mergedTools),
-    systemPrompt,
-  })
 
   console.log("[agent] ▶ tools merged", {
     serverTools: Object.keys(serverTools),

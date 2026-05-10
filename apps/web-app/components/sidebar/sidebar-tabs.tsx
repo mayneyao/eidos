@@ -58,7 +58,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   settings: SettingsIcon,
   today: CalendarDays,
   graft: GitBranch,
-  "agent-history": MessageSquareIcon,
+  agent: MessageSquareIcon,
 }
 
 const getIconForTab = (tabId: string) => {

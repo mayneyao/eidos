@@ -10,6 +10,8 @@ export interface AgentSessionContextType {
   setIsAllExpanded?: (val: boolean) => void
   thinkingLevel?: "off" | "low" | "medium" | "high"
   setThinkingLevel?: (val: "off" | "low" | "medium" | "high") => void
+  selectedSkills: string[]
+  setSelectedSkills: (skills: string[]) => void
 }
 
 export const AgentSessionContext =
@@ -24,6 +26,8 @@ export function useAgentSession(): AgentSessionContextType {
       setIsRunning: () => {},
       goalInput: "",
       setGoalInput: () => {},
+      selectedSkills: [],
+      setSelectedSkills: () => {},
     }
   }
   return ctx

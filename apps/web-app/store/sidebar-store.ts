@@ -52,8 +52,8 @@ export const TAB_CONFIG: Record<string, Omit<SidebarTab, "id">> = {
     icon: () => null,
     isNavigation: false,
   },
-  "agent-history": {
-    label: "agent-history",
+  agent: {
+    label: "agent",
     icon: () => null,
     isNavigation: false,
   },

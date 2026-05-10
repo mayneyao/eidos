@@ -1,4 +1,6 @@
 import type { UIMessage } from "ai"
+import type { SkillToolkit } from "bash-tool"
+import { initSkillToolkit } from "./skills"
 
 /**
  * Three-layer context system for the AI agent, similar to Claude Code:
@@ -11,13 +13,16 @@ export class AgentContext {
   private _systemPrompt = ""
   private _systemContext: string[] = []
   private _userContext: string[] = []
+  private _skillToolkit: SkillToolkit | null = null
+  private _requestedSkills: string[] = []
 
   /** Create an agent context with the default system prompt and built-in user context. */
-  static create(opts: {
+  static async create(opts: {
     goal: string
     tools: string[]
     systemPrompt?: string
-  }): AgentContext {
+    skills?: string[]
+  }): Promise<AgentContext> {
     const ctx = new AgentContext()
     ctx.setSystemPrompt(
       opts.systemPrompt ??
@@ -26,6 +31,12 @@ export class AgentContext {
     ctx.addUserContext(
       `Today's date is ${new Date().toISOString().split("T")[0]}.`
     )
+
+    // Initialize skills if requested
+    if (opts.skills && opts.skills.length > 0) {
+      await ctx.loadSkills(opts.skills)
+    }
+
     return ctx
   }
 
@@ -43,6 +54,38 @@ Instructions:
 5. If you encounter errors, try an alternative approach.
 
 Be proactive. Don't ask for confirmation — just execute the plan.`
+  }
+
+  /** Load skills by name, initializing the toolkit if needed. */
+  async loadSkills(skillNames: string[]): Promise<void> {
+    this._requestedSkills = skillNames
+    this._skillToolkit = await initSkillToolkit()
+    if (!this._skillToolkit) return
+
+    const requested = this._skillToolkit.skills.filter((s) =>
+      skillNames.includes(s.name)
+    )
+    for (const skill of requested) {
+      this.addSystemContext(
+        `<skill name="${skill.name}">\nUse the skill tool to load full instructions: loadSkill("${skill.name}")\n</skill>`
+      )
+    }
+    console.log("[agent-context] ▶ skills loaded", {
+      requested: skillNames,
+      loaded: requested.map((s) => s.name),
+    })
+  }
+
+  /** The skill tool for the agent to call loadSkill("name") on demand. */
+  get skillTool(): Record<string, any> | null {
+    return this._skillToolkit ? { skill: this._skillToolkit.skill } : null
+  }
+
+  /** Extra instructions for the bash tool (skill discovery metadata). */
+  get skillInstructions(): string | null {
+    return this._skillToolkit && this._requestedSkills.length > 0
+      ? this._skillToolkit.instructions
+      : null
   }
 
   setSystemPrompt(prompt: string): this {

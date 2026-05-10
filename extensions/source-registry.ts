@@ -25,7 +25,7 @@ import folder_browser_components_FileIcon_tsx from "./blocks/folder-browser/comp
 import folder_browser_components_LoadingState_tsx from "./blocks/folder-browser/components/LoadingState.tsx?raw"
 import folder_browser_hooks_useKeyboardNavigation_ts from "./blocks/folder-browser/hooks/useKeyboardNavigation.ts?raw"
 import folder_browser_hooks_useFolderEntries_ts from "./blocks/folder-browser/hooks/useFolderEntries.ts?raw"
-import agent_history_index_tsx from "./blocks/agent-history/index.tsx?raw"
+import agent_history_index_tsx from "./blocks/agent/index.tsx?raw"
 import monaco_editor_index_tsx from "./blocks/monaco-editor/index.tsx?raw"
 
 /**
@@ -68,8 +68,8 @@ export function initializeExtensionSources() {
     "hooks/useFolderEntries.ts": folder_browser_hooks_useFolderEntries_ts,
   })
 
-  // agent-history
-  registerExtensionSource("agent-history", {
+  // agent
+  registerExtensionSource("agent", {
     "index.tsx": agent_history_index_tsx,
   })
 

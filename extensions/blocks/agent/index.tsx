@@ -1,6 +1,6 @@
 "use sidebar"
 
-import { PlusIcon, Trash2Icon, MessageSquareIcon } from "lucide-react"
+import { PlusIcon } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useVirtualList } from "ahooks"
 import { useEidos } from "@eidos.space/react"
@@ -10,9 +10,13 @@ import {
   deleteSession,
   fetchSessions,
   searchSessions,
+  searchSkills,
   useAgentStore,
   type SessionSearchResult,
+  type SkillSearchResult,
 } from "@/components/ai-agent/agent-store"
+import { SessionCard, SearchResultCard } from "./session-card"
+import { SkillsList, type SkillMeta } from "./skills-list"
 
 /**
  * Extension metadata
@@ -22,8 +26,8 @@ export const meta = {
   componentName: "AgentHistorySidebar",
   icon: "message-square",
   sidebarBlock: {
-    title: "AI Agent History",
-    description: "View and manage your AI Agent conversation history.",
+    title: "AI Agent",
+    description: "Session history and skills for your AI Agent.",
   },
 }
 
@@ -47,17 +51,12 @@ const Input = ({
 )
 
 const Skeleton = ({ className }: { className?: string }) => (
-  <div className={cn("animate-pulse rounded-md bg-muted", className)} />
+  <div className={`animate-pulse rounded-md bg-muted ${className || ""}`} />
 )
 
-const highlightText = (text: string, term: string) => {
-  if (!term) return text
-  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  const re = new RegExp(escaped, "gi")
-  return text.replace(re, (m) => `<b>${m}</b>`)
-}
-
 const CARD_HEIGHT = 68
+
+type Tab = "sessions" | "skills"
 
 export function AgentHistorySidebar() {
   const { space } = useCurrentPathInfo()
@@ -65,6 +64,7 @@ export function AgentHistorySidebar() {
   const { sessions, setSessions, currentSessionId, setCurrentSession } =
     useAgentStore()
   const [loading, setLoading] = useState(false)
+  const [tab, setTab] = useState<Tab>("sessions")
 
   // Search state
   const [search, setSearch] = useState("")
@@ -75,8 +75,19 @@ export function AgentHistorySidebar() {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const wrapperRef = useRef<HTMLDivElement | null>(null)
 
+  // Skills state
+  const [skills, setSkills] = useState<SkillMeta[]>([])
+  const [skillsLoading, setSkillsLoading] = useState(false)
+  const [skillSearch, setSkillSearch] = useState("")
+  const [skillSearchResults, setSkillSearchResults] = useState<
+    SkillSearchResult[]
+  >([])
+  const [skillSearchLoading, setSkillSearchLoading] = useState(false)
+
   // Virtual list data source
-  const items = search ? searchResults : sessions
+  const items: (SessionSearchResult | (typeof sessions)[number])[] = search
+    ? searchResults
+    : sessions
   const virtualData = useMemo(() => items, [items])
 
   const [virtualList] = useVirtualList(virtualData, {
@@ -102,6 +113,42 @@ export function AgentHistorySidebar() {
   useEffect(() => {
     refreshSessions()
   }, [refreshSessions])
+
+  // Fetch skills when switching to skills tab
+  useEffect(() => {
+    if (tab !== "skills" || skills.length > 0) return
+    setSkillsLoading(true)
+    fetch("/api/agent/skills")
+      .then((r) => r.json())
+      .then((data) => setSkills(data.skills ?? []))
+      .catch(() => {})
+      .finally(() => setSkillsLoading(false))
+  }, [tab, skills.length])
+
+  // Debounced skill search
+  useEffect(() => {
+    if (!skillSearch) {
+      setSkillSearchResults([])
+      setSkillSearchLoading(false)
+      return
+    }
+    let cancelled = false
+    const handler = setTimeout(async () => {
+      setSkillSearchLoading(true)
+      try {
+        const results = await searchSkills(skillSearch)
+        if (!cancelled) setSkillSearchResults(results)
+      } catch {
+        if (!cancelled) setSkillSearchResults([])
+      } finally {
+        if (!cancelled) setSkillSearchLoading(false)
+      }
+    }, 220)
+    return () => {
+      cancelled = true
+      clearTimeout(handler)
+    }
+  }, [skillSearch])
 
   // Debounced search
   useEffect(() => {
@@ -200,132 +247,29 @@ export function AgentHistorySidebar() {
     [space, currentSessionId, handleSelectSession, refreshSessions]
   )
 
-  const renderSearchResultCard = (r: SessionSearchResult, idx: number) => {
-    const isActive = currentSessionId === r.sessionId
-    const isSelected = idx === selectedIndex
-    const goalHighlight = highlightText(r.goal || "New Conversation", search)
-    const hasGoalMatch = (r.goal || "")
-      .toLowerCase()
-      .includes(search.toLowerCase())
-    const snippet = (r.snippets ?? []).find(
-      (s) => !hasGoalMatch || s.content !== r.goal
-    )
+  const handleSkillClick = useCallback(
+    (skill: SkillMeta) => {
+      eidos.currentSpace.navigate(`/agent/skills/${skill.dirName}`)
+    },
+    [eidos.currentSpace]
+  )
 
-    return (
-      <div
-        key={r.sessionId}
-        data-selected={isSelected || undefined}
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          setSelectedIndex(idx)
-          handleSelectSession(r.sessionId, {
-            target: e.metaKey || e.ctrlKey ? "_blank" : "_self",
+  const handleTrySkill = useCallback(
+    (e: React.MouseEvent, skill: SkillMeta) => {
+      e.stopPropagation()
+      eidos.currentSpace.navigate("/agent")
+      setTimeout(() => {
+        window.dispatchEvent(
+          new CustomEvent("agent:try-skill", {
+            detail: { dirName: skill.dirName, name: skill.name },
           })
-        }}
-        className={cn(
-          "group relative flex flex-col gap-1 rounded-lg border px-3 py-2.5 cursor-pointer transition-all duration-200",
-          isSelected
-            ? "border-primary/70 bg-primary/10"
-            : isActive
-              ? "border-primary/50 bg-primary/5 shadow-sm"
-              : "border-transparent hover:bg-muted/50"
-        )}
-      >
-        <div className="flex items-start gap-2 overflow-hidden">
-          <div className="mt-0.5 shrink-0">
-            {isActive ? (
-              <MessageSquareIcon className="h-3.5 w-3.5 text-primary" />
-            ) : (
-              <MessageSquareIcon className="h-3.5 w-3.5 text-muted-foreground/50" />
-            )}
-          </div>
-          <span
-            className={cn(
-              "text-xs font-medium truncate leading-relaxed [&_b]:text-destructive [&_b]:font-semibold",
-              isActive ? "text-foreground" : "text-muted-foreground"
-            )}
-            dangerouslySetInnerHTML={{ __html: goalHighlight }}
-          />
-        </div>
-        {snippet && (
-          <div className="pl-5.5 text-[11px] text-muted-foreground/70 line-clamp-2">
-            <span
-              className="[&_b]:text-destructive [&_b]:font-semibold"
-              dangerouslySetInnerHTML={{
-                __html: highlightText(snippet.content, search),
-              }}
-            />
-          </div>
-        )}
-        <div className="flex items-center gap-2 pl-5.5 text-[10px] text-muted-foreground/60">
-          <span>{new Date(r.createdAt).toLocaleDateString()}</span>
-          <span>·</span>
-          <span className="capitalize">{r.status}</span>
-        </div>
-      </div>
-    )
-  }
+        )
+      }, 100)
+    },
+    [eidos.currentSpace]
+  )
 
-  const renderSessionCard = (s: (typeof sessions)[number], idx: number) => {
-    const isActive = currentSessionId === s.id
-    const isSelected = idx === selectedIndex
-    return (
-      <div
-        key={s.id}
-        data-selected={isSelected || undefined}
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          setSelectedIndex(idx)
-          handleSelectSession(s.id, {
-            target: e.metaKey || e.ctrlKey ? "_blank" : "_self",
-          })
-        }}
-        className={cn(
-          "group relative flex flex-col gap-1 rounded-lg border px-3 py-2.5 cursor-pointer transition-all duration-200",
-          isSelected
-            ? "border-primary/70 bg-primary/10"
-            : isActive
-              ? "border-primary/50 bg-primary/5 shadow-sm"
-              : "border-transparent hover:bg-muted/50"
-        )}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-start gap-2 overflow-hidden flex-1">
-            <div className="mt-0.5 shrink-0">
-              {isActive ? (
-                <MessageSquareIcon className="h-3.5 w-3.5 text-primary" />
-              ) : (
-                <MessageSquareIcon className="h-3.5 w-3.5 text-muted-foreground/50" />
-              )}
-            </div>
-            <span
-              className={cn(
-                "text-xs font-medium truncate leading-relaxed",
-                isActive ? "text-foreground" : "text-muted-foreground"
-              )}
-            >
-              {s.goal || "New Conversation"}
-            </span>
-          </div>
-          <button
-            onClick={(e) => handleDeleteSession(e, s.id)}
-            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-all shrink-0"
-          >
-            <Trash2Icon className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <div className="flex items-center gap-2 pl-5.5 text-[10px] text-muted-foreground/60">
-          <span>{new Date(s.createdAt).toLocaleDateString()}</span>
-          <span>·</span>
-          <span className="capitalize">{s.status}</span>
-        </div>
-      </div>
-    )
-  }
-
-  const renderContent = () => {
+  const renderSessionsContent = () => {
     if (search) {
       if (searchLoading) {
         return (
@@ -382,9 +326,46 @@ export function AgentHistorySidebar() {
             const idx = item.index
             const data = item.data
             if (search) {
-              return renderSearchResultCard(data, idx)
+              const r = data as SessionSearchResult
+              return (
+                <SearchResultCard
+                  key={r.sessionId}
+                  result={r}
+                  idx={idx}
+                  isActive={currentSessionId === r.sessionId}
+                  isSelected={idx === selectedIndex}
+                  search={search}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setSelectedIndex(idx)
+                    handleSelectSession(r.sessionId, {
+                      target: e.metaKey || e.ctrlKey ? "_blank" : "_self",
+                    })
+                  }}
+                />
+              )
             }
-            return renderSessionCard(data, idx)
+            const s = data as (typeof sessions)[number]
+            return (
+              <SessionCard
+                key={s.id}
+                session={s}
+                idx={idx}
+                isActive={currentSessionId === s.id}
+                isSelected={idx === selectedIndex}
+                onSelect={setSelectedIndex}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setSelectedIndex(idx)
+                  handleSelectSession(s.id, {
+                    target: e.metaKey || e.ctrlKey ? "_blank" : "_self",
+                  })
+                }}
+                onDelete={(e) => handleDeleteSession(e, s.id)}
+              />
+            )
           })}
         </div>
       </div>
@@ -393,9 +374,32 @@ export function AgentHistorySidebar() {
 
   return (
     <div className="flex h-full w-full flex-col px-3 py-2 overflow-hidden">
+      {/* Tab header */}
       <div className="mb-2 px-1 flex items-center justify-between">
-        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          AI Agent History
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setTab("sessions")}
+            className={cn(
+              "text-xs font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
+              tab === "sessions"
+                ? "text-foreground"
+                : "text-muted-foreground/60 hover:text-muted-foreground"
+            )}
+          >
+            Sessions
+          </button>
+          <span className="text-muted-foreground/30 text-xs">/</span>
+          <button
+            onClick={() => setTab("skills")}
+            className={cn(
+              "text-xs font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
+              tab === "skills"
+                ? "text-foreground"
+                : "text-muted-foreground/60 hover:text-muted-foreground"
+            )}
+          >
+            Skills
+          </button>
         </div>
         <button
           onClick={(e) => {
@@ -407,22 +411,46 @@ export function AgentHistorySidebar() {
           }}
           className="p-1 hover:bg-accent rounded-md transition-colors"
           title="New Session"
+          style={{ visibility: tab === "sessions" ? "visible" : "hidden" }}
         >
           <PlusIcon className="h-4 w-4" />
         </button>
       </div>
 
+      {/* Search */}
       <div className="mb-2 px-1">
-        <Input
-          placeholder="Search sessions"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={handleKeyDown}
-          ref={inputRef}
-        />
+        {tab === "sessions" ? (
+          <Input
+            placeholder="Search sessions"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={handleKeyDown}
+            ref={inputRef}
+          />
+        ) : (
+          <Input
+            placeholder="Search skills..."
+            value={skillSearch}
+            onChange={(e) => setSkillSearch(e.target.value)}
+          />
+        )}
       </div>
 
-      <div className="flex-1 overflow-hidden">{renderContent()}</div>
+      {/* Content */}
+      <div className="flex-1 overflow-hidden">
+        {tab === "sessions" && renderSessionsContent()}
+        {tab === "skills" && (
+          <SkillsList
+            skills={skills}
+            loading={skillsLoading}
+            searchResults={skillSearchResults}
+            searchLoading={skillSearchLoading}
+            isSearching={!!skillSearch}
+            onSkillClick={handleSkillClick}
+            onTrySkill={handleTrySkill}
+          />
+        )}
+      </div>
     </div>
   )
 }

@@ -11,6 +11,7 @@ import EverydayPage from "@/apps/web-app/pages/[database]/journals/[day]/page"
 import EverydayHomePage from "@/apps/web-app/pages/[database]/journals/page"
 import SpaceHomePage from "@/apps/web-app/pages/[database]/page"
 import AgentPage from "@/apps/web-app/pages/[database]/agent/page"
+import SkillDetailPage from "@/apps/web-app/pages/[database]/agent/skills/[name]/page"
 import TerminalPage from "@/apps/web-app/pages/[database]/terminal/page"
 import SettingsPage from "@/apps/web-app/pages/[database]/settings/page"
 
@@ -66,6 +67,10 @@ export const spaceRoutes: RouteObject[] = [
   {
     path: "terminal",
     element: <TerminalPage />,
+  },
+  {
+    path: "agent/skills/:name",
+    element: <SkillDetailPage />,
   },
   {
     path: "agent/:sessionId?",

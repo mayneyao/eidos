@@ -1,3 +1,5 @@
+import os from "node:os"
+import path from "node:path"
 import type { Tool } from "ai"
 import { z } from "zod"
 import { Bash, InMemoryFs, MountableFs, ReadWriteFs } from "just-bash"
@@ -6,15 +8,10 @@ import { EidosAgentFs } from "./eidos-agent-fs"
 
 const MAX_OUTPUT_LENGTH = 30000
 
-const MOUNT_PREFIX = "eidos:space:files:mount:"
-
-export interface SpaceInfo {
-  path: string
-}
-
 export interface BashToolContext {
   dataspace: DataSpace
-  spaceInfo: SpaceInfo
+  /** Additional instructions to append to the tool description */
+  extraInstructions?: string
 }
 
 const bashParams = z.object({
@@ -22,53 +19,26 @@ const bashParams = z.object({
 })
 
 /**
- * Load mount configs from the KV store.
- * Returns an array of { name, physicalPath } entries.
- */
-async function loadMounts(
-  ds: DataSpace
-): Promise<Array<{ name: string; physicalPath: string }>> {
-  try {
-    const records = await ds.kv.listWithPrefix({ prefix: MOUNT_PREFIX })
-    return records
-      .filter((r) => r.value)
-      .map((r) => ({
-        name: r.key.slice(MOUNT_PREFIX.length),
-        physicalPath: r.value,
-      }))
-  } catch {
-    return []
-  }
-}
-
-/**
  * Build the composite filesystem for the AI agent:
  *
  *   /            → InMemoryFs (base, mostly unused)
  *   /dataspace/  → EidosAgentFs (read-only SQLite virtual fs)
- *   /~/          → ReadWriteFs (space physical directory)
- *   /@/<mount>/  → ReadWriteFs (each mounted external directory)
+ *   /skills/     → ReadWriteFs backed by ~/.agents/skills/ (read-write)
  */
 async function buildAgentFs(ctx: BashToolContext) {
-  const { dataspace, spaceInfo } = ctx
+  const { dataspace } = ctx
 
   const treeFs = new EidosAgentFs(dataspace)
   await treeFs.healthCheck()
 
-  const mounts = await loadMounts(dataspace)
+  const skillsDir = path.join(os.homedir(), ".agents", "skills")
+  const skillFs = new ReadWriteFs({ root: skillsDir })
 
   const fs = new MountableFs({
     base: new InMemoryFs(),
     mounts: [
+      { mountPoint: "/skills", filesystem: skillFs },
       { mountPoint: "/dataspace", filesystem: treeFs },
-      {
-        mountPoint: "/~",
-        filesystem: new ReadWriteFs({ root: spaceInfo.path }),
-      },
-      ...mounts.map((m) => ({
-        mountPoint: `/@/${m.name}`,
-        filesystem: new ReadWriteFs({ root: m.physicalPath }),
-      })),
     ],
   })
 
@@ -104,9 +74,8 @@ export function createBashTool(ctx: BashToolContext): Tool {
 
   const description = `Execute a bash command in a sandboxed filesystem. Available mounts:
   /dataspace/  — knowledge base: docs (writable via > and >>), mkdir supported, tables (read-only)
-  /~/          — space project folder (read-write)
-  /@/<name>/   — mounted external directories (read-write)
-Use ls, cat, rg (ripgrep) to explore. Prefer using rg for searching rather than find. Supports pipes, redirections, variables, and common Unix tools.`
+  /skills/     — skills directory at ~/.agents/skills/ (read-write, create/edit/delete skills)
+Use ls, cat, rg (ripgrep) to explore. Prefer using rg for searching rather than find. Supports pipes, redirections, variables, and common Unix tools.${ctx.extraInstructions ? `\n\n${ctx.extraInstructions}` : ""}`
 
   return {
     description,

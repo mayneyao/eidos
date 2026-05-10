@@ -65,6 +65,7 @@ function AgentPageContent({
   const [thinkingLevel, setThinkingLevel] = useState<
     "off" | "low" | "medium" | "high"
   >("off")
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([])
 
   const contextValue = useMemo(
     () => ({
@@ -77,8 +78,17 @@ function AgentPageContent({
       setIsAllExpanded,
       thinkingLevel,
       setThinkingLevel,
+      selectedSkills,
+      setSelectedSkills,
     }),
-    [routeSessionId, isRunning, goalInput, isAllExpanded, thinkingLevel]
+    [
+      routeSessionId,
+      isRunning,
+      goalInput,
+      isAllExpanded,
+      thinkingLevel,
+      selectedSkills,
+    ]
   )
 
   useDocFindInPage("agent")
@@ -110,8 +120,22 @@ function AgentPageContent({
 
   // Sync sidebar tab
   useEffect(() => {
-    setCurrentApp("agent-history")
+    setCurrentApp("agent")
   }, [setCurrentApp])
+
+  // Listen for "Try in Chat" from sidebar skills panel
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (!detail?.dirName) return
+      setGoalInput(`$${detail.dirName} `)
+      setSelectedSkills((prev) =>
+        prev.includes(detail.dirName) ? prev : [...prev, detail.dirName]
+      )
+    }
+    window.addEventListener("agent:try-skill", handler)
+    return () => window.removeEventListener("agent:try-skill", handler)
+  }, [])
 
   const [startTime, setStartTime] = useState(0)
   const [stepCount, setStepCount] = useState(0)
@@ -222,9 +246,11 @@ function AgentPageContent({
               space,
               maxSteps: 100,
               thinking: thinkingLevel,
+              skills: selectedSkills,
             },
           }
         )
+        setSelectedSkills([])
       }
 
       if (isRunning) {
@@ -242,6 +268,7 @@ function AgentPageContent({
       isRunning,
       stop,
       thinkingLevel,
+      selectedSkills,
     ]
   )
 
@@ -294,6 +321,8 @@ function AgentPageContent({
                 maxSteps={100}
                 elapsedMs={elapsed}
                 onStop={handleStop}
+                selectedSkills={selectedSkills}
+                onSelectedSkillsChange={setSelectedSkills}
               />
             </div>
           </div>
