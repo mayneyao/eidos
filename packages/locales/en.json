@@ -1,4 +1,5 @@
 {
+  "agent.inputPlaceholder": "What should the AI Agent do? (@ to mention, $ for skills, / to focus)",
   "aiChat.inputEditor.pressAtToMentionResource": "Press @ to mention resource",
   "aiChat.inputEditor.pressSlashToSwitchPrompt": "Press / to switch prompt",
   "aiChat.inputEditor.talkToSpaceData": "talk to space data",

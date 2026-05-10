@@ -1,13 +1,19 @@
 import { SendIcon, Loader2, StopCircleIcon, Brain } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { useCallback, useEffect, useRef, useState, useMemo } from "react"
 
 import { Button } from "@/components/ui/button"
 import { AIModelSelect } from "@/components/ai/ai-model-select"
+import { cn } from "@/lib/utils"
 import { useAppStore } from "@/apps/web-app/store/app-store"
 import { useIsActiveTab } from "@/apps/web-app/hooks/use-is-active-tab"
 import { useTabStore } from "@/apps/web-app/store/tabs"
+import { useNodeStore } from "@/apps/web-app/store/node-store"
+import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import { useAgentSession } from "./agent-context"
-import { SkillPopover } from "./skill-popover"
+import { ContextPopover, type ContextItem } from "./context-popover"
+import { useTriggerState } from "./hooks"
+import { ItemIcon } from "../sidebar/nodes"
 
 interface SkillMeta {
   name: string
@@ -53,33 +59,25 @@ export function AgentGoalInput({
   const { aiModel, setAIModel } = useAppStore()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { t } = useTranslation()
   const [elapsed, setElapsed] = useState(elapsedMs)
 
   // Skills state
   const [availableSkills, setAvailableSkills] = useState<SkillMeta[]>([])
-  const [skillPopoverOpen, setSkillPopoverOpen] = useState(false)
-  const [skillActiveIndex, setSkillActiveIndex] = useState(0)
-  const [triggerState, setTriggerState] = useState<{
-    active: boolean
-    startIndex: number
-    query: string
-  }>({ active: false, startIndex: -1, query: "" })
+  const {
+    triggerState,
+    setTriggerState,
+    activeIndex: triggerActiveIndex,
+    setActiveIndex: setTriggerActiveIndex,
+    resetTrigger,
+  } = useTriggerState()
 
-  // Filtered skills for keyboard navigation
-  const filteredSkills = useMemo(() => {
-    const q = triggerState.query.toLowerCase()
-    if (!q) return availableSkills
-    return availableSkills.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.description.toLowerCase().includes(q)
-    )
-  }, [availableSkills, triggerState.query])
+  const [isDragOver, setIsDragOver] = useState(false)
 
   // Reset active index when filter query changes
   useEffect(() => {
-    setSkillActiveIndex(0)
-  }, [triggerState.query])
+    setTriggerActiveIndex(0)
+  }, [triggerState.query, setTriggerActiveIndex])
 
   useEffect(() => {
     fetch("/api/agent/skills")
@@ -143,23 +141,88 @@ export function AgentGoalInput({
     return () => window.removeEventListener("keydown", handleGlobalKeyDown)
   }, [isActiveTab])
 
-  const handleSkillSelect = useCallback(
-    (skill: SkillMeta) => {
+  const { nodeMap, nodeIds } = useNodeStore()
+
+  const allNodes = useMemo(() => {
+    return nodeIds
+      .map((id) => nodeMap[id])
+      .filter((n) => n && !n.is_deleted && n.type !== "folder")
+  }, [nodeIds, nodeMap])
+
+  const buildNodePath = useCallback(
+    (nodeId: string) => {
+      let path = ""
+      let curr: ITreeNode | null = nodeMap[nodeId] || null
+      while (curr) {
+        let name = curr.name
+        if (curr.type === "doc") name += ".md"
+        if (curr.type === "table") name += ".table"
+        path = name + (path ? "/" + path : "")
+        curr = curr.parent_id ? nodeMap[curr.parent_id] || null : null
+      }
+      const finalPath = "/dataspace/" + path
+      return finalPath
+    },
+    [nodeMap]
+  )
+
+  const contextItems = useMemo<ContextItem[]>(() => {
+    if (triggerState.type === "skill") {
+      return availableSkills.map((s) => ({
+        id: s.dirName,
+        name: s.name,
+        description: s.description,
+        data: s,
+      }))
+    } else if (triggerState.type === "node") {
+      return allNodes.map((n) => ({
+        id: n.id,
+        name: n.name,
+        description: buildNodePath(n.id),
+        icon: <ItemIcon type={n.type} className="h-4 w-4" />,
+        data: n,
+      }))
+    }
+    return []
+  }, [triggerState.type, availableSkills, allNodes, buildNodePath])
+
+  const filteredItems = useMemo(() => {
+    const q = (triggerState.query || "").toLowerCase()
+    return contextItems.filter(
+      (item) =>
+        (item.name || "").toLowerCase().includes(q) ||
+        (item.description || "").toLowerCase().includes(q)
+    )
+  }, [contextItems, triggerState.query])
+
+  const handleItemSelect = useCallback(
+    (item: ContextItem) => {
       const before = goalInput.slice(0, triggerState.startIndex)
       const after = goalInput.slice(
         triggerState.startIndex + 1 + triggerState.query.length
       )
-      const newGoal = `${before}$${skill.dirName} ${after}`
-      setGoalInput(newGoal)
 
-      if (!selectedSkills.includes(skill.dirName)) {
-        onSelectedSkillsChange([...selectedSkills, skill.dirName])
+      let textToInsert = ""
+      if (triggerState.type === "skill") {
+        const skill = item.data
+        textToInsert = `$${skill.dirName}`
+        if (!selectedSkills.includes(skill.dirName)) {
+          onSelectedSkillsChange([...selectedSkills, skill.dirName])
+        }
+      } else {
+        const path = item.description || ""
+        textToInsert = path.includes(" ") ? `"${path}"` : path
       }
 
-      setTriggerState({ active: false, startIndex: -1, query: "" })
-      setSkillPopoverOpen(false)
+      const newGoal = `${before}${textToInsert} ${after}`
+      setGoalInput(newGoal)
+      resetTrigger()
 
-      setTimeout(() => textareaRef.current?.focus(), 0)
+      setTimeout(() => {
+        textareaRef.current?.focus()
+        const newPos = before.length + textToInsert.length + 1
+        textareaRef.current?.setSelectionRange(newPos, newPos)
+      }, 0)
     },
     [
       goalInput,
@@ -179,22 +242,22 @@ export function AgentGoalInput({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (skillPopoverOpen && filteredSkills.length > 0) {
+      if (triggerState.active && filteredItems.length > 0) {
         if (e.key === "ArrowDown") {
           e.preventDefault()
-          setSkillActiveIndex((i) => (i + 1) % filteredSkills.length)
+          setTriggerActiveIndex((i) => (i + 1) % filteredItems.length)
           return
         }
         if (e.key === "ArrowUp") {
           e.preventDefault()
-          setSkillActiveIndex(
-            (i) => (i - 1 + filteredSkills.length) % filteredSkills.length
+          setTriggerActiveIndex(
+            (i) => (i - 1 + filteredItems.length) % filteredItems.length
           )
           return
         }
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault()
-          handleSkillSelect(filteredSkills[skillActiveIndex])
+          handleItemSelect(filteredItems[triggerActiveIndex])
           return
         }
       }
@@ -202,10 +265,9 @@ export function AgentGoalInput({
         e.preventDefault()
         handleSubmit()
       } else if (e.key === "Escape") {
-        if (skillPopoverOpen) {
+        if (triggerState.active) {
           e.preventDefault()
-          setSkillPopoverOpen(false)
-          setTriggerState({ active: false, startIndex: -1, query: "" })
+          resetTrigger()
         } else {
           e.preventDefault()
           textareaRef.current?.blur()
@@ -220,28 +282,128 @@ export function AgentGoalInput({
     },
     [
       handleSubmit,
-      skillPopoverOpen,
-      filteredSkills,
-      skillActiveIndex,
-      handleSkillSelect,
+      triggerState,
+      filteredItems,
+      triggerActiveIndex,
+      handleItemSelect,
     ]
+  )
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+  }, [])
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDragOver(false)
+
+      const dragDataStr = e.dataTransfer.getData("application/eidos-node")
+      if (!dragDataStr) return
+
+      try {
+        const dragData = JSON.parse(dragDataStr)
+        const nodes = dragData.nodes || []
+
+        const paths = nodes.map((node: any) => {
+          let path = node.metadata?.namePath || node.path
+          const nodeType = node.metadata?.nodeType
+
+          if (path.startsWith("~/.eidos/__NODES__/")) {
+            path = path.replace("~/.eidos/__NODES__/", "/dataspace/")
+            if (nodeType === "doc" && !path.endsWith(".md")) {
+              path += ".md"
+            } else if (nodeType === "table" && !path.endsWith(".table")) {
+              path += ".table"
+            }
+          } else if (path.startsWith("~/.eidos/__EXTENSIONS__/")) {
+            const slug =
+              node.metadata?.slug ||
+              path
+                .replace("~/.eidos/__EXTENSIONS__/", "")
+                .replace(/\.(ts|tsx)$/, "")
+            const ext = node.metadata?.extensionType === "script" ? "ts" : "tsx"
+            path = `/extensions/${slug}.${ext}`
+          } else if (path.startsWith("~/.eidos/__JOURNALS__/")) {
+            path = path.replace("~/.eidos/__JOURNALS__/", "/journals/") + ".md"
+          }
+
+          if (path.includes(" ")) {
+            return `"${path}"`
+          }
+          return path
+        })
+
+        if (paths.length > 0) {
+          const textToAppend = paths.join(" ")
+          const textarea = textareaRef.current
+          if (textarea) {
+            const start = textarea.selectionStart
+            const end = textarea.selectionEnd
+            const newGoal =
+              goalInput.substring(0, start) +
+              textToAppend +
+              goalInput.substring(end)
+            setGoalInput(newGoal)
+
+            // Refocus and set cursor position
+            setTimeout(() => {
+              textarea.focus()
+              const newPos = start + textToAppend.length
+              textarea.setSelectionRange(newPos, newPos)
+            }, 0)
+          } else {
+            setGoalInput(
+              goalInput
+                ? `${goalInput.trim()} ${textToAppend} `
+                : `${textToAppend} `
+            )
+          }
+        }
+      } catch (err) {
+        console.error("Failed to parse drop data", err)
+      }
+    },
+    [goalInput, setGoalInput]
   )
 
   return (
     <>
-      <SkillPopover
-        open={skillPopoverOpen}
-        onOpenChange={setSkillPopoverOpen}
-        skills={availableSkills}
-        onSelect={handleSkillSelect}
+      <ContextPopover
+        open={triggerState.active}
+        onOpenChange={(open) => !open && resetTrigger()}
+        items={filteredItems}
+        onSelect={handleItemSelect}
         filterQuery={triggerState.query}
         anchorRef={containerRef}
-        activeIndex={skillActiveIndex}
-        onActiveIndexChange={setSkillActiveIndex}
+        activeIndex={triggerActiveIndex}
+        onActiveIndexChange={setTriggerActiveIndex}
+        title={triggerState.type === "skill" ? "Skills" : "Nodes"}
+        emptyText={
+          triggerState.type === "skill" ? "No skills found." : "No nodes found."
+        }
       />
       <div
         ref={containerRef}
-        className="border border-zinc-200/50 dark:border-zinc-800/50 rounded-xl p-2 bg-zinc-50/60 dark:bg-zinc-900/60 backdrop-blur-md shadow-sm relative"
+        onDragOver={handleDragOver}
+        onDragEnter={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={cn(
+          "border rounded-xl p-2 bg-zinc-50/60 dark:bg-zinc-900/60 backdrop-blur-md shadow-sm relative transition-all duration-200",
+          isDragOver
+            ? "border-primary ring-2 ring-primary/20 bg-primary/5 dark:bg-primary/10 scale-[1.01]"
+            : "border-zinc-200/50 dark:border-zinc-800/50"
+        )}
       >
         <div className="flex flex-col">
           <textarea
@@ -251,33 +413,46 @@ export function AgentGoalInput({
               const newValue = e.target.value
               setGoalInput(newValue)
 
-              // Detect $ trigger for skill picker
+              // Detect $ or @ trigger
               const cursorPos = e.target.selectionStart
               const textBeforeCursor = newValue.slice(0, cursorPos)
               const lastDollarIndex = textBeforeCursor.lastIndexOf("$")
+              const lastAtIndex = textBeforeCursor.lastIndexOf("@")
 
-              if (lastDollarIndex !== -1) {
-                const afterDollar = textBeforeCursor.slice(lastDollarIndex + 1)
-                const charBeforeDollar =
-                  lastDollarIndex > 0 ? newValue[lastDollarIndex - 1] : " "
-                if (
-                  /\s/.test(charBeforeDollar) &&
-                  /^[a-z0-9-]*$/.test(afterDollar)
-                ) {
+              const lastTriggerIndex = Math.max(lastDollarIndex, lastAtIndex)
+
+              if (lastTriggerIndex !== -1) {
+                const triggerChar = textBeforeCursor[lastTriggerIndex]
+                const query = textBeforeCursor.slice(lastTriggerIndex + 1)
+
+                // If query contains space, it's no longer a valid trigger search
+                if (/\s/.test(query)) {
+                  resetTrigger()
+                  return
+                }
+
+                // Only activate if it's the start of a word or start of line
+                const charBeforeTrigger =
+                  lastTriggerIndex > 0
+                    ? textBeforeCursor[lastTriggerIndex - 1]
+                    : " "
+
+                if (/\s/.test(charBeforeTrigger)) {
                   setTriggerState({
                     active: true,
-                    startIndex: lastDollarIndex,
-                    query: afterDollar,
+                    type: triggerChar === "$" ? "skill" : "node",
+                    startIndex: lastTriggerIndex,
+                    query,
                   })
-                  setSkillPopoverOpen(true)
+                  setTriggerActiveIndex(0)
                   return
                 }
               }
-              setTriggerState({ active: false, startIndex: -1, query: "" })
-              setSkillPopoverOpen(false)
+
+              resetTrigger()
             }}
             onKeyDown={handleKeyDown}
-            placeholder="What do you want the AI Agent to do? (Press / to focus)"
+            placeholder={t("agent.inputPlaceholder")}
             className="min-h-[36px] w-full resize-none bg-transparent px-2 pt-1 text-[13px] leading-normal placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none"
             autoFocus
           />

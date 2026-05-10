@@ -1,4 +1,5 @@
 {
+  "agent.inputPlaceholder": "让 AI Agent 做什么？(输入 @ 提及， $ 技能， / 聚焦)",
   "aiChat.inputEditor.pressAtToMentionResource": "按 @ 提及资源",
   "aiChat.inputEditor.pressSlashToSwitchPrompt": "按 / 切换提示词",
   "aiChat.inputEditor.talkToSpaceData": "与空间数据对话",
