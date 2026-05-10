@@ -136,9 +136,13 @@ export async function handleAgentApi(
     hasDataspace: !!dataspace,
     hasCtx: !!ctx,
   })
+  const store = dataspace ? new AgentSessionStore(dataspace) : null
+  const existingMeta = store ? await store.loadMeta(id) : null
+  const sessionGoal = existingMeta?.goal || goal
+
   // AgentContext handles skill discovery, instruction injection, and exposes skill assets
   const agentCtx = await AgentContext.create({
-    goal,
+    goal: sessionGoal,
     tools: [],
     systemPrompt,
     skills,
@@ -219,14 +223,12 @@ export async function handleAgentApi(
     agentCtx.buildMessages(sanitized)
   )
 
-  const store = dataspace ? new AgentSessionStore(dataspace) : null
-
   // Write initial meta.json (status: executing)
-  const createdAt = new Date().toISOString()
+  const createdAt = existingMeta?.createdAt || new Date().toISOString()
   if (store) {
     await store.saveMeta(id, {
       id,
-      goal,
+      goal: sessionGoal,
       status: "executing",
       model: modelAndProvider,
       space: space ?? "",
@@ -307,7 +309,7 @@ export async function handleAgentApi(
         }
         await store.saveMeta(id, {
           id,
-          goal,
+          goal: sessionGoal,
           status,
           model: modelAndProvider,
           space: space ?? "",
