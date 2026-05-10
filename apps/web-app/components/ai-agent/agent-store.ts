@@ -35,11 +35,11 @@ export const useAgentStore = create<AgentStore>()(
       setSessions: (sessions) => set({ sessions }),
 
       isRunning: false,
-      setIsRunning: () => {},
+      setIsRunning: (isRunning) => set({ isRunning }),
       goalInput: "",
-      setGoalInput: () => {},
+      setGoalInput: (goalInput) => set({ goalInput }),
       currentSessionId: null,
-      setCurrentSession: () => {},
+      setCurrentSession: (id) => set({ currentSessionId: id }),
 
       maxSteps: 10,
       setMaxSteps: (steps) => set({ maxSteps: steps }),

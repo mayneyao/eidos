@@ -292,14 +292,19 @@ export function TabBar({
   }
 
   const dispatchExpandTo = useCallback(
-    (app: "files" | "nodes" | "extensions" | "today", path: string) => {
+    (
+      app: "files" | "nodes" | "extensions" | "today" | "agent",
+      path: string
+    ) => {
       setCurrentApp(app)
       if (app === "today") {
-        window.dispatchEvent(
-          new CustomEvent("journals-scroll-to-day", {
-            detail: { id: path },
-          })
-        )
+        setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent("journals-scroll-to-day", {
+              detail: { id: path },
+            })
+          )
+        }, 50)
         return
       }
       setTimeout(() => {
@@ -373,6 +378,16 @@ export function TabBar({
           (await (sqlite as any)?.extension?.getIdPath?.(extId)) || null
         if (!extPath) return
         dispatchExpandTo("extensions", extPath)
+        return
+      }
+
+      // 5) Agent tabs: "/agent/:sessionId"
+      const agentPattern = new URLPattern({
+        pathname: "/agent/:sessionId?",
+      })
+      const agentMatch = agentPattern.exec(url)
+      if (agentMatch) {
+        dispatchExpandTo("agent", "")
         return
       }
     },

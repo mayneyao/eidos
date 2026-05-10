@@ -111,18 +111,40 @@ export function JournalsSidebar() {
     overscan: 12,
   })
 
-  // Scroll to a given day id when receiving custom event
+  const lastScrolledDayRef = useRef<string | null>(null)
+
+  // Auto-scroll to active day (reactive to context changes)
+  useEffect(() => {
+    if (!scrollTo || !virtualData.length || !currentDay) return
+
+    // Small delay to ensure virtual list is ready
+    const timer = setTimeout(() => {
+      const idx = virtualData.findIndex(
+        (row) => row.type === "day" && row.id === currentDay
+      )
+      if (idx >= 0) {
+        scrollTo(Math.max(0, idx - 3))
+        lastScrolledDayRef.current = currentDay
+      }
+    }, 100)
+
+    return () => clearTimeout(timer)
+  }, [scrollTo, virtualData, currentDay])
+
+  // Also listen for explicit scroll requests (e.g. clicking an already active tab)
   useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ id?: string }>).detail
       const targetId = detail?.id
       if (!targetId || !scrollTo || !virtualData.length) return
+
+      // Force scroll even if it's the same day
       const idx = virtualData.findIndex(
         (row) => row.type === "day" && row.id === targetId
       )
       if (idx >= 0) {
-        const targetIdx = Math.max(0, idx - 3) // approximate centering
-        scrollTo(targetIdx)
+        scrollTo(Math.max(0, idx - 3))
+        lastScrolledDayRef.current = targetId
       }
     }
     window.addEventListener("journals-scroll-to-day", handler as EventListener)

@@ -137,6 +137,7 @@ export function CommandDialogDemo() {
   const goToday = goto(`/journals/${today}`)
   const goShare = goto("/share")
   const goPipeline = goto("/pipeline")
+  const goAgent = goto("/agent")
 
   const switchTheme = () => {
     const newTheme = resolvedTheme === "light" ? "dark" : "light"
@@ -681,7 +682,7 @@ export function CommandDialogDemo() {
                       <FilePlus2Icon className="mr-2 h-4 w-4" />
                       <span>{t("cmdk.newDraftDoc")}</span>
                     </CommandItem>
-                    <CommandItem onSelect={toggleAI}>
+                    <CommandItem onSelect={goAgent} value="agent ai">
                       <Bot className="mr-2 h-4 w-4" />
                       <span>{t("common.ai")}</span>
                     </CommandItem>

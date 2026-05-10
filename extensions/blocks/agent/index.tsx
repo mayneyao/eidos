@@ -70,7 +70,7 @@ export function AgentHistorySidebar() {
   const [search, setSearch] = useState("")
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchResults, setSearchResults] = useState<SessionSearchResult[]>([])
-  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [selectedIndex, setSelectedIndex] = useState(-1)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const wrapperRef = useRef<HTMLDivElement | null>(null)
@@ -90,16 +90,32 @@ export function AgentHistorySidebar() {
     : sessions
   const virtualData = useMemo(() => items, [items])
 
-  const [virtualList] = useVirtualList(virtualData, {
+  const [virtualList, scrollTo] = useVirtualList(virtualData, {
     containerTarget: containerRef,
     wrapperTarget: wrapperRef,
     itemHeight: CARD_HEIGHT,
     overscan: 8,
   })
 
+  // Sync selectedIndex with currentSessionId
+  useEffect(() => {
+    if (!currentSessionId) {
+      setSelectedIndex(-1)
+      return
+    }
+    const idx = items.findIndex(
+      (item) =>
+        (item as any).id === currentSessionId ||
+        (item as any).sessionId === currentSessionId
+    )
+    setSelectedIndex(idx)
+  }, [currentSessionId, items])
+
   // Reset selectedIndex when results or search mode change
   useEffect(() => {
-    setSelectedIndex(0)
+    if (search) {
+      setSelectedIndex(0)
+    }
   }, [searchResults, search])
 
   const refreshSessions = useCallback(async () => {
@@ -212,12 +228,25 @@ export function AgentHistorySidebar() {
     }
   }
 
-  // Auto-scroll selected item into view
+  // Auto-scroll selected or active item into view
   useEffect(() => {
-    if (!containerRef.current) return
-    const selected = containerRef.current.querySelector("[data-selected=true]")
-    selected?.scrollIntoView({ block: "nearest" })
-  }, [selectedIndex])
+    if (!scrollTo || items.length === 0) return
+
+    let targetIdx = -1
+    if (selectedIndex !== -1) {
+      targetIdx = selectedIndex
+    } else if (currentSessionId) {
+      targetIdx = items.findIndex(
+        (item) =>
+          (item as any).id === currentSessionId ||
+          (item as any).sessionId === currentSessionId
+      )
+    }
+
+    if (targetIdx !== -1) {
+      scrollTo(Math.max(0, targetIdx - 4)) // approximate centering
+    }
+  }, [selectedIndex, currentSessionId, items, scrollTo])
 
   const handleSelectSession = useCallback(
     (id: string | null, options?: { target?: "_blank" | "_self" }) => {
@@ -338,6 +367,8 @@ export function AgentHistorySidebar() {
                   idx={idx}
                   isActive={currentSessionId === r.sessionId}
                   isSelected={idx === selectedIndex}
+                  data-active={currentSessionId === r.sessionId}
+                  data-selected={idx === selectedIndex}
                   search={search}
                   onClick={(e) => {
                     e.preventDefault()
@@ -358,6 +389,8 @@ export function AgentHistorySidebar() {
                 idx={idx}
                 isActive={currentSessionId === s.id}
                 isSelected={idx === selectedIndex}
+                data-active={currentSessionId === s.id}
+                data-selected={idx === selectedIndex}
                 onSelect={setSelectedIndex}
                 onClick={(e) => {
                   e.preventDefault()

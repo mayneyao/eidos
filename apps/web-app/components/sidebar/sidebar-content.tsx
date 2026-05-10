@@ -122,14 +122,17 @@ const BlockContent = ({ block }: { block: any }) => {
 const GenericBuiltInContent = ({ slug }: { slug: string }) => {
   const { i18n } = useTranslation()
   const { currentSpace } = useCurrentSpace()
+  const { params } = useRouterAdapter()
   const space = useCurrentSpaceId() || ""
   const locale = i18n.language || "en"
   const syncEnabled = currentSpace?.sync?.enabled ?? false
+  const currentDay = params.day || getToday()
+
   return (
     <BuiltInSidebarBlockRenderer
       extensionSlug={slug}
       space={space}
-      currentDay={getToday()}
+      currentDay={currentDay}
       locale={locale}
       syncEnabled={syncEnabled}
     />
