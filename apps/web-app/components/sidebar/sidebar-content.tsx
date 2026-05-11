@@ -127,12 +127,14 @@ const GenericBuiltInContent = ({ slug }: { slug: string }) => {
   const locale = i18n.language || "en"
   const syncEnabled = currentSpace?.sync?.enabled ?? false
   const currentDay = params.day || getToday()
+  const currentSessionId = params.sessionId
 
   return (
     <BuiltInSidebarBlockRenderer
       extensionSlug={slug}
       space={space}
       currentDay={currentDay}
+      currentSessionId={currentSessionId}
       locale={locale}
       syncEnabled={syncEnabled}
     />

@@ -1,16 +1,25 @@
 import { type RefObject } from "react"
+import { GitFork } from "lucide-react"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { MessageBubble } from "./message-bubble"
 import { type ChatMessage } from "./types"
 
 interface AgentChatAreaProps {
   messages: ChatMessage[]
   messagesEndRef: RefObject<HTMLDivElement | null>
+  onFork?: (messageId: string) => void
+  parentId?: string
+  forkedMessageId?: string
 }
 
 export function AgentChatArea({
   messages,
   messagesEndRef,
+  onFork,
+  parentId,
+  forkedMessageId,
 }: AgentChatAreaProps) {
+  const { navigate } = useRouterAdapter()
   const results = new Map<string, any>()
   for (const m of messages) {
     if (m.role === "tool") {
@@ -70,12 +79,28 @@ export function AgentChatArea({
   return (
     <div className="flex flex-col w-full space-y-2 select-text">
       {mergedMessages.map((m, i) => (
-        <MessageBubble
-          key={m.id || `msg-${i}`}
-          message={m}
-          globalResults={results}
-          isLastMessage={m.id === lastMessageId}
-        />
+        <div key={m.id || `msg-${i}`} className="flex flex-col w-full">
+          <MessageBubble
+            message={m}
+            globalResults={results}
+            isLastMessage={m.id === lastMessageId}
+            onFork={onFork}
+          />
+          {parentId && forkedMessageId === m.id && (
+            <div className="relative py-6 flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border/40" />
+              </div>
+              <button
+                onClick={() => navigate(`/agent/${parentId}`)}
+                className="relative flex items-center gap-2 px-3 py-1 text-[10px] uppercase tracking-wider font-medium text-muted-foreground hover:text-primary transition-colors bg-background rounded-full border border-border hover:border-primary/30 shadow-sm"
+              >
+                <GitFork className="w-3 h-3" />
+                <span>Forked from conversation</span>
+              </button>
+            </div>
+          )}
+        </div>
       ))}
       <div ref={messagesEndRef as React.LegacyRef<HTMLDivElement>} />
     </div>

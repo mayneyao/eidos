@@ -1,6 +1,6 @@
 import { SparklesIcon, PlayIcon } from "lucide-react"
 import React from "react"
-import type { SkillSearchResult } from "@/components/ai-agent/agent-store"
+import type { SkillSearchResult } from "./index"
 
 const Skeleton = ({ className }: { className?: string }) => (
   <div className={`animate-pulse rounded-md bg-muted ${className || ""}`} />

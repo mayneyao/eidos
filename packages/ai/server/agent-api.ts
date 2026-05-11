@@ -234,6 +234,8 @@ export async function handleAgentApi(
       space: space ?? "",
       createdAt,
       maxSteps,
+      parentId: existingMeta?.parentId,
+      forkedMessageId: existingMeta?.forkedMessageId,
     })
     // Persist the latest user message so it's not lost if the stream crashes
     const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
@@ -316,6 +318,8 @@ export async function handleAgentApi(
           createdAt,
           completedAt: new Date().toISOString(),
           maxSteps,
+          parentId: existingMeta?.parentId,
+          forkedMessageId: existingMeta?.forkedMessageId,
         })
       } catch (err) {
         console.error("[agent] ✖ onFinish error", {

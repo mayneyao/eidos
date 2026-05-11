@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react"
 import { Streamdown } from "streamdown"
 import { code } from "@streamdown/code"
 
@@ -27,11 +28,14 @@ export function AssistantMessage({
   const { isRunning } = useAgentSession()
   const parts = message.parts || []
 
-  // 1. Convert and merge tool calls/results
-  const calls = convertAndMergeMessageParts(parts, globalResults)
+  // 1. Memoize data transformation logic
+  const grouped = useMemo(() => {
+    const calls = convertAndMergeMessageParts(parts, globalResults)
+    return groupMessageParts(calls)
+  }, [parts, globalResults])
 
-  // 2. Group combined parts into timeline and non-timeline
-  const grouped = groupMessageParts(calls)
+  // 2. Determine if we should animate
+  const shouldAnimate = isLastMessage && isRunning
 
   return (
     <div className="w-full text-sm leading-relaxed space-y-2">
@@ -93,7 +97,9 @@ export function AssistantMessage({
               <div key={i} className="space-y-2">
                 {beforeThink && (
                   <div className="prose-zinc prose-sm dark:prose-invert">
-                    <Streamdown plugins={plugins}>{beforeThink}</Streamdown>
+                    <Streamdown plugins={plugins} isAnimating={shouldAnimate}>
+                      {beforeThink}
+                    </Streamdown>
                   </div>
                 )}
                 <div className="relative pl-6 border-l border-zinc-200/40 dark:border-zinc-800/60 ml-2.5 my-2.5">
@@ -106,7 +112,9 @@ export function AssistantMessage({
                 </div>
                 {afterThink && (
                   <div className="prose-zinc prose-sm dark:prose-invert">
-                    <Streamdown plugins={plugins}>{afterThink}</Streamdown>
+                    <Streamdown plugins={plugins} isAnimating={shouldAnimate}>
+                      {afterThink}
+                    </Streamdown>
                   </div>
                 )}
               </div>
@@ -116,7 +124,9 @@ export function AssistantMessage({
           return (
             <div key={i}>
               <div className="prose-zinc prose-sm dark:prose-invert">
-                <Streamdown plugins={plugins}>{(part as any).text}</Streamdown>
+                <Streamdown plugins={plugins} isAnimating={shouldAnimate}>
+                  {(part as any).text}
+                </Streamdown>
               </div>
             </div>
           )

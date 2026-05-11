@@ -3,20 +3,70 @@
 import { PlusIcon } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useVirtualList } from "ahooks"
-import { useEidos } from "@eidos.space/react"
-
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import {
-  deleteSession,
-  fetchSessions,
-  searchSessions,
-  searchSkills,
-  useAgentStore,
-  type SessionSearchResult,
-  type SkillSearchResult,
-} from "@/components/ai-agent/agent-store"
+  useEidos,
+  useExtensionContext,
+  type SidebarBlockContext,
+} from "@eidos.space/react"
 import { SessionCard, SearchResultCard } from "./session-card"
 import { SkillsList, type SkillMeta } from "./skills-list"
+
+export interface SessionMeta {
+  id: string
+  goal: string
+  status: string
+  model: string
+  space: string
+  createdAt: string
+  completedAt?: string
+  maxSteps: number
+}
+
+export interface SessionSearchResult {
+  sessionId: string
+  goal: string
+  status: string
+  createdAt: string
+  completedAt?: string
+  snippets: Array<{ lineNumber: number; content: string }>
+}
+
+export interface SkillSearchResult {
+  name: string
+  dirName: string
+  snippets: Array<{ content: string; line: number }>
+}
+
+async function fetchSessions(): Promise<SessionMeta[]> {
+  const res = await fetch(`/api/agent/sessions`)
+  if (!res.ok) return []
+  return res.json()
+}
+
+async function searchSessions(query: string): Promise<SessionSearchResult[]> {
+  const res = await fetch(
+    `/api/agent/sessions/search?q=${encodeURIComponent(query)}`
+  )
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.results ?? []
+}
+
+async function searchSkills(query: string): Promise<SkillSearchResult[]> {
+  const res = await fetch(
+    `/api/agent/skills/search?q=${encodeURIComponent(query)}`
+  )
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.results ?? []
+}
+
+async function deleteSession(id: string): Promise<boolean> {
+  const res = await fetch(`/api/agent/sessions/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  })
+  return res.ok
+}
 
 /**
  * Extension metadata
@@ -59,10 +109,9 @@ const CARD_HEIGHT = 68
 type Tab = "sessions" | "skills"
 
 export function AgentHistorySidebar() {
-  const { space } = useCurrentPathInfo()
+  const { space, currentSessionId } = useExtensionContext<SidebarBlockContext>()
   const eidos = useEidos()
-  const { sessions, setSessions, currentSessionId, setCurrentSession } =
-    useAgentStore()
+  const [sessions, setSessions] = useState<SessionMeta[]>([])
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState<Tab>("sessions")
 
@@ -128,7 +177,7 @@ export function AgentHistorySidebar() {
 
   useEffect(() => {
     refreshSessions()
-  }, [refreshSessions])
+  }, [refreshSessions, currentSessionId])
 
   // Fetch skills when switching to skills tab
   useEffect(() => {
@@ -251,12 +300,9 @@ export function AgentHistorySidebar() {
   const handleSelectSession = useCallback(
     (id: string | null, options?: { target?: "_blank" | "_self" }) => {
       const path = id ? `/agent/${id}` : `/agent`
-      if (options?.target !== "_blank") {
-        setCurrentSession(id)
-      }
-      eidos.currentSpace.navigate(path)
+      eidos.currentSpace.navigate(path, options)
     },
-    [eidos.currentSpace, setCurrentSession]
+    [eidos.currentSpace]
   )
 
   const handleDeleteSession = useCallback(

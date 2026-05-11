@@ -132,6 +132,8 @@ export function createAgentMiddleware(options: {
       createdAt: existing?.createdAt ?? new Date().toISOString(),
       completedAt: new Date().toISOString(),
       maxSteps: body.maxSteps ?? 10,
+      parentId: existing?.parentId,
+      forkedMessageId: existing?.forkedMessageId,
     })
 
     if (body.messages) {
@@ -262,6 +264,41 @@ export function createAgentMiddleware(options: {
 
   // Handle GET requests
   app.get("/api/agent/sessions/:id?", handleGetRequest)
+
+  // Fork a session at a specific message
+  app.post("/api/agent/sessions/:id/fork", async (c: any) => {
+    const space = extractSpace(c)
+    const id = c.req.param("id")
+    const body = await c.req.json()
+    const { messageId } = body
+
+    if (!space || !id || !messageId) {
+      return c.json({ error: "space, id, and messageId are required" }, 400)
+    }
+
+    const dataspace = await options.getDataspace(space)
+    if (!dataspace) {
+      return c.json({ error: "space not found" }, 404)
+    }
+
+    const store = new AgentSessionStore(dataspace)
+    const newId = crypto.randomUUID()
+
+    try {
+      await store.fork(id, messageId, newId)
+      return c.json({ id: newId })
+    } catch (err) {
+      console.error("[agent-route] ✖ fork error", {
+        id,
+        messageId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return c.json(
+        { error: err instanceof Error ? err.message : "Fork failed" },
+        500
+      )
+    }
+  })
 
   // Handle POST requests
   app.post("/api/agent/sessions/:id/save", handleSaveRequest)

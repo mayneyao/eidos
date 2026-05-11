@@ -10,6 +10,8 @@ export interface AgentSession {
   createdAt: string
   completedAt?: string
   maxSteps: number
+  parentId?: string
+  forkedMessageId?: string
 }
 
 type SessionMeta = AgentSession
@@ -308,6 +310,72 @@ export class AgentSessionStore {
     } catch {
       return []
     }
+  }
+
+  // ── Fork ──────────────────────────────────────────────
+
+  /**
+   * Fork a session at a specific message, creating a new session with
+   * all events up to and including the target message.
+   */
+  async fork(
+    sourceSessionId: string,
+    targetMessageId: string,
+    newSessionId: string
+  ): Promise<void> {
+    const meta = await this.loadMeta(sourceSessionId)
+    if (!meta) throw new Error("Source session not found")
+
+    const content = await this.readFile(this.getJsonlPath(sourceSessionId))
+    if (!content) throw new Error("Source session has no messages")
+
+    const lines = content.split("\n").filter((l) => l.trim())
+    const events: JsonlEvent[] = lines.map((l) => JSON.parse(l))
+
+    // Find the index of the last event belonging to the target message
+    let endIdx = -1
+    let foundTarget = false
+    for (let i = 0; i < events.length; i++) {
+      const event = events[i]
+      if (event.role === "user" && event.id === targetMessageId) {
+        endIdx = i
+        foundTarget = true
+        break
+      }
+      if (
+        event.role === "assistant" &&
+        "messageId" in event &&
+        event.messageId === targetMessageId
+      ) {
+        endIdx = i
+        foundTarget = true
+      }
+    }
+
+    if (!foundTarget) {
+      throw new Error("Target message not found in source session")
+    }
+
+    const truncated = events.slice(0, endIdx + 1)
+
+    // Write new session files
+    const now = new Date().toISOString()
+    await this.saveMeta(newSessionId, {
+      id: newSessionId,
+      goal: meta.goal,
+      status: "completed",
+      model: meta.model,
+      space: meta.space,
+      createdAt: now,
+      completedAt: now,
+      maxSteps: meta.maxSteps,
+      parentId: sourceSessionId,
+      forkedMessageId: targetMessageId,
+    })
+    await this.writeFile(
+      this.getJsonlPath(newSessionId),
+      truncated.map((e) => serializeEvent(e)).join("\n") + "\n"
+    )
   }
 
   // ── Delete ────────────────────────────────────────────

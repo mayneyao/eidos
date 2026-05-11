@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState, useMemo } from "react"
-import { useNavigate } from "react-router-dom"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useChat } from "@/packages/ai"
 import { DefaultChatTransport } from "ai"
@@ -12,24 +11,24 @@ import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 import { useIsActiveTab } from "@/apps/web-app/hooks/use-is-active-tab"
 import { useDocFindInPage } from "@/apps/web-app/hooks/use-doc-find-in-page"
-import {
-  useAgentStore,
-  fetchSessions,
-  fetchSession,
-} from "@/components/ai-agent/agent-store"
+import { type AgentSession } from "@/packages/core/agent-session/agent-session-store"
+
 import { AgentGoalInput } from "@/components/ai-agent/agent-goal-input"
 import { AgentChatArea } from "@/components/ai-agent/agent-chat-area"
 import { AgentSessionContext } from "@/components/ai-agent/agent-context"
 
 export default function AgentPage() {
-  const navigate = useNavigate()
   const { space } = useCurrentPathInfo()
-  const { params } = useRouterAdapter()
+  const { params, navigate } = useRouterAdapter()
   const routeSessionId = params.sessionId
 
   useEffect(() => {
     if (!routeSessionId) {
       const newSessionId = uuidv7()
+      console.log(
+        "[AgentPage] No routeSessionId, redirecting to new session:",
+        newSessionId
+      )
       navigate(`/agent/${newSessionId}`, { replace: true })
     }
   }, [routeSessionId, navigate])
@@ -39,7 +38,7 @@ export default function AgentPage() {
   }
 
   return (
-    <div key={routeSessionId} className="h-full">
+    <div className="h-full">
       <AgentPageContent space={space} routeSessionId={routeSessionId} />
     </div>
   )
@@ -52,11 +51,10 @@ function AgentPageContent({
   space: string
   routeSessionId: string | undefined
 }) {
-  const navigate = useNavigate()
+  const { navigate } = useRouterAdapter()
   const { setCurrentApp } = useSidebarStore()
 
-  const { setSessions, setCurrentSession: setStoreSessionId } = useAgentStore()
-
+  console.log("[AgentPageContent] Render:", { space, routeSessionId })
   const [goalInput, setGoalInput] = useState("")
   const [isRunning, setIsRunning] = useState(false)
   const [isAllExpanded, setIsAllExpanded] = useState<boolean | undefined>(
@@ -66,6 +64,12 @@ function AgentPageContent({
     "off" | "low" | "medium" | "high"
   >("off")
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
+  const [forkInfo, setForkInfo] = useState<{
+    parentId?: string
+    forkedMessageId?: string
+  } | null>(null)
+  const [displayMessages, setDisplayMessages] = useState<any[]>([])
+  const [isSwitching, setIsSwitching] = useState(false)
 
   const contextValue = useMemo(
     () => ({
@@ -141,11 +145,6 @@ function AgentPageContent({
   const [stepCount, setStepCount] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (!space) return
-    fetchSessions().then(setSessions)
-  }, [space, setSessions])
-
   const transport = useRef(
     new DefaultChatTransport({ api: "/api/agent/sessions" })
   ).current
@@ -159,8 +158,6 @@ function AgentPageContent({
     },
     onFinish: () => {
       setIsRunning(false)
-      // Refresh session list
-      if (space) fetchSessions().then(setSessions)
     },
     onError: (error) => {
       console.error("Agent error:", error)
@@ -188,37 +185,73 @@ function AgentPageContent({
 
   useTabTitle(goalText ? goalText : "AI Agent")
 
-  const lastSyncedSessionId = useRef<string | null | undefined>(undefined)
+  const sessionLoadIdRef = useRef(0)
 
-  const handleSelectSession = useCallback(
-    async (id: string | null) => {
-      if (id === lastSyncedSessionId.current && messages.length > 0) return
-
-      lastSyncedSessionId.current = id
-      setStoreSessionId(id)
-
-      if (id && space) {
-        const data = await fetchSession(id)
-        // Session now stores UIMessage[] directly — pass straight to useChat
-        setMessages((data?.messages ?? []) as any)
-      } else {
-        setMessages([])
-      }
-    },
-    [space, messages.length, setStoreSessionId, setMessages]
-  )
-
-  // Sync route with session state
+  // 1. Sync displayMessages with useChat messages while streaming/active
   useEffect(() => {
-    const targetId = routeSessionId || null
-    if (targetId !== lastSyncedSessionId.current) {
-      handleSelectSession(targetId)
+    if (!isSwitching) {
+      setDisplayMessages(messages)
     }
-  }, [routeSessionId, handleSelectSession])
+  }, [messages, isSwitching])
+
+  // 2. Handle session switching and initial data loading
+  useEffect(() => {
+    console.log(
+      "[AgentPageContent] Syncing session messages for routeSessionId:",
+      routeSessionId
+    )
+    const targetId = routeSessionId || null
+    const loadId = ++sessionLoadIdRef.current
+    let cancelled = false
+
+    if (!targetId || !space) {
+      setMessages([])
+      setDisplayMessages([])
+      setForkInfo(null)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    setIsSwitching(true)
+
+    fetchSession(targetId)
+      .then((data) => {
+        if (cancelled || loadId !== sessionLoadIdRef.current) return
+
+        const newMessages = (data?.messages ?? []) as any
+        setMessages(newMessages)
+        setDisplayMessages(newMessages)
+        setIsSwitching(false)
+
+        if (data?.parentId) {
+          setForkInfo({
+            parentId: data.parentId,
+            forkedMessageId: data.forkedMessageId,
+          })
+        }
+      })
+      .catch(() => {
+        if (cancelled || loadId !== sessionLoadIdRef.current) return
+        setMessages([])
+        setDisplayMessages([])
+        setIsSwitching(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [routeSessionId, space, setMessages])
 
   const handleSubmit = useCallback(
     (goal: string, model: string) => {
       const sessionId = routeSessionId || uuidv7()
+      console.log("[AgentPageContent] handleSubmit called", {
+        goal,
+        model,
+        routeSessionId,
+        newSessionId: sessionId,
+      })
       setStartTime(Date.now())
       setStepCount(0)
 
@@ -229,8 +262,6 @@ function AgentPageContent({
       if (!routeSessionId) {
         // If it's a new session, update URL
         navigate(`/agent/${sessionId}`, { replace: true })
-        setStoreSessionId(sessionId)
-        lastSyncedSessionId.current = sessionId
       }
 
       setIsRunning(true)
@@ -262,7 +293,6 @@ function AgentPageContent({
     [
       space,
       routeSessionId,
-      setStoreSessionId,
       sendMessage,
       navigate,
       isRunning,
@@ -278,8 +308,18 @@ function AgentPageContent({
     // Note: partial session state is saved server-side via onFinish when
     // the stream completes. A mid-stream stop may result in an incomplete
     // session — acceptable for now.
-    if (space) fetchSessions().then(setSessions)
-  }, [stop, space, setSessions])
+  }, [stop])
+
+  const handleFork = useCallback(
+    async (messageId: string) => {
+      if (!routeSessionId) return
+      const newId = await forkSession(routeSessionId, messageId)
+      if (newId) {
+        navigate(`/agent/${newId}`)
+      }
+    },
+    [routeSessionId, navigate]
+  )
 
   const elapsed = isRunning ? Date.now() - startTime : 0
 
@@ -293,19 +333,24 @@ function AgentPageContent({
             tabIndex={-1}
           >
             <div className="max-w-3xl mx-auto w-full px-6 py-4 pb-64">
-              {messages.length > 0 ? (
+              {displayMessages.length > 0 ? (
                 <AgentChatArea
-                  messages={messages as any}
+                  messages={displayMessages as any}
                   messagesEndRef={messagesEndRef}
+                  onFork={handleFork}
+                  parentId={forkInfo?.parentId}
+                  forkedMessageId={forkInfo?.forkedMessageId}
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center min-h-[400px] text-center gap-4">
-                  <h2 className="text-2xl font-semibold">AI Agent</h2>
-                  <p className="text-muted-foreground max-w-md">
-                    Describe what you want the Agent to do. It will plan and
-                    execute the steps autonomously using the available tools.
-                  </p>
-                </div>
+                !isSwitching && (
+                  <div className="flex flex-col items-center justify-center min-h-[400px] text-center gap-4">
+                    <h2 className="text-2xl font-semibold">AI Agent</h2>
+                    <p className="text-muted-foreground max-w-md">
+                      Describe what you want the Agent to do. It will plan and
+                      execute the steps autonomously using the available tools.
+                    </p>
+                  </div>
+                )
               )}
               <div className="h-4" />
             </div>
@@ -330,4 +375,29 @@ function AgentPageContent({
       </div>
     </AgentSessionContext.Provider>
   )
+}
+
+async function fetchSession(
+  id: string
+): Promise<(AgentSession & { messages: any[] }) | null> {
+  const res = await fetch(`/api/agent/sessions/${encodeURIComponent(id)}`)
+  if (!res.ok) return null
+  return res.json()
+}
+
+async function forkSession(
+  sourceId: string,
+  messageId: string
+): Promise<string | null> {
+  const res = await fetch(
+    `/api/agent/sessions/${encodeURIComponent(sourceId)}/fork`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId }),
+    }
+  )
+  if (!res.ok) return null
+  const data = await res.json()
+  return data.id ?? null
 }

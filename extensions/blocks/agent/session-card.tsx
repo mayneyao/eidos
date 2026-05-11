@@ -1,6 +1,6 @@
 import { Trash2Icon, MessageSquareIcon } from "lucide-react"
 import React from "react"
-import type { SessionSearchResult } from "@/components/ai-agent/agent-store"
+import type { SessionSearchResult } from "./index"
 
 const cn = (...classes: (string | boolean | undefined)[]) =>
   classes.filter(Boolean).join(" ")
