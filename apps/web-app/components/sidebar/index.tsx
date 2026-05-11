@@ -29,7 +29,7 @@ const SidebarFooter = () => {
   }
 
   return (
-    <div className="mt-auto border-t border-sidebar-border p-1 py-[7px]">
+    <div className="mt-auto p-1 py-[7px]">
       <div className="flex items-center justify-between gap-1">
         {!isShareMode && <SpaceSelect spaces={spaceList} />}
         <div className="flex items-center gap-1">

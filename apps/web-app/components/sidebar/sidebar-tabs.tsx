@@ -380,7 +380,7 @@ export const SidebarTabs = () => {
     <div
       ref={containerRef}
       className={cn(
-        "flex h-[38px] items-center px-1 border-b border-border/60 bg-muted/60 transition-all duration-200",
+        "flex h-[38px] items-center px-1 transition-all duration-200",
         {
           "pl-[76px]": isMacDesktop(),
           "pl-4": !isMacDesktop(),
