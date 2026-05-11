@@ -72,6 +72,19 @@ export function createBashTool(
       maxCommandCount: 10000,
       maxLoopIterations: 100,
     },
+    network: {
+      dangerouslyAllowFullInternetAccess: true,
+      allowedMethods: [
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+        "PATCH",
+        "HEAD",
+        "OPTIONS",
+      ],
+      denyPrivateRanges: true,
+    },
     defenseInDepth: false,
   })
 
