@@ -111,9 +111,11 @@ function TabNavigator({
 
       const currentPath = location.pathname + location.search + location.hash
 
+      const isSamePath = tabUrl === currentPath
+      prevTabUrlRef.current = tabUrl
+
       // Only navigate if the tab URL is different from current location
-      if (tabUrl !== currentPath) {
-        prevTabUrlRef.current = tabUrl
+      if (!isSamePath) {
         const navOptions = consumeNextNavigationOptions(tabId)
         navigate(tabUrl, { replace: navOptions?.replace === true })
       }
