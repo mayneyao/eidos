@@ -28,9 +28,7 @@ export class AgentContext {
       opts.systemPrompt ??
         AgentContext.buildDefaultPrompt(opts.goal, opts.tools)
     )
-    ctx.addUserContext(
-      `Today's date is ${new Date().toISOString().split("T")[0]}.`
-    )
+    ctx.addUserContext(`Today's date is ${new Date().toLocaleString()}.`)
 
     // Initialize skills if requested
     if (opts.skills && opts.skills.length > 0) {
