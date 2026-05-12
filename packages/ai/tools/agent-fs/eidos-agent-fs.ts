@@ -1,6 +1,7 @@
 import type { IFileSystem, FsStat, FileContent } from "just-bash"
 import type { DataSpace } from "@/packages/core/data-space"
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
+import { getRawTableNameById, uuidv7, extractIdFromShortId } from "@/lib/utils"
 
 const DEFAULT_FILE_MODE = 0o644
 const DEFAULT_DIR_MODE = 0o755
@@ -27,10 +28,14 @@ function permDenied(path: string): never {
 /**
  * An IFileSystem backed by eidos__tree.
  * Loads all nodes into memory on first access for fast traversal.
- * Doc nodes are writable via writeFile/appendFile (markdown content).
- * writeFile auto-creates doc nodes when the target path does not exist.
+ *
+ * Tables appear as both a .table file (schema JSON, read-only) and a
+ * same-named directory listing their child docs (.md, writable).
+ * Creating a doc under a table directory also inserts a table row
+ * with title = doc name. Deleting a doc removes the tree node and
+ * eidos__docs content, but leaves the table row intact.
+ *
  * mkdir creates folder nodes (supports recursive mode).
- * All other write operations remain read-only (EPERM).
  */
 export class EidosAgentFs implements IFileSystem {
   private ds: DataSpace
@@ -169,8 +174,12 @@ export class EidosAgentFs implements IFileSystem {
     return node
   }
 
-  private nodeToStat(node: ITreeNode): FsStat {
-    const isDir = node.type === "folder"
+  private nodeToStat(node: ITreeNode, normalizedPath?: string): FsStat {
+    const isTableDir =
+      node.type === "table" &&
+      !!normalizedPath &&
+      !normalizedPath.endsWith(".table")
+    const isDir = node.type === "folder" || isTableDir
     return {
       isFile: !isDir,
       isDirectory: isDir,
@@ -191,7 +200,7 @@ export class EidosAgentFs implements IFileSystem {
     if (normalized !== "/") {
       const node = this.resolveNodeSync(normalized)
       if (!node) notFound(path)
-      if (node.type !== "folder") {
+      if (node.type !== "folder" && node.type !== "table") {
         const err = new Error(`ENOTDIR: not a directory, '${path}'`) as any
         err.code = "ENOTDIR"
         throw err
@@ -199,7 +208,16 @@ export class EidosAgentFs implements IFileSystem {
       parentId = node.id
     }
 
-    return this.getChildren(parentId).map((c) => this.getVirtualName(c))
+    const result: string[] = []
+    for (const c of this.getChildren(parentId)) {
+      if (c.type === "table") {
+        result.push(`${c.name}.table`)
+        result.push(c.name)
+      } else {
+        result.push(this.getVirtualName(c))
+      }
+    }
+    return result
   }
 
   async readdirWithFileTypes(path: string): Promise<DirentEntry[]> {
@@ -210,7 +228,7 @@ export class EidosAgentFs implements IFileSystem {
     if (normalized !== "/") {
       const node = this.resolveNodeSync(normalized)
       if (!node) notFound(path)
-      if (node.type !== "folder") {
+      if (node.type !== "folder" && node.type !== "table") {
         const err = new Error(`ENOTDIR: not a directory, '${path}'`) as any
         err.code = "ENOTDIR"
         throw err
@@ -218,19 +236,41 @@ export class EidosAgentFs implements IFileSystem {
       parentId = node.id
     }
 
-    return this.getChildren(parentId).map((r) => ({
-      name: this.getVirtualName(r),
-      isFile: r.type !== "folder",
-      isDirectory: r.type === "folder",
-      isSymbolicLink: false,
-    }))
+    const result: DirentEntry[] = []
+    for (const r of this.getChildren(parentId)) {
+      if (r.type === "table") {
+        result.push({
+          name: `${r.name}.table`,
+          isFile: true,
+          isDirectory: false,
+          isSymbolicLink: false,
+        })
+        result.push({
+          name: r.name,
+          isFile: false,
+          isDirectory: true,
+          isSymbolicLink: false,
+        })
+      } else {
+        result.push({
+          name: this.getVirtualName(r),
+          isFile: r.type !== "folder",
+          isDirectory: r.type === "folder",
+          isSymbolicLink: false,
+        })
+      }
+    }
+    return result
   }
 
   async readFile(path: string): Promise<string> {
     await this.ensureLoaded()
-    const node = this.resolveNodeSync(path)
+    const normalized = this.normalize(path)
+    const node = this.resolveNodeSync(normalized)
     if (!node) notFound(path)
-    if (node.type === "folder") {
+
+    const isTableDir = node.type === "table" && !normalized.endsWith(".table")
+    if (node.type === "folder" || isTableDir) {
       const err = new Error(
         `EISDIR: illegal operation on a directory, '${path}'`
       ) as any
@@ -296,7 +336,7 @@ export class EidosAgentFs implements IFileSystem {
 
     const node = this.resolveNodeSync(normalized)
     if (!node) notFound(path)
-    return this.nodeToStat(node)
+    return this.nodeToStat(node, normalized)
   }
 
   async lstat(path: string): Promise<FsStat> {
@@ -341,11 +381,12 @@ export class EidosAgentFs implements IFileSystem {
       const { name } = this.stripExtension(rawName)
       const parentPath = segments.length > 0 ? "/" + segments.join("/") : "/"
       let parentId: string | null = null
+      let parentType: string | null = null
 
       if (parentPath !== "/") {
         const parentNode = this.resolveNodeSync(parentPath)
         if (!parentNode) notFound(path)
-        if (parentNode.type !== "folder") {
+        if (parentNode.type !== "folder" && parentNode.type !== "table") {
           const err = new Error(
             `ENOTDIR: not a directory, '${parentPath}'`
           ) as any
@@ -353,9 +394,26 @@ export class EidosAgentFs implements IFileSystem {
           throw err
         }
         parentId = parentNode.id
+        parentType = parentNode.type
       }
 
-      const id = crypto.randomUUID().replace(/-/g, "")
+      // If parent is a table, check for an existing record with this title
+      let id: string
+      let isNewRecord = true
+      if (parentType === "table" && parentId) {
+        const [existing] = await this.ds
+          .table(parentId)
+          .findMany({ where: { title: name }, take: 1 })
+        if (existing) {
+          id = existing._id.replace(/-/g, "")
+          isNewRecord = false
+        } else {
+          id = uuidv7().replace(/-/g, "")
+        }
+      } else {
+        id = uuidv7().replace(/-/g, "")
+      }
+
       node = await this.ds.tree.add({
         id,
         name,
@@ -375,6 +433,15 @@ export class EidosAgentFs implements IFileSystem {
       list.push(node)
       list.sort((a, b) => a.name.localeCompare(b.name))
       this.pathCache.clear()
+
+      // Only create a new table row if no existing record with this title
+      if (isNewRecord && parentType === "table" && parentId) {
+        const tableRawName = getRawTableNameById(parentId)
+        await this.ds.syncExec2(
+          `INSERT OR IGNORE INTO ${tableRawName} (_id, title) VALUES (?, ?)`,
+          [extractIdFromShortId(id), name]
+        )
+      }
     } else {
       if (node.type === "folder") {
         const err = new Error(
@@ -446,12 +513,12 @@ export class EidosAgentFs implements IFileSystem {
       if (existing) {
         if (i === segments.length - 1) {
           // Target already exists
-          if (existing.type === "folder") return // EEXIST equivalent: just succeed
+          if (existing.type === "folder" || existing.type === "table") return
           const err = new Error(`ENOTDIR: not a directory, '${path}'`) as any
           err.code = "ENOTDIR"
           throw err
         }
-        if (existing.type !== "folder") {
+        if (existing.type !== "folder" && existing.type !== "table") {
           if (!recursive) {
             const err = new Error(
               `ENOTDIR: not a directory, '${normalized}'`
@@ -468,7 +535,7 @@ export class EidosAgentFs implements IFileSystem {
           notFound(path)
         }
         // Create folder node
-        const id = crypto.randomUUID().replace(/-/g, "")
+        const id = uuidv7().replace(/-/g, "")
         const node = await this.ds.tree.add({
           id,
           name: seg,
@@ -493,6 +560,29 @@ export class EidosAgentFs implements IFileSystem {
     }
   }
   async rm(path: string): Promise<void> {
+    await this.ensureLoaded()
+    const normalized = this.normalize(path)
+    const node = this.resolveNodeSync(normalized)
+    if (!node) notFound(path)
+
+    if (node.type === "doc") {
+      // Soft-delete the tree node (does not affect table row)
+      await this.ds.tree.deleteNode(node.id)
+      // Delete doc content from eidos__docs
+      await this.ds.doc.del(node.id)
+
+      // Update in-memory caches
+      this.idToNode.delete(node.id)
+      const pid = node.parent_id ?? null
+      const siblings = this.parentToChildren.get(pid)
+      if (siblings) {
+        const idx = siblings.findIndex((c) => c.id === node.id)
+        if (idx !== -1) siblings.splice(idx, 1)
+      }
+      this.pathCache.clear()
+      return
+    }
+
     permDenied(path)
   }
   async cp(_src: string, dest: string): Promise<void> {

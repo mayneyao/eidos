@@ -93,7 +93,9 @@ export function createBashTool(
   }
 
   const description = `Execute a bash command in a sandboxed filesystem. Available mounts:
-  /dataspace/  — knowledge base: docs (with .md extension, writable), tables (with .table extension, read-only)
+  /dataspace/  — structured tables and documents. Tables appear as .table files (read-only) with a same-named directory containing their child docs (.md, writable).
+
+CRITICAL: Under a table directory, the .md filename IS the record title — they are the same string. "My Task.md" means title="My Task". Never transform or sanitize the filename (no kebab-case, no lowercase). Before writing, always ls the directory to see existing titles. Writing to an existing .md updates that record's doc. Writing to a new .md creates a new record. Deleting a .md removes only the doc, not the record. To delete a record, use eidos-record-delete.
   /skills/     — skills directory at ~/.agents/skills/ (read-write, create/edit/delete skills)
   /journals/   — journal day pages as YYYY-MM-DD.md files (read-write, create/update journals)
   /extensions/ — installed extensions as .ts/.tsx files organized by slug (read-write, create/edit/delete extensions)
