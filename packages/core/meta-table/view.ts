@@ -3,6 +3,7 @@ import {
   replaceQueryTableName,
   replaceWithFindIndexQuery,
 } from "../sqlite/sql-parser"
+import { createAllTriggersForFields } from "../sqlite/sql-meta-table-trigger"
 import type { IView, ViewType } from "../types/IView"
 import { ViewTypeEnum } from "../types/IView"
 import { getTableIdByRawTableName, getUuid } from "@/lib/utils"
@@ -12,6 +13,21 @@ import { FieldType } from "../fields/const"
 import type { BaseTable } from "./base"
 import { BaseTableImpl } from "./base"
 import { timeit } from "../helper"
+
+const VIEW_FIELDS = [
+  "id",
+  "name",
+  "type",
+  "table_id",
+  "query",
+  "properties",
+  "filter",
+  "order_map",
+  "hidden_fields",
+  "position",
+  "created_at",
+  "updated_at",
+]
 
 export class ViewTable extends BaseTableImpl implements BaseTable<IView> {
   name = ViewTableName
@@ -30,6 +46,8 @@ CREATE TABLE IF NOT EXISTS ${this.name} (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+${createAllTriggersForFields(ViewTableName, VIEW_FIELDS)}
 `
 
   JSONFields = ["properties", "filter", "order_map", "hidden_fields"]
