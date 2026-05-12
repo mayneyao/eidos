@@ -108,11 +108,23 @@ Table tips:
   - eidos table create takes a positional <name> argument, NOT --name.
   - Available field types: text, number, checkbox, date, url, rating, file, select, multi-select, formula, link, lookup.
   - Use 'eidos column update' to change a field's type or set its property (formula, options, etc.).
+  - Use 'eidos view update' to modify a view. Key flags:
+    --query "<SQL>"   A SQL SELECT statement (NOT JSON). Only WHERE and ORDER BY — no LIMIT/OFFSET.
+                      Example: --query "SELECT * FROM tb_xxx WHERE status = 'Done' ORDER BY priority DESC"
+    --property <json> View display config (NOT field list or sort). Grid: {"fieldWidthMap":{},"freezeColumns":0}
+    --name <str>      Rename the view
+    --type <str>      Change view type (grid, gallery, doc_list, kanban)
+    Use 'eidos view list <table_id>' to find view IDs.
+  - eidos record query supports two modes (mutually exclusive):
+    Structured: eidos record query <table_id> --where '{"status":"Done"}' --take 20 --orderBy '{"priority":"asc"}'
+    Raw SQL:    eidos record query <table_id> --query "SELECT * FROM tb_xxx WHERE status = 'Done' ORDER BY priority ASC"
+    Do NOT mix --query with --where/--orderBy/--take/--skip.
 
 Custom built-in command:
-  eidos <resource> <action> [args...] — table/column/record CRUD. Run "eidos" with no args for full usage.
+  eidos <resource> <action> [args...] — table/column/view/record CRUD. Run "eidos" with no args for full usage.
     eidos table  create|delete ...
     eidos column create|update ...
+    eidos view   create|list|delete|update ...
     eidos record query|insert|update|delete ...
 Note: Always use the 'id' found in the .table file (e.g., 844482a7...) for table_id.
 ${extraInstructions ? `\n\n${extraInstructions}` : ""}`

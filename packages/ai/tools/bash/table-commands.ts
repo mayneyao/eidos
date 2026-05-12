@@ -2,6 +2,7 @@ import type { DataSpace } from "@/packages/core/data-space"
 import type { Bash } from "just-bash"
 import { getRawTableNameById } from "@/lib/utils"
 import { FieldType } from "@/packages/core/fields/const"
+import type { ViewType } from "@/packages/core/types/IView"
 import { parseArgs } from "./utils"
 
 const normalizeTableId = (id: string) => {
@@ -222,6 +223,107 @@ async function columnUpdate(
   }
 }
 
+async function viewCreate(ds: DataSpace, args: string[]): Promise<ExecResult> {
+  const tableId = normalizeTableId(args[0])
+  const name = args[1]
+  const type = (args[2] || "grid") as ViewType
+
+  if (!tableId || !name) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr:
+        "Usage: eidos view create <table_id> <name> [type]\n" +
+        "  type: grid (default), gallery, doc_list, kanban, or ext__<plugin_id>",
+    }
+  }
+
+  const result = await ds.schema.createView(tableId, { name, type })
+  return { exitCode: 0, stdout: JSON.stringify(result), stderr: "" }
+}
+
+async function viewList(ds: DataSpace, args: string[]): Promise<ExecResult> {
+  const tableId = normalizeTableId(args[0])
+  if (!tableId) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "Usage: eidos view list <table_id>",
+    }
+  }
+
+  const views = await ds.schema.listViews(tableId)
+  return { exitCode: 0, stdout: JSON.stringify(views), stderr: "" }
+}
+
+async function viewDelete(ds: DataSpace, args: string[]): Promise<ExecResult> {
+  const tableId = normalizeTableId(args[0])
+  const viewId = args[1]
+  if (!tableId || !viewId) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "Usage: eidos view delete <table_id> <view_id>",
+    }
+  }
+
+  await ds.schema.deleteView(tableId, viewId)
+  return { exitCode: 0, stdout: "View deleted successfully", stderr: "" }
+}
+
+async function viewUpdate(ds: DataSpace, args: string[]): Promise<ExecResult> {
+  const { positionals, flags } = parseArgs(args)
+  const tableId = normalizeTableId(positionals[0])
+  const viewId = positionals[1]
+
+  if (!tableId || !viewId) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr:
+        "Usage: eidos view update <table_id> <view_id> [--name new_name] [--type view_type] [--query sql] [--property json]\n" +
+        "\n" +
+        "View types: grid, gallery, doc_list, kanban, or ext__<plugin_id>\n" +
+        "\n" +
+        "--query accepts a SQL SELECT statement with WHERE and ORDER BY only (no LIMIT/OFFSET).\n" +
+        "  eidos view update <table_id> <view_id> --query \"SELECT * FROM tb_xxx WHERE status = 'Done' ORDER BY priority DESC\"\n" +
+        "\n" +
+        "--property is view-type-specific JSON (merged with existing):\n" +
+        '  grid: {"fieldWidthMap": {"title": 200}, "freezeColumns": 1}\n' +
+        '  gallery: {"fitContent": true, "coverPreview": "image_field"}\n' +
+        '  kanban: {"groupByFieldId": "status"}',
+    }
+  }
+
+  if (!flags.name && !flags.type && !flags.query && !flags.property) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr:
+        "At least one of --name, --type, --query, or --property is required",
+    }
+  }
+
+  const input: Record<string, any> = {}
+  if (flags.name) input.name = flags.name
+  if (flags.type) input.type = flags.type
+  if (flags.query) input.query = flags.query
+  if (flags.property) {
+    try {
+      input.properties = JSON.parse(flags.property)
+    } catch {
+      return {
+        exitCode: 1,
+        stdout: "",
+        stderr: `Invalid JSON for --property: ${flags.property}`,
+      }
+    }
+  }
+
+  const result = await ds.schema.updateView(tableId, viewId, input)
+  return { exitCode: 0, stdout: JSON.stringify(result), stderr: "" }
+}
+
 async function recordQuery(ds: DataSpace, args: string[]): Promise<ExecResult> {
   const { positionals, flags } = parseArgs(args)
   const tableId = normalizeTableId(positionals[0])
@@ -230,8 +332,24 @@ async function recordQuery(ds: DataSpace, args: string[]): Promise<ExecResult> {
       exitCode: 1,
       stdout: "",
       stderr:
-        "Usage: eidos record query <table_id> [--where json] [--take 100] [--skip 0] [--orderBy json]",
+        "Usage: eidos record query <table_id> [--where json] [--take 100] [--skip 0] [--orderBy json]\n" +
+        '       eidos record query <table_id> --query "SELECT * FROM tb_xxx WHERE ..."\n' +
+        "\n" +
+        "  --query and (--where / --orderBy / --take / --skip) are mutually exclusive.",
     }
+  }
+
+  if (flags.query) {
+    if (flags.where || flags.orderBy || flags.take || flags.skip) {
+      return {
+        exitCode: 1,
+        stdout: "",
+        stderr:
+          "--query is exclusive with --where, --orderBy, --take, and --skip. Use --query for a complete SQL SELECT, or use the structured flags for simple lookups.",
+      }
+    }
+    const res = await ds.exec2(flags.query)
+    return { exitCode: 0, stdout: JSON.stringify(res, null, 2), stderr: "" }
   }
 
   const where = flags.where ? JSON.parse(flags.where) : undefined
@@ -357,10 +475,20 @@ Resources & actions:
   eidos table delete <table_id>
   eidos column create <table_id> <name> <type> [--property json]
   eidos column update <table_id> <column_name> [--name] [--type] [--property]
+  eidos view create <table_id> <name> [type]
+  eidos view list <table_id>
+  eidos view delete <table_id> <view_id>
+  eidos view update <table_id> <view_id> [--name] [--type] [--query SQL] [--property json]
   eidos record query <table_id> [--where json] [--take 100] [--skip 0] [--orderBy json]
+                         eidos record query <table_id> --query "SELECT * FROM tb_xxx WHERE ..."
   eidos record insert <table_id>       (stdin: JSON array of records)
   eidos record update <table_id>       (stdin: JSON array of {where, data})
   eidos record delete <table_id>       [--where json]
+
+  Note: --query is exclusive with --where/--orderBy/--take/--skip.
+
+  --query for view update or record query is a SQL SELECT statement, NOT JSON:
+    eidos view update mytable myview --query "SELECT * FROM tb_xxx WHERE status = 'Done' ORDER BY priority DESC"
 
 --property format by field type (values are merged with existing):
   select/multi-select: {"options": [{"name": "...", "color": "..."}]}  — uses options, NOT optionConfig!
@@ -402,6 +530,14 @@ export function registerTableCommands(bash: Bash, ds: DataSpace) {
             return columnCreate(ds, rest)
           case "column update":
             return columnUpdate(ds, rest)
+          case "view create":
+            return viewCreate(ds, rest)
+          case "view list":
+            return viewList(ds, rest)
+          case "view delete":
+            return viewDelete(ds, rest)
+          case "view update":
+            return viewUpdate(ds, rest)
           case "record query":
             return recordQuery(ds, rest)
           case "record insert":
