@@ -1,3 +1,4 @@
+import { z } from "zod"
 import { EIDOS_PROXY_URL } from "@/lib/const"
 import { getFilePreviewImage, getFileType } from "@/lib/mime/mime"
 
@@ -9,6 +10,10 @@ import type { FileCell } from "./interface"
 export type FileProperty = {
   proxyUrl?: string
 }
+
+export const FilePropertySchema = z.object({
+  proxyUrl: z.string().optional(),
+})
 
 export class FileField extends BaseField<FileCell, FileProperty, string> {
   static type = FieldType.File

@@ -1,3 +1,4 @@
+import { z } from "zod"
 import { BaseField } from "./base"
 import { CompareOperator, FieldType, GridCellKind } from "./const"
 import { MultiSelectField } from "./multi-select"
@@ -28,10 +29,21 @@ export type SelectOption = {
   color: string
 }
 
+export const SelectOptionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  color: z.string(),
+})
+
 export type SelectProperty = {
   options: SelectOption[]
   defaultOption?: string
 }
+
+export const SelectPropertySchema = z.object({
+  options: z.array(SelectOptionSchema).optional(),
+  defaultOption: z.string().optional(),
+})
 
 export class SelectField extends BaseField<SelectCell, SelectProperty> {
   static type = FieldType.Select

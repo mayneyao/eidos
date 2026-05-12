@@ -1,4 +1,5 @@
 import type { CustomCell, NumberCell } from "@glideapps/glide-data-grid"
+import { z } from "zod"
 
 import { BaseField } from "./base"
 import {
@@ -27,6 +28,14 @@ export type NumberProperty = {
   divideBy: number
   showNumber: boolean
 }
+
+export const NumberPropertySchema = z.object({
+  format: z.enum(["number", "percent", "currency"]).optional(),
+  showAs: z.enum(["number", "bar", "ring"]).optional(),
+  color: z.string().optional(),
+  divideBy: z.number().optional(),
+  showNumber: z.boolean().optional(),
+})
 
 export class NumberField extends BaseField<
   NumberCell | RangeCell,

@@ -312,9 +312,21 @@ CREATE TABLE ${rawTableName} (
 
     const defaultProperty =
       allFieldTypesMap[input.type].getDefaultFieldProperty()
-    const mergedProperty = input.property
+    const mergedProperty: Record<string, any> = input.property
       ? { ...defaultProperty, ...input.property }
-      : defaultProperty
+      : { ...defaultProperty }
+
+    // Normalize: fill in missing option ids (id defaults to name)
+    if (
+      (input.type === FieldType.Select ||
+        input.type === FieldType.MultiSelect) &&
+      Array.isArray(mergedProperty.options)
+    ) {
+      mergedProperty.options = mergedProperty.options.map((o: any) => ({
+        id: o.id ?? o.name,
+        ...o,
+      }))
+    }
 
     const fieldData: IField = {
       name: input.name,
