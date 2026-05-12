@@ -10,6 +10,7 @@ interface AgentChatAreaProps {
   onFork?: (messageId: string) => void
   parentId?: string
   forkedMessageId?: string
+  isRunning?: boolean
 }
 
 export function AgentChatArea({
@@ -18,6 +19,7 @@ export function AgentChatArea({
   onFork,
   parentId,
   forkedMessageId,
+  isRunning,
 }: AgentChatAreaProps) {
   const { navigate } = useRouterAdapter()
   const results = new Map<string, any>()
@@ -84,6 +86,7 @@ export function AgentChatArea({
             message={m}
             globalResults={results}
             isLastMessage={m.id === lastMessageId}
+            isRunning={isRunning}
             onFork={onFork}
           />
           {parentId && forkedMessageId === m.id && (

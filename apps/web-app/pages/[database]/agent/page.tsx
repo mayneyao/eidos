@@ -54,7 +54,6 @@ function AgentPageContent({
   const { navigate } = useRouterAdapter()
   const { setCurrentApp } = useSidebarStore()
 
-  console.log("[AgentPageContent] Render:", { space, routeSessionId })
   const [goalInput, setGoalInput] = useState("")
   const [isRunning, setIsRunning] = useState(false)
   const [isAllExpanded, setIsAllExpanded] = useState<boolean | undefined>(
@@ -246,12 +245,6 @@ function AgentPageContent({
   const handleSubmit = useCallback(
     (goal: string, model: string) => {
       const sessionId = routeSessionId || uuidv7()
-      console.log("[AgentPageContent] handleSubmit called", {
-        goal,
-        model,
-        routeSessionId,
-        newSessionId: sessionId,
-      })
       setStartTime(Date.now())
       setStepCount(0)
 
@@ -340,6 +333,7 @@ function AgentPageContent({
                   onFork={handleFork}
                   parentId={forkInfo?.parentId}
                   forkedMessageId={forkInfo?.forkedMessageId}
+                  isRunning={isRunning}
                 />
               ) : (
                 !isSwitching && (

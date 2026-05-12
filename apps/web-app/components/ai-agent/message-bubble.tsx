@@ -7,6 +7,7 @@ interface MessageBubbleProps {
   message: ChatMessage
   globalResults?: Map<string, any>
   isLastMessage?: boolean
+  isRunning?: boolean
   onFork?: (messageId: string) => void
 }
 
@@ -14,6 +15,7 @@ export function MessageBubble({
   message,
   globalResults,
   isLastMessage,
+  isRunning,
   onFork,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false)
@@ -61,15 +63,6 @@ export function MessageBubble({
                 <CopyIcon className="h-4 w-4" />
               )}
             </button>
-            {handleFork && (
-              <button
-                onClick={handleFork}
-                className="p-1 text-muted-foreground/50 hover:text-primary transition-colors"
-                title="Fork session here"
-              >
-                <GitForkIcon className="h-4 w-4" />
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -81,6 +74,9 @@ export function MessageBubble({
     return null // tool results are shown inline with tool calls
   }
 
+  const isStreaming = isLastMessage && isRunning
+  const showActionsAlways = isLastMessage && !isRunning
+
   return (
     <div className="group/msg flex w-full py-1.5 justify-start">
       <div className="w-full min-w-0">
@@ -89,28 +85,34 @@ export function MessageBubble({
           globalResults={globalResults}
           isLastMessage={isLastMessage}
         />
-        <div className="flex items-center gap-2 mt-1 opacity-0 group-hover/msg:opacity-100 transition-opacity pl-2">
-          <button
-            onClick={handleCopy}
-            className="p-1 text-muted-foreground/50 hover:text-primary transition-colors"
-            title="Copy message"
+        {!isStreaming && (
+          <div
+            className={`flex items-center gap-2 mt-1 transition-opacity pl-2 ${
+              showActionsAlways ? "" : "opacity-0 group-hover/msg:opacity-100"
+            }`}
           >
-            {copied ? (
-              <CheckIcon className="h-4 w-4 text-green-500" />
-            ) : (
-              <CopyIcon className="h-4 w-4" />
-            )}
-          </button>
-          {handleFork && (
             <button
-              onClick={handleFork}
+              onClick={handleCopy}
               className="p-1 text-muted-foreground/50 hover:text-primary transition-colors"
-              title="Fork session here"
+              title="Copy message"
             >
-              <GitForkIcon className="h-4 w-4" />
+              {copied ? (
+                <CheckIcon className="h-4 w-4 text-green-500" />
+              ) : (
+                <CopyIcon className="h-4 w-4" />
+              )}
             </button>
-          )}
-        </div>
+            {handleFork && (
+              <button
+                onClick={handleFork}
+                className="p-1 text-muted-foreground/50 hover:text-primary transition-colors"
+                title="Fork session here"
+              >
+                <GitForkIcon className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
