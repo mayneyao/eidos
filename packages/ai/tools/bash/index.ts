@@ -93,21 +93,28 @@ export function createBashTool(
   }
 
   const description = `Execute a bash command in a sandboxed filesystem. Available mounts:
-  /dataspace/  — structured tables and documents. Tables appear as .table files (read-only) with a same-named directory containing their child docs (.md, writable).
+  /dataspace/  — structured tables and documents. Tables appear as .table files (read-only). A same-named directory appears ONLY when the table has child documents (.md files, writable).
 
-CRITICAL: Under a table directory, the .md filename IS the record title — they are the same string. "My Task.md" means title="My Task". Never transform or sanitize the filename (no kebab-case, no lowercase). Before writing, always ls the directory to see existing titles. Writing to an existing .md updates that record's doc. Writing to a new .md creates a new record. Deleting a .md removes only the doc, not the record. To delete a record, use eidos-record-delete.
+CRITICAL: Under a table directory, the .md filename IS the record title — they are the same string. "My Task.md" means title="My Task". Never transform or sanitize the filename (no kebab-case, no lowercase). Before writing, always ls the directory to see existing titles. Writing to an existing .md updates that record's doc. Writing to a new .md creates a new record. Deleting a .md removes only the doc, not the record. To delete a record, use eidos record delete.
   /skills/     — skills directory at ~/.agents/skills/ (read-write, create/edit/delete skills)
   /journals/   — journal day pages as YYYY-MM-DD.md files (read-write, create/update journals)
   /extensions/ — installed extensions as .ts/.tsx files organized by slug (read-write, create/edit/delete extensions)
 Use ls, cat, rg (ripgrep) to explore. Prefer using rg for searching rather than find. Supports pipes, redirections, variables, and common Unix tools.
-Custom built-in commands:
-  eidos-table-create <name> - Create a new table.
-  eidos-column-create <table_id> <name> <type> - Add a column to a table.
-  eidos-record-query <table_id> [options] - Query records. (e.g., eidos-record-query 8444... --where '{"status":"done"}')
-  eidos-record-insert <table_id> - Insert records from stdin. (e.g., cat data.json | eidos-record-insert 8444...)
-  eidos-record-update <table_id> - Update records from stdin. (e.g., echo '[{"where":{"id":1}, "data":{"s":"ok"}}]' | eidos-record-update 8444...)
-  eidos-record-delete <table_id> [options] - Delete records. (e.g., eidos-record-delete 8444... --where '{"id":1}')
-Note: Always use the 'id' found in the .table file (e.g., 844482a7...) for table_id. The physical table name (tb_xxx) is also supported but not recommended.
+
+Table tips:
+  - Every table has a built-in 'title' field — never create a column named "title".
+  - eidos table create returns JSON with the table id — use it directly. The table appears in /dataspace/ immediately as <name>.table and <name>/.
+  - cat /dataspace/<name>.table to see schema once the table appears.
+  - eidos table create takes a positional <name> argument, NOT --name.
+  - Available field types: text, number, checkbox, date, url, rating, file, select, multi-select, formula, link, lookup.
+  - Use 'eidos column update' to change a field's type or set its property (formula, options, etc.).
+
+Custom built-in command:
+  eidos <resource> <action> [args...] — table/column/record CRUD. Run "eidos" with no args for full usage.
+    eidos table  create|delete ...
+    eidos column create|update ...
+    eidos record query|insert|update|delete ...
+Note: Always use the 'id' found in the .table file (e.g., 844482a7...) for table_id.
 ${extraInstructions ? `\n\n${extraInstructions}` : ""}`
 
   return {

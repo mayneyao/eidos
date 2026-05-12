@@ -133,7 +133,11 @@ export const FIELD_PROPERTY_SCHEMA_MAP: Record<string, z.ZodType> = {
     .passthrough(),
   [FieldType.URL]: EmptyPropertySchema,
   [FieldType.Formula]: z.object({
-    formula: z.string(),
+    formula: z
+      .string()
+      .describe(
+        "SQLite expression: GENERATED ALWAYS AS (<formula>). Use || for concat, CAST for types, reference columns by table_column_name."
+      ),
     displayType: z
       .enum([
         "text",
@@ -198,7 +202,7 @@ export function getPropertyHint(type: string): string {
       "{ options: [{ name: string, color: string }], defaultOption?: string }",
     [FieldType.URL]: "{} (no configurable properties)",
     [FieldType.Formula]:
-      '{ formula: string, displayType?: "text"|"number"|..., numberConfig?: {...}, optionConfig?: { colorMap: [{ value, color }] } }',
+      '{ formula: string — SQLite expression for GENERATED ALWAYS AS (<formula>), displayType?: "text"|"number"|..., numberConfig?: {...}, optionConfig?: { colorMap: [{ value, color }] } }',
     [FieldType.Link]: "{ linkTableName: string, linkColumnName: string }",
     [FieldType.Lookup]: "{ linkFieldId: string, lookupTargetFieldId: string }",
     [FieldType.CreatedTime]: "{} (read-only, no configurable properties)",

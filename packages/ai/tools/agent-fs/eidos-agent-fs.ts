@@ -39,7 +39,6 @@ function permDenied(path: string): never {
  */
 export class EidosAgentFs implements IFileSystem {
   private ds: DataSpace
-  private loaded = false
   /** id → node */
   private idToNode = new Map<string, ITreeNode>()
   /** parentId (null = root) → children sorted by name */
@@ -51,9 +50,11 @@ export class EidosAgentFs implements IFileSystem {
     this.ds = ds
   }
 
-  /** Load all non-deleted nodes into memory in one query */
+  /** Load all non-deleted nodes into memory in one query. Always re-queries so tables created mid-session are visible. */
   private async ensureLoaded(): Promise<void> {
-    if (this.loaded) return
+    // Reset maps to pick up tables created/deleted since last readdir
+    this.idToNode.clear()
+    this.parentToChildren.clear()
 
     const rows = (await this.ds.db.selectObjects(
       `SELECT * FROM eidos__tree WHERE is_deleted = 0 ORDER BY name`
@@ -78,8 +79,6 @@ export class EidosAgentFs implements IFileSystem {
     for (const list of this.parentToChildren.values()) {
       list.sort((a, b) => a.name.localeCompare(b.name))
     }
-
-    this.loaded = true
   }
 
   /** Verify DB connection */

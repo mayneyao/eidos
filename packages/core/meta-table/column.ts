@@ -116,10 +116,10 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
 
       await this.dataSpace.db.prepare("BEGIN TRANSACTION;").run()
 
-      let _property = property
-      if (type === FieldType.Formula) {
-        _property = { formula: "upper(title)" }
-      }
+      const _property =
+        type === FieldType.Formula && !property?.formula
+          ? { ...property, formula: "upper(title)" }
+          : property
       // add ui column
       this.dataSpace.db
         .prepare(
@@ -165,7 +165,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
         case FieldType.Formula:
           this.dataSpace.db
             .prepare(
-              `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (upper(title));`
+              `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (${_property.formula});`
             )
             .run()
           break
