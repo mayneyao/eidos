@@ -37,6 +37,7 @@ export const MultiSelectEditor = ({
   onCancelEditing,
   layout = "flow",
   disabled = false,
+  noAutoOpen = false,
 }: IMultiSelectEditorProps) => {
   const optionsMap = useMemo(
     () =>
@@ -65,12 +66,12 @@ export const MultiSelectEditor = ({
       setValue: (v) => setValues(v),
     })
 
-  // Auto-open popover when entering edit mode
+  // Auto-open popover when entering edit mode (only in grid, not filter context)
   useEffect(() => {
-    if (isActuallyEditing) {
+    if (isActuallyEditing && !noAutoOpen) {
       setIsPopoverOpen(true)
     }
-  }, [isActuallyEditing])
+  }, [isActuallyEditing, noAutoOpen])
 
   useEffect(() => {
     const newValues = value ? value.split(",") : []

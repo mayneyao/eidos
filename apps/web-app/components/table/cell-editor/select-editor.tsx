@@ -36,6 +36,7 @@ export const SelectEditor = ({
   onCancelEditing,
   layout = "flow",
   disabled = false,
+  noAutoOpen = false,
 }: ISelectEditorProps) => {
   const [_value, setValue] = useState<string>(value)
   const [_options, setOptions] = useState<SelectOption[]>(options)
@@ -52,12 +53,12 @@ export const SelectEditor = ({
       setValue,
     })
 
-  // Auto-open popover when entering edit mode
+  // Auto-open popover when entering edit mode (only in grid, not filter context)
   useEffect(() => {
-    if (isActuallyEditing) {
+    if (isActuallyEditing && !noAutoOpen) {
       setIsPopoverOpen(true)
     }
-  }, [isActuallyEditing])
+  }, [isActuallyEditing, noAutoOpen])
 
   useChangeEffect(() => {
     onChange(_value)
