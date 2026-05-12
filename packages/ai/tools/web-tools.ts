@@ -21,6 +21,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ])
 }
 
+function truncate(text: string, max: number): string {
+  return text.length > max
+    ? text.slice(0, max) + "\n\n[Content truncated]"
+    : text
+}
+
 async function fetchAndExtract(url: string) {
   const res = await withTimeout(
     fetch(url, { headers: BROWSER_HEADERS, redirect: "follow" }),
@@ -29,9 +35,46 @@ async function fetchAndExtract(url: string) {
   if (!res.ok) {
     throw new Error(`Fetch failed: ${res.status} ${res.statusText}`)
   }
-  const html = await withTimeout(res.text(), 10_000)
 
-  const { document } = parseHTML(html)
+  const contentType = (res.headers.get("content-type") ?? "").toLowerCase()
+  const text = await withTimeout(res.text(), 10_000)
+
+  // JSON → return raw (pretty-printed)
+  if (
+    contentType.includes("application/json") ||
+    contentType.includes("+json")
+  ) {
+    let formatted: string
+    try {
+      formatted = JSON.stringify(JSON.parse(text), null, 2)
+    } catch {
+      formatted = text
+    }
+    return {
+      title: "",
+      url,
+      content: truncate(formatted, MAX_CONTENT_LENGTH),
+    }
+  }
+
+  // XML / plain text / other non-HTML → return raw
+  if (
+    contentType.includes("application/xml") ||
+    contentType.includes("text/xml") ||
+    contentType.includes("text/plain") ||
+    contentType.includes("text/csv") ||
+    contentType.includes("text/javascript") ||
+    contentType.includes("application/javascript")
+  ) {
+    return {
+      title: "",
+      url,
+      content: truncate(text, MAX_CONTENT_LENGTH),
+    }
+  }
+
+  // HTML → extract content via Defuddle
+  const { document } = parseHTML(text)
   const result = await Defuddle(document, url, {
     separateMarkdown: true,
   })
@@ -40,10 +83,7 @@ async function fetchAndExtract(url: string) {
   return {
     title: result.title ?? "",
     url,
-    content:
-      markdown.length > MAX_CONTENT_LENGTH
-        ? markdown.slice(0, MAX_CONTENT_LENGTH) + "\n\n[Content truncated]"
-        : markdown,
+    content: truncate(markdown, MAX_CONTENT_LENGTH),
   }
 }
 
@@ -145,7 +185,8 @@ export function createWebSearchTool(apiKey?: string) {
 
 export const webFetchTool = {
   description:
-    "Fetch a web page and extract its main content as clean markdown. Removes ads, navigation, and other boilerplate.",
+    "Fetch a URL and return its content. HTML pages are cleaned into markdown (ads/nav removed). JSON is returned pretty-printed. XML, plain text, CSV, and JS are returned raw.",
+
   inputSchema: fetchParams,
   execute: async (args: unknown) => {
     const { url } = args as z.infer<typeof fetchParams>
