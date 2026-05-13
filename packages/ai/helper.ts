@@ -15,6 +15,7 @@ import { createTogetherAI } from "@ai-sdk/togetherai"
 import { createXai } from "@ai-sdk/xai"
 import { createOpenRouter } from "@openrouter/ai-sdk-provider"
 import { OpenAI } from "openai"
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 
 // export type Model = (typeof WEB_LLM_MODELS)[0]
 
@@ -250,8 +251,10 @@ export function getProvider(data: {
   apiKey?: string
   baseUrl?: string
   type?: LLMProviderType
+  apiVersion?: "chat" | "responses"
+  name?: string
 }) {
-  const { apiKey, baseUrl, type = "openai" } = data
+  const { apiKey, baseUrl, type = "openai", apiVersion = "chat", name } = data
   const config: any = {
     apiKey,
   }
@@ -260,7 +263,8 @@ export function getProvider(data: {
   }
   switch (type) {
     case "openai":
-      return createOpenAI(config)
+      const p = createOpenAI(config)
+      return apiVersion === "responses" ? p.responses : p.chat
     case "google":
       return createGoogleGenerativeAI(config)
     case "deepseek":
@@ -298,6 +302,14 @@ export function getProvider(data: {
     // case 'luma':
     //   return createLuma(config)
     case "openai-compatible":
+      if (apiVersion === "responses") {
+        return createOpenAI(config).responses
+      }
+      return createOpenAICompatible({
+        baseURL: baseUrl || "https://api.openai.com/v1",
+        apiKey,
+        name: name || "OpenAI Compatible",
+      })
     case "ollama":
     default:
       if (!baseUrl) {
@@ -305,9 +317,10 @@ export function getProvider(data: {
           `Base URL is missing for OpenAI compatible provider type: ${type}. Falling back to OpenAI default or OpenAICompatible with potentially incorrect base URL.`
         )
       }
-      return createOpenAI({
-        baseURL: baseUrl,
+      return createOpenAICompatible({
+        baseURL: baseUrl || "https://api.openai.com/v1",
         apiKey,
+        name: name || type,
       })
   }
 }

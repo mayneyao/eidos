@@ -62,6 +62,8 @@ export async function embedding(text: string): Promise<Array<number>> {
         apiKey: llmProvider.apiKey || "",
         modelId: modelId || "",
         type: llmProvider.type,
+        apiVersion: llmProvider.apiVersion,
+        name: llmProvider.name,
       }
     }
     throw new Error(`Provider ${provider} not found`)
@@ -74,6 +76,8 @@ export async function embedding(text: string): Promise<Array<number>> {
     apiKey: config.apiKey,
     baseUrl: config.baseUrl,
     type: config.type,
+    apiVersion: config.apiVersion,
+    name: config.name,
   })
   const embeddingResult = await embed({
     model: (modelProvider as any).textEmbedding(config.modelId),

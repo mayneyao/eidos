@@ -33,10 +33,20 @@ export const llmProviderSchema = z.object({
   apiKey: z.string().optional(),
   baseUrl: z.string().url().optional().or(z.literal("")),
   models: z.string().default(""),
+  apiVersion: z.enum(["chat", "responses"]).default("chat"),
   enabled: z.boolean().optional(),
 })
 
 export type LLMProvider = z.infer<typeof llmProviderSchema>
+
+export const telegramChannelSchema = z.object({
+  enabled: z.boolean().default(false),
+  botToken: z.string().optional(),
+  defaultSpace: z.string().optional(),
+  defaultModel: z.string().optional(),
+})
+
+export type TelegramChannelConfig = z.infer<typeof telegramChannelSchema>
 
 export const aiFormSchema = z.object({
   localModels: z.array(z.string()).default([]),
@@ -50,6 +60,12 @@ export const aiFormSchema = z.object({
   applyCodeModel: z.string().optional(),
   // tool api keys
   exaApiKey: z.string().optional(),
+  // channels
+  channels: z
+    .object({
+      telegram: telegramChannelSchema.optional(),
+    })
+    .optional(),
   // version
   version: z.number().default(0),
 })

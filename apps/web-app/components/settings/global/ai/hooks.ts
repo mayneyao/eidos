@@ -41,6 +41,8 @@ export const useModelTest = () => {
         apiKey: config.apiKey,
         baseUrl: config.baseUrl,
         type: config.type,
+        apiVersion: (config as any).apiVersion,
+        name: (config as any).name,
       })
       switch (modelType) {
         case TaskType.Embedding:

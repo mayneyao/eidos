@@ -45,6 +45,8 @@ export const useAiConfig = () => {
           apiKey: llmProvider.apiKey || "",
           modelId: modelId || "",
           type: llmProvider.type,
+          apiVersion: llmProvider.apiVersion,
+          name: llmProvider.name,
         }
       }
       throw new Error(`Provider ${provider} not found`)
@@ -59,6 +61,8 @@ export const useAiConfig = () => {
         apiKey: config.apiKey,
         baseUrl: config.baseUrl,
         type: config.type,
+        apiVersion: config.apiVersion,
+        name: config.name,
       })
       return provider(config.modelId) as LanguageModel
     },

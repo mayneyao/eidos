@@ -85,19 +85,71 @@ function resolveProviderFromConfig(
       apiKey: llmProvider.apiKey,
       baseUrl: llmProvider.baseUrl,
       type: llmProvider.type,
+      apiVersion: llmProvider.apiVersion,
+      name: llmProvider.name,
     }),
     providerType: llmProvider.type,
   }
 }
 
-export async function handleAgentApi(
+/**
+ * Sanitize messages: an aborted stream may leave tool invocations in
+ * an incomplete state (e.g. input-streaming / input-available without output).
+ * convertToModelMessages rejects these, so strip them before conversion.
+ */
+function sanitizeMessages(messages: UIMessage[]): UIMessage[] {
+  return messages.map((msg) => {
+    if (msg.role !== "assistant" || !msg.parts) return msg
+    const hasIncompleteTool = msg.parts.some(
+      (p) =>
+        isToolUIPart(p) &&
+        p.state !== "output-available" &&
+        p.state !== "output-error" &&
+        p.state !== "output-denied"
+    )
+    if (!hasIncompleteTool) return msg
+    return {
+      ...msg,
+      parts: msg.parts.filter(
+        (p) =>
+          !isToolUIPart(p) ||
+          p.state === "output-available" ||
+          p.state === "output-error" ||
+          p.state === "output-denied"
+      ),
+    }
+  })
+}
+
+export interface PreparedAgent {
+  agent: ToolLoopAgent
+  modelMessages: any[]
+  store: AgentSessionStore | null
+  sessionGoal: string
+  id: string
+  modelAndProvider: string
+  space: string
+  maxSteps: number
+  createdAt: string
+  existingMeta: any
+  messages: UIMessage[]
+  aiConfig: AIFormValues | undefined
+}
+
+export interface AgentContextOptions {
+  getDataspace: (space: string) => Promise<DataSpace | null>
+  signal?: AbortSignal
+  getAIConfig?: () => AIFormValues | undefined
+}
+
+/**
+ * Prepare an agent for execution. Builds tools, context, model, and
+ * persists initial session meta. Returns everything needed to stream.
+ */
+export async function prepareAgent(
   data: IAgentData,
-  ctx?: {
-    getDataspace: (space: string) => Promise<DataSpace | null>
-    signal?: AbortSignal
-    getAIConfig?: () => AIFormValues | undefined
-  }
-) {
+  ctx?: AgentContextOptions
+): Promise<PreparedAgent> {
   const {
     goal,
     messages,
@@ -110,8 +162,6 @@ export async function handleAgentApi(
     thinking,
     skills,
   } = data
-
-  const startTime = performance.now()
 
   const aiConfig = ctx?.getAIConfig?.()
 
@@ -191,36 +241,8 @@ export async function handleAgentApi(
     ...(providerOptions ? { providerOptions } : {}),
   })
 
-  // convertToModelMessages handles all UIMessage parts (tool-call, tool-result,
-  // reasoning, etc.) correctly — this is the official SDK conversion path.
-  //
-  // Sanitize messages first: an aborted stream may leave tool invocations in
-  // an incomplete state (e.g. input-streaming / input-available without output).
-  // convertToModelMessages rejects these, so strip them before conversion.
-  const sanitized = messages.map((msg) => {
-    if (msg.role !== "assistant" || !msg.parts) return msg
-    const hasIncompleteTool = msg.parts.some(
-      (p) =>
-        isToolUIPart(p) &&
-        p.state !== "output-available" &&
-        p.state !== "output-error" &&
-        p.state !== "output-denied"
-    )
-    if (!hasIncompleteTool) return msg
-    return {
-      ...msg,
-      parts: msg.parts.filter(
-        (p) =>
-          !isToolUIPart(p) ||
-          p.state === "output-available" ||
-          p.state === "output-error" ||
-          p.state === "output-denied"
-      ),
-    }
-  })
-
   const modelMessages = await convertToModelMessages(
-    agentCtx.buildMessages(sanitized)
+    agentCtx.buildMessages(sanitizeMessages(messages))
   )
 
   // Write initial meta.json (status: executing)
@@ -241,6 +263,43 @@ export async function handleAgentApi(
     const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
     if (lastUserMsg) await store.appendUserMessage(id, lastUserMsg)
   }
+
+  return {
+    agent,
+    modelMessages,
+    store,
+    sessionGoal,
+    id,
+    modelAndProvider,
+    space: space ?? "",
+    maxSteps,
+    createdAt,
+    existingMeta,
+    messages,
+    aiConfig,
+  }
+}
+
+export async function handleAgentApi(
+  data: IAgentData,
+  ctx?: AgentContextOptions
+) {
+  const startTime = performance.now()
+
+  const prepared = await prepareAgent(data, ctx)
+  const {
+    agent,
+    modelMessages,
+    store,
+    sessionGoal,
+    id,
+    modelAndProvider,
+    space,
+    maxSteps,
+    createdAt,
+    existingMeta,
+    messages,
+  } = prepared
 
   console.log("[agent] ▶ creating UI message stream")
 

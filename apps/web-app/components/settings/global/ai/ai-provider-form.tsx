@@ -323,6 +323,41 @@ export function AIProviderForm({
             </div>
           )}
 
+          {/* API Version Field (for openai and openai-compatible) */}
+          {(form.watch("type") === "openai" ||
+            form.watch("type") === "openai-compatible") && (
+            <div className="space-y-4">
+              <div className="space-y-0.5">
+                <Label>{t("settings.ai.apiVersion")}</Label>
+                <p className="text-sm text-muted-foreground">
+                  {t("settings.ai.apiVersionDescription")}
+                </p>
+              </div>
+              <FormField
+                control={form.control}
+                name="apiVersion"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <select
+                        className="w-full p-1 border rounded-md"
+                        {...field}
+                      >
+                        <option value="chat">
+                          {t("settings.ai.apiVersionChat")}
+                        </option>
+                        <option value="responses">
+                          {t("settings.ai.apiVersionResponses")}
+                        </option>
+                      </select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          )}
+
           {/* API Key Field (for non-ollama providers) */}
           {form.watch("type") !== "ollama" && (
             <div className="space-y-4">
