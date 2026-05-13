@@ -53,6 +53,7 @@ import {
 import { MainWindowProvider } from "./modules/space-management/space-management.module"
 import { TerminalWindowProvider } from "./modules/terminal/terminal.module"
 import { UpdaterService } from "./modules/updater/updater.module"
+import { AgentChannelService } from "./modules/agent-channel/agent-channel.service"
 
 // Export helper to get main window web contents
 export function getMainWindowWebContents() {
@@ -123,6 +124,14 @@ async function initializeServer(): Promise<void> {
 }
 
 /**
+ * Initialize Agent channels
+ */
+async function initializeChannels(): Promise<void> {
+  const agentChannel = container.get(AgentChannelService)
+  await agentChannel.start()
+}
+
+/**
  * Main application bootstrap
  */
 async function main() {
@@ -142,6 +151,9 @@ async function main() {
 
   // Initialize server first
   await initializeServer()
+
+  // Initialize AI Channels
+  await initializeChannels()
 
   // App event handlers - will be set up via AppLifecycleService
 
@@ -180,6 +192,9 @@ async function main() {
     // Register cleanup callbacks
     appLifecycleService.onCleanup(() => rawDataService.closeAll())
     appLifecycleService.onCleanup(() => terminalService.cleanup())
+    appLifecycleService.onCleanup(() =>
+      container.get(AgentChannelService).stop()
+    )
 
     // Set WindowService for services that need it (avoid circular deps)
     rawDataService.setWindowService(windowService)
@@ -190,6 +205,7 @@ async function main() {
       // before-quit cleanup
       rawDataService.closeAll()
       terminalService.cleanup()
+      container.get(AgentChannelService).stop()
     })
     appLifecycleService.registerIpcHandlers()
 

@@ -24,6 +24,7 @@ import { ApiServerModule } from "./modules/api-server/api-server.module"
 import { UpdaterModule } from "./modules/updater/updater.module"
 import { ExampleModule } from "./modules/example/example.module"
 import { MarketModule } from "./modules/market/market.module"
+import { AgentChannelModule } from "./modules/agent-channel/agent-channel.module"
 
 /**
  * App Module - Root module
@@ -66,6 +67,7 @@ import { MarketModule } from "./modules/market/market.module"
     UpdaterModule,
     ExampleModule,
     MarketModule,
+    AgentChannelModule,
   ],
   providers: [],
   exports: [],
