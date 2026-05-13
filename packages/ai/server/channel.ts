@@ -33,6 +33,9 @@ export class ChannelService {
   /** In-memory message cache to avoid repeated disk reads per session */
   private messageCache = new Map<string, UIMessage[]>()
 
+  /** Active agent runs per session, keyed by sessionId */
+  private activeRuns = new Map<string, AbortController>()
+
   constructor(private deps: ChannelDeps) {}
 
   async start(): Promise<void> {
@@ -104,6 +107,19 @@ export class ChannelService {
         await thread.post(`Switched to space: ${spaceId}`)
       } else {
         await thread.post(`Space not found: ${spaceId}`)
+      }
+      return
+    }
+
+    // Handle /stop command
+    if (/^\/stop$/i.test(text)) {
+      const sessionId = `tg-${thread.id}`
+      const controller = this.activeRuns.get(sessionId)
+      if (controller) {
+        controller.abort()
+        await thread.post("Agent stopped.")
+      } else {
+        await thread.post("No active agent to stop.")
       }
       return
     }
@@ -182,11 +198,15 @@ export class ChannelService {
       maxSteps: 100,
     }
 
+    const abortController = new AbortController()
+    this.activeRuns.set(sessionId, abortController)
+
     try {
       console.log("[channel] ▶ preparing agent", { sessionId, model, space })
       const prepared = await prepareAgent(agentData, {
         getDataspace: this.deps.getDataspace,
         getAIConfig: this.deps.getAIConfig,
+        signal: abortController.signal,
       })
 
       console.log("[channel] ▶ streaming response")
@@ -194,7 +214,10 @@ export class ChannelService {
       // Collect full text while streaming to Chat SDK
       let fullText = ""
       const textStream = (async function* (self: ChannelService) {
-        for await (const text of self.streamAgentText(prepared)) {
+        for await (const text of self.streamAgentText(
+          prepared,
+          abortController.signal
+        )) {
           fullText += text
           yield text
         }
@@ -216,10 +239,16 @@ export class ChannelService {
       // Persist
       await this.persistResponse(store, prepared, fullText)
     } catch (err) {
+      if (abortController.signal.aborted) {
+        console.log("[channel] ▶ agent aborted by user")
+        return
+      }
       console.error("[channel] Agent error:", err)
       await thread.post(
         `Error: ${err instanceof Error ? err.message : String(err)}`
       )
+    } finally {
+      this.activeRuns.delete(sessionId)
     }
   }
 
@@ -227,14 +256,18 @@ export class ChannelService {
    * Run the agent and yield text deltas for Chat SDK streaming.
    * UIMessageChunk from toUIMessageStream() uses `delta` field (not `textDelta`).
    */
-  private async *streamAgentText(prepared: {
-    agent: ToolLoopAgent
-    modelMessages: any[]
-    messages: UIMessage[]
-  }): AsyncGenerator<string> {
+  private async *streamAgentText(
+    prepared: {
+      agent: ToolLoopAgent
+      modelMessages: any[]
+      messages: UIMessage[]
+    },
+    signal?: AbortSignal
+  ): AsyncGenerator<string> {
     const { agent, modelMessages, messages } = prepared
 
     const result = await agent.stream({
+      abortSignal: signal,
       messages: modelMessages as any,
     })
 
