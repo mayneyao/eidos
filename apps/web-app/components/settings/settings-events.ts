@@ -10,7 +10,6 @@ export type SettingsSection =
   | "general"
   | "account"
   | "ai"
-  | "api"
   | "storage"
   | "sync"
   | "security"

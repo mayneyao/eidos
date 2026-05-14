@@ -66,8 +66,6 @@ export const aiFormSchema = z.object({
       telegram: telegramChannelSchema.optional(),
     })
     .optional(),
-  // version
-  version: z.number().default(0),
 })
 
 export type AIFormValues = z.infer<typeof aiFormSchema>

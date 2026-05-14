@@ -5,7 +5,6 @@ import { useParams } from "react-router-dom"
 import { type SettingsSection } from "./settings-events"
 import { GlobalAccountSettings } from "./global/global-account-settings"
 import { GlobalAISettings } from "./global/global-ai-settings"
-import { GlobalAPISettings } from "./global/global-api-settings"
 import { GlobalBrowserSettings } from "./global/global-browser-settings"
 import { GlobalGeneralSettings } from "./global/global-general-settings"
 import { GlobalSecuritySettings } from "./global/global-security-settings"
@@ -57,8 +56,6 @@ export function SettingsContent() {
         return t("settings.account.title", "Account")
       case "ai":
         return t("settings.ai")
-      case "api":
-        return t("settings.api")
       case "storage":
         return t("settings.storage")
       case "sync":
@@ -96,8 +93,6 @@ export function SettingsContent() {
         return <GlobalAccountSettings />
       case "ai":
         return <GlobalAISettings />
-      case "api":
-        return <GlobalAPISettings />
       case "storage":
         return <GlobalStorageSettings />
       case "sync":

@@ -9,7 +9,6 @@ import {
   FolderOpen,
   LockIcon,
   LockOpenIcon,
-  MailIcon,
   MoveHorizontal,
   SplitSquareHorizontal,
   SplitSquareVertical,
@@ -23,14 +22,6 @@ import { getFileExtension, useFileHandlers } from "@/hooks/use-file-handlers"
 import { useFileItemActions } from "@/hooks/use-file-item-actions"
 import { useSqlite } from "@/hooks/use-sqlite"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import {
   NativeContextMenu as ContextMenu,
   NativeContextMenuCheckboxItem as ContextMenuCheckboxItem,
   NativeContextMenuContent as ContextMenuContent,
@@ -43,7 +34,6 @@ import {
   NativeContextMenuTrigger as ContextMenuTrigger,
 } from "@/components/ui/native-context-menu"
 import { NodeUpdateTime } from "@/components/nav/node-update-time"
-import { useExperimentConfigStore } from "@/components/settings/stores"
 // import {
 //   ContextMenu,
 //   ContextMenuContent,
@@ -58,24 +48,20 @@ import { useExperimentConfigStore } from "@/components/settings/stores"
 
 import { useNodeMap } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useVCardEmail } from "@/apps/web-app/hooks/use-vcard-email"
 // import { useFilePathFromHash } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-file-path-from-hash"
 import { useHandlerSelection } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-handler-selection"
 import {
   useAppsStore,
   useSpaceAppStore,
 } from "@/apps/web-app/pages/[database]/store"
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 
-import { CopyShowHide } from "../copy-show-hide"
 import {
   CopyTableSchemaContextMenu,
   NodeExportContextMenu,
 } from "../node-menu/node-export"
 
 import { useToast } from "../ui/use-toast"
-import { VCardQrCode } from "../vcard-qr-code"
 
 interface TabContextMenuProps {
   tabId: string
@@ -226,9 +212,6 @@ export function TabContextMenu({
   const { setCurrentApp } = useSpaceAppStore()
   const { addApp } = useAppsStore()
 
-  const { isEmbeddingModeLoaded } = useAppRuntimeStore()
-  const { getEmail, enabled } = useVCardEmail()
-
   // Platform-specific text for "Reveal in File Manager"
   const getRevealText = () => {
     if (typeof navigator !== "undefined") {
@@ -265,7 +248,6 @@ export function TabContextMenu({
   }
   const node = getCurrentNode()
 
-  const { experiment } = useExperimentConfigStore()
   const { space } = useCurrentPathInfo()
   const { toast } = useToast()
   const handleCopyFilePath = useCallback(async () => {
@@ -492,15 +474,9 @@ export function TabContextMenu({
                   </ContextMenuCheckboxItem>
                 </>
               )}
-              {node.type === "table" && enabled && (
+              {node.type === "table" && (
                 <>
                   <ContextMenuSeparator />
-                  <DialogTrigger className="w-full">
-                    <ContextMenuItem>
-                      <MailIcon className="mr-2 h-4 w-4" />
-                      {t("nav.dropdown.menu.mail")}
-                    </ContextMenuItem>
-                  </DialogTrigger>
                   <CopyTableSchemaContextMenu node={node} />
                 </>
               )}
@@ -525,30 +501,6 @@ export function TabContextMenu({
           )}
         </ContextMenuContent>
       </ContextMenu>
-      <Dialog>
-        <DialogContent className="">
-          <DialogHeader>
-            <DialogTitle>{t("nav.dropdown.menu.sendMailToEidos")}</DialogTitle>
-            {node && (
-              <div className="!mt-5 flex w-full flex-col gap-4">
-                <div className="flex w-full justify-center">
-                  <VCardQrCode
-                    firstName={node.name || t("common.untitled")}
-                    lastName={space}
-                    email={getEmail(node.id, space)}
-                  />
-                </div>
-                <DialogDescription>
-                  {node && <CopyShowHide text={getEmail(node.id, space)} />}
-                </DialogDescription>
-                <p className="p-2">
-                  {t("nav.dropdown.menu.emailInstructions")}
-                </p>
-              </div>
-            )}
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

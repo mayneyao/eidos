@@ -102,7 +102,6 @@ const emptyConfig: AppConfig = {
     embeddingModel: "",
     translationModel: "",
     codingModel: "",
-    version: 0,
   },
   security: {
     webSecurity: true,
@@ -184,15 +183,8 @@ export class ConfigManager extends EventEmitter {
   }
 
   private ensureDefaultAIConfig(): void {
-    let needsSave = false
     if (typeof this.config.ai !== "object" || this.config.ai === null) {
       this.config.ai = JSON.parse(JSON.stringify(emptyConfig.ai))
-      needsSave = true
-    } else if (typeof this.config.ai.version !== "number") {
-      this.config.ai.version = emptyConfig.ai.version
-      needsSave = true
-    }
-    if (needsSave) {
       this.saveConfig()
     }
   }

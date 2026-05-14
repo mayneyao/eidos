@@ -1,17 +1,7 @@
-import {
-  Cable,
-  Cog,
-  Database,
-  LockIcon,
-  PinIcon,
-  PinOffIcon,
-  Unplug,
-  Wand2,
-} from "lucide-react"
+import { Cog, LockIcon, PinIcon, PinOffIcon, Wand2 } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 
-import { useAPIAgent } from "@/apps/web-app/hooks/use-api-agent"
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useNode } from "@/apps/web-app/hooks/use-nodes"
 import { usePeer } from "@/apps/web-app/hooks/use-peer"
@@ -31,7 +21,6 @@ import {
   useDefaultHandler,
   useFileHandlers,
 } from "@/hooks/use-file-handlers"
-import { isDesktopMode } from "@/lib/env"
 import { isDayPageId } from "@/lib/utils"
 
 import { SetDefaultHandlerDialog } from "./set-default-handler-dialog"
@@ -45,7 +34,6 @@ export const NavStatus = () => {
 
   const { isGodMode, setGodMode } = useAppRuntimeStore()
 
-  const { connected } = useAPIAgent()
   const { runningCommand } = useAppRuntimeStore()
 
   const { currentCollaborators } = usePeer()
@@ -151,22 +139,6 @@ export const NavStatus = () => {
         >
           <LockIcon className="h-4 w-4" /> {t("common.lock")}
         </Button>
-      )}
-      {!isDesktopMode && (
-        <div
-          className="px-2"
-          title={
-            connected
-              ? t("nav.status.apiAgentConnected")
-              : t("nav.status.noApiAgentConnected")
-          }
-        >
-          {connected ? (
-            <Cable className="h-5 w-5 text-green-500" />
-          ) : (
-            <Unplug className="h-5 w-5 text-red-500" />
-          )}
-        </div>
       )}
       {currentNode &&
         currentNode.type === "doc" &&

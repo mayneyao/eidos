@@ -1,6 +1,5 @@
 import { MsgType } from "@/lib/const"
 import { EIDOS_VERSION, logger } from "@/lib/env"
-import { getConfig } from "@/lib/storage/indexeddb"
 import {
   WORKER_INIT_MESSAGES,
   WORKER_INIT_CONFIG,
@@ -8,10 +7,8 @@ import {
 } from "@/lib/const"
 
 import type { DataSpace } from "../../core/data-space"
-import { initWs } from "./api-agent/ws"
 import { SqliteServer } from "./sqlite-wasm-server"
 import { workerStore } from "./store"
-import type { APIAgentFormValues } from "@/packages/shared/types/api-agent-form"
 import {
   isIteratorFunction,
   restoreNonSerializable,
@@ -20,7 +17,6 @@ import {
 // current DB
 let _dataspace: DataSpace | null = null
 const sqlite = new SqliteServer()
-let ws: WebSocket
 
 const handleFunctionCall = async (
   data: {
@@ -200,20 +196,6 @@ let isInitialized = false
 async function main() {
   try {
     await sqlite.init()
-    const data = await getConfig<{ apiAgentConfig: APIAgentFormValues }>(
-      "config-api"
-    )
-
-    const { url, enabled } = data?.apiAgentConfig || {}
-    if (!enabled) {
-      ws?.close()
-    } else if (url) {
-      setTimeout(() => {
-        initWs(handleFunctionCall, url, (_ws) => {
-          ws = _ws
-        })
-      }, WORKER_INIT_CONFIG.WEBSOCKET_DELAY)
-    }
 
     isInitialized = true
     console.log("worker init success")
@@ -279,17 +261,6 @@ onmessage = async (e) => {
         },
       })
       return
-    case MsgType.Syscall:
-      ws.send(
-        JSON.stringify({
-          id,
-          data: {
-            method: MsgType.Syscall,
-            params: [data],
-          },
-        })
-      )
-      break
     default:
       logger.warn("unknown msg type", type)
       break
