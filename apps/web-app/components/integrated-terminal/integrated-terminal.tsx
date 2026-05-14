@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
-import { Plus, X, GripVertical } from "lucide-react"
+import { Plus, X, GripVertical, ScrollText } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { TerminalInstance } from "./terminal-instance"
@@ -282,6 +282,44 @@ export function IntegratedTerminal({
     createTerminal(spacePath)
   }, [createTerminal, spacePath])
 
+  // Create a terminal that tails the eidos app log
+  const createLogsTerminal = useCallback(async () => {
+    try {
+      const logPath = await window.eidos?.terminal?.getLogPath()
+      if (!logPath) {
+        alert("Failed to get log path")
+        return
+      }
+
+      const isWindows = navigator.platform.toLowerCase().includes("win")
+      const initialCommand = isWindows
+        ? `powershell -Command "Get-Content -Wait '${logPath}'"`
+        : `tail -f "${logPath}"`
+
+      const result = await window.eidos?.terminal?.create({
+        cwd: spacePath || undefined,
+        cols: 80,
+        rows: 24,
+        initialCommand,
+      })
+
+      if (result?.success && result.sessionId) {
+        const newSession: TerminalSession = {
+          id: result.sessionId,
+          title: "App Logs",
+          createdAt: Date.now(),
+        }
+        setSessions((prev) => [...prev, newSession])
+        setActiveSessionId(result.sessionId)
+      } else if (result?.error) {
+        console.error("Failed to create logs terminal:", result.error)
+        alert(`Failed to create logs terminal: ${result.error}`)
+      }
+    } catch (error) {
+      console.error("Failed to create logs terminal:", error)
+    }
+  }, [spacePath])
+
   return (
     <div
       className={cn(
@@ -323,6 +361,15 @@ export function IntegratedTerminal({
             title="New Terminal (Ctrl+Shift+`)"
           >
             <Plus className="h-3.5 w-3.5" />
+          </button>
+
+          {/* App Logs Button */}
+          <button
+            onClick={createLogsTerminal}
+            className="flex items-center gap-1 px-2 py-1.5 text-muted-foreground hover:text-foreground transition-colors"
+            title="Tail App Logs"
+          >
+            <ScrollText className="h-3.5 w-3.5" />
           </button>
         </div>
 

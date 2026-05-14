@@ -18,6 +18,11 @@ interface ChannelDeps {
   spaceRegistry: {
     validateSpace(spaceId: string): boolean
   }
+  logger?: {
+    info: (...args: any[]) => void
+    warn: (...args: any[]) => void
+    error: (...args: any[]) => void
+  }
 }
 
 /**
@@ -26,6 +31,11 @@ interface ChannelDeps {
 export class ChannelService {
   private bot: Chat | null = null
   private running = false
+  private log: {
+    info: (...args: any[]) => void
+    warn: (...args: any[]) => void
+    error: (...args: any[]) => void
+  }
 
   /** Per-chat space overrides from `/space xxx` commands */
   private chatSpaceMap = new Map<string, string>()
@@ -36,13 +46,15 @@ export class ChannelService {
   /** Active agent runs per session, keyed by sessionId */
   private activeRuns = new Map<string, AbortController>()
 
-  constructor(private deps: ChannelDeps) {}
+  constructor(private deps: ChannelDeps) {
+    this.log = deps.logger ?? console
+  }
 
   async start(): Promise<void> {
     const aiConfig = this.deps.getAIConfig()
     const tg = aiConfig?.channels?.telegram
     if (!tg?.enabled || !tg.botToken) {
-      console.log("[channel] Telegram not enabled or no token, skipping")
+      this.log.info("[channel] Telegram not enabled or no token, skipping")
       return
     }
 
@@ -68,7 +80,7 @@ export class ChannelService {
       } catch (err) {
         if (attempt === maxRetries) throw err
         const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000)
-        console.warn(
+        this.log.warn(
           `[channel] Telegram init failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`,
           err instanceof Error ? err.message : err
         )
@@ -77,7 +89,7 @@ export class ChannelService {
     }
 
     this.running = true
-    console.log("[channel] Telegram bot started (polling)")
+    this.log.info("[channel] Telegram bot started (polling)")
   }
 
   async stop(): Promise<void> {
@@ -86,7 +98,7 @@ export class ChannelService {
       this.bot = null
     }
     this.running = false
-    console.log("[channel] Telegram bot stopped")
+    this.log.info("[channel] Telegram bot stopped")
   }
 
   isRunning(): boolean {
@@ -219,14 +231,14 @@ export class ChannelService {
     this.activeRuns.set(sessionId, abortController)
 
     try {
-      console.log("[channel] ▶ preparing agent", { sessionId, model, space })
+      this.log.info("[channel] ▶ preparing agent", { sessionId, model, space })
       const prepared = await prepareAgent(agentData, {
         getDataspace: this.deps.getDataspace,
         getAIConfig: this.deps.getAIConfig,
         signal: abortController.signal,
       })
 
-      console.log("[channel] ▶ streaming response")
+      this.log.info("[channel] ▶ streaming response")
 
       // Collect full text while streaming to Chat SDK
       let fullText = ""
@@ -242,7 +254,7 @@ export class ChannelService {
 
       // Chat SDK handles Telegram post+edit streaming
       await thread.post(textStream)
-      console.log("[channel] ▶ stream done", { length: fullText.length })
+      this.log.info("[channel] ▶ stream done", { length: fullText.length })
 
       // Update cache with assistant response
       if (fullText) {
@@ -257,10 +269,10 @@ export class ChannelService {
       await this.persistResponse(store, prepared, fullText)
     } catch (err) {
       if (abortController.signal.aborted) {
-        console.log("[channel] ▶ agent aborted by user")
+        this.log.info("[channel] ▶ agent aborted by user")
         return
       }
-      console.error("[channel] Agent error:", err)
+      this.log.error("[channel] Agent error:", err)
       await thread.post(
         `Error: ${err instanceof Error ? err.message : String(err)}`
       )
@@ -353,7 +365,7 @@ export class ChannelService {
         ])
       }
     } catch (err) {
-      console.error("[channel] Persist error:", err)
+      this.log.error("[channel] Persist error:", err)
     }
   }
 }

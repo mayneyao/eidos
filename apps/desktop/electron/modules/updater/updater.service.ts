@@ -18,7 +18,7 @@ export class UpdaterService {
     @Inject(ConfigManager) private configManager: ConfigManager,
     @Inject(LoggerService) private logger: LoggerService
   ) {
-    this.logger.setPrefix("Updater")
+    this.logger = this.logger.child("Updater")
     this.setupAutoUpdater()
   }
 

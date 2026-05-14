@@ -140,6 +140,11 @@ export interface AgentContextOptions {
   getDataspace: (space: string) => Promise<DataSpace | null>
   signal?: AbortSignal
   getAIConfig?: () => AIFormValues | undefined
+  logger?: {
+    info: (...args: any[]) => void
+    warn: (...args: any[]) => void
+    error: (...args: any[]) => void
+  }
 }
 
 /**
@@ -164,8 +169,9 @@ export async function prepareAgent(
   } = data
 
   const aiConfig = ctx?.getAIConfig?.()
+  const log = ctx?.logger ?? console
 
-  console.log("[agent] ▶ start", {
+  log.info("[agent] ▶ start", {
     id,
     goal: goal.slice(0, 80),
     model: modelAndProvider,
@@ -181,7 +187,7 @@ export async function prepareAgent(
   )
   const llmodel = provider(modelId)
   const dataspace = space ? await ctx?.getDataspace(space) : null
-  console.log("[agent] ▶ dataspace resolved", {
+  log.info("[agent] ▶ dataspace resolved", {
     space,
     hasDataspace: !!dataspace,
     hasCtx: !!ctx,
@@ -196,6 +202,7 @@ export async function prepareAgent(
     tools: [],
     systemPrompt,
     skills,
+    logger: ctx?.logger,
   })
 
   // Build shared filesystem and tools (bash + read/write/edit)
@@ -222,7 +229,7 @@ export async function prepareAgent(
     ...(tools ?? {}),
   }
 
-  console.log("[agent] ▶ tools merged", {
+  log.info("[agent] ▶ tools merged", {
     serverTools: Object.keys(serverTools),
     clientTools: Object.keys(tools ?? {}),
     total: Object.keys(mergedTools).length,
@@ -285,6 +292,7 @@ export async function handleAgentApi(
   ctx?: AgentContextOptions
 ) {
   const startTime = performance.now()
+  const log = ctx?.logger ?? console
 
   const prepared = await prepareAgent(data, ctx)
   const {
@@ -301,7 +309,7 @@ export async function handleAgentApi(
     messages,
   } = prepared
 
-  console.log("[agent] ▶ creating UI message stream")
+  log.info("[agent] ▶ creating UI message stream")
 
   // Track how many parts have been written per messageId to avoid duplicates.
   // onStepFinish provides accumulated parts (all steps so far), not just the new ones.
@@ -320,7 +328,7 @@ export async function handleAgentApi(
       let firstChunk = true
       for await (const chunk of stream) {
         if (firstChunk) {
-          console.log(
+          log.info(
             `[agent] ⏱️ time to first chunk: ${(
               performance.now() - startTime
             ).toFixed(2)}ms`
@@ -338,7 +346,7 @@ export async function handleAgentApi(
       const newParts = responseMessage.parts.slice(prevCount)
       if (newParts.length === 0) return
       writtenParts.set(msgId, responseMessage.parts.length)
-      console.log("[agent] ▶ onStepFinish — appending new parts", {
+      log.info("[agent] ▶ onStepFinish — appending new parts", {
         id,
         newCount: newParts.length,
         totalCount: responseMessage.parts.length,
@@ -346,7 +354,7 @@ export async function handleAgentApi(
       try {
         await store.appendStepMessage(id, msgId, newParts)
       } catch (err) {
-        console.error("[agent] ✖ onStepFinish error", {
+        log.error("[agent] ✖ onStepFinish error", {
           id,
           error: err instanceof Error ? err.message : String(err),
         })
@@ -355,7 +363,7 @@ export async function handleAgentApi(
     onFinish: async ({ responseMessage, isAborted }) => {
       if (!store) return
       const status = isAborted ? "stopped" : "completed"
-      console.log("[agent] ▶ onFinish — saving", {
+      log.info("[agent] ▶ onFinish — saving", {
         id,
         status,
         partCount: responseMessage.parts.length,
@@ -381,7 +389,7 @@ export async function handleAgentApi(
           forkedMessageId: existingMeta?.forkedMessageId,
         })
       } catch (err) {
-        console.error("[agent] ✖ onFinish error", {
+        log.error("[agent] ✖ onFinish error", {
           id,
           error: err instanceof Error ? err.message : String(err),
         })
@@ -390,7 +398,7 @@ export async function handleAgentApi(
   })
 
   const response = createUIMessageStreamResponse({ stream: uiStream })
-  console.log(
+  log.info(
     `[agent] ⏱️ time to response: ${(performance.now() - startTime).toFixed(
       2
     )}ms`

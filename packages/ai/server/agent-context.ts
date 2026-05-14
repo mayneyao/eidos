@@ -15,6 +15,11 @@ export class AgentContext {
   private _userContext: string[] = []
   private _skillToolkit: SkillToolkit | null = null
   private _requestedSkills: string[] = []
+  private _log: {
+    info: (...args: any[]) => void
+    warn: (...args: any[]) => void
+    error: (...args: any[]) => void
+  } = console
 
   /** Create an agent context with the default system prompt and built-in user context. */
   static async create(opts: {
@@ -22,8 +27,14 @@ export class AgentContext {
     tools: string[]
     systemPrompt?: string
     skills?: string[]
+    logger?: {
+      info: (...args: any[]) => void
+      warn: (...args: any[]) => void
+      error: (...args: any[]) => void
+    }
   }): Promise<AgentContext> {
     const ctx = new AgentContext()
+    ctx._log = opts.logger ?? console
     ctx.setSystemPrompt(
       opts.systemPrompt ??
         AgentContext.buildDefaultPrompt(opts.goal, opts.tools)
@@ -68,7 +79,7 @@ Be proactive. Don't ask for confirmation — just execute the plan.`
         `<skill name="${skill.name}">\nUse the skill tool to load full instructions: loadSkill("${skill.name}")\n</skill>`
       )
     }
-    console.log("[agent-context] ▶ skills loaded", {
+    this._log.info("[agent-context] ▶ skills loaded", {
       requested: skillNames,
       loaded: requested.map((s) => s.name),
     })

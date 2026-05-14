@@ -2,7 +2,7 @@
  * Terminal Service - Manages terminal sessions using node-pty
  */
 
-import { BrowserWindow } from "electron"
+import { app, BrowserWindow } from "electron"
 import * as fs from "fs"
 import * as os from "os"
 import * as path from "path"
@@ -29,6 +29,7 @@ export interface TerminalCreateOptions {
   env?: Record<string, string>
   cols?: number
   rows?: number
+  initialCommand?: string
 }
 
 /**
@@ -271,6 +272,13 @@ export class TerminalService extends IpcServiceBase {
         this.sessions.delete(sessionId)
       })
 
+      // Send initial command if provided
+      if (options.initialCommand) {
+        setTimeout(() => {
+          ptyProcess.write(options.initialCommand + "\r")
+        }, 100)
+      }
+
       this.logger.info(`Session ${sessionId} created successfully`)
       return { success: true, sessionId }
     } catch (error) {
@@ -374,6 +382,14 @@ export class TerminalService extends IpcServiceBase {
    */
   getDefaultShell(): string {
     return this.defaultShell
+  }
+
+  /**
+   * Get the eidos app log file path
+   * IPC: terminal:getLogPath
+   */
+  getLogPath(): string {
+    return path.join(app.getPath("logs"), "main.log")
   }
 
   /**

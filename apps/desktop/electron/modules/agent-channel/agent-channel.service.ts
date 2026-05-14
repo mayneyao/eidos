@@ -17,7 +17,7 @@ export class AgentChannelService extends IpcServiceBase {
     @Inject(LoggerService) private logger: LoggerService
   ) {
     super()
-    this.logger.setPrefix("AgentChannel")
+    this.logger = this.logger.child("AgentChannel")
   }
 
   /**
@@ -36,6 +36,7 @@ export class AgentChannelService extends IpcServiceBase {
         validateSpace: (spaceId: string) =>
           this.spaceRegistry.validateSpace(spaceId),
       },
+      logger: this.logger.child("Channel"),
     })
 
     try {

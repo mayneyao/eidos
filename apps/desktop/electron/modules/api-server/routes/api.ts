@@ -99,6 +99,7 @@ export function setupApiRoutes(app: Hono, ctx: ServerContext) {
           ? ctx.dataSpaceManager.getOrSetDataSpace(space)
           : Promise.resolve(null),
       getAIConfig: () => ctx.configManager.get("ai"),
+      logger: ctx.logger.child("AgentRoute"),
     })
   )
 }

@@ -26,8 +26,14 @@ import { initSkillToolkit, getSkillMetas } from "./skills"
 export function createAgentMiddleware(options: {
   getDataspace: (space: string) => Promise<DataSpace | null>
   getAIConfig?: () => AIFormValues | undefined
+  logger?: {
+    info: (...args: any[]) => void
+    warn: (...args: any[]) => void
+    error: (...args: any[]) => void
+  }
 }) {
   const app = new Hono()
+  const log = options.logger ?? console
 
   const handleGetRequest = async (c: any) => {
     const space = extractSpace(c)
@@ -65,7 +71,7 @@ export function createAgentMiddleware(options: {
       data.space = space
     }
 
-    console.log("[agent-route] POST /api/agent/sessions", {
+    log.info("[agent-route] POST /api/agent/sessions", {
       id: data.id,
       space: data.space,
       model: data.model,
@@ -76,10 +82,10 @@ export function createAgentMiddleware(options: {
         ...options,
         signal: c.req.raw.signal,
       })
-      console.log("[agent-route] ▶ response ready", { id: data.id })
+      log.info("[agent-route] ▶ response ready", { id: data.id })
       return result
     } catch (err) {
-      console.error("[agent-route] ✖ error", {
+      log.error("[agent-route] ✖ error", {
         id: data.id,
         error: err instanceof Error ? err.message : String(err),
         stack: err instanceof Error ? err.stack?.slice(0, 500) : undefined,
@@ -150,7 +156,7 @@ export function createAgentMiddleware(options: {
       const skills = getSkillMetas(toolkit)
       return c.json({ skills })
     } catch (err) {
-      console.error("[agent-route] ✖ skills error", err)
+      log.error("[agent-route] ✖ skills error", err)
       return c.json({ skills: [] })
     }
   })
@@ -216,7 +222,7 @@ export function createAgentMiddleware(options: {
     } catch (error: any) {
       // ripgrep exit code 1 = no matches
       if (error.code === 1) return c.json({ results: [] })
-      console.error("[agent-route] ✖ skills search error", error)
+      log.error("[agent-route] ✖ skills search error", error)
       return c.json({ results: [] })
     }
   })
@@ -241,7 +247,7 @@ export function createAgentMiddleware(options: {
         dirName: path.basename(skill.localPath),
       })
     } catch (err) {
-      console.error("[agent-route] ✖ skill detail error", err)
+      log.error("[agent-route] ✖ skill detail error", err)
       return c.json({ error: "Failed to load skill" }, 500)
     }
   })
@@ -288,7 +294,7 @@ export function createAgentMiddleware(options: {
       await store.fork(id, messageId, newId)
       return c.json({ id: newId })
     } catch (err) {
-      console.error("[agent-route] ✖ fork error", {
+      log.error("[agent-route] ✖ fork error", {
         id,
         messageId,
         error: err instanceof Error ? err.message : String(err),
