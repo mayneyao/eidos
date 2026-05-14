@@ -49,6 +49,7 @@ export class ChannelService {
     const telegram = createTelegramAdapter({
       botToken: tg.botToken,
       mode: "polling",
+      longPolling: { deleteWebhook: false },
     })
 
     this.bot = new Chat({
@@ -58,7 +59,23 @@ export class ChannelService {
     })
 
     this.registerHandlers()
-    await this.bot.initialize()
+
+    const maxRetries = 3
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await this.bot.initialize()
+        break
+      } catch (err) {
+        if (attempt === maxRetries) throw err
+        const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000)
+        console.warn(
+          `[channel] Telegram init failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`,
+          err instanceof Error ? err.message : err
+        )
+        await new Promise((r) => setTimeout(r, delay))
+      }
+    }
+
     this.running = true
     console.log("[channel] Telegram bot started (polling)")
   }

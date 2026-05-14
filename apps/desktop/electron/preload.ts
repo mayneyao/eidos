@@ -480,6 +480,8 @@ function main() {
     cli: createPreloadApiByNamespace("cli"),
     // Market service
     market: createPreloadApiByNamespace("market"),
+    // Agent channel status
+    agentChannel: createPreloadApiByNamespace("agent-channel"),
   })
 }
 main()

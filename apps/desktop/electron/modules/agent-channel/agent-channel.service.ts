@@ -1,12 +1,13 @@
-import { Injectable, Inject } from "../../common/di"
+import { IpcInjectable, Inject } from "../../common/di"
+import { IpcServiceBase, IpcMethod } from "@eidos.space/electron-ipc"
 import { ChannelService } from "@/packages/ai/server/channel"
 import { ConfigManager } from "../config/config.module"
 import { SpaceRegistry } from "../space-management/space-management.module"
 import { DataSpaceManager } from "../data-space"
 import { LoggerService } from "../logger/logger.module"
 
-@Injectable()
-export class AgentChannelService {
+@IpcInjectable("agent-channel")
+export class AgentChannelService extends IpcServiceBase {
   private channelService: ChannelService | null = null
 
   constructor(
@@ -15,6 +16,7 @@ export class AgentChannelService {
     @Inject(DataSpaceManager) private dataSpaceManager: DataSpaceManager,
     @Inject(LoggerService) private logger: LoggerService
   ) {
+    super()
     this.logger.setPrefix("AgentChannel")
   }
 
@@ -58,6 +60,7 @@ export class AgentChannelService {
   /**
    * Get the running status of channels
    */
+  @IpcMethod()
   getStatus() {
     return {
       telegram: {

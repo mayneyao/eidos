@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from "react"
+import { Suspense, lazy, useCallback, useEffect, useState } from "react"
 import type { LLMProvider } from "@/packages/ai/config"
 import { ALL_PROVIDERS, type LLMProviderType } from "@/packages/ai/helper"
 import {
@@ -76,6 +76,23 @@ export function GlobalAISettings() {
         .catch(() => {})
     }
   }, [])
+
+  const [telegramRunning, setTelegramRunning] = useState(false)
+  const checkChannelStatus = useCallback(async () => {
+    if (!isDesktopMode || !aiConfig.channels?.telegram?.enabled) return
+    try {
+      const status = await window.eidos.agentChannel.getStatus()
+      setTelegramRunning(status.telegram.running)
+    } catch {
+      setTelegramRunning(false)
+    }
+  }, [aiConfig.channels?.telegram?.enabled])
+
+  useEffect(() => {
+    checkChannelStatus()
+    const interval = setInterval(checkChannelStatus, 5000)
+    return () => clearInterval(interval)
+  }, [checkChannelStatus])
 
   const configuredProviderTypes = new Set<LLMProviderType>(
     aiConfig.llmProviders.map((p) => p.type)
@@ -645,9 +662,17 @@ export function GlobalAISettings() {
               {/* Status */}
               {aiConfig.channels?.telegram?.enabled && (
                 <div className="flex items-center gap-2 text-sm pt-2">
-                  <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      telegramRunning
+                        ? "bg-green-500 animate-pulse"
+                        : "bg-yellow-500"
+                    }`}
+                  />
                   <span className="text-muted-foreground">
-                    {t("settings.ai.botStatusConfigured")}
+                    {telegramRunning
+                      ? t("settings.ai.botStatusRunning")
+                      : t("settings.ai.botStatusConfigured")}
                   </span>
                 </div>
               )}

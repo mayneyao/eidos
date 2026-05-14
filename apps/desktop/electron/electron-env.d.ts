@@ -209,5 +209,8 @@ interface Window {
     market: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./modules/market/market.service").MarketService
     >
+    agentChannel: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./modules/agent-channel/agent-channel.service").AgentChannelService
+    >
   }
 }
