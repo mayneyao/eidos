@@ -1,6 +1,8 @@
+import { createAlibaba } from "@ai-sdk/alibaba"
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock"
 import { createAnthropic } from "@ai-sdk/anthropic"
 import { createAzure } from "@ai-sdk/azure"
+import { createByteDance } from "@ai-sdk/bytedance"
 import { createCerebras } from "@ai-sdk/cerebras"
 import { createCohere } from "@ai-sdk/cohere"
 import { createDeepInfra } from "@ai-sdk/deepinfra"
@@ -8,7 +10,9 @@ import { createDeepSeek } from "@ai-sdk/deepseek"
 import { createFireworks } from "@ai-sdk/fireworks"
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { createGroq } from "@ai-sdk/groq"
+import { createHuggingFace } from "@ai-sdk/huggingface"
 import { createMistral } from "@ai-sdk/mistral"
+import { createMoonshotAI } from "@ai-sdk/moonshotai"
 import { createOpenAI } from "@ai-sdk/openai"
 import { createPerplexity } from "@ai-sdk/perplexity"
 import { createTogetherAI } from "@ai-sdk/togetherai"
@@ -41,6 +45,10 @@ export type LLMProviderType =
   | "ollama"
   // "luma" |
   | "openai-compatible"
+  | "huggingface"
+  | "moonshotai"
+  | "alibaba"
+  | "bytedance"
 
 export const ALL_PROVIDERS_RAW = [
   "openai",
@@ -64,6 +72,10 @@ export const ALL_PROVIDERS_RAW = [
   "ollama",
   // "luma",
   "openai-compatible",
+  "huggingface",
+  "moonshotai",
+  "alibaba",
+  "bytedance",
 ]
 
 export const LLM_PROVIDER_INFO: Record<
@@ -80,7 +92,7 @@ export const LLM_PROVIDER_INFO: Record<
   },
   google: {
     name: "Google AI",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta", // Or Vertex AI endpoint
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
     urlForGettingApiKey: "https://aistudio.google.com/apikey",
   },
   deepseek: {
@@ -106,7 +118,7 @@ export const LLM_PROVIDER_INFO: Record<
     baseUrl: "https://api.anthropic.com/v1",
   },
   azure: {
-    name: "Azure OpenAI",
+    name: "Azure",
     baseUrl: "YOUR_AZURE_ENDPOINT", // User specific
   },
   "amazon-bedrock": {
@@ -153,6 +165,27 @@ export const LLM_PROVIDER_INFO: Record<
   //   name: "Luma AI",
   //   baseUrl: "https://api.luma.ai/v1", // Placeholder, check docs
   // },
+  huggingface: {
+    name: "Hugging Face",
+    baseUrl: "https://api-inference.huggingface.co",
+    urlForGettingApiKey: "https://huggingface.co/settings/tokens",
+  },
+  moonshotai: {
+    name: "Moonshot AI",
+    baseUrl: "https://api.moonshot.cn/v1",
+    urlForGettingApiKey: "https://platform.moonshot.cn/console/api-keys",
+  },
+  alibaba: {
+    name: "Alibaba (Qwen)",
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    urlForGettingApiKey: "https://dashscope.console.aliyun.com/apiKey",
+  },
+  bytedance: {
+    name: "ByteDance",
+    baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+    urlForGettingApiKey:
+      "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey",
+  },
   ollama: {
     name: "Ollama",
     baseUrl: "http://localhost:11434/v1",
@@ -301,6 +334,20 @@ export function getProvider(data: {
       return createCerebras(config)
     // case 'luma':
     //   return createLuma(config)
+    case "huggingface": {
+      const hf = createHuggingFace(config)
+      return ((modelId: string) => hf.languageModel(modelId)) as any
+    }
+    case "moonshotai": {
+      const ms = createMoonshotAI(config)
+      return ((modelId: string) => ms.languageModel(modelId)) as any
+    }
+    case "alibaba":
+      return createAlibaba(config)
+    case "bytedance": {
+      const bd = createByteDance(config)
+      return ((modelId: string) => bd.languageModel(modelId)) as any
+    }
     case "openai-compatible":
       if (apiVersion === "responses") {
         return createOpenAI(config).responses

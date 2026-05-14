@@ -10,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
 
 import { AIProviderForm } from "./ai-provider-form"
 
@@ -18,8 +17,8 @@ interface AIProviderModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   provider?: LLMProvider
+  defaultValues?: Partial<LLMProvider>
   onSave: (provider: LLMProvider) => void
-  onDelete?: (providerName: string) => void
   existingNames?: string[]
 }
 
@@ -27,8 +26,8 @@ export function AIProviderModal({
   open,
   onOpenChange,
   provider,
+  defaultValues,
   onSave,
-  onDelete,
   existingNames = [],
 }: AIProviderModalProps) {
   const { t } = useTranslation()
@@ -49,13 +48,6 @@ export function AIProviderModal({
     }
   }
 
-  const handleDelete = async (providerName: string) => {
-    if (onDelete) {
-      await onDelete(providerName)
-      onOpenChange(false)
-    }
-  }
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -71,8 +63,9 @@ export function AIProviderModal({
         <div className="py-4">
           <AIProviderForm
             provider={provider}
+            defaultValues={defaultValues}
             onSave={handleSave}
-            onDelete={isEditing ? handleDelete : undefined}
+            onCancel={() => onOpenChange(false)}
             existingNames={existingNames}
             isSubmitting={isSubmitting}
           />

@@ -46,9 +46,14 @@ import { isDesktopMode } from "@/lib/env"
 
 import { AIProviderModal } from "./ai/ai-provider-modal"
 import { AITaskConfigForm } from "./ai/ai-task-form"
+import ProviderIcon from "./ai/provider-icon"
 
-// lazy import ProviderIcon
-const ProviderIcon = lazy(() => import("./ai/provider-icon"))
+function formatProviderName(type: string) {
+  return type
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ")
+}
 
 export function GlobalAISettings() {
   const { t } = useTranslation()
@@ -57,6 +62,9 @@ export function GlobalAISettings() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingProvider, setEditingProvider] = useState<
     LLMProvider | undefined
+  >()
+  const [defaultProviderValues, setDefaultProviderValues] = useState<
+    Partial<LLMProvider> | undefined
   >()
   const [selectedProviderType, setSelectedProviderType] = useState<
     LLMProviderType | undefined
@@ -113,7 +121,7 @@ export function GlobalAISettings() {
     }
 
     setSelectedProviderType(providerType)
-    setEditingProvider({
+    setDefaultProviderValues({
       type: providerType,
       name: newProviderName,
       apiKey: "",
@@ -127,6 +135,7 @@ export function GlobalAISettings() {
 
   const handleEditProvider = (provider: LLMProvider) => {
     setEditingProvider(provider)
+    setDefaultProviderValues(undefined)
     setSelectedProviderType(undefined)
     setIsModalOpen(true)
   }
@@ -197,6 +206,7 @@ export function GlobalAISettings() {
   const handleCloseModal = () => {
     setIsModalOpen(false)
     setEditingProvider(undefined)
+    setDefaultProviderValues(undefined)
     setSelectedProviderType(undefined)
   }
 
@@ -230,7 +240,7 @@ export function GlobalAISettings() {
                 <Suspense fallback={<div className="w-4 h-4" />}>
                   <ProviderIcon type={type} />
                 </Suspense>
-                {type.charAt(0).toUpperCase() + type.slice(1)}
+                {formatProviderName(type)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
@@ -279,7 +289,7 @@ export function GlobalAISettings() {
                       <Suspense fallback={<div className="w-4 h-4" />}>
                         <ProviderIcon type={type} />
                       </Suspense>
-                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                      {formatProviderName(type)}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -304,7 +314,7 @@ export function GlobalAISettings() {
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="p-2 rounded-md bg-muted shrink-0">
                           <Suspense fallback={<div className="w-4 h-4" />}>
-                            <ProviderIcon type={provider.type} isActive />
+                            <ProviderIcon type={provider.type} />
                           </Suspense>
                         </div>
                         <div className="min-w-0">
@@ -686,8 +696,8 @@ export function GlobalAISettings() {
         open={isModalOpen}
         onOpenChange={handleCloseModal}
         provider={editingProvider}
+        defaultValues={defaultProviderValues}
         onSave={handleSaveProvider}
-        onDelete={editingProvider ? handleDeleteProvider : undefined}
         existingNames={aiConfig.llmProviders.map((p) => p.name)}
       />
 

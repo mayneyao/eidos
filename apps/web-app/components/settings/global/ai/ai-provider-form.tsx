@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useDebounceFn } from "ahooks"
-import { Loader2, Trash2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import * as z from "zod"
@@ -11,16 +11,6 @@ import { llmProviderSchema as baseLlmProviderSchema } from "@/packages/ai/config
 import type { AvailableModel } from "@/packages/ai/helper"
 import { LLM_PROVIDER_INFO, fetchAvailableModels } from "@/packages/ai/helper"
 import { isDesktopMode } from "@/lib/env"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -49,23 +39,24 @@ import {
 
 interface AIProviderFormProps {
   provider?: LLMProvider
+  defaultValues?: Partial<LLMProvider>
   onSave: (provider: LLMProvider) => void
-  onDelete?: (providerName: string) => void
+  onCancel?: () => void
   existingNames?: string[]
   isSubmitting?: boolean
 }
 
 export function AIProviderForm({
   provider,
+  defaultValues,
   onSave,
-  onDelete,
+  onCancel,
   existingNames = [],
   isSubmitting = false,
 }: AIProviderFormProps) {
   const { t } = useTranslation()
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([])
   const [isFetchingModels, setIsFetchingModels] = useState(false)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isManualMode, setIsManualMode] = useState(false)
   const [manualModelInput, setManualModelInput] = useState("")
 
@@ -101,10 +92,23 @@ export function AIProviderForm({
       baseUrl: "",
       models: "",
       enabled: true,
+      ...defaultValues,
     },
   })
-  const { isDirty } = form.formState
+  const [hasChanges, setHasChanges] = useState(false)
+  const initialValues = useRef(form.getValues())
   const providerInfo = LLM_PROVIDER_INFO[form.watch("type")]
+
+  const watchedValues = form.watch()
+  useEffect(() => {
+    const initial = initialValues.current
+    const changed = Object.keys(watchedValues).some(
+      (key) =>
+        watchedValues[key as keyof LLMProvider] !==
+        initial[key as keyof LLMProvider]
+    )
+    setHasChanges(changed)
+  }, [watchedValues])
 
   const selectedModelsString = form.watch("models")
   const selectedModelIds = useMemo(() => {
@@ -159,10 +163,6 @@ export function AIProviderForm({
 
   function onSubmit(data: LLMProvider) {
     onSave(data)
-  }
-
-  function handleDelete(providerName: string) {
-    onDelete?.(providerName)
   }
 
   const baseUrl = form.watch("baseUrl")
@@ -534,63 +534,41 @@ export function AIProviderForm({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-between">
-            <div>
-              {isEditing && onDelete && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => setIsDeleteDialogOpen(true)}
-                  disabled={isSubmitting}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  {t("common.delete")}
-                </Button>
-              )}
-            </div>
-            <div className="flex space-x-2">
+          <div className="flex justify-end space-x-2">
+            {hasChanges ? (
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => form.reset()}
+                onClick={() => {
+                  form.reset()
+                  setHasChanges(false)
+                }}
                 disabled={isSubmitting}
               >
                 {t("common.reset")}
               </Button>
-              <Button type="submit" disabled={!isDirty || isSubmitting}>
-                {isSubmitting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
-                {isEditing ? t("common.update") : t("common.add")}
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+                disabled={isSubmitting}
+              >
+                {t("common.cancel")}
               </Button>
-            </div>
+            )}
+            <Button
+              type="submit"
+              disabled={(isEditing && !hasChanges) || isSubmitting}
+            >
+              {isSubmitting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              {isEditing ? t("common.update") : t("common.add")}
+            </Button>
           </div>
         </form>
       </Form>
-
-      <AlertDialog
-        open={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("settings.ai.deleteProviderTitle")}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("settings.ai.deleteProviderDescription", {
-                name: provider?.name,
-              })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={() => handleDelete(provider!.name)}>
-              {t("common.confirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   )
 }
