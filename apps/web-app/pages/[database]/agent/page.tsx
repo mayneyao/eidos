@@ -13,6 +13,8 @@ import { useIsActiveTab } from "@/apps/web-app/hooks/use-is-active-tab"
 import { useDocFindInPage } from "@/apps/web-app/hooks/use-doc-find-in-page"
 import { type AgentSession } from "@/packages/core/agent-session/agent-session-store"
 
+import { useToast } from "@/components/ui/use-toast"
+
 import { AgentGoalInput } from "@/components/ai-agent/agent-goal-input"
 import { AgentChatArea } from "@/components/ai-agent/agent-chat-area"
 import { AgentSessionContext } from "@/components/ai-agent/agent-context"
@@ -53,6 +55,7 @@ function AgentPageContent({
 }) {
   const { navigate } = useRouterAdapter()
   const { setCurrentApp } = useSidebarStore()
+  const { toast } = useToast()
 
   const [goalInput, setGoalInput] = useState("")
   const [isRunning, setIsRunning] = useState(false)
@@ -148,7 +151,7 @@ function AgentPageContent({
     new DefaultChatTransport({ api: "/api/agent/sessions" })
   ).current
 
-  const { messages, sendMessage, stop, setMessages } = useChat({
+  const { messages, sendMessage, stop, setMessages, error } = useChat({
     transport,
     id: routeSessionId || "new-agent-session",
     generateId: uuidv7,
@@ -161,6 +164,11 @@ function AgentPageContent({
     onError: (error) => {
       console.error("Agent error:", error)
       setIsRunning(false)
+      toast({
+        title: "Agent Error",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      })
     },
   })
 
@@ -334,6 +342,7 @@ function AgentPageContent({
                   parentId={forkInfo?.parentId}
                   forkedMessageId={forkInfo?.forkedMessageId}
                   isRunning={isRunning}
+                  error={error}
                 />
               ) : (
                 !isSwitching && (

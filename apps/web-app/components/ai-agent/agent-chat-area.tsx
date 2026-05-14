@@ -11,6 +11,7 @@ interface AgentChatAreaProps {
   parentId?: string
   forkedMessageId?: string
   isRunning?: boolean
+  error?: Error | null
 }
 
 export function AgentChatArea({
@@ -20,6 +21,7 @@ export function AgentChatArea({
   parentId,
   forkedMessageId,
   isRunning,
+  error,
 }: AgentChatAreaProps) {
   const { navigate } = useRouterAdapter()
   const results = new Map<string, any>()
@@ -105,6 +107,17 @@ export function AgentChatArea({
           )}
         </div>
       ))}
+      {error && (
+        <div className="mx-2 p-3 my-2 text-[11px] text-destructive bg-destructive/5 border border-destructive/10 rounded-lg animate-in fade-in slide-in-from-bottom-1">
+          <span className="font-semibold uppercase tracking-wider mr-2">
+            Execution Error
+          </span>
+          <span className="opacity-90">
+            {error.message ||
+              "An unexpected error occurred during the agent's turn."}
+          </span>
+        </div>
+      )}
       <div ref={messagesEndRef as React.LegacyRef<HTMLDivElement>} />
     </div>
   )

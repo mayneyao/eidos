@@ -314,7 +314,6 @@ export async function handleAgentApi(
   // Track how many parts have been written per messageId to avoid duplicates.
   // onStepFinish provides accumulated parts (all steps so far), not just the new ones.
   const writtenParts = new Map<string, number>()
-
   const signal = ctx?.signal
 
   const uiStream = createUIMessageStream({
@@ -394,6 +393,14 @@ export async function handleAgentApi(
           error: err instanceof Error ? err.message : String(err),
         })
       }
+    },
+    onError: (err: unknown) => {
+      log.error("[agent] ✖ stream execution error", {
+        id,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack?.slice(0, 500) : undefined,
+      })
+      return err instanceof Error ? err.message : String(err)
     },
   })
 
