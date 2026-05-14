@@ -1,3 +1,4 @@
+import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import type { Tool } from "ai"
@@ -41,9 +42,12 @@ export async function buildAgentFs(ctx: BashToolContext) {
   await extensionsFs.healthCheck()
 
   const skillsDir = path.join(os.homedir(), ".agents", "skills")
+  if (!fs.existsSync(skillsDir)) {
+    fs.mkdirSync(skillsDir, { recursive: true })
+  }
   const skillFs = new ReadWriteFs({ root: skillsDir })
 
-  const fs = new MountableFs({
+  const mountableFs = new MountableFs({
     base: new InMemoryFs(),
     mounts: [
       { mountPoint: "/skills", filesystem: skillFs },
@@ -53,7 +57,7 @@ export async function buildAgentFs(ctx: BashToolContext) {
     ],
   })
 
-  return fs
+  return mountableFs
 }
 
 /**

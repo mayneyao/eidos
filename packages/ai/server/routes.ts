@@ -167,6 +167,9 @@ export function createAgentMiddleware(options: {
     if (!q) return c.json({ results: [] })
 
     const skillsDir = path.join(os.homedir(), ".agents", "skills")
+    if (!fs.existsSync(skillsDir)) {
+      fs.mkdirSync(skillsDir, { recursive: true })
+    }
     const args = [
       "-i",
       "-n",
