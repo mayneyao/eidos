@@ -1,6 +1,6 @@
 "use client"
 
-import { SettingsIcon } from "lucide-react"
+import { SettingsIcon, Trash2Icon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { cn } from "@/lib/utils"
@@ -14,7 +14,6 @@ import { Sidebar } from "@/components/ui/sidebar"
 
 import { SidebarContent } from "./sidebar-content"
 import { SidebarTabs } from "./sidebar-tabs"
-import { Trash } from "./trash"
 
 const SidebarFooter = () => {
   const { t } = useTranslation()
@@ -23,9 +22,14 @@ const SidebarFooter = () => {
   const { navigate, location } = useRouterAdapter()
 
   const isSettingsActive = location.pathname.startsWith("/settings")
+  const isTrashActive = location.pathname.startsWith("/trash")
 
   const handleOpenSettings = () => {
     navigate("/settings", { target: "_blank" })
+  }
+
+  const handleOpenTrash = () => {
+    navigate("/trash")
   }
 
   return (
@@ -33,7 +37,23 @@ const SidebarFooter = () => {
       <div className="flex items-center justify-between gap-1">
         {!isShareMode && <SpaceSelect spaces={spaceList} />}
         <div className="flex items-center gap-1">
-          <Trash />
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "h-8 w-8 p-0 cursor-pointer relative",
+              isTrashActive
+                ? "bg-background text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            title={t("common.trash")}
+            onClick={handleOpenTrash}
+          >
+            {isTrashActive && (
+              <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+            )}
+            <Trash2Icon className="h-4 w-4" />
+          </Button>
           <Button
             variant="ghost"
             size="sm"

@@ -14,6 +14,7 @@ import AgentPage from "@/apps/web-app/pages/[database]/agent/page"
 import SkillDetailPage from "@/apps/web-app/pages/[database]/agent/skills/[name]/page"
 import TerminalPage from "@/apps/web-app/pages/[database]/terminal/page"
 import SettingsPage from "@/apps/web-app/pages/[database]/settings/page"
+import TrashPage from "@/apps/web-app/pages/[database]/trash/page"
 
 export const spaceRoutes: RouteObject[] = [
   {
@@ -79,6 +80,10 @@ export const spaceRoutes: RouteObject[] = [
   {
     path: "settings/:section?",
     element: <SettingsPage />,
+  },
+  {
+    path: "trash",
+    element: <TrashPage />,
   },
   {
     path: ":table",

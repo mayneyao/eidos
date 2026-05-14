@@ -12,7 +12,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,7 +20,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
@@ -29,10 +27,12 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { useAllNodes } from "@/apps/web-app/hooks/use-nodes"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useTabTitle } from "@/hooks/use-tab-title"
 
-export const Trash = () => {
-  const [open, setOpen] = useState(false)
+export default function TrashPage() {
   const { t } = useTranslation()
+  useTabTitle(t("common.trash"))
+
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [clearAllConfirmOpen, setClearAllConfirmOpen] = useState(false)
   const [clearProgressOpen, setClearProgressOpen] = useState(false)
@@ -50,18 +50,12 @@ export const Trash = () => {
 
   const { navigate } = useRouterAdapter()
 
-  const handleOpenChange = (open: boolean) => {
-    setOpen(open)
-    setSearch("")
-  }
   const handleRestore = (node: ITreeNode) => {
     restoreNode(node)
-    setOpen(false)
     navigate(`/${node.id}`)
   }
 
   const handleClickNode = (node: ITreeNode) => {
-    setOpen(false)
     navigate(`/${node.id}`)
   }
 
@@ -92,7 +86,6 @@ export const Trash = () => {
         setClearProgress(progress)
       })
       setClearProgressOpen(false)
-      setOpen(false)
     } catch (error) {
       setClearProgressOpen(false)
       console.error("Failed to clear trash:", error)
@@ -100,79 +93,69 @@ export const Trash = () => {
   }
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogTrigger asChild>
+    <div className="flex flex-col h-full p-4 gap-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold">{t("common.trash")}</h1>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        {t("sidebar.trash.restoreOrPermanentlyDeleteNodes")}
+      </p>
+      <div className="flex gap-2">
+        <Input
+          placeholder={t("common.search")}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="flex-1"
+        />
+        {Boolean(allDeletedNodes.length) && (
           <Button
-            variant={"ghost"}
-            size="sm"
-            className="h-8 w-8 p-0 cursor-pointer"
-            title={t("common.trash")}
+            variant="destructive"
+            size="xs"
+            onClick={() => setClearAllConfirmOpen(true)}
+            className="shrink-0"
           >
-            <Trash2Icon className="h-4 w-4" />
+            {t("sidebar.trash.clearAll")}
           </Button>
-        </DialogTrigger>
-        <DialogContent className="min-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>{t("common.trash")}</DialogTitle>
-            <DialogDescription>
-              {t("sidebar.trash.restoreOrPermanentlyDeleteNodes")}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex gap-2">
-            <Input
-              placeholder={t("common.search")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1"
-            />
-            {Boolean(allDeletedNodes.length) && (
-              <Button
-                variant="destructive"
-                size="xs"
-                onClick={() => setClearAllConfirmOpen(true)}
-                className="shrink-0"
-              >
-                {t("sidebar.trash.clearAll")}
-              </Button>
-            )}
-          </div>
+        )}
+      </div>
 
-          <ScrollArea className="h-[500px] w-full">
-            {!Boolean(allDeletedNodes.length) && (
-              <p>{t("sidebar.trash.trashIsEmpty")}</p>
-            )}
-            {!Boolean(allNodes.length) && <p>{t("common.noResultsFound")}</p>}
-            {allNodes.map((node) => {
-              return (
-                <div
-                  key={node.id}
-                  className="flex cursor-pointer items-center justify-between px-2 hover:bg-secondary"
-                  onClick={() => handleClickNode(node)}
+      <ScrollArea className="flex-1 min-h-0">
+        {!Boolean(allDeletedNodes.length) && (
+          <p className="text-muted-foreground">
+            {t("sidebar.trash.trashIsEmpty")}
+          </p>
+        )}
+        {Boolean(allDeletedNodes.length) && !Boolean(allNodes.length) && (
+          <p className="text-muted-foreground">{t("common.noResultsFound")}</p>
+        )}
+        {allNodes.map((node) => {
+          return (
+            <div
+              key={node.id}
+              className="flex cursor-pointer items-center justify-between px-2 py-1.5 hover:bg-secondary rounded-sm"
+              onClick={() => handleClickNode(node)}
+            >
+              <span>
+                {node.icon}
+                {node.name || "Untitled"}
+              </span>
+              <div className="flex opacity-70">
+                <Button variant="ghost" onClick={() => handleRestore(node)}>
+                  <Undo2Icon className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={(e) => handlePermanentlyDelete(e, node)}
                 >
-                  <span>
-                    {node.icon}
-                    {node.name || "Untitled"}
-                  </span>
-                  <div className="flex opacity-70">
-                    <Button variant="ghost" onClick={() => handleRestore(node)}>
-                      <Undo2Icon className="h-4 w-4"></Undo2Icon>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={(e) => handlePermanentlyDelete(e, node)}
-                    >
-                      <Trash2Icon className="h-4 w-4"></Trash2Icon>
-                    </Button>
-                  </div>
-                </div>
-              )
-            })}
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
+                  <Trash2Icon className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )
+        })}
+      </ScrollArea>
+
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogTrigger></AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -197,7 +180,6 @@ export const Trash = () => {
         open={clearAllConfirmOpen}
         onOpenChange={setClearAllConfirmOpen}
       >
-        <AlertDialogTrigger></AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -234,6 +216,6 @@ export const Trash = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }
