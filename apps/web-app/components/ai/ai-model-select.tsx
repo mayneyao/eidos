@@ -48,15 +48,15 @@ export function AIModelSelect({
   }
 
   const sizeClasses = {
-    xs: "h-7 text-xs px-2 pr-6",
-    sm: "h-8 text-sm px-2.5 pr-7",
-    default: "h-9 text-sm px-3 pr-8",
+    xs: "h-7 text-sm px-2 pr-6",
+    sm: "h-8 text-xs px-2.5 pr-7",
+    default: "h-7 text-sm px-3 pr-8",
   }
 
   const iconSizes = {
     xs: "h-3.5 w-3.5 right-1.5",
     sm: "h-4 w-4 right-2",
-    default: "h-4 w-4 right-2",
+    default: "h-3.5 w-3.5 right-2",
   }
 
   return (

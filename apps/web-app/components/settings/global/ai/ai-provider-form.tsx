@@ -252,7 +252,10 @@ export function AIProviderForm({
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <select className="w-full p-1 border rounded-md" {...field}>
+                    <select
+                      className="w-full h-7 px-1 border rounded-md bg-background"
+                      {...field}
+                    >
                       {Object.entries(LLM_PROVIDER_INFO).map(([type, info]) => (
                         <option key={type} value={type}>
                           {info.name}
@@ -340,7 +343,7 @@ export function AIProviderForm({
                   <FormItem>
                     <FormControl>
                       <select
-                        className="w-full p-1 border rounded-md"
+                        className="w-full h-7 px-1 border rounded-md bg-background"
                         {...field}
                       >
                         <option value="chat">
@@ -422,7 +425,6 @@ export function AIProviderForm({
                     {!isManualMode && (
                       <Button
                         type="button"
-                        size="sm"
                         variant="outline"
                         onClick={getModelList}
                         disabled={
@@ -471,7 +473,6 @@ export function AIProviderForm({
                           />
                           <Button
                             type="button"
-                            size="sm"
                             onClick={handleManualModelAdd}
                             disabled={!manualModelInput.trim()}
                           >
