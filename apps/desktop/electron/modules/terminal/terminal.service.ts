@@ -114,7 +114,7 @@ export class TerminalService extends IpcServiceBase {
     this.logger.info("Detecting shell for platform:", platform)
 
     if (platform === "win32") {
-      return process.env.COMSPEC || "cmd.exe"
+      return "powershell.exe"
     }
 
     const shell = process.env.SHELL || "/bin/bash"
@@ -276,6 +276,13 @@ export class TerminalService extends IpcServiceBase {
       if (options.initialCommand) {
         setTimeout(() => {
           ptyProcess.write(options.initialCommand + "\r")
+        }, 100)
+      } else if (os.platform() === "win32") {
+        // For Windows, ensure UTF-8 code page by default to fix garbled characters
+        setTimeout(() => {
+          ptyProcess.write("chcp 65001\r")
+          // Clear the screen after setting code page to keep it clean
+          ptyProcess.write("cls\r")
         }, 100)
       }
 

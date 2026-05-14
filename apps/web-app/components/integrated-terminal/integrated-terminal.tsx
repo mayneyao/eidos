@@ -293,7 +293,7 @@ export function IntegratedTerminal({
 
       const isWindows = navigator.platform.toLowerCase().includes("win")
       const initialCommand = isWindows
-        ? `powershell -Command "Get-Content -Wait '${logPath}'"`
+        ? `powershell -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-Content -Encoding UTF8 -Wait '${logPath}'"`
         : `tail -f "${logPath}"`
 
       const result = await window.eidos?.terminal?.create({
