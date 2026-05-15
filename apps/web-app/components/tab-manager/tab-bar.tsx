@@ -50,7 +50,6 @@ import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppStore } from "@/apps/web-app/store/app-store"
-import { NavStatus } from "@/components/nav/nav-status"
 import { useWebviewStore } from "@/apps/web-app/store/webview-store"
 
 import { TabContextMenu } from "./tab-context-menu"
@@ -545,7 +544,7 @@ export function TabBar({
           className="flex items-center gap-1 shrink-0 grow-0"
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         >
-          <NavStatus />
+          {/* <NavStatus /> */}
         </div>
       )}
     </div>

@@ -1,12 +1,10 @@
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
-import { isMac } from "@/lib/web/helper"
+import { isMac, isWindowsDesktop } from "@/lib/web/helper"
 import { TabBar } from "@/apps/web-app/components/tab-manager/tab-bar"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useAppStore } from "@/apps/web-app/store/app-store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
-
-import { NavStatus } from "./nav-status"
 
 export const Nav = ({ children }: { children?: React.ReactNode }) => {
   const { location } = useRouterAdapter()
@@ -26,31 +24,23 @@ export const Nav = ({ children }: { children?: React.ReactNode }) => {
       className={cn(
         "flex w-full shrink-0 border-separate items-center justify-between px-1 h-[38px] border-b border-border/60 bg-muted/60",
         {
-          fixed: navigator.windowControlsOverlay?.visible,
+          "fixed top-0 left-0 z-50": navigator.windowControlsOverlay?.visible,
           "!pl-[72px]":
             (isDesktopMode || navigator.windowControlsOverlay?.visible) &&
             isMac() &&
             !isSidebarOpen,
           "!pr-[230px]":
             navigator.windowControlsOverlay?.visible && isSidebarOpen,
+          "pr-[112px]": isWindowsDesktop,
         }
       )}
     >
       {/* TabBar in Nav when single panel, otherwise just drag region */}
       <div
         className="flex-1 min-w-0 overflow-hidden flex items-center gap-2"
-        style={
-          !showSingleTabBar
-            ? ({ WebkitAppRegion: "drag" } as React.CSSProperties)
-            : undefined
-        }
         id="drag-region"
       >
-        {showSingleTabBar && <TabBar />}
-      </div>
-
-      <div className={cn("flex items-center gap-1 shrink-0 grow-0")}>
-        <NavStatus />
+        {showSingleTabBar && <TabBar isFirstPanel isLastPanel />}
       </div>
     </div>
   )
