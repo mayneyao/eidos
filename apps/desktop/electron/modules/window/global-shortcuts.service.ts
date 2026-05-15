@@ -137,6 +137,11 @@ export class GlobalShortcutsService {
         accelerator: "Ctrl+`",
         description: "Toggle terminal panel",
       },
+      {
+        id: "open-agent",
+        accelerator: "CommandOrControl+J",
+        description: "Open AI Agent",
+      },
       // Tab management shortcuts
       {
         id: "close-current-tab",

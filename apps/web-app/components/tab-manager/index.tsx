@@ -45,7 +45,9 @@ export function TabManager({ children }: { children: React.ReactNode }) {
 
       switch (action.id) {
         case "new-tab":
-          openTab("/", "New Tab")
+          openTab("/", "New Tab", {
+            forceNewTab: true,
+          })
           break
         case "restore-last-closed-tab":
           reopenLastClosedTab()

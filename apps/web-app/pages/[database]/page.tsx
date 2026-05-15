@@ -1,9 +1,9 @@
 import { useCallback } from "react"
 import {
-  Bot,
   Command,
   FileText,
   PanelLeft,
+  Plus,
   Search,
   Settings,
   Terminal,
@@ -21,6 +21,7 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useTabTitle } from "@/hooks/use-tab-title"
 import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 import { BlockApp } from "@/apps/web-app/components/block-renderer/block-app"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 
 import AgentPage from "./agent/page"
 
@@ -69,9 +70,18 @@ export default function DatabaseHome() {
     toggleSidebar()
   }, [toggleSidebar])
 
-  const handleOpenAgent = useCallback(() => {
-    navigate("/agent")
-  }, [navigate])
+  const openTab = useTabStore((s) => s.openTab)
+  const handleNewTab = useCallback(() => {
+    openTab("/", "New Tab")
+  }, [openTab])
+
+  const handleOpenNewTabSettings = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      navigate("/settings/space-newtab", { target: "_blank" })
+    },
+    [navigate]
+  )
 
   if (newTabBlockId === "agent") {
     return <AgentPage />
@@ -113,47 +123,25 @@ export default function DatabaseHome() {
           <Button
             variant="ghost"
             className="justify-between h-auto px-3 py-2"
-            onClick={handleOpenCommandPalette}
+            onClick={handleNewTab}
           >
             <div className="flex items-center gap-2">
-              <Command className="h-4 w-4 text-muted-foreground" />
+              <Plus className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">
-                {t("welcome.commandPalette", "Command Palette")}
+                {t("welcome.newTab", "New Tab")}
               </span>
             </div>
-            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-              ⌘ + K
-            </kbd>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className="justify-between h-auto px-3 py-2"
-            onClick={handleToggleTerminalPanel}
-          >
             <div className="flex items-center gap-2">
-              <Terminal className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                {t("welcome.toggleTerminalPanel", "Toggle Terminal Panel")}
+              <span
+                className="text-[10px] text-muted-foreground/40 hover:text-foreground hover:underline transition-colors cursor-pointer"
+                onClick={handleOpenNewTabSettings}
+              >
+                {t("welcome.configureNewTab", "Configure")}
               </span>
+              <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                ⌘ + T
+              </kbd>
             </div>
-            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-              Ctrl + `
-            </kbd>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className="justify-between h-auto px-3 py-2"
-            onClick={handleOpenAgent}
-          >
-            <div className="flex items-center gap-2">
-              <Bot className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">AI Agent</span>
-            </div>
-            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-              ⌘ + Shift + A
-            </kbd>
           </Button>
 
           <Button
@@ -175,6 +163,22 @@ export default function DatabaseHome() {
           <Button
             variant="ghost"
             className="justify-between h-auto px-3 py-2"
+            onClick={handleOpenCommandPalette}
+          >
+            <div className="flex items-center gap-2">
+              <Command className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                {t("welcome.commandPalette", "Command Palette")}
+              </span>
+            </div>
+            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+              ⌘ + K
+            </kbd>
+          </Button>
+
+          <Button
+            variant="ghost"
+            className="justify-between h-auto px-3 py-2"
             onClick={handleToggleSidebar}
           >
             <div className="flex items-center gap-2">
@@ -185,6 +189,22 @@ export default function DatabaseHome() {
             </div>
             <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
               ⌘ + \
+            </kbd>
+          </Button>
+
+          <Button
+            variant="ghost"
+            className="justify-between h-auto px-3 py-2"
+            onClick={handleToggleTerminalPanel}
+          >
+            <div className="flex items-center gap-2">
+              <Terminal className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                {t("welcome.toggleTerminalPanel", "Toggle Terminal Panel")}
+              </span>
+            </div>
+            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+              Ctrl + `
             </kbd>
           </Button>
 

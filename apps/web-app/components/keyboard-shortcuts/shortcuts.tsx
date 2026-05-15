@@ -43,6 +43,7 @@ export function ShortCuts() {
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
   const { setCurrentApp } = useSidebarStore()
   const { tabs: sortedTabs } = useTabsKV()
+  const { openTab } = useTabStore()
   const { navigate, params } = useRouterAdapter()
   const { toast } = useToast()
   const { createDoc, createLink } = useSqlite()
@@ -89,6 +90,10 @@ export function ShortCuts() {
 
         case "toggle-sidebar":
           setSidebarOpen(!isSidebarOpen)
+          break
+
+        case "open-agent":
+          navigate("/agent")
           break
 
         case "navigate-back":
@@ -299,6 +304,7 @@ export function ShortCuts() {
     isTerminalVisible,
     setIsTerminalVisible,
     handleBlockTabClick,
+    openTab,
   ])
 
   // navigate to today - now handled by global shortcut (Cmd+Shift+T)
@@ -366,6 +372,12 @@ export function ShortCuts() {
       // Dispatch custom event to focus webview address bar
       window.dispatchEvent(new CustomEvent("focus-webview-address-bar"))
     }
+  })
+
+  // Add shortcut for AI Agent
+  useKeyPress(["ctrl.j", "meta.j"], (e) => {
+    e.preventDefault()
+    navigate("/agent")
   })
 
   return null
