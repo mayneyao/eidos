@@ -386,6 +386,45 @@ export function MonacoEditor() {
           })
         }}
       />
+      {/* Listen for global find shortcut in Desktop app */}
+      <FindListener editorRef={editorRef} containerRef={containerRef} />
     </div>
   )
+}
+
+/**
+ * Separate component to listen for find-in-page event
+ * This avoids unnecessary re-renders of the main MonacoEditor component
+ */
+function FindListener({
+  editorRef,
+  containerRef,
+}: {
+  editorRef: React.RefObject<Monaco.editor.IStandaloneCodeEditor | null>
+  containerRef: React.RefObject<HTMLDivElement | null>
+}) {
+  useEffect(() => {
+    const handleToggleFind = () => {
+      const editor = editorRef.current
+      if (!editor) return
+
+      // Trigger find if editor has focus or if the container contains the active element
+      // This ensures it works even if the find widget itself or other sub-elements have focus
+      const isFocused =
+        editor.hasTextFocus() ||
+        (containerRef.current &&
+          containerRef.current.contains(document.activeElement))
+
+      if (isFocused) {
+        editor.trigger("keyboard", "actions.find", null)
+      }
+    }
+
+    window.addEventListener("toggle-find-in-page", handleToggleFind)
+    return () => {
+      window.removeEventListener("toggle-find-in-page", handleToggleFind)
+    }
+  }, [editorRef, containerRef])
+
+  return null
 }
