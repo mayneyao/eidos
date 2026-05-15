@@ -1,43 +1,75 @@
 import type { Tool } from "ai"
 import type { IFileSystem } from "just-bash"
 import { z } from "zod"
+import crypto from "node:crypto"
 
 const MAX_READ_LENGTH = 50000
 
 /**
- * Compute a 2-character content hash for a line.
- * Deterministic, fast, and collision-resistant enough for edit validation.
+ * 16-character alphabet for hashes.
+ * Deliberately excludes visually confusable letters and vowels.
  */
-function lineHash(line: string): string {
-  let h = 0
-  for (let i = 0; i < line.length; i++) {
-    h = (h * 31 + line.charCodeAt(i)) | 0
+const HASH_ALPHABET = "ZPMQVRWSNKTXJBYH"
+
+/**
+ * Compute a 2-character content hash for a line.
+ * Uses Node.js crypto and line index salting for non-alphanumeric lines to prevent collisions.
+ */
+function computeLineHash(index: number, line: string): string {
+  const content = line.replace(/\r/g, "").trimEnd()
+  // Check if the line has any alphanumeric characters
+  const isSignificant = /[a-zA-Z0-9]/.test(content)
+
+  const hash = crypto.createHash("md5")
+  hash.update(content)
+  if (!isSignificant) {
+    // Seed with index for lines that are only whitespace or punctuation
+    hash.update(index.toString())
   }
-  const n = h >>> 0
-  return n.toString(36).slice(-2).padStart(2, "0")
+
+  const digest = hash.digest()
+  // Map the first two bytes to our 16-char alphabet
+  const h1 = digest[0]! % 16
+  const h2 = digest[1]! % 16
+
+  return HASH_ALPHABET[h1]! + HASH_ALPHABET[h2]!
+}
+
+/**
+ * Parse an anchor like "10#BH" into line number and hash.
+ */
+function parseAnchor(anchor: string): { line: number; hash: string } {
+  const match = anchor.trim().match(/^(\d+)#([ZPMQVRWSNKTXJBYH]{2})$/)
+  if (!match) {
+    throw new Error(
+      `Invalid anchor format: "${anchor}". Expected "LINE#HASH" (e.g., "10#BH").`
+    )
+  }
+  return {
+    line: parseInt(match[1]!, 10),
+    hash: match[2]!,
+  }
 }
 
 const readParams = z.object({
   path: z
     .string()
     .describe(
-      "File path (e.g. /dataspace/my-doc, /journals/2024-01-15.md, /extensions/my-ext.ts)"
+      "File path to read (e.g. /dataspace/my-doc, /journals/2024-01-15.md)"
     ),
   offset: z
     .number()
     .optional()
-    .describe(
-      "Start line number (0-based, inclusive). Omit to start from the beginning."
-    ),
+    .describe("Start line number (0-based, inclusive). Omit for beginning."),
   limit: z
     .number()
     .optional()
-    .describe("Max number of lines to return. Omit to return all lines."),
+    .describe("Max number of lines to return. Omit for all lines."),
 })
 
 const writeParams = z.object({
   path: z.string().describe("File path to write"),
-  content: z.string().describe("Full file content to write (plain text)"),
+  content: z.string().describe("Full file content to write"),
 })
 
 const editParams = z.object({
@@ -45,38 +77,36 @@ const editParams = z.object({
   edits: z
     .array(
       z.object({
-        start_line: z
-          .number()
-          .describe("First line to replace (1-based, from read output)"),
-        end_line: z.number().describe("Last line to replace (inclusive)"),
-        hashes: z
-          .string()
+        op: z
+          .enum(["replace", "append", "prepend"])
           .describe(
-            "Concatenated 2-character hashes of the lines being replaced. These are the strings BEFORE the '>' in each line of the file-read output (e.g. if lines start with 'ab>1|', 'cd>2|', then hashes should be 'abcd')."
+            "Operation type: replace a range, or append/prepend relative to an anchor."
           ),
-        new_content: z
+        pos: z
           .string()
+          .describe("Target anchor from read output (e.g. '10#BH')."),
+        end: z
+          .string()
+          .optional()
           .describe(
-            "Replacement text for the line range (plain text, no hashes)"
+            "End anchor for range replacement (inclusive). Required for multi-line 'replace'."
+          ),
+        lines: z
+          .array(z.string())
+          .describe(
+            "New content lines to insert/replace (as an array of strings)."
           ),
       })
     )
-    .describe(
-      "Array of edit operations to apply. Each specifies a line range identified by hashes."
-    ),
+    .describe("List of edit operations to apply in sequence."),
 })
 
-/**
- * Create read/write/edit tools that operate directly on the virtual filesystem.
- * Implements the "hashline" pattern: read returns content tagged with line hashes,
- * edit references those hashes to validate and apply targeted line-range changes.
- */
 export function createFileTools(fs: IFileSystem): Record<string, Tool> {
   const read: Tool = {
     description:
-      "Read a file from the virtual filesystem. Each line is tagged with a 2-char hash and line number: `ab>12|line content`. " +
-      "Use offset/limit to read specific line ranges. " +
-      "Paths: /dataspace/ (knowledge base), /journals/ (day pages), /extensions/ (extension source), /skills/ (skill files).",
+      "Read a file with hashline anchors: `LINE#HASH:content`. " +
+      "Use these anchors to identify lines in the `file-edit` tool. " +
+      "Paths: /dataspace/, /journals/, /extensions/, /skills/.",
     inputSchema: readParams,
     execute: async (args) => {
       const { path, offset, limit } = args as z.infer<typeof readParams>
@@ -86,28 +116,26 @@ export function createFileTools(fs: IFileSystem): Record<string, Tool> {
         const start = offset ?? 0
         const end = limit != null ? start + limit : lines.length
         const slice = lines.slice(start, end)
-        const totalLines = lines.length
 
-        const hashlines = slice
-          .map((line, i) => `${lineHash(line)}>${start + i + 1}|${line}`)
+        const formatted = slice
+          .map((line, i) => {
+            const lineNum = start + i + 1
+            const hash = computeLineHash(lineNum, line)
+            return `${lineNum}#${hash}:${line}`
+          })
           .join("\n")
 
-        if (hashlines.length > MAX_READ_LENGTH) {
-          return {
-            content:
-              hashlines.slice(0, MAX_READ_LENGTH) + "\n\n[Output truncated]",
-            totalLines,
-            from: start,
-            to: Math.min(end, totalLines),
-          }
+        const result = {
+          content:
+            formatted.length > MAX_READ_LENGTH
+              ? formatted.slice(0, MAX_READ_LENGTH) + "\n\n[Output truncated]"
+              : formatted,
+          totalLines: lines.length,
+          from: start + 1,
+          to: Math.min(end, lines.length),
         }
 
-        return {
-          content: hashlines,
-          totalLines,
-          from: start,
-          to: Math.min(end, totalLines),
-        }
+        return result
       } catch (err: any) {
         return {
           error:
@@ -118,10 +146,7 @@ export function createFileTools(fs: IFileSystem): Record<string, Tool> {
   }
 
   const write: Tool = {
-    description:
-      "Write a file to the virtual filesystem (creates or overwrites). " +
-      "For /dataspace/ docs, auto-creates doc nodes if the path doesn't exist. " +
-      "For /journals/, creates/updates day pages (YYYY-MM-DD.md).",
+    description: "Write full content to a file (creates or overwrites).",
     inputSchema: writeParams,
     execute: async (args) => {
       const { path, content } = args as z.infer<typeof writeParams>
@@ -136,10 +161,10 @@ export function createFileTools(fs: IFileSystem): Record<string, Tool> {
 
   const edit: Tool = {
     description:
-      "Edit specific line ranges in a file using hashline references. " +
-      "Each edit specifies start_line, end_line, the expected hashes (from a previous read), " +
-      "and the new content. The tool verifies hashes match before applying. " +
-      "Multiple edits can be applied in one call and are processed top-to-bottom.",
+      "Edit a file using hash-anchored operations. " +
+      "Anchors (e.g. '10#BH') ensure you are editing the correct version of the file. " +
+      "If the hash mismatches, the file has changed and you must re-read it. " +
+      "Operations are applied in order.",
     inputSchema: editParams,
     execute: async (args) => {
       const { path, edits } = args as z.infer<typeof editParams>
@@ -147,38 +172,52 @@ export function createFileTools(fs: IFileSystem): Record<string, Tool> {
         const currentContent = await fs.readFile(path)
         let lines = currentContent.split("\n")
 
-        for (const edit of edits) {
-          const { start_line, end_line, hashes, new_content } = edit
-          const startIdx = start_line - 1
-          const endIdx = end_line - 1
+        // We apply edits in sequence.
+        // Note: For multi-edit robustness, we should ideally validate all anchors against
+        // a single snapshot first, but here we follow the standard sequential application.
+        for (const editOp of edits) {
+          const startAnchor = parseAnchor(editOp.pos)
+          const startIdx = startAnchor.line - 1
 
-          if (startIdx < 0 || endIdx >= lines.length || startIdx > endIdx) {
+          if (startIdx < 0 || startIdx >= lines.length) {
             return {
-              error: `Invalid line range ${start_line}-${end_line} (file has ${lines.length} lines)`,
+              error: `Line ${startAnchor.line} is out of range (file has ${lines.length} lines).`,
             }
           }
 
-          // Verify hashes match the current lines
-          const expectedHashes = lines
-            .slice(startIdx, endIdx + 1)
-            .map(lineHash)
-            .join("")
-          if (expectedHashes !== hashes) {
+          const actualHash = computeLineHash(startAnchor.line, lines[startIdx]!)
+          if (actualHash !== startAnchor.hash) {
             return {
-              error:
-                `Hash mismatch at lines ${start_line}-${end_line}. Expected hashes: "${expectedHashes}". ` +
-                `Please ensure you are concatenating ONLY the 2-character prefixes (the part before '>') from the latest file-read output. ` +
-                `You can use the expected hashes provided here to retry if you are sure about the line range.`,
+              error: `Hash mismatch at line ${startAnchor.line}. Expected "${actualHash}", but you provided "${startAnchor.hash}". The file content has changed. Please re-read the file.`,
             }
           }
 
-          // Apply the edit
-          const newLines = new_content.split("\n")
-          lines = [
-            ...lines.slice(0, startIdx),
-            ...newLines,
-            ...lines.slice(endIdx + 1),
-          ]
+          if (editOp.op === "replace") {
+            let endIdx = startIdx
+            if (editOp.end) {
+              const endAnchor = parseAnchor(editOp.end)
+              endIdx = endAnchor.line - 1
+              if (endIdx < startIdx || endIdx >= lines.length) {
+                return {
+                  error: `End anchor line ${endAnchor.line} is invalid or out of range.`,
+                }
+              }
+              const actualEndHash = computeLineHash(
+                endAnchor.line,
+                lines[endIdx]!
+              )
+              if (actualEndHash !== endAnchor.hash) {
+                return {
+                  error: `Hash mismatch at end line ${endAnchor.line}. Expected "${actualEndHash}".`,
+                }
+              }
+            }
+            lines.splice(startIdx, endIdx - startIdx + 1, ...editOp.lines)
+          } else if (editOp.op === "append") {
+            lines.splice(startIdx + 1, 0, ...editOp.lines)
+          } else if (editOp.op === "prepend") {
+            lines.splice(startIdx, 0, ...editOp.lines)
+          }
         }
 
         await fs.writeFile(path, lines.join("\n"))
