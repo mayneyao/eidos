@@ -78,7 +78,7 @@ export default function DatabaseHome() {
   const handleOpenNewTabSettings = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      navigate("/settings/space-newtab", { target: "_blank" })
+      navigate("/settings/space-tabs", { target: "_blank" })
     },
     [navigate]
   )

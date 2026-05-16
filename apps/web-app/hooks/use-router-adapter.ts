@@ -8,6 +8,7 @@ import {
 } from "react-router-dom"
 
 import { useTabStore } from "@/apps/web-app/store/tabs"
+import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 
 export const useRouterAdapter = () => {
   const inRouter = useInRouterContext()
@@ -19,6 +20,17 @@ export const useRouterAdapter = () => {
   const [searchParams, setSearchParams] = inRouter
     ? useRouterSearchParams()
     : [null, null]
+
+  // Space settings for tabs
+  const [alwaysOpenInNewTab] = useSqliteKV<boolean>(
+    "eidos:space:settings:alwaysOpenInNewTab",
+    false
+  )
+
+  const [reuseExistingTab] = useSqliteKV<boolean>(
+    "eidos:space:settings:reuseExistingTab",
+    true
+  )
 
   // Tab store state
   const getActiveTabId = useTabStore((state) => state.getActiveTabId)
@@ -118,74 +130,122 @@ export const useRouterAdapter = () => {
         return
       }
 
-      const replaceCurrentTab = options?.replace === true // Must explicitly set replace: true to replace current tab
-      const forceNewTab = options?.target === "_blank"
+      // CRITICAL: If alwaysOpenInNewTab is true, we MUST force a new tab
+      const forceNewTab =
+        options?.target === "_blank" || alwaysOpenInNewTab === true
 
-      if (forceNewTab) {
-        const resolvedUrl = resolveUrl(to)
-        const {
-          tabs,
-          openTab: openTabAction,
-          setActiveTab,
-          updateTab,
-        } = useTabStore.getState()
+      const replaceCurrentTab = options?.replace === true && !forceNewTab
 
-        // Check if an existing tab is already showing the same "type" of page
-        // (same first path segment), and reuse it instead of opening a duplicate
+      const resolvedUrl = resolveUrl(to)
+      const currentUrl = adapterLocation
+        ? adapterLocation.pathname +
+          adapterLocation.search +
+          adapterLocation.hash
+        : ""
+
+      // Normalize URLs for comparison to prevent recursion on effectively identical paths
+      const normalize = (u: string) => {
         try {
-          const targetPath = new URL(resolvedUrl, window.location.origin)
-            .pathname
-          const targetSegment = targetPath.split("/").filter(Boolean)[0]
-          if (targetSegment) {
-            const sameTypeTab = tabs.find((t) => {
-              try {
-                const tabPath = new URL(t.url, window.location.origin).pathname
-                return tabPath.split("/").filter(Boolean)[0] === targetSegment
-              } catch {
-                return false
-              }
-            })
-            if (sameTypeTab) {
-              updateTab(sameTypeTab.id, { url: resolvedUrl })
-              setActiveTab(sameTypeTab.id)
-              return
-            }
-          }
+          const url = new URL(u, window.location.origin)
+          return url.pathname.replace(/\/$/, "") + url.search + url.hash
         } catch {
-          // fall through to open new tab
+          return u.replace(/\/$/, "")
         }
+      }
 
-        openTabAction(resolvedUrl, undefined, { forceNewTab: true })
+      const normalizedResolved = normalize(resolvedUrl)
+      const normalizedCurrent = normalize(currentUrl)
+      const isHome = normalizedCurrent === "" || normalizedCurrent === "/"
+
+      // 0. Prevent recursion: If we are already in a "force new tab" flow, don't intercept again
+      const isInternal =
+        options?.state?.__isInternalTabNavigation ||
+        (adapterLocation as any)?.state?.__isInternalTabNavigation
+
+      // 1. Break recursion/Self-navigation/Home-replacement:
+      // If we are already at the target URL, it's internal, or we are replacing the Home page, let it through
+      if (
+        isInternal ||
+        (alwaysOpenInNewTab && normalizedResolved === normalizedCurrent) ||
+        (isHome && options?.replace)
+      ) {
+        if (inRouter && navigate) {
+          navigate(to as any, options)
+        }
         return
       }
 
-      if (inRouter && navigate) {
-        // External URLs can't be handled by react-router; delegate to tab-based navigation
+      // Debug logging
+      if (import.meta.env.DEV) {
+        console.log("[RouterAdapter] Navigating:", {
+          to,
+          resolvedUrl,
+          forceNewTab,
+          replaceCurrentTab,
+        })
+      }
+
+      // --- NEW: Global Reuse Check ---
+      // We check for existing tabs BEFORE deciding to open new or replace.
+      // This ensures that settings pages always reuse their singleton tab,
+      // and documents reuse their tabs if reuseExistingTab is enabled.
+      const {
+        tabs,
+        setActiveTab: setActiveTabAction,
+        openTab: openTabAction,
+        updateTab,
+        getActiveTabId: getStoreActiveTabId,
+        setNextNavigationOptions,
+      } = useTabStore.getState()
+
+      const isSettings = normalizedResolved.startsWith("/settings")
+
+      if (reuseExistingTab || isSettings) {
+        const existingTab = tabs.find((t) => {
+          if (normalize(t.url) === normalizedResolved) return true
+          if (isSettings) {
+            try {
+              return new URL(t.url, window.location.origin).pathname.startsWith(
+                "/settings"
+              )
+            } catch {
+              return false
+            }
+          }
+          return false
+        })
+
+        if (existingTab) {
+          if (import.meta.env.DEV) {
+            console.log("[RouterAdapter] Reusing existing tab:", existingTab.id)
+          }
+          // If it's a settings tab but different sub-page, update the URL
+          if (existingTab.url !== resolvedUrl) {
+            updateTab(existingTab.id, { url: resolvedUrl })
+          }
+          setActiveTabAction(existingTab.id)
+          return
+        }
+      }
+      // --- END Global Reuse Check ---
+
+      if (forceNewTab) {
+        // 2. Open New Tab (since reuse check failed)
+        openTabAction(resolvedUrl, undefined, {
+          forceNewTab: true,
+          state: { ...options?.state, __isInternalTabNavigation: true },
+        })
+        return
+      }
+
+      // Only allow React Router navigation if NOT forcing a new tab
+      if (inRouter && navigate && !forceNewTab) {
         if (typeof to === "string" && /^https?:\/\//i.test(to)) {
-          // Fall through to the tab-based navigation below
+          // Fall through
         } else {
           navigate(to as any, options)
           return
         }
-      }
-
-      const newUrl = resolveUrl(to)
-
-      // Default behavior: navigate within the active tab's history stack
-      const {
-        tabs,
-        getActiveTabId: getStoreActiveTabId,
-        openTab: openTabAction,
-        setActiveTab: setActiveTabAction,
-        updateTab,
-        setNextNavigationOptions,
-      } = useTabStore.getState()
-
-      // Check if a tab with the same url already exists
-      const existingTab = tabs.find((t) => t.url === newUrl)
-      if (existingTab) {
-        setActiveTabAction(existingTab.id)
-        return
       }
 
       const storeActiveTabId = getStoreActiveTabId()
@@ -193,7 +253,9 @@ export const useRouterAdapter = () => {
       const targetId = storeActiveTabId || tabs[0]?.id
 
       if (!targetId) {
-        openTabAction(newUrl)
+        openTabAction(resolvedUrl, undefined, {
+          state: { __isInternalTabNavigation: true },
+        })
         return
       }
 
@@ -201,10 +263,13 @@ export const useRouterAdapter = () => {
         setNextNavigationOptions(targetId, { replace: true })
       }
 
-      updateTab(targetId, { url: newUrl })
+      if (import.meta.env.DEV) {
+        console.log("[RouterAdapter] Replacing current tab with new node")
+      }
+      updateTab(targetId, { url: resolvedUrl })
       setActiveTabAction(targetId)
     },
-    [inRouter, navigate]
+    [inRouter, navigate, alwaysOpenInNewTab, reuseExistingTab]
   )
 
   const adapterParams = useMemo(() => {
@@ -314,5 +379,7 @@ export const useRouterAdapter = () => {
         | ((prev: URLSearchParams) => URLSearchParams | Record<string, string>)
     ) => void,
     inRouter,
+    alwaysOpenInNewTab,
+    reuseExistingTab,
   }
 }

@@ -107,9 +107,9 @@ export function SettingsSidebar({
       category: "space",
     },
     {
-      id: "space-newtab",
-      title: "New Tab",
-      description: "Customize your new tab page",
+      id: "space-tabs",
+      title: t("space.settings.tabs.title", "Tabs"),
+      description: t("space.settings.tabs.description"),
       icon: <LayoutTemplate className="h-5 w-5" />,
       category: "space",
     },

@@ -8,6 +8,7 @@ import {
   Plus,
   LayoutGrid,
   Bot,
+  MousePointerClick,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -15,18 +16,30 @@ import { useSqlite } from "@/hooks/use-sqlite"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Switch } from "@/components/ui/switch"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 
-export function NewTabSettings() {
+export function TabsSettings() {
   const { t } = useTranslation()
   const { sqlite } = useSqlite()
   const { navigate } = useRouterAdapter()
   const [newTabBlocks, setNewTabBlocks] = useState<IExtension[]>([])
   const [isLoading, setIsLoading] = useState(true)
+
   const [selectedBlockId, setSelectedBlockId] = useSqliteKV<string | null>(
     "eidos:space:settings:newtab",
     ""
+  )
+
+  const [alwaysOpenInNewTab, setAlwaysOpenInNewTab] = useSqliteKV<boolean>(
+    "eidos:space:settings:alwaysOpenInNewTab",
+    false
+  )
+
+  const [reuseExistingTab, setReuseExistingTab] = useSqliteKV<boolean>(
+    "eidos:space:settings:reuseExistingTab",
+    true
   )
 
   useEffect(() => {
@@ -64,18 +77,68 @@ export function NewTabSettings() {
   if (isLoading) {
     return (
       <div className="py-6 text-sm text-muted-foreground">
-        {t("space.settings.newtab.loading", "Loading new tab options...")}
+        {t("space.settings.tabs.newtab.loading", "Loading tab options...")}
       </div>
     )
   }
 
   return (
     <div className="space-y-0">
-      {/* New Tab Page Section */}
+      {/* Tab Behavior Section */}
       <div className="py-4 flex items-center gap-2">
+        <MousePointerClick className="h-5 w-5 text-muted-foreground" />
+        <h3 className="text-lg font-medium">
+          {t("space.settings.tabs.behavior", "Tab Behavior")}
+        </h3>
+      </div>
+
+      <hr className="border-border" />
+
+      <div className="py-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <Label className="text-sm">
+              {t(
+                "space.settings.tabs.alwaysOpenInNewTab",
+                "Always Open in New Tab"
+              )}
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "space.settings.tabs.alwaysOpenInNewTabDescription",
+                "When enabled, internal navigation will always open in a new tab."
+              )}
+            </p>
+          </div>
+          <Switch
+            checked={!!alwaysOpenInNewTab}
+            onCheckedChange={setAlwaysOpenInNewTab}
+          />
+        </div>
+
+        <div className="mt-6 flex items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <Label className="text-sm">
+              {t("space.settings.tabs.reuseExistingTab", "Reuse Existing Tab")}
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "space.settings.tabs.reuseExistingTabDescription",
+                "When enabled, documents or related pages (like journals) that are already open will reuse their existing tabs."
+              )}
+            </p>
+          </div>
+          <Switch
+            checked={!!reuseExistingTab}
+            onCheckedChange={setReuseExistingTab}
+          />
+        </div>
+      </div>
+
+      <div className="pt-8 pb-4 flex items-center gap-2">
         <LayoutGrid className="h-5 w-5 text-muted-foreground" />
         <h3 className="text-lg font-medium">
-          {t("space.settings.newtab.title", "New Tab Page")}
+          {t("space.settings.tabs.newtab.title", "New Tab Page")}
         </h3>
       </div>
 
@@ -85,7 +148,7 @@ export function NewTabSettings() {
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
             {t(
-              "space.settings.newtab.description",
+              "space.settings.tabs.newtab.description",
               "Choose what happens when you open a new tab."
             )}
           </p>
@@ -110,11 +173,11 @@ export function NewTabSettings() {
               </div>
               <div className="flex-1 min-w-0">
                 <Label htmlFor="default" className="font-medium cursor-pointer">
-                  {t("space.settings.newtab.default", "Default Dashboard")}
+                  {t("space.settings.tabs.newtab.default", "Default Dashboard")}
                 </Label>
                 <p className="text-sm text-muted-foreground">
                   {t(
-                    "space.settings.newtab.defaultDescription",
+                    "space.settings.tabs.newtab.defaultDescription",
                     "Standard start page with shortcuts and recent documents."
                   )}
                 </p>
@@ -132,11 +195,11 @@ export function NewTabSettings() {
               </div>
               <div className="flex-1 min-w-0">
                 <Label htmlFor="agent" className="font-medium cursor-pointer">
-                  {t("space.settings.newtab.agent", "AI Agent")}
+                  {t("space.settings.tabs.newtab.agent", "AI Agent")}
                 </Label>
                 <p className="text-sm text-muted-foreground">
                   {t(
-                    "space.settings.newtab.agentDescription",
+                    "space.settings.tabs.newtab.agentDescription",
                     "Open the AI Agent interface for automated tasks and assistance."
                   )}
                 </p>
@@ -168,7 +231,7 @@ export function NewTabSettings() {
                   <p className="text-sm text-muted-foreground line-clamp-2">
                     {block.description ||
                       t(
-                        "space.settings.newtab.noDescription",
+                        "space.settings.tabs.newtab.noDescription",
                         "No description"
                       )}
                   </p>
@@ -196,13 +259,13 @@ export function NewTabSettings() {
                 <div>
                   <p className="text-sm text-muted-foreground">
                     {t(
-                      "space.settings.newtab.noBlocks",
+                      "space.settings.tabs.newtab.noBlocks",
                       'No blocks with "use newtab" directive found.'
                     )}
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">
                     {t(
-                      "space.settings.newtab.addDirectiveHint",
+                      "space.settings.tabs.newtab.addDirectiveHint",
                       'Add "use newtab"; to the top of your block code to make it available here.'
                     )}
                   </p>

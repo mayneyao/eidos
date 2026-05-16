@@ -14,6 +14,9 @@ import { useSqlite } from "./use-sqlite"
 
 // infer the data type of the default value => KVGetType
 const getDataType = (defaultValue: any): KVGetType => {
+  if (typeof defaultValue === "boolean") {
+    return "json"
+  }
   if (typeof defaultValue === "object") {
     return "json"
   }
@@ -52,7 +55,17 @@ export const useSqliteKV = <T = any>(
 
     // Always fetch latest from DB to ensure cache is fresh (SWR pattern)
     sqlite.kv.get(key, dataType).then((result) => {
-      const newValue = result !== null ? result : defaultValue
+      let newValue = result !== null ? result : defaultValue
+
+      // Explicitly handle boolean conversion for robustness
+      if (typeof defaultValue === "boolean" && result !== null) {
+        if (typeof result === "string") {
+          newValue = (result === "true" || result === "1") as any
+        } else if (typeof result === "number") {
+          newValue = (result === 1) as any
+        }
+      }
+
       setCache(key, newValue)
     })
   }, [sqlite, key, dataType, defaultValue, setCache])
