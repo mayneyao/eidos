@@ -159,13 +159,19 @@ export function TabContainer({
 
   // For external URLs, use a placeholder path and store the actual URL in ref
   const externalUrlRef = useRef<string | null>(null)
+  const tab = useTabStore((state) => state.tabs.find((t) => t.id === tabId))
   const routerInitialEntries = useMemo(() => {
     if (isExternalUrl(initialUrl)) {
       externalUrlRef.current = initialUrl
       return ["/external"]
     }
-    return [initialUrl]
-  }, [initialUrl])
+    return [
+      {
+        pathname: initialUrl,
+        state: tab?.initialState,
+      },
+    ]
+  }, [initialUrl, tab?.initialState])
 
   return (
     <div

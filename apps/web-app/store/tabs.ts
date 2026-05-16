@@ -13,6 +13,7 @@ export interface Tab {
   title: string
   icon?: string
   lastAccessTime: number
+  initialState?: any
 }
 
 export interface ClosedTab {
@@ -54,6 +55,7 @@ interface TabState {
       panelId?: string
       openInRightPanel?: boolean
       forceNewTab?: boolean
+      state?: any
     }
   ) => void
   closeTab: (id: string) => void
@@ -121,7 +123,7 @@ export const useTabStore = create<TabState>()(
 
       openTab: (url, title = "New Tab", options) => {
         const { tabs, panels, activePanelId, setActiveTab } = get()
-        const { panelId, openInRightPanel, forceNewTab } = options || {}
+        const { panelId, openInRightPanel, forceNewTab, state } = options || {}
 
         // Check if tab with same url already exists (unless forced to open new)
         if (!forceNewTab) {
@@ -138,6 +140,7 @@ export const useTabStore = create<TabState>()(
           url,
           title,
           lastAccessTime: Date.now(),
+          initialState: state,
         }
 
         // Handle openInRightPanel option

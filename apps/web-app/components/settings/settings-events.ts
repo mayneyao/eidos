@@ -4,7 +4,7 @@ export type SettingsSection =
   | "space-document"
   | "space-mounts"
   | "space-extensions"
-  | "space-newtab"
+  | "space-tabs"
   | "space-relay"
   | "space-theme"
   | "general"

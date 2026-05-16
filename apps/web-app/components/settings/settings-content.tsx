@@ -16,7 +16,7 @@ import { ExtensionSettings } from "./space/extension-settings"
 import { GeneralSettings } from "./space/general-settings"
 import { MountSettings } from "./space/mount-settings"
 
-import { NewTabSettings } from "./space/new-tab-settings"
+import { TabsSettings } from "./space/tab-settings"
 import { RelaySettings } from "./space/relay-settings"
 import { ThemeSettings } from "./space/theme-settings"
 
@@ -43,8 +43,8 @@ export function SettingsContent() {
 
       case "space-extensions":
         return "Extensions"
-      case "space-newtab":
-        return "New Tab"
+      case "space-tabs":
+        return t("space.settings.tabs.title", "Tabs")
 
       case "space-relay":
         return t("space.settings.relay")
@@ -80,8 +80,8 @@ export function SettingsContent() {
 
       case "space-extensions":
         return <ExtensionSettings />
-      case "space-newtab":
-        return <NewTabSettings />
+      case "space-tabs":
+        return <TabsSettings />
 
       case "space-relay":
         return <RelaySettings onCloseSettings={() => window.history.back()} />
@@ -145,12 +145,12 @@ export function SettingsContent() {
                 <BookOpenText className="h-5 w-5" />
               </a>
             )}
-            {activeSection === "space-newtab" && (
+            {activeSection === "space-tabs" && (
               <a
                 href={getDocsUrl("/how-to/customize-new-tab/")}
                 target="_blank"
                 rel="noopener noreferrer"
-                title={t("space.settings.newtab.docsLink")}
+                title={t("space.settings.tabs.newtab.docsLink")}
                 className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
               >
                 <BookOpenText className="h-5 w-5" />

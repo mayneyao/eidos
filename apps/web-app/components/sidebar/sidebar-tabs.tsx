@@ -259,34 +259,7 @@ export const SidebarTabs = () => {
       if (tabId === "today") {
         const today = getToday()
         const href = `/journals/${today}`
-        const { tabs, openTab, setActiveTab, updateTab } =
-          useTabStore.getState()
-
-        if (target === "_blank") {
-          openTab(href, undefined, { forceNewTab: true })
-          return
-        }
-
-        // Check if today's tab (exact match) already exists
-        const exactTab = tabs.find((t) => t.url === href)
-        if (exactTab) {
-          setActiveTab(exactTab.id)
-          return
-        }
-
-        // Check if any journal tab (related) already exists to reuse
-        const journalTab = tabs
-          .filter((t) => t.url.startsWith("/journals/"))
-          .sort((a, b) => b.lastAccessTime - a.lastAccessTime)[0]
-
-        if (journalTab) {
-          // Reuse existing journal tab and update to today
-          updateTab(journalTab.id, { url: href })
-          setActiveTab(journalTab.id)
-        } else {
-          // Create a new tab for today
-          openTab(href)
-        }
+        navigate(href, { target })
         return
       }
 

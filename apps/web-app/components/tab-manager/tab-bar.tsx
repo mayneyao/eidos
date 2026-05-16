@@ -45,6 +45,7 @@ import { isDesktopMode } from "@/lib/env"
 import { cn, isDayPageId } from "@/lib/utils"
 import { isMac, isWindowsDesktop } from "@/lib/web/helper"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 import { Button } from "@/components/ui/button"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
@@ -306,9 +307,24 @@ export function TabBar({
   const { isSidebarOpen } = useAppStore()
 
   // Use useCallback to stabilize handleNewTab reference
+  const [newTabContent] = useSqliteKV<string | null>(
+    "eidos:space:settings:newtab",
+    ""
+  )
+
   const handleNewTab = useCallback(() => {
-    openTab("/", "New Tab", { panelId: currentPanelId || undefined })
-  }, [openTab, currentPanelId])
+    let url = "/"
+    if (newTabContent === "agent") {
+      url = "/agent"
+    } else if (newTabContent && newTabContent !== "default") {
+      url = `/blocks/${newTabContent}`
+    }
+
+    openTab(url, "New Tab", {
+      panelId: currentPanelId || undefined,
+      state: { __isInternalTabNavigation: true },
+    })
+  }, [openTab, currentPanelId, newTabContent])
 
   // Local state for optimistic UI updates during drag
   const [localPanelTabs, setLocalPanelTabs] = useState(panelTabs)
