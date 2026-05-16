@@ -147,8 +147,6 @@ function AgentPageContent({
     return () => window.removeEventListener("agent:try-skill", handler)
   }, [])
 
-  const [startTime, setStartTime] = useState(0)
-  const [stepCount, setStepCount] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const transport = useRef(
@@ -159,9 +157,7 @@ function AgentPageContent({
     transport,
     id: routeSessionId || "new-agent-session",
     generateId: uuidv7,
-    onToolCall: async () => {
-      setStepCount((c) => c + 1)
-    },
+    onToolCall: async () => {},
     onFinish: () => {
       setIsRunning(false)
       if (aiConfig.agentNotificationSound !== false) {
@@ -260,8 +256,6 @@ function AgentPageContent({
   const handleSubmit = useCallback(
     (goal: string, model: string) => {
       const sessionId = routeSessionId || uuidv7()
-      setStartTime(Date.now())
-      setStepCount(0)
 
       if (isRunning) {
         stop()
@@ -329,8 +323,6 @@ function AgentPageContent({
     [routeSessionId, navigate]
   )
 
-  const elapsed = isRunning ? Date.now() - startTime : 0
-
   return (
     <AgentSessionContext.Provider value={contextValue}>
       <div className="flex h-full flex-col bg-background overflow-hidden relative">
@@ -372,9 +364,6 @@ function AgentPageContent({
               <AgentGoalInput
                 onSubmit={handleSubmit}
                 isRunning={isRunning}
-                stepCount={stepCount}
-                maxSteps={100}
-                elapsedMs={elapsed}
                 onStop={handleStop}
                 selectedSkills={selectedSkills}
                 onSelectedSkillsChange={setSelectedSkills}

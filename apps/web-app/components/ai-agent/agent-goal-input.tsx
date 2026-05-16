@@ -24,27 +24,14 @@ interface SkillMeta {
 interface AgentGoalInputProps {
   onSubmit: (goal: string, model: string) => void
   isRunning: boolean
-  stepCount: number
-  maxSteps: number
-  elapsedMs: number
   onStop: () => void
   selectedSkills: string[]
   onSelectedSkillsChange: (skills: string[]) => void
 }
 
-function formatElapsed(ms: number): string {
-  const seconds = Math.floor(ms / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
-  return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`
-}
-
 export function AgentGoalInput({
   onSubmit,
   isRunning,
-  stepCount,
-  maxSteps,
-  elapsedMs,
   onStop,
   selectedSkills,
   onSelectedSkillsChange,
@@ -60,7 +47,6 @@ export function AgentGoalInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
-  const [elapsed, setElapsed] = useState(elapsedMs)
 
   // Skills state
   const [availableSkills, setAvailableSkills] = useState<SkillMeta[]>([])
@@ -85,18 +71,6 @@ export function AgentGoalInput({
       .then((data) => setAvailableSkills(data.skills ?? []))
       .catch(() => {})
   }, [])
-
-  useEffect(() => {
-    if (!isRunning) {
-      setElapsed(elapsedMs)
-      return
-    }
-    const start = Date.now() - elapsedMs
-    const interval = setInterval(() => {
-      setElapsed(Date.now() - start)
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [isRunning, elapsedMs])
 
   const isActiveTab = useIsActiveTab()
 
@@ -464,17 +438,6 @@ export function AgentGoalInput({
                 noBorder
                 size="sm"
               />
-              {isRunning && (
-                <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 bg-zinc-100/60 dark:bg-zinc-800/60 px-2 py-0.5 rounded-md animate-in fade-in duration-300 select-none">
-                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                  <span>
-                    Step {stepCount}/{maxSteps}
-                  </span>
-                  <span className="tabular-nums font-mono">
-                    {formatElapsed(elapsed)}
-                  </span>
-                </div>
-              )}
             </div>
             <div className="flex items-center gap-2 select-none">
               <div className="flex items-center gap-1">
