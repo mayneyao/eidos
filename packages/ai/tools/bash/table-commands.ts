@@ -377,16 +377,11 @@ async function recordInsert(
     return {
       exitCode: 1,
       stdout: "",
-      stderr: "Missing stdin. Pipe JSON array to this command.",
+      stderr: "Missing stdin. Pipe JSON record or array to this command.",
     }
 
-  const records = JSON.parse(ctx.stdin.trim() || "[]")
-  if (!Array.isArray(records))
-    return {
-      exitCode: 1,
-      stdout: "",
-      stderr: "stdin must be a JSON array of records",
-    }
+  const input = JSON.parse(ctx.stdin.trim() || "[]")
+  const records = Array.isArray(input) ? input : [input]
 
   const res = await ds.table(tableId).createMany({ data: records })
   return {
@@ -413,16 +408,11 @@ async function recordUpdate(
       exitCode: 1,
       stdout: "",
       stderr:
-        "Missing stdin. Pipe JSON array of {where, data} to this command.",
+        "Missing stdin. Pipe JSON object or array of {where, data} to this command.",
     }
 
-  const updates = JSON.parse(ctx.stdin.trim() || "[]")
-  if (!Array.isArray(updates))
-    return {
-      exitCode: 1,
-      stdout: "",
-      stderr: "stdin must be a JSON array of {where, data}",
-    }
+  const input = JSON.parse(ctx.stdin.trim() || "[]")
+  const updates = Array.isArray(input) ? input : [input]
 
   let total = 0
   for (const op of updates) {
@@ -481,8 +471,8 @@ Resources & actions:
   eidos view update <table_id> <view_id> [--name] [--type] [--query SQL] [--property json]
   eidos record query <table_id> [--where json] [--take 100] [--skip 0] [--orderBy json]
                          eidos record query <table_id> --query "SELECT * FROM tb_xxx WHERE ..."
-  eidos record insert <table_id>       (stdin: JSON array of records)
-  eidos record update <table_id>       (stdin: JSON array of {where, data})
+  eidos record insert <table_id>       (stdin: JSON record or array of records)
+  eidos record update <table_id>       (stdin: JSON object or array of {where, data})
   eidos record delete <table_id>       [--where json]
 
   Note: --query is exclusive with --where/--orderBy/--take/--skip.
