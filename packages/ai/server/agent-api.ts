@@ -252,13 +252,12 @@ export async function prepareAgent(
     agentCtx.buildMessages(sanitizeMessages(messages))
   )
 
-  // Write initial meta.json (status: executing)
+  // Write initial metadata before streaming so the session is visible in history.
   const createdAt = existingMeta?.createdAt || new Date().toISOString()
   if (store) {
     await store.saveMeta(id, {
       id,
       goal: sessionGoal,
-      status: "executing",
       model: modelAndProvider,
       space: space ?? "",
       createdAt,
@@ -361,10 +360,9 @@ export async function handleAgentApi(
     },
     onFinish: async ({ responseMessage, isAborted }) => {
       if (!store) return
-      const status = isAborted ? "stopped" : "completed"
       log.info("[agent] ▶ onFinish — saving", {
         id,
-        status,
+        isAborted,
         partCount: responseMessage.parts.length,
       })
       try {
@@ -378,7 +376,6 @@ export async function handleAgentApi(
         await store.saveMeta(id, {
           id,
           goal: sessionGoal,
-          status,
           model: modelAndProvider,
           space: space ?? "",
           createdAt,

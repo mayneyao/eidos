@@ -53,7 +53,7 @@ export function createAgentMiddleware(options: {
     if (id) {
       const session = await store.load(id)
       if (!session) {
-        return c.json({ id, messages: [], status: "new" })
+        return c.json({ id, messages: [] })
       }
       return c.json(session)
     }
@@ -132,7 +132,6 @@ export function createAgentMiddleware(options: {
     await store.saveMeta(id, {
       id,
       goal: existing?.goal ?? body.goal ?? "",
-      status: "completed",
       model: body.model ?? existing?.model ?? "",
       space: space ?? "",
       createdAt: existing?.createdAt ?? new Date().toISOString(),

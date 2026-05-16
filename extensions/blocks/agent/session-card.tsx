@@ -1,5 +1,6 @@
 import { Trash2Icon, MessageSquareIcon } from "lucide-react"
 import React from "react"
+import { useExtensionContext } from "@eidos.space/react"
 import type { SessionSearchResult } from "./index"
 
 const cn = (...classes: (string | boolean | undefined)[]) =>
@@ -12,8 +13,33 @@ const highlightText = (text: string, term: string) => {
   return text.replace(re, (m) => `<b>${m}</b>`)
 }
 
+export function formatRelativeTime(date: Date | string, locale: string = "en") {
+  const d = typeof date === "string" ? new Date(date) : date
+  const now = new Date()
+  const diffInSeconds = Math.floor((now.getTime() - d.getTime()) / 1000)
+
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" })
+
+  if (diffInSeconds < 60) return locale.startsWith("zh") ? "刚刚" : "just now"
+
+  const diffInMinutes = Math.floor(diffInSeconds / 60)
+  if (diffInMinutes < 60) return rtf.format(-diffInMinutes, "minute")
+
+  const diffInHours = Math.floor(diffInMinutes / 60)
+  if (diffInHours < 24) return rtf.format(-diffInHours, "hour")
+
+  const diffInDays = Math.floor(diffInHours / 24)
+  if (diffInDays < 30) return rtf.format(-diffInDays, "day")
+
+  const diffInMonths = Math.floor(diffInDays / 30)
+  if (diffInMonths < 12) return rtf.format(-diffInMonths, "month")
+
+  const diffInYears = Math.floor(diffInDays / 365)
+  return rtf.format(-diffInYears, "year")
+}
+
 interface SessionCardProps {
-  session: { id: string; goal: string; status: string; createdAt: string }
+  session: { id: string; goal: string; createdAt: string }
   idx: number
   isActive: boolean
   isSelected: boolean
@@ -29,6 +55,8 @@ export function SessionCard({
   onDelete,
   onClick,
 }: SessionCardProps) {
+  const { locale } = useExtensionContext()
+
   return (
     <div
       onClick={onClick}
@@ -67,9 +95,7 @@ export function SessionCard({
         </button>
       </div>
       <div className="flex items-center gap-2 pl-5.5 text-[10px] text-muted-foreground/60">
-        <span>{new Date(session.createdAt).toLocaleDateString()}</span>
-        <span>·</span>
-        <span className="capitalize">{session.status}</span>
+        <span>{formatRelativeTime(session.createdAt, locale)}</span>
       </div>
     </div>
   )
@@ -91,6 +117,7 @@ export function SearchResultCard({
   search,
   onClick,
 }: SearchResultCardProps) {
+  const { locale } = useExtensionContext()
   const goalHighlight = highlightText(result.goal || "New Conversation", search)
   const hasGoalMatch = (result.goal || "")
     .toLowerCase()
@@ -138,9 +165,7 @@ export function SearchResultCard({
         </div>
       )}
       <div className="flex items-center gap-2 pl-5.5 text-[10px] text-muted-foreground/60">
-        <span>{new Date(result.createdAt).toLocaleDateString()}</span>
-        <span>·</span>
-        <span className="capitalize">{result.status}</span>
+        <span>{formatRelativeTime(result.createdAt, locale)}</span>
       </div>
     </div>
   )

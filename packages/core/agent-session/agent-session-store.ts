@@ -4,7 +4,6 @@ import type { DataSpace } from "../data-space"
 export interface AgentSession {
   id: string
   goal: string
-  status: "planning" | "executing" | "completed" | "error" | "stopped"
   model: string
   space: string
   createdAt: string
@@ -15,8 +14,13 @@ export interface AgentSession {
 }
 
 type SessionMeta = AgentSession
+type SessionHistoryEntry =
+  | (Partial<AgentSession> & Pick<AgentSession, "id">)
+  | { id: string; deleted: true }
 
 const SESSIONS_DIR = "~/.eidos/agent/sessions"
+
+const HISTORY_PATH = `${SESSIONS_DIR}/history.jsonl`
 
 // JSONL event types
 interface UserEvent {
@@ -38,6 +42,22 @@ type JsonlEvent = UserEvent | AssistantPartEvent
 
 function generateId(): string {
   return crypto.randomUUID()
+}
+
+function toHistoryEntry(
+  meta: Partial<SessionMeta> & Pick<SessionMeta, "id">
+): SessionMeta {
+  return {
+    id: meta.id,
+    goal: meta.goal ?? "",
+    model: meta.model ?? "",
+    space: meta.space ?? "",
+    createdAt: meta.createdAt ?? "1970-01-01T00:00:00.000Z",
+    completedAt: meta.completedAt,
+    maxSteps: meta.maxSteps ?? 0,
+    parentId: meta.parentId,
+    forkedMessageId: meta.forkedMessageId,
+  }
 }
 
 /**
@@ -159,7 +179,7 @@ function reconstructMessages(events: JsonlEvent[]): UIMessage[] {
  * File-based agent session storage using JSONL format.
  *
  * Each session consists of two files:
- * - {sessionId}.meta.json — session metadata (goal, model, status, timestamps)
+ * - {sessionId}.meta.json — session metadata (goal, model, timestamps)
  * - {sessionId}.jsonl — conversation events, one JSON object per line
  *
  * Assistant parts are stored one line each (streamed incrementally via onStepFinish).
@@ -188,6 +208,8 @@ export class AgentSessionStore {
   async saveMeta(id: string, meta: SessionMeta): Promise<void> {
     await this.ensureDir()
     await this.writeFile(this.getMetaPath(id), JSON.stringify(meta, null, 2))
+
+    await this.appendHistoryEntry(toHistoryEntry(meta))
   }
 
   /**
@@ -287,26 +309,75 @@ export class AgentSessionStore {
   }
 
   /**
-   * List all session metadata (reads *.meta.json files).
+   * List all session metadata (reads history.jsonl index).
    */
   async listMeta(): Promise<SessionMeta[]> {
     await this.ensureDir()
     try {
+      const content = await this.readFile(HISTORY_PATH)
+      if (!content) {
+        return this.rebuildHistory()
+      }
+
+      const lines = content.split("\n").filter((l) => l.trim())
+      const sessionMap = new Map<string, SessionMeta>()
+
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line) as SessionHistoryEntry
+          if ("deleted" in entry && entry.deleted) {
+            sessionMap.delete(entry.id)
+          } else {
+            sessionMap.set(entry.id, toHistoryEntry(entry))
+          }
+        } catch {
+          // Skip malformed lines
+        }
+      }
+
+      return Array.from(sessionMap.values()).sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+    } catch {
+      return this.rebuildHistory()
+    }
+  }
+
+  /**
+   * Rebuild history.jsonl by scanning all *.meta.json files.
+   * Self-healing mechanism for missing or corrupted index.
+   */
+  private async rebuildHistory(): Promise<SessionMeta[]> {
+    try {
       const files = await this.listDir(SESSIONS_DIR)
       const metaFiles = files.filter((f: string) => f.endsWith(".meta.json"))
       const metas: SessionMeta[] = []
+
       for (const file of metaFiles) {
         try {
           const content = await this.readFile(`${SESSIONS_DIR}/${file}`)
-          if (content) metas.push(JSON.parse(content))
+          if (content) {
+            metas.push(JSON.parse(content))
+          }
         } catch {
           // Skip corrupted files
         }
       }
-      return metas.sort(
+
+      // Sort and write the new index
+      const sorted = metas.sort(
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )
+
+      if (sorted.length > 0) {
+        const indexContent =
+          sorted.map((m) => JSON.stringify(toHistoryEntry(m))).join("\n") + "\n"
+        await this.writeFile(HISTORY_PATH, indexContent)
+      }
+
+      return sorted
     } catch {
       return []
     }
@@ -363,7 +434,6 @@ export class AgentSessionStore {
     await this.saveMeta(newSessionId, {
       id: newSessionId,
       goal: meta.goal,
-      status: "completed",
       model: meta.model,
       space: meta.space,
       createdAt: now,
@@ -390,6 +460,14 @@ export class AgentSessionStore {
     try {
       await this.deleteFile(this.getJsonlPath(sessionId))
     } catch {}
+
+    // Append deletion event to history index
+    try {
+      await this.appendFile(
+        HISTORY_PATH,
+        JSON.stringify({ id: sessionId, deleted: true }) + "\n"
+      )
+    } catch {}
   }
 
   // ── Search ────────────────────────────────────────────
@@ -401,7 +479,6 @@ export class AgentSessionStore {
     Array<{
       sessionId: string
       goal: string
-      status: string
       createdAt: string
       completedAt?: string
       snippets: Array<{ lineNumber: number; content: string }>
@@ -432,7 +509,6 @@ export class AgentSessionStore {
     const results: Array<{
       sessionId: string
       goal: string
-      status: string
       createdAt: string
       completedAt?: string
       snippets: Array<{ lineNumber: number; content: string }>
@@ -446,7 +522,6 @@ export class AgentSessionStore {
       results.push({
         sessionId,
         goal: meta.goal,
-        status: meta.status,
         createdAt: meta.createdAt,
         completedAt: meta.completedAt,
         snippets: matches.slice(0, 3).map((m) => ({
@@ -477,6 +552,10 @@ export class AgentSessionStore {
 
   private async appendFile(path: string, content: string): Promise<void> {
     await this.space.externalFS?.appendFile(path, content)
+  }
+
+  private async appendHistoryEntry(entry: SessionHistoryEntry): Promise<void> {
+    await this.appendFile(HISTORY_PATH, JSON.stringify(entry) + "\n")
   }
 
   private async readFile(path: string): Promise<string> {

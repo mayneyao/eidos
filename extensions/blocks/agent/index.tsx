@@ -14,7 +14,6 @@ import { SkillsList, type SkillMeta } from "./skills-list"
 export interface SessionMeta {
   id: string
   goal: string
-  status: string
   model: string
   space: string
   createdAt: string
@@ -25,7 +24,6 @@ export interface SessionMeta {
 export interface SessionSearchResult {
   sessionId: string
   goal: string
-  status: string
   createdAt: string
   completedAt?: string
   snippets: Array<{ lineNumber: number; content: string }>

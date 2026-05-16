@@ -341,7 +341,6 @@ export class ChannelService {
       await store.saveMeta(id, {
         id,
         goal: sessionGoal,
-        status: "completed",
         model: modelAndProvider,
         space,
         createdAt,
