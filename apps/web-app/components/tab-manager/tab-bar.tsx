@@ -481,7 +481,7 @@ export function TabBar({
             isMac() &&
             !isSidebarOpen,
           // Windows: add right padding when on last panel
-          "pr-[112px]": isLastPanel && isWindowsDesktop,
+          "pr-[112px]": isLastPanel && isWindowsDesktop && !!panelId,
         }
       )}
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
