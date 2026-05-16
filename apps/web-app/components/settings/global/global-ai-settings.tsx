@@ -415,6 +415,40 @@ export function GlobalAISettings() {
         <AITaskConfigForm onDirtyChange={setIsFormDirty} />
       </div>
 
+      {/* Agent Section */}
+      <div className="py-4 flex items-center gap-2">
+        <Bot className="h-5 w-5 text-muted-foreground" />
+        <h3 className="text-lg font-medium">{t("settings.ai.agent")}</h3>
+      </div>
+
+      <hr className="border-border" />
+
+      <div className="py-6">
+        <div className="space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+            <div className="space-y-0.5 flex-1 min-w-0">
+              <label className="text-sm font-medium">
+                {t("settings.ai.agentNotificationSound")}
+              </label>
+              <p className="text-sm text-muted-foreground">
+                {t("settings.ai.agentNotificationSoundDescription")}
+              </p>
+            </div>
+            <div className="flex-shrink-0">
+              <Switch
+                checked={aiConfig.agentNotificationSound ?? true}
+                onCheckedChange={(checked) => {
+                  useAIConfigStore.getState().setAiConfig({
+                    ...aiConfig,
+                    agentNotificationSound: checked,
+                  })
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Tool API Keys Section */}
       <div className="py-4 flex items-center gap-2">
         <Globe className="h-5 w-5 text-muted-foreground" />

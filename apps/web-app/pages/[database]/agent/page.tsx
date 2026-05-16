@@ -13,6 +13,9 @@ import { useIsActiveTab } from "@/apps/web-app/hooks/use-is-active-tab"
 import { useDocFindInPage } from "@/apps/web-app/hooks/use-doc-find-in-page"
 import { type AgentSession } from "@/packages/core/agent-session/agent-session-store"
 
+import { useAIConfigStore } from "@/components/settings/stores"
+import { playNotificationSound } from "@/lib/web/audio"
+
 import { useToast } from "@/components/ui/use-toast"
 
 import { AgentGoalInput } from "@/components/ai-agent/agent-goal-input"
@@ -56,6 +59,7 @@ function AgentPageContent({
   const { navigate } = useRouterAdapter()
   const { setCurrentApp } = useSidebarStore()
   const { toast } = useToast()
+  const { aiConfig } = useAIConfigStore()
 
   const [goalInput, setGoalInput] = useState("")
   const [isRunning, setIsRunning] = useState(false)
@@ -160,6 +164,9 @@ function AgentPageContent({
     },
     onFinish: () => {
       setIsRunning(false)
+      if (aiConfig.agentNotificationSound !== false) {
+        playNotificationSound().catch(console.error)
+      }
     },
     onError: (error) => {
       console.error("Agent error:", error)

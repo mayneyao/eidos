@@ -66,6 +66,8 @@ export const aiFormSchema = z.object({
       telegram: telegramChannelSchema.optional(),
     })
     .optional(),
+  // agent settings
+  agentNotificationSound: z.boolean().default(true),
 })
 
 export type AIFormValues = z.infer<typeof aiFormSchema>
