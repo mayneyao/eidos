@@ -479,7 +479,8 @@ export function TabBar({
             isFirstPanel &&
             (isDesktopMode || navigator.windowControlsOverlay?.visible) &&
             isMac() &&
-            !isSidebarOpen,
+            !isSidebarOpen &&
+            !!panelId,
           // Windows: add right padding when on last panel
           "pr-[112px]": isLastPanel && isWindowsDesktop && !!panelId,
         }
