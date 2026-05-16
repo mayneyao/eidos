@@ -3,6 +3,7 @@ import { $convertFromMarkdownString } from "@lexical/markdown"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useClickAway, useKeyPress } from "ahooks"
 import { useChat } from "@/packages/ai"
+import { DefaultChatTransport } from "ai"
 import type { LexicalNode, RangeSelection } from "lexical"
 import { $createParagraphNode, $getRoot, $isTextNode } from "lexical"
 import { PauseIcon, RefreshCcwIcon } from "lucide-react"
@@ -118,6 +119,12 @@ export function AITools({
     resetPlaceholderHeight()
   }
 
+  const chatId = useRef(uuidv7()).current
+  const transport = useMemo(
+    () => new DefaultChatTransport({ api: "/api/chat" }),
+    []
+  )
+
   const config = useMemo(() => {
     try {
       return getConfigByModel(currentModel)
@@ -125,7 +132,18 @@ export function AITools({
       return {}
     }
   }, [currentModel, getConfigByModel])
-  const { messages, setMessages, status, stop, sendMessage } = useChat({
+
+  const {
+    messages,
+    setMessages,
+    status,
+    stop,
+    sendMessage,
+    regenerate: regenerateMessage,
+  } = useChat({
+    id: chatId,
+    transport,
+    generateId: uuidv7,
     onError(error) {
       console.log("error:", error)
       toast({
@@ -148,20 +166,15 @@ export function AITools({
 
   const reload = useCallback(() => {
     if (messages.length < 2) return
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
-    if (!lastUserMsg) return
-    sendMessage(
-      { role: "user", content: lastUserMsg.content },
-      {
-        body: {
-          ...config,
-          model: currentModel,
-          useTools: false,
-          chunking: "word",
-        },
-      }
-    )
-  }, [messages, sendMessage, config, currentModel])
+    regenerateMessage({
+      body: {
+        ...config,
+        model: currentModel,
+        useTools: false,
+        chunking: "word",
+      },
+    })
+  }, [messages.length, regenerateMessage, config, currentModel])
 
   const handleAction = useCallback(
     async (action: AIActionEnum) => {
@@ -339,8 +352,15 @@ be between <content-begin> and <content-end>. you just output the transformed co
           },
         ],
       }
-      setMessages([systemMsg, userMsg] as any)
-      reload()
+      setMessages([systemMsg] as any)
+      sendMessage(userMsg as any, {
+        body: {
+          ...getConfigByModel(model),
+          model,
+          useTools: false,
+          chunking: "word",
+        },
+      })
       setPromptListOpen(false)
     }, 100)
   }

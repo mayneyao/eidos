@@ -169,6 +169,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
         changeOrigin: true,
       },
       "/api/agent": "http://localhost:13127",
+      "/api/chat": "http://localhost:13127",
       "/files/": {
         target: "http://localhost:13127",
         changeOrigin: false,

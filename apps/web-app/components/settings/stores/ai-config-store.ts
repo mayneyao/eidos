@@ -21,6 +21,7 @@ const defaultAIConfig: AIFormValues = {
   translationModel: undefined,
   codingModel: undefined,
   applyCodeModel: undefined,
+  agentNotificationSound: true,
 }
 
 const getDefaultConfigState = (): ConfigState =>
@@ -49,6 +50,7 @@ export const useAIConfigStore = create<ConfigState>()(
         localModels: [],
         llmProviders: [],
         autoLoadEmbeddingModel: false,
+        agentNotificationSound: true,
       },
       setAiConfig: (aiConfig) => set({ aiConfig }),
       addLLMProvider: (provider: LLMProvider) =>

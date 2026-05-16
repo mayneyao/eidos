@@ -102,6 +102,7 @@ const emptyConfig: AppConfig = {
     embeddingModel: "",
     translationModel: "",
     codingModel: "",
+    agentNotificationSound: true,
   },
   security: {
     webSecurity: true,

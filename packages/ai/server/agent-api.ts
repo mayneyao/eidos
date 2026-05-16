@@ -13,7 +13,6 @@ import {
 } from "ai"
 import type { UIMessage } from "ai"
 import type { AIFormValues } from "../config"
-import { getProvider } from "../helper"
 import {
   buildAgentFs,
   createBashTool,
@@ -22,6 +21,7 @@ import {
   serverTools,
 } from "../tools"
 import { AgentContext } from "./agent-context"
+import { buildProviderOptions, resolveProviderForModel } from "./model"
 
 export interface IAgentData {
   goal: string
@@ -39,58 +39,6 @@ export interface IAgentData {
 }
 
 export type ThinkingLevel = NonNullable<IAgentData["thinking"]>
-
-/**
- * Resolve LLM provider credentials from the AI config using the model string.
- * Model format: "modelId@providerName" (e.g. "gpt-4o@openai")
- */
-function buildProviderOptions(
-  providerType: string | undefined,
-  thinking: ThinkingLevel
-): Record<string, any> | undefined {
-  if (thinking === "off") return undefined
-  switch (providerType) {
-    case "anthropic":
-      return { anthropic: { thinking: { type: "enabled" }, effort: thinking } }
-    case "openai":
-      return { openai: { reasoningEffort: thinking } }
-    default:
-      return undefined
-  }
-}
-
-function resolveProviderFromConfig(
-  modelAndProvider: string,
-  aiConfig: AIFormValues | undefined
-) {
-  const parts = modelAndProvider.split("@")
-  const modelId = parts[0]
-  const providerName = parts[1]
-
-  if (!aiConfig || !providerName) {
-    return { modelId, provider: getProvider({}), providerType: undefined }
-  }
-
-  const llmProvider = aiConfig.llmProviders.find(
-    (p) => p.name === providerName && p.enabled !== false
-  )
-
-  if (!llmProvider) {
-    return { modelId, provider: getProvider({}), providerType: undefined }
-  }
-
-  return {
-    modelId,
-    provider: getProvider({
-      apiKey: llmProvider.apiKey,
-      baseUrl: llmProvider.baseUrl,
-      type: llmProvider.type,
-      apiVersion: llmProvider.apiVersion,
-      name: llmProvider.name,
-    }),
-    providerType: llmProvider.type,
-  }
-}
 
 /**
  * Sanitize messages: an aborted stream may leave tool invocations in
@@ -181,7 +129,7 @@ export async function prepareAgent(
     maxSteps,
   })
 
-  const { modelId, provider, providerType } = resolveProviderFromConfig(
+  const { modelId, provider, providerType } = resolveProviderForModel(
     modelAndProvider,
     aiConfig
   )

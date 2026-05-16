@@ -21,6 +21,7 @@ import type { DataSpace } from "@/packages/core/data-space"
 import type { AIFormValues } from "../config"
 import { extractSpace } from "./utils"
 import { handleAgentApi, type IAgentData } from "./agent-api"
+import { handleChatApi, type IChatData } from "./chat-api"
 import { initSkillToolkit, getSkillMetas } from "./skills"
 
 export function createAgentMiddleware(options: {
@@ -94,6 +95,25 @@ export function createAgentMiddleware(options: {
     }
   }
 
+  const handleChatRequest = async (c: any) => {
+    const data = (await c.req.json()) as IChatData
+
+    try {
+      return await handleChatApi(data, {
+        signal: c.req.raw.signal,
+        getAIConfig: options.getAIConfig,
+        logger: log,
+      })
+    } catch (err) {
+      log.error("[chat-route] ✖ error", {
+        id: data.id,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack?.slice(0, 500) : undefined,
+      })
+      throw err
+    }
+  }
+
   const handleDeleteRequest = async (c: any) => {
     const space = extractSpace(c)
     const id = c.req.param("id") || c.req.query("id")
@@ -147,6 +167,10 @@ export function createAgentMiddleware(options: {
 
     return c.json({ success: true })
   }
+
+  // Lightweight chat endpoint for editor AI tools and other non-agent callers.
+  app.get("/api/chat", (c: any) => c.json({ message: "OK" }))
+  app.post("/api/chat", handleChatRequest)
 
   // List available skills from ~/.agents/skills/
   app.get("/api/agent/skills", async (c: any) => {
