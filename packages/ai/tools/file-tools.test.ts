@@ -89,10 +89,11 @@ class TestFs implements IFileSystem {
 }
 
 const HASH_ALPHABET = "ZPMQVRWSNKTXJBYH"
+const RE_SIGNIFICANT = /[\p{L}\p{N}]/u
 
 function computeLineHash(index: number, line: string): string {
   const content = line.replace(/\r/g, "").trimEnd()
-  const isSignificant = /[a-zA-Z0-9]/.test(content)
+  const isSignificant = RE_SIGNIFICANT.test(content)
 
   const hash = crypto.createHash("md5")
   hash.update(content)
@@ -254,36 +255,43 @@ describe("file-tools", () => {
       expect(await fs.readFile("/test.txt")).toBe("aaa\nBBB_PRE\nbbb")
     })
 
-    test("applies multiple sequential edits", async () => {
-      const fs = createTestFs({ "/test.txt": "line1\nline2\nline3" })
+    test("multi-edits that shift lines work correctly", async () => {
+      const fs = createTestFs({ "/test.txt": "line1\nline2\nline3\nline4" })
       const { "file-edit": edit } = createFileTools(fs)
 
-      await edit.execute!(
+      // This test specifically reproduces the bug where an early append shifts later lines.
+      // 1. Append 2 lines after line 1.
+      // 2. Replace line 3.
+      // 3. Prepend 1 line before line 4.
+      // All anchors refer to the ORIGINAL file content.
+      const result = await edit.execute!(
         {
           path: "/test.txt",
           edits: [
             {
-              op: "replace",
+              op: "append",
               pos: `1#${computeLineHash(1, "line1")}`,
-              lines: ["new1"],
+              lines: ["line1.1", "line1.2"],
             },
             {
-              // Note: the second edit must account for the current state of the file
-              // in the tool's sequential processing, but since 'line3' was line 3 originally
-              // and the first edit didn't change the number of lines before it,
-              // we can still target it as line 3 if the implementation allows.
-              // Actually, the current tool implementation parses '3#...' which refers to the
-              // ORIGINAL line 3 if we haven't shifted everything.
               op: "replace",
               pos: `3#${computeLineHash(3, "line3")}`,
-              lines: ["new3"],
+              lines: ["NEW_LINE3"],
+            },
+            {
+              op: "prepend",
+              pos: `4#${computeLineHash(4, "line4")}`,
+              lines: ["line3.9"],
             },
           ],
         },
         {} as any
       )
 
-      expect(await fs.readFile("/test.txt")).toBe("new1\nline2\nnew3")
+      expect(result).toMatchObject({ success: true })
+      expect(await fs.readFile("/test.txt")).toBe(
+        "line1\nline1.1\nline1.2\nline2\nNEW_LINE3\nline3.9\nline4"
+      )
     })
 
     test("rejects stale edit with hash mismatch", async () => {

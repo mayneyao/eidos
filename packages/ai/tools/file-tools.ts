@@ -15,10 +15,20 @@ const HASH_ALPHABET = "ZPMQVRWSNKTXJBYH"
  * Compute a 2-character content hash for a line.
  * Uses Node.js crypto and line index salting for non-alphanumeric lines to prevent collisions.
  */
+/**
+ * Lines containing no alphanumeric characters (only punctuation/symbols/whitespace).
+ * Uses Unicode property escapes for broad language support.
+ */
+const RE_SIGNIFICANT = /[\p{L}\p{N}]/u
+
+/**
+ * Compute a 2-character content hash for a line.
+ * Uses Node.js crypto and line index salting for non-alphanumeric lines to prevent collisions.
+ */
 function computeLineHash(index: number, line: string): string {
   const content = line.replace(/\r/g, "").trimEnd()
   // Check if the line has any alphanumeric characters
-  const isSignificant = /[a-zA-Z0-9]/.test(content)
+  const isSignificant = RE_SIGNIFICANT.test(content)
 
   const hash = crypto.createHash("md5")
   hash.update(content)
@@ -170,57 +180,103 @@ export function createFileTools(fs: IFileSystem): Record<string, Tool> {
       const { path, edits } = args as z.infer<typeof editParams>
       try {
         const currentContent = await fs.readFile(path)
-        let lines = currentContent.split("\n")
+        const originalLines = currentContent.split("\n")
 
-        // We apply edits in sequence.
-        // Note: For multi-edit robustness, we should ideally validate all anchors against
-        // a single snapshot first, but here we follow the standard sequential application.
-        for (const editOp of edits) {
+        // 1. Resolve and validate all anchors against original content first.
+        const resolvedEdits = []
+        for (let i = 0; i < edits.length; i++) {
+          const editOp = edits[i]!
           const startAnchor = parseAnchor(editOp.pos)
           const startIdx = startAnchor.line - 1
 
-          if (startIdx < 0 || startIdx >= lines.length) {
+          if (startIdx < 0 || startIdx >= originalLines.length) {
             return {
-              error: `Line ${startAnchor.line} is out of range (file has ${lines.length} lines).`,
+              error: `Edit ${i}: Line ${startAnchor.line} is out of range (file has ${originalLines.length} lines).`,
             }
           }
 
-          const actualHash = computeLineHash(startAnchor.line, lines[startIdx]!)
+          const actualHash = computeLineHash(
+            startAnchor.line,
+            originalLines[startIdx]!
+          )
           if (actualHash !== startAnchor.hash) {
             return {
               error: `Hash mismatch at line ${startAnchor.line}. Expected "${actualHash}", but you provided "${startAnchor.hash}". The file content has changed. Please re-read the file.`,
             }
           }
 
-          if (editOp.op === "replace") {
-            let endIdx = startIdx
-            if (editOp.end) {
-              const endAnchor = parseAnchor(editOp.end)
-              endIdx = endAnchor.line - 1
-              if (endIdx < startIdx || endIdx >= lines.length) {
-                return {
-                  error: `End anchor line ${endAnchor.line} is invalid or out of range.`,
-                }
-              }
-              const actualEndHash = computeLineHash(
-                endAnchor.line,
-                lines[endIdx]!
-              )
-              if (actualEndHash !== endAnchor.hash) {
-                return {
-                  error: `Hash mismatch at end line ${endAnchor.line}. Expected "${actualEndHash}".`,
-                }
+          let endIdx = startIdx
+          if (editOp.op === "replace" && editOp.end) {
+            const endAnchor = parseAnchor(editOp.end)
+            endIdx = endAnchor.line - 1
+            if (endIdx < startIdx || endIdx >= originalLines.length) {
+              return {
+                error: `Edit ${i}: End anchor line ${endAnchor.line} is invalid or out of range.`,
               }
             }
-            lines.splice(startIdx, endIdx - startIdx + 1, ...editOp.lines)
-          } else if (editOp.op === "append") {
-            lines.splice(startIdx + 1, 0, ...editOp.lines)
-          } else if (editOp.op === "prepend") {
-            lines.splice(startIdx, 0, ...editOp.lines)
+            const actualEndHash = computeLineHash(
+              endAnchor.line,
+              originalLines[endIdx]!
+            )
+            if (actualEndHash !== endAnchor.hash) {
+              return {
+                error: `Hash mismatch at end line ${endAnchor.line}. Expected "${actualEndHash}".`,
+              }
+            }
+          }
+
+          resolvedEdits.push({
+            op: editOp.op,
+            startIdx,
+            endIdx,
+            lines: editOp.lines,
+            originalStartLine: startAnchor.line,
+            originalEndLine: editOp.end
+              ? parseAnchor(editOp.end).line
+              : startAnchor.line,
+          })
+        }
+
+        // 2. Check for overlapping edits.
+        for (let i = 0; i < resolvedEdits.length; i++) {
+          for (let j = i + 1; j < resolvedEdits.length; j++) {
+            const e1 = resolvedEdits[i]!
+            const e2 = resolvedEdits[j]!
+
+            // For overlaps, we consider the range [startIdx, endIdx]
+            // Note: append/prepend are technically at a point, but we can treat them as a small range for conflict check.
+            const range1 = { start: e1.startIdx, end: e1.endIdx }
+            const range2 = { start: e2.startIdx, end: e2.endIdx }
+
+            if (range1.start <= range2.end && range2.start <= range1.end) {
+              return {
+                error: `Conflicting edits: Edit ${i} (lines ${e1.originalStartLine}-${e1.originalEndLine}) overlaps with Edit ${j} (lines ${e2.originalStartLine}-${e2.originalEndLine}).`,
+              }
+            }
           }
         }
 
-        await fs.writeFile(path, lines.join("\n"))
+        // 3. Apply edits in REVERSE line order (bottom-to-top) to handle shifting correctly.
+        const sortedEdits = [...resolvedEdits].sort(
+          (a, b) => b.startIdx - a.startIdx
+        )
+        const finalLines = [...originalLines]
+
+        for (const edit of sortedEdits) {
+          if (edit.op === "replace") {
+            finalLines.splice(
+              edit.startIdx,
+              edit.endIdx - edit.startIdx + 1,
+              ...edit.lines
+            )
+          } else if (edit.op === "append") {
+            finalLines.splice(edit.startIdx + 1, 0, ...edit.lines)
+          } else if (edit.op === "prepend") {
+            finalLines.splice(edit.startIdx, 0, ...edit.lines)
+          }
+        }
+
+        await fs.writeFile(path, finalLines.join("\n"))
         return { success: true, path }
       } catch (err: any) {
         return {
