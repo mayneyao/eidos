@@ -26,7 +26,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!isInitialized) {
-      initWorker()
+      return initWorker()
     }
   }, [initWorker, isInitialized])
 

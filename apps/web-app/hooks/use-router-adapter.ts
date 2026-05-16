@@ -8,6 +8,7 @@ import {
 } from "react-router-dom"
 
 import { useTabStore } from "@/apps/web-app/store/tabs"
+import { useOptionalTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
 import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 
 export const useRouterAdapter = () => {
@@ -40,9 +41,13 @@ export const useRouterAdapter = () => {
   const activeTabId = getActiveTabId()
   const activeTab = tabs.find((t) => t.id === activeTabId)
 
+  const tabContext = useOptionalTabContext()
+  const tabId = tabContext?.tabId
+  const inTabRouter = Boolean(tabId)
+
   // Adapter implementations
   const adapterLocation = useMemo(() => {
-    if (inRouter && location) return location
+    if (inTabRouter && inRouter && location) return location
 
     if (activeTab) {
       try {
@@ -65,6 +70,8 @@ export const useRouterAdapter = () => {
       }
     }
 
+    if (inRouter && location) return location
+
     return {
       pathname: "/",
       search: "",
@@ -72,7 +79,7 @@ export const useRouterAdapter = () => {
       state: null,
       key: "default",
     }
-  }, [inRouter, location, activeTab])
+  }, [inTabRouter, inRouter, location, activeTab])
 
   // Keep a stable ref so fallback navigate doesn't change identity
   const adapterLocationRef = useRef(adapterLocation)
@@ -117,8 +124,8 @@ export const useRouterAdapter = () => {
       }
 
       if (typeof to === "number") {
-        // Prefer router history when available
-        if (inRouter && navigate) {
+        // Prefer the tab's own router history when available.
+        if (inTabRouter && inRouter && navigate) {
           navigate(to as any, options)
           return
         }
@@ -137,11 +144,10 @@ export const useRouterAdapter = () => {
       const replaceCurrentTab = options?.replace === true && !forceNewTab
 
       const resolvedUrl = resolveUrl(to)
-      const currentUrl = adapterLocation
-        ? adapterLocation.pathname +
-          adapterLocation.search +
-          adapterLocation.hash
-        : ""
+      // Use the ref for the most up-to-date current location to avoid stale closure issues
+      const currentLocation = adapterLocationRef.current
+      const currentUrl =
+        currentLocation.pathname + currentLocation.search + currentLocation.hash
 
       // Normalize URLs for comparison to prevent recursion on effectively identical paths
       const normalize = (u: string) => {
@@ -157,43 +163,39 @@ export const useRouterAdapter = () => {
       const normalizedCurrent = normalize(currentUrl)
       const isHome = normalizedCurrent === "" || normalizedCurrent === "/"
 
+      // Check if this is a "Self-Redirect" (e.g. /agent -> /agent/uuid)
+      // We should allow this to happen in the current tab even if forceNewTab is true
+      const isInitialRedirect =
+        inTabRouter &&
+        options?.replace &&
+        normalizedResolved.startsWith(normalizedCurrent) &&
+        normalizedCurrent.length > 1
+
       // 0. Prevent recursion: If we are already in a "force new tab" flow, don't intercept again
       const isInternal =
         options?.state?.__isInternalTabNavigation ||
-        (adapterLocation as any)?.state?.__isInternalTabNavigation
+        (currentLocation as any)?.state?.__isInternalTabNavigation
 
-      // 1. Break recursion/Self-navigation/Home-replacement:
-      // If we are already at the target URL, it's internal, or we are replacing the Home page, let it through
+      // 1. Break recursion/Self-navigation/Home-replacement/Initial-redirect:
+      // If we are already at the target URL, it's internal, we are replacing Home, or it's an initial page redirect
       if (
         isInternal ||
         (alwaysOpenInNewTab && normalizedResolved === normalizedCurrent) ||
-        (isHome && options?.replace)
+        (isHome && options?.replace) ||
+        isInitialRedirect
       ) {
-        if (inRouter && navigate) {
+        if (inTabRouter && inRouter && navigate) {
           navigate(to as any, options)
         }
         return
       }
 
-      // Debug logging
-      if (import.meta.env.DEV) {
-        console.log("[RouterAdapter] Navigating:", {
-          to,
-          resolvedUrl,
-          forceNewTab,
-          replaceCurrentTab,
-        })
-      }
-
-      // --- NEW: Global Reuse Check ---
-      // We check for existing tabs BEFORE deciding to open new or replace.
-      // This ensures that settings pages always reuse their singleton tab,
-      // and documents reuse their tabs if reuseExistingTab is enabled.
+      // --- Global Reuse Check ---
       const {
-        tabs,
+        tabs: storeTabs,
         setActiveTab: setActiveTabAction,
         openTab: openTabAction,
-        updateTab,
+        updateTab: updateTabAction,
         getActiveTabId: getStoreActiveTabId,
         setNextNavigationOptions,
       } = useTabStore.getState()
@@ -201,9 +203,16 @@ export const useRouterAdapter = () => {
       const isSettings = normalizedResolved.startsWith("/settings")
 
       if (reuseExistingTab || isSettings) {
-        const existingTab = tabs.find((t) => {
-          if (normalize(t.url) === normalizedResolved) return true
-          if (isSettings) {
+        let existingTab = storeTabs.find((t) => t.url === resolvedUrl)
+
+        if (!existingTab) {
+          existingTab = storeTabs.find(
+            (t) => normalize(t.url) === normalizedResolved
+          )
+        }
+
+        if (!existingTab && isSettings) {
+          existingTab = storeTabs.find((t) => {
             try {
               return new URL(t.url, window.location.origin).pathname.startsWith(
                 "/settings"
@@ -211,26 +220,45 @@ export const useRouterAdapter = () => {
             } catch {
               return false
             }
-          }
-          return false
-        })
+          })
+        }
 
         if (existingTab) {
-          if (import.meta.env.DEV) {
-            console.log("[RouterAdapter] Reusing existing tab:", existingTab.id)
+          const activeTabIdFromStore = getStoreActiveTabId()
+          const isTargetCurrentlyActive =
+            existingTab.id === tabId || existingTab.id === activeTabIdFromStore
+
+          if (isTargetCurrentlyActive) {
+            if (normalize(existingTab.url) === normalizedResolved) {
+              setActiveTabAction(existingTab.id)
+              return
+            }
+
+            if (isSettings) {
+              if (inTabRouter && inRouter && navigate) {
+                navigate(to as any, options)
+                return
+              }
+
+              if (replaceCurrentTab) {
+                setNextNavigationOptions(existingTab.id, { replace: true })
+              }
+              updateTabAction(existingTab.id, { url: resolvedUrl })
+              setActiveTabAction(existingTab.id)
+              return
+            }
+            // Proceed with local update (fall through)
+          } else {
+            if (existingTab.url !== resolvedUrl) {
+              updateTabAction(existingTab.id, { url: resolvedUrl })
+            }
+            setActiveTabAction(existingTab.id)
+            return
           }
-          // If it's a settings tab but different sub-page, update the URL
-          if (existingTab.url !== resolvedUrl) {
-            updateTab(existingTab.id, { url: resolvedUrl })
-          }
-          setActiveTabAction(existingTab.id)
-          return
         }
       }
-      // --- END Global Reuse Check ---
 
       if (forceNewTab) {
-        // 2. Open New Tab (since reuse check failed)
         openTabAction(resolvedUrl, undefined, {
           forceNewTab: true,
           state: { ...options?.state, __isInternalTabNavigation: true },
@@ -238,47 +266,54 @@ export const useRouterAdapter = () => {
         return
       }
 
-      // Only allow React Router navigation if NOT forcing a new tab
-      if (inRouter && navigate && !forceNewTab) {
+      const storeActiveTabId = getStoreActiveTabId()
+      const targetId = tabId || storeActiveTabId || storeTabs[0]?.id
+
+      if (targetId) {
+        if (replaceCurrentTab) {
+          setNextNavigationOptions(targetId, { replace: true })
+        }
+        if (storeTabs.find((t) => t.id === targetId)?.url !== resolvedUrl) {
+          updateTabAction(targetId, { url: resolvedUrl })
+        }
+      }
+
+      if (inTabRouter && inRouter && navigate && !forceNewTab) {
         if (typeof to === "string" && /^https?:\/\//i.test(to)) {
-          // Fall through
+          // External URL
         } else {
           navigate(to as any, options)
           return
         }
       }
 
-      const storeActiveTabId = getStoreActiveTabId()
-
-      const targetId = storeActiveTabId || tabs[0]?.id
-
       if (!targetId) {
         openTabAction(resolvedUrl, undefined, {
           state: { __isInternalTabNavigation: true },
         })
-        return
+      } else {
+        setActiveTabAction(targetId)
       }
-
-      if (replaceCurrentTab) {
-        setNextNavigationOptions(targetId, { replace: true })
-      }
-
-      if (import.meta.env.DEV) {
-        console.log("[RouterAdapter] Replacing current tab with new node")
-      }
-      updateTab(targetId, { url: resolvedUrl })
-      setActiveTabAction(targetId)
     },
-    [inRouter, navigate, alwaysOpenInNewTab, reuseExistingTab]
+    [
+      inTabRouter,
+      inRouter,
+      navigate,
+      alwaysOpenInNewTab,
+      reuseExistingTab,
+      tabId,
+    ]
   )
 
   const adapterParams = useMemo(() => {
-    if (inRouter && params) return params
+    if (inTabRouter && inRouter && params) return params
 
     // Manual param parsing for route patterns (no more :database prefix)
     const path = adapterLocation.pathname
     const parts = path.split("/").filter(Boolean)
-    const result: Record<string, string> = {}
+    const result: Record<string, string> = {
+      ...(params?.database ? { database: params.database } : {}),
+    }
 
     // Handle different route patterns without database prefix
     if (parts.length >= 1) {
@@ -307,18 +342,18 @@ export const useRouterAdapter = () => {
     }
 
     return result
-  }, [inRouter, params, adapterLocation])
+  }, [inTabRouter, inRouter, params, adapterLocation])
 
   const adapterSearchParams = useMemo(() => {
-    if (inRouter && searchParams) return searchParams
+    if (inTabRouter && inRouter && searchParams) return searchParams
 
     // Parse search params from location
     const search = adapterLocation.search
     return new URLSearchParams(search)
-  }, [inRouter, searchParams, adapterLocation.search])
+  }, [inTabRouter, inRouter, searchParams, adapterLocation.search])
 
   const adapterSetSearchParams = useMemo(() => {
-    if (inRouter && setSearchParams) return setSearchParams
+    if (inTabRouter && inRouter && setSearchParams) return setSearchParams
 
     // Return a fallback setSearchParams function with tab support
     return (
@@ -356,6 +391,7 @@ export const useRouterAdapter = () => {
       })
     }
   }, [
+    inTabRouter,
     inRouter,
     setSearchParams,
     activeTabId,

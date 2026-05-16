@@ -165,9 +165,12 @@ export function TabContainer({
       externalUrlRef.current = initialUrl
       return ["/external"]
     }
+    const url = new URL(initialUrl, window.location.origin)
     return [
       {
-        pathname: initialUrl,
+        pathname: url.pathname,
+        search: url.search,
+        hash: url.hash,
         state: tab?.initialState,
       },
     ]
