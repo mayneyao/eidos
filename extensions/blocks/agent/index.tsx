@@ -103,6 +103,9 @@ const Skeleton = ({ className }: { className?: string }) => (
 )
 
 const CARD_HEIGHT = 68
+const SESSIONS_HISTORY_PATH = "~/.eidos/agent/sessions/history.jsonl"
+const SESSIONS_DIR_PATH = "~/.eidos/agent/sessions/"
+const HISTORY_REFRESH_DEBOUNCE_MS = 150
 
 type Tab = "sessions" | "skills"
 
@@ -176,6 +179,76 @@ export function AgentHistorySidebar() {
   useEffect(() => {
     refreshSessions()
   }, [refreshSessions, currentSessionId])
+
+  useEffect(() => {
+    if (!space) return
+
+    const abortController = new AbortController()
+    const { signal } = abortController
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined
+    let active = true
+
+    const scheduleRefresh = () => {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer)
+      }
+      refreshTimer = setTimeout(() => {
+        refreshSessions()
+      }, HISTORY_REFRESH_DEBOUNCE_MS)
+    }
+
+    const isHistoryEvent = (event: { filename?: string | null }) => {
+      if (!event.filename) return true
+      const filename = event.filename.split(/[\\/]/).pop()
+      return filename === "history.jsonl"
+    }
+
+    const isAbortError = (error: unknown) =>
+      error instanceof Error && error.name === "AbortError"
+
+    const watchDirectory = async () => {
+      try {
+        for await (const event of eidos.currentSpace.fs.watch(
+          SESSIONS_DIR_PATH,
+          { signal }
+        )) {
+          if (isHistoryEvent(event)) {
+            scheduleRefresh()
+          }
+        }
+      } catch (error) {
+        if (!isAbortError(error)) {
+          console.error("Agent sessions history watch error:", error)
+        }
+      }
+    }
+
+    const watchHistory = async () => {
+      try {
+        for await (const event of eidos.currentSpace.fs.watch(
+          SESSIONS_HISTORY_PATH,
+          { signal }
+        )) {
+          if (isHistoryEvent(event)) {
+            scheduleRefresh()
+          }
+        }
+      } catch (error) {
+        if (!active || isAbortError(error)) return
+        await watchDirectory()
+      }
+    }
+
+    watchHistory()
+
+    return () => {
+      active = false
+      if (refreshTimer) {
+        clearTimeout(refreshTimer)
+      }
+      abortController.abort()
+    }
+  }, [space, eidos.currentSpace, refreshSessions])
 
   // Fetch skills when switching to skills tab
   useEffect(() => {
