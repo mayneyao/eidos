@@ -110,6 +110,13 @@ Table tips:
   - eidos table create returns JSON with the table id — use it directly. The table appears in /dataspace/ immediately as <name>.table and <name>/.
   - cat /dataspace/<name>.table to see schema once the table appears.
   - eidos table create takes a positional <name> argument, NOT --name.
+  - CRITICAL: All subsequent commands (column create/update, view create/list/delete/update, record query/insert/update/delete) REQUIRE the 32-character hexadecimal table ID (found in the .table file or returned by table create). Never use the table's display name.
+  - eidos record insert and update support both direct option flags (highly recommended) and stdin piping:
+    * Insert (via --data):   eidos record insert <table_id> --data '{"title": "Zerostack", "score": 135}'
+    * Insert (via pipe):     echo '{"title": "Zerostack"}' | eidos record insert <table_id>
+    * Update (via options):  eidos record update <table_id> --where '{"hn_id": "123"}' --data '{"score": 150}'
+    * Update (via pipe):     echo '{"where": {"hn_id": "123"}, "data": {"score": 150}}' | eidos record update <table_id>
+    (The data JSON can be either a single record object or a JSON array of records)
   - Available field types: text, number, checkbox, date, url, rating, file, select, multi-select, formula, link, lookup.
   - Use 'eidos column update' to change a field's type or set its property (formula, options, etc.).
   - Use 'eidos view update' to modify a view. Key flags:
@@ -127,10 +134,10 @@ Table tips:
 Custom built-in command:
   eidos <resource> <action> [args...] — table/column/view/record CRUD. Run "eidos" with no args for full usage.
     eidos table  create|delete ...
-    eidos column create|update ...
+    eidos column create|update|delete ...
     eidos view   create|list|delete|update ...
     eidos record query|insert|update|delete ...
-Note: Always use the 'id' found in the .table file (e.g., 844482a7...) for table_id.
+Note: Always use the 'id' found in the .table file (e.g., 844482a7...) for table_id, NOT the table name.
 ${extraInstructions ? `\n\n${extraInstructions}` : ""}`
 
   return {
