@@ -70,7 +70,7 @@
       "node-pty"
     ],
     "overrides": {
-      "just-bash": "npm:@eidos.space/just-bash@^3.0.2",
+      "just-bash": "npm:@eidos.space/just-bash@^3.0.4",
       "fast-xml-parser": "^5.5.1",
       "tar": "^7.5.11",
       "svgo": "^4.0.1",
