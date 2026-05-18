@@ -43,6 +43,7 @@
     "defuddle": "^0.16.0",
     "hono": "^4.12.7",
     "@eidos.space/just-bash": "^3.0.2",
+    "just-bash": "npm:@eidos.space/just-bash@^3.0.2",
     "linkedom": "^0.18.12",
     "openai": "^4.104.0"
   },
