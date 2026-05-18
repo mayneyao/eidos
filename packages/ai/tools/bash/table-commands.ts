@@ -1,6 +1,6 @@
 import { z } from "zod"
 import type { DataSpace } from "@/packages/core/data-space"
-import type { Bash } from "just-bash"
+import type { Bash } from "@eidos.space/just-bash"
 import { LightCli } from "./light-cli"
 import * as handlers from "./table-handlers"
 

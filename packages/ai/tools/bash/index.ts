@@ -3,7 +3,12 @@ import os from "node:os"
 import path from "node:path"
 import type { Tool } from "ai"
 import { z } from "zod"
-import { Bash, InMemoryFs, MountableFs, ReadWriteFs } from "just-bash"
+import {
+  Bash,
+  InMemoryFs,
+  MountableFs,
+  ReadWriteFs,
+} from "@eidos.space/just-bash"
 import type { DataSpace } from "@/packages/core/data-space"
 import { EidosAgentFs, ExtensionsAgentFs, JournalsAgentFs } from "../agent-fs"
 import { registerTableCommands } from "./table-commands"
@@ -78,6 +83,8 @@ export function createBashTool(
       maxCommandCount: 10000,
       maxLoopIterations: 100,
     },
+    javascript: true,
+    python: true,
     network: {
       dangerouslyAllowFullInternetAccess: true,
       allowedMethods: [
@@ -106,6 +113,15 @@ CRITICAL: Under a table directory, the .md filename IS the record title — they
   /journals/   — journal day pages as YYYY-MM-DD.md files (read-write, create/update journals)
   /extensions/ — installed extensions as .ts/.tsx files organized by slug (read-write, create/edit/delete extensions)
 Use ls, cat, rg (ripgrep) to explore. Prefer using rg for searching rather than find. Supports pipes, redirections, variables, and common Unix tools.
+
+Language Execution Support:
+  - Python (python3 / python): A CPython WebAssembly sandboxed runner is available for executing scripts, data processing, calculations, and custom logic.
+    * RESTRICTED ENVIRONMENT: It runs entirely in WebAssembly. Execution is slower than native Python.
+    * NO PIP INSTALL: External packages cannot be installed; only the standard library is available.
+    * NO NETWORK ACCESS: Python code executed inside the shell cannot access the internet/external APIs.
+  - JavaScript/TypeScript (js-exec): A sandboxed JavaScript/TypeScript runner via QuickJS is available.
+    * Run it using: js-exec -c "console.log(1 + 2)" or js-exec script.js.
+    * RESTRICTED ENVIRONMENT: Runs in QuickJS WASM sandbox; no network access or npm install are supported.
 
 Table tips:
   - Every table has a built-in 'title' field — never create a column named "title".

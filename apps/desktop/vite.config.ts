@@ -20,6 +20,7 @@ const externalNodeModules = [
   "oxc-transform",
   "@vscode/ripgrep",
   "node-pty",
+  "@eidos.space/just-bash",
 ]
 
 // desktop do not need android and windows11

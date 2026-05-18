@@ -1,4 +1,4 @@
-import type { IFileSystem, FsStat, FileContent } from "just-bash"
+import type { IFileSystem, FsStat, FileContent } from "@eidos.space/just-bash"
 import type { DataSpace } from "@/packages/core/data-space"
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import { getRawTableNameById, uuidv7, extractIdFromShortId } from "@/lib/utils"

@@ -1,4 +1,4 @@
-import type { IFileSystem, FsStat, FileContent } from "just-bash"
+import type { IFileSystem, FsStat, FileContent } from "@eidos.space/just-bash"
 import type { DataSpace } from "@/packages/core/data-space"
 
 const DEFAULT_FILE_MODE = 0o644

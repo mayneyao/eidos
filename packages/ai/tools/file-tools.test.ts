@@ -1,4 +1,4 @@
-import type { IFileSystem, FsStat, FileContent } from "just-bash"
+import type { IFileSystem, FsStat, FileContent } from "@eidos.space/just-bash"
 import crypto from "node:crypto"
 
 import { createFileTools } from "./file-tools"

@@ -1,5 +1,5 @@
 import type { Tool } from "ai"
-import type { IFileSystem } from "just-bash"
+import type { IFileSystem } from "@eidos.space/just-bash"
 import { z } from "zod"
 import crypto from "node:crypto"
 
