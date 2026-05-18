@@ -264,4 +264,20 @@ export class SyncService extends IpcServiceBase {
       }
     }
   }
+
+  async setSecret(key: string, value: string): Promise<void> {
+    return this.credentials.setSecret(key, value)
+  }
+
+  async getSecret(key: string): Promise<string | null> {
+    return this.credentials.getSecret(key)
+  }
+
+  async listSecrets(): Promise<Record<string, string>> {
+    return this.credentials.listSecrets()
+  }
+
+  async deleteSecret(key: string): Promise<void> {
+    return this.credentials.deleteSecret(key)
+  }
 }

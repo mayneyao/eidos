@@ -12,6 +12,7 @@ import { GlobalStorageSettings } from "./global/global-storage-settings"
 import { GlobalSyncSettings } from "./global/global-sync-settings"
 import { DocumentSettings } from "./space/document-settings"
 import { ExtensionSettings } from "./space/extension-settings"
+import { GlobalSecretsSettings } from "./global/global-secrets-settings"
 
 import { GeneralSettings } from "./space/general-settings"
 import { MountSettings } from "./space/mount-settings"
@@ -64,6 +65,8 @@ export function SettingsContent() {
         return t("settings.security")
       case "browser":
         return t("settings.browser", "Browser")
+      case "secrets":
+        return t("settings.secrets.title", "Secrets Store")
       default:
         return t("space.settings.title")
     }
@@ -101,6 +104,8 @@ export function SettingsContent() {
         return <GlobalSecuritySettings />
       case "browser":
         return <GlobalBrowserSettings />
+      case "secrets":
+        return <GlobalSecretsSettings />
       default:
         return null
     }

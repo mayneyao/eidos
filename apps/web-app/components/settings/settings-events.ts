@@ -14,6 +14,7 @@ export type SettingsSection =
   | "sync"
   | "security"
   | "browser"
+  | "secrets"
 
 export interface SettingsOpenEvent {
   section?: SettingsSection

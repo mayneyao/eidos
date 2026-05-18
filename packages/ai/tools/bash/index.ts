@@ -67,11 +67,13 @@ export async function buildAgentFs(ctx: BashToolContext) {
 export function createBashTool(
   fs: InstanceType<typeof MountableFs>,
   extraInstructions?: string,
-  dataspace?: DataSpace
+  dataspace?: DataSpace,
+  secrets?: Record<string, string>
 ): Tool {
   const bash = new Bash({
     fs,
     cwd: "/",
+    env: secrets,
     executionLimits: {
       maxCommandCount: 10000,
       maxLoopIterations: 100,
@@ -87,7 +89,7 @@ export function createBashTool(
         "HEAD",
         "OPTIONS",
       ],
-      denyPrivateRanges: true,
+      denyPrivateRanges: false,
     },
     defenseInDepth: false,
   })

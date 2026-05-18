@@ -11,6 +11,7 @@ import {
   LayoutTemplate,
   User,
   Globe,
+  Key,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -192,6 +193,16 @@ export function SettingsSidebar({
       ),
       icon: <Globe className="h-5 w-5" />,
       isBeta: true,
+      category: "global",
+    },
+    {
+      id: "secrets",
+      title: t("settings.secrets", "Secrets"),
+      description: t(
+        "settings.secrets.description",
+        "Manage encrypted sensitive keys and environment variables"
+      ),
+      icon: <Key className="h-5 w-5" />,
       category: "global",
     },
   ]

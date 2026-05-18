@@ -27,6 +27,7 @@ import { initSkillToolkit, getSkillMetas } from "./skills"
 export function createAgentMiddleware(options: {
   getDataspace: (space: string) => Promise<DataSpace | null>
   getAIConfig?: () => AIFormValues | undefined
+  getSecrets?: () => Promise<Record<string, string>>
   logger?: {
     info: (...args: any[]) => void
     warn: (...args: any[]) => void

@@ -88,6 +88,7 @@ export interface AgentContextOptions {
   getDataspace: (space: string) => Promise<DataSpace | null>
   signal?: AbortSignal
   getAIConfig?: () => AIFormValues | undefined
+  getSecrets?: () => Promise<Record<string, string>>
   logger?: {
     info: (...args: any[]) => void
     warn: (...args: any[]) => void
@@ -158,11 +159,13 @@ export async function prepareAgent(
   let bashWithDs: Record<string, any> = {}
   if (dataspace) {
     const fs = await buildAgentFs({ dataspace })
+    const secrets = ctx?.getSecrets ? await ctx.getSecrets() : {}
     bashWithDs = {
       bash: createBashTool(
         fs,
         agentCtx.skillInstructions ?? undefined,
-        dataspace
+        dataspace,
+        secrets
       ),
     }
     fsTools = createFileTools(fs)

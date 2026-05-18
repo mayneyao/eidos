@@ -1,4 +1,5 @@
 import { createAgentMiddleware } from "@/packages/ai/server"
+import { getCredentialsManager } from "../../sync/credentials"
 import {
   containsBinaryData,
   parseMultipartFormData,
@@ -99,6 +100,10 @@ export function setupApiRoutes(app: Hono, ctx: ServerContext) {
           ? ctx.dataSpaceManager.getOrSetDataSpace(space)
           : Promise.resolve(null),
       getAIConfig: () => ctx.configManager.get("ai"),
+      getSecrets: async () => {
+        const creds = getCredentialsManager()
+        return creds.listSecrets()
+      },
       logger: ctx.logger.child("AgentRoute"),
     })
   )

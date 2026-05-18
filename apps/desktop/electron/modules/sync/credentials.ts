@@ -194,6 +194,52 @@ async function clearSecureSyncCredentials(
   }
 }
 
+const SECRETS_FILE_NAME = "secrets.bin"
+
+async function getSecretsFilePath(): Promise<string> {
+  await ensureAppReady()
+  return path.join(app.getPath("userData"), TOKENS_DIR, SECRETS_FILE_NAME)
+}
+
+async function writeSecureSecrets(secretsJson: string): Promise<void> {
+  const filePath = await getSecretsFilePath()
+  await fs.mkdir(path.dirname(filePath), { recursive: true })
+
+  const encryptionAvailable = safeStorage.isEncryptionAvailable()
+  if (!encryptionAvailable && !warnedAboutPlaintextStorage) {
+    log.warn(
+      "Electron safeStorage encryption unavailable; storing secrets unencrypted on disk."
+    )
+    warnedAboutPlaintextStorage = true
+  }
+
+  const payload = encryptionAvailable
+    ? safeStorage.encryptString(secretsJson)
+    : Buffer.from(secretsJson, "utf-8")
+
+  await fs.writeFile(filePath, payload)
+}
+
+async function readSecureSecrets(): Promise<string | null> {
+  try {
+    const filePath = await getSecretsFilePath()
+    const raw = await fs.readFile(filePath)
+    if (!raw?.length) {
+      return null
+    }
+
+    return safeStorage.isEncryptionAvailable()
+      ? safeStorage.decryptString(raw)
+      : raw.toString("utf-8")
+  } catch (error: any) {
+    if (error?.code === "ENOENT") {
+      return null
+    }
+    log.error("Failed to read stored secrets:", error)
+    return null
+  }
+}
+
 @Injectable()
 export class CredentialsManager {
   private instanceId = Math.random().toString(36).substring(2, 9)
@@ -478,6 +524,67 @@ export class CredentialsManager {
   ): Promise<boolean> {
     const credentials = await this.getSyncCredentials(providerId)
     return !!credentials
+  }
+
+  /**
+   * Store a custom secret key-value pair
+   */
+  async setSecret(key: string, value: string): Promise<void> {
+    try {
+      const secrets = await this.listSecrets()
+      if (value) {
+        secrets[key] = value
+      } else {
+        delete secrets[key]
+      }
+      await writeSecureSecrets(JSON.stringify(secrets))
+    } catch (error) {
+      log.error(`Failed to store secret for key ${key}:`, error)
+      throw new Error(`Failed to securely store secret: ${key}`)
+    }
+  }
+
+  /**
+   * Retrieve a custom secret value by key
+   */
+  async getSecret(key: string): Promise<string | null> {
+    try {
+      const secrets = await this.listSecrets()
+      return secrets[key] || null
+    } catch (error) {
+      log.error(`Failed to retrieve secret for key ${key}:`, error)
+      return null
+    }
+  }
+
+  /**
+   * Retrieve all secrets
+   */
+  async listSecrets(): Promise<Record<string, string>> {
+    try {
+      const secretsJson = await readSecureSecrets()
+      if (!secretsJson) {
+        return {}
+      }
+      return JSON.parse(secretsJson) as Record<string, string>
+    } catch (error) {
+      log.error("Failed to list secrets:", error)
+      return {}
+    }
+  }
+
+  /**
+   * Delete a secret by key
+   */
+  async deleteSecret(key: string): Promise<void> {
+    try {
+      const secrets = await this.listSecrets()
+      delete secrets[key]
+      await writeSecureSecrets(JSON.stringify(secrets))
+    } catch (error) {
+      log.error(`Failed to delete secret for key ${key}:`, error)
+      throw new Error(`Failed to delete secret: ${key}`)
+    }
   }
 }
 
