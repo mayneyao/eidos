@@ -105,57 +105,52 @@ export function createBashTool(
     registerTableCommands(bash, dataspace)
   }
 
-  const description = `Execute a bash command in a sandboxed filesystem. Available mounts:
-  /dataspace/  — structured tables and documents. Tables appear as .table files (read-only). A same-named directory appears ONLY when the table has child documents (.md files, writable).
+  const description = `Execute a bash command in a sandboxed filesystem.
 
-CRITICAL: Under a table directory, the .md filename IS the record title — they are the same string. "My Task.md" means title="My Task". Never transform or sanitize the filename (no kebab-case, no lowercase). Before writing, always ls the directory to see existing titles. Writing to an existing .md updates that record's doc. Writing to a new .md creates a new record. Deleting a .md removes only the doc, not the record. To delete a record, use eidos record delete.
-  /skills/     — skills directory at ~/.agents/skills/ (read-write, create/edit/delete skills)
-  /journals/   — journal day pages as YYYY-MM-DD.md files (read-write, create/update journals)
-  /extensions/ — installed extensions as .ts/.tsx files organized by slug (read-write, create/edit/delete extensions)
-Use ls, cat, rg (ripgrep) to explore. Prefer using rg for searching rather than find. Supports pipes, redirections, variables, and common Unix tools.
+Available Mounts:
+- /dataspace/  — read-only .table (schema) files, and directories containing records as .md files (write/edit to update).
+- /skills/     — skill files (read-write).
+- /journals/   — journal entries as YYYY-MM-DD.md files (read-write).
+- /extensions/ — extensions as .ts/.tsx files (read-write).
 
-Language Execution Support:
-  - Python (python3 / python): A CPython WebAssembly sandboxed runner is available for executing scripts, data processing, calculations, and custom logic.
-    * RESTRICTED ENVIRONMENT: It runs entirely in WebAssembly. Execution is slower than native Python.
-    * NO PIP INSTALL: External packages cannot be installed; only the standard library is available.
-    * NO NETWORK ACCESS: Python code executed inside the shell cannot access the internet/external APIs.
-  - JavaScript/TypeScript (js-exec): A sandboxed JavaScript/TypeScript runner via QuickJS is available.
-    * Run it using: js-exec -c "console.log(1 + 2)" or js-exec script.js.
-    * RESTRICTED ENVIRONMENT: Runs in QuickJS WASM sandbox; no network access or npm install are supported.
+CRITICAL MOUNT & FILE RULES:
+1. Under a table directory, the .md filename is exactly the record title (e.g., "My Task.md" -> title="My Task"). Do NOT sanitize/kebab-case. Writing to a new .md inserts a record, writing to an existing .md updates it. Deleting a .md only removes its doc content, not the record. To delete a record, use 'eidos record delete'.
+2. Use 'ls', 'cat', 'rg' to explore. Prefer 'rg' (ripgrep) over 'find'.
+3. WRITING FILES/SCRIPTS: Do NOT use complex inline shell heredocs (e.g., cat << 'EOF' or python3 << 'EOF') to write scripts/files in bash. Always write files or scripts using your environment's file writing tools (like write_to_file) to avoid heredoc syntax, escaping, and truncation errors.
 
-Table tips:
-  - Every table has a built-in 'title' field — never create a column named "title".
-  - eidos table create returns JSON with the table id — use it directly. The table appears in /dataspace/ immediately as <name>.table and <name>/.
-  - cat /dataspace/<name>.table to see schema once the table appears.
-  - eidos table create takes a positional <name> argument, NOT --name.
-  - CRITICAL: All subsequent commands (column create/update, view create/list/delete/update, record query/insert/update/delete) REQUIRE the 32-character hexadecimal table ID (found in the .table file or returned by table create). Never use the table's display name.
-  - eidos record insert and update support both direct option flags (highly recommended) and stdin piping:
-    * Insert (via --data):   eidos record insert <table_id> --data '{"title": "Zerostack", "score": 135}'
-    * Insert (via pipe):     echo '{"title": "Zerostack"}' | eidos record insert <table_id>
-    * Update (via options):  eidos record update <table_id> --where '{"hn_id": "123"}' --data '{"score": 150}'
-    * Update (via pipe):     echo '{"where": {"hn_id": "123"}, "data": {"score": 150}}' | eidos record update <table_id>
-    (The data JSON can be either a single record object or a JSON array of records)
-  - Available field types: text, number, checkbox, date, url, rating, file, select, multi-select, formula, link, lookup.
-  - Use 'eidos column update' to change a field's type or set its property (formula, options, etc.).
-  - Use 'eidos view update' to modify a view. Key flags:
-    --query "<SQL>"   A SQL SELECT statement (NOT JSON). Only WHERE and ORDER BY — no LIMIT/OFFSET.
-                      Example: --query "SELECT * FROM tb_xxx WHERE status = 'Done' ORDER BY priority DESC"
-    --property <json> View display config (NOT field list or sort). Grid: {"fieldWidthMap":{},"freezeColumns":0}
-    --name <str>      Rename the view
-    --type <str>      Change view type (grid, gallery, doc_list, kanban)
-    Use 'eidos view list <table_id>' to find view IDs.
-  - eidos record query supports two modes (mutually exclusive):
-    Structured: eidos record query <table_id> --where '{"status":"Done"}' --take 20 --orderBy '{"priority":"asc"}'
-    Raw SQL:    eidos record query <table_id> --query "SELECT * FROM tb_xxx WHERE status = 'Done' ORDER BY priority ASC"
-    Do NOT mix --query with --where/--orderBy/--take/--skip.
+SANDBOX ARCHITECTURE PHILOSOPHY (Tool Composition & File Data Exchange):
+- Decoupled Orchestration: The optimal design in this sandboxed WASM environment is "Unix Pipeline & Decoupling".
+- Data Exchange via Files: Do NOT pass huge JSON arguments via shell command-line strings (like --data) or write complex inline heredoc scripts. Instead:
+  1. Write scripts (Python/JS) and data payloads (JSON) as physical files (e.g. /tmp/raw.json, /tmp/transform.py) using your environment's file-writing tools.
+  2. Use standard Unix redirection and piping to flow data between sandboxed tools:
+     python3 /tmp/transform.py < /tmp/raw.json > /tmp/clean.json
+     eidos record insert <table_id> < /tmp/clean.json
+  3. This completely avoids shell escaping errors, buffer limits, and process constraints, ensuring 100% execution success!
 
-Custom built-in command:
-  eidos <resource> <action> [args...] — table/column/view/record CRUD. Run "eidos" with no args for full usage.
-    eidos table  create|delete ...
-    eidos column create|update|delete ...
-    eidos view   create|list|delete|update ...
-    eidos record query|insert|update|delete ...
-Note: Always use the 'id' found in the .table file (e.g., 844482a7...) for table_id, NOT the table name.
+WASM Runtime Constraints (Python & JavaScript):
+- Python (python/python3) and JS (js-exec) run in highly restricted WASM sandboxes.
+- NO PROCESSES / THREADS (EMSCRIPTEN LIMITATION): Emscripten does not support process creation or threading. Do NOT use subprocess, multiprocessing, threading, os.system, os.popen, os.fork inside scripts. Calling external binaries or the 'eidos' CLI from within Python/JS scripts is impossible and will crash.
+- NO NETWORK ACCESS: Network modules (requests, urllib, socket, fetch) are completely disabled.
+- NO PACKAGE INSTALLS: pip, npm, poetry, etc., are unavailable. Only standard libraries are supported (e.g., json, math, datetime, re).
+
+Eidos CLI & Database Tips:
+- CRITICAL: Always use the 32-char hexadecimal table ID (found in the .table file or returned by table create) for all database operations, NEVER the table's display name.
+- Every table has a built-in 'title' field — never create a column named "title".
+- eidos table create <name> (positional <name>, NOT --name)
+- eidos column update <table_id> (to change field type or set formula/options)
+- BATCH INSERT (HIGHLY RECOMMENDED): eidos record insert supports piping a JSON array of records. To batch insert, write your data into a JSON file (e.g. records.json) and pipe it directly:
+    cat records.json | eidos record insert <table_id>
+  Do NOT write scripts that recursively call 'eidos record insert' via subprocesses.
+- eidos record insert/update (Single):
+  * Insert: eidos record insert <table_id> --data '{"title": "Task", "score": 100}'
+  * Update: eidos record update <table_id> --where '{"id": "123"}' --data '{"score": 150}'
+- eidos record query <table_id>: Supports two mutually exclusive modes:
+  * Raw SQL (highly recommended): --query "SELECT * FROM tb_xxx WHERE status = 'Done' ORDER BY priority ASC"
+  * Structured: --where '{"status":"Done"}' --take 20 --orderBy '{"priority":"asc"}'
+  (Do NOT mix --query with other options)
+- eidos view update <table_id> --query "<SQL>" --type <grid|gallery|doc_list|kanban> --name <str>
+
+For full command list, run "eidos" with no arguments.
 ${extraInstructions ? `\n\n${extraInstructions}` : ""}`
 
   return {
