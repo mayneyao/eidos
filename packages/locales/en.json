@@ -643,8 +643,6 @@
   "settings.ai.noProviders": "No providers configured",
   "settings.ai.addProviderHint": "Add an LLM provider to start using AI features",
   "settings.ai.apiKeyDescription": "Enter your API key for authentication.",
-  "settings.ai.applyCodeModel": "Apply Code Model",
-  "settings.ai.applyCodeModelDescription": "Select a fast model for merging source code with patches into new code. In multi-turn conversations, the coding model returns code patches rather than complete code, which improves speed and reduces consumption. This task requires lower reasoning ability but higher speed for better user experience.",
   "settings.ai.autoFetch": "Auto Fetch",
   "settings.ai.baseUrl": "Base URL",
   "settings.ai.baseUrlDescription": "The base URL for the API.",

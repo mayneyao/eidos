@@ -137,38 +137,6 @@ export function AITaskConfigForm({
 
           <div className="flex flex-col lg:flex-row lg:items-start gap-4">
             <div className="space-y-0.5 flex-1 min-w-0">
-              <FormLabel>{t("settings.ai.applyCodeModel")}</FormLabel>
-              <p className="text-sm text-muted-foreground">
-                {t("settings.ai.applyCodeModelDescription")}
-              </p>
-            </div>
-            <div className="w-full lg:w-64 flex-shrink-0">
-              <FormField
-                control={form.control}
-                name="applyCodeModel"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center space-x-2">
-                      <FormControl className="w-full">
-                        <AIModelSelect
-                          value={field.value ?? ""}
-                          onValueChange={field.onChange}
-                        />
-                      </FormControl>
-                      <ModelTestButton
-                        taskType={TaskType.ApplyCode}
-                        modelValue={field.value}
-                      />
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-            <div className="space-y-0.5 flex-1 min-w-0">
               <FormLabel>{t("settings.ai.embeddingModel")}</FormLabel>
               <p className="text-sm text-muted-foreground">
                 {t("settings.ai.embeddingModelDescription")}

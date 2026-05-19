@@ -642,8 +642,6 @@
   "settings.ai.noProviders": "尚未配置提供者",
   "settings.ai.addProviderHint": "添加 LLM 提供者以开始使用 AI 功能",
   "settings.ai.apiKeyDescription": "输入您的 API 密钥以进行身份验证。",
-  "settings.ai.applyCodeModel": "应用代码模型",
-  "settings.ai.applyCodeModelDescription": "选择速度较快的模型用于将原代码与补丁合并为新代码。在多轮对话中编码模型会返回代码补丁而非完整代码，这样能提高速度并降低消耗。此任务对推理能力要求较低，但对速度要求高，以提供更好的用户体验。",
   "settings.ai.autoFetch": "自动获取",
   "settings.ai.baseUrl": "基础 URL",
   "settings.ai.baseUrlDescription": "API 的基础 URL。",
