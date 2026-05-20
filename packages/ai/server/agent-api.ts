@@ -91,6 +91,7 @@ export interface PreparedAgent {
 
 export interface AgentContextOptions {
   getDataspace: (space: string) => Promise<DataSpace | null>
+  getSpacePath?: (space: string) => string | undefined
   signal?: AbortSignal
   getAIConfig?: () => AIFormValues | undefined
   getSecrets?: () => Promise<Record<string, string>>
@@ -162,7 +163,8 @@ export async function prepareAgent(
   let fsTools: Record<string, any> = {}
   let bashWithDs: Record<string, any> = {}
   if (dataspace) {
-    const fs = await buildAgentFs({ dataspace })
+    const spacePath = space ? ctx?.getSpacePath?.(space) : undefined
+    const fs = await buildAgentFs({ dataspace, spacePath })
     const secrets = ctx?.getSecrets ? await ctx.getSecrets() : {}
     bashWithDs = {
       bash: createBashTool(
@@ -214,9 +216,9 @@ export async function prepareAgent(
           // Check for redirect or pipe to dataspace paths
           // These write to protected mounts regardless of command name
           const mountPattern =
-            /(?:>|>>)\s*['"]?\/(?:dataspace|journals|extensions|skills)\//
+            /(?:>|>>)\s*['"]?\/(?:dataspace|journals|extensions|agent)\//
           const teeToPath =
-            /\btee\s+['"]?\/(?:dataspace|journals|extensions|skills)\//
+            /\btee\s+['"]?\/(?:dataspace|journals|extensions|agent)\//
           if (mountPattern.test(cmd) || teeToPath.test(cmd)) {
             return "bash:redirect"
           }

@@ -17,6 +17,8 @@ const MAX_OUTPUT_LENGTH = 30000
 
 export interface BashToolContext {
   dataspace: DataSpace
+  /** Space directory path for accessing space-level files like sessions */
+  spacePath?: string
   /** Additional instructions to append to the tool description */
   extraInstructions?: string
 }
@@ -28,14 +30,15 @@ const bashParams = z.object({
 /**
  * Build the composite filesystem for the AI agent:
  *
- *   /            → InMemoryFs (base, mostly unused)
- *   /dataspace/  → EidosAgentFs (read-only SQLite virtual fs)
- *   /skills/     → ReadWriteFs backed by ~/.agents/skills/ (read-write)
- *   /journals/   → JournalsAgentFs (day pages from eidos__docs)
- *   /extensions/ → ExtensionsAgentFs (extensions from eidos__extensions, read-only)
+ *   /             → InMemoryFs (base, mostly unused)
+ *   /dataspace/   → EidosAgentFs (read-only SQLite virtual fs)
+ *   /agent/skills/    → ReadWriteFs backed by ~/.agents/skills/ (read-write)
+ *   /agent/sessions/  → ReadWriteFs backed by <space>/.eidos/agent/sessions/ (read-write)
+ *   /journals/    → JournalsAgentFs (day pages from eidos__docs)
+ *   /extensions/  → ExtensionsAgentFs (extensions from eidos__extensions, read-only)
  */
 export async function buildAgentFs(ctx: BashToolContext) {
-  const { dataspace } = ctx
+  const { dataspace, spacePath } = ctx
 
   const treeFs = new EidosAgentFs(dataspace)
   await treeFs.healthCheck()
@@ -52,10 +55,20 @@ export async function buildAgentFs(ctx: BashToolContext) {
   }
   const skillFs = new ReadWriteFs({ root: skillsDir })
 
+  // Sessions are stored in the space directory
+  const sessionsDir = spacePath
+    ? path.join(spacePath, ".eidos", "agent", "sessions")
+    : path.join(os.homedir(), ".eidos", "agent", "sessions")
+  if (!fs.existsSync(sessionsDir)) {
+    fs.mkdirSync(sessionsDir, { recursive: true })
+  }
+  const sessionsFs = new ReadWriteFs({ root: sessionsDir })
+
   const mountableFs = new MountableFs({
     base: new InMemoryFs(),
     mounts: [
-      { mountPoint: "/skills", filesystem: skillFs },
+      { mountPoint: "/agent/skills", filesystem: skillFs },
+      { mountPoint: "/agent/sessions", filesystem: sessionsFs },
       { mountPoint: "/dataspace", filesystem: treeFs },
       { mountPoint: "/journals", filesystem: journalsFs },
       { mountPoint: "/extensions", filesystem: extensionsFs },
@@ -108,10 +121,11 @@ export function createBashTool(
   const description = `Execute a bash command in a sandboxed filesystem.
 
 Available Mounts:
-- /dataspace/  — read-only .table (schema) files, and directories containing records as .md files (write/edit to update).
-- /skills/     — skill files (read-write).
-- /journals/   — journal entries as YYYY-MM-DD.md files (read-write).
-- /extensions/ — extensions as .ts/.tsx files (read-write).
+- /dataspace/       — read-only .table (schema) files, and directories containing records as .md files (write/edit to update).
+- /agent/skills/    — skill files (read-write).
+- /agent/sessions/  — agent session files (.meta.json, .jsonl) (read-write).
+- /journals/        — journal entries as YYYY-MM-DD.md files (read-write).
+- /extensions/      — extensions as .ts/.tsx files (read-write).
 
 CRITICAL MOUNT & FILE RULES:
 1. Under a table directory, the .md filename is exactly the record title (e.g., "My Task.md" -> title="My Task"). Do NOT sanitize/kebab-case. Writing to a new .md inserts a record, writing to an existing .md updates it. Deleting a .md only removes its doc content, not the record. To delete a record, use 'eidos record delete'.

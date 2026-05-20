@@ -116,7 +116,7 @@ export function createFileTools(fs: IFileSystem): Record<string, Tool> {
     description:
       "Read a file with hashline anchors: `LINE#HASH:content`. " +
       "Use these anchors to identify lines in the `file-edit` tool. " +
-      "Paths: /dataspace/, /journals/, /extensions/, /skills/.",
+      "Paths: /dataspace/, /journals/, /extensions/, /agent/skills/, /agent/sessions/.",
     inputSchema: readParams,
     execute: async (args) => {
       const { path, offset, limit } = args as z.infer<typeof readParams>

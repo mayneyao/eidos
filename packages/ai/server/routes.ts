@@ -27,6 +27,7 @@ import type { PermissionServerLike } from "../permission"
 
 export function createAgentMiddleware(options: {
   getDataspace: (space: string) => Promise<DataSpace | null>
+  getSpacePath?: (space: string) => string | undefined
   getAIConfig?: () => AIFormValues | undefined
   getSecrets?: () => Promise<Record<string, string>>
   logger?: {

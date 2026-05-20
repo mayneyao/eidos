@@ -200,7 +200,8 @@ export function AgentHistorySidebar() {
     const isHistoryEvent = (event: { filename?: string | null }) => {
       if (!event.filename) return true
       const filename = event.filename.split(/[\\/]/).pop()
-      return filename === "history.jsonl"
+      // Refresh on history.jsonl changes or session metadata changes (.meta.json)
+      return filename === "history.jsonl" || filename?.endsWith(".meta.json")
     }
 
     const isAbortError = (error: unknown) =>

@@ -1,5 +1,6 @@
 import { createAgentMiddleware, PermissionServer } from "@/packages/ai/server"
 import { getCredentialsManager } from "../../sync/credentials"
+import { getSpacePath } from "../../../utils/paths"
 import {
   containsBinaryData,
   parseMultipartFormData,
@@ -125,6 +126,8 @@ export function setupApiRoutes(app: Hono, ctx: ServerContext) {
         space
           ? ctx.dataSpaceManager.getOrSetDataSpace(space)
           : Promise.resolve(null),
+      getSpacePath: (space: string) =>
+        space ? getSpacePath(space) : undefined,
       getAIConfig: () => ctx.configManager.get("ai"),
       getSecrets: async () => {
         const creds = getCredentialsManager()
