@@ -295,6 +295,28 @@ export function createAgentMiddleware(options: {
     return c.json({ results })
   })
 
+  // Get raw JSONL content for a session
+  app.get("/api/agent/sessions/:id/raw", async (c: any) => {
+    const space = extractSpace(c)
+    const id = c.req.param("id")
+
+    if (!space) {
+      return c.json({ error: "space is required" }, 400)
+    }
+
+    const dataspace = await options.getDataspace(space)
+    if (!dataspace) {
+      return c.json({ error: "space not found" }, 404)
+    }
+
+    const store = new AgentSessionStore(dataspace)
+    const raw = await store.loadRawJsonl(id)
+    if (!raw) {
+      return c.json({ error: "session not found" }, 404)
+    }
+    return c.text(raw)
+  })
+
   // Handle GET requests
   app.get("/api/agent/sessions/:id?", handleGetRequest)
 

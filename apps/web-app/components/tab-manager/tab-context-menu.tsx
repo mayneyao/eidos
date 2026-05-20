@@ -1,25 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import type { FileHandlerMeta } from "@/packages/core/types/IExtension"
+import React from "react"
 import { TreeNodeType } from "@/packages/core/types/ITreeNode"
 import {
-  CopyIcon,
-  ExternalLink,
-  FileCodeIcon,
-  FileIcon,
-  FolderOpen,
   LockIcon,
   LockOpenIcon,
   MoveHorizontal,
   SplitSquareHorizontal,
-  SplitSquareVertical,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { isDayPageId } from "@/lib/utils"
-import { isDesktopMode } from "@/lib/env"
-// import { getFileExtension } from "@/hooks/use-file-handlers"
-import { getFileExtension, useFileHandlers } from "@/hooks/use-file-handlers"
-import { useFileItemActions } from "@/hooks/use-file-item-actions"
 import { useSqlite } from "@/hooks/use-sqlite"
 import {
   NativeContextMenu as ContextMenu,
@@ -28,40 +17,18 @@ import {
   NativeContextMenuItem as ContextMenuItem,
   NativeContextMenuSeparator as ContextMenuSeparator,
   NativeContextMenuShortcut as ContextMenuShortcut,
-  NativeContextMenuSub as ContextMenuSub,
-  NativeContextMenuSubContent as ContextMenuSubContent,
-  NativeContextMenuSubTrigger as ContextMenuSubTrigger,
   NativeContextMenuTrigger as ContextMenuTrigger,
 } from "@/components/ui/native-context-menu"
+import { useTabContextMenuItems } from "@/hooks/use-tab-context-menu-registry"
 import { NodeUpdateTime } from "@/components/nav/node-update-time"
-// import {
-//   ContextMenu,
-//   ContextMenuContent,
-//   ContextMenuItem,
-//   ContextMenuSeparator,
-//   ContextMenuShortcut,
-//   ContextMenuSub,
-//   ContextMenuSubContent,
-//   ContextMenuSubTrigger,
-//   ContextMenuTrigger,
-// } from "@/components/ui/context-menu"
 
 import { useNodeMap } from "@/apps/web-app/hooks/use-current-node"
-import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-// import { useFilePathFromHash } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-file-path-from-hash"
-import { useHandlerSelection } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-handler-selection"
-import {
-  useAppsStore,
-  useSpaceAppStore,
-} from "@/apps/web-app/pages/[database]/store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 
 import {
   CopyTableSchemaContextMenu,
   NodeExportContextMenu,
 } from "../node-menu/node-export"
-
-import { useToast } from "../ui/use-toast"
 
 interface TabContextMenuProps {
   tabId: string
@@ -88,7 +55,6 @@ export function TabContextMenu({
   const tabs = useTabStore((state) => state.tabs)
   const panels = useTabStore((state) => state.panels)
   const splitTab = useTabStore((state) => state.splitTab)
-  const [open, setOpen] = useState(false)
 
   const isOnlyTab = totalTabs === 1
   // Check if we can split (max 4 panels)
@@ -135,103 +101,8 @@ export function TabContextMenu({
   }
 
   const params = parseRouteParams(tabUrl)
-  const location = {
-    pathname: tabUrl,
-    search: "",
-    hash: "",
-    state: null,
-    key: "default",
-  }
 
-  // Check if we're on file-handler page and get current handler
-  const isFileHandlerPage = location.pathname.includes("/file-handler")
-  // const { filePath, fileExtension } = useFilePathFromHash()
-
-  const { filePath, fileExtension } = useMemo(() => {
-    try {
-      if (tabUrl.includes("/file-handler") && tabUrl.includes("#")) {
-        const hashIndex = tabUrl.indexOf("#")
-        const rawPath = tabUrl.substring(hashIndex + 1)
-        const path = decodeURIComponent(rawPath)
-        return {
-          filePath: path,
-          fileExtension: getFileExtension(path),
-        }
-      }
-    } catch (e) {
-      console.warn("Failed to parse file path from tab URL:", e)
-    }
-    return { filePath: "", fileExtension: "" }
-  }, [tabUrl])
-
-  const { selectedHandler, isLoadingHandlers, isLoadingDefault } =
-    useHandlerSelection(isFileHandlerPage ? fileExtension : "")
-  const { handlers: allHandlers, isLoading: isLoadingAllHandlers } =
-    useFileHandlers(fileExtension)
-
-  // Use refs to store the latest values for stable callback in native context menu
-  // This prevents stale closure issues where the menu handler captures old values
-  const filePathRef = useRef(filePath)
-  const allHandlersRef = useRef(allHandlers)
-  useEffect(() => {
-    filePathRef.current = filePath
-    allHandlersRef.current = allHandlers
-  }, [filePath, allHandlers])
-
-  // Check if we're on blocks page and get current block ID
-  const isBlocksPage = location.pathname.includes("/blocks")
-  const blockId = isBlocksPage ? params.blockId : null
-
-  // Show menu item if we're on file-handler page and have a handler, or on blocks page with block ID
-  const showViewExtension =
-    (isFileHandlerPage &&
-      selectedHandler &&
-      !isLoadingHandlers &&
-      !isLoadingDefault) ||
-    (isBlocksPage && blockId)
-
-  // Get menu item text based on page type
-  const viewExtensionText = isFileHandlerPage
-    ? t("nav.dropdown.menu.viewHandler", "View Handler")
-    : t("nav.dropdown.menu.viewBlock", "View Block Extension")
-
-  // Show "Open with" submenu if we're on file-handler page and have multiple handlers
-  // Extra check: verify handlers actually exist and support this extension (guards against stale state)
-  const showOpenWith =
-    fileExtension &&
-    isFileHandlerPage &&
-    !isLoadingAllHandlers &&
-    allHandlers.length > 1 &&
-    // Double-check at least one handler supports this extension (guards against stale allHandlers)
-    allHandlers.some((h) =>
-      h.meta?.fileHandler?.extensions?.includes(fileExtension)
-    )
-
-  const { sqlite, deleteNode, toggleNodeFullWidth, toggleNodeLock } =
-    useSqlite()
-  const { setCurrentApp } = useSpaceAppStore()
-  const { addApp } = useAppsStore()
-
-  // Platform-specific text for "Reveal in File Manager"
-  const getRevealText = () => {
-    if (typeof navigator !== "undefined") {
-      const platform = navigator.platform.toLowerCase()
-      if (platform.includes("mac")) {
-        return t("nav.dropdown.menu.revealInFinder", "Reveal in Finder")
-      } else if (platform.includes("win")) {
-        return t(
-          "nav.dropdown.menu.revealInExplorer",
-          "Reveal in File Explorer"
-        )
-      } else {
-        return t(
-          "nav.dropdown.menu.revealInFileManager",
-          "Reveal in File Manager"
-        )
-      }
-    }
-    return t("nav.dropdown.menu.revealInFileManager", "Reveal in File Manager")
-  }
+  const { toggleNodeFullWidth, toggleNodeLock } = useSqlite()
 
   // Get current node based on parsed params (instead of useCurrentNode hook)
   const allNodesMap = useNodeMap()
@@ -248,93 +119,7 @@ export function TabContextMenu({
   }
   const node = getCurrentNode()
 
-  const { space } = useCurrentPathInfo()
-  const { toast } = useToast()
-  const handleCopyFilePath = useCallback(async () => {
-    if (!filePath) return
-
-    if (!navigator?.clipboard?.writeText) {
-      toast({
-        title: t("file.menu.copyFilePathUnavailable", "Cannot copy file path"),
-        description: t(
-          "file.menu.copyFilePathUnavailableDesc",
-          "Clipboard access is not available."
-        ),
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      await navigator.clipboard.writeText(filePath)
-      toast({
-        title: t("file.menu.copyFilePath", "Copied file path"),
-        description: filePath,
-      })
-    } catch (error) {
-      toast({
-        title: t("file.menu.copyFilePathError", "Failed to copy file path"),
-        description: error instanceof Error ? error.message : String(error),
-        variant: "destructive",
-      })
-    }
-  }, [filePath, t, toast])
-  const updateTab = useTabStore((state) => state.updateTab)
-
-  // Custom navigate function for tab context
-  const tabNavigate = (
-    to: string | { pathname?: string; search?: string; hash?: string }
-  ) => {
-    const url =
-      typeof to === "string"
-        ? to
-        : `${to.pathname || ""}${to.search || ""}${to.hash || ""}`
-    updateTab(tabId, { url })
-  }
-
-  // File item actions context
-  const fileActionsContext = {
-    filePath: filePath || "",
-    space,
-    navigate: tabNavigate as any,
-    selectedHandler,
-    blockId,
-    isFileHandlerPage,
-    isBlocksPage,
-  }
-
-  const { openInFileManager, openWith, viewExtension } =
-    useFileItemActions(fileActionsContext)
-
-  // Create a stable openWith wrapper that reads from ref to avoid stale closures
-  // This is critical for native context menus where handlers are registered via useEffect
-  const stableOpenWith = useCallback(
-    (handler: Parameters<typeof openWith>[0]) => {
-      const currentFilePath = filePathRef.current
-      if (handler._builtIn) {
-        tabNavigate(
-          `/file-handler?handler=${handler.id}&builtin=true#${currentFilePath}`
-        )
-      } else {
-        tabNavigate(`/file-handler?handler=${handler.id}#${currentFilePath}`)
-      }
-    },
-    [tabNavigate]
-  )
-
-  // Check if tab URL is an external URL (not internal Eidos route)
-  const isExternalUrl = (url: string): boolean => {
-    return url.startsWith("http://") || url.startsWith("https://")
-  }
-
-  const handleOpenInBrowser = async () => {
-    if (!currentTab?.url) return
-    if (isDesktopMode && window.eidos?.openUrl) {
-      await window.eidos.openUrl(currentTab.url)
-    } else {
-      window.open(currentTab.url, "_blank")
-    }
-  }
+  const registeredItems = useTabContextMenuItems(tabUrl)
 
   return (
     <>
@@ -358,19 +143,20 @@ export function TabContextMenu({
 
           <ContextMenuItem onClick={onCloseAll}>Close All</ContextMenuItem>
 
-          {/* Open in Browser (external URLs only) */}
-          {isExternalUrl(tabUrl) && (
+          {/* Registered items from pages */}
+          {registeredItems.length > 0 && (
             <>
               <ContextMenuSeparator />
-              <ContextMenuItem onClick={handleOpenInBrowser}>
-                <ExternalLink className="mr-2 h-4 w-4" />
-                <span>
-                  {t(
-                    "tab.menu.openInDefaultBrowser",
-                    "Open in Default Browser"
-                  )}
-                </span>
-              </ContextMenuItem>
+              {registeredItems.map((item) =>
+                item.render ? (
+                  <React.Fragment key={item.id}>{item.render()}</React.Fragment>
+                ) : (
+                  <ContextMenuItem key={item.id} onClick={item.onClick}>
+                    {item.Icon && <item.Icon className="mr-2 h-4 w-4" />}
+                    <span>{item.label}</span>
+                  </ContextMenuItem>
+                )
+              )}
             </>
           )}
 
@@ -392,61 +178,6 @@ export function TabContextMenu({
             {t("tab.menu.splitDown", "Split Down")}
           </ContextMenuItem>
           */}
-
-          {/* Open with submenu (file-handler page with multiple handlers) */}
-          {showOpenWith && (
-            <>
-              <ContextMenuSeparator />
-              <ContextMenuSub>
-                <ContextMenuSubTrigger>
-                  <FileIcon className="mr-2 h-4 w-4" />
-                  <span>{t("file.menu.openWith", "Open with")}</span>
-                </ContextMenuSubTrigger>
-                <ContextMenuSubContent>
-                  {allHandlers.map((handler) => {
-                    const meta = handler.meta as FileHandlerMeta
-                    return (
-                      <ContextMenuItem
-                        key={handler.id}
-                        onClick={() => stableOpenWith(handler)}
-                      >
-                        {meta.fileHandler.icon && (
-                          <span className="mr-2">{meta.fileHandler.icon}</span>
-                        )}
-                        {meta.fileHandler.title || handler.name}
-                      </ContextMenuItem>
-                    )
-                  })}
-                </ContextMenuSubContent>
-              </ContextMenuSub>
-            </>
-          )}
-
-          {/* Context-specific operations */}
-          {showViewExtension && (
-            <>
-              <ContextMenuSeparator />
-              <ContextMenuItem onClick={viewExtension}>
-                <FileCodeIcon className="mr-2 h-4 w-4" />
-                <span>{viewExtensionText}</span>
-              </ContextMenuItem>
-            </>
-          )}
-
-          {/* File-handler specific file operations */}
-          {isFileHandlerPage && filePath && (
-            <>
-              <ContextMenuSeparator />
-              <ContextMenuItem onClick={handleCopyFilePath}>
-                <CopyIcon className="mr-2 h-4 w-4" />
-                <span>{t("file.menu.copyFilePath", "Copy file path")}</span>
-              </ContextMenuItem>
-              <ContextMenuItem onClick={openInFileManager}>
-                <FolderOpen className="mr-2 h-4 w-4" />
-                <span>{getRevealText()}</span>
-              </ContextMenuItem>
-            </>
-          )}
 
           {/* Node-specific operations */}
           {node && (

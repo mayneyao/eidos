@@ -148,8 +148,8 @@ export function GlobalSecretsSettings() {
       {/* Header Section */}
       <div className="py-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">
-          <Key className="h-5 w-5 text-zinc-500 dark:text-zinc-400" />
-          <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+          <Key className="h-5 w-5 text-muted-foreground" />
+          <h3 className="text-lg font-semibold tracking-tight text-foreground">
             {t("settings.secrets.title", "Secrets Store")}
           </h3>
         </div>
@@ -157,7 +157,7 @@ export function GlobalSecretsSettings() {
           <Button
             size="sm"
             variant="outline"
-            className="h-8 text-xs shrink-0 font-medium transition-all hover:bg-zinc-50 dark:hover:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
+            className="h-8 text-xs shrink-0 font-medium transition-all"
             onClick={() => {
               setIsAdding(true)
               setEditingKey(null)
@@ -165,7 +165,7 @@ export function GlobalSecretsSettings() {
               setNewValue("")
             }}
           >
-            <Plus className="mr-1.5 h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
+            <Plus className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
             {t("settings.secrets.addSecret", "Add Secret Key")}
           </Button>
         )}
@@ -183,15 +183,15 @@ export function GlobalSecretsSettings() {
         </p>
       </div>
 
-      {/* Add / Edit Form Card (Option A: Displayed above the table list) */}
+      {/* Add / Edit Form Card */}
       {(isAdding || editingKey) && (
         <div className="py-4 mb-6">
-          <div className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 space-y-4 max-w-2xl transition-all shadow-sm">
+          <div className="p-5 rounded-xl border border-border bg-muted/30 space-y-4 max-w-2xl transition-all">
             <div className="flex items-center gap-2">
-              <div className="h-6 w-6 rounded-md bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center border border-zinc-200 dark:border-zinc-800">
-                <Key className="h-3.5 w-3.5 text-zinc-500" />
+              <div className="h-6 w-6 rounded-md bg-muted flex items-center justify-center border border-border">
+                <Key className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
-              <h4 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+              <h4 className="text-sm font-semibold tracking-tight text-foreground">
                 {editingKey
                   ? t("settings.secrets.editSecret", "Edit Secret Key")
                   : t(
@@ -205,7 +205,7 @@ export function GlobalSecretsSettings() {
               <div className="space-y-1.5">
                 <Label
                   htmlFor="secret-key"
-                  className="text-xs font-medium text-zinc-600 dark:text-zinc-400"
+                  className="text-xs font-medium text-muted-foreground"
                 >
                   {t("settings.secrets.keyLabelShort", "Key")}
                 </Label>
@@ -214,12 +214,12 @@ export function GlobalSecretsSettings() {
                   placeholder="e.g. CUSTOM_API_KEY"
                   value={newKey}
                   onChange={(e) => setNewKey(e.target.value)}
-                  className="h-9 text-xs font-mono focus-visible:ring-1 bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800"
+                  className="h-9 text-xs font-mono focus-visible:ring-1 bg-background border-border"
                   disabled={!!editingKey}
                   autoFocus={!editingKey}
                 />
                 {!editingKey && (
-                  <p className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-normal">
+                  <p className="text-[10px] text-muted-foreground/60 leading-normal">
                     {t(
                       "settings.secrets.keyLabel",
                       "Key (uppercase, snake_case recommended)"
@@ -230,7 +230,7 @@ export function GlobalSecretsSettings() {
               <div className="space-y-1.5">
                 <Label
                   htmlFor="secret-value"
-                  className="text-xs font-medium text-zinc-600 dark:text-zinc-400"
+                  className="text-xs font-medium text-muted-foreground"
                 >
                   {t("settings.secrets.valueLabelShort", "Value")}
                 </Label>
@@ -243,7 +243,7 @@ export function GlobalSecretsSettings() {
                   )}
                   value={newValue}
                   onChange={(e) => setNewValue(e.target.value)}
-                  className="h-9 text-xs font-mono focus-visible:ring-1 bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800"
+                  className="h-9 text-xs font-mono focus-visible:ring-1 bg-background border-border"
                   autoFocus={!!editingKey}
                 />
               </div>
@@ -252,7 +252,7 @@ export function GlobalSecretsSettings() {
             <div className="flex items-center gap-2 pt-2">
               <Button
                 size="sm"
-                className="h-8 px-3 text-xs font-medium shadow-sm transition-all"
+                className="h-8 px-3 text-xs font-medium transition-all"
                 onClick={
                   editingKey ? () => handleEditSave(editingKey) : handleAdd
                 }
@@ -264,7 +264,7 @@ export function GlobalSecretsSettings() {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-8 px-3 text-xs font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+                className="h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground"
                 onClick={handleCancel}
               >
                 {t("settings.secrets.cancel", "Cancel")}
@@ -277,11 +277,11 @@ export function GlobalSecretsSettings() {
       {/* Secrets List / Table */}
       <div className="py-2">
         {secretList.length === 0 ? (
-          <div className="p-10 text-center border border-dashed rounded-xl bg-zinc-50/30 dark:bg-zinc-900/10 border-zinc-200 dark:border-zinc-800/80 transition-all">
-            <div className="h-10 w-10 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center mx-auto mb-3">
-              <Lock className="h-5 w-5 text-zinc-400 dark:text-zinc-500" />
+          <div className="p-10 text-center border border-dashed rounded-xl bg-muted/10 border-border transition-all">
+            <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+              <Lock className="h-5 w-5 text-muted-foreground" />
             </div>
-            <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-4">
+            <p className="text-sm font-medium text-muted-foreground mb-4">
               {t("settings.secrets.noSecrets", "No sensitive keys configured")}
             </p>
             {!isAdding && !editingKey && (
@@ -297,11 +297,11 @@ export function GlobalSecretsSettings() {
             )}
           </div>
         ) : (
-          <div className="overflow-hidden border border-zinc-200 dark:border-zinc-800/80 rounded-xl bg-white dark:bg-zinc-950 shadow-sm">
+          <div className="overflow-hidden border border-border rounded-xl bg-card">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse table-fixed min-w-[600px]">
                 <thead>
-                  <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/40">
+                  <tr className="border-b border-border bg-muted/40">
                     <th className="p-3.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-[240px] select-none">
                       {t("settings.secrets.keyLabelShort", "Key")}
                     </th>
@@ -316,22 +316,20 @@ export function GlobalSecretsSettings() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
+                <tbody className="divide-y divide-border">
                   {secretList.map(([key, val]) => {
                     const isBeingEdited = editingKey === key
                     return (
                       <tr
                         key={key}
                         className={`transition-colors duration-150 h-[52px] ${
-                          isBeingEdited
-                            ? "bg-zinc-50/70 dark:bg-zinc-900/30"
-                            : "hover:bg-zinc-50/30 dark:hover:bg-zinc-900/10"
+                          isBeingEdited ? "bg-muted/30" : "hover:bg-muted/10"
                         }`}
                       >
                         {/* Key Column */}
                         <td className="p-3.5 align-middle truncate">
                           <span
-                            className="font-mono text-sm font-semibold select-all text-zinc-900 dark:text-zinc-100 block truncate"
+                            className="font-mono text-sm font-semibold select-all text-foreground block truncate"
                             title={key}
                           >
                             {key}
@@ -344,15 +342,15 @@ export function GlobalSecretsSettings() {
                             <span
                               className={`font-mono text-xs truncate block select-none ${
                                 revealedKeys[key]
-                                  ? "text-zinc-800 dark:text-zinc-200 select-all"
-                                  : "text-zinc-400 dark:text-zinc-600 font-semibold"
+                                  ? "text-foreground select-all"
+                                  : "text-muted-foreground/60 font-semibold"
                               }`}
                             >
                               {revealedKeys[key] ? val : "••••••••••••••••"}
                             </span>
                             <button
                               onClick={() => toggleReveal(key)}
-                              className="text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-300 transition-colors p-1 shrink-0 rounded hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                              className="text-muted-foreground hover:text-foreground transition-colors p-1 shrink-0 rounded hover:bg-muted"
                               title={
                                 revealedKeys[key]
                                   ? t("common.hide", "Hide")
@@ -372,7 +370,7 @@ export function GlobalSecretsSettings() {
                         <td className="p-3.5 align-middle">
                           <Badge
                             variant="outline"
-                            className="text-[9px] tracking-wide py-0.5 px-1.5 bg-zinc-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 select-none shrink-0 inline-block font-mono"
+                            className="text-[9px] tracking-wide py-0.5 px-1.5 bg-muted text-muted-foreground border-border select-none shrink-0 inline-block font-mono"
                           >
                             ENV_VAR
                           </Badge>
@@ -384,10 +382,8 @@ export function GlobalSecretsSettings() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className={`h-8 w-8 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 shrink-0 rounded-md transition-colors ${
-                                isBeingEdited
-                                  ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
-                                  : ""
+                              className={`h-8 w-8 text-muted-foreground hover:text-foreground shrink-0 rounded-md transition-colors ${
+                                isBeingEdited ? "bg-muted text-foreground" : ""
                               }`}
                               onClick={() => startEdit(key, val)}
                               title={t("common.edit", "Edit")}
@@ -397,7 +393,7 @@ export function GlobalSecretsSettings() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-zinc-400 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 shrink-0 rounded-md transition-colors"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 dark:hover:bg-destructive/20 shrink-0 rounded-md transition-colors"
                               onClick={() => handleDelete(key)}
                               title={t("common.delete", "Delete")}
                             >

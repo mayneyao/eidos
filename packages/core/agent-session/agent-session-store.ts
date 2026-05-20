@@ -309,6 +309,18 @@ export class AgentSessionStore {
   }
 
   /**
+   * Load raw JSONL content as a string.
+   */
+  async loadRawJsonl(sessionId: string): Promise<string | null> {
+    try {
+      const content = await this.readFile(this.getJsonlPath(sessionId))
+      return content || null
+    } catch {
+      return null
+    }
+  }
+
+  /**
    * List all session metadata (reads history.jsonl index).
    */
   async listMeta(): Promise<SessionMeta[]> {

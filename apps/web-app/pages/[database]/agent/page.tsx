@@ -21,11 +21,43 @@ import { useToast } from "@/components/ui/use-toast"
 import { AgentGoalInput } from "@/components/ai-agent/agent-goal-input"
 import { AgentChatArea } from "@/components/ai-agent/agent-chat-area"
 import { AgentSessionContext } from "@/components/ai-agent/agent-context"
+import { useRegisterTabContextMenuItem } from "@/hooks/use-tab-context-menu-registry"
+import { CopyIcon } from "lucide-react"
 
 export default function AgentPage() {
   const { space } = useCurrentPathInfo()
   const { params, navigate } = useRouterAdapter()
   const routeSessionId = params.sessionId
+
+  const { toast } = useToast()
+  const handleCopySessionJsonl = useCallback(async () => {
+    if (!routeSessionId) return
+    try {
+      const res = await fetch(
+        `/api/agent/sessions/${encodeURIComponent(routeSessionId)}/raw`
+      )
+      if (!res.ok) {
+        toast({ title: "Failed to load session", variant: "destructive" })
+        return
+      }
+      const text = await res.text()
+      await navigator.clipboard.writeText(text)
+      toast({ title: "Copied session JSONL" })
+    } catch (error) {
+      toast({
+        title: "Failed to copy session",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      })
+    }
+  }, [routeSessionId, toast])
+
+  useRegisterTabContextMenuItem("/agent", {
+    id: "copy-jsonl",
+    label: "Copy session JSONL",
+    Icon: CopyIcon,
+    onClick: handleCopySessionJsonl,
+  })
 
   useEffect(() => {
     if (!routeSessionId) {
