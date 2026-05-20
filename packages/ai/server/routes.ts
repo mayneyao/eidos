@@ -23,6 +23,7 @@ import { extractSpace } from "./utils"
 import { handleAgentApi, type IAgentData } from "./agent-api"
 import { handleChatApi, type IChatData } from "./chat-api"
 import { initSkillToolkit, getSkillMetas } from "./skills"
+import type { PermissionServerLike } from "../permission"
 
 export function createAgentMiddleware(options: {
   getDataspace: (space: string) => Promise<DataSpace | null>
@@ -33,6 +34,7 @@ export function createAgentMiddleware(options: {
     warn: (...args: any[]) => void
     error: (...args: any[]) => void
   }
+  permissionServer?: PermissionServerLike
 }) {
   const app = new Hono()
   const log = options.logger ?? console
@@ -157,9 +159,9 @@ export function createAgentMiddleware(options: {
       space: space ?? "",
       createdAt: existing?.createdAt ?? new Date().toISOString(),
       completedAt: new Date().toISOString(),
-      maxSteps: body.maxSteps ?? 10,
       parentId: existing?.parentId,
       forkedMessageId: existing?.forkedMessageId,
+      permissions: body.permissions ?? existing?.permissions,
     })
 
     if (body.messages) {
@@ -167,6 +169,46 @@ export function createAgentMiddleware(options: {
     }
 
     return c.json({ success: true })
+  }
+
+  const handlePermissionRequest = async (c: any) => {
+    const space = extractSpace(c)
+    const id = c.req.param("id")
+    const body = await c.req.json()
+    const { toolName, allowed } = body
+
+    if (!space || !id || !toolName) {
+      return c.json({ error: "space, id, and toolName are required" }, 400)
+    }
+
+    const dataspace = await options.getDataspace(space)
+    if (!dataspace) {
+      return c.json({ error: "space not found" }, 404)
+    }
+
+    const store = new AgentSessionStore(dataspace)
+    await store.setPermission(id, toolName, allowed)
+
+    return c.json({ success: true })
+  }
+
+  const handleGetPermissionsRequest = async (c: any) => {
+    const space = extractSpace(c)
+    const id = c.req.param("id")
+
+    if (!space || !id) {
+      return c.json({ error: "space and id are required" }, 400)
+    }
+
+    const dataspace = await options.getDataspace(space)
+    if (!dataspace) {
+      return c.json({ error: "space not found" }, 404)
+    }
+
+    const store = new AgentSessionStore(dataspace)
+    const permissions = await store.getPermissions(id)
+
+    return c.json({ permissions })
   }
 
   // Lightweight chat endpoint for editor AI tools and other non-agent callers.
@@ -318,6 +360,7 @@ export function createAgentMiddleware(options: {
   })
 
   // Handle GET requests
+  app.get("/api/agent/sessions/:id/permissions", handleGetPermissionsRequest)
   app.get("/api/agent/sessions/:id?", handleGetRequest)
 
   // Fork a session at a specific message
@@ -357,6 +400,7 @@ export function createAgentMiddleware(options: {
 
   // Handle POST requests
   app.post("/api/agent/sessions/:id/save", handleSaveRequest)
+  app.post("/api/agent/sessions/:id/permission", handlePermissionRequest)
   app.post("/api/agent/sessions", handlePostRequest)
 
   // Handle DELETE requests

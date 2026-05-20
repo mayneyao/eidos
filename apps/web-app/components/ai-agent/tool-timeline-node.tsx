@@ -42,15 +42,15 @@ export function ToolTimelineNode({ tool }: { tool: ToolCallData }) {
           onClick={() => {
             if (!config.isWasmInteractive) setExpanded(!expanded)
           }}
-          className={`flex items-center gap-2 text-[13px] leading-normal font-normal text-left w-fit select-none ${config.isWasmInteractive ? "cursor-default" : ""}`}
+          className={`flex items-center gap-2 text-[13px] leading-normal font-normal text-left w-full select-none ${config.isWasmInteractive ? "cursor-default" : ""}`}
         >
           <span
-            className={`text-zinc-700 dark:text-zinc-200 font-medium ${!config.isWasmInteractive ? "hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer" : ""}`}
+            className={`text-zinc-700 dark:text-zinc-200 font-medium flex-shrink-0 ${!config.isWasmInteractive ? "hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer" : ""}`}
           >
             {displayName}
           </span>
           {subtitle && (
-            <span className="text-zinc-400 dark:text-zinc-500 font-mono text-[12px] truncate max-w-[550px]">
+            <span className="text-zinc-400 dark:text-zinc-500 font-mono text-[12px] truncate min-w-0">
               {subtitle}
             </span>
           )}

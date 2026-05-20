@@ -22,6 +22,13 @@ import {
 } from "../tools"
 import { AgentContext } from "./agent-context"
 import { buildProviderOptions, resolveProviderForModel } from "./model"
+import { withPermission, type PermissionServerLike } from "../permission"
+import { BashTransformPipeline, CommandCollectorPlugin } from "just-bash"
+
+// Singleton pipeline for parsing bash commands and collecting command names
+const bashParsePipeline = new BashTransformPipeline().use(
+  new CommandCollectorPlugin()
+)
 
 export interface IAgentData {
   goal: string
@@ -33,7 +40,6 @@ export interface IAgentData {
   space?: string
   id: string
   tools?: Record<string, unknown>
-  maxSteps?: number
   thinking?: "off" | "low" | "medium" | "high"
   skills?: string[]
 }
@@ -77,7 +83,6 @@ export interface PreparedAgent {
   id: string
   modelAndProvider: string
   space: string
-  maxSteps: number
   createdAt: string
   existingMeta: any
   messages: UIMessage[]
@@ -94,6 +99,7 @@ export interface AgentContextOptions {
     warn: (...args: any[]) => void
     error: (...args: any[]) => void
   }
+  permissionServer?: PermissionServerLike
 }
 
 /**
@@ -112,7 +118,6 @@ export async function prepareAgent(
     space,
     id,
     tools,
-    maxSteps = 100,
     thinking,
     skills,
   } = data
@@ -127,7 +132,6 @@ export async function prepareAgent(
     space,
     messageCount: messages.length,
     toolCount: Object.keys(tools ?? {}).length,
-    maxSteps,
   })
 
   const { modelId, provider, providerType } = resolveProviderForModel(
@@ -171,13 +175,111 @@ export async function prepareAgent(
     fsTools = createFileTools(fs)
   }
 
-  const mergedTools = {
+  const mergedTools: Record<string, any> = {
     ...serverTools,
     "web-search": createWebSearchTool(aiConfig?.exaApiKey),
     ...fsTools,
     ...bashWithDs,
     ...(agentCtx.skillTool ?? {}),
     ...(tools ?? {}),
+  }
+
+  // When a permission server is available (desktop mode), wrap write/edit/bash tools
+  // so they require user permission before executing.
+  const permissionServer = ctx?.permissionServer
+  if (permissionServer) {
+    if (mergedTools["file-write"]) {
+      mergedTools["file-write"] = withPermission(mergedTools["file-write"], {
+        toolName: "file-write",
+        sessionId: id,
+        permissionServer,
+      })
+    }
+    if (mergedTools["file-edit"]) {
+      mergedTools["file-edit"] = withPermission(mergedTools["file-edit"], {
+        toolName: "file-edit",
+        sessionId: id,
+        permissionServer,
+      })
+    }
+    if (mergedTools.bash) {
+      mergedTools.bash = withPermission(mergedTools.bash, {
+        toolName: "bash",
+        sessionId: id,
+        permissionServer,
+        requiresPermission: (input: any) => {
+          const cmd = (input?.command ?? "") as string
+          if (!cmd.trim()) return false
+
+          // Check for redirect or pipe to dataspace paths
+          // These write to protected mounts regardless of command name
+          const mountPattern =
+            /(?:>|>>)\s*['"]?\/(?:dataspace|journals|extensions|skills)\//
+          const teeToPath =
+            /\btee\s+['"]?\/(?:dataspace|journals|extensions|skills)\//
+          if (mountPattern.test(cmd) || teeToPath.test(cmd)) {
+            return "bash:redirect"
+          }
+
+          // Parse command with AST-based parser to extract actual command names
+          let commands: string[] = []
+          try {
+            const result = bashParsePipeline.transform(cmd)
+            commands = ((result.metadata as any).commands as string[]) ?? []
+          } catch {
+            // If AST parsing fails, fall back to requiring permission
+            return true
+          }
+
+          // Commands that are always read-only (safe to skip approval)
+          const safeCommands = new Set([
+            "ls",
+            "cat",
+            "head",
+            "tail",
+            "rg",
+            "grep",
+            "find",
+            "wc",
+            "sort",
+            "cd",
+            "pwd",
+            "echo",
+            "printf",
+          ])
+
+          // If any command is NOT safe, require permission with a cache key prefix
+          for (const cmdName of commands) {
+            if (safeCommands.has(cmdName)) continue
+            // Special case: eidos subcommands can be read-only
+            if (
+              cmdName === "eidos" &&
+              /^eidos\s+(record\s+query|view(?!.*update|.*delete))\b/.test(cmd)
+            )
+              continue
+
+            // Build cache key like "bash:eidos record update" or "bash:rm"
+            // Extract subcommand prefix: positional args that don't start with -
+            const parts = cmd.trim().split(/\s+/)
+            const idx = parts.indexOf(cmdName)
+            if (idx === -1) return `bash:${cmdName}`
+
+            const subs: string[] = []
+            for (let i = idx + 1; i < parts.length; i++) {
+              const p = parts[i]
+              if (p.startsWith("-") || p.startsWith("{") || /^["']/.test(p))
+                break
+              if (subs.length >= 2) break
+              subs.push(p)
+            }
+            return subs.length > 0
+              ? `bash:${cmdName} ${subs.join(" ")}`
+              : `bash:${cmdName}`
+          }
+          return false
+        },
+      })
+    }
   }
 
   log.info("[agent] ▶ tools merged", {
@@ -195,7 +297,7 @@ export async function prepareAgent(
     }),
     instructions: agentCtx.buildInstructions(),
     tools: mergedTools as Record<string, any>,
-    stopWhen: stepCountIs(maxSteps),
+    stopWhen: stepCountIs(100),
     ...(providerOptions ? { providerOptions } : {}),
   })
 
@@ -212,9 +314,9 @@ export async function prepareAgent(
       model: modelAndProvider,
       space: space ?? "",
       createdAt,
-      maxSteps,
       parentId: existingMeta?.parentId,
       forkedMessageId: existingMeta?.forkedMessageId,
+      permissions: existingMeta?.permissions,
     })
     // Persist the latest user message so it's not lost if the stream crashes
     const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
@@ -229,7 +331,6 @@ export async function prepareAgent(
     id,
     modelAndProvider,
     space: space ?? "",
-    maxSteps,
     createdAt,
     existingMeta,
     messages,
@@ -253,7 +354,6 @@ export async function handleAgentApi(
     id,
     modelAndProvider,
     space,
-    maxSteps,
     createdAt,
     existingMeta,
     messages,
@@ -324,6 +424,8 @@ export async function handleAgentApi(
         if (remaining.length > 0) {
           await store.appendStepMessage(id, msgId, remaining)
         }
+        // Persist step parts and preserve existing permissions
+        const savedMeta = await store.loadMeta(id)
         await store.saveMeta(id, {
           id,
           goal: sessionGoal,
@@ -331,9 +433,9 @@ export async function handleAgentApi(
           space: space ?? "",
           createdAt,
           completedAt: new Date().toISOString(),
-          maxSteps,
-          parentId: existingMeta?.parentId,
-          forkedMessageId: existingMeta?.forkedMessageId,
+          parentId: savedMeta?.parentId,
+          forkedMessageId: savedMeta?.forkedMessageId,
+          permissions: savedMeta?.permissions,
         })
       } catch (err) {
         log.error("[agent] ✖ onFinish error", {

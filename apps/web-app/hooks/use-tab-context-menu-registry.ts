@@ -17,22 +17,31 @@ const useStore = create<Store>(() => ({
   itemsByUrl: {},
 }))
 
+let regCounter = 0
+
 export function useRegisterTabContextMenuItem(
   urlMatcher: string,
   item: TabContextMenuItem
 ) {
   const itemRef = useRef(item)
   itemRef.current = item
+  const regId = useRef(++regCounter).current
 
   useEffect(() => {
     const stableItem = {
       ...itemRef.current,
+      // Attach a unique registration id so multiple tabs
+      // with the same urlMatcher+id don't collide.
+      __regId: regId,
       onClick: () => itemRef.current.onClick?.(),
     }
 
     const state = useStore.getState()
     const existing = state.itemsByUrl[urlMatcher] || []
-    const filtered = existing.filter((i) => i.id !== stableItem.id)
+    // Replace any previous registration with the same regId
+    // (React StrictMode double-render creates two effects for the same regId)
+    const filtered = existing.filter((i: any) => i.__regId !== regId)
+
     useStore.setState({
       itemsByUrl: {
         ...state.itemsByUrl,
@@ -43,7 +52,8 @@ export function useRegisterTabContextMenuItem(
     return () => {
       const s = useStore.getState()
       const current = s.itemsByUrl[urlMatcher] || []
-      const remaining = current.filter((i) => i.id !== stableItem.id)
+      // Remove only our own registration, not other tabs' items with the same id
+      const remaining = current.filter((i: any) => i.__regId !== regId)
       useStore.setState({
         itemsByUrl: {
           ...s.itemsByUrl,

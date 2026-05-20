@@ -45,16 +45,15 @@
     "@eidos.space/just-bash": "^3.0.4",
     "just-bash": "npm:@eidos.space/just-bash@^3.0.4",
     "linkedom": "^0.18.12",
-    "openai": "^4.104.0"
+    "openai": "^4.104.0",
+    "ws": "^8.18.2"
   },
   "peerDependencies": {
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.4.1",
+    "@types/ws": "^8.5.10",
     "typescript": "^5.3.3"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  }
 }

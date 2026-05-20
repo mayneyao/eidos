@@ -224,7 +224,6 @@ export class ChannelService {
       model,
       space,
       id: sessionId,
-      maxSteps: 100,
     }
 
     const abortController = new AbortController()
@@ -319,7 +318,6 @@ export class ChannelService {
       sessionGoal: string
       modelAndProvider: string
       space: string
-      maxSteps: number
       createdAt: string
       existingMeta: any
       messages: UIMessage[]
@@ -331,7 +329,6 @@ export class ChannelService {
       sessionGoal,
       modelAndProvider,
       space,
-      maxSteps,
       createdAt,
       existingMeta,
       messages,
@@ -345,7 +342,6 @@ export class ChannelService {
         space,
         createdAt,
         completedAt: new Date().toISOString(),
-        maxSteps,
         parentId: existingMeta?.parentId,
         forkedMessageId: existingMeta?.forkedMessageId,
       })

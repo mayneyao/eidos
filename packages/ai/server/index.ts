@@ -7,3 +7,12 @@ export {
   type PreparedAgent,
   type AgentContextOptions,
 } from "./agent-api"
+export {
+  PermissionServer,
+  withPermission,
+  type PermissionDecision,
+  type PermissionStore,
+  type PermissionServerLike,
+  type WithPermissionOptions,
+  type RequirePermissionFn,
+} from "../permission"

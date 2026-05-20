@@ -13,6 +13,7 @@ import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import { useAgentSession } from "./agent-context"
 import { ContextPopover, type ContextItem } from "./context-popover"
 import { useTriggerState } from "./hooks"
+import { PermissionBanner, usePermissionContext } from "@/components/permission"
 import { ItemIcon } from "../sidebar/nodes"
 
 interface SkillMeta {
@@ -59,6 +60,9 @@ export function AgentGoalInput({
   } = useTriggerState()
 
   const [isDragOver, setIsDragOver] = useState(false)
+
+  const { permissionRequests } = usePermissionContext()
+  const pendingCount = permissionRequests.length
 
   // Reset active index when filter query changes
   useEffect(() => {
@@ -366,6 +370,11 @@ export function AgentGoalInput({
           triggerState.type === "skill" ? "No skills found." : "No nodes found."
         }
       />
+      {pendingCount > 0 && (
+        <div className="pb-2">
+          <PermissionBanner />
+        </div>
+      )}
       <div
         ref={containerRef}
         onDragOver={handleDragOver}
@@ -386,6 +395,11 @@ export function AgentGoalInput({
             onChange={(e) => {
               const newValue = e.target.value
               setGoalInput(newValue)
+
+              // Auto-resize textarea
+              const el = e.target
+              el.style.height = "auto"
+              el.style.height = Math.min(el.scrollHeight, 200) + "px"
 
               // Detect $ or @ trigger
               const cursorPos = e.target.selectionStart
@@ -427,7 +441,8 @@ export function AgentGoalInput({
             }}
             onKeyDown={handleKeyDown}
             placeholder={t("agent.inputPlaceholder")}
-            className="min-h-[36px] w-full resize-none bg-transparent px-2 pt-1 text-[13px] leading-normal placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none"
+            className="min-h-[36px] w-full resize-none bg-transparent px-2 pt-1 text-[13px] leading-normal placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none overflow-y-auto"
+            style={{ maxHeight: "200px" }}
             autoFocus
           />
           <div className="flex items-center justify-between px-1.5 mt-1.5">

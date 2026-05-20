@@ -8,9 +8,9 @@ export interface AgentSession {
   space: string
   createdAt: string
   completedAt?: string
-  maxSteps: number
   parentId?: string
   forkedMessageId?: string
+  permissions?: Record<string, boolean>
 }
 
 type SessionMeta = AgentSession
@@ -54,7 +54,6 @@ function toHistoryEntry(
     space: meta.space ?? "",
     createdAt: meta.createdAt ?? "1970-01-01T00:00:00.000Z",
     completedAt: meta.completedAt,
-    maxSteps: meta.maxSteps ?? 0,
     parentId: meta.parentId,
     forkedMessageId: meta.forkedMessageId,
   }
@@ -267,6 +266,36 @@ export class AgentSessionStore {
     await this.appendFile(path, line + "\n")
   }
 
+  /**
+   * Load session permissions from meta.json
+   */
+  async getPermissions(sessionId: string): Promise<Record<string, boolean>> {
+    const meta = await this.loadMeta(sessionId)
+    return meta?.permissions ?? {}
+  }
+
+  /**
+   * Set a single permission and persist to meta.json
+   */
+  async setPermission(
+    sessionId: string,
+    toolName: string,
+    allowed: boolean
+  ): Promise<void> {
+    let meta = await this.loadMeta(sessionId)
+    if (!meta) {
+      meta = {
+        id: sessionId,
+        goal: "",
+        model: "",
+        space: "",
+        createdAt: new Date().toISOString(),
+      }
+    }
+    const permissions = { ...(meta.permissions ?? {}), [toolName]: allowed }
+    await this.saveMeta(sessionId, { ...meta, permissions })
+  }
+
   // ── Load ──────────────────────────────────────────────
 
   /**
@@ -450,7 +479,6 @@ export class AgentSessionStore {
       space: meta.space,
       createdAt: now,
       completedAt: now,
-      maxSteps: meta.maxSteps,
       parentId: sourceSessionId,
       forkedMessageId: targetMessageId,
     })

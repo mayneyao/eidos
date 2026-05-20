@@ -21,8 +21,9 @@ import { useToast } from "@/components/ui/use-toast"
 import { AgentGoalInput } from "@/components/ai-agent/agent-goal-input"
 import { AgentChatArea } from "@/components/ai-agent/agent-chat-area"
 import { AgentSessionContext } from "@/components/ai-agent/agent-context"
+import { PermissionProvider } from "@/components/permission"
 import { useRegisterTabContextMenuItem } from "@/hooks/use-tab-context-menu-registry"
-import { CopyIcon } from "lucide-react"
+import { CopyIcon, ExternalLink } from "lucide-react"
 
 export default function AgentPage() {
   const { space } = useCurrentPathInfo()
@@ -57,6 +58,21 @@ export default function AgentPage() {
     label: "Copy session JSONL",
     Icon: CopyIcon,
     onClick: handleCopySessionJsonl,
+  })
+
+  const handleOpenJsonlInEditor = useCallback(() => {
+    if (!routeSessionId) return
+    navigate(
+      `/file-handler?handler=builtin-monaco-editor&builtin=true#~/.eidos/agent/sessions/${encodeURIComponent(routeSessionId)}.jsonl`,
+      { target: "_blank" }
+    )
+  }, [routeSessionId, navigate])
+
+  useRegisterTabContextMenuItem("/agent", {
+    id: "open-jsonl",
+    label: "Open raw JSONL",
+    Icon: ExternalLink,
+    onClick: handleOpenJsonlInEditor,
   })
 
   useEffect(() => {
@@ -309,7 +325,6 @@ function AgentPageContent({
               model,
               id: sessionId,
               space,
-              maxSteps: 100,
               thinking: thinkingLevel,
               skills: selectedSkills,
             },
@@ -357,53 +372,56 @@ function AgentPageContent({
 
   return (
     <AgentSessionContext.Provider value={contextValue}>
-      <div className="flex h-full flex-col bg-background overflow-hidden relative">
-        <div className="flex-1 relative w-full min-h-0">
-          <div
-            id="agent-chat-scroll-container"
-            className="h-full overflow-auto min-h-0 focus:outline-none"
-            tabIndex={-1}
-          >
-            <div className="max-w-3xl mx-auto w-full px-6 py-4 pb-64">
-              {displayMessages.length > 0 ? (
-                <AgentChatArea
-                  messages={displayMessages as any}
-                  messagesEndRef={messagesEndRef}
-                  onFork={handleFork}
-                  parentId={forkInfo?.parentId}
-                  forkedMessageId={forkInfo?.forkedMessageId}
-                  isRunning={isRunning}
-                  error={error}
-                />
-              ) : (
-                !isSwitching && (
-                  <div className="flex flex-col items-center justify-center min-h-[400px] text-center gap-4">
-                    <h2 className="text-2xl font-semibold">AI Agent</h2>
-                    <p className="text-muted-foreground max-w-md">
-                      Describe what you want the Agent to do. It will plan and
-                      execute the steps autonomously using the available tools.
-                    </p>
-                  </div>
-                )
-              )}
-              <div className="h-4" />
+      <PermissionProvider sessionId={routeSessionId || ""}>
+        <div className="flex h-full flex-col bg-sidebar overflow-hidden relative">
+          <div className="flex-1 relative w-full min-h-0">
+            <div
+              id="agent-chat-scroll-container"
+              className="h-full overflow-auto min-h-0 focus:outline-none"
+              tabIndex={-1}
+            >
+              <div className="max-w-3xl mx-auto w-full px-6 py-4 pb-64">
+                {displayMessages.length > 0 ? (
+                  <AgentChatArea
+                    messages={displayMessages as any}
+                    messagesEndRef={messagesEndRef}
+                    onFork={handleFork}
+                    parentId={forkInfo?.parentId}
+                    forkedMessageId={forkInfo?.forkedMessageId}
+                    isRunning={isRunning}
+                    error={error}
+                  />
+                ) : (
+                  !isSwitching && (
+                    <div className="flex flex-col items-center justify-center min-h-[400px] text-center gap-4">
+                      <h2 className="text-2xl font-semibold">AI Agent</h2>
+                      <p className="text-muted-foreground max-w-md">
+                        Describe what you want the Agent to do. It will plan and
+                        execute the steps autonomously using the available
+                        tools.
+                      </p>
+                    </div>
+                  )
+                )}
+                <div className="h-4" />
+              </div>
             </div>
-          </div>
 
-          {/* Floating Input Component */}
-          <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none p-6 sm:p-10">
-            <div className="max-w-3xl mx-auto w-full pointer-events-auto">
-              <AgentGoalInput
-                onSubmit={handleSubmit}
-                isRunning={isRunning}
-                onStop={handleStop}
-                selectedSkills={selectedSkills}
-                onSelectedSkillsChange={setSelectedSkills}
-              />
+            {/* Floating Input Component */}
+            <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none p-6 sm:p-10">
+              <div className="max-w-3xl mx-auto w-full pointer-events-auto">
+                <AgentGoalInput
+                  onSubmit={handleSubmit}
+                  isRunning={isRunning}
+                  onStop={handleStop}
+                  selectedSkills={selectedSkills}
+                  onSelectedSkillsChange={setSelectedSkills}
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </PermissionProvider>
     </AgentSessionContext.Provider>
   )
 }
