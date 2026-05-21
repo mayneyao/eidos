@@ -15,6 +15,7 @@ import {
   Globe,
   MessageCircle,
   ThumbsUp,
+  X,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -56,7 +57,7 @@ import { toast } from "@/components/ui/use-toast"
 import { useAIConfigStore } from "@/components/settings/stores"
 import { isDesktopMode } from "@/lib/env"
 
-import { AIProviderModal } from "./ai/ai-provider-modal"
+import { AIProviderForm } from "./ai/ai-provider-form"
 import { AITaskConfigForm } from "./ai/ai-task-form"
 import ProviderIcon from "./ai/provider-icon"
 
@@ -71,18 +72,16 @@ export function GlobalAISettings() {
   const { t } = useTranslation()
   const { aiConfig, addLLMProvider, updateLLMProvider, removeLLMProvider } =
     useAIConfigStore()
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [showProviderForm, setShowProviderForm] = useState(false)
   const [editingProvider, setEditingProvider] = useState<
     LLMProvider | undefined
   >()
   const [defaultProviderValues, setDefaultProviderValues] = useState<
     Partial<LLMProvider> | undefined
   >()
-  const [selectedProviderType, setSelectedProviderType] = useState<
-    LLMProviderType | undefined
-  >()
   const [isFormDirty, setIsFormDirty] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [addPopoverOpen, setAddPopoverOpen] = useState(false)
   const [providerToDelete, setProviderToDelete] = useState<string | null>(null)
   const [spaceList, setSpaceList] = useState<{ id: string; name: string }[]>([])
 
@@ -141,7 +140,7 @@ export function GlobalAISettings() {
       count++
     }
 
-    setSelectedProviderType(providerType)
+    setEditingProvider(undefined)
     setDefaultProviderValues({
       type: providerType,
       name: newProviderName,
@@ -151,25 +150,22 @@ export function GlobalAISettings() {
       apiVersion: "chat",
       enabled: true,
     })
-    setIsModalOpen(true)
+    setShowProviderForm(true)
   }
 
   const handleEditProvider = (provider: LLMProvider) => {
     setEditingProvider(provider)
     setDefaultProviderValues(undefined)
-    setSelectedProviderType(undefined)
-    setIsModalOpen(true)
+    setShowProviderForm(true)
   }
 
   const handleSaveProvider = async (provider: LLMProvider) => {
     try {
-      // Check if provider already exists in the config
       const existingProvider = aiConfig.llmProviders.find(
         (p) => p.name === provider.name
       )
 
       if (existingProvider) {
-        // Update existing provider
         updateLLMProvider(provider)
         toast({
           title: t("common.success"),
@@ -178,7 +174,6 @@ export function GlobalAISettings() {
           }),
         })
       } else {
-        // Add new provider
         addLLMProvider(provider)
         toast({
           title: t("common.success"),
@@ -187,6 +182,9 @@ export function GlobalAISettings() {
           }),
         })
       }
+      setShowProviderForm(false)
+      setEditingProvider(undefined)
+      setDefaultProviderValues(undefined)
     } catch (error) {
       toast({
         title: t("common.error"),
@@ -194,6 +192,12 @@ export function GlobalAISettings() {
         variant: "destructive",
       })
     }
+  }
+
+  const handleCancelForm = () => {
+    setShowProviderForm(false)
+    setEditingProvider(undefined)
+    setDefaultProviderValues(undefined)
   }
 
   const handleDeleteProvider = (providerName: string) => {
@@ -224,13 +228,6 @@ export function GlobalAISettings() {
     }
   }
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false)
-    setEditingProvider(undefined)
-    setDefaultProviderValues(undefined)
-    setSelectedProviderType(undefined)
-  }
-
   return (
     <div className="space-y-0">
       {/* Provider Section */}
@@ -239,7 +236,7 @@ export function GlobalAISettings() {
           <Bot className="h-5 w-5 text-muted-foreground" />
           <h3 className="text-lg font-medium">{t("settings.ai.provider")}</h3>
         </div>
-        <Popover>
+        <Popover open={addPopoverOpen} onOpenChange={setAddPopoverOpen}>
           <PopoverTrigger asChild>
             <Button size="sm">
               <Plus className="mr-2 h-4 w-4" />
@@ -259,7 +256,10 @@ export function GlobalAISettings() {
                   {RECOMMENDED_PROVIDERS.map((type) => (
                     <CommandItem
                       key={type}
-                      onSelect={() => handleAddProvider(type)}
+                      onSelect={() => {
+                        handleAddProvider(type)
+                        setAddPopoverOpen(false)
+                      }}
                       disabled={
                         type !== "openai-compatible" &&
                         type !== "ollama" &&
@@ -281,7 +281,10 @@ export function GlobalAISettings() {
                   {regularProviders.map((type) => (
                     <CommandItem
                       key={type}
-                      onSelect={() => handleAddProvider(type)}
+                      onSelect={() => {
+                        handleAddProvider(type)
+                        setAddPopoverOpen(false)
+                      }}
                       disabled={
                         type !== "openai-compatible" &&
                         type !== "ollama" &&
@@ -310,7 +313,36 @@ export function GlobalAISettings() {
             {t("settings.ai.providerDescription")}
           </p>
 
-          {aiConfig.llmProviders.length === 0 ? (
+          {/* Inline provider form */}
+          {showProviderForm && (
+            <div className="rounded-lg border border-primary/30 bg-muted/30 p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-sm font-medium">
+                  {editingProvider
+                    ? t("settings.ai.editProvider")
+                    : t("settings.ai.addProvider")}
+                </h4>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={handleCancelForm}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <AIProviderForm
+                provider={editingProvider}
+                defaultValues={defaultProviderValues}
+                onSave={handleSaveProvider}
+                onCancel={handleCancelForm}
+                existingNames={aiConfig.llmProviders.map((p) => p.name)}
+              />
+            </div>
+          )}
+
+          {/* Provider list (newest first) */}
+          {aiConfig.llmProviders.length === 0 && !showProviderForm ? (
             <div className="p-8 text-center border border-dashed rounded-lg">
               <Bot className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
               <p className="text-muted-foreground mb-1">
@@ -322,7 +354,7 @@ export function GlobalAISettings() {
                   "Add an LLM provider to start using AI features"
                 )}
               </p>
-              <Popover>
+              <Popover open={addPopoverOpen} onOpenChange={setAddPopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Plus className="mr-2 h-4 w-4" />
@@ -348,7 +380,10 @@ export function GlobalAISettings() {
                         {RECOMMENDED_PROVIDERS.map((type) => (
                           <CommandItem
                             key={type}
-                            onSelect={() => handleAddProvider(type)}
+                            onSelect={() => {
+                              handleAddProvider(type)
+                              setAddPopoverOpen(false)
+                            }}
                             disabled={
                               type !== "openai-compatible" &&
                               type !== "ollama" &&
@@ -370,7 +405,10 @@ export function GlobalAISettings() {
                         {regularProviders.map((type) => (
                           <CommandItem
                             key={type}
-                            onSelect={() => handleAddProvider(type)}
+                            onSelect={() => {
+                              handleAddProvider(type)
+                              setAddPopoverOpen(false)
+                            }}
                             disabled={
                               type !== "openai-compatible" &&
                               type !== "ollama" &&
@@ -392,7 +430,7 @@ export function GlobalAISettings() {
             </div>
           ) : (
             <div className="space-y-3">
-              {aiConfig.llmProviders.map((provider) => {
+              {[...aiConfig.llmProviders].reverse().map((provider) => {
                 const models = provider.models
                   ? provider.models.split(",").map((m) => m.trim())
                   : []
@@ -819,16 +857,6 @@ export function GlobalAISettings() {
           </div>
         </div>
       </div>
-
-      {/* Provider Configuration Modal */}
-      <AIProviderModal
-        open={isModalOpen}
-        onOpenChange={handleCloseModal}
-        provider={editingProvider}
-        defaultValues={defaultProviderValues}
-        onSave={handleSaveProvider}
-        existingNames={aiConfig.llmProviders.map((p) => p.name)}
-      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog
