@@ -73,6 +73,7 @@ export const aiFormSchema = z.object({
     .optional(),
   // agent settings
   agentNotificationSound: z.boolean().default(true),
+  agentPermissionBypass: z.boolean().default(false),
 })
 
 export type AIFormValues = z.infer<typeof aiFormSchema>

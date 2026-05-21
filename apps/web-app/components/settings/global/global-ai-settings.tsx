@@ -581,6 +581,27 @@ export function GlobalAISettings() {
               />
             </div>
           </div>
+          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+            <div className="space-y-0.5 flex-1 min-w-0">
+              <label className="text-sm font-medium">
+                {t("settings.ai.agentPermissionBypass")}
+              </label>
+              <p className="text-sm text-muted-foreground">
+                {t("settings.ai.agentPermissionBypassDescription")}
+              </p>
+            </div>
+            <div className="flex-shrink-0">
+              <Switch
+                checked={aiConfig.agentPermissionBypass ?? false}
+                onCheckedChange={(checked) => {
+                  useAIConfigStore.getState().setAiConfig({
+                    ...aiConfig,
+                    agentPermissionBypass: checked,
+                  })
+                }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 

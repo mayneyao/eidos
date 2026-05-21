@@ -713,6 +713,8 @@
   "settings.ai.botStatusStopped": "Bot is stopped",
   "settings.ai.agentNotificationSound": "Task Completion Sound",
   "settings.ai.agentNotificationSoundDescription": "Play a sound when a task is completed",
+  "settings.ai.agentPermissionBypass": "Bypass Permission Approval",
+  "settings.ai.agentPermissionBypassDescription": "Skip permission prompts for file write, edit, and command execution. Use with caution.",
   "settings.api": "API",
   "settings.api.agentUrl": "API Agent URL",
   "settings.api.agentUrlDescription": "The URL of your API Agent.",

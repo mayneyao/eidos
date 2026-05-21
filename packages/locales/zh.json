@@ -712,6 +712,8 @@
   "settings.ai.botStatusStopped": "机器人已停止",
   "settings.ai.agentNotificationSound": "任务完成声音通知",
   "settings.ai.agentNotificationSoundDescription": "任务执行完成时播放提示音",
+  "settings.ai.agentPermissionBypass": "绕过权限审批",
+  "settings.ai.agentPermissionBypassDescription": "跳过文件写入、编辑和命令执行时的权限确认提示，请谨慎使用。",
   "settings.api": "API",
   "settings.api.agentUrl": "API 代理 URL",
   "settings.api.agentUrlDescription": "您的 API 代理的 URL。",

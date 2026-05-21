@@ -39,6 +39,7 @@ export class PermissionServer {
   private wss: WebSocketServer
   private pending = new Map<string, PendingRequest>()
   private sessionPermissions = new Map<string, Map<string, boolean>>()
+  private sessionBypassPermission = new Map<string, boolean>()
   private sessionClients = new Map<string, Set<WebSocket>>()
   private store: PermissionStore | null = null
   private server: HttpServer
@@ -77,6 +78,11 @@ export class PermissionServer {
   }): Promise<{ approved: boolean; reason?: string }> {
     const { sessionId, toolName, toolCallId, input, cacheKey } = params
     const key = cacheKey ?? toolName
+
+    // If permission bypass is enabled for this session, auto-approve
+    if (this.sessionBypassPermission.get(sessionId)) {
+      return { approved: true }
+    }
 
     const sessionPerms = this.sessionPermissions.get(sessionId)
     const saved = sessionPerms?.get(key)
@@ -190,6 +196,12 @@ export class PermissionServer {
           this.handleDecision(msg)
         } else if (msg.type === "set-permissions") {
           this.setSessionPermissions(sessionId, msg.permissions)
+        } else if (msg.type === "set-permission-mode") {
+          if (msg.bypass) {
+            this.sessionBypassPermission.set(sessionId, true)
+          } else {
+            this.sessionBypassPermission.delete(sessionId)
+          }
         }
       } catch (err) {
         console.error("[permission-server] bad message", err)
@@ -202,6 +214,7 @@ export class PermissionServer {
         clients.delete(ws)
         if (clients.size === 0) {
           this.sessionClients.delete(sessionId)
+          this.sessionBypassPermission.delete(sessionId)
         }
       }
     })

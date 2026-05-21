@@ -9,6 +9,8 @@ import {
   useCallback,
 } from "react"
 
+import { useAIConfigStore } from "@/components/settings/stores"
+
 export interface PermissionRequest {
   toolCallId: string
   toolName: string
@@ -48,11 +50,26 @@ export function PermissionProvider({
   const [permissionRequests, setPermissionRequests] = useState<
     PermissionRequest[]
   >([])
+  const bypassEnabled = useAIConfigStore(
+    (s) => s.aiConfig.agentPermissionBypass ?? false
+  )
+  const bypassRef = useRef(bypassEnabled)
+  bypassRef.current = bypassEnabled
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sessionIdRef = useRef(sessionId)
   const cacheKeyByCallId = useRef<Map<string, string>>(new Map())
   sessionIdRef.current = sessionId
+
+  // Sync bypass config changes to PermissionServer via WebSocket
+  useEffect(() => {
+    const ws = wsRef.current
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(
+        JSON.stringify({ type: "set-permission-mode", bypass: bypassEnabled })
+      )
+    }
+  }, [bypassEnabled])
 
   const sendDecision = useCallback(
     (
@@ -111,6 +128,13 @@ export function PermissionProvider({
 
         ws.onopen = () => {
           setPermissionRequests([])
+
+          // Sync bypass permission mode from AI config
+          if (bypassRef.current) {
+            ws.send(
+              JSON.stringify({ type: "set-permission-mode", bypass: true })
+            )
+          }
 
           // Sync saved session permissions to PermissionServer
           fetch(`/api/agent/sessions/${sessionId}/permissions`)

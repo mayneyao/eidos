@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { useCallback, useEffect, useRef, useState, useMemo } from "react"
 
 import { Button } from "@/components/ui/button"
-import { AIModelSelect } from "@/components/ai/ai-model-select"
+import { useAIConfigStore } from "@/components/settings/stores"
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/apps/web-app/store/app-store"
 import { useIsActiveTab } from "@/apps/web-app/hooks/use-is-active-tab"
@@ -51,6 +51,23 @@ export function AgentGoalInput({
     setThinkingLevel,
   } = useAgentSession()
   const { aiModel, setAIModel } = useAppStore()
+  const { aiConfig } = useAIConfigStore()
+
+  const modelsByProvider = useMemo(() => {
+    const providerMap = new Map<string, string[]>()
+    aiConfig.llmProviders
+      .filter((item: any) => item.enabled)
+      .forEach((provider: any) => {
+        const models = provider.models
+          .split(",")
+          .map((m: string) => m.trim())
+          .filter((m: string) => m.length > 0)
+        if (models.length > 0) {
+          providerMap.set(provider.name, models)
+        }
+      })
+    return providerMap
+  }, [aiConfig])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
@@ -473,14 +490,32 @@ export function AgentGoalInput({
           />
           <div className="flex items-center justify-between px-1.5 mt-1.5">
             <div className="flex items-center gap-2">
-              <AIModelSelect
+              <select
                 value={aiModel}
-                onValueChange={setAIModel}
-                noBorder
-                size="sm"
-              />
-            </div>
-            <div className="flex items-center gap-2 select-none">
+                onChange={(e) => setAIModel(e.target.value)}
+                className="h-7 text-[11px] bg-transparent border-none focus:outline-none focus:ring-0 cursor-pointer text-zinc-500 dark:text-zinc-400 appearance-none pr-4 max-w-[160px]"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "right 0 center",
+                }}
+              >
+                <option value="">Select model...</option>
+                {Array.from(modelsByProvider.entries()).map(
+                  ([provider, models]) => (
+                    <optgroup key={provider} label={provider}>
+                      {models.map((model) => (
+                        <option
+                          key={`${model}@${provider}`}
+                          value={`${model}@${provider}`}
+                        >
+                          {model}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )
+                )}
+              </select>
               <div className="flex items-center gap-1">
                 <Brain className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500" />
                 <select
@@ -503,6 +538,8 @@ export function AgentGoalInput({
                   <option value="high">Thinking: high</option>
                 </select>
               </div>
+            </div>
+            <div className="flex items-center gap-2 select-none">
               {isRunning && (
                 <Button
                   variant="outline"
