@@ -23,9 +23,15 @@ export function useRegisterTabContextMenuItem(
   urlMatcher: string,
   item: TabContextMenuItem
 ) {
+  // Use a stable registration id that persists across re-renders and StrictMode
+  const regIdRef = useRef<string | null>(null)
+  if (regIdRef.current === null) {
+    regIdRef.current = `${++regCounter}-${item.id}`
+  }
+  const regId = regIdRef.current
+
   const itemRef = useRef(item)
   itemRef.current = item
-  const regId = useRef(++regCounter).current
 
   useEffect(() => {
     const stableItem = {
@@ -61,15 +67,33 @@ export function useRegisterTabContextMenuItem(
         },
       })
     }
-  }, [urlMatcher])
+  }, [urlMatcher, regId])
 }
 
 export function useTabContextMenuItems(tabUrl: string): TabContextMenuItem[] {
   return useStore((state) => {
-    if (state.itemsByUrl[tabUrl]) return state.itemsByUrl[tabUrl]
-    for (const [key, items] of Object.entries(state.itemsByUrl)) {
-      if (tabUrl.startsWith(key)) return items
+    let items: TabContextMenuItem[] = []
+    if (state.itemsByUrl[tabUrl]) {
+      items = state.itemsByUrl[tabUrl]
+    } else {
+      for (const [key, urlItems] of Object.entries(state.itemsByUrl)) {
+        if (tabUrl.startsWith(key)) {
+          items = urlItems
+          break
+        }
+      }
     }
-    return []
+    // Deduplicate by item.id - keep the last occurrence
+    const seen = new Set<string>()
+    const result: TabContextMenuItem[] = []
+    // Iterate in reverse to keep the last occurrence
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i]
+      if (!seen.has(item.id)) {
+        seen.add(item.id)
+        result.unshift(item)
+      }
+    }
+    return result
   })
 }
