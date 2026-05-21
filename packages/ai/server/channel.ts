@@ -4,6 +4,7 @@ import { createMemoryState } from "@chat-adapter/state-memory"
 
 import type { DataSpace } from "@/packages/core/data-space"
 import { AgentSessionStore } from "@/packages/core/agent-session/agent-session-store"
+import type { MessageMetadata } from "@/packages/core/types"
 import type { ToolLoopAgent } from "ai"
 import type { UIMessage } from "ai"
 
@@ -11,6 +12,8 @@ import { uuidv7 } from "@/lib/utils"
 import type { AIFormValues } from "../config"
 import { prepareAgent } from "./agent-api"
 import type { IAgentData } from "./agent-api"
+
+type MessageWithMeta = UIMessage<MessageMetadata>
 
 interface ChannelDeps {
   getDataspace: (space: string) => Promise<DataSpace | null>
@@ -41,7 +44,7 @@ export class ChannelService {
   private chatSpaceMap = new Map<string, string>()
 
   /** In-memory message cache to avoid repeated disk reads per session */
-  private messageCache = new Map<string, UIMessage[]>()
+  private messageCache = new Map<string, MessageWithMeta[]>()
 
   /** Active agent runs per session, keyed by sessionId */
   private activeRuns = new Map<string, AbortController>()
@@ -194,11 +197,11 @@ export class ChannelService {
 
     // Load from cache or disk
     if (!this.messageCache.has(sessionId)) {
-      let existingMessages: UIMessage[] = []
+      let existingMessages: MessageWithMeta[] = []
       try {
         const session = await store.load(sessionId)
         if (session?.messages) {
-          existingMessages = session.messages as UIMessage[]
+          existingMessages = session.messages as MessageWithMeta[]
         }
       } catch {
         // No existing session — start fresh
@@ -206,10 +209,14 @@ export class ChannelService {
       this.messageCache.set(sessionId, existingMessages)
     }
 
-    const userMessage: UIMessage = {
+    const userMessage: MessageWithMeta = {
       id: uuidv7(),
       role: "user",
       parts: [{ type: "text", text: message.text }],
+      metadata: {
+        createdAt: Date.now(),
+        model: model,
+      },
     }
 
     const cached = this.messageCache.get(sessionId)!
@@ -257,11 +264,16 @@ export class ChannelService {
 
       // Update cache with assistant response
       if (fullText) {
+        const metadata: MessageMetadata = {
+          createdAt: Date.now(),
+          model: prepared.modelAndProvider,
+        }
         cached.push({
           id: uuidv7(),
           role: "assistant",
           parts: [{ type: "text", text: fullText }],
-        })
+          metadata,
+        } as MessageWithMeta)
       }
 
       // Persist
@@ -288,7 +300,7 @@ export class ChannelService {
     prepared: {
       agent: ToolLoopAgent
       modelMessages: any[]
-      messages: UIMessage[]
+      messages: MessageWithMeta[]
     },
     signal?: AbortSignal
   ): AsyncGenerator<string> {
@@ -320,7 +332,7 @@ export class ChannelService {
       space: string
       createdAt: string
       existingMeta: any
-      messages: UIMessage[]
+      messages: MessageWithMeta[]
     },
     fullText: string
   ): Promise<void> {
@@ -352,12 +364,19 @@ export class ChannelService {
         await store.appendUserMessage(id, lastUserMsg)
       }
 
-      // Save the assistant response
+      // Save the assistant response with metadata
       if (fullText) {
         const assistantMsgId = uuidv7()
-        await store.appendStepMessage(id, assistantMsgId, [
-          { type: "text", text: fullText },
-        ])
+        const metadata: MessageMetadata = {
+          createdAt: Date.now(),
+          model: modelAndProvider,
+        }
+        await store.appendStepMessage(
+          id,
+          assistantMsgId,
+          [{ type: "text", text: fullText }],
+          metadata
+        )
       }
     } catch (err) {
       this.log.error("[channel] Persist error:", err)

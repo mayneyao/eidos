@@ -28,6 +28,9 @@ interface AgentGoalInputProps {
   onStop: () => void
   selectedSkills: string[]
   onSelectedSkillsChange: (skills: string[]) => void
+  initialValue?: string
+  editingMode?: boolean
+  "data-editing-input"?: string
 }
 
 export function AgentGoalInput({
@@ -36,6 +39,9 @@ export function AgentGoalInput({
   onStop,
   selectedSkills,
   onSelectedSkillsChange,
+  initialValue,
+  editingMode,
+  "data-editing-input": dataEditingInput,
 }: AgentGoalInputProps) {
   const {
     goalInput,
@@ -211,12 +217,29 @@ export function AgentGoalInput({
     ]
   )
 
+  // Sync with initialValue when it changes (for edit mode)
+  useEffect(() => {
+    if (initialValue !== undefined) {
+      setGoalInput(initialValue)
+      // Auto-resize textarea
+      setTimeout(() => {
+        const el = textareaRef.current
+        if (el) {
+          el.style.height = "auto"
+          el.style.height = Math.min(el.scrollHeight, 200) + "px"
+        }
+      }, 0)
+    }
+  }, [initialValue, setGoalInput])
+
   const handleSubmit = useCallback(() => {
     const goal = goalInput.trim()
     if (!goal) return
     onSubmit(goal, aiModel)
-    setGoalInput("")
-  }, [goalInput, aiModel, onSubmit, setGoalInput])
+    if (!editingMode) {
+      setGoalInput("")
+    }
+  }, [goalInput, aiModel, onSubmit, setGoalInput, editingMode])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -392,6 +415,7 @@ export function AgentGoalInput({
           <textarea
             ref={textareaRef}
             value={goalInput}
+            data-editing-input={dataEditingInput}
             onChange={(e) => {
               const newValue = e.target.value
               setGoalInput(newValue)
@@ -440,7 +464,9 @@ export function AgentGoalInput({
               resetTrigger()
             }}
             onKeyDown={handleKeyDown}
-            placeholder={t("agent.inputPlaceholder")}
+            placeholder={
+              editingMode ? "Edit your message..." : t("agent.inputPlaceholder")
+            }
             className="min-h-[36px] w-full resize-none bg-transparent px-2 pt-1 text-[13px] leading-normal placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none overflow-y-auto"
             style={{ maxHeight: "200px" }}
             autoFocus
@@ -496,7 +522,11 @@ export function AgentGoalInput({
                   className="h-7 px-3 rounded-lg text-xs font-normal"
                 >
                   <SendIcon className="h-3 w-3 mr-1" />
-                  {isRunning ? "Interrupt & Send" : "Send"}
+                  {editingMode
+                    ? "Update"
+                    : isRunning
+                      ? "Interrupt & Send"
+                      : "Send"}
                 </Button>
               )}
             </div>

@@ -1,8 +1,9 @@
 import type { serverTools } from "@/packages/ai"
 import type { UIMessage } from "ai"
+import type { MessageMetadata } from "@/packages/core/types"
 
 type BaseMessage = UIMessage<
-  unknown,
+  MessageMetadata,
   Record<string, unknown>,
   {
     [K in keyof typeof serverTools]: {

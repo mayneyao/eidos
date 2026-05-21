@@ -1,5 +1,12 @@
 import { AgentSessionStore } from "@/packages/core/agent-session/agent-session-store"
 import type { DataSpace } from "@/packages/core/data-space"
+import type { MessageMetadata } from "@/packages/core/types"
+import type {
+  UIMessage,
+  StreamTextResult,
+  ToolSet,
+  LanguageModelUsage,
+} from "ai"
 import {
   ToolLoopAgent,
   convertToModelMessages,
@@ -11,7 +18,6 @@ import {
   stepCountIs,
   wrapLanguageModel,
 } from "ai"
-import type { UIMessage } from "ai"
 import type { AIFormValues } from "../config"
 import {
   buildAgentFs,
@@ -30,10 +36,13 @@ const bashParsePipeline = new BashTransformPipeline().use(
   new CommandCollectorPlugin()
 )
 
+/** UIMessage type with metadata */
+type MessageWithMeta = UIMessage<MessageMetadata>
+
 export interface IAgentData {
   goal: string
-  /** UIMessage[] from useChat — the source of truth for the conversation */
-  messages: UIMessage[]
+  /** UIMessage[] with metadata from useChat */
+  messages: MessageWithMeta[]
   systemPrompt?: string
   /** Model identifier in "modelId@providerName" format */
   model: string
@@ -51,7 +60,7 @@ export type ThinkingLevel = NonNullable<IAgentData["thinking"]>
  * an incomplete state (e.g. input-streaming / input-available without output).
  * convertToModelMessages rejects these, so strip them before conversion.
  */
-function sanitizeMessages(messages: UIMessage[]): UIMessage[] {
+function sanitizeMessages(messages: MessageWithMeta[]): MessageWithMeta[] {
   return messages.map((msg) => {
     if (msg.role !== "assistant" || !msg.parts) return msg
     const hasIncompleteTool = msg.parts.some(
@@ -85,8 +94,10 @@ export interface PreparedAgent {
   space: string
   createdAt: string
   existingMeta: any
-  messages: UIMessage[]
+  messages: MessageWithMeta[]
   aiConfig: AIFormValues | undefined
+  startTime: number // Date.now() - Unix timestamp for message.createdAt
+  perfStartTime: number // performance.now() - for calculating duration
 }
 
 export interface AgentContextOptions {
@@ -264,7 +275,9 @@ export async function prepareAgent(
             // Extract subcommand prefix: positional args that don't start with -
             const parts = cmd.trim().split(/\s+/)
             const idx = parts.indexOf(cmdName)
-            if (idx === -1) return `bash:${cmdName}`
+            if (idx === -1) {
+              return `bash:${cmdName}`
+            }
 
             const subs: string[] = []
             for (let i = idx + 1; i < parts.length; i++) {
@@ -322,8 +335,23 @@ export async function prepareAgent(
     })
     // Persist the latest user message so it's not lost if the stream crashes
     const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
-    if (lastUserMsg) await store.appendUserMessage(id, lastUserMsg)
+    if (lastUserMsg) {
+      // Add metadata to the user message (including creation time and model info)
+      const userMessageWithMeta: MessageWithMeta = {
+        ...lastUserMsg,
+        metadata: {
+          createdAt: Date.now(),
+          model: modelAndProvider,
+        },
+      }
+      await store.appendUserMessage(id, userMessageWithMeta)
+    }
   }
+
+  // Use Date.now() as message creation timestamp (millisecond Unix time)
+  const messageStartTime = Date.now()
+  // Use performance.now() to calculate duration (higher precision)
+  const perfStartTime = performance.now()
 
   return {
     agent,
@@ -337,6 +365,8 @@ export async function prepareAgent(
     existingMeta,
     messages,
     aiConfig,
+    startTime: messageStartTime,
+    perfStartTime,
   }
 }
 
@@ -344,7 +374,6 @@ export async function handleAgentApi(
   data: IAgentData,
   ctx?: AgentContextOptions
 ) {
-  const startTime = performance.now()
   const log = ctx?.logger ?? console
 
   const prepared = await prepareAgent(data, ctx)
@@ -359,6 +388,8 @@ export async function handleAgentApi(
     createdAt,
     existingMeta,
     messages,
+    startTime,
+    perfStartTime,
   } = prepared
 
   log.info("[agent] ▶ creating UI message stream")
@@ -368,9 +399,23 @@ export async function handleAgentApi(
   const writtenParts = new Map<string, number>()
   const signal = ctx?.signal
 
-  const uiStream = createUIMessageStream({
+  // Used to store usage data from agent.stream
+  let streamUsage: LanguageModelUsage | undefined
+
+  let result: StreamTextResult<ToolSet, never> | undefined = undefined
+
+  const uiStream = createUIMessageStream<MessageWithMeta>({
     execute: async ({ writer }) => {
-      const result = await agent.stream({
+      // Send initial metadata (createdAt, model)
+      writer.write({
+        type: "message-metadata",
+        messageMetadata: {
+          createdAt: startTime,
+          model: modelAndProvider,
+        } as MessageMetadata,
+      })
+
+      result = await agent.stream({
         abortSignal: signal,
         experimental_transform: smoothStream({ delayInMs: 20 }),
         messages: modelMessages as any,
@@ -381,13 +426,31 @@ export async function handleAgentApi(
         if (firstChunk) {
           log.info(
             `[agent] ⏱️ time to first chunk: ${(
-              performance.now() - startTime
+              performance.now() - perfStartTime
             ).toFixed(2)}ms`
           )
           firstChunk = false
         }
         writer.write(chunk)
       }
+
+      try {
+        streamUsage = await result.usage
+      } catch (e) {
+        log.error("[agent] failed to get token usage in execute:", e)
+      }
+
+      // Send final metadata (including duration and tokens)
+      const finalMetadata: MessageMetadata = {
+        createdAt: startTime,
+        model: modelAndProvider,
+        duration: Math.round(performance.now() - perfStartTime),
+        tokens: streamUsage,
+      }
+      writer.write({
+        type: "message-metadata",
+        messageMetadata: finalMetadata,
+      })
     },
     originalMessages: messages,
     onStepFinish: async ({ responseMessage }) => {
@@ -403,7 +466,12 @@ export async function handleAgentApi(
         totalCount: responseMessage.parts.length,
       })
       try {
-        await store.appendStepMessage(id, msgId, newParts)
+        // Build metadata (basic info, will be updated with complete info in onFinish)
+        const metadata: MessageMetadata = {
+          createdAt: startTime,
+          model: modelAndProvider,
+        }
+        await store.appendStepMessage(id, msgId, newParts, metadata)
       } catch (err) {
         log.error("[agent] ✖ onStepFinish error", {
           id,
@@ -419,13 +487,33 @@ export async function handleAgentApi(
         partCount: responseMessage.parts.length,
       })
       try {
-        // Flush any parts that onStepFinish didn't persist (e.g. mid-step abort)
         const msgId = responseMessage.id
+
+        // Flush any parts that onStepFinish didn't persist (e.g. mid-step abort)
         const prevCount = writtenParts.get(msgId) ?? 0
         const remaining = responseMessage.parts.slice(prevCount)
         if (remaining.length > 0) {
           await store.appendStepMessage(id, msgId, remaining)
         }
+
+        // Build final metadata containing usage and duration, and append metadata-update event
+        let finalUsage = streamUsage
+        try {
+          if (result) {
+            finalUsage = await result.usage
+          }
+        } catch (e) {
+          log.error("[agent] failed to get token usage in onFinish:", e)
+        }
+
+        const metadata: MessageMetadata = {
+          createdAt: startTime,
+          model: modelAndProvider,
+          duration: Math.round(performance.now() - perfStartTime),
+          tokens: finalUsage,
+        }
+        await store.updateMessageMetadata(id, msgId, metadata)
+
         // Persist step parts and preserve existing permissions
         const savedMeta = await store.loadMeta(id)
         await store.saveMeta(id, {

@@ -399,6 +399,60 @@ export function createAgentMiddleware(options: {
     }
   })
 
+  // Replace a message and truncate subsequent messages (re-edit functionality)
+  app.post("/api/agent/sessions/:id/replace", async (c: any) => {
+    const space = extractSpace(c)
+    const id = c.req.param("id")
+    const body = await c.req.json()
+    const { messageId, content } = body
+
+    if (!space || !id || !messageId || !content) {
+      return c.json(
+        { error: "space, id, messageId, and content are required" },
+        400
+      )
+    }
+
+    const dataspace = await options.getDataspace(space)
+    if (!dataspace) {
+      return c.json({ error: "space not found" }, 404)
+    }
+
+    const store = new AgentSessionStore(dataspace)
+
+    try {
+      // Load existing session to get model info
+      const existing = await store.load(id)
+      if (!existing) {
+        return c.json({ error: "Session not found" }, 404)
+      }
+
+      // Create new user message with same metadata model
+      const newMessage = {
+        id: crypto.randomUUID(),
+        role: "user" as const,
+        parts: [{ type: "text" as const, text: content }],
+        metadata: {
+          createdAt: Date.now(),
+          model: existing.model || "",
+        },
+      }
+
+      await store.replaceMessage(id, messageId, newMessage)
+      return c.json({ success: true })
+    } catch (err) {
+      log.error("[agent-route] ✖ replace error", {
+        id,
+        messageId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return c.json(
+        { error: err instanceof Error ? err.message : "Replace failed" },
+        500
+      )
+    }
+  })
+
   // Handle POST requests
   app.post("/api/agent/sessions/:id/save", handleSaveRequest)
   app.post("/api/agent/sessions/:id/permission", handlePermissionRequest)

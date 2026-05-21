@@ -1,5 +1,10 @@
 import type { UIMessage } from "ai"
 import type { DataSpace } from "../data-space"
+import type { MessageMetadata } from "../types"
+import { uuidv7 } from "uuidv7"
+
+// Re-export MessageMetadata for external use
+export type { MessageMetadata } from "../types"
 
 export interface AgentSession {
   id: string
@@ -22,12 +27,16 @@ const SESSIONS_DIR = "~/.eidos/agent/sessions"
 
 const HISTORY_PATH = `${SESSIONS_DIR}/history.jsonl`
 
+// UIMessage type with metadata
+type MessageWithMeta = UIMessage<MessageMetadata>
+
 // JSONL event types
 interface UserEvent {
   type: "message"
   role: "user"
   id: string
-  parts: UIMessage["parts"]
+  parts: MessageWithMeta["parts"]
+  metadata?: MessageMetadata
 }
 
 interface AssistantPartEvent {
@@ -35,13 +44,21 @@ interface AssistantPartEvent {
   role: "assistant"
   id: string
   messageId: string
-  part: UIMessage["parts"][number]
+  part: MessageWithMeta["parts"][number]
+  metadata?: MessageMetadata
 }
 
-type JsonlEvent = UserEvent | AssistantPartEvent
+// Metadata update event - used to update the complete metadata (including duration, tokens) at the end of the stream
+interface MetadataUpdateEvent {
+  type: "metadata-update"
+  messageId: string
+  metadata: MessageMetadata
+}
+
+type JsonlEvent = UserEvent | AssistantPartEvent | MetadataUpdateEvent
 
 function generateId(): string {
-  return crypto.randomUUID()
+  return uuidv7()
 }
 
 function toHistoryEntry(
@@ -81,8 +98,9 @@ function serializeEvent(event: JsonlEvent): string {
 
 /**
  * Serialize UIMessage[] into JSONL event lines (for full saves and migration).
+ * 包含 metadata 的序列化
  */
-function* serializeMessages(messages: UIMessage[]): Generator<string> {
+function* serializeMessages(messages: MessageWithMeta[]): Generator<string> {
   for (const msg of messages) {
     if (msg.role === "user") {
       yield serializeEvent({
@@ -90,9 +108,13 @@ function* serializeMessages(messages: UIMessage[]): Generator<string> {
         role: "user",
         id: msg.id || generateId(),
         parts: msg.parts,
+        metadata: msg.metadata,
       })
     } else if (msg.role === "assistant") {
       const messageId = msg.id || generateId()
+      const metadata = msg.metadata
+      // 只在第一个 part 中包含 metadata
+      let isFirstPart = true
       for (const part of msg.parts) {
         yield serializeEvent({
           type: "message",
@@ -100,7 +122,9 @@ function* serializeMessages(messages: UIMessage[]): Generator<string> {
           id: generateId(),
           messageId,
           part,
+          metadata: isFirstPart ? metadata : undefined,
         })
+        isFirstPart = false
       }
     }
   }
@@ -113,7 +137,7 @@ function* serializeMessages(messages: UIMessage[]): Generator<string> {
  * Generate a dedup fingerprint for an assistant part.
  * Tool parts use toolCallId; text/reasoning use content; step-start uses type.
  */
-function partFingerprint(part: UIMessage["parts"][number]): string {
+function partFingerprint(part: MessageWithMeta["parts"][number]): string {
   const p = part as any
   if (p.toolCallId) return `tool:${p.toolCallId}`
   if (p.type === "text") return `text:${p.text}`
@@ -121,28 +145,41 @@ function partFingerprint(part: UIMessage["parts"][number]): string {
   return `${p.type}:${JSON.stringify(p)}`
 }
 
-function reconstructMessages(events: JsonlEvent[]): UIMessage[] {
+function reconstructMessages(events: JsonlEvent[]): MessageWithMeta[] {
   // Collect assistant parts by messageId, tracking insertion order
-  const assistantParts = new Map<string, UIMessage["parts"]>()
+  const assistantParts = new Map<string, MessageWithMeta["parts"]>()
   const assistantSeen = new Map<string, Set<string>>() // messageId → set of fingerprints
   const assistantOrder: string[] = []
+  // Store metadata per message (will be updated by metadata-update events)
+  const messageMetadata = new Map<string, MessageMetadata>()
   // Placeholder array — user messages inserted directly, assistant slots reserved
   const slots: Array<
-    { type: "user"; msg: UIMessage } | { type: "assistant"; messageId: string }
+    | { type: "user"; msg: MessageWithMeta }
+    | { type: "assistant"; messageId: string }
   > = []
 
+  // First pass: collect all parts and initial metadata
   for (let i = 0; i < events.length; i++) {
     const event = events[i]
-    if (event.role === "user") {
+    if (event.type === "message" && event.role === "user") {
       slots.push({
         type: "user",
-        msg: { id: event.id, role: "user", parts: event.parts } as UIMessage,
+        msg: {
+          id: event.id,
+          role: "user",
+          parts: event.parts,
+          metadata: event.metadata,
+        } as MessageWithMeta,
       })
-    } else if (event.role === "assistant") {
+    } else if (event.type === "message" && event.role === "assistant") {
       if (!assistantParts.has(event.messageId)) {
         assistantOrder.push(event.messageId)
         assistantSeen.set(event.messageId, new Set())
         slots.push({ type: "assistant", messageId: event.messageId })
+        // Save the metadata of the first part (may be overwritten by metadata-update later)
+        if (event.metadata) {
+          messageMetadata.set(event.messageId, event.metadata)
+        }
       }
       const fp = partFingerprint(event.part)
       const seenSet = assistantSeen.get(event.messageId)!
@@ -152,12 +189,15 @@ function reconstructMessages(events: JsonlEvent[]): UIMessage[] {
         existing.push(event.part)
         assistantParts.set(event.messageId, existing)
       }
+    } else if (event.type === "metadata-update") {
+      // Update message metadata (overwrite previous values)
+      messageMetadata.set(event.messageId, event.metadata)
     }
   }
 
   // Build final message list preserving original order
   const seen = new Set<string>()
-  const messages: UIMessage[] = []
+  const messages: MessageWithMeta[] = []
   for (const slot of slots) {
     if (slot.type === "user") {
       messages.push(slot.msg)
@@ -167,7 +207,8 @@ function reconstructMessages(events: JsonlEvent[]): UIMessage[] {
         id: slot.messageId,
         role: "assistant",
         parts: assistantParts.get(slot.messageId)!,
-      } as UIMessage)
+        metadata: messageMetadata.get(slot.messageId),
+      } as MessageWithMeta)
     }
   }
 
@@ -215,7 +256,7 @@ export class AgentSessionStore {
    * Write full conversation as JSONL (used for migration and complete saves).
    * Overwrites any existing .jsonl file.
    */
-  async saveMessages(id: string, messages: UIMessage[]): Promise<void> {
+  async saveMessages(id: string, messages: MessageWithMeta[]): Promise<void> {
     await this.ensureDir()
     const lines = Array.from(serializeMessages(messages))
     await this.writeFile(this.getJsonlPath(id), lines.join("\n") + "\n")
@@ -225,13 +266,31 @@ export class AgentSessionStore {
    * Append a user message as a single JSONL line.
    * Called before agent execution to ensure the user prompt is persisted.
    */
-  async appendUserMessage(id: string, message: UIMessage): Promise<void> {
+  async appendUserMessage(id: string, message: MessageWithMeta): Promise<void> {
     await this.ensureDir()
+
+    // Check if the message is already the last message in the file to prevent duplicates
+    try {
+      const existing = await this.loadMessages(id)
+      const lastMsg = existing[existing.length - 1]
+      if (
+        lastMsg &&
+        (lastMsg.id === message.id ||
+          (lastMsg.role === "user" &&
+            JSON.stringify(lastMsg.parts) === JSON.stringify(message.parts)))
+      ) {
+        return
+      }
+    } catch (e) {
+      // Ignore reading errors, proceed to append
+    }
+
     const line = serializeEvent({
       type: "message",
       role: "user",
       id: message.id || generateId(),
       parts: message.parts,
+      metadata: message.metadata,
     })
     await this.appendLine(id, line)
   }
@@ -243,9 +302,11 @@ export class AgentSessionStore {
   async appendStepMessage(
     id: string,
     messageId: string,
-    parts: UIMessage["parts"]
+    parts: MessageWithMeta["parts"],
+    metadata?: MessageMetadata
   ): Promise<void> {
     await this.ensureDir()
+    let isFirstPart = true
     for (const part of parts) {
       const line = serializeEvent({
         type: "message",
@@ -253,9 +314,30 @@ export class AgentSessionStore {
         id: generateId(),
         messageId: messageId || generateId(),
         part,
+        metadata: isFirstPart ? metadata : undefined,
       })
       await this.appendLine(id, line)
+      isFirstPart = false
     }
+  }
+
+  /**
+   * Update message metadata at the end of streaming.
+   * This appends a metadata-update event to the JSONL file.
+   * Used to update duration, tokens, etc. after the stream completes.
+   */
+  async updateMessageMetadata(
+    id: string,
+    messageId: string,
+    metadata: MessageMetadata
+  ): Promise<void> {
+    await this.ensureDir()
+    const line = serializeEvent({
+      type: "metadata-update",
+      messageId: messageId || generateId(),
+      metadata,
+    })
+    await this.appendLine(id, line)
   }
 
   /**
@@ -303,7 +385,7 @@ export class AgentSessionStore {
    */
   async load(
     sessionId: string
-  ): Promise<(SessionMeta & { messages: UIMessage[] }) | null> {
+  ): Promise<(SessionMeta & { messages: MessageWithMeta[] }) | null> {
     const meta = await this.loadMeta(sessionId)
     if (!meta) return null
     const messages = await this.loadMessages(sessionId)
@@ -325,7 +407,7 @@ export class AgentSessionStore {
   /**
    * Load and reconstruct messages from .jsonl
    */
-  async loadMessages(sessionId: string): Promise<UIMessage[]> {
+  async loadMessages(sessionId: string): Promise<MessageWithMeta[]> {
     try {
       const content = await this.readFile(this.getJsonlPath(sessionId))
       if (!content) return []
@@ -449,14 +531,27 @@ export class AgentSessionStore {
     let foundTarget = false
     for (let i = 0; i < events.length; i++) {
       const event = events[i]
-      if (event.role === "user" && event.id === targetMessageId) {
+      if (
+        event.type === "message" &&
+        event.role === "user" &&
+        event.id === targetMessageId
+      ) {
         endIdx = i
         foundTarget = true
         break
       }
       if (
+        event.type === "message" &&
         event.role === "assistant" &&
         "messageId" in event &&
+        event.messageId === targetMessageId
+      ) {
+        endIdx = i
+        foundTarget = true
+      }
+      // metadata-update event: check if it belongs to the target message
+      if (
+        event.type === "metadata-update" &&
         event.messageId === targetMessageId
       ) {
         endIdx = i
@@ -486,6 +581,85 @@ export class AgentSessionStore {
       this.getJsonlPath(newSessionId),
       truncated.map((e) => serializeEvent(e)).join("\n") + "\n"
     )
+  }
+
+  /**
+   * Replace a user message and truncate all subsequent messages.
+   * This is used for "re-edit" functionality - editing a message in-place
+   * and removing everything that came after it.
+   */
+  async replaceMessage(
+    sessionId: string,
+    targetMessageId: string,
+    newMessage: MessageWithMeta
+  ): Promise<void> {
+    const meta = await this.loadMeta(sessionId)
+    if (!meta) throw new Error("Session not found")
+
+    const content = await this.readFile(this.getJsonlPath(sessionId))
+    if (!content) throw new Error("Session has no messages")
+
+    const lines = content.split("\n").filter((l) => l.trim())
+    const events: JsonlEvent[] = lines.map((l) => JSON.parse(l))
+
+    // Find the index of the target user message
+    let targetIdx = -1
+    for (let i = 0; i < events.length; i++) {
+      const event = events[i]
+      if (
+        event.type === "message" &&
+        event.role === "user" &&
+        event.id === targetMessageId
+      ) {
+        targetIdx = i
+        break
+      }
+    }
+
+    if (targetIdx === -1) {
+      throw new Error("Target message not found in session")
+    }
+
+    // Truncate everything after the target message (keep events before it)
+    const truncated = events.slice(0, targetIdx)
+
+    // Check if there are any user messages before this one in the session
+    const hasUserMessageBefore = events
+      .slice(0, targetIdx)
+      .some((e) => e.type === "message" && e.role === "user")
+
+    let updatedGoal = meta.goal
+    if (!hasUserMessageBefore) {
+      const textPart = newMessage.parts?.find((p) => p.type === "text") as
+        | { text: string }
+        | undefined
+      if (textPart?.text) {
+        updatedGoal = textPart.text
+      }
+    }
+
+    // Add the new replacement message
+    const replacementEvent: UserEvent = {
+      type: "message",
+      role: "user",
+      id: newMessage.id || generateId(),
+      parts: newMessage.parts,
+      metadata: newMessage.metadata,
+    }
+    truncated.push(replacementEvent)
+
+    // Rewrite the JSONL file with truncated content + new message
+    await this.writeFile(
+      this.getJsonlPath(sessionId),
+      truncated.map((e) => serializeEvent(e)).join("\n") + "\n"
+    )
+
+    // Update session meta - clear completedAt since session is now active again
+    await this.saveMeta(sessionId, {
+      ...meta,
+      goal: updatedGoal,
+      completedAt: undefined,
+    })
   }
 
   // ── Delete ────────────────────────────────────────────

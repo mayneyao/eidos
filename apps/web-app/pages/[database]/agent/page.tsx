@@ -23,7 +23,7 @@ import { AgentChatArea } from "@/components/ai-agent/agent-chat-area"
 import { AgentSessionContext } from "@/components/ai-agent/agent-context"
 import { PermissionProvider } from "@/components/permission"
 import { useRegisterTabContextMenuItem } from "@/hooks/use-tab-context-menu-registry"
-import { CopyIcon, ExternalLink } from "lucide-react"
+import { CopyIcon, ExternalLink, X } from "lucide-react"
 
 export default function AgentPage() {
   const { space } = useCurrentPathInfo()
@@ -201,27 +201,28 @@ function AgentPageContent({
     new DefaultChatTransport({ api: "/api/agent/sessions" })
   ).current
 
-  const { messages, sendMessage, stop, setMessages, error } = useChat({
-    transport,
-    id: routeSessionId || "new-agent-session",
-    generateId: uuidv7,
-    onToolCall: async () => {},
-    onFinish: () => {
-      setIsRunning(false)
-      if (aiConfig.agentNotificationSound !== false) {
-        playNotificationSound().catch(console.error)
-      }
-    },
-    onError: (error) => {
-      console.error("Agent error:", error)
-      setIsRunning(false)
-      toast({
-        title: "Agent Error",
-        description: error.message || "An unexpected error occurred",
-        variant: "destructive",
-      })
-    },
-  })
+  const { messages, sendMessage, stop, setMessages, error, regenerate } =
+    useChat({
+      transport,
+      id: routeSessionId || "new-agent-session",
+      generateId: uuidv7,
+      onToolCall: async () => {},
+      onFinish: () => {
+        setIsRunning(false)
+        if (aiConfig.agentNotificationSound !== false) {
+          playNotificationSound().catch(console.error)
+        }
+      },
+      onError: (error) => {
+        console.error("Agent error:", error)
+        setIsRunning(false)
+        toast({
+          title: "Agent Error",
+          description: error.message || "An unexpected error occurred",
+          variant: "destructive",
+        })
+      },
+    })
 
   // Abort the stream when the component unmounts (e.g. tab closed or navigated away)
   useEffect(() => {
@@ -318,7 +319,13 @@ function AgentPageContent({
 
       const proceed = () => {
         sendMessage(
-          { text: goal },
+          {
+            text: goal,
+            metadata: {
+              createdAt: Date.now(),
+              model,
+            },
+          },
           {
             body: {
               goal,
@@ -370,6 +377,91 @@ function AgentPageContent({
     [routeSessionId, navigate]
   )
 
+  // Edit message state
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+  const [editingContent, setEditingContent] = useState<string>("")
+
+  const handleEditStart = useCallback((messageId: string, content: string) => {
+    setEditingMessageId(messageId)
+    setEditingContent(content)
+    // Focus the input after a short delay to ensure it's rendered
+    setTimeout(() => {
+      const input = document.querySelector(
+        '[data-editing-input="true"]'
+      ) as HTMLTextAreaElement
+      if (input) {
+        input.focus()
+      }
+    }, 100)
+  }, [])
+
+  const handleEditCancel = useCallback(() => {
+    setEditingMessageId(null)
+    setEditingContent("")
+  }, [])
+
+  const handleEditSubmit = useCallback(
+    async (content: string, model: string) => {
+      if (!routeSessionId || !editingMessageId) return
+
+      if (isRunning) {
+        stop()
+      }
+
+      setIsRunning(true)
+
+      const success = await replaceMessage(
+        routeSessionId,
+        editingMessageId,
+        content
+      )
+      if (success) {
+        setEditingMessageId(null)
+        setEditingContent("")
+        // Reload the session messages without page refresh
+        const updatedSession = await fetchSession(routeSessionId)
+        if (updatedSession) {
+          setMessages(updatedSession.messages)
+
+          const proceed = () => {
+            regenerate({
+              body: {
+                goal: updatedSession.goal || content,
+                model,
+                id: routeSessionId,
+                space,
+                thinking: thinkingLevel,
+                skills: selectedSkills,
+              },
+            })
+            setSelectedSkills([])
+          }
+
+          if (isRunning) {
+            setTimeout(proceed, 50)
+          } else {
+            proceed()
+          }
+        } else {
+          setIsRunning(false)
+        }
+      } else {
+        setIsRunning(false)
+      }
+    },
+    [
+      routeSessionId,
+      editingMessageId,
+      isRunning,
+      stop,
+      regenerate,
+      space,
+      thinkingLevel,
+      selectedSkills,
+      setMessages,
+    ]
+  )
+
   return (
     <AgentSessionContext.Provider value={contextValue}>
       <PermissionProvider sessionId={routeSessionId || ""}>
@@ -386,6 +478,7 @@ function AgentPageContent({
                     messages={displayMessages as any}
                     messagesEndRef={messagesEndRef}
                     onFork={handleFork}
+                    onEditStart={handleEditStart}
                     parentId={forkInfo?.parentId}
                     forkedMessageId={forkInfo?.forkedMessageId}
                     isRunning={isRunning}
@@ -409,13 +502,31 @@ function AgentPageContent({
 
             {/* Floating Input Component */}
             <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none p-6 sm:p-10">
-              <div className="max-w-3xl mx-auto w-full pointer-events-auto">
+              <div className="max-w-3xl mx-auto w-full pointer-events-auto space-y-2">
+                {/* Editing indicator */}
+                {editingMessageId && (
+                  <div className="flex items-center justify-between px-3 py-2 bg-sidebar border border-primary/20 rounded-lg text-sm">
+                    <span className="text-primary font-medium">
+                      Editing message...
+                    </span>
+                    <button
+                      onClick={handleEditCancel}
+                      className="p-1 hover:bg-primary/10 rounded transition-colors"
+                      title="Cancel editing"
+                    >
+                      <X className="h-4 w-4 text-primary" />
+                    </button>
+                  </div>
+                )}
                 <AgentGoalInput
-                  onSubmit={handleSubmit}
+                  onSubmit={editingMessageId ? handleEditSubmit : handleSubmit}
                   isRunning={isRunning}
                   onStop={handleStop}
                   selectedSkills={selectedSkills}
                   onSelectedSkillsChange={setSelectedSkills}
+                  initialValue={editingContent}
+                  editingMode={!!editingMessageId}
+                  data-editing-input="true"
                 />
               </div>
             </div>
@@ -449,4 +560,20 @@ async function forkSession(
   if (!res.ok) return null
   const data = await res.json()
   return data.id ?? null
+}
+
+async function replaceMessage(
+  sessionId: string,
+  messageId: string,
+  content: string
+): Promise<boolean> {
+  const res = await fetch(
+    `/api/agent/sessions/${encodeURIComponent(sessionId)}/replace`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId, content }),
+    }
+  )
+  return res.ok
 }

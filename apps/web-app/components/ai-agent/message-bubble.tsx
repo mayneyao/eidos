@@ -1,7 +1,14 @@
 import { useState } from "react"
-import { CheckIcon, CopyIcon, GitForkIcon } from "lucide-react"
+import { CheckIcon, CopyIcon, GitForkIcon, PencilIcon } from "lucide-react"
 import { AssistantMessage } from "./assistant-message"
 import { type ChatMessage } from "./types"
+import type { MessageMetadata } from "@/packages/core/types"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface MessageBubbleProps {
   message: ChatMessage
@@ -9,6 +16,79 @@ interface MessageBubbleProps {
   isLastMessage?: boolean
   isRunning?: boolean
   onFork?: (messageId: string) => void
+  onEditStart?: (messageId: string, content: string) => void
+}
+
+// Format token count, display as k if over 1000
+function formatTokens(n: number | undefined): string {
+  if (n === undefined) return "?"
+  if (n >= 1000) {
+    return `${(n / 1000).toFixed(1)}k`
+  }
+  return n.toString()
+}
+
+// User message: display full metadata
+function formatUserMetadata(metadata?: MessageMetadata): string | null {
+  if (!metadata) return null
+
+  const items: string[] = []
+
+  if (metadata.model) {
+    items.push(metadata.model)
+  }
+
+  if (metadata.createdAt) {
+    const date = new Date(metadata.createdAt)
+    items.push(date.toLocaleTimeString())
+  }
+
+  return items.length > 0 ? items.join(" · ") : null
+}
+
+// Extract assistant message metadata
+function getAssistantMeta(metadata?: MessageMetadata) {
+  if (!metadata) return null
+
+  const model = metadata.model || null
+
+  const time = metadata.createdAt
+    ? new Date(metadata.createdAt).toLocaleTimeString()
+    : null
+
+  let tokens: { compact: string; detail: string } | null = null
+  if (metadata.tokens) {
+    const t = metadata.tokens
+    const total = t.totalTokens
+    const input = t.inputTokens
+    const output = t.outputTokens
+    if (total !== undefined || input !== undefined || output !== undefined) {
+      const totalStr = total !== undefined ? formatTokens(total) : "?"
+      const inputStr = input !== undefined ? formatTokens(input) : "?"
+      const outputStr = output !== undefined ? formatTokens(output) : "?"
+
+      // Build detail line with optional cache/reasoning info
+      const extras: string[] = []
+      const cacheRead = t.inputTokenDetails?.cacheReadTokens
+      const cacheWrite = t.inputTokenDetails?.cacheWriteTokens
+      const reasoning = t.outputTokenDetails?.reasoningTokens
+      if (cacheRead) extras.push(`${formatTokens(cacheRead)} cached`)
+      if (cacheWrite) extras.push(`${formatTokens(cacheWrite)} cache-write`)
+      if (reasoning) extras.push(`${formatTokens(reasoning)} reasoning`)
+
+      const extraStr = extras.length > 0 ? ` · ${extras.join(" · ")}` : ""
+      tokens = {
+        compact: `${totalStr} tok`,
+        detail: `${totalStr} tok (${inputStr} in / ${outputStr} out${extraStr})`,
+      }
+    }
+  }
+
+  const duration = metadata.duration
+    ? `${(metadata.duration / 1000).toFixed(1)}s`
+    : null
+
+  return { model, time, tokens, duration }
 }
 
 export function MessageBubble({
@@ -17,10 +97,13 @@ export function MessageBubble({
   isLastMessage,
   isRunning,
   onFork,
+  onEditStart,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false)
   const isUser = message.role === "user"
   const handleFork = onFork ? () => onFork(message.id) : undefined
+  const userMetaText = formatUserMetadata(message.metadata)
+  const assistantMeta = getAssistantMeta(message.metadata)
 
   const handleCopy = () => {
     const text =
@@ -34,6 +117,18 @@ export function MessageBubble({
     navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleEditClick = () => {
+    if (!onEditStart) return
+    const content =
+      (message.parts ?? [])
+        .map((p: any) => p.text || "")
+        .filter(Boolean)
+        .join("\n") ||
+      (message as any).content ||
+      ""
+    onEditStart(message.id, content)
   }
 
   if (isUser) {
@@ -52,6 +147,11 @@ export function MessageBubble({
             </div>
           </div>
           <div className="flex items-center gap-2 opacity-0 group-hover/msg:opacity-100 transition-opacity pr-2">
+            {userMetaText && (
+              <span className="text-xs text-muted-foreground/60">
+                {userMetaText}
+              </span>
+            )}
             <button
               onClick={handleCopy}
               className="p-1 text-muted-foreground/50 hover:text-primary transition-colors"
@@ -63,6 +163,15 @@ export function MessageBubble({
                 <CopyIcon className="h-4 w-4" />
               )}
             </button>
+            {onEditStart && (
+              <button
+                onClick={handleEditClick}
+                className="p-1 text-muted-foreground/50 hover:text-primary transition-colors"
+                title="Edit message"
+              >
+                <PencilIcon className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -71,7 +180,7 @@ export function MessageBubble({
 
   // Tool result messages (role === "tool")
   if (message.role === "tool") {
-    return null // tool results are shown inline with tool calls
+    return null
   }
 
   const isStreaming = isLastMessage && isRunning
@@ -110,6 +219,42 @@ export function MessageBubble({
               >
                 <GitForkIcon className="h-4 w-4" />
               </button>
+            )}
+            {/* Assistant message: format model · 2.5k tok · 4.0s */}
+            {assistantMeta?.model && (
+              <span className="text-xs text-muted-foreground/60">
+                {assistantMeta.model}
+              </span>
+            )}
+            {assistantMeta?.tokens && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-xs text-muted-foreground/60 cursor-help">
+                      {assistantMeta.tokens.compact}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-xs">{assistantMeta.tokens.detail}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {assistantMeta?.duration && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-xs text-muted-foreground/60 cursor-help">
+                      {assistantMeta.duration}
+                    </span>
+                  </TooltipTrigger>
+                  {assistantMeta.time && (
+                    <TooltipContent side="top">
+                      <p className="text-xs">{assistantMeta.time}</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         )}

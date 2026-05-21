@@ -8,6 +8,7 @@ interface AgentChatAreaProps {
   messages: ChatMessage[]
   messagesEndRef: RefObject<HTMLDivElement | null>
   onFork?: (messageId: string) => void
+  onEditStart?: (messageId: string, content: string) => void
   parentId?: string
   forkedMessageId?: string
   isRunning?: boolean
@@ -18,6 +19,7 @@ export function AgentChatArea({
   messages,
   messagesEndRef,
   onFork,
+  onEditStart,
   parentId,
   forkedMessageId,
   isRunning,
@@ -90,6 +92,7 @@ export function AgentChatArea({
             isLastMessage={m.id === lastMessageId}
             isRunning={isRunning}
             onFork={onFork}
+            onEditStart={onEditStart}
           />
           {parentId && forkedMessageId === m.id && (
             <div className="relative py-6 flex items-center justify-center">
