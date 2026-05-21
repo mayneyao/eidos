@@ -4,6 +4,7 @@ import type { LLMProviderType } from "./helper"
 
 // Define the enum using all provider types directly
 const providerTypes: [LLMProviderType, ...LLMProviderType[]] = [
+  "opencode-go",
   "openai",
   "google",
   "deepseek",
@@ -25,6 +26,10 @@ const providerTypes: [LLMProviderType, ...LLMProviderType[]] = [
   "ollama",
   // "luma",
   "openai-compatible",
+  "huggingface",
+  "moonshotai",
+  "alibaba",
+  "bytedance",
 ]
 
 export const llmProviderSchema = z.object({

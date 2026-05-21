@@ -1,6 +1,10 @@
-import { Suspense, lazy, useCallback, useEffect, useState } from "react"
+import { Suspense, useCallback, useEffect, useState } from "react"
 import type { LLMProvider } from "@/packages/ai/config"
-import { ALL_PROVIDERS, type LLMProviderType } from "@/packages/ai/helper"
+import {
+  ALL_PROVIDERS,
+  LLM_PROVIDER_INFO,
+  type LLMProviderType,
+} from "@/packages/ai/helper"
 import {
   Edit,
   Plus,
@@ -10,6 +14,7 @@ import {
   Sparkles,
   Globe,
   MessageCircle,
+  ThumbsUp,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -26,11 +31,18 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -105,6 +117,15 @@ export function GlobalAISettings() {
   const configuredProviderTypes = new Set<LLMProviderType>(
     aiConfig.llmProviders.map((p) => p.type)
   )
+
+  const RECOMMENDED_PROVIDERS: LLMProviderType[] = ["opencode-go", "deepseek"]
+  const regularProviders = ALL_PROVIDERS.filter(
+    (p) => !RECOMMENDED_PROVIDERS.includes(p)
+  ).sort((a, b) => {
+    if (a === "openai-compatible") return -1
+    if (b === "openai-compatible") return 1
+    return 0
+  })
 
   const handleAddProvider = (providerType: LLMProviderType) => {
     const existingProviders = aiConfig.llmProviders.filter(
@@ -218,33 +239,67 @@ export function GlobalAISettings() {
           <Bot className="h-5 w-5 text-muted-foreground" />
           <h3 className="text-lg font-medium">{t("settings.ai.provider")}</h3>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        <Popover>
+          <PopoverTrigger asChild>
             <Button size="sm">
               <Plus className="mr-2 h-4 w-4" />
               {t("common.button.add")}
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" side="bottom">
-            {ALL_PROVIDERS.map((type) => (
-              <DropdownMenuItem
-                key={type}
-                onSelect={() => handleAddProvider(type)}
-                className="flex items-center gap-2"
-                disabled={
-                  type !== "openai-compatible" &&
-                  type !== "ollama" &&
-                  configuredProviderTypes.has(type)
-                }
-              >
-                <Suspense fallback={<div className="w-4 h-4" />}>
-                  <ProviderIcon type={type} />
-                </Suspense>
-                {formatProviderName(type)}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </PopoverTrigger>
+          <PopoverContent align="end" side="bottom" className="w-72 p-0">
+            <Command>
+              <CommandInput placeholder={t("common.search") ?? "Search..."} />
+              <CommandList>
+                <CommandEmpty>
+                  {t("common.noResults", "No results")}
+                </CommandEmpty>
+                <CommandGroup
+                  heading={t("settings.ai.recommended", "Recommended")}
+                >
+                  {RECOMMENDED_PROVIDERS.map((type) => (
+                    <CommandItem
+                      key={type}
+                      onSelect={() => handleAddProvider(type)}
+                      disabled={
+                        type !== "openai-compatible" &&
+                        type !== "ollama" &&
+                        configuredProviderTypes.has(type)
+                      }
+                    >
+                      <ProviderIcon type={type} />
+                      <span>
+                        {LLM_PROVIDER_INFO[type]?.name ??
+                          formatProviderName(type)}
+                      </span>
+                      <ThumbsUp className="ml-auto h-3.5 w-3.5 text-amber-500" />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                <CommandGroup
+                  heading={t("settings.ai.allProviders", "All Providers")}
+                >
+                  {regularProviders.map((type) => (
+                    <CommandItem
+                      key={type}
+                      onSelect={() => handleAddProvider(type)}
+                      disabled={
+                        type !== "openai-compatible" &&
+                        type !== "ollama" &&
+                        configuredProviderTypes.has(type)
+                      }
+                    >
+                      <ProviderIcon type={type} />
+                      <span>
+                        {LLM_PROVIDER_INFO[type]?.name ??
+                          formatProviderName(type)}
+                      </span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <hr className="border-border" />
@@ -267,33 +322,73 @@ export function GlobalAISettings() {
                   "Add an LLM provider to start using AI features"
                 )}
               </p>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+              <Popover>
+                <PopoverTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Plus className="mr-2 h-4 w-4" />
                     {t("settings.ai.addProvider", "Add Provider")}
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="center" side="bottom">
-                  {ALL_PROVIDERS.map((type) => (
-                    <DropdownMenuItem
-                      key={type}
-                      onSelect={() => handleAddProvider(type)}
-                      className="flex items-center gap-2"
-                      disabled={
-                        type !== "openai-compatible" &&
-                        type !== "ollama" &&
-                        configuredProviderTypes.has(type)
-                      }
-                    >
-                      <Suspense fallback={<div className="w-4 h-4" />}>
-                        <ProviderIcon type={type} />
-                      </Suspense>
-                      {formatProviderName(type)}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="center"
+                  side="bottom"
+                  className="w-72 p-0"
+                >
+                  <Command>
+                    <CommandInput
+                      placeholder={t("common.search") ?? "Search..."}
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        {t("common.noResults", "No results")}
+                      </CommandEmpty>
+                      <CommandGroup
+                        heading={t("settings.ai.recommended", "Recommended")}
+                      >
+                        {RECOMMENDED_PROVIDERS.map((type) => (
+                          <CommandItem
+                            key={type}
+                            onSelect={() => handleAddProvider(type)}
+                            disabled={
+                              type !== "openai-compatible" &&
+                              type !== "ollama" &&
+                              configuredProviderTypes.has(type)
+                            }
+                          >
+                            <ProviderIcon type={type} />
+                            <span>
+                              {LLM_PROVIDER_INFO[type]?.name ??
+                                formatProviderName(type)}
+                            </span>
+                            <ThumbsUp className="ml-auto h-3.5 w-3.5 text-amber-500" />
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                      <CommandGroup
+                        heading={t("settings.ai.allProviders", "All Providers")}
+                      >
+                        {regularProviders.map((type) => (
+                          <CommandItem
+                            key={type}
+                            onSelect={() => handleAddProvider(type)}
+                            disabled={
+                              type !== "openai-compatible" &&
+                              type !== "ollama" &&
+                              configuredProviderTypes.has(type)
+                            }
+                          >
+                            <ProviderIcon type={type} />
+                            <span>
+                              {LLM_PROVIDER_INFO[type]?.name ??
+                                formatProviderName(type)}
+                            </span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           ) : (
             <div className="space-y-3">

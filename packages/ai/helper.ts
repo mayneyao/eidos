@@ -24,6 +24,7 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 // export type Model = (typeof WEB_LLM_MODELS)[0]
 
 export type LLMProviderType =
+  | "opencode-go"
   | "openai"
   | "google"
   | "deepseek"
@@ -51,6 +52,7 @@ export type LLMProviderType =
   | "bytedance"
 
 export const ALL_PROVIDERS_RAW = [
+  "opencode-go",
   "openai",
   "google",
   "deepseek",
@@ -189,6 +191,12 @@ export const LLM_PROVIDER_INFO: Record<
   ollama: {
     name: "Ollama",
     baseUrl: "http://localhost:11434/v1",
+  },
+  "opencode-go": {
+    name: "OpenCode Go",
+    baseUrl: "https://opencode.ai/zen/go/v1",
+    // affiliate ref to support Eidos development
+    urlForGettingApiKey: "https://opencode.ai/go?ref=STQJ9F59C0",
   },
   "openai-compatible": {
     name: "OpenAI Compatible",
@@ -348,6 +356,12 @@ export function getProvider(data: {
       const bd = createByteDance(config)
       return ((modelId: string) => bd.languageModel(modelId)) as any
     }
+    case "opencode-go":
+      return createOpenAICompatible({
+        baseURL: baseUrl || "https://opencode.ai/zen/go/v1",
+        apiKey,
+        name: name || "OpenCode Go",
+      })
     case "openai-compatible":
       if (apiVersion === "responses") {
         return createOpenAI(config).responses

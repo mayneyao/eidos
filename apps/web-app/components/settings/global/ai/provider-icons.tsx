@@ -493,7 +493,22 @@ export const ByteDanceIcon: React.FC<IconProps> = ({
   </svg>
 )
 
+export const OpenCodeIcon: React.FC<IconProps> = ({ size = 16, className }) => (
+  <svg
+    viewBox="0 0 240 300"
+    width={size}
+    height={size}
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+  >
+    <path d="M180 240H60V120H180V240Z" fill="#CFCECD" />
+    <path d="M180 60H60V240H180V60ZM240 300H0V0H240V300Z" fill="#211E1E" />
+  </svg>
+)
+
 export const providerIconMap: Record<string, React.FC<IconProps>> = {
+  "opencode-go": OpenCodeIcon,
   google: GoogleIcon,
   openai: OpenAIIcon,
   "openai-compatible": OpenAIIcon,

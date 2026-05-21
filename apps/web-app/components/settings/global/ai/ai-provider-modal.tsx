@@ -66,6 +66,7 @@ export function AIProviderModal({
             defaultValues={defaultValues}
             onSave={handleSave}
             onCancel={() => onOpenChange(false)}
+            onClose={() => onOpenChange(false)}
             existingNames={existingNames}
             isSubmitting={isSubmitting}
           />

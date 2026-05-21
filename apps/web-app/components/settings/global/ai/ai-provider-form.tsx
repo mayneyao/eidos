@@ -42,6 +42,7 @@ interface AIProviderFormProps {
   defaultValues?: Partial<LLMProvider>
   onSave: (provider: LLMProvider) => void
   onCancel?: () => void
+  onClose?: () => void
   existingNames?: string[]
   isSubmitting?: boolean
 }
@@ -51,6 +52,7 @@ export function AIProviderForm({
   defaultValues,
   onSave,
   onCancel,
+  onClose,
   existingNames = [],
   isSubmitting = false,
 }: AIProviderFormProps) {
@@ -376,6 +378,7 @@ export function AIProviderForm({
                         target="_blank"
                         rel="noopener noreferrer"
                         className="underline"
+                        onClick={onClose}
                       >
                         {t("settings.ai.getApiKeyHint")}
                       </a>
