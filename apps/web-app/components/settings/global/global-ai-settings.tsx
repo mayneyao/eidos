@@ -236,73 +236,75 @@ export function GlobalAISettings() {
           <Bot className="h-5 w-5 text-muted-foreground" />
           <h3 className="text-lg font-medium">{t("settings.ai.provider")}</h3>
         </div>
-        <Popover open={addPopoverOpen} onOpenChange={setAddPopoverOpen}>
-          <PopoverTrigger asChild>
-            <Button size="sm">
-              <Plus className="mr-2 h-4 w-4" />
-              {t("common.button.add")}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" side="bottom" className="w-72 p-0">
-            <Command>
-              <CommandInput placeholder={t("common.search") ?? "Search..."} />
-              <CommandList>
-                <CommandEmpty>
-                  {t("common.noResults", "No results")}
-                </CommandEmpty>
-                <CommandGroup
-                  heading={t("settings.ai.recommended", "Recommended")}
-                >
-                  {RECOMMENDED_PROVIDERS.map((type) => (
-                    <CommandItem
-                      key={type}
-                      onSelect={() => {
-                        handleAddProvider(type)
-                        setAddPopoverOpen(false)
-                      }}
-                      disabled={
-                        type !== "openai-compatible" &&
-                        type !== "ollama" &&
-                        configuredProviderTypes.has(type)
-                      }
-                    >
-                      <ProviderIcon type={type} />
-                      <span>
-                        {LLM_PROVIDER_INFO[type]?.name ??
-                          formatProviderName(type)}
-                      </span>
-                      <ThumbsUp className="ml-auto h-3.5 w-3.5 text-amber-500" />
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-                <CommandGroup
-                  heading={t("settings.ai.allProviders", "All Providers")}
-                >
-                  {regularProviders.map((type) => (
-                    <CommandItem
-                      key={type}
-                      onSelect={() => {
-                        handleAddProvider(type)
-                        setAddPopoverOpen(false)
-                      }}
-                      disabled={
-                        type !== "openai-compatible" &&
-                        type !== "ollama" &&
-                        configuredProviderTypes.has(type)
-                      }
-                    >
-                      <ProviderIcon type={type} />
-                      <span>
-                        {LLM_PROVIDER_INFO[type]?.name ??
-                          formatProviderName(type)}
-                      </span>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+        {aiConfig.llmProviders.length > 0 && (
+          <Popover open={addPopoverOpen} onOpenChange={setAddPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button size="sm">
+                <Plus className="mr-2 h-4 w-4" />
+                {t("common.button.add")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" side="bottom" className="w-72 p-0">
+              <Command>
+                <CommandInput placeholder={t("common.search") ?? "Search..."} />
+                <CommandList>
+                  <CommandEmpty>
+                    {t("common.noResults", "No results")}
+                  </CommandEmpty>
+                  <CommandGroup
+                    heading={t("settings.ai.recommended", "Recommended")}
+                  >
+                    {RECOMMENDED_PROVIDERS.map((type) => (
+                      <CommandItem
+                        key={type}
+                        onSelect={() => {
+                          handleAddProvider(type)
+                          setAddPopoverOpen(false)
+                        }}
+                        disabled={
+                          type !== "openai-compatible" &&
+                          type !== "ollama" &&
+                          configuredProviderTypes.has(type)
+                        }
+                      >
+                        <ProviderIcon type={type} />
+                        <span>
+                          {LLM_PROVIDER_INFO[type]?.name ??
+                            formatProviderName(type)}
+                        </span>
+                        <ThumbsUp className="ml-auto h-3.5 w-3.5 text-amber-500" />
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                  <CommandGroup
+                    heading={t("settings.ai.allProviders", "All Providers")}
+                  >
+                    {regularProviders.map((type) => (
+                      <CommandItem
+                        key={type}
+                        onSelect={() => {
+                          handleAddProvider(type)
+                          setAddPopoverOpen(false)
+                        }}
+                        disabled={
+                          type !== "openai-compatible" &&
+                          type !== "ollama" &&
+                          configuredProviderTypes.has(type)
+                        }
+                      >
+                        <ProviderIcon type={type} />
+                        <span>
+                          {LLM_PROVIDER_INFO[type]?.name ??
+                            formatProviderName(type)}
+                        </span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
 
       <hr className="border-border" />
