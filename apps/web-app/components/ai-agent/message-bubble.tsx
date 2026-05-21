@@ -19,13 +19,51 @@ interface MessageBubbleProps {
   onEditStart?: (messageId: string, content: string) => void
 }
 
-// Format token count, display as k if over 1000
+// Format token count with intelligent units (K, M, B)
 function formatTokens(n: number | undefined): string {
   if (n === undefined) return "?"
-  if (n >= 1000) {
-    return `${(n / 1000).toFixed(1)}k`
+  if (n >= 1_000_000_000) {
+    return `${(n / 1_000_000_000).toFixed(1)}B`
   }
-  return n.toString()
+  if (n >= 1_000_000) {
+    return `${(n / 1_000_000).toFixed(1)}M`
+  }
+  if (n >= 1000) {
+    return `${(n / 1000).toFixed(1)}K`
+  }
+  return n.toLocaleString()
+}
+
+// Format duration with intelligent units (ms, s, m, h)
+function formatDuration(
+  ms: number | undefined
+): { compact: string; detail: string } | null {
+  if (ms === undefined || ms === null) return null
+
+  const seconds = ms / 1000
+  const minutes = seconds / 60
+  const hours = minutes / 60
+
+  // Compact format
+  let compact: string
+  if (hours >= 1) {
+    compact = `${Math.floor(hours)}h ${Math.floor(minutes % 60)}m`
+  } else if (minutes >= 1) {
+    compact = `${Math.floor(minutes)}m ${Math.floor(seconds % 60)}s`
+  } else if (seconds >= 1) {
+    compact = `${seconds.toFixed(1)}s`
+  } else {
+    compact = `${Math.round(ms)}ms`
+  }
+
+  // Detail format with full breakdown
+  const parts: string[] = []
+  if (hours >= 1) parts.push(`${Math.floor(hours)}h`)
+  if (minutes % 60 >= 1) parts.push(`${Math.floor(minutes % 60)}m`)
+  if (seconds % 60 >= 1 || hours < 1)
+    parts.push(`${(seconds % 60).toFixed(1)}s`)
+
+  return { compact, detail: parts.join(" ") || `${ms}ms` }
 }
 
 // User message: display full metadata
@@ -84,9 +122,7 @@ function getAssistantMeta(metadata?: MessageMetadata) {
     }
   }
 
-  const duration = metadata.duration
-    ? `${(metadata.duration / 1000).toFixed(1)}s`
-    : null
+  const duration = metadata.duration ? formatDuration(metadata.duration) : null
 
   return { model, time, tokens, duration }
 }
@@ -245,14 +281,12 @@ export function MessageBubble({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="text-xs text-muted-foreground/60 cursor-help">
-                      {assistantMeta.duration}
+                      {assistantMeta.duration.compact}
                     </span>
                   </TooltipTrigger>
-                  {assistantMeta.time && (
-                    <TooltipContent side="top">
-                      <p className="text-xs">{assistantMeta.time}</p>
-                    </TooltipContent>
-                  )}
+                  <TooltipContent side="top">
+                    <p className="text-xs">{assistantMeta.duration.detail}</p>
+                  </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
