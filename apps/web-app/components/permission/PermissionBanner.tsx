@@ -109,10 +109,10 @@ export function PermissionBanner() {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="bg-zinc-100 dark:bg-zinc-800 rounded-md px-2 py-1">
-        <div className="flex items-center gap-2 text-sm">
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 flex-shrink-0" />
-          <span className="font-medium text-foreground whitespace-pre-wrap break-words">
+      <div className="bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 max-h-32 overflow-y-auto">
+        <div className="flex items-start gap-2 text-sm">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 flex-shrink-0 mt-1.5" />
+          <span className="font-medium text-foreground whitespace-pre-wrap break-all">
             {label}
           </span>
         </div>

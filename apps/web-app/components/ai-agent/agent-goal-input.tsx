@@ -1,4 +1,4 @@
-import { SendIcon, Loader2, StopCircleIcon, Brain } from "lucide-react"
+import { SendIcon, Loader2, StopCircleIcon, Brain, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useCallback, useEffect, useRef, useState, useMemo } from "react"
 
@@ -22,8 +22,14 @@ interface SkillMeta {
   dirName: string
 }
 
+export interface NodeMention {
+  id: string
+  name: string
+  type: string
+}
+
 interface AgentGoalInputProps {
-  onSubmit: (goal: string, model: string) => void
+  onSubmit: (goal: string, model: string, mentions?: NodeMention[]) => void
   isRunning: boolean
   onStop: () => void
   selectedSkills: string[]
@@ -72,8 +78,8 @@ export function AgentGoalInput({
   const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
 
-  // Skills state
   const [availableSkills, setAvailableSkills] = useState<SkillMeta[]>([])
+  const [mentions, setMentions] = useState<NodeMention[]>([])
   const {
     triggerState,
     setTriggerState,
@@ -87,7 +93,6 @@ export function AgentGoalInput({
   const { permissionRequests } = usePermissionContext()
   const pendingCount = permissionRequests.length
 
-  // Reset active index when filter query changes
   useEffect(() => {
     setTriggerActiveIndex(0)
   }, [triggerState.query, setTriggerActiveIndex])
@@ -122,7 +127,6 @@ export function AgentGoalInput({
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (!isActiveTab) return
-
       if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const target = e.target as HTMLElement
         const isInput =
@@ -130,14 +134,12 @@ export function AgentGoalInput({
           (target.tagName === "INPUT" ||
             target.tagName === "TEXTAREA" ||
             target.isContentEditable)
-
         if (!isInput) {
           e.preventDefault()
           textareaRef.current?.focus()
         }
       }
     }
-
     window.addEventListener("keydown", handleGlobalKeyDown)
     return () => window.removeEventListener("keydown", handleGlobalKeyDown)
   }, [isActiveTab])
@@ -149,23 +151,6 @@ export function AgentGoalInput({
       .map((id) => nodeMap[id])
       .filter((n) => n && !n.is_deleted && n.type !== "folder")
   }, [nodeIds, nodeMap])
-
-  const buildNodePath = useCallback(
-    (nodeId: string) => {
-      let path = ""
-      let curr: ITreeNode | null = nodeMap[nodeId] || null
-      while (curr) {
-        let name = curr.name
-        if (curr.type === "doc") name += ".md"
-        if (curr.type === "table") name += ".table"
-        path = name + (path ? "/" + path : "")
-        curr = curr.parent_id ? nodeMap[curr.parent_id] || null : null
-      }
-      const finalPath = "/dataspace/" + path
-      return finalPath
-    },
-    [nodeMap]
-  )
 
   const contextItems = useMemo<ContextItem[]>(() => {
     if (triggerState.type === "skill") {
@@ -179,13 +164,13 @@ export function AgentGoalInput({
       return allNodes.map((n) => ({
         id: n.id,
         name: n.name,
-        description: buildNodePath(n.id),
+        description: `[${n.type}] ${n.name}`,
         icon: <ItemIcon type={n.type} className="h-4 w-4" />,
         data: n,
       }))
     }
     return []
-  }, [triggerState.type, availableSkills, allNodes, buildNodePath])
+  }, [triggerState.type, availableSkills, allNodes])
 
   const filteredItems = useMemo(() => {
     const q = (triggerState.query || "").toLowerCase()
@@ -211,8 +196,16 @@ export function AgentGoalInput({
           onSelectedSkillsChange([...selectedSkills, skill.dirName])
         }
       } else {
-        const path = item.description || ""
-        textToInsert = path.includes(" ") ? `"${path}"` : path
+        // Node mention: insert @name, store structured reference
+        const node = item.data as ITreeNode
+        textToInsert = `@${node.name}`
+        const exists = mentions.find((m) => m.id === node.id)
+        if (!exists) {
+          setMentions((prev) => [
+            ...prev,
+            { id: node.id, name: node.name, type: node.type },
+          ])
+        }
       }
 
       const newGoal = `${before}${textToInsert} ${after}`
@@ -231,14 +224,18 @@ export function AgentGoalInput({
       selectedSkills,
       onSelectedSkillsChange,
       setGoalInput,
+      mentions,
     ]
   )
 
-  // Sync with initialValue when it changes (for edit mode)
+  // Remove a single mention chip
+  const removeMention = useCallback((id: string) => {
+    setMentions((prev) => prev.filter((m) => m.id !== id))
+  }, [])
+
   useEffect(() => {
     if (initialValue !== undefined) {
       setGoalInput(initialValue)
-      // Auto-resize textarea
       setTimeout(() => {
         const el = textareaRef.current
         if (el) {
@@ -252,11 +249,12 @@ export function AgentGoalInput({
   const handleSubmit = useCallback(() => {
     const goal = goalInput.trim()
     if (!goal) return
-    onSubmit(goal, aiModel)
+    onSubmit(goal, aiModel, mentions.length > 0 ? mentions : undefined)
     if (!editingMode) {
       setGoalInput("")
+      setMentions([])
     }
-  }, [goalInput, aiModel, onSubmit, setGoalInput, editingMode])
+  }, [goalInput, aiModel, onSubmit, setGoalInput, editingMode, mentions])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -332,58 +330,43 @@ export function AgentGoalInput({
         const dragData = JSON.parse(dragDataStr)
         const nodes = dragData.nodes || []
 
-        const paths = nodes.map((node: any) => {
-          let path = node.metadata?.namePath || node.path
-          const nodeType = node.metadata?.nodeType
+        const newMentions: NodeMention[] = []
+        for (const node of nodes) {
+          const nodeId = node.metadata?.nodeId || node.id
+          const nodeType = node.metadata?.nodeType || "doc"
+          const nodeName =
+            node.metadata?.name ||
+            node.name ||
+            node.path?.split("/").pop() ||
+            "Untitled"
 
-          if (path.startsWith("~/.eidos/__NODES__/")) {
-            path = path.replace("~/.eidos/__NODES__/", "/dataspace/")
-            if (nodeType === "doc" && !path.endsWith(".md")) {
-              path += ".md"
-            } else if (nodeType === "table" && !path.endsWith(".table")) {
-              path += ".table"
-            }
-          } else if (path.startsWith("~/.eidos/__EXTENSIONS__/")) {
-            const slug =
-              node.metadata?.slug ||
-              path
-                .replace("~/.eidos/__EXTENSIONS__/", "")
-                .replace(/\.(ts|tsx)$/, "")
-            const ext = node.metadata?.extensionType === "script" ? "ts" : "tsx"
-            path = `/extensions/${slug}.${ext}`
-          } else if (path.startsWith("~/.eidos/__JOURNALS__/")) {
-            path = path.replace("~/.eidos/__JOURNALS__/", "/journals/") + ".md"
+          if (nodeId && !mentions.find((m) => m.id === nodeId)) {
+            newMentions.push({ id: nodeId, name: nodeName, type: nodeType })
           }
+        }
 
-          if (path.includes(" ")) {
-            return `"${path}"`
-          }
-          return path
-        })
+        if (newMentions.length > 0) {
+          setMentions((prev) => [...prev, ...newMentions])
 
-        if (paths.length > 0) {
-          const textToAppend = paths.join(" ")
+          const textParts = newMentions.map((m) => `@${m.name}`).join(" ")
           const textarea = textareaRef.current
           if (textarea) {
             const start = textarea.selectionStart
             const end = textarea.selectionEnd
             const newGoal =
               goalInput.substring(0, start) +
-              textToAppend +
+              textParts +
+              " " +
               goalInput.substring(end)
             setGoalInput(newGoal)
-
-            // Refocus and set cursor position
             setTimeout(() => {
               textarea.focus()
-              const newPos = start + textToAppend.length
+              const newPos = start + textParts.length + 1
               textarea.setSelectionRange(newPos, newPos)
             }, 0)
           } else {
             setGoalInput(
-              goalInput
-                ? `${goalInput.trim()} ${textToAppend} `
-                : `${textToAppend} `
+              goalInput ? `${goalInput.trim()} ${textParts} ` : `${textParts} `
             )
           }
         }
@@ -391,8 +374,11 @@ export function AgentGoalInput({
         console.error("Failed to parse drop data", err)
       }
     },
-    [goalInput, setGoalInput]
+    [goalInput, setGoalInput, mentions]
   )
+
+  const typeLabel = (t: string) =>
+    t === "table" ? "table" : t === "journal" ? "journal" : "doc"
 
   return (
     <>
@@ -429,6 +415,29 @@ export function AgentGoalInput({
         )}
       >
         <div className="flex flex-col">
+          {/* Mention chips bar */}
+          {mentions.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 px-2 pt-1 pb-1.5">
+              {mentions.map((m) => (
+                <span
+                  key={m.id}
+                  className="inline-flex items-center gap-1 rounded-md bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 px-2 py-0.5 text-[11px] font-medium"
+                >
+                  <span className="opacity-60 text-[10px]">
+                    {typeLabel(m.type)}
+                  </span>
+                  {m.name}
+                  <button
+                    type="button"
+                    onClick={() => removeMention(m.id)}
+                    className="ml-0.5 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 p-0.5"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
           <textarea
             ref={textareaRef}
             value={goalInput}
@@ -437,7 +446,7 @@ export function AgentGoalInput({
               const newValue = e.target.value
               setGoalInput(newValue)
 
-              // Auto-resize textarea
+              // Auto-resize
               const el = e.target
               el.style.height = "auto"
               el.style.height = Math.min(el.scrollHeight, 200) + "px"
@@ -454,13 +463,11 @@ export function AgentGoalInput({
                 const triggerChar = textBeforeCursor[lastTriggerIndex]
                 const query = textBeforeCursor.slice(lastTriggerIndex + 1)
 
-                // If query contains space, it's no longer a valid trigger search
                 if (/\s/.test(query)) {
                   resetTrigger()
                   return
                 }
 
-                // Only activate if it's the start of a word or start of line
                 const charBeforeTrigger =
                   lastTriggerIndex > 0
                     ? textBeforeCursor[lastTriggerIndex - 1]

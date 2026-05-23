@@ -132,6 +132,7 @@ export interface IAgentData {
   tools?: Record<string, unknown>
   thinking?: "off" | "low" | "medium" | "high"
   skills?: string[]
+  mentions?: Array<{ id: string; name: string; type: string }>
 }
 
 export type ThinkingLevel = NonNullable<IAgentData["thinking"]>
@@ -237,6 +238,7 @@ export async function prepareAgent(
     tools: [],
     systemPrompt,
     skills,
+    mentions: data.mentions,
     logger: ctx?.logger,
   })
 

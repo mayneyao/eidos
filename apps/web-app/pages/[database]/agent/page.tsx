@@ -18,7 +18,10 @@ import { playNotificationSound } from "@/lib/web/audio"
 
 import { useToast } from "@/components/ui/use-toast"
 
-import { AgentGoalInput } from "@/components/ai-agent/agent-goal-input"
+import {
+  AgentGoalInput,
+  type NodeMention,
+} from "@/components/ai-agent/agent-goal-input"
 import { AgentChatArea } from "@/components/ai-agent/agent-chat-area"
 import { AgentSessionContext } from "@/components/ai-agent/agent-context"
 import { PermissionProvider } from "@/components/permission"
@@ -303,7 +306,7 @@ function AgentPageContent({
   }, [routeSessionId, space, setMessages])
 
   const handleSubmit = useCallback(
-    (goal: string, model: string) => {
+    (goal: string, model: string, mentions?: NodeMention[]) => {
       const sessionId = routeSessionId || uuidv7()
 
       if (isRunning) {
@@ -311,7 +314,6 @@ function AgentPageContent({
       }
 
       if (!routeSessionId) {
-        // If it's a new session, update URL
         navigate(`/agent/${sessionId}`, { replace: true })
       }
 
@@ -334,6 +336,7 @@ function AgentPageContent({
               space,
               thinking: thinkingLevel,
               skills: selectedSkills,
+              mentions,
             },
           }
         )

@@ -15,6 +15,7 @@ export class AgentContext {
   private _userContext: string[] = []
   private _skillToolkit: SkillToolkit | null = null
   private _requestedSkills: string[] = []
+  private _mentionsBlock: string | null = null
   private _log: {
     info: (...args: any[]) => void
     warn: (...args: any[]) => void
@@ -27,6 +28,7 @@ export class AgentContext {
     tools: string[]
     systemPrompt?: string
     skills?: string[]
+    mentions?: Array<{ id: string; name: string; type: string }>
     logger?: {
       info: (...args: any[]) => void
       warn: (...args: any[]) => void
@@ -40,6 +42,14 @@ export class AgentContext {
         AgentContext.buildDefaultPrompt(opts.goal, opts.tools)
     )
     ctx.addUserContext(`Today's date is ${new Date().toLocaleString()}.`)
+
+    // Store mentions block for injection into every user message
+    if (opts.mentions && opts.mentions.length > 0) {
+      const lines = opts.mentions.map(
+        (m) => `  <node id="${m.id}" type="${m.type}" name="${m.name}"/>`
+      )
+      ctx._mentionsBlock = `<referenced-nodes>\n${lines.join("\n")}\n</referenced-nodes>\nUse the IDs above directly with eidos commands.`
+    }
 
     // Initialize skills if requested
     if (opts.skills && opts.skills.length > 0) {
@@ -124,23 +134,29 @@ Be proactive. Don't ask for confirmation — just execute the plan.`
   }
 
   /**
-   * Prepend user context to the first user message's text content.
-   * The context is injected inside a `<user-context>` block at the beginning
-   * of the message, sharing the same message — not as a separate message.
+   * Prepend user context and mentions to every user message.
+   * Mentions go first (stable across turns for LLM caching),
+   * user context follows.
    */
   buildMessages(messages: UIMessage[]): UIMessage[] {
-    if (this._userContext.length === 0) return messages
-    const contextBlock = `<user-context>\n${this._userContext.join("\n")}\n</user-context>`
-    const idx = messages.findIndex((m) => m.role === "user")
-    if (idx === -1) return messages
-    const msg = messages[idx]
-    const parts = msg.parts.map((part, i) => {
-      if (i === 0 && part.type === "text") {
-        return { ...part, text: `${contextBlock}\n\n${part.text}` }
-      }
-      return part
+    if (this._userContext.length === 0 && !this._mentionsBlock) return messages
+
+    return messages.map((msg) => {
+      if (msg.role !== "user") return msg
+      const parts = msg.parts.map((part, i) => {
+        if (i === 0 && part.type === "text") {
+          let prefix = ""
+          if (this._mentionsBlock) prefix += this._mentionsBlock + "\n\n"
+          const contextBlock =
+            this._userContext.length > 0
+              ? `<user-context>\n${this._userContext.join("\n")}\n</user-context>\n\n`
+              : ""
+          prefix += contextBlock
+          return { ...part, text: `${prefix}${part.text}` }
+        }
+        return part
+      })
+      return { ...msg, parts }
     })
-    const updated = { ...msg, parts }
-    return [...messages.slice(0, idx), updated, ...messages.slice(idx + 1)]
   }
 }
