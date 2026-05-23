@@ -87,6 +87,8 @@ interface TableActionMeta {
   tableAction: {
     name: string
     description: string
+    /** 可选：限制此动作只在特定表格显示。省略则显示在所有表格上。 */
+    tableId?: string
   }
 }
 ```
@@ -130,6 +132,24 @@ export async function toggleChecked(
   }
 }
 ```
+
+#### 2.2.5 表格范围限定
+
+默认情况下，`tableAction` 扩展会出现在**所有表格**的上下文菜单中。要将其限制在特定表格，在 meta 中设置 `tableAction.tableId`：
+
+```ts
+export const meta = {
+  type: "tableAction",
+  funcName: "markDone",
+  tableAction: {
+    name: "标记完成",
+    description: "将选定记录标记为完成",
+    tableId: "a1b2c3d4e5f6...", // 仅在该表格上显示
+  },
+}
+```
+
+当 `tableId` 设置后，动作在数据库层面被过滤，仅在匹配表格的上下文菜单中渲染。省略 `tableId` 则保持全局行为。
 
 ### 2.3 文档动作脚本
 
