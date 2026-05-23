@@ -42,7 +42,7 @@
     "chat": "^4.28.1",
     "defuddle": "^0.16.0",
     "hono": "^4.12.7",
-    "@eidos.space/bashkit": "^0.6.4",
+    "@eidos.space/bashkit": "^0.6.5",
     "linkedom": "^0.18.12",
     "openai": "^4.104.0",
     "ws": "^8.18.2"

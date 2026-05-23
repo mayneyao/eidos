@@ -31,95 +31,40 @@ import {
 import { AgentContext } from "./agent-context"
 import { buildProviderOptions, resolveProviderForModel } from "./model"
 import { withPermission, type PermissionServerLike } from "../permission"
+import {
+  extractCommandNames,
+  findFirstCommand,
+  wordText,
+} from "./permission/ast-parser"
+import type { AstScript } from "./permission/ast-parser"
 
 /** UIMessage type with metadata */
 type MessageWithMeta = UIMessage<MessageMetadata>
 
-/**
- * Lightweight bash script parser: extracts command names from
- * pipelines, separators, and subshells without a full AST.
- */
-function extractCommandNames(
-  script: string
-): Array<{ name: string; fullArgs: string }> {
-  const commands: Array<{ name: string; fullArgs: string }> = []
-
-  // Strip comments
-  const noComments = script
-    .split("\n")
-    .map((l) => l.replace(/(?<!\$)#.*$/, ""))
-    .join("\n")
-
-  // Split by major separators: |, &&, ||, ;, &, newline
-  const segments = noComments
-    .split(/\s*(?:\|\||&&|;|&|\||\n)\s*/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-
-  for (const segment of segments) {
-    const words = segment.split(/\s+/).filter((w) => w.length > 0)
-    if (words.length === 0) continue
-
-    const first = words[0] ?? ""
-
-    // Skip variable assignments and redirect-only segments
-    if (first.includes("=") && !first.startsWith("$")) continue
-    if (
-      first.startsWith(">") ||
-      first.startsWith("<") ||
-      first.startsWith("2>")
-    )
-      continue
-
-    // Skip shell keywords
-    const shellKeywords = new Set([
-      "if",
-      "then",
-      "else",
-      "elif",
-      "fi",
-      "for",
-      "while",
-      "until",
-      "do",
-      "done",
-      "case",
-      "esac",
-      "in",
-      "function",
-      "{",
-      "}",
-      "(",
-      ")",
-      "[[",
-      "]]",
-    ])
-    if (shellKeywords.has(first)) continue
-
-    // Skip assignments like VAR=value
-    if (/^\w+=/.test(segment)) continue
-
-    commands.push({
-      name: first,
-      fullArgs: words.join(" "),
-    })
-  }
-
-  return commands
-}
-
-/** Check if an eidos invocation involves write operations. */
-function isEidosWrite(fullArgs: string): boolean {
-  return (
-    /record\s+(insert|update|delete)\b/.test(fullArgs) ||
-    /table\s+(create|delete)\b/.test(fullArgs) ||
-    /column\s+(create|delete|update)\b/.test(fullArgs) ||
-    /view\s+(create|delete|update)\b/.test(fullArgs) ||
-    /journal\s+write\b/.test(fullArgs) ||
-    /extension\s+(create|write)\b/.test(fullArgs) ||
-    /doc\s+(create|update|delete)\b/.test(fullArgs) ||
-    /subdoc\s+(write|delete)\b/.test(fullArgs)
-  )
+/** Return the precise permission key for an eidos command, or null if read-only. */
+function eidosCategory(args: string[]): string | null {
+  if (args.length < 2) return null
+  const [cmd, sub, action] = args.slice(1)
+  // record: query is read-only, insert/update/delete need per-action approval
+  if (cmd === "record" && sub && sub !== "query") return `eidos:record:${sub}`
+  // subdoc: read/list → auto; write/delete → approval
+  if (cmd === "subdoc" && (sub === "write" || sub === "delete"))
+    return `eidos:subdoc:${sub}`
+  // table
+  if (cmd === "table" && (sub === "create" || sub === "delete"))
+    return `eidos:table:${sub}`
+  // column
+  if (cmd === "column" && sub) return `eidos:column:${sub}`
+  // view
+  if (cmd === "view" && sub && sub !== "list") return `eidos:view:${sub}`
+  // journal
+  if (cmd === "journal" && sub === "write") return `eidos:journal:${sub}`
+  // extension
+  if (cmd === "extension" && (sub === "create" || sub === "write"))
+    return `eidos:extension:${sub}`
+  // doc
+  if (cmd === "doc" && sub && sub !== "get") return `eidos:doc:${sub}`
+  return null
 }
 
 export interface IAgentData {
@@ -244,6 +189,7 @@ export async function prepareAgent(
 
   let fsTools: Record<string, any> = {}
   let bashWithDs: Record<string, any> = {}
+  let bash: any = null
   if (dataspace) {
     const spacePath = space ? ctx?.getSpacePath?.(space) : undefined
     const skillsDir = path.join(os.homedir(), ".agents", "skills")
@@ -263,7 +209,7 @@ export async function prepareAgent(
 
     const secrets = ctx?.getSecrets ? await ctx.getSecrets() : {}
 
-    const { tool: bashTool, bash } = createBashTool({
+    const { tool: bashTool, bash: b } = createBashTool({
       skillsDir,
       sessionsDir,
       vfsDir,
@@ -272,8 +218,9 @@ export async function prepareAgent(
       extraInstructions: agentCtx.skillInstructions ?? undefined,
     })
 
+    bash = b
     bashWithDs = { bash: bashTool }
-    fsTools = createFileTools(bash)
+    fsTools = createFileTools(b)
   }
 
   const mergedTools: Record<string, any> = {
@@ -293,6 +240,11 @@ export async function prepareAgent(
         toolName: "file-write",
         sessionId: id,
         permissionServer,
+        requiresPermission: (input: any) => {
+          const p = (input?.path ?? "") as string
+          if (p.startsWith("/tmp/") || p === "/tmp") return false
+          return true
+        },
       })
     }
     if (mergedTools["file-edit"]) {
@@ -300,6 +252,11 @@ export async function prepareAgent(
         toolName: "file-edit",
         sessionId: id,
         permissionServer,
+        requiresPermission: (input: any) => {
+          const p = (input?.path ?? "") as string
+          if (p.startsWith("/tmp/") || p === "/tmp") return false
+          return true
+        },
       })
     }
     if (mergedTools.bash) {
@@ -311,14 +268,22 @@ export async function prepareAgent(
           const cmd = (input?.command ?? "") as string
           if (!cmd.trim()) return false
 
-          // Check for redirect or pipe to protected mount paths
-          const mountPattern = /(?:>|>>)\s*['"]?\/(?:agent)\//
-          const teeToPath = /\btee\s+['"]?\/(?:agent)\//
-          if (mountPattern.test(cmd) || teeToPath.test(cmd)) {
-            return "bash:redirect"
+          // AST-based parsing — immune to quoting, heredocs, nested structures
+          let names: string[] = []
+          let eidosArgs: string[] = []
+          try {
+            const raw = bash.parse(cmd)
+            const ast: AstScript =
+              typeof raw === "string" ? JSON.parse(raw) : raw
+            names = extractCommandNames(ast)
+            const simple = findFirstCommand(ast, "eidos")
+            if (simple) {
+              eidosArgs = ["eidos", ...simple.args.map(wordText)]
+            }
+          } catch {
+            return "bash"
           }
 
-          // Commands that are always read-only
           const safeCommands = new Set([
             "ls",
             "cat",
@@ -353,38 +318,18 @@ export async function prepareAgent(
             "history",
           ])
 
-          // Extract ALL command names from the script (across pipes, separators)
-          const commands = extractCommandNames(cmd)
-          let firstDangerous = ""
-
-          for (const { name, fullArgs } of commands) {
+          for (const name of names) {
             if (safeCommands.has(name)) continue
 
             if (name === "eidos") {
-              if (isEidosWrite(fullArgs)) {
-                firstDangerous = `bash:eidos write`
-                break
-              }
-              continue
+              const key = eidosCategory(eidosArgs)
+              if (!key) continue // read-only, skip
+              return `bash:${key}`
             }
 
-            // Extract subcommand prefix for cache key
-            const parts = fullArgs.split(/\s+/)
-            const subs: string[] = []
-            for (let i = 1; i < parts.length && subs.length < 2; i++) {
-              const p = parts[i]
-              if (p?.startsWith("-") || p?.startsWith("{") || /^["']/.test(p))
-                break
-              subs.push(p)
-            }
-            firstDangerous =
-              subs.length > 0
-                ? `bash:${name} ${subs.join(" ")}`
-                : `bash:${name}`
-            break
+            return `bash:${name}`
           }
-
-          return firstDangerous || false
+          return false
         },
       })
     }

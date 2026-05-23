@@ -70,7 +70,7 @@
       "node-pty"
     ],
     "overrides": {
-      "@eidos.space/bashkit": "^0.6.4",
+      "@eidos.space/bashkit": "^0.6.5",
       "fast-xml-parser": "^5.5.1",
       "tar": "^7.5.11",
       "svgo": "^4.0.1",

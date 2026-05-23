@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@eidos.space/bashkit': ^0.6.4
+  '@eidos.space/bashkit': ^0.6.5
   fast-xml-parser: ^5.5.1
   tar: ^7.5.11
   svgo: ^4.0.1
@@ -54,8 +54,8 @@ importers:
   apps/desktop:
     dependencies:
       '@eidos.space/bashkit':
-        specifier: ^0.6.4
-        version: 0.6.4(zod@3.25.67)
+        specifier: ^0.6.5
+        version: 0.6.5(zod@3.25.67)
       '@eidos.space/client':
         specifier: workspace:*
         version: link:../../packages/client
@@ -1034,8 +1034,8 @@ importers:
         specifier: ^4.28.1
         version: 4.28.1
       '@eidos.space/bashkit':
-        specifier: ^0.6.4
-        version: 0.6.4(zod@3.25.76)
+        specifier: ^0.6.5
+        version: 0.6.5(zod@3.25.76)
       '@openrouter/ai-sdk-provider':
         specifier: ^2.8.1
         version: 2.8.1(ai@6.0.168(zod@3.25.76))(zod@3.25.76)
@@ -2678,8 +2678,8 @@ packages:
   '@egjs/list-differ@1.0.1':
     resolution: {integrity: sha512-OTFTDQcWS+1ZREOdCWuk5hCBgYO4OsD30lXcOCyVOAjXMhgL5rBRDnt/otb6Nz8CzU0L/igdcaQBDLWc4t9gvg==}
 
-  '@eidos.space/bashkit@0.6.4':
-    resolution: {integrity: sha512-sY+M1XXvG28a4XywMnV7LjiSBvF7NEwj7H3RWEvwei3Cn/jMsWf6EUejdwZcBj5mnMYBUsOid+zpruKsse+XLw==}
+  '@eidos.space/bashkit@0.6.5':
+    resolution: {integrity: sha512-dipZSlWIM3DHHog+Y566jf2W9/awAn2kXFODzhXYuLcIQj3PPMh7nPmy4P0FqPzDE98sdjZerZv8lH+46HMHlA==}
     engines: {node: '>= 18'}
     peerDependencies:
       '@langchain/core': '>=0.3'
@@ -14987,12 +14987,12 @@ snapshots:
 
   '@egjs/list-differ@1.0.1': {}
 
-  '@eidos.space/bashkit@0.6.4(zod@3.25.67)':
+  '@eidos.space/bashkit@0.6.5(zod@3.25.67)':
     optionalDependencies:
       '@napi-rs/wasm-runtime': 1.1.1
       zod: 3.25.67
 
-  '@eidos.space/bashkit@0.6.4(zod@3.25.76)':
+  '@eidos.space/bashkit@0.6.5(zod@3.25.76)':
     optionalDependencies:
       '@napi-rs/wasm-runtime': 1.1.1
       zod: 3.25.76
@@ -16182,8 +16182,8 @@ snapshots:
 
   '@napi-rs/wasm-runtime@0.2.12':
     dependencies:
-      '@emnapi/core': 1.4.3
-      '@emnapi/runtime': 1.4.3
+      '@emnapi/core': 1.10.0
+      '@emnapi/runtime': 1.10.0
       '@tybys/wasm-util': 0.10.2
     optional: true
 
