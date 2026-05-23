@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai"
-import type { SkillToolkit } from "bash-tool"
+import type { SkillToolkit } from "./skills/skill-tool"
 import { initSkillToolkit } from "./skills"
 
 /**

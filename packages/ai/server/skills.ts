@@ -1,10 +1,7 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import {
-  experimental_createSkillTool as createSkillTool,
-  type SkillToolkit,
-} from "bash-tool"
+import { createSkillToolkit, type SkillToolkit } from "./skills/skill-tool"
 
 const SKILLS_DIR = path.join(os.homedir(), ".agents", "skills")
 
@@ -28,7 +25,6 @@ function ensureWatcher() {
       invalidateCache()
     })
     watcher.on("error", () => {
-      // Directory doesn't exist or other error — ignore
       watcher = null
     })
   } catch {
@@ -36,14 +32,10 @@ function ensureWatcher() {
   }
 }
 
-/**
- * Initialize the skill toolkit using bash-tool's createSkillTool.
- * Caches the result and invalidates when ~/.agents/skills/ changes.
- */
 export async function initSkillToolkit(): Promise<SkillToolkit | null> {
   if (cachedToolkit) return cachedToolkit
   try {
-    const toolkit = await createSkillTool({ skillsDirectory: SKILLS_DIR })
+    const toolkit = await createSkillToolkit({ skillsDirectory: SKILLS_DIR })
     cachedToolkit = toolkit
     ensureWatcher()
     return toolkit
@@ -52,9 +44,6 @@ export async function initSkillToolkit(): Promise<SkillToolkit | null> {
   }
 }
 
-/**
- * Lightweight skill metadata for the list API endpoint.
- */
 export function getSkillMetas(toolkit: SkillToolkit | null): SkillMeta[] {
   if (!toolkit) return []
   return toolkit.skills.map((s) => ({
