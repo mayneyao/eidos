@@ -1,10 +1,9 @@
 import { z } from "zod"
 import type { DataSpace } from "@/packages/core/data-space"
-import type { Bash } from "@eidos.space/just-bash"
 import { LightCli } from "./light-cli"
 import * as handlers from "./table-handlers"
 
-const PROPERTY_HELP_TEXT = `--property format by field type (values are merged with existing):
+export const PROPERTY_HELP_TEXT = `--property format by field type (values are merged with existing):
   select/multi-select: {"options": [{"name": "...", "color": "..."}]}  — uses options, NOT optionConfig!
   number:             {"format": "number"|"percent"|"currency", "showAs": "number"|"bar"|"ring"}
   formula:            {"formula": "price * quantity", "displayType": "number", "numberConfig": {...}}
@@ -21,9 +20,7 @@ const PROPERTY_HELP_TEXT = `--property format by field type (values are merged w
 
 --type allowed values: text, number, checkbox, date, url, rating, file, select, multi-select, formula, link, lookup, created-time, created-by, last-edited-time, last-edited-by`
 
-export function registerTableCommands(bash: Bash, ds: DataSpace) {
-  const cli = new LightCli("eidos")
-
+export function registerTableCommands(cli: LightCli, ds: DataSpace) {
   // ==========================================
   // Command Registrations with Inline Schemas
   // ==========================================
@@ -69,6 +66,29 @@ export function registerTableCommands(bash: Bash, ds: DataSpace) {
     .description("Delete a table")
     .action(async (data) => {
       return handlers.tableDelete(ds, data.tableId)
+    })
+
+  cli
+    .command("table list")
+    .description("List all tables in the current space")
+    .action(async () => {
+      return handlers.tableList(ds)
+    })
+
+  cli
+    .command("table info <table_id>")
+    .schema(
+      z.object({
+        tableId: z
+          .string({
+            required_error: "Table ID is required as the 1st argument",
+          })
+          .min(1, "Table ID cannot be empty"),
+      })
+    )
+    .description("Get full table info: id, name, fields, views")
+    .action(async (data) => {
+      return handlers.tableInfo(ds, data.tableId)
     })
 
   cli
@@ -601,23 +621,4 @@ export function registerTableCommands(bash: Bash, ds: DataSpace) {
     .action(async (data, ctx) => {
       return handlers.recordDelete(ds, data.tableId, ctx, data.where)
     })
-
-  bash.registerCommand({
-    name: "eidos",
-    trusted: true,
-    execute: async (args: string[], ctx?: any) => {
-      try {
-        if (args.length === 0) {
-          return {
-            exitCode: 1,
-            stdout: "",
-            stderr: cli.help() + "\n\n" + PROPERTY_HELP_TEXT,
-          }
-        }
-        return await cli.parse(args, ctx)
-      } catch (err: any) {
-        return { exitCode: 1, stdout: "", stderr: err.message || String(err) }
-      }
-    },
-  })
 }

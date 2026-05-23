@@ -17,7 +17,7 @@
     "deploy:docs": "pnpm run --filter docs deploy",
     "pkg:desktop": "pnpm run --filter eidos package",
     "pkg:desktop:dev": "pnpm run --filter eidos package:dev",
-    "install:sqlite-ext": "cd apps/desktop && node scripts/postinstall-sqlite-ext.cjs",
+    "install:sqlite-ext": "cd apps/desktop && node scripts/postinstall-sqlite-ext.cjs && node scripts/download-libsimple.cjs",
     "build:cli": "cd apps/cli && cargo build --release",
     "build:cli:dev": "cd apps/cli && cargo build",
     "build:desktop:local": "pnpm run --filter eidos build:cli && pnpm run --filter eidos build && pnpm run --filter eidos package:dev",
@@ -70,7 +70,7 @@
       "node-pty"
     ],
     "overrides": {
-      "just-bash": "npm:@eidos.space/just-bash@^3.0.4",
+      "@eidos.space/bashkit": "^0.6.4",
       "fast-xml-parser": "^5.5.1",
       "tar": "^7.5.11",
       "svgo": "^4.0.1",

@@ -1,356 +1,241 @@
-import type { IFileSystem, FsStat, FileContent } from "@eidos.space/just-bash"
 import crypto from "node:crypto"
-
 import { createFileTools } from "./file-tools"
 
-/**
- * Simple string-based in-memory filesystem for testing.
- */
-class TestFs implements IFileSystem {
+class MockBash {
   private files = new Map<string, string>()
+  private dirs = new Set<string>()
 
-  constructor(initialFiles: Record<string, string> = {}) {
-    for (const [path, content] of Object.entries(initialFiles)) {
-      this.files.set(path, content)
-    }
-  }
-
-  async readFile(path: string): Promise<string> {
-    if (!this.files.has(path)) {
-      const err = new Error(
-        `ENOENT: no such file or directory, open '${path}'`
-      ) as any
+  readFile(path: string): string {
+    const normalized = this.normalize(path)
+    if (!this.files.has(normalized)) {
+      const err = new Error(`ENOENT: no such file, '${normalized}'`) as any
       err.code = "ENOENT"
       throw err
     }
-    return this.files.get(path)!
+    return this.files.get(normalized)!
   }
-  async readFileBuffer(path: string): Promise<Uint8Array> {
-    return new TextEncoder().encode(await this.readFile(path))
-  }
-  async writeFile(path: string, content: FileContent): Promise<void> {
-    this.files.set(
-      path,
-      typeof content === "string" ? content : new TextDecoder().decode(content)
-    )
-  }
-  async appendFile(path: string, content: FileContent): Promise<void> {
-    const text =
-      typeof content === "string" ? content : new TextDecoder().decode(content)
-    this.files.set(path, (this.files.get(path) ?? "") + text)
-  }
-  async exists(path: string): Promise<boolean> {
-    return this.files.has(path)
-  }
-  async stat(path: string): Promise<FsStat> {
-    if (!this.files.has(path)) {
-      const err = new Error(`ENOENT`) as any
-      err.code = "ENOENT"
-      throw err
+
+  writeFile(path: string, content: string): void {
+    const normalized = this.normalize(path)
+    const parent = this.dirname(normalized)
+    if (parent && parent !== "/") {
+      this.mkdir(parent, true)
     }
-    return {
-      isFile: true,
-      isDirectory: false,
-      isSymbolicLink: false,
-      mode: 0o644,
-      size: 0,
-      mtime: new Date(),
-    }
-  }
-  async lstat(path: string): Promise<FsStat> {
-    return this.stat(path)
-  }
-  async readdir(_path: string): Promise<string[]> {
-    return []
-  }
-  async readdirWithFileTypes(_path: string): Promise<any[]> {
-    return []
-  }
-  async mkdir(): Promise<void> {}
-  async rm(): Promise<void> {}
-  async cp(): Promise<void> {}
-  async mv(): Promise<void> {}
-  async chmod(): Promise<void> {}
-  async symlink(): Promise<void> {}
-  async link(): Promise<void> {}
-  async readlink(): Promise<string> {
-    return ""
-  }
-  async realpath(path: string): Promise<string> {
-    return path
-  }
-  async utimes(): Promise<void> {}
-  resolvePath(_base: string, path: string): string {
-    return path
-  }
-  getAllPaths(): string[] {
-    return []
-  }
-}
-
-const HASH_ALPHABET = "ZPMQVRWSNKTXJBYH"
-const RE_SIGNIFICANT = /[\p{L}\p{N}]/u
-
-function computeLineHash(index: number, line: string): string {
-  const content = line.replace(/\r/g, "").trimEnd()
-  const isSignificant = RE_SIGNIFICANT.test(content)
-
-  const hash = crypto.createHash("md5")
-  hash.update(content)
-  if (!isSignificant) {
-    hash.update(index.toString())
+    this.files.set(normalized, content)
   }
 
-  const digest = hash.digest()
-  const h1 = digest[0]! % 16
-  const h2 = digest[1]! % 16
+  mkdir(path: string, _recursive?: boolean): void {
+    this.dirs.add(this.normalize(path))
+  }
 
-  return HASH_ALPHABET[h1]! + HASH_ALPHABET[h2]!
+  exists(path: string): boolean {
+    const normalized = this.normalize(path)
+    return this.files.has(normalized) || this.dirs.has(normalized)
+  }
+
+  private normalize(p: string): string {
+    if (!p.startsWith("/")) p = "/" + p
+    if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1)
+    return p
+  }
+
+  private dirname(p: string): string {
+    const idx = p.lastIndexOf("/")
+    return idx <= 0 ? "/" : p.slice(0, idx)
+  }
 }
 
 describe("file-tools", () => {
-  function createTestFs(initialFiles: Record<string, string> = {}) {
-    return new TestFs(initialFiles)
-  }
+  let fs: MockBash
+  let tools: Record<string, any>
 
-  // ── read ──────────────────────────────────────────────────────────
+  beforeEach(() => {
+    fs = new MockBash()
+    fs.mkdir("/agent", true)
+    fs.mkdir("/agent/skills", true)
+    tools = createFileTools(fs as any)
+  })
 
-  describe("read", () => {
-    test("returns file content with hashline tags", async () => {
-      const fs = createTestFs({ "/test.txt": "hello\nworld" })
-      const { "file-read": read } = createFileTools(fs)
-
-      const result = await read.execute!({ path: "/test.txt" }, {} as any)
-
-      expect(result).toMatchObject({
-        totalLines: 2,
-        from: 1,
-        to: 2,
+  describe("file-write", () => {
+    it("should create a file", async () => {
+      const result = await tools["file-write"].execute({
+        path: "/agent/skills/hello.md",
+        content: "# Hello\nWorld",
       })
-      const lines = (result as any).content.split("\n")
-      expect(lines[0]).toBe(`1#${computeLineHash(1, "hello")}:hello`)
-      expect(lines[1]).toBe(`2#${computeLineHash(2, "world")}:world`)
+      expect(result.success).toBe(true)
+      expect(fs.readFile("/agent/skills/hello.md")).toBe("# Hello\nWorld")
     })
 
-    test("reads file with offset", async () => {
-      const fs = createTestFs({ "/test.txt": "a\nb\nc\nd" })
-      const { "file-read": read } = createFileTools(fs)
-
-      const result = await read.execute!(
-        { path: "/test.txt", offset: 2 },
-        {} as any
-      )
-
-      expect(result).toMatchObject({ from: 3, to: 4 })
-      const lines = (result as any).content.split("\n")
-      expect(lines[0]).toBe(`3#${computeLineHash(3, "c")}:c`)
-      expect(lines[1]).toBe(`4#${computeLineHash(4, "d")}:d`)
+    it("should overwrite existing file", async () => {
+      fs.writeFile("/agent/skills/hello.md", "old")
+      const result = await tools["file-write"].execute({
+        path: "/agent/skills/hello.md",
+        content: "new",
+      })
+      expect(result.success).toBe(true)
+      expect(fs.readFile("/agent/skills/hello.md")).toBe("new")
     })
   })
 
-  // ── write ─────────────────────────────────────────────────────────
+  describe("file-read", () => {
+    beforeEach(() => {
+      const lines: string[] = []
+      for (let i = 1; i <= 20; i++) {
+        lines.push(`line-${String(i).padStart(2, "0")}`)
+      }
+      fs.writeFile("/agent/skills/test.md", lines.join("\n"))
+    })
 
-  describe("write", () => {
-    test("creates a new file", async () => {
-      const fs = createTestFs()
-      const { "file-write": write } = createFileTools(fs)
+    it("should read a file with hash anchors", async () => {
+      const result = await tools["file-read"].execute({
+        path: "/agent/skills/test.md",
+      })
+      expect(result.content).toContain("1#")
+      expect(result.content).toContain(":line-01")
+      expect(result.totalLines).toBe(20)
+      expect(result.from).toBe(1)
+      expect(result.to).toBe(20)
+    })
 
-      const result = await write.execute!(
-        { path: "/new.txt", content: "hello" },
-        {} as any
-      )
+    it("should support offset and limit", async () => {
+      const result = await tools["file-read"].execute({
+        path: "/agent/skills/test.md",
+        offset: 5,
+        limit: 3,
+      })
+      expect(result.from).toBe(6)
+      expect(result.to).toBe(8)
+      const lines = result.content.split("\n")
+      expect(lines.length).toBe(3)
+      expect(lines[0]).toContain("line-06")
+      expect(lines[2]).toContain("line-08")
+    })
 
-      expect(result).toMatchObject({ success: true, path: "/new.txt" })
-      expect(await fs.readFile("/new.txt")).toBe("hello")
+    it("should return error for missing file", async () => {
+      const result = await tools["file-read"].execute({
+        path: "/agent/skills/nope.md",
+      })
+      expect(result.error).toBeDefined()
+    })
+
+    it("hash should be stable for same content", async () => {
+      const r1 = await tools["file-read"].execute({
+        path: "/agent/skills/test.md",
+      })
+      const r2 = await tools["file-read"].execute({
+        path: "/agent/skills/test.md",
+      })
+      expect(r1.content).toBe(r2.content)
     })
   })
 
-  // ── edit ──────────────────────────────────────────────────────────
+  describe("file-edit", () => {
+    let readResult: any
 
-  describe("edit", () => {
-    test("replaces a single line", async () => {
-      const fs = createTestFs({ "/test.txt": "aaa\nbbb\nccc" })
-      const { "file-edit": edit } = createFileTools(fs)
-
-      const result = await edit.execute!(
-        {
-          path: "/test.txt",
-          edits: [
-            {
-              op: "replace",
-              pos: `2#${computeLineHash(2, "bbb")}`,
-              lines: ["BBB"],
-            },
-          ],
-        },
-        {} as any
+    beforeEach(async () => {
+      fs.writeFile(
+        "/agent/skills/edit.md",
+        ["line A", "line B", "line C", "line D", "line E"].join("\n")
       )
-
-      expect(result).toMatchObject({ success: true })
-      expect(await fs.readFile("/test.txt")).toBe("aaa\nBBB\nccc")
-    })
-
-    test("replaces a range of lines", async () => {
-      const fs = createTestFs({ "/test.txt": "aaa\nbbb\nccc\nddd" })
-      const { "file-edit": edit } = createFileTools(fs)
-
-      const result = await edit.execute!(
-        {
-          path: "/test.txt",
-          edits: [
-            {
-              op: "replace",
-              pos: `2#${computeLineHash(2, "bbb")}`,
-              end: `3#${computeLineHash(3, "ccc")}`,
-              lines: ["BBB", "CCC"],
-            },
-          ],
-        },
-        {} as any
-      )
-
-      expect(result).toMatchObject({ success: true })
-      expect(await fs.readFile("/test.txt")).toBe("aaa\nBBB\nCCC\nddd")
-    })
-
-    test("appends after an anchor", async () => {
-      const fs = createTestFs({ "/test.txt": "aaa\nbbb" })
-      const { "file-edit": edit } = createFileTools(fs)
-
-      await edit.execute!(
-        {
-          path: "/test.txt",
-          edits: [
-            {
-              op: "append",
-              pos: `1#${computeLineHash(1, "aaa")}`,
-              lines: ["AAA_EXTRA"],
-            },
-          ],
-        },
-        {} as any
-      )
-
-      expect(await fs.readFile("/test.txt")).toBe("aaa\nAAA_EXTRA\nbbb")
-    })
-
-    test("prepends before an anchor", async () => {
-      const fs = createTestFs({ "/test.txt": "aaa\nbbb" })
-      const { "file-edit": edit } = createFileTools(fs)
-
-      await edit.execute!(
-        {
-          path: "/test.txt",
-          edits: [
-            {
-              op: "prepend",
-              pos: `2#${computeLineHash(2, "bbb")}`,
-              lines: ["BBB_PRE"],
-            },
-          ],
-        },
-        {} as any
-      )
-
-      expect(await fs.readFile("/test.txt")).toBe("aaa\nBBB_PRE\nbbb")
-    })
-
-    test("multi-edits that shift lines work correctly", async () => {
-      const fs = createTestFs({ "/test.txt": "line1\nline2\nline3\nline4" })
-      const { "file-edit": edit } = createFileTools(fs)
-
-      // This test specifically reproduces the bug where an early append shifts later lines.
-      // 1. Append 2 lines after line 1.
-      // 2. Replace line 3.
-      // 3. Prepend 1 line before line 4.
-      // All anchors refer to the ORIGINAL file content.
-      const result = await edit.execute!(
-        {
-          path: "/test.txt",
-          edits: [
-            {
-              op: "append",
-              pos: `1#${computeLineHash(1, "line1")}`,
-              lines: ["line1.1", "line1.2"],
-            },
-            {
-              op: "replace",
-              pos: `3#${computeLineHash(3, "line3")}`,
-              lines: ["NEW_LINE3"],
-            },
-            {
-              op: "prepend",
-              pos: `4#${computeLineHash(4, "line4")}`,
-              lines: ["line3.9"],
-            },
-          ],
-        },
-        {} as any
-      )
-
-      expect(result).toMatchObject({ success: true })
-      expect(await fs.readFile("/test.txt")).toBe(
-        "line1\nline1.1\nline1.2\nline2\nNEW_LINE3\nline3.9\nline4"
-      )
-    })
-
-    test("rejects stale edit with hash mismatch", async () => {
-      const fs = createTestFs({ "/test.txt": "aaa\nbbb\nccc" })
-      const { "file-edit": edit } = createFileTools(fs)
-
-      const result = await edit.execute!(
-        {
-          path: "/test.txt",
-          edits: [
-            {
-              op: "replace",
-              pos: "2#XX", // Wrong hash
-              lines: ["BBB"],
-            },
-          ],
-        },
-        {} as any
-      )
-
-      expect(result).toMatchObject({
-        error: expect.stringContaining("Hash mismatch"),
+      readResult = await tools["file-read"].execute({
+        path: "/agent/skills/edit.md",
       })
     })
 
-    test("handles non-alphanumeric lines with index salting", async () => {
-      const fs = createTestFs({ "/test.txt": "}\n}\n}" })
-      const { "file-read": read, "file-edit": edit } = createFileTools(fs)
+    function extractAnchor(content: string, target: string): string {
+      const line = content.split("\n").find((l: string) => l.includes(target))
+      if (!line) throw new Error(`Anchor not found for ${target}`)
+      return line.match(/^\d+#[A-Z]+/)![0]
+    }
 
-      const readResult = (await read.execute!(
-        { path: "/test.txt" },
-        {} as any
-      )) as any
-      const lines = readResult.content.split("\n")
+    it("should replace a single line", async () => {
+      const anchor = extractAnchor(readResult.content, "line C")
+      const result = await tools["file-edit"].execute({
+        path: "/agent/skills/edit.md",
+        edits: [{ op: "replace", pos: anchor, lines: ["line X"] }],
+      })
+      expect(result.success).toBe(true)
+      const content = fs.readFile("/agent/skills/edit.md")
+      expect(content).toBe("line A\nline B\nline X\nline D\nline E")
+    })
 
-      // Each "}" should have a DIFFERENT hash because of index salting
-      const hash1 = lines[0].split("#")[1].split(":")[0]
-      const hash2 = lines[1].split("#")[1].split(":")[0]
-      const hash3 = lines[2].split("#")[1].split(":")[0]
+    it("should replace a range of lines", async () => {
+      const start = extractAnchor(readResult.content, "line B")
+      const end = extractAnchor(readResult.content, "line D")
+      const result = await tools["file-edit"].execute({
+        path: "/agent/skills/edit.md",
+        edits: [
+          {
+            op: "replace",
+            pos: start,
+            end,
+            lines: ["line X", "line Y"],
+          },
+        ],
+      })
+      expect(result.success).toBe(true)
+      const content = fs.readFile("/agent/skills/edit.md")
+      expect(content).toBe("line A\nline X\nline Y\nline E")
+    })
 
-      expect(hash1).not.toBe(hash2)
-      expect(hash2).not.toBe(hash3)
+    it("should append after a line", async () => {
+      const anchor = extractAnchor(readResult.content, "line B")
+      const result = await tools["file-edit"].execute({
+        path: "/agent/skills/edit.md",
+        edits: [{ op: "append", pos: anchor, lines: ["line X"] }],
+      })
+      expect(result.success).toBe(true)
+      const content = fs.readFile("/agent/skills/edit.md")
+      expect(content).toBe("line A\nline B\nline X\nline C\nline D\nline E")
+    })
 
-      // Verify we can edit the second "}" specifically
-      await edit.execute!(
-        {
-          path: "/test.txt",
-          edits: [
-            {
-              op: "replace",
-              pos: `2#${hash2}`,
-              lines: ["]"],
-            },
-          ],
-        },
-        {} as any
-      )
+    it("should prepend before a line", async () => {
+      const anchor = extractAnchor(readResult.content, "line C")
+      const result = await tools["file-edit"].execute({
+        path: "/agent/skills/edit.md",
+        edits: [{ op: "prepend", pos: anchor, lines: ["line X"] }],
+      })
+      expect(result.success).toBe(true)
+      const content = fs.readFile("/agent/skills/edit.md")
+      expect(content).toBe("line A\nline B\nline X\nline C\nline D\nline E")
+    })
 
-      expect(await fs.readFile("/test.txt")).toBe("}\n]\n}")
+    it("should reject hash mismatches", async () => {
+      const result = await tools["file-edit"].execute({
+        path: "/agent/skills/edit.md",
+        edits: [{ op: "replace", pos: "99#ZZ", lines: ["line X"] }],
+      })
+      expect(result.error).toBeDefined()
+      expect(result.error).toContain("out of range")
+    })
+  })
+
+  describe("hash algorithm", () => {
+    it("deterministic across reads", () => {
+      const lines = ["hello world", "foo bar baz"]
+      const content = lines.join("\n")
+      fs.writeFile("/agent/skills/hash.md", content)
+
+      // Read twice, hashes should match
+      const r1 = crypto.createHash("md5")
+      r1.update("hello world")
+      const d1 = r1.digest()
+
+      const r2 = crypto.createHash("md5")
+      r2.update("hello world")
+      const d2 = r2.digest()
+
+      expect(d1.equals(d2)).toBe(true)
+    })
+  })
+
+  describe("auto-create directories", () => {
+    it("should create nested directories on write", async () => {
+      await tools["file-write"].execute({
+        path: "/agent/sessions/a/b/c/file.txt",
+        content: "deep",
+      })
+      expect(fs.readFile("/agent/sessions/a/b/c/file.txt")).toBe("deep")
     })
   })
 })

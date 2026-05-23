@@ -56,8 +56,7 @@ function normalizeColumnProperty(type: string, property: any): any {
 }
 
 /**
- * Generic wrapper to catch SQLite "no such table" errors and provide extremely
- * clear, detailed instructions for self-correction.
+ * Generic wrapper to catch SQLite "no such table" errors.
  */
 async function wrapDbCall(
   tableId: string,
@@ -73,11 +72,28 @@ async function wrapDbCall(
         stderr: `Error: Table not found (no such table: tb_${tableId}).
 Did you pass the table name ("${tableId}") instead of the table ID?
 Hint: All subcommands require the 32-character hexadecimal table ID (e.g., 99ea583e0160490787664c63b829d89a) rather than the display name.
-Run 'ls /dataspace/' to find the correct ID (look for "<name>.table" where the filename before ".table" is the name and the content contains the ID).`,
+Run 'eidos table list' to see available tables and their IDs.`,
       }
     }
     throw err
   }
+}
+
+/**
+ * Walk a JSON value and convert boolean true/false to 1/0 for SQLite.
+ */
+function normalizeBooleans(v: any): any {
+  if (v === true) return 1
+  if (v === false) return 0
+  if (Array.isArray(v)) return v.map(normalizeBooleans)
+  if (v && typeof v === "object") {
+    const out: Record<string, any> = {}
+    for (const [k, val] of Object.entries(v)) {
+      out[k] = normalizeBooleans(val)
+    }
+    return out
+  }
+  return v
 }
 
 export async function tableCreate(
@@ -294,7 +310,11 @@ export async function recordQuery(
   return wrapDbCall(tableId, async () => {
     const normalizedTableId = normalizeTableId(tableId)
     if (query) {
-      const res = await ds.exec2(query)
+      const fixed = query.replace(
+        new RegExp(`\\b${normalizedTableId}\\b`, "g"),
+        `tb_${normalizedTableId}`
+      )
+      const res = await ds.exec2(fixed)
       return { exitCode: 0, stdout: JSON.stringify(res, null, 2), stderr: "" }
     }
 
@@ -330,7 +350,7 @@ Example with pipe:
   }
   return wrapDbCall(tableId, async () => {
     const normalizedTableId = normalizeTableId(tableId)
-    const input = JSON.parse(jsonSource.trim() || "[]")
+    const input = normalizeBooleans(JSON.parse(jsonSource.trim() || "[]"))
     const records = Array.isArray(input) ? input : [input]
 
     const res = await ds.table(normalizedTableId).createMany({ data: records })
@@ -355,7 +375,7 @@ export async function recordUpdate(
   if (whereStr && dataStr) {
     return wrapDbCall(tableId, async () => {
       const where = JSON.parse(whereStr.trim())
-      const data = JSON.parse(dataStr.trim())
+      const data = normalizeBooleans(JSON.parse(dataStr.trim()))
       const res = await ds.table(normalizedTableId).updateMany({ where, data })
       return {
         exitCode: 0,
@@ -379,7 +399,7 @@ Example with pipe:
   }
 
   return wrapDbCall(tableId, async () => {
-    const input = JSON.parse(ctx.stdin.trim() || "[]")
+    const input = normalizeBooleans(JSON.parse(ctx.stdin.trim() || "[]"))
     const updates = Array.isArray(input) ? input : [input]
 
     let total = 0
@@ -415,6 +435,38 @@ Example: eidos record delete ${tableId} --where '{"id": "1"}'`,
     return {
       exitCode: 0,
       stdout: JSON.stringify({ count: res.count }),
+      stderr: "",
+    }
+  })
+}
+
+export async function tableList(ds: DataSpace): Promise<ExecResult> {
+  try {
+    const tables = await ds.schema.listTables()
+    return {
+      exitCode: 0,
+      stdout: JSON.stringify(tables, null, 2),
+      stderr: "",
+    }
+  } catch (err) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: err instanceof Error ? err.message : String(err),
+    }
+  }
+}
+
+export async function tableInfo(
+  ds: DataSpace,
+  tableId: string
+): Promise<ExecResult> {
+  return wrapDbCall(tableId, async () => {
+    const normalized = normalizeTableId(tableId)
+    const info = await ds.schema.getTable(normalized)
+    return {
+      exitCode: 0,
+      stdout: JSON.stringify(info, null, 2),
       stderr: "",
     }
   })

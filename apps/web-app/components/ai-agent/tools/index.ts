@@ -1,6 +1,6 @@
 import { webSearchConfig } from "./web-search"
 import { webFetchConfig } from "./web-fetch"
-import { justBashConfig } from "./just-bash"
+import { bashConfig } from "./just-bash"
 import { skillConfig } from "./skill"
 import { readConfig, writeConfig, editConfig } from "./file-tools"
 import { type ToolUIConfig } from "./types"
@@ -10,7 +10,7 @@ export { type ToolUIConfig } from "./types"
 export const TOOL_UI_CONFIGS: Record<string, ToolUIConfig> = {
   "web-search": webSearchConfig,
   "web-fetch": webFetchConfig,
-  bash: justBashConfig,
+  bash: bashConfig,
   skill: skillConfig,
   "file-read": readConfig,
   "file-write": writeConfig,

@@ -1,7 +1,7 @@
 import React from "react"
 import { type ToolUIConfig } from "./types"
 
-function JustBashOutputView({ data }: { data: any; args: any }) {
+function BashOutputView({ data }: { data: any; args: any }) {
   let outputText = ""
   if (typeof data === "string") {
     outputText = data
@@ -28,8 +28,8 @@ function JustBashOutputView({ data }: { data: any; args: any }) {
   )
 }
 
-export const justBashConfig: ToolUIConfig = {
+export const bashConfig: ToolUIConfig = {
   displayName: "Bash",
   subtitle: (args) => args?.command || "",
-  renderOutput: (data, args) => <JustBashOutputView data={data} args={args} />,
+  renderOutput: (data, args) => <BashOutputView data={data} args={args} />,
 }

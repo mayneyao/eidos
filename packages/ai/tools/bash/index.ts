@@ -1,180 +1,170 @@
-import fs from "node:fs"
-import os from "node:os"
-import path from "node:path"
 import type { Tool } from "ai"
 import { z } from "zod"
-import {
-  Bash,
-  InMemoryFs,
-  MountableFs,
-  ReadWriteFs,
-} from "@eidos.space/just-bash"
+import { Bash } from "@eidos.space/bashkit"
 import type { DataSpace } from "@/packages/core/data-space"
-import { EidosAgentFs, ExtensionsAgentFs, JournalsAgentFs } from "../agent-fs"
-import { registerTableCommands } from "./table-commands"
+import type { BuiltinContext, BuiltinCallback } from "@eidos.space/bashkit"
+import { LightCli } from "./light-cli"
+import { registerTableCommands, PROPERTY_HELP_TEXT } from "./table-commands"
+import { registerJournalCommands } from "./journal-commands"
+import { registerExtensionCommands } from "./extension-commands"
+import { registerTreeCommands } from "./tree-commands"
+import { registerDocCommands } from "./doc-commands"
+import { registerSearchCommands } from "./search-commands"
 
-const MAX_OUTPUT_LENGTH = 30000
+const MAX_OUTPUT_LENGTH = 100000
 
-export interface BashToolContext {
-  dataspace: DataSpace
-  /** Space directory path for accessing space-level files like sessions */
-  spacePath?: string
-  /** Additional instructions to append to the tool description */
+export interface BashToolOptions {
+  skillsDir?: string
+  sessionsDir?: string
+  /** Per-session VFS directory — mounted at /tmp/ for persistence across restarts */
+  vfsDir?: string
+  dataspace?: DataSpace
   extraInstructions?: string
+  env?: Record<string, string>
 }
 
 const bashParams = z.object({
   command: z.string().describe("The bash command to execute"),
 })
 
-/**
- * Build the composite filesystem for the AI agent:
- *
- *   /             → InMemoryFs (base, mostly unused)
- *   /dataspace/   → EidosAgentFs (read-only SQLite virtual fs)
- *   /agent/skills/    → ReadWriteFs backed by ~/.agents/skills/ (read-write)
- *   /agent/sessions/  → ReadWriteFs backed by <space>/.eidos/agent/sessions/ (read-write)
- *   /journals/    → JournalsAgentFs (day pages from eidos__docs)
- *   /extensions/  → ExtensionsAgentFs (extensions from eidos__extensions, read-only)
- */
-export async function buildAgentFs(ctx: BashToolContext) {
-  const { dataspace, spacePath } = ctx
+class EidosRunner {
+  constructor(private ds: DataSpace) {}
 
-  const treeFs = new EidosAgentFs(dataspace)
-  await treeFs.healthCheck()
+  async run(ctx: BuiltinContext): Promise<string> {
+    const cli = new LightCli("eidos")
+    registerTableCommands(cli, this.ds)
+    registerJournalCommands(cli, this.ds)
+    registerExtensionCommands(cli, this.ds)
+    registerTreeCommands(cli, this.ds)
+    registerDocCommands(cli, this.ds)
+    registerSearchCommands(cli, this.ds)
 
-  const journalsFs = new JournalsAgentFs(dataspace)
-  await journalsFs.healthCheck()
+    const args = ctx.argv
+    if (args.length === 0) {
+      return cli.help() + "\n\n" + PROPERTY_HELP_TEXT
+    }
 
-  const extensionsFs = new ExtensionsAgentFs(dataspace)
-  await extensionsFs.healthCheck()
-
-  const skillsDir = path.join(os.homedir(), ".agents", "skills")
-  if (!fs.existsSync(skillsDir)) {
-    fs.mkdirSync(skillsDir, { recursive: true })
+    const execCtx = { stdin: ctx.stdin }
+    const result = await cli.parse(args, execCtx)
+    if (result.exitCode !== 0 && result.stderr) {
+      return result.stderr
+    }
+    return result.stdout
   }
-  const skillFs = new ReadWriteFs({ root: skillsDir })
-
-  // Sessions are stored in the space directory
-  const sessionsDir = spacePath
-    ? path.join(spacePath, ".eidos", "agent", "sessions")
-    : path.join(os.homedir(), ".eidos", "agent", "sessions")
-  if (!fs.existsSync(sessionsDir)) {
-    fs.mkdirSync(sessionsDir, { recursive: true })
-  }
-  const sessionsFs = new ReadWriteFs({ root: sessionsDir })
-
-  const mountableFs = new MountableFs({
-    base: new InMemoryFs(),
-    mounts: [
-      { mountPoint: "/agent/skills", filesystem: skillFs },
-      { mountPoint: "/agent/sessions", filesystem: sessionsFs },
-      { mountPoint: "/dataspace", filesystem: treeFs },
-      { mountPoint: "/journals", filesystem: journalsFs },
-      { mountPoint: "/extensions", filesystem: extensionsFs },
-    ],
-  })
-
-  return mountableFs
 }
 
-/**
- * Create a sandboxed bash tool.
- * Accepts a pre-built MountableFs (from buildAgentFs) to share with file-tools.
- */
-export function createBashTool(
-  fs: InstanceType<typeof MountableFs>,
-  extraInstructions?: string,
-  dataspace?: DataSpace,
-  secrets?: Record<string, string>
-): Tool {
-  const bash = new Bash({
-    fs,
-    cwd: "/",
-    env: secrets,
-    executionLimits: {
-      maxCommandCount: 10000,
-      maxLoopIterations: 100,
-    },
-    javascript: true,
-    python: true,
-    network: {
-      dangerouslyAllowFullInternetAccess: true,
-      allowedMethods: [
-        "GET",
-        "POST",
-        "PUT",
-        "DELETE",
-        "PATCH",
-        "HEAD",
-        "OPTIONS",
-      ],
-      denyPrivateRanges: false,
-    },
-    defenseInDepth: false,
-  })
+export function createBashTool(options: BashToolOptions = {}): {
+  tool: Tool
+  bash: Bash
+} {
+  const { skillsDir, sessionsDir, dataspace, extraInstructions, vfsDir, env } =
+    options
+
+  const customBuiltins: Record<string, BuiltinCallback> = {}
 
   if (dataspace) {
-    registerTableCommands(bash, dataspace)
+    const runner = new EidosRunner(dataspace)
+    customBuiltins.eidos = (ctx: BuiltinContext) => runner.run(ctx)
+  }
+
+  const mountPaths = [skillsDir, sessionsDir, vfsDir].filter(
+    Boolean
+  ) as string[]
+
+  const bash = new Bash({
+    python: true,
+    network: { allowAll: true },
+    maxCommands: 10000,
+    maxLoopIterations: 100,
+    env,
+    customBuiltins,
+    allowedMountPaths: mountPaths,
+  })
+  if (skillsDir) {
+    bash.mount(skillsDir, "/agent/skills", true)
+  }
+  if (sessionsDir) {
+    bash.mount(sessionsDir, "/agent/sessions", true)
+  }
+  if (vfsDir) {
+    bash.mount(vfsDir, "/tmp", true)
   }
 
   const description = `Execute a bash command in a sandboxed filesystem.
 
-Available Mounts:
-- /dataspace/       — read-only .table (schema) files, and directories containing records as .md files (write/edit to update).
+AVAILABLE MOUNTS:
 - /agent/skills/    — skill files (read-write).
 - /agent/sessions/  — agent session files (.meta.json, .jsonl) (read-write).
-- /journals/        — journal entries as YYYY-MM-DD.md files (read-write).
-- /extensions/      — extensions as .ts/.tsx files (read-write).
+- /tmp/             — persistent session scratch space (read-write).
 
-CRITICAL MOUNT & FILE RULES:
-1. Under a table directory, the .md filename is exactly the record title (e.g., "My Task.md" -> title="My Task"). Do NOT sanitize/kebab-case. Writing to a new .md inserts a record, writing to an existing .md updates it. Deleting a .md only removes its doc content, not the record. To delete a record, use 'eidos record delete'.
-2. Use 'ls', 'cat', 'rg' to explore. Prefer 'rg' (ripgrep) over 'find'.
-3. WRITING FILES/SCRIPTS: Do NOT use complex inline shell heredocs (e.g., cat << 'EOF' or python3 << 'EOF') to write scripts/files in bash. Always write files or scripts using your environment's file writing tools (like write_to_file) to avoid heredoc syntax, escaping, and truncation errors.
+EIDOS CLI (built-in):
+Use 'eidos' with subcommands directly in bash pipelines.
+DATA DISCOVERY — start here to find what tables/records exist:
+  eidos search <keyword>             # Full-text search across all docs & journals (titles + content)
+  eidos tree                         # Nested tree with childCount (depth 1 by default, expand with --depth or --parent)
+  eidos tree --depth 3               # Deeper nesting
+  eidos tree --parent <id>           # Subtree of a specific node
+  eidos table list                   # List tables (id + name)
+  eidos table info <id>              # Table schema: id, name, fields, views
+${
+  dataspace
+    ? `
+DOCUMENT EDITING:
+  eidos search <keyword>                             # Find records by content
+  eidos doc create <name> --table <id>               # Create sub-doc under table (stdin for content)
+  eidos doc create <name> --parent <folder_id>       # Create doc in folder (stdin for content)
+  eidos doc create <name>                            # Create standalone doc at root (stdin for content)
+  eidos doc get <record_id> > /tmp/doc.md            # Export markdown to VFS
+  file-read("/tmp/doc.md")                           # Review content with hash anchors
+  file-edit("/tmp/doc.md", edits)                    # Make targeted edits
+  cat /tmp/doc.md | eidos doc update <record_id> --table <table_id>  # Commit (auto-creates sub-doc)
+  eidos doc delete <record_id>                       # Soft-delete a document
 
-SANDBOX ARCHITECTURE PHILOSOPHY (Tool Composition & File Data Exchange):
-- Decoupled Orchestration: The optimal design in this sandboxed WASM environment is "Unix Pipeline & Decoupling".
-- Data Exchange via Files: Do NOT pass huge JSON arguments via shell command-line strings (like --data) or write complex inline heredoc scripts. Instead:
-  1. Write scripts (Python/JS) and data payloads (JSON) as physical files (e.g. /tmp/raw.json, /tmp/transform.py) using your environment's file-writing tools.
-  2. Use standard Unix redirection and piping to flow data between sandboxed tools:
-     python3 /tmp/transform.py < /tmp/raw.json > /tmp/clean.json
-     eidos record insert <table_id> < /tmp/clean.json
-  3. This completely avoids shell escaping errors, buffer limits, and process constraints, ensuring 100% execution success!
+MUTATION:
+  eidos table create <name>                           # Create a new table
+  eidos table delete <id>                             # Delete a table
+  eidos record query <id> -q "SELECT ..."             # Query records
+  eidos record insert <id> -d '{"title":"x"}'         # Insert record(s). Batch via pipe: cat data.json | eidos record insert <id> --stdin
+  eidos record update <id> -w '{"id":"x"}' -d '{...}' # Update record(s)
+  eidos record delete <id> -w '{"id":"x"}'            # Delete record(s)
+  eidos column create <table> <name> -t text          # Create column
+  eidos column delete <table> <name>                  # Delete column
+  eidos column update <table> <name> -n newName       # Update column
+  eidos view list <table>                             # List views
+  eidos view create <table> <name> grid               # Create view
+  eidos view update <table> <view> -n "New" -q "..."  # Update view
+  eidos journal list [--limit 30]                     # List journal entries
+  eidos journal get <YYYY-MM-DD>                      # Read journal entry
+  eidos journal write <YYYY-MM-DD> <content>          # Write journal entry (stdin)
+  eidos extension list                                # List extensions
+  eidos extension get <slug>                          # Get extension code
+  eidos extension write <slug> <code>                 # Update extension (stdin)`
+    : "No dataspace — eidos commands unavailable."
+}
 
-WASM Runtime Constraints (Python & JavaScript):
-- Python (python/python3) and JS (js-exec) run in highly restricted WASM sandboxes.
-- NO PROCESSES / THREADS (EMSCRIPTEN LIMITATION): Emscripten does not support process creation or threading. Do NOT use subprocess, multiprocessing, threading, os.system, os.popen, os.fork inside scripts. Calling external binaries or the 'eidos' CLI from within Python/JS scripts is impossible and will crash.
-- NO NETWORK ACCESS: Network modules (requests, urllib, socket, fetch) are completely disabled.
-- NO PACKAGE INSTALLS: pip, npm, poetry, etc., are unavailable. Only standard libraries are supported (e.g., json, math, datetime, re).
+EIDOS PIPELINE PATTERN:
+  eidos search "invoice" | jq '.[].recordId'                     # Find matching records
+  eidos record query <table> -q "SELECT * FROM tb_xxx WHERE ..." | jq '...' | python3 script.py
+  curl ... | jq -s '.' | eidos record insert <table> --stdin     # Batch insert via stdin pipe
 
-Eidos CLI & Database Tips:
-- CRITICAL: Always use the 32-char hexadecimal table ID (found in the .table file or returned by table create) for all database operations, NEVER the table's display name.
-- Every table has a built-in 'title' field — never create a column named "title".
-- eidos table create <name> (positional <name>, NOT --name)
-- eidos column update <table_id> (to change field type or set formula/options)
-- BATCH INSERT (HIGHLY RECOMMENDED): eidos record insert supports piping a JSON array of records. To batch insert, write your data into a JSON file (e.g. records.json) and pipe it directly:
-    cat records.json | eidos record insert <table_id>
-  Do NOT write scripts that recursively call 'eidos record insert' via subprocesses.
-- eidos record insert/update (Single):
-  * Insert: eidos record insert <table_id> --data '{"title": "Task", "score": 100}'
-  * Update: eidos record update <table_id> --where '{"id": "123"}' --data '{"score": 150}'
-- eidos record query <table_id>: Supports two mutually exclusive modes:
-  * Raw SQL (highly recommended): --query "SELECT * FROM tb_xxx WHERE status = 'Done' ORDER BY priority ASC"
-  * Structured: --where '{"status":"Done"}' --take 20 --orderBy '{"priority":"asc"}'
-  (Do NOT mix --query with other options)
-- eidos view update <table_id> --query "<SQL>" --type <grid|gallery|doc_list|kanban> --name <str>
+CRITICAL: Always use the 32-char hex table ID, NOT the display name.
+Every table has a built-in 'title' field — never create a column named "title".
+In raw SQL queries, use either the plain ID or tb_<id> — both are accepted.
+Boolean/checkbox values: use 1 or 0 (true/false are auto-converted).
 
-For full command list, run "eidos" with no arguments.
+DATA EXCHANGE:
+- Pipe JSON directly: echo '[{...}]' | eidos record insert <table> --stdin
+- Write large data to /tmp/ files with file tools, then process in bash.
 ${extraInstructions ? `\n\n${extraInstructions}` : ""}`
 
-  return {
+  const tool: Tool = {
     description,
     inputSchema: bashParams,
     execute: async (args) => {
       const { command } = args as z.infer<typeof bashParams>
       console.log("[tool:bash] ▶", { command: command.slice(0, 200) })
       try {
-        const result = await bash.exec(command)
+        const result = await bash.execute(command)
         const stdout =
           result.stdout.length > MAX_OUTPUT_LENGTH
             ? result.stdout.slice(0, MAX_OUTPUT_LENGTH) +
@@ -198,4 +188,6 @@ ${extraInstructions ? `\n\n${extraInstructions}` : ""}`
       }
     },
   }
+
+  return { tool, bash }
 }

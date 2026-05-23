@@ -1,3 +1,6 @@
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
 import { AgentSessionStore } from "@/packages/core/agent-session/agent-session-store"
 import type { DataSpace } from "@/packages/core/data-space"
 import type { MessageMetadata } from "@/packages/core/types"
@@ -20,7 +23,6 @@ import {
 } from "ai"
 import type { AIFormValues } from "../config"
 import {
-  buildAgentFs,
   createBashTool,
   createFileTools,
   createWebSearchTool,
@@ -29,22 +31,100 @@ import {
 import { AgentContext } from "./agent-context"
 import { buildProviderOptions, resolveProviderForModel } from "./model"
 import { withPermission, type PermissionServerLike } from "../permission"
-import { BashTransformPipeline, CommandCollectorPlugin } from "just-bash"
-
-// Singleton pipeline for parsing bash commands and collecting command names
-const bashParsePipeline = new BashTransformPipeline().use(
-  new CommandCollectorPlugin()
-)
 
 /** UIMessage type with metadata */
 type MessageWithMeta = UIMessage<MessageMetadata>
 
+/**
+ * Lightweight bash script parser: extracts command names from
+ * pipelines, separators, and subshells without a full AST.
+ */
+function extractCommandNames(
+  script: string
+): Array<{ name: string; fullArgs: string }> {
+  const commands: Array<{ name: string; fullArgs: string }> = []
+
+  // Strip comments
+  const noComments = script
+    .split("\n")
+    .map((l) => l.replace(/(?<!\$)#.*$/, ""))
+    .join("\n")
+
+  // Split by major separators: |, &&, ||, ;, &, newline
+  const segments = noComments
+    .split(/\s*(?:\|\||&&|;|&|\||\n)\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  for (const segment of segments) {
+    const words = segment.split(/\s+/).filter((w) => w.length > 0)
+    if (words.length === 0) continue
+
+    const first = words[0] ?? ""
+
+    // Skip variable assignments and redirect-only segments
+    if (first.includes("=") && !first.startsWith("$")) continue
+    if (
+      first.startsWith(">") ||
+      first.startsWith("<") ||
+      first.startsWith("2>")
+    )
+      continue
+
+    // Skip shell keywords
+    const shellKeywords = new Set([
+      "if",
+      "then",
+      "else",
+      "elif",
+      "fi",
+      "for",
+      "while",
+      "until",
+      "do",
+      "done",
+      "case",
+      "esac",
+      "in",
+      "function",
+      "{",
+      "}",
+      "(",
+      ")",
+      "[[",
+      "]]",
+    ])
+    if (shellKeywords.has(first)) continue
+
+    // Skip assignments like VAR=value
+    if (/^\w+=/.test(segment)) continue
+
+    commands.push({
+      name: first,
+      fullArgs: words.join(" "),
+    })
+  }
+
+  return commands
+}
+
+/** Check if an eidos invocation involves write operations. */
+function isEidosWrite(fullArgs: string): boolean {
+  return (
+    /record\s+(insert|update|delete)\b/.test(fullArgs) ||
+    /table\s+(create|delete)\b/.test(fullArgs) ||
+    /column\s+(create|delete|update)\b/.test(fullArgs) ||
+    /view\s+(create|delete|update)\b/.test(fullArgs) ||
+    /journal\s+write\b/.test(fullArgs) ||
+    /extension\s+write\b/.test(fullArgs) ||
+    /doc\s+(create|update|delete)\b/.test(fullArgs)
+  )
+}
+
 export interface IAgentData {
   goal: string
-  /** UIMessage[] with metadata from useChat */
   messages: MessageWithMeta[]
   systemPrompt?: string
-  /** Model identifier in "modelId@providerName" format */
   model: string
   space?: string
   id: string
@@ -55,11 +135,6 @@ export interface IAgentData {
 
 export type ThinkingLevel = NonNullable<IAgentData["thinking"]>
 
-/**
- * Sanitize messages: an aborted stream may leave tool invocations in
- * an incomplete state (e.g. input-streaming / input-available without output).
- * convertToModelMessages rejects these, so strip them before conversion.
- */
 function sanitizeMessages(messages: MessageWithMeta[]): MessageWithMeta[] {
   return messages.map((msg) => {
     if (msg.role !== "assistant" || !msg.parts) return msg
@@ -96,8 +171,8 @@ export interface PreparedAgent {
   existingMeta: any
   messages: MessageWithMeta[]
   aiConfig: AIFormValues | undefined
-  startTime: number // Date.now() - Unix timestamp for message.createdAt
-  perfStartTime: number // performance.now() - for calculating duration
+  startTime: number
+  perfStartTime: number
 }
 
 export interface AgentContextOptions {
@@ -114,10 +189,6 @@ export interface AgentContextOptions {
   permissionServer?: PermissionServerLike
 }
 
-/**
- * Prepare an agent for execution. Builds tools, context, model, and
- * persists initial session meta. Returns everything needed to stream.
- */
 export async function prepareAgent(
   data: IAgentData,
   ctx?: AgentContextOptions
@@ -155,13 +226,11 @@ export async function prepareAgent(
   log.info("[agent] ▶ dataspace resolved", {
     space,
     hasDataspace: !!dataspace,
-    hasCtx: !!ctx,
   })
   const store = dataspace ? new AgentSessionStore(dataspace) : null
   const existingMeta = store ? await store.loadMeta(id) : null
   const sessionGoal = existingMeta?.goal || goal
 
-  // AgentContext handles skill discovery, instruction injection, and exposes skill assets
   const agentCtx = await AgentContext.create({
     goal: sessionGoal,
     tools: [],
@@ -170,22 +239,38 @@ export async function prepareAgent(
     logger: ctx?.logger,
   })
 
-  // Build shared filesystem and tools (bash + read/write/edit)
   let fsTools: Record<string, any> = {}
   let bashWithDs: Record<string, any> = {}
   if (dataspace) {
     const spacePath = space ? ctx?.getSpacePath?.(space) : undefined
-    const fs = await buildAgentFs({ dataspace, spacePath })
-    const secrets = ctx?.getSecrets ? await ctx.getSecrets() : {}
-    bashWithDs = {
-      bash: createBashTool(
-        fs,
-        agentCtx.skillInstructions ?? undefined,
-        dataspace,
-        secrets
-      ),
+    const skillsDir = path.join(os.homedir(), ".agents", "skills")
+    const sessionsDir = spacePath
+      ? path.join(spacePath, ".eidos", "agent", "sessions")
+      : path.join(os.homedir(), ".eidos", "agent", "sessions")
+    const vfsDir = spacePath
+      ? path.join(spacePath, ".eidos", "agent", "vfs", id)
+      : path.join(os.homedir(), ".eidos", "agent", "vfs", id)
+
+    // Ensure mount directories exist
+    for (const dir of [skillsDir, sessionsDir, vfsDir]) {
+      if (dir && !fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
     }
-    fsTools = createFileTools(fs)
+
+    const secrets = ctx?.getSecrets ? await ctx.getSecrets() : {}
+
+    const { tool: bashTool, bash } = createBashTool({
+      skillsDir,
+      sessionsDir,
+      vfsDir,
+      dataspace,
+      env: secrets,
+      extraInstructions: agentCtx.skillInstructions ?? undefined,
+    })
+
+    bashWithDs = { bash: bashTool }
+    fsTools = createFileTools(bash)
   }
 
   const mergedTools: Record<string, any> = {
@@ -197,8 +282,7 @@ export async function prepareAgent(
     ...(tools ?? {}),
   }
 
-  // When a permission server is available (desktop mode), wrap write/edit/bash tools
-  // so they require user permission before executing.
+  // Permission wrapping for write/edit/bash tools
   const permissionServer = ctx?.permissionServer
   if (permissionServer) {
     if (mergedTools["file-write"]) {
@@ -224,27 +308,14 @@ export async function prepareAgent(
           const cmd = (input?.command ?? "") as string
           if (!cmd.trim()) return false
 
-          // Check for redirect or pipe to dataspace paths
-          // These write to protected mounts regardless of command name
-          const mountPattern =
-            /(?:>|>>)\s*['"]?\/(?:dataspace|journals|extensions|agent)\//
-          const teeToPath =
-            /\btee\s+['"]?\/(?:dataspace|journals|extensions|agent)\//
+          // Check for redirect or pipe to protected mount paths
+          const mountPattern = /(?:>|>>)\s*['"]?\/(?:agent)\//
+          const teeToPath = /\btee\s+['"]?\/(?:agent)\//
           if (mountPattern.test(cmd) || teeToPath.test(cmd)) {
             return "bash:redirect"
           }
 
-          // Parse command with AST-based parser to extract actual command names
-          let commands: string[] = []
-          try {
-            const result = bashParsePipeline.transform(cmd)
-            commands = ((result.metadata as any).commands as string[]) ?? []
-          } catch {
-            // If AST parsing fails, fall back to requiring permission
-            return true
-          }
-
-          // Commands that are always read-only (safe to skip approval)
+          // Commands that are always read-only
           const safeCommands = new Set([
             "ls",
             "cat",
@@ -259,39 +330,58 @@ export async function prepareAgent(
             "pwd",
             "echo",
             "printf",
+            "jq",
+            "awk",
+            "sed",
+            "sleep",
+            "which",
+            "file",
+            "stat",
+            "basename",
+            "dirname",
+            "true",
+            "false",
+            "clear",
+            "date",
+            "hostname",
+            "whoami",
+            "uname",
+            "help",
+            "history",
           ])
 
-          // If any command is NOT safe, require permission with a cache key prefix
-          for (const cmdName of commands) {
-            if (safeCommands.has(cmdName)) continue
-            // Special case: eidos subcommands can be read-only
-            if (
-              cmdName === "eidos" &&
-              /^eidos\s+(record\s+query|view(?!.*update|.*delete))\b/.test(cmd)
-            )
-              continue
+          // Extract ALL command names from the script (across pipes, separators)
+          const commands = extractCommandNames(cmd)
+          let firstDangerous = ""
 
-            // Build cache key like "bash:eidos record update" or "bash:rm"
-            // Extract subcommand prefix: positional args that don't start with -
-            const parts = cmd.trim().split(/\s+/)
-            const idx = parts.indexOf(cmdName)
-            if (idx === -1) {
-              return `bash:${cmdName}`
+          for (const { name, fullArgs } of commands) {
+            if (safeCommands.has(name)) continue
+
+            if (name === "eidos") {
+              if (isEidosWrite(fullArgs)) {
+                firstDangerous = `bash:eidos write`
+                break
+              }
+              continue
             }
 
+            // Extract subcommand prefix for cache key
+            const parts = fullArgs.split(/\s+/)
             const subs: string[] = []
-            for (let i = idx + 1; i < parts.length; i++) {
+            for (let i = 1; i < parts.length && subs.length < 2; i++) {
               const p = parts[i]
-              if (p.startsWith("-") || p.startsWith("{") || /^["']/.test(p))
+              if (p?.startsWith("-") || p?.startsWith("{") || /^["']/.test(p))
                 break
-              if (subs.length >= 2) break
               subs.push(p)
             }
-            return subs.length > 0
-              ? `bash:${cmdName} ${subs.join(" ")}`
-              : `bash:${cmdName}`
+            firstDangerous =
+              subs.length > 0
+                ? `bash:${name} ${subs.join(" ")}`
+                : `bash:${name}`
+            break
           }
-          return false
+
+          return firstDangerous || false
         },
       })
     }
@@ -320,7 +410,6 @@ export async function prepareAgent(
     agentCtx.buildMessages(sanitizeMessages(messages))
   )
 
-  // Write initial metadata before streaming so the session is visible in history.
   const createdAt = existingMeta?.createdAt || new Date().toISOString()
   if (store) {
     await store.saveMeta(id, {
@@ -333,10 +422,8 @@ export async function prepareAgent(
       forkedMessageId: existingMeta?.forkedMessageId,
       permissions: existingMeta?.permissions,
     })
-    // Persist the latest user message so it's not lost if the stream crashes
     const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
     if (lastUserMsg) {
-      // Add metadata to the user message (including creation time and model info)
       const userMessageWithMeta: MessageWithMeta = {
         ...lastUserMsg,
         metadata: {
@@ -348,9 +435,7 @@ export async function prepareAgent(
     }
   }
 
-  // Use Date.now() as message creation timestamp (millisecond Unix time)
   const messageStartTime = Date.now()
-  // Use performance.now() to calculate duration (higher precision)
   const perfStartTime = performance.now()
 
   return {
@@ -394,19 +479,15 @@ export async function handleAgentApi(
 
   log.info("[agent] ▶ creating UI message stream")
 
-  // Track how many parts have been written per messageId to avoid duplicates.
-  // onStepFinish provides accumulated parts (all steps so far), not just the new ones.
   const writtenParts = new Map<string, number>()
   const signal = ctx?.signal
 
-  // Used to store usage data from agent.stream
   let streamUsage: LanguageModelUsage | undefined
 
   let result: StreamTextResult<ToolSet, never> | undefined = undefined
 
   const uiStream = createUIMessageStream<MessageWithMeta>({
     execute: async ({ writer }) => {
-      // Send initial metadata (createdAt, model)
       writer.write({
         type: "message-metadata",
         messageMetadata: {
@@ -440,7 +521,6 @@ export async function handleAgentApi(
         log.error("[agent] failed to get token usage in execute:", e)
       }
 
-      // Send final metadata (including duration and tokens)
       const finalMetadata: MessageMetadata = {
         createdAt: startTime,
         model: modelAndProvider,
@@ -466,7 +546,6 @@ export async function handleAgentApi(
         totalCount: responseMessage.parts.length,
       })
       try {
-        // Build metadata (basic info, will be updated with complete info in onFinish)
         const metadata: MessageMetadata = {
           createdAt: startTime,
           model: modelAndProvider,
@@ -489,14 +568,12 @@ export async function handleAgentApi(
       try {
         const msgId = responseMessage.id
 
-        // Flush any parts that onStepFinish didn't persist (e.g. mid-step abort)
         const prevCount = writtenParts.get(msgId) ?? 0
         const remaining = responseMessage.parts.slice(prevCount)
         if (remaining.length > 0) {
           await store.appendStepMessage(id, msgId, remaining)
         }
 
-        // Build final metadata containing usage and duration, and append metadata-update event
         let finalUsage = streamUsage
         try {
           if (result) {
@@ -514,7 +591,6 @@ export async function handleAgentApi(
         }
         await store.updateMessageMetadata(id, msgId, metadata)
 
-        // Persist step parts and preserve existing permissions
         const savedMeta = await store.loadMeta(id)
         await store.saveMeta(id, {
           id,
