@@ -8,8 +8,8 @@ export interface ExecResult {
 }
 
 export interface CommandOption {
-  name: string // e.g., "type"
-  short?: string // e.g., "t"
+  name: string
+  short?: string
   type: "string" | "boolean"
   description: string
 }
@@ -18,9 +18,13 @@ function toCamelCase(str: string): string {
   return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
 }
 
+type TemplatePart =
+  | { kind: "literal"; value: string }
+  | { kind: "required"; name: string }
+  | { kind: "optional"; name: string }
+
 export class CommandDefinition {
-  route: string[] = []
-  placeholders: { name: string; required: boolean }[] = []
+  template: TemplatePart[] = []
   options: CommandOption[] = []
   desc: string = ""
   zodSchema?: z.ZodSchema<any>
@@ -30,11 +34,11 @@ export class CommandDefinition {
     const parts = commandStr.split(" ").filter(Boolean)
     for (const part of parts) {
       if (part.startsWith("<") && part.endsWith(">")) {
-        this.placeholders.push({ name: part.slice(1, -1), required: true })
+        this.template.push({ kind: "required", name: part.slice(1, -1) })
       } else if (part.startsWith("[") && part.endsWith("]")) {
-        this.placeholders.push({ name: part.slice(1, -1), required: false })
+        this.template.push({ kind: "optional", name: part.slice(1, -1) })
       } else {
-        this.route.push(part)
+        this.template.push({ kind: "literal", value: part })
       }
     }
   }
@@ -89,6 +93,20 @@ export class CommandDefinition {
     this.actionFn = fn
     return this
   }
+
+  /** Get a human-readable usage string for this command. */
+  usage(cliName: string): string {
+    const parts = this.template.map((p) => {
+      if (p.kind === "literal") return p.value
+      if (p.kind === "required") return `<${p.name}>`
+      return `[${p.name}]`
+    })
+    const optionsStr = this.options.length
+      ? "\nOptions:\n" +
+        this.options.map((o) => `  --${o.name}  ${o.description}`).join("\n")
+      : ""
+    return `Usage: ${cliName} ${parts.join(" ")}${optionsStr}`
+  }
 }
 
 export class LightCli {
@@ -106,22 +124,16 @@ export class LightCli {
   }
 
   async parse(args: string[], context?: any): Promise<ExecResult> {
-    // 1. Find a matching command
+    // Find matching command: walks args and template in lock-step.
+    // Literals must match exactly; placeholders consume one arg each.
     let matchedCmd: CommandDefinition | undefined
-    let matchedRouteLength = 0
+    let bestScore = -1
 
     for (const cmd of this.commands) {
-      const route = cmd.route
-      let match = true
-      for (let i = 0; i < route.length; i++) {
-        if (args[i] !== route[i]) {
-          match = false
-          break
-        }
-      }
-      if (match && route.length > matchedRouteLength) {
+      const result = this.tryMatch(cmd.template, args)
+      if (result && result.literals > bestScore) {
         matchedCmd = cmd
-        matchedRouteLength = route.length
+        bestScore = result.literals
       }
     }
 
@@ -133,8 +145,8 @@ export class LightCli {
       }
     }
 
-    // 2. Extract remaining arguments to parse flags and positionals
-    const remainingArgs = args.slice(matchedRouteLength)
+    const { params, consumed } = this.tryMatch(matchedCmd.template, args)!
+    const remainingArgs = args.slice(consumed)
 
     // Build options config for node:util's parseArgs
     const optionsConfig: Record<string, any> = {}
@@ -146,35 +158,20 @@ export class LightCli {
     }
 
     try {
-      const { values, positionals } = parseArgs({
+      const { values } = parseArgs({
         args: remainingArgs,
         options: optionsConfig,
         strict: false,
         allowPositionals: true,
       })
 
-      // 3. Map positionals to camelCased named placeholders
-      const params: Record<string, any> = {}
-      for (let i = 0; i < matchedCmd.placeholders.length; i++) {
-        const ph = matchedCmd.placeholders[i]
-        const val = positionals[i]
-        if (ph.required && val === undefined) {
-          return {
-            exitCode: 1,
-            stdout: "",
-            stderr: `Error: Missing required argument <${ph.name}>\n\n${this.getCommandUsage(matchedCmd)}`,
-          }
-        }
-        params[toCamelCase(ph.name)] = val
-      }
-
-      // Convert option keys to camelCase as well for Zod consistency
+      // Convert option keys to camelCase
       const parsedOptions: Record<string, any> = {}
       for (const [k, v] of Object.entries(values)) {
         parsedOptions[toCamelCase(k)] = v
       }
 
-      // Merge params and options: options serve as fallback for same-named positional params
+      // Merge: options serve as fallback for same-named positional params
       const combinedInput: Record<string, any> = {}
       for (const [k, v] of Object.entries(parsedOptions)) {
         combinedInput[k] = v
@@ -185,20 +182,17 @@ export class LightCli {
         }
       }
 
-      // 4. Validate with Zod Schema if present
+      // Validate with Zod Schema if present
       let finalData = combinedInput
       if (matchedCmd.zodSchema) {
         const parsed = matchedCmd.zodSchema.safeParse(combinedInput)
         if (!parsed.success) {
-          return this.formatZodError(
-            parsed.error,
-            this.getCommandUsage(matchedCmd)
-          )
+          return this.formatZodError(parsed.error, matchedCmd.usage(this.name))
         }
         finalData = parsed.data
       }
 
-      // 5. Run the action callback
+      // Run the action callback
       if (matchedCmd.actionFn) {
         return await matchedCmd.actionFn(finalData, context)
       }
@@ -208,9 +202,52 @@ export class LightCli {
       return {
         exitCode: 1,
         stdout: "",
-        stderr: `Error: ${err.message}\n\n${this.getCommandUsage(matchedCmd)}`,
+        stderr: `Error: ${err.message}\n\n${matchedCmd.usage(this.name)}`,
       }
     }
+  }
+
+  /** Try to match a template against args. Returns params + arg count consumed, or null. */
+  private tryMatch(
+    template: TemplatePart[],
+    args: string[]
+  ): {
+    params: Record<string, any>
+    consumed: number
+    literals: number
+  } | null {
+    const params: Record<string, any> = {}
+    let argIdx = 0
+    let literals = 0
+
+    for (const part of template) {
+      if (argIdx >= args.length) {
+        // Allow trailing optional placeholders to be missing
+        if (part.kind === "optional") {
+          params[toCamelCase(part.name)] = undefined
+          continue
+        }
+        return null
+      }
+
+      if (part.kind === "literal") {
+        if (args[argIdx] !== part.value) return null
+        argIdx++
+        literals++
+      } else {
+        // Placeholder — consume value, skip flag-looking values for optionals
+        const val = args[argIdx]
+        if (part.kind === "optional" && val?.startsWith("-")) {
+          params[toCamelCase(part.name)] = undefined
+          // Don't increment argIdx — let parseArgs handle the flags
+          continue
+        }
+        params[toCamelCase(part.name)] = val
+        argIdx++
+      }
+    }
+
+    return { params, consumed: argIdx, literals }
   }
 
   private formatZodError(error: z.ZodError, usage: string): ExecResult {
@@ -227,31 +264,13 @@ export class LightCli {
     }
   }
 
-  private getCommandUsage(cmd: CommandDefinition): string {
-    const routeStr = cmd.route.join(" ")
-    const positionalStr = cmd.placeholders
-      .map((p) => (p.required ? `<${p.name}>` : `[${p.name}]`))
-      .join(" ")
-    const optionsStr = cmd.options.length
-      ? "\nOptions:\n" +
-        cmd.options.map((o) => `  --${o.name}  ${o.description}`).join("\n")
-      : ""
-    return `Usage: ${this.name} ${routeStr} ${positionalStr}${optionsStr}`
-  }
-
   help(): string {
     const helpLines = [
       `${this.name} <resource> <action> [args...]\n\nResources & actions:`,
     ]
     for (const cmd of this.commands) {
-      const routeStr = cmd.route.join(" ")
-      const positionalStr = cmd.placeholders
-        .map((p) => (p.required ? `<${p.name}>` : `[${p.name}]`))
-        .join(" ")
-      const optionsHelp = cmd.options.map((o) => `--${o.name}`).join(" ")
-      helpLines.push(
-        `  ${this.name} ${routeStr} ${positionalStr} ${optionsHelp}`
-      )
+      const usage = cmd.usage(this.name)
+      helpLines.push(`  ${usage}`)
       if (cmd.desc) {
         helpLines.push(`    ${cmd.desc}`)
       }

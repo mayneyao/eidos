@@ -10,6 +10,7 @@ import { registerExtensionCommands } from "./extension-commands"
 import { registerTreeCommands } from "./tree-commands"
 import { registerDocCommands } from "./doc-commands"
 import { registerSearchCommands } from "./search-commands"
+import { registerSubdocCommands } from "./subdoc-commands"
 
 const MAX_OUTPUT_LENGTH = 100000
 
@@ -38,6 +39,7 @@ class EidosRunner {
     registerTreeCommands(cli, this.ds)
     registerDocCommands(cli, this.ds)
     registerSearchCommands(cli, this.ds)
+    registerSubdocCommands(cli, this.ds)
 
     const args = ctx.argv
     if (args.length === 0) {
@@ -109,43 +111,76 @@ DATA DISCOVERY — start here to find what tables/records exist:
 ${
   dataspace
     ? `
-DOCUMENT EDITING:
-  eidos search <keyword>                             # Find records by content
-  eidos doc create <name> --table <id>               # Create sub-doc under table (stdin for content)
-  eidos doc create <name> --parent <folder_id>       # Create doc in folder (stdin for content)
-  eidos doc create <name>                            # Create standalone doc at root (stdin for content)
-  eidos doc get <record_id> > /tmp/doc.md            # Export markdown to VFS
-  file-read("/tmp/doc.md")                           # Review content with hash anchors
-  file-edit("/tmp/doc.md", edits)                    # Make targeted edits
-  cat /tmp/doc.md | eidos doc update <record_id> --table <table_id>  # Commit (auto-creates sub-doc)
-  eidos doc delete <record_id>                       # Soft-delete a document
+TABLE SUB-DOCUMENTS (Markdown content for table records):
+  eidos subdoc list <table>                        # List all sub-docs under a table
+  eidos subdoc read <table> <record_id>           # Read markdown (accepts dashed/undashed ID)
+  eidos subdoc write <table> <record_id>           # Create/update via stdin (auto-expands)
+  eidos subdoc delete <table> <record_id>          # Soft-delete a sub-document
+
+  SUBDOC PIPELINE:
+    1. eidos subdoc read <table> <record_id> > /tmp/doc.md
+    2. file-read + file-edit on /tmp/doc.md
+    3. cat /tmp/doc.md | eidos subdoc write <table> <record_id>
+
+STANDALONE DOCS (root/folder docs, NOT table sub-documents):
+  eidos doc create <name>                                 # Create (stdin for content)
+  eidos doc create <name> --parent <folder_id>             # Create in folder
+  eidos doc get <id>                                       # Read markdown
+  eidos doc update <id>                                    # Update content via stdin
+  eidos doc delete <id>                                    # Soft-delete
 
 MUTATION:
-  eidos table create <name>                           # Create a new table
-  eidos table delete <id>                             # Delete a table
-  eidos record query <id> -q "SELECT ..."             # Query records
-  eidos record insert <id> -d '{"title":"x"}'         # Insert record(s). Batch via pipe: cat data.json | eidos record insert <id> --stdin
-  eidos record update <id> -w '{"id":"x"}' -d '{...}' # Update record(s)
-  eidos record delete <id> -w '{"id":"x"}'            # Delete record(s)
-  eidos column create <table> <name> -t text          # Create column
-  eidos column delete <table> <name>                  # Delete column
-  eidos column update <table> <name> -n newName       # Update column
-  eidos view list <table>                             # List views
-  eidos view create <table> <name> grid               # Create view
-  eidos view update <table> <view> -n "New" -q "..."  # Update view
-  eidos journal list [--limit 30]                     # List journal entries
-  eidos journal get <YYYY-MM-DD>                      # Read journal entry
-  eidos journal write <YYYY-MM-DD> <content>          # Write journal entry (stdin)
-  eidos extension list                                # List extensions
-  eidos extension get <slug>                          # Get extension code
-  eidos extension write <slug> <code>                 # Update extension (stdin)`
+  eidos record query <table> -q "SELECT ..."               # Query records
+  eidos record insert <table> -d '{"title":"x"}'           # Single insert
+  echo '[...]' | eidos record insert <table> --stdin       # Batch insert via pipe
+  eidos record update <table> -w '{"id":"x"}' -d '{...}'   # Update records
+  eidos record delete <table> -w '{"id":"x"}'              # Delete records
+  eidos table create <name>                                 # Create table
+  eidos table delete <table_id>                             # Delete table
+  eidos column create <table> <name> -t text               # Add column
+  eidos column delete <table> <column_name>                # Delete column
+  eidos column update <table> <column_name> -n newName    # Update column
+  eidos view create <table> <name> grid                    # Create view
+  eidos view list <table>                                   # List views
+  eidos view update <table> <view_id> -n "New" -q "..."    # Update view
+  eidos journal list [--limit 30]                              # List journal entries
+  eidos journal get <YYYY-MM-DD>                               # Read journal entry
+  eidos journal write <YYYY-MM-DD> <content>                   # Write journal entry (stdin)
+  eidos extension create <slug> <name> -t script|block     # Create extension (compiles TS→JS via V3)
+  eidos extension list                                         # List extensions
+  eidos extension get <slug>                                   # Get extension code + meta
+  eidos extension write <slug>                                 # Update code (compiles + validates)
+
+  EXTENSION WORKFLOW:
+    1. Write TypeScript code with "export const meta = {...}" and export functions
+    2. cat code.ts | eidos extension create my-tool "My Tool" -t script   # Create + compile
+    3. eidos extension get my-tool                                        # Verify code and meta
+    4. cat updated.ts | eidos extension write my-tool                      # Update + recompile
+    Compile errors are returned in full — use them to fix your code.
+
+    TABLE-SCOPED ACTION (restrict to specific table):
+      export const meta = {
+        type: "tableAction",
+        funcName: "myAction",
+        tableAction: {
+          name: "My Action",
+          description: "Does something",
+          tableId: "<table_id>"    // omit to show on ALL tables
+        }
+      }`
     : "No dataspace — eidos commands unavailable."
 }
 
 EIDOS PIPELINE PATTERN:
   eidos search "invoice" | jq '.[].recordId'                     # Find matching records
-  eidos record query <table> -q "SELECT * FROM tb_xxx WHERE ..." | jq '...' | python3 script.py
-  curl ... | jq -s '.' | eidos record insert <table> --stdin     # Batch insert via stdin pipe
+  eidos record query <table> -q "SELECT * ..." | jq '...' | python3 script.py
+  curl ... | jq -s '.' | eidos record insert <table> --stdin     # Batch insert via pipe
+
+EXPLORATION WORKFLOW:
+  1. eidos search <keyword>                        → find by keyword
+  2. eidos subdoc read <table> <id> > /tmp/x.md    → export
+  3. file-read + file-edit on /tmp/x.md             → review & edit
+  4. cat /tmp/x.md | eidos subdoc write <table> <id>  → commit
 
 CRITICAL: Always use the 32-char hex table ID, NOT the display name.
 Every table has a built-in 'title' field — never create a column named "title".

@@ -1,10 +1,5 @@
 import type { DataSpace } from "@/packages/core/data-space"
-import {
-  generateIdV7,
-  shortenId,
-  getRawTableNameById,
-  extractIdFromShortId,
-} from "@/lib/utils"
+import { generateIdV7 } from "@/lib/utils"
 
 export interface ExecResult {
   exitCode: number
@@ -15,23 +10,14 @@ export interface ExecResult {
 export async function docGet(ds: DataSpace, id: string): Promise<ExecResult> {
   try {
     const rows = (await ds.db.selectObjects(
-      `SELECT id, markdown, is_day_page, created_at, updated_at
-       FROM eidos__docs
-       WHERE id = ?`,
+      `SELECT id, markdown FROM eidos__docs WHERE id = ?`,
       [id]
-    )) as Array<{
-      id: string
-      markdown: string
-      is_day_page: number
-      created_at: string
-      updated_at: string
-    }>
+    )) as Array<{ id: string; markdown: string }>
 
     if (rows.length === 0) {
-      return { exitCode: 0, stdout: "", stderr: `Document not found: ${id}` }
+      return { exitCode: 1, stdout: "", stderr: `Document not found: ${id}` }
     }
-
-    return { exitCode: 0, stdout: rows[0].markdown, stderr: "" }
+    return { exitCode: 0, stdout: rows[0].markdown || "", stderr: "" }
   } catch (err) {
     return {
       exitCode: 1,
@@ -41,62 +27,24 @@ export async function docGet(ds: DataSpace, id: string): Promise<ExecResult> {
   }
 }
 
-/**
- * Create a document.
- *
- * Standalone:  eidos doc create <name> --content "..."
- *              eidos doc create <name> --parent <folder_id> --content "..."
- *
- * Table sub-doc (new record):
- *              eidos doc create <name> --table <table_id> --content "..."
- *
- * Table sub-doc (link to existing record by _id, accepts dashed or undashed):
- *              eidos doc create <name> --table <table_id> --id <record_id> --content "..."
- */
+/** Create a standalone document (root or under folder). Content via stdin. */
 export async function docCreate(
   ds: DataSpace,
   name: string,
-  opts: {
-    parentId?: string
-    tableId?: string
-    recordId?: string
-    content: string
-  }
+  opts: { parentId?: string; content: string }
 ): Promise<ExecResult> {
   try {
-    const { parentId, tableId, recordId, content } = opts
-
-    if (tableId) {
-      const id = recordId ? shortenId(recordId) : generateIdV7()
-
-      await ds.tree.getOrCreateNode({
-        id,
-        name,
-        type: "doc",
-        parent_id: tableId,
-        hide_properties: true,
-      })
-
-      await ds.doc.createOrUpdateWithMarkdown(id, content)
-      return {
-        exitCode: 0,
-        stdout: JSON.stringify({ id, name, parentId: tableId }),
-        stderr: "",
-      }
-    }
-
-    // Standalone doc
     const id = generateIdV7()
     await ds.tree.addNode({
       id,
       name,
       type: "doc",
-      parent_id: parentId || undefined,
+      parent_id: opts.parentId || undefined,
     })
-    await ds.doc.createOrUpdateWithMarkdown(id, content)
+    await ds.doc.createOrUpdateWithMarkdown(id, opts.content)
     return {
       exitCode: 0,
-      stdout: JSON.stringify({ id, name, parentId: parentId || null }),
+      stdout: JSON.stringify({ id, name, parentId: opts.parentId || null }),
       stderr: "",
     }
   } catch (err) {
@@ -108,29 +56,21 @@ export async function docCreate(
   }
 }
 
-export async function docUpdate(
+/** Update a standalone document (not a table sub-doc). Content via stdin. */
+export async function docUpdateStandalone(
   ds: DataSpace,
   id: string,
-  tableId: string,
   content: string
 ): Promise<ExecResult> {
   try {
-    let existing = (await ds.db.selectObjects(
+    const rows = (await ds.db.selectObjects(
       `SELECT id FROM eidos__docs WHERE id = ?`,
       [id]
     )) as Array<{ id: string }>
 
-    if (existing.length === 0) {
-      const title = (await getRecordTitle(ds, tableId, id)) || id
-      await ds.tree.getOrCreateNode({
-        id,
-        name: title,
-        type: "doc",
-        parent_id: tableId,
-        hide_properties: true,
-      })
+    if (rows.length === 0) {
+      return { exitCode: 1, stdout: "", stderr: `Document not found: ${id}` }
     }
-
     await ds.doc.createOrUpdateWithMarkdown(id, content)
     return { exitCode: 0, stdout: `Document ${id} updated`, stderr: "" }
   } catch (err) {
@@ -167,26 +107,5 @@ export async function docDelete(
       stdout: "",
       stderr: err instanceof Error ? err.message : String(err),
     }
-  }
-}
-
-async function getRecordTitle(
-  ds: DataSpace,
-  tableId: string,
-  recordId: string
-): Promise<string | null> {
-  try {
-    const rawName = getRawTableNameById(tableId)
-    const id = recordId.includes("-")
-      ? recordId
-      : extractIdFromShortId(recordId)
-
-    const rows = (await ds.db.selectObjects(
-      `SELECT title FROM ${rawName} WHERE _id = ?`,
-      [id]
-    )) as Array<{ title: string }>
-    return rows[0]?.title || null
-  } catch {
-    return null
   }
 }

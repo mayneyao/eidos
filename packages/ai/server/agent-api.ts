@@ -116,8 +116,9 @@ function isEidosWrite(fullArgs: string): boolean {
     /column\s+(create|delete|update)\b/.test(fullArgs) ||
     /view\s+(create|delete|update)\b/.test(fullArgs) ||
     /journal\s+write\b/.test(fullArgs) ||
-    /extension\s+write\b/.test(fullArgs) ||
-    /doc\s+(create|update|delete)\b/.test(fullArgs)
+    /extension\s+(create|write)\b/.test(fullArgs) ||
+    /doc\s+(create|update|delete)\b/.test(fullArgs) ||
+    /subdoc\s+(write|delete)\b/.test(fullArgs)
   )
 }
 

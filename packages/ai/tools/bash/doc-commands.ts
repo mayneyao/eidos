@@ -8,88 +8,63 @@ export function registerDocCommands(cli: LightCli, ds: DataSpace) {
     .command("doc get <id>")
     .schema(
       z.object({
-        id: z.string({ required_error: "Record/Doc ID is required" }).min(1),
+        id: z.string({ required_error: "Doc ID is required" }).min(1),
       })
     )
-    .description("Get the full markdown content of a document")
+    .description("Get the full markdown content of a standalone document")
     .action(async (data) => dh.docGet(ds, data.id))
 
   cli
     .command("doc create <name>")
     .option("-p, --parent <id>", "Create under a folder")
-    .option(
-      "-t, --table <table_id>",
-      "Create as sub-doc under a table (with new record)"
-    )
-    .option(
-      "-i, --id <record_id>",
-      "Link to existing record _id (use with --table, accepts dashed or undashed)"
-    )
     .schema(
       z.object({
         name: z.string({ required_error: "Document name is required" }).min(1),
         parent: z.string().optional(),
-        table: z.string().optional(),
-        id: z.string().optional(),
       })
     )
     .description(
-      "Create a document. Content via stdin.\n" +
-        "Standalone:    eidos doc create MyDoc --content '...'\n" +
-        "In folder:     eidos doc create MyDoc --parent <folder_id> --content '...'\n" +
-        "Table sub-doc: eidos doc create MyDoc --table <table_id> --content '...'"
+      "Create a standalone document. Content via stdin.\n" +
+        "Root:     echo '# doc' | eidos doc create MyDoc\n" +
+        "In folder: echo '# doc' | eidos doc create MyDoc --parent <folder_id>"
     )
     .action(async (data, ctx) => {
       const content = ctx?.stdin
-      if (!content) {
+      if (!content)
         return {
           exitCode: 1,
           stdout: "",
-          stderr: `No content. Pipe via stdin: echo "# hi" | eidos doc create MyDoc`,
+          stderr: "No content. Pipe via stdin.",
         }
-      }
-      return dh.docCreate(ds, data.name, {
-        parentId: data.parent,
-        tableId: data.table,
-        recordId: data.id,
-        content,
-      })
+      return dh.docCreate(ds, data.name, { parentId: data.parent, content })
     })
 
   cli
     .command("doc update <id>")
-    .option(
-      "-t, --table <table_id>",
-      "Parent table ID (creates sub-doc if record not yet expanded)"
-    )
     .schema(
       z.object({
-        id: z.string({ required_error: "Record/Doc ID is required" }).min(1),
-        table: z.string().optional(),
+        id: z.string({ required_error: "Doc ID is required" }).min(1),
       })
     )
-    .description(
-      "Update a document's markdown. Auto-creates sub-doc if record not yet expanded. Content via stdin."
-    )
+    .description("Update a standalone document's markdown. Content via stdin.")
     .action(async (data, ctx) => {
       const content = ctx?.stdin
-      if (!content) {
+      if (!content)
         return {
           exitCode: 1,
           stdout: "",
-          stderr: `No content. Pipe via stdin: cat doc.md | eidos doc update <id> --table <table_id>`,
+          stderr: "No content. Pipe via stdin.",
         }
-      }
-      return dh.docUpdate(ds, data.id, data.table ?? "", content)
+      return dh.docUpdateStandalone(ds, data.id, content)
     })
 
   cli
     .command("doc delete <id>")
     .schema(
       z.object({
-        id: z.string({ required_error: "Record/Doc ID is required" }).min(1),
+        id: z.string({ required_error: "Doc ID is required" }).min(1),
       })
     )
-    .description("Soft-delete a document")
+    .description("Soft-delete a standalone document")
     .action(async (data) => dh.docDelete(ds, data.id))
 }

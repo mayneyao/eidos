@@ -13,38 +13,59 @@ export function registerExtensionCommands(cli: LightCli, ds: DataSpace) {
     .command("extension get <slug>")
     .schema(
       z.object({
-        slug: z
-          .string({
-            required_error: "Extension slug is required",
-          })
-          .min(1),
+        slug: z.string({ required_error: "Extension slug is required" }).min(1),
       })
     )
     .description("Get extension code by slug")
     .action(async (data) => eh.extensionGet(ds, data.slug))
 
   cli
-    .command("extension write <slug>")
+    .command("extension create <slug> <name>")
+    .option("-t, --type <type>", "Extension type: script or block")
+    .option("-d, --description <text>", "Description of the extension")
     .schema(
       z.object({
-        slug: z
-          .string({
-            required_error: "Extension slug is required",
-          })
-          .min(1),
+        slug: z.string({ required_error: "Extension slug is required" }).min(1),
+        name: z.string({ required_error: "Extension name is required" }).min(1),
+        type: z.string().optional().default("script"),
+        description: z.string().optional(),
       })
     )
-    .description("Write or update an extension. Content comes from stdin/pipe.")
-    .action(async (_data, ctx) => {
+    .description(
+      "Create a new extension. Code via stdin.\n" +
+        'Example: cat script.ts | eidos extension create my-tool "My Tool" -t script'
+    )
+    .action(async (data, ctx) => {
       const code = ctx?.stdin
       if (!code) {
         return {
           exitCode: 1,
           stdout: "",
-          stderr: `Error: No code content provided. Pipe content to stdin.
-Example: cat script.js | eidos extension write my-extension`,
+          stderr:
+            'No code. Pipe via stdin: cat script.ts | eidos extension create my-tool "My Tool"',
         }
       }
-      return eh.extensionWrite(ds, _data.slug, code)
+      return eh.extensionCreate(ds, data.slug, {
+        name: data.name,
+        type: data.type,
+        description: data.description,
+        code,
+      })
+    })
+
+  cli
+    .command("extension write <slug>")
+    .schema(
+      z.object({
+        slug: z.string({ required_error: "Extension slug is required" }).min(1),
+      })
+    )
+    .description("Update an existing extension's code. Content via stdin.")
+    .action(async (data, ctx) => {
+      const code = ctx?.stdin
+      if (!code) {
+        return { exitCode: 1, stdout: "", stderr: "No code. Pipe via stdin." }
+      }
+      return eh.extensionWrite(ds, data.slug, code)
     })
 }

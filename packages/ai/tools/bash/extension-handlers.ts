@@ -21,7 +21,6 @@ export async function extensionList(ds: DataSpace): Promise<ExecResult> {
       enabled: number | null
       updated_at: string | null
     }>
-
     return {
       exitCode: 0,
       stdout: JSON.stringify(
@@ -54,9 +53,8 @@ export async function extensionGet(
 ): Promise<ExecResult> {
   try {
     const rows = (await ds.db.selectObjects(
-      `SELECT id, slug, name, type, ts_code, code, description, version, enabled, updated_at
-       FROM eidos__extensions
-       WHERE slug = ?`,
+      `SELECT id, slug, name, type, ts_code, code, meta, description, version, enabled, updated_at
+       FROM eidos__extensions WHERE slug = ?`,
       [slug]
     )) as Array<{
       id: string
@@ -65,6 +63,7 @@ export async function extensionGet(
       type: string
       ts_code: string | null
       code: string | null
+      meta: string | null
       description: string | null
       version: string | null
       enabled: number | null
@@ -72,13 +71,8 @@ export async function extensionGet(
     }>
 
     if (rows.length === 0) {
-      return {
-        exitCode: 0,
-        stdout: "",
-        stderr: `Extension not found: ${slug}`,
-      }
+      return { exitCode: 0, stdout: "", stderr: `Extension not found: ${slug}` }
     }
-
     const ext = rows[0]
     return {
       exitCode: 0,
@@ -91,6 +85,7 @@ export async function extensionGet(
           version: ext.version,
           description: ext.description || "",
           code: ext.ts_code || ext.code || "",
+          meta: safeJsonParse(ext.meta),
           enabled: ext.enabled !== 0,
           updatedAt: ext.updated_at,
         },
@@ -103,11 +98,56 @@ export async function extensionGet(
     return {
       exitCode: 1,
       stdout: "",
-      stderr: `Error reading extension: ${err instanceof Error ? err.message : String(err)}`,
+      stderr: err instanceof Error ? err.message : String(err),
     }
   }
 }
 
+/**
+ * Create an extension with full compilation via V3.
+ * Compiles TypeScript, extracts metadata, and populates all columns.
+ */
+export async function extensionCreate(
+  ds: DataSpace,
+  slug: string,
+  opts: { name: string; type: string; description?: string; code: string }
+): Promise<ExecResult> {
+  try {
+    const filename = opts.type === "block" ? "extension.tsx" : "extension.ts"
+
+    // Use installFromCode which compiles, extracts meta, handles conflicts
+    try {
+      const ext = await ds.extension.installFromCode(opts.code, filename, slug)
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify({
+          id: ext.id,
+          slug: ext.slug,
+          name: ext.name,
+          type: ext.type,
+          enabled: ext.enabled,
+        }),
+        stderr: "",
+      }
+    } catch (err) {
+      return {
+        exitCode: 1,
+        stdout: "",
+        stderr: err instanceof Error ? err.message : String(err),
+      }
+    }
+  } catch (err) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: err instanceof Error ? err.message : String(err),
+    }
+  }
+}
+
+/**
+ * Update an extension: compile new code, extract meta, update all columns.
+ */
 export async function extensionWrite(
   ds: DataSpace,
   slug: string,
@@ -115,34 +155,76 @@ export async function extensionWrite(
 ): Promise<ExecResult> {
   try {
     const rows = (await ds.db.selectObjects(
-      `SELECT id FROM eidos__extensions WHERE slug = ?`,
+      `SELECT id, name, type FROM eidos__extensions WHERE slug = ?`,
       [slug]
-    )) as Array<{ id: string }>
+    )) as Array<{ id: string; name: string; type: string }>
 
-    if (rows.length > 0) {
-      await ds.db.exec({
-        sql: `UPDATE eidos__extensions SET ts_code = ?, updated_at = ? WHERE id = ?`,
-        bind: [code, new Date().toISOString(), rows[0].id],
-        returnValue: "resultRows",
-        rowMode: "object",
-      })
+    if (rows.length === 0) {
       return {
-        exitCode: 0,
-        stdout: `Extension ${slug} updated`,
-        stderr: "",
+        exitCode: 1,
+        stdout: "",
+        stderr: `Extension not found: ${slug}. Use "eidos extension create ${slug} <name>" to create one first.`,
       }
     }
 
+    const ext = rows[0]
+    const compileFn = ds.context.compileExtension
+    if (!compileFn) {
+      return {
+        exitCode: 1,
+        stdout: "",
+        stderr: "Compile extension not available in this runtime.",
+      }
+    }
+
+    const filename = ext.type === "block" ? "extension.tsx" : "extension.ts"
+    let compiledCode: string
+    let meta: any
+
+    try {
+      const result = await compileFn(code, filename)
+      compiledCode = result.compiledCode
+      meta = result.meta
+    } catch (err) {
+      return {
+        exitCode: 1,
+        stdout: "",
+        stderr: `Compile error: ${err instanceof Error ? err.message : String(err)}`,
+      }
+    }
+
+    await ds.db.exec({
+      sql: `UPDATE eidos__extensions SET code = ?, ts_code = ?, meta = ?, updated_at = ? WHERE id = ?`,
+      bind: [
+        compiledCode,
+        code,
+        JSON.stringify(meta ?? {}),
+        new Date().toISOString(),
+        ext.id,
+      ],
+      returnValue: "resultRows",
+      rowMode: "object",
+    })
+
     return {
-      exitCode: 1,
-      stdout: "",
-      stderr: `Extension not found: ${slug}. Use the UI to create extensions first.`,
+      exitCode: 0,
+      stdout: JSON.stringify({ slug, compiled: true }),
+      stderr: "",
     }
   } catch (err) {
     return {
       exitCode: 1,
       stdout: "",
-      stderr: `Error writing extension: ${err instanceof Error ? err.message : String(err)}`,
+      stderr: err instanceof Error ? err.message : String(err),
     }
+  }
+}
+
+function safeJsonParse(s: string | null): unknown {
+  if (!s) return null
+  try {
+    return JSON.parse(s)
+  } catch {
+    return null
   }
 }
