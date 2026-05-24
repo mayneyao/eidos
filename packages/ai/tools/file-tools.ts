@@ -76,7 +76,8 @@ export function createFileTools(bash: Bash): Record<string, Tool> {
   const read: Tool = {
     description:
       "Read a file with hashline anchors: `LINE#HASH:content`. " +
-      "Use these anchors to identify lines in the `file-edit` tool. " +
+      "Use these anchors for the `file-edit` tool. " +
+      "For plain reading without editing, use `cat` in bash instead — it avoids the hash overhead. " +
       "Paths: /agent/skills/, /agent/sessions/, /tmp/.",
     inputSchema: readParams,
     execute: async (args) => {

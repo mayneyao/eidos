@@ -3,6 +3,7 @@ import { z } from "zod"
 import { Bash } from "@eidos.space/bashkit"
 import type { DataSpace } from "@/packages/core/data-space"
 import type { BuiltinContext, BuiltinCallback } from "@eidos.space/bashkit"
+import { WebFetchBuiltin, WebSearchBuiltin } from "../web-tools"
 import { LightCli } from "./light-cli"
 import { registerTableCommands, PROPERTY_HELP_TEXT } from "./table-commands"
 import { registerJournalCommands } from "./journal-commands"
@@ -22,6 +23,8 @@ export interface BashToolOptions {
   dataspace?: DataSpace
   extraInstructions?: string
   env?: Record<string, string>
+  /** Exa API key for web-search builtin. When set, the web-search builtin is registered. */
+  exaApiKey?: string
 }
 
 const bashParams = z.object({
@@ -59,8 +62,15 @@ export function createBashTool(options: BashToolOptions = {}): {
   tool: Tool
   bash: Bash
 } {
-  const { skillsDir, sessionsDir, dataspace, extraInstructions, vfsDir, env } =
-    options
+  const {
+    skillsDir,
+    sessionsDir,
+    dataspace,
+    extraInstructions,
+    vfsDir,
+    env,
+    exaApiKey,
+  } = options
 
   const customBuiltins: Record<string, BuiltinCallback> = {}
 
@@ -68,6 +78,13 @@ export function createBashTool(options: BashToolOptions = {}): {
     const runner = new EidosRunner(dataspace)
     customBuiltins.eidos = (ctx: BuiltinContext) => runner.run(ctx)
   }
+
+  const webFetchRunner = new WebFetchBuiltin()
+  customBuiltins["web-fetch"] = (ctx: BuiltinContext) => webFetchRunner.run(ctx)
+
+  const webSearchRunner = new WebSearchBuiltin(exaApiKey)
+  customBuiltins["web-search"] = (ctx: BuiltinContext) =>
+    webSearchRunner.run(ctx)
 
   const mountPaths = [skillsDir, sessionsDir, vfsDir].filter(
     Boolean
@@ -99,6 +116,15 @@ AVAILABLE MOUNTS:
 - /agent/sessions/  — agent session files (.meta.json, .jsonl) (read-write).
 - /tmp/             — persistent session scratch space (read-write).
 
+WEB BUILTINS:
+  web-fetch <url>              # Fetch URL, extract clean markdown to stdout. ALWAYS redirect with >: web-fetch <url> > /tmp/article.md
+  web-search <query>           # Search the web via Exa, output JSON to stdout
+
+WEB PIPELINE EXAMPLES:
+  web-fetch https://example.com > /tmp/article.md                # Save fetched article
+  web-search "AI news" | jq '.results[0].url' | xargs web-fetch > /tmp/result.md
+  web-search "climate change" | jq -r '.results[] | "\\(.title): \\(.url)"'
+
 EIDOS CLI (built-in):
 Use 'eidos' with subcommands directly in bash pipelines.
 DATA DISCOVERY — start here to find what tables/records exist:
@@ -119,7 +145,7 @@ TABLE SUB-DOCUMENTS (Markdown content for table records):
 
   SUBDOC PIPELINE:
     1. eidos subdoc read <table> <record_id> > /tmp/doc.md
-    2. file-read + file-edit on /tmp/doc.md
+    2. cat /tmp/doc.md to review, file-read to get anchors, then file-edit
     3. cat /tmp/doc.md | eidos subdoc write <table> <record_id>
 
 STANDALONE DOCS (root/folder docs, NOT table sub-documents):
@@ -179,8 +205,10 @@ EIDOS PIPELINE PATTERN:
 EXPLORATION WORKFLOW:
   1. eidos search <keyword>                        → find by keyword
   2. eidos subdoc read <table> <id> > /tmp/x.md    → export
-  3. file-read + file-edit on /tmp/x.md             → review & edit
-  4. cat /tmp/x.md | eidos subdoc write <table> <id>  → commit
+  3. cat /tmp/x.md                                 → review (read-only)
+  4. file-read /tmp/x.md                           → get line hashes (only when about to edit)
+  5. file-edit /tmp/x.md                           → apply edits
+  6. cat /tmp/x.md | eidos subdoc write <table> <id>  → commit
 
 CRITICAL: Always use the 32-char hex table ID, NOT the display name.
 Every table has a built-in 'title' field — never create a column named "title".

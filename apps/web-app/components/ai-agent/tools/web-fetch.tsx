@@ -2,15 +2,16 @@ import React from "react"
 import { type WebFetchResult } from "@/packages/ai"
 import { type ToolUIConfig } from "./types"
 
-function WebFetchOutputView({
+export function WebFetchOutputView({
   data,
   args,
 }: {
   data: WebFetchResult | null | undefined
-  args: { Url?: string; url?: string } | null | undefined
+  args: { Url?: string; url?: string; savedTo?: string } | null | undefined
 }) {
   const title = data?.title || ""
   const url = data?.url || args?.Url || args?.url || ""
+  const savedTo = args?.savedTo
 
   return (
     <div className="flex flex-col gap-1 mt-1.5 select-text">
@@ -31,6 +32,11 @@ function WebFetchOutputView({
       {title && url && (
         <span className="text-[11.5px] text-zinc-400 dark:text-zinc-500 truncate max-w-[400px]">
           {url}
+        </span>
+      )}
+      {savedTo && (
+        <span className="text-[11.5px] text-zinc-400 dark:text-zinc-500 font-mono">
+          Saved to {savedTo}
         </span>
       )}
     </div>

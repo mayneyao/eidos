@@ -22,12 +22,7 @@ import {
   wrapLanguageModel,
 } from "ai"
 import type { AIFormValues } from "../config"
-import {
-  createBashTool,
-  createFileTools,
-  createWebSearchTool,
-  serverTools,
-} from "../tools"
+import { createBashTool, createFileTools } from "../tools"
 import { AgentContext } from "./agent-context"
 import { buildProviderOptions, resolveProviderForModel } from "./model"
 import { withPermission, type PermissionServerLike } from "../permission"
@@ -216,6 +211,7 @@ export async function prepareAgent(
       dataspace,
       env: secrets,
       extraInstructions: agentCtx.skillInstructions ?? undefined,
+      exaApiKey: aiConfig?.exaApiKey,
     })
 
     bash = b
@@ -224,8 +220,6 @@ export async function prepareAgent(
   }
 
   const mergedTools: Record<string, any> = {
-    ...serverTools,
-    "web-search": createWebSearchTool(aiConfig?.exaApiKey),
     ...fsTools,
     ...bashWithDs,
     ...(agentCtx.skillTool ?? {}),
@@ -316,6 +310,8 @@ export async function prepareAgent(
             "uname",
             "help",
             "history",
+            "web-fetch",
+            "web-search",
           ])
 
           for (const name of names) {
@@ -336,7 +332,6 @@ export async function prepareAgent(
   }
 
   log.info("[agent] ▶ tools merged", {
-    serverTools: Object.keys(serverTools),
     clientTools: Object.keys(tools ?? {}),
     total: Object.keys(mergedTools).length,
   })

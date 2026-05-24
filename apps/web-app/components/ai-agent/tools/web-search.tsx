@@ -2,7 +2,7 @@ import React from "react"
 import { type WebSearchItem } from "@/packages/ai"
 import { type ToolUIConfig } from "./types"
 
-function WebSearchOutputView({ data }: { data: unknown }) {
+export function WebSearchOutputView({ data }: { data: unknown }) {
   let items: WebSearchItem[] = []
 
   if (Array.isArray(data)) {

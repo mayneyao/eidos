@@ -1,3 +1,4 @@
+import type { BuiltinContext } from "@eidos.space/bashkit"
 import { Defuddle } from "defuddle/node"
 import { parseHTML } from "linkedom"
 import { z } from "zod"
@@ -204,4 +205,46 @@ export const webFetchTool = {
       return { error: `Fetch failed: ${msg}` }
     }
   },
+}
+
+// ── Bash builtin runners ─────────────────────────────────────────────────
+
+export class WebFetchBuiltin {
+  async run(ctx: BuiltinContext): Promise<string> {
+    const url = ctx.argv[0]
+    if (!url) return "Usage: web-fetch <url>\n"
+    try {
+      const result = await fetchAndExtract(url)
+      console.log("[builtin:web-fetch] ✔", {
+        title: result.title,
+        contentLength: result.content.length,
+      })
+      return result.content
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error("[builtin:web-fetch] ✖", msg)
+      return `Error: ${msg}\n`
+    }
+  }
+}
+
+export class WebSearchBuiltin {
+  constructor(private apiKey?: string) {}
+
+  async run(ctx: BuiltinContext): Promise<string> {
+    if (!this.apiKey) {
+      return "Error: Web search requires an Exa API key. Configure it in Settings → AI → Tool API Keys.\n"
+    }
+    const query = ctx.argv.join(" ")
+    if (!query.trim()) return "Usage: web-search <query>\n"
+    try {
+      const results = await exaSearch(this.apiKey, query, 10)
+      console.log("[builtin:web-search] ✔", { resultCount: results.length })
+      return JSON.stringify({ results, query }) + "\n"
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error("[builtin:web-search] ✖", msg)
+      return `Error: ${msg}\n`
+    }
+  }
 }
