@@ -6,6 +6,7 @@ export interface TerminalCreateOptions {
   env?: Record<string, string>
   cols?: number
   rows?: number
+  initialCommand?: string
 }
 
 export interface TerminalCreateResult {
@@ -53,6 +54,7 @@ export interface TerminalAPI {
   kill: (sessionId: string) => Promise<TerminalKillResult>
   list: () => Promise<TerminalSessionInfo[]>
   getDefaultShell: () => Promise<string>
+  getLogPath: () => Promise<string>
   getHistory: (sessionId: string) => Promise<TerminalGetHistoryResult>
   onData: (callback: (sessionId: string, data: string) => void) => () => void
   onExit: (

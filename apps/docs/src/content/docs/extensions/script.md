@@ -87,6 +87,8 @@ interface ActionMeta {
   tableAction: {
     name: string
     description: string
+    /** Optional: restrict this action to a specific table. Omit to show on all tables. */
+    tableId?: string
   }
 }
 ```
@@ -129,6 +131,24 @@ export async function toggleChecked(
   }
 }
 ```
+
+#### 2.2.5 Table-Scoped Actions
+
+By default, a `tableAction` extension appears in the context menu of **every table**. To restrict it to a specific table, set `tableAction.tableId` in the meta:
+
+```ts
+export const meta = {
+  type: "tableAction",
+  funcName: "markDone",
+  tableAction: {
+    name: "Mark as Done",
+    description: "Mark selected records as done",
+    tableId: "a1b2c3d4e5f6...", // only appear on this table
+  },
+}
+```
+
+When `tableId` is set, the action is filtered at the database level and only rendered in the context menu of the matching table. Omitting `tableId` preserves the global behavior.
 
 ### 2.3 Document Action Scripts
 

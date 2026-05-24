@@ -1,5 +1,13 @@
 import { create } from "zustand"
-import type { Message } from "ai"
+
+interface ChatMessage {
+  id: string
+  role: "system" | "user" | "assistant" | "function" | "data" | "tool"
+  content: string
+  parts?: unknown[]
+  createdAt?: Date | string
+  tool_call_id?: string
+}
 
 type EditorTab = "preview" | "editor"
 
@@ -27,8 +35,8 @@ interface EditorStore {
 
   chatId: string
   setChatId: (id: string) => void
-  chatHistory: Array<Message>
-  setChatHistory: (history: Array<Message>) => void
+  chatHistory: Array<ChatMessage>
+  setChatHistory: (history: Array<ChatMessage>) => void
   addChatMessage: (message: Message) => void
   clearChatHistory: () => void
 
@@ -38,8 +46,8 @@ interface EditorStore {
   layoutMode: LayoutMode
   setLayoutMode: (mode: LayoutMode) => void
 
-  chatHistoryMap: Map<string, Message[]>
-  setChatHistoryMap: (map: Map<string, Message[]>) => void
+  chatHistoryMap: Map<string, ChatMessage[]>
+  setChatHistoryMap: (map: Map<string, ChatMessage[]>) => void
 
   chatTitles: Map<string, string>
   setChatTitles: (titles: Map<string, string>) => void

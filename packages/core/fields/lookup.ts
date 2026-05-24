@@ -1,3 +1,4 @@
+import { z } from "zod"
 import { getTableIdByRawTableName } from "@/lib/utils"
 import { getFieldInstance } from "."
 import { BaseField } from "./base"
@@ -9,6 +10,11 @@ export type ILookupProperty = {
   linkFieldId: string
   lookupTargetFieldId: string
 }
+
+export const LookupPropertySchema = z.object({
+  linkFieldId: z.string(),
+  lookupTargetFieldId: z.string(),
+})
 
 /**
  * a -> b -> c -> d ....

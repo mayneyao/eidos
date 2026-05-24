@@ -128,7 +128,7 @@ export const SelectOption = ({
         side="right"
         sideOffset={6}
         container={container ?? undefined}
-        className="w-[220px] p-0"
+        className="click-outside-ignore w-[220px] p-0"
       >
         <div className="p-2.5 space-y-2.5">
           {/* Name Edit Section */}

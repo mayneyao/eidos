@@ -1,3 +1,4 @@
+import { z } from "zod"
 import { zip } from "@/lib/lodash"
 
 import type { CustomCell } from "@glideapps/glide-data-grid"
@@ -16,6 +17,11 @@ export type ILinkProperty = {
   linkTableName: string
   linkColumnName: string
 }
+
+export const LinkPropertySchema = z.object({
+  linkTableName: z.string(),
+  linkColumnName: z.string(),
+})
 
 export type LinkCellData = {
   id: string

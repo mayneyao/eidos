@@ -7,6 +7,7 @@ import {
   FolderOpen,
   GitBranch,
   ListTreeIcon,
+  MessageSquareIcon,
   SettingsIcon,
   ToyBrickIcon,
 } from "lucide-react"
@@ -38,6 +39,7 @@ import { useRouterAdapter } from "@/hooks/use-router-adapter"
 import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
 import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
 import { DEFAULT_TABS, useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 import {
   TAB_CONFIG,
   useSidebarStore,
@@ -45,6 +47,7 @@ import {
 } from "@/apps/web-app/store/sidebar-store"
 import { useSidebar } from "@/components/ui/sidebar"
 
+import { getToday } from "@/lib/utils"
 import { Button } from "../ui/button"
 import { IconRenderer } from "../ui/icon-picker"
 
@@ -55,6 +58,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   settings: SettingsIcon,
   today: CalendarDays,
   graft: GitBranch,
+  agent: MessageSquareIcon,
 }
 
 const getIconForTab = (tabId: string) => {
@@ -251,10 +255,15 @@ export const SidebarTabs = () => {
     if (tabConfig?.isNavigation && tabConfig?.href) {
       // Navigation type tab - set current app and navigate
       setCurrentApp(tabId as SidebarApp)
-      const href =
-        tabId === "today"
-          ? `/journals/${new Date().toLocaleDateString("en-CA")}`
-          : tabConfig.href
+
+      if (tabId === "today") {
+        const today = getToday()
+        const href = `/journals/${today}`
+        navigate(href, { target })
+        return
+      }
+
+      const href = tabConfig.href
       navigate(href, { target })
     } else {
       // Regular tab or block tab
@@ -344,7 +353,7 @@ export const SidebarTabs = () => {
     <div
       ref={containerRef}
       className={cn(
-        "flex h-[38px] items-center px-1 border-b border-border/60 bg-muted/60 transition-all duration-200",
+        "flex h-[38px] items-center px-1 transition-all duration-200",
         {
           "pl-[76px]": isMacDesktop(),
           "pl-4": !isMacDesktop(),

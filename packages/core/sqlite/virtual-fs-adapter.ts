@@ -933,6 +933,17 @@ export class VirtualFsAdapter implements IExternalFileSystem {
     return this.underlyingFS.writeFile(path, data, options)
   }
 
+  async appendFile(
+    path: string,
+    data: string | Uint8Array,
+    options?: any
+  ): Promise<void> {
+    if (this.isVirtualPath(path)) {
+      throw new Error("appendFile not supported for virtual paths")
+    }
+    return this.underlyingFS.appendFile(path, data, options)
+  }
+
   async stat(path: string): Promise<any> {
     // Virtual paths don't support stat
     if (this.isVirtualPath(path)) {
@@ -987,6 +998,17 @@ export class VirtualFsAdapter implements IExternalFileSystem {
     // Virtual paths don't support search yet (or handled differently)
     // For now, we delegate to underlying FS which handles ~/ and @/
     return this.underlyingFS.search(query, searchPaths)
+  }
+
+  /**
+   * Search file contents
+   */
+  async searchContent(
+    query: string,
+    searchPaths?: string[],
+    options?: { maxResults?: number; filePattern?: string }
+  ): Promise<Array<{ filePath: string; lineNumber: number; content: string }>> {
+    return this.underlyingFS.searchContent(query, searchPaths, options)
   }
 
   /**

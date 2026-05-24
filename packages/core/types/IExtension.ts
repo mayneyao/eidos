@@ -133,6 +133,8 @@ export interface TableActionMeta {
   tableAction: {
     name: string
     description: string
+    /** Optional: restrict this action to a specific table */
+    tableId?: string
   }
 }
 

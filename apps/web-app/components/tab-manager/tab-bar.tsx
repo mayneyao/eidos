@@ -1,10 +1,25 @@
 import React, { useCallback, useState } from "react"
 import {
+  Blocks,
+  BookOpen,
+  Bot,
+  CalendarDays,
+  Camera,
   ChevronLeft,
   ChevronRight,
   Database,
-  PanelRightIcon,
+  File,
+  FileText,
+  FolderOpen,
+  GitBranch,
+  Globe,
+  ListTree,
+  MessageSquare,
   Plus,
+  Search,
+  Settings,
+  Trash2,
+  Workflow,
   X,
 } from "lucide-react"
 import {
@@ -30,12 +45,12 @@ import { isDesktopMode } from "@/lib/env"
 import { cn, isDayPageId } from "@/lib/utils"
 import { isMac, isWindowsDesktop } from "@/lib/web/helper"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 import { Button } from "@/components/ui/button"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppStore } from "@/apps/web-app/store/app-store"
-import { NavStatus } from "@/components/nav/nav-status"
 import { useWebviewStore } from "@/apps/web-app/store/webview-store"
 
 import { TabContextMenu } from "./tab-context-menu"
@@ -95,7 +110,13 @@ function SortableTabItem({
   }
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="w-[200px] min-w-[36px] flex-shrink"
+    >
       <TabContextMenu
         tabId={tab.id}
         tabIndex={index}
@@ -107,8 +128,7 @@ function SortableTabItem({
       >
         <div
           className={cn(
-            "group relative flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer transition-colors leading-5",
-            "w-[200px] min-w-0 max-w-[200px] border-r border-border/50",
+            "group relative flex items-center gap-1.5 px-2 py-1.5 text-xs cursor-pointer transition-colors leading-5 h-full border-r border-border/50 w-full",
             isActive
               ? isFocused
                 ? "bg-background text-foreground"
@@ -131,28 +151,91 @@ function SortableTabItem({
             />
           )}
 
-          <span className="truncate flex-1 select-none">{tab.title}</span>
+          <TabIcon tab={tab} />
 
-          <TabRawDataHint tabId={tab.id} />
+          <span className="truncate flex-1 select-none min-w-0">
+            {tab.title}
+          </span>
 
-          <button
-            className={cn(
-              "hover:bg-accent rounded p-0.5 transition-opacity shrink-0",
-              isActive
-                ? "opacity-60 hover:opacity-100"
-                : "opacity-0 group-hover:opacity-60 hover:!opacity-100"
-            )}
-            onClick={(e) => {
-              e.stopPropagation()
-              onCloseTab(tab.id)
-            }}
-          >
-            <X className="h-3 w-3" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0 group-[.minimized]:hidden">
+            <TabRawDataHint tabId={tab.id} />
+
+            <button
+              className={cn(
+                "hover:bg-accent rounded p-0.5 transition-opacity shrink-0",
+                isActive
+                  ? "opacity-60 hover:opacity-100"
+                  : "opacity-0 group-hover:opacity-60 hover:!opacity-100"
+              )}
+              onClick={(e) => {
+                e.stopPropagation()
+                onCloseTab(tab.id)
+              }}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
         </div>
       </TabContextMenu>
     </div>
   )
+}
+
+function TabIcon({ tab }: { tab: Tab }) {
+  const { url, icon } = tab
+
+  if (icon) {
+    return (
+      <div className="flex shrink-0 items-center justify-center">
+        <img src={icon} className="h-3.5 w-3.5 rounded-sm" alt="" />
+      </div>
+    )
+  }
+
+  const iconClassName = "h-3.5 w-3.5 shrink-0 opacity-70"
+
+  // Handle external URLs (Webview)
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    try {
+      const domain = new URL(url).hostname
+      return (
+        <div className="flex shrink-0 items-center justify-center">
+          <img
+            src={`https://edge-kit.eidos.space/favicon?domain=${domain}&sz=64`}
+            className="h-3.5 w-3.5 rounded-sm"
+            alt=""
+            onError={(e) => {
+              // On error, we could potentially switch to a Globe icon,
+              // but for simplicity in this functional component, we'll just show the alt or a fallback.
+              // Note: true error handling would require state.
+            }}
+          />
+        </div>
+      )
+    } catch (e) {
+      return <Globe className={iconClassName} />
+    }
+  }
+
+  if (url.startsWith("eidos-read://"))
+    return <BookOpen className={iconClassName} />
+  if (url.startsWith("/settings")) return <Settings className={iconClassName} />
+  if (url.startsWith("/agent"))
+    return <MessageSquare className={iconClassName} />
+  if (url.startsWith("/journals") || url.startsWith("/today"))
+    return <CalendarDays className={iconClassName} />
+  if (url.startsWith("/file-handler"))
+    return <FileText className={iconClassName} />
+  if (url.startsWith("/folder")) return <FolderOpen className={iconClassName} />
+  if (url.includes("nodeId") || url.match(/^\/[0-9a-f-]{36}$/i))
+    return <ListTree className={iconClassName} />
+  if (url.startsWith("/extensions")) return <Blocks className={iconClassName} />
+  if (url.startsWith("/trash")) return <Trash2 className={iconClassName} />
+  if (url.startsWith("/search")) return <Search className={iconClassName} />
+  if (url.startsWith("/graft")) return <GitBranch className={iconClassName} />
+  if (url.startsWith("/capture")) return <Camera className={iconClassName} />
+
+  return <File className={iconClassName} />
 }
 
 function TabRawDataHint({ tabId }: { tabId: string }) {
@@ -222,21 +305,26 @@ export function TabBar({
 
   // For right panel toggle button
   const { isSidebarOpen } = useAppStore()
-  const { isRightPanelOpen, setIsRightPanelOpen, currentAppIndex } =
-    useSpaceAppStore()
-
-  const handleAppChange = (index: number) => {
-    if (index === currentAppIndex) {
-      setIsRightPanelOpen(false)
-    } else {
-      setIsRightPanelOpen(true, index)
-    }
-  }
 
   // Use useCallback to stabilize handleNewTab reference
+  const [newTabContent] = useSqliteKV<string | null>(
+    "eidos:space:settings:newtab",
+    ""
+  )
+
   const handleNewTab = useCallback(() => {
-    openTab("/", "New Tab", { panelId: currentPanelId || undefined })
-  }, [openTab, currentPanelId])
+    let url = "/"
+    if (newTabContent === "agent") {
+      url = "/agent"
+    } else if (newTabContent && newTabContent !== "default") {
+      url = `/blocks/${newTabContent}`
+    }
+
+    openTab(url, "New Tab", {
+      panelId: currentPanelId || undefined,
+      state: { __isInternalTabNavigation: true },
+    })
+  }, [openTab, currentPanelId, newTabContent])
 
   // Local state for optimistic UI updates during drag
   const [localPanelTabs, setLocalPanelTabs] = useState(panelTabs)
@@ -292,14 +380,19 @@ export function TabBar({
   }
 
   const dispatchExpandTo = useCallback(
-    (app: "files" | "nodes" | "extensions" | "today", path: string) => {
+    (
+      app: "files" | "nodes" | "extensions" | "today" | "agent",
+      path: string
+    ) => {
       setCurrentApp(app)
       if (app === "today") {
-        window.dispatchEvent(
-          new CustomEvent("journals-scroll-to-day", {
-            detail: { id: path },
-          })
-        )
+        setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent("journals-scroll-to-day", {
+              detail: { id: path },
+            })
+          )
+        }, 50)
         return
       }
       setTimeout(() => {
@@ -375,6 +468,16 @@ export function TabBar({
         dispatchExpandTo("extensions", extPath)
         return
       }
+
+      // 5) Agent tabs: "/agent/:sessionId"
+      const agentPattern = new URLPattern({
+        pathname: "/agent/:sessionId?",
+      })
+      const agentMatch = agentPattern.exec(url)
+      if (agentMatch) {
+        dispatchExpandTo("agent", "")
+        return
+      }
     },
     [tabs, sqlite?.tree, sqlite?.extension, dispatchExpandTo]
   )
@@ -382,16 +485,20 @@ export function TabBar({
   return (
     <div
       className={cn(
-        "flex items-center gap-0 shrink-0 min-w-0 px-1 h-[38px] border-b border-border/60 bg-muted/60",
+        "flex items-center gap-0 min-w-0 h-[38px]",
+        panelId
+          ? "w-full shrink-0 border-b border-border/60 bg-muted/60 px-1"
+          : "flex-1",
         {
           // First panel: add left padding for macOS traffic lights when sidebar is closed
           "!pl-[72px]":
             isFirstPanel &&
             (isDesktopMode || navigator.windowControlsOverlay?.visible) &&
             isMac() &&
-            !isSidebarOpen,
+            !isSidebarOpen &&
+            !!panelId,
           // Windows: add right padding when on last panel
-          "pr-[112px]": isLastPanel && isWindowsDesktop && !isRightPanelOpen,
+          "pr-[112px]": isLastPanel && isWindowsDesktop && !!panelId,
         }
       )}
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
@@ -454,28 +561,7 @@ export function TabBar({
           className="flex items-center gap-1 shrink-0 grow-0"
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         >
-          <NavStatus />
-          {isDesktopMode && !isRightPanelOpen && (
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() => handleAppChange(0)}
-              className={cn({
-                "mr-1": !isWindowsDesktop && !isRightPanelOpen,
-              })}
-            >
-              <PanelRightIcon className="h-4 w-4" />
-            </Button>
-          )}
-          {!isDesktopMode && (
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() => handleAppChange(0)}
-            >
-              <PanelRightIcon className="h-4 w-4" />
-            </Button>
-          )}
+          {/* <NavStatus /> */}
         </div>
       )}
     </div>

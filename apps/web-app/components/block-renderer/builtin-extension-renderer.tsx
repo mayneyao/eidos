@@ -58,6 +58,7 @@ interface BuiltInSidebarBlockRendererProps {
   extensionSlug: string
   space: string
   currentDay: string
+  currentSessionId?: string
   locale: string
   syncEnabled?: boolean
   fallback?: ReactNode
@@ -224,6 +225,7 @@ export function BuiltInSidebarBlockRenderer({
   extensionSlug,
   space,
   currentDay,
+  currentSessionId,
   locale,
   syncEnabled,
   fallback,
@@ -240,6 +242,7 @@ export function BuiltInSidebarBlockRenderer({
     type: "sidebarBlock",
     space,
     currentDay,
+    currentSessionId,
     locale,
     syncEnabled,
     theme: resolvedTheme,

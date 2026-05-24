@@ -1,12 +1,9 @@
-import type { Tool } from "ai"
+import { dynamicTool, jsonSchema, type Tool } from "ai"
 import { useEffect, useMemo, useState } from "react"
 import type { IExtension, ToolMeta } from "@/packages/core/types/IExtension"
 import { useSqlite } from "./use-sqlite"
-// import { createRecordsTool } from "./tools/table"
 
-const builtInTools = {
-  // createRecords: createRecordsTool,
-}
+const builtInTools: Record<string, Tool> = {}
 
 export const useAllTools = (): Record<string, Tool> => {
   const { sqlite } = useSqlite()
@@ -20,7 +17,6 @@ export const useAllTools = (): Record<string, Tool> => {
     }
     const fetchToolExtensions = async () => {
       try {
-        // Use the extension table's getToolExtensions method to get enabled tool extensions
         const extensions = await sqlite.extension.getToolExtensions("enabled")
         setToolExtensions(extensions as IExtension<ToolMeta>[])
       } catch (error) {
@@ -31,24 +27,24 @@ export const useAllTools = (): Record<string, Tool> => {
     fetchToolExtensions()
   }, [sqlite])
 
-  // Transform tool extensions into AI Tool format
   const _tools = useMemo(() => {
     const tools = toolExtensions.reduce(
       (acc, extension) => {
         if (extension.meta?.tool) {
-          const tool = extension.meta.tool
-          acc[tool.name] = {
-            description: tool.description,
-            parameters: tool.inputJSONSchema,
-            id: `${extension.id}.${extension.meta.funcName}` as `${string}.${string}`,
-          }
+          const meta = extension.meta.tool
+          acc[meta.name] = dynamicTool({
+            description: meta.description,
+            inputSchema: jsonSchema(
+              meta.inputJSONSchema as Record<string, unknown>
+            ),
+            execute: async () => ({}),
+          })
         }
         return acc
       },
       {} as Record<string, Tool>
     )
 
-    // Merge with built-in tools
     return { ...builtInTools, ...tools }
   }, [toolExtensions])
 

@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next"
 
 import { isDesktopMode } from "@/lib/env"
 import { useActivation } from "@/hooks/use-activation"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -72,6 +73,7 @@ const SYNC_INTERNAL_URL = "https://eidos.space/api/sync/init"
 
 export function GlobalSyncSettings() {
   const { t } = useTranslation()
+  const { navigate } = useRouterAdapter()
   const auth = useAuthOptional()
   const { license, isLoading: isLicenseLoading } = useActivation()
   const hasValidLicense = license !== null
@@ -502,11 +504,7 @@ export function GlobalSyncSettings() {
                     size="sm"
                     className="h-auto p-0 text-amber-700 dark:text-amber-300 mt-2"
                     onClick={() =>
-                      window.dispatchEvent(
-                        new CustomEvent("settings-navigate", {
-                          detail: "account",
-                        })
-                      )
+                      navigate("/settings/account", { replace: true })
                     }
                   >
                     {t("settings.account.title")} →

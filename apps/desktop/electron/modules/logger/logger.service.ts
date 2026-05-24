@@ -15,6 +15,7 @@ export interface Logger {
   error(...params: any[]): void
   debug(...params: any[]): void
   verbose(...params: any[]): void
+  child(prefix: string): Logger
 }
 
 /**

@@ -6,6 +6,8 @@ import { DevToolsToolbar } from "./dev-tools-toolbar"
 import { ClipboardPanel } from "./clipboard-panel"
 import { PerformancePanel } from "./performance-panel"
 import { useDevToolsStore } from "./store"
+import { useTabStore } from "@/apps/web-app/store/tabs"
+import { useWebviewStore } from "@/apps/web-app/store/webview-store"
 
 export function DevToolsPanel() {
   const [isClipboardVisible, setIsClipboardVisible] = useState(false)
@@ -20,6 +22,21 @@ export function DevToolsPanel() {
   }>({ used: 0, total: 0, limit: 0, percentage: 0 })
 
   const { enabled } = useDevToolsStore()
+
+  const activeTabId = useTabStore((s) => {
+    const activePanel = s.panels.find((p) => p.id === s.activePanelId)
+    return activePanel?.activeTabId || null
+  })
+
+  const activeTabUrl = useTabStore(
+    (s) => s.tabs.find((t) => t.id === activeTabId)?.url
+  )
+
+  const webviewDisplayUrl = useWebviewStore(
+    (s) => s.states[activeTabId || ""]?.displayUrl
+  )
+
+  const currentUrl = webviewDisplayUrl || activeTabUrl
 
   const toggleClipboard = () => {
     setIsClipboardVisible(!isClipboardVisible)
@@ -107,6 +124,7 @@ export function DevToolsPanel() {
       <DevToolsToolbar
         isClipboardVisible={isClipboardVisible}
         isPerformanceVisible={isPerformanceVisible}
+        currentUrl={currentUrl}
         onToggleClipboard={toggleClipboard}
         onTogglePerformance={togglePerformance}
         onCopyDebugInfo={copyDebugInfo}

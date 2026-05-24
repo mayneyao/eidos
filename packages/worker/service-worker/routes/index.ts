@@ -1,5 +1,3 @@
-import aiHandle, { pathname } from "../ai"
-
 import extFileHandle, { pathname as extFileHandlePathname } from "./ext-file"
 import { extHandle, pathname as extHandlePathname } from "./extensions"
 import fileHandle, { pathname as fileHandlePathname } from "./file"
@@ -8,10 +6,6 @@ import staticFileHandle, {
 } from "./static-file"
 
 export const routes = [
-  {
-    pathname,
-    handle: aiHandle,
-  },
   {
     pathname: extFileHandlePathname,
     handle: extFileHandle,

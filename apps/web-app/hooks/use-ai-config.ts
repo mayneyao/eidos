@@ -3,7 +3,7 @@ import { useCallback, useMemo } from "react"
 import { useAIConfigStore } from "@/components/settings/stores"
 import { TaskType } from "@/components/settings/global/ai/hooks"
 import { getProvider } from "@/packages/ai/helper"
-import type { LanguageModelV1 } from "ai"
+import type { LanguageModel } from "ai"
 
 export const useAiConfig = () => {
   const { aiConfig } = useAIConfigStore()
@@ -45,6 +45,8 @@ export const useAiConfig = () => {
           apiKey: llmProvider.apiKey || "",
           modelId: modelId || "",
           type: llmProvider.type,
+          apiVersion: llmProvider.apiVersion,
+          name: llmProvider.name,
         }
       }
       throw new Error(`Provider ${provider} not found`)
@@ -59,8 +61,10 @@ export const useAiConfig = () => {
         apiKey: config.apiKey,
         baseUrl: config.baseUrl,
         type: config.type,
+        apiVersion: config.apiVersion,
+        name: config.name,
       })
-      return provider(config.modelId) as LanguageModelV1
+      return provider(config.modelId) as LanguageModel
     },
     [getConfigByModel]
   )
@@ -123,5 +127,6 @@ export const useAiConfig = () => {
     textModel,
     embeddingModel,
     textModelConfig,
+    exaApiKey: aiConfig.exaApiKey,
   }
 }

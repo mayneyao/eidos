@@ -13,7 +13,11 @@ import { useExtensionStore } from "@/apps/web-app/store/extension-store"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 
 import { BlockApp } from "../block-renderer/block-app"
-import { BuiltInSidebarBlockRenderer } from "../block-renderer/builtin-extension-renderer"
+import {
+  BuiltInSidebarBlockRenderer,
+  getBuiltInExtension,
+  isBuiltInExtension,
+} from "../block-renderer/builtin-extension-renderer"
 import FileTree from "../file-tree"
 import { ExtensionSidebarHeader } from "./extensions/extension-sidebar-header"
 import { FilesSidebar } from "./files"
@@ -115,33 +119,22 @@ const BlockContent = ({ block }: { block: any }) => {
   return <BlockApp url={`block://${block.id}@${space}`} height={"100%"} />
 }
 
-const JournalsContent = () => {
-  const { params } = useRouterAdapter()
-  const { i18n } = useTranslation()
-  const space = useCurrentSpaceId() || ""
-  const currentDay = (params.day as string) || getToday()
-  const locale = i18n.language || "en"
-  return (
-    <BuiltInSidebarBlockRenderer
-      extensionSlug="journal"
-      space={space}
-      currentDay={currentDay}
-      locale={locale}
-    />
-  )
-}
-
-const GraftContent = () => {
+const GenericBuiltInContent = ({ slug }: { slug: string }) => {
   const { i18n } = useTranslation()
   const { currentSpace } = useCurrentSpace()
+  const { params } = useRouterAdapter()
   const space = useCurrentSpaceId() || ""
   const locale = i18n.language || "en"
   const syncEnabled = currentSpace?.sync?.enabled ?? false
+  const currentDay = params.day || getToday()
+  const currentSessionId = params.sessionId
+
   return (
     <BuiltInSidebarBlockRenderer
-      extensionSlug="graft"
+      extensionSlug={slug}
       space={space}
-      currentDay={getToday()}
+      currentDay={currentDay}
+      currentSessionId={currentSessionId}
       locale={locale}
       syncEnabled={syncEnabled}
     />
@@ -153,30 +146,42 @@ export const SidebarContent = () => {
   const block = useMblock(currentApp || "")
 
   const renderContent = () => {
+    // 1. Handle Core Built-in Tabs
     switch (currentApp) {
       case "extensions":
         return <ExtensionsContent />
       case "nodes":
         return <NodesContent />
-      case "today":
-        return <JournalsContent />
       case "files":
         return <FilesContent />
-      case "graft":
-        return <GraftContent />
-      default:
-        // Check if currentApp is a block ID with 'use sidebar' directive
-        if (
-          currentApp &&
-          !DEFAULT_TABS.includes(currentApp) &&
-          block &&
-          block.code &&
-          detectDirective(block.code, "use sidebar")
-        ) {
-          return <BlockContent block={block} />
-        }
-        return <NodesContent />
     }
+
+    // 2. Handle Extension-based Sidebar Blocks (including journal, graft, agent-history, etc.)
+    if (currentApp && isBuiltInExtension(currentApp)) {
+      const ext = getBuiltInExtension(currentApp)
+      if ((ext?.meta as any)?.type === "sidebarBlock") {
+        return <GenericBuiltInContent slug={currentApp} />
+      }
+    }
+
+    // 3. Handle 'today' mapping to 'journal' if needed (for legacy/naming consistency)
+    if (currentApp === "today") {
+      return <GenericBuiltInContent slug="journal" />
+    }
+
+    // 4. Handle Custom Blocks with 'use sidebar' directive
+    if (
+      currentApp &&
+      !DEFAULT_TABS.includes(currentApp) &&
+      block &&
+      block.code &&
+      detectDirective(block.code, "use sidebar")
+    ) {
+      return <BlockContent block={block} />
+    }
+
+    // Default fallback
+    return <NodesContent />
   }
 
   return (

@@ -31,7 +31,7 @@ export function useSidebar() {
 // Default sidebar width in pixels
 const DEFAULT_WIDTH = 320
 const MIN_WIDTH = 200
-const MAX_WIDTH = 480
+const getMaxWidth = () => Math.floor(window.innerWidth / 2)
 
 // Sidebar Provider
 interface SidebarProviderProps {
@@ -68,7 +68,7 @@ export function SidebarProvider({
   }, [open, setOpen])
 
   const setWidth = React.useCallback((newWidth: number) => {
-    const clampedWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, newWidth))
+    const clampedWidth = Math.max(MIN_WIDTH, Math.min(getMaxWidth(), newWidth))
     setWidthState(clampedWidth)
   }, [])
 

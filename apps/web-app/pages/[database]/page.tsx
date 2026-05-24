@@ -3,6 +3,7 @@ import {
   Command,
   FileText,
   PanelLeft,
+  Plus,
   Search,
   Settings,
   Terminal,
@@ -14,19 +15,23 @@ import { useSidebar } from "@/components/ui/sidebar"
 import { EidosIcon } from "@/components/icons/eidos"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useTabTitle } from "@/hooks/use-tab-title"
 import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 import { BlockApp } from "@/apps/web-app/components/block-renderer/block-app"
+import { useTabStore } from "@/apps/web-app/store/tabs"
+
+import AgentPage from "./agent/page"
 
 export default function DatabaseHome() {
   const { t } = useTranslation()
   const { space } = useCurrentPathInfo()
   const { createDoc } = useSqlite(space)
   const goto = useGoto()
-  const { setCmdkOpen, setGlobalSearchOpen, setSpaceSettingsOpen } =
-    useAppRuntimeStore()
+  const { navigate } = useRouterAdapter()
+  const { setCmdkOpen, setGlobalSearchOpen } = useAppRuntimeStore()
   const { toggle: toggleSidebar } = useSidebar()
   const [newTabBlockId] = useSqliteKV<string | null>(
     "eidos:space:settings:newtab",
@@ -52,8 +57,8 @@ export default function DatabaseHome() {
   }, [setGlobalSearchOpen])
 
   const handleOpenSettings = useCallback(() => {
-    setSpaceSettingsOpen(true)
-  }, [setSpaceSettingsOpen])
+    navigate("/settings", { target: "_blank" })
+  }, [navigate])
 
   const { setIsTerminalVisible, isTerminalVisible } = useAppRuntimeStore()
 
@@ -64,6 +69,23 @@ export default function DatabaseHome() {
   const handleToggleSidebar = useCallback(() => {
     toggleSidebar()
   }, [toggleSidebar])
+
+  const openTab = useTabStore((s) => s.openTab)
+  const handleNewTab = useCallback(() => {
+    openTab("/", "New Tab")
+  }, [openTab])
+
+  const handleOpenNewTabSettings = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      navigate("/settings/space-tabs", { target: "_blank" })
+    },
+    [navigate]
+  )
+
+  if (newTabBlockId === "agent") {
+    return <AgentPage />
+  }
 
   if (newTabBlockId) {
     return (
@@ -101,33 +123,25 @@ export default function DatabaseHome() {
           <Button
             variant="ghost"
             className="justify-between h-auto px-3 py-2"
-            onClick={handleOpenCommandPalette}
+            onClick={handleNewTab}
           >
             <div className="flex items-center gap-2">
-              <Command className="h-4 w-4 text-muted-foreground" />
+              <Plus className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">
-                {t("welcome.commandPalette", "Command Palette")}
+                {t("welcome.newTab", "New Tab")}
               </span>
             </div>
-            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-              ⌘ + K
-            </kbd>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className="justify-between h-auto px-3 py-2"
-            onClick={handleToggleTerminalPanel}
-          >
             <div className="flex items-center gap-2">
-              <Terminal className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                {t("welcome.toggleTerminalPanel", "Toggle Terminal Panel")}
+              <span
+                className="text-[10px] text-muted-foreground/40 hover:text-foreground hover:underline transition-colors cursor-pointer"
+                onClick={handleOpenNewTabSettings}
+              >
+                {t("welcome.configureNewTab", "Configure")}
               </span>
+              <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                ⌘ + T
+              </kbd>
             </div>
-            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-              Ctrl + `
-            </kbd>
           </Button>
 
           <Button
@@ -149,6 +163,22 @@ export default function DatabaseHome() {
           <Button
             variant="ghost"
             className="justify-between h-auto px-3 py-2"
+            onClick={handleOpenCommandPalette}
+          >
+            <div className="flex items-center gap-2">
+              <Command className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                {t("welcome.commandPalette", "Command Palette")}
+              </span>
+            </div>
+            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+              ⌘ + K
+            </kbd>
+          </Button>
+
+          <Button
+            variant="ghost"
+            className="justify-between h-auto px-3 py-2"
             onClick={handleToggleSidebar}
           >
             <div className="flex items-center gap-2">
@@ -159,6 +189,22 @@ export default function DatabaseHome() {
             </div>
             <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
               ⌘ + \
+            </kbd>
+          </Button>
+
+          <Button
+            variant="ghost"
+            className="justify-between h-auto px-3 py-2"
+            onClick={handleToggleTerminalPanel}
+          >
+            <div className="flex items-center gap-2">
+              <Terminal className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                {t("welcome.toggleTerminalPanel", "Toggle Terminal Panel")}
+              </span>
+            </div>
+            <kbd className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+              Ctrl + `
             </kbd>
           </Button>
 

@@ -403,6 +403,9 @@ class DataSpaceManager {
 
     this.dataSpace.initFileWatcher()
 
+    // Watch sessions directory for direct file deletions
+    this.initSessionsWatcher()
+
     // Start relay clients if enabled
     if (
       this._spaceInfo.relay?.enabled &&
@@ -414,6 +417,127 @@ class DataSpaceManager {
     return this.dataSpace
   }
 
+  private sessionsWatcherController: AbortController | null = null
+  private sessionsRebuildTimer: ReturnType<typeof setTimeout> | null = null
+
+  /**
+   * Rebuild history.jsonl by scanning all .meta.json files.
+   * Similar to AgentSessionStore.rebuildHistory().
+   */
+  private async rebuildSessionsHistory(): Promise<void> {
+    if (!this.dataSpace) return
+
+    const sessionsDir = "~/.eidos/agent/sessions/"
+    const historyPath = "~/.eidos/agent/sessions/history.jsonl"
+
+    try {
+      const files = await this.dataSpace.fs.readdir(sessionsDir)
+      const metaFiles = files.filter((f: string) => f.endsWith(".meta.json"))
+
+      const metas: Array<{
+        id: string
+        goal: string
+        model: string
+        space: string
+        createdAt: string
+        completedAt?: string
+      }> = []
+
+      for (const file of metaFiles) {
+        try {
+          const content = await this.dataSpace.fs.readFile(
+            `${sessionsDir}${file}`,
+            "utf-8"
+          )
+          const meta = JSON.parse(content)
+          metas.push({
+            id: meta.id,
+            goal: meta.goal ?? "",
+            model: meta.model ?? "",
+            space: meta.space ?? "",
+            createdAt: meta.createdAt ?? "1970-01-01T00:00:00.000Z",
+            completedAt: meta.completedAt,
+          })
+        } catch {
+          // Skip corrupted files
+        }
+      }
+
+      // Sort by createdAt desc
+      const sorted = metas.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+
+      // Write new index
+      const indexContent =
+        sorted
+          .map((m) =>
+            JSON.stringify({
+              id: m.id,
+              goal: m.goal,
+              model: m.model,
+              space: m.space,
+              createdAt: m.createdAt,
+              completedAt: m.completedAt,
+            })
+          )
+          .join("\n") + "\n"
+
+      await this.dataSpace.fs.writeFile(historyPath, indexContent)
+      console.log(
+        "[SessionsWatcher] Rebuilt history.jsonl with",
+        metas.length,
+        "sessions"
+      )
+    } catch (error) {
+      console.error("[SessionsWatcher] Failed to rebuild history:", error)
+    }
+  }
+
+  /**
+   * Watch sessions directory for changes.
+   * When .meta.json files are created or deleted via filesystem, rebuild history.jsonl.
+   */
+  private async initSessionsWatcher() {
+    if (!this.dataSpace) return
+
+    const sessionsDir = "~/.eidos/agent/sessions/"
+
+    // Cancel existing watcher if any
+    if (this.sessionsWatcherController) {
+      this.sessionsWatcherController.abort()
+    }
+
+    this.sessionsWatcherController = new AbortController()
+    const { signal } = this.sessionsWatcherController
+
+    try {
+      for await (const event of this.dataSpace.fs.watch(sessionsDir, {
+        signal,
+      })) {
+        if (!event.filename) continue
+
+        // Only handle .meta.json changes
+        if (!event.filename.endsWith(".meta.json")) continue
+
+        // Debounce rebuilds - wait 500ms for batch changes
+        if (this.sessionsRebuildTimer) {
+          clearTimeout(this.sessionsRebuildTimer)
+        }
+        this.sessionsRebuildTimer = setTimeout(() => {
+          this.rebuildSessionsHistory()
+        }, 500)
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        console.log("[SessionsWatcher] Watcher cancelled")
+      } else {
+        console.error("[SessionsWatcher] Watcher error:", error)
+      }
+    }
+  }
+
   public async close(): Promise<boolean> {
     if (!this.dataSpace) {
       return false
@@ -421,6 +545,16 @@ class DataSpaceManager {
 
     // Stop file watcher before closing dataspace
     this.dataSpace.unwatchFileWatcher()
+
+    // Stop sessions watcher
+    if (this.sessionsWatcherController) {
+      this.sessionsWatcherController.abort()
+      this.sessionsWatcherController = null
+    }
+    if (this.sessionsRebuildTimer) {
+      clearTimeout(this.sessionsRebuildTimer)
+      this.sessionsRebuildTimer = null
+    }
 
     if (this.relayClient) {
       this.relayClient.stop()

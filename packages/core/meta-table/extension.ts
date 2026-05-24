@@ -361,11 +361,18 @@ export class ExtensionTable
    * Get TableAction extensions by status
    */
   async getTableActionExtensions(
-    status: ExtensionStatus = "enabled"
+    status: ExtensionStatus = "enabled",
+    tableId?: string
   ): Promise<IExtension<TableActionMeta>[]> {
-    return this.getScriptExtensionsByType("tableAction", status) as Promise<
-      IExtension<TableActionMeta>[]
-    >
+    const all = (await this.getScriptExtensionsByType(
+      "tableAction",
+      status
+    )) as IExtension<TableActionMeta>[]
+    if (!tableId) return all
+    return all.filter((ext) => {
+      const bound = (ext.meta as TableActionMeta)?.tableAction?.tableId
+      return !bound || bound === tableId
+    })
   }
 
   /**

@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid"
+import { z } from "zod"
 import {
   getRawTableNameById,
   getUuid,
@@ -9,9 +10,10 @@ import { FieldType } from "../fields/const"
 import { allFieldTypesMap } from "../fields"
 import { ColumnTableName, TreeTableName } from "../sqlite/const"
 import { ColumnTable } from "../meta-table/column"
+import { transformSql2FilterItems } from "../sqlite/sql-filter-parser"
 import type { DataSpaceWithTable } from "../data-space/table"
 import type { IField } from "../types/IField"
-import type { ViewType } from "../types/IView"
+import type { IView, ViewType } from "../types/IView"
 
 // ===== Input Types =====
 
@@ -51,6 +53,17 @@ export interface CreateViewInput {
   /** View type */
   type: ViewType
 }
+
+export const UpdateViewInputSchema = z
+  .object({
+    name: z.string().optional(),
+    type: z.string().optional(),
+    query: z.string().optional(),
+    properties: z.record(z.string(), z.any()).optional(),
+  })
+  .partial()
+
+export type UpdateViewInput = z.infer<typeof UpdateViewInputSchema>
 
 // ===== Output Types =====
 
@@ -312,9 +325,21 @@ CREATE TABLE ${rawTableName} (
 
     const defaultProperty =
       allFieldTypesMap[input.type].getDefaultFieldProperty()
-    const mergedProperty = input.property
+    const mergedProperty: Record<string, any> = input.property
       ? { ...defaultProperty, ...input.property }
-      : defaultProperty
+      : { ...defaultProperty }
+
+    // Normalize: fill in missing option ids (id defaults to name)
+    if (
+      (input.type === FieldType.Select ||
+        input.type === FieldType.MultiSelect) &&
+      Array.isArray(mergedProperty.options)
+    ) {
+      mergedProperty.options = mergedProperty.options.map((o: any) => ({
+        id: o.id ?? o.name,
+        ...o,
+      }))
+    }
 
     const fieldData: IField = {
       name: input.name,
@@ -474,6 +499,64 @@ CREATE TABLE ${rawTableName} (
   async deleteView(tableId: string, viewId: string): Promise<boolean> {
     await this.dataSpace.view.del(viewId)
     return true
+  }
+
+  /**
+   * Update a view's metadata, query, and properties.
+   * If a new SQL query is provided, the system derives the structured
+   * filter from the WHERE clause automatically.
+   *
+   * @param tableId Table ID
+   * @param viewId View ID
+   * @param input Fields to update
+   */
+  async updateView(
+    tableId: string,
+    viewId: string,
+    input: UpdateViewInput
+  ): Promise<ViewInfo> {
+    const parsed = UpdateViewInputSchema.parse(input)
+
+    const existing = await this.dataSpace.view.get(viewId)
+    if (!existing) {
+      throw new Error(`View not found: ${viewId}`)
+    }
+    if (existing.table_id !== tableId) {
+      throw new Error(`View ${viewId} does not belong to table ${tableId}`)
+    }
+
+    const updateData: Partial<IView> = {}
+
+    if (parsed.name !== undefined) updateData.name = parsed.name
+    if (parsed.type !== undefined)
+      updateData.type = parsed.type as IView["type"]
+
+    if (parsed.properties !== undefined) {
+      updateData.properties = {
+        ...(existing.properties ?? {}),
+        ...parsed.properties,
+      }
+    }
+
+    if (parsed.query !== undefined) {
+      updateData.query = parsed.query
+      try {
+        updateData.filter = transformSql2FilterItems(parsed.query)
+      } catch {
+        updateData.filter = undefined
+      }
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await this.dataSpace.view.set(viewId, updateData)
+    }
+
+    const updated = await this.dataSpace.view.get(viewId)
+    return {
+      id: updated!.id,
+      name: updated!.name,
+      type: updated!.type,
+    }
   }
 
   // ============ SCHEMA IMPORT / EXPORT ============

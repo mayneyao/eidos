@@ -1,6 +1,8 @@
+import { createAlibaba } from "@ai-sdk/alibaba"
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock"
 import { createAnthropic } from "@ai-sdk/anthropic"
 import { createAzure } from "@ai-sdk/azure"
+import { createByteDance } from "@ai-sdk/bytedance"
 import { createCerebras } from "@ai-sdk/cerebras"
 import { createCohere } from "@ai-sdk/cohere"
 import { createDeepInfra } from "@ai-sdk/deepinfra"
@@ -8,17 +10,21 @@ import { createDeepSeek } from "@ai-sdk/deepseek"
 import { createFireworks } from "@ai-sdk/fireworks"
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { createGroq } from "@ai-sdk/groq"
+import { createHuggingFace } from "@ai-sdk/huggingface"
 import { createMistral } from "@ai-sdk/mistral"
+import { createMoonshotAI } from "@ai-sdk/moonshotai"
 import { createOpenAI } from "@ai-sdk/openai"
 import { createPerplexity } from "@ai-sdk/perplexity"
 import { createTogetherAI } from "@ai-sdk/togetherai"
 import { createXai } from "@ai-sdk/xai"
 import { createOpenRouter } from "@openrouter/ai-sdk-provider"
 import { OpenAI } from "openai"
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 
 // export type Model = (typeof WEB_LLM_MODELS)[0]
 
 export type LLMProviderType =
+  | "opencode-go"
   | "openai"
   | "google"
   | "deepseek"
@@ -40,8 +46,13 @@ export type LLMProviderType =
   | "ollama"
   // "luma" |
   | "openai-compatible"
+  | "huggingface"
+  | "moonshotai"
+  | "alibaba"
+  | "bytedance"
 
 export const ALL_PROVIDERS_RAW = [
+  "opencode-go",
   "openai",
   "google",
   "deepseek",
@@ -63,6 +74,10 @@ export const ALL_PROVIDERS_RAW = [
   "ollama",
   // "luma",
   "openai-compatible",
+  "huggingface",
+  "moonshotai",
+  "alibaba",
+  "bytedance",
 ]
 
 export const LLM_PROVIDER_INFO: Record<
@@ -79,7 +94,7 @@ export const LLM_PROVIDER_INFO: Record<
   },
   google: {
     name: "Google AI",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta", // Or Vertex AI endpoint
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
     urlForGettingApiKey: "https://aistudio.google.com/apikey",
   },
   deepseek: {
@@ -105,7 +120,7 @@ export const LLM_PROVIDER_INFO: Record<
     baseUrl: "https://api.anthropic.com/v1",
   },
   azure: {
-    name: "Azure OpenAI",
+    name: "Azure",
     baseUrl: "YOUR_AZURE_ENDPOINT", // User specific
   },
   "amazon-bedrock": {
@@ -152,9 +167,36 @@ export const LLM_PROVIDER_INFO: Record<
   //   name: "Luma AI",
   //   baseUrl: "https://api.luma.ai/v1", // Placeholder, check docs
   // },
+  huggingface: {
+    name: "Hugging Face",
+    baseUrl: "https://api-inference.huggingface.co",
+    urlForGettingApiKey: "https://huggingface.co/settings/tokens",
+  },
+  moonshotai: {
+    name: "Moonshot AI",
+    baseUrl: "https://api.moonshot.cn/v1",
+    urlForGettingApiKey: "https://platform.moonshot.cn/console/api-keys",
+  },
+  alibaba: {
+    name: "Alibaba (Qwen)",
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    urlForGettingApiKey: "https://dashscope.console.aliyun.com/apiKey",
+  },
+  bytedance: {
+    name: "ByteDance",
+    baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+    urlForGettingApiKey:
+      "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey",
+  },
   ollama: {
     name: "Ollama",
     baseUrl: "http://localhost:11434/v1",
+  },
+  "opencode-go": {
+    name: "OpenCode Go",
+    baseUrl: "https://opencode.ai/zen/go/v1",
+    // affiliate ref to support Eidos development
+    urlForGettingApiKey: "https://opencode.ai/go?ref=STQJ9F59C0",
   },
   "openai-compatible": {
     name: "OpenAI Compatible",
@@ -250,8 +292,10 @@ export function getProvider(data: {
   apiKey?: string
   baseUrl?: string
   type?: LLMProviderType
+  apiVersion?: "chat" | "responses"
+  name?: string
 }) {
-  const { apiKey, baseUrl, type = "openai" } = data
+  const { apiKey, baseUrl, type = "openai", apiVersion = "chat", name } = data
   const config: any = {
     apiKey,
   }
@@ -260,7 +304,8 @@ export function getProvider(data: {
   }
   switch (type) {
     case "openai":
-      return createOpenAI(config)
+      const p = createOpenAI(config)
+      return apiVersion === "responses" ? p.responses : p.chat
     case "google":
       return createGoogleGenerativeAI(config)
     case "deepseek":
@@ -297,7 +342,35 @@ export function getProvider(data: {
       return createCerebras(config)
     // case 'luma':
     //   return createLuma(config)
+    case "huggingface": {
+      const hf = createHuggingFace(config)
+      return ((modelId: string) => hf.languageModel(modelId)) as any
+    }
+    case "moonshotai": {
+      const ms = createMoonshotAI(config)
+      return ((modelId: string) => ms.languageModel(modelId)) as any
+    }
+    case "alibaba":
+      return createAlibaba(config)
+    case "bytedance": {
+      const bd = createByteDance(config)
+      return ((modelId: string) => bd.languageModel(modelId)) as any
+    }
+    case "opencode-go":
+      return createOpenAICompatible({
+        baseURL: baseUrl || "https://opencode.ai/zen/go/v1",
+        apiKey,
+        name: name || "OpenCode Go",
+      })
     case "openai-compatible":
+      if (apiVersion === "responses") {
+        return createOpenAI(config).responses
+      }
+      return createOpenAICompatible({
+        baseURL: baseUrl || "https://api.openai.com/v1",
+        apiKey,
+        name: name || "OpenAI Compatible",
+      })
     case "ollama":
     default:
       if (!baseUrl) {
@@ -305,9 +378,10 @@ export function getProvider(data: {
           `Base URL is missing for OpenAI compatible provider type: ${type}. Falling back to OpenAI default or OpenAICompatible with potentially incorrect base URL.`
         )
       }
-      return createOpenAI({
-        baseURL: baseUrl,
+      return createOpenAICompatible({
+        baseURL: baseUrl || "https://api.openai.com/v1",
         apiKey,
+        name: name || type,
       })
   }
 }

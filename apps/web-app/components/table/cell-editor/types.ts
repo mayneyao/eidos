@@ -13,6 +13,8 @@ export interface CellEditorProps<T = any> {
    */
   layout?: "fill" | "flow" | "inline"
   disabled?: boolean
+  /** When true, suppress auto-open of popover (e.g. when used in filter editor) */
+  noAutoOpen?: boolean
 }
 
 export interface CellEditorRef {

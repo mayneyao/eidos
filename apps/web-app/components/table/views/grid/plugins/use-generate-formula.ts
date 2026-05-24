@@ -1,6 +1,6 @@
 import { useAiConfig } from "@/apps/web-app/hooks/use-ai-config"
 import { getProvider } from "@/packages/ai/helper"
-import type { LanguageModelV1 } from "ai"
+import type { LanguageModel } from "ai"
 import { generateObject } from "ai"
 import { useState } from "react"
 import { z } from "zod"
@@ -17,7 +17,7 @@ export const generateFormula = async (
 ) => {
   const provider = getProvider(config)
   const modelId = config.modelId
-  const llmodel = provider(modelId) as LanguageModelV1
+  const llmodel = provider(modelId) as LanguageModel
 
   let fieldsContext = ""
   if (tableFields && tableFields.length > 0) {
@@ -32,7 +32,6 @@ export const generateFormula = async (
   const res = await generateObject({
     model: llmodel,
     schema: formulaSchema,
-    mode: "json",
     prompt: `You are a SQLite expression expert. Generate an appropriate SQLite computed column expression based on the user's input. The user's input is enclosed in <user_input> tags. Please follow these rules:
     1. The returned expression should be a valid SQLite expression that can be used for computed columns
     2. Provide a brief explanation of how the expression works

@@ -1,6 +1,6 @@
 import { ChatTableName, MessageTableName } from "../sqlite/const"
 import { createTriggersForFields } from "../sqlite/sql-meta-table-trigger"
-import type { Message } from "ai"
+import type { UIMessage } from "ai"
 import type { BaseTable } from "./base"
 import { BaseTableImpl } from "./base"
 
@@ -9,7 +9,7 @@ export type ChatMessage = {
   chat_id: string
   role: string
   content: string
-  parts: Message["parts"]
+  parts: UIMessage["parts"]
   created_at?: string
 }
 

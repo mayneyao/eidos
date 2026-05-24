@@ -5,8 +5,6 @@ import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useCurrentPathInfo } from "@/hooks/use-current-pathinfo"
 import { useSqlite } from "@/hooks/use-sqlite"
 import { useNode } from "@/hooks/use-nodes"
-import { useContextNodes } from "@/components/ai-chat/hooks/use-context-nodes"
-import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { getExtensionUrl } from "@/lib/utils"
@@ -25,8 +23,6 @@ export const useFileTreeOperations = (rootDir?: string) => {
   const { sqlite, createDoc, createTable, createFolder, deleteNode } =
     useSqlite(space)
   const { pin: pinNode, unpin: unpinNode } = useNode()
-  const { addNode: addToChat } = useContextNodes()
-  const { setIsRightPanelOpen, setCurrentApp } = useSpaceAppStore()
   const { navigate } = useRouterAdapter()
   const { openTab } = useTabStore()
   const { toast } = useToast()
@@ -150,31 +146,6 @@ export const useFileTreeOperations = (rootDir?: string) => {
       }
     },
     [unpinNode, toast]
-  )
-
-  /**
-   * Add node to chat context
-   */
-  const handleAddToChat = useCallback(
-    (node: FileTreeNode) => {
-      const nodeId = node.metadata?.nodeId
-      if (!nodeId) return
-
-      // Open right panel if not already open
-      setIsRightPanelOpen(true)
-      // Set current app to chat
-      setCurrentApp("chat")
-
-      // Add the node to chat context (duplicates are handled in the store)
-      setTimeout(() => {
-        addToChat({
-          id: nodeId,
-          name: node.name,
-          type: node.metadata?.nodeType as any,
-        } as any)
-      }, 100)
-    },
-    [addToChat, setIsRightPanelOpen, setCurrentApp]
   )
 
   /**
@@ -427,7 +398,6 @@ export const useFileTreeOperations = (rootDir?: string) => {
     handleDelete,
     handlePin,
     handleUnpin,
-    handleAddToChat,
     handleOpenInNewTab,
     handleCreateDoc,
     handleCreateTable,

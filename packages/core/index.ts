@@ -2,6 +2,7 @@ import { DataSpace } from "./data-space"
 
 export { DataSpace }
 export { FieldType } from "./fields/const"
+export type { MessageMetadata } from "./types"
 
 export interface EidosTable<T = Record<string, string>> {
   id: string

@@ -1,3 +1,4 @@
+import { z } from "zod"
 import type { TextCell } from "@glideapps/glide-data-grid"
 
 import { BaseField } from "./base"
@@ -5,11 +6,16 @@ import { FieldType, GridCellKind, TEXT_BASED_COMPARE_OPERATORS } from "./const"
 import type { IVecMeta } from "../sdk/service/text"
 
 export interface TextProperty {
-  model?: string | null // Add other text-specific properties here if needed
+  model?: string | null
   enableEmbedding?: boolean | null
-  // when enableColorHint is true, the cell will be colored green when the vector is up to date, and yellow when the vector is out of date
   enableColorHint?: boolean | null
 }
+
+export const TextPropertySchema = z.object({
+  model: z.string().nullable().optional(),
+  enableEmbedding: z.boolean().nullable().optional(),
+  enableColorHint: z.boolean().nullable().optional(),
+})
 
 // Define an interface for the context object
 interface CellContext {

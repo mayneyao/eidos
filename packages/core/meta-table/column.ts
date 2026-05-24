@@ -1,5 +1,9 @@
 import { DataUpdateSignalType, EidosDataEventChannelMsgType } from "@/lib/const"
-import { allFieldTypesMap } from "../fields"
+import {
+  allFieldTypesMap,
+  FIELD_PROPERTY_SCHEMA_MAP,
+  getPropertyHint,
+} from "../fields"
 import { FieldType } from "../fields/const"
 import type { ILinkProperty } from "../fields/link"
 import { ColumnTableName } from "../sqlite/const"
@@ -112,10 +116,10 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
 
       await this.dataSpace.db.prepare("BEGIN TRANSACTION;").run()
 
-      let _property = property
-      if (type === FieldType.Formula) {
-        _property = { formula: "upper(title)" }
-      }
+      const _property =
+        type === FieldType.Formula && !property?.formula
+          ? { ...property, formula: "upper(title)" }
+          : property
       // add ui column
       this.dataSpace.db
         .prepare(
@@ -161,7 +165,7 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
         case FieldType.Formula:
           this.dataSpace.db
             .prepare(
-              `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (upper(title));`
+              `ALTER TABLE ${table_name} ADD COLUMN ${table_column_name} GENERATED ALWAYS AS (${_property.formula});`
             )
             .run()
           break
@@ -420,6 +424,33 @@ export class ColumnTable extends BaseTableImpl implements BaseTable<IField> {
     type: FieldType | `${FieldType}`
   }) {
     const { tableName, tableColumnName, property, type } = data
+
+    // Normalize: fill in missing option ids (id defaults to name)
+    if (
+      (type === FieldType.Select || type === FieldType.MultiSelect) &&
+      Array.isArray(property.options)
+    ) {
+      property.options = property.options.map((o: any) => ({
+        id: o.id ?? o.name,
+        ...o,
+      }))
+    }
+
+    // Validate property against the type's Zod schema
+    const schema = FIELD_PROPERTY_SCHEMA_MAP[type]
+    if (schema) {
+      const result = schema.safeParse(property)
+      if (!result.success) {
+        const issues = result.error.issues
+          .map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`)
+          .join("\n")
+        throw new Error(
+          `Property validation failed for field type "${type}".\n` +
+            `Expected shape: ${getPropertyHint(type)}\n` +
+            `Errors:\n${issues}`
+        )
+      }
+    }
 
     try {
       await this.dataSpace.db.prepare("BEGIN TRANSACTION;").run()

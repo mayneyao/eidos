@@ -8,6 +8,8 @@ import {
 } from "react-router-dom"
 
 import { useTabStore } from "@/apps/web-app/store/tabs"
+import { useOptionalTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
+import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 
 export const useRouterAdapter = () => {
   const inRouter = useInRouterContext()
@@ -20,6 +22,17 @@ export const useRouterAdapter = () => {
     ? useRouterSearchParams()
     : [null, null]
 
+  // Space settings for tabs
+  const [alwaysOpenInNewTab] = useSqliteKV<boolean>(
+    "eidos:space:settings:alwaysOpenInNewTab",
+    false
+  )
+
+  const [reuseExistingTab] = useSqliteKV<boolean>(
+    "eidos:space:settings:reuseExistingTab",
+    true
+  )
+
   // Tab store state
   const getActiveTabId = useTabStore((state) => state.getActiveTabId)
   const tabs = useTabStore((state) => state.tabs)
@@ -28,9 +41,13 @@ export const useRouterAdapter = () => {
   const activeTabId = getActiveTabId()
   const activeTab = tabs.find((t) => t.id === activeTabId)
 
+  const tabContext = useOptionalTabContext()
+  const tabId = tabContext?.tabId
+  const inTabRouter = Boolean(tabId)
+
   // Adapter implementations
   const adapterLocation = useMemo(() => {
-    if (inRouter && location) return location
+    if (inTabRouter && inRouter && location) return location
 
     if (activeTab) {
       try {
@@ -53,6 +70,8 @@ export const useRouterAdapter = () => {
       }
     }
 
+    if (inRouter && location) return location
+
     return {
       pathname: "/",
       search: "",
@@ -60,7 +79,7 @@ export const useRouterAdapter = () => {
       state: null,
       key: "default",
     }
-  }, [inRouter, location, activeTab])
+  }, [inTabRouter, inRouter, location, activeTab])
 
   // Keep a stable ref so fallback navigate doesn't change identity
   const adapterLocationRef = useRef(adapterLocation)
@@ -105,8 +124,8 @@ export const useRouterAdapter = () => {
       }
 
       if (typeof to === "number") {
-        // Prefer router history when available
-        if (inRouter && navigate) {
+        // Prefer the tab's own router history when available.
+        if (inTabRouter && inRouter && navigate) {
           navigate(to as any, options)
           return
         }
@@ -118,70 +137,183 @@ export const useRouterAdapter = () => {
         return
       }
 
-      const replaceCurrentTab = options?.replace === true // Must explicitly set replace: true to replace current tab
-      const forceNewTab = options?.target === "_blank"
+      // CRITICAL: If alwaysOpenInNewTab is true, we MUST force a new tab
+      const forceNewTab =
+        options?.target === "_blank" || alwaysOpenInNewTab === true
 
-      if (forceNewTab) {
-        const { openTab: openTabAction } = useTabStore.getState()
-        openTabAction(resolveUrl(to), undefined, { forceNewTab: true })
+      const replaceCurrentTab = options?.replace === true && !forceNewTab
+
+      const resolvedUrl = resolveUrl(to)
+      // Use the ref for the most up-to-date current location to avoid stale closure issues
+      const currentLocation = adapterLocationRef.current
+      const currentUrl =
+        currentLocation.pathname + currentLocation.search + currentLocation.hash
+
+      // Normalize URLs for comparison to prevent recursion on effectively identical paths
+      const normalize = (u: string) => {
+        try {
+          const url = new URL(u, window.location.origin)
+          return url.pathname.replace(/\/$/, "") + url.search + url.hash
+        } catch {
+          return u.replace(/\/$/, "")
+        }
+      }
+
+      const normalizedResolved = normalize(resolvedUrl)
+      const normalizedCurrent = normalize(currentUrl)
+      const isHome = normalizedCurrent === "" || normalizedCurrent === "/"
+
+      // Check if this is a "Self-Redirect" (e.g. /agent -> /agent/uuid)
+      // We should allow this to happen in the current tab even if forceNewTab is true
+      const isInitialRedirect =
+        inTabRouter &&
+        options?.replace &&
+        normalizedResolved.startsWith(normalizedCurrent) &&
+        normalizedCurrent.length > 1
+
+      // 0. Prevent recursion: If we are already in a "force new tab" flow, don't intercept again
+      const isInternal =
+        options?.state?.__isInternalTabNavigation ||
+        (currentLocation as any)?.state?.__isInternalTabNavigation
+
+      // 1. Break recursion/Self-navigation/Home-replacement/Initial-redirect:
+      // If we are already at the target URL, it's internal, we are replacing Home, or it's an initial page redirect
+      if (
+        isInternal ||
+        (alwaysOpenInNewTab && normalizedResolved === normalizedCurrent) ||
+        (isHome && options?.replace) ||
+        isInitialRedirect
+      ) {
+        if (inTabRouter && inRouter && navigate) {
+          navigate(to as any, options)
+        }
         return
       }
 
-      if (inRouter && navigate) {
-        // External URLs can't be handled by react-router; delegate to tab-based navigation
+      // --- Global Reuse Check ---
+      const {
+        tabs: storeTabs,
+        setActiveTab: setActiveTabAction,
+        openTab: openTabAction,
+        updateTab: updateTabAction,
+        getActiveTabId: getStoreActiveTabId,
+        setNextNavigationOptions,
+      } = useTabStore.getState()
+
+      const isSettings = normalizedResolved.startsWith("/settings")
+
+      if (reuseExistingTab || isSettings) {
+        let existingTab = storeTabs.find((t) => t.url === resolvedUrl)
+
+        if (!existingTab) {
+          existingTab = storeTabs.find(
+            (t) => normalize(t.url) === normalizedResolved
+          )
+        }
+
+        if (!existingTab && isSettings) {
+          existingTab = storeTabs.find((t) => {
+            try {
+              return new URL(t.url, window.location.origin).pathname.startsWith(
+                "/settings"
+              )
+            } catch {
+              return false
+            }
+          })
+        }
+
+        if (existingTab) {
+          const activeTabIdFromStore = getStoreActiveTabId()
+          const isTargetCurrentlyActive =
+            existingTab.id === tabId || existingTab.id === activeTabIdFromStore
+
+          if (isTargetCurrentlyActive) {
+            if (normalize(existingTab.url) === normalizedResolved) {
+              setActiveTabAction(existingTab.id)
+              return
+            }
+
+            if (isSettings) {
+              if (inTabRouter && inRouter && navigate) {
+                navigate(to as any, options)
+                return
+              }
+
+              if (replaceCurrentTab) {
+                setNextNavigationOptions(existingTab.id, { replace: true })
+              }
+              updateTabAction(existingTab.id, { url: resolvedUrl })
+              setActiveTabAction(existingTab.id)
+              return
+            }
+            // Proceed with local update (fall through)
+          } else {
+            if (existingTab.url !== resolvedUrl) {
+              updateTabAction(existingTab.id, { url: resolvedUrl })
+            }
+            setActiveTabAction(existingTab.id)
+            return
+          }
+        }
+      }
+
+      if (forceNewTab) {
+        openTabAction(resolvedUrl, undefined, {
+          forceNewTab: true,
+          state: { ...options?.state, __isInternalTabNavigation: true },
+        })
+        return
+      }
+
+      const storeActiveTabId = getStoreActiveTabId()
+      const targetId = tabId || storeActiveTabId || storeTabs[0]?.id
+
+      if (targetId) {
+        if (replaceCurrentTab) {
+          setNextNavigationOptions(targetId, { replace: true })
+        }
+        if (storeTabs.find((t) => t.id === targetId)?.url !== resolvedUrl) {
+          updateTabAction(targetId, { url: resolvedUrl })
+        }
+      }
+
+      if (inTabRouter && inRouter && navigate && !forceNewTab) {
         if (typeof to === "string" && /^https?:\/\//i.test(to)) {
-          // Fall through to the tab-based navigation below
+          // External URL
         } else {
           navigate(to as any, options)
           return
         }
       }
 
-      const newUrl = resolveUrl(to)
-
-      // Default behavior: navigate within the active tab's history stack
-      const {
-        tabs,
-        getActiveTabId: getStoreActiveTabId,
-        openTab: openTabAction,
-        setActiveTab: setActiveTabAction,
-        updateTab,
-        setNextNavigationOptions,
-      } = useTabStore.getState()
-
-      // Check if a tab with the same url already exists
-      const existingTab = tabs.find((t) => t.url === newUrl)
-      if (existingTab) {
-        setActiveTabAction(existingTab.id)
-        return
-      }
-
-      const storeActiveTabId = getStoreActiveTabId()
-
-      const targetId = storeActiveTabId || tabs[0]?.id
-
       if (!targetId) {
-        openTabAction(newUrl)
-        return
+        openTabAction(resolvedUrl, undefined, {
+          state: { __isInternalTabNavigation: true },
+        })
+      } else {
+        setActiveTabAction(targetId)
       }
-
-      if (replaceCurrentTab) {
-        setNextNavigationOptions(targetId, { replace: true })
-      }
-
-      updateTab(targetId, { url: newUrl })
-      setActiveTabAction(targetId)
     },
-    [inRouter, navigate]
+    [
+      inTabRouter,
+      inRouter,
+      navigate,
+      alwaysOpenInNewTab,
+      reuseExistingTab,
+      tabId,
+    ]
   )
 
   const adapterParams = useMemo(() => {
-    if (inRouter && params) return params
+    if (inTabRouter && inRouter && params) return params
 
     // Manual param parsing for route patterns (no more :database prefix)
     const path = adapterLocation.pathname
     const parts = path.split("/").filter(Boolean)
-    const result: Record<string, string> = {}
+    const result: Record<string, string> = {
+      ...(params?.database ? { database: params.database } : {}),
+    }
 
     // Handle different route patterns without database prefix
     if (parts.length >= 1) {
@@ -198,6 +330,11 @@ export const useRouterAdapter = () => {
       } else if (parts[0] === "journals" && parts.length >= 2) {
         // /journals/:day
         result.day = parts[1]
+      } else if (parts[0] === "agent") {
+        // /agent/:sessionId?
+        if (parts.length >= 2) {
+          result.sessionId = parts[1]
+        }
       } else {
         // /:table (node page) - first part is the table/node ID
         result.table = parts[0]
@@ -205,18 +342,18 @@ export const useRouterAdapter = () => {
     }
 
     return result
-  }, [inRouter, params, adapterLocation])
+  }, [inTabRouter, inRouter, params, adapterLocation])
 
   const adapterSearchParams = useMemo(() => {
-    if (inRouter && searchParams) return searchParams
+    if (inTabRouter && inRouter && searchParams) return searchParams
 
     // Parse search params from location
     const search = adapterLocation.search
     return new URLSearchParams(search)
-  }, [inRouter, searchParams, adapterLocation.search])
+  }, [inTabRouter, inRouter, searchParams, adapterLocation.search])
 
   const adapterSetSearchParams = useMemo(() => {
-    if (inRouter && setSearchParams) return setSearchParams
+    if (inTabRouter && inRouter && setSearchParams) return setSearchParams
 
     // Return a fallback setSearchParams function with tab support
     return (
@@ -254,6 +391,7 @@ export const useRouterAdapter = () => {
       })
     }
   }, [
+    inTabRouter,
     inRouter,
     setSearchParams,
     activeTabId,
@@ -277,5 +415,7 @@ export const useRouterAdapter = () => {
         | ((prev: URLSearchParams) => URLSearchParams | Record<string, string>)
     ) => void,
     inRouter,
+    alwaysOpenInNewTab,
+    reuseExistingTab,
   }
 }

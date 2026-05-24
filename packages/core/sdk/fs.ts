@@ -173,6 +173,20 @@ export class FSManager {
   }
 
   /**
+   * Append data to a file (creates if it doesn't exist)
+   *
+   * @example
+   * await eidos.currentSpace.fs.appendFile("~/log.txt", "new line\n")
+   */
+  async appendFile(
+    path: string,
+    data: string | Uint8Array,
+    options?: IWriteFileOptions | BufferEncoding
+  ): Promise<void> {
+    return await this.externalFS.appendFile(path, data, options)
+  }
+
+  /**
    * Get file statistics
    *
    * @example
@@ -296,5 +310,16 @@ export class FSManager {
    */
   async search(query: string, searchPaths?: string[]): Promise<string[]> {
     return await this.externalFS.search(query, searchPaths)
+  }
+
+  /**
+   * Search file contents
+   */
+  async searchContent(
+    query: string,
+    searchPaths?: string[],
+    options?: { maxResults?: number; filePattern?: string }
+  ): Promise<Array<{ filePath: string; lineNumber: number; content: string }>> {
+    return await this.externalFS.searchContent(query, searchPaths, options)
   }
 }

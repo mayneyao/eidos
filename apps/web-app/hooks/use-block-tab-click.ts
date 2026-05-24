@@ -1,8 +1,8 @@
 import { useCallback } from "react"
-import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
-
 import { detectDirective } from "@eidos.space/v3"
+
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
+import { useRouterAdapter } from "./use-router-adapter"
 
 /**
  * Custom hook for handling block tab clicks with unified logic
@@ -23,6 +23,7 @@ export const useBlockTabClick = (blocks: Record<string, any>) => {
 
       if (!hasUseSidebar) {
         // If block does not contain 'use sidebar' directive, navigate to block page
+        // using the adapter's navigate function which handles the 'Always Open in New Tab' setting
         navigate(`/blocks/${tabId}`, { target })
       }
       // If block has 'use sidebar' directive, it will render in sidebar automatically

@@ -186,6 +186,19 @@ export interface IExternalFileSystem {
   ): Promise<void>
 
   /**
+   * Append data to a file (like fs.appendFile)
+   * Creates the file if it doesn't exist.
+   * @param path File path (~/ or @/)
+   * @param data Data to append as string or Uint8Array
+   * @param options Encoding or write options
+   */
+  appendFile(
+    path: string,
+    data: string | Uint8Array,
+    options?: IWriteFileOptions | BufferEncoding
+  ): Promise<void>
+
+  /**
    * Get file stats (like fs.stat)
    * @param path File path (~/ or @/)
    * @returns Serializable file stats object
@@ -226,4 +239,17 @@ export interface IExternalFileSystem {
    * @returns Array of matching file paths (virtual paths)
    */
   search(query: string, searchPaths?: string[]): Promise<string[]>
+
+  /**
+   * Search file contents
+   * @param query Search query
+   * @param searchPaths Optional array of paths to search within
+   * @param options Optional search options
+   * @returns Array of matching content results
+   */
+  searchContent(
+    query: string,
+    searchPaths?: string[],
+    options?: { maxResults?: number; filePattern?: string }
+  ): Promise<Array<{ filePath: string; lineNumber: number; content: string }>>
 }

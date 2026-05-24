@@ -64,3 +64,78 @@ export async function searchWithRg(
     return []
   }
 }
+
+export interface ContentSearchResult {
+  filePath: string
+  lineNumber: number
+  content: string
+}
+
+/**
+ * Search file contents using ripgrep (content search mode).
+ * Returns matching lines with file paths and line numbers.
+ */
+export async function searchContentWithRg(
+  query: string,
+  searchPaths: string[],
+  options?: { maxResults?: number; filePattern?: string }
+): Promise<ContentSearchResult[]> {
+  const binPath = await getExecutablePath()
+
+  const keywords = query.split(/\s+/).filter((k) => k.length > 0)
+  if (keywords.length === 0) {
+    return []
+  }
+
+  const maxResults = options?.maxResults ?? 50
+
+  // Build args: case-insensitive, line numbers, JSON output
+  const args = ["-i", "-n", "--json"]
+  if (options?.filePattern) {
+    args.push("-g", options.filePattern)
+  }
+  args.push("--max-count", String(maxResults))
+  args.push(keywords[0], ...searchPaths)
+
+  try {
+    const { stdout } = await execFileAsync(binPath, args, {
+      maxBuffer: 10 * 1024 * 1024,
+    })
+
+    const results: ContentSearchResult[] = []
+
+    for (const line of stdout.split("\n")) {
+      if (!line) continue
+      try {
+        const msg = JSON.parse(line)
+        if (msg.type === "match") {
+          const content: string = msg.data.lines.text
+          // For multi-keyword queries, post-filter: all keywords must be present
+          if (keywords.length > 1) {
+            const lowerContent = content.toLowerCase()
+            const allMatch = keywords
+              .slice(1)
+              .every((k) => lowerContent.includes(k.toLowerCase()))
+            if (!allMatch) continue
+          }
+          results.push({
+            filePath: msg.data.path.text,
+            lineNumber: msg.data.line_number,
+            content: content.trimEnd(),
+          })
+          if (results.length >= maxResults) break
+        }
+      } catch {
+        // Skip malformed JSON lines
+      }
+    }
+
+    return results
+  } catch (error: any) {
+    if (error.code === 1) {
+      return []
+    }
+    console.error("Content search failed:", error)
+    return []
+  }
+}

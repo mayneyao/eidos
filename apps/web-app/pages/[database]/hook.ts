@@ -77,7 +77,7 @@ export const useLayoutInit = () => {
   const { sqlite } = useSqlite(database)
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
 
-  const { isInitialized, initWorker, initEmbeddingWorker } = useWorker()
+  const { initEmbeddingWorker } = useWorker()
   const { lastOpenedDatabase, setLastOpenedDatabase } = useLastOpened()
 
   const { getPropertyTypes } = useDocPropertyTypes()
@@ -154,10 +154,6 @@ export const useLayoutInit = () => {
   const { id: userId } = useCurrentUser()
   const { setEidos } = useEidosStore()
   useEffect(() => {
-    let clearFunc: () => void = () => {}
-    if (!isInitialized) {
-      clearFunc = initWorker()
-    }
     const sqlWorker = getSqliteProxy(database, userId || "")
 
     setSqlWorker(sqlWorker)
@@ -170,8 +166,7 @@ export const useLayoutInit = () => {
       })
       setReadSqliteProxy(readonlySqlite)
     }
-    return clearFunc
-  }, [database, setSqlWorker, setEidos, isInitialized, initWorker, userId])
+  }, [database, setSqlWorker, setEidos, userId])
 
   useEffect(() => {
     setLastOpenedDatabase(database)

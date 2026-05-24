@@ -19,6 +19,7 @@
     "dist-sqlite-ext/**/*",
     "package.json",
     "!**/node_modules/**/*",
+    "**/node_modules/@eidos.space/bashkit/**/*",
     "**/node_modules/better-sqlite3/**/*",
     "**/node_modules/@vscode/ripgrep/**/*",
     "**/node_modules/bindings/**/*",

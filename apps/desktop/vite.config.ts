@@ -20,6 +20,7 @@ const externalNodeModules = [
   "oxc-transform",
   "@vscode/ripgrep",
   "node-pty",
+  "@eidos.space/bashkit",
 ]
 
 // desktop do not need android and windows11
@@ -168,7 +169,9 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
         target: "http://localhost:13127",
         changeOrigin: true,
       },
+      "/api/agent": "http://localhost:13127",
       "/api/chat": "http://localhost:13127",
+      "/api/permission-server-port": "http://localhost:13127",
       "/files/": {
         target: "http://localhost:13127",
         changeOrigin: false,

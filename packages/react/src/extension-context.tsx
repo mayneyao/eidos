@@ -59,6 +59,8 @@ export interface SidebarBlockContext extends BaseExtensionContext {
   currentDay: string
   /** Whether sync is enabled for this space (optional, used by graft) */
   syncEnabled?: boolean
+  /** Current agent session id from URL params.sessionId */
+  currentSessionId?: string
 }
 
 /**

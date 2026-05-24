@@ -1,12 +1,10 @@
 import { BookOpenText } from "lucide-react"
 import { useTranslation } from "react-i18next"
-
-import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useParams } from "react-router-dom"
 
 import { type SettingsSection } from "./settings-events"
 import { GlobalAccountSettings } from "./global/global-account-settings"
 import { GlobalAISettings } from "./global/global-ai-settings"
-import { GlobalAPISettings } from "./global/global-api-settings"
 import { GlobalBrowserSettings } from "./global/global-browser-settings"
 import { GlobalGeneralSettings } from "./global/global-general-settings"
 import { GlobalSecuritySettings } from "./global/global-security-settings"
@@ -14,19 +12,19 @@ import { GlobalStorageSettings } from "./global/global-storage-settings"
 import { GlobalSyncSettings } from "./global/global-sync-settings"
 import { DocumentSettings } from "./space/document-settings"
 import { ExtensionSettings } from "./space/extension-settings"
+import { GlobalSecretsSettings } from "./global/global-secrets-settings"
 
 import { GeneralSettings } from "./space/general-settings"
 import { MountSettings } from "./space/mount-settings"
 
-import { NewTabSettings } from "./space/new-tab-settings"
+import { TabsSettings } from "./space/tab-settings"
 import { RelaySettings } from "./space/relay-settings"
 import { ThemeSettings } from "./space/theme-settings"
 
-interface SettingsContentProps {
-  activeSection: SettingsSection
-}
-
-export function SettingsContent({ activeSection }: SettingsContentProps) {
+export function SettingsContent() {
+  const { section } = useParams<{ section?: string }>()
+  const activeSection: SettingsSection =
+    (section as SettingsSection) || "general"
   const { t, i18n } = useTranslation()
 
   const getDocsUrl = (path: string) => {
@@ -46,8 +44,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
 
       case "space-extensions":
         return "Extensions"
-      case "space-newtab":
-        return "New Tab"
+      case "space-tabs":
+        return t("space.settings.tabs.title", "Tabs")
 
       case "space-relay":
         return t("space.settings.relay")
@@ -59,8 +57,6 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return t("settings.account.title", "Account")
       case "ai":
         return t("settings.ai")
-      case "api":
-        return t("settings.api")
       case "storage":
         return t("settings.storage")
       case "sync":
@@ -69,6 +65,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return t("settings.security")
       case "browser":
         return t("settings.browser", "Browser")
+      case "secrets":
+        return t("settings.secrets.title", "Secrets Store")
       default:
         return t("space.settings.title")
     }
@@ -85,17 +83,11 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
 
       case "space-extensions":
         return <ExtensionSettings />
-      case "space-newtab":
-        return <NewTabSettings />
+      case "space-tabs":
+        return <TabsSettings />
 
       case "space-relay":
-        return (
-          <RelaySettings
-            onCloseSettings={() =>
-              useAppRuntimeStore.getState().setSpaceSettingsOpen(false)
-            }
-          />
-        )
+        return <RelaySettings onCloseSettings={() => window.history.back()} />
       case "space-theme":
         return <ThemeSettings />
       case "general":
@@ -104,8 +96,6 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return <GlobalAccountSettings />
       case "ai":
         return <GlobalAISettings />
-      case "api":
-        return <GlobalAPISettings />
       case "storage":
         return <GlobalStorageSettings />
       case "sync":
@@ -114,6 +104,8 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
         return <GlobalSecuritySettings />
       case "browser":
         return <GlobalBrowserSettings />
+      case "secrets":
+        return <GlobalSecretsSettings />
       default:
         return null
     }
@@ -158,12 +150,12 @@ export function SettingsContent({ activeSection }: SettingsContentProps) {
                 <BookOpenText className="h-5 w-5" />
               </a>
             )}
-            {activeSection === "space-newtab" && (
+            {activeSection === "space-tabs" && (
               <a
                 href={getDocsUrl("/how-to/customize-new-tab/")}
                 target="_blank"
                 rel="noopener noreferrer"
-                title={t("space.settings.newtab.docsLink")}
+                title={t("space.settings.tabs.newtab.docsLink")}
                 className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
               >
                 <BookOpenText className="h-5 w-5" />

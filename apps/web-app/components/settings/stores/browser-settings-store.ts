@@ -1,7 +1,5 @@
 import { create } from "zustand"
 
-import { isDesktopMode } from "@/lib/env"
-
 // Re-export types from backend
 export interface SearchEngineConfig {
   id: string
@@ -48,43 +46,17 @@ interface BrowserSettingsState {
 
 // Helper to get config from backend
 const getConfig = async (): Promise<BrowserConfig> => {
-  if (isDesktopMode && window.eidos?.config?.get) {
-    try {
-      const browserConfig = await window.eidos.config.get("browser")
-      return {
-        ...DEFAULT_BROWSER_CONFIG,
-        ...browserConfig,
-        customSearchEngines: browserConfig?.customSearchEngines || [],
-      }
-    } catch (error) {
-      console.error("Failed to load browser config:", error)
-    }
+  const browserConfig = await (window as any).eidos?.config?.get("browser")
+  return {
+    ...DEFAULT_BROWSER_CONFIG,
+    ...browserConfig,
+    customSearchEngines: browserConfig?.customSearchEngines || [],
   }
-  // Fallback to localStorage for web mode
-  const saved = localStorage.getItem("browser-settings")
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved)
-      return { ...DEFAULT_BROWSER_CONFIG, ...parsed }
-    } catch {
-      // ignore
-    }
-  }
-  return DEFAULT_BROWSER_CONFIG
 }
 
 // Helper to save config to backend
 const saveConfig = async (config: BrowserConfig): Promise<void> => {
-  if (isDesktopMode && window.eidos?.config?.set) {
-    try {
-      await window.eidos.config.set("browser", config)
-      return
-    } catch (error) {
-      console.error("Failed to save browser config:", error)
-    }
-  }
-  // Fallback to localStorage for web mode
-  localStorage.setItem("browser-settings", JSON.stringify(config))
+  await (window as any).eidos?.config?.set("browser", config)
 }
 
 export const useBrowserSettingsStore = create<BrowserSettingsState>(

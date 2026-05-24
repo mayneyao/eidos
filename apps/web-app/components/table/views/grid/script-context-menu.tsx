@@ -37,8 +37,10 @@ export const ScriptContextMenu = ({
 
     const fetchTableActionScripts = async () => {
       try {
-        const scripts =
-          await sqlite.extension.getTableActionExtensions("enabled")
+        const scripts = await sqlite.extension.getTableActionExtensions(
+          "enabled",
+          tableId
+        )
         setTableActionScripts(scripts as IExtension<TableActionMeta>[])
       } catch (error) {
         console.error("Failed to fetch table action scripts:", error)

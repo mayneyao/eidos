@@ -111,9 +111,11 @@ function TabNavigator({
 
       const currentPath = location.pathname + location.search + location.hash
 
+      const isSamePath = tabUrl === currentPath
+      prevTabUrlRef.current = tabUrl
+
       // Only navigate if the tab URL is different from current location
-      if (tabUrl !== currentPath) {
-        prevTabUrlRef.current = tabUrl
+      if (!isSamePath) {
         const navOptions = consumeNextNavigationOptions(tabId)
         navigate(tabUrl, { replace: navOptions?.replace === true })
       }
@@ -157,13 +159,22 @@ export function TabContainer({
 
   // For external URLs, use a placeholder path and store the actual URL in ref
   const externalUrlRef = useRef<string | null>(null)
+  const tab = useTabStore((state) => state.tabs.find((t) => t.id === tabId))
   const routerInitialEntries = useMemo(() => {
     if (isExternalUrl(initialUrl)) {
       externalUrlRef.current = initialUrl
       return ["/external"]
     }
-    return [initialUrl]
-  }, [initialUrl])
+    const url = new URL(initialUrl, window.location.origin)
+    return [
+      {
+        pathname: url.pathname,
+        search: url.search,
+        hash: url.hash,
+        state: tab?.initialState,
+      },
+    ]
+  }, [initialUrl, tab?.initialState])
 
   return (
     <div

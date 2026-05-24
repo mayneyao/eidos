@@ -45,7 +45,7 @@ export class ApiServerService {
     @Inject(BrowserExplorerService)
     private browserExplorer: BrowserExplorerService
   ) {
-    this.logger.setPrefix("ApiServer")
+    this.logger = this.logger.child("ApiServer")
   }
 
   /**

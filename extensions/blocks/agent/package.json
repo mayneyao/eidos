@@ -1,0 +1,12 @@
+{
+  "name": "@eidos.space/agent-history",
+  "version": "0.0.1",
+  "private": true,
+  "description": "AI Agent History sidebar extension",
+  "main": "index.tsx",
+  "dependencies": {
+    "lucide-react": "^0.471.2",
+    "react": "^18.2.0",
+    "react-router-dom": "^6.14.1"
+  }
+}

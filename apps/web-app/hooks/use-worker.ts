@@ -27,13 +27,20 @@ import {
 } from "./use-doc-editor"
 import { useCurrentUser } from "./user-current-user"
 
-const Markdown = lazy(
-  () => import("@/components/remix-chat/components/markdown")
+const Markdown = lazy(() =>
+  import("@/components/markdown-renderer").then((m) => ({
+    default: m.MarkdownRenderer,
+  }))
 )
 
 export const useWorker = () => {
   const { setInitialized, isInitialized } = useSqliteStore()
   const { navigate } = useRouterAdapter()
+  const navigateRef = React.useRef(navigate)
+  React.useEffect(() => {
+    navigateRef.current = navigate
+  }, [navigate])
+
   const { id: userId } = useCurrentUser()
   const {
     setWebsocketConnected,
@@ -120,8 +127,8 @@ export const useWorker = () => {
           break
         }
         case MsgType.Navigate:
-          // data is { path: string, target?: "_blank" | "_self" }
-          navigate(data.path, { target: data.target })
+          // Use the ref to ensure we use the latest navigate implementation (with correct settings)
+          navigateRef.current(data.path, { target: data.target })
           break
         case MsgType.BlockUIMsg:
           setBlockUIMsg(data.msg)

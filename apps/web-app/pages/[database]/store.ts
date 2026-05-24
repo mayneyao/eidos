@@ -13,14 +13,8 @@ interface ISpaceAppState {
   setCurrentApp: (currentApp: string) => void
   resetCurrentApp: () => void
 
-  isRightPanelOpen: boolean
-  setIsRightPanelOpen: (isAiOpen: boolean, index?: number) => void
-
   isExtAppOpen: boolean
   setIsExtAppOpen: (isExtAppOpen: boolean) => void
-
-  aiMessages: any[]
-  setAiMessages: (aiMessages: any[]) => void
 
   currentTableSchema: string
   setCurrentTableSchema: (currentTableSchema: string) => void
@@ -40,11 +34,6 @@ interface ISpaceAppState {
 
   // Helper to check if currentApp and tempPanelNode are mutually exclusive
   hasActivePanel: () => boolean
-
-  // Terminal sessions in right panel
-  rightPanelTerminals: string[]
-  addRightPanelTerminal: (sessionId: string) => void
-  removeRightPanelTerminal: (sessionId: string) => void
 }
 
 interface IAppsState {
@@ -57,7 +46,7 @@ interface IAppsState {
 export const useAppsStore = create<IAppsState>()(
   persist(
     (set) => ({
-      apps: ["chat"],
+      apps: [],
       setApps: (apps) => set({ apps }),
       addApp: (app) => set((state) => ({ apps: [...state.apps, app] })),
       deleteApp: (app) =>
@@ -78,28 +67,12 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set, get) => ({
   currentAppIndex: -1,
   setCurrentAppIndex: (currentAppIndex) => set({ currentAppIndex }),
 
-  currentApp: "chat",
+  currentApp: "",
   setCurrentApp: (currentApp) => set({ currentApp, tempPanelNode: null }),
-  resetCurrentApp: () => set({ currentApp: "chat", tempPanelNode: null }),
-  isRightPanelOpen: false,
-  setIsRightPanelOpen: (isRightPanelOpen, index) => {
-    if (index == null) {
-      return set({
-        isRightPanelOpen: isRightPanelOpen,
-        currentAppIndex: isRightPanelOpen ? 0 : -1,
-      })
-    }
-    return set({
-      isRightPanelOpen: isRightPanelOpen,
-      currentAppIndex: index ?? get().currentAppIndex,
-    })
-  },
+  resetCurrentApp: () => set({ currentApp: "", tempPanelNode: null }),
 
   isExtAppOpen: false,
   setIsExtAppOpen: (isExtAppOpen) => set({ isExtAppOpen }),
-
-  aiMessages: [],
-  setAiMessages: (aiMessages) => set({ aiMessages }),
 
   currentTableSchema: "",
   setCurrentTableSchema: (currentTableSchema) => set({ currentTableSchema }),
@@ -127,17 +100,4 @@ export const useSpaceAppStore = create<ISpaceAppState>()((set, get) => ({
       Boolean(state.tempPanelNode)
     )
   },
-
-  // Terminal sessions in right panel
-  rightPanelTerminals: [],
-  addRightPanelTerminal: (sessionId) =>
-    set((state) => ({
-      rightPanelTerminals: [...state.rightPanelTerminals, sessionId],
-    })),
-  removeRightPanelTerminal: (sessionId) =>
-    set((state) => ({
-      rightPanelTerminals: state.rightPanelTerminals.filter(
-        (id) => id !== sessionId
-      ),
-    })),
 }))

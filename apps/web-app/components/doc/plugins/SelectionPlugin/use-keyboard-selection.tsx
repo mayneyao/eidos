@@ -41,7 +41,6 @@ export function useKeyboardSelection() {
     (state) =>
       state.isCmdkOpen ||
       state.isKeyboardShortcutsOpen ||
-      state.isSpaceSettingsOpen ||
       state.isGlobalSearchOpen
   )
   const [selectedKeySet, setSelectedKeySet] = useState(new Set<string>())

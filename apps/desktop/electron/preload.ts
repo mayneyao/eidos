@@ -37,6 +37,8 @@ const getConfigByModel = async (model: string) => {
       apiKey: llmProvider.apiKey || "",
       modelId: modelId || "",
       type: llmProvider.type,
+      apiVersion: llmProvider.apiVersion,
+      name: llmProvider.name,
     }
   }
   throw new Error(`Provider ${provider} not found`)
@@ -48,6 +50,8 @@ const getModelByName = async (modelName: string) => {
     apiKey: modelConfig.apiKey,
     baseUrl: modelConfig.baseUrl,
     type: modelConfig.type,
+    apiVersion: modelConfig.apiVersion,
+    name: modelConfig.name,
   })(modelConfig.modelId)
 }
 
@@ -476,6 +480,8 @@ function main() {
     cli: createPreloadApiByNamespace("cli"),
     // Market service
     market: createPreloadApiByNamespace("market"),
+    // Agent channel status
+    agentChannel: createPreloadApiByNamespace("agent-channel"),
   })
 }
 main()

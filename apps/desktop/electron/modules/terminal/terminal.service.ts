@@ -2,7 +2,7 @@
  * Terminal Service - Manages terminal sessions using node-pty
  */
 
-import { BrowserWindow } from "electron"
+import { app, BrowserWindow } from "electron"
 import * as fs from "fs"
 import * as os from "os"
 import * as path from "path"
@@ -29,6 +29,7 @@ export interface TerminalCreateOptions {
   env?: Record<string, string>
   cols?: number
   rows?: number
+  initialCommand?: string
 }
 
 /**
@@ -113,6 +114,18 @@ export class TerminalService extends IpcServiceBase {
     this.logger.info("Detecting shell for platform:", platform)
 
     if (platform === "win32") {
+      // Prefer PowerShell if available in standard location
+      const systemRoot = process.env.SystemRoot || "C:\\Windows"
+      const powershell = path.join(
+        systemRoot,
+        "System32",
+        "WindowsPowerShell",
+        "v1.0",
+        "powershell.exe"
+      )
+      if (fs.existsSync(powershell)) {
+        return powershell
+      }
       return process.env.COMSPEC || "cmd.exe"
     }
 
@@ -133,6 +146,36 @@ export class TerminalService extends IpcServiceBase {
     }
 
     return "/bin/sh"
+  }
+
+  private findExecutable(command: string): string | null {
+    if (path.isAbsolute(command)) {
+      return fs.existsSync(command) ? command : null
+    }
+
+    const pathEnv = process.env.PATH || ""
+    const paths = pathEnv.split(path.delimiter)
+    const exts =
+      os.platform() === "win32"
+        ? (process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM").split(";")
+        : [""]
+
+    for (const p of paths) {
+      for (const ext of exts) {
+        const fullPath = path.join(
+          p,
+          command + (ext.startsWith(".") ? ext : ext ? "." + ext : "")
+        )
+        try {
+          if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+            return fullPath
+          }
+        } catch (e) {
+          // Ignore errors for individual path checks
+        }
+      }
+    }
+    return null
   }
 
   private generateSessionId(): string {
@@ -165,20 +208,23 @@ export class TerminalService extends IpcServiceBase {
       const sessionId = this.generateSessionId()
       this.logger.info("Generated session ID:", sessionId)
 
-      const shell = options.shell || this.defaultShell
+      let shell = options.shell || this.defaultShell
       const cwd = options.cwd || os.homedir()
       const cols = options.cols || 80
       const rows = options.rows || 24
 
       this.logger.info("Session config:", { shell, cwd, cols, rows })
 
-      if (!fs.existsSync(shell)) {
+      // Resolve shell path if it's just a command name
+      const resolvedShell = this.findExecutable(shell)
+      if (!resolvedShell) {
         this.logger.error("Shell does not exist:", shell)
         return {
           success: false,
-          error: `Shell "${shell}" does not exist`,
+          error: `Shell "${shell}" does not exist in PATH or as absolute path`,
         }
       }
+      shell = resolvedShell
 
       let resolvedCwd = cwd
       if (cwd.startsWith("~")) {
@@ -223,15 +269,20 @@ export class TerminalService extends IpcServiceBase {
       } catch (spawnError) {
         this.logger.error("pty.spawn failed:", spawnError)
 
+        const fallbackShell =
+          os.platform() === "win32"
+            ? process.env.COMSPEC || "cmd.exe"
+            : "/bin/bash"
+
         try {
-          ptyProcess = pty.spawn("/bin/bash", [], {
+          ptyProcess = pty.spawn(fallbackShell, [], {
             name: "xterm-256color",
             cols,
             rows,
             cwd: resolvedCwd,
             env,
           })
-          this.logger.info("Fallback to /bin/bash succeeded!")
+          this.logger.info(`Fallback to ${fallbackShell} succeeded!`)
         } catch (fallbackError) {
           this.logger.error("Fallback also failed:", fallbackError)
           throw spawnError
@@ -270,6 +321,20 @@ export class TerminalService extends IpcServiceBase {
         window?.webContents.send("terminal:exit", sessionId, exitCode, signal)
         this.sessions.delete(sessionId)
       })
+
+      // Send initial command if provided
+      if (options.initialCommand) {
+        setTimeout(() => {
+          ptyProcess.write(options.initialCommand + "\r")
+        }, 100)
+      } else if (os.platform() === "win32") {
+        // For Windows, ensure UTF-8 code page by default to fix garbled characters
+        setTimeout(() => {
+          ptyProcess.write("chcp 65001\r")
+          // Clear the screen after setting code page to keep it clean
+          ptyProcess.write("cls\r")
+        }, 100)
+      }
 
       this.logger.info(`Session ${sessionId} created successfully`)
       return { success: true, sessionId }
@@ -374,6 +439,14 @@ export class TerminalService extends IpcServiceBase {
    */
   getDefaultShell(): string {
     return this.defaultShell
+  }
+
+  /**
+   * Get the eidos app log file path
+   * IPC: terminal:getLogPath
+   */
+  getLogPath(): string {
+    return path.join(app.getPath("logs"), "main.log")
   }
 
   /**

@@ -1,16 +1,10 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
-import { Plus, X, GripVertical, ArrowUp } from "lucide-react"
+import { Plus, X, GripVertical, ScrollText } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { TerminalInstance } from "./terminal-instance"
-import {
-  useAppsStore,
-  useSpaceAppStore,
-} from "@/apps/web-app/pages/[database]/store"
-import { useToast } from "@/hooks/use-toast"
-import { useRouterAdapter } from "@/hooks/use-router-adapter"
 
 interface TerminalSession {
   id: string
@@ -91,16 +85,6 @@ export function IntegratedTerminal({
   const [isResizing, setIsResizing] = useState(false)
   const [hasAttemptedInitialCreate, setHasAttemptedInitialCreate] =
     useState(false)
-  const { toast } = useToast()
-
-  // Get right panel state
-  const {
-    setCurrentApp,
-    setIsRightPanelOpen,
-    rightPanelTerminals,
-    addRightPanelTerminal,
-  } = useSpaceAppStore()
-  const { addApp, apps } = useAppsStore()
 
   // Create terminal function
   const createTerminal = useCallback(
@@ -223,15 +207,6 @@ export function IntegratedTerminal({
     [activeSessionId]
   )
 
-  const closeAllTerminals = useCallback(async () => {
-    for (const session of sessions) {
-      await window.eidos?.terminal?.kill(session.id)
-    }
-    setSessions([])
-    setActiveSessionId(null)
-    setHasAttemptedInitialCreate(false)
-  }, [sessions])
-
   const handleSessionExit = useCallback(
     (sessionId: string, exitCode: number) => {
       console.log(`Terminal ${sessionId} exited with code ${exitCode}`)
@@ -307,74 +282,43 @@ export function IntegratedTerminal({
     createTerminal(spacePath)
   }, [createTerminal, spacePath])
 
-  // Handle dragging/moving terminal to right panel
-  const handleMoveToSidePanel = useCallback(
-    async (sessionId: string) => {
-      const session = sessions.find((s) => s.id === sessionId)
-      if (!session) return
+  // Create a terminal that tails the eidos app log
+  const createLogsTerminal = useCallback(async () => {
+    try {
+      const logPath = await window.eidos?.terminal?.getLogPath()
+      if (!logPath) {
+        alert("Failed to get log path")
+        return
+      }
 
-      // Mark as moved to right panel
-      addRightPanelTerminal(sessionId)
+      const isWindows = navigator.platform.toLowerCase().includes("win")
+      const initialCommand = isWindows
+        ? `powershell -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-Content -Encoding UTF8 -Wait '${logPath}'"`
+        : `tail -f "${logPath}"`
 
-      // Close terminal in bottom panel (but don't kill it)
-      setSessions((prev) => {
-        const filtered = prev.filter((s) => s.id !== sessionId)
-        // If moving active session, switch to another
-        if (activeSessionId === sessionId) {
-          const index = prev.findIndex((s) => s.id === sessionId)
-          const nextSession =
-            filtered[index] || filtered[index - 1] || filtered[0]
-          setActiveSessionId(nextSession?.id || null)
+      const result = await window.eidos?.terminal?.create({
+        cwd: spacePath || undefined,
+        cols: 80,
+        rows: 24,
+        initialCommand,
+      })
+
+      if (result?.success && result.sessionId) {
+        const newSession: TerminalSession = {
+          id: result.sessionId,
+          title: "App Logs",
+          createdAt: Date.now(),
         }
-        return filtered
-      })
-
-      // Add to right panel apps
-      const terminalAppId = `terminal://${sessionId}`
-      if (!apps.includes(terminalAppId)) {
-        addApp(terminalAppId)
+        setSessions((prev) => [...prev, newSession])
+        setActiveSessionId(result.sessionId)
+      } else if (result?.error) {
+        console.error("Failed to create logs terminal:", result.error)
+        alert(`Failed to create logs terminal: ${result.error}`)
       }
-
-      // Switch to terminal app in right panel
-      setCurrentApp(terminalAppId)
-      setIsRightPanelOpen(true, apps.indexOf(terminalAppId))
-
-      toast({
-        title: "Terminal moved",
-        description: `Moved "${session.title}" to side panel`,
-      })
-    },
-    [
-      sessions,
-      activeSessionId,
-      apps,
-      addApp,
-      setCurrentApp,
-      setIsRightPanelOpen,
-      toast,
-      addRightPanelTerminal,
-    ]
-  )
-
-  // Listen for terminals that were moved to right panel via drag
-  useEffect(() => {
-    if (rightPanelTerminals.length === 0) return
-
-    // Remove any sessions that have been moved to right panel
-    setSessions((prev) => {
-      const filtered = prev.filter((s) => !rightPanelTerminals.includes(s.id))
-      // Update active session if needed
-      const movedActiveSession = rightPanelTerminals.includes(
-        activeSessionId || ""
-      )
-      if (movedActiveSession && filtered.length > 0) {
-        setActiveSessionId(filtered[0].id)
-      } else if (filtered.length === 0) {
-        setActiveSessionId(null)
-      }
-      return filtered
-    })
-  }, [rightPanelTerminals])
+    } catch (error) {
+      console.error("Failed to create logs terminal:", error)
+    }
+  }, [spacePath])
 
   return (
     <div
@@ -418,20 +362,19 @@ export function IntegratedTerminal({
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
+
+          {/* App Logs Button */}
+          <button
+            onClick={createLogsTerminal}
+            className="flex items-center gap-1 px-2 py-1.5 text-muted-foreground hover:text-foreground transition-colors"
+            title="Tail App Logs"
+          >
+            <ScrollText className="h-3.5 w-3.5" />
+          </button>
         </div>
 
         {/* Actions */}
         <div className="flex items-center px-2 border-l border-border gap-1">
-          {/* Move to side panel hint */}
-          {sessions.length > 0 && activeSessionId && (
-            <button
-              onClick={() => handleMoveToSidePanel(activeSessionId)}
-              className="p-1.5 text-muted-foreground hover:text-foreground transition-colors text-xs"
-              title="Move to side panel"
-            >
-              →
-            </button>
-          )}
           <button
             onClick={onToggleVisibility}
             className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"

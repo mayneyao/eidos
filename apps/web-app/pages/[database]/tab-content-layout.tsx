@@ -1,7 +1,10 @@
-import { useMemo } from "react"
+import { useCallback, useMemo } from "react"
+import { ExternalLink } from "lucide-react"
 import { Navigate, useLocation, useRoutes } from "react-router-dom"
 
+import { isDesktopMode } from "@/lib/env"
 import { Webview } from "@/apps/web-app/components/webview"
+import { useRegisterTabContextMenuItem } from "@/hooks/use-tab-context-menu-registry"
 import { spaceRoutes } from "@/apps/web-app/routes"
 import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
 import { useTabStore } from "@/apps/web-app/store/tabs"
@@ -26,6 +29,22 @@ export function TabContentLayout() {
   const isExternalUrl = useMemo(() => {
     return !!tabUrl && /^https?:\/\//i.test(tabUrl)
   }, [tabUrl])
+
+  const handleOpenInBrowser = useCallback(async () => {
+    if (!tabUrl) return
+    if (isDesktopMode && (window as any).eidos?.openUrl) {
+      await (window as any).eidos.openUrl(tabUrl)
+    } else {
+      window.open(tabUrl, "_blank")
+    }
+  }, [tabUrl])
+
+  useRegisterTabContextMenuItem("http", {
+    id: "open-in-browser",
+    label: "Open in Default Browser",
+    Icon: ExternalLink,
+    onClick: handleOpenInBrowser,
+  })
 
   // Debug logging
   console.log(

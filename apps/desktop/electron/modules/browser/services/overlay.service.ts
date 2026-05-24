@@ -40,7 +40,7 @@ export class OverlayService {
     @Inject(ZoomService) private zoomService: ZoomService,
     @Inject(LoggerService) private logger: LoggerService
   ) {
-    this.logger.setPrefix("OverlayService")
+    this.logger = this.logger.child("OverlayService")
     this.registerProtocol()
   }
 

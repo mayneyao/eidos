@@ -98,9 +98,15 @@ export class DataSpaceWithDoc extends DataSpaceWithFile {
     title?: string,
     mode?: "replace" | "append" | "prepend"
   ) {
+    let content = mdStr
+    if (mdStr.startsWith("# ")) {
+      const lines = mdStr.split("\n")
+      lines.shift()
+      content = lines.join("\n").trimStart()
+    }
     return this.createOrUpdateDoc({
       docId,
-      content: mdStr,
+      content,
       type: "markdown",
       parent_id,
       title,

@@ -178,6 +178,7 @@ export const CellEditor = forwardRef<CellEditorRef, ICellEditorProps>(
         onCancelEditing: handleCancelEditing,
         layout,
         disabled,
+        noAutoOpen: editorMode,
       }
 
       switch (field.type) {

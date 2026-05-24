@@ -1,11 +1,9 @@
 import { create } from "zustand"
-// can use anything: IndexedDB, Ionic Storage, etc.
 import { createJSONStorage, persist } from "zustand/middleware"
 
 import type { AIFormValues, LLMProvider } from "@/packages/ai/config"
 
-// New import for the backend sync storage
-import { createBackendSyncStorage } from "@/lib/storage/backend-sync"
+import { createDesktopStorage } from "@/lib/storage/desktop"
 
 interface ConfigState {
   aiConfig: AIFormValues
@@ -15,7 +13,6 @@ interface ConfigState {
   removeLLMProvider: (name: string) => void
 }
 
-// Define the default state for the AI configuration
 const defaultAIConfig: AIFormValues = {
   localModels: [],
   llmProviders: [],
@@ -24,32 +21,27 @@ const defaultAIConfig: AIFormValues = {
   translationModel: undefined,
   codingModel: undefined,
   applyCodeModel: undefined,
-  version: 0,
+  agentNotificationSound: true,
+  agentPermissionBypass: false,
 }
 
-// Create a function to get default ConfigState
 const getDefaultConfigState = (): ConfigState =>
   ({
     aiConfig: defaultAIConfig,
-    // Functions are not persisted, so they don't need to be in the default state
   }) as ConfigState
 
-// Create a storage instance with backend synchronization
-const aiStorage = createBackendSyncStorage<ConfigState>({
+const aiStorage = createDesktopStorage<ConfigState>({
   backendConfigKey: "ai",
   getBackendState: (state: ConfigState) => state.aiConfig,
   defaultBackendState: defaultAIConfig,
   getDefaultState: getDefaultConfigState,
-  // Build full state from backend state (backend state is AIFormValues, need to wrap in ConfigState)
   buildStateFromBackend: (
     backendState: AIFormValues,
     currentState: ConfigState
-  ) => {
-    return {
-      ...currentState,
-      aiConfig: backendState,
-    }
-  },
+  ) => ({
+    ...currentState,
+    aiConfig: backendState,
+  }),
 })
 
 export const useAIConfigStore = create<ConfigState>()(
@@ -59,7 +51,8 @@ export const useAIConfigStore = create<ConfigState>()(
         localModels: [],
         llmProviders: [],
         autoLoadEmbeddingModel: false,
-        version: 0,
+        agentNotificationSound: true,
+        agentPermissionBypass: false,
       },
       setAiConfig: (aiConfig) => set({ aiConfig }),
       addLLMProvider: (provider: LLMProvider) =>

@@ -242,7 +242,7 @@ const NativeContextMenu: React.FC<NativeContextMenuProps> = ({
   const detectNativeMenu = React.useCallback(() => {
     if (typeof window === "undefined") return false
     try {
-      return Boolean(window.eidos?.showNativeMenu) && !isWindowsDesktop
+      return Boolean(window.eidos?.showNativeMenu)
     } catch {
       return false
     }

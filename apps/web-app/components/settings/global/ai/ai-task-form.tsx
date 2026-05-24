@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
 import { useAIConfigStore } from "@/components/settings/stores"
-import { AIModelSelect } from "@/components/ai-chat/ai-chat-model-select"
+import { AIModelSelect } from "@/components/ai/ai-model-select"
 import {
   Form,
   FormControl,
@@ -125,38 +125,6 @@ export function AITaskConfigForm({
                       </FormControl>
                       <ModelTestButton
                         taskType={TaskType.Coding}
-                        modelValue={field.value}
-                      />
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-            <div className="space-y-0.5 flex-1 min-w-0">
-              <FormLabel>{t("settings.ai.applyCodeModel")}</FormLabel>
-              <p className="text-sm text-muted-foreground">
-                {t("settings.ai.applyCodeModelDescription")}
-              </p>
-            </div>
-            <div className="w-full lg:w-64 flex-shrink-0">
-              <FormField
-                control={form.control}
-                name="applyCodeModel"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center space-x-2">
-                      <FormControl className="w-full">
-                        <AIModelSelect
-                          value={field.value ?? ""}
-                          onValueChange={field.onChange}
-                        />
-                      </FormControl>
-                      <ModelTestButton
-                        taskType={TaskType.ApplyCode}
                         modelValue={field.value}
                       />
                     </div>

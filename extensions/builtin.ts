@@ -7,6 +7,7 @@
 import type { ComponentType } from "react"
 import type { ExtensionMeta } from "@eidos.space/core/types/IExtension"
 
+import * as AgentHistory from "./blocks/agent"
 import * as FolderBrowser from "./blocks/folder-browser"
 import * as Graft from "./blocks/graft"
 import * as Journal from "./blocks/journal"
@@ -65,6 +66,7 @@ function register(slug: string, module: any): BuiltInExtension {
  * Registry of all built-in extensions
  */
 export const builtInExtensions: BuiltInExtension[] = [
+  register("agent", AgentHistory),
   register("journal", Journal),
   register("graft", Graft),
   register("monaco-editor", MonacoEditor),

@@ -35,26 +35,9 @@ export const NodeMentionComponent = (props: NodeMentionComponentProps) => {
   const { navigate } = useRouterAdapter()
   const { markerProperty, showReferenceNodeIcon } = useEditorInstance()
   const { properties } = useDocProperty({ docId: id })
-  const { setTempPanelNode, setIsRightPanelOpen, clearCurrentApp } =
-    useSpaceAppStore()
-
   const [isNodeSelected] = useLexicalNodeSelection(props.nodeKey)
 
   const onClick = (event: React.MouseEvent) => {
-    if (event.altKey) {
-      event.preventDefault()
-      const nodeToShow = node || {
-        id,
-        name: props.title || "Loading...",
-        type: isDayPageId(id) ? "day" : "doc",
-        is_deleted: false,
-      }
-      clearCurrentApp()
-      setTempPanelNode(nodeToShow)
-      setIsRightPanelOpen(true, -1)
-      return
-    }
-
     if (isDayPageId(id)) {
       return navigate(`/journals/${id}`)
     }

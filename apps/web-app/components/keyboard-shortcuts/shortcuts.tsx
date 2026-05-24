@@ -33,10 +33,7 @@ interface ShortcutAction {
 export function ShortCuts() {
   const { t } = useTranslation()
   const { setTheme, resolvedTheme } = useTheme()
-  const { isRightPanelOpen: isAiOpen, setIsRightPanelOpen: setIsAiOpen } =
-    useSpaceAppStore()
   const {
-    setSpaceSettingsOpen,
     setCmdkOpen,
     isGlobalSearchOpen,
     setGlobalSearchOpen,
@@ -46,6 +43,7 @@ export function ShortCuts() {
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
   const { setCurrentApp } = useSidebarStore()
   const { tabs: sortedTabs } = useTabsKV()
+  const { openTab } = useTabStore()
   const { navigate, params } = useRouterAdapter()
   const { toast } = useToast()
   const { createDoc, createLink } = useSqlite()
@@ -90,12 +88,12 @@ export function ShortCuts() {
           setTheme(resolvedTheme === "dark" ? "light" : "dark")
           break
 
-        case "toggle-ai-panel":
-          setIsAiOpen(!isAiOpen)
-          break
-
         case "toggle-sidebar":
           setSidebarOpen(!isSidebarOpen)
+          break
+
+        case "open-agent":
+          navigate("/agent")
           break
 
         case "navigate-back":
@@ -153,7 +151,7 @@ export function ShortCuts() {
           break
 
         case "open-space-settings":
-          setSpaceSettingsOpen(true)
+          navigate("/settings", { target: "_blank" })
           break
 
         case "copy-current-url":
@@ -289,15 +287,12 @@ export function ShortCuts() {
   }, [
     t,
     resolvedTheme,
-    isAiOpen,
     space,
     day,
     navigate,
     createDoc,
     createLink,
     setTheme,
-    setIsAiOpen,
-    setSpaceSettingsOpen,
     setCmdkOpen,
     toast,
     isSidebarOpen,
@@ -308,6 +303,8 @@ export function ShortCuts() {
     setGlobalSearchOpen,
     isTerminalVisible,
     setIsTerminalVisible,
+    handleBlockTabClick,
+    openTab,
   ])
 
   // navigate to today - now handled by global shortcut (Cmd+Shift+T)
@@ -332,10 +329,6 @@ export function ShortCuts() {
     setTheme(resolvedTheme === "dark" ? "light" : "dark")
   })
 
-  useKeyPress(["ctrl.alt.backslash", "meta.alt.backslash"], () => {
-    setIsAiOpen(!isAiOpen)
-  })
-
   useKeyPress(["ctrl.openbracket", "meta.openbracket"], (e) => {
     if (!e.shiftKey) {
       navigate(-1)
@@ -357,7 +350,7 @@ export function ShortCuts() {
   })
 
   useKeyPress(["ctrl.comma", "meta.comma"], () => {
-    setSpaceSettingsOpen(true)
+    navigate("/settings", { target: "_blank" })
   })
 
   // Add new shortcut for copying current URL
@@ -379,6 +372,12 @@ export function ShortCuts() {
       // Dispatch custom event to focus webview address bar
       window.dispatchEvent(new CustomEvent("focus-webview-address-bar"))
     }
+  })
+
+  // Add shortcut for AI Agent
+  useKeyPress(["ctrl.j", "meta.j"], (e) => {
+    e.preventDefault()
+    navigate("/agent")
   })
 
   return null

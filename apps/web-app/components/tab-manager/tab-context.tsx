@@ -17,4 +17,8 @@ export function useTabContext() {
   return context
 }
 
+export function useOptionalTabContext() {
+  return useContext(TabContext)
+}
+
 export const TabProvider = TabContext.Provider

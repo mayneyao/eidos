@@ -1,4 +1,6 @@
-import aiHandler, { pathname as aiPath } from "@/worker/service-worker/ai"
+import { createAgentMiddleware, PermissionServer } from "@/packages/ai/server"
+import { getCredentialsManager } from "../../sync/credentials"
+import { getSpacePath } from "../../../utils/paths"
 import {
   containsBinaryData,
   parseMultipartFormData,
@@ -6,20 +8,44 @@ import {
   restoreBinaryData,
 } from "@eidos.space/client"
 import { Hono } from "hono"
-// @ts-ignore - FetchEvent is not exported from ai module
-type FetchEvent = any
 import { extractSpaceIdFromRequest } from "../utils/extract-space"
 import type { ServerContext } from "../server"
+
+// Singleton permission server shared across all sessions
+let permissionServer: PermissionServer | null = null
+
+function getPermissionServer(): PermissionServer {
+  if (!permissionServer) {
+    permissionServer = new PermissionServer()
+    const port = permissionServer.getPort()
+    if (port) {
+      console.log(`[permission-server] started on port ${port}`)
+    } else {
+      // Server may not have port assigned yet; log when ready
+      setTimeout(() => {
+        console.log(
+          `[permission-server] started on port ${permissionServer!.getPort()}`
+        )
+      }, 100)
+    }
+  }
+  return permissionServer
+}
 
 /**
  * Setup API routes (RPC, AI)
  */
 export function setupApiRoutes(app: Hono, ctx: ServerContext) {
+  // Permission server port endpoint (for renderer to discover WS port)
+  app.get("/api/permission-server-port", (c) => {
+    const ps = getPermissionServer()
+    return c.json({ port: ps.getPort() })
+  })
+
   // RPC endpoint
   app.post("/rpc", async (c) => {
     try {
       const spaceId = extractSpaceIdFromRequest(c)
-
       if (!spaceId) {
         throw new Error("Invalid request, space ID not found in hostname")
       }
@@ -92,20 +118,23 @@ export function setupApiRoutes(app: Hono, ctx: ServerContext) {
     }
   })
 
-  // AI route
-  app.all(aiPath, async (c) => {
-    const response = await aiHandler(
-      {
-        request: c.req,
-        respondWith: (response: Response) => response,
-      } as unknown as FetchEvent,
-      {
-        getDataspace: (space) =>
-          space
-            ? ctx.dataSpaceManager.getOrSetDataSpace(space)
-            : Promise.resolve(null),
-      }
-    )
-    return response
-  })
+  // AI Agent routes
+  app.route(
+    "/",
+    createAgentMiddleware({
+      getDataspace: (space: string) =>
+        space
+          ? ctx.dataSpaceManager.getOrSetDataSpace(space)
+          : Promise.resolve(null),
+      getSpacePath: (space: string) =>
+        space ? getSpacePath(space) : undefined,
+      getAIConfig: () => ctx.configManager.get("ai"),
+      getSecrets: async () => {
+        const creds = getCredentialsManager()
+        return creds.listSecrets()
+      },
+      logger: ctx.logger.child("AgentRoute"),
+      permissionServer: getPermissionServer(),
+    })
+  )
 }

@@ -10,7 +10,6 @@ import {
   FolderPlusIcon,
   MessageSquareIcon,
   PackageIcon,
-  PanelRightIcon,
   PencilLineIcon,
   PinIcon,
   PinOffIcon,
@@ -36,7 +35,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { useContextNodes } from "@/components/ai-chat/hooks/use-context-nodes"
 import { useAllExtNodes } from "@/apps/web-app/hooks/use-all-ext-nodes"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
@@ -86,8 +84,7 @@ export function NodeItem({
   const { pin, unpin } = useNode()
   const { handleCut, handlePaste } = useTreeOperations()
   const { currentCut } = useFolderStore()
-  const { setIsRightPanelOpen, setCurrentApp } = useSpaceAppStore()
-  const { addNode } = useContextNodes()
+  const { setCurrentApp } = useSpaceAppStore()
   const { addApp } = useAppsStore()
   const { toast } = useToast()
 
@@ -173,30 +170,6 @@ export function NodeItem({
         variant: "destructive",
       })
     }
-  }
-
-  const handleAddToChat = () => {
-    // Open right panel if not already open
-    setIsRightPanelOpen(true)
-    // Set current app to chat
-    setCurrentApp("chat")
-
-    // Add the node to chat context (duplicates are handled in the store)
-    setTimeout(() => {
-      addNode(node)
-    }, 100)
-  }
-
-  const handleAddToPanel = () => {
-    // Create node app URL in the format node://<nodeid>@<space>
-    const nodeApp = `node://${node.id}@${space}`
-
-    // Add the node app to the apps list
-    addApp(nodeApp)
-
-    // Open right panel and set the current app to the node
-    setIsRightPanelOpen(true)
-    setCurrentApp(nodeApp)
   }
 
   useClickAway(() => {
@@ -291,11 +264,6 @@ export function NodeItem({
           {t("node.menu.copyId")}
         </ContextMenuItem>
 
-        <ContextMenuItem onClick={handleAddToChat}>
-          <MessageSquareIcon className="pr-1.5" />
-          {t("node.menu.addToChat", "Add to Chat")}
-        </ContextMenuItem>
-
         <ContextMenuItem
           onClick={() => handleCut(node.id)}
           disabled={Boolean(currentCut && currentCut !== node.id)}
@@ -330,14 +298,6 @@ export function NodeItem({
               </ContextMenuItem>
             )}
           </>
-        )}
-
-        <ContextMenuSeparator />
-        {node.type === "dataview" && (
-          <ContextMenuItem onClick={handleAddToPanel}>
-            <PanelRightIcon className="pr-1.5" />
-            {t("node.menu.addToPanel", "Add to Panel")}
-          </ContextMenuItem>
         )}
 
         {node.type === "folder" && (

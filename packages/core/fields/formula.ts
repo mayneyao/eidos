@@ -1,3 +1,4 @@
+import { z } from "zod"
 import type {
   CustomCell,
   NumberCell,
@@ -27,6 +28,42 @@ export type FormulaProperty = {
     colorMap: OptionColorConfig[]
   }
 }
+
+const DISPLAY_TYPES = [
+  "text",
+  "number",
+  "date",
+  "datetime",
+  "checkbox",
+  "select",
+  "multi-select",
+  "url",
+  "rating",
+  "file",
+] as const
+
+export const FormulaPropertySchema = z.object({
+  formula: z.string(),
+  displayType: z.enum(DISPLAY_TYPES).optional(),
+  numberConfig: z
+    .object({
+      showAs: z.enum(["number", "bar", "ring"]).optional(),
+      color: z.string().optional(),
+      divideBy: z.number().optional(),
+      showNumber: z.boolean().optional(),
+    })
+    .optional(),
+  optionConfig: z
+    .object({
+      colorMap: z.array(
+        z.object({
+          value: z.string(),
+          color: z.string(),
+        })
+      ),
+    })
+    .optional(),
+})
 
 export class FormulaField extends BaseField<
   | TextCell

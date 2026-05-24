@@ -16,11 +16,11 @@ interface BackendSyncStorageOptions<T> {
 }
 
 /**
- * Creates a custom zustand storage object that syncs with both a primary storage (IndexedDB) and a backend config.
- * Uses version-based synchronization to ensure multiple spaces stay in sync with the backend.
- * @param options - Configuration for backend synchronization.
- * @returns A zustand StateStorage object.
+ * @deprecated Use `createDesktopStorage` from `./desktop` instead.
+ * This adapter syncs between IndexedDB and the desktop backend via version numbers,
+ * which is no longer needed since the desktop backend is the single source of truth.
  */
+
 export function createBackendSyncStorage<T>(
   options: BackendSyncStorageOptions<T>
 ): StateStorage {

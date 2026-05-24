@@ -4,6 +4,7 @@ import type { LLMProviderType } from "./helper"
 
 // Define the enum using all provider types directly
 const providerTypes: [LLMProviderType, ...LLMProviderType[]] = [
+  "opencode-go",
   "openai",
   "google",
   "deepseek",
@@ -25,6 +26,10 @@ const providerTypes: [LLMProviderType, ...LLMProviderType[]] = [
   "ollama",
   // "luma",
   "openai-compatible",
+  "huggingface",
+  "moonshotai",
+  "alibaba",
+  "bytedance",
 ]
 
 export const llmProviderSchema = z.object({
@@ -33,10 +38,20 @@ export const llmProviderSchema = z.object({
   apiKey: z.string().optional(),
   baseUrl: z.string().url().optional().or(z.literal("")),
   models: z.string().default(""),
+  apiVersion: z.enum(["chat", "responses"]).default("chat"),
   enabled: z.boolean().optional(),
 })
 
 export type LLMProvider = z.infer<typeof llmProviderSchema>
+
+export const telegramChannelSchema = z.object({
+  enabled: z.boolean().default(false),
+  botToken: z.string().optional(),
+  defaultSpace: z.string().optional(),
+  defaultModel: z.string().optional(),
+})
+
+export type TelegramChannelConfig = z.infer<typeof telegramChannelSchema>
 
 export const aiFormSchema = z.object({
   localModels: z.array(z.string()).default([]),
@@ -48,8 +63,17 @@ export const aiFormSchema = z.object({
   translationModel: z.string().optional(),
   codingModel: z.string().optional(),
   applyCodeModel: z.string().optional(),
-  // version
-  version: z.number().default(0),
+  // tool api keys
+  exaApiKey: z.string().optional(),
+  // channels
+  channels: z
+    .object({
+      telegram: telegramChannelSchema.optional(),
+    })
+    .optional(),
+  // agent settings
+  agentNotificationSound: z.boolean().default(true),
+  agentPermissionBypass: z.boolean().default(false),
 })
 
 export type AIFormValues = z.infer<typeof aiFormSchema>
