@@ -4,6 +4,8 @@ import { Bash } from "@eidos.space/bashkit"
 import type { DataSpace } from "@/packages/core/data-space"
 import type { BuiltinContext, BuiltinCallback } from "@eidos.space/bashkit"
 import { WebFetchBuiltin, WebSearchBuiltin } from "../web-tools"
+import { withPermission } from "../../permission/wrapper"
+import { createBashPermissionRule } from "./permission"
 import { LightCli } from "./light-cli"
 import { registerTableCommands, PROPERTY_HELP_TEXT } from "./table-commands"
 import { registerJournalCommands } from "./journal-commands"
@@ -25,6 +27,9 @@ export interface BashToolOptions {
   env?: Record<string, string>
   /** Exa API key for web-search builtin. When set, the web-search builtin is registered. */
   exaApiKey?: string
+  /** If provided, the bash tool will be wrapped with permission checks. */
+  permissionServer?: any
+  sessionId?: string
 }
 
 const bashParams = z.object({
@@ -70,6 +75,8 @@ export function createBashTool(options: BashToolOptions = {}): {
     vfsDir,
     env,
     exaApiKey,
+    permissionServer,
+    sessionId,
   } = options
 
   const customBuiltins: Record<string, BuiltinCallback> = {}
@@ -117,13 +124,13 @@ AVAILABLE MOUNTS:
 - /tmp/             — persistent session scratch space (read-write).
 
 WEB BUILTINS:
-  web-fetch <url>              # Fetch URL, extract clean markdown to stdout. ALWAYS redirect with >: web-fetch <url> > /tmp/article.md
-  web-search <query>           # Search the web via Exa, output JSON to stdout
+  web-fetch <url>              # Fetch URL, extract clean markdown to stdout. Redirect with > to save: web-fetch <url> > /tmp/file.md
+  web-search <query>           # Search the web via Exa, output JSON to stdout. Redirect or pipe for further processing.
 
 WEB PIPELINE EXAMPLES:
   web-fetch https://example.com > /tmp/article.md                # Save fetched article
+  web-search "AI news" > /tmp/results.json                       # Save search results to file
   web-search "AI news" | jq '.results[0].url' | xargs web-fetch > /tmp/result.md
-  web-search "climate change" | jq -r '.results[] | "\\(.title): \\(.url)"'
 
 EIDOS CLI (built-in):
 Use 'eidos' with subcommands directly in bash pipelines.
@@ -220,7 +227,7 @@ DATA EXCHANGE:
 - Write large data to /tmp/ files with file tools, then process in bash.
 ${extraInstructions ? `\n\n${extraInstructions}` : ""}`
 
-  const tool: Tool = {
+  let tool: Tool = {
     description,
     inputSchema: bashParams,
     execute: async (args) => {
@@ -250,6 +257,15 @@ ${extraInstructions ? `\n\n${extraInstructions}` : ""}`
         return { error: msg }
       }
     },
+  }
+
+  if (permissionServer && sessionId) {
+    tool = withPermission(tool, {
+      toolName: "bash",
+      sessionId,
+      permissionServer,
+      requiresPermission: createBashPermissionRule(bash),
+    })
   }
 
   return { tool, bash }

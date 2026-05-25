@@ -1,5 +1,5 @@
 export { createBashTool, type BashToolOptions } from "./bash/index"
-export { createFileTools } from "./file-tools"
+export { createFileTools, type FileToolsPermissionOpts } from "./file-tools"
 export { createWebSearchTool } from "./web-tools"
 export * from "./web-tools"
 

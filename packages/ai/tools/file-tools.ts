@@ -2,6 +2,10 @@ import type { Tool } from "ai"
 import type { Bash } from "@eidos.space/bashkit"
 import { z } from "zod"
 import crypto from "node:crypto"
+import {
+  withPermission,
+  type PermissionServerLike,
+} from "../permission/wrapper"
 
 const MAX_READ_LENGTH = 50000
 
@@ -72,7 +76,15 @@ const editParams = z.object({
     .describe("List of edit operations to apply in sequence."),
 })
 
-export function createFileTools(bash: Bash): Record<string, Tool> {
+export interface FileToolsPermissionOpts {
+  permissionServer: PermissionServerLike
+  sessionId: string
+}
+
+export function createFileTools(
+  bash: Bash,
+  permissionOpts?: FileToolsPermissionOpts
+): Record<string, Tool> {
   const read: Tool = {
     description:
       "Read a file with hashline anchors: `LINE#HASH:content`. " +
@@ -227,5 +239,32 @@ export function createFileTools(bash: Bash): Record<string, Tool> {
     },
   }
 
-  return { "file-read": read, "file-write": write, "file-edit": edit }
+  const tools: Record<string, Tool> = {
+    "file-read": read,
+    "file-write": write,
+    "file-edit": edit,
+  }
+
+  if (permissionOpts) {
+    const { permissionServer, sessionId } = permissionOpts
+    const isTmp = (input: any) => {
+      const p = (input?.path ?? "") as string
+      if (p.startsWith("/tmp/") || p === "/tmp") return false
+      return true
+    }
+    tools["file-write"] = withPermission(tools["file-write"], {
+      toolName: "file-write",
+      sessionId,
+      permissionServer,
+      requiresPermission: isTmp,
+    })
+    tools["file-edit"] = withPermission(tools["file-edit"], {
+      toolName: "file-edit",
+      sessionId,
+      permissionServer,
+      requiresPermission: isTmp,
+    })
+  }
+
+  return tools
 }

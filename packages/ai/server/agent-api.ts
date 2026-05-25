@@ -25,42 +25,10 @@ import type { AIFormValues } from "../config"
 import { createBashTool, createFileTools } from "../tools"
 import { AgentContext } from "./agent-context"
 import { buildProviderOptions, resolveProviderForModel } from "./model"
-import { withPermission, type PermissionServerLike } from "../permission"
-import {
-  extractCommandNames,
-  findFirstCommand,
-  wordText,
-} from "./permission/ast-parser"
-import type { AstScript } from "./permission/ast-parser"
+import type { PermissionServerLike } from "../permission"
 
 /** UIMessage type with metadata */
 type MessageWithMeta = UIMessage<MessageMetadata>
-
-/** Return the precise permission key for an eidos command, or null if read-only. */
-function eidosCategory(args: string[]): string | null {
-  if (args.length < 2) return null
-  const [cmd, sub, action] = args.slice(1)
-  // record: query is read-only, insert/update/delete need per-action approval
-  if (cmd === "record" && sub && sub !== "query") return `eidos:record:${sub}`
-  // subdoc: read/list → auto; write/delete → approval
-  if (cmd === "subdoc" && (sub === "write" || sub === "delete"))
-    return `eidos:subdoc:${sub}`
-  // table
-  if (cmd === "table" && (sub === "create" || sub === "delete"))
-    return `eidos:table:${sub}`
-  // column
-  if (cmd === "column" && sub) return `eidos:column:${sub}`
-  // view
-  if (cmd === "view" && sub && sub !== "list") return `eidos:view:${sub}`
-  // journal
-  if (cmd === "journal" && sub === "write") return `eidos:journal:${sub}`
-  // extension
-  if (cmd === "extension" && (sub === "create" || sub === "write"))
-    return `eidos:extension:${sub}`
-  // doc
-  if (cmd === "doc" && sub && sub !== "get") return `eidos:doc:${sub}`
-  return null
-}
 
 export interface IAgentData {
   goal: string
@@ -212,11 +180,18 @@ export async function prepareAgent(
       env: secrets,
       extraInstructions: agentCtx.skillInstructions ?? undefined,
       exaApiKey: aiConfig?.exaApiKey,
+      permissionServer: ctx?.permissionServer,
+      sessionId: id,
     })
 
     bash = b
     bashWithDs = { bash: bashTool }
-    fsTools = createFileTools(b)
+    fsTools = createFileTools(
+      b,
+      ctx?.permissionServer
+        ? { permissionServer: ctx.permissionServer, sessionId: id }
+        : undefined
+    )
   }
 
   const mergedTools: Record<string, any> = {
@@ -224,111 +199,6 @@ export async function prepareAgent(
     ...bashWithDs,
     ...(agentCtx.skillTool ?? {}),
     ...(tools ?? {}),
-  }
-
-  // Permission wrapping for write/edit/bash tools
-  const permissionServer = ctx?.permissionServer
-  if (permissionServer) {
-    if (mergedTools["file-write"]) {
-      mergedTools["file-write"] = withPermission(mergedTools["file-write"], {
-        toolName: "file-write",
-        sessionId: id,
-        permissionServer,
-        requiresPermission: (input: any) => {
-          const p = (input?.path ?? "") as string
-          if (p.startsWith("/tmp/") || p === "/tmp") return false
-          return true
-        },
-      })
-    }
-    if (mergedTools["file-edit"]) {
-      mergedTools["file-edit"] = withPermission(mergedTools["file-edit"], {
-        toolName: "file-edit",
-        sessionId: id,
-        permissionServer,
-        requiresPermission: (input: any) => {
-          const p = (input?.path ?? "") as string
-          if (p.startsWith("/tmp/") || p === "/tmp") return false
-          return true
-        },
-      })
-    }
-    if (mergedTools.bash) {
-      mergedTools.bash = withPermission(mergedTools.bash, {
-        toolName: "bash",
-        sessionId: id,
-        permissionServer,
-        requiresPermission: (input: any) => {
-          const cmd = (input?.command ?? "") as string
-          if (!cmd.trim()) return false
-
-          // AST-based parsing — immune to quoting, heredocs, nested structures
-          let names: string[] = []
-          let eidosArgs: string[] = []
-          try {
-            const raw = bash.parse(cmd)
-            const ast: AstScript =
-              typeof raw === "string" ? JSON.parse(raw) : raw
-            names = extractCommandNames(ast)
-            const simple = findFirstCommand(ast, "eidos")
-            if (simple) {
-              eidosArgs = ["eidos", ...simple.args.map(wordText)]
-            }
-          } catch {
-            return "bash"
-          }
-
-          const safeCommands = new Set([
-            "ls",
-            "cat",
-            "head",
-            "tail",
-            "rg",
-            "grep",
-            "find",
-            "wc",
-            "sort",
-            "cd",
-            "pwd",
-            "echo",
-            "printf",
-            "jq",
-            "awk",
-            "sed",
-            "sleep",
-            "which",
-            "file",
-            "stat",
-            "basename",
-            "dirname",
-            "true",
-            "false",
-            "clear",
-            "date",
-            "hostname",
-            "whoami",
-            "uname",
-            "help",
-            "history",
-            "web-fetch",
-            "web-search",
-          ])
-
-          for (const name of names) {
-            if (safeCommands.has(name)) continue
-
-            if (name === "eidos") {
-              const key = eidosCategory(eidosArgs)
-              if (!key) continue // read-only, skip
-              return `bash:${key}`
-            }
-
-            return `bash:${name}`
-          }
-          return false
-        },
-      })
-    }
   }
 
   log.info("[agent] ▶ tools merged", {
