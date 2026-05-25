@@ -101,10 +101,10 @@ export function createBashTool(options: BashToolOptions = {}): {
   ) as string[]
 
   const bash = new Bash({
-    python: true,
+    // python: true,
     network: { allowAll: true },
-    maxCommands: 10000,
-    maxLoopIterations: 100,
+    // maxCommands: 10000,
+    // maxLoopIterations: 256,
     env,
     customBuiltins,
     allowedMountPaths: mountPaths,
@@ -151,7 +151,6 @@ CRITICAL: hex table ID, never create "title" column, boolean = 1/0,
       : ""
   }
 
-PYTHON: restricted sandbox — prefer bash tools (jq, awk). Use python3
 only for math/datetime/complex logic beyond bash.
 ${extraInstructions ? `\n\n${extraInstructions}` : ""}`
 
