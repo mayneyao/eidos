@@ -23,7 +23,10 @@ export function registerSubdocCommands(cli: LightCli, ds: DataSpace) {
       })
     )
     .description(
-      "Read a sub-document's full markdown content (accepts dashed/undashed ID)"
+      "Read a sub-document's full markdown content (accepts dashed/undashed ID).\n" +
+        "Workflow: eidos subdoc read <table> <id> > /tmp/doc.md\n" +
+        "  → cat /tmp/doc.md (review) → file-read /tmp/doc.md (get hashes)\n" +
+        "  → file-edit /tmp/doc.md → cat /tmp/doc.md | eidos subdoc write <table> <id>"
     )
     .action(async (data) => sh.subdocRead(ds, data.tableId, data.recordId))
 

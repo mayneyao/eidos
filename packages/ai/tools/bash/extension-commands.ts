@@ -33,7 +33,9 @@ export function registerExtensionCommands(cli: LightCli, ds: DataSpace) {
     )
     .description(
       "Create a new extension. Code via stdin.\n" +
-        'Example: cat script.ts | eidos extension create my-tool "My Tool" -t script'
+        'Example: cat script.ts | eidos extension create my-tool "My Tool" -t script\n' +
+        "Code must export: const meta = { type: 'script', funcName: '...' }\n" +
+        "Verify: eidos extension get <slug>. Update: cat updated.ts | eidos extension write <slug>"
     )
     .action(async (data, ctx) => {
       const code = ctx?.stdin

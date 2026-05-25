@@ -53,6 +53,9 @@ class EidosRunner {
     if (args.length === 0) {
       return cli.help() + "\n\n" + PROPERTY_HELP_TEXT
     }
+    if (args.length === 1) {
+      return cli.helpFor(args[0]!) + "\n\n" + PROPERTY_HELP_TEXT
+    }
 
     const execCtx = { stdin: ctx.stdin }
     const result = await cli.parse(args, execCtx)
@@ -118,113 +121,38 @@ export function createBashTool(options: BashToolOptions = {}): {
 
   const description = `Execute a bash command in a sandboxed filesystem.
 
-AVAILABLE MOUNTS:
-- /agent/skills/    — skill files (read-write).
-- /agent/sessions/  — agent session files (.meta.json, .jsonl) (read-write).
-- /tmp/             — persistent session scratch space (read-write).
+MOUNTS: /agent/skills, /agent/sessions, /tmp (all read-write).
 
-WEB BUILTINS:
-  web-fetch <url>              # Fetch URL, extract clean markdown to stdout. Redirect with > to save: web-fetch <url> > /tmp/file.md
-  web-search <query>           # Search the web via Exa, output JSON to stdout. Redirect or pipe for further processing.
+BUILTINS:
+  web-fetch <url>              Extract clean page content (HTML→markdown). For raw API responses, use curl instead.
+  web-search <query>           Search web via Exa → JSON to stdout${
+    dataspace
+      ? `
+  eidos <resource> <action>    Data operations — run any resource alone for sub-action help
 
-WEB PIPELINE EXAMPLES:
-  web-fetch https://example.com > /tmp/article.md                # Save fetched article
-  web-search "AI news" > /tmp/results.json                       # Save search results to file
-  web-search "AI news" | jq '.results[0].url' | xargs web-fetch > /tmp/result.md
-
-EIDOS CLI (built-in):
-Use 'eidos' with subcommands directly in bash pipelines.
-DATA DISCOVERY — start here to find what tables/records exist:
-  eidos search <keyword>             # Full-text search across all docs & journals (titles + content)
-  eidos tree                         # Nested tree with childCount (depth 1 by default, expand with --depth or --parent)
-  eidos tree --depth 3               # Deeper nesting
-  eidos tree --parent <id>           # Subtree of a specific node
-  eidos table list                   # List tables (id + name)
-  eidos table info <id>              # Table schema: id, name, fields, views
-${
-  dataspace
-    ? `
-TABLE SUB-DOCUMENTS (Markdown content for table records):
-  eidos subdoc list <table>                        # List all sub-docs under a table
-  eidos subdoc read <table> <record_id>           # Read markdown (accepts dashed/undashed ID)
-  eidos subdoc write <table> <record_id>           # Create/update via stdin (auto-expands)
-  eidos subdoc delete <table> <record_id>          # Soft-delete a sub-document
-
-  SUBDOC PIPELINE:
-    1. eidos subdoc read <table> <record_id> > /tmp/doc.md
-    2. cat /tmp/doc.md to review, file-read to get anchors, then file-edit
-    3. cat /tmp/doc.md | eidos subdoc write <table> <record_id>
-
-STANDALONE DOCS (root/folder docs, NOT table sub-documents):
-  eidos doc create <name>                                 # Create (stdin for content)
-  eidos doc create <name> --parent <folder_id>             # Create in folder
-  eidos doc get <id>                                       # Read markdown
-  eidos doc update <id>                                    # Update content via stdin
-  eidos doc delete <id>                                    # Soft-delete
-
-MUTATION:
-  eidos record query <table> -q "SELECT ..."               # Query records
-  eidos record insert <table> -d '{"title":"x"}'           # Single insert
-  echo '[...]' | eidos record insert <table> --stdin       # Batch insert via pipe
-  eidos record update <table> -w '{"id":"x"}' -d '{...}'   # Update records
-  eidos record delete <table> -w '{"id":"x"}'              # Delete records
-  eidos table create <name>                                 # Create table
-  eidos table delete <table_id>                             # Delete table
-  eidos column create <table> <name> -t text               # Add column
-  eidos column delete <table> <column_name>                # Delete column
-  eidos column update <table> <column_name> -n newName    # Update column
-  eidos view create <table> <name> grid                    # Create view
-  eidos view list <table>                                   # List views
-  eidos view update <table> <view_id> -n "New" -q "..."    # Update view
-  eidos journal list [--limit 30]                              # List journal entries
-  eidos journal get <YYYY-MM-DD>                               # Read journal entry
-  eidos journal write <YYYY-MM-DD> <content>                   # Write journal entry (stdin)
-  eidos extension create <slug> <name> -t script|block     # Create extension (compiles TS→JS via V3)
-  eidos extension list                                         # List extensions
-  eidos extension get <slug>                                   # Get extension code + meta
-  eidos extension write <slug>                                 # Update code (compiles + validates)
-
-  EXTENSION WORKFLOW:
-    1. Write TypeScript code with "export const meta = {...}" and export functions
-    2. cat code.ts | eidos extension create my-tool "My Tool" -t script   # Create + compile
-    3. eidos extension get my-tool                                        # Verify code and meta
-    4. cat updated.ts | eidos extension write my-tool                      # Update + recompile
-    Compile errors are returned in full — use them to fix your code.
-
-    TABLE-SCOPED ACTION (restrict to specific table):
-      export const meta = {
-        type: "tableAction",
-        funcName: "myAction",
-        tableAction: {
-          name: "My Action",
-          description: "Does something",
-          tableId: "<table_id>"    // omit to show on ALL tables
-        }
-      }`
-    : "No dataspace — eidos commands unavailable."
-}
-
-EIDOS PIPELINE PATTERN:
-  eidos search "invoice" | jq '.[].recordId'                     # Find matching records
-  eidos record query <table> -q "SELECT * ..." | jq '...' | python3 script.py
-  curl ... | jq -s '.' | eidos record insert <table> --stdin     # Batch insert via pipe
+DATA DISCOVERY — eidos resources (run any for sub-action help):
+  search    Full-text search across all docs & journals
+  tree      Navigate the workspace hierarchy
+  table     Manage table schemas and metadata
+  record    Work with table rows (query, insert, update, delete)
+  column    Manage table fields and their types
+  view      Manage table display configurations
+  doc       Standalone documents in the workspace tree
+  subdoc    Markdown content attached to table records
+  journal   Daily journal entries
+  extension Custom code: scripts, blocks, tools
 
 EXPLORATION WORKFLOW:
-  1. eidos search <keyword>                        → find by keyword
-  2. eidos subdoc read <table> <id> > /tmp/x.md    → export
-  3. cat /tmp/x.md                                 → review (read-only)
-  4. file-read /tmp/x.md                           → get line hashes (only when about to edit)
-  5. file-edit /tmp/x.md                           → apply edits
-  6. cat /tmp/x.md | eidos subdoc write <table> <id>  → commit
+  eidos search <keyword> → eidos subdoc read <table> <id> > /tmp/x.md
+  → cat /tmp/x.md (review) → file-read /tmp/x.md (get hashes) → file-edit /tmp/x.md
 
-CRITICAL: Always use the 32-char hex table ID, NOT the display name.
-Every table has a built-in 'title' field — never create a column named "title".
-In raw SQL queries, use either the plain ID or tb_<id> — both are accepted.
-Boolean/checkbox values: use 1 or 0 (true/false are auto-converted).
+CRITICAL: hex table ID, never create "title" column, boolean = 1/0,
+  raw SQL accepts plain ID or tb_<id>.`
+      : ""
+  }
 
-DATA EXCHANGE:
-- Pipe JSON directly: echo '[{...}]' | eidos record insert <table> --stdin
-- Write large data to /tmp/ files with file tools, then process in bash.
+PYTHON: restricted sandbox — prefer bash tools (jq, awk). Use python3
+only for math/datetime/complex logic beyond bash.
 ${extraInstructions ? `\n\n${extraInstructions}` : ""}`
 
   let tool: Tool = {

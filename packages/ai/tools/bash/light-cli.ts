@@ -277,4 +277,23 @@ export class LightCli {
     }
     return helpLines.join("\n")
   }
+
+  /** Show help for commands under a specific resource (e.g. "record", "table"). */
+  helpFor(resource: string): string {
+    const cmds = this.commands.filter((cmd) => {
+      const first = cmd.template[0]
+      return first?.kind === "literal" && first.value === resource
+    })
+    if (cmds.length === 0) {
+      return `Unknown resource: "${resource}"\n\n${this.help()}`
+    }
+    const lines = [`${this.name} ${resource} <action> [args...]\n`]
+    for (const cmd of cmds) {
+      lines.push(`  ${cmd.usage(this.name)}`)
+      if (cmd.desc) {
+        lines.push(`    ${cmd.desc}`)
+      }
+    }
+    return lines.join("\n")
+  }
 }
