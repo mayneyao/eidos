@@ -329,7 +329,11 @@ export function getProvider(data: {
     case "perplexity":
       return createPerplexity(config)
     case "openrouter":
-      return createOpenRouter(config)
+      return createOpenRouter({
+        ...config,
+        appName: "Eidos",
+        appUrl: "https://eidos.space",
+      })
     // case 'fal':
     //   return createFal(config)
     case "deepinfra":

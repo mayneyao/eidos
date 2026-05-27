@@ -231,7 +231,7 @@ export function WebviewToolbar({}: WebviewToolbarProps) {
 
       <div
         className={cn(
-          "mx-2 flex flex-1 items-center overflow-hidden rounded-md border px-2 py-1 transition-colors duration-200",
+          "flex flex-1 items-center overflow-hidden rounded-md border px-2 py-1 transition-colors duration-200",
           isLoading
             ? "border-primary/50 bg-primary/5"
             : "border-input bg-muted/40"

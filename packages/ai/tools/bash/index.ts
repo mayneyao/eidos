@@ -121,6 +121,10 @@ export function createBashTool(options: BashToolOptions = {}): {
 
   const description = `Execute a bash command in a sandboxed filesystem.
 
+RESTRICTIONS: This is a minimal sandbox. NO Python, Node.js, Ruby, or other
+interpreters are available. Only standard POSIX commands (cat, grep, awk, sed,
+curl, jq, etc.) and the builtins listed below work.
+
 MOUNTS: /agent/skills, /agent/sessions, /tmp (all read-write).
 
 BUILTINS:
@@ -150,8 +154,6 @@ CRITICAL: hex table ID, never create "title" column, boolean = 1/0,
   raw SQL accepts plain ID or tb_<id>.`
       : ""
   }
-
-only for math/datetime/complex logic beyond bash.
 ${extraInstructions ? `\n\n${extraInstructions}` : ""}`
 
   let tool: Tool = {

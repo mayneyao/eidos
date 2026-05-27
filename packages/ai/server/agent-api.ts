@@ -143,7 +143,6 @@ export async function prepareAgent(
 
   const agentCtx = await AgentContext.create({
     goal: sessionGoal,
-    tools: [],
     systemPrompt,
     skills,
     mentions: data.mentions,

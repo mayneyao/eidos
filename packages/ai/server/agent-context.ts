@@ -3,29 +3,27 @@ import type { SkillToolkit } from "./skills/skill-tool"
 import { initSkillToolkit } from "./skills"
 
 /**
- * Three-layer context system for the AI agent, similar to Claude Code:
+ * Multi-layer context system for the AI agent, optimized for prompt caching:
  *
- * 1. **System Prompt**  — the base persona / behavior instructions
- * 2. **System Context** — appended to system prompt (environment, tool info, etc.)
- * 3. **User Context**   — injected into the first user message (date, workspace state, etc.)
+ * 1. **System Prompt**   — pure static persona / rules (cacheable across all requests)
+ * 2. **System Context**  — appended to system prompt (skills, dynamic env info)
+ * 3. **First User Context** — injected into the first user message only (goal, date, mentions)
  */
 export class AgentContext {
   private _systemPrompt = ""
   private _systemContext: string[] = []
-  private _userContext: string[] = []
+  private _firstUserContext: string[] = []
   private _skillToolkit: SkillToolkit | null = null
   private _requestedSkills: string[] = []
-  private _mentionsBlock: string | null = null
   private _log: {
     info: (...args: any[]) => void
     warn: (...args: any[]) => void
     error: (...args: any[]) => void
   } = console
 
-  /** Create an agent context with the default system prompt and built-in user context. */
+  /** Create an agent context. System prompt is static and cacheable; goal/date go into the first user message. */
   static async create(opts: {
     goal: string
-    tools: string[]
     systemPrompt?: string
     skills?: string[]
     mentions?: Array<{ id: string; name: string; type: string }>
@@ -37,18 +35,20 @@ export class AgentContext {
   }): Promise<AgentContext> {
     const ctx = new AgentContext()
     ctx._log = opts.logger ?? console
-    ctx.setSystemPrompt(
-      opts.systemPrompt ??
-        AgentContext.buildDefaultPrompt(opts.goal, opts.tools)
-    )
-    ctx.addUserContext(`Today's date is ${new Date().toLocaleString()}.`)
 
-    // Store mentions block for injection into every user message
+    // System prompt: fully static, cacheable across all requests
+    ctx.setSystemPrompt(opts.systemPrompt ?? AgentContext.buildDefaultPrompt())
+
+    // Goal, date, and mentions all go into first user message only (avoids cache invalidation)
+    ctx.addFirstUserContext(`<goal>${opts.goal}</goal>`)
+    ctx.addFirstUserContext(`Today's date is ${new Date().toLocaleString()}.`)
     if (opts.mentions && opts.mentions.length > 0) {
       const lines = opts.mentions.map(
         (m) => `  <node id="${m.id}" type="${m.type}" name="${m.name}"/>`
       )
-      ctx._mentionsBlock = `<referenced-nodes>\n${lines.join("\n")}\n</referenced-nodes>\nUse the IDs above directly with eidos commands.`
+      ctx.addFirstUserContext(
+        `<referenced-nodes>\n${lines.join("\n")}\n</referenced-nodes>\nUse the IDs above directly with eidos commands.`
+      )
     }
 
     // Initialize skills if requested
@@ -59,11 +59,15 @@ export class AgentContext {
     return ctx
   }
 
-  private static buildDefaultPrompt(goal: string, tools: string[]): string {
+  private static buildDefaultPrompt(): string {
     return `You are an autonomous AI agent running in the Eidos data workspace.
-Your goal is: ${goal}
 
-Available tools: ${tools.join(", ")}
+ENVIRONMENT RESTRICTIONS:
+- The bash sandbox is a minimal environment. NO Python, Node.js, Ruby, or other
+  language runtimes are installed. Do NOT attempt "python3", "node", or similar
+  — they will fail and waste tokens.
+- Only standard POSIX commands (cat, grep, awk, sed, curl, jq, etc.) plus the
+  builtins (eidos, web-fetch, web-search) are available. Use these instead.
 
 Instructions:
 1. First, analyze the goal and plan your approach silently.
@@ -118,7 +122,12 @@ Be proactive. Don't ask for confirmation — just execute the plan.`
   }
 
   addUserContext(context: string): this {
-    this._userContext.push(context)
+    this._firstUserContext.push(context)
+    return this
+  }
+
+  addFirstUserContext(context: string): this {
+    this._firstUserContext.push(context)
     return this
   }
 
@@ -134,24 +143,21 @@ Be proactive. Don't ask for confirmation — just execute the plan.`
   }
 
   /**
-   * Prepend user context and mentions to every user message.
-   * Mentions go first (stable across turns for LLM caching),
-   * user context follows.
+   * Prepend context to the first user message only (goal, date, mentions).
+   * Subsequent user messages are passed through unchanged — the model already
+   * has the context from earlier turns.
    */
   buildMessages(messages: UIMessage[]): UIMessage[] {
-    if (this._userContext.length === 0 && !this._mentionsBlock) return messages
+    if (this._firstUserContext.length === 0) return messages
+
+    let isFirstUser = true
 
     return messages.map((msg) => {
       if (msg.role !== "user") return msg
       const parts = msg.parts.map((part, i) => {
-        if (i === 0 && part.type === "text") {
-          let prefix = ""
-          if (this._mentionsBlock) prefix += this._mentionsBlock + "\n\n"
-          const contextBlock =
-            this._userContext.length > 0
-              ? `<user-context>\n${this._userContext.join("\n")}\n</user-context>\n\n`
-              : ""
-          prefix += contextBlock
+        if (i === 0 && part.type === "text" && isFirstUser) {
+          isFirstUser = false
+          const prefix = `<user-context>\n${this._firstUserContext.join("\n")}\n</user-context>\n\n`
           return { ...part, text: `${prefix}${part.text}` }
         }
         return part

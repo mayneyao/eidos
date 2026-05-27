@@ -253,8 +253,20 @@ export function AgentGoalInput({
     if (!editingMode) {
       setGoalInput("")
       setMentions([])
+      const el = textareaRef.current
+      if (el) {
+        el.style.height = "auto"
+      }
     }
-  }, [goalInput, aiModel, onSubmit, setGoalInput, editingMode, mentions])
+  }, [
+    goalInput,
+    aiModel,
+    onSubmit,
+    setGoalInput,
+    editingMode,
+    mentions,
+    textareaRef,
+  ])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
