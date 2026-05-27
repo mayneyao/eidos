@@ -7,6 +7,7 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
+  Code,
   Database,
   File,
   FileText,
@@ -160,20 +161,27 @@ function SortableTabItem({
           <div className="flex items-center gap-1 shrink-0 group-[.minimized]:hidden">
             <TabRawDataHint tabId={tab.id} />
 
-            <button
-              className={cn(
-                "hover:bg-accent rounded p-0.5 transition-opacity shrink-0",
-                isActive
-                  ? "opacity-60 hover:opacity-100"
-                  : "opacity-0 group-hover:opacity-60 hover:!opacity-100"
-              )}
-              onClick={(e) => {
-                e.stopPropagation()
-                onCloseTab(tab.id)
-              }}
-            >
-              <X className="h-3 w-3" />
-            </button>
+            {tab.isDirty ? (
+              <div
+                className="h-2 w-2 rounded-full bg-foreground/60 shrink-0"
+                title="Unsaved changes"
+              />
+            ) : (
+              <button
+                className={cn(
+                  "hover:bg-accent rounded p-0.5 transition-opacity shrink-0",
+                  isActive
+                    ? "opacity-60 hover:opacity-100"
+                    : "opacity-0 group-hover:opacity-60 hover:!opacity-100"
+                )}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onCloseTab(tab.id)
+                }}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </div>
       </TabContextMenu>
@@ -224,6 +232,7 @@ function TabIcon({ tab }: { tab: Tab }) {
     return <MessageSquare className={iconClassName} />
   if (url.startsWith("/journals") || url.startsWith("/today"))
     return <CalendarDays className={iconClassName} />
+  if (url.startsWith("/editor")) return <Code className={iconClassName} />
   if (url.startsWith("/file-handler"))
     return <FileText className={iconClassName} />
   if (url.startsWith("/folder")) return <FolderOpen className={iconClassName} />
@@ -276,7 +285,7 @@ export function TabBar({
     panels,
     activePanelId,
     openTab,
-    closeTab,
+    confirmCloseTab,
     closeOtherTabs,
     closeTabsToRight,
     closeAllTabs,
@@ -370,7 +379,7 @@ export function TabBar({
     // Middle-click to close
     if (e.button === 1) {
       e.preventDefault()
-      closeTab(tabId)
+      confirmCloseTab(tabId)
       return
     }
 
@@ -529,7 +538,7 @@ export function TabBar({
                   setActiveTab(tabId)
                   void locateTabInFileTree(tabId)
                 }}
-                onCloseTab={closeTab}
+                onCloseTab={confirmCloseTab}
                 canGoBack={canGoBack}
                 canGoForward={canGoForward}
                 goInTabHistory={goInTabHistory}

@@ -16,7 +16,7 @@ export const TabCommandItems = () => {
     panels,
     activePanelId,
     setActiveTab,
-    closeTab,
+    confirmCloseTab,
     getPanelForTab,
   } = useTabStore()
   const { setCmdkOpen } = useAppRuntimeStore()
@@ -29,7 +29,7 @@ export const TabCommandItems = () => {
 
   const handleCloseTab = (e: React.MouseEvent, tabId: string) => {
     e.stopPropagation()
-    closeTab(tabId)
+    confirmCloseTab(tabId)
   }
 
   const activeTabId =

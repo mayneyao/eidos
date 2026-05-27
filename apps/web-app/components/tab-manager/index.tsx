@@ -11,7 +11,7 @@ export function TabManager({ children }: { children: React.ReactNode }) {
     panels,
     activePanelId,
     openTab,
-    closeTab,
+    confirmCloseTab,
     setActiveTab,
     reopenLastClosedTab,
     getActiveTabId,
@@ -66,7 +66,7 @@ export function TabManager({ children }: { children: React.ReactNode }) {
             break
           }
 
-          closeTab(currentActiveTabId)
+          confirmCloseTab(currentActiveTabId)
           break
         }
         case "next-tab":
@@ -127,7 +127,7 @@ export function TabManager({ children }: { children: React.ReactNode }) {
         }
       }
     }
-  }, [openTab, closeTab, setActiveTab, reopenLastClosedTab])
+  }, [openTab, confirmCloseTab, setActiveTab, reopenLastClosedTab])
 
   // Handle mouse side buttons for back/forward within the active tab
   useEffect(() => {

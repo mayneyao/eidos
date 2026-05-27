@@ -14,6 +14,7 @@ export interface Tab {
   icon?: string
   lastAccessTime: number
   initialState?: any
+  isDirty?: boolean
 }
 
 export interface ClosedTab {
@@ -59,6 +60,7 @@ interface TabState {
     }
   ) => void
   closeTab: (id: string) => void
+  confirmCloseTab: (id: string) => Promise<boolean>
   closeOtherTabs: (id: string) => void
   closeTabsToRight: (id: string) => void
   closeAllTabs: () => void
@@ -291,6 +293,24 @@ export const useTabStore = create<TabState>()(
             )
           ),
         })
+      },
+
+      confirmCloseTab: async (id) => {
+        const tab = get().tabs.find((t) => t.id === id)
+        if (!tab?.isDirty) {
+          get().closeTab(id)
+          return true
+        }
+
+        const confirmed = window.confirm(
+          `"${tab.title}" has unsaved changes. Are you sure you want to close it?`
+        )
+
+        if (confirmed) {
+          get().closeTab(id)
+          return true
+        }
+        return false
       },
 
       closeOtherTabs: (id) => {
