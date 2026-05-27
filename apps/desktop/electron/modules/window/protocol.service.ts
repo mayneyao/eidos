@@ -117,6 +117,13 @@ export class ProtocolService {
         return
       }
 
+      // Handle file action (from CLI: eidos file.md)
+      // Format: eidos://file?path=/absolute/path/to/file.md
+      if (action === "file") {
+        this.handleFileAction(searchParams)
+        return
+      }
+
       // Handle regular eidos protocol actions
       // convert vault to space
       if (searchParams.vault) {
@@ -200,6 +207,32 @@ export class ProtocolService {
       console.log("Space open request sent to renderer")
     } catch (error) {
       log("Error handling open-space action:", error)
+      throw error
+    }
+  }
+
+  private handleFileAction(searchParams: Record<string, string>) {
+    try {
+      const filePath = searchParams.path
+
+      if (!filePath) {
+        throw new Error("Missing file path in file URL")
+      }
+
+      console.log(`Opening file: ${filePath}`)
+
+      // Send to renderer to navigate to the editor
+      const payload: ProtocolUrlPayload = {
+        url: `eidos://file?path=${encodeURIComponent(filePath)}`,
+        action: "file",
+        searchParams: { path: filePath },
+      }
+
+      this.sendToRenderer(payload)
+
+      console.log("File open request sent to renderer")
+    } catch (error) {
+      log("Error handling file action:", error)
       throw error
     }
   }

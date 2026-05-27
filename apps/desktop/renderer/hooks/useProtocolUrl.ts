@@ -100,6 +100,15 @@ export const useProtocolUrl = () => {
           }
           break
 
+        case "file":
+          // Handle eidos file command from CLI (like "code file.md")
+          const filePath = searchParams["path"]
+          if (filePath) {
+            const encodedPath = encodeURIComponent(filePath)
+            navigate(`/editor#${encodedPath}`)
+          }
+          break
+
         case "search":
           if ("space" in searchParams) {
             const spaceId = searchParams["space"]

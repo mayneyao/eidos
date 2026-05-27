@@ -43,6 +43,7 @@ chrono = { version = "0.4", features = ["serde"] }
 walkdir = "2.5"
 mime_guess = "2.0"
 atty = "0.2"
+open = "5.3"
 
 [dev-dependencies]
 mockito = "1.7"

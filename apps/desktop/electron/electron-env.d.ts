@@ -77,6 +77,12 @@ interface Window {
       error?: string
     }>
     openUrl: (url: string) => Promise<{ success: boolean; error?: string }>
+    // 原生文件系统操作（用于编辑器直接读写本地文件）
+    nativeFs: {
+      readFile: (path: string, encoding?: string) => Promise<string>
+      writeFile: (path: string, content: string) => Promise<void>
+      fileExists: (path: string) => Promise<boolean>
+    }
     browser: {
       view: import("@eidos.space/electron-ipc").ExtractIpcApi<
         typeof import("./modules/browser/browser.service").BrowserService

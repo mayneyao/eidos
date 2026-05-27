@@ -20,7 +20,11 @@ use crate::config::{Config, SpaceRegistry};
 struct Cli {
     /// Available commands
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
+
+    /// File to open in Eidos editor (shorthand for 'open' command)
+    #[arg(global = false)]
+    file: Option<String>,
 
     /// Eidos Desktop endpoint
     #[arg(short, long, global = true, env = "EIDOS_ENDPOINT")]
@@ -88,7 +92,21 @@ async fn run() -> Result<()> {
     let client = EidosClient::new(config.clone())?;
 
     // Execute command
-    cli.command.execute(client, &mut config, cli.format).await?;
+    match (cli.command, cli.file) {
+        // Explicit subcommand
+        (Some(cmd), _) => cmd.execute(client, &mut config, cli.format).await?,
+        // Shorthand: eidos file.md
+        (None, Some(file)) => {
+            commands::open::execute(&file).await?
+        }
+        // No command, no file
+        (None, None) => {
+            // Show help
+            use clap::CommandFactory;
+            Cli::command().print_help()?;
+            println!();
+        }
+    }
 
     Ok(())
 }

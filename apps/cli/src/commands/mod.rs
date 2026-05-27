@@ -2,6 +2,7 @@ pub mod completions;
 pub mod explore;
 pub mod ext;
 pub mod mount;
+pub mod open;
 pub mod status;
 pub mod table;
 pub mod theme;
@@ -73,6 +74,13 @@ pub enum Commands {
         force: bool,
         #[arg(short, long)]
         recursive: bool,
+    },
+
+    /// Open a file in Eidos editor
+    #[command(name = "open", alias = "o")]
+    Open {
+        /// File path to open
+        file: String,
     },
 
     /// Execute SQL query
@@ -164,6 +172,9 @@ impl Commands {
             }
             Commands::Remove { path, force, recursive } => {
                 node_impl::cmd_remove(client, path, force, recursive).await
+            }
+            Commands::Open { file } => {
+                open::execute(&file).await
             }
             Commands::Sql { query } => {
                 node_impl::cmd_sql(client, query).await

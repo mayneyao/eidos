@@ -2,6 +2,7 @@ import type { RouteObject } from "react-router-dom"
 
 import NodePage from "@/apps/web-app/pages/[database]/[node]/page"
 import { BlocksPage } from "@/apps/web-app/pages/[database]/blocks/page"
+import { EditorPage } from "@/apps/web-app/pages/[database]/editor/page"
 import { ExtensionDetailPage } from "@/apps/web-app/pages/[database]/extensions/detail"
 import { ExtensionsEmptyState } from "@/apps/web-app/pages/[database]/extensions/empty-state"
 import { ExtensionsLayout } from "@/apps/web-app/pages/[database]/extensions/layout"
@@ -20,6 +21,10 @@ export const spaceRoutes: RouteObject[] = [
   {
     index: true,
     element: <SpaceHomePage />,
+  },
+  {
+    path: "editor",
+    element: <EditorPage />,
   },
   {
     path: "file-handler",

@@ -175,6 +175,15 @@ function main() {
     showInFileManager: (path: string) =>
       ipcRenderer.invoke("file-system:showInFileManager", path),
     openUrl: (url: string) => ipcRenderer.invoke("file-system:openUrl", url),
+    // 原生文件系统操作（用于编辑器直接读写本地文件）
+    nativeFs: {
+      readFile: (path: string, encoding?: string) =>
+        ipcRenderer.invoke("file-system:readFile", path, encoding),
+      writeFile: (path: string, content: string) =>
+        ipcRenderer.invoke("file-system:writeFile", path, content),
+      fileExists: (path: string) =>
+        ipcRenderer.invoke("file-system:fileExists", path),
+    },
     reloadApp: () => ipcRenderer.invoke("app-lifecycle:reloadApp"),
     // Browser view namespace
     browser: {
