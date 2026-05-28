@@ -212,7 +212,8 @@ export const webFetchTool = {
 export class WebFetchBuiltin {
   async run(ctx: BuiltinContext): Promise<string> {
     const url = ctx.argv[0]
-    if (!url) return "Usage: web-fetch <url>\n"
+    if (!url)
+      return "Error: web-fetch requires a URL.\nExample: web-fetch https://example.com/article\n"
     try {
       const result = await fetchAndExtract(url)
       console.log("[builtin:web-fetch] ✔", {
@@ -236,7 +237,8 @@ export class WebSearchBuiltin {
       return "Error: Web search requires an Exa API key. Configure it in Settings → AI → Tool API Keys.\n"
     }
     const query = ctx.argv.join(" ")
-    if (!query.trim()) return "Usage: web-search <query>\n"
+    if (!query.trim())
+      return "Error: web-search requires a search query.\nExample: web-search what is eidos\n"
     try {
       const results = await exaSearch(this.apiKey, query, 10)
       console.log("[builtin:web-search] ✔", { resultCount: results.length })
