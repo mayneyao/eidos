@@ -23,7 +23,7 @@ const useCopyDocAsMarkdown = () => {
   const { t } = useTranslation()
   const { toast } = useToast()
   const copyDocAsMarkdown = async (docId: string) => {
-    const md = await sqlite?.getDocMarkdown(docId, { withTitle: true })
+    const md = await sqlite?.lexical2markdown(docId, { withTitle: true })
     if (md) {
       await navigator.clipboard.writeText(md)
       toast({

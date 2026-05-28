@@ -106,6 +106,24 @@ export abstract class BaseDataSpace {
       description: string
       slugPrefix: string
     }>
+    lexical?: {
+      markdown2lexical: (
+        markdown: string,
+        extraNodes?: any[],
+        extraTransformers?: any[],
+        options?: { oldState?: string }
+      ) => Promise<string>
+      lexical2markdown: (
+        state: string,
+        extraNodes?: any[],
+        extraTransformers?: any[]
+      ) => Promise<string>
+      convertHtml2State: (
+        html: string,
+        extraNodes?: any[],
+        extraTransformers?: any[]
+      ) => Promise<string>
+    }
   }
   constructor(config: {
     db: EidosDatabase
@@ -126,6 +144,23 @@ export abstract class BaseDataSpace {
         description: string
         slugPrefix: string
       }>
+      lexical?: {
+        markdown2lexical: (
+          markdown: string,
+          extraNodes?: any[],
+          extraTransformers?: any[]
+        ) => Promise<string>
+        lexical2markdown: (
+          state: string,
+          extraNodes?: any[],
+          extraTransformers?: any[]
+        ) => Promise<string>
+        convertHtml2State: (
+          html: string,
+          extraNodes?: any[],
+          extraTransformers?: any[]
+        ) => Promise<string>
+      }
     }
     createUDF?: (db: EidosDatabase) => void
     draftDb?: EidosDatabase

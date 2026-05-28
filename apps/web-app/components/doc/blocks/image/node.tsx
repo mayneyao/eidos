@@ -7,72 +7,43 @@
  */
 
 import * as React from "react"
-import type { TextMatchTransformer } from "@lexical/markdown"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
 import {
-  DecoratorBlockNode,
-  type SerializedDecoratorBlockNode,
-} from "@lexical/react/LexicalDecoratorBlockNode"
+  BaseImageNode,
+  $isBaseImageNode,
+  createImageTransformer,
+  type ImagePayload as BaseImagePayload,
+  type SerializedImageNode as BaseSerializedImageNode,
+  IMAGE_NODE_TRANSFORMER as BASE_IMAGE_NODE_TRANSFORMER,
+} from "@eidos.space/lexical"
 import {
   $applyNodeReplacement,
   createEditor,
-  type DOMConversionMap,
-  type DOMConversionOutput,
-  type DOMExportOutput,
   type EditorConfig,
   type ElementFormatType,
   type LexicalEditor,
   type LexicalNode,
   type NodeKey,
-  type SerializedEditor,
   type Spread,
 } from "lexical"
 
 import ImageComponent from "./component"
 
-export interface ImagePayload {
-  altText: string
-  caption?: LexicalEditor
-  height?: number
-  key?: NodeKey
-  maxWidth?: number
-  showCaption?: boolean
-  src: string
-  width?: number
-  captionsEnabled?: boolean
-}
-
-function convertImageElement(domNode: Node): null | DOMConversionOutput {
-  if (domNode instanceof HTMLImageElement) {
-    const { alt: altText, src, width, height } = domNode
-    const node = $createImageNode({ altText, height, src, width })
-    return { node }
-  }
-  return null
-}
-
 export type SerializedImageNode = Spread<
   {
-    altText: string
-    caption: SerializedEditor
-    height?: number
-    maxWidth: number
-    showCaption: boolean
-    src: string
-    width?: number
+    caption?: {
+      editorState: string
+    }
   },
-  SerializedDecoratorBlockNode
+  BaseSerializedImageNode
 >
 
-export class ImageNode extends DecoratorBlockNode {
-  __src: string
-  __altText: string
-  __width: "inherit" | number
-  __height: "inherit" | number
-  __maxWidth: number
-  __showCaption: boolean
+export type ImagePayload = BaseImagePayload & {
+  caption?: LexicalEditor
+}
+
+export class ImageNode extends BaseImageNode {
   __caption: LexicalEditor
-  __captionsEnabled: boolean
 
   static getType(): string {
     return "image"
@@ -81,8 +52,8 @@ export class ImageNode extends DecoratorBlockNode {
   static clone(node: ImageNode): ImageNode {
     return new ImageNode(
       node.__src,
-      node.__altText,
-      node.__maxWidth,
+      node.__altText || "",
+      node.__maxWidth || 500,
       node.__width,
       node.__height,
       node.__showCaption,
@@ -94,8 +65,16 @@ export class ImageNode extends DecoratorBlockNode {
   }
 
   static importJSON(serializedNode: SerializedImageNode): ImageNode {
-    const { altText, height, width, maxWidth, caption, src, showCaption } =
-      serializedNode
+    const {
+      altText,
+      height,
+      width,
+      maxWidth,
+      caption,
+      src,
+      showCaption,
+      captionsEnabled,
+    } = serializedNode
     const node = $createImageNode({
       altText,
       height,
@@ -103,83 +82,58 @@ export class ImageNode extends DecoratorBlockNode {
       showCaption,
       src,
       width,
+      captionsEnabled,
     })
     node.setFormat(serializedNode.format)
-    const nestedEditor = node.__caption
-    const editorState = nestedEditor.parseEditorState(caption.editorState)
-    if (!editorState.isEmpty()) {
-      nestedEditor.setEditorState(editorState)
+
+    // Safely handle caption with persistent ID state
+    if (caption?.editorState) {
+      const nestedEditor = node.__caption
+      try {
+        const editorState = nestedEditor.parseEditorState(caption.editorState)
+        if (!editorState.isEmpty()) {
+          nestedEditor.setEditorState(editorState)
+        }
+      } catch (error) {
+        console.warn("Failed to parse caption editor state:", error)
+      }
     }
     return node
-  }
-
-  exportDOM(): DOMExportOutput {
-    const element = document.createElement("img")
-    element.setAttribute("src", this.__src)
-    element.setAttribute("alt", this.__altText)
-    element.setAttribute("width", this.__width.toString())
-    element.setAttribute("height", this.__height.toString())
-    return { element }
-  }
-
-  static importDOM(): DOMConversionMap | null {
-    return {
-      img: (node: Node) => ({
-        conversion: convertImageElement,
-        priority: 0,
-      }),
-    }
   }
 
   constructor(
     src: string,
     altText: string,
     maxWidth: number,
-    width?: "inherit" | number,
-    height?: "inherit" | number,
+    width?: number,
+    height?: number,
     showCaption?: boolean,
     caption?: LexicalEditor,
     captionsEnabled?: boolean,
     format?: ElementFormatType,
     key?: NodeKey
   ) {
-    super(format, key)
-    this.__src = src
-    this.__altText = altText
-    this.__maxWidth = maxWidth
-    this.__width = width || "inherit"
-    this.__height = height || "inherit"
-    this.__showCaption = showCaption || false
+    super(
+      src,
+      altText,
+      maxWidth,
+      width,
+      height,
+      showCaption,
+      captionsEnabled,
+      format,
+      key
+    )
     this.__caption = caption || createEditor()
-    this.__captionsEnabled = captionsEnabled || captionsEnabled === undefined
-  }
-
-  exportJSON(): SerializedImageNode {
-    return {
-      ...super.exportJSON(),
-      altText: this.getAltText(),
-      caption: this.__caption.toJSON(),
-      height: this.__height === "inherit" ? 0 : this.__height,
-      maxWidth: this.__maxWidth,
-      showCaption: this.__showCaption,
-      src: this.getSrc(),
-      type: "image",
-      version: 1,
-      width: this.__width === "inherit" ? 0 : this.__width,
-    }
-  }
-
-  getTextContent(): string {
-    return `![${this.getAltText()}](${this.getSrc()})`
   }
 
   setWidthAndHeight(
-    width: "inherit" | number,
-    height: "inherit" | number
+    width: number | "inherit",
+    height: number | "inherit"
   ): void {
     const writable = this.getWritable()
-    writable.__width = width
-    writable.__height = height
+    writable.__width = width as any
+    writable.__height = height as any
   }
 
   setSrc(src: string) {
@@ -192,24 +146,6 @@ export class ImageNode extends DecoratorBlockNode {
     writable.__showCaption = showCaption
   }
 
-  // View
-  createDOM(): HTMLElement {
-    const div = document.createElement("div")
-    return div
-  }
-
-  updateDOM(): false {
-    return false
-  }
-
-  getSrc(): string {
-    return this.__src
-  }
-
-  getAltText(): string {
-    return this.__altText
-  }
-
   decorate(editor: LexicalEditor, config: EditorConfig): JSX.Element {
     const embedBlockTheme = config.theme.embedBlock || {}
     const className = {
@@ -219,20 +155,20 @@ export class ImageNode extends DecoratorBlockNode {
 
     return (
       <BlockWithAlignableContents
-        format={this.__format}
+        format={this.getFormat()}
         className={className}
-        nodeKey={this.__key}
+        nodeKey={this.getKey()}
       >
         <ImageComponent
           src={this.__src}
           altText={this.__altText}
-          width={this.__width}
-          height={this.__height}
+          width={this.__width as any}
+          height={this.__height as any}
           maxWidth={this.__maxWidth}
           nodeKey={this.getKey()}
-          showCaption={this.__showCaption}
+          showCaption={this.__showCaption || false}
           caption={this.__caption}
-          captionsEnabled={this.__captionsEnabled}
+          captionsEnabled={this.__captionsEnabled || false}
           resizable={true}
         />
       </BlockWithAlignableContents>
@@ -251,11 +187,11 @@ export function $createImageNode({
   caption,
   format,
   key,
-}: ImagePayload & { format?: ElementFormatType }): ImageNode {
+}: ImagePayload & { format?: ElementFormatType; key?: NodeKey }): ImageNode {
   return $applyNodeReplacement(
     new ImageNode(
-      src,
-      altText,
+      src || "",
+      altText || "",
       maxWidth,
       width,
       height,
@@ -274,25 +210,7 @@ export function $isImageNode(
   return node instanceof ImageNode
 }
 
-export const IMAGE_NODE_TRANSFORMER: TextMatchTransformer = {
-  dependencies: [ImageNode],
-  // export not working as expected, use getTextContent instead
-  export: (node) => {
-    if (!$isImageNode(node)) {
-      return null
-    }
-    return `![${node.getAltText()}](${node.getSrc()})`
-  },
-  importRegExp: /!(?:\[([^[]*)\])(?:\(([^(]+)\))/,
-  regExp: /!(?:\[([^[]*)\])(?:\(([^(]+)\))$/,
-  replace: (textNode, match) => {
-    const [, altText, src] = match
-    const imageNode = $createImageNode({
-      altText,
-      src,
-    })
-    textNode.replace(imageNode)
-  },
-  trigger: ")",
-  type: "text-match",
-}
+export const IMAGE_NODE_TRANSFORMER = createImageTransformer(
+  ImageNode,
+  (src, altText) => $createImageNode({ src, altText })
+)

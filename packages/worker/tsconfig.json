@@ -10,7 +10,9 @@
       "@/lib/*": ["../lib/*"],
       "@/packages/core/*": ["../core/*"],
       "@/packages/ai/*": ["../ai/*"],
-      "@/packages/shared/*": ["../shared/*"]
+      "@/packages/shared/*": ["../shared/*"],
+      "@eidos.space/lexical": ["../lexical/src/index.ts"],
+      "@eidos.space/lexical/*": ["../lexical/src/*"]
     }
   },
   "include": ["./**/*.ts", "./**/*.tsx"],

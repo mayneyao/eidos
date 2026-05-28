@@ -1,54 +1,42 @@
-import type { TextMatchTransformer } from "@lexical/markdown"
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
-import type { SerializedDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
-import { DecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
-import type {
-  EditorConfig,
-  ElementFormatType,
-  LexicalEditor,
-  LexicalNode,
-  NodeKey,
-  Spread,
-} from "lexical"
-import { $applyNodeReplacement } from "lexical"
+import {
+  BaseBookmarkNode,
+  $isBaseBookmarkNode,
+  markdownLinkInfoMap,
+  createBookmarkTransformer,
+  type BookmarkPayload,
+  type SerializedBookmarkNode,
+} from "@eidos.space/lexical"
 
-import { markdownLinkInfoMap } from "../../plugins/const"
+export { type BookmarkPayload, type SerializedBookmarkNode }
+import {
+  $applyNodeReplacement,
+  type EditorConfig,
+  type ElementFormatType,
+  type LexicalEditor,
+  type LexicalNode,
+  type NodeKey,
+} from "lexical"
+
 import { BookmarkComponent } from "./component"
 
-export type BookmarkPayload = {
-  url: string
-  title?: string
-  description?: string
-  image?: string
-  fetched?: boolean
-}
-
-export type SerializedBookmarkNode = Spread<
-  BookmarkPayload,
-  SerializedDecoratorBlockNode
->
-
-export class BookmarkNode extends DecoratorBlockNode {
-  __url: string
-  __title?: string
-  __description?: string
-  __image?: string
-  __fetched?: boolean
-
-  isKeyboardSelectable(): boolean {
-    return true
-  }
-
+export class BookmarkNode extends BaseBookmarkNode {
   static getType(): string {
     return "bookmark"
   }
 
   static clone(node: BookmarkNode): BookmarkNode {
-    return new BookmarkNode(node.exportJSON(), node.__format, node.getKey())
-  }
-
-  getTextContent(): string {
-    return `[${this.getUrl()}](${this.getUrl()})`
+    return new BookmarkNode(
+      {
+        url: node.__url,
+        title: node.__title,
+        description: node.__description,
+        image: node.__image,
+        fetched: node.__fetched,
+      },
+      node.getFormat(),
+      node.getKey()
+    )
   }
 
   constructor(
@@ -56,30 +44,21 @@ export class BookmarkNode extends DecoratorBlockNode {
     format?: ElementFormatType,
     key?: NodeKey
   ) {
-    const { url, title, description, image } = payload
-    super(format, key)
-    this.__url = url
-    this.__title = title
-    this.__description = description
-    this.__image = image
-    this.__fetched = false
+    super(
+      payload.url,
+      payload.title,
+      payload.description,
+      payload.image,
+      payload.fetched,
+      format,
+      key
+    )
   }
 
-  getFetched(): boolean {
-    return Boolean(this.__fetched)
-  }
-
-  getUrl(): string {
-    return this.__url
-  }
-  createDOM(): HTMLElement {
-    const node = document.createElement("div")
-    node.style.position = "relative"
+  static importJSON(data: SerializedBookmarkNode): BookmarkNode {
+    const node = $createBookmarkNode(data)
+    node.setFormat(data.format)
     return node
-  }
-
-  updateDOM(): false {
-    return false
   }
 
   decorate(_editor: LexicalEditor, config: EditorConfig): JSX.Element {
@@ -93,7 +72,7 @@ export class BookmarkNode extends DecoratorBlockNode {
     }
     return (
       <BlockWithAlignableContents
-        format={this.__format}
+        format={this.getFormat()}
         className={className}
         nodeKey={nodeKey}
       >
@@ -102,32 +81,12 @@ export class BookmarkNode extends DecoratorBlockNode {
     )
   }
 
-  static importJSON(data: SerializedBookmarkNode): BookmarkNode {
-    const node = $createBookmarkNode(data)
-    node.setFormat(data.format)
-    return node
-  }
-
   setAll(payload: BookmarkPayload) {
     const writable = this.getWritable()
-
     writable.__url = payload.url
     writable.__title = payload.title
     writable.__description = payload.description
     writable.__image = payload.image
-  }
-
-  exportJSON(): SerializedBookmarkNode {
-    return {
-      ...super.exportJSON(),
-      url: this.__url,
-      title: this.__title,
-      description: this.__description,
-      image: this.__image,
-      fetched: this.__fetched,
-      type: "bookmark",
-      version: 1,
-    }
   }
 }
 
@@ -165,30 +124,10 @@ export async function $getUrlMetaData(
   }
 }
 
-export const BOOKMARK_NODE_TRANSFORMER: TextMatchTransformer = {
-  dependencies: [BookmarkNode],
-  export: (node) => {
-    // not working as expected
-    // DecoratorNode will be exported via getTextContent method
-    // see:https://github.com/facebook/lexical/blob/main/packages/lexical-markdown/src/MarkdownExport.ts#L78
-    if (!$isBookmarkNode(node)) {
-      return null
-    }
-    return `[${node.getUrl()}](${node.getUrl()})`
-  },
-  importRegExp: /^(?<!\!)\[([^\]]*)\]\(([^)]*)\)$/,
-  regExp: /(?<!\!)\[([^\]]*)\]\(([^)]*)\)$/,
-  replace: (textNode, match) => {
-    const [, altText, src] = match
-    try {
-      new URL(src)
-      const data = markdownLinkInfoMap.get(src) || {
-        url: src,
-      }
-      const bookmarkNode = $createBookmarkNode(data as BookmarkPayload)
-      textNode.replace(bookmarkNode)
-    } catch (error) {}
-  },
-  trigger: ")",
-  type: "text-match",
-}
+export const BOOKMARK_NODE_TRANSFORMER = createBookmarkTransformer(
+  BookmarkNode,
+  (url) => {
+    const payload = markdownLinkInfoMap.get(url) || { url }
+    return $createBookmarkNode(payload as any)
+  }
+)

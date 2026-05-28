@@ -1,6 +1,6 @@
 import type { LexicalEditor } from "lexical"
 import { INSERT_VIDEO_FILE_COMMAND, VideoPlugin } from "./plugin"
-import { $createVideoNode, VideoNode } from "./node"
+import { $createVideoNode, VideoNode, VIDEO_NODE_TRANSFORMER } from "./node"
 import type { DocBlock } from "../interface"
 
 export default {
@@ -15,4 +15,5 @@ export default {
     create: INSERT_VIDEO_FILE_COMMAND,
   },
   createNode: $createVideoNode,
+  transform: VIDEO_NODE_TRANSFORMER,
 } as DocBlock

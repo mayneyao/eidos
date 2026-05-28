@@ -52,6 +52,7 @@ export const sharedAlias = [
   workspacePackage("@eidos.space/space-manager"),
   workspacePackage("@eidos.space/ext-server"),
   workspacePackage("@eidos.space/rawdata"),
+  workspacePackage("@eidos.space/lexical", "src/index.ts"),
 
   // ext-server subpath exports (must come before wildcard)
   {
@@ -77,6 +78,7 @@ export const sharedAlias = [
   workspacePackageWildcard("@eidos.space/proxy"),
   workspacePackageWildcard("@eidos.space/space-manager"),
   workspacePackageWildcard("@eidos.space/rawdata"),
+  workspacePackageWildcard("@eidos.space/lexical"),
 
   // Regular project aliases
   {

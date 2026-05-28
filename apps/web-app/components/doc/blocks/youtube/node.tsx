@@ -1,46 +1,32 @@
-import type { SerializedDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
-import { DecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
-import type {
-  DOMConversionMap,
-  DOMConversionOutput,
-  DOMExportOutput,
-  EditorConfig,
-  ElementFormatType,
-  LexicalEditor,
-  LexicalNode,
-  NodeKey,
-  Spread,
+import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
+import {
+  BaseYouTubeNode,
+  $isBaseYouTubeNode,
+  createYouTubeTransformer,
+  type SerializedYouTubeNode,
+} from "@eidos.space/lexical"
+import {
+  $applyNodeReplacement,
+  type EditorConfig,
+  type ElementFormatType,
+  type LexicalEditor,
+  type LexicalNode,
+  type NodeKey,
 } from "lexical"
 
 import { YouTubeComponent } from "./component"
 
-export type SerializedYouTubeNode = Spread<
-  {
-    videoID: string
-  },
-  SerializedDecoratorBlockNode
->
-
-function convertYoutubeElement(
-  domNode: HTMLElement
-): null | DOMConversionOutput {
-  const videoID = domNode.getAttribute("data-lexical-youtube")
-  if (videoID) {
-    const node = $createYouTubeNode(videoID)
-    return { node }
-  }
-  return null
-}
-
-export class YouTubeNode extends DecoratorBlockNode {
-  __id: string
-
+export class YouTubeNode extends BaseYouTubeNode {
   static getType(): string {
     return "youtube"
   }
 
   static clone(node: YouTubeNode): YouTubeNode {
-    return new YouTubeNode(node.__id, node.__format, node.__key)
+    return new YouTubeNode(node.__id, node.getFormat(), node.getKey())
+  }
+
+  constructor(id: string, format?: ElementFormatType, key?: NodeKey) {
+    super(id, format, key)
   }
 
   static importJSON(serializedNode: SerializedYouTubeNode): YouTubeNode {
@@ -49,63 +35,8 @@ export class YouTubeNode extends DecoratorBlockNode {
     return node
   }
 
-  exportJSON(): SerializedYouTubeNode {
-    return {
-      ...super.exportJSON(),
-      type: "youtube",
-      version: 1,
-      videoID: this.__id,
-    }
-  }
-
-  constructor(id: string, format?: ElementFormatType, key?: NodeKey) {
-    super(format, key)
-    this.__id = id
-  }
-
-  exportDOM(): DOMExportOutput {
-    const element = document.createElement("iframe")
-    element.setAttribute("data-lexical-youtube", this.__id)
-    element.setAttribute("width", "560")
-    element.setAttribute("height", "315")
-    element.setAttribute(
-      "src",
-      `https://www.youtube-nocookie.com/embed/${this.__id}`
-    )
-    element.setAttribute("frameborder", "0")
-    element.setAttribute(
-      "allow",
-      "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-    )
-    element.setAttribute("allowfullscreen", "true")
-    element.setAttribute("title", "YouTube video")
-    return { element }
-  }
-
-  static importDOM(): DOMConversionMap | null {
-    return {
-      iframe: (domNode: HTMLElement) => {
-        if (!domNode.hasAttribute("data-lexical-youtube")) {
-          return null
-        }
-        return {
-          conversion: convertYoutubeElement,
-          priority: 1,
-        }
-      },
-    }
-  }
-
   updateDOM(): false {
     return false
-  }
-
-  getId(): string {
-    return this.__id
-  }
-
-  getTextContent(): string {
-    return `https://www.youtube.com/watch?v=${this.__id}`
   }
 
   decorate(_editor: LexicalEditor, config: EditorConfig): JSX.Element {
@@ -115,22 +46,33 @@ export class YouTubeNode extends DecoratorBlockNode {
       focus: embedBlockTheme.focus || "",
     }
     return (
-      <YouTubeComponent
+      <BlockWithAlignableContents
+        format={this.getFormat()}
         className={className}
-        format={this.__format}
         nodeKey={this.getKey()}
-        videoID={this.__id}
-      />
+      >
+        <YouTubeComponent
+          className={className}
+          format={this.getFormat()}
+          nodeKey={this.getKey()}
+          videoID={this.__id}
+        />
+      </BlockWithAlignableContents>
     )
   }
 }
 
 export function $createYouTubeNode(videoID: string): YouTubeNode {
-  return new YouTubeNode(videoID)
+  return $applyNodeReplacement(new YouTubeNode(videoID))
 }
 
 export function $isYouTubeNode(
-  node: YouTubeNode | LexicalNode | null | undefined
+  node: LexicalNode | null | undefined
 ): node is YouTubeNode {
   return node instanceof YouTubeNode
 }
+
+export const YOUTUBE_NODE_TRANSFORMER = createYouTubeTransformer(
+  YouTubeNode,
+  (videoID) => $createYouTubeNode(videoID)
+)

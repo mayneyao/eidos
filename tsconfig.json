@@ -25,6 +25,8 @@
       "@eidos.space/core/*": ["./packages/core/*"],
       "@eidos.space/client": ["./packages/client/src/index.ts"],
       "@eidos.space/client/*": ["./packages/client/src/*"],
+      "@eidos.space/lexical": ["./packages/lexical/src/index.ts"],
+      "@eidos.space/lexical/*": ["./packages/lexical/src/*"],
       "@eidos.space/react": ["./packages/react/src/index.ts"],
       "@eidos.space/react/*": ["./packages/react/src/*"],
       "@eidos.space/v3": ["./packages/v3/src/index.ts"],

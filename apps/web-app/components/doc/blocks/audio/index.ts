@@ -1,7 +1,7 @@
 import type { LexicalEditor } from "lexical"
 import type { DocBlock } from "../interface"
 import { AudioPlugin, INSERT_AUDIO_FILE_COMMAND } from "./plugin"
-import { $createAudioNode, AudioNode } from "./node"
+import { $createAudioNode, AudioNode, AUDIO_NODE_TRANSFORMER } from "./node"
 
 export default {
   name: "Audio",
@@ -15,4 +15,5 @@ export default {
     create: INSERT_AUDIO_FILE_COMMAND,
   },
   createNode: $createAudioNode,
+  transform: AUDIO_NODE_TRANSFORMER,
 } as DocBlock

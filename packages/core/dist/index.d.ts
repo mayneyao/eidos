@@ -3367,12 +3367,12 @@ declare class DataSpaceWithDoc extends DataSpaceWithFile {
   addDoc(docId: string, content: string, markdown: string, isDayPage?: boolean): Promise<void>;
   updateDoc(docId: string, content: string, markdown: string, _isDayPage?: boolean): Promise<void>;
   getDoc(docId: string): Promise<any>;
-  getDocMarkdown(docId: string, {
+  lexical2markdown(docId: string, {
     withTitle
   }?: {
     withTitle?: boolean;
   }): Promise<any>;
-  getDocMarkdownBatch(docIds: string[]): Promise<{
+  lexical2markdownBatch(docIds: string[]): Promise<{
     id: string;
     markdown: string;
   }[]>;

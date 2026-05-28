@@ -122,7 +122,7 @@ export const useJournalsSidebarData = () => {
 
       let entries: [string, string][] = []
       try {
-        const batchRes = await space.getDocMarkdownBatch(targetIds)
+        const batchRes = await space.lexical2markdownBatch(targetIds)
         entries = batchRes.map((item: { id: string; markdown: string }) => [
           item.id,
           buildSnippet(item.markdown || ""),

@@ -8,7 +8,9 @@
     "emitDeclarationOnly": true,
     "paths": {
       "@/lib/*": ["../lib/*"],
-      "@/packages/core/*": ["../core/*"]
+      "@/packages/core/*": ["../core/*"],
+      "@eidos.space/lexical": ["../lexical/src/index.ts"],
+      "@eidos.space/lexical/*": ["../lexical/src/*"]
     }
   },
   "include": ["./**/*.ts", "./**/*.tsx"],

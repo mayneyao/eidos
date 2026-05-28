@@ -52,7 +52,7 @@ export class DataSpaceWithDoc extends DataSpaceWithFile {
     return doc?.content
   }
 
-  public async getDocMarkdown(
+  public async lexical2markdown(
     docId: string,
     {
       withTitle = false,
@@ -72,7 +72,7 @@ export class DataSpaceWithDoc extends DataSpaceWithFile {
     return doc?.markdown
   }
 
-  public async getDocMarkdownBatch(docIds: string[]) {
+  public async lexical2markdownBatch(docIds: string[]) {
     return this.doc.getMarkdownBatch(docIds)
   }
 
@@ -177,14 +177,4 @@ export class DataSpaceWithDoc extends DataSpaceWithFile {
   public async listAllDays() {
     return await this.doc.listAllDayPages()
   }
-
-  // FIXME: there are some problem with headless lexical run in worker
-  // return markdown string, compute in worker
-  // public async asyncGetDocMarkdown(docId: string) {
-  //   const doc = await this.doc.get(docId)
-  //   if (!doc) {
-  //     throw new Error(`doc ${docId} not found`)
-  //   }
-  //   return await _getDocMarkdown(doc.markdown)
-  // }
 }

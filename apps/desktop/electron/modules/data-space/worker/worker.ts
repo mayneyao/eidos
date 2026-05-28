@@ -6,6 +6,8 @@ import {
   extractConstant,
   scriptCodeCompile,
 } from "@eidos.space/v3"
+import * as lexicalConverter from "@eidos.space/lexical"
+import { getEidosNodes, getEidosTransformers } from "@eidos.space/lexical"
 
 import {
   DataUpdateSignalType,
@@ -296,6 +298,32 @@ class DataSpaceManager {
             description,
             slugPrefix,
           }
+        },
+        lexical: {
+          markdown2lexical: (
+            markdown: string,
+            extraNodes?: any[],
+            extraTransformers?: any[],
+            options?: { oldState?: string }
+          ) =>
+            lexicalConverter.markdown2lexical(
+              markdown,
+              extraNodes ?? getEidosNodes(),
+              extraTransformers ?? getEidosTransformers(),
+              options
+            ),
+          lexical2markdown: (state: string) =>
+            lexicalConverter.lexical2markdown(
+              state,
+              getEidosNodes(),
+              getEidosTransformers()
+            ),
+          convertHtml2State: (html: string) =>
+            lexicalConverter.convertHtml2State(
+              html,
+              getEidosNodes(),
+              getEidosTransformers()
+            ),
         },
       },
       createUDF: (db) => {

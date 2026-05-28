@@ -99,6 +99,10 @@ export default defineConfig({
                 link: "/api-reference/cli/",
               },
               {
+                label: "Document API",
+                autogenerate: { directory: "/api-reference/document" },
+              },
+              {
                 label: "Extension API",
                 link: "/api-reference/extension/",
               },

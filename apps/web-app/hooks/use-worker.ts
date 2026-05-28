@@ -17,14 +17,8 @@ import { isDesktopMode, isInkServiceMode } from "@/lib/env"
 import { getWorker } from "@/packages/core/sqlite/worker"
 
 import { useSqliteStore } from "@/apps/web-app/store/sqlite-store"
-import { useThemeStore } from "@/apps/web-app/store/theme-store"
+
 import { useRouterAdapter } from "./use-router-adapter"
-import {
-  _convertEmail2State,
-  _convertHtml2State,
-  _convertMarkdown2State,
-  _getDocMarkdown,
-} from "./use-doc-editor"
 import { useCurrentUser } from "./user-current-user"
 
 const Markdown = lazy(() =>
@@ -48,14 +42,6 @@ export const useWorker = () => {
     setBlockUIData,
     setEmbeddingModeLoaded,
   } = useAppRuntimeStore()
-  const {
-    setCurrentThemeName,
-    listThemes,
-    setCustomTheme,
-    getCustomTheme,
-    applyTheme,
-  } = useThemeStore()
-
   const { toast, dismiss } = useToast()
   const initWorker = useCallback(() => {
     if (isInkServiceMode) {
@@ -141,33 +127,6 @@ export const useWorker = () => {
             duration: 5000,
           })
           break
-        case MsgType.GetDocMarkdown:
-          res = await _getDocMarkdown(data)
-          break
-        case MsgType.ConvertMarkdown2State:
-          res = await _convertMarkdown2State(data)
-          break
-        case MsgType.ConvertHtml2State:
-          res = await _convertHtml2State(data)
-          break
-        case MsgType.ConvertEmail2State:
-          res = await _convertEmail2State(data.email, data.space, userId)
-          break
-        case MsgType.GetTheme:
-          res = getCustomTheme(data)
-          break
-        case MsgType.SetTheme:
-          res = setCustomTheme(data.name, data.css)
-          break
-        case MsgType.ListThemes:
-          res = listThemes()
-          break
-        case MsgType.SetCurrentTheme:
-          res = setCurrentThemeName(data)
-          break
-        case MsgType.ApplyTheme:
-          res = applyTheme(data.name, data.css)
-          break
         default:
           break
       }
@@ -240,7 +199,6 @@ export const useWorker = () => {
     setInitialized,
     setWebsocketConnected,
     toast,
-    userId,
   ])
 
   const initEmbeddingWorker = useCallback(() => {

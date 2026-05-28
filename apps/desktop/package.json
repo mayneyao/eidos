@@ -24,6 +24,7 @@
   "dependencies": {
     "@eidos.space/client": "workspace:*",
     "@eidos.space/electron-ipc": "workspace:*",
+    "@eidos.space/lexical": "workspace:*",
     "@eidos.space/ext-server": "workspace:*",
     "@eidos.space/proxy": "workspace:*",
     "@eidos.space/rawdata": "workspace:*",

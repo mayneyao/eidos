@@ -19,7 +19,7 @@ const getExampleCodes = (space: string, endpoint: string, date: string) => ({
     -H "Content-Type: application/json" \\
     -d '{
       "space": "${space}",
-      "method": "getDocMarkdown",
+      "method": "lexical2markdown",
       "params": ["${date}"]
     }'`,
   javascript: `const response = await fetch("${endpoint}", {
@@ -29,7 +29,7 @@ const getExampleCodes = (space: string, endpoint: string, date: string) => ({
   },
   body: JSON.stringify({
     space: "${space}",
-    method: "getDocMarkdown",
+    method: "lexical2markdown",
     params: ["${date}"],
   }),
 })
@@ -43,7 +43,7 @@ response = requests.post(
     "${endpoint}",
     json={
         "space": "${space}",
-        "method": "getDocMarkdown",
+        "method": "lexical2markdown",
         "params": ["${date}"]
     }
 )

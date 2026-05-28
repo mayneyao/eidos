@@ -1,66 +1,37 @@
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents"
-import type { SerializedDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
-import { DecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
+import {
+  BaseAudioNode,
+  $isBaseAudioNode,
+  createAudioTransformer,
+  type SerializedAudioNode,
+} from "@eidos.space/lexical"
 import type {
   EditorConfig,
   ElementFormatType,
   LexicalEditor,
   LexicalNode,
   NodeKey,
-  Spread,
 } from "lexical"
 
 import { AudioComponent } from "./component"
 
-export type SerializedAudioNode = Spread<
-  {
-    src: string
-  },
-  SerializedDecoratorBlockNode
->
-
-export class AudioNode extends DecoratorBlockNode {
-  __src: string
-
+export class AudioNode extends BaseAudioNode {
   static getType(): string {
     return "audio"
   }
 
   static clone(node: AudioNode): AudioNode {
-    return new AudioNode(node.__src, node.__format, node.__key)
+    return new AudioNode(node.__src, node.getFormat(), node.getKey())
   }
 
   constructor(src: string, format?: ElementFormatType, key?: NodeKey) {
-    super(format, key)
-    this.__src = src
-  }
-
-  setSrc(src: string): void {
-    const writable = this.getWritable()
-    writable.__src = src
-  }
-
-  createDOM(): HTMLElement {
-    return document.createElement("div")
-  }
-
-  updateDOM(): false {
-    return false
+    super(src, format, key)
   }
 
   static importJSON(data: SerializedAudioNode): AudioNode {
     const node = $createAudioNode(data.src)
     node.setFormat(data.format)
     return node
-  }
-
-  exportJSON(): SerializedAudioNode {
-    return {
-      ...super.exportJSON(),
-      src: this.__src,
-      type: "audio",
-      version: 1,
-    }
   }
 
   decorate(_editor: LexicalEditor, config: EditorConfig): JSX.Element {
@@ -71,17 +42,13 @@ export class AudioNode extends DecoratorBlockNode {
     }
     return (
       <BlockWithAlignableContents
-        format={this.__format}
+        format={this.getFormat()}
         className={className}
-        nodeKey={this.__key}
+        nodeKey={this.getFormat()}
       >
-        <AudioComponent nodeKey={this.getKey()} url={this.__src} />
+        <AudioComponent url={this.__src} nodeKey={this.getKey()} />
       </BlockWithAlignableContents>
     )
-  }
-
-  getTextContent(): string {
-    return this.__src
   }
 }
 
@@ -94,3 +61,7 @@ export function $isAudioNode(
 ): node is AudioNode {
   return node instanceof AudioNode
 }
+
+export const AUDIO_NODE_TRANSFORMER = createAudioTransformer(AudioNode, (src) =>
+  $createAudioNode(src)
+)

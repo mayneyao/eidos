@@ -28,7 +28,7 @@ import { Progress } from "../ui/progress"
 export const EverydaySidebarItem = ({ space }: { space: string }) => {
   const { sqlite } = useSqlite(space)
   const { t } = useTranslation()
-  const { convertMarkdown2State } = useDocEditor(sqlite)
+  const { markdown2lexical } = useDocEditor(sqlite)
   const [progress, setProgress] = useState(0)
   const [importing, setImporting] = useState(false)
   const [open, setOpen] = useState(false)
@@ -61,7 +61,7 @@ export const EverydaySidebarItem = ({ space }: { space: string }) => {
         const content = await file.text()
         try {
           const newFilename = nameWithoutExt.split("_").join("-")
-          const state = await convertMarkdown2State(content)
+          const state = await markdown2lexical(content)
           await sqlite.addDoc(newFilename, state, content, true)
         } catch (error) {
           console.warn(error)
