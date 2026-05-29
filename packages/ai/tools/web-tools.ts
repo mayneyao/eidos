@@ -1,4 +1,5 @@
-import type { BuiltinContext } from "@eidos.space/bashkit"
+import type { Bash } from "@eidos.space/bashkit"
+import type { Tool } from "ai"
 import { Defuddle } from "defuddle/node"
 import { parseHTML } from "linkedom"
 import { z } from "zod"
@@ -137,7 +138,7 @@ async function exaSearch(
     throw new Error(`Exa search failed: ${res.status} ${body}`)
   }
   const data = await res.json()
-  console.log("⚡ Exa cost:", data.costDollars)
+  console.log("[tool:web-search] Exa cost:", data.costDollars)
   return (data.results ?? []).map((r: any) => ({
     title: r.title ?? "",
     url: r.url ?? "",
@@ -145,21 +146,43 @@ async function exaSearch(
   }))
 }
 
-// ── Tool definitions ────────────────────────────────────────────────────
+// ── Tool factories ──────────────────────────────────────────────────────
 
 const searchParams = z.object({
   query: z.string().describe("The search query"),
-  num: z.number().optional().describe("Number of results to return (1-10)"),
+  num: z
+    .number()
+    .optional()
+    .describe("Number of results to return (1-10, default 5)"),
+  outputPath: z
+    .string()
+    .optional()
+    .describe(
+      "Optional: Save results to VFS path for multi-step processing. " +
+        "Skip this for simple queries — results are returned directly."
+    ),
 })
 
 const fetchParams = z.object({
   url: z.string().url().describe("The URL to fetch and extract content from"),
+  outputPath: z
+    .string()
+    .optional()
+    .describe(
+      "Optional: Save content to VFS path for multi-step processing. " +
+        "Skip this for simple reading — content is returned directly."
+    ),
 })
 
-export function createWebSearchTool(apiKey?: string) {
-  return {
+export function createWebSearchTools(
+  bash: Bash,
+  apiKey?: string
+): Record<string, Tool> {
+  const tool: Tool = {
     description:
-      "Search the web for information. Returns relevant results with titles, URLs, and snippets.",
+      "Search the web for information using Exa. Returns relevant results with titles, URLs, and snippets directly. " +
+      "Results are immediately available for analysis — no need to save to file first. " +
+      "Only use `outputPath` when you need to persist data for multi-step processing (e.g., merging multiple searches, editing content later).",
     inputSchema: searchParams,
     execute: async (args: unknown) => {
       if (!apiKey) {
@@ -168,13 +191,24 @@ export function createWebSearchTool(apiKey?: string) {
             "Web search requires an Exa API key. Please configure it in Settings → AI → Tool API Keys.",
         }
       }
-      const { query, num } = args as z.infer<typeof searchParams>
+      const { query, num, outputPath } = args as z.infer<typeof searchParams>
       const count = Math.min(num ?? 5, 10)
-      console.log("[tool:web-search] ▶", { query, count })
+      console.log("[tool:web-search] ▶", { query, count, outputPath })
       try {
         const results = await exaSearch(apiKey, query, count)
+        const resultData: WebSearchResult = { results, query }
+
+        if (outputPath) {
+          bash.writeFile(outputPath, JSON.stringify(resultData, null, 2))
+          console.log("[tool:web-search] ✔ saved to", outputPath)
+          return {
+            ...resultData,
+            savedTo: outputPath,
+          }
+        }
+
         console.log("[tool:web-search] ✔", { resultCount: results.length })
-        return { results, query } as WebSearchResult
+        return resultData
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         console.error("[tool:web-search] ✖", msg)
@@ -182,71 +216,46 @@ export function createWebSearchTool(apiKey?: string) {
       }
     },
   }
+
+  return { "web-search": tool }
 }
 
-export const webFetchTool = {
-  description:
-    "Fetch a URL and return its content. HTML pages are cleaned into markdown (ads/nav removed). JSON is returned pretty-printed. XML, plain text, CSV, and JS are returned raw.",
+export function createWebFetchTools(bash: Bash): Record<string, Tool> {
+  const tool: Tool = {
+    description:
+      "Fetch a URL and return its content. HTML pages are cleaned into markdown (ads/nav removed). " +
+      "JSON is pretty-printed. XML, plain text, CSV, and JS are returned raw. " +
+      "Content is immediately available for reading and analysis — no need to save to file first. " +
+      "Only use `outputPath` when you need to persist content for multi-step processing (e.g., editing, combining multiple pages).",
+    inputSchema: fetchParams,
+    execute: async (args: unknown) => {
+      const { url, outputPath } = args as z.infer<typeof fetchParams>
+      console.log("[tool:web-fetch] ▶", { url, outputPath })
+      try {
+        const result = await fetchAndExtract(url)
 
-  inputSchema: fetchParams,
-  execute: async (args: unknown) => {
-    const { url } = args as z.infer<typeof fetchParams>
-    console.log("[tool:web-fetch] ▶", { url })
-    try {
-      const result = await fetchAndExtract(url)
-      console.log("[tool:web-fetch] ✔", {
-        title: result.title,
-        contentLength: result.content.length,
-      })
-      return result as WebFetchResult
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error("[tool:web-fetch] ✖", msg)
-      return { error: `Fetch failed: ${msg}` }
-    }
-  },
-}
+        if (outputPath) {
+          bash.writeFile(outputPath, result.content)
+          console.log("[tool:web-fetch] ✔ saved to", outputPath)
+          return {
+            title: result.title,
+            url: result.url,
+            savedTo: outputPath,
+          }
+        }
 
-// ── Bash builtin runners ─────────────────────────────────────────────────
-
-export class WebFetchBuiltin {
-  async run(ctx: BuiltinContext): Promise<string> {
-    const url = ctx.argv[0]
-    if (!url)
-      return "Error: web-fetch requires a URL.\nExample: web-fetch https://example.com/article\n"
-    try {
-      const result = await fetchAndExtract(url)
-      console.log("[builtin:web-fetch] ✔", {
-        title: result.title,
-        contentLength: result.content.length,
-      })
-      return result.content
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error("[builtin:web-fetch] ✖", msg)
-      return `Error: ${msg}\n`
-    }
+        console.log("[tool:web-fetch] ✔", {
+          title: result.title,
+          contentLength: result.content.length,
+        })
+        return result as WebFetchResult
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error("[tool:web-fetch] ✖", msg)
+        return { error: `Fetch failed: ${msg}` }
+      }
+    },
   }
-}
 
-export class WebSearchBuiltin {
-  constructor(private apiKey?: string) {}
-
-  async run(ctx: BuiltinContext): Promise<string> {
-    if (!this.apiKey) {
-      return "Error: Web search requires an Exa API key. Configure it in Settings → AI → Tool API Keys.\n"
-    }
-    const query = ctx.argv.join(" ")
-    if (!query.trim())
-      return "Error: web-search requires a search query.\nExample: web-search what is eidos\n"
-    try {
-      const results = await exaSearch(this.apiKey, query, 10)
-      console.log("[builtin:web-search] ✔", { resultCount: results.length })
-      return JSON.stringify({ results, query }) + "\n"
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error("[builtin:web-search] ✖", msg)
-      return `Error: ${msg}\n`
-    }
-  }
+  return { "web-fetch": tool }
 }

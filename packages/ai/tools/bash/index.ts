@@ -3,7 +3,6 @@ import { z } from "zod"
 import { Bash } from "@eidos.space/bashkit"
 import type { DataSpace } from "@/packages/core/data-space"
 import type { BuiltinContext, BuiltinCallback } from "@eidos.space/bashkit"
-import { WebFetchBuiltin, WebSearchBuiltin } from "../web-tools"
 import { withPermission } from "../../permission/wrapper"
 import { createBashPermissionRule } from "./permission"
 import { LightCli } from "./light-cli"
@@ -25,8 +24,6 @@ export interface BashToolOptions {
   dataspace?: DataSpace
   extraInstructions?: string
   env?: Record<string, string>
-  /** Exa API key for web-search builtin. When set, the web-search builtin is registered. */
-  exaApiKey?: string
   /** If provided, the bash tool will be wrapped with permission checks. */
   permissionServer?: any
   sessionId?: string
@@ -77,7 +74,6 @@ export function createBashTool(options: BashToolOptions = {}): {
     extraInstructions,
     vfsDir,
     env,
-    exaApiKey,
     permissionServer,
     sessionId,
   } = options
@@ -88,13 +84,6 @@ export function createBashTool(options: BashToolOptions = {}): {
     const runner = new EidosRunner(dataspace)
     customBuiltins.eidos = (ctx: BuiltinContext) => runner.run(ctx)
   }
-
-  const webFetchRunner = new WebFetchBuiltin()
-  customBuiltins["web-fetch"] = (ctx: BuiltinContext) => webFetchRunner.run(ctx)
-
-  const webSearchRunner = new WebSearchBuiltin(exaApiKey)
-  customBuiltins["web-search"] = (ctx: BuiltinContext) =>
-    webSearchRunner.run(ctx)
 
   const mountPaths = [skillsDir, sessionsDir, vfsDir].filter(
     Boolean
@@ -127,9 +116,7 @@ curl, jq, etc.) and the builtins listed below work.
 
 MOUNTS: /agent/skills, /agent/sessions, /tmp (all read-write).
 
-BUILTINS:
-  web-fetch <url>              Extract clean page content (HTML→markdown). For raw API responses, use curl instead.
-  web-search <query>           Search web via Exa → JSON to stdout${
+BUILTINS:${
     dataspace
       ? `
   eidos <resource> <action>    Data operations — run any resource alone for sub-action help

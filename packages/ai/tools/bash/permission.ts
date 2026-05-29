@@ -52,8 +52,6 @@ const safeCommands = new Set([
   "uname",
   "help",
   "history",
-  "web-fetch",
-  "web-search",
 ])
 
 export function createBashPermissionRule(

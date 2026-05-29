@@ -22,7 +22,12 @@ import {
   wrapLanguageModel,
 } from "ai"
 import type { AIFormValues } from "../config"
-import { createBashTool, createFileTools } from "../tools"
+import {
+  createBashTool,
+  createFileTools,
+  createWebSearchTools,
+  createWebFetchTools,
+} from "../tools"
 import { AgentContext } from "./agent-context"
 import { buildProviderOptions, resolveProviderForModel } from "./model"
 import type { PermissionServerLike } from "../permission"
@@ -151,6 +156,7 @@ export async function prepareAgent(
 
   let fsTools: Record<string, any> = {}
   let bashWithDs: Record<string, any> = {}
+  let webTools: Record<string, any> = {}
   let bash: any = null
   if (dataspace) {
     const spacePath = space ? ctx?.getSpacePath?.(space) : undefined
@@ -178,7 +184,6 @@ export async function prepareAgent(
       dataspace,
       env: secrets,
       extraInstructions: agentCtx.skillInstructions ?? undefined,
-      exaApiKey: aiConfig?.exaApiKey,
       permissionServer: ctx?.permissionServer,
       sessionId: id,
     })
@@ -191,11 +196,17 @@ export async function prepareAgent(
         ? { permissionServer: ctx.permissionServer, sessionId: id }
         : undefined
     )
+
+    webTools = {
+      ...createWebSearchTools(b, aiConfig?.exaApiKey),
+      ...createWebFetchTools(b),
+    }
   }
 
   const mergedTools: Record<string, any> = {
     ...fsTools,
     ...bashWithDs,
+    ...webTools,
     ...(agentCtx.skillTool ?? {}),
     ...(tools ?? {}),
   }
