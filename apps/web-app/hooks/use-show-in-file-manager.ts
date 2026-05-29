@@ -84,6 +84,72 @@ export function useShowInFileManager() {
 }
 
 /**
+ * Hook to resolve a virtual file path to its absolute physical path
+ * Supports both ~/space paths and @/mounted paths
+ */
+export function useResolveFilePath() {
+  const { space } = useCurrentPathInfo()
+  const { sqlite } = useSqlite()
+
+  const resolveFilePath = async (filePath: string): Promise<string | null> => {
+    if (!isDesktopMode) return null
+
+    try {
+      const eidos = window.eidos
+      if (!eidos) return null
+
+      if (filePath.startsWith("~/")) {
+        const spaceInfo = await eidos.spaceMgmt.getCurrentSpace()
+        if (spaceInfo && spaceInfo.path) {
+          const relativePath = filePath.substring(2)
+          const root = spaceInfo.path.endsWith("/")
+            ? spaceInfo.path
+            : `${spaceInfo.path}/`
+          return `${root}${relativePath}`
+        }
+      } else if (filePath.startsWith("@/")) {
+        const parts = filePath.substring(2).split("/")
+        const mountName = parts[0]
+
+        if (!mountName) {
+          console.warn("Invalid mounted path: missing mount name")
+          return null
+        }
+
+        if (!sqlite) {
+          console.error("Database not available")
+          return null
+        }
+
+        const mountKey = `eidos:space:files:mount:${mountName}`
+        const mountPath = await sqlite.kv.get(mountKey, "text")
+
+        if (!mountPath) {
+          console.error(`Mount not found: ${mountName}`)
+          return null
+        }
+
+        const relativePath = parts.slice(1).join("/")
+
+        if (relativePath) {
+          const root = mountPath.endsWith("/") ? mountPath : `${mountPath}/`
+          return `${root}${relativePath}`
+        } else {
+          return mountPath
+        }
+      }
+
+      return null
+    } catch (error) {
+      console.error("Failed to resolve file path:", error)
+      return null
+    }
+  }
+
+  return { resolveFilePath }
+}
+
+/**
  * Hook for open in file manager action with error handling and toast notifications
  */
 export function useOpenInFileManagerAction() {

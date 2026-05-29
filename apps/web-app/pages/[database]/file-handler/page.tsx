@@ -1,8 +1,11 @@
 import { useCallback } from "react"
-import { CopyIcon, FileCodeIcon, FolderOpen } from "lucide-react"
+import { CopyIcon, FileCodeIcon, FolderOpen, LinkIcon } from "lucide-react"
 
 import { useRegisterTabContextMenuItem } from "@/hooks/use-tab-context-menu-registry"
-import { useOpenInFileManagerAction } from "@/hooks/use-show-in-file-manager"
+import {
+  useOpenInFileManagerAction,
+  useResolveFilePath,
+} from "@/hooks/use-show-in-file-manager"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useTabTitle } from "@/apps/web-app/hooks/use-tab-title"
@@ -22,6 +25,7 @@ export function FileHandlerPage() {
   const { navigate } = useRouterAdapter()
   const { toast } = useToast()
   const { openInFileManager } = useOpenInFileManagerAction()
+  const { resolveFilePath } = useResolveFilePath()
 
   const copyFilePath = useCallback(async () => {
     if (!filePath) return
@@ -45,6 +49,33 @@ export function FileHandlerPage() {
     if (filePath) await openInFileManager(filePath)
   }, [filePath, openInFileManager])
 
+  const copyPhysicalPath = useCallback(async () => {
+    if (!filePath) return
+    const physicalPath = await resolveFilePath(filePath)
+    if (!physicalPath) {
+      toast({
+        title: "Cannot resolve physical path",
+        description: "This path cannot be resolved to a physical location",
+        variant: "destructive",
+      })
+      return
+    }
+    if (!navigator?.clipboard?.writeText) {
+      toast({ title: "Cannot copy path", variant: "destructive" })
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(physicalPath)
+      toast({ title: "Copied physical path", description: physicalPath })
+    } catch (error) {
+      toast({
+        title: "Failed to copy path",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      })
+    }
+  }, [filePath, resolveFilePath, toast])
+
   const viewHandler = useCallback(() => {
     if (selectedHandler) navigate(`/extensions/${selectedHandler.id}`)
   }, [selectedHandler, navigate])
@@ -61,6 +92,13 @@ export function FileHandlerPage() {
     label: "Reveal in Finder",
     Icon: FolderOpen,
     onClick: revealInFinder,
+  })
+
+  useRegisterTabContextMenuItem("/file-handler", {
+    id: "copy-physical-path",
+    label: "Copy Physical Path",
+    Icon: LinkIcon,
+    onClick: copyPhysicalPath,
   })
 
   useRegisterTabContextMenuItem("/file-handler", {
