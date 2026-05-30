@@ -28,6 +28,9 @@ export const useRouterAdapter = () => {
     false
   )
 
+  const alwaysOpenInNewTabRef = useRef(alwaysOpenInNewTab)
+  alwaysOpenInNewTabRef.current = alwaysOpenInNewTab
+
   const [reuseExistingTab] = useSqliteKV<boolean>(
     "eidos:space:settings:reuseExistingTab",
     true
@@ -138,8 +141,9 @@ export const useRouterAdapter = () => {
       }
 
       // CRITICAL: If alwaysOpenInNewTab is true, we MUST force a new tab
+      // Use ref to avoid stale closure on async-loaded KV value
       const forceNewTab =
-        options?.target === "_blank" || alwaysOpenInNewTab === true
+        options?.target === "_blank" || alwaysOpenInNewTabRef.current === true
 
       const replaceCurrentTab = options?.replace === true && !forceNewTab
 
@@ -171,16 +175,18 @@ export const useRouterAdapter = () => {
         normalizedResolved.startsWith(normalizedCurrent) &&
         normalizedCurrent.length > 1
 
-      // 0. Prevent recursion: If we are already in a "force new tab" flow, don't intercept again
-      const isInternal =
-        options?.state?.__isInternalTabNavigation ||
-        (currentLocation as any)?.state?.__isInternalTabNavigation
+      // 0. Prevent recursion: If this navigation itself was triggered by
+      // a forceNewTab flow (caller explicitly marked it), don't intercept.
+      // We do NOT check currentLocation.state because initialState persists
+      // across app restarts and would permanently block new-tab creation.
+      const isInternal = options?.state?.__isInternalTabNavigation
 
       // 1. Break recursion/Self-navigation/Home-replacement/Initial-redirect:
       // If we are already at the target URL, it's internal, we are replacing Home, or it's an initial page redirect
       if (
         isInternal ||
-        (alwaysOpenInNewTab && normalizedResolved === normalizedCurrent) ||
+        (alwaysOpenInNewTabRef.current &&
+          normalizedResolved === normalizedCurrent) ||
         (isHome && options?.replace) ||
         isInitialRedirect
       ) {
@@ -295,14 +301,7 @@ export const useRouterAdapter = () => {
         setActiveTabAction(targetId)
       }
     },
-    [
-      inTabRouter,
-      inRouter,
-      navigate,
-      alwaysOpenInNewTab,
-      reuseExistingTab,
-      tabId,
-    ]
+    [inTabRouter, inRouter, navigate, reuseExistingTab, tabId]
   )
 
   const adapterParams = useMemo(() => {
