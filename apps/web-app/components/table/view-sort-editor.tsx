@@ -199,12 +199,8 @@ export function ViewSortEditor(props: IViewEditorProps) {
 
   useEffect(() => {
     setOrderItems(oldOrderBy)
+    setAddedFields(oldOrderBy.map((item) => item.column))
   }, [oldOrderBy])
-
-  useEffect(() => {
-    setAddedFields(orderItems.map((item) => item.column))
-    onSortChange?.(orderItems)
-  }, [onSortChange, orderItems])
 
   const { uiColumns } = useUiColumns(tableName!, space!)
   const restFields = useMemo(() => {
@@ -213,17 +209,25 @@ export function ViewSortEditor(props: IViewEditorProps) {
     })
   }, [uiColumns, addedFields])
 
+  const commitSort = useCallback(
+    (items: OrderByItem[]) => {
+      setOrderItems(items)
+      setAddedFields(items.map((item) => item.column))
+      onSortChange?.(items)
+    },
+    [onSortChange]
+  )
+
   const addSort = () => {
-    const column = restFields[0].table_column_name
     if (restFields.length) {
-      setOrderItems([
+      const column = restFields[0].table_column_name
+      commitSort([
         ...orderItems,
         {
           column,
           order: "ASC",
         },
       ])
-      setAddedFields([...addedFields, column])
     }
   }
 
@@ -231,39 +235,45 @@ export function ViewSortEditor(props: IViewEditorProps) {
     (index: number) => {
       const newOrderItems = [...orderItems]
       newOrderItems.splice(index, 1)
-      setOrderItems(newOrderItems)
+      commitSort(newOrderItems)
     },
-    [orderItems]
+    [commitSort, orderItems]
   )
 
   const onValueChange = useCallback(
     (value: string, index: number) => {
       const newOrderItems = [...orderItems]
-      newOrderItems[index].column = value
-      setOrderItems(newOrderItems)
+      newOrderItems[index] = {
+        ...newOrderItems[index],
+        column: value,
+      }
+      commitSort(newOrderItems)
     },
-    [orderItems]
+    [commitSort, orderItems]
   )
 
   const onOrderChange = useCallback(
     (value: string, index: number) => {
       const newOrderItems = [...orderItems]
-      newOrderItems[index].order = value
-      setOrderItems(newOrderItems)
+      newOrderItems[index] = {
+        ...newOrderItems[index],
+        order: value,
+      }
+      commitSort(newOrderItems)
     },
-    [orderItems]
+    [commitSort, orderItems]
   )
 
   const handleClearSort = () => {
-    setOrderItems([])
+    commitSort([])
   }
 
   const handleReorder = useCallback(
     (newItems: (OrderByItem & { id: string })[]) => {
       const orderItems = newItems.map(({ id, ...item }) => item)
-      setOrderItems(orderItems)
+      commitSort(orderItems)
     },
-    []
+    [commitSort]
   )
 
   return (
