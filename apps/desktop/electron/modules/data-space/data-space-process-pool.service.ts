@@ -244,6 +244,29 @@ export class DataSpaceProcessPool extends EventEmitter {
     this.processes.clear()
   }
 
+  public async kill(spaceId: string) {
+    const item = this.processes.get(spaceId)
+    if (!item) {
+      return
+    }
+
+    const exited = new Promise<void>((resolve) => {
+      const timeout = setTimeout(resolve, 2000)
+      item.process.once("exit", () => {
+        clearTimeout(timeout)
+        resolve()
+      })
+    })
+
+    try {
+      item.process.kill()
+    } catch (e) {
+      this.logger.error(`Failed to kill process for ${spaceId}`, e)
+    }
+    this.processes.delete(spaceId)
+    await exited
+  }
+
   public sendToProcess(spaceId: string, message: any) {
     const item = this.processes.get(spaceId)
     if (item && !this.isProcessDead(item.process)) {

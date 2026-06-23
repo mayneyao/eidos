@@ -145,6 +145,12 @@ export class BaseTreeTable
         }
       }
 
+      const old = await this.get(id)
+      try {
+        await this.dataSpace.db.setMessage(
+          `rename: "${old?.name ?? id}" -> "${name}"`
+        )
+      } catch {}
       await this.dataSpace.exec2(
         `UPDATE ${TreeTableName} SET name = ? WHERE id = ?;`,
         [name, id]

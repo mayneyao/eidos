@@ -243,7 +243,67 @@ export class DataSpaceIpcService extends IpcServiceBase {
   }
 
   /**
-   * Create snapshot
+   * Commit current Graft worktree changes
+   */
+  @IpcMethod()
+  async commit(args: SpaceOperationArgs & { message?: string }): Promise<any> {
+    const { spaceName, message } = args
+    const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceName)
+    return dataSpace?.commit(message)
+  }
+
+  /**
+   * Complete an in-progress Graft merge after conflicts are resolved or auto-merged.
+   */
+  @IpcMethod()
+  async completeMerge(
+    args: SpaceOperationArgs & { message?: string }
+  ): Promise<any> {
+    const { spaceName, message } = args
+    const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceName)
+    return dataSpace?.completeMerge(message)
+  }
+
+  /**
+   * Abort an in-progress Graft merge.
+   */
+  @IpcMethod()
+  async abortMerge(args: SpaceOperationArgs): Promise<any> {
+    const { spaceName } = args
+    const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceName)
+    return dataSpace?.abortMerge()
+  }
+
+  /**
+   * List conflict artifacts for an in-progress Graft merge.
+   */
+  @IpcMethod()
+  async conflicts(args: SpaceOperationArgs): Promise<any> {
+    const { spaceName } = args
+    const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceName)
+    return dataSpace?.conflicts()
+  }
+
+  /**
+   * Resolve an in-progress Graft merge conflict.
+   */
+  @IpcMethod()
+  async resolveConflict(
+    args: SpaceOperationArgs & {
+      resolution: "ours" | "theirs" | "manual"
+      path?: string
+      target?: { table?: string; rowid?: number }
+    }
+  ): Promise<any> {
+    const { spaceName, resolution, path, target } = args
+    const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceName)
+    return dataSpace?.resolveConflict(resolution, path, target)
+  }
+
+  /**
+   * Create snapshot.
+   *
+   * @deprecated Use commit for git-like version history.
    */
   @IpcMethod()
   async snapshot(args: SpaceOperationArgs): Promise<any> {
@@ -305,7 +365,7 @@ export class DataSpaceIpcService extends IpcServiceBase {
    */
   @IpcMethod()
   async reloadDataSpace() {
-    this.dataSpaceManager.reload()
+    await this.dataSpaceManager.reload()
     return { success: true }
   }
 

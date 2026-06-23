@@ -3,24 +3,60 @@ import "./env"
 
 import fs from "node:fs"
 import path from "node:path"
-import { BaseServerDatabase } from "@/packages/core/sqlite/interface"
+import { pathToFileURL } from "node:url"
+import {
+  BaseServerDatabase,
+  type GraftConflictResolveTarget,
+  type GraftConflictResolution,
+  type GraftResetMode,
+} from "@/packages/core/sqlite/interface"
 import {
   parseGraftAudit,
+  parseGraftCheckout,
+  parseGraftConflicts,
+  parseGraftDiff,
+  parseGraftJsonResult,
   parseGraftInfo,
+  parseGraftLog,
+  parseGraftResolveConflict,
+  parseGraftShow,
   parseGraftStatus,
   parseGraftTags,
+  parseGraftTableLog,
+  parseGraftBranches,
   parseGraftVolumes,
 } from "@/packages/sync/graft/helpers"
 import Database from "better-sqlite3"
 import { getSpaceRegistry } from "@eidos.space/space-manager"
 
+import type { SyncCredentials } from "@eidos.space/sync"
 import { applyGraftConfigToEnv } from "../sync/helper"
 import { isVFSInitialized, setVFSInitialized } from "./initializer"
+
+const GRAFT_JOB_POLL_INTERVAL_MS = 50
+const GRAFT_JOB_TIMEOUT_MS = 5 * 60 * 1000
+
+type GraftJobStatus = {
+  id?: string
+  kind?: string
+  state?: string
+  result?: unknown
+  error?: string | null
+}
+
+const isGraftResetMode = (mode: unknown): mode is GraftResetMode =>
+  mode === "soft" || mode === "mixed" || mode === "hard"
+
+const isGraftConflictResolution = (
+  resolution: unknown
+): resolution is GraftConflictResolution =>
+  resolution === "ours" || resolution === "theirs" || resolution === "manual"
 
 export class NodeBaseServerDatabase extends BaseServerDatabase {
   protected db: Database.Database
   protected spaceInfo?: any
   protected graftOptions?: any
+  private pendingCommitMessage?: string
 
   constructor(db: Database.Database, spaceInfo?: any, graftOptions?: any) {
     super()
@@ -127,17 +163,20 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
       if (stmt.readonly) {
         res = _bind == null ? stmt.all() : stmt.all(_bind)
       } else {
+        let runResult: any
         if (_bind == null) {
-          return stmt.run()
+          runResult = stmt.run()
+        } else {
+          try {
+            runResult = stmt.run(_bind)
+          } catch (error) {
+            console.error("Error executing statement:", error)
+            console.error("SQL:", sql)
+            console.error("Bind:", _bind)
+            throw error
+          }
         }
-        try {
-          return stmt.run(_bind)
-        } catch (error) {
-          console.error("Error executing statement:", error)
-          console.error("SQL:", sql)
-          console.error("Bind:", _bind)
-          throw error
-        }
+        return runResult
       }
       if (opts.rowMode === "array") {
         return res.map((item: any) => Object.values(item))
@@ -189,11 +228,17 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
 
   // Helper methods for subclasses
   getGraftInfo() {
+    const tryPragma = (name: string) => {
+      try {
+        return this.db.pragma(name)
+      } catch {
+        return null
+      }
+    }
     return {
-      graft_snapshot: this.db.pragma("graft_snapshot"),
-      graft_pages: this.db.pragma("graft_pages"),
-      graft_version: this.db.pragma("graft_version"),
-      graft_sync_errors: this.db.pragma("graft_sync_errors"),
+      graft_snapshot: tryPragma("graft_debug_volume_snapshot"),
+      graft_version: tryPragma("graft_version"),
+      graft_status: tryPragma("graft_json_status"),
     }
   }
 
@@ -211,9 +256,15 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
   // Graft-specific methods that require sync to be enabled
   private graftCommand(command: string, resultParser?: (result: any) => any) {
     if (!this.isSyncEnabled) {
-      throw new Error("Command is only available in sync mode.")
+      throw new Error("Command is only available in Graft mode.")
     }
-    const rawResult = this.db.pragma(command)
+    let rawResult: any
+    try {
+      rawResult = this.db.pragma(command)
+    } catch (e: any) {
+      console.error(`[graftCommand] FAILED command: "${command}"`, e)
+      throw new Error(`graft pragma failed: "${command}": ${e.message ?? e}`)
+    }
 
     console.log(`[${command}] Raw result:`, rawResult)
     if (
@@ -237,51 +288,364 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
     return Promise.resolve(parsedResult)
   }
 
+  private graftPragmaString(value: string | number) {
+    return `'${String(value).split("'").join("''")}'`
+  }
+
+  private graftCliWord(value: string | number) {
+    return `"${String(value).split("\\").join("\\\\").split('"').join('\\"')}"`
+  }
+
+  private graftResolveConflictSpec(
+    resolution: GraftConflictResolution,
+    path?: string,
+    target?: GraftConflictResolveTarget
+  ) {
+    const flag = `--${resolution}`
+    const row =
+      target?.table && Number.isFinite(target.rowid)
+        ? ` --row ${target.table} ${target.rowid}`
+        : ""
+    return path ? `${flag}${row} ${path}` : `${flag}${row}`
+  }
+
+  private graftDbUri(dbPath: string) {
+    const url = pathToFileURL(dbPath)
+    url.searchParams.set("vfs", "graft")
+    return url.href
+  }
+
+  private isNoRepoChangesError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    return (
+      message.includes("no changes added to commit") ||
+      message.includes("NoStagedChanges")
+    )
+  }
+
+  private firstPragmaValue(rawResult: any) {
+    if (
+      Array.isArray(rawResult) &&
+      rawResult.length > 0 &&
+      typeof rawResult[0] === "object" &&
+      rawResult[0] !== null
+    ) {
+      return Object.values(rawResult[0])[0]
+    }
+    return rawResult
+  }
+
+  private parseGraftJobStatus(rawStatus: unknown): GraftJobStatus {
+    if (typeof rawStatus === "string") {
+      try {
+        return JSON.parse(rawStatus) as GraftJobStatus
+      } catch (error) {
+        throw new Error(`Invalid Graft job status JSON: ${error}`)
+      }
+    }
+    if (rawStatus && typeof rawStatus === "object") {
+      return rawStatus as GraftJobStatus
+    }
+    throw new Error(`Invalid Graft job status: ${String(rawStatus)}`)
+  }
+
+  private sleep(ms: number) {
+    return new Promise<void>((resolve) => setTimeout(resolve, ms))
+  }
+
+  private async graftAsyncCommand(command: string) {
+    const jobId = await this.graftCommand(command)
+    if (typeof jobId !== "string" || jobId.length === 0) {
+      throw new Error(`Expected Graft async job id, got: ${String(jobId)}`)
+    }
+
+    const startedAt = Date.now()
+    while (true) {
+      const status = this.parseGraftJobStatus(
+        await this.graftCommand(
+          `graft_job_status = ${this.graftPragmaString(jobId)}`
+        )
+      )
+
+      if (status.state === "done") {
+        return this.graftCommand(
+          `graft_json_job_result = ${this.graftPragmaString(jobId)}`,
+          parseGraftJsonResult
+        )
+      }
+      if (status.state === "failed") {
+        throw new Error(
+          `Graft async job ${jobId} failed: ${status.error ?? "unknown error"}`
+        )
+      }
+      if (status.state !== "running") {
+        throw new Error(
+          `Graft async job ${jobId} returned unknown state: ${String(
+            status.state
+          )}`
+        )
+      }
+      if (Date.now() - startedAt > GRAFT_JOB_TIMEOUT_MS) {
+        throw new Error(`Graft async job ${jobId} timed out`)
+      }
+
+      await this.sleep(GRAFT_JOB_POLL_INTERVAL_MS)
+    }
+  }
+
+  private commitChanges(message?: string) {
+    if (!this.isSyncEnabled) {
+      throw new Error("Commit is only available in Graft mode.")
+    }
+    if (this.db.inTransaction) {
+      throw new Error("Cannot commit while a SQLite transaction is open.")
+    }
+
+    const commitMessage = message ?? this.pendingCommitMessage ?? "Update"
+    try {
+      this.db.pragma("graft_add")
+      const result = this.db.pragma(
+        `graft_commit = ${this.graftPragmaString(commitMessage)}`
+      )
+      this.pendingCommitMessage = undefined
+      return {
+        rawMessage: this.firstPragmaValue(result) ?? "Committed changes",
+      }
+    } catch (error) {
+      if (this.isNoRepoChangesError(error)) {
+        this.pendingCommitMessage = undefined
+        return { rawMessage: "No changes to commit", empty: true }
+      }
+      throw error
+    }
+  }
+
+  private configureOriginRemote(remoteUri?: string) {
+    if (!remoteUri) return
+    try {
+      this.db.pragma(
+        `graft_remote_add = ${this.graftPragmaString(`origin ${remoteUri}`)}`
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!message.includes("remote `origin` already exists")) {
+        throw error
+      }
+      this.db.pragma(
+        `graft_remote_set_url = ${this.graftPragmaString(`origin ${remoteUri}`)}`
+      )
+    }
+
+    try {
+      this.db.pragma(
+        `graft_branch_upstream = ${this.graftPragmaString("origin/main")}`
+      )
+    } catch (error) {
+      console.warn("Failed to set Graft upstream:", error)
+    }
+  }
+
   async status() {
-    return this.graftCommand("graft_status", parseGraftStatus)
+    return this.graftCommand("graft_json_status", parseGraftStatus)
   }
 
   async pull() {
-    return this.graftCommand("graft_pull")
+    return this.graftCommand("graft_json_pull", parseGraftJsonResult)
   }
 
   async push() {
-    return this.graftCommand("graft_push")
+    return this.graftCommand("graft_json_push", parseGraftJsonResult)
   }
 
   async fetch() {
-    return this.graftCommand("graft_fetch")
+    return this.graftAsyncCommand("graft_json_fetch_async")
   }
 
   async hydrate() {
-    return this.graftCommand("graft_hydrate")
+    return Promise.resolve({
+      rawMessage: "Hydration is handled by repository checkout and pull.",
+    })
   }
 
   async snapshot() {
-    return this.graftCommand("graft_snapshot")
+    return this.commit()
+  }
+
+  async commit(message?: string) {
+    return Promise.resolve(this.commitChanges(message))
+  }
+
+  async completeMerge(message?: string) {
+    if (!this.isSyncEnabled) {
+      throw new Error("Complete merge is only available in Graft mode.")
+    }
+    if (this.db.inTransaction) {
+      throw new Error(
+        "Cannot complete merge while a SQLite transaction is open."
+      )
+    }
+
+    const mergeMessage = message ?? "Merge remote changes"
+    const result = this.db.pragma(
+      `graft_merge_continue = ${this.graftPragmaString(mergeMessage)}`
+    )
+    this.pendingCommitMessage = undefined
+    return {
+      rawMessage: this.firstPragmaValue(result) ?? "Merge completed",
+    }
+  }
+
+  async abortMerge() {
+    if (!this.isSyncEnabled) {
+      throw new Error("Abort merge is only available in Graft mode.")
+    }
+    if (this.db.inTransaction) {
+      throw new Error("Cannot abort merge while a SQLite transaction is open.")
+    }
+
+    const result = this.db.pragma("graft_merge_abort")
+    return {
+      rawMessage: this.firstPragmaValue(result) ?? "Merge aborted",
+    }
+  }
+
+  async conflicts() {
+    return this.graftCommand("graft_json_conflicts", parseGraftConflicts)
+  }
+
+  async resolveConflict(
+    resolution: GraftConflictResolution,
+    path?: string,
+    target?: GraftConflictResolveTarget
+  ) {
+    if (!this.isSyncEnabled) {
+      throw new Error("Resolve conflict is only available in Graft mode.")
+    }
+    if (this.db.inTransaction) {
+      throw new Error(
+        "Cannot resolve conflict while a SQLite transaction is open."
+      )
+    }
+    if (!isGraftConflictResolution(resolution)) {
+      throw new Error(
+        `resolveConflict() received unsupported resolution: ${String(
+          resolution
+        )}`
+      )
+    }
+
+    return this.graftCommand(
+      `graft_json_resolve_conflict = ${this.graftPragmaString(
+        this.graftResolveConflictSpec(resolution, path, target)
+      )}`,
+      parseGraftResolveConflict
+    )
+  }
+
+  async branches() {
+    return this.graftCommand("graft_json_branch = '--all'", parseGraftBranches)
   }
 
   async tags() {
-    return this.graftCommand("graft_tags", parseGraftTags)
+    return this.graftCommand("graft_json_tags", parseGraftTags)
   }
 
   async volumes() {
-    return this.graftCommand("graft_volumes", parseGraftVolumes)
+    return this.graftCommand("graft_debug_volume_json_list", parseGraftVolumes)
   }
 
   async info() {
-    return this.graftCommand("graft_info", parseGraftInfo)
+    return this.graftCommand("graft_debug_volume_json_info", parseGraftInfo)
   }
 
-  async clone(remoteLogId?: string) {
-    if (remoteLogId) {
-      return this.graftCommand(`graft_clone = "${remoteLogId}"`)
+  async clone(remoteUri?: string) {
+    if (remoteUri) {
+      return this.graftCommand(
+        `graft_clone = ${this.graftPragmaString(remoteUri)}`
+      )
     }
-    return this.graftCommand("graft_clone")
+    throw new Error("clone() requires a remote URI")
   }
 
   async audit() {
-    return this.graftCommand("graft_audit", parseGraftAudit)
+    return this.graftCommand("graft_debug_volume_json_audit", parseGraftAudit)
+  }
+
+  async log() {
+    return this.graftCommand("graft_json_log", parseGraftLog)
+  }
+
+  async show(rev: string | number) {
+    if (rev === undefined || rev === null || rev === "") {
+      throw new Error("show() requires a revision")
+    }
+    return this.graftCommand(
+      `graft_json_show = ${this.graftPragmaString(rev)}`,
+      parseGraftShow
+    )
+  }
+
+  async diff(
+    from: string | number,
+    to?: string | number,
+    mode: "summary" | "rows" = "summary"
+  ) {
+    if (from === undefined || from === null || from === "") {
+      throw new Error("diff() requires a source revision")
+    }
+    const rawTo = to == null ? undefined : String(to)
+    const isWorktreeDiff = rawTo == null || rawTo.toUpperCase() === "WORKTREE"
+    const toLabel = isWorktreeDiff ? "WORKTREE" : rawTo!
+    const parser = (data: any) =>
+      parseGraftDiff(data, {
+        from: String(from),
+        to: toLabel,
+        mode,
+      })
+    const revs = isWorktreeDiff ? String(from) : `${from} ${rawTo}`
+    const value = mode === "rows" ? `--rows ${revs}` : revs
+    return this.graftCommand(
+      `graft_json_diff = ${this.graftPragmaString(value)}`,
+      parser
+    )
+  }
+
+  async checkoutLsn(rev: string | number) {
+    if (rev === undefined || rev === null || rev === "") {
+      throw new Error("checkoutLsn() requires a revision")
+    }
+    return this.graftCommand(
+      `graft_json_checkout = ${this.graftPragmaString(`--force ${rev}`)}`,
+      parseGraftCheckout
+    )
+  }
+
+  async resetTo(rev: string | number, mode: GraftResetMode = "hard") {
+    if (rev === undefined || rev === null || rev === "") {
+      throw new Error("resetTo() requires a revision")
+    }
+    const resetMode = mode ?? "hard"
+    if (!isGraftResetMode(resetMode)) {
+      throw new Error(`resetTo() received unsupported mode: ${String(mode)}`)
+    }
+    return this.graftCommand(
+      `graft_json_reset = ${this.graftPragmaString(`--${resetMode} ${rev}`)}`,
+      parseGraftJsonResult
+    )
+  }
+
+  async setMessage(message: string) {
+    this.pendingCommitMessage = message
+    return Promise.resolve({ rawMessage: `Commit message set: '${message}'` })
+  }
+
+  async tableLog(tableName: string) {
+    if (!tableName) {
+      throw new Error("tableLog() requires a table name")
+    }
+    return this.graftCommand("graft_json_log", (data: any) =>
+      parseGraftTableLog(data, tableName)
+    )
   }
 
   async version() {
@@ -290,17 +654,23 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
     })
   }
 
-  async convertToGraft(remote: string): Promise<any> {
+  private async convertSqliteToGraft(options: {
+    remote?: string
+    localOnly: boolean
+  }): Promise<any> {
     if (this.isSyncEnabled) {
-      throw new Error("Already in sync mode.")
+      throw new Error("Already in graft mode.")
     }
 
     const spaceInfo = this.spaceInfo
     const credentials = this.graftOptions?.credentials
     const graftLibPath = this.graftOptions?.libPath
 
-    if (!spaceInfo || !credentials || !graftLibPath) {
+    if (!spaceInfo || !graftLibPath) {
       throw new Error("Missing required configuration for conversion")
+    }
+    if (!options.localOnly && !credentials) {
+      throw new Error("Missing sync credentials for conversion")
     }
 
     // 1. Checkpoint current DB
@@ -351,9 +721,6 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
       throw new Error(`Database file not found: ${dbPath}`)
     }
 
-    // 3. Close current connection
-    this.db.close()
-
     // 4. Clear existing graft data (Prevent corruption from previous failed attempts)
     const graftDirPath = path.join(spaceInfo.path, ".eidos", ".graft")
     if (fs.existsSync(graftDirPath)) {
@@ -364,18 +731,18 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
         console.warn("Failed to clear graft directory:", e)
       }
     }
-    fs.mkdirSync(graftDirPath, { recursive: true })
 
-    // 5. Setup graft environment
-    // Update remote in spaceInfo for applyGraftConfigToEnv
-    const updatedSpaceInfo = {
-      ...spaceInfo,
-      sync: {
-        enabled: true,
-        remote,
-      },
+    let remoteUri: string | undefined
+    if (!options.localOnly) {
+      const updatedSpaceInfo = {
+        ...spaceInfo,
+        sync: {
+          enabled: true,
+          remote: options.remote,
+        },
+      }
+      remoteUri = applyGraftConfigToEnv(updatedSpaceInfo, credentials)
     }
-    applyGraftConfigToEnv(updatedSpaceInfo, credentials)
 
     // 5. Initialize VFS if needed
     if (!isVFSInitialized) {
@@ -389,34 +756,85 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
       }
     }
 
-    // 7. Open graft connection
-    this.db = new Database("file:main?vfs=graft")
+    console.log(`Starting graft conversion from: ${dbPath}`)
+
+    // 6. Close regular SQLite connection
+    this.db.close()
+
+    // 7. Open graft connection using the physical database path so repository
+    // discovery and .graft placement are tied to the space directory.
+    this.db = new Database(this.graftDbUri(dbPath))
 
     // IMPORTANT: Set 4k alignment and memory mode immediately
     this.db.pragma("page_size = 4096")
     this.db.pragma("journal_mode = MEMORY")
     this.isSyncEnabled = true
 
-    console.log(`Starting graft import from: ${dbPath}`)
-    const res = this.db.pragma(`graft_import = "${dbPath}"`)
-    console.log("Graft import result strength:", res)
+    this.db.pragma("graft_init")
+    this.commitChanges("Initial version")
+    if (remoteUri) {
+      this.configureOriginRemote(remoteUri)
+      this.pushInitialBranch()
+    }
+    console.log("Graft conversion completed")
 
-    // Force a snapshot to sync internal VFS state to disk
-    this.db.pragma("graft_snapshot")
-
-    // 8. Update space registry
     try {
       const registry = getSpaceRegistry()
-      registry.setSpaceSync(spaceInfo.id, {
-        enabled: true,
-        remote: remote,
-        provider: this.graftOptions?.provider || "eidos.space",
-      })
+      if (options.localOnly) {
+        registry.setSpaceVersioning(spaceInfo.id, { enabled: true })
+      } else {
+        registry.setSpaceSync(spaceInfo.id, {
+          enabled: true,
+          remote: options.remote || "",
+          provider: this.graftOptions?.provider || "eidos.space",
+        })
+        registry.setSpaceVersioning(spaceInfo.id, { enabled: true })
+      }
     } catch (e) {
       console.error("Failed to update space registry:", e)
     }
 
     return { success: true }
+  }
+
+  async convertToGraft(remote: string): Promise<any> {
+    return this.convertSqliteToGraft({ remote, localOnly: false })
+  }
+
+  async enableLocalVersioning(): Promise<any> {
+    return this.convertSqliteToGraft({ localOnly: true })
+  }
+
+  /**
+   * Reconfigure a local-only Graft space to use a remote sync backend.
+   * The active VFS runtime reads its config when the extension is registered,
+   * so the caller must restart the worker before pushing to the new remote.
+   */
+  async reconfigureRemote(credentials: SyncCredentials, remote: string) {
+    if (!this.isSyncEnabled) {
+      throw new Error("Cannot reconfigure remote: not in Graft mode.")
+    }
+
+    // Configure origin in the repository and seed the remote branch so the
+    // sync tab can fetch immediately after enabling remote sync.
+    const spaceInfo = this.spaceInfo
+    if (!spaceInfo) {
+      throw new Error("Missing spaceInfo for remote reconfiguration")
+    }
+    const remoteUri = applyGraftConfigToEnv(spaceInfo, credentials, remote)
+    this.configureOriginRemote(remoteUri)
+    this.pushInitialBranch()
+
+    return { success: true, reloadRequired: false }
+  }
+
+  private pushInitialBranch() {
+    try {
+      this.db.pragma("graft_push")
+      console.log("Initial Graft branch pushed to remote.")
+    } catch (error) {
+      console.warn("Initial Graft push failed:", error)
+    }
   }
 
   /**
@@ -425,7 +843,7 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
    *
    * If the database is in Graft sync mode:
    * - Uses graft_export pragma to export to a regular SQLite file
-   * - Creates a snapshot before exporting to ensure data consistency
+   * - Exports the current worktree without creating a repository commit
    *
    * If the database is already in regular SQLite mode:
    * - Performs a WAL checkpoint to ensure all data is persisted
@@ -453,17 +871,13 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
       // Export from Graft mode to regular SQLite
       console.log("Exporting from Graft mode...")
 
-      // 1. Checkpoint to ensure all data is persisted
+      // Use graft_export pragma to export the current worktree to SQLite.
       try {
-        this.db.pragma("graft_snapshot")
-        console.log("Graft snapshot completed")
-      } catch (e) {
-        console.warn("Failed to create graft snapshot:", e)
-      }
-
-      // 2. Use graft_export pragma to export to SQLite file
-      try {
-        const result = this.db.pragma(`graft_export = "${dbPath}"`)
+        const result = this.db.pragma(
+          `graft_export = ${this.graftPragmaString(
+            `--output ${this.graftCliWord(dbPath)}`
+          )}`
+        )
         console.log("Graft export result:", result)
       } catch (e) {
         console.error("Failed to export from graft:", e)
@@ -476,6 +890,11 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
       }
 
       console.log(`Successfully exported to ${dbPath}`)
+      if (!outputPath) {
+        this.db.close()
+        this.db = new Database(dbPath)
+        this.isSyncEnabled = false
+      }
       return { success: true, path: dbPath }
     } else {
       // Already in regular SQLite mode, just copy/checkpoint

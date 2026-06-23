@@ -10,7 +10,6 @@ export interface NodeDomainDbInfo {
   config: {
     options?: Database.Options
     spaceInfo?: SpaceInfo
-    remoteLogId?: string
   }
 }
 
@@ -24,11 +23,12 @@ interface NodeServerDatabaseOptions {
   graft?: {
     libPath: string
     enabled?: boolean
+    syncEnabled?: boolean
     remote?: string
     provider?: string
     credentials?: SyncCredentials
     isVFSInitialized?: boolean
-    remoteLogId?: string
+    requireRemoteClone?: boolean
   }
   // vec extension
   vec?: {
@@ -60,10 +60,7 @@ export class NodeServerDatabase extends NodeBaseServerDatabase {
     config: NodeDomainDbInfo["config"],
     options: NodeServerDatabaseOptions
   ): Promise<NodeServerDatabase> {
-    const initializer = new NodeDatabaseInitializer({
-      ...options,
-      remoteLogId: config.remoteLogId,
-    })
+    const initializer = new NodeDatabaseInitializer(options)
     const { db, isSyncEnabled } = await initializer.initializeDatabase(config)
 
     return new NodeServerDatabase(

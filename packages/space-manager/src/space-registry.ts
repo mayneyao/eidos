@@ -113,6 +113,23 @@ export class SpaceRegistry {
     this.saveSpacesConfig(config)
   }
 
+  public setSpaceVersioning(
+    spaceId: string,
+    versioning: {
+      enabled: boolean
+    }
+  ): void {
+    const space = this.getSpace(spaceId)
+    if (!space) {
+      throw new Error(`Space not found: ${spaceId}`)
+    }
+    space.versioning = versioning
+
+    const config = this.loadSpacesConfig()
+    config.spaces = config.spaces.map((o) => (o.id === spaceId ? space : o))
+    this.saveSpacesConfig(config)
+  }
+
   public getFirstSpace(): SpaceInfo | null {
     const spaces = this.getAllSpaces()
     return spaces.length > 0 ? spaces[0] : null
@@ -145,6 +162,7 @@ export class SpaceRegistry {
     options: {
       customName?: string
       remoteUrl?: string
+      provider?: string
     } = {}
   ): SpaceInfo {
     if (!fs.existsSync(spacePath)) {
@@ -173,6 +191,7 @@ export class SpaceRegistry {
         ? {
             enabled: true,
             remote: options.remoteUrl,
+            provider: options.provider,
           }
         : undefined,
     }
@@ -239,7 +258,7 @@ export class SpaceRegistry {
       return false
     }
 
-    if (space.sync?.enabled) {
+    if (space.sync?.enabled || space.versioning?.enabled) {
       // check is .eidos/.graft exists
       const graftPath = path.join(space.path, ".eidos", ".graft")
       return fs.existsSync(graftPath)

@@ -199,7 +199,7 @@ export class SpaceManagementService extends IpcServiceBase {
     enabled: boolean,
     remote?: string,
     provider?: "eidos.space" | "custom"
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<{ success: boolean; error?: string; reloadRequired?: boolean }> {
     const space = this.registry.getSpace(spaceId)
     if (!space) {
       return { success: false, error: "Space not found" }
@@ -235,25 +235,93 @@ export class SpaceManagementService extends IpcServiceBase {
         }
       }
 
-      await dataSpace.convertToGraft(remote)
+      const isLocalOnlyVersioned =
+        space.versioning?.enabled && !space.sync?.enabled
+      if (isLocalOnlyVersioned) {
+        // Already in Graft mode (local-only). Reconfigure remote only.
+        await dataSpace.reconfigureRemote(credentials, remote)
+      } else {
+        // Fresh space, convert from regular SQLite to Graft with sync.
+        await dataSpace.convertToGraft(remote)
+      }
 
       this.registry.setSpaceSync(spaceId, {
         enabled: true,
         remote: remote,
         provider: effectiveProvider,
       })
+      this.registry.setSpaceVersioning(spaceId, { enabled: true })
 
-      return { success: true }
+      if (!(await this.dataSpaceManager.reload())) {
+        throw new Error("Failed to reload data space after enabling sync")
+      }
+
+      return { success: true, reloadRequired: false }
     } else {
-      await dataSpace.exportToSqlite()
+      const keepLocalVersioning =
+        space.versioning?.enabled || space.sync?.enabled || false
+      if (space.sync?.enabled) {
+        await dataSpace.hydrate()
+      }
 
       this.registry.setSpaceSync(spaceId, {
         enabled: false,
         remote: space.sync?.remote || "",
         provider: space.sync?.provider,
       })
+      this.registry.setSpaceVersioning(spaceId, {
+        enabled: keepLocalVersioning,
+      })
 
-      return { success: true }
+      await this.dataSpaceManager.reload()
+
+      return { success: true, reloadRequired: false }
+    }
+  }
+
+  async toggleLocalVersioning(
+    spaceId: string,
+    enabled: boolean
+  ): Promise<{ success: boolean; error?: string; reloadRequired?: boolean }> {
+    const space = this.registry.getSpace(spaceId)
+    if (!space) {
+      return { success: false, error: "Space not found" }
+    }
+
+    const dataSpace = this.dataSpaceManager.getDataSpace()
+    if (!dataSpace) {
+      return { success: false, error: "Data space not initialized" }
+    }
+
+    try {
+      if (enabled) {
+        if (space.sync?.enabled || space.versioning?.enabled) {
+          this.registry.setSpaceVersioning(spaceId, { enabled: true })
+          return { success: true, reloadRequired: false }
+        }
+        await dataSpace.enableLocalVersioning()
+        this.registry.setSpaceVersioning(spaceId, { enabled: true })
+        await this.dataSpaceManager.reload()
+      } else {
+        if (space.sync?.enabled) {
+          return {
+            success: false,
+            error: "Disable remote sync before disabling local version history",
+          }
+        }
+        if (!space.versioning?.enabled) {
+          return { success: true, reloadRequired: false }
+        }
+        await dataSpace.exportToSqlite()
+        this.registry.setSpaceVersioning(spaceId, { enabled: false })
+        await this.dataSpaceManager.reload()
+      }
+      return { success: true, reloadRequired: false }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error?.message ?? "Failed to toggle local versioning",
+      }
     }
   }
 }

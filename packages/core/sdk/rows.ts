@@ -301,9 +301,15 @@ export class RowsManager {
 
     const stmt = this.dataSpace.db.prepare(`
       INSERT INTO ${this.table.rawTableName} (${keys}) VALUES (${_values})`)
-    // for high performance, use transaction
-    for (const value of values) {
-      stmt.run(value)
+    this.dataSpace.db.prepare("BEGIN TRANSACTION;").run()
+    try {
+      for (const value of values) {
+        stmt.run(value)
+      }
+      this.dataSpace.db.prepare("COMMIT;").run()
+    } catch (error) {
+      this.dataSpace.db.prepare("ROLLBACK;").run()
+      throw error
     }
     return createDatas
   }

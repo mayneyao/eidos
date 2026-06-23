@@ -5,6 +5,9 @@ export abstract class BaseGraftVCS {
   abstract info(): CommonVersionControlResult
   abstract status(): CommonVersionControlResult
   abstract snapshot(): CommonVersionControlResult
+  abstract commit(message?: string): CommonVersionControlResult
+  abstract completeMerge(message?: string): CommonVersionControlResult
+  abstract abortMerge(): CommonVersionControlResult
   abstract audit(): CommonVersionControlResult
   abstract version(): CommonVersionControlResult
 

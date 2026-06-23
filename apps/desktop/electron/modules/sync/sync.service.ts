@@ -232,6 +232,7 @@ export class SyncService extends IpcServiceBase {
       const space = registry.registerSpace(localPath, {
         customName: spaceName,
         remoteUrl,
+        provider: providerId,
       })
 
       // 2. Get or initialize DataSpace with sync enabled
@@ -240,6 +241,8 @@ export class SyncService extends IpcServiceBase {
         {
           enabled: true,
           remote: remoteUrl,
+          provider: providerId,
+          requireRemoteClone: true,
         }
       )
 
