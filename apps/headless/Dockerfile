@@ -4,6 +4,9 @@
 # Stage 1: Builder (use node:20 which has Node.js pre-installed)
 FROM node:20 AS builder
 
+ARG GRAFT_SQLITE_EXTENSION_VERSION=v0.3.0
+ENV GRAFT_SQLITE_EXTENSION_VERSION=${GRAFT_SQLITE_EXTENSION_VERSION}
+
 # Install only missing tools (node:20 already has curl, ca-certificates, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends unzip \
     && npm install -g pnpm \
@@ -115,5 +118,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 # Start server
 CMD ["node", "dist/index.js"]
-
 

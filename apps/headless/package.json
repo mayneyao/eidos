@@ -27,7 +27,6 @@
     "hono": "^4.12.7",
     "oxc-parser": "^0.74.0",
     "oxc-transform": "^0.74.0",
-    "sqlite-graft": "^0.2.1",
     "sqlite-vec": "0.1.7-alpha.2"
   },
   "devDependencies": {

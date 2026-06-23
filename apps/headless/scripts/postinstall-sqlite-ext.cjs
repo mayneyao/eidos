@@ -1,62 +1,88 @@
-/**
- * Postinstall script to copy SQLite extensions from npm packages
- * Adapted from apps/desktop/scripts/postinstall-sqlite-ext.cjs
- */
-
 const fs = require("node:fs")
+const os = require("node:os")
 const path = require("node:path")
 const process = require("node:process")
+const { execFileSync } = require("node:child_process")
+const { downloadFile } = require("./download-utils.cjs")
 
-// Configuration for packages to process
+const DEST_DIR = "dist-sqlite-ext"
+const GRAFT_REPO =
+  process.env.GRAFT_SQLITE_EXTENSION_REPO || "eidos-space/graft"
+const GRAFT_VERSION = normalizeTag(
+  process.env.GRAFT_SQLITE_EXTENSION_VERSION || "v0.3.0"
+)
+
+const platformInfoByKey = {
+  "win32 arm64": {
+    npmSuffix: "windows-arm64",
+    graftTarget: "aarch64-pc-windows-msvc",
+    graftArchiveExt: "zip",
+    extension: "dll",
+  },
+  "win32 x64": {
+    npmSuffix: "windows-x64",
+    graftTarget: "x86_64-pc-windows-msvc",
+    graftArchiveExt: "zip",
+    extension: "dll",
+  },
+  "darwin arm64": {
+    npmSuffix: "darwin-arm64",
+    graftTarget: "aarch64-apple-darwin",
+    graftArchiveExt: "tar.gz",
+    extension: "dylib",
+  },
+  "darwin x64": {
+    npmSuffix: "darwin-x64",
+    graftTarget: "x86_64-apple-darwin",
+    graftArchiveExt: "tar.gz",
+    extension: "dylib",
+  },
+  "linux arm64": {
+    npmSuffix: "linux-arm64",
+    graftTarget: "aarch64-unknown-linux-gnu",
+    graftArchiveExt: "tar.gz",
+    extension: "so",
+  },
+  "linux x64": {
+    npmSuffix: "linux-x64",
+    graftTarget: "x86_64-unknown-linux-gnu",
+    graftArchiveExt: "tar.gz",
+    extension: "so",
+  },
+}
+
 const packagesToProcess = [
   {
+    kind: "graft-release",
     basePackageName: "sqlite-graft",
     destBaseName: "libgraft",
   },
   {
+    kind: "npm-package",
     basePackageName: "sqlite-vec",
     destBaseName: "libvec",
   },
 ]
 
-const DEST_DIR = "dist-sqlite-ext"
-
-// Platform mapping
-const platformArchMapping = {
-  "win32 arm64": "windows-arm64",
-  "win32 x64": "windows-x64",
-  "darwin arm64": "darwin-arm64",
-  "darwin x64": "darwin-x64",
-  "linux arm64": "linux-arm64",
-  "linux x64": "linux-x64",
-}
-
-const platformExtensionMapping = {
-  win32: "dll",
-  darwin: "dylib",
-  linux: "so",
+function normalizeTag(version) {
+  return version.startsWith("v") ? version : `v${version}`
 }
 
 function getPlatformInfo(pkgConfig) {
   const platformKey = `${process.platform} ${process.arch}`
-  const suffix = platformArchMapping[platformKey]
-  const extension = platformExtensionMapping[process.platform]
+  const platformInfo = platformInfoByKey[platformKey]
 
-  if (!suffix || !extension) {
+  if (!platformInfo) {
     console.warn(
       `postinstall-${pkgConfig.basePackageName}: Unsupported platform ${platformKey}. Skipping.`
     )
     return null
   }
 
-  const destBaseName = pkgConfig.destBaseName
-  const packageName = `${pkgConfig.basePackageName}-${suffix}`
-  const destFileName = `${destBaseName}.${extension}`
-
   return {
-    packageName,
-    destFileName,
-    extension,
+    ...platformInfo,
+    packageName: `${pkgConfig.basePackageName}-${platformInfo.npmSuffix}`,
+    destFileName: `${pkgConfig.destBaseName}.${platformInfo.extension}`,
     basePackageName: pkgConfig.basePackageName,
   }
 }
@@ -74,8 +100,8 @@ function findWorkspaceRoot() {
         if (packageJson.workspaces || fs.existsSync(pnpmWorkspacePath)) {
           return currentDir
         }
-      } catch (e) {
-        // Continue searching
+      } catch {
+        // Continue searching.
       }
     }
 
@@ -88,14 +114,11 @@ function findWorkspaceRoot() {
   return process.cwd()
 }
 
-function findSourcePath(basePackageName, packageName, extension) {
+function findNpmSourcePath(basePackageName, packageName, extension) {
   const workspaceRoot = findWorkspaceRoot()
   const pnpmDir = path.join(workspaceRoot, "node_modules", ".pnpm")
   let packageVersionDir = ""
 
-  console.log(
-    `postinstall-${basePackageName}: Using workspace root: ${workspaceRoot}`
-  )
   console.log(
     `postinstall-${basePackageName}: Searching for ${packageName}@ in ${pnpmDir}`
   )
@@ -114,37 +137,16 @@ function findSourcePath(basePackageName, packageName, extension) {
       return null
     }
 
-    // Sort by version to get latest
-    matchingEntries.sort((a, b) => {
-      const versionA = a.split("@")[1] || "0.0.0"
-      const versionB = b.split("@")[1] || "0.0.0"
-      const partsA = versionA.split(".").map(Number)
-      const partsB = versionB.split(".").map(Number)
-
-      for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
-        const a = partsA[i] || 0
-        const b = partsB[i] || 0
-        if (a > b) return -1
-        if (a < b) return 1
-      }
-      return 0
-    })
-
+    matchingEntries.sort(comparePnpmPackageEntries)
     packageVersionDir = matchingEntries[0]
     console.log(
       `postinstall-${basePackageName}: Found ${matchingEntries.length} versions, using: ${packageVersionDir}`
     )
-  } catch (e) {
-    if (e.code === "ENOENT") {
-      console.error(
-        `postinstall-${basePackageName}: .pnpm directory not found. Run pnpm install first.`
-      )
-    } else {
-      console.error(
-        `postinstall-${basePackageName}: Failed to read .pnpm directory:`,
-        e
-      )
-    }
+  } catch (error) {
+    console.error(
+      `postinstall-${basePackageName}: Failed to read .pnpm directory:`,
+      error
+    )
     return null
   }
 
@@ -154,86 +156,215 @@ function findSourcePath(basePackageName, packageName, extension) {
     "node_modules",
     packageName
   )
-  console.log(
-    `postinstall-${basePackageName}: Searching for *.${extension} in ${packageDir}`
-  )
 
   try {
-    const packageFiles = fs.readdirSync(packageDir)
-    const targetFiles = packageFiles.filter((file) =>
-      file.endsWith(`.${extension}`)
-    )
+    const targetFiles = fs
+      .readdirSync(packageDir)
+      .filter((file) => file.endsWith(`.${extension}`))
 
-    if (targetFiles.length === 1) {
-      const fullSourcePath = path.join(packageDir, targetFiles[0])
-      console.log(
-        `postinstall-${basePackageName}: Found source file: ${targetFiles[0]}`
-      )
-      return fullSourcePath
-    } else if (targetFiles.length === 0) {
+    if (targetFiles.length !== 1) {
       console.error(
-        `postinstall-${basePackageName}: No .${extension} file found in ${packageDir}`
-      )
-      return null
-    } else {
-      console.error(
-        `postinstall-${basePackageName}: Multiple .${extension} files found: ${targetFiles.join(", ")}`
+        `postinstall-${basePackageName}: Expected one .${extension} file in ${packageDir}, found ${targetFiles.length}.`
       )
       return null
     }
-  } catch (e) {
+
+    return path.join(packageDir, targetFiles[0])
+  } catch (error) {
     console.error(
       `postinstall-${basePackageName}: Failed to read package directory:`,
-      e
+      error
     )
     return null
   }
 }
 
-// Main script
-console.log("--- Starting postinstall script for SQLite extensions ---")
-const workspaceRoot = findWorkspaceRoot()
-console.log(`Using workspace root: ${workspaceRoot}`)
-let overallSuccess = true
+function comparePnpmPackageEntries(a, b) {
+  const versionA = a.split("@")[1] || "0.0.0"
+  const versionB = b.split("@")[1] || "0.0.0"
+  const partsA = versionA.split(".").map(Number)
+  const partsB = versionB.split(".").map(Number)
 
-packagesToProcess.forEach((pkgConfig) => {
+  for (let i = 0; i < Math.max(partsA.length, partsB.length); i += 1) {
+    const aPart = partsA[i] || 0
+    const bPart = partsB[i] || 0
+    if (aPart > bPart) return -1
+    if (aPart < bPart) return 1
+  }
+  return 0
+}
+
+async function downloadGraftRelease(platformInfo, finalDestPath) {
+  const assetVersion = GRAFT_VERSION.replace(/^v/, "")
+  const assetName = `sqlite-graft-${assetVersion}-${platformInfo.graftTarget}.${platformInfo.graftArchiveExt}`
+  const downloadUrl = `https://github.com/${GRAFT_REPO}/releases/download/${GRAFT_VERSION}/${assetName}`
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "sqlite-graft-"))
+  const archivePath = path.join(tempDir, assetName)
+  const extractDir = path.join(tempDir, "extract")
+
+  try {
+    fs.mkdirSync(extractDir, { recursive: true })
+    console.log(`postinstall-sqlite-graft: Downloading ${downloadUrl}`)
+    await downloadFile(downloadUrl, archivePath)
+    extractArchive(archivePath, extractDir, platformInfo.graftArchiveExt)
+
+    const sourcePath = findDynamicLibrary(
+      extractDir,
+      platformInfo.extension,
+      "graft"
+    )
+
+    if (!sourcePath) {
+      throw new Error(
+        `No graft dynamic library found in ${assetName} after extraction`
+      )
+    }
+
+    console.log(`postinstall-sqlite-graft: Source file: ${sourcePath}`)
+    fs.copyFileSync(sourcePath, finalDestPath)
+    console.log(
+      `postinstall-sqlite-graft: Installed ${GRAFT_VERSION} to ${finalDestPath}`
+    )
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  }
+}
+
+function extractArchive(archivePath, extractDir, archiveExt) {
+  if (archiveExt === "zip") {
+    if (process.platform === "win32") {
+      execFileSync(
+        "powershell",
+        [
+          "-NoProfile",
+          "-Command",
+          `Expand-Archive -LiteralPath ${psQuote(
+            archivePath
+          )} -DestinationPath ${psQuote(extractDir)} -Force`,
+        ],
+        { stdio: "inherit" }
+      )
+    } else {
+      execFileSync("unzip", ["-q", "-o", archivePath, "-d", extractDir], {
+        stdio: "inherit",
+      })
+    }
+    return
+  }
+
+  if (archiveExt === "tar.gz") {
+    execFileSync("tar", ["-xzf", archivePath, "-C", extractDir], {
+      stdio: "inherit",
+    })
+    return
+  }
+
+  throw new Error(`Unsupported archive extension: ${archiveExt}`)
+}
+
+function psQuote(value) {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+function findDynamicLibrary(dir, extension, requiredNamePart) {
+  const matches = []
+  walk(dir, (filePath) => {
+    const fileName = path.basename(filePath).toLowerCase()
+    if (
+      fileName.endsWith(`.${extension}`) &&
+      fileName.includes(requiredNamePart)
+    ) {
+      matches.push(filePath)
+    }
+  })
+
+  if (matches.length === 1) {
+    return matches[0]
+  }
+
+  if (matches.length > 1) {
+    throw new Error(
+      `Found multiple ${requiredNamePart} libraries: ${matches.join(", ")}`
+    )
+  }
+
+  return null
+}
+
+function walk(dir, visit) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const entryPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      walk(entryPath, visit)
+    } else if (entry.isFile()) {
+      visit(entryPath)
+    }
+  }
+}
+
+async function installExtension(pkgConfig, workspaceRoot) {
   console.log(`\n--- Processing package: ${pkgConfig.basePackageName} ---`)
   const platformInfo = getPlatformInfo(pkgConfig)
 
   if (!platformInfo) {
-    console.log(
-      `postinstall-${pkgConfig.basePackageName}: Skipping due to unsupported platform.`
-    )
-    return
-  }
-
-  const { packageName, destFileName, extension, basePackageName } = platformInfo
-  const nestedSourceFilePath = findSourcePath(
-    basePackageName,
-    packageName,
-    extension
-  )
-
-  if (!nestedSourceFilePath) {
-    console.log(
-      `postinstall-${basePackageName}: Source file not found. Skipping.`
-    )
-    return
+    return true
   }
 
   const finalDestDir = path.resolve(process.cwd(), DEST_DIR)
-  const finalDestPath = path.join(finalDestDir, destFileName)
+  const finalDestPath = path.join(finalDestDir, platformInfo.destFileName)
+  fs.mkdirSync(finalDestDir, { recursive: true })
 
-  try {
-    console.log(`postinstall-${basePackageName}: Copying to ${finalDestPath}`)
-    fs.mkdirSync(finalDestDir, { recursive: true })
-    fs.copyFileSync(nestedSourceFilePath, finalDestPath)
-    console.log(`postinstall-${basePackageName}: Successfully copied file.`)
-  } catch (error) {
-    console.error(`postinstall-${basePackageName}: Failed to copy file:`, error)
-    overallSuccess = false
+  if (pkgConfig.kind === "graft-release") {
+    await downloadGraftRelease(platformInfo, finalDestPath)
+    return true
   }
-})
 
-console.log("--- Postinstall script finished ---")
-process.exit(overallSuccess ? 0 : 1)
+  const sourcePath = findNpmSourcePath(
+    platformInfo.basePackageName,
+    platformInfo.packageName,
+    platformInfo.extension
+  )
+
+  if (!sourcePath) {
+    console.log(
+      `postinstall-${platformInfo.basePackageName}: Source file not found. Skipping.`
+    )
+    return true
+  }
+
+  console.log(
+    `postinstall-${platformInfo.basePackageName}: Workspace root: ${workspaceRoot}`
+  )
+  console.log(
+    `postinstall-${platformInfo.basePackageName}: Source file: ${sourcePath}`
+  )
+  console.log(
+    `postinstall-${platformInfo.basePackageName}: Destination file: ${finalDestPath}`
+  )
+  fs.copyFileSync(sourcePath, finalDestPath)
+  console.log(
+    `postinstall-${platformInfo.basePackageName}: Successfully copied file.`
+  )
+  return true
+}
+
+async function main() {
+  console.log("--- Starting postinstall script for SQLite extensions ---")
+  const workspaceRoot = findWorkspaceRoot()
+  console.log(`Using workspace root: ${workspaceRoot}`)
+
+  let overallSuccess = true
+  for (const pkgConfig of packagesToProcess) {
+    try {
+      await installExtension(pkgConfig, workspaceRoot)
+    } catch (error) {
+      console.error(`postinstall-${pkgConfig.basePackageName}:`, error)
+      overallSuccess = false
+    }
+  }
+
+  console.log("--- Postinstall script finished ---")
+  process.exit(overallSuccess ? 0 : 1)
+}
+
+main()

@@ -5,6 +5,7 @@
   "main": "./index.tsx",
   "dependencies": {
     "@eidos.space/react": "workspace:*",
+    "@eidos.space/sync": "workspace:*",
     "ahooks": "^3.8.4",
     "lucide-react": "^0.400.0"
   },

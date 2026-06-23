@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+env:
+  GRAFT_SQLITE_EXTENSION_VERSION: v0.3.0
+
 jobs:
   build-frontend:
     runs-on: ubuntu-latest
