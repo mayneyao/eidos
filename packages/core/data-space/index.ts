@@ -44,7 +44,6 @@ export class DataSpace extends DataSpaceWithTable {
       resetTo: (rev: string | number, mode: GraftResetMode = "hard") =>
         this.db.resetTo(rev, mode),
       tableLog: (tableName: string) => this.db.tableLog(tableName),
-      setMessage: (message: string) => this.db.setMessage(message),
     }
   }
 }

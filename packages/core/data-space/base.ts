@@ -343,11 +343,6 @@ export abstract class BaseDataSpace {
   public async importCsv(file: { name: string; content: string }) {
     const csvImport = new CsvImportAndExport({ useWal: this.db.isWalMode })
     console.log("importing csv file", file)
-    try {
-      await this.db.setMessage(`import CSV: ${file.name}`)
-    } catch (e) {
-      // Commit message hints are only available in Graft mode.
-    }
     const tableId = await csvImport.import(file, this as any)
     return tableId
   }

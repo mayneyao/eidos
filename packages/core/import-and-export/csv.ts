@@ -235,11 +235,6 @@ CREATE TABLE ${rawTableName} (
       const UI_UPDATE_INTERVAL = 500
 
       dataSpace.blockUIMsg("Importing data...")
-      try {
-        await dataSpace.graft.setMessage(
-          `CSV import: insert data into "${nodeName}"`
-        )
-      } catch {}
       let skippedRows = 0
 
       for (let i = 0; i < dataLines.length; i += batchSize) {

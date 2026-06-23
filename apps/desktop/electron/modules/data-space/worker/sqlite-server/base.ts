@@ -56,7 +56,6 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
   protected db: Database.Database
   protected spaceInfo?: any
   protected graftOptions?: any
-  private pendingCommitMessage?: string
 
   constructor(db: Database.Database, spaceInfo?: any, graftOptions?: any) {
     super()
@@ -401,19 +400,17 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
       throw new Error("Cannot commit while a SQLite transaction is open.")
     }
 
-    const commitMessage = message ?? this.pendingCommitMessage ?? "Update"
+    const commitMessage = message ?? "Update"
     try {
       this.db.pragma("graft_add")
       const result = this.db.pragma(
         `graft_commit = ${this.graftPragmaString(commitMessage)}`
       )
-      this.pendingCommitMessage = undefined
       return {
         rawMessage: this.firstPragmaValue(result) ?? "Committed changes",
       }
     } catch (error) {
       if (this.isNoRepoChangesError(error)) {
-        this.pendingCommitMessage = undefined
         return { rawMessage: "No changes to commit", empty: true }
       }
       throw error
@@ -489,7 +486,6 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
     const result = this.db.pragma(
       `graft_merge_continue = ${this.graftPragmaString(mergeMessage)}`
     )
-    this.pendingCommitMessage = undefined
     return {
       rawMessage: this.firstPragmaValue(result) ?? "Merge completed",
     }
@@ -632,11 +628,6 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
       `graft_json_reset = ${this.graftPragmaString(`--${resetMode} ${rev}`)}`,
       parseGraftJsonResult
     )
-  }
-
-  async setMessage(message: string) {
-    this.pendingCommitMessage = message
-    return Promise.resolve({ rawMessage: `Commit message set: '${message}'` })
   }
 
   async tableLog(tableName: string) {

@@ -151,10 +151,6 @@ export abstract class BaseServerDatabase {
     return Promise.resolve({})
   }
 
-  setMessage(_message: string): CommonVersionControlResult {
-    return Promise.resolve({})
-  }
-
   // sync
   hydrate(): CommonVersionControlResult {
     return Promise.resolve({})

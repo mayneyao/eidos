@@ -125,10 +125,6 @@ export class DataSpaceWithDatabase extends BaseDataSpace {
     return this.db.tableLog(tableName)
   }
 
-  public setMessage(message: string) {
-    return this.db.setMessage(message)
-  }
-
   // close db
   public close() {
     this.db.close()
