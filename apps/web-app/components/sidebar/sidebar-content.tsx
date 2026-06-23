@@ -126,6 +126,8 @@ const GenericBuiltInContent = ({ slug }: { slug: string }) => {
   const space = useCurrentSpaceId() || ""
   const locale = i18n.language || "en"
   const syncEnabled = currentSpace?.sync?.enabled ?? false
+  const versioningEnabled =
+    syncEnabled || currentSpace?.versioning?.enabled || false
   const currentDay = params.day || getToday()
   const currentSessionId = params.sessionId
 
@@ -137,6 +139,7 @@ const GenericBuiltInContent = ({ slug }: { slug: string }) => {
       currentSessionId={currentSessionId}
       locale={locale}
       syncEnabled={syncEnabled}
+      versioningEnabled={versioningEnabled}
     />
   )
 }

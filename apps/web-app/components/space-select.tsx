@@ -7,6 +7,7 @@ import {
   Cloud,
   FolderOpen,
   HardDrive,
+  HistoryIcon,
   Loader2,
   PlusCircle,
   RefreshCw,
@@ -548,7 +549,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                     <p className="text-xs">
                       {t(
                         "space.createSync.goToSettings",
-                        "Go to Settings → Sync to add S3-compatible storage"
+                        "Go to Settings -> Sync to add S3-compatible storage"
                       )}
                     </p>
                   </div>
@@ -675,7 +676,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                 <br />
                 {t(
                   "space.clone.goToSettings",
-                  "Go to Settings → Sync to add providers."
+                  "Go to Settings -> Sync to add providers."
                 )}
               </div>
             ) : (
@@ -908,11 +909,16 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                       <span className="truncate shrink-0 mr-2">
                         {space.name}
                       </span>
-                      {space.sync?.enabled && space.sync.remote && (
+                      {space.sync?.enabled && space.sync.remote ? (
                         <span className="text-[10px] text-muted-foreground truncate">
                           {getRemotePathname(space.sync.remote)}
                         </span>
-                      )}
+                      ) : space.versioning?.enabled ? (
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <HistoryIcon className="h-3 w-3" />
+                          local history
+                        </span>
+                      ) : null}
                     </div>
                   </CommandItem>
                 ))}
