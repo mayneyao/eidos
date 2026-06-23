@@ -4,6 +4,11 @@
  */
 
 type CommonVersionControlResult = Promise<Record<string, any>>
+export type GraftConflictResolution = "ours" | "theirs" | "manual"
+export interface GraftConflictResolveTarget {
+  table?: string
+  rowid?: number
+}
 
 export abstract class BaseServerDatabase {
   filename?: string
@@ -22,6 +27,34 @@ export abstract class BaseServerDatabase {
   }
 
   snapshot(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  commit(_message?: string): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  completeMerge(_message?: string): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  abortMerge(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  conflicts(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  resolveConflict(
+    _resolution: GraftConflictResolution,
+    _path?: string,
+    _target?: GraftConflictResolveTarget
+  ): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  branches(): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
@@ -58,7 +91,7 @@ export abstract class BaseServerDatabase {
     return Promise.resolve({})
   }
 
-  clone(remoteLogId?: string): CommonVersionControlResult {
+  clone(remoteUri?: string): CommonVersionControlResult {
     return Promise.resolve({})
   }
 

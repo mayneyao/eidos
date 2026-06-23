@@ -12,7 +12,7 @@ export interface HeadlessConfig {
   s3Prefix: string
   s3FilesPrefix: string
 
-  // Remote log ID for clone-from-remote (read-only mode)
+  // Legacy remote log ID. New Graft versions clone from a remote URI instead.
   remoteLogId: string
 
   // Server config
@@ -90,7 +90,6 @@ export function loadConfig(): HeadlessConfig {
   if (!config.awsAccessKeyId) missing.push("AWS_ACCESS_KEY_ID")
   if (!config.awsSecretAccessKey) missing.push("AWS_SECRET_ACCESS_KEY")
   if (!config.s3Prefix) missing.push("S3_PREFIX")
-  if (!config.remoteLogId) missing.push("REMOTE_LOG_ID")
   if (!config.apiKey) missing.push("API_KEY")
 
   if (missing.length > 0) {
@@ -102,37 +101,29 @@ export function loadConfig(): HeadlessConfig {
 }
 
 /**
- * Generate graft.toml content from config
+ * Generate a Graft remote URI from config.
  */
-export function generateGraftToml(
-  config: HeadlessConfig,
-  graftDataDir: string
-): string {
-  return `data_dir = "${graftDataDir.replace(/\\/g, "/")}"
-[remote]
-type = "s3_compatible"
-bucket = "${config.s3BucketName}"
-prefix = "${config.s3Prefix}"
-`
+export function getGraftRemoteUri(config: HeadlessConfig): string {
+  const prefix = config.s3Prefix.replace(/^\/+|\/+$/g, "")
+  const endpoint = encodeURIComponent(config.awsEndpoint)
+  return `s3_compatible://${config.s3BucketName}/${prefix}?endpoint=${endpoint}`
 }
 
 /**
  * Apply Graft environment variables
  */
-export function applyGraftEnv(
-  config: HeadlessConfig,
-  graftConfigPath: string
-): void {
-  const absoluteConfigPath = path.resolve(graftConfigPath)
-  process.env.GRAFT_CONFIG = absoluteConfigPath
+export function applyGraftEnv(config: HeadlessConfig): string {
+  delete process.env.GRAFT_CONFIG
   process.env.AWS_ACCESS_KEY_ID = config.awsAccessKeyId
   process.env.AWS_SECRET_ACCESS_KEY = config.awsSecretAccessKey
   process.env.AWS_ENDPOINT = config.awsEndpoint
   process.env.AWS_ENDPOINT_URL = config.awsEndpoint
   process.env.AWS_REGION = config.awsRegion
 
-  console.log(`[Config] GRAFT_CONFIG=${absoluteConfigPath}`)
+  const remoteUri = getGraftRemoteUri(config)
+  console.log(`[Config] GRAFT_REMOTE=${remoteUri}`)
   console.log(`[Config] AWS_ENDPOINT=${config.awsEndpoint}`)
   console.log(`[Config] S3_BUCKET=${config.s3BucketName}`)
   console.log(`[Config] S3_PREFIX=${config.s3Prefix}`)
+  return remoteUri
 }

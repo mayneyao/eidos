@@ -9,7 +9,7 @@ import path from "node:path"
 import { DataSpace } from "@eidos.space/core"
 
 import type { HeadlessConfig } from "../config/env"
-import { applyGraftEnv, generateGraftToml } from "../config/env"
+import { applyGraftEnv } from "../config/env"
 import { getExtensionPaths, validateExtensions } from "../utils/extensions"
 import { NodeServerDatabase, initializeDatabase } from "./node-server-db"
 
@@ -66,7 +66,7 @@ export async function getDataSpace(config: HeadlessConfig): Promise<DataSpace> {
 
   const eidosDir = path.join(config.dataDir, ".eidos")
   const graftDir = path.join(eidosDir, ".graft")
-  const graftConfigPath = path.join(eidosDir, "graft.toml")
+  const graftConfigPath = path.join(graftDir, "config.toml")
 
   // Check if Graft is configured
   const graftEnabled = !!(
@@ -89,20 +89,13 @@ export async function getDataSpace(config: HeadlessConfig): Promise<DataSpace> {
     )
   }
 
+  let remoteUri: string | undefined
   if (graftEnabled) {
-    // Ensure eidos directory exists for graft.toml
     if (!fs.existsSync(eidosDir)) {
       fs.mkdirSync(eidosDir, { recursive: true })
     }
 
-    // Generate graft.toml - use absolute path for data_dir
-    const absoluteGraftDir = path.resolve(config.dataDir, ".eidos", ".graft")
-    const graftToml = generateGraftToml(config, absoluteGraftDir)
-    fs.writeFileSync(graftConfigPath, graftToml, "utf-8")
-    console.log(`[DataSpace] Generated graft.toml at ${graftConfigPath}`)
-
-    // Apply Graft environment variables
-    applyGraftEnv(config, graftConfigPath)
+    remoteUri = applyGraftEnv(config)
   }
 
   // Find extensions using utility
@@ -124,7 +117,7 @@ export async function getDataSpace(config: HeadlessConfig): Promise<DataSpace> {
   const { db, isSyncEnabled } = await initializeDatabase(config.dataDir, {
     graftEnabled: graftEnabled && !!extensions.graft,
     isFirstInit,
-    remoteLogId: config.remoteLogId,
+    remoteUri,
     extensions,
   })
 

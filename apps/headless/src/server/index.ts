@@ -214,6 +214,27 @@ export async function startServer(config: HeadlessConfig): Promise<void> {
     }
   })
 
+  app.post("/graft/complete-merge", async (c) => {
+    try {
+      const dataSpace = await getDataSpace(config)
+      const body = await c.req.json().catch(() => ({}))
+      const result = await (dataSpace.db as any).completeMerge(body?.message)
+      return c.json({ success: true, data: result })
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 500)
+    }
+  })
+
+  app.post("/graft/abort-merge", async (c) => {
+    try {
+      const dataSpace = await getDataSpace(config)
+      const result = await (dataSpace.db as any).abortMerge()
+      return c.json({ success: true, data: result })
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 500)
+    }
+  })
+
   // In-memory cache for signed URLs
   const signedUrlCache = new Map<string, { url: string; expires: number }>()
   const CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours

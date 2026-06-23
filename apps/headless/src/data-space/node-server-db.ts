@@ -8,8 +8,13 @@ import "./env"
 
 import fs from "node:fs"
 import path from "node:path"
+import { pathToFileURL } from "node:url"
 import Database from "better-sqlite3"
-import { BaseServerDatabase } from "../sqlite/interface"
+import {
+  BaseServerDatabase,
+  type GraftConflictResolveTarget,
+  type GraftConflictResolution,
+} from "../sqlite/interface"
 
 export interface NodeServerDatabaseOptions {
   // SQLite extensions
@@ -23,6 +28,22 @@ export interface NodeServerDatabaseOptions {
   // Logger
   logger?: Console
 }
+
+const GRAFT_JOB_POLL_INTERVAL_MS = 50
+const GRAFT_JOB_TIMEOUT_MS = 5 * 60 * 1000
+
+type GraftJobStatus = {
+  id?: string
+  kind?: string
+  state?: string
+  result?: unknown
+  error?: string | null
+}
+
+const isGraftConflictResolution = (
+  resolution: unknown
+): resolution is GraftConflictResolution =>
+  resolution === "ours" || resolution === "theirs" || resolution === "manual"
 
 export class NodeServerDatabase extends BaseServerDatabase {
   protected db: Database.Database
@@ -174,47 +195,244 @@ export class NodeServerDatabase extends BaseServerDatabase {
     return Promise.resolve(parsedResult)
   }
 
+  private parseGraftJobStatus(rawStatus: unknown): GraftJobStatus {
+    if (typeof rawStatus === "string") {
+      try {
+        return JSON.parse(rawStatus) as GraftJobStatus
+      } catch (error) {
+        throw new Error(`Invalid Graft job status JSON: ${error}`)
+      }
+    }
+    if (rawStatus && typeof rawStatus === "object") {
+      return rawStatus as GraftJobStatus
+    }
+    throw new Error(`Invalid Graft job status: ${String(rawStatus)}`)
+  }
+
+  private sleep(ms: number) {
+    return new Promise<void>((resolve) => setTimeout(resolve, ms))
+  }
+
+  private graftResolveConflictSpec(
+    resolution: GraftConflictResolution,
+    path?: string,
+    target?: GraftConflictResolveTarget
+  ) {
+    const flag = `--${resolution}`
+    const row =
+      target?.table && Number.isFinite(target.rowid)
+        ? ` --row ${target.table} ${target.rowid}`
+        : ""
+    return path ? `${flag}${row} ${path}` : `${flag}${row}`
+  }
+
+  private async graftAsyncCommand(command: string) {
+    const jobId = await this.graftCommand(command)
+    if (typeof jobId !== "string" || jobId.length === 0) {
+      throw new Error(`Expected Graft async job id, got: ${String(jobId)}`)
+    }
+
+    const startedAt = Date.now()
+    while (true) {
+      const status = this.parseGraftJobStatus(
+        await this.graftCommand(`graft_job_status = ${pragmaString(jobId)}`)
+      )
+
+      if (status.state === "done") {
+        return this.graftCommand(
+          `graft_json_job_result = ${pragmaString(jobId)}`,
+          parseGraftJsonResult
+        )
+      }
+      if (status.state === "failed") {
+        throw new Error(
+          `Graft async job ${jobId} failed: ${status.error ?? "unknown error"}`
+        )
+      }
+      if (status.state !== "running") {
+        throw new Error(
+          `Graft async job ${jobId} returned unknown state: ${String(
+            status.state
+          )}`
+        )
+      }
+      if (Date.now() - startedAt > GRAFT_JOB_TIMEOUT_MS) {
+        throw new Error(`Graft async job ${jobId} timed out`)
+      }
+
+      await this.sleep(GRAFT_JOB_POLL_INTERVAL_MS)
+    }
+  }
+
   async status() {
-    return this.graftCommand("graft_status")
+    return this.graftCommand("graft_json_status")
   }
 
   async pull() {
-    return this.graftCommand("graft_pull")
+    return this.graftCommand("graft_json_pull", parseGraftJsonResult)
   }
 
   async push() {
-    return this.graftCommand("graft_push")
+    return this.graftCommand("graft_json_push", parseGraftJsonResult)
+  }
+
+  async completeMerge(message?: string) {
+    if (this.db.inTransaction) {
+      throw new Error(
+        "Cannot complete merge while a SQLite transaction is open."
+      )
+    }
+
+    const mergeMessage = message ?? "Merge remote changes"
+    const result = await this.graftCommand(
+      `graft_merge_continue = ${pragmaString(mergeMessage)}`
+    )
+    return {
+      rawMessage: typeof result === "string" ? result : "Merge completed",
+      ...(result && typeof result === "object" ? result : {}),
+    }
+  }
+
+  async abortMerge() {
+    if (this.db.inTransaction) {
+      throw new Error("Cannot abort merge while a SQLite transaction is open.")
+    }
+
+    const result = await this.graftCommand("graft_merge_abort")
+    return {
+      rawMessage: typeof result === "string" ? result : "Merge aborted",
+      ...(result && typeof result === "object" ? result : {}),
+    }
+  }
+
+  async conflicts() {
+    return this.graftCommand("graft_json_conflicts", parseGraftJsonResult)
+  }
+
+  async resolveConflict(
+    resolution: GraftConflictResolution,
+    path?: string,
+    target?: GraftConflictResolveTarget
+  ) {
+    if (this.db.inTransaction) {
+      throw new Error(
+        "Cannot resolve conflict while a SQLite transaction is open."
+      )
+    }
+    if (!isGraftConflictResolution(resolution)) {
+      throw new Error(
+        `resolveConflict() received unsupported resolution: ${String(
+          resolution
+        )}`
+      )
+    }
+
+    return this.graftCommand(
+      `graft_json_resolve_conflict = ${pragmaString(
+        this.graftResolveConflictSpec(resolution, path, target)
+      )}`,
+      parseGraftJsonResult
+    )
   }
 
   async fetch() {
-    return this.graftCommand("graft_fetch")
+    return this.graftAsyncCommand("graft_json_fetch_async")
   }
 
   async hydrate() {
-    return this.graftCommand("graft_hydrate")
+    return Promise.resolve({
+      rawMessage: "Hydration is handled by repository checkout and pull.",
+    })
   }
 
-  async clone(remoteLogId?: string) {
-    if (remoteLogId) {
-      return this.graftCommand(`graft_clone = "${remoteLogId}"`)
+  async clone(remoteUri?: string) {
+    if (remoteUri) {
+      return this.graftCommand(`graft_clone = ${pragmaString(remoteUri)}`)
     }
-    return this.graftCommand("graft_clone")
+    throw new Error("clone() requires a remote URI")
   }
 
   async info() {
-    return this.graftCommand("graft_info")
+    return this.graftCommand(
+      "graft_debug_volume_json_info",
+      parseGraftJsonResult
+    )
+  }
+
+  async branches() {
+    return this.graftCommand(
+      "graft_json_branch = '--all'",
+      parseGraftJsonResult
+    )
   }
 
   async tags() {
-    return this.graftCommand("graft_tags")
+    return this.graftCommand("graft_json_tags", parseGraftJsonResult)
   }
 
   async volumes() {
-    return this.graftCommand("graft_volumes")
+    return this.graftCommand(
+      "graft_debug_volume_json_list",
+      parseGraftJsonResult
+    )
   }
 
   async audit() {
-    return this.graftCommand("graft_audit")
+    return this.graftCommand(
+      "graft_debug_volume_json_audit",
+      parseGraftJsonResult
+    )
+  }
+}
+
+function parseGraftJsonResult(data: unknown) {
+  if (typeof data !== "string") return data
+  return JSON.parse(data)
+}
+
+function pragmaString(value: string | number) {
+  return `'${String(value).split("'").join("''")}'`
+}
+
+function graftDbUri(dbPath: string) {
+  const url = pathToFileURL(dbPath)
+  url.searchParams.set("vfs", "graft")
+  return url.href
+}
+
+function isNoRepoChangesError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  return (
+    message.includes("no changes added to commit") ||
+    message.includes("NoStagedChanges")
+  )
+}
+
+function initializeLocalRepository(db: Database.Database) {
+  db.pragma("graft_init")
+  try {
+    db.pragma("graft_add")
+    db.pragma(`graft_commit = ${pragmaString("Initial version")}`)
+  } catch (error) {
+    if (!isNoRepoChangesError(error)) throw error
+  }
+}
+
+function configureOriginRemote(db: Database.Database, remoteUri: string) {
+  try {
+    db.pragma(`graft_remote_add = ${pragmaString(`origin ${remoteUri}`)}`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!message.includes("remote `origin` already exists")) {
+      throw error
+    }
+    db.pragma(`graft_remote_set_url = ${pragmaString(`origin ${remoteUri}`)}`)
+  }
+
+  try {
+    db.pragma(`graft_branch_upstream = ${pragmaString("origin/main")}`)
+  } catch (error) {
+    console.warn("[DB] Failed to set Graft upstream:", error)
   }
 }
 
@@ -226,7 +444,7 @@ export async function initializeDatabase(
   options: {
     graftEnabled: boolean
     isFirstInit?: boolean
-    remoteLogId?: string
+    remoteUri?: string
     extensions?: NodeServerDatabaseOptions["extensions"]
   }
 ): Promise<{ db: NodeServerDatabase; isSyncEnabled: boolean }> {
@@ -253,10 +471,6 @@ export async function initializeDatabase(
     // Initialize with Graft VFS
     console.log("[DB] Initializing with Graft VFS...")
 
-    if (!fs.existsSync(graftDir)) {
-      fs.mkdirSync(graftDir, { recursive: true })
-    }
-
     // Load Graft extension first (registers VFS)
     const vfsDb = new Database(":memory:")
     const graftLibPath = options.extensions.graft.libPath
@@ -268,34 +482,30 @@ export async function initializeDatabase(
     vfsDb.close()
 
     // Open with Graft VFS
-    db = new Database("file:main?vfs=graft")
+    db = new Database(graftDbUri(dbPath))
     db.pragma("page_size = 4096")
     db.pragma("journal_mode = MEMORY")
     isSyncEnabled = true
 
     console.log("[DB] Graft VFS initialized")
 
-    // Clone from remote ONLY on first-time initialization
-    if (isFirstInit && options.remoteLogId) {
-      console.log(
-        `[DB] First init: Cloning from remote: ${options.remoteLogId}`
-      )
+    if (isFirstInit && options.remoteUri) {
+      console.log(`[DB] First init: Cloning from remote: ${options.remoteUri}`)
       try {
-        db.pragma(`graft_clone = "${options.remoteLogId}"`)
+        db.pragma(`graft_clone = ${pragmaString(options.remoteUri)}`)
         console.log("[DB] graft_clone completed")
-
-        db.pragma("graft_pull")
-        console.log("[DB] graft_pull completed")
-
-        db.pragma("graft_hydrate")
-        console.log("[DB] graft_hydrate completed")
       } catch (e: any) {
         console.error("[DB] Clone from remote failed:", e.message)
+        initializeLocalRepository(db)
+        configureOriginRemote(db, options.remoteUri)
+        try {
+          db.pragma("graft_push")
+        } catch (pushError: any) {
+          console.warn("[DB] Initial push failed:", pushError.message)
+        }
       }
-    } else if (isFirstInit && !options.remoteLogId) {
-      console.warn(
-        "[DB] First init but no REMOTE_LOG_ID - database will be empty"
-      )
+    } else if (isFirstInit) {
+      initializeLocalRepository(db)
     } else {
       // Not first init - just sync
       console.log("[DB] Existing database, syncing...")
