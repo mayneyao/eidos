@@ -1,10 +1,7 @@
-// IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
-import "./sqlite-server/env"
-
 import fs from "fs"
 import path from "path"
-import Database from "better-sqlite3"
 import WebSocket from "ws"
+import Database, { type SqliteDatabase } from "./sqlite-server/better-sqlite3"
 
 const RELAY_API_BASE = "https://api.eidos.space/v1/relay/channels"
 const RELAY_WS_BASE = "wss://api.eidos.space/v1/relay"
@@ -33,7 +30,7 @@ export class RelayClient {
   private channelIds: Set<string>
   private tokenProvider: () => Promise<string | null>
   private onNewMessages?: (channelId: string, count: number) => void
-  private db: Database.Database
+  private db: SqliteDatabase
   private pullingChannels = new Set<string>()
 
   // WebSocket state (unified subscription)

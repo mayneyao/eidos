@@ -1,14 +1,13 @@
-import type Database from "better-sqlite3"
-
 import type { SyncCredentials } from "@eidos.space/sync"
 import type { SpaceInfo } from "@eidos.space/space-manager"
 import { NodeBaseServerDatabase } from "./base"
+import type { SqliteDatabase, SqliteOptions } from "./better-sqlite3"
 import { NodeDatabaseInitializer } from "./initializer"
 
 export interface NodeDomainDbInfo {
   type: "node"
   config: {
-    options?: Database.Options
+    options?: SqliteOptions
     spaceInfo?: SpaceInfo
   }
 }
@@ -45,7 +44,7 @@ export class NodeServerDatabase extends NodeBaseServerDatabase {
   private logger: any = console
 
   constructor(
-    db: Database.Database,
+    db: SqliteDatabase,
     isSyncEnabled: boolean = false,
     logger?: any,
     spaceInfo?: SpaceInfo,

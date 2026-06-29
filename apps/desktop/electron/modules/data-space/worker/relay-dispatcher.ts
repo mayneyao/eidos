@@ -1,9 +1,6 @@
-// IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
-import "./sqlite-server/env"
-
 import path from "path"
 import fs from "fs"
-import Database from "better-sqlite3"
+import Database, { type SqliteDatabase } from "./sqlite-server/better-sqlite3"
 
 export interface RelayMessage {
   id: string
@@ -16,7 +13,7 @@ export interface RelayMessage {
 }
 
 export class RelayDispatcher {
-  private db: Database.Database
+  private db: SqliteDatabase
 
   constructor(spacePath: string) {
     const dbPath = path.join(spacePath, ".eidos", "inbox.sqlite3")

@@ -1,10 +1,10 @@
-// IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
-import "./env"
-
 import fs from "fs"
 import path from "path"
 import { pathToFileURL } from "node:url"
-import Database from "better-sqlite3"
+import Database, {
+  type SqliteDatabase,
+  type SqliteOptions,
+} from "./better-sqlite3"
 
 import type { SyncCredentials } from "@eidos.space/sync"
 import type { SpaceInfo } from "@eidos.space/space-manager"
@@ -19,7 +19,7 @@ import { loadCustomExtensions, scanCustomExtensions } from "./sqlite-extension"
 export interface NodeDomainDbInfo {
   type: "node"
   config: {
-    options?: Database.Options
+    options?: SqliteOptions
     spaceInfo?: SpaceInfo
   }
 }
@@ -70,7 +70,7 @@ export class NodeDatabaseInitializer {
    * Initialize the database with all necessary extensions and configurations
    */
   async initializeDatabase(config: NodeDomainDbInfo["config"]): Promise<{
-    db: Database.Database
+    db: SqliteDatabase
     isSyncEnabled: boolean
   }> {
     const spaceInfo = config.spaceInfo
@@ -144,7 +144,7 @@ export class NodeDatabaseInitializer {
     }
   }
 
-  private initializeWithRemoteSpace(db: Database.Database, remoteUri?: string) {
+  private initializeWithRemoteSpace(db: SqliteDatabase, remoteUri?: string) {
     if (!remoteUri) {
       this.logger.warn(
         "Remote URI not found, skipping remote space initialization"
@@ -170,14 +170,14 @@ export class NodeDatabaseInitializer {
     }
   }
 
-  private initializeLocalRepository(db: Database.Database) {
+  private initializeLocalRepository(db: SqliteDatabase) {
     this.logger.log("Initializing local Graft repository...")
     db.pragma("graft_init")
     this.createInitialCommit(db)
     this.logger.log("Local Graft repository initialized successfully.")
   }
 
-  private createInitialCommit(db: Database.Database) {
+  private createInitialCommit(db: SqliteDatabase) {
     try {
       db.pragma("graft_add")
       db.pragma(`graft_commit = ${this.pragmaString("Initial version")}`)
@@ -189,7 +189,7 @@ export class NodeDatabaseInitializer {
     }
   }
 
-  private pushInitialBranch(db: Database.Database) {
+  private pushInitialBranch(db: SqliteDatabase) {
     try {
       db.pragma("graft_push")
       this.logger.log("Initial Graft branch pushed to remote.")
@@ -198,7 +198,7 @@ export class NodeDatabaseInitializer {
     }
   }
 
-  private refreshRemoteRefsOnStartup(db: Database.Database) {
+  private refreshRemoteRefsOnStartup(db: SqliteDatabase) {
     try {
       db.pragma("graft_fetch")
     } catch (error) {
@@ -214,7 +214,7 @@ export class NodeDatabaseInitializer {
     )
   }
 
-  private configureOriginRemote(db: Database.Database, remoteUri: string) {
+  private configureOriginRemote(db: SqliteDatabase, remoteUri: string) {
     try {
       db.pragma(
         `graft_remote_add = ${this.pragmaString(`origin ${remoteUri}`)}`
@@ -264,7 +264,7 @@ export class NodeDatabaseInitializer {
     spaceInfo: SpaceInfo,
     config: NodeDomainDbInfo["config"],
     isSyncEnabled: boolean
-  ): { db: Database.Database } {
+  ): { db: SqliteDatabase } {
     const dbPath =
       spaceInfo.path == ":memory:"
         ? ":memory:"
@@ -301,7 +301,7 @@ export class NodeDatabaseInitializer {
     return `'${String(value).split("'").join("''")}'`
   }
 
-  private initializeDatabaseConnection(db: Database.Database) {
+  private initializeDatabaseConnection(db: SqliteDatabase) {
     this.logger.log(
       "Initializing database connection settings (extensions, pragmas)..."
     )
@@ -364,7 +364,7 @@ export class NodeDatabaseInitializer {
     }
   }
 
-  private loadVecExtension(db: Database.Database) {
+  private loadVecExtension(db: SqliteDatabase) {
     if (this.options.vec?.libPath) {
       db.loadExtension(this.options.vec.libPath)
       const { sqlite_version, vec_version } = db
@@ -383,7 +383,7 @@ export class NodeDatabaseInitializer {
   }
 
   private loadSimpleExtension(
-    db: Database.Database,
+    db: SqliteDatabase,
     options: {
       libPath: string
       dictPath: string
@@ -444,7 +444,7 @@ export class NodeDatabaseInitializer {
     }
   }
 
-  private attachDatabase(db: Database.Database, isSyncEnabled: boolean) {
+  private attachDatabase(db: SqliteDatabase, isSyncEnabled: boolean) {
     if (!this.options.spacePath) {
       return
     }

@@ -1,6 +1,3 @@
-// IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
-import "./env"
-
 import fs from "node:fs"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
@@ -26,11 +23,11 @@ import {
   parseGraftBranches,
   parseGraftVolumes,
 } from "@/packages/sync/graft/helpers"
-import Database from "better-sqlite3"
 import { getSpaceRegistry } from "@eidos.space/space-manager"
 
 import type { SyncCredentials } from "@eidos.space/sync"
 import { applyGraftConfigToEnv } from "../sync/helper"
+import Database, { type SqliteDatabase } from "./better-sqlite3"
 import { isVFSInitialized, setVFSInitialized } from "./initializer"
 
 const GRAFT_JOB_POLL_INTERVAL_MS = 50
@@ -53,11 +50,11 @@ const isGraftConflictResolution = (
   resolution === "ours" || resolution === "theirs" || resolution === "manual"
 
 export class NodeBaseServerDatabase extends BaseServerDatabase {
-  protected db: Database.Database
+  protected db: SqliteDatabase
   protected spaceInfo?: any
   protected graftOptions?: any
 
-  constructor(db: Database.Database, spaceInfo?: any, graftOptions?: any) {
+  constructor(db: SqliteDatabase, spaceInfo?: any, graftOptions?: any) {
     super()
     this.db = db
     this.spaceInfo = spaceInfo
@@ -747,27 +744,74 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
       }
     }
 
+    const graftUri = this.graftDbUri(dbPath)
     console.log(`Starting graft conversion from: ${dbPath}`)
+    console.log(`Opening graft database URI: ${graftUri}`)
 
-    // 6. Close regular SQLite connection
-    this.db.close()
+    let graftDb: SqliteDatabase | undefined
 
-    // 7. Open graft connection using the physical database path so repository
-    // discovery and .graft placement are tied to the space directory.
-    this.db = new Database(this.graftDbUri(dbPath))
+    try {
+      // 6. Close regular SQLite connection before opening the same file via
+      // Graft VFS. If anything below fails, reopen the regular connection so
+      // the worker is not left with a closed database handle.
+      this.db.close()
 
-    // IMPORTANT: Set 4k alignment and memory mode immediately
-    this.db.pragma("page_size = 4096")
-    this.db.pragma("journal_mode = MEMORY")
-    this.isSyncEnabled = true
+      // 7. Open graft connection using the physical database path so repository
+      // discovery and .graft placement are tied to the space directory.
+      graftDb = new Database(graftUri)
 
-    this.db.pragma("graft_init")
-    this.commitChanges("Initial version")
-    if (remoteUri) {
-      this.configureOriginRemote(remoteUri)
-      this.pushInitialBranch()
+      // IMPORTANT: Set 4k alignment and memory mode immediately
+      graftDb.pragma("page_size = 4096")
+      graftDb.pragma("journal_mode = MEMORY")
+
+      this.db = graftDb
+      this.isSyncEnabled = true
+
+      this.db.pragma("graft_init")
+      this.commitChanges("Initial version")
+      if (remoteUri) {
+        this.configureOriginRemote(remoteUri)
+        this.pushInitialBranch()
+      }
+      console.log("Graft conversion completed")
+    } catch (error) {
+      console.error("Graft conversion failed:", error)
+      this.isSyncEnabled = false
+
+      if (graftDb?.open) {
+        try {
+          graftDb.close()
+        } catch (closeError) {
+          console.warn("Failed to close failed graft connection:", closeError)
+        }
+      }
+
+      try {
+        this.db = new Database(dbPath)
+        console.log(
+          "Restored regular SQLite connection after failed Graft conversion"
+        )
+      } catch (restoreError) {
+        console.error(
+          "Failed to restore regular SQLite connection after Graft conversion failure:",
+          restoreError
+        )
+      }
+
+      if (fs.existsSync(graftDirPath)) {
+        try {
+          fs.rmSync(graftDirPath, { recursive: true, force: true })
+          console.log("Cleared partial graft directory after failed conversion")
+        } catch (cleanupError) {
+          console.warn(
+            "Failed to clear partial graft directory after failed conversion:",
+            cleanupError
+          )
+        }
+      }
+
+      throw error
     }
-    console.log("Graft conversion completed")
 
     try {
       const registry = getSpaceRegistry()

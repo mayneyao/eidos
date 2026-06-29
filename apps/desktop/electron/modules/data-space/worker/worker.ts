@@ -1,4 +1,3 @@
-import Database from "better-sqlite3"
 import { DataSpace } from "@/packages/core/data-space"
 import { BucketClient } from "@/packages/sync/bucket"
 import {
@@ -19,6 +18,7 @@ import { createExternalFileSystem } from "./external-fs/external-fs"
 import { initUDF } from "./init-udf"
 import { RpcServer } from "./rpc/rpc-server"
 import type { InitMessage, WorkerInitData } from "./rpc/rpc-types"
+import Database from "./sqlite-server/better-sqlite3"
 import { NodeServerDatabase } from "./sqlite-server"
 import { NodeBaseServerDatabase } from "./sqlite-server/base"
 import { isInitializationOperation } from "./sync/helper"
