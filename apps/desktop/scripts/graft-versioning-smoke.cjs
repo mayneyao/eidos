@@ -41,6 +41,14 @@ function quotePragma(value) {
   return `'${String(value).replace(/'/g, "''")}'`
 }
 
+function removeTempRoot(root) {
+  try {
+    fs.rmSync(root, { recursive: true, force: true })
+  } catch (error) {
+    console.warn("Could not remove smoke temp directory:", error)
+  }
+}
+
 function main() {
   const libPath = findGraftLibrary()
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "eidos-graft-smoke-"))
@@ -93,7 +101,7 @@ function main() {
     console.log("Graft status:", JSON.stringify(status))
   } finally {
     db.close()
-    fs.rmSync(root, { recursive: true, force: true })
+    removeTempRoot(root)
   }
 }
 
