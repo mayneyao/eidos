@@ -27,6 +27,8 @@ jobs:
         run: cd apps/desktop && node scripts/download-libsimple.cjs
 
       - name: Install dependencies
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: pnpm install
 
       - name: Sync version from tag
@@ -69,6 +71,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: build-frontend
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
@@ -114,6 +117,8 @@ jobs:
         run: cd apps/desktop && node scripts/download-libsimple.cjs
 
       - name: Install dependencies
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: pnpm install
 
       - name: Sync version from tag

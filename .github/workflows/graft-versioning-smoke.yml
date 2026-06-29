@@ -48,6 +48,8 @@ jobs:
         run: sed -i 's/\/usr\/bin\/env node/node/g' /c/Users/runneradmin/setup-pnpm/node_modules/.pnpm/pnpm@10.12.4/node_modules/pnpm/bin/pnpm.cjs
 
       - name: Install dependencies
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: pnpm install --frozen-lockfile
 
       - name: Ensure SQLite extensions are present
