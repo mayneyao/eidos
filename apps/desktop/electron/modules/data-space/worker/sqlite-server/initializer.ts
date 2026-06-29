@@ -1,10 +1,10 @@
 import fs from "fs"
 import path from "path"
-import { pathToFileURL } from "node:url"
 import Database, {
   type SqliteDatabase,
   type SqliteOptions,
 } from "./better-sqlite3"
+import { createGraftDbUri } from "./graft-uri"
 
 import type { SyncCredentials } from "@eidos.space/sync"
 import type { SpaceInfo } from "@eidos.space/space-manager"
@@ -291,10 +291,7 @@ export class NodeDatabaseInitializer {
   }
 
   private graftDbUri(dbPath: string) {
-    if (dbPath === ":memory:") return dbPath
-    const url = pathToFileURL(dbPath)
-    url.searchParams.set("vfs", "graft")
-    return url.href
+    return createGraftDbUri(dbPath)
   }
 
   private pragmaString(value: string | number) {

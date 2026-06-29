@@ -1,6 +1,5 @@
 import fs from "node:fs"
 import path from "node:path"
-import { pathToFileURL } from "node:url"
 import {
   BaseServerDatabase,
   type GraftConflictResolveTarget,
@@ -28,6 +27,7 @@ import { getSpaceRegistry } from "@eidos.space/space-manager"
 import type { SyncCredentials } from "@eidos.space/sync"
 import { applyGraftConfigToEnv } from "../sync/helper"
 import Database, { type SqliteDatabase } from "./better-sqlite3"
+import { createGraftDbUri } from "./graft-uri"
 import { isVFSInitialized, setVFSInitialized } from "./initializer"
 
 const GRAFT_JOB_POLL_INTERVAL_MS = 50
@@ -306,9 +306,7 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
   }
 
   private graftDbUri(dbPath: string) {
-    const url = pathToFileURL(dbPath)
-    url.searchParams.set("vfs", "graft")
-    return url.href
+    return createGraftDbUri(dbPath)
   }
 
   private isNoRepoChangesError(error: unknown) {

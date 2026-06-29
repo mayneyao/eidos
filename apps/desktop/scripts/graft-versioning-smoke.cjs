@@ -1,7 +1,6 @@
 const fs = require("node:fs")
 const os = require("node:os")
 const path = require("node:path")
-const { pathToFileURL } = require("node:url")
 
 // better-sqlite3 reads SQLITE_USE_URI when its native addon is loaded.
 // Keep this before require("better-sqlite3") so Windows treats file: URLs as
@@ -29,6 +28,10 @@ function findGraftLibrary() {
 }
 
 function graftDbUri(dbPath) {
+  if (process.platform === "win32") {
+    return `file:${dbPath}?vfs=graft`
+  }
+  const { pathToFileURL } = require("node:url")
   const url = pathToFileURL(dbPath)
   url.searchParams.set("vfs", "graft")
   return url.href
