@@ -27,8 +27,6 @@ jobs:
         run: cd apps/desktop && node scripts/download-libsimple.cjs
 
       - name: Install dependencies
-        env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: pnpm install
 
       - name: Sync version from tag
@@ -116,8 +114,6 @@ jobs:
         run: cd apps/desktop && node scripts/download-libsimple.cjs
 
       - name: Install dependencies
-        env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: pnpm install
 
       - name: Sync version from tag
