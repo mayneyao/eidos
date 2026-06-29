@@ -54,6 +54,10 @@ jobs:
         working-directory: apps/desktop
         run: node scripts/postinstall-sqlite-ext.cjs
 
+      - name: Ensure Electron binary is present
+        working-directory: apps/desktop
+        run: node -e "require('electron/install')"
+
       - name: Run Graft versioning smoke
         working-directory: apps/desktop
         run: pnpm exec electron scripts/graft-versioning-smoke.cjs
