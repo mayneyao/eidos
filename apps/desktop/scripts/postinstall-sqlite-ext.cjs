@@ -9,7 +9,7 @@ const DEST_DIR = "dist-sqlite-ext"
 const GRAFT_REPO =
   process.env.GRAFT_SQLITE_EXTENSION_REPO || "eidos-space/graft"
 const GRAFT_VERSION = normalizeTag(
-  process.env.GRAFT_SQLITE_EXTENSION_VERSION || "v0.3.0"
+  process.env.GRAFT_SQLITE_EXTENSION_VERSION || "v0.3.1"
 )
 
 const platformInfoByKey = {

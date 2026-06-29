@@ -16,6 +16,17 @@ interface ProcessItem {
   lastUsed: number
 }
 
+function utilityProcessEnv(): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value === "string") {
+      env[key] = value
+    }
+  }
+  env.SQLITE_USE_URI = "1"
+  return env
+}
+
 /**
  * DataSpace Process Pool - Manages UtilityProcess workers
  *
@@ -78,6 +89,7 @@ export class DataSpaceProcessPool extends EventEmitter {
     const child = utilityProcess.fork(processPath, [], {
       serviceName: `eidos-space-${spaceId}`,
       stdio: "pipe",
+      env: utilityProcessEnv(),
     })
 
     // Intercept worker stdout/stderr and log with timestamp
