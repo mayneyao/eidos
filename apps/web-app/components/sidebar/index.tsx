@@ -14,6 +14,7 @@ import { Sidebar } from "@/components/ui/sidebar"
 
 import { SidebarContent } from "./sidebar-content"
 import { SidebarTabs } from "./sidebar-tabs"
+import { SidebarUpdateStatus } from "./update-status"
 
 const SidebarFooter = () => {
   const { t } = useTranslation()
@@ -37,6 +38,7 @@ const SidebarFooter = () => {
       <div className="flex items-center justify-between gap-1">
         {!isShareMode && <SpaceSelect spaces={spaceList} />}
         <div className="flex items-center gap-1">
+          <SidebarUpdateStatus />
           <Button
             variant="ghost"
             size="sm"
