@@ -492,6 +492,9 @@ importers:
       '@radix-ui/react-use-controllable-state':
         specifier: ^1.2.2
         version: 1.2.2(@types/react@18.3.23)(react@18.3.1)
+      '@shadcn/react':
+        specifier: ^0.2.0
+        version: 0.2.0(@types/react@18.3.23)(react@18.3.1)
       '@sqlite.org/sqlite-wasm':
         specifier: 3.45.3-build2
         version: 3.45.3-build2
@@ -5957,6 +5960,17 @@ packages:
 
   '@scena/matrix@1.1.1':
     resolution: {integrity: sha512-JVKBhN0tm2Srl+Yt+Ywqu0oLgLcdemDQlD1OxmN9jaCTwaFPZ7tY8n6dhVgMEaR9qcR7r+kAlMXnSfNyYdE+Vg==}
+
+  '@shadcn/react@0.2.0':
+    resolution: {integrity: sha512-g/LMtyL0eiHCHkOCelhYf32RC5nTMdtUNag1ZQRhSDCW+jnHxDY1Dajk7P6zJosOg8z2N4wzfKOY5sh54QTDYA==}
+    peerDependencies:
+      '@types/react': '>=19'
+      react: '>=19'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      react:
+        optional: true
 
   '@shikijs/core@3.23.0':
     resolution: {integrity: sha512-NSWQz0riNb67xthdm5br6lAkvpDJRTgB36fxlo37ZzM2yq0PQFFzbd8psqC2XMPgCzo1fW6cVi18+ArJ44wqgA==}
@@ -17915,6 +17929,11 @@ snapshots:
   '@scena/matrix@1.1.1':
     dependencies:
       '@daybrush/utils': 1.13.0
+
+  '@shadcn/react@0.2.0(@types/react@18.3.23)(react@18.3.1)':
+    optionalDependencies:
+      '@types/react': 18.3.23
+      react: 18.3.1
 
   '@shikijs/core@3.23.0':
     dependencies:

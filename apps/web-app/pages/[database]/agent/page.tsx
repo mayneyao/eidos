@@ -23,10 +23,19 @@ import {
   type NodeMention,
 } from "@/components/ai-agent/agent-goal-input"
 import { AgentChatArea } from "@/components/ai-agent/agent-chat-area"
+import { AgentConversationOutline } from "@/components/ai-agent/agent-conversation-outline"
 import { AgentSessionContext } from "@/components/ai-agent/agent-context"
 import { PermissionProvider } from "@/components/permission"
 import { useRegisterTabContextMenuItem } from "@/hooks/use-tab-context-menu-registry"
 import { CopyIcon, ExternalLink, X } from "lucide-react"
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller"
 
 export default function AgentPage() {
   const { space } = useCurrentPathInfo()
@@ -197,8 +206,6 @@ function AgentPageContent({
     window.addEventListener("agent:try-skill", handler)
     return () => window.removeEventListener("agent:try-skill", handler)
   }, [])
-
-  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const transport = useRef(
     new DefaultChatTransport({ api: "/api/agent/sessions" })
@@ -470,38 +477,50 @@ function AgentPageContent({
       <PermissionProvider sessionId={routeSessionId || ""}>
         <div className="flex h-full flex-col bg-sidebar overflow-hidden relative">
           <div className="flex-1 relative w-full min-h-0">
-            <div
-              id="agent-chat-scroll-container"
-              className="h-full overflow-auto min-h-0 focus:outline-none"
-              tabIndex={-1}
+            <MessageScrollerProvider
+              key={routeSessionId}
+              autoScroll
+              defaultScrollPosition="last-anchor"
+              scrollPreviousItemPeek={96}
+              scrollMargin={24}
             >
-              <div className="max-w-3xl mx-auto w-full px-6 py-4 pb-64">
-                {displayMessages.length > 0 ? (
-                  <AgentChatArea
-                    messages={displayMessages as any}
-                    messagesEndRef={messagesEndRef}
-                    onFork={handleFork}
-                    onEditStart={handleEditStart}
-                    parentId={forkInfo?.parentId}
-                    forkedMessageId={forkInfo?.forkedMessageId}
-                    isRunning={isRunning}
-                    error={error}
-                  />
-                ) : (
-                  !isSwitching && (
-                    <div className="flex flex-col items-center justify-center min-h-[400px] text-center gap-4">
-                      <h2 className="text-2xl font-semibold">AI Agent</h2>
-                      <p className="text-muted-foreground max-w-md">
-                        Describe what you want the Agent to do. It will plan and
-                        execute the steps autonomously using the available
-                        tools.
-                      </p>
-                    </div>
-                  )
-                )}
-                <div className="h-4" />
-              </div>
-            </div>
+              <MessageScroller className="h-full">
+                <AgentConversationOutline messages={displayMessages as any} />
+                <MessageScrollerViewport
+                  id="agent-chat-scroll-container"
+                  aria-label="Agent conversation"
+                >
+                  <MessageScrollerContent
+                    aria-busy={isRunning}
+                    className="mx-auto w-full max-w-3xl gap-2 px-6 py-4 pb-64"
+                  >
+                    {displayMessages.length > 0 ? (
+                      <AgentChatArea
+                        messages={displayMessages as any}
+                        onFork={handleFork}
+                        onEditStart={handleEditStart}
+                        parentId={forkInfo?.parentId}
+                        forkedMessageId={forkInfo?.forkedMessageId}
+                        isRunning={isRunning}
+                        error={error}
+                      />
+                    ) : (
+                      !isSwitching && (
+                        <MessageScrollerItem className="flex min-h-[400px] flex-col items-center justify-center gap-4 text-center">
+                          <h2 className="text-2xl font-semibold">AI Agent</h2>
+                          <p className="text-muted-foreground max-w-md">
+                            Describe what you want the Agent to do. It will plan
+                            and execute the steps autonomously using the
+                            available tools.
+                          </p>
+                        </MessageScrollerItem>
+                      )
+                    )}
+                  </MessageScrollerContent>
+                </MessageScrollerViewport>
+                <MessageScrollerButton className="data-[direction=end]:bottom-40 sm:data-[direction=end]:bottom-44" />
+              </MessageScroller>
+            </MessageScrollerProvider>
 
             {/* Floating Input Component */}
             <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none p-6 sm:p-10">
