@@ -55,7 +55,7 @@ async function fetchAndExtract(url: string) {
     return {
       title: "",
       url,
-      content: truncate(formatted, MAX_CONTENT_LENGTH),
+      content: formatted,
     }
   }
 
@@ -71,7 +71,7 @@ async function fetchAndExtract(url: string) {
     return {
       title: "",
       url,
-      content: truncate(text, MAX_CONTENT_LENGTH),
+      content: text,
     }
   }
 
@@ -85,7 +85,7 @@ async function fetchAndExtract(url: string) {
   return {
     title: result.title ?? "",
     url,
-    content: truncate(markdown, MAX_CONTENT_LENGTH),
+    content: markdown,
   }
 }
 
@@ -248,7 +248,10 @@ export function createWebFetchTools(bash: Bash): Record<string, Tool> {
           title: result.title,
           contentLength: result.content.length,
         })
-        return result as WebFetchResult
+        return {
+          ...result,
+          content: truncate(result.content, MAX_CONTENT_LENGTH),
+        } as WebFetchResult
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         console.error("[tool:web-fetch] ✖", msg)
