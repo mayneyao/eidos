@@ -21,6 +21,7 @@ import {
   Undo2,
 } from "lucide-react"
 
+import { useTabStore } from "@/apps/web-app/store/tabs"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -63,6 +64,43 @@ const cn = (...classes: (string | boolean | undefined)[]) =>
 type TabKey = "changes" | "history" | "sync"
 type BranchResetMode = "soft" | "hard"
 type PendingBranchReset = { lsn: string; mode: BranchResetMode }
+
+const WORKTREE_DIFF_URL = "/graft/diff/HEAD/WORKTREE"
+
+function getWorktreeDiffUrl(table?: string) {
+  return table
+    ? `${WORKTREE_DIFF_URL}#table=${encodeURIComponent(table)}`
+    : WORKTREE_DIFF_URL
+}
+
+function normalizePathname(url: string) {
+  try {
+    return new URL(url, window.location.origin).pathname.replace(/\/$/, "")
+  } catch {
+    return (url.split(/[?#]/)[0] ?? "").replace(/\/$/, "")
+  }
+}
+
+function isWorktreeDiffTab(url: string) {
+  return normalizePathname(url) === WORKTREE_DIFF_URL
+}
+
+function focusWorktreeDiffTab(url: string) {
+  const { tabs, getActiveTabId, updateTab, setActiveTab } =
+    useTabStore.getState()
+  const activeTabId = getActiveTabId()
+  const targetTab =
+    tabs.find((tab) => tab.id === activeTabId && isWorktreeDiffTab(tab.url)) ??
+    tabs.find((tab) => isWorktreeDiffTab(tab.url))
+
+  if (!targetTab) return false
+
+  if (targetTab.url !== url) {
+    updateTab(targetTab.id, { url })
+  }
+  setActiveTab(targetTab.id)
+  return true
+}
 
 function getWorktreeState(status: any) {
   const staged: unknown[] = Array.isArray(status?.staged) ? status.staged : []
@@ -412,8 +450,9 @@ export const GraftSidebar = () => {
   }
 
   const handleViewWorktreeChanges = (table?: string) => {
-    const tableQuery = table ? `?table=${encodeURIComponent(table)}` : ""
-    navigate(`/graft/diff/HEAD/WORKTREE${tableQuery}`)
+    const url = getWorktreeDiffUrl(table)
+    if (focusWorktreeDiffTab(url)) return
+    navigate(url)
   }
 
   const handleOpenConflicts = () => {

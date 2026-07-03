@@ -3,7 +3,7 @@
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useEidos } from "@eidos.space/react"
 import { CodeIcon, LoaderIcon } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { useNodeMap } from "@/apps/web-app/hooks/use-current-node"
 import { ChangesView } from "@/apps/web-app/pages/[database]/graft/commit/[lsn]/page"
@@ -18,12 +18,34 @@ function formatRevLabel(value: string | undefined) {
     : value.slice(0, 12)
 }
 
+function getFocusedTableFromLocation(location: {
+  search: string
+  hash: string
+}) {
+  const hash = location.hash.startsWith("#")
+    ? location.hash.slice(1)
+    : location.hash
+
+  if (hash) {
+    const hashParams = new URLSearchParams(
+      hash.includes("=") ? hash : `table=${hash}`
+    )
+    const table = hashParams.get("table")
+    if (table) return table
+  }
+
+  return new URLSearchParams(location.search).get("table") ?? undefined
+}
+
 export default function GraftDiffPage() {
-  const { params, navigate, searchParams } = useRouterAdapter()
+  const { params, location } = useRouterAdapter()
   const eidos = useEidos()
   const from = params.from
   const to = params.to
-  const focusedTable = searchParams?.get("table") ?? undefined
+  const focusedTable = useMemo(
+    () => getFocusedTableFromLocation(location),
+    [location.hash, location.search]
+  )
   const isWorktreeDiff = to?.toUpperCase() === WORKTREE_DIFF_TARGET
   const fromLabel = formatRevLabel(from)
   const toLabel = formatRevLabel(to)
