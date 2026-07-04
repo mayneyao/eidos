@@ -313,6 +313,18 @@ export class DataSpaceIpcService extends IpcServiceBase {
   }
 
   /**
+   * Export the current worktree as a standalone SQLite database.
+   */
+  @IpcMethod()
+  async exportToSqlite(
+    args: SpaceOperationArgs & { outputPath?: string }
+  ): Promise<any> {
+    const { spaceName, outputPath } = args
+    const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(spaceName)
+    return dataSpace?.exportToSqlite(outputPath)
+  }
+
+  /**
    * Get sync status
    */
   @IpcMethod()

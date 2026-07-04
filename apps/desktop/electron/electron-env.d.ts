@@ -42,6 +42,10 @@ interface Window {
     showInFileManager: (
       path: string
     ) => Promise<{ success: boolean; error?: string }>
+    showSaveDialog: (options?: {
+      defaultPath?: string
+      filters?: Array<{ name: string; extensions: string[] }>
+    }) => Promise<{ canceled: boolean; filePath?: string }>
     checkIsDataFolderSet: () => Promise<boolean>
     reloadApp: () => Promise<void>
     minimizeWindow: () => void

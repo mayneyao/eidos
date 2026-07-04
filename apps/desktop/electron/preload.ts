@@ -174,6 +174,8 @@ function main() {
     selectFolder: () => ipcRenderer.invoke("file-system:selectFolder"),
     showInFileManager: (path: string) =>
       ipcRenderer.invoke("file-system:showInFileManager", path),
+    showSaveDialog: (options = {}) =>
+      ipcRenderer.invoke("file-system:showSaveDialog", options),
     openUrl: (url: string) => ipcRenderer.invoke("file-system:openUrl", url),
     // 原生文件系统操作（用于编辑器直接读写本地文件）
     nativeFs: {
