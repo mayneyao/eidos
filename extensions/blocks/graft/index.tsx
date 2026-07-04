@@ -848,7 +848,7 @@ function WorktreeChangesPanel({
   isStatusLoading: boolean
   diff: any
   isDiffLoading: boolean
-  onOpenTable: (table: string) => void
+  onOpenTable: (table?: string) => void
   isCommitLoading: boolean
   isCompletingMerge: boolean
   isAbortingMerge: boolean
@@ -1160,7 +1160,14 @@ function WorktreeChangesPanel({
             ) : hasDataChanges || hasTechnicalDetails ? (
               <div className="pb-1">
                 {guidance ? (
-                  <WorktreeChangeGuidance guidance={guidance} />
+                  <WorktreeChangeGuidance
+                    guidance={guidance}
+                    onOpenDetail={
+                      !hasDataChanges && hasTechnicalDetails
+                        ? () => onOpenTable()
+                        : undefined
+                    }
+                  />
                 ) : null}
 
                 {hasDataChanges ? (
@@ -1214,7 +1221,10 @@ function WorktreeChangesPanel({
             ) : diff?.files?.length ? (
               <div className="pb-1 text-xs text-muted-foreground">
                 {guidance ? (
-                  <WorktreeChangeGuidance guidance={guidance} />
+                  <WorktreeChangeGuidance
+                    guidance={guidance}
+                    onOpenDetail={() => onOpenTable()}
+                  />
                 ) : null}
                 {diff.files.map((file: any) => (
                   <div
@@ -1313,7 +1323,13 @@ function getWorktreeChangeGuidance({
   return null
 }
 
-function WorktreeChangeGuidance({ guidance }: { guidance: WorktreeGuidance }) {
+function WorktreeChangeGuidance({
+  guidance,
+  onOpenDetail,
+}: {
+  guidance: WorktreeGuidance
+  onOpenDetail?: () => void
+}) {
   return (
     <div
       className={cn(
@@ -1341,11 +1357,47 @@ function WorktreeChangeGuidance({ guidance }: { guidance: WorktreeGuidance }) {
             {guidance.title}
           </div>
           <div className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
-            {guidance.description}
+            <WorktreeGuidanceDescription
+              description={guidance.description}
+              onOpenDetail={onOpenDetail}
+            />
           </div>
         </div>
       </div>
     </div>
+  )
+}
+
+function WorktreeGuidanceDescription({
+  description,
+  onOpenDetail,
+}: {
+  description: string
+  onOpenDetail?: () => void
+}) {
+  if (!onOpenDetail) return <>{description}</>
+
+  const linkText = description.includes("open the diff detail")
+    ? "open the diff detail"
+    : description.includes("diff detail")
+      ? "diff detail"
+      : null
+
+  if (!linkText) return <>{description}</>
+
+  const [before, after] = description.split(linkText)
+  return (
+    <>
+      {before}
+      <button
+        type="button"
+        className="inline p-0 text-[11px] font-medium text-current underline underline-offset-2 hover:text-foreground"
+        onClick={onOpenDetail}
+      >
+        {linkText}
+      </button>
+      {after}
+    </>
   )
 }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useEidos } from "@eidos.space/react"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import {
@@ -15,7 +15,7 @@ import {
 import { DiffView } from "@/components/table/diff-view"
 import { DiffDataGrid } from "@/components/table/diff-data-grid"
 import { useTabTitle } from "@/hooks/use-tab-title"
-import { getTableIdByRawTableName } from "@/lib/utils"
+import { getTableIdByRawTableName, isDayPageId } from "@/lib/utils"
 import { useNodeMap } from "@/apps/web-app/hooks/use-current-node"
 
 function resolveTableName(
@@ -23,9 +23,8 @@ function resolveTableName(
   nodeMap: Record<string, any>
 ): string {
   if (!rawName.startsWith("tb_") && !rawName.startsWith("vw_")) return rawName
-  const id = getTableIdByRawTableName(rawName)
-  const node = nodeMap[id]
-  return node?.name ?? rawName
+  const nodeName = resolveSchemaNodeName(rawName, nodeMap)
+  return nodeName ? `${rawName} (${nodeName})` : rawName
 }
 
 function resolveSchemaNodeName(
@@ -34,7 +33,8 @@ function resolveSchemaNodeName(
 ): string | undefined {
   if (!rawName.startsWith("tb_") && !rawName.startsWith("vw_")) return
   const id = getTableIdByRawTableName(rawName)
-  return nodeMap[id]?.name
+  const node = nodeMap[id]
+  return typeof node?.name === "string" && node.name ? node.name : undefined
 }
 
 function getSchemaDisplayName(
@@ -377,6 +377,10 @@ export function ChangesView({
   }, [diff?.rows, initialTable])
 
   const diagnosticGroups = diff ? getDiffDiagnosticGroups(diff) : []
+  const diffNodeMap = useMemo(
+    () => getDiffNodeMap(diff, nodeMap),
+    [diff, nodeMap]
+  )
 
   if (diffError) {
     return (
@@ -427,13 +431,13 @@ export function ChangesView({
       className="h-full overflow-y-auto w-full"
       style={{ scrollbarGutter: "stable" }}
     >
-      <div className="space-y-2 pb-4">
+      <div className="space-y-2 px-px pt-px pb-4">
         {names.map((name) => (
           <TableSection
             key={name}
             name={name}
             rows={byTable[name]}
-            nodeMap={nodeMap}
+            nodeMap={diffNodeMap}
             open={expanded.has(name)}
             onToggle={toggle}
             highlighted={initialTable === name}
@@ -443,6 +447,41 @@ export function ChangesView({
       </div>
     </div>
   )
+}
+
+function getDiffNodeMap(diff: any, nodeMap: Record<string, any>) {
+  const rows = Array.isArray(diff?.rows) ? diff.rows : []
+  const treeRows = rows.filter((row: any) => row?.table === "eidos__tree")
+  if (treeRows.length === 0) return nodeMap
+
+  const next = { ...nodeMap }
+  for (const row of treeRows) {
+    const columns = Array.isArray(row.columns) ? row.columns : []
+    const idIndex = columns.indexOf("id")
+    const nameIndex = columns.indexOf("name")
+    if (idIndex < 0 || nameIndex < 0) continue
+
+    const id = getRowDisplayValue(row, idIndex)
+    const name = getRowDisplayValue(row, nameIndex)
+    if (typeof id !== "string" || typeof name !== "string" || !name) continue
+
+    next[id] = { ...next[id], id, name }
+  }
+
+  return next
+}
+
+function getRowDisplayValue(row: any, columnIndex: number) {
+  const after = arrayValueAt(row.after, columnIndex)
+  if (after.present) return after.value
+
+  const values = arrayValueAt(row.values, columnIndex)
+  if (values.present) return values.value
+
+  const before = arrayValueAt(row.before, columnIndex)
+  if (before.present) return before.value
+
+  return undefined
 }
 
 type DiffDiagnosticGroup = {
@@ -835,6 +874,16 @@ const SYSTEM_CHANGE_COLUMNS = new Set([
   "_last_edited_time",
   "_last_edited_by",
 ])
+const DOC_SYSTEM_COLUMNS = new Set([
+  "id",
+  "content",
+  "markdown",
+  "is_day_page",
+  "created_at",
+  "updated_at",
+  "properties",
+  "meta",
+])
 
 function TableSection({
   name,
@@ -857,22 +906,25 @@ function TableSection({
   const total = rows.length
   const singleUpdateRow =
     rows.length === 1 && rows[0]?.op === "update" ? rows[0] : null
-  const singleMarkdownIndex =
-    singleUpdateRow && name === "eidos__docs"
-      ? (singleUpdateRow.columns?.indexOf("markdown") ?? -1)
-      : -1
-  const markdownUpdateRows =
+  const singleDocUpdateRow =
+    singleUpdateRow &&
+    name === "eidos__docs" &&
+    hasDocPreviewColumns(singleUpdateRow)
+      ? singleUpdateRow
+      : null
+  const docPreviewRows =
     !singleUpdateRow && name === "eidos__docs"
       ? rows.filter((row: any) => {
-          const markdownIndex = row.columns?.indexOf("markdown") ?? -1
-          return row.op === "update" && markdownIndex >= 0
+          return row.op === "update" && hasDocPreviewColumns(row)
         })
       : []
-  const markdownUpdateSet = new Set(markdownUpdateRows)
-  const gridRows = rows.filter((row) => !markdownUpdateSet.has(row))
+  const docPreviewSet = new Set(docPreviewRows)
+  const gridRows = rows.filter((row) => !docPreviewSet.has(row))
   const columns = getChangeColumns(gridRows)
   const changedFields = getChangedFields(gridRows)
   const gridUpdates = gridRows.filter((r: any) => r.op === "update").length
+  const displayName = resolveTableName(name, nodeMap)
+  const nodeName = resolveSchemaNodeName(name, nodeMap)
 
   return (
     <div
@@ -883,13 +935,21 @@ function TableSection({
     >
       <button
         onClick={() => onToggle(name)}
-        className="flex w-full items-center gap-2 rounded py-1 text-left text-xs hover:bg-muted/30"
+        className="flex w-full min-w-0 items-center gap-2 rounded py-1 text-left text-xs hover:bg-muted/30"
+        title={displayName}
       >
         <ChevronRight
           className={`h-3 w-3 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
         />
-        <span className="font-medium">{resolveTableName(name, nodeMap)}</span>
-        <div className="ml-auto flex items-center gap-2 text-[10px]">
+        <span className="flex min-w-0 flex-1 items-baseline gap-1">
+          <span className="min-w-0 truncate font-medium">{name}</span>
+          {nodeName ? (
+            <span className="min-w-0 truncate text-muted-foreground">
+              ({nodeName})
+            </span>
+          ) : null}
+        </span>
+        <div className="ml-auto flex shrink-0 items-center gap-2 text-[10px]">
           {inserts > 0 && <span className="text-emerald-600">+{inserts}</span>}
           {deletes > 0 && <span className="text-rose-600">-{deletes}</span>}
           {updates > 0 && <span className="text-amber-600">~{updates}</span>}
@@ -899,26 +959,27 @@ function TableSection({
 
       {open && rows.length > 0 && (
         <div className="ml-2 mt-1 space-y-2">
-          {singleUpdateRow ? (
-            singleMarkdownIndex >= 0 ? (
-              <DiffView
-                oldContent={String(
-                  singleUpdateRow.before?.[singleMarkdownIndex] ?? ""
-                )}
-                newContent={String(
-                  singleUpdateRow.values?.[singleMarkdownIndex] ??
-                    singleUpdateRow.after?.[singleMarkdownIndex] ??
-                    ""
-                )}
-                filename={`row ${singleUpdateRow.rowid ?? "update"} - markdown`}
-              />
-            ) : (
-              <DiffView
-                oldContent={formatChangeAsJson(singleUpdateRow, "before")}
-                newContent={formatChangeAsJson(singleUpdateRow, "after")}
-                filename={`${name}-row-${singleUpdateRow.rowid ?? "update"}.json`}
-              />
-            )
+          {singleDocUpdateRow ? (
+            <DiffView
+              oldContent={formatDocPreviewContent(singleDocUpdateRow, "before")}
+              newContent={formatDocPreviewContent(singleDocUpdateRow, "after")}
+              filename={getDocMarkdownDiffFilename(
+                singleDocUpdateRow,
+                nodeMap,
+                "update"
+              )}
+            />
+          ) : singleUpdateRow ? (
+            <DiffView
+              oldContent={formatChangeAsJson(singleUpdateRow, "before")}
+              newContent={formatChangeAsJson(singleUpdateRow, "after")}
+              filename={getJsonDiffFilename(
+                name,
+                singleUpdateRow,
+                nodeMap,
+                "update"
+              )}
+            />
           ) : gridRows.length > 0 ? (
             <>
               {gridUpdates > 0 && changedFields.length > 0 ? (
@@ -945,18 +1006,13 @@ function TableSection({
               <DiffDataGrid rows={gridRows} columns={columns} />
             </>
           ) : null}
-          {markdownUpdateRows.map((change: any, idx: number) => {
-            const markdownIndex = change.columns?.indexOf("markdown") ?? -1
+          {docPreviewRows.map((change: any, idx: number) => {
             return (
               <DiffView
-                key={`${change.rowid ?? idx}-markdown`}
-                oldContent={String(change.before?.[markdownIndex] ?? "")}
-                newContent={String(
-                  change.values?.[markdownIndex] ??
-                    change.after?.[markdownIndex] ??
-                    ""
-                )}
-                filename={`row ${change.rowid ?? idx} - markdown`}
+                key={`${change.rowid ?? idx}-doc-preview`}
+                oldContent={formatDocPreviewContent(change, "before")}
+                newContent={formatDocPreviewContent(change, "after")}
+                filename={getDocMarkdownDiffFilename(change, nodeMap, idx)}
               />
             )
           })}
@@ -964,6 +1020,274 @@ function TableSection({
       )}
     </div>
   )
+}
+
+type RowValueSide = "before" | "after"
+
+function getJsonDiffFilename(
+  tableName: string,
+  row: any,
+  nodeMap: Record<string, any>,
+  fallback: string | number
+) {
+  if (tableName.startsWith("eidos__")) {
+    return getEidosMetaDiffFilename(tableName, row, nodeMap, fallback)
+  }
+
+  return `${tableName}-row-${row.rowid ?? fallback}.json`
+}
+
+function getEidosMetaDiffFilename(
+  tableName: string,
+  row: any,
+  nodeMap: Record<string, any>,
+  fallback: string | number
+) {
+  switch (tableName) {
+    case "eidos__tree":
+      return `${getTreeNodeDisplayName(row, nodeMap, fallback)} - node.json`
+    case "eidos__docs":
+      return `${getDocDisplayName(row, nodeMap, fallback)} - doc.json`
+    case "eidos__views":
+      return `${getViewDisplayName(row, nodeMap, fallback)} - view.json`
+    case "eidos__columns":
+      return `${getColumnDisplayName(row, nodeMap, fallback)} - field.json`
+    default:
+      return `${getMetaRecordDisplayName(row, fallback)} - ${tableName}.json`
+  }
+}
+
+function getTreeNodeDisplayName(
+  row: any,
+  nodeMap: Record<string, any>,
+  fallback: string | number
+) {
+  const name = getStringRowValue(row, "name")
+  if (name) return name
+
+  const id = getStringRowValue(row, "id")
+  if (id) {
+    const nodeName = nodeMap[id]?.name
+    if (typeof nodeName === "string" && nodeName) return nodeName
+    return id
+  }
+
+  return `row ${row.rowid ?? fallback}`
+}
+
+function getViewDisplayName(
+  row: any,
+  nodeMap: Record<string, any>,
+  fallback: string | number
+) {
+  const viewName =
+    getStringRowValue(row, "name") ??
+    getStringRowValue(row, "id") ??
+    `row ${row.rowid ?? fallback}`
+  return formatOwnedMetaRecordName(viewName, getViewOwnerName(row, nodeMap))
+}
+
+function getColumnDisplayName(
+  row: any,
+  nodeMap: Record<string, any>,
+  fallback: string | number
+) {
+  const fieldName =
+    getStringRowValue(row, "name") ??
+    getStringRowValue(row, "table_column_name") ??
+    `row ${row.rowid ?? fallback}`
+  const ownerName = getTableDisplayName(
+    getStringRowValue(row, "table_name"),
+    nodeMap
+  )
+  return formatOwnedMetaRecordName(fieldName, ownerName)
+}
+
+function getMetaRecordDisplayName(row: any, fallback: string | number) {
+  return (
+    getStringRowValue(row, "name") ??
+    getStringRowValue(row, "title") ??
+    getStringRowValue(row, "id") ??
+    `row ${row.rowid ?? fallback}`
+  )
+}
+
+function getViewOwnerName(row: any, nodeMap: Record<string, any>) {
+  const tableId = getStringRowValue(row, "table_id")
+  const fromTableId = tableId
+    ? getTableDisplayName(tableId, nodeMap)
+    : undefined
+  if (fromTableId) return fromTableId
+
+  const query = getStringRowValue(row, "query")
+  const rawTableName = query?.match(
+    /\b(?:FROM|JOIN)\s+["`[]?(tb_[\w]+|vw_[\w]+)/i
+  )?.[1]
+  return getTableDisplayName(rawTableName, nodeMap)
+}
+
+function getTableDisplayName(
+  rawName: string | undefined,
+  nodeMap: Record<string, any>
+) {
+  if (!rawName) return undefined
+  const id =
+    rawName.startsWith("tb_") || rawName.startsWith("vw_")
+      ? getTableIdByRawTableName(rawName)
+      : rawName
+  const nodeName = nodeMap[id]?.name
+  if (typeof nodeName === "string" && nodeName) return nodeName
+  return rawName
+}
+
+function formatOwnedMetaRecordName(
+  name: string,
+  ownerName: string | undefined
+) {
+  return ownerName ? `${name} (${ownerName})` : name
+}
+
+function hasDocPreviewColumns(row: any) {
+  const columns = Array.isArray(row.columns) ? row.columns : []
+  return columns.some(
+    (column) => column === "markdown" || isDocCustomPropertyColumn(column)
+  )
+}
+
+function formatDocPreviewContent(row: any, side: RowValueSide) {
+  const markdown = getStringRowSideValue(row, "markdown", side) ?? ""
+  const properties = getDocFrontmatterProperties(row, side)
+  if (properties.length === 0) return markdown
+
+  return `${formatYamlFrontmatter(properties)}${stripYamlFrontmatter(markdown)}`
+}
+
+function getDocFrontmatterProperties(row: any, side: RowValueSide) {
+  const columns = Array.isArray(row.columns) ? row.columns : []
+  return columns
+    .map((column: string, index: number) => ({
+      key: column,
+      value: getRowSideValue(row, index, side),
+    }))
+    .filter(
+      ({ key, value }) =>
+        isDocCustomPropertyColumn(key) && isFrontmatterValuePresent(value)
+    )
+}
+
+function isDocCustomPropertyColumn(column: unknown): column is string {
+  return (
+    typeof column === "string" &&
+    !DOC_SYSTEM_COLUMNS.has(column) &&
+    !column.startsWith("_")
+  )
+}
+
+function isFrontmatterValuePresent(value: unknown) {
+  return value !== undefined && value !== null && value !== ""
+}
+
+function formatYamlFrontmatter(
+  properties: Array<{ key: string; value: unknown }>
+) {
+  const lines = properties.map(
+    ({ key, value }) => `${formatYamlKey(key)}: ${formatYamlValue(value)}`
+  )
+  return `---\n${lines.join("\n")}\n---\n\n`
+}
+
+function formatYamlKey(key: string) {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(key) ? key : JSON.stringify(key)
+}
+
+function formatYamlValue(value: unknown): string {
+  if (typeof value === "boolean") return value ? "true" : "false"
+  if (typeof value === "number" && Number.isFinite(value)) return String(value)
+  if (typeof value === "string") return JSON.stringify(value)
+  return JSON.stringify(value)
+}
+
+function stripYamlFrontmatter(markdown: string) {
+  const match = markdown.match(/^---\n([\s\S]*?)\n---\n?/)
+  if (!match) return markdown
+
+  const hasYamlEntry = match[1]
+    .split("\n")
+    .some((line) => /^\s*[^#:\s][^:]*:\s*/.test(line))
+
+  return hasYamlEntry ? markdown.slice(match[0].length) : markdown
+}
+
+function getDocMarkdownDiffFilename(
+  row: any,
+  nodeMap: Record<string, any>,
+  fallback: string | number
+) {
+  return `${getDocDisplayName(row, nodeMap, fallback)} - markdown`
+}
+
+function getDocDisplayName(
+  row: any,
+  nodeMap: Record<string, any>,
+  fallback: string | number
+) {
+  const id = getStringRowValue(row, "id")
+  if (!id) return `row ${row.rowid ?? fallback}`
+
+  const isDayPage = isTruthyRowValue(row, "is_day_page") || isDayPageId(id)
+  if (isDayPage) return id
+
+  const nodeName = nodeMap[id]?.name
+  return typeof nodeName === "string" && nodeName ? nodeName : id
+}
+
+function getStringRowSideValue(row: any, column: string, side: RowValueSide) {
+  const index = row.columns?.indexOf(column) ?? -1
+  if (index < 0) return undefined
+
+  const value = getRowSideValue(row, index, side)
+  if (value == null) return undefined
+  return String(value)
+}
+
+function getStringRowValue(row: any, column: string) {
+  const index = row.columns?.indexOf(column) ?? -1
+  if (index < 0) return undefined
+
+  const value = getRowDisplayValue(row, index)
+  if (value == null) return undefined
+  return String(value)
+}
+
+function isTruthyRowValue(row: any, column: string) {
+  const index = row.columns?.indexOf(column) ?? -1
+  if (index < 0) return false
+
+  const value = getRowDisplayValue(row, index)
+  return value === true || value === 1 || value === "1" || value === "true"
+}
+
+function getRowSideValue(row: any, columnIndex: number, side: RowValueSide) {
+  if (side === "before") {
+    const before = arrayValueAt(row.before, columnIndex)
+    if (before.present) return before.value
+
+    const oldValues = arrayValueAt(row.old_values, columnIndex)
+    if (oldValues.present) return oldValues.value
+
+    const deleteValue = arrayValueAt(row.values, columnIndex)
+    if (row.op === "delete" && deleteValue.present) return deleteValue.value
+
+    return undefined
+  }
+
+  const after = arrayValueAt(row.after, columnIndex)
+  if (after.present) return after.value
+
+  const values = arrayValueAt(row.values, columnIndex)
+  if (row.op !== "delete" && values.present) return values.value
+
+  return undefined
 }
 
 function arrayValueAt(values: unknown[] | undefined, index: number) {
