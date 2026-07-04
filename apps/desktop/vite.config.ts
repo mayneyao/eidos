@@ -16,8 +16,6 @@ import { createHtmlPlugin } from "../../packages/shared/vite/plugins"
 const externalNodeModules = [
   "better-sqlite3",
   "canvas",
-  "defuddle",
-  "defuddle/node",
   "oxc-parser",
   "oxc-transform",
   "@vscode/ripgrep",
