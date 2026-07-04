@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  EIDOS_GRAFT_MERGE_POLICY,
+  formatGraftMergePolicyToml,
   parseGraftAudit,
   parseGraftCheckout,
   parseGraftBranches,
@@ -14,6 +16,7 @@ import {
   parseGraftTags,
   parseGraftTableLog,
   parseGraftVolumes,
+  upsertGraftMergePolicyToml,
 } from "./helpers"
 
 describe("parseGraftStatus (JSON)", () => {
@@ -180,12 +183,43 @@ describe("parseGraftStatus (JSON)", () => {
           theirs_changes: 1,
           apply_changes: 1,
           opaque_changes: 0,
+          resolved_opaque_changes: 1,
+          resolved_opaque_change_details: [
+            {
+              name: "sqlite_sequence",
+              reason: "sqlite_internal_table",
+              resolver: "sequence_max",
+            },
+          ],
+          apply_policy: {
+            foreign_keys: "disabled_during_apply_checked_after",
+            triggers: "disabled_during_apply",
+            validation: ["integrity_check", "foreign_key_check"],
+            default_semantic_keys: ["_id"],
+            internal_resolvers: [
+              { table: "sqlite_sequence", resolver: "sequence_max" },
+            ],
+            schema_resolvers: [
+              { operation: "add_column", resolver: "alter_table_add_column" },
+            ],
+            generated_columns: [
+              { table: "eidos__references", columns: ["self", "ref", "link"] },
+            ],
+          },
+          limitations: [
+            {
+              kind: "generated_columns",
+              subject: "eidos__references",
+            },
+          ],
           blocked_reasons: ["row_conflicts"],
           row_conflicts: [
             {
+              reason: "row_conflict",
               table: "repo_merge",
               columns: ["id", "name"],
               rowid: 2,
+              semantic_key: ["t:row-2"],
               ours: "insert",
               theirs: "insert",
               base_row: null,
@@ -206,12 +240,43 @@ describe("parseGraftStatus (JSON)", () => {
       theirsChanges: 1,
       applyChanges: 1,
       opaqueChanges: 0,
+      resolvedOpaqueChanges: 1,
+      resolvedOpaqueChangeDetails: [
+        {
+          name: "sqlite_sequence",
+          reason: "sqlite_internal_table",
+          resolver: "sequence_max",
+        },
+      ],
+      applyPolicy: {
+        foreignKeys: "disabled_during_apply_checked_after",
+        triggers: "disabled_during_apply",
+        validation: ["integrity_check", "foreign_key_check"],
+        defaultSemanticKeys: ["_id"],
+        internalResolvers: {
+          sqlite_sequence: "sequence_max",
+        },
+        schemaResolvers: {
+          add_column: "alter_table_add_column",
+        },
+        generatedColumns: {
+          eidos__references: ["self", "ref", "link"],
+        },
+      },
+      limitations: [
+        {
+          kind: "generated_columns",
+          subject: "eidos__references",
+        },
+      ],
       blockedReasons: ["row_conflicts"],
       rowConflicts: [
         {
+          reason: "row_conflict",
           table: "repo_merge",
           columns: ["id", "name"],
           rowid: 2,
+          semanticKey: ["t:row-2"],
           ours: "insert",
           theirs: "insert",
           baseRow: null,
@@ -220,6 +285,123 @@ describe("parseGraftStatus (JSON)", () => {
         },
       ],
       schemaConflicts: [],
+    })
+  })
+
+  it("parses semantic-key row conflicts from JSON status", () => {
+    const result = parseGraftStatus(
+      JSON.stringify({
+        head: { type: "branch", name: "main" },
+        merge_head: "semantic-head",
+        dirty: true,
+        conflicted: ["app.db"],
+        conflict_analysis: {
+          path: "app.db",
+          available: true,
+          can_auto_merge: false,
+          ours_changes: 1,
+          theirs_changes: 1,
+          apply_changes: 0,
+          opaque_changes: 0,
+          resolved_opaque_changes: 0,
+          apply_policy: {
+            foreign_keys: "disabled_during_apply_checked_after",
+            triggers: "disabled_during_apply",
+            validation: ["integrity_check", "foreign_key_check"],
+            internal_resolvers: [],
+            schema_resolvers: [],
+          },
+          blocked_reasons: ["row_conflicts"],
+          row_conflicts: [
+            {
+              reason: "semantic_key_conflict",
+              table: "eidos__tree",
+              columns: ["id", "name"],
+              rowid: 1,
+              theirs_rowid: 2,
+              semantic_key: ["t:table-1"],
+              ours: "insert",
+              theirs: "insert",
+              ours_row: ["table-1", "main"],
+              theirs_row: ["table-1", "feature"],
+            },
+          ],
+          schema_conflicts: [],
+        },
+      })
+    )
+
+    expect(result.conflictAnalysis?.rowConflicts[0]).toMatchObject({
+      reason: "semantic_key_conflict",
+      table: "eidos__tree",
+      rowid: 1,
+      theirsRowid: 2,
+      semanticKey: ["t:table-1"],
+    })
+  })
+
+  it("parses schema conflict reasons from JSON status", () => {
+    const result = parseGraftStatus(
+      JSON.stringify({
+        head: { type: "branch", name: "main" },
+        merge_head: "schema-head",
+        dirty: true,
+        conflicted: ["app.db"],
+        conflict_analysis: {
+          path: "app.db",
+          available: true,
+          can_auto_merge: false,
+          ours_changes: 0,
+          theirs_changes: 0,
+          apply_changes: 0,
+          opaque_changes: 0,
+          resolved_opaque_changes: 0,
+          apply_policy: {
+            foreign_keys: "disabled_during_apply_checked_after",
+            triggers: "disabled_during_apply",
+            validation: ["integrity_check", "foreign_key_check"],
+          },
+          blocked_reasons: ["schema_conflicts"],
+          row_conflicts: [],
+          schema_conflicts: [
+            {
+              reason: "schema_modify_conflict",
+              name: "eidos__tree",
+              entry_type: "table",
+              ours: "modified",
+              theirs: "modified",
+              column_changes: [
+                {
+                  side: "theirs",
+                  operation: "rename_column",
+                  from: "body",
+                  to: "text_body",
+                },
+              ],
+              message:
+                "schema entry was modified and does not match a compatible schema resolver",
+            },
+          ],
+        },
+      })
+    )
+
+    expect(result.conflictAnalysis?.schemaConflicts[0]).toEqual({
+      reason: "schema_modify_conflict",
+      name: "eidos__tree",
+      entryType: "table",
+      ours: "modified",
+      theirs: "modified",
+      columnChanges: [
+        {
+          side: "theirs",
+          operation: "rename_column",
+          from: "body",
+          to: "text_body",
+        },
+      ],
+      message:
+        "schema entry was modified and does not match a compatible schema resolver",
     })
   })
 
@@ -500,6 +682,8 @@ describe("parseGraftConflicts (JSON)", () => {
             table: "users",
             columns: ["id", "name"],
             rowid: 1,
+            theirs_rowid: 2,
+            semantic_key: ["t:user-1"],
             ours_op: "update",
             theirs_op: "update",
             base_row: [1, "base"],
@@ -524,11 +708,90 @@ describe("parseGraftConflicts (JSON)", () => {
           table: "users",
           columns: ["id", "name"],
           rowid: 1,
+          theirsRowid: 2,
+          semanticKey: ["t:user-1"],
           oursOp: "update",
           theirsOp: "update",
           baseRow: [1, "base"],
           oursRow: [1, "ours"],
           theirsRow: [1, "theirs"],
+        },
+      ],
+    })
+  })
+
+  it("parses opaque conflict artifact details", () => {
+    const result = parseGraftConflicts(
+      JSON.stringify({
+        conflicts: [
+          {
+            id: "db.sqlite3:opaque:fts_shadow_table:fts_docs_data",
+            path: "db.sqlite3",
+            kind: "opaque",
+            reason: "fts_shadow_table",
+            status: "unresolved",
+            name: "fts_docs_data",
+            change: "modified",
+            owner: "fts_docs",
+            message:
+              "FTS shadow table changes must be rebuilt or resolved with their owner table",
+          },
+        ],
+      })
+    )
+
+    expect(result.conflicts[0]).toMatchObject({
+      id: "db.sqlite3:opaque:fts_shadow_table:fts_docs_data",
+      path: "db.sqlite3",
+      kind: "opaque",
+      reason: "fts_shadow_table",
+      status: "unresolved",
+      name: "fts_docs_data",
+      change: "modified",
+      owner: "fts_docs",
+      message:
+        "FTS shadow table changes must be rebuilt or resolved with their owner table",
+    })
+  })
+
+  it("parses schema conflict artifact column details", () => {
+    const result = parseGraftConflicts(
+      JSON.stringify({
+        conflicts: [
+          {
+            id: "db.sqlite3:schema:table:eidos__tree",
+            path: "db.sqlite3",
+            kind: "schema",
+            reason: "schema_modify_conflict",
+            status: "unresolved",
+            name: "eidos__tree",
+            entry_type: "table",
+            column_changes: [
+              {
+                side: "theirs",
+                operation: "rename_column",
+                from: "body",
+                to: "text_body",
+              },
+            ],
+            message:
+              "schema entry was modified and does not match a compatible schema resolver",
+          },
+        ],
+      })
+    )
+
+    expect(result.conflicts[0]).toMatchObject({
+      kind: "schema",
+      reason: "schema_modify_conflict",
+      name: "eidos__tree",
+      entryType: "table",
+      columnChanges: [
+        {
+          side: "theirs",
+          operation: "rename_column",
+          from: "body",
+          to: "text_body",
         },
       ],
     })
@@ -695,6 +958,8 @@ describe("parseGraftDiff (JSON)", () => {
         },
         fromLsn: 2,
         toLsn: 3,
+        capabilities: [],
+        limitations: [],
       },
     ])
     expect(result.tables).toEqual([
@@ -712,6 +977,11 @@ describe("parseGraftDiff (JSON)", () => {
           path: "db.sqlite3",
           change: "modified",
           row_diff_available: true,
+          logical_status: "logical_changes",
+          capabilities: ["rowid_table_rows", "semantic_insert_keys"],
+          limitations: [
+            { kind: "sqlite_internal_table", subject: "sqlite_sequence" },
+          ],
           tables: [
             {
               name: "tb_users",
@@ -750,7 +1020,20 @@ describe("parseGraftDiff (JSON)", () => {
       path: "db.sqlite3",
       change: "modified",
       rowDiffAvailable: true,
+      logicalStatus: "logical_changes",
+      capabilities: ["rowid_table_rows", "semantic_insert_keys"],
+      limitations: [
+        { kind: "sqlite_internal_table", subject: "sqlite_sequence" },
+      ],
     })
+    expect(result.logicalStatus).toBe("logical_changes")
+    expect(result.capabilities).toEqual([
+      "rowid_table_rows",
+      "semantic_insert_keys",
+    ])
+    expect(result.limitations).toEqual([
+      { kind: "sqlite_internal_table", subject: "sqlite_sequence" },
+    ])
     expect(result.tables).toEqual([
       { table: "tb_users", inserts: 1, deletes: 0, updates: 1 },
     ])
@@ -778,6 +1061,157 @@ describe("parseGraftDiff (JSON)", () => {
         owner: "fts_docs",
       },
     ])
+  })
+
+  it("preserves repository file changes that have no supported logical row changes", () => {
+    const raw = JSON.stringify({
+      from: "index",
+      to: "worktree",
+      files: [
+        {
+          path: "db.sqlite3",
+          change: "modified",
+          row_diff_available: true,
+          logical_status: "file_changed_no_supported_logical_changes",
+          capabilities: ["rowid_table_rows"],
+          limitations: [],
+        },
+      ],
+    })
+
+    const result = parseGraftDiff(raw, {
+      from: "index",
+      to: "worktree",
+      mode: "rows",
+    })
+
+    expect(result.empty).toBe(false)
+    expect(result.logicalStatus).toBe(
+      "file_changed_no_supported_logical_changes"
+    )
+    expect(result.files[0]).toMatchObject({
+      path: "db.sqlite3",
+      change: "modified",
+      rowDiffAvailable: true,
+      logicalStatus: "file_changed_no_supported_logical_changes",
+      capabilities: ["rowid_table_rows"],
+      limitations: [],
+    })
+    expect(result.tables).toEqual([])
+    expect(result.rows).toEqual([])
+    expect(result.opaqueChanges).toEqual([])
+  })
+
+  it("documents Eidos semantic merge keys for graft policy handoff", () => {
+    expect(EIDOS_GRAFT_MERGE_POLICY.defaultSemanticKeys).toEqual(["_id"])
+    expect(EIDOS_GRAFT_MERGE_POLICY.semanticKeys.eidos__tree).toEqual(["id"])
+    expect(EIDOS_GRAFT_MERGE_POLICY.semanticKeys.eidos__columns).toEqual([
+      "table_name",
+      "table_column_name",
+    ])
+    expect(EIDOS_GRAFT_MERGE_POLICY.semanticKeys.eidos__embeddings).toEqual([
+      "id",
+    ])
+    expect(EIDOS_GRAFT_MERGE_POLICY.semanticKeys.eidos__chats).toEqual(["id"])
+    expect(EIDOS_GRAFT_MERGE_POLICY.semanticKeys.eidos__messages).toEqual([
+      "id",
+    ])
+    expect(EIDOS_GRAFT_MERGE_POLICY.semanticKeys.eidos__extnodes).toEqual([
+      "id",
+    ])
+    expect(EIDOS_GRAFT_MERGE_POLICY.semanticKeys.eidos__kv).toEqual(["key"])
+    expect(EIDOS_GRAFT_MERGE_POLICY.internalResolvers.sqlite_sequence).toBe(
+      "sequence_max"
+    )
+    expect(EIDOS_GRAFT_MERGE_POLICY.internalResolvers.sqlite_stat1).toBe(
+      "rebuild"
+    )
+    expect(EIDOS_GRAFT_MERGE_POLICY.internalResolvers.sqlite_stat4).toBe(
+      "rebuild"
+    )
+    expect(EIDOS_GRAFT_MERGE_POLICY.internalResolvers.index_btree).toBe(
+      "reindex"
+    )
+    expect(EIDOS_GRAFT_MERGE_POLICY.schemaResolvers.add_column).toBe(
+      "alter_table_add_column"
+    )
+    expect(EIDOS_GRAFT_MERGE_POLICY.generatedColumnTables).toContain(
+      "eidos__references"
+    )
+    expect(EIDOS_GRAFT_MERGE_POLICY.generatedColumns.eidos__references).toEqual(
+      ["self", "ref", "link"]
+    )
+  })
+
+  it("formats Eidos merge policy for graft repo config", () => {
+    const toml = formatGraftMergePolicyToml(EIDOS_GRAFT_MERGE_POLICY)
+
+    expect(toml).toContain("[merge]")
+    expect(toml).toContain('default_semantic_keys = ["_id"]')
+    expect(toml).toContain("[merge.semantic_keys]")
+    expect(toml).toContain('"eidos__tree" = ["id"]')
+    expect(toml).toContain(
+      '"eidos__columns" = ["table_name", "table_column_name"]'
+    )
+    expect(toml).toContain('"eidos__embeddings" = ["id"]')
+    expect(toml).toContain('"eidos__chats" = ["id"]')
+    expect(toml).toContain('"eidos__messages" = ["id"]')
+    expect(toml).toContain('"eidos__extnodes" = ["id"]')
+    expect(toml).toContain('"eidos__kv" = ["key"]')
+    expect(toml).toContain("[merge.internal_resolvers]")
+    expect(toml).toContain('"sqlite_sequence" = "sequence_max"')
+    expect(toml).toContain('"index_btree" = "reindex"')
+    expect(toml).toContain("[merge.schema_resolvers]")
+    expect(toml).toContain('"add_column" = "alter_table_add_column"')
+    expect(toml).toContain("[merge.generated_columns]")
+    expect(toml).toContain('"eidos__references" = ["self", "ref", "link"]')
+  })
+
+  it("upserts the graft merge policy config section idempotently", () => {
+    const initial = [
+      "[core]",
+      'default_branch = "main"',
+      "",
+      "[merge]",
+      'default_semantic_keys = ["legacy"]',
+      "",
+      "[merge.semantic_keys]",
+      '"old" = ["legacy"]',
+      "",
+      "[merge.generated_columns]",
+      '"old_generated" = ["legacy"]',
+      "",
+      "[merge.internal_resolvers]",
+      '"old_internal" = "legacy"',
+      "",
+      "[merge.schema_resolvers]",
+      '"old_schema" = "legacy"',
+      "",
+      "[remotes.origin]",
+      'type = "memory"',
+      "",
+    ].join("\n")
+
+    const once = upsertGraftMergePolicyToml(initial, EIDOS_GRAFT_MERGE_POLICY)
+    const twice = upsertGraftMergePolicyToml(once, EIDOS_GRAFT_MERGE_POLICY)
+
+    expect(twice).toBe(once)
+    expect(once).not.toContain('default_semantic_keys = ["legacy"]')
+    expect(once).toContain('default_semantic_keys = ["_id"]')
+    expect(once).not.toContain('"old" = ["legacy"]')
+    expect(once).toContain('"eidos__kv" = ["key"]')
+    expect(once).not.toContain('"old_generated" = ["legacy"]')
+    expect(once).not.toContain('"old_internal" = "legacy"')
+    expect(once).toContain("[merge.internal_resolvers]")
+    expect(once).toContain('"sqlite_sequence" = "sequence_max"')
+    expect(once).not.toContain('"old_schema" = "legacy"')
+    expect(once).toContain("[merge.schema_resolvers]")
+    expect(once).toContain('"add_column" = "alter_table_add_column"')
+    expect(once).toContain("[remotes.origin]")
+    expect(once.match(/\[merge\.semantic_keys\]/g)).toHaveLength(1)
+    expect(once.match(/\[merge\.internal_resolvers\]/g)).toHaveLength(1)
+    expect(once.match(/\[merge\.schema_resolvers\]/g)).toHaveLength(1)
+    expect(once.match(/\[merge\.generated_columns\]/g)).toHaveLength(1)
   })
 
   it("parses summary mode", () => {

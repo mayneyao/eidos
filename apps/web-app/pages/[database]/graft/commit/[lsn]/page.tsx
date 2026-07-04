@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useState } from "react"
 import { useEidos } from "@eidos.space/react"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
-import { ChevronRight, LoaderIcon } from "lucide-react"
+import {
+  ChevronRight,
+  Database,
+  Info,
+  LoaderIcon,
+  Search,
+  Table2,
+} from "lucide-react"
 
 import { DiffView } from "@/components/table/diff-view"
 import { DiffDataGrid } from "@/components/table/diff-data-grid"
@@ -53,6 +60,12 @@ function getSchemaPrefixGroup(schema: any): string {
       (group) => group.prefix && table.startsWith(group.prefix)
     )?.prefix ?? ""
   )
+}
+
+function isDisplaySchema(schema: any): boolean {
+  const table = String(schema?.table ?? "")
+  const type = String(schema?.type ?? "")
+  return Boolean(table) && type !== "database" && table !== "db.sqlite3"
 }
 
 function getErrorMessage(error: unknown): string {
@@ -190,7 +203,8 @@ function CommitSummary({
 }) {
   const [showSchemas, setShowSchemas] = useState(false)
   if (!show) return null
-  const schemaCount = show.schemas?.length ?? 0
+  const displaySchemas = [...(show.schemas ?? [])].filter(isDisplaySchema)
+  const schemaCount = displaySchemas.length
   const tableCount = Number(show.changedTables ?? show.tables?.length ?? 0)
   const rowChanges = Number(
     show.rowChanges ??
@@ -206,7 +220,7 @@ function CommitSummary({
   const hasTableStats = tableCount > 0 || rowChanges > 0
   const schemaGroups = SCHEMA_PREFIX_GROUPS.map((group) => ({
     ...group,
-    schemas: [...(show.schemas ?? [])]
+    schemas: displaySchemas
       .filter((schema: any) => getSchemaPrefixGroup(schema) === group.prefix)
       .sort((a: any, b: any) =>
         getSchemaDisplayName(a.table, nodeMap).localeCompare(
@@ -271,7 +285,7 @@ function CommitSummary({
             <ChevronRight
               className={`h-3 w-3 transition-transform ${showSchemas ? "rotate-90" : ""}`}
             />
-            {schemaCount} schema{schemaCount === 1 ? "" : "s"}
+            {schemaCount} schema change{schemaCount === 1 ? "" : "s"}
           </button>
         ) : null}
       </div>
@@ -362,6 +376,8 @@ export function ChangesView({
     return () => window.clearTimeout(timeout)
   }, [diff?.rows, initialTable])
 
+  const diagnosticGroups = diff ? getDiffDiagnosticGroups(diff) : []
+
   if (diffError) {
     return (
       <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
@@ -372,16 +388,30 @@ export function ChangesView({
   }
 
   if (!diff || diff.empty) {
-    return <p className="text-sm text-muted-foreground pt-4">{emptyMessage}</p>
+    return (
+      <div className="space-y-3 pt-4">
+        <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+        <SQLiteDiagnostics groups={diagnosticGroups} />
+      </div>
+    )
   }
   if (!diff.rows?.length) {
-    if (diff.files?.length) {
-      return <FileChanges files={diff.files} message={fileFallbackMessage} />
-    }
     return (
-      <p className="text-sm text-muted-foreground pt-4">
-        No row-level changes.
-      </p>
+      <div
+        className="h-full w-full overflow-y-auto"
+        style={{ scrollbarGutter: "stable" }}
+      >
+        <div className="space-y-3 pb-4">
+          {diff.files?.length ? (
+            <FileChanges files={diff.files} message={fileFallbackMessage} />
+          ) : (
+            <p className="pt-4 text-sm text-muted-foreground">
+              No row-level changes.
+            </p>
+          )}
+          <SQLiteDiagnostics groups={diagnosticGroups} defaultOpen />
+        </div>
+      </div>
     )
   }
 
@@ -409,9 +439,241 @@ export function ChangesView({
             highlighted={initialTable === name}
           />
         ))}
+        <SQLiteDiagnostics groups={diagnosticGroups} />
       </div>
     </div>
   )
+}
+
+type DiffDiagnosticGroup = {
+  key: string
+  kind: string
+  label: string
+  count: number
+  items: DiffDiagnosticItem[]
+}
+
+type DiffDiagnosticItem = {
+  subject: string
+  detail: string
+}
+
+function SQLiteDiagnostics({
+  groups,
+  defaultOpen = false,
+}: {
+  groups: DiffDiagnosticGroup[]
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  if (!groups.length) return null
+
+  const count = groups.reduce((total, group) => total + group.count, 0)
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center gap-2 rounded py-1 text-left text-xs text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+      >
+        <ChevronRight
+          className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+        />
+        <span className="min-w-0 flex-1 font-medium">SQLite diagnostics</span>
+        <span className="shrink-0 text-[10px]">usually no action</span>
+        <span className="shrink-0 rounded border border-border/60 px-1.5 py-0.5 text-[10px] tabular-nums">
+          {count}
+        </span>
+      </button>
+
+      {open ? (
+        <div className="ml-2 mt-1 rounded-md border border-border/60 bg-muted/10 px-3 py-2">
+          <div className="mb-2 flex items-start gap-2 text-[11px] leading-4 text-muted-foreground">
+            <Info className="mt-0.5 h-3 w-3 shrink-0" />
+            <span>
+              Debug metadata from SQLite tables, indexes, parser limitations,
+              and file-level snapshot changes. Expand a category to inspect
+              every object.
+            </span>
+          </div>
+          <div className="divide-y divide-border/60">
+            {groups.map((group) => (
+              <DiffDiagnosticGroupRow key={group.key} group={group} />
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function DiffDiagnosticGroupRow({ group }: { group: DiffDiagnosticGroup }) {
+  const [open, setOpen] = useState(false)
+  const preview = group.items
+    .slice(0, 3)
+    .map((item) => item.subject)
+    .join(", ")
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-start gap-2 py-1.5 text-left text-xs hover:text-foreground"
+      >
+        <ChevronRight
+          className={`mt-0.5 h-3 w-3 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
+        />
+        <span className="mt-0.5 shrink-0 text-muted-foreground/70">
+          {diffDiagnosticIcon(group.kind)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 font-medium text-foreground">
+              {group.label}
+            </span>
+            {preview ? (
+              <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground">
+                {preview}
+                {group.items.length > 3 ? ", ..." : ""}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+          {group.count}
+        </span>
+      </button>
+
+      {open ? (
+        <div className="mb-2 ml-8 max-h-60 overflow-y-auto rounded-sm border border-border/60 bg-background/70">
+          {group.items.map((item, index) => (
+            <div
+              key={`${item.subject}-${item.detail}-${index}`}
+              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-border/50 px-2 py-1.5 text-[11px] last:border-b-0"
+            >
+              <span className="min-w-0 break-all font-mono text-foreground">
+                {item.subject}
+              </span>
+              <span className="shrink-0 text-muted-foreground">
+                {item.detail}
+              </span>
+            </div>
+          ))}
+          {group.count > group.items.length ? (
+            <div className="px-2 py-1.5 text-[11px] text-muted-foreground">
+              {group.count - group.items.length} duplicate diagnostic
+              {group.count - group.items.length === 1 ? "" : "s"} omitted.
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function addDiffDiagnosticItem(
+  groups: Map<string, DiffDiagnosticGroup>,
+  kind: string,
+  label: string,
+  subject: string | undefined,
+  detail: string
+) {
+  const key = `${kind}:${label}`
+  const group =
+    groups.get(key) ??
+    ({
+      key,
+      kind,
+      label,
+      count: 0,
+      items: [],
+    } satisfies DiffDiagnosticGroup)
+  group.count += 1
+
+  if (subject) {
+    const itemKey = `${subject}:${detail}`
+    if (
+      !group.items.some((item) => `${item.subject}:${item.detail}` === itemKey)
+    ) {
+      group.items.push({ subject, detail })
+    }
+  }
+  groups.set(key, group)
+}
+
+function getDiffDiagnosticGroups(diff: any): DiffDiagnosticGroup[] {
+  const groups = new Map<string, DiffDiagnosticGroup>()
+
+  for (const change of getOpaqueChanges(diff)) {
+    addDiffDiagnosticItem(
+      groups,
+      change.reason,
+      formatOpaqueDiagnosticLabel(change),
+      change.owner || change.table,
+      change.change
+    )
+  }
+  for (const file of getLogicalNoopFiles(diff)) {
+    addDiffDiagnosticItem(
+      groups,
+      "logical_noop_file",
+      "File changed, rows did not",
+      file.path,
+      file.change
+    )
+  }
+  for (const limitation of getDiffLimitations(diff)) {
+    addDiffDiagnosticItem(
+      groups,
+      limitation.kind,
+      formatDiffLimitationKind(limitation.kind),
+      limitation.subject,
+      "parser limitation"
+    )
+  }
+
+  return Array.from(groups.values()).sort((a, b) => {
+    const priorityA = diffDiagnosticPriority(a.kind)
+    const priorityB = diffDiagnosticPriority(b.kind)
+    if (priorityA !== priorityB) return priorityA - priorityB
+    return b.count - a.count || a.label.localeCompare(b.label)
+  })
+}
+
+function diffDiagnosticPriority(kind: string) {
+  switch (kind) {
+    case "without_rowid_table":
+      return 0
+    case "generated_columns":
+    case "utf16_text_encoding":
+      return 1
+    case "sqlite_internal_table":
+      return 2
+    case "virtual_table":
+      return 3
+    case "fts_shadow_table":
+      return 4
+    case "logical_noop_file":
+      return 5
+    default:
+      return 6
+  }
+}
+
+function diffDiagnosticIcon(kind: string) {
+  if (kind === "fts_shadow_table") {
+    return <Search className="h-3.5 w-3.5" />
+  }
+  if (
+    kind === "virtual_table" ||
+    kind === "without_rowid_table" ||
+    kind === "generated_columns"
+  ) {
+    return <Table2 className="h-3.5 w-3.5" />
+  }
+  return <Database className="h-3.5 w-3.5" />
 }
 
 function FileChanges({ files, message }: { files: any[]; message: string }) {
@@ -443,6 +705,136 @@ function FileChanges({ files, message }: { files: any[]; message: string }) {
     </div>
   )
 }
+
+type OpaqueChange = {
+  table: string
+  change: string
+  reason: string
+  owner?: string
+}
+
+type DiffLimitation = {
+  kind: string
+  subject?: string
+}
+
+type LogicalNoopFile = {
+  path: string
+  change: string
+}
+
+function getOpaqueChanges(diff: any): OpaqueChange[] {
+  const changes = Array.isArray(diff?.opaqueChanges)
+    ? diff.opaqueChanges
+    : Array.isArray(diff?.opaque_changes)
+      ? diff.opaque_changes
+      : []
+  const normalized = changes
+    .map((change: any) => ({
+      table: String(change?.table ?? change?.name ?? ""),
+      change: String(change?.change ?? "modified"),
+      reason: String(change?.reason ?? "opaque"),
+      owner:
+        change?.owner === undefined || change?.owner === null
+          ? undefined
+          : String(change.owner),
+    }))
+    .filter((change: any) => change.table || change.owner)
+  return Array.from(
+    new Map<string, OpaqueChange>(
+      normalized.map((change: OpaqueChange) => [
+        `${change.owner || change.table}:${change.reason}:${change.change}`,
+        change,
+      ])
+    ).values()
+  )
+}
+
+function getLogicalNoopFiles(diff: any): LogicalNoopFile[] {
+  const files = Array.isArray(diff?.files) ? diff.files : []
+  return files.filter((file: any) => {
+    const status = file?.logicalStatus ?? file?.logical_status
+    return status === "file_changed_no_supported_logical_changes"
+  }) as LogicalNoopFile[]
+}
+
+function getDiffLimitations(diff: any): DiffLimitation[] {
+  const fromTopLevel = normalizeDiffLimitations(diff?.limitations)
+  const fromFiles = Array.isArray(diff?.files)
+    ? diff.files.flatMap((file: any) =>
+        normalizeDiffLimitations(file?.limitations)
+      )
+    : []
+  const byKey = new Map<string, DiffLimitation>()
+  for (const limitation of [...fromTopLevel, ...fromFiles]) {
+    byKey.set(`${limitation.kind}:${limitation.subject ?? ""}`, limitation)
+  }
+  return Array.from(byKey.values())
+}
+
+function normalizeDiffLimitations(value: any): DiffLimitation[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((limitation: any) => {
+      if (typeof limitation === "string") return { kind: limitation }
+      const kind = String(limitation?.kind ?? limitation?.reason ?? "")
+      if (!kind) return null
+      return {
+        kind,
+        subject:
+          limitation?.subject === undefined || limitation?.subject === null
+            ? undefined
+            : String(limitation.subject),
+      }
+    })
+    .filter(Boolean) as DiffLimitation[]
+}
+
+function formatOpaqueDiagnosticLabel(change: OpaqueChange) {
+  switch (change.reason) {
+    case "fts_shadow_table":
+      return "Search index"
+    case "virtual_table":
+      return "Virtual table"
+    case "without_rowid_table":
+      return "Unsupported table"
+    case "sqlite_internal_table":
+      return "SQLite internal"
+    default:
+      return change.reason.replace(/_/g, " ")
+  }
+}
+
+function formatDiffLimitationKind(kind: string) {
+  switch (kind) {
+    case "without_rowid_table":
+      return "Unsupported table"
+    case "sqlite_internal_table":
+      return "SQLite internal"
+    case "generated_columns":
+      return "Generated columns"
+    case "utf16_text_encoding":
+      return "UTF-16 text"
+    case "fts_shadow_table":
+      return "Search index"
+    case "virtual_table":
+      return "Virtual table"
+    default:
+      return kind.replace(/_/g, " ")
+  }
+}
+
+function getTableSectionId(name: string): string {
+  return `graft-diff-table-${encodeURIComponent(name)}`
+}
+
+const CONTEXT_CHANGE_COLUMNS = ["title", "name", "_id", "id"]
+const SYSTEM_CHANGE_COLUMNS = new Set([
+  "_created_time",
+  "_created_by",
+  "_last_edited_time",
+  "_last_edited_by",
+])
 
 function TableSection({
   name,
@@ -573,18 +965,6 @@ function TableSection({
     </div>
   )
 }
-
-function getTableSectionId(name: string): string {
-  return `graft-diff-table-${encodeURIComponent(name)}`
-}
-
-const CONTEXT_CHANGE_COLUMNS = ["title", "name", "_id", "id"]
-const SYSTEM_CHANGE_COLUMNS = new Set([
-  "_created_time",
-  "_created_by",
-  "_last_edited_time",
-  "_last_edited_by",
-])
 
 function arrayValueAt(values: unknown[] | undefined, index: number) {
   if (!Array.isArray(values) || index < 0 || index >= values.length) {

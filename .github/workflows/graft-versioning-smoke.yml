@@ -25,7 +25,7 @@ on:
       - "apps/desktop/package.json"
 
 env:
-  GRAFT_SQLITE_EXTENSION_VERSION: v0.3.1
+  GRAFT_SQLITE_EXTENSION_VERSION: v0.4.0
 
 jobs:
   windows-versioning-smoke:

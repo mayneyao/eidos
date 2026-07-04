@@ -235,11 +235,19 @@ export interface GraftConflictAnalysis {
   theirsChanges: number
   applyChanges: number
   opaqueChanges: number
+  resolvedOpaqueChanges: number
+  resolvedOpaqueChangeDetails: GraftResolvedOpaqueChange[]
+  applyPolicy?: GraftRowMergeApplyPolicy
+  limitations: GraftDiffLimitation[]
   blockedReasons: string[]
   rowConflicts: Array<{
+    reason: string
     table: string
     columns: string[]
     rowid: number
+    oursRowid?: number
+    theirsRowid?: number
+    semanticKey?: string[]
     ours: string
     theirs: string
     baseRow?: unknown[] | null
@@ -247,12 +255,177 @@ export interface GraftConflictAnalysis {
     theirsRow?: unknown[] | null
   }>
   schemaConflicts: Array<{
+    reason: string
     name: string
     entryType: string
     ours?: string
     theirs?: string
+    columnChanges: GraftSchemaColumnChange[]
+    message?: string
   }>
   message?: string
+}
+
+export interface GraftResolvedOpaqueChange {
+  name: string
+  reason: string
+  resolver: string
+}
+
+export interface GraftSchemaColumnChange {
+  side: string
+  operation: string
+  from?: string
+  to?: string
+}
+
+export interface GraftRowMergeApplyPolicy {
+  foreignKeys: string
+  triggers: string
+  validation: string[]
+  defaultSemanticKeys: string[]
+  internalResolvers: Record<string, string>
+  schemaResolvers: Record<string, string>
+  generatedColumns: Record<string, string[]>
+}
+
+export interface GraftAppMergePolicy {
+  defaultSemanticKeys: string[]
+  semanticKeys: Record<string, string[]>
+  internalResolvers: Record<string, string>
+  schemaResolvers: Record<string, string>
+  generatedColumns: Record<string, string[]>
+  generatedColumnTables: string[]
+}
+
+export const EIDOS_GRAFT_MERGE_POLICY: GraftAppMergePolicy = {
+  defaultSemanticKeys: ["_id"],
+  semanticKeys: {
+    eidos__tree: ["id"],
+    eidos__columns: ["table_name", "table_column_name"],
+    eidos__views: ["id"],
+    eidos__docs: ["id"],
+    eidos__extensions: ["id"],
+    eidos__files: ["id"],
+    eidos__embeddings: ["id"],
+    eidos__chats: ["id"],
+    eidos__messages: ["id"],
+    eidos__extnodes: ["id"],
+    eidos__kv: ["key"],
+    eidos__references: [
+      "self_table_name",
+      "self_table_column_name",
+      "ref_table_name",
+      "ref_table_column_name",
+      "link_table_name",
+      "link_table_column_name",
+    ],
+  },
+  internalResolvers: {
+    sqlite_sequence: "sequence_max",
+    sqlite_stat1: "rebuild",
+    sqlite_stat2: "rebuild",
+    sqlite_stat3: "rebuild",
+    sqlite_stat4: "rebuild",
+    index_btree: "reindex",
+  },
+  schemaResolvers: {
+    add_column: "alter_table_add_column",
+  },
+  generatedColumns: {
+    eidos__references: ["self", "ref", "link"],
+  },
+  generatedColumnTables: ["eidos__references"],
+}
+
+const GRAFT_MERGE_SEMANTIC_KEYS_HEADER = "[merge.semantic_keys]"
+const GRAFT_MERGE_INTERNAL_RESOLVERS_HEADER = "[merge.internal_resolvers]"
+const GRAFT_MERGE_SCHEMA_RESOLVERS_HEADER = "[merge.schema_resolvers]"
+const GRAFT_MERGE_GENERATED_COLUMNS_HEADER = "[merge.generated_columns]"
+
+export function formatGraftMergePolicyToml(
+  policy: GraftAppMergePolicy = EIDOS_GRAFT_MERGE_POLICY
+) {
+  const lines = ["[merge]"]
+  if (policy.defaultSemanticKeys.length > 0) {
+    lines.push(
+      `default_semantic_keys = [${policy.defaultSemanticKeys.map(tomlString).join(", ")}]`
+    )
+  }
+  lines.push("", GRAFT_MERGE_SEMANTIC_KEYS_HEADER)
+  for (const table of Object.keys(policy.semanticKeys).sort()) {
+    const columns = policy.semanticKeys[table] ?? []
+    if (columns.length === 0) continue
+    lines.push(`${tomlString(table)} = [${columns.map(tomlString).join(", ")}]`)
+  }
+  const internalSubjects = Object.keys(policy.internalResolvers).sort()
+  if (internalSubjects.length > 0) {
+    lines.push("", GRAFT_MERGE_INTERNAL_RESOLVERS_HEADER)
+    for (const subject of internalSubjects) {
+      const resolver = policy.internalResolvers[subject]
+      if (!resolver) continue
+      lines.push(`${tomlString(subject)} = ${tomlString(resolver)}`)
+    }
+  }
+  const schemaOperations = Object.keys(policy.schemaResolvers).sort()
+  if (schemaOperations.length > 0) {
+    lines.push("", GRAFT_MERGE_SCHEMA_RESOLVERS_HEADER)
+    for (const operation of schemaOperations) {
+      const resolver = policy.schemaResolvers[operation]
+      if (!resolver) continue
+      lines.push(`${tomlString(operation)} = ${tomlString(resolver)}`)
+    }
+  }
+  const generatedTables = Object.keys(policy.generatedColumns).sort()
+  if (generatedTables.length > 0) {
+    lines.push("", GRAFT_MERGE_GENERATED_COLUMNS_HEADER)
+    for (const table of generatedTables) {
+      const columns = policy.generatedColumns[table] ?? []
+      if (columns.length === 0) continue
+      lines.push(
+        `${tomlString(table)} = [${columns.map(tomlString).join(", ")}]`
+      )
+    }
+  }
+  return `${lines.join("\n")}\n`
+}
+
+export function upsertGraftMergePolicyToml(
+  configToml: string,
+  policy: GraftAppMergePolicy = EIDOS_GRAFT_MERGE_POLICY
+) {
+  const withoutExistingSection = [
+    "[merge]",
+    GRAFT_MERGE_SEMANTIC_KEYS_HEADER,
+    GRAFT_MERGE_INTERNAL_RESOLVERS_HEADER,
+    GRAFT_MERGE_SCHEMA_RESOLVERS_HEADER,
+    GRAFT_MERGE_GENERATED_COLUMNS_HEADER,
+  ]
+    .reduce((toml, section) => removeTomlSection(toml, section), configToml)
+    .trimEnd()
+  const policyToml = formatGraftMergePolicyToml(policy).trimEnd()
+  return `${withoutExistingSection}${withoutExistingSection ? "\n\n" : ""}${policyToml}\n`
+}
+
+function removeTomlSection(configToml: string, sectionHeader: string) {
+  const lines = configToml.split(/\r?\n/)
+  const result: string[] = []
+  let skipping = false
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (/^\[[^\]]+\]$/.test(trimmed)) {
+      skipping = trimmed === sectionHeader
+      if (skipping) continue
+    }
+    if (!skipping) result.push(line)
+  }
+
+  return result.join("\n")
+}
+
+function tomlString(value: string) {
+  return JSON.stringify(value)
 }
 
 /** Parse `pragma graft_json_status` output into structured data. */
@@ -366,7 +539,7 @@ function parseGraftConflictAnalysis(
 ): GraftConflictAnalysis | undefined {
   if (!data || typeof data !== "object") return undefined
 
-  return {
+  const analysis: GraftConflictAnalysis = {
     path: String(data.path ?? ""),
     available: Boolean(data.available),
     canAutoMerge: Boolean(data.can_auto_merge ?? data.canAutoMerge),
@@ -374,56 +547,180 @@ function parseGraftConflictAnalysis(
     theirsChanges: nonNegativeNumber(data.theirs_changes ?? data.theirsChanges),
     applyChanges: nonNegativeNumber(data.apply_changes ?? data.applyChanges),
     opaqueChanges: nonNegativeNumber(data.opaque_changes ?? data.opaqueChanges),
+    resolvedOpaqueChanges: nonNegativeNumber(
+      data.resolved_opaque_changes ?? data.resolvedOpaqueChanges
+    ),
+    resolvedOpaqueChangeDetails: parseResolvedOpaqueChanges(
+      data.resolved_opaque_change_details ?? data.resolvedOpaqueChangeDetails
+    ),
+    applyPolicy: parseGraftRowMergeApplyPolicy(
+      data.apply_policy ?? data.applyPolicy
+    ),
+    limitations: parseGraftDiffLimitations(data.limitations),
     blockedReasons: Array.isArray(data.blocked_reasons)
       ? data.blocked_reasons.map(String)
       : Array.isArray(data.blockedReasons)
         ? data.blockedReasons.map(String)
         : [],
-    rowConflicts: Array.isArray(data.row_conflicts)
-      ? data.row_conflicts.map((conflict: any) => ({
-          table: String(conflict.table ?? ""),
-          columns: Array.isArray(conflict.columns)
-            ? conflict.columns.map(String)
-            : [],
-          rowid: Number(conflict.rowid ?? 0),
-          ours: String(conflict.ours ?? ""),
-          theirs: String(conflict.theirs ?? ""),
-          baseRow: conflict.base_row ?? conflict.baseRow ?? null,
-          oursRow: conflict.ours_row ?? conflict.oursRow ?? null,
-          theirsRow: conflict.theirs_row ?? conflict.theirsRow ?? null,
-        }))
-      : Array.isArray(data.rowConflicts)
-        ? data.rowConflicts.map((conflict: any) => ({
-            table: String(conflict.table ?? ""),
-            columns: Array.isArray(conflict.columns)
-              ? conflict.columns.map(String)
-              : [],
-            rowid: Number(conflict.rowid ?? 0),
-            ours: String(conflict.ours ?? ""),
-            theirs: String(conflict.theirs ?? ""),
-            baseRow: conflict.base_row ?? conflict.baseRow ?? null,
-            oursRow: conflict.ours_row ?? conflict.oursRow ?? null,
-            theirsRow: conflict.theirs_row ?? conflict.theirsRow ?? null,
-          }))
-        : [],
+    rowConflicts: parseGraftRowConflicts(
+      data.row_conflicts ?? data.rowConflicts
+    ),
     schemaConflicts: Array.isArray(data.schema_conflicts)
       ? data.schema_conflicts.map((conflict: any) => ({
+          reason: String(conflict.reason ?? "schema_conflict"),
           name: String(conflict.name ?? ""),
           entryType: String(conflict.entry_type ?? conflict.entryType ?? ""),
           ours: conflict.ours != null ? String(conflict.ours) : undefined,
           theirs: conflict.theirs != null ? String(conflict.theirs) : undefined,
+          columnChanges: parseSchemaColumnChanges(
+            conflict.column_changes ?? conflict.columnChanges
+          ),
+          message:
+            conflict.message != null ? String(conflict.message) : undefined,
         }))
       : Array.isArray(data.schemaConflicts)
         ? data.schemaConflicts.map((conflict: any) => ({
+            reason: String(conflict.reason ?? "schema_conflict"),
             name: String(conflict.name ?? ""),
             entryType: String(conflict.entry_type ?? conflict.entryType ?? ""),
             ours: conflict.ours != null ? String(conflict.ours) : undefined,
             theirs:
               conflict.theirs != null ? String(conflict.theirs) : undefined,
+            columnChanges: parseSchemaColumnChanges(
+              conflict.column_changes ?? conflict.columnChanges
+            ),
+            message:
+              conflict.message != null ? String(conflict.message) : undefined,
           }))
         : [],
-    message: data.message != null ? String(data.message) : undefined,
   }
+
+  if (data.message != null) analysis.message = String(data.message)
+  return analysis
+}
+
+function parseGraftRowConflicts(
+  data: any
+): GraftConflictAnalysis["rowConflicts"] {
+  if (!Array.isArray(data)) return []
+  return data.map((conflict: any) => {
+    const parsed: GraftConflictAnalysis["rowConflicts"][number] = {
+      reason: String(conflict.reason ?? "row_conflict"),
+      table: String(conflict.table ?? ""),
+      columns: Array.isArray(conflict.columns)
+        ? conflict.columns.map(String)
+        : [],
+      rowid: Number(conflict.rowid ?? 0),
+      ours: String(conflict.ours ?? ""),
+      theirs: String(conflict.theirs ?? ""),
+      baseRow: conflict.base_row ?? conflict.baseRow ?? null,
+      oursRow: conflict.ours_row ?? conflict.oursRow ?? null,
+      theirsRow: conflict.theirs_row ?? conflict.theirsRow ?? null,
+    }
+    const oursRowid = optionalNumber(conflict.ours_rowid ?? conflict.oursRowid)
+    const theirsRowid = optionalNumber(
+      conflict.theirs_rowid ?? conflict.theirsRowid
+    )
+    const semanticKey = parseStringArray(
+      conflict.semantic_key ?? conflict.semanticKey
+    )
+    if (oursRowid !== undefined) parsed.oursRowid = oursRowid
+    if (theirsRowid !== undefined) parsed.theirsRowid = theirsRowid
+    if (semanticKey.length > 0) parsed.semanticKey = semanticKey
+    return parsed
+  })
+}
+
+function parseResolvedOpaqueChanges(data: any): GraftResolvedOpaqueChange[] {
+  if (!Array.isArray(data)) return []
+  return data.map((change: any) => ({
+    name: String(change?.name ?? ""),
+    reason: String(change?.reason ?? ""),
+    resolver: String(change?.resolver ?? ""),
+  }))
+}
+
+function parseSchemaColumnChanges(data: any): GraftSchemaColumnChange[] {
+  if (!Array.isArray(data)) return []
+  return data.map((change: any) => {
+    const parsed: GraftSchemaColumnChange = {
+      side: String(change?.side ?? ""),
+      operation: String(change?.operation ?? ""),
+    }
+    if (change?.from != null) parsed.from = String(change.from)
+    if (change?.to != null) parsed.to = String(change.to)
+    return parsed
+  })
+}
+
+function parseGraftRowMergeApplyPolicy(
+  data: any
+): GraftRowMergeApplyPolicy | undefined {
+  if (!data || typeof data !== "object") return undefined
+  return {
+    foreignKeys: String(data.foreign_keys ?? data.foreignKeys ?? ""),
+    triggers: String(data.triggers ?? ""),
+    validation: parseStringArray(data.validation),
+    defaultSemanticKeys: parseStringArray(
+      data.default_semantic_keys ?? data.defaultSemanticKeys
+    ),
+    internalResolvers: parseResolverRecord(
+      data.internal_resolvers ?? data.internalResolvers
+    ),
+    schemaResolvers: parseResolverRecord(
+      data.schema_resolvers ?? data.schemaResolvers
+    ),
+    generatedColumns: parseGeneratedColumnsRecord(
+      data.generated_columns ?? data.generatedColumns
+    ),
+  }
+}
+
+function parseGeneratedColumnsRecord(data: unknown): Record<string, string[]> {
+  if (Array.isArray(data)) {
+    return Object.fromEntries(
+      data
+        .map((item) => {
+          if (!item || typeof item !== "object") return null
+          const record = item as Record<string, unknown>
+          const table = String(record.table ?? record.name ?? "")
+          const columns = parseStringArray(record.columns)
+          return table && columns.length > 0 ? [table, columns] : null
+        })
+        .filter((entry): entry is [string, string[]] => Boolean(entry))
+    )
+  }
+  if (!data || typeof data !== "object") return {}
+  return Object.fromEntries(
+    Object.entries(data as Record<string, unknown>)
+      .map(([table, columns]) => [table, parseStringArray(columns)] as const)
+      .filter(([, columns]) => columns.length > 0)
+  )
+}
+
+function parseResolverRecord(data: unknown): Record<string, string> {
+  if (Array.isArray(data)) {
+    return Object.fromEntries(
+      data
+        .map((item) => {
+          if (!item || typeof item !== "object") return null
+          const record = item as Record<string, unknown>
+          const table = String(
+            record.table ?? record.name ?? record.operation ?? ""
+          )
+          const resolver = String(record.resolver ?? record.strategy ?? "")
+          return table && resolver ? [table, resolver] : null
+        })
+        .filter((entry): entry is [string, string] => Boolean(entry))
+    )
+  }
+  if (!data || typeof data !== "object") return {}
+  return Object.fromEntries(
+    Object.entries(data as Record<string, unknown>).map(([key, value]) => [
+      key,
+      String(value),
+    ])
+  )
 }
 
 export type GraftConflictArtifactKind = "row" | "schema" | "opaque" | "file"
@@ -438,8 +735,14 @@ export interface GraftConflictArtifact {
   table?: string
   columns?: string[]
   rowid?: number
+  oursRowid?: number
+  theirsRowid?: number
+  semanticKey?: string[]
   name?: string
   entryType?: string
+  columnChanges?: GraftSchemaColumnChange[]
+  change?: string
+  owner?: string
   oursOp?: string
   theirsOp?: string
   baseRow?: unknown[] | null
@@ -484,7 +787,7 @@ export function parseGraftConflicts(data: any): GraftConflictListResult {
 }
 
 function parseGraftConflictArtifact(data: any): GraftConflictArtifact {
-  return {
+  const artifact: GraftConflictArtifact = {
     id: String(data?.id ?? ""),
     path: String(data?.path ?? ""),
     kind: String(data?.kind ?? "file"),
@@ -495,7 +798,6 @@ function parseGraftConflictArtifact(data: any): GraftConflictArtifact {
     columns: Array.isArray(data?.columns)
       ? data.columns.map(String)
       : undefined,
-    rowid: data?.rowid != null ? Number(data.rowid) : undefined,
     name: data?.name != null ? String(data.name) : undefined,
     entryType:
       data?.entry_type != null
@@ -503,6 +805,11 @@ function parseGraftConflictArtifact(data: any): GraftConflictArtifact {
         : data?.entryType != null
           ? String(data.entryType)
           : undefined,
+    columnChanges: parseSchemaColumnChanges(
+      data?.column_changes ?? data?.columnChanges
+    ),
+    change: data?.change != null ? String(data.change) : undefined,
+    owner: data?.owner != null ? String(data.owner) : undefined,
     oursOp:
       data?.ours_op != null
         ? String(data.ours_op)
@@ -520,6 +827,15 @@ function parseGraftConflictArtifact(data: any): GraftConflictArtifact {
     theirsRow: data?.theirs_row ?? data?.theirsRow ?? null,
     message: data?.message != null ? String(data.message) : undefined,
   }
+  const rowid = optionalNumber(data?.rowid)
+  const oursRowid = optionalNumber(data?.ours_rowid ?? data?.oursRowid)
+  const theirsRowid = optionalNumber(data?.theirs_rowid ?? data?.theirsRowid)
+  const semanticKey = parseStringArray(data?.semantic_key ?? data?.semanticKey)
+  if (rowid !== undefined) artifact.rowid = rowid
+  if (oursRowid !== undefined) artifact.oursRowid = oursRowid
+  if (theirsRowid !== undefined) artifact.theirsRowid = theirsRowid
+  if (semanticKey.length > 0) artifact.semanticKey = semanticKey
+  return artifact
 }
 
 /** Parse `pragma graft_json_resolve_conflict` output. */
@@ -1054,6 +1370,9 @@ export interface GraftDiffFileChange {
   fromLsn?: number
   toLsn?: number
   rowDiffAvailable?: boolean
+  logicalStatus?: string
+  capabilities: string[]
+  limitations: GraftDiffLimitation[]
   message?: string
 }
 
@@ -1064,6 +1383,11 @@ export interface GraftDiffOpaqueChange {
   owner?: string
 }
 
+export interface GraftDiffLimitation {
+  kind: string
+  subject?: string
+}
+
 export interface GraftDiffResult {
   from: string
   to: string
@@ -1072,6 +1396,9 @@ export interface GraftDiffResult {
   tables: GraftDiffTableChange[]
   rows: GraftDiffRowChange[]
   opaqueChanges: GraftDiffOpaqueChange[]
+  logicalStatus?: string
+  capabilities: string[]
+  limitations: GraftDiffLimitation[]
   empty: boolean
 }
 
@@ -1160,6 +1487,57 @@ function appendGraftOpaqueChanges(
   }
 }
 
+function parseStringArray(data: unknown): string[] {
+  return Array.isArray(data)
+    ? data
+        .map((item) => (item == null ? "" : String(item)))
+        .filter((item) => item.length > 0)
+    : []
+}
+
+function parseGraftDiffLimitations(data: unknown): GraftDiffLimitation[] {
+  if (!Array.isArray(data)) return []
+  return data
+    .map((limitation) => {
+      if (typeof limitation === "string") {
+        return { kind: limitation }
+      }
+      if (!limitation || typeof limitation !== "object") return null
+      const item = limitation as Record<string, unknown>
+      const kind = String(item.kind ?? item.reason ?? "")
+      if (!kind) return null
+      return {
+        kind,
+        subject:
+          item.subject === undefined || item.subject === null
+            ? undefined
+            : String(item.subject),
+      }
+    })
+    .filter((limitation): limitation is GraftDiffLimitation =>
+      Boolean(limitation)
+    )
+}
+
+function aggregateRepoLogicalStatus(files: GraftDiffFileChange[]) {
+  const statuses = files
+    .map((file) => file.logicalStatus)
+    .filter((status): status is string => Boolean(status))
+  if (statuses.includes("logical_changes")) return "logical_changes"
+  if (statuses.includes("unsupported_logical_surface")) {
+    return "unsupported_logical_surface"
+  }
+  if (statuses.includes("file_changed_no_supported_logical_changes")) {
+    return "file_changed_no_supported_logical_changes"
+  }
+  if (statuses.includes("row_diff_unavailable")) return "row_diff_unavailable"
+  return undefined
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values))
+}
+
 /**
  * Parse `pragma graft_json_diff = "from,to[,rows]"` output.
  *
@@ -1189,6 +1567,8 @@ export function parseGraftDiff(
       tables: [],
       rows: [],
       opaqueChanges: [],
+      capabilities: [],
+      limitations: [],
       empty: true,
     }
   }
@@ -1212,6 +1592,15 @@ export function parseGraftDiff(
           toState,
           fromLsn: graftFileStateHeadLsn(fromState),
           toLsn: graftFileStateHeadLsn(toState),
+          capabilities: parseStringArray(file.capabilities),
+          limitations: parseGraftDiffLimitations(
+            file.limitations ?? file.limits
+          ),
+        }
+        if (file.logical_status != null || file.logicalStatus != null) {
+          change.logicalStatus = String(
+            file.logical_status ?? file.logicalStatus
+          )
         }
         if (file.row_diff_available != null) {
           change.rowDiffAvailable = Boolean(file.row_diff_available)
@@ -1258,6 +1647,16 @@ export function parseGraftDiff(
       tables,
       rows,
       opaqueChanges,
+      logicalStatus:
+        obj.logical_status != null || obj.logicalStatus != null
+          ? String(obj.logical_status ?? obj.logicalStatus)
+          : aggregateRepoLogicalStatus(files),
+      capabilities: uniqueStrings(
+        parseStringArray(obj.capabilities).concat(
+          files.flatMap((file) => file.capabilities)
+        )
+      ),
+      limitations: files.flatMap((file) => file.limitations),
       empty: files.length === 0,
     }
   }
@@ -1279,6 +1678,12 @@ export function parseGraftDiff(
     tables,
     rows,
     opaqueChanges,
+    logicalStatus:
+      obj.logical_status != null || obj.logicalStatus != null
+        ? String(obj.logical_status ?? obj.logicalStatus)
+        : undefined,
+    capabilities: parseStringArray(obj.capabilities),
+    limitations: parseGraftDiffLimitations(obj.limitations),
     empty:
       tables.length === 0 && rows.length === 0 && opaqueChanges.length === 0,
   }

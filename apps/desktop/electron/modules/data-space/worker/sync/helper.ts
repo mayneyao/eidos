@@ -1,7 +1,10 @@
 import fs from "node:fs"
 import path from "path"
 
-import type { SyncCredentials } from "@eidos.space/sync"
+import {
+  upsertGraftMergePolicyToml,
+  type SyncCredentials,
+} from "@eidos.space/sync"
 import type { SpaceInfo } from "@eidos.space/space-manager"
 
 // --- START: Helper function to check if this is an initialization operation ---
@@ -121,3 +124,24 @@ export function applyGraftConfigToEnv(
   }
 }
 // --- END: Helper function ---
+
+export function writeEidosGraftMergePolicyConfig(spacePath: string) {
+  const graftConfigPath = path.join(
+    spacePath,
+    ".eidos",
+    ".graft",
+    "config.toml"
+  )
+  if (!fs.existsSync(graftConfigPath)) {
+    return false
+  }
+
+  const current = fs.readFileSync(graftConfigPath, "utf8")
+  const next = upsertGraftMergePolicyToml(current)
+  if (next === current) {
+    return false
+  }
+
+  fs.writeFileSync(graftConfigPath, next)
+  return true
+}

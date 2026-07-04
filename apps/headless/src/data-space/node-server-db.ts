@@ -10,6 +10,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 import Database from "better-sqlite3"
+import { upsertGraftMergePolicyToml } from "@eidos.space/sync"
 import {
   BaseServerDatabase,
   type GraftConflictResolveTarget,
@@ -436,6 +437,19 @@ function configureOriginRemote(db: Database.Database, remoteUri: string) {
   }
 }
 
+function writeEidosGraftMergePolicyConfig(graftDir: string) {
+  const graftConfigPath = path.join(graftDir, "config.toml")
+  if (!fs.existsSync(graftConfigPath)) {
+    return
+  }
+
+  const current = fs.readFileSync(graftConfigPath, "utf8")
+  const next = upsertGraftMergePolicyToml(current)
+  if (next !== current) {
+    fs.writeFileSync(graftConfigPath, next)
+  }
+}
+
 /**
  * Initialize SQLite database with Graft support
  */
@@ -516,6 +530,7 @@ export async function initializeDatabase(
         console.warn("[DB] Sync failed (may be offline):", e.message)
       }
     }
+    writeEidosGraftMergePolicyConfig(graftDir)
   } else {
     // Regular SQLite
     console.log("[DB] Initializing regular SQLite...")

@@ -12,6 +12,7 @@ import { CREATE_TABLES_SQL, INIT_DATA_SQL } from "@eidos.space/rawdata"
 import {
   applyGraftConfigToEnv,
   isInitializationOperation,
+  writeEidosGraftMergePolicyConfig,
 } from "../sync/helper"
 import { generatePragmaList } from "./config"
 import { loadCustomExtensions, scanCustomExtensions } from "./sqlite-extension"
@@ -120,6 +121,9 @@ export class NodeDatabaseInitializer {
         this.initializeWithRemoteSpace(db, remoteUri)
       } else if (isInit && isGraftEnabled) {
         this.initializeLocalRepository(db)
+      }
+      if (isGraftEnabled) {
+        writeEidosGraftMergePolicyConfig(spaceInfo.path)
       }
 
       // Initialize database connection (extensions, pragmas)

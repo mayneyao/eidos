@@ -25,7 +25,10 @@ import {
 import { getSpaceRegistry } from "@eidos.space/space-manager"
 
 import type { SyncCredentials } from "@eidos.space/sync"
-import { applyGraftConfigToEnv } from "../sync/helper"
+import {
+  applyGraftConfigToEnv,
+  writeEidosGraftMergePolicyConfig,
+} from "../sync/helper"
 import Database, { type SqliteDatabase } from "./better-sqlite3"
 import { createGraftDbUri } from "./graft-uri"
 import { isVFSInitialized, setVFSInitialized } from "./initializer"
@@ -766,6 +769,7 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
       this.isSyncEnabled = true
 
       this.db.pragma("graft_init")
+      writeEidosGraftMergePolicyConfig(spaceInfo.path)
       this.commitChanges("Initial version")
       if (remoteUri) {
         this.configureOriginRemote(remoteUri)
@@ -856,6 +860,7 @@ export class NodeBaseServerDatabase extends BaseServerDatabase {
     }
     const remoteUri = applyGraftConfigToEnv(spaceInfo, credentials, remote)
     this.configureOriginRemote(remoteUri)
+    writeEidosGraftMergePolicyConfig(spaceInfo.path)
     this.pushInitialBranch()
 
     return { success: true, reloadRequired: false }

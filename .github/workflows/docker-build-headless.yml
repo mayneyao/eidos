@@ -15,7 +15,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/headless
-  GRAFT_SQLITE_EXTENSION_VERSION: v0.3.1
+  GRAFT_SQLITE_EXTENSION_VERSION: v0.4.0
 
 jobs:
   build:

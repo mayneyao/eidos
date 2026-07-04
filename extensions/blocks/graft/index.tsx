@@ -16,8 +16,10 @@ import {
   GitCommitHorizontal,
   GitMerge,
   GitPullRequest,
+  Info,
   LoaderIcon,
   RefreshCw,
+  Table2,
   Undo2,
 } from "lucide-react"
 
@@ -863,6 +865,7 @@ function WorktreeChangesPanel({
   inputRef: React.RefObject<HTMLInputElement>
 }) {
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [showChanges, setShowChanges] = useState(true)
   const worktree = getWorktreeState(status)
   const primaryLoading = isCommitLoading || isCompletingMerge
   const isMergeReady = worktree.canCompleteMerge
@@ -875,11 +878,22 @@ function WorktreeChangesPanel({
   const canRunPrimary = !hasMergeConflicts && (isMergeReady || canCommit)
   const rowsByTable = useMemo(() => groupDiffRowsByTable(diff?.rows), [diff])
   const opaqueChanges = useMemo(() => getOpaqueChanges(diff), [diff])
+  const logicalNoopFiles = useMemo(() => getLogicalNoopFiles(diff), [diff])
+  const diffLimitations = useMemo(() => getDiffLimitations(diff), [diff])
   const tableNames = useMemo(
     () => Object.keys(rowsByTable).sort(),
     [rowsByTable]
   )
-  const semanticChangeCount = tableNames.length + opaqueChanges.length
+  const rowChangeCount = useMemo(
+    () =>
+      Object.values(rowsByTable).reduce((sum, rows) => sum + rows.length, 0),
+    [rowsByTable]
+  )
+  const technicalDetailCount =
+    opaqueChanges.length + logicalNoopFiles.length + diffLimitations.length
+  const hasDataChanges = tableNames.length > 0
+  const hasTechnicalDetails = technicalDetailCount > 0
+  const semanticChangeCount = tableNames.length
   const changeCount = semanticChangeCount || worktree.count
   const changeLabel = semanticChangeCount
     ? [
@@ -887,10 +901,21 @@ function WorktreeChangesPanel({
           ? `${tableNames.length} table${tableNames.length === 1 ? "" : "s"}`
           : "",
         opaqueChanges.length > 0 ? `${opaqueChanges.length} opaque` : "",
+        logicalNoopFiles.length > 0
+          ? `${logicalNoopFiles.length} file-only`
+          : "",
       ]
         .filter(Boolean)
         .join(", ")
     : `${worktree.count} ${worktree.count === 1 ? "file" : "files"}`
+  const guidance = getWorktreeChangeGuidance({
+    diff,
+    fileCount: worktree.count,
+    hasDataChanges,
+    rowChangeCount,
+    tableCount: tableNames.length,
+    technicalDetailCount,
+  })
 
   return (
     <div className="border-b border-border/60 bg-background">
@@ -923,8 +948,32 @@ function WorktreeChangesPanel({
                   Merge conflict
                 </div>
                 <div className="mt-0.5 text-[11px] text-muted-foreground">
-                  Auto-merge could not resolve this database file.
+                  {formatConflictSummary(conflictAnalysis)}
                 </div>
+                {conflictAnalysis ? (
+                  <div className="mt-1 space-y-0.5 text-[10px] text-muted-foreground">
+                    {formatBlockedReasons(conflictAnalysis) ? (
+                      <div className="truncate">
+                        {formatBlockedReasons(conflictAnalysis)}
+                      </div>
+                    ) : null}
+                    {formatConflictLimitations(conflictAnalysis) ? (
+                      <div className="truncate">
+                        {formatConflictLimitations(conflictAnalysis)}
+                      </div>
+                    ) : null}
+                    {formatResolvedOpaqueChanges(conflictAnalysis) ? (
+                      <div className="truncate">
+                        {formatResolvedOpaqueChanges(conflictAnalysis)}
+                      </div>
+                    ) : null}
+                    {formatApplyPolicy(conflictAnalysis) ? (
+                      <div className="truncate">
+                        {formatApplyPolicy(conflictAnalysis)}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {worktree.conflictedPaths.length > 0 ? (
                   <div className="mt-1 space-y-0.5">
                     {worktree.conflictedPaths.map((path) => (
@@ -1012,8 +1061,19 @@ function WorktreeChangesPanel({
 
       <div className="border-t border-border/60">
         <div className="flex h-7 items-center gap-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          <ChevronRight className="h-3 w-3 rotate-90" />
-          <span className="min-w-0 flex-1 truncate">Changes</span>
+          <button
+            type="button"
+            onClick={() => setShowChanges((value) => !value)}
+            className="flex min-w-0 flex-1 items-center gap-1.5 text-left hover:text-foreground"
+          >
+            <ChevronRight
+              className={cn(
+                "h-3 w-3 shrink-0 transition-transform",
+                showChanges && "rotate-90"
+              )}
+            />
+            <span className="min-w-0 truncate">Changes</span>
+          </button>
           <span className="shrink-0 text-[10px] font-medium tabular-nums">
             {isStatusLoading && !status ? "..." : changeCount}
           </span>
@@ -1025,7 +1085,10 @@ function WorktreeChangesPanel({
                     size="xs"
                     variant="ghost"
                     className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                    onClick={() => setConfirmDiscard(true)}
+                    onClick={() => {
+                      setShowChanges(true)
+                      setConfirmDiscard(true)
+                    }}
                     disabled={
                       !canDiscard ||
                       worktree.isMergeInProgress ||
@@ -1051,112 +1114,254 @@ function WorktreeChangesPanel({
           </div>
         </div>
 
-        {confirmDiscard ? (
-          <div className="mx-2 mb-1 rounded-sm border border-destructive/30 bg-destructive/5 p-2">
-            <div className="text-xs font-medium text-destructive">
-              Discard all changes?
-            </div>
-            <div className="mt-2 flex items-center gap-1">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 flex-1 px-2 text-xs"
-                onClick={() => setConfirmDiscard(false)}
-                disabled={isDiscardLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                className="h-7 flex-1 px-2 text-xs"
-                onClick={() => {
-                  setConfirmDiscard(false)
-                  onDiscard()
-                }}
-                disabled={!canDiscard || isDiscardLoading}
-              >
-                {isDiscardLoading ? (
-                  <LoaderIcon className="mr-1.5 h-3 w-3 animate-spin" />
-                ) : (
-                  <Undo2 className="mr-1.5 h-3 w-3" />
-                )}
-                Discard
-              </Button>
-            </div>
-          </div>
-        ) : null}
+        {showChanges ? (
+          <>
+            {confirmDiscard ? (
+              <div className="mx-2 mb-1 rounded-sm border border-destructive/30 bg-destructive/5 p-2">
+                <div className="text-xs font-medium text-destructive">
+                  Discard all changes?
+                </div>
+                <div className="mt-2 flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 flex-1 px-2 text-xs"
+                    onClick={() => setConfirmDiscard(false)}
+                    disabled={isDiscardLoading}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="h-7 flex-1 px-2 text-xs"
+                    onClick={() => {
+                      setConfirmDiscard(false)
+                      onDiscard()
+                    }}
+                    disabled={!canDiscard || isDiscardLoading}
+                  >
+                    {isDiscardLoading ? (
+                      <LoaderIcon className="mr-1.5 h-3 w-3 animate-spin" />
+                    ) : (
+                      <Undo2 className="mr-1.5 h-3 w-3" />
+                    )}
+                    Discard
+                  </Button>
+                </div>
+              </div>
+            ) : null}
 
-        {isDiffLoading && !diff ? (
-          <div className="flex items-center gap-2 px-6 py-2 text-xs text-muted-foreground">
-            <LoaderIcon className="h-3 w-3 animate-spin" />
-            Loading diff...
-          </div>
-        ) : semanticChangeCount > 0 ? (
-          <div className="pb-1">
-            {tableNames.map((name) => {
-              const rows = rowsByTable[name]
-              const counts = countRowOps(rows)
-              return (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => onOpenTable(name)}
-                  className="flex h-7 w-full items-center gap-2 px-6 pr-2 text-left text-xs hover:bg-muted/40"
-                >
-                  <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1 truncate font-medium">
-                    {name}
-                  </span>
-                  <span className="flex shrink-0 items-center gap-1 text-[10px] tabular-nums">
-                    {counts.inserts > 0 ? (
-                      <span className="text-emerald-600">
-                        +{counts.inserts}
-                      </span>
-                    ) : null}
-                    {counts.deletes > 0 ? (
-                      <span className="text-rose-600">-{counts.deletes}</span>
-                    ) : null}
-                    {counts.updates > 0 ? (
-                      <span className="text-amber-600">~{counts.updates}</span>
-                    ) : null}
-                    <span className="text-muted-foreground">{rows.length}</span>
-                  </span>
-                </button>
-              )
-            })}
-            {opaqueChanges.map((change) => (
-              <div
-                key={`${change.table}-${change.change}-${change.reason}`}
-                className="flex h-7 items-center justify-between gap-2 px-6 pr-2 text-xs text-muted-foreground"
-              >
-                <span className="min-w-0 truncate font-mono">
-                  {change.owner || change.table}
-                </span>
-                <span className="shrink-0 uppercase">
-                  {formatOpaqueReason(change)}
-                </span>
+            {isDiffLoading && !diff ? (
+              <div className="flex items-center gap-2 px-6 py-2 text-xs text-muted-foreground">
+                <LoaderIcon className="h-3 w-3 animate-spin" />
+                Loading diff...
               </div>
-            ))}
-          </div>
-        ) : diff?.files?.length ? (
-          <div className="pb-1 text-xs text-muted-foreground">
-            {diff.files.map((file: any) => (
-              <div
-                key={`${file.path}-${file.change}`}
-                className="flex h-7 items-center justify-between gap-2 px-6 pr-2"
-              >
-                <span className="min-w-0 truncate font-mono">{file.path}</span>
-                <span className="shrink-0 uppercase">{file.change}</span>
+            ) : hasDataChanges || hasTechnicalDetails ? (
+              <div className="pb-1">
+                {guidance ? (
+                  <WorktreeChangeGuidance guidance={guidance} />
+                ) : null}
+
+                {hasDataChanges ? (
+                  <div>
+                    <ChangeSectionLabel
+                      label="Data changes"
+                      detail={`${rowChangeCount} row${
+                        rowChangeCount === 1 ? "" : "s"
+                      }`}
+                    />
+                    {tableNames.map((name) => {
+                      const rows = rowsByTable[name]
+                      const counts = countRowOps(rows)
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => onOpenTable(name)}
+                          className="flex h-7 w-full items-center gap-2 px-3 pr-2 text-left text-xs hover:bg-muted/40"
+                        >
+                          <Table2 className="h-3 w-3 shrink-0 text-muted-foreground/70" />
+                          <span className="min-w-0 flex-1 truncate font-medium">
+                            {name}
+                          </span>
+                          <span className="flex shrink-0 items-center gap-1 text-[10px] tabular-nums">
+                            {counts.inserts > 0 ? (
+                              <span className="text-emerald-600">
+                                +{counts.inserts}
+                              </span>
+                            ) : null}
+                            {counts.deletes > 0 ? (
+                              <span className="text-rose-600">
+                                -{counts.deletes}
+                              </span>
+                            ) : null}
+                            {counts.updates > 0 ? (
+                              <span className="text-amber-600">
+                                ~{counts.updates}
+                              </span>
+                            ) : null}
+                            <span className="text-muted-foreground">
+                              {rows.length}
+                            </span>
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : null}
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="px-6 py-2 text-xs text-muted-foreground">
-            {isDiffLoading ? "Loading table diff..." : `${changeLabel} changed`}
-          </div>
-        )}
+            ) : diff?.files?.length ? (
+              <div className="pb-1 text-xs text-muted-foreground">
+                {guidance ? (
+                  <WorktreeChangeGuidance guidance={guidance} />
+                ) : null}
+                {diff.files.map((file: any) => (
+                  <div
+                    key={`${file.path}-${file.change}`}
+                    className="flex h-7 items-center justify-between gap-2 px-3 pr-2"
+                  >
+                    <span className="min-w-0 truncate font-mono">
+                      {file.path}
+                    </span>
+                    <span className="shrink-0 uppercase">{file.change}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="px-3 py-2 text-xs text-muted-foreground">
+                {isDiffLoading
+                  ? "Loading table diff..."
+                  : `${changeLabel} changed`}
+              </div>
+            )}
+          </>
+        ) : null}
       </div>
+    </div>
+  )
+}
+
+type WorktreeGuidance = {
+  tone: "action" | "info" | "warning"
+  title: string
+  description: string
+}
+
+function getWorktreeChangeGuidance({
+  diff,
+  fileCount,
+  hasDataChanges,
+  rowChangeCount,
+  tableCount,
+  technicalDetailCount,
+}: {
+  diff: any
+  fileCount: number
+  hasDataChanges: boolean
+  rowChangeCount: number
+  tableCount: number
+  technicalDetailCount: number
+}): WorktreeGuidance | null {
+  if (!diff) return null
+
+  if (hasDataChanges) {
+    return {
+      tone: "action",
+      title: `Review ${rowChangeCount} data ${
+        rowChangeCount === 1 ? "change" : "changes"
+      }`,
+      description:
+        technicalDetailCount > 0
+          ? "Commit when the rows look right. SQLite diagnostics are available in the diff detail."
+          : `Commit when the ${
+              tableCount === 1 ? "table looks" : "tables look"
+            } right.`,
+    }
+  }
+
+  const logicalStatus = String(
+    diff?.logicalStatus ?? diff?.logical_status ?? ""
+  )
+  if (logicalStatus === "file_changed_no_supported_logical_changes") {
+    return {
+      tone: "info",
+      title: "No data changes found",
+      description:
+        "The SQLite file changed, but supported rows ended where they started. Discard it to clear the change, or commit the snapshot.",
+    }
+  }
+
+  if (technicalDetailCount > 0) {
+    return {
+      tone: "warning",
+      title: "Only SQLite diagnostics changed",
+      description:
+        "No supported row changes were found. Usually discard this, or open the diff detail to inspect diagnostics.",
+    }
+  }
+
+  if (Array.isArray(diff?.files) && diff.files.length > 0) {
+    return {
+      tone: "info",
+      title: `${fileCount} ${fileCount === 1 ? "file" : "files"} changed`,
+      description:
+        "Row-level details are not available for this change. Review the file change before committing.",
+    }
+  }
+
+  return null
+}
+
+function WorktreeChangeGuidance({ guidance }: { guidance: WorktreeGuidance }) {
+  return (
+    <div
+      className={cn(
+        "mx-3 mb-1.5 rounded-sm border px-2 py-1.5",
+        guidance.tone !== "warning" && "border-border/70 bg-muted/25",
+        guidance.tone === "warning" && "border-amber-500/25 bg-amber-500/5"
+      )}
+    >
+      <div className="flex items-start gap-2">
+        <Info
+          className={cn(
+            "mt-0.5 h-3.5 w-3.5 shrink-0",
+            guidance.tone !== "warning" && "text-muted-foreground",
+            guidance.tone === "warning" && "text-amber-600"
+          )}
+        />
+        <div className="min-w-0">
+          <div
+            className={cn(
+              "text-xs font-medium",
+              guidance.tone !== "warning" && "text-foreground",
+              guidance.tone === "warning" && "text-amber-700"
+            )}
+          >
+            {guidance.title}
+          </div>
+          <div className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
+            {guidance.description}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ChangeSectionLabel({
+  label,
+  detail,
+}: {
+  label: string
+  detail: string
+}) {
+  return (
+    <div className="flex h-6 items-center justify-between gap-2 px-3 pr-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <span className="min-w-0 truncate">{label}</span>
+      <span className="shrink-0 font-medium normal-case tracking-normal">
+        {detail}
+      </span>
     </div>
   )
 }
@@ -1176,6 +1381,16 @@ type OpaqueChange = {
   change: string
   reason: string
   owner?: string
+}
+
+type DiffLimitation = {
+  kind: string
+  subject?: string
+}
+
+type LogicalNoopFile = {
+  path: string
+  change: string
 }
 
 function getOpaqueChanges(diff: any): OpaqueChange[] {
@@ -1205,10 +1420,300 @@ function getOpaqueChanges(diff: any): OpaqueChange[] {
   )
 }
 
-function formatOpaqueReason(change: OpaqueChange) {
-  if (change.reason === "fts_shadow_table") return `FTS ${change.change}`
-  if (change.reason === "virtual_table") return `virtual ${change.change}`
-  return change.change
+function getLogicalNoopFiles(diff: any): LogicalNoopFile[] {
+  const files = Array.isArray(diff?.files) ? diff.files : []
+  return files.filter((file: any) => {
+    const status = file?.logicalStatus ?? file?.logical_status
+    return status === "file_changed_no_supported_logical_changes"
+  }) as LogicalNoopFile[]
+}
+
+function getDiffLimitations(diff: any): DiffLimitation[] {
+  const fromTopLevel = normalizeDiffLimitations(diff?.limitations)
+  const fromFiles = Array.isArray(diff?.files)
+    ? diff.files.flatMap((file: any) =>
+        normalizeDiffLimitations(file?.limitations)
+      )
+    : []
+  const byKey = new Map<string, DiffLimitation>()
+  for (const limitation of [...fromTopLevel, ...fromFiles]) {
+    byKey.set(`${limitation.kind}:${limitation.subject ?? ""}`, limitation)
+  }
+  return Array.from(byKey.values())
+}
+
+function normalizeDiffLimitations(value: any): DiffLimitation[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((limitation: any) => {
+      if (typeof limitation === "string") return { kind: limitation }
+      const kind = String(limitation?.kind ?? limitation?.reason ?? "")
+      if (!kind) return null
+      return {
+        kind,
+        subject:
+          limitation?.subject === undefined || limitation?.subject === null
+            ? undefined
+            : String(limitation.subject),
+      }
+    })
+    .filter(Boolean) as DiffLimitation[]
+}
+
+function formatDiffLimitation(limitation: DiffLimitation) {
+  const subject = limitation.subject ? `${limitation.subject}: ` : ""
+  switch (limitation.kind) {
+    case "without_rowid_table":
+      return `${subject}unsupported WITHOUT ROWID table`
+    case "sqlite_internal_table":
+      return `${subject}SQLite internal state`
+    case "generated_columns":
+      return `${subject}generated columns`
+    case "utf16_text_encoding":
+      return `${subject}UTF-16 text encoding`
+    case "fts_shadow_table":
+      return `${subject}FTS shadow table`
+    case "virtual_table":
+      return `${subject}virtual table`
+    default:
+      return `${subject}${limitation.kind.replace(/_/g, " ")}`
+  }
+}
+
+function getBlockedReasons(conflictAnalysis: any): string[] {
+  const reasons =
+    conflictAnalysis?.blockedReasons ?? conflictAnalysis?.blocked_reasons
+  return Array.isArray(reasons) ? reasons.map(String) : []
+}
+
+function getApplyPolicy(conflictAnalysis: any) {
+  return conflictAnalysis?.applyPolicy ?? conflictAnalysis?.apply_policy
+}
+
+function getConflictLimitations(conflictAnalysis: any): DiffLimitation[] {
+  return normalizeDiffLimitations(conflictAnalysis?.limitations)
+}
+
+function formatConflictSummary(conflictAnalysis: any) {
+  const reasons = getBlockedReasons(conflictAnalysis)
+  if (conflictAnalysis?.canAutoMerge ?? conflictAnalysis?.can_auto_merge) {
+    return "Ready for row-level auto-merge."
+  }
+  if (hasSemanticKeyConflict(conflictAnalysis)) {
+    return "Business keys changed on both sides."
+  }
+  if (hasSemanticRowConflict(conflictAnalysis)) {
+    return "Business object changed on both sides."
+  }
+  if (reasons.includes("row_conflicts")) return "Rows changed on both sides."
+  const schemaSummary = formatSchemaConflictSummary(conflictAnalysis)
+  if (schemaSummary) return schemaSummary
+  if (reasons.includes("schema_conflicts"))
+    return "Schema changed on both sides."
+  if (reasons.includes("opaque_changes")) {
+    return formatOpaqueConflictSummary(conflictAnalysis)
+  }
+  if (reasons.includes("no_applicable_changes")) {
+    return "The file changed without supported logical row changes."
+  }
+  return "Auto-merge could not resolve this database file."
+}
+
+function formatOpaqueConflictSummary(conflictAnalysis: any) {
+  const kinds = getConflictLimitations(conflictAnalysis).map((limitation) =>
+    String(limitation.kind ?? "")
+  )
+  if (kinds.includes("without_rowid_table")) {
+    return "WITHOUT ROWID table changed outside row merge support."
+  }
+  if (kinds.includes("virtual_table")) {
+    return "Virtual table changed outside configured resolvers."
+  }
+  if (kinds.includes("fts_shadow_table")) {
+    return "FTS shadow table changed outside configured resolvers."
+  }
+  if (kinds.includes("sqlite_internal_table")) {
+    return "SQLite internal state changed outside configured resolvers."
+  }
+  if (kinds.includes("index_btree")) {
+    return "SQLite index state changed outside configured resolvers."
+  }
+  return "Unsupported SQLite surface changed."
+}
+
+function formatSchemaConflictSummary(conflictAnalysis: any) {
+  const conflicts =
+    conflictAnalysis?.schemaConflicts ??
+    conflictAnalysis?.schema_conflicts ??
+    []
+  if (!Array.isArray(conflicts) || conflicts.length === 0) return ""
+  const reasons = conflicts.map((conflict) => String(conflict?.reason ?? ""))
+  const columnOperations = conflicts.flatMap(schemaColumnOperations)
+  if (reasons.includes("schema_delete_conflict")) {
+    return "Schema was removed on one side."
+  }
+  if (columnOperations.includes("rename_column")) {
+    return "Column was renamed outside compatible resolvers."
+  }
+  if (columnOperations.includes("drop_column")) {
+    return "Column was removed outside compatible resolvers."
+  }
+  if (columnOperations.includes("modify_column")) {
+    return "Column definition changed outside compatible resolvers."
+  }
+  if (columnOperations.includes("add_column")) {
+    return "Column was added outside configured schema policy."
+  }
+  if (reasons.includes("schema_modify_conflict")) {
+    return "Schema changed outside compatible resolvers."
+  }
+  if (reasons.includes("schema_same_name_conflict")) {
+    return "Same schema name has different definitions."
+  }
+  return "Schema changed on both sides."
+}
+
+function schemaColumnOperations(conflict: any): string[] {
+  const changes = conflict?.columnChanges ?? conflict?.column_changes
+  return Array.isArray(changes)
+    ? changes.map((change) => String(change?.operation ?? "")).filter(Boolean)
+    : []
+}
+
+function hasSemanticKeyConflict(conflictAnalysis: any) {
+  const conflicts =
+    conflictAnalysis?.rowConflicts ?? conflictAnalysis?.row_conflicts ?? []
+  return (
+    Array.isArray(conflicts) &&
+    conflicts.some(
+      (conflict) => String(conflict?.reason ?? "") === "semantic_key_conflict"
+    )
+  )
+}
+
+function hasSemanticRowConflict(conflictAnalysis: any) {
+  const conflicts =
+    conflictAnalysis?.rowConflicts ?? conflictAnalysis?.row_conflicts ?? []
+  return (
+    Array.isArray(conflicts) &&
+    conflicts.some((conflict) => {
+      if (String(conflict?.reason ?? "") !== "row_conflict") return false
+      const semanticKey = conflict?.semanticKey ?? conflict?.semantic_key
+      return Array.isArray(semanticKey) && semanticKey.length > 0
+    })
+  )
+}
+
+function formatBlockedReasons(conflictAnalysis: any) {
+  const reasons = getBlockedReasons(conflictAnalysis)
+  if (!reasons.length) return ""
+  return `Reason: ${reasons.map((reason) => reason.replace(/_/g, " ")).join(", ")}`
+}
+
+function formatConflictLimitations(conflictAnalysis: any) {
+  const limitations = getConflictLimitations(conflictAnalysis)
+  if (!limitations.length) return ""
+  return `Limits: ${limitations.slice(0, 2).map(formatDiffLimitation).join(", ")}`
+}
+
+function formatResolvedOpaqueChanges(conflictAnalysis: any) {
+  const changes =
+    conflictAnalysis?.resolvedOpaqueChangeDetails ??
+    conflictAnalysis?.resolved_opaque_change_details
+  if (!Array.isArray(changes) || changes.length === 0) return ""
+  return `Resolved: ${changes
+    .slice(0, 2)
+    .map((change) => {
+      const name = String(change?.name ?? "")
+      const resolver = String(change?.resolver ?? "")
+      return [name, resolver.replace(/_/g, " ")].filter(Boolean).join(" ")
+    })
+    .filter(Boolean)
+    .join(", ")}`
+}
+
+function formatApplyPolicy(conflictAnalysis: any) {
+  const policy = getApplyPolicy(conflictAnalysis)
+  if (!policy) return ""
+  const foreignKeys = String(policy.foreignKeys ?? policy.foreign_keys ?? "")
+  const triggers = String(policy.triggers ?? "")
+  const validation = Array.isArray(policy.validation)
+    ? policy.validation.map(String)
+    : []
+  const defaultSemanticKeys = Array.isArray(
+    policy.defaultSemanticKeys ?? policy.default_semantic_keys
+  )
+    ? (policy.defaultSemanticKeys ?? policy.default_semantic_keys).map(String)
+    : []
+  const internalResolvers = formatInternalResolvers(
+    policy.internalResolvers ?? policy.internal_resolvers
+  )
+  const schemaResolvers = formatInternalResolvers(
+    policy.schemaResolvers ?? policy.schema_resolvers
+  )
+  const generatedColumns = formatGeneratedColumns(
+    policy.generatedColumns ?? policy.generated_columns
+  )
+  const parts = [
+    foreignKeys ? `FK ${foreignKeys.replace(/_/g, " ")}` : "",
+    triggers ? `triggers ${triggers.replace(/_/g, " ")}` : "",
+    validation.length ? `checks ${validation.join(", ")}` : "",
+    defaultSemanticKeys.length ? `keys ${defaultSemanticKeys.join(", ")}` : "",
+    internalResolvers ? `resolves ${internalResolvers}` : "",
+    schemaResolvers ? `schema ${schemaResolvers}` : "",
+    generatedColumns ? `generated ${generatedColumns}` : "",
+  ].filter(Boolean)
+  return parts.length ? parts.join(" / ") : ""
+}
+
+function formatGeneratedColumns(value: any) {
+  const entries = Array.isArray(value)
+    ? value
+        .map((item) => {
+          if (!item || typeof item !== "object") return null
+          const table = String(item.table ?? item.name ?? "")
+          const columns = Array.isArray(item.columns)
+            ? item.columns.map(String).filter(Boolean)
+            : []
+          return table && columns.length
+            ? `${table}(${columns.join(", ")})`
+            : null
+        })
+        .filter(Boolean)
+    : value && typeof value === "object"
+      ? Object.entries(value)
+          .map(([table, columns]) => {
+            const columnNames = Array.isArray(columns)
+              ? columns.map(String).filter(Boolean)
+              : []
+            return columnNames.length
+              ? `${table}(${columnNames.join(", ")})`
+              : null
+          })
+          .filter(Boolean)
+      : []
+  return entries.join(", ")
+}
+
+function formatInternalResolvers(value: any) {
+  const entries = Array.isArray(value)
+    ? value
+        .map((resolver) => {
+          if (!resolver || typeof resolver !== "object") return null
+          const table = String(resolver.table ?? resolver.name ?? "")
+          const strategy = String(resolver.resolver ?? resolver.strategy ?? "")
+          return table && strategy ? [table, strategy] : null
+        })
+        .filter((entry): entry is [string, string] => Boolean(entry))
+    : value && typeof value === "object"
+      ? Object.entries(value).map(([table, strategy]) => [
+          table,
+          String(strategy),
+        ])
+      : []
+  return entries
+    .map(([table, strategy]) => `${table} ${strategy.replace(/_/g, " ")}`)
+    .join(", ")
 }
 
 function countRowOps(rows: any[]) {

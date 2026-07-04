@@ -9,7 +9,7 @@ const DEST_DIR = "dist-sqlite-ext"
 const GRAFT_REPO =
   process.env.GRAFT_SQLITE_EXTENSION_REPO || "eidos-space/graft"
 const GRAFT_VERSION = normalizeTag(
-  process.env.GRAFT_SQLITE_EXTENSION_VERSION || "v0.3.1"
+  process.env.GRAFT_SQLITE_EXTENSION_VERSION || "v0.4.0"
 )
 
 const platformInfoByKey = {
@@ -194,6 +194,24 @@ function comparePnpmPackageEntries(a, b) {
   return 0
 }
 
+function installFileAtomically(sourcePath, finalDestPath) {
+  const destDir = path.dirname(finalDestPath)
+  const destBaseName = path.basename(finalDestPath)
+  const tempDestPath = path.join(
+    destDir,
+    `.${destBaseName}.${process.pid}.${Date.now()}.tmp`
+  )
+
+  try {
+    fs.copyFileSync(sourcePath, tempDestPath)
+    fs.chmodSync(tempDestPath, fs.statSync(sourcePath).mode & 0o777)
+    fs.renameSync(tempDestPath, finalDestPath)
+  } catch (error) {
+    fs.rmSync(tempDestPath, { force: true })
+    throw error
+  }
+}
+
 async function downloadGraftRelease(platformInfo, finalDestPath) {
   const assetVersion = GRAFT_VERSION.replace(/^v/, "")
   const assetName = `sqlite-graft-${assetVersion}-${platformInfo.graftTarget}.${platformInfo.graftArchiveExt}`
@@ -221,7 +239,7 @@ async function downloadGraftRelease(platformInfo, finalDestPath) {
     }
 
     console.log(`postinstall-sqlite-graft: Source file: ${sourcePath}`)
-    fs.copyFileSync(sourcePath, finalDestPath)
+    installFileAtomically(sourcePath, finalDestPath)
     console.log(
       `postinstall-sqlite-graft: Installed ${GRAFT_VERSION} to ${finalDestPath}`
     )
@@ -341,7 +359,7 @@ async function installExtension(pkgConfig, workspaceRoot) {
   console.log(
     `postinstall-${platformInfo.basePackageName}: Destination file: ${finalDestPath}`
   )
-  fs.copyFileSync(sourcePath, finalDestPath)
+  installFileAtomically(sourcePath, finalDestPath)
   console.log(
     `postinstall-${platformInfo.basePackageName}: Successfully copied file.`
   )

@@ -4,7 +4,7 @@
 # Stage 1: Builder (use node:20 which has Node.js pre-installed)
 FROM node:20 AS builder
 
-ARG GRAFT_SQLITE_EXTENSION_VERSION=v0.3.1
+ARG GRAFT_SQLITE_EXTENSION_VERSION=v0.4.0
 ENV GRAFT_SQLITE_EXTENSION_VERSION=${GRAFT_SQLITE_EXTENSION_VERSION}
 
 # Install only missing tools (node:20 already has curl, ca-certificates, etc.)
