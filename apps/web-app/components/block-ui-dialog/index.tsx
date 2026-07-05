@@ -12,6 +12,14 @@ import { Progress } from "@/components/ui/progress"
 export const BlockUIDialog = () => {
   const { blockUIMsg, blockUIData } = useAppRuntimeStore()
   const open = blockUIMsg !== null
+  const title =
+    typeof blockUIData?.title === "string" ? blockUIData.title : "Processing"
+  const progress =
+    typeof blockUIData?.progress === "number" ? blockUIData.progress : 0
+  const description =
+    typeof blockUIData?.description === "string"
+      ? blockUIData.description
+      : "This may take a while, please wait..."
 
   return (
     <AlertDialog open={open}>
@@ -19,11 +27,11 @@ export const BlockUIDialog = () => {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            <div className="text-lg font-bold">Processing</div>
+            <div className="text-lg font-bold">{title}</div>
           </AlertDialogTitle>
           <AlertDialogDescription>
-            <Progress value={blockUIData?.progress || 0} max={100} />
-            This may take a while, please wait...
+            <Progress value={progress} max={100} />
+            {description}
             <br />
             {blockUIMsg}
           </AlertDialogDescription>

@@ -23,6 +23,7 @@ import {
   Undo2,
 } from "lucide-react"
 
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import {
   AlertDialog,
@@ -44,6 +45,7 @@ import {
 } from "@/components/ui/tooltip"
 
 import { CommitHistoryList } from "./commit-history-list"
+import { startEnableSyncProgress } from "./progress"
 import { useGraft } from "./use-graft"
 
 /**
@@ -1793,6 +1795,7 @@ function EnableSyncPanel({
   const [selected, setSelected] = useState<string>("")
   const [isEnablingSync, setIsEnablingSync] = useState(false)
   const [error, setError] = useState("")
+  const { setBlockUIMsg, setBlockUIData } = useAppRuntimeStore()
 
   useEffect(() => {
     if (!isDesktop) return
@@ -1835,6 +1838,8 @@ function EnableSyncPanel({
     if (!selected) return
     setIsEnablingSync(true)
     setError("")
+    let keepProgressOverlay = false
+    let stopProgress: (() => void) | undefined
     try {
       const provider = providers.find((p) => p.id === selected)
       if (!provider || !provider.hasCredentials) {
@@ -1850,6 +1855,16 @@ function EnableSyncPanel({
           ? `https://eidos.space/${spaceId}`
           : `s3://custom/${spaceId}`
 
+      stopProgress = startEnableSyncProgress((message, progress) => {
+        setBlockUIData({
+          title: "Enabling Remote Sync",
+          description:
+            "Eidos is configuring Graft sync for this space. Keep the app open.",
+          progress,
+        })
+        setBlockUIMsg(message)
+      })
+
       const result = await window.eidos.spaceMgmt.toggleSpaceSync(
         spaceId,
         true,
@@ -1857,15 +1872,28 @@ function EnableSyncPanel({
         selected as "eidos.space" | "custom"
       )
 
+      stopProgress()
       if (result.success) {
-        window.location.reload()
+        keepProgressOverlay = true
+        setBlockUIData({
+          title: "Enabling Remote Sync",
+          description: "Sync is ready. Reloading the workspace...",
+          progress: 100,
+        })
+        setBlockUIMsg("Remote sync enabled.")
+        window.setTimeout(() => window.location.reload(), 150)
       } else {
         setError(result.error || "Failed to enable remote sync.")
       }
     } catch (e: any) {
+      stopProgress?.()
       setError(e?.message ?? "Failed to enable remote sync.")
     } finally {
       setIsEnablingSync(false)
+      if (!keepProgressOverlay) {
+        setBlockUIMsg(null)
+        setBlockUIData({})
+      }
     }
   }
 
