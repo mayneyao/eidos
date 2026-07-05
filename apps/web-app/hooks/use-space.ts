@@ -86,17 +86,12 @@ export const useSpace = () => {
   }, [sqlite])
 
   const createSpace = useCallback(
-    async (
-      spaceName: string,
-      enableSync: boolean = false,
-      volumeId?: string
-    ) => {
+    async (spaceName: string) => {
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
         // In desktop mode, use new IPC interface
         try {
           const result = await window.eidos.spaceMgmt.registerSpace(spaceName, {
             customName: spaceName,
-            remoteUrl: enableSync ? volumeId : undefined,
           })
           if (result.success) {
             await updateSpaceList()

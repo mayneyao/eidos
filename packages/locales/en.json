@@ -963,8 +963,6 @@
   "space.select.createSpaceSuccess": "Space \"{{spaceName}}\" has been created successfully.",
   "space.select.createSpaceTitle": "Create Your First Space",
   "space.select.creating": "Creating",
-  "space.select.enableSync": "Enable Sync",
-  "space.select.enableSyncDescription": "Enable synchronization across multiple devices.",
   "space.select.searchDatabase": "Search Database...",
   "space.select.selectDatabase": "Select Database...",
   "space.select.spaceAlreadyExists": "This space already exists, choose another name",

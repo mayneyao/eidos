@@ -964,8 +964,6 @@
   "space.select.createSpaceSuccess": "空间 \"{{spaceName}}\" 已成功创建。",
   "space.select.createSpaceTitle": "创建你的第一个空间",
   "space.select.creating": "正在创建",
-  "space.select.enableSync": "启用同步",
-  "space.select.enableSyncDescription": "启用跨多设备的数据同步。",
   "space.select.searchDatabase": "搜索数据库...",
   "space.select.selectDatabase": "选择数据库...",
   "space.select.spaceAlreadyExists": "此空间已存在，请选择另一个名称",
