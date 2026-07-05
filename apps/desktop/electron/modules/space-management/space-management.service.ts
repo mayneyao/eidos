@@ -2,6 +2,8 @@
  * Space Management Service - Handles space CRUD and switching operations
  */
 
+import fs from "fs"
+import path from "path"
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import { IpcInjectable, Inject, container } from "../../common/di"
 import { SpaceRegistry } from "./space-registry"
@@ -253,7 +255,26 @@ export class SpaceManagementService extends IpcServiceBase {
         provider: space.sync?.provider,
       })
 
+      const reloadedSpace = await this.dataSpaceManager.reload()
+      if (!reloadedSpace) {
+        throw new Error("Failed to reload data space after disabling sync")
+      }
+
+      this.cleanupLegacyGraftState(space.path)
+
       return { success: true }
+    }
+  }
+
+  private cleanupLegacyGraftState(spacePath: string) {
+    const eidosDirPath = path.join(spacePath, ".eidos")
+    const legacyGraftDirPath = path.join(eidosDirPath, ".graft")
+    const legacyGraftConfigPath = path.join(eidosDirPath, "graft.toml")
+
+    for (const targetPath of [legacyGraftConfigPath, legacyGraftDirPath]) {
+      if (fs.existsSync(targetPath)) {
+        fs.rmSync(targetPath, { recursive: true, force: true })
+      }
     }
   }
 }

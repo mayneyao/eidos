@@ -58,12 +58,17 @@ export class DataSpaceManager {
 
   public async reload(): Promise<DataSpace | null> {
     console.log("====== reload data space ======")
-    if (!this.currentSpaceId) {
+    const spaceId = this.currentSpaceId
+    if (!spaceId) {
       return null
     }
 
-    // Reinitialize with the same space name
-    return this.getOrSetDataSpace(this.currentSpaceId)
+    this.stopSyncWorker(spaceId)
+    this.processPool.kill(spaceId)
+    this.dataSpaceProxy = null
+    this.initializationPromise = null
+
+    return this.getOrSetDataSpace(spaceId)
   }
 
   public async close(): Promise<boolean> {
@@ -188,7 +193,11 @@ export class DataSpaceManager {
     this.stopSyncWorker(spaceId)
 
     // Check if sync is enabled and credentials exist
-    if (!spaceInfo.sync?.remote || !graftPathConfig?.credentials?.accessKeyId) {
+    if (
+      !spaceInfo.sync?.enabled ||
+      !spaceInfo.sync?.remote ||
+      !graftPathConfig?.credentials?.accessKeyId
+    ) {
       log.info("Sync not enabled or missing credentials, skipping sync worker.")
       return
     }

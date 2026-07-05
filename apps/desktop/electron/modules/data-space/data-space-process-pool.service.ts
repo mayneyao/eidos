@@ -233,6 +233,20 @@ export class DataSpaceProcessPool extends EventEmitter {
     }
   }
 
+  public kill(spaceId: string) {
+    const item = this.processes.get(spaceId)
+    if (!item) {
+      return
+    }
+
+    try {
+      item.process.kill()
+    } catch (e) {
+      this.logger.error(`Failed to kill process for ${item.spaceId}`, e)
+    }
+    this.processes.delete(spaceId)
+  }
+
   public killAll() {
     for (const item of this.processes.values()) {
       try {

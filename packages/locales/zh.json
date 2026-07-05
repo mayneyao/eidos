@@ -1395,6 +1395,7 @@
   "space.settings.sync.disableSyncDescription": "这将关闭同步功能，并转换回标准的 SQLite 数据库格式。",
   "space.settings.sync.disableWarningTitle": "退出同步",
   "space.settings.sync.disableWarningDescription": "退出同步将：\n• 停止与远程空间的同步\n• 转换回标准的 .db.sqlite3 格式\n• 保留所有现有数据完整\n\n此操作无法自动撤销。",
+  "space.settings.sync.disableConfirmSpaceId": "输入 space id \"{{spaceId}}\" 以确认。",
   "space.settings.sync.disabled": "同步已退出",
   "space.settings.sync.disableSuccessDescription": "已成功转换回标准的 SQLite 数据库格式。",
   "space.settings.sync.disableFailed": "退出同步失败",

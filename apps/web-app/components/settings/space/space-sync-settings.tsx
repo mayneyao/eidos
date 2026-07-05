@@ -1,7 +1,25 @@
 import { useEffect, useState } from "react"
-import { ExternalLink, Plus, Server, Cloud, Check, Lock } from "lucide-react"
+import {
+  AlertTriangle,
+  ExternalLink,
+  Plus,
+  Server,
+  Cloud,
+  Check,
+  Lock,
+} from "lucide-react"
 import { useTranslation } from "react-i18next"
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -45,8 +63,14 @@ export function SpaceSyncSettings() {
   const [customProviderCredentials, setCustomProviderCredentials] = useState<
     Record<string, boolean>
   >({})
+  const [isDisableSyncDialogOpen, setIsDisableSyncDialogOpen] = useState(false)
+  const [disableSyncConfirmText, setDisableSyncConfirmText] = useState("")
 
   const isSyncEnabled = spaceInfo?.sync?.enabled || false
+  const disableSyncConfirmTarget = spaceInfo?.id || ""
+  const canConfirmDisableSync =
+    disableSyncConfirmTarget.length > 0 &&
+    disableSyncConfirmText === disableSyncConfirmTarget
 
   // Current effective provider for this space
   const currentProviderId =
@@ -125,6 +149,13 @@ export function SpaceSyncSettings() {
     }
   }
 
+  const handleDisableSyncDialogOpenChange = (open: boolean) => {
+    setIsDisableSyncDialogOpen(open)
+    if (!open) {
+      setDisableSyncConfirmText("")
+    }
+  }
+
   // Handle sync toggle for this space
   const handleToggleSync = async (enabled: boolean) => {
     if (!isDesktopMode) {
@@ -195,6 +226,11 @@ export function SpaceSyncSettings() {
       )
 
       if (result.success) {
+        if (!enabled) {
+          setIsDisableSyncDialogOpen(false)
+          setDisableSyncConfirmText("")
+        }
+
         const providerDisplayName =
           providerId === "eidos.space"
             ? "eidos.space"
@@ -213,6 +249,12 @@ export function SpaceSyncSettings() {
         // Refresh space info to get updated sync status
         const updatedSpace = await window.eidos.spaceMgmt.getCurrentSpace()
         useSpaceStore.getState().setSpaceInfo(updatedSpace)
+
+        if (!enabled) {
+          window.setTimeout(() => {
+            window.location.reload()
+          }, 250)
+        }
       } else {
         toast({
           title: t("common.error"),
@@ -230,6 +272,15 @@ export function SpaceSyncSettings() {
     } finally {
       setIsToggling(false)
     }
+  }
+
+  const handleSyncSwitchChange = (enabled: boolean) => {
+    if (!enabled && isSyncEnabled) {
+      setIsDisableSyncDialogOpen(true)
+      return
+    }
+
+    void handleToggleSync(enabled)
   }
 
   if (isLoading) {
@@ -468,12 +519,63 @@ export function SpaceSyncSettings() {
             disabled={
               isToggling ||
               !effectiveProviderId ||
-              !hasCredentialsForProvider(effectiveProviderId)
+              (!isSyncEnabled &&
+                !hasCredentialsForProvider(effectiveProviderId))
             }
-            onCheckedChange={handleToggleSync}
+            onCheckedChange={handleSyncSwitchChange}
           />
         </div>
       </div>
+
+      <AlertDialog
+        open={isDisableSyncDialogOpen}
+        onOpenChange={handleDisableSyncDialogOpenChange}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              {t("space.settings.sync.disableWarningTitle")}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-line">
+              {t("space.settings.sync.disableWarningDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="disable-sync-space-id">
+              {t("space.settings.sync.disableConfirmSpaceId", {
+                spaceId: disableSyncConfirmTarget,
+              })}
+            </Label>
+            <Input
+              id="disable-sync-space-id"
+              value={disableSyncConfirmText}
+              onChange={(event) =>
+                setDisableSyncConfirmText(event.target.value)
+              }
+              placeholder={disableSyncConfirmTarget}
+              disabled={isToggling}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isToggling}>
+              {t("common.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!canConfirmDisableSync || isToggling}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleToggleSync(false)
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:pointer-events-none disabled:opacity-50"
+            >
+              {isToggling
+                ? t("common.loading")
+                : t("space.settings.sync.disableSync")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Remote Address */}
       {isSyncEnabled && remoteAddress ? (

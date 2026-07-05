@@ -1096,6 +1096,7 @@
   "space.settings.sync.disableSyncDescription": "This will disable synchronization and convert back to the standard SQLite database format.",
   "space.settings.sync.disableWarningTitle": "Disable Synchronization",
   "space.settings.sync.disableWarningDescription": "Disabling synchronization will:\n• Stop syncing with the remote space\n• Convert back to standard .db.sqlite3 format\n• Keep all your existing data intact\n\nThis action cannot be undone automatically.",
+  "space.settings.sync.disableConfirmSpaceId": "Type the space ID \"{{spaceId}}\" to confirm.",
   "space.settings.sync.disabled": "Synchronization disabled",
   "space.settings.sync.disableSuccessDescription": "Successfully converted back to standard SQLite database format.",
   "space.settings.sync.disableFailed": "Failed to disable sync",
