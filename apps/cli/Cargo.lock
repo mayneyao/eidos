@@ -287,7 +287,7 @@ dependencies = [
 
 [[package]]
 name = "eidos"
-version = "0.32.0"
+version = "0.32.3-beta.1"
 dependencies = [
  "anyhow",
  "atty",

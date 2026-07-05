@@ -168,6 +168,9 @@ importers:
         specifier: ^3.25.67
         version: 3.25.67
     devDependencies:
+      '@rollup/plugin-esm-shim':
+        specifier: ^0.1.7
+        version: 0.1.8(rollup@4.60.1)
       '@tailwindcss/typography':
         specifier: ^0.5.9
         version: 0.5.16(tailwindcss@4.2.2)
