@@ -25,7 +25,7 @@ jobs:
 
       - name: Install dependencies
         env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: pnpm install
 
       - name: Sync version from tag
@@ -68,6 +68,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: build-frontend
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
@@ -114,7 +115,7 @@ jobs:
 
       - name: Install dependencies
         env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: pnpm install
 
       - name: Sync version from tag
