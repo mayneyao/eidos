@@ -80,6 +80,8 @@ interface SyncProvider {
   isBuiltIn: boolean
 }
 
+type SpacePathConflictType = "same" | "inside" | "contains"
+
 export function SpaceSelect({ spaces }: ISpaceSelectProps) {
   const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
@@ -103,6 +105,10 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
   const [selectedRemoteSpace, setSelectedRemoteSpace] = React.useState<
     string | null
   >(null)
+  const [registeredSpaceForPath, setRegisteredSpaceForPath] =
+    React.useState<SpaceInfo | null>(null)
+  const [spacePathConflictType, setSpacePathConflictType] =
+    React.useState<SpacePathConflictType | null>(null)
   const [localPath, setLocalPath] = React.useState("")
   const [spaceName, setSpaceName] = React.useState("")
   const [loading, setLoading] = React.useState(false)
@@ -124,6 +130,8 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
     setSelectedProvider(null)
     setRemoteSpaces([])
     setSelectedRemoteSpace(null)
+    setRegisteredSpaceForPath(null)
+    setSpacePathConflictType(null)
     setLocalPath("")
     setSpaceName("")
     setLoading(false)
@@ -196,6 +204,11 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         const folderPath = await window.eidos.selectFolder()
         if (folderPath) {
           setLocalPath(folderPath)
+          const pathConflict =
+            (await window.eidos.spaceMgmt.getSpacePathConflict(folderPath)) ||
+            null
+          setRegisteredSpaceForPath(pathConflict?.space || null)
+          setSpacePathConflictType(pathConflict?.type || null)
           // Extract folder name as default space name
           const folderName = folderPath.split(/[/\\]/).pop() || ""
           if (!spaceName && folderName) {
@@ -208,12 +221,51 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
     }
   }
 
+  const canOpenRegisteredSpaceForPath = Boolean(
+    registeredSpaceForPath && spacePathConflictType !== "contains"
+  )
+  const hasBlockingPathConflict = Boolean(
+    registeredSpaceForPath && spacePathConflictType === "contains"
+  )
+
+  const renderPathConflictNotice = () => {
+    if (!registeredSpaceForPath) {
+      return null
+    }
+
+    const spaceName = (
+      <span className="font-medium text-foreground">
+        {registeredSpaceForPath.name}
+      </span>
+    )
+
+    return (
+      <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+        {spacePathConflictType === "inside" ? (
+          <>This folder is inside registered space {spaceName}.</>
+        ) : spacePathConflictType === "contains" ? (
+          <>
+            This folder contains registered space {spaceName}. Choose another
+            folder.
+          </>
+        ) : (
+          <>This folder is already registered as {spaceName}.</>
+        )}
+      </div>
+    )
+  }
+
   const handleCreateSpace = async () => {
     if (!localPath) return
 
     setLoading(true)
     try {
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
+        if (registeredSpaceForPath && canOpenRegisteredSpaceForPath) {
+          await handleSelect(registeredSpaceForPath.id)
+          return
+        }
+
         const result = await window.eidos.spaceMgmt.registerSpace(localPath, {
           customName: spaceName || undefined,
         })
@@ -221,6 +273,12 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         if (result.success && result.space) {
           await updateSpaceList()
           await handleSelect(result.space.id as string)
+        } else if (
+          result.existingSpace &&
+          result.pathConflictType !== "contains"
+        ) {
+          await updateSpaceList()
+          await handleSelect(result.existingSpace.id as string)
         } else {
           throw new Error(result.error || "Failed to create space")
         }
@@ -241,6 +299,12 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
     if (!localPath || !selectedProvider || !selectedRemoteSpace) return
 
     setLoading(true)
+    if (registeredSpaceForPath && canOpenRegisteredSpaceForPath) {
+      await handleSelect(registeredSpaceForPath.id)
+      resetWizard()
+      return
+    }
+
     setShowNewSpaceDialog(false)
     setShowCloneProgressDialog(true)
     setCloneProgress(0)
@@ -306,6 +370,13 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
           setCloneComplete(true)
           setClonedSpace(result.space as SpaceInfo)
           await updateSpaceList()
+        } else if (
+          result.existingSpace &&
+          result.pathConflictType !== "contains"
+        ) {
+          await updateSpaceList()
+          await handleSelect(result.existingSpace.id as string)
+          resetWizard()
         } else {
           throw new Error(result.error || "Failed to clone space")
         }
@@ -450,18 +521,21 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                 be enabled later from Graft.
               </p>
             </div>
+            {renderPathConflictNotice()}
             <div className="flex gap-2 pt-2">
               <Button variant="outline" onClick={handleBack} className="flex-1">
                 Back
               </Button>
               <Button
                 onClick={handleCreateSpace}
-                disabled={!localPath || loading}
+                disabled={!localPath || loading || hasBlockingPathConflict}
                 className="flex-1"
               >
                 {loading
                   ? t("common.creating", "Creating...")
-                  : t("space.createSpace", "Create Space")}
+                  : canOpenRegisteredSpaceForPath
+                    ? "Open Existing Space"
+                    : t("space.createSpace", "Create Space")}
               </Button>
             </div>
           </div>
@@ -623,16 +697,21 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                 </Button>
               </div>
             </div>
+            {renderPathConflictNotice()}
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleBack} className="flex-1">
                 Back
               </Button>
               <Button
                 onClick={handleCloneSpace}
-                disabled={!localPath || loading}
+                disabled={!localPath || loading || hasBlockingPathConflict}
                 className="flex-1"
               >
-                {loading ? "Cloning..." : "Clone Space"}
+                {loading
+                  ? "Cloning..."
+                  : canOpenRegisteredSpaceForPath
+                    ? "Open Existing Space"
+                    : "Clone Space"}
               </Button>
             </div>
           </div>

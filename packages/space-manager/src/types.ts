@@ -26,6 +26,13 @@ export interface SpaceInfo {
   relay?: RelayConfig
 }
 
+export type SpacePathConflictType = "same" | "inside" | "contains"
+
+export interface SpacePathConflict {
+  type: SpacePathConflictType
+  space: SpaceInfo
+}
+
 export interface SpacesConfig {
   spaces: SpaceInfo[]
 }

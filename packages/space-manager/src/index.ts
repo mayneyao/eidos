@@ -2,6 +2,8 @@ export { SpaceRegistry, getSpaceRegistry } from "./space-registry"
 export { SpaceInitializer, createSpaceInitializer } from "./space-initializer"
 export type {
   SpaceInfo,
+  SpacePathConflict,
+  SpacePathConflictType,
   SpacesConfig,
   GlobalConfig,
   RelayChannel,

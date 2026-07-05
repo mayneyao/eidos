@@ -1869,7 +1869,7 @@ function EnableSyncPanel({
         spaceId,
         true,
         remote,
-        selected as "eidos.space" | "custom"
+        selected
       )
 
       stopProgress()

@@ -3,6 +3,8 @@
  */
 
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
+import fs from "fs"
+import path from "path"
 import { IpcInjectable, Inject, container } from "../../common/di"
 import { SpaceRegistry } from "./space-registry"
 import { MainWindowProvider } from "./main-window.provider"
@@ -67,13 +69,35 @@ export class SpaceManagementService extends IpcServiceBase {
   }
 
   /**
+   * Get a space by local folder path
+   * IPC: space-mgmt:getSpaceByPath
+   */
+  getSpaceByPath(spacePath: string) {
+    return this.registry.getSpaceByPath(spacePath)
+  }
+
+  /**
+   * Get a path conflict with registered spaces
+   * IPC: space-mgmt:getSpacePathConflict
+   */
+  getSpacePathConflict(spacePath: string) {
+    return this.registry.getSpacePathConflict(spacePath)
+  }
+
+  /**
    * Register a new space
    * IPC: space-mgmt:registerSpace
    */
   registerSpace(
     spacePath: string,
     options: { customName?: string; remoteUrl?: string } = {}
-  ): { success: boolean; space?: any; error?: string } {
+  ): {
+    success: boolean
+    space?: any
+    error?: string
+    existingSpace?: any
+    pathConflictType?: string
+  } {
     try {
       const space = this.registry.registerSpace(spacePath, {
         customName: options.customName,
@@ -81,7 +105,12 @@ export class SpaceManagementService extends IpcServiceBase {
       })
       return { success: true, space }
     } catch (error: any) {
-      return { success: false, error: error.message }
+      return {
+        success: false,
+        error: error.message,
+        existingSpace: error.existingSpace,
+        pathConflictType: error.pathConflictType,
+      }
     }
   }
 
@@ -198,7 +227,7 @@ export class SpaceManagementService extends IpcServiceBase {
     spaceId: string,
     enabled: boolean,
     remote?: string,
-    provider?: "eidos.space" | "custom"
+    provider?: string
   ): Promise<{ success: boolean; error?: string; reloadRequired?: boolean }> {
     const space = this.registry.getSpace(spaceId)
     if (!space) {
@@ -314,7 +343,11 @@ export class SpaceManagementService extends IpcServiceBase {
         }
         await dataSpace.exportToSqlite()
         this.registry.setSpaceVersioning(spaceId, { enabled: false })
-        await this.dataSpaceManager.reload()
+        const reloadedDataSpace = await this.dataSpaceManager.reload()
+        if (!reloadedDataSpace) {
+          throw new Error("Failed to reload data space after disabling history")
+        }
+        this.removeGraftRepository(space.path)
       }
       return { success: true, reloadRequired: false }
     } catch (error: any) {
@@ -323,5 +356,14 @@ export class SpaceManagementService extends IpcServiceBase {
         error: error?.message ?? "Failed to toggle local versioning",
       }
     }
+  }
+
+  private removeGraftRepository(spacePath: string): void {
+    const graftPath = path.join(spacePath, ".eidos", ".graft")
+    if (!fs.existsSync(graftPath)) {
+      return
+    }
+
+    fs.rmSync(graftPath, { recursive: true, force: true })
   }
 }
