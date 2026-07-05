@@ -1117,6 +1117,7 @@
   "space.settings.sync.licenseRequiredDescription": "Custom sync providers require an active license.",
   "space.settings.sync.spaceSync": "Space Sync",
   "space.settings.sync.syncingWith": "Syncing with \"{{provider}}\"",
+  "space.settings.sync.localHistoryDetected": "Local history data detected. Turn it off to finish migration.",
   "space.settings.sync.willSyncWith": "Will sync with \"{{provider}}\"",
   "space.settings.sync.configureProviderFirst": "Configure a provider first",
   "space.settings.sync.enabledStatus": "Sync Enabled",

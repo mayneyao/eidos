@@ -43,7 +43,9 @@ export class SpaceManagementService extends IpcServiceBase {
    * IPC: space-mgmt:listSpaces
    */
   listSpaces(): ReturnType<SpaceRegistry["getAllSpaces"]> {
-    return this.registry.getAllSpaces()
+    return this.registry
+      .getAllSpaces()
+      .map((space) => this.withLegacyGraftStatus(space))
   }
 
   /**
@@ -57,7 +59,7 @@ export class SpaceManagementService extends IpcServiceBase {
       return null
     }
 
-    return this.registry.getSpace(spaceId)
+    return this.withLegacyGraftStatus(this.registry.getSpace(spaceId))
   }
 
   /**
@@ -65,7 +67,7 @@ export class SpaceManagementService extends IpcServiceBase {
    * IPC: space-mgmt:getSpaceById
    */
   getSpaceById(spaceId: string) {
-    return this.registry.getSpace(spaceId)
+    return this.withLegacyGraftStatus(this.registry.getSpace(spaceId))
   }
 
   /**
@@ -276,5 +278,29 @@ export class SpaceManagementService extends IpcServiceBase {
         fs.rmSync(targetPath, { recursive: true, force: true })
       }
     }
+  }
+
+  private withLegacyGraftStatus<T extends { path?: string } | null>(
+    space: T
+  ): T {
+    if (!space?.path) {
+      return space
+    }
+
+    return {
+      ...space,
+      legacyGraftDetected: this.hasLegacyGraftState(space.path),
+    }
+  }
+
+  private hasLegacyGraftState(spacePath: string) {
+    const eidosDirPath = path.join(spacePath, ".eidos")
+    const legacyGraftDirPath = path.join(eidosDirPath, ".graft")
+    const legacyGraftConfigPath = path.join(eidosDirPath, "graft.toml")
+
+    return (
+      fs.existsSync(legacyGraftDirPath) ||
+      fs.existsSync(legacyGraftConfigPath)
+    )
   }
 }

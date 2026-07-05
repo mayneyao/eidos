@@ -85,10 +85,20 @@ export class NodeDatabaseInitializer {
       const isSyncEnabled = this.options.graft?.enabled ?? false
 
       let isInit = false
-      if (isSyncEnabled && this.options.graft?.credentials) {
-        isInit = isInitializationOperation(spaceInfo)
-        this.logger.log("isInit", isInit)
-        applyGraftConfigToEnv(spaceInfo, this.options.graft?.credentials)
+      if (isSyncEnabled) {
+        const existingGraftConfigPath = path.join(eidosDirPath, "graft.toml")
+        if (fs.existsSync(existingGraftConfigPath)) {
+          process.env.GRAFT_CONFIG = existingGraftConfigPath
+          this.applyGraftCredentialsToEnv(this.options.graft?.credentials)
+          this.logger.log(
+            "Using existing graft config:",
+            existingGraftConfigPath
+          )
+        } else if (this.options.graft?.credentials) {
+          isInit = isInitializationOperation(spaceInfo)
+          this.logger.log("isInit", isInit)
+          applyGraftConfigToEnv(spaceInfo, this.options.graft?.credentials)
+        }
       }
 
       // Initialize VFS if needed
@@ -123,6 +133,17 @@ export class NodeDatabaseInitializer {
       this.logger.error("Error during database initialization:", error)
       throw error
     }
+  }
+
+  private applyGraftCredentialsToEnv(credentials?: SyncCredentials) {
+    if (!credentials) {
+      return
+    }
+
+    process.env.AWS_ACCESS_KEY_ID = credentials.accessKeyId
+    process.env.AWS_SECRET_ACCESS_KEY = credentials.secretAccessKey
+    process.env.AWS_REGION = "auto"
+    process.env.AWS_ENDPOINT = credentials.endpoint
   }
 
   private initializeWithRemoteSpace(db: Database.Database) {

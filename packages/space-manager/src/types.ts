@@ -20,6 +20,7 @@ export interface SpaceInfo {
     // The sync provider ID used when sync was enabled (e.g., 'eidos.space', 'my-s3')
     provider?: string
   }
+  legacyGraftDetected?: boolean
   relay?: RelayConfig
 }
 

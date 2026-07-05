@@ -23,6 +23,17 @@ export class SpaceRegistry extends BaseSpaceRegistry {
     super()
   }
 
+  public override getAllSpaces(): SpaceInfo[] {
+    return super
+      .getAllSpaces()
+      .map((space) => this.withLegacyGraftSync(space))
+  }
+
+  public override getSpace(id: string): SpaceInfo | null {
+    const space = super.getSpace(id)
+    return this.withLegacyGraftSync(space)
+  }
+
   /**
    * Copy directory recursively
    */
@@ -83,18 +94,21 @@ export class SpaceRegistry extends BaseSpaceRegistry {
       for (const folder of folders) {
         const oldSpacePath = path.join(spacesDir, folder)
         const oldDbPath = path.join(oldSpacePath, "db.sqlite3")
+        const eidosDir = path.join(oldSpacePath, ".eidos")
+        const newDbPath = path.join(eidosDir, "db.sqlite3")
         const oldFilesPath = path.join(oldSpacePath, "files")
+        const newFilesPath = path.join(eidosDir, "files")
+        const hasLegacyGraftState = this.hasLegacyGraftState(oldSpacePath)
+        const hasMigratableDatabase =
+          fs.existsSync(oldDbPath) || fs.existsSync(newDbPath)
 
-        if (fs.existsSync(oldDbPath)) {
+        if (hasMigratableDatabase || hasLegacyGraftState) {
           const spacePath = oldSpacePath
-          const eidosDir = path.join(spacePath, ".eidos")
-          const newDbPath = path.join(eidosDir, "db.sqlite3")
-          const newFilesPath = path.join(eidosDir, "files")
 
           fs.mkdirSync(eidosDir, { recursive: true })
           fs.mkdirSync(newFilesPath, { recursive: true })
 
-          if (fs.existsSync(oldDbPath)) {
+          if (fs.existsSync(oldDbPath) && !fs.existsSync(newDbPath)) {
             fs.copyFileSync(oldDbPath, newDbPath)
             console.log(`Migrated database: ${oldDbPath} -> ${newDbPath}`)
           }
@@ -107,6 +121,13 @@ export class SpaceRegistry extends BaseSpaceRegistry {
           const space = this.registerSpace(spacePath, {
             customName: folder.charAt(0).toUpperCase() + folder.slice(1),
           })
+          if (hasLegacyGraftState) {
+            this.setSpaceSync(space.id, {
+              enabled: true,
+              remote: "",
+              provider: legacyConfig.sync?.defaultProvider,
+            })
+          }
           migratedSpaces.push(space)
         }
       }
@@ -142,6 +163,32 @@ export class SpaceRegistry extends BaseSpaceRegistry {
     this.setLastOpenedSpace(space.id)
 
     console.log("Created default space")
+  }
+
+  private hasLegacyGraftState(spacePath: string) {
+    const eidosDirPath = path.join(spacePath, ".eidos")
+    const legacyGraftDirPath = path.join(eidosDirPath, ".graft")
+    const legacyGraftConfigPath = path.join(eidosDirPath, "graft.toml")
+
+    return (
+      fs.existsSync(legacyGraftDirPath) ||
+      fs.existsSync(legacyGraftConfigPath)
+    )
+  }
+
+  private withLegacyGraftSync<T extends SpaceInfo | null>(space: T): T {
+    if (!space || space.sync?.enabled || !this.hasLegacyGraftState(space.path)) {
+      return space
+    }
+
+    return {
+      ...space,
+      sync: {
+        ...space.sync,
+        enabled: true,
+        remote: space.sync?.remote || "",
+      },
+    } as T
   }
 }
 

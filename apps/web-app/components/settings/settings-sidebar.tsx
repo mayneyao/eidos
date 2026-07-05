@@ -146,6 +146,15 @@ export function SettingsSidebar({
       icon: <Paintbrush className="h-5 w-5" />,
       category: "space",
     },
+    {
+      id: "space-sync",
+      title: t("space.settings.sync", "Sync"),
+      description: t("space.settings.syncDescription"),
+      icon: <Cloud className="h-5 w-5" />,
+      disabled: !isDesktopMode,
+      isBeta: true,
+      category: "space",
+    },
 
     // Global Settings
     {

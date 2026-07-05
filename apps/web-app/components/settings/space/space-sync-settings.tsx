@@ -67,6 +67,8 @@ export function SpaceSyncSettings() {
   const [disableSyncConfirmText, setDisableSyncConfirmText] = useState("")
 
   const isSyncEnabled = spaceInfo?.sync?.enabled || false
+  const isLegacyGraftDetected = spaceInfo?.legacyGraftDetected || false
+  const isLocalHistoryEnabled = isSyncEnabled || isLegacyGraftDetected
   const disableSyncConfirmTarget = spaceInfo?.id || ""
   const canConfirmDisableSync =
     disableSyncConfirmTarget.length > 0 &&
@@ -83,6 +85,7 @@ export function SpaceSyncSettings() {
   // Build the actual remote URL based on provider
   const remoteAddress = (() => {
     if (!spaceInfo?.id) return ""
+    if (isLegacyGraftDetected && !spaceInfo.sync?.remote) return ""
 
     if (isEidosSpace) {
       // For eidos.space: use the remote URL directly
@@ -275,7 +278,7 @@ export function SpaceSyncSettings() {
   }
 
   const handleSyncSwitchChange = (enabled: boolean) => {
-    if (!enabled && isSyncEnabled) {
+    if (!enabled && isLocalHistoryEnabled) {
       setIsDisableSyncDialogOpen(true)
       return
     }
@@ -296,6 +299,29 @@ export function SpaceSyncSettings() {
   const customProviders = Object.values(globalConfig.providers)
   const effectiveProviderId =
     spaceInfo?.sync?.provider || globalConfig.defaultProvider || "eidos.space"
+  const isLegacyOnlyHistory =
+    isLegacyGraftDetected && !spaceInfo?.sync?.remote
+  const syncStatusDescription = isLocalHistoryEnabled
+    ? isLegacyOnlyHistory
+      ? t("space.settings.sync.localHistoryDetected")
+      : isSyncEnabled
+        ? t("space.settings.sync.syncingWith", {
+            provider:
+              effectiveProviderId === "eidos.space"
+                ? "eidos.space"
+                : globalConfig.providers[effectiveProviderId]?.name ||
+                  effectiveProviderId,
+          })
+        : t("space.settings.sync.localHistoryDetected")
+    : effectiveProviderId && hasCredentialsForProvider(effectiveProviderId)
+      ? t("space.settings.sync.willSyncWith", {
+          provider:
+            effectiveProviderId === "eidos.space"
+              ? "eidos.space"
+              : globalConfig.providers[effectiveProviderId]?.name ||
+                effectiveProviderId,
+        })
+      : t("space.settings.sync.configureProviderFirst")
 
   return (
     <div className="space-y-6">
@@ -494,36 +520,32 @@ export function SpaceSyncSettings() {
               {t("space.settings.sync.spaceSync")}
             </span>
             <p className="text-sm text-muted-foreground">
-              {isSyncEnabled
-                ? t("space.settings.sync.syncingWith", {
-                    provider:
-                      effectiveProviderId === "eidos.space"
-                        ? "eidos.space"
-                        : globalConfig.providers[effectiveProviderId]?.name ||
-                          effectiveProviderId,
-                  })
-                : effectiveProviderId &&
-                    hasCredentialsForProvider(effectiveProviderId)
-                  ? t("space.settings.sync.willSyncWith", {
-                      provider:
-                        effectiveProviderId === "eidos.space"
-                          ? "eidos.space"
-                          : globalConfig.providers[effectiveProviderId]?.name ||
-                            effectiveProviderId,
-                    })
-                  : t("space.settings.sync.configureProviderFirst")}
+              {syncStatusDescription}
             </p>
           </div>
-          <Switch
-            checked={isSyncEnabled}
-            disabled={
-              isToggling ||
-              !effectiveProviderId ||
-              (!isSyncEnabled &&
-                !hasCredentialsForProvider(effectiveProviderId))
-            }
-            onCheckedChange={handleSyncSwitchChange}
-          />
+          <div className="flex items-center gap-2">
+            {isLocalHistoryEnabled && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                disabled={isToggling}
+                onClick={() => setIsDisableSyncDialogOpen(true)}
+              >
+                {t("space.settings.sync.disableSync")}
+              </Button>
+            )}
+            <Switch
+              checked={isLocalHistoryEnabled}
+              disabled={
+                isToggling ||
+                !effectiveProviderId ||
+                (!isLocalHistoryEnabled &&
+                  !hasCredentialsForProvider(effectiveProviderId))
+              }
+              onCheckedChange={handleSyncSwitchChange}
+            />
+          </div>
         </div>
       </div>
 

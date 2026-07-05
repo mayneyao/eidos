@@ -15,6 +15,7 @@ export interface SpaceInfo {
     remote: string
     provider?: string
   }
+  legacyGraftDetected?: boolean
   relay?: RelayConfig
 }
 

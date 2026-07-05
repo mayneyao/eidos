@@ -7,6 +7,7 @@ export type SettingsSection =
   | "space-tabs"
   | "space-relay"
   | "space-theme"
+  | "space-sync"
   | "general"
   | "account"
   | "ai"

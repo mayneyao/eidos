@@ -16,6 +16,7 @@ import { GlobalSecretsSettings } from "./global/global-secrets-settings"
 
 import { GeneralSettings } from "./space/general-settings"
 import { MountSettings } from "./space/mount-settings"
+import { SpaceSyncSettings } from "./space/space-sync-settings"
 
 import { TabsSettings } from "./space/tab-settings"
 import { RelaySettings } from "./space/relay-settings"
@@ -51,6 +52,8 @@ export function SettingsContent() {
         return t("space.settings.relay")
       case "space-theme":
         return t("space.settings.theme", "Theme")
+      case "space-sync":
+        return t("space.settings.sync", "Sync")
       case "general":
         return t("settings.general")
       case "account":
@@ -90,6 +93,8 @@ export function SettingsContent() {
         return <RelaySettings onCloseSettings={() => window.history.back()} />
       case "space-theme":
         return <ThemeSettings />
+      case "space-sync":
+        return <SpaceSyncSettings />
       case "general":
         return <GlobalGeneralSettings />
       case "account":
@@ -129,6 +134,17 @@ export function SettingsContent() {
               </a>
             )}
             {activeSection === "sync" && (
+              <a
+                href={getDocsUrl("/services/sync/")}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("settings.sync.docsLink")}
+                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <BookOpenText className="h-5 w-5" />
+              </a>
+            )}
+            {activeSection === "space-sync" && (
               <a
                 href={getDocsUrl("/services/sync/")}
                 target="_blank"
