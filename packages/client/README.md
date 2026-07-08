@@ -1,6 +1,6 @@
 # @eidos.space/client
 
-Eidos RPC client for Node.js and browser environments. Connect to a headless Eidos server via HTTP and interact with your data using a Prisma-style API.
+Eidos RPC client for Node.js and browser environments. Connect to an Eidos RPC endpoint over HTTP and interact with your data using a Prisma-style API.
 
 ## Installation
 

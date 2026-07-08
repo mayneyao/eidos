@@ -4,7 +4,7 @@ AI Agent friendly command-line interface for Eidos.
 
 ## Overview
 
-This CLI is designed for AI Agents (like Claude Code) and developers to interact with Eidos Desktop through a simple command-line interface. Unlike the previous headless implementation, this version **requires Eidos Desktop to be running** as the backend.
+This CLI is designed for AI Agents (like Claude Code) and developers to interact with Eidos Desktop through a simple command-line interface. It **requires Eidos Desktop to be running** as the backend.
 
 ## Features
 

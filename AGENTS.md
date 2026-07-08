@@ -38,7 +38,6 @@ eidos/
 │   ├── desktop/          # Electron wrapper for desktop (package name: "eidos")
 │   ├── docs/             # Documentation site (Astro + Starlight)
 │   ├── cli/              # CLI tool for space management (@eidos.space/cli)
-│   ├── headless/         # Headless server with Graft sync support
 │   ├── download/         # Cloudflare worker for download page
 │   └── capture/          # Screen capture utility
 ├── packages/

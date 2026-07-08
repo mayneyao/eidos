@@ -11,7 +11,7 @@
 - 🔌 **Adapter pattern** - Pluggable database and filesystem implementations
 - 🗄️ **SQLite-powered** - Efficient local-first data storage
 - 📝 **Rich APIs** - Table operations, document management, tree structures
-- 🎯 **Headless mode** - Perfect for CLI tools and server-side automation
+- 🎯 **Automation-friendly** - Useful for CLI tools and custom runtimes
 - 🔒 **Type-safe** - Written in TypeScript with full type definitions
 
 ## Installation

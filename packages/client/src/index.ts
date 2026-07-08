@@ -2,7 +2,7 @@
  * @eidos.space/client
  *
  * Eidos RPC client for Node.js and browser environments.
- * Connect to a headless Eidos server via HTTP.
+ * Connect to an Eidos RPC endpoint over HTTP.
  *
  * @example
  * ```typescript
@@ -35,11 +35,11 @@ const NO_BRIDGE_ERROR = (feature: string) =>
   `Please provide a mainThreadBridge in the configuration to enable this feature.`
 
 /**
- * Create an Eidos client for connecting to headless server
+ * Create an Eidos client for connecting to an RPC endpoint
  *
  * @example
  * ```typescript
- * // Basic usage (headless mode)
+ * // Basic usage
  * const eidos = createEidosClient({
  *   endpoint: 'http://localhost:3000/rpc'
  * })
