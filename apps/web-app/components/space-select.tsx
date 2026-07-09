@@ -7,6 +7,7 @@ import {
   Cloud,
   FolderOpen,
   HardDrive,
+  HistoryIcon,
   Loader2,
   PlusCircle,
   RefreshCw,
@@ -40,7 +41,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Switch } from "@/components/ui/switch"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import type { SpaceInfo } from "@/apps/web-app/hooks/use-current-space"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
@@ -50,7 +50,6 @@ import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group"
-import { Separator } from "./ui/separator"
 import { Progress } from "@/components/ui/progress"
 
 interface ISpaceSelectProps {
@@ -66,7 +65,6 @@ const getRemotePathname = (remotePath?: string) => {
 type WizardStep =
   | "choose-action"
   | "create-local-path"
-  | "create-sync-options"
   | "clone-choose-provider"
   | "clone-select-space"
   | "clone-local-path"
@@ -81,6 +79,8 @@ interface SyncProvider {
   hasCredentials: boolean
   isBuiltIn: boolean
 }
+
+type SpacePathConflictType = "same" | "inside" | "contains"
 
 export function SpaceSelect({ spaces }: ISpaceSelectProps) {
   const { t } = useTranslation()
@@ -105,9 +105,12 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
   const [selectedRemoteSpace, setSelectedRemoteSpace] = React.useState<
     string | null
   >(null)
+  const [registeredSpaceForPath, setRegisteredSpaceForPath] =
+    React.useState<SpaceInfo | null>(null)
+  const [spacePathConflictType, setSpacePathConflictType] =
+    React.useState<SpacePathConflictType | null>(null)
   const [localPath, setLocalPath] = React.useState("")
   const [spaceName, setSpaceName] = React.useState("")
-  const [enableSync, setEnableSync] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [loadingProviders, setLoadingProviders] = React.useState(false)
   const [loadingRemoteSpaces, setLoadingRemoteSpaces] = React.useState(false)
@@ -127,9 +130,10 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
     setSelectedProvider(null)
     setRemoteSpaces([])
     setSelectedRemoteSpace(null)
+    setRegisteredSpaceForPath(null)
+    setSpacePathConflictType(null)
     setLocalPath("")
     setSpaceName("")
-    setEnableSync(false)
     setLoading(false)
     // Reset clone progress state
     setShowCloneProgressDialog(false)
@@ -200,6 +204,11 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         const folderPath = await window.eidos.selectFolder()
         if (folderPath) {
           setLocalPath(folderPath)
+          const pathConflict =
+            (await window.eidos.spaceMgmt.getSpacePathConflict(folderPath)) ||
+            null
+          setRegisteredSpaceForPath(pathConflict?.space || null)
+          setSpacePathConflictType(pathConflict?.type || null)
           // Extract folder name as default space name
           const folderName = folderPath.split(/[/\\]/).pop() || ""
           if (!spaceName && folderName) {
@@ -212,33 +221,64 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
     }
   }
 
+  const canOpenRegisteredSpaceForPath = Boolean(
+    registeredSpaceForPath && spacePathConflictType !== "contains"
+  )
+  const hasBlockingPathConflict = Boolean(
+    registeredSpaceForPath && spacePathConflictType === "contains"
+  )
+
+  const renderPathConflictNotice = () => {
+    if (!registeredSpaceForPath) {
+      return null
+    }
+
+    const spaceName = (
+      <span className="font-medium text-foreground">
+        {registeredSpaceForPath.name}
+      </span>
+    )
+
+    return (
+      <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+        {spacePathConflictType === "inside" ? (
+          <>This folder is inside registered space {spaceName}.</>
+        ) : spacePathConflictType === "contains" ? (
+          <>
+            This folder contains registered space {spaceName}. Choose another
+            folder.
+          </>
+        ) : (
+          <>This folder is already registered as {spaceName}.</>
+        )}
+      </div>
+    )
+  }
+
   const handleCreateSpace = async () => {
     if (!localPath) return
 
     setLoading(true)
     try {
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
-        let remoteUrl: string | undefined
-
-        // Build remote URL only if sync is enabled and provider is selected
-        if (enableSync && selectedProvider && selectedProvider !== "local") {
-          const provider = providers.find((p) => p.id === selectedProvider)
-          if (provider) {
-            // Remote format: <provider-id>/<bucket-name>/<space-name>
-            // For both eidos.space and custom providers, bucketName comes from credentials/config
-            const bucketName = provider.bucketName || provider.id // fallback to provider id
-            remoteUrl = `${provider.id}/${bucketName}/${spaceName}`
-          }
+        if (registeredSpaceForPath && canOpenRegisteredSpaceForPath) {
+          await handleSelect(registeredSpaceForPath.id)
+          return
         }
 
         const result = await window.eidos.spaceMgmt.registerSpace(localPath, {
           customName: spaceName || undefined,
-          remoteUrl,
         })
 
         if (result.success && result.space) {
           await updateSpaceList()
           await handleSelect(result.space.id as string)
+        } else if (
+          result.existingSpace &&
+          result.pathConflictType !== "contains"
+        ) {
+          await updateSpaceList()
+          await handleSelect(result.existingSpace.id as string)
         } else {
           throw new Error(result.error || "Failed to create space")
         }
@@ -259,6 +299,12 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
     if (!localPath || !selectedProvider || !selectedRemoteSpace) return
 
     setLoading(true)
+    if (registeredSpaceForPath && canOpenRegisteredSpaceForPath) {
+      await handleSelect(registeredSpaceForPath.id)
+      resetWizard()
+      return
+    }
+
     setShowNewSpaceDialog(false)
     setShowCloneProgressDialog(true)
     setCloneProgress(0)
@@ -324,6 +370,13 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
           setCloneComplete(true)
           setClonedSpace(result.space as SpaceInfo)
           await updateSpaceList()
+        } else if (
+          result.existingSpace &&
+          result.pathConflictType !== "contains"
+        ) {
+          await updateSpaceList()
+          await handleSelect(result.existingSpace.id as string)
+          resetWizard()
         } else {
           throw new Error(result.error || "Failed to clone space")
         }
@@ -361,16 +414,6 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
     }
   }
 
-  const handleCreateLocalPathNext = () => {
-    if (!localPath) return
-    setCurrentStep("create-sync-options")
-    loadProviders()
-  }
-
-  const handleProviderSelectForCreate = (providerId: string) => {
-    setSelectedProvider(providerId)
-  }
-
   const handleProviderSelectForClone = (providerId: string) => {
     setSelectedProvider(providerId)
     setCurrentStep("clone-select-space")
@@ -389,11 +432,6 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
       case "create-local-path":
         setCurrentStep("choose-action")
         setSelectedAction(null)
-        break
-      case "create-sync-options":
-        setCurrentStep("create-local-path")
-        setEnableSync(false)
-        setSelectedProvider(null)
         break
       case "clone-choose-provider":
         setCurrentStep("choose-action")
@@ -431,7 +469,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                 <div>
                   <h3 className="font-medium">Create New Space</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Create a new local space. Sync to remote is optional.
+                    Create a new local space on this device.
                   </p>
                 </div>
               </button>
@@ -479,171 +517,24 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Your data will be stored in this folder. You can optionally
-                enable sync in the next step.
+                Your data will be stored in this folder. Versioning and sync can
+                be enabled later from Graft.
               </p>
             </div>
+            {renderPathConflictNotice()}
             <div className="flex gap-2 pt-2">
               <Button variant="outline" onClick={handleBack} className="flex-1">
                 Back
               </Button>
               <Button
-                onClick={handleCreateLocalPathNext}
-                disabled={!localPath}
-                className="flex-1"
-              >
-                Continue
-              </Button>
-            </div>
-          </div>
-        )
-
-      case "create-sync-options":
-        // Separate built-in and custom providers
-        const builtInProviders = providers.filter((p) => p.isBuiltIn)
-        const customProviders = providers.filter((p) => !p.isBuiltIn)
-        const hasAnySyncProvider =
-          builtInProviders.length > 0 || customProviders.length > 0
-
-        return (
-          <div className="space-y-4 py-4">
-            <p className="text-sm text-muted-foreground">
-              Sync is optional. Enable it if you want to backup or sync this
-              space across devices.
-            </p>
-
-            {/* Enable Sync Toggle */}
-            <div className="flex items-center justify-between rounded-lg border p-4">
-              <div className="flex items-center gap-3">
-                <Cloud className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="font-medium">Enable Sync</p>
-                  <p className="text-xs text-muted-foreground">
-                    Sync this space to a remote provider
-                  </p>
-                </div>
-              </div>
-              <Switch checked={enableSync} onCheckedChange={setEnableSync} />
-            </div>
-
-            {/* Provider Selection - only show if sync is enabled */}
-            {enableSync && (
-              <div className="space-y-3">
-                <Label>Select Sync Provider</Label>
-                {loadingProviders ? (
-                  <div className="text-sm text-muted-foreground">
-                    {t(
-                      "space.createSync.loadingProviders",
-                      "Loading providers..."
-                    )}
-                  </div>
-                ) : providers.filter((p) => p.hasCredentials).length === 0 ? (
-                  <div className="text-sm text-muted-foreground text-center py-4 bg-muted/30 rounded-lg">
-                    <p className="font-medium mb-1">
-                      {t(
-                        "space.createSync.noProvidersAvailable",
-                        "No sync providers available"
-                      )}
-                    </p>
-                    <p className="text-xs">
-                      {t(
-                        "space.createSync.goToSettings",
-                        "Go to Settings → Sync to add S3-compatible storage"
-                      )}
-                    </p>
-                  </div>
-                ) : (
-                  <RadioGroup
-                    value={selectedProvider || ""}
-                    onValueChange={handleProviderSelectForCreate}
-                    className="space-y-2"
-                  >
-                    {/* Built-in providers (eidos.space) - only show if has credentials */}
-                    {builtInProviders
-                      .filter((p) => p.hasCredentials)
-                      .map((provider) => (
-                        <div key={provider.id}>
-                          <div
-                            className={cn(
-                              "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
-                            )}
-                          >
-                            <RadioGroupItem
-                              value={provider.id}
-                              id={provider.id}
-                            />
-                            <label
-                              htmlFor={provider.id}
-                              className="flex-1 cursor-pointer"
-                            >
-                              <div className="flex items-center gap-2">
-                                <Cloud className="h-4 w-4 text-primary" />
-                                <span className="font-medium">
-                                  {provider.id}
-                                </span>
-                                <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                                  {t("settings.sync.builtIn", "Built-in")}
-                                </span>
-                              </div>
-                            </label>
-                          </div>
-                        </div>
-                      ))}
-
-                    {/* Custom S3 providers - only show if has credentials */}
-                    {customProviders.filter((p) => p.hasCredentials).length >
-                      0 &&
-                      builtInProviders.filter((p) => p.hasCredentials).length >
-                        0 && <Separator className="my-2" />}
-
-                    {customProviders
-                      .filter((p) => p.hasCredentials)
-                      .map((provider) => (
-                        <div key={provider.id}>
-                          <div
-                            className={cn(
-                              "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
-                            )}
-                          >
-                            <RadioGroupItem
-                              value={provider.id}
-                              id={provider.id}
-                            />
-                            <label
-                              htmlFor={provider.id}
-                              className="flex-1 cursor-pointer"
-                            >
-                              <div className="flex items-center gap-2">
-                                <Server className="h-4 w-4 text-muted-foreground" />
-                                <span className="font-medium">
-                                  {provider.id}
-                                </span>
-                              </div>
-                            </label>
-                          </div>
-                        </div>
-                      ))}
-                  </RadioGroup>
-                )}
-              </div>
-            )}
-
-            <div className="flex gap-2 pt-2">
-              <Button variant="outline" onClick={handleBack} className="flex-1">
-                {t("common.back", "Back")}
-              </Button>
-              <Button
                 onClick={handleCreateSpace}
-                disabled={loading || (enableSync && !selectedProvider)}
+                disabled={!localPath || loading || hasBlockingPathConflict}
                 className="flex-1"
               >
                 {loading
                   ? t("common.creating", "Creating...")
-                  : enableSync
-                    ? t(
-                        "space.createSync.createAndEnable",
-                        "Create & Enable Sync"
-                      )
+                  : canOpenRegisteredSpaceForPath
+                    ? "Open Existing Space"
                     : t("space.createSpace", "Create Space")}
               </Button>
             </div>
@@ -675,7 +566,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                 <br />
                 {t(
                   "space.clone.goToSettings",
-                  "Go to Settings → Sync to add providers."
+                  "Go to Settings -> Sync to add providers."
                 )}
               </div>
             ) : (
@@ -806,16 +697,21 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                 </Button>
               </div>
             </div>
+            {renderPathConflictNotice()}
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleBack} className="flex-1">
                 Back
               </Button>
               <Button
                 onClick={handleCloneSpace}
-                disabled={!localPath || loading}
+                disabled={!localPath || loading || hasBlockingPathConflict}
                 className="flex-1"
               >
-                {loading ? "Cloning..." : "Clone Space"}
+                {loading
+                  ? "Cloning..."
+                  : canOpenRegisteredSpaceForPath
+                    ? "Open Existing Space"
+                    : "Clone Space"}
               </Button>
             </div>
           </div>
@@ -832,8 +728,6 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         return "Add Space"
       case "create-local-path":
         return "Create Space - Local Folder"
-      case "create-sync-options":
-        return "Create Space - Sync Options"
       case "clone-choose-provider":
         return "Clone Space - Select Provider"
       case "clone-select-space":
@@ -908,11 +802,16 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                       <span className="truncate shrink-0 mr-2">
                         {space.name}
                       </span>
-                      {space.sync?.enabled && space.sync.remote && (
+                      {space.sync?.enabled && space.sync.remote ? (
                         <span className="text-[10px] text-muted-foreground truncate">
                           {getRemotePathname(space.sync.remote)}
                         </span>
-                      )}
+                      ) : space.versioning?.enabled ? (
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <HistoryIcon className="h-3 w-3" />
+                          local history
+                        </span>
+                      ) : null}
                     </div>
                   </CommandItem>
                 ))}

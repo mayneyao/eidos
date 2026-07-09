@@ -528,14 +528,14 @@ export function AgentHistorySidebar() {
   }
 
   return (
-    <div className="flex h-full w-full flex-col px-3 py-2 overflow-hidden">
+    <div className="flex h-full w-full flex-col overflow-hidden">
       {/* Tab header */}
-      <div className="mb-2 px-1 flex items-center justify-between h-8">
+      <div className="flex items-center justify-between border-b border-border/60 px-3 py-1">
         <div className="flex items-center gap-1">
           <button
             onClick={() => setTab("sessions")}
             className={cn(
-              "text-xs font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
+              "rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider transition-colors",
               tab === "sessions"
                 ? "text-foreground"
                 : "text-muted-foreground/60 hover:text-muted-foreground"
@@ -547,7 +547,7 @@ export function AgentHistorySidebar() {
           <button
             onClick={() => setTab("skills")}
             className={cn(
-              "text-xs font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
+              "rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider transition-colors",
               tab === "skills"
                 ? "text-foreground"
                 : "text-muted-foreground/60 hover:text-muted-foreground"
@@ -573,7 +573,7 @@ export function AgentHistorySidebar() {
       </div>
 
       {/* Search */}
-      <div className="mb-2 px-1">
+      <div className="px-3 py-2">
         {tab === "sessions" ? (
           <Input
             placeholder="Search sessions"
@@ -592,7 +592,7 @@ export function AgentHistorySidebar() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden px-3">
         {tab === "sessions" && renderSessionsContent()}
         {tab === "skills" && (
           <SkillsList

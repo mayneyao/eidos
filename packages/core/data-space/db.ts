@@ -1,4 +1,9 @@
 import { logger } from "@/lib/env"
+import type {
+  GraftConflictResolveTarget,
+  GraftConflictResolution,
+  GraftResetMode,
+} from "../sqlite/interface"
 
 import { timeit } from "../helper"
 import { buildSql, isReadOnlySql } from "../sqlite/helper"
@@ -30,19 +35,54 @@ export class DataSpaceWithDatabase extends BaseDataSpace {
     return this.db.snapshot()
   }
 
+  public commit(message?: string) {
+    return this.db.commit(message)
+  }
+
+  public completeMerge(message?: string) {
+    return this.db.completeMerge(message)
+  }
+
+  public abortMerge() {
+    return this.db.abortMerge()
+  }
+
+  public conflicts() {
+    return this.db.conflicts()
+  }
+
+  public resolveConflict(
+    resolution: GraftConflictResolution,
+    path?: string,
+    target?: GraftConflictResolveTarget
+  ) {
+    return this.db.resolveConflict(resolution, path, target)
+  }
+
   public tags() {
     return this.db.tags()
+  }
+  public branches() {
+    return this.db.branches()
   }
   public volumes() {
     return this.db.volumes()
   }
 
-  public clone(remoteLogId?: string) {
-    return this.db.clone(remoteLogId)
+  public clone(remoteUri?: string) {
+    return this.db.clone(remoteUri)
   }
 
   public convertToGraft(remote: string) {
     return this.db.convertToGraft(remote)
+  }
+
+  public enableLocalVersioning() {
+    return this.db.enableLocalVersioning()
+  }
+
+  public reconfigureRemote(credentials: any, remote: string) {
+    return this.db.reconfigureRemote(credentials, remote)
   }
 
   public exportToSqlite(outputPath?: string) {
@@ -55,6 +95,34 @@ export class DataSpaceWithDatabase extends BaseDataSpace {
 
   public audit() {
     return this.db.audit()
+  }
+
+  public log() {
+    return this.db.log()
+  }
+
+  public show(rev: string | number) {
+    return this.db.show(rev)
+  }
+
+  public diff(
+    from: string | number,
+    to?: string | number,
+    mode: "summary" | "rows" = "summary"
+  ) {
+    return this.db.diff(from, to, mode)
+  }
+
+  public checkoutLsn(rev: string | number) {
+    return this.db.checkoutLsn(rev)
+  }
+
+  public resetTo(rev: string | number, mode: GraftResetMode = "hard") {
+    return this.db.resetTo(rev, mode)
+  }
+
+  public tableLog(tableName: string) {
+    return this.db.tableLog(tableName)
   }
 
   // close db

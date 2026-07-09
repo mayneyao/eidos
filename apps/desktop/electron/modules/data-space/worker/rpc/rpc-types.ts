@@ -39,9 +39,11 @@ export interface PathConfig {
   graftPathConfig: {
     libPath: string
     enabled: boolean
+    syncEnabled?: boolean
     remote: string
     credentials?: any
     provider?: string
+    requireRemoteClone?: boolean
   }
 }
 

@@ -120,6 +120,46 @@ function getTerminalTheme() {
   }
 }
 
+function isCopyShortcut(event: KeyboardEvent) {
+  return event.key.toLowerCase() === "c" && (event.ctrlKey || event.metaKey)
+}
+
+function copyTextWithHiddenTextArea(text: string) {
+  const textarea = document.createElement("textarea")
+  textarea.value = text
+  textarea.setAttribute("readonly", "")
+  textarea.style.position = "fixed"
+  textarea.style.top = "-9999px"
+  textarea.style.opacity = "0"
+  textarea.style.pointerEvents = "none"
+
+  document.body.appendChild(textarea)
+  textarea.select()
+  document.execCommand("copy")
+  textarea.remove()
+}
+
+async function writeTextToClipboard(text: string) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return
+    }
+  } catch (error) {
+    console.warn("[TerminalInstance] Failed to write clipboard:", error)
+  }
+
+  copyTextWithHiddenTextArea(text)
+}
+
+function copyTerminalSelection(terminal: Terminal) {
+  if (!terminal.hasSelection()) return
+
+  void writeTextToClipboard(terminal.getSelection()).finally(() => {
+    terminal.focus()
+  })
+}
+
 export function TerminalInstance({
   sessionId,
   isActive,
@@ -161,6 +201,29 @@ export function TerminalInstance({
 
     terminalRef.current = terminal
     fitAddonRef.current = fitAddon
+
+    terminal.attachCustomKeyEventHandler((event) => {
+      if (
+        event.type === "keydown" &&
+        isCopyShortcut(event) &&
+        terminal.hasSelection()
+      ) {
+        event.preventDefault()
+        copyTerminalSelection(terminal)
+        return false
+      }
+
+      return true
+    })
+
+    const handleCopy = (event: ClipboardEvent) => {
+      if (!terminal.hasSelection()) return
+
+      event.preventDefault()
+      event.clipboardData?.setData("text/plain", terminal.getSelection())
+    }
+
+    containerRef.current.addEventListener("copy", handleCopy)
 
     // Load and replay history
     const loadHistory = async () => {
@@ -222,6 +285,7 @@ export function TerminalInstance({
     unmountCleanupRef.current = () => {
       disposable.dispose()
       titleDisposable.dispose()
+      containerRef.current?.removeEventListener("copy", handleCopy)
       terminal.dispose()
       observerRef.current?.disconnect()
       resizeObserverRef.current?.disconnect()

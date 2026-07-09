@@ -16,6 +16,9 @@ import SkillDetailPage from "@/apps/web-app/pages/[database]/agent/skills/[name]
 import TerminalPage from "@/apps/web-app/pages/[database]/terminal/page"
 import SettingsPage from "@/apps/web-app/pages/[database]/settings/page"
 import TrashPage from "@/apps/web-app/pages/[database]/trash/page"
+import GraftCommitDetail from "@/apps/web-app/pages/[database]/graft/commit/[lsn]/page"
+import GraftConflictsPage from "@/apps/web-app/pages/[database]/graft/conflicts/page"
+import GraftDiffPage from "@/apps/web-app/pages/[database]/graft/diff/[from]/[to]/page"
 
 export const spaceRoutes: RouteObject[] = [
   {
@@ -73,6 +76,18 @@ export const spaceRoutes: RouteObject[] = [
   {
     path: "terminal",
     element: <TerminalPage />,
+  },
+  {
+    path: "graft/commit/:lsn",
+    element: <GraftCommitDetail />,
+  },
+  {
+    path: "graft/conflicts",
+    element: <GraftConflictsPage />,
+  },
+  {
+    path: "graft/diff/:from/:to",
+    element: <GraftDiffPage />,
   },
   {
     path: "agent/skills/:name",

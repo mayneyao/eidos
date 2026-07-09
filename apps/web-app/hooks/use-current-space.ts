@@ -15,6 +15,9 @@ export interface SpaceInfo {
     remote: string
     provider?: string
   }
+  versioning?: {
+    enabled: boolean
+  }
   relay?: RelayConfig
 }
 

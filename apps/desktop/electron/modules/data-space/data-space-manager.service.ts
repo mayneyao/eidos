@@ -58,12 +58,18 @@ export class DataSpaceManager {
 
   public async reload(): Promise<DataSpace | null> {
     console.log("====== reload data space ======")
-    if (!this.currentSpaceId) {
+    const spaceId = this.currentSpaceId
+    if (!spaceId) {
       return null
     }
 
-    // Reinitialize with the same space name
-    return this.getOrSetDataSpace(this.currentSpaceId)
+    this.stopSyncWorker(spaceId)
+    await this.processPool.kill(spaceId)
+    this.dataSpaceProxy = null
+    this.initializationPromise = null
+
+    // Reinitialize with the same space.
+    return this.getOrSetDataSpace(spaceId)
   }
 
   public async close(): Promise<boolean> {
@@ -84,7 +90,12 @@ export class DataSpaceManager {
 
   public async getOrSetDataSpace(
     spaceId: string,
-    syncOptions?: { enabled: boolean; remote?: string }
+    syncOptions?: {
+      enabled: boolean
+      remote?: string
+      provider?: string
+      requireRemoteClone?: boolean
+    }
   ): Promise<DataSpace> {
     if (this.currentSpaceId === spaceId && this.dataSpaceProxy) {
       return this.dataSpaceProxy
@@ -112,12 +123,17 @@ export class DataSpaceManager {
 
       // Use space's provider if set, otherwise use default
       const providerId =
+        syncOptions?.provider ||
         spaceInfo.sync?.provider ||
         this.configManager.getDefaultSyncProvider() ||
         "eidos.space"
 
       const credentials =
         await this.credentialsManager.getSyncCredentials(providerId)
+      const remoteSyncEnabled =
+        syncOptions?.enabled ?? spaceInfo.sync?.enabled ?? false
+      const graftEnabled =
+        remoteSyncEnabled || spaceInfo.versioning?.enabled || false
 
       const initData: WorkerInitData = {
         spaceInfo,
@@ -127,10 +143,12 @@ export class DataSpaceManager {
           vecPathConfig: { libPath: vecLibPath },
           graftPathConfig: {
             libPath: graftLibPath,
-            enabled: syncOptions?.enabled ?? spaceInfo.sync?.enabled ?? false,
+            enabled: graftEnabled,
+            syncEnabled: remoteSyncEnabled,
             remote: syncOptions?.remote ?? spaceInfo.sync?.remote ?? "",
             credentials,
             provider: providerId,
+            requireRemoteClone: syncOptions?.requireRemoteClone,
           },
         },
       }
@@ -188,12 +206,17 @@ export class DataSpaceManager {
     this.stopSyncWorker(spaceId)
 
     // Check if sync is enabled and credentials exist
-    if (!spaceInfo.sync?.remote || !graftPathConfig?.credentials?.accessKeyId) {
+    const remote = graftPathConfig?.remote || spaceInfo.sync?.remote
+    if (
+      !graftPathConfig?.syncEnabled ||
+      !remote ||
+      !graftPathConfig?.credentials?.accessKeyId
+    ) {
       log.info("Sync not enabled or missing credentials, skipping sync worker.")
       return
     }
     const remoteSpaceId =
-      spaceInfo.sync?.remote?.split("/").pop()?.split(".")[0] || spaceInfo.id
+      remote?.split("/").pop()?.split(".")[0] || spaceInfo.id
     const localPath = path.join(getSpacePath(spaceId), ".eidos", "files")
     if (!fs.existsSync(localPath)) {
       log.warn(`Sync worker skipped: local path ${localPath} does not exist.`)

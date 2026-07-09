@@ -2,7 +2,12 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 
-import type { GlobalConfig, SpaceInfo, SpacesConfig } from "./types"
+import type {
+  GlobalConfig,
+  SpaceInfo,
+  SpacePathConflict,
+  SpacesConfig,
+} from "./types"
 
 export class SpaceRegistry {
   protected eidosDir: string
@@ -91,6 +96,39 @@ export class SpaceRegistry {
     return spaces.find((space) => space.id === id) || null
   }
 
+  public getSpaceByPath(spacePath: string): SpaceInfo | null {
+    const normalizedPath = this.normalizeSpacePath(spacePath)
+    const spaces = this.getAllSpaces()
+    return (
+      spaces.find(
+        (space) => this.normalizeSpacePath(space.path) === normalizedPath
+      ) || null
+    )
+  }
+
+  public getSpacePathConflict(spacePath: string): SpacePathConflict | null {
+    const normalizedPath = this.normalizeSpacePath(spacePath)
+    const spaces = this.getAllSpaces()
+
+    for (const space of spaces) {
+      const registeredPath = this.normalizeSpacePath(space.path)
+
+      if (registeredPath === normalizedPath) {
+        return { type: "same", space }
+      }
+
+      if (this.isSubPath(registeredPath, normalizedPath)) {
+        return { type: "inside", space }
+      }
+
+      if (this.isSubPath(normalizedPath, registeredPath)) {
+        return { type: "contains", space }
+      }
+    }
+
+    return null
+  }
+
   public setSpaceSync(
     spaceId: string,
     sync: {
@@ -110,6 +148,23 @@ export class SpaceRegistry {
     const config = this.loadSpacesConfig()
     config.spaces = config.spaces.map((o) => (o.id === spaceId ? space : o))
     console.log("config", config.spaces)
+    this.saveSpacesConfig(config)
+  }
+
+  public setSpaceVersioning(
+    spaceId: string,
+    versioning: {
+      enabled: boolean
+    }
+  ): void {
+    const space = this.getSpace(spaceId)
+    if (!space) {
+      throw new Error(`Space not found: ${spaceId}`)
+    }
+    space.versioning = versioning
+
+    const config = this.loadSpacesConfig()
+    config.spaces = config.spaces.map((o) => (o.id === spaceId ? space : o))
     this.saveSpacesConfig(config)
   }
 
@@ -145,14 +200,34 @@ export class SpaceRegistry {
     options: {
       customName?: string
       remoteUrl?: string
+      provider?: string
     } = {}
   ): SpaceInfo {
     if (!fs.existsSync(spacePath)) {
       throw new Error(`Path does not exist: ${spacePath}`)
     }
 
+    const normalizedPath = this.normalizeSpacePath(spacePath)
+    const pathConflict = this.getSpacePathConflict(normalizedPath)
+    if (pathConflict) {
+      const error = new Error(this.getPathConflictMessage(pathConflict))
+      ;(
+        error as Error & {
+          existingSpace?: SpaceInfo
+          pathConflictType?: SpacePathConflict["type"]
+        }
+      ).existingSpace = pathConflict.space
+      ;(
+        error as Error & {
+          existingSpace?: SpaceInfo
+          pathConflictType?: SpacePathConflict["type"]
+        }
+      ).pathConflictType = pathConflict.type
+      throw error
+    }
+
     // generate space id based on folder name
-    const folderName = path.basename(spacePath)
+    const folderName = path.basename(normalizedPath)
     let spaceId = this.sanitizeId(folderName)
 
     // handle id conflict
@@ -168,13 +243,18 @@ export class SpaceRegistry {
       name:
         options.customName ||
         folderName.charAt(0).toUpperCase() + folderName.slice(1),
-      path: spacePath,
+      path: normalizedPath,
       sync: options.remoteUrl
         ? {
             enabled: true,
             remote: options.remoteUrl,
+            provider: options.provider,
           }
         : undefined,
+      versioning:
+        options.remoteUrl || this.hasGraftRepository(normalizedPath)
+          ? { enabled: true }
+          : undefined,
     }
 
     const config = this.loadSpacesConfig()
@@ -229,6 +309,41 @@ export class SpaceRegistry {
       .replace(/^-|-$/g, "")
   }
 
+  protected normalizeSpacePath(spacePath: string): string {
+    const resolvedPath = path.resolve(spacePath)
+    try {
+      return fs.realpathSync.native(resolvedPath)
+    } catch {
+      return resolvedPath
+    }
+  }
+
+  protected hasGraftRepository(spacePath: string): boolean {
+    return fs.existsSync(path.join(spacePath, ".eidos", ".graft"))
+  }
+
+  protected isSubPath(parentPath: string, childPath: string): boolean {
+    const relativePath = path.relative(parentPath, childPath)
+    return (
+      !!relativePath &&
+      relativePath !== ".." &&
+      !relativePath.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relativePath)
+    )
+  }
+
+  protected getPathConflictMessage(conflict: SpacePathConflict): string {
+    if (conflict.type === "same") {
+      return `Path is already registered as space "${conflict.space.name}"`
+    }
+
+    if (conflict.type === "inside") {
+      return `Path is inside registered space "${conflict.space.name}"`
+    }
+
+    return `Path contains registered space "${conflict.space.name}"`
+  }
+
   public validateSpace(spaceId: string): boolean {
     const space = this.getSpace(spaceId)
     if (!space) {
@@ -239,7 +354,7 @@ export class SpaceRegistry {
       return false
     }
 
-    if (space.sync?.enabled) {
+    if (space.sync?.enabled || space.versioning?.enabled) {
       // check is .eidos/.graft exists
       const graftPath = path.join(space.path, ".eidos", ".graft")
       return fs.existsSync(graftPath)

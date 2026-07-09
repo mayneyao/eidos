@@ -1,16 +1,14 @@
-import type Database from "better-sqlite3"
-
 import type { SyncCredentials } from "@eidos.space/sync"
 import type { SpaceInfo } from "@eidos.space/space-manager"
 import { NodeBaseServerDatabase } from "./base"
+import type { SqliteDatabase, SqliteOptions } from "./better-sqlite3"
 import { NodeDatabaseInitializer } from "./initializer"
 
 export interface NodeDomainDbInfo {
   type: "node"
   config: {
-    options?: Database.Options
+    options?: SqliteOptions
     spaceInfo?: SpaceInfo
-    remoteLogId?: string
   }
 }
 
@@ -24,11 +22,12 @@ interface NodeServerDatabaseOptions {
   graft?: {
     libPath: string
     enabled?: boolean
+    syncEnabled?: boolean
     remote?: string
     provider?: string
     credentials?: SyncCredentials
     isVFSInitialized?: boolean
-    remoteLogId?: string
+    requireRemoteClone?: boolean
   }
   // vec extension
   vec?: {
@@ -45,7 +44,7 @@ export class NodeServerDatabase extends NodeBaseServerDatabase {
   private logger: any = console
 
   constructor(
-    db: Database.Database,
+    db: SqliteDatabase,
     isSyncEnabled: boolean = false,
     logger?: any,
     spaceInfo?: SpaceInfo,
@@ -60,10 +59,7 @@ export class NodeServerDatabase extends NodeBaseServerDatabase {
     config: NodeDomainDbInfo["config"],
     options: NodeServerDatabaseOptions
   ): Promise<NodeServerDatabase> {
-    const initializer = new NodeDatabaseInitializer({
-      ...options,
-      remoteLogId: config.remoteLogId,
-    })
+    const initializer = new NodeDatabaseInitializer(options)
     const { db, isSyncEnabled } = await initializer.initializeDatabase(config)
 
     return new NodeServerDatabase(

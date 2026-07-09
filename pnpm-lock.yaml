@@ -152,9 +152,6 @@ importers:
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
-      sqlite-graft:
-        specifier: ^0.2.1
-        version: 0.2.1
       sqlite-vec:
         specifier: 0.1.7-alpha.2
         version: 0.1.7-alpha.2
@@ -291,64 +288,6 @@ importers:
         specifier: ^4.20.3
         version: 4.22.0(@cloudflare/workers-types@4.20250620.0)(bufferutil@4.0.9)(utf-8-validate@6.0.5)
 
-  apps/headless:
-    dependencies:
-      '@aws-sdk/client-s3':
-        specifier: ^3.1005.0
-        version: 3.1005.0
-      '@eidos.space/client':
-        specifier: workspace:*
-        version: link:../../packages/client
-      '@eidos.space/core':
-        specifier: ^0.28.1
-        version: 0.28.1(zod@4.4.3)
-      '@eidos.space/ext-server':
-        specifier: workspace:*
-        version: link:../../packages/ext-server
-      '@eidos.space/v3':
-        specifier: workspace:*
-        version: link:../../packages/v3
-      '@hono/node-server':
-        specifier: ^1.13.7
-        version: 1.14.4(hono@4.12.7)
-      aws4fetch:
-        specifier: ^1.0.20
-        version: 1.0.20
-      better-sqlite3:
-        specifier: ^12.0.0
-        version: 12.8.0
-      dotenv:
-        specifier: ^16.4.7
-        version: 16.6.0
-      hono:
-        specifier: ^4.12.7
-        version: 4.12.7
-      oxc-parser:
-        specifier: ^0.74.0
-        version: 0.74.0
-      oxc-transform:
-        specifier: ^0.74.0
-        version: 0.74.0
-      sqlite-graft:
-        specifier: ^0.2.1
-        version: 0.2.1
-      sqlite-vec:
-        specifier: 0.1.7-alpha.2
-        version: 0.1.7-alpha.2
-    devDependencies:
-      '@types/node':
-        specifier: ^20.17.12
-        version: 20.19.1
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-      vite:
-        specifier: ^6.3.5
-        version: 6.4.1(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
-      vite-node:
-        specifier: ^3.1.4
-        version: 3.2.4(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
-
   apps/web-app:
     dependencies:
       '@ahooksjs/use-url-state':
@@ -477,6 +416,9 @@ importers:
       '@octokit/rest':
         specifier: ^20.0.2
         version: 20.1.2
+      '@pierre/diffs':
+        specifier: ^1.2.7
+        version: 1.2.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-icons':
         specifier: ^1.3.0
         version: 1.3.2(react@18.3.1)
@@ -495,6 +437,9 @@ importers:
       '@radix-ui/react-use-controllable-state':
         specifier: ^1.2.2
         version: 1.2.2(@types/react@18.3.23)(react@18.3.1)
+      '@shadcn/react':
+        specifier: ^0.2.0
+        version: 0.2.0(@types/react@18.3.23)(react@18.3.1)
       '@sqlite.org/sqlite-wasm':
         specifier: 3.45.3-build2
         version: 3.45.3-build2
@@ -916,6 +861,9 @@ importers:
       '@eidos.space/react':
         specifier: workspace:*
         version: link:../../../packages/react
+      '@eidos.space/sync':
+        specifier: workspace:*
+        version: link:../../../packages/sync
       ahooks:
         specifier: ^3.8.4
         version: 3.9.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1352,6 +1300,9 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/debug@4.1.12)(@types/node@20.19.1)(happy-dom@20.8.4(bufferutil@4.0.9)(utf-8-validate@6.0.5))(jiti@2.6.1)(jsdom@24.1.3(bufferutil@4.0.9)(canvas@2.11.2(encoding@0.1.13))(utf-8-validate@6.0.5))(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
 
   packages/v3:
     dependencies:
@@ -4493,6 +4444,16 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@pierre/diffs@1.2.7':
+    resolution: {integrity: sha512-YrHmFZLDtiLZ4DkiVqMDUFqTFIct3ML3t20nMp0UeuiUtqrmRcenYVxPb4IafiNkhZZURhCiwcs89tVb/HrSDA==}
+    peerDependencies:
+      react: ^18.3.1 || ^19.0.0
+      react-dom: ^18.3.1 || ^19.0.0
+
+  '@pierre/theme@1.0.3':
+    resolution: {integrity: sha512-sWHv11TMoqKxKDgTIk5VbhQjdPhs8DCcBxbjh3mRlS3YOM/OcrWoGX6MM8eBGn9cUu3M46Py0JnxsG2nJaFTuA==}
+    engines: {vscode: ^1.0.0}
+
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
@@ -5945,6 +5906,17 @@ packages:
   '@scena/matrix@1.1.1':
     resolution: {integrity: sha512-JVKBhN0tm2Srl+Yt+Ywqu0oLgLcdemDQlD1OxmN9jaCTwaFPZ7tY8n6dhVgMEaR9qcR7r+kAlMXnSfNyYdE+Vg==}
 
+  '@shadcn/react@0.2.0':
+    resolution: {integrity: sha512-g/LMtyL0eiHCHkOCelhYf32RC5nTMdtUNag1ZQRhSDCW+jnHxDY1Dajk7P6zJosOg8z2N4wzfKOY5sh54QTDYA==}
+    peerDependencies:
+      '@types/react': '>=19'
+      react: '>=19'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      react:
+        optional: true
+
   '@shikijs/core@3.23.0':
     resolution: {integrity: sha512-NSWQz0riNb67xthdm5br6lAkvpDJRTgB36fxlo37ZzM2yq0PQFFzbd8psqC2XMPgCzo1fW6cVi18+ArJ44wqgA==}
 
@@ -5974,6 +5946,9 @@ packages:
 
   '@shikijs/themes@3.7.0':
     resolution: {integrity: sha512-VJx8497iZPy5zLiiCTSIaOChIcKQwR0FebwE9S3rcN0+J/GTWwQ1v/bqhTbpbY3zybPKeO8wdammqkpXc4NVjQ==}
+
+  '@shikijs/transformers@3.23.0':
+    resolution: {integrity: sha512-F9msZVxdF+krQNSdQ4V+Ja5QemeAoTQ2jxt7nJCwhDsdF1JWS3KxIQXA3lQbyKwS3J61oHRUSv4jYWv3CkaKTQ==}
 
   '@shikijs/types@3.23.0':
     resolution: {integrity: sha512-3JZ5HXOZfYjsYSk0yPwBrkupyYSLpAE26Qc0HLghhZNGTZg/SKxXIIgoxOpmmeQP0RRSDJTk1/vPfw9tbw+jSQ==}
@@ -8098,6 +8073,10 @@ packages:
     resolution: {integrity: sha512-sSuxWU5j5SR9QQji/o2qMvqRNYRDOcBTgsJ/DeCf4iSN4gW+gNMXM7wFIP+fdXZxoNiAnHUTGjCr+TSWXdRDKg==}
     engines: {node: '>=0.3.1'}
 
+  diff@8.0.3:
+    resolution: {integrity: sha512-qejHi7bcSD4hQAZE0tNAawRK1ZtafHDmMTMkrrIGgSLl7hTnQHmKCeB45xAcbfTqK2zowkM3j3bHt/4b/ARbYQ==}
+    engines: {node: '>=0.3.1'}
+
   diff@8.0.4:
     resolution: {integrity: sha512-DPi0FmjiSU5EvQV0++GFDOJ9ASQUVFh5kD+OzOnYdi7n3Wpm9hWWGfB/O2blfHcMVTL5WkQXSnRiK9makhrcnw==}
     engines: {node: '>=0.3.1'}
@@ -9673,6 +9652,9 @@ packages:
     resolution: {integrity: sha512-Jo6dJ04CmSjuznwJSS3pUeWmd/H0ffTlkXXgwZi+eq1UCmqQwCh+eLsYOYCwY991i2Fah4h1BEMCx4qThGbsiA==}
     engines: {node: '>=10'}
 
+  lru_map@0.4.1:
+    resolution: {integrity: sha512-I+lBvqMMFfqaV8CJCISjI3wbjmwVu/VyOoU7+qtu9d7ioW5klMgsTTiUOUp+DJvfTTzKXoPbyC6YfgkNcyPSOg==}
+
   lucide-react@0.400.0:
     resolution: {integrity: sha512-rpp7pFHh3Xd93KHixNgB0SqThMHpYNzsGUu69UaQbSZ75Q/J3m5t6EhKyMT3m4w2WOxmJ2mY0tD3vebnXqQryQ==}
     peerDependencies:
@@ -10904,6 +10886,7 @@ packages:
   recharts@2.15.4:
     resolution: {integrity: sha512-UT/q6fwS3c1dHbXv2uFgYJ9BMFHu3fwnd7AYZaEQhXuYQ4hgsxLvsUXzGdKeZrW5xopzDCvuA2N41WJ88I7zIw==}
     engines: {node: '>=14'}
+    deprecated: 1.x and 2.x branches are no longer active. Bump to Recharts v3 to receive latest features and bugfixes. See https://github.com/recharts/recharts/wiki/3.0-migration-guide
     peerDependencies:
       react: ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -11507,34 +11490,6 @@ packages:
   sql-formatter@15.6.5:
     resolution: {integrity: sha512-fr4TyM1udCSrOHOmouotwUi8dxIDhSLpYNmPePGFVzxq8/i8jd828IapE49QXG7Gzkswxo5WwdAGnYX4YpKoTg==}
     hasBin: true
-
-  sqlite-graft-darwin-arm64@0.2.1:
-    resolution: {integrity: sha512-vjLiKsIADPvZsQitmyDhtdkWf4cBRaerav/aW5bmux+QIbm46rB+onsx9qk2ilsKaRE7dJ5zXgoLwZquWRg69Q==}
-    cpu: [arm64]
-    os: [darwin]
-
-  sqlite-graft-linux-arm64@0.2.1:
-    resolution: {integrity: sha512-f7CPUdtth/wN9r0TQtvL51jWeXEvBtdsGOOmiIHK6kVidLlOtsn690awFaW5pI2qAVEFkQe9B6UT0hE0Vp7RUg==}
-    cpu: [arm64]
-    os: [linux]
-
-  sqlite-graft-linux-x64@0.2.1:
-    resolution: {integrity: sha512-nU713oZV64WI5iBxjQt3JoPYsr2tgzdWmuKRkOUX2s0QJdmL4Wt9ovU+D/UpktunqArWQTaIrMIkD/yq/LDL9Q==}
-    cpu: [x64]
-    os: [linux]
-
-  sqlite-graft-windows-arm64@0.2.1:
-    resolution: {integrity: sha512-Q+tt1zNLwZRVxOe8PMwRwlvJVfrDV50f7hIGABw8ynGU3rRecU6VnJtMlZtIedJDZPsUxIAloIgu+mnLhKU2yQ==}
-    cpu: [arm64]
-    os: [win32]
-
-  sqlite-graft-windows-x64@0.2.1:
-    resolution: {integrity: sha512-mGzdJ/UJXerR97T6Mw4hxAP9xW81CkguRV0AYkJFEi99FpTUbkByWHCLhh07YI/35Gh36GpF609Oz1k7dFroig==}
-    cpu: [x64]
-    os: [win32]
-
-  sqlite-graft@0.2.1:
-    resolution: {integrity: sha512-misQRXKPqy2LE1wHM0GiQuPGOYrZZSETcM2bLozPNl0W5Xbq0mnk/Y02ceZYZh2uJglZ3sxi395vnomybD5Qrg==}
 
   sqlite-vec-darwin-arm64@0.1.7-alpha.2:
     resolution: {integrity: sha512-raIATOqFYkeCHhb/t3r7W7Cf2lVYdf4J3ogJ6GFc8PQEgHCPEsi+bYnm2JT84MzLfTlSTIdxr4/NKv+zF7oLPw==}
@@ -16594,6 +16549,19 @@ snapshots:
   '@pagefind/windows-x64@1.3.0':
     optional: true
 
+  '@pierre/diffs@1.2.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@pierre/theme': 1.0.3
+      '@shikijs/transformers': 3.23.0
+      diff: 8.0.3
+      hast-util-to-html: 9.0.5
+      lru_map: 0.4.1
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+      shiki: 3.23.0
+
+  '@pierre/theme@1.0.3': {}
+
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
@@ -17907,6 +17875,11 @@ snapshots:
     dependencies:
       '@daybrush/utils': 1.13.0
 
+  '@shadcn/react@0.2.0(@types/react@18.3.23)(react@18.3.1)':
+    optionalDependencies:
+      '@types/react': 18.3.23
+      react: 18.3.1
+
   '@shikijs/core@3.23.0':
     dependencies:
       '@shikijs/types': 3.23.0
@@ -17958,6 +17931,11 @@ snapshots:
   '@shikijs/themes@3.7.0':
     dependencies:
       '@shikijs/types': 3.7.0
+
+  '@shikijs/transformers@3.23.0':
+    dependencies:
+      '@shikijs/core': 3.23.0
+      '@shikijs/types': 3.23.0
 
   '@shikijs/types@3.23.0':
     dependencies:
@@ -20424,6 +20402,8 @@ snapshots:
 
   diff@8.0.2: {}
 
+  diff@8.0.3: {}
+
   diff@8.0.4: {}
 
   dir-compare@3.3.0:
@@ -22316,6 +22296,8 @@ snapshots:
   lru-cache@6.0.0:
     dependencies:
       yallist: 4.0.0
+
+  lru_map@0.4.1: {}
 
   lucide-react@0.400.0(react@18.3.1):
     dependencies:
@@ -25004,29 +24986,6 @@ snapshots:
     dependencies:
       argparse: 2.0.1
       nearley: 2.20.1
-
-  sqlite-graft-darwin-arm64@0.2.1:
-    optional: true
-
-  sqlite-graft-linux-arm64@0.2.1:
-    optional: true
-
-  sqlite-graft-linux-x64@0.2.1:
-    optional: true
-
-  sqlite-graft-windows-arm64@0.2.1:
-    optional: true
-
-  sqlite-graft-windows-x64@0.2.1:
-    optional: true
-
-  sqlite-graft@0.2.1:
-    optionalDependencies:
-      sqlite-graft-darwin-arm64: 0.2.1
-      sqlite-graft-linux-arm64: 0.2.1
-      sqlite-graft-linux-x64: 0.2.1
-      sqlite-graft-windows-arm64: 0.2.1
-      sqlite-graft-windows-x64: 0.2.1
 
   sqlite-vec-darwin-arm64@0.1.7-alpha.2:
     optional: true

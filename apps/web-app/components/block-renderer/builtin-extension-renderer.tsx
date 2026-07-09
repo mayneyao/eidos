@@ -61,6 +61,7 @@ interface BuiltInSidebarBlockRendererProps {
   currentSessionId?: string
   locale: string
   syncEnabled?: boolean
+  versioningEnabled?: boolean
   fallback?: ReactNode
 }
 
@@ -228,6 +229,7 @@ export function BuiltInSidebarBlockRenderer({
   currentSessionId,
   locale,
   syncEnabled,
+  versioningEnabled,
   fallback,
 }: BuiltInSidebarBlockRendererProps) {
   const ext = getBuiltInExtension(extensionSlug)
@@ -245,6 +247,7 @@ export function BuiltInSidebarBlockRenderer({
     currentSessionId,
     locale,
     syncEnabled,
+    versioningEnabled,
     theme: resolvedTheme,
   }
 

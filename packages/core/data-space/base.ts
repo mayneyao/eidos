@@ -92,7 +92,7 @@ export abstract class BaseDataSpace {
     setInterval?: typeof setInterval
     embedding?: (text: string) => Promise<Array<number>>
     /**
-     * Extension compiler function. Injected by desktop/headless layer.
+     * Extension compiler function. Injected by the runtime layer.
      * Compiles TypeScript/TSX code and extracts metadata.
      */
     compileExtension?: (

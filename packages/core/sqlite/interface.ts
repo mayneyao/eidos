@@ -43,6 +43,12 @@ export interface ISqlite<T, D> {
 }
 
 type CommonVersionControlResult = Promise<Record<string, any>>
+export type GraftResetMode = "soft" | "mixed" | "hard"
+export type GraftConflictResolution = "ours" | "theirs" | "manual"
+export interface GraftConflictResolveTarget {
+  table?: string
+  rowid?: number
+}
 
 export abstract class BaseServerDatabase {
   filename?: string
@@ -70,6 +76,34 @@ export abstract class BaseServerDatabase {
     return Promise.resolve({})
   }
 
+  commit(_message?: string): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  completeMerge(_message?: string): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  abortMerge(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  conflicts(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  resolveConflict(
+    _resolution: GraftConflictResolution,
+    _path?: string,
+    _target?: GraftConflictResolveTarget
+  ): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  branches(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
   tags(): CommonVersionControlResult {
     return Promise.resolve({})
   }
@@ -83,6 +117,37 @@ export abstract class BaseServerDatabase {
   }
 
   version(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  log(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  show(_rev: string | number): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  diff(
+    _from: string | number,
+    _to?: string | number,
+    _mode: "summary" | "rows" = "summary"
+  ): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  checkoutLsn(_rev: string | number): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  resetTo(
+    _rev: string | number,
+    _mode: GraftResetMode = "hard"
+  ): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  tableLog(_tableName: string): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
@@ -103,11 +168,22 @@ export abstract class BaseServerDatabase {
     return Promise.resolve({})
   }
 
-  clone(remoteLogId?: string): CommonVersionControlResult {
+  clone(remoteUri?: string): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
   convertToGraft(remote: string): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  enableLocalVersioning(): CommonVersionControlResult {
+    return Promise.resolve({})
+  }
+
+  reconfigureRemote(
+    _credentials: any,
+    _remote: string
+  ): CommonVersionControlResult {
     return Promise.resolve({})
   }
 

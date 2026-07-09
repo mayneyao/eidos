@@ -334,6 +334,19 @@ export const useRouterAdapter = () => {
         if (parts.length >= 2) {
           result.sessionId = parts[1]
         }
+      } else if (
+        parts[0] === "graft" &&
+        parts[1] === "commit" &&
+        parts.length >= 3
+      ) {
+        result.lsn = decodeURIComponent(parts[2])
+      } else if (
+        parts[0] === "graft" &&
+        parts[1] === "diff" &&
+        parts.length >= 4
+      ) {
+        result.from = decodeURIComponent(parts[2])
+        result.to = decodeURIComponent(parts[3])
       } else {
         // /:table (node page) - first part is the table/node ID
         result.table = parts[0]

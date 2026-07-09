@@ -390,10 +390,13 @@ export function TabBar({
 
   const dispatchExpandTo = useCallback(
     (
-      app: "files" | "nodes" | "extensions" | "today" | "agent",
+      app: "files" | "nodes" | "extensions" | "today" | "agent" | "graft",
       path: string
     ) => {
       setCurrentApp(app)
+      if (app === "graft") {
+        return
+      }
       if (app === "today") {
         setTimeout(() => {
           window.dispatchEvent(
@@ -422,6 +425,7 @@ export function TabBar({
 
       console.log("tab", tab)
       const url = "http://localhost" + tab.url
+      const pathname = new URL(url).pathname
       // 1) File handler tabs with explicit file paths
       const fileHandlerPattern = new URLPattern({ pathname: "/file-handler" })
       const fileHandlerMatch = fileHandlerPattern.exec(url)
@@ -442,7 +446,13 @@ export function TabBar({
         return
       }
 
-      // 3) Node tabs: "/<nodeId>"
+      // 3) Graft tabs: "/graft", "/graft/diff/...", "/graft/commit/...", etc.
+      if (pathname === "/graft" || pathname.startsWith("/graft/")) {
+        dispatchExpandTo("graft", "")
+        return
+      }
+
+      // 4) Node tabs: "/<nodeId>"
       const nodePattern = new URLPattern({ pathname: "/:nodeId" })
       const nodeMatch = nodePattern.exec(url)
       if (nodeMatch?.pathname?.groups?.nodeId) {
@@ -453,7 +463,7 @@ export function TabBar({
         return
       }
 
-      // 3) Journal tabs: "/journals/:day"
+      // 5) Journal tabs: "/journals/:day"
       const journalPattern = new URLPattern({ pathname: "/journals/:day" })
       const journalMatch = journalPattern.exec(url)
       if (journalMatch?.pathname?.groups?.day) {
@@ -464,7 +474,7 @@ export function TabBar({
         return
       }
 
-      // 4) Extension tabs: "/extensions/<extensionId>"
+      // 6) Extension tabs: "/extensions/<extensionId>"
       const extPattern = new URLPattern({
         pathname: "/extensions/:extensionId",
       })
@@ -478,7 +488,7 @@ export function TabBar({
         return
       }
 
-      // 5) Agent tabs: "/agent/:sessionId"
+      // 7) Agent tabs: "/agent/:sessionId"
       const agentPattern = new URLPattern({
         pathname: "/agent/:sessionId?",
       })

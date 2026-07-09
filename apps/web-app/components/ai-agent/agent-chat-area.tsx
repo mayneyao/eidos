@@ -1,12 +1,11 @@
-import { type RefObject } from "react"
 import { GitFork } from "lucide-react"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { MessageBubble } from "./message-bubble"
 import { type ChatMessage } from "./types"
+import { MessageScrollerItem } from "@/components/ui/message-scroller"
 
 interface AgentChatAreaProps {
   messages: ChatMessage[]
-  messagesEndRef: RefObject<HTMLDivElement | null>
   onFork?: (messageId: string) => void
   onEditStart?: (messageId: string, content: string) => void
   parentId?: string
@@ -17,7 +16,6 @@ interface AgentChatAreaProps {
 
 export function AgentChatArea({
   messages,
-  messagesEndRef,
   onFork,
   onEditStart,
   parentId,
@@ -83,9 +81,14 @@ export function AgentChatArea({
   const lastMessageId = mergedMessages[mergedMessages.length - 1]?.id
 
   return (
-    <div className="flex flex-col w-full space-y-2 select-text">
+    <>
       {mergedMessages.map((m, i) => (
-        <div key={m.id || `msg-${i}`} className="flex flex-col w-full">
+        <MessageScrollerItem
+          key={m.id || `msg-${i}`}
+          messageId={m.id || `msg-${i}`}
+          scrollAnchor={m.role === "user"}
+          className="flex flex-col w-full select-text"
+        >
           <MessageBubble
             message={m}
             globalResults={results}
@@ -108,20 +111,21 @@ export function AgentChatArea({
               </button>
             </div>
           )}
-        </div>
+        </MessageScrollerItem>
       ))}
       {error && (
-        <div className="mx-2 p-3 my-2 text-[11px] text-destructive bg-destructive/5 border border-destructive/10 rounded-lg animate-in fade-in slide-in-from-bottom-1">
-          <span className="font-semibold uppercase tracking-wider mr-2">
-            Execution Error
-          </span>
-          <span className="opacity-90">
-            {error.message ||
-              "An unexpected error occurred during the agent's turn."}
-          </span>
-        </div>
+        <MessageScrollerItem messageId="agent-execution-error">
+          <div className="mx-2 p-3 my-2 text-[11px] text-destructive bg-destructive/5 border border-destructive/10 rounded-lg animate-in fade-in slide-in-from-bottom-1">
+            <span className="font-semibold uppercase tracking-wider mr-2">
+              Execution Error
+            </span>
+            <span className="opacity-90">
+              {error.message ||
+                "An unexpected error occurred during the agent's turn."}
+            </span>
+          </div>
+        </MessageScrollerItem>
       )}
-      <div ref={messagesEndRef as React.LegacyRef<HTMLDivElement>} />
-    </div>
+    </>
   )
 }

@@ -1,9 +1,10 @@
-// IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
-import "./env"
-
 import fs from "fs"
 import path from "path"
-import Database from "better-sqlite3"
+import Database, {
+  type SqliteDatabase,
+  type SqliteOptions,
+} from "./better-sqlite3"
+import { createGraftDbUri } from "./graft-uri"
 
 import type { SyncCredentials } from "@eidos.space/sync"
 import type { SpaceInfo } from "@eidos.space/space-manager"
@@ -11,6 +12,7 @@ import { CREATE_TABLES_SQL, INIT_DATA_SQL } from "@eidos.space/rawdata"
 import {
   applyGraftConfigToEnv,
   isInitializationOperation,
+  writeEidosGraftMergePolicyConfig,
 } from "../sync/helper"
 import { generatePragmaList } from "./config"
 import { loadCustomExtensions, scanCustomExtensions } from "./sqlite-extension"
@@ -18,14 +20,12 @@ import { loadCustomExtensions, scanCustomExtensions } from "./sqlite-extension"
 export interface NodeDomainDbInfo {
   type: "node"
   config: {
-    options?: Database.Options
+    options?: SqliteOptions
     spaceInfo?: SpaceInfo
-    remoteLogId?: string
   }
 }
 
 interface NodeServerDatabaseOptions {
-  remoteLogId?: string
   // for full text search
   simple: {
     libPath: string
@@ -35,10 +35,12 @@ interface NodeServerDatabaseOptions {
   graft?: {
     libPath: string
     enabled?: boolean
+    syncEnabled?: boolean
     remote?: string
     credentials?: SyncCredentials
     isVFSInitialized?: boolean
     provider?: string
+    requireRemoteClone?: boolean
   }
   // vec extension
   vec?: {
@@ -69,7 +71,7 @@ export class NodeDatabaseInitializer {
    * Initialize the database with all necessary extensions and configurations
    */
   async initializeDatabase(config: NodeDomainDbInfo["config"]): Promise<{
-    db: Database.Database
+    db: SqliteDatabase
     isSyncEnabled: boolean
   }> {
     const spaceInfo = config.spaceInfo
@@ -82,17 +84,29 @@ export class NodeDatabaseInitializer {
       if (!fs.existsSync(eidosDirPath)) {
         fs.mkdirSync(eidosDirPath, { recursive: true })
       }
-      const isSyncEnabled = this.options.graft?.enabled ?? false
+      const isGraftEnabled = this.options.graft?.enabled ?? false
+      const isRemoteSyncEnabled =
+        this.options.graft?.syncEnabled ?? this.options.graft?.enabled ?? false
 
       let isInit = false
-      if (isSyncEnabled && this.options.graft?.credentials) {
+      if (isGraftEnabled) {
         isInit = isInitializationOperation(spaceInfo)
         this.logger.log("isInit", isInit)
-        applyGraftConfigToEnv(spaceInfo, this.options.graft?.credentials)
+      }
+      let remoteUri: string | undefined
+      if (isRemoteSyncEnabled) {
+        if (!this.options.graft?.credentials) {
+          throw new Error("Missing sync credentials for Graft remote sync")
+        }
+        remoteUri = applyGraftConfigToEnv(
+          spaceInfo,
+          this.options.graft?.credentials,
+          this.options.graft?.remote
+        )
       }
 
       // Initialize VFS if needed
-      if (isSyncEnabled && this.options.graft?.libPath && !isVFSInitialized) {
+      if (isGraftEnabled && this.options.graft?.libPath && !isVFSInitialized) {
         this.initializeVFS()
       }
 
@@ -100,47 +114,130 @@ export class NodeDatabaseInitializer {
       const { db } = this.createDatabaseConnection(
         spaceInfo,
         config,
-        isSyncEnabled
+        isGraftEnabled
       )
 
-      if (isInit) {
-        this.initializeWithRemoteSpace(db)
+      if (isInit && isRemoteSyncEnabled) {
+        this.initializeWithRemoteSpace(db, remoteUri)
+      } else if (isInit && isGraftEnabled) {
+        this.initializeLocalRepository(db)
+      }
+      if (isGraftEnabled) {
+        writeEidosGraftMergePolicyConfig(spaceInfo.path)
       }
 
       // Initialize database connection (extensions, pragmas)
       this.initializeDatabaseConnection(db)
 
+      if (!isInit && isRemoteSyncEnabled) {
+        this.refreshRemoteRefsOnStartup(db)
+      }
+
       // Load Vec extension
       this.loadVecExtension(db)
 
       // Attach rawdata database if configured
-      this.attachDatabase(db, isSyncEnabled)
+      this.attachDatabase(db, isGraftEnabled)
 
       this.logger.log("Database initialized successfully.")
 
-      return { db, isSyncEnabled }
+      return { db, isSyncEnabled: isGraftEnabled }
     } catch (error) {
       this.logger.error("Error during database initialization:", error)
       throw error
     }
   }
 
-  private initializeWithRemoteSpace(db: Database.Database) {
-    if (!this.options.remoteLogId) {
+  private initializeWithRemoteSpace(db: SqliteDatabase, remoteUri?: string) {
+    if (!remoteUri) {
       this.logger.warn(
-        "Remote log id not found, skipping remote space initialization"
+        "Remote URI not found, skipping remote space initialization"
       )
       return
     }
-    this.logger.log(
-      "Initializing with remote space...",
-      this.options.remoteLogId
-    )
+    this.logger.log("Initializing with remote Graft repository...", remoteUri)
 
-    db.pragma(`graft_clone = "${this.options.remoteLogId}"`)
-    db.pragma(`graft_pull`)
-    db.pragma(`graft_hydrate`)
-    this.logger.log("Remote space initialized successfully.")
+    try {
+      db.pragma(`graft_clone = ${this.pragmaString(remoteUri)}`)
+      this.logger.log("Remote space initialized successfully.")
+    } catch (error) {
+      if (this.options.graft?.requireRemoteClone) {
+        throw error
+      }
+      this.logger.warn(
+        "Remote clone failed; initializing a new local Graft repository:",
+        error
+      )
+      this.initializeLocalRepository(db)
+      this.configureOriginRemote(db, remoteUri)
+      this.pushInitialBranch(db)
+    }
+  }
+
+  private initializeLocalRepository(db: SqliteDatabase) {
+    this.logger.log("Initializing local Graft repository...")
+    db.pragma("graft_init")
+    this.createInitialCommit(db)
+    this.logger.log("Local Graft repository initialized successfully.")
+  }
+
+  private createInitialCommit(db: SqliteDatabase) {
+    try {
+      db.pragma("graft_add")
+      db.pragma(`graft_commit = ${this.pragmaString("Initial version")}`)
+    } catch (error) {
+      if (!this.isNoRepoChangesError(error)) {
+        throw error
+      }
+      this.logger.log("No initial Graft changes to commit.")
+    }
+  }
+
+  private pushInitialBranch(db: SqliteDatabase) {
+    try {
+      db.pragma("graft_push")
+      this.logger.log("Initial Graft branch pushed to remote.")
+    } catch (error) {
+      this.logger.warn("Initial Graft push failed:", error)
+    }
+  }
+
+  private refreshRemoteRefsOnStartup(db: SqliteDatabase) {
+    try {
+      db.pragma("graft_fetch")
+    } catch (error) {
+      this.logger.warn("Graft fetch failed during initialization:", error)
+    }
+  }
+
+  private isNoRepoChangesError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    return (
+      message.includes("no changes added to commit") ||
+      message.includes("NoStagedChanges")
+    )
+  }
+
+  private configureOriginRemote(db: SqliteDatabase, remoteUri: string) {
+    try {
+      db.pragma(
+        `graft_remote_add = ${this.pragmaString(`origin ${remoteUri}`)}`
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!message.includes("remote `origin` already exists")) {
+        throw error
+      }
+      db.pragma(
+        `graft_remote_set_url = ${this.pragmaString(`origin ${remoteUri}`)}`
+      )
+    }
+
+    try {
+      db.pragma(`graft_branch_upstream = ${this.pragmaString("origin/main")}`)
+    } catch (error) {
+      this.logger.warn("Failed to set Graft upstream:", error)
+    }
   }
 
   private initializeVFS() {
@@ -171,16 +268,21 @@ export class NodeDatabaseInitializer {
     spaceInfo: SpaceInfo,
     config: NodeDomainDbInfo["config"],
     isSyncEnabled: boolean
-  ): { db: Database.Database } {
+  ): { db: SqliteDatabase } {
     const dbPath =
       spaceInfo.path == ":memory:"
         ? ":memory:"
         : path.join(spaceInfo.path, ".eidos", "db.sqlite3")
-    const dbUri = isSyncEnabled ? `file:main?vfs=graft` : dbPath
+    const dbUri = isSyncEnabled ? this.graftDbUri(dbPath) : dbPath
 
     this.logger.log("Creating database instance...", dbUri)
     const db = new Database(dbUri, config.options)
     this.logger.log("Database instance created.")
+
+    if (isSyncEnabled) {
+      db.pragma("page_size = 4096")
+      db.pragma("journal_mode = MEMORY")
+    }
 
     // Verify database is open
     if (!db?.open) {
@@ -192,7 +294,15 @@ export class NodeDatabaseInitializer {
     return { db }
   }
 
-  private initializeDatabaseConnection(db: Database.Database) {
+  private graftDbUri(dbPath: string) {
+    return createGraftDbUri(dbPath)
+  }
+
+  private pragmaString(value: string | number) {
+    return `'${String(value).split("'").join("''")}'`
+  }
+
+  private initializeDatabaseConnection(db: SqliteDatabase) {
     this.logger.log(
       "Initializing database connection settings (extensions, pragmas)..."
     )
@@ -255,7 +365,7 @@ export class NodeDatabaseInitializer {
     }
   }
 
-  private loadVecExtension(db: Database.Database) {
+  private loadVecExtension(db: SqliteDatabase) {
     if (this.options.vec?.libPath) {
       db.loadExtension(this.options.vec.libPath)
       const { sqlite_version, vec_version } = db
@@ -274,7 +384,7 @@ export class NodeDatabaseInitializer {
   }
 
   private loadSimpleExtension(
-    db: Database.Database,
+    db: SqliteDatabase,
     options: {
       libPath: string
       dictPath: string
@@ -335,7 +445,7 @@ export class NodeDatabaseInitializer {
     }
   }
 
-  private attachDatabase(db: Database.Database, isSyncEnabled: boolean) {
+  private attachDatabase(db: SqliteDatabase, isSyncEnabled: boolean) {
     if (!this.options.spacePath) {
       return
     }

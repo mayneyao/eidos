@@ -3,6 +3,8 @@
  */
 
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
+import fs from "fs"
+import path from "path"
 import { IpcInjectable, Inject } from "../../common/di"
 import { CredentialsManager } from "./credentials"
 import { getConfigManager } from "../config/config-manager"
@@ -221,18 +223,25 @@ export class SyncService extends IpcServiceBase {
   async cloneSpace(params: CloneSpaceParams): Promise<{
     success: boolean
     space?: any
+    existingSpace?: any
+    pathConflictType?: string
     message?: string
     error?: string
   }> {
+    let registeredSpaceId: string | undefined
+    let shouldCleanupEidosDir = false
     try {
       const registry = getSpaceRegistry()
       const { localPath, remoteUrl, providerId, spaceName } = params
+      shouldCleanupEidosDir = !fs.existsSync(path.join(localPath, ".eidos"))
 
       // 1. Register the space first
       const space = registry.registerSpace(localPath, {
         customName: spaceName,
         remoteUrl,
+        provider: providerId,
       })
+      registeredSpaceId = space.id
 
       // 2. Get or initialize DataSpace with sync enabled
       const dataSpace = await this.dataSpaceManager.getOrSetDataSpace(
@@ -240,6 +249,8 @@ export class SyncService extends IpcServiceBase {
         {
           enabled: true,
           remote: remoteUrl,
+          provider: providerId,
+          requireRemoteClone: true,
         }
       )
 
@@ -258,9 +269,28 @@ export class SyncService extends IpcServiceBase {
       }
     } catch (error) {
       console.error("Failed to clone space:", error)
+      if (registeredSpaceId) {
+        const registry = getSpaceRegistry()
+        registry.removeSpace(registeredSpaceId)
+        if (shouldCleanupEidosDir) {
+          try {
+            fs.rmSync(path.join(params.localPath, ".eidos"), {
+              recursive: true,
+              force: true,
+            })
+          } catch (cleanupError) {
+            console.warn(
+              "Failed to clean up failed clone directory:",
+              cleanupError
+            )
+          }
+        }
+      }
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
+        existingSpace: (error as any)?.existingSpace,
+        pathConflictType: (error as any)?.pathConflictType,
       }
     }
   }

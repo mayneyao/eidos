@@ -12,6 +12,7 @@ import journal_utils_ts from "./blocks/journal/utils.ts?raw"
 import media_preview_index_tsx from "./blocks/media-preview/index.tsx?raw"
 import graft_index_tsx from "./blocks/graft/index.tsx?raw"
 import graft_use_graft_ts from "./blocks/graft/use-graft.ts?raw"
+import graft_commit_history_list_tsx from "./blocks/graft/commit-history-list.tsx?raw"
 import folder_browser_index_tsx from "./blocks/folder-browser/index.tsx?raw"
 import folder_browser_utils_ts from "./blocks/folder-browser/utils.ts?raw"
 import folder_browser_types_ts from "./blocks/folder-browser/types.ts?raw"
@@ -48,6 +49,7 @@ export function initializeExtensionSources() {
   registerExtensionSource("graft", {
     "index.tsx": graft_index_tsx,
     "use-graft.ts": graft_use_graft_ts,
+    "commit-history-list.tsx": graft_commit_history_list_tsx,
   })
 
   // folder-browser

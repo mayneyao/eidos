@@ -5,7 +5,9 @@ import {
   Copy,
   Database,
   FolderOpen,
+  GitBranch,
   HardDrive,
+  History,
   Save,
   Search,
   Settings2,
@@ -39,6 +41,22 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 
+function getExportDatabaseFileName(spaceName: string) {
+  const safeName =
+    spaceName
+      .trim()
+      .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
+      .replace(/\s+/g, "-") || "space"
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
+  return `${safeName}-${timestamp}.sqlite3`
+}
+
+function joinLocalPath(dir: string, fileName: string) {
+  if (!dir) return fileName
+  const separator = dir.includes("\\") ? "\\" : "/"
+  return `${dir.replace(/[\\/]+$/, "")}${separator}${fileName}`
+}
+
 export function GeneralSettings() {
   const { t } = useTranslation()
   const { space } = useCurrentPathInfo()
@@ -55,12 +73,37 @@ export function GeneralSettings() {
   const [spaceInfo, setSpaceInfo] = useState<SpaceInfo | null>(null)
   const [spaceName, setSpaceName] = useState("")
   const [isRenaming, setIsRenaming] = useState(false)
+  const [isExportingDatabase, setIsExportingDatabase] = useState(false)
+  const [isDisablingRemoteSync, setIsDisablingRemoteSync] = useState(false)
+  const [isTurningOffHistory, setIsTurningOffHistory] = useState(false)
+  const [turnOffHistoryConfirmText, setTurnOffHistoryConfirmText] = useState("")
 
   // Node name uniqueness settings
   const [nameUniquenessEnabled, setNameUniquenessEnabled] = useState(false)
   const [isLoadingUniqueness, setIsLoadingUniqueness] = useState(true)
   const [isTogglingUniqueness, setIsTogglingUniqueness] = useState(false)
   const [duplicateCount, setDuplicateCount] = useState(0)
+  const isVersioningEnabled = Boolean(
+    spaceInfo?.versioning?.enabled || spaceInfo?.sync?.enabled
+  )
+  const isRemoteSyncEnabled = Boolean(spaceInfo?.sync?.enabled)
+  const turnOffHistoryConfirmTarget = space || ""
+
+  const reloadCurrentSpaceInfo = async () => {
+    if (!isDesktopMode || typeof window === "undefined" || !window.eidos) {
+      return
+    }
+
+    const info = await window.eidos.spaceMgmt.getCurrentSpace()
+    if (info) {
+      setSpaceInfo(info)
+      setSpaceName(info.name)
+    }
+  }
+
+  const reloadWorkspace = () => {
+    window.setTimeout(() => window.location.reload(), 150)
+  }
 
   useEffect(() => {
     const loadData = async () => {
@@ -70,11 +113,7 @@ export function GeneralSettings() {
 
         // Load current space info
         try {
-          const info = await window.eidos.spaceMgmt.getCurrentSpace()
-          if (info) {
-            setSpaceInfo(info)
-            setSpaceName(info.name)
-          }
+          await reloadCurrentSpaceInfo()
         } catch (error) {
           console.error("Error loading space info:", error)
         }
@@ -116,11 +155,7 @@ export function GeneralSettings() {
       // Reload space info to get updated name
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
         try {
-          const info = await window.eidos.spaceMgmt.getCurrentSpace()
-          if (info) {
-            setSpaceInfo(info)
-            setSpaceName(info.name)
-          }
+          await reloadCurrentSpaceInfo()
         } catch (error) {
           console.error("Error reloading space info:", error)
         }
@@ -205,6 +240,129 @@ export function GeneralSettings() {
       } catch (error) {
         console.error("Error getting space info:", error)
       }
+    }
+  }
+
+  const handleExportDatabase = async () => {
+    if (!isDesktopMode || !space || typeof window === "undefined") return
+
+    setIsExportingDatabase(true)
+    try {
+      const fileName = getExportDatabaseFileName(spaceInfo?.name || space)
+      const result = await window.eidos.showSaveDialog({
+        defaultPath: joinLocalPath(dataFolder, fileName),
+        filters: [
+          {
+            name: "SQLite Database",
+            extensions: ["sqlite3", "sqlite", "db"],
+          },
+        ],
+      })
+
+      if (result.canceled || !result.filePath) {
+        return
+      }
+
+      const exportResult = await window.eidos.space.exportToSqlite({
+        spaceName: spaceInfo?.id || space,
+        outputPath: result.filePath,
+      })
+
+      if (!exportResult?.success) {
+        throw new Error(exportResult?.error || "Failed to export database")
+      }
+
+      toast({
+        title: t("space.settings.exportDatabaseSuccess"),
+        description: exportResult.path || result.filePath,
+      })
+    } catch (error) {
+      console.error("Error exporting database:", error)
+      toast({
+        title: t("space.settings.exportDatabaseFailed"),
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      })
+    } finally {
+      setIsExportingDatabase(false)
+    }
+  }
+
+  const handleDisableRemoteSync = async () => {
+    if (!isDesktopMode || !space || typeof window === "undefined") return
+
+    setIsDisablingRemoteSync(true)
+    try {
+      const result = await window.eidos.spaceMgmt.toggleSpaceSync(space, false)
+      if (!result?.success) {
+        throw new Error(result?.error || "Failed to disable remote sync")
+      }
+
+      await updateSpaceList()
+      await reloadCurrentSpaceInfo()
+      toast({
+        title: t("space.settings.remoteSyncDisabled", "Remote sync disabled"),
+        description: t(
+          "space.settings.reloadingWorkspace",
+          "Reloading workspace..."
+        ),
+      })
+      reloadWorkspace()
+    } catch (error) {
+      console.error("Error disabling remote sync:", error)
+      toast({
+        title: t(
+          "space.settings.disableRemoteSyncFailed",
+          "Failed to disable remote sync"
+        ),
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      })
+    } finally {
+      setIsDisablingRemoteSync(false)
+    }
+  }
+
+  const handleTurnOffLocalHistory = async () => {
+    if (!isDesktopMode || !space || typeof window === "undefined") return
+    if (turnOffHistoryConfirmText !== space) return
+
+    setIsTurningOffHistory(true)
+    try {
+      const result = await window.eidos.spaceMgmt.toggleLocalVersioning(
+        space,
+        false
+      )
+      if (!result?.success) {
+        throw new Error(result?.error || "Failed to turn off local history")
+      }
+
+      await updateSpaceList()
+      await reloadCurrentSpaceInfo()
+      toast({
+        title: t(
+          "space.settings.localHistoryTurnedOff",
+          "Local history turned off"
+        ),
+        description: t(
+          "space.settings.reloadingWorkspace",
+          "Reloading workspace..."
+        ),
+      })
+      reloadWorkspace()
+      setTurnOffHistoryConfirmText("")
+    } catch (error) {
+      console.error("Error turning off local history:", error)
+      toast({
+        title: t(
+          "space.settings.turnOffLocalHistoryFailed",
+          "Failed to turn off local history"
+        ),
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      })
+    } finally {
+      setIsTurningOffHistory(false)
     }
   }
 
@@ -407,6 +565,92 @@ export function GeneralSettings() {
                 </div>
               )}
 
+              {isDesktopMode && isVersioningEnabled && (
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="space-y-0.5 flex-[5] min-w-[240px]">
+                    <Label>{t("space.settings.exportSqliteSnapshot")}</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {t("space.settings.exportSqliteSnapshotDescription")}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportDatabase}
+                    disabled={isExportingDatabase}
+                    className="shrink-0"
+                  >
+                    <HardDrive className="h-4 w-4 mr-2" />
+                    {isExportingDatabase
+                      ? t("space.settings.exportingDatabase")
+                      : t("common.export")}
+                  </Button>
+                </div>
+              )}
+
+              {isDesktopMode && isRemoteSyncEnabled && (
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="space-y-0.5 flex-[5] min-w-[240px]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Label>
+                        {t("space.settings.remoteSync", "Remote Sync")}
+                      </Label>
+                      <Badge variant="outline">
+                        {spaceInfo?.sync?.provider || "sync"}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {t(
+                        "space.settings.disableRemoteSyncDescription",
+                        "Stop pulling and pushing remote changes while keeping local version history."
+                      )}
+                    </p>
+                  </div>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isDisablingRemoteSync}
+                        className="shrink-0"
+                      >
+                        <GitBranch className="h-4 w-4 mr-2" />
+                        {isDisablingRemoteSync
+                          ? t("common.disabling", "Disabling...")
+                          : t(
+                              "space.settings.disableRemoteSync",
+                              "Disable Sync"
+                            )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          {t(
+                            "space.settings.disableRemoteSync",
+                            "Disable Remote Sync"
+                          )}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {t(
+                            "space.settings.disableRemoteSyncConfirm",
+                            "This space will stop syncing with the remote provider. Local version history stays enabled, so commits and local diffs remain available."
+                          )}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>
+                          {t("common.cancel")}
+                        </AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDisableRemoteSync}>
+                          {t("common.continue")}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
+
               {/* Node Name Uniqueness Setting */}
               <div className="py-6 border-t border-border">
                 <div className="flex flex-wrap items-start justify-between gap-4">
@@ -516,6 +760,121 @@ export function GeneralSettings() {
               {t("space.settings.dangerDescription")}
             </p>
             <div className="space-y-4">
+              {isDesktopMode && isVersioningEnabled && (
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="space-y-0.5 flex-[5] min-w-[240px]">
+                    <Label className="text-destructive">
+                      {t(
+                        "space.settings.turnOffLocalHistory",
+                        "Turn Off Local History"
+                      )}
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      {isRemoteSyncEnabled
+                        ? t(
+                            "space.settings.turnOffLocalHistoryRequiresSyncOff",
+                            "Disable remote sync before turning off local version history."
+                          )
+                        : t(
+                            "space.settings.turnOffLocalHistoryDescription",
+                            "Convert this space back to a regular SQLite database. Current data is kept, but local commits and branches are removed from this folder."
+                          )}
+                    </p>
+                  </div>
+                  <AlertDialog
+                    onOpenChange={(open) => {
+                      if (!open) {
+                        setTurnOffHistoryConfirmText("")
+                      }
+                    }}
+                  >
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        disabled={isRemoteSyncEnabled || isTurningOffHistory}
+                        className="w-fit shrink-0"
+                      >
+                        <History className="h-4 w-4 mr-2" />
+                        {isTurningOffHistory
+                          ? t("common.disabling", "Disabling...")
+                          : t(
+                              "space.settings.turnOffLocalHistory",
+                              "Turn Off History"
+                            )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                          <AlertTriangle className="h-5 w-5 text-destructive" />
+                          {t(
+                            "space.settings.turnOffLocalHistory",
+                            "Turn Off Local History"
+                          )}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="space-y-2">
+                          <p>
+                            {t(
+                              "space.settings.turnOffLocalHistoryWarning",
+                              "Eidos will export the current worktree to .eidos/db.sqlite3 and remove the local Graft repository from this folder."
+                            )}
+                          </p>
+                          <p>
+                            {t(
+                              "space.settings.turnOffLocalHistoryBackupHint",
+                              "Use Export SQLite Snapshot first if you want a separate backup file."
+                            )}
+                          </p>
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <div className="space-y-2">
+                        <Label htmlFor="turnOffHistoryConfirm">
+                          {t(
+                            "space.settings.typeSpaceIdToConfirm",
+                            "Type the space ID to confirm"
+                          )}
+                        </Label>
+                        <Input
+                          id="turnOffHistoryConfirm"
+                          value={turnOffHistoryConfirmText}
+                          onChange={(e) =>
+                            setTurnOffHistoryConfirmText(e.target.value)
+                          }
+                          placeholder={turnOffHistoryConfirmTarget}
+                          disabled={isTurningOffHistory}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {t("space.settings.confirmPhraseHint", "Enter")}{" "}
+                          <span className="font-medium text-foreground">
+                            {turnOffHistoryConfirmTarget}
+                          </span>{" "}
+                          {t(
+                            "space.settings.confirmPhraseHintSuffix",
+                            "to confirm."
+                          )}
+                        </p>
+                      </div>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>
+                          {t("common.cancel")}
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleTurnOffLocalHistory}
+                          disabled={
+                            isTurningOffHistory ||
+                            turnOffHistoryConfirmText !==
+                              turnOffHistoryConfirmTarget
+                          }
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          {t("common.continue")}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="text-destructive">
