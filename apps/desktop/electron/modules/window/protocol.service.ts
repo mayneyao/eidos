@@ -124,13 +124,8 @@ export class ProtocolService {
         return
       }
 
-      // Handle regular eidos protocol actions
-      // convert vault to space
-      if (searchParams.vault) {
-        searchParams.space = searchParams.vault
-      } else {
-        searchParams.space = "default"
-      }
+      // Handle regular Eidos protocol actions with a Space context.
+      searchParams.space ||= "default"
       const payload: ProtocolUrlPayload = {
         url: url,
         action: action,

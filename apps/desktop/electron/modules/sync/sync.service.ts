@@ -240,6 +240,7 @@ export class SyncService extends IpcServiceBase {
         customName: spaceName,
         remoteUrl,
         provider: providerId,
+        mode: "legacy",
       })
       registeredSpaceId = space.id
 

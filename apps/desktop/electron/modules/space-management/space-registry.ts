@@ -14,6 +14,7 @@ import {
   type GlobalConfig,
 } from "@eidos.space/space-manager"
 import { getConfigManager } from "../config/config-manager"
+import { resolveStartupSpaceId } from "./startup-space"
 
 export type { SpaceInfo, SpacesConfig, GlobalConfig }
 
@@ -106,6 +107,7 @@ export class SpaceRegistry extends BaseSpaceRegistry {
 
           const space = this.registerSpace(spacePath, {
             customName: folder.charAt(0).toUpperCase() + folder.slice(1),
+            mode: "legacy",
           })
           migratedSpaces.push(space)
         }
@@ -153,41 +155,5 @@ export function resolveStartupSpace(
   registry: SpaceRegistry
 ): string | undefined {
   const configManager = getConfigManager()
-
-  let spaceId: string | undefined
-
-  if (protocolSpaceId) {
-    if (registry.validateSpace(protocolSpaceId)) {
-      spaceId = protocolSpaceId
-      console.log("Opening space from protocol URL:", spaceId)
-      configManager.setLastOpenedSpace(spaceId)
-    } else {
-      console.warn(`Space from protocol URL not found: ${protocolSpaceId}`)
-      spaceId = configManager.getLastOpenedSpace()
-    }
-  } else {
-    spaceId = configManager.getLastOpenedSpace()
-  }
-
-  if (!spaceId) {
-    const firstSpace = registry.getFirstSpace()
-    spaceId = firstSpace?.id
-
-    if (spaceId) {
-      configManager.setLastOpenedSpace(spaceId)
-    }
-  }
-
-  if (spaceId && !registry.validateSpace(spaceId)) {
-    console.warn(
-      `Space ${spaceId} is invalid, falling back to first available space`
-    )
-    const firstSpace = registry.getFirstSpace()
-    spaceId = firstSpace?.id
-    if (spaceId) {
-      configManager.setLastOpenedSpace(spaceId)
-    }
-  }
-
-  return spaceId
+  return resolveStartupSpaceId(protocolSpaceId, registry, configManager)
 }

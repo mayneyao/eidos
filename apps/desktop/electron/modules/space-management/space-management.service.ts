@@ -3,8 +3,26 @@
  */
 
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
+import {
+  FileSpaceIndex,
+  SpaceFiles,
+  uniqueSpaceEntryName,
+  type FileSpaceBacklink,
+  type FileSpaceIndexStatus,
+  type FileSpaceLinkResolution,
+  type FileSpaceMarkdownMetadata,
+  type FileSpaceSearchOptions,
+  type FileSpaceSearchResult,
+  type FileSpaceTag,
+  type ListSpaceFilesOptions,
+  type SpaceBinaryFile,
+  type SpaceFileEntry,
+  type SpaceTextFile,
+} from "@eidos.space/file-space"
+import type { SpaceMode } from "@eidos.space/space-manager"
 import fs from "fs"
 import path from "path"
+import { dialog, shell, type OpenDialogOptions } from "electron"
 import { IpcInjectable, Inject, container } from "../../common/di"
 import { SpaceRegistry } from "./space-registry"
 import { MainWindowProvider } from "./main-window.provider"
@@ -29,6 +47,11 @@ import { BrowserService } from "../browser/browser.service"
  */
 @IpcInjectable("space-mgmt")
 export class SpaceManagementService extends IpcServiceBase {
+  private readonly fileSpaces = new Map<string, SpaceFiles>()
+  private readonly fileSpaceIndexes = new Map<string, FileSpaceIndex>()
+  private activeFileWatcher: ReturnType<SpaceFiles["watch"]> | null = null
+  private activeFileWatcherSpaceId: string | null = null
+
   constructor(
     @Inject(SpaceRegistry) private registry: SpaceRegistry,
     @Inject(MainWindowProvider) private windowProvider: MainWindowProvider,
@@ -90,7 +113,11 @@ export class SpaceManagementService extends IpcServiceBase {
    */
   registerSpace(
     spacePath: string,
-    options: { customName?: string; remoteUrl?: string } = {}
+    options: {
+      customName?: string
+      remoteUrl?: string
+      mode?: SpaceMode
+    } = {}
   ): {
     success: boolean
     space?: any
@@ -102,6 +129,7 @@ export class SpaceManagementService extends IpcServiceBase {
       const space = this.registry.registerSpace(spacePath, {
         customName: options.customName,
         remoteUrl: options.remoteUrl,
+        mode: options.mode,
       })
       return { success: true, space }
     } catch (error: any) {
@@ -118,9 +146,26 @@ export class SpaceManagementService extends IpcServiceBase {
    * Remove a space
    * IPC: space-mgmt:removeSpace
    */
-  removeSpace(spaceId: string): { success: boolean } {
+  async removeSpace(spaceId: string): Promise<{
+    success: boolean
+    nextSpaceId?: string
+  }> {
+    const configManager = getConfigManager()
+    const removingCurrent = configManager.getLastOpenedSpace() === spaceId
     const success = this.registry.removeSpace(spaceId)
-    return { success }
+    if (!success) return { success: false }
+
+    if (this.activeFileWatcherSpaceId === spaceId) {
+      this._stopFileWatcher()
+    }
+    this.fileSpaces.delete(spaceId)
+    this.fileSpaceIndexes.delete(spaceId)
+    if (!removingCurrent) return { success: true }
+
+    const nextSpaceId = this.registry.getFirstValidSpace()?.id
+    configManager.setLastOpenedSpace(nextSpaceId)
+    await this.dataSpaceManager.close()
+    return { success: true, nextSpaceId }
   }
 
   /**
@@ -134,10 +179,13 @@ export class SpaceManagementService extends IpcServiceBase {
     try {
       const success = this.registry.updateSpace(spaceId, updates)
       if (success) {
-        this.processPool.sendToProcess(spaceId, {
-          type: "update-space-info",
-          spaceInfo: this.registry.getSpace(spaceId),
-        })
+        const space = this.registry.getSpace(spaceId)
+        if (space?.mode === "legacy") {
+          this.processPool.sendToProcess(spaceId, {
+            type: "update-space-info",
+            spaceInfo: space,
+          })
+        }
         return { success: true }
       } else {
         return { success: false, error: "Space not found" }
@@ -151,24 +199,37 @@ export class SpaceManagementService extends IpcServiceBase {
    * Switch to a different space
    * IPC: space-mgmt:switchSpace
    */
-  async switchSpace(spaceId: string): Promise<{ success: boolean }> {
+  async switchSpace(
+    spaceId: string
+  ): Promise<{ success: boolean; error?: string }> {
     const space = this.registry.getSpace(spaceId)
 
     if (!space) {
       throw new Error(`Space not found: ${spaceId}`)
     }
+    if (!this.registry.validateSpace(spaceId)) {
+      throw new Error(`Space is unavailable: ${space.name}`)
+    }
+
+    if (space.mode === "file") {
+      const files = this._getFileSpace(space.id)
+      await files.list("")
+      await this.dataSpaceManager.close()
+      this._ensureFileWatcher(space.id)
+    } else {
+      this._stopFileWatcher()
+      console.log(`Pre-initializing DataSpace for: ${spaceId}`)
+      try {
+        await this.dataSpaceManager.getOrSetDataSpace(spaceId)
+        console.log(`DataSpace initialized for: ${spaceId}`)
+      } catch (error) {
+        console.error(`Failed to initialize DataSpace for ${spaceId}:`, error)
+        throw error
+      }
+    }
 
     const configManager = getConfigManager()
     configManager.setLastOpenedSpace(spaceId)
-
-    console.log(`Pre-initializing DataSpace for: ${spaceId}`)
-    try {
-      await this.dataSpaceManager.getOrSetDataSpace(spaceId)
-      console.log(`DataSpace initialized for: ${spaceId}`)
-    } catch (error) {
-      console.error(`Failed to initialize DataSpace for ${spaceId}:`, error)
-      throw error
-    }
 
     const win = this.windowProvider.getWindow()
     if (win) {
@@ -219,6 +280,284 @@ export class SpaceManagementService extends IpcServiceBase {
     return { success: true }
   }
 
+  async listFiles(
+    spaceId: string,
+    relativeDirectory = "",
+    options: ListSpaceFilesOptions = {}
+  ): Promise<SpaceFileEntry[]> {
+    const files = this._getFileSpace(spaceId)
+    this._ensureFileWatcher(spaceId)
+    return files.list(relativeDirectory, options)
+  }
+
+  async readFile(
+    spaceId: string,
+    relativePath: string
+  ): Promise<SpaceTextFile> {
+    return this._getFileSpace(spaceId).readText(relativePath)
+  }
+
+  async readBinaryFile(
+    spaceId: string,
+    relativePath: string
+  ): Promise<SpaceBinaryFile> {
+    return this._getFileSpace(spaceId).readBinary(relativePath)
+  }
+
+  async getRelativeFilePath(
+    spaceId: string,
+    systemPath: string
+  ): Promise<string | null> {
+    return this._getFileSpace(spaceId).getRelativeFilePath(systemPath)
+  }
+
+  async writeFile(
+    spaceId: string,
+    relativePath: string,
+    content: string,
+    expectedMtimeMs?: number
+  ): Promise<SpaceTextFile> {
+    const file = await this._getFileSpace(spaceId).writeText(
+      relativePath,
+      content,
+      expectedMtimeMs
+    )
+    this.fileSpaceIndexes.get(spaceId)?.updateTextFile(file)
+    return file
+  }
+
+  async createFile(
+    spaceId: string,
+    relativePath: string,
+    content = ""
+  ): Promise<SpaceTextFile> {
+    const file = await this._getFileSpace(spaceId).createText(
+      relativePath,
+      content
+    )
+    this.fileSpaceIndexes.get(spaceId)?.updateTextFile(file)
+    return file
+  }
+
+  async createDirectory(
+    spaceId: string,
+    relativePath: string
+  ): Promise<SpaceFileEntry> {
+    const directory =
+      await this._getFileSpace(spaceId).createDirectory(relativePath)
+    this._invalidateFileIndex(spaceId)
+    return directory
+  }
+
+  async moveFile(
+    spaceId: string,
+    sourcePath: string,
+    destinationPath: string
+  ): Promise<{ success: true }> {
+    await this._getFileSpace(spaceId).move(sourcePath, destinationPath)
+    this.fileSpaceIndexes.get(spaceId)?.movePath(sourcePath, destinationPath)
+    return { success: true }
+  }
+
+  async removeFile(
+    spaceId: string,
+    relativePath: string
+  ): Promise<{ success: true }> {
+    await this._getFileSpace(spaceId).remove(relativePath)
+    this.fileSpaceIndexes.get(spaceId)?.removePath(relativePath)
+    return { success: true }
+  }
+
+  async importFiles(
+    spaceId: string,
+    destinationDirectory = ""
+  ): Promise<{
+    canceled: boolean
+    imported: SpaceFileEntry[]
+    errors: Array<{ sourcePath: string; message: string }>
+  }> {
+    const files = this._getFileSpace(spaceId)
+    const existingEntries = await files.list(destinationDirectory)
+    const existingNames = new Set(
+      existingEntries.map((entry) => entry.name.toLowerCase())
+    )
+    const options: OpenDialogOptions = {
+      properties: ["openFile", "multiSelections"],
+    }
+    const owner = this.windowProvider.getWindow()
+    const selection = owner
+      ? await dialog.showOpenDialog(owner, options)
+      : await dialog.showOpenDialog(options)
+    if (selection.canceled) {
+      return { canceled: true, imported: [], errors: [] }
+    }
+
+    const imported: SpaceFileEntry[] = []
+    const errors: Array<{ sourcePath: string; message: string }> = []
+    for (const sourcePath of selection.filePaths) {
+      const filename = uniqueSpaceEntryName(
+        existingNames,
+        path.basename(sourcePath)
+      )
+      const destinationPath = destinationDirectory
+        ? `${destinationDirectory}/${filename}`
+        : filename
+      try {
+        const entry = await files.importFile(sourcePath, destinationPath)
+        imported.push(entry)
+        existingNames.add(filename.toLowerCase())
+        const index = this.fileSpaceIndexes.get(spaceId)
+        if (index) {
+          await index
+            .handleFileChange(entry.path)
+            .catch(() => index.invalidate())
+        }
+      } catch (error) {
+        errors.push({
+          sourcePath,
+          message: error instanceof Error ? error.message : "Import failed",
+        })
+      }
+    }
+    return { canceled: false, imported, errors }
+  }
+
+  async searchFiles(
+    spaceId: string,
+    query: string,
+    options: FileSpaceSearchOptions = {}
+  ): Promise<FileSpaceSearchResult[]> {
+    this._ensureFileWatcher(spaceId)
+    return this._getFileIndex(spaceId).search(query, options)
+  }
+
+  async resolveFileLink(
+    spaceId: string,
+    currentFilePath: string,
+    target: string
+  ): Promise<FileSpaceLinkResolution> {
+    this._ensureFileWatcher(spaceId)
+    return this._getFileIndex(spaceId).resolveLink(currentFilePath, target)
+  }
+
+  async getFileIndexStatus(spaceId: string): Promise<FileSpaceIndexStatus> {
+    this._ensureFileWatcher(spaceId)
+    return this._getFileIndex(spaceId).getStatus()
+  }
+
+  async rebuildFileIndex(spaceId: string): Promise<FileSpaceIndexStatus> {
+    this._ensureFileWatcher(spaceId)
+    const index = this._getFileIndex(spaceId)
+    index.invalidate()
+    return index.refresh()
+  }
+
+  async getFileBacklinks(
+    spaceId: string,
+    relativePath: string
+  ): Promise<FileSpaceBacklink[]> {
+    this._ensureFileWatcher(spaceId)
+    return this._getFileIndex(spaceId).getBacklinks(relativePath)
+  }
+
+  async getFileDocumentMetadata(
+    spaceId: string,
+    relativePath: string
+  ): Promise<FileSpaceMarkdownMetadata | null> {
+    this._ensureFileWatcher(spaceId)
+    return this._getFileIndex(spaceId).getDocumentMetadata(relativePath)
+  }
+
+  async listFileTags(spaceId: string): Promise<FileSpaceTag[]> {
+    this._ensureFileWatcher(spaceId)
+    return this._getFileIndex(spaceId).listTags()
+  }
+
+  async revealFile(
+    spaceId: string,
+    relativePath = ""
+  ): Promise<{ success: true }> {
+    const systemPath =
+      await this._getFileSpace(spaceId).getSystemPath(relativePath)
+    if (relativePath) {
+      shell.showItemInFolder(systemPath)
+    } else {
+      const error = await shell.openPath(systemPath)
+      if (error) throw new Error(error)
+    }
+    return { success: true }
+  }
+
+  private _getFileSpace(spaceId: string): SpaceFiles {
+    const space = this.registry.getSpace(spaceId)
+    if (!space) {
+      throw new Error(`Space not found: ${spaceId}`)
+    }
+    if (space.mode !== "file") {
+      throw new Error(`Space is not file-based: ${spaceId}`)
+    }
+    const existing = this.fileSpaces.get(spaceId)
+    if (existing?.root === space.path) {
+      return existing
+    }
+    const files = new SpaceFiles(space.path)
+    this.fileSpaces.set(spaceId, files)
+    this.fileSpaceIndexes.delete(spaceId)
+    return files
+  }
+
+  private _getFileIndex(spaceId: string): FileSpaceIndex {
+    const existing = this.fileSpaceIndexes.get(spaceId)
+    if (existing) return existing
+    const index = new FileSpaceIndex(this._getFileSpace(spaceId))
+    this.fileSpaceIndexes.set(spaceId, index)
+    return index
+  }
+
+  private _invalidateFileIndex(spaceId: string): void {
+    this.fileSpaceIndexes.get(spaceId)?.invalidate()
+  }
+
+  private _ensureFileWatcher(spaceId: string): void {
+    if (this.activeFileWatcherSpaceId === spaceId && this.activeFileWatcher) {
+      return
+    }
+    this._stopFileWatcher()
+    try {
+      const files = this._getFileSpace(spaceId)
+      this.activeFileWatcher = files.watch((change) => {
+        const index = this.fileSpaceIndexes.get(spaceId)
+        const notifyRenderer = () => {
+          this.windowProvider
+            .getWindow()
+            ?.webContents.send("space-files:changed", { spaceId, ...change })
+        }
+        if (!index) {
+          notifyRenderer()
+          return
+        }
+        if (change.eventType === "rescan") {
+          index.invalidate()
+          notifyRenderer()
+          return
+        }
+        void index
+          .handleFileChange(change.path)
+          .catch(() => index.invalidate())
+          .finally(notifyRenderer)
+      })
+      this.activeFileWatcherSpaceId = spaceId
+    } catch (error) {
+      console.warn(`Unable to watch file Space ${spaceId}:`, error)
+    }
+  }
+
+  private _stopFileWatcher(): void {
+    this.activeFileWatcher?.close()
+    this.activeFileWatcher = null
+    this.activeFileWatcherSpaceId = null
+  }
+
   /**
    * Toggle sync for a space
    * IPC: space-mgmt:toggleSpaceSync
@@ -232,6 +571,12 @@ export class SpaceManagementService extends IpcServiceBase {
     const space = this.registry.getSpace(spaceId)
     if (!space) {
       return { success: false, error: "Space not found" }
+    }
+    if (space.mode === "file") {
+      return {
+        success: false,
+        error: "Legacy database sync is not available for file Spaces",
+      }
     }
 
     const dataSpace = this.dataSpaceManager.getDataSpace()
@@ -315,6 +660,12 @@ export class SpaceManagementService extends IpcServiceBase {
     const space = this.registry.getSpace(spaceId)
     if (!space) {
       return { success: false, error: "Space not found" }
+    }
+    if (space.mode === "file") {
+      return {
+        success: false,
+        error: "Legacy database versioning is not available for file Spaces",
+      }
     }
 
     const dataSpace = this.dataSpaceManager.getDataSpace()

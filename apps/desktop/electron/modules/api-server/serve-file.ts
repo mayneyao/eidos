@@ -42,6 +42,7 @@ export async function serveFile(filePath: string, c: any) {
     c.header("Cross-Origin-Embedder-Policy", "require-corp")
     c.header("Cross-Origin-Resource-Policy", "cross-origin")
     c.header("Accept-Ranges", "bytes")
+    c.header("Cache-Control", "no-store")
 
     const size = stat.size
 

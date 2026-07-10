@@ -105,6 +105,16 @@ export class DataSpaceManager {
       return this.initializationPromise
     }
 
+    const spaceInfo = this.spaceRegistry.getSpace(spaceId)
+    if (!spaceInfo) {
+      throw new Error(`Space not found: ${spaceId}`)
+    }
+    if (spaceInfo.mode === "file") {
+      throw new Error(
+        `File Space ${spaceId} does not have a legacy DataSpace database`
+      )
+    }
+
     this.initializationPromise = (async () => {
       log.info(`Initializing data space manager for space: ${spaceId}`)
       this.currentSpaceId = spaceId
@@ -116,11 +126,6 @@ export class DataSpaceManager {
       const vecLibPath = getResourcePath("dist-sqlite-ext/libvec")
 
       // Get current sync provider from config
-      const spaceInfo = this.spaceRegistry.getSpace(spaceId)
-      if (!spaceInfo) {
-        throw new Error(`Space not found: ${spaceId}`)
-      }
-
       // Use space's provider if set, otherwise use default
       const providerId =
         syncOptions?.provider ||

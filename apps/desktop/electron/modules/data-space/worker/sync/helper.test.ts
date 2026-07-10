@@ -51,6 +51,7 @@ describe("graft sync helpers", () => {
         id: "remote-space",
         name: "Remote Space",
         path: root,
+        mode: "legacy",
         sync: {
           enabled: true,
           remote: "eidos.space/bucket/remote-space.db",
@@ -79,6 +80,7 @@ describe("graft sync helpers", () => {
         id: "local-space-id",
         name: "Remote Space",
         path: root,
+        mode: "legacy",
         sync: {
           enabled: false,
           remote: "eidos.space/bucket/stale-space.db",

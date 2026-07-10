@@ -1,8 +1,12 @@
 import path from "path"
-import { Hono } from "hono"
+import type { Hono } from "hono"
 import { getSpaceFileFromPath } from "@/apps/desktop/electron/utils/paths"
 import { serveFile } from "../serve-file"
 import { extractSpaceIdFromRequest } from "../utils/extract-space"
+import {
+  getSpaceProjectFileErrorResponse,
+  resolveSpaceProjectFilePath,
+} from "./space-project-file"
 import type { ServerContext } from "../server"
 
 /**
@@ -70,12 +74,18 @@ export function setupFileRoutes(app: Hono, ctx: ServerContext) {
         return c.text(`Space not found: ${spaceId}`, 404)
       }
 
-      const requestPath = c.req.path.replace("/~", "")
-      const fullPath = path.join(space.path, requestPath)
+      const requestPath = c.req.path.startsWith("/~/")
+        ? c.req.path.slice(3)
+        : ""
+      const fullPath = await resolveSpaceProjectFilePath(
+        space.path,
+        requestPath
+      )
 
       return serveFile(fullPath, c)
-    } catch (error: any) {
-      return c.text(`Error serving project file: ${error.message}`, 500)
+    } catch (error: unknown) {
+      const response = getSpaceProjectFileErrorResponse(error)
+      return c.text(response.message, response.status)
     }
   })
 
