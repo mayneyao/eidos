@@ -4,6 +4,7 @@ import {
   Copy,
   FileDiff,
   FileText,
+  FileWarning,
   GitCommitHorizontal,
   LoaderCircle,
   RotateCcw,
@@ -18,8 +19,10 @@ import type {
   SpaceVersionRestorePathRequest,
   SpaceVersionRestorePathResult,
   SpaceVersionStatus,
+  SpaceVersionTextContentDiff,
   SpaceVersioningOperation,
 } from "@/apps/web-app/hooks/use-space-versioning"
+import { DiffView } from "@/components/table/diff-view"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +58,82 @@ interface RestoreFeedback {
   message: string
 }
 
+function formatFileSize(size: number): string {
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function TextContentDetails({
+  content,
+  loading,
+  error,
+  path,
+}: {
+  content: SpaceVersionTextContentDiff | null
+  loading: boolean
+  error: string | null
+  path: string
+}) {
+  if (loading) {
+    return (
+      <div className="flex min-h-24 items-center justify-center text-muted-foreground">
+        <LoaderCircle
+          className="h-4 w-4 animate-spin"
+          aria-label="Loading text content diff"
+        />
+      </div>
+    )
+  }
+  if (error) {
+    return (
+      <div className="flex items-start gap-2 px-3 py-3 text-xs text-destructive">
+        <FileWarning className="mt-0.5 h-4 w-4 shrink-0" />
+        <p className="leading-5">{error}</p>
+      </div>
+    )
+  }
+  if (!content) {
+    return (
+      <p className="px-3 py-3 text-xs leading-5 text-muted-foreground">
+        Text content was not returned for this path.
+      </p>
+    )
+  }
+
+  const unavailable = [content.before, content.after].find(
+    (state) => state.state !== "absent" && state.state !== "utf8"
+  )
+  if (unavailable) {
+    const message =
+      unavailable.state === "too_large"
+        ? `Content preview was skipped because this version is ${formatFileSize(unavailable.size)}; history previews are limited to 1 MB per side.`
+        : unavailable.state === "missing_payload"
+          ? "Historical content is not available on this device. Fetch the Graft payload before inspecting this diff."
+          : "Graft classified this path as text, but the complete historical content is not valid UTF-8."
+    return (
+      <div className="flex items-start gap-2 px-3 py-3 text-xs text-muted-foreground">
+        <FileWarning className="mt-0.5 h-4 w-4 shrink-0" />
+        <p className="max-w-md leading-5">{message}</p>
+      </div>
+    )
+  }
+
+  const oldContent =
+    content.before.state === "utf8" ? content.before.content : ""
+  const newContent = content.after.state === "utf8" ? content.after.content : ""
+  return (
+    <div className="min-w-0 overflow-auto" data-testid="text-content-diff">
+      <DiffView
+        oldContent={oldContent}
+        newContent={newContent}
+        filename={path}
+        diffStyle="unified"
+      />
+    </div>
+  )
+}
+
 function pathsOverlap(left: string, right: string): boolean {
   return (
     left === right ||
@@ -69,12 +148,18 @@ function ChangeDetails({
   error,
   notice,
   selectedPath,
+  content,
+  contentLoading,
+  contentError,
 }: {
   diff: SpaceVersionDiff | null
   loading: boolean
   error: string | null
   notice: string | null
   selectedPath: string | null
+  content: SpaceVersionTextContentDiff | null
+  contentLoading: boolean
+  contentError: string | null
 }) {
   if (loading) {
     return (
@@ -130,39 +215,58 @@ function ChangeDetails({
     external: "External content",
     unknown: "Storage unavailable",
   }
+  const metadataNotice =
+    pathChange.kind === "binary_file"
+      ? "Binary history is tracked, but content preview is not available. Restore this version to inspect the file in the Space."
+      : pathChange.kind === "sqlite_database"
+        ? "SQLite-aware table details will arrive with Base support. This version still tracks and restores the complete file."
+        : pathChange.kind === "unknown"
+          ? "Graft did not return a recognized content type for this path."
+          : null
   return (
-    <div className="flex h-full items-start gap-2.5 px-3 py-3 text-xs">
-      <FileDiff className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className={cn("font-medium", meta.className)}>
-            {meta.label}
-          </span>
-          <code
-            className="min-w-0 truncate font-mono text-[10px] text-muted-foreground"
-            title={pathChange.path}
-          >
-            {pathChange.path}
-          </code>
-        </div>
-        <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
-          <span>{kindLabel[pathChange.kind]}</span>
-          <span aria-hidden="true">·</span>
-          <span>{storageLabel[pathChange.storage]}</span>
-          {diff.from && diff.to ? (
-            <>
-              <span aria-hidden="true">·</span>
-              <span title={`${diff.from} → ${diff.to}`}>
-                {shortCommitId(diff.from)} → {shortCommitId(diff.to)}
-              </span>
-            </>
+    <div className="flex min-h-full flex-col text-xs">
+      <div className="flex shrink-0 items-start gap-2.5 border-b px-3 py-2.5">
+        <FileDiff className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={cn("font-medium", meta.className)}>
+              {meta.label}
+            </span>
+            <code
+              className="min-w-0 truncate font-mono text-[10px] text-muted-foreground"
+              title={pathChange.path}
+            >
+              {pathChange.path}
+            </code>
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
+            <span>{kindLabel[pathChange.kind]}</span>
+            <span aria-hidden="true">·</span>
+            <span>{storageLabel[pathChange.storage]}</span>
+            {diff.from && diff.to ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span title={`${diff.from} → ${diff.to}`}>
+                  {shortCommitId(diff.from)} → {shortCommitId(diff.to)}
+                </span>
+              </>
+            ) : null}
+          </div>
+          {metadataNotice ? (
+            <p className="mt-2 max-w-md leading-5 text-muted-foreground">
+              {metadataNotice}
+            </p>
           ) : null}
         </div>
-        <p className="mt-2 max-w-md leading-5 text-muted-foreground">
-          Graft currently provides path-level metadata for this comparison;
-          content preview is not available in Space history yet.
-        </p>
       </div>
+      {pathChange.kind === "text_file" && selectedPath ? (
+        <TextContentDetails
+          content={content}
+          loading={contentLoading || (!content && !contentError)}
+          error={contentError}
+          path={selectedPath}
+        />
+      ) : null}
     </div>
   )
 }
@@ -185,6 +289,10 @@ export function CommitInspector({
   const [diffLoading, setDiffLoading] = useState(false)
   const [diffError, setDiffError] = useState<string | null>(null)
   const [diffNotice, setDiffNotice] = useState<string | null>(null)
+  const [contentDiff, setContentDiff] =
+    useState<SpaceVersionTextContentDiff | null>(null)
+  const [contentLoading, setContentLoading] = useState(false)
+  const [contentError, setContentError] = useState<string | null>(null)
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
   const [restoreFeedback, setRestoreFeedback] =
     useState<RestoreFeedback | null>(null)
@@ -196,6 +304,9 @@ export function CommitInspector({
     setSelectedPath(commit?.changedPaths[0]?.path ?? null)
     setDiff(null)
     setDiffNotice(null)
+    setContentDiff(null)
+    setContentLoading(false)
+    setContentError(null)
     setDetailError(null)
     setRestoreDialogOpen(false)
     setRestoreFeedback(null)
@@ -276,6 +387,57 @@ export function CommitInspector({
       cancelled = true
     }
   }, [detail, detailReadyId, getDiff])
+
+  useEffect(() => {
+    let cancelled = false
+    setContentDiff(null)
+    setContentError(null)
+    setContentLoading(false)
+    if (
+      !detail ||
+      detailReadyId !== detail.id ||
+      !diff ||
+      !diff.from ||
+      !diff.to ||
+      !selectedPath
+    ) {
+      return
+    }
+    const selectedMetadata = diff.paths.find(
+      (entry) => entry.path === selectedPath
+    )
+    if (selectedMetadata?.kind !== "text_file") {
+      return
+    }
+
+    setContentLoading(true)
+    void getDiff({
+      from: diff.from,
+      to: diff.to,
+      path: selectedPath,
+      includeContent: true,
+    })
+      .then((contentResult) => {
+        if (cancelled) return
+        if (!contentResult.content) {
+          throw new Error("Graft returned no text content for this path")
+        }
+        setContentDiff(contentResult.content)
+      })
+      .catch((loadError) => {
+        if (!cancelled) {
+          setContentError(
+            loadError instanceof Error ? loadError.message : String(loadError)
+          )
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setContentLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [detail, detailReadyId, diff, getDiff, selectedPath])
 
   useEffect(() => {
     setRestoreFeedback(null)
@@ -547,6 +709,9 @@ export function CommitInspector({
             error={diffError}
             notice={diffNotice}
             selectedPath={selectedPath}
+            content={contentDiff?.path === selectedPath ? contentDiff : null}
+            contentLoading={contentLoading}
+            contentError={contentError}
           />
         </div>
       </section>

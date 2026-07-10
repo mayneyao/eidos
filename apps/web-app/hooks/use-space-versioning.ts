@@ -69,18 +69,43 @@ export interface SpaceVersionPathChange {
   storage: SpaceVersionPathStorage
 }
 
+export type SpaceVersionTextContentState =
+  | { state: "absent" }
+  | {
+      state: "utf8"
+      content: string
+      size: number
+      contentHash: string
+    }
+  | {
+      state: "too_large" | "missing_payload" | "invalid_utf8"
+      size: number
+      contentHash: string
+    }
+
+export interface SpaceVersionTextContentDiff {
+  path: string
+  change: SpaceVersionPathChangeKind
+  kind: "text_file"
+  storage: SpaceVersionPathStorage
+  before: SpaceVersionTextContentState
+  after: SpaceVersionTextContentState
+}
+
 export interface SpaceVersionDiff {
   currentHead: string | null
   currentBranch: string | null
   from: string | null
   to: string | null
   paths: SpaceVersionPathChange[]
+  content: SpaceVersionTextContentDiff | null
 }
 
 export interface SpaceVersionDiffRequest {
   from: string
   to?: string
   path?: string
+  includeContent?: boolean
 }
 
 export type SpaceVersionRestoreEffect =
@@ -569,6 +594,57 @@ function normalizeVersionPathChange(
   }
 }
 
+function normalizeTextContentState(
+  value: unknown
+): SpaceVersionTextContentState | null {
+  if (!isRecord(value)) return null
+  if (value.state === "absent") return { state: "absent" }
+  const size = value.size
+  const contentHash = asString(value.contentHash)
+  if (
+    typeof size !== "number" ||
+    !Number.isSafeInteger(size) ||
+    size < 0 ||
+    !contentHash
+  ) {
+    return null
+  }
+  if (value.state === "utf8" && typeof value.content === "string") {
+    return {
+      state: "utf8",
+      content: value.content,
+      size,
+      contentHash,
+    }
+  }
+  if (
+    value.state === "too_large" ||
+    value.state === "missing_payload" ||
+    value.state === "invalid_utf8"
+  ) {
+    return { state: value.state, size, contentHash }
+  }
+  return null
+}
+
+function normalizeTextContentDiff(
+  value: unknown
+): SpaceVersionTextContentDiff | null {
+  if (!isRecord(value) || value.kind !== "text_file") return null
+  const path = normalizePath(value.path)
+  const before = normalizeTextContentState(value.before)
+  const after = normalizeTextContentState(value.after)
+  if (!path || !before || !after) return null
+  return {
+    path,
+    change: normalizePathChangeKind(value.change),
+    kind: "text_file",
+    storage: normalizePathStorage(value.storage),
+    before,
+    after,
+  }
+}
+
 export function normalizeSpaceVersionDiff(value: unknown): SpaceVersionDiff {
   const payload = unwrapPayload(value)
   if (!isRecord(payload)) {
@@ -578,6 +654,7 @@ export function normalizeSpaceVersionDiff(value: unknown): SpaceVersionDiff {
       from: null,
       to: null,
       paths: [],
+      content: null,
     }
   }
   const rawPaths = Array.isArray(payload.paths) ? payload.paths : []
@@ -590,6 +667,7 @@ export function normalizeSpaceVersionDiff(value: unknown): SpaceVersionDiff {
     from: asString(payload.from),
     to: asString(payload.to),
     paths,
+    content: normalizeTextContentDiff(payload.content),
   }
 }
 

@@ -13,10 +13,12 @@ export function DiffView({
   oldContent,
   newContent,
   filename = "row",
+  diffStyle = "split",
 }: {
   oldContent: string
   newContent: string
   filename?: string
+  diffStyle?: "split" | "unified"
 }) {
   const { resolvedTheme } = useTheme()
   const [diff, setDiff] = useState<FileDiffMetadata | null>(null)
@@ -58,7 +60,7 @@ export function DiffView({
       key={resolvedTheme}
       fileDiff={diff}
       options={{
-        diffStyle: "split",
+        diffStyle,
         lineDiffType: "word",
         diffIndicators: "classic",
         themeType: resolvedTheme ?? "system",

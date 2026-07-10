@@ -123,6 +123,46 @@ describe("file Space versioning normalization", () => {
           storage: "unknown",
         },
       ],
+      content: null,
+    })
+  })
+
+  it("normalizes a bounded historical text content diff", () => {
+    const diff = normalizeSpaceVersionDiff({
+      from: "commit-1",
+      to: "commit-2",
+      paths: [
+        {
+          path: "notes/today.md",
+          change: "modified",
+          kind: "text_file",
+          storage: "inline",
+        },
+      ],
+      content: {
+        path: "notes/today.md",
+        change: "modified",
+        kind: "text_file",
+        storage: "inline",
+        before: {
+          state: "utf8",
+          content: "before\n",
+          size: 7,
+          contentHash: "hash-before",
+        },
+        after: {
+          state: "utf8",
+          content: "after\n",
+          size: 6,
+          contentHash: "hash-after",
+        },
+      },
+    })
+
+    expect(diff.content).toMatchObject({
+      path: "notes/today.md",
+      before: { state: "utf8", content: "before\n" },
+      after: { state: "utf8", content: "after\n" },
     })
   })
 
