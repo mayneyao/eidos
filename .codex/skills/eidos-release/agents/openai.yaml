@@ -1,0 +1,4 @@
+interface:
+  display_name: "Eidos Release"
+  short_description: "Version bump and beta tag release flow"
+  default_prompt: "Use $eidos-release to bump Eidos to 0.33.0, create the next beta tag, and push it."
