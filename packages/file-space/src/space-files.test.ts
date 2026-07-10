@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { execFile as execFileCallback } from "node:child_process"
 import {
   chmod,
   link,
@@ -14,8 +15,11 @@ import {
 } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { promisify } from "node:util"
 
 import { SpaceFiles, uniqueSpaceEntryName } from "./space-files"
+
+const execFile = promisify(execFileCallback)
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds))
@@ -251,7 +255,7 @@ describe("SpaceFiles", () => {
     }
   )
 
-  it("replaces text atomically while preserving file permissions", async () => {
+  it("writes text while preserving file identity and permissions", async () => {
     await writeFile(path.join(root, "note.md"), "before", { mode: 0o640 })
     const before = await stat(path.join(root, "note.md"))
 
@@ -261,9 +265,55 @@ describe("SpaceFiles", () => {
     expect(await readFile(path.join(root, "note.md"), "utf8")).toBe("after")
     if (process.platform !== "win32") {
       expect(after.mode & 0o777).toBe(0o640)
-      expect(after.ino).not.toBe(before.ino)
+      expect(after.ino).toBe(before.ino)
     }
   })
+
+  it.skipIf(process.platform === "win32")(
+    "preserves hard-link identity when saving text",
+    async () => {
+      const note = path.join(root, "note.md")
+      const alias = path.join(root, "alias.md")
+      await writeFile(note, "before")
+      await link(note, alias)
+      const before = await stat(note)
+
+      await files.writeText("note.md", "after", before.mtimeMs)
+
+      const [noteStats, aliasStats] = await Promise.all([
+        stat(note),
+        stat(alias),
+      ])
+      await expect(readFile(note, "utf8")).resolves.toBe("after")
+      await expect(readFile(alias, "utf8")).resolves.toBe("after")
+      expect(noteStats.ino).toBe(before.ino)
+      expect(aliasStats.ino).toBe(before.ino)
+      expect(noteStats.nlink).toBe(2)
+    }
+  )
+
+  it.skipIf(process.platform !== "darwin")(
+    "preserves extended attributes when saving text",
+    async () => {
+      const note = path.join(root, "metadata.md")
+      await writeFile(note, "before")
+      await execFile("xattr", [
+        "-w",
+        "com.eidos.space-files-test",
+        "keep",
+        note,
+      ])
+
+      await files.writeText("metadata.md", "after")
+
+      const { stdout } = await execFile("xattr", [
+        "-p",
+        "com.eidos.space-files-test",
+        note,
+      ])
+      expect(stdout.trim()).toBe("keep")
+    }
+  )
 
   it("imports external files without overwriting Space files", async () => {
     const source = path.join(outside, "image.bin")

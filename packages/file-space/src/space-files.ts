@@ -6,7 +6,6 @@ import {
   type FSWatcher,
   type Stats,
 } from "node:fs"
-import { randomUUID } from "node:crypto"
 import {
   copyFile,
   lstat,
@@ -76,6 +75,7 @@ export type SpaceFilesErrorCode =
   | "file-changed"
   | "invalid-encoding"
   | "not-writable"
+  | "write-failed"
 
 export class SpaceFilesError extends Error {
   constructor(
@@ -126,44 +126,43 @@ function sameFileSnapshot(left: Stats, right: Stats): boolean {
   return (
     left.dev === right.dev &&
     left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.nlink === right.nlink &&
     left.size === right.size &&
     left.mtimeMs === right.mtimeMs &&
     left.ctimeMs === right.ctimeMs
   )
 }
 
-async function syncDirectoryBestEffort(directory: string): Promise<void> {
-  if (process.platform === "win32") return
-  let handle: Awaited<ReturnType<typeof open>> | undefined
-  try {
-    handle = await open(directory, constants.O_RDONLY)
-    await handle.sync()
-  } catch {
-    // The replacement is already durable at the file level. Some filesystems
-    // do not allow directory fsync, so this remains a best-effort hardening.
-  } finally {
-    await handle?.close().catch(() => undefined)
+async function writeBufferToFile(
+  handle: Awaited<ReturnType<typeof open>>,
+  content: Buffer
+): Promise<void> {
+  let offset = 0
+  while (offset < content.length) {
+    const { bytesWritten } = await handle.write(
+      content,
+      offset,
+      content.length - offset,
+      offset
+    )
+    if (bytesWritten === 0) {
+      throw new Error("The operating system wrote zero bytes")
+    }
+    offset += bytesWritten
   }
+  await handle.truncate(content.length)
 }
 
-async function replaceTextFileAtomically(
+async function writeTextFilePreservingMetadata(
   filename: string,
   content: string,
   original: Stats,
+  originalContent: Buffer,
   relativePath: string
 ): Promise<void> {
-  const directory = path.dirname(filename)
-  const temporaryPath = path.join(
-    directory,
-    "." +
-      path.basename(filename) +
-      ".eidos-" +
-      process.pid +
-      "-" +
-      randomUUID() +
-      ".tmp"
-  )
   let handle: Awaited<ReturnType<typeof open>> | undefined
+  let mayHaveChangedFile = false
 
   try {
     if (process.platform !== "win32" && (original.mode & 0o222) === 0) {
@@ -174,8 +173,7 @@ async function replaceTextFileAtomically(
       )
     }
     try {
-      const writable = await open(filename, "r+")
-      await writable.close()
+      handle = await open(filename, "r+")
     } catch (error) {
       throw new SpaceFilesError(
         "not-writable",
@@ -185,15 +183,14 @@ async function replaceTextFileAtomically(
       )
     }
 
-    handle = await open(temporaryPath, "wx", original.mode & 0o777)
-    await handle.writeFile(content, "utf8")
-    await handle.chmod(original.mode & 0o777)
-    await handle.sync()
-    await handle.close()
-    handle = undefined
-
-    const beforeReplace = await stat(filename)
-    if (!sameFileSnapshot(original, beforeReplace)) {
+    const [openedFile, currentPath] = await Promise.all([
+      handle.stat(),
+      stat(filename),
+    ])
+    if (
+      !sameFileSnapshot(original, openedFile) ||
+      !sameFileSnapshot(original, currentPath)
+    ) {
       throw new SpaceFilesError(
         "file-changed",
         "Space file changed outside Eidos: " + relativePath,
@@ -201,11 +198,29 @@ async function replaceTextFileAtomically(
       )
     }
 
-    await rename(temporaryPath, filename)
-    await syncDirectoryBestEffort(directory)
+    try {
+      mayHaveChangedFile = true
+      await writeBufferToFile(handle, Buffer.from(content, "utf8"))
+      await handle.sync()
+    } catch (error) {
+      if (mayHaveChangedFile) {
+        try {
+          await writeBufferToFile(handle, originalContent)
+          await handle.sync()
+        } catch (rollbackError) {
+          throw new SpaceFilesError(
+            "write-failed",
+            "Eidos could not finish saving or restore the original Space file: " +
+              relativePath,
+            relativePath,
+            new AggregateError([error, rollbackError])
+          )
+        }
+      }
+      throw error
+    }
   } finally {
     await handle?.close().catch(() => undefined)
-    await rm(temporaryPath, { force: true }).catch(() => undefined)
   }
 }
 
@@ -368,10 +383,11 @@ export class SpaceFiles {
         relativePath
       )
     }
-    await replaceTextFileAtomically(
+    await writeTextFilePreservingMetadata(
       filename,
       content,
       currentStats,
+      currentContent,
       relativePath
     )
     return this.readText(relativePath)
