@@ -7,8 +7,8 @@ import {
   processBinaryDataForResponse,
   restoreBinaryData,
 } from "@eidos.space/client"
-import { Hono } from "hono"
-import { extractSpaceIdFromRequest } from "../utils/extract-space"
+import type { Hono } from "hono"
+import { authorizeSpaceRequest } from "../utils/extract-space"
 import type { ServerContext } from "../server"
 
 // Singleton permission server shared across all sessions
@@ -45,10 +45,14 @@ export function setupApiRoutes(app: Hono, ctx: ServerContext) {
   // RPC endpoint
   app.post("/rpc", async (c) => {
     try {
-      const spaceId = extractSpaceIdFromRequest(c)
-      if (!spaceId) {
-        throw new Error("Invalid request, space ID not found in hostname")
+      const authorization = authorizeSpaceRequest(c)
+      if (!authorization.allowed) {
+        return c.json(
+          { success: false, error: authorization.message },
+          authorization.status
+        )
       }
+      const { spaceId } = authorization
 
       const space = ctx.spaceRegistry.getSpace(spaceId)
       if (!space) {
@@ -122,6 +126,7 @@ export function setupApiRoutes(app: Hono, ctx: ServerContext) {
   app.route(
     "/",
     createAgentMiddleware({
+      resolveRequestSpace: authorizeSpaceRequest,
       getDataspace: (space: string) =>
         space
           ? ctx.dataSpaceManager.getOrSetDataSpace(space)

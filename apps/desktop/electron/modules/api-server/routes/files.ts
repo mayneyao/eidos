@@ -2,7 +2,7 @@ import path from "path"
 import type { Hono } from "hono"
 import { getSpaceFileFromPath } from "@/apps/desktop/electron/utils/paths"
 import { serveFile } from "../serve-file"
-import { extractSpaceIdFromRequest } from "../utils/extract-space"
+import { authorizeSpaceRequest } from "../utils/extract-space"
 import {
   getSpaceProjectFileErrorResponse,
   resolveSpaceProjectFilePath,
@@ -16,11 +16,11 @@ export function setupFileRoutes(app: Hono, ctx: ServerContext) {
   // Files from space storage
   app.get("/files/*", async (c) => {
     try {
-      const spaceId = extractSpaceIdFromRequest(c)
-
-      if (!spaceId) {
-        return c.text("Space ID not found in hostname", 400)
+      const authorization = authorizeSpaceRequest(c)
+      if (!authorization.allowed) {
+        return c.text(authorization.message, authorization.status)
       }
+      const { spaceId } = authorization
 
       const space = ctx.spaceRegistry.getSpace(spaceId)
       if (!space) {
@@ -63,11 +63,11 @@ export function setupFileRoutes(app: Hono, ctx: ServerContext) {
   // Project files
   app.get("/~/*", async (c) => {
     try {
-      const spaceId = extractSpaceIdFromRequest(c)
-
-      if (!spaceId) {
-        return c.text("Space ID not found in hostname", 400)
+      const authorization = authorizeSpaceRequest(c)
+      if (!authorization.allowed) {
+        return c.text(authorization.message, authorization.status)
       }
+      const { spaceId } = authorization
 
       const space = ctx.spaceRegistry.getSpace(spaceId)
       if (!space) {
@@ -92,11 +92,11 @@ export function setupFileRoutes(app: Hono, ctx: ServerContext) {
   // Mounted files
   app.get("/@/*", async (c) => {
     try {
-      const spaceId = extractSpaceIdFromRequest(c)
-
-      if (!spaceId) {
-        return c.text("Space ID not found in hostname", 400)
+      const authorization = authorizeSpaceRequest(c)
+      if (!authorization.allowed) {
+        return c.text(authorization.message, authorization.status)
       }
+      const { spaceId } = authorization
 
       const dataSpace = await ctx.dataSpaceManager.getOrSetDataSpace(spaceId)
       if (!dataSpace) {

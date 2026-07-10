@@ -25,23 +25,45 @@ import { handleChatApi, type IChatData } from "./chat-api"
 import { initSkillToolkit, getSkillMetas } from "./skills"
 import type { PermissionServerLike } from "../permission"
 
-export function createAgentMiddleware(options: {
+const AGENT_REQUEST_SPACE_KEY = "agentRequestSpace"
+const SPACE_MISMATCH_MESSAGE =
+  "Requested Space does not match the authorized Space"
+
+export type AgentRequestSpaceResolution =
+  | { allowed: true; spaceId: string }
+  | { allowed: false; status?: 400 | 403; message?: string }
+
+export interface AgentMiddlewareOptions {
   getDataspace: (space: string) => Promise<DataSpace | null>
   getSpacePath?: (space: string) => string | undefined
   getAIConfig?: () => AIFormValues | undefined
   getSecrets?: () => Promise<Record<string, string>>
+  resolveRequestSpace?: (
+    context: any
+  ) => AgentRequestSpaceResolution | Promise<AgentRequestSpaceResolution>
   logger?: {
     info: (...args: any[]) => void
     warn: (...args: any[]) => void
     error: (...args: any[]) => void
   }
   permissionServer?: PermissionServerLike
-}) {
+}
+
+function getBoundRequestSpace(c: any): string | undefined {
+  const space = c.get(AGENT_REQUEST_SPACE_KEY)
+  return typeof space === "string" && space ? space : undefined
+}
+
+function getAgentRequestSpace(c: any): string {
+  return getBoundRequestSpace(c) ?? extractSpace(c)
+}
+
+export function createAgentMiddleware(options: AgentMiddlewareOptions) {
   const app = new Hono()
   const log = options.logger ?? console
 
   const handleGetRequest = async (c: any) => {
-    const space = extractSpace(c)
+    const space = getAgentRequestSpace(c)
     const id = c.req.param("id") || c.req.query("id")
 
     if (!space) {
@@ -68,11 +90,17 @@ export function createAgentMiddleware(options: {
   }
 
   const handlePostRequest = async (c: any) => {
-    const space = extractSpace(c)
+    const boundSpace = getBoundRequestSpace(c)
+    const space = boundSpace ?? extractSpace(c)
     const data = (await c.req.json()) as IAgentData
 
-    // Fallback if data doesn't provide space
-    if (!data.space && space) {
+    if (boundSpace && data.space && data.space !== boundSpace) {
+      return c.json({ error: SPACE_MISMATCH_MESSAGE }, 403)
+    }
+
+    if (boundSpace) {
+      data.space = boundSpace
+    } else if (!data.space && space) {
       data.space = space
     }
 
@@ -119,7 +147,7 @@ export function createAgentMiddleware(options: {
   }
 
   const handleDeleteRequest = async (c: any) => {
-    const space = extractSpace(c)
+    const space = getAgentRequestSpace(c)
     const id = c.req.param("id") || c.req.query("id")
 
     if (!space || !id) {
@@ -137,7 +165,7 @@ export function createAgentMiddleware(options: {
   }
 
   const handleSaveRequest = async (c: any) => {
-    const space = extractSpace(c)
+    const space = getAgentRequestSpace(c)
     const id = c.req.param("id") || c.req.query("id")
     const body = await c.req.json()
 
@@ -173,7 +201,7 @@ export function createAgentMiddleware(options: {
   }
 
   const handlePermissionRequest = async (c: any) => {
-    const space = extractSpace(c)
+    const space = getAgentRequestSpace(c)
     const id = c.req.param("id")
     const body = await c.req.json()
     const { toolName, allowed } = body
@@ -194,7 +222,7 @@ export function createAgentMiddleware(options: {
   }
 
   const handleGetPermissionsRequest = async (c: any) => {
-    const space = extractSpace(c)
+    const space = getAgentRequestSpace(c)
     const id = c.req.param("id")
 
     if (!space || !id) {
@@ -215,6 +243,29 @@ export function createAgentMiddleware(options: {
   // Lightweight chat endpoint for editor AI tools and other non-agent callers.
   app.get("/api/chat", (c: any) => c.json({ message: "OK" }))
   app.post("/api/chat", handleChatRequest)
+
+  if (options.resolveRequestSpace) {
+    app.use("/api/agent/*", async (c: any, next: () => Promise<void>) => {
+      const resolution = await options.resolveRequestSpace!(c)
+      if (!resolution.allowed) {
+        return c.json(
+          { error: resolution.message ?? "Space request is not authorized" },
+          resolution.status ?? 403
+        )
+      }
+      if (!resolution.spaceId) {
+        return c.json({ error: "Authorized Space is required" }, 400)
+      }
+
+      const querySpace = c.req.query("space")
+      if (querySpace && querySpace !== resolution.spaceId) {
+        return c.json({ error: SPACE_MISMATCH_MESSAGE }, 403)
+      }
+
+      c.set(AGENT_REQUEST_SPACE_KEY, resolution.spaceId)
+      await next()
+    })
+  }
 
   // List available skills from ~/.agents/skills/
   app.get("/api/agent/skills", async (c: any) => {
@@ -324,7 +375,7 @@ export function createAgentMiddleware(options: {
 
   // Search agent sessions (must be before :id route)
   app.get("/api/agent/sessions/search", async (c: any) => {
-    const space = extractSpace(c)
+    const space = getAgentRequestSpace(c)
     const q = c.req.query("q")
 
     if (!space) return c.json({ error: "space is required" }, 400)
@@ -340,7 +391,7 @@ export function createAgentMiddleware(options: {
 
   // Get raw JSONL content for a session
   app.get("/api/agent/sessions/:id/raw", async (c: any) => {
-    const space = extractSpace(c)
+    const space = getAgentRequestSpace(c)
     const id = c.req.param("id")
 
     if (!space) {
@@ -366,7 +417,7 @@ export function createAgentMiddleware(options: {
 
   // Fork a session at a specific message
   app.post("/api/agent/sessions/:id/fork", async (c: any) => {
-    const space = extractSpace(c)
+    const space = getAgentRequestSpace(c)
     const id = c.req.param("id")
     const body = await c.req.json()
     const { messageId } = body
@@ -401,7 +452,7 @@ export function createAgentMiddleware(options: {
 
   // Replace a message and truncate subsequent messages (re-edit functionality)
   app.post("/api/agent/sessions/:id/replace", async (c: any) => {
-    const space = extractSpace(c)
+    const space = getAgentRequestSpace(c)
     const id = c.req.param("id")
     const body = await c.req.json()
     const { messageId, content } = body

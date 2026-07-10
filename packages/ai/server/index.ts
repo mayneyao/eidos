@@ -1,4 +1,8 @@
-export { createAgentMiddleware } from "./routes"
+export {
+  createAgentMiddleware,
+  type AgentMiddlewareOptions,
+  type AgentRequestSpaceResolution,
+} from "./routes"
 export { handleChatApi } from "./chat-api"
 export { buildProviderOptions, resolveProviderForModel } from "./model"
 export { AgentContext } from "./agent-context"
