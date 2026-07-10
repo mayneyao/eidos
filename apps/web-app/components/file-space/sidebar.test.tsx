@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client"
 
 import { SidebarProvider } from "@/components/ui/sidebar"
 
+import { registerPendingWriteFlusher } from "./pending-writes"
 import { FileSpaceSidebar } from "./sidebar"
 
 ;(
@@ -10,6 +11,7 @@ import { FileSpaceSidebar } from "./sidebar"
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 const isMacDesktopMock = vi.hoisted(() => vi.fn(() => true))
+const navigateMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/web/helper", () => ({
   isMacDesktop: isMacDesktopMock,
@@ -40,7 +42,14 @@ vi.mock("@/apps/web-app/hooks/use-space", () => ({
 }))
 
 vi.mock("@/apps/web-app/hooks/use-router-adapter", () => ({
-  useRouterAdapter: () => ({ navigate: vi.fn() }),
+  useRouterAdapter: () => ({
+    navigate: navigateMock,
+    location: {
+      pathname: "/space-file",
+      search: "",
+      hash: "#notes%2Fdraft.md",
+    },
+  }),
 }))
 
 vi.mock("@/components/space-select", () => ({
@@ -69,6 +78,7 @@ describe("FileSpaceSidebar layout", () => {
 
   beforeEach(() => {
     isMacDesktopMock.mockReturnValue(true)
+    navigateMock.mockClear()
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -152,5 +162,29 @@ describe("FileSpaceSidebar layout", () => {
       container.querySelector('[data-file-tree-space-id="new-base"]')
     ).not.toBeNull()
     expect(filesButton?.getAttribute("aria-pressed")).toBe("true")
+  })
+
+  it("keeps the editor open when settings navigation cannot save it", async () => {
+    const unregister = registerPendingWriteFlusher(
+      "sidebar-settings-save",
+      async () => false,
+      { spaceId: "new-base", filePath: "notes/draft.md" }
+    )
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => undefined)
+    await renderSidebar()
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="Space settings"]')
+        ?.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(navigateMock).not.toHaveBeenCalled()
+    expect(alert).toHaveBeenCalledWith(
+      "Eidos could not save the current file. Resolve the error before leaving it."
+    )
+    alert.mockRestore()
+    unregister()
   })
 })

@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/sidebar"
 
 import { FileSpaceTree } from "./file-tree"
+import { filePathFromSpaceUrl } from "./file-path"
+import { navigateAfterFlushingSpaceFile } from "./file-navigation"
 import { VersionPanel } from "./versioning/version-panel"
 
 type FileSpaceSidebarView = "files" | "version" | "logs"
@@ -55,12 +57,28 @@ function PendingSidebarView({
 export function FileSpaceSidebar() {
   const { currentSpace } = useCurrentSpace()
   const { spaceList } = useSpace()
-  const { navigate } = useRouterAdapter()
+  const { navigate, location } = useRouterAdapter()
   const { width } = useSidebar()
   const [activeView, setActiveView] = useState<FileSpaceSidebarView>("files")
   const showViewLabels = width >= 280
-
   if (!currentSpace) return null
+
+  const openSpaceSettings = async () => {
+    const currentFilePath = filePathFromSpaceUrl(
+      location.pathname + location.search + location.hash
+    )
+    const saved = await navigateAfterFlushingSpaceFile({
+      spaceId: currentSpace.id,
+      currentFilePath,
+      destination: "/settings/space-general",
+      navigate,
+    })
+    if (!saved) {
+      window.alert(
+        "Eidos could not save the current file. Resolve the error before leaving it."
+      )
+    }
+  }
 
   return (
     <Sidebar>
@@ -124,7 +142,7 @@ export function FileSpaceSidebar() {
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-sidebar-foreground/60 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring"
             title="Space settings"
             aria-label="Space settings"
-            onClick={() => navigate("/settings/space-general")}
+            onClick={() => void openSpaceSettings()}
           >
             <Settings className="h-3.5 w-3.5" />
           </button>
