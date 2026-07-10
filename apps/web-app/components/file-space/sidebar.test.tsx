@@ -12,6 +12,11 @@ import { FileSpaceSidebar } from "./sidebar"
 
 const isMacDesktopMock = vi.hoisted(() => vi.fn(() => true))
 const navigateMock = vi.hoisted(() => vi.fn())
+const routeState = vi.hoisted(() => ({
+  pathname: "/space-file",
+  search: "",
+  hash: "#notes%2Fdraft.md",
+}))
 
 vi.mock("@/lib/web/helper", () => ({
   isMacDesktop: isMacDesktopMock,
@@ -44,12 +49,14 @@ vi.mock("@/apps/web-app/hooks/use-space", () => ({
 vi.mock("@/apps/web-app/hooks/use-router-adapter", () => ({
   useRouterAdapter: () => ({
     navigate: navigateMock,
-    location: {
-      pathname: "/space-file",
-      search: "",
-      hash: "#notes%2Fdraft.md",
-    },
+    location: routeState,
   }),
+}))
+
+vi.mock("@/apps/web-app/components/settings/settings-sidebar", () => ({
+  SettingsSidebar: () => (
+    <div data-settings-sidebar="true">Settings navigation</div>
+  ),
 }))
 
 vi.mock("@/components/space-select", () => ({
@@ -79,6 +86,9 @@ describe("FileSpaceSidebar layout", () => {
   beforeEach(() => {
     isMacDesktopMock.mockReturnValue(true)
     navigateMock.mockClear()
+    routeState.pathname = "/space-file"
+    routeState.search = ""
+    routeState.hash = "#notes%2Fdraft.md"
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -162,6 +172,44 @@ describe("FileSpaceSidebar layout", () => {
       container.querySelector('[data-file-tree-space-id="new-base"]')
     ).not.toBeNull()
     expect(filesButton?.getAttribute("aria-pressed")).toBe("true")
+  })
+
+  it("replaces the entire file Space sidebar while Settings is active", async () => {
+    await renderSidebar()
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[title="Version"]')
+        ?.click()
+    })
+
+    routeState.pathname = "/settings/space-general"
+    routeState.hash = ""
+    await renderSidebar()
+
+    expect(
+      container.querySelector('[data-settings-sidebar="true"]')
+    ).not.toBeNull()
+    expect(
+      container.querySelector('[aria-label="Space sidebar views"]')
+    ).toBeNull()
+    expect(
+      container.querySelector('[data-space-select-variant="sidebar-footer"]')
+    ).toBeNull()
+    expect(
+      container.querySelector('[data-file-tree-space-id="new-base"]')
+    ).toBeNull()
+
+    routeState.pathname = "/space-file"
+    await renderSidebar()
+
+    expect(
+      container.querySelector('[data-version-panel-space-id="new-base"]')
+    ).not.toBeNull()
+    expect(
+      container
+        .querySelector<HTMLButtonElement>('button[title="Version"]')
+        ?.getAttribute("aria-pressed")
+    ).toBe("true")
   })
 
   it("keeps the editor open when settings navigation cannot save it", async () => {

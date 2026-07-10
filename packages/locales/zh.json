@@ -840,6 +840,7 @@
   "settings.secrets.addFailed": "保存凭证失败。",
   "settings.secrets.editFailed": "更新凭证失败。",
   "settings.secrets.deleteFailed": "删除凭证失败。",
+  "settings.backToApp": "返回应用",
   "settings.devtools": "开发工具",
   "settings.devtools.description": "开发工具设置。",
   "settings.experiment": "实验",

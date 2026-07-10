@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   Bot,
   Cloud,
   FileText,
@@ -15,21 +16,23 @@ import {
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import { cloneElement, useEffect, useState } from "react"
+import type { ComponentType, CSSProperties } from "react"
 
 import { isDesktopMode } from "@/lib/env"
+import { cn } from "@/lib/utils"
+import { isMacDesktop } from "@/lib/web/helper"
+import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
-import { useCurrentSpace } from "@/hooks/use-current-space"
-import { useGoto } from "@/apps/web-app/hooks/use-goto"
+import { useTabStore } from "@/apps/web-app/store/tabs"
+
 import { type SettingsSection } from "./settings-events"
+import { resolveBackToAppTarget } from "./settings-navigation"
 
 interface SettingsItem {
   id: SettingsSection
   title: string
-  description: string
-  icon: React.ReactNode
+  icon: ComponentType<{ className?: string }>
   disabled?: boolean
-  isAlpha?: boolean
   isBeta?: boolean
   category: "space" | "global"
 }
@@ -46,46 +49,22 @@ export function SettingsSidebar({
 
   // Parse section from URL: /settings/:section
   const pathParts = location.pathname.split("/").filter(Boolean)
-  const activeSection: SettingsSection =
+  const requestedSection: SettingsSection =
     (pathParts[1] as SettingsSection) || "general"
   const { currentSpace: spaceInfo } = useCurrentSpace()
-  const [hasSyncCredentials, setHasSyncCredentials] = useState(false)
-
-  useEffect(() => {
-    async function checkCredentials() {
-      if (!isDesktopMode || !window.eidos?.credentials) {
-        setHasSyncCredentials(false)
-        return
-      }
-      try {
-        const eidosCreds =
-          await window.eidos.credentials.hasSyncCredentials("eidos.space")
-        if (eidosCreds) {
-          setHasSyncCredentials(true)
-          return
-        }
-
-        if (window.eidos?.config) {
-          const syncConfig = await window.eidos.config.get("sync")
-          const providerIds = Object.keys(syncConfig?.providers || {})
-
-          for (const id of providerIds) {
-            const hasCreds =
-              await window.eidos.credentials.hasSyncCredentials(id)
-            if (hasCreds) {
-              setHasSyncCredentials(true)
-              return
-            }
-          }
-        }
-        setHasSyncCredentials(false)
-      } catch (error) {
-        console.error("Failed to check sync credentials:", error)
-        setHasSyncCredentials(false)
-      }
-    }
-    checkCredentials()
-  }, [])
+  const activeSection: SettingsSection =
+    spaceInfo?.mode === "file" &&
+    requestedSection.startsWith("space-") &&
+    requestedSection !== "space-general"
+      ? "space-general"
+      : requestedSection
+  const tabs = useTabStore((state) => state.tabs)
+  const panels = useTabStore((state) => state.panels)
+  const activePanelId = useTabStore((state) => state.activePanelId)
+  const activeTabId = useTabStore((state) => state.getActiveTabId())
+  const history = useTabStore((state) => state.history)
+  const setActiveTab = useTabStore((state) => state.setActiveTab)
+  const goInTabHistory = useTabStore((state) => state.goInTabHistory)
 
   const handleSectionChange = (id: SettingsSection) => {
     navigate(`/settings/${id}`, { replace: true })
@@ -96,54 +75,44 @@ export function SettingsSidebar({
     {
       id: "space-general",
       title: t("space.settings.general"),
-      description: t("space.settings.spaceDescription"),
-      icon: <Info className="h-5 w-5" />,
+      icon: Info,
       category: "space",
     },
     {
       id: "space-extensions",
       title: "Extensions",
-      description: "Manage installed extensions for this space",
-      icon: <Package className="h-5 w-5" />,
+      icon: Package,
       category: "space",
     },
     {
       id: "space-tabs",
       title: t("space.settings.tabs.title", "Tabs"),
-      description: t("space.settings.tabs.description"),
-      icon: <LayoutTemplate className="h-5 w-5" />,
+      icon: LayoutTemplate,
       category: "space",
     },
     {
       id: "space-document",
       title: t("space.settings.document"),
-      description: t("space.settings.documentDescription"),
-      icon: <FileText className="h-5 w-5" />,
+      icon: FileText,
       category: "space",
     },
     {
       id: "space-mounts",
       title: t("space.settings.mounts"),
-      description: t("space.settings.mountsDescription"),
-      icon: <Folder className="h-5 w-5" />,
+      icon: Folder,
       category: "space",
     },
     {
       id: "space-relay",
       title: t("space.settings.relay"),
-      description: t("space.settings.relayDescription"),
-      icon: <Network className="h-5 w-5" />,
+      icon: Network,
       isBeta: true,
       category: "space",
     },
     {
       id: "space-theme",
       title: t("space.settings.theme", "Theme"),
-      description: t(
-        "space.settings.themeDescription",
-        "Customize the appearance of your space"
-      ),
-      icon: <Paintbrush className="h-5 w-5" />,
+      icon: Paintbrush,
       category: "space",
     },
 
@@ -151,35 +120,25 @@ export function SettingsSidebar({
     {
       id: "general",
       title: t("settings.general"),
-      description: t("settings.manageAppSettings"),
-      icon: <SettingsIcon className="h-5 w-5" />,
+      icon: SettingsIcon,
       category: "global",
     },
     {
       id: "account",
       title: t("settings.account.title", "Account"),
-      description: t(
-        "settings.account.description",
-        "Manage your account and sync provider"
-      ),
-      icon: <User className="h-5 w-5" />,
+      icon: User,
       category: "global",
     },
     {
       id: "ai",
       title: t("settings.ai"),
-      description: t("settings.aiDescription"),
-      icon: <Bot className="h-5 w-5" />,
+      icon: Bot,
       category: "global",
     },
     {
       id: "sync",
       title: t("settings.sync"),
-      description: t(
-        "settings.syncDescription",
-        "Configure sync provider and credentials"
-      ),
-      icon: <Cloud className="h-5 w-5" />,
+      icon: Cloud,
       disabled: !isDesktopMode,
       isBeta: true,
       category: "global",
@@ -187,22 +146,14 @@ export function SettingsSidebar({
     {
       id: "browser",
       title: t("settings.browser", "Browser"),
-      description: t(
-        "settings.browserDescription",
-        "Configure search engine and link handling preferences"
-      ),
-      icon: <Globe className="h-5 w-5" />,
+      icon: Globe,
       isBeta: true,
       category: "global",
     },
     {
       id: "secrets",
       title: t("settings.secrets", "Secrets"),
-      description: t(
-        "settings.secrets.description",
-        "Manage encrypted sensitive keys and environment variables"
-      ),
-      icon: <Key className="h-5 w-5" />,
+      icon: Key,
       category: "global",
     },
   ]
@@ -213,78 +164,114 @@ export function SettingsSidebar({
       (spaceInfo?.mode !== "file" || section.id === "space-general")
   )
   const globalSections = settingsSections.filter((s) => s.category === "global")
-  const goto = useGoto()
 
   const handleBackToApp = () => {
-    goto("")
+    const target = resolveBackToAppTarget({
+      tabs,
+      panels,
+      activePanelId,
+      activeTabId,
+      history,
+    })
+
+    if (target.type === "history") {
+      goInTabHistory(target.tabId, target.delta)
+      return
+    }
+    if (target.type === "tab") {
+      setActiveTab(target.tabId)
+      return
+    }
+    navigate("/", { replace: true })
   }
 
-  const renderSectionItem = (section: SettingsItem) => (
-    <button
-      key={section.id}
-      onClick={() => !section.disabled && handleSectionChange(section.id)}
-      disabled={section.disabled}
-      className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-left transition-all duration-150 group ${
-        activeSection === section.id
-          ? "bg-zinc-200/80 dark:bg-zinc-800/80 text-foreground font-medium"
-          : "text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800/40 hover:text-foreground"
-      } ${section.disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
-    >
-      <div
-        className={`flex-shrink-0 flex items-center justify-center transition-colors ${
-          activeSection === section.id
-            ? "text-foreground"
-            : "text-muted-foreground group-hover:text-foreground"
-        }`}
-      >
-        {section.icon &&
-          cloneElement(section.icon as React.ReactElement, {
-            className: "h-4.5 w-4.5 flex-shrink-0",
-          })}
-      </div>
-      <div className="flex-1 min-w-0 flex items-center gap-1.5">
-        <span className="text-[15px] leading-none">{section.title}</span>
-        {section.isAlpha && (
-          <span className="px-1.5 py-0.5 text-[10px] rounded bg-purple-100 text-purple-700 font-medium">
-            {t("common.badge.alpha")}
-          </span>
+  const renderSectionItem = (section: SettingsItem) => {
+    const Icon = section.icon
+    const isActive = activeSection === section.id
+
+    return (
+      <button
+        key={section.id}
+        type="button"
+        onClick={() => !section.disabled && handleSectionChange(section.id)}
+        disabled={section.disabled}
+        aria-current={isActive ? "page" : undefined}
+        className={cn(
+          "group flex h-7 w-full items-center gap-2 rounded-sm px-2 text-left text-[13px] outline-hidden transition-colors",
+          isActive
+            ? "bg-sidebar-accent text-sidebar-accent-foreground"
+            : "text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
+          section.disabled && "cursor-not-allowed opacity-40"
         )}
+      >
+        <Icon className="h-3.5 w-3.5 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{section.title}</span>
         {section.isBeta && (
-          <span className="px-1.5 py-0.5 text-[10px] rounded bg-blue-100 text-blue-700 font-medium">
+          <span className="rounded-sm bg-sidebar-accent px-1 py-px text-[9px] font-medium uppercase tracking-wide text-sidebar-foreground/60">
             {t("common.badge.beta")}
           </span>
         )}
-      </div>
-    </button>
-  )
+      </button>
+    )
+  }
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col">
-      <div className="p-3 overflow-y-auto flex-1 select-none">
-        <div className="space-y-4">
-          {/* Global Settings Section */}
-          <div className="space-y-1">
-            <h3 className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-2.5 pt-2 pb-1">
+    <div
+      data-settings-sidebar="true"
+      className="flex h-full min-h-0 flex-col bg-sidebar"
+    >
+      <header
+        className={cn(
+          "drag-region flex h-[38px] shrink-0 items-center border-b border-sidebar-border/60 bg-muted/60 px-1",
+          isMacDesktop() && "pl-[72px]"
+        )}
+      >
+        <button
+          type="button"
+          onClick={handleBackToApp}
+          className="flex h-7 min-w-0 items-center gap-1.5 rounded-sm px-2 text-[12px] font-medium text-sidebar-foreground/75 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-sidebar-ring"
+          style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+          aria-label={t("settings.backToApp", "Back to app")}
+        >
+          <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">
+            {t("settings.backToApp", "Back to app")}
+          </span>
+        </button>
+      </header>
+
+      <nav
+        aria-label={t("settings.title")}
+        className="min-h-0 flex-1 select-none overflow-y-auto px-2 py-2"
+      >
+        <div className="space-y-3">
+          <section aria-labelledby="global-settings-heading">
+            <h2
+              id="global-settings-heading"
+              className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/50"
+            >
               {t("settings.title")}
-            </h3>
-            <div className="space-y-0.5">
+            </h2>
+            <div className="space-y-px">
               {globalSections.map(renderSectionItem)}
             </div>
-          </div>
+          </section>
 
-          {/* Space Settings Section */}
           {showSpaceSettings && (
-            <div className="space-y-1">
-              <h3 className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-2.5 pt-2 pb-1">
+            <section aria-labelledby="space-settings-heading">
+              <h2
+                id="space-settings-heading"
+                className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/50"
+              >
                 {t("space.settings.title")}
-              </h3>
-              <div className="space-y-0.5">
+              </h2>
+              <div className="space-y-px">
                 {spaceSections.map(renderSectionItem)}
               </div>
-            </div>
+            </section>
           )}
         </div>
-      </div>
+      </nav>
     </div>
   )
 }

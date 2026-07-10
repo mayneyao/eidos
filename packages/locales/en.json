@@ -839,6 +839,7 @@
   "settings.secrets.addFailed": "Failed to save secret.",
   "settings.secrets.editFailed": "Failed to update secret.",
   "settings.secrets.deleteFailed": "Failed to delete secret.",
+  "settings.backToApp": "Back to app",
   "settings.devtools": "Devtools",
   "settings.devtools.description": "Developer tools settings.",
   "settings.experiment": "Experiment",

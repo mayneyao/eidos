@@ -7,6 +7,8 @@ import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSpace } from "@/apps/web-app/hooks/use-space"
 import { SpaceSelect } from "@/components/space-select"
+import { SettingsSidebar } from "@/apps/web-app/components/settings/settings-sidebar"
+import { isSettingsUrl } from "@/apps/web-app/components/settings/settings-navigation"
 import {
   Sidebar,
   SidebarContent,
@@ -62,6 +64,14 @@ export function FileSpaceSidebar() {
   const [activeView, setActiveView] = useState<FileSpaceSidebarView>("files")
   const showViewLabels = width >= 280
   if (!currentSpace) return null
+
+  if (isSettingsUrl(location.pathname)) {
+    return (
+      <Sidebar>
+        <SettingsSidebar />
+      </Sidebar>
+    )
+  }
 
   const openSpaceSettings = async () => {
     const currentFilePath = filePathFromSpaceUrl(

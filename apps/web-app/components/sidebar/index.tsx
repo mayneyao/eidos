@@ -9,6 +9,7 @@ import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { SpaceSelect } from "@/components/space-select"
 import { SettingsSidebar } from "@/apps/web-app/components/settings/settings-sidebar"
+import { isSettingsUrl } from "@/apps/web-app/components/settings/settings-navigation"
 import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/ui/sidebar"
 
@@ -22,7 +23,7 @@ const SidebarFooter = () => {
   const { isShareMode } = useAppRuntimeStore()
   const { navigate, location } = useRouterAdapter()
 
-  const isSettingsActive = location.pathname.startsWith("/settings")
+  const isSettingsActive = isSettingsUrl(location.pathname)
   const isTrashActive = location.pathname.startsWith("/trash")
 
   const handleOpenSettings = () => {
@@ -81,14 +82,22 @@ const SidebarFooter = () => {
 
 export const SideBar = () => {
   const { location } = useRouterAdapter()
-  const isSettingsRoute = location.pathname.startsWith("/settings")
+  const isSettingsRoute = isSettingsUrl(location.pathname)
+
+  if (isSettingsRoute) {
+    return (
+      <Sidebar>
+        <SettingsSidebar />
+      </Sidebar>
+    )
+  }
 
   return (
     <Sidebar>
       <SidebarTabs />
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        {isSettingsRoute ? <SettingsSidebar /> : <SidebarContent />}
+        <SidebarContent />
       </div>
 
       <SidebarFooter />
