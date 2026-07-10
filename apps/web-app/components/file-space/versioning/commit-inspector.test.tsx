@@ -306,6 +306,54 @@ describe("CommitInspector", () => {
     expect(container.textContent).toContain("Restored 2 versioned paths")
   })
 
+  it("keeps disabled restore controls focusable and exposes their reason", async () => {
+    const conflictedStatus: SpaceVersionStatus = {
+      ...status,
+      clean: false,
+      hasConflicts: true,
+      changes: [
+        {
+          path: "notes/a.md",
+          status: "modified",
+          staged: false,
+          conflicted: true,
+        },
+      ],
+    }
+
+    await act(async () => {
+      root.render(
+        <CommitInspector
+          commit={commit}
+          getCommit={vi.fn(async () => commit)}
+          getDiff={createGetDiff()}
+          status={conflictedStatus}
+          operation={null}
+          restorePath={vi.fn()}
+          restoreVersion={vi.fn()}
+        />
+      )
+      await flushEffects()
+    })
+
+    const fileRestore = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Restore notes/a.md from this version"]'
+    )
+    const reasonId = fileRestore?.getAttribute("aria-describedby")
+    expect(fileRestore?.disabled).toBe(false)
+    expect(fileRestore?.getAttribute("aria-disabled")).toBe("true")
+    expect(reasonId).toBeTruthy()
+    expect(document.getElementById(reasonId!)?.textContent).toContain(
+      "Resolve version conflicts"
+    )
+
+    await act(async () => {
+      fileRestore?.click()
+      await flushEffects()
+    })
+    expect(document.body.textContent).not.toContain("HEAD will not move")
+  })
+
   it("explains when historical text is outside the bounded preview", async () => {
     const getCommit = vi.fn(async () => commit)
     const getDiff = vi.fn(

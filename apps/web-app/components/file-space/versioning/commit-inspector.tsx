@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent } from "react"
+import { useEffect, useId, useMemo, useState, type MouseEvent } from "react"
 import {
   AlertTriangle,
   Copy,
@@ -303,6 +303,8 @@ export function CommitInspector({
   const [spaceRestoreDialogOpen, setSpaceRestoreDialogOpen] = useState(false)
   const [restoreFeedback, setRestoreFeedback] =
     useState<RestoreFeedback | null>(null)
+  const restoreReasonId = useId()
+  const spaceRestoreReasonId = useId()
 
   useEffect(() => {
     let cancelled = false
@@ -672,12 +674,16 @@ export function CommitInspector({
           ) : null}
           <button
             type="button"
-            className="inline-flex h-6 shrink-0 items-center gap-1 rounded-[2px] px-1.5 text-[10px] font-medium text-muted-foreground outline-hidden hover:bg-accent hover:text-accent-foreground focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-45"
+            className="inline-flex h-6 shrink-0 items-center gap-1 rounded-[2px] px-1.5 text-[10px] font-medium text-muted-foreground outline-hidden hover:bg-accent hover:text-accent-foreground focus-visible:ring-1 focus-visible:ring-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-45"
             title={
               spaceRestoreDisabledReason ?? "Restore the Space to this version"
             }
-            disabled={spaceRestoreDisabledReason !== null}
+            aria-disabled={spaceRestoreDisabledReason !== null}
+            aria-describedby={
+              spaceRestoreDisabledReason ? spaceRestoreReasonId : undefined
+            }
             onClick={() => {
+              if (spaceRestoreDisabledReason) return
               setRestoreFeedback(null)
               setSpaceRestoreDialogOpen(true)
             }}
@@ -689,6 +695,11 @@ export function CommitInspector({
             )}
             <span>Restore Space</span>
           </button>
+          {spaceRestoreDisabledReason ? (
+            <span id={spaceRestoreReasonId} className="sr-only">
+              {spaceRestoreDisabledReason}
+            </span>
+          ) : null}
         </div>
         {detailError ? (
           <p className="mt-2 text-[10px] leading-4 text-destructive">
@@ -764,15 +775,19 @@ export function CommitInspector({
           </span>
           <button
             type="button"
-            className="inline-flex h-5 shrink-0 items-center gap-1 rounded-[2px] px-1.5 text-[10px] font-medium normal-case tracking-normal text-muted-foreground outline-hidden hover:bg-accent hover:text-accent-foreground focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-45"
+            className="inline-flex h-5 shrink-0 items-center gap-1 rounded-[2px] px-1.5 text-[10px] font-medium normal-case tracking-normal text-muted-foreground outline-hidden hover:bg-accent hover:text-accent-foreground focus-visible:ring-1 focus-visible:ring-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-45"
             aria-label={
               selectedPath
                 ? `Restore ${selectedPath} from this version`
                 : "Restore selected path from this version"
             }
             title={restoreDisabledReason ?? "Restore this file"}
-            disabled={restoreDisabledReason !== null}
+            aria-disabled={restoreDisabledReason !== null}
+            aria-describedby={
+              restoreDisabledReason ? restoreReasonId : undefined
+            }
             onClick={() => {
+              if (restoreDisabledReason) return
               setRestoreFeedback(null)
               setRestoreDialogOpen(true)
             }}
@@ -784,6 +799,11 @@ export function CommitInspector({
             )}
             <span>Restore</span>
           </button>
+          {restoreDisabledReason ? (
+            <span id={restoreReasonId} className="sr-only">
+              {restoreDisabledReason}
+            </span>
+          ) : null}
         </div>
         {restoreFeedback ? (
           <div
