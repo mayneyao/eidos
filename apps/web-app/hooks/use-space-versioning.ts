@@ -102,7 +102,8 @@ export interface SpaceVersionDiff {
 }
 
 export interface SpaceVersionDiffRequest {
-  from: string
+  root?: string
+  from?: string
   to?: string
   path?: string
   includeContent?: boolean

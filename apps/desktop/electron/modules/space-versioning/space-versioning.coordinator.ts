@@ -211,23 +211,37 @@ function normalizeDiffOptions(value: unknown): SpaceVersionDiffOptions {
   if (!isObject(value)) {
     throw new Error("Diff options must be an object")
   }
-  const from = normalizeRevision(value.from, "Diff source revision")
+  const root =
+    value.root === undefined
+      ? undefined
+      : normalizeRevision(value.root, "Diff root target revision")
+  const from =
+    value.from === undefined
+      ? undefined
+      : normalizeRevision(value.from, "Diff source revision")
   const to =
     value.to === undefined
       ? undefined
       : normalizeRevision(value.to, "Diff target revision")
+  if (root && (from || to)) {
+    throw new Error("Root diff cannot include source or target revisions")
+  }
+  if (!root && !from) {
+    throw new Error("Diff source revision is required")
+  }
   const repositoryPath = normalizeRepositoryPath(value.path)
   const includeContent = value.includeContent ?? false
   if (typeof includeContent !== "boolean") {
     throw new Error("includeContent must be a boolean")
   }
-  if (includeContent && (!to || !repositoryPath)) {
+  if (includeContent && (!repositoryPath || (!root && !to))) {
     throw new Error(
-      "Text content diff requires source and target revisions and one path"
+      "Text content diff requires a root target or two revisions and one path"
     )
   }
   return {
-    from,
+    ...(root === undefined ? {} : { root }),
+    ...(from === undefined ? {} : { from }),
     ...(to === undefined ? {} : { to }),
     ...(repositoryPath === undefined ? {} : { path: repositoryPath }),
     ...(includeContent ? { includeContent: true } : {}),
@@ -532,19 +546,30 @@ export class SpaceVersioningCoordinator {
             String(TEXT_DIFF_MAX_CONTENT_BYTES)
           )
         }
-        args.push("--", options.from)
-        if (options.to) {
-          args.push(options.to)
-        }
-        if (options.includeContent && options.path) {
-          args.push(options.path)
+        if (options.root) {
+          args.push("--root", options.root)
+          if (options.includeContent && options.path) {
+            args.push("--", options.path)
+          }
+        } else {
+          args.push("--", options.from!)
+          if (options.to) {
+            args.push(options.to)
+          }
+          if (options.includeContent && options.path) {
+            args.push(options.path)
+          }
         }
         const raw = options.includeContent
           ? await this.runner.runJson(spacePath, args, {
               maxBufferBytes: TEXT_DIFF_MAX_BUFFER_BYTES,
             })
           : await this.runner.runJson(spacePath, args)
-        const diff = parseGraftDiff(raw, options.from, options.to ?? "worktree")
+        const diff = parseGraftDiff(
+          raw,
+          options.root ? "root" : options.from!,
+          options.root ?? options.to ?? "worktree"
+        )
         return filterDiffPath(diff, options.path)
       })
     })

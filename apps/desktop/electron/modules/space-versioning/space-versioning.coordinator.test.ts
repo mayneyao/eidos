@@ -136,8 +136,69 @@ describe("SpaceVersioningCoordinator.getDiff", () => {
         from: "head-1",
         includeContent: true,
       })
-    ).rejects.toThrow("requires source and target revisions and one path")
+    ).rejects.toThrow("requires a root target or two revisions and one path")
     expect(runJson).not.toHaveBeenCalled()
+  })
+
+  it("requests first-version content from the empty repository tree", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn(async () => ({
+      from: "root",
+      to: "first-commit",
+      paths: [
+        {
+          path: "first.md",
+          change: "added",
+          kind: "text_file",
+          storage: "inline",
+        },
+      ],
+      content: {
+        path: "first.md",
+        change: "added",
+        kind: "text_file",
+        storage: "inline",
+        before: { state: "absent" },
+        after: {
+          state: "utf8",
+          content: "# First\n",
+          size: 8,
+          content_hash: "hash-first",
+        },
+      },
+    }))
+    const coordinator = createCoordinator(root, runJson)
+
+    const result = await coordinator.getDiff("space-a", {
+      root: "first-commit",
+      path: "first.md",
+      includeContent: true,
+    })
+
+    expect(result).toMatchObject({
+      from: "root",
+      to: "first-commit",
+      content: {
+        path: "first.md",
+        before: { state: "absent" },
+        after: { state: "utf8", content: "# First\n" },
+      },
+    })
+    expect(runJson).toHaveBeenCalledWith(
+      await fs.realpath(root),
+      [
+        "diff",
+        "--json",
+        "--content",
+        "--max-content-bytes",
+        "1048576",
+        "--root",
+        "first-commit",
+        "--",
+        "first.md",
+      ],
+      { maxBufferBytes: 4194304 }
+    )
   })
 })
 

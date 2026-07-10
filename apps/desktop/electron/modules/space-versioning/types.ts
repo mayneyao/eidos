@@ -100,7 +100,8 @@ export interface SpaceVersionHistoryResult {
 }
 
 export interface SpaceVersionDiffOptions {
-  from: string
+  root?: string
+  from?: string
   to?: string
   path?: string
   includeContent?: boolean

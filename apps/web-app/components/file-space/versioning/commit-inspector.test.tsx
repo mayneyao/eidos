@@ -196,6 +196,79 @@ describe("CommitInspector", () => {
     expect(container.textContent).toContain("notes/b.md")
   })
 
+  it("shows file details and content for the first version", async () => {
+    const firstCommit: SpaceVersionCommit = {
+      ...commit,
+      id: "commit-1",
+      message: "Initial version",
+      parents: [],
+      changedPaths: [{ path: "README.md", status: "added" }],
+    }
+    const rootDiff: SpaceVersionDiff = {
+      currentHead: "commit-3",
+      currentBranch: "main",
+      from: "root",
+      to: "commit-1",
+      paths: [
+        {
+          path: "README.md",
+          change: "added",
+          kind: "text_file",
+          storage: "inline",
+        },
+      ],
+      content: null,
+    }
+    const getDiff = vi.fn(
+      async (request: SpaceVersionDiffRequest): Promise<SpaceVersionDiff> =>
+        request.includeContent
+          ? {
+              ...rootDiff,
+              content: {
+                path: "README.md",
+                change: "added",
+                kind: "text_file",
+                storage: "inline",
+                before: { state: "absent" },
+                after: {
+                  state: "utf8",
+                  content: "# First\n",
+                  size: 8,
+                  contentHash: "hash-first",
+                },
+              },
+            }
+          : rootDiff
+    )
+
+    await act(async () => {
+      root.render(
+        <CommitInspector
+          commit={firstCommit}
+          getCommit={vi.fn(async () => firstCommit)}
+          getDiff={getDiff}
+          status={status}
+          operation={null}
+          restorePath={vi.fn()}
+          restoreVersion={vi.fn()}
+        />
+      )
+      await flushEffects()
+    })
+
+    expect(getDiff).toHaveBeenNthCalledWith(1, { root: "commit-1" })
+    expect(getDiff).toHaveBeenNthCalledWith(2, {
+      root: "commit-1",
+      path: "README.md",
+      includeContent: true,
+    })
+    expect(container.textContent).toContain("README.md")
+    expect(
+      container.querySelector('[data-testid="mock-diff-view"]')?.textContent
+    ).toContain("# First")
+    expect(container.textContent).not.toContain("no earlier version")
+  })
+
   it("restores the selected path after an explicit non-committing confirmation", async () => {
     const getCommit = vi.fn(async () => commit)
     const getDiff = createGetDiff()

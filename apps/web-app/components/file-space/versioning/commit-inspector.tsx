@@ -368,17 +368,9 @@ export function CommitInspector({
     setDiffNotice(null)
     setDiffLoading(true)
     const firstParent = detail.parents[0]
-    if (!firstParent) {
-      setDiffNotice(
-        "This is the first version, so there is no earlier version to compare."
-      )
-      setDiffLoading(false)
-      return
-    }
-    const request: SpaceVersionDiffRequest = {
-      from: firstParent,
-      to: detail.id,
-    }
+    const request: SpaceVersionDiffRequest = firstParent
+      ? { from: firstParent, to: detail.id }
+      : { root: detail.id }
     void getDiff(request)
       .then((nextDiff) => {
         if (!cancelled) setDiff(nextDiff)
@@ -407,7 +399,6 @@ export function CommitInspector({
       !detail ||
       detailReadyId !== detail.id ||
       !diff ||
-      !diff.from ||
       !diff.to ||
       !selectedPath
     ) {
@@ -421,12 +412,20 @@ export function CommitInspector({
     }
 
     setContentLoading(true)
-    void getDiff({
-      from: diff.from,
-      to: diff.to,
-      path: selectedPath,
-      includeContent: true,
-    })
+    const request: SpaceVersionDiffRequest =
+      diff.from === "root"
+        ? {
+            root: diff.to,
+            path: selectedPath,
+            includeContent: true,
+          }
+        : {
+            from: diff.from ?? undefined,
+            to: diff.to,
+            path: selectedPath,
+            includeContent: true,
+          }
+    void getDiff(request)
       .then((contentResult) => {
         if (cancelled) return
         if (!contentResult.content) {
