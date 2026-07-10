@@ -65,6 +65,11 @@ describe("agent request Space binding", () => {
       getSpacePath,
       getSecrets,
       resolveRequestSpace,
+      logger: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      },
     }
     app = createAgentMiddleware(options)
   })
@@ -132,5 +137,23 @@ describe("agent request Space binding", () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ message: "OK" })
     expect(resolveRequestSpace).not.toHaveBeenCalled()
+  })
+
+  it("preserves hostname Space extraction when no resolver is configured", async () => {
+    const legacyApp = createAgentMiddleware({
+      getDataspace,
+      logger: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      },
+    })
+
+    const response = await legacyApp.request(
+      "http://space-a.eidos.localhost:13127/api/agent/sessions"
+    )
+
+    expect(response.status).toBe(200)
+    expect(getDataspace).toHaveBeenCalledWith("space-a")
   })
 })
