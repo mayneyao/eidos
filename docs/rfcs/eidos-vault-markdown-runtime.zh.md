@@ -1,0 +1,279 @@
+# RFC：Eidos Vault 与 Markdown 运行时
+
+状态：草案
+日期：2026-07-08
+负责人：Eidos
+相关文档：
+
+- `eidos-vault-base-storage.zh.md`
+- `eidos-base-file-format.zh.md`
+
+## 摘要
+
+本 RFC 定义 Eidos 如何打开和编辑一个以 Markdown 文件作为 canonical document state 的 vault。
+
+目标模型：
+
+- Vault 文件系统是真实文档树。
+- `.md` 文件被直接读写。
+- Vault mode 下，`eidos__docs` 不再是 Markdown 正文的 canonical store。
+- `.eidos/` 存放生成态索引、缓存、会话、本地 UI 状态。
+- `.base` 文件在同一个 vault 中提供结构化数据能力。
+
+这样 Eidos 可以直接打开 Obsidian-style vault，而不需要把用户文档导入到隐藏主数据库。
+
+## 产品原则
+
+Vault mode 应该保留用户的安全感：
+
+> 用户用其它编辑器打开 vault 时，Markdown 文档仍然在那里。
+
+Eidos 可以增加更好的编辑器、表格、视图、搜索、agent 和版本管理，但不应该让 Markdown 依赖 `.eidos/db.sqlite3` 作为 source of truth。
+
+## 目标
+
+- 将 Markdown 文档作为真实文件读写。
+- 使用真实文件系统树作为 canonical document tree。
+- 保持 Obsidian-style vault 离开 Eidos 也可用。
+- 让 Eidos 可以构建索引和 backlinks，但不拥有文档正文。
+- 默认不把 Eidos 私有状态展示到 graft status。
+- 为需要元数据的 Eidos-native 能力保留空间。
+
+## 非目标
+
+- 本 RFC 不定义完整 Markdown parser/editor 实现。
+- 本 RFC 不要求兼容每一种 Obsidian 插件。
+- 本 RFC 不要求所有旧 Eidos 文档立即迁移。
+- 本 RFC 不定义 Base 内部格式。
+
+## 运行时边界
+
+Vault mode 应该拆成三个运行时：
+
+```txt
+Vault runtime:
+  打开文件夹
+  读取真实文件树
+  解析 vault-relative paths
+  管理 .eidos 私有状态
+  管理 graft
+
+Markdown runtime:
+  打开 .md 文件
+  解析 frontmatter/body
+  编辑并保存 Markdown
+  发出 file-change events
+
+Base runtime:
+  打开 .base SQLite 文件
+  管理 tables/fields/views/rows
+```
+
+Markdown runtime 不应该依赖 `DataSpaceWithTable`。Base runtime 也不应该依赖 Markdown 文档树。
+
+## 文件树
+
+Vault mode 的左侧文件树应该来自文件系统，而不是 `eidos__tree`。
+
+示例：
+
+```txt
+my-vault/
+  notes/project.md
+  tasks.base
+  assets/image.png
+  .obsidian/
+  .eidos/
+  .graft/
+```
+
+默认文件树行为：
+
+- 展示普通用户文件和文件夹，
+- 隐藏 `.graft/`，
+- 默认隐藏 `.eidos/`，
+- 通过 Extensions 产品视图展示 `.eidos/extensions/**`，而不是放进普通文档树，
+- 根据用户设置决定是否展示 `.obsidian/`，
+- 将 `.md` 识别为文档，
+- 将 `.base` 识别为 Eidos Base 文件。
+
+`eidos__tree` 可以继续为 legacy spaces 或 app-internal metadata 存在，但它不应该是 vault 文件树的 canonical source。
+
+## Markdown 的 Source of Truth
+
+Vault mode 下：
+
+```txt
+notes/project.md
+```
+
+就是 canonical document body。
+
+Eidos 可以存储派生元数据：
+
+```txt
+.eidos/indexes/markdown.sqlite3
+.eidos/search.sqlite3
+.eidos/cache/previews/
+```
+
+但这些存储必须是可重建的。如果文件和索引冲突，文件获胜。
+
+## 文档元数据
+
+文档元数据应该优先使用可移植的 Markdown 机制：
+
+- YAML frontmatter，
+- Markdown links，
+- 文件路径，
+- 适当情况下使用文件系统时间戳。
+
+可选的 Eidos 元数据可以存在 frontmatter：
+
+```yaml
+---
+id: 019f...
+title: Project Plan
+tags:
+  - work
+---
+```
+
+规则：
+
+- 普通 Markdown 文件不应该强制需要 `id`。
+- 如果 Eidos 写入 ID，它应该稳定且不打扰用户。
+- Eidos-specific frontmatter 应该保持最少。
+- 缺失元数据应该能从路径和内容重建。
+
+## 链接与引用
+
+Vault mode 应该支持常见 Markdown link 形式：
+
+```txt
+[Project](./project.md)
+![](../assets/image.png)
+[[Project]]
+```
+
+Eidos 可以在 `.eidos/` 下构建 backlink index，但 Markdown 文件仍然是 canonical。
+
+开放问题：
+
+- v1 要支持多少 wiki-link 语法？
+- 文件重命名时，Eidos 是否应该自动规范化 links？
+- 指向 Base tables/rows 的链接应该使用自定义 URI，还是 Markdown link？
+
+## 附件
+
+附件默认应该是普通 vault 文件：
+
+```txt
+assets/image.png
+files/report.pdf
+```
+
+Markdown 文档通过相对路径引用它们。
+
+Eidos 可以提供 managed attachment folders，但文件仍然应该可见，并可被 graft 版本管理。
+
+## Obsidian 互操作
+
+打开 Obsidian-style vault 时，Eidos 应该：
+
+- 保留 `.obsidian/`，
+- 直接读取 Markdown 文件，
+- 尽可能保留 frontmatter 和 links，
+- 不把文档导入 `eidos__docs` 作为 canonical state，
+- 只将 `.eidos/` 用于私有 Eidos 状态，
+- 只有启用版本管理时才添加 `.graft/`，
+- 只有用户创建结构化数据时才添加 `.base` 文件。
+
+`.obsidian/workspace*.json` 通常应该被视为本地 UI 状态，而不是共享用户内容。
+
+## 索引
+
+生成态索引可以包括：
+
+- full-text search，
+- backlink graph，
+- outline/headings，
+- tags，
+- embeddings，
+- preview cache。
+
+这些应该放在 `.eidos/` 下，并默认被 graft 忽略。
+
+推荐不变量：
+
+> 删除 `.eidos/indexes/**` 不应该造成用户内容丢失。
+
+## Watch 与刷新
+
+Eidos 应该监听 vault 文件变化：
+
+- 外部编辑器修改，
+- 文件重命名，
+- 文件删除，
+- 资源文件更新，
+- Base 文件更新。
+
+Watcher 应该更新索引和 UI 状态，而不是悄悄把文件导入隐藏文档表。
+
+## Legacy 兼容
+
+已有 Eidos spaces 可能仍然依赖：
+
+```txt
+eidos__docs
+eidos__tree
+.eidos/db.sqlite3
+```
+
+兼容性应该显式处理：
+
+- legacy spaces 继续通过旧模型打开，
+- vault mode 打开真实文件，
+- migration/export 将旧 docs 转成 `.md`，
+- 新的 vault-native spaces 不再在 `eidos__docs` 中创建 canonical Markdown。
+
+## API 方向
+
+目标 APIs：
+
+```ts
+const vault = await eidos.openVault(path)
+const doc = await vault.openMarkdown("notes/project.md")
+await doc.save(markdown)
+
+const base = await vault.openBase("tasks.base")
+await base.schema.createTable(...)
+```
+
+过渡期兼容 APIs 可以路由到默认 vault/base，但新代码应该显式表达目标对象。
+
+## 开放问题
+
+1. Eidos 是否应该默认在 frontmatter 中创建稳定 document ID？
+2. Markdown 到 Base tables/rows 的链接应该如何表示？
+3. `.obsidian/` 是否默认显示在文件树中？
+4. Markdown 编辑器是否需要尽可能 byte-for-byte 保留格式？
+5. 第一版需要哪些生成态索引才能体验足够好？
+
+## 推荐垂直切片
+
+```txt
+sample-vault/
+  notes/project.md
+  assets/image.png
+  .eidos/
+```
+
+这个 slice 应该证明：
+
+- Eidos 可以打开 vault。
+- 文件树来自文件系统。
+- Eidos 可以编辑 `notes/project.md`。
+- 外部修改文件后 Eidos 能感知。
+- `.eidos/indexes/**` 可以删除并重建。
+- 不会把 canonical document body 写入 `eidos__docs`。
