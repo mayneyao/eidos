@@ -253,6 +253,7 @@ function runFileSpaceCliSmoke() {
   const laterPath = "later.md"
   const sessionPath = ".eidos/sessions/session.jsonl"
   const initialNote = "# Smoke note\n\nHello Graft.\n"
+  const updatedNote = `${initialNote}\nA second version.\n`
   const initialAsset = Buffer.from([
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
   ])
@@ -330,7 +331,7 @@ function runFileSpaceCliSmoke() {
     }
     assertPayloadOmitsPath(history, sessionPath)
 
-    fs.appendFileSync(path.join(root, notePath), "\nA second version.\n")
+    fs.writeFileSync(path.join(root, notePath), updatedNote)
     fs.writeFileSync(path.join(root, assetPath), Buffer.from([1, 2, 3, 4]))
     fs.rmSync(path.join(root, "archive"), { recursive: true })
     fs.writeFileSync(
@@ -377,6 +378,28 @@ function runFileSpaceCliSmoke() {
       secondCommit.commit.id,
     ])
     assertPaths(diff, [notePath, assetPath, gonePath, laterPath], [sessionPath])
+
+    const textContentDiff = runGraftJson(cliPath, root, [
+      "diff",
+      "--json",
+      "--content",
+      "--max-content-bytes",
+      "1048576",
+      "--",
+      commit.commit.id,
+      secondCommit.commit.id,
+      notePath,
+    ])
+    if (
+      textContentDiff.content?.before?.state !== "utf8" ||
+      textContentDiff.content.before.content !== initialNote ||
+      textContentDiff.content?.after?.state !== "utf8" ||
+      textContentDiff.content.after.content !== updatedNote
+    ) {
+      throw new Error(
+        `Graft text content diff returned the wrong revisions: ${JSON.stringify(textContentDiff)}`
+      )
+    }
 
     const updatedHistory = runGraftJson(cliPath, root, ["log", "--json"])
     if (
@@ -542,10 +565,97 @@ function runRestoreConflictSmoke() {
   }
 }
 
+function runAmbiguousPathSafetySmoke() {
+  const cliPath = findGraftCli()
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "eidos-graft-path-safety-smoke-")
+  )
+  const plainPath = "note.md"
+  const slashPath = "folder/note.md"
+  const spacedPath = " note.md "
+  const backslashPath = "folder\\note.md"
+
+  console.log("Path identity smoke root:", root)
+
+  try {
+    fs.mkdirSync(path.join(root, "folder"))
+    fs.writeFileSync(path.join(root, plainPath), "committed plain\n")
+    fs.writeFileSync(path.join(root, slashPath), "committed slash\n")
+    runGraftJson(cliPath, root, ["init", "--json"])
+    runGraftJson(cliPath, root, ["add", "--all", "--json"])
+    runGraftJson(cliPath, root, [
+      "commit",
+      "--json",
+      "-m",
+      "Track unambiguous paths",
+    ])
+
+    fs.writeFileSync(path.join(root, plainPath), "local plain draft\n")
+    fs.writeFileSync(path.join(root, slashPath), "local slash draft\n")
+    fs.writeFileSync(path.join(root, spacedPath), "ambiguous spaced path\n")
+    const addError = runGraftExpectFailure(cliPath, root, [
+      "add",
+      "--all",
+      "--json",
+    ])
+    if (!addError.includes("unsupported repository identity")) {
+      throw new Error(`Graft returned the wrong path safety error: ${addError}`)
+    }
+    if (
+      fs.readFileSync(path.join(root, plainPath), "utf8") !==
+        "local plain draft\n" ||
+      fs.readFileSync(path.join(root, spacedPath), "utf8") !==
+        "ambiguous spaced path\n"
+    ) {
+      throw new Error("Rejected add changed an ambiguous worktree path")
+    }
+    fs.rmSync(path.join(root, spacedPath))
+
+    if (process.platform !== "win32") {
+      fs.writeFileSync(
+        path.join(root, backslashPath),
+        "ambiguous backslash path\n"
+      )
+      const restoreError = runGraftExpectFailure(cliPath, root, [
+        "restore",
+        "--json",
+        "--source",
+        "HEAD",
+        "--",
+        backslashPath,
+      ])
+      if (!restoreError.includes("backslashes are not supported")) {
+        throw new Error(
+          `Graft returned the wrong backslash safety error: ${restoreError}`
+        )
+      }
+      if (
+        fs.readFileSync(path.join(root, slashPath), "utf8") !==
+          "local slash draft\n" ||
+        fs.readFileSync(path.join(root, backslashPath), "utf8") !==
+          "ambiguous backslash path\n"
+      ) {
+        throw new Error("Rejected restore changed an aliased path")
+      }
+      fs.rmSync(path.join(root, backslashPath))
+    }
+
+    const status = runGraftJson(cliPath, root, ["status", "--json"])
+    if (status.has_staged_changes) {
+      throw new Error(
+        `Rejected ambiguous paths left staged changes: ${JSON.stringify(status)}`
+      )
+    }
+  } finally {
+    removeTempRoot(root)
+  }
+}
+
 try {
   runSqliteExtensionSmoke()
   runFileSpaceCliSmoke()
   runRestoreConflictSmoke()
+  runAmbiguousPathSafetySmoke()
   process.exit(0)
 } catch (error) {
   console.error(error)

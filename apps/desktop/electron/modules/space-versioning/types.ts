@@ -103,6 +103,30 @@ export interface SpaceVersionDiffOptions {
   from: string
   to?: string
   path?: string
+  includeContent?: boolean
+}
+
+export type SpaceVersionTextContentState =
+  | { state: "absent" }
+  | {
+      state: "utf8"
+      content: string
+      size: number
+      contentHash: string
+    }
+  | {
+      state: "too_large" | "missing_payload" | "invalid_utf8"
+      size: number
+      contentHash: string
+    }
+
+export interface SpaceVersionTextContentDiff {
+  path: string
+  change: SpaceVersionChangeKind
+  kind: "text_file"
+  storage: SpaceVersionPathStorage
+  before: SpaceVersionTextContentState
+  after: SpaceVersionTextContentState
 }
 
 export interface SpaceVersionDiff {
@@ -111,6 +135,7 @@ export interface SpaceVersionDiff {
   from: string
   to: string
   paths: SpaceVersionPathChange[]
+  content: SpaceVersionTextContentDiff | null
 }
 
 export type SpaceVersionRestoreEffect =

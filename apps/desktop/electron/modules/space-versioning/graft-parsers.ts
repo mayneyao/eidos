@@ -10,6 +10,8 @@ import type {
   SpaceVersionPathStorage,
   SpaceVersionStatus,
   SpaceVersionStatusCounts,
+  SpaceVersionTextContentDiff,
+  SpaceVersionTextContentState,
 } from "./types"
 
 type JsonObject = Record<string, unknown>
@@ -51,6 +53,14 @@ function nonNegativeInteger(value: unknown): number | null {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
     ? value
     : null
+}
+
+function requiredString(value: unknown, label: string): string {
+  const result = stringValue(value)
+  if (!result) {
+    throw new Error(`Graft text diff ${label} is missing`)
+  }
+  return result
 }
 
 function pathKind(value: unknown): SpaceVersionPathKind {
@@ -100,6 +110,57 @@ function changeKind(value: unknown): SpaceVersionChangeKind {
       return value
     default:
       return "unknown"
+  }
+}
+
+function textContentState(
+  value: unknown,
+  label: "before" | "after"
+): SpaceVersionTextContentState {
+  if (!isObject(value)) {
+    throw new Error(`Graft text diff ${label} content is invalid`)
+  }
+  if (value.state === "absent") {
+    return { state: "absent" }
+  }
+  const size = nonNegativeInteger(value.size)
+  const contentHash = stringValue(value.content_hash)
+  if (size === null || !contentHash) {
+    throw new Error(`Graft text diff ${label} metadata is invalid`)
+  }
+  if (value.state === "utf8") {
+    if (typeof value.content !== "string") {
+      throw new Error(`Graft text diff ${label} content is missing`)
+    }
+    return { state: "utf8", content: value.content, size, contentHash }
+  }
+  if (
+    value.state === "too_large" ||
+    value.state === "missing_payload" ||
+    value.state === "invalid_utf8"
+  ) {
+    return { state: value.state, size, contentHash }
+  }
+  throw new Error(`Graft text diff ${label} state is invalid`)
+}
+
+function textContentDiff(value: unknown): SpaceVersionTextContentDiff | null {
+  if (value === undefined || value === null) {
+    return null
+  }
+  if (!isObject(value)) {
+    throw new Error("Graft returned invalid text diff content")
+  }
+  if (value.kind !== "text_file") {
+    throw new Error("Graft text diff content is not a text file")
+  }
+  return {
+    path: requiredString(value.path, "path"),
+    change: changeKind(value.change),
+    kind: "text_file",
+    storage: pathStorage(value.storage),
+    before: textContentState(value.before, "before"),
+    after: textContentState(value.after, "after"),
   }
 }
 
@@ -540,6 +601,11 @@ export function parseGraftDiff(
     unique.set(change.path, change)
   }
 
+  const content = textContentDiff(raw.content)
+  if (content && !unique.has(content.path)) {
+    throw new Error("Graft text diff path is missing from the comparison")
+  }
+
   return {
     currentHead: headFromPayload(raw),
     currentBranch: branchFromPayload(raw),
@@ -548,5 +614,6 @@ export function parseGraftDiff(
     paths: [...unique.values()].sort((left, right) =>
       left.path < right.path ? -1 : left.path > right.path ? 1 : 0
     ),
+    content,
   }
 }

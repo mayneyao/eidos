@@ -34,6 +34,8 @@ const MUTATION_TIMEOUT_MS = 120_000
 const DEFAULT_HISTORY_LIMIT = 100
 const MAX_HISTORY_LIMIT = 2_000
 const HISTORY_MAX_BUFFER_BYTES = 64 * 1024 * 1024
+const TEXT_DIFF_MAX_CONTENT_BYTES = 1024 * 1024
+const TEXT_DIFF_MAX_BUFFER_BYTES = 3 * TEXT_DIFF_MAX_CONTENT_BYTES + 1024 * 1024
 const MAX_MESSAGE_LENGTH = 4_096
 const MAX_REVISION_LENGTH = 512
 const REPOSITORY_LOCK_DIRECTORY = ".eidos-operation.lock"
@@ -199,10 +201,20 @@ function normalizeDiffOptions(value: unknown): SpaceVersionDiffOptions {
       ? undefined
       : normalizeRevision(value.to, "Diff target revision")
   const repositoryPath = normalizeRepositoryPath(value.path)
+  const includeContent = value.includeContent ?? false
+  if (typeof includeContent !== "boolean") {
+    throw new Error("includeContent must be a boolean")
+  }
+  if (includeContent && (!to || !repositoryPath)) {
+    throw new Error(
+      "Text content diff requires source and target revisions and one path"
+    )
+  }
   return {
     from,
     ...(to === undefined ? {} : { to }),
     ...(repositoryPath === undefined ? {} : { path: repositoryPath }),
+    ...(includeContent ? { includeContent: true } : {}),
   }
 }
 
@@ -452,15 +464,27 @@ export class SpaceVersioningCoordinator {
       const spacePath = await this.resolveFileSpace(spaceId)
       await this.requireRepository(spacePath)
       return this.withRepositoryOperationLock(spacePath, async () => {
-        const args = ["diff", "--json", "--", options.from]
+        const args = ["diff", "--json"]
+        if (options.includeContent) {
+          args.push(
+            "--content",
+            "--max-content-bytes",
+            String(TEXT_DIFF_MAX_CONTENT_BYTES)
+          )
+        }
+        args.push("--", options.from)
         if (options.to) {
           args.push(options.to)
         }
-        const diff = parseGraftDiff(
-          await this.runner.runJson(spacePath, args),
-          options.from,
-          options.to ?? "worktree"
-        )
+        if (options.includeContent && options.path) {
+          args.push(options.path)
+        }
+        const raw = options.includeContent
+          ? await this.runner.runJson(spacePath, args, {
+              maxBufferBytes: TEXT_DIFF_MAX_BUFFER_BYTES,
+            })
+          : await this.runner.runJson(spacePath, args)
+        const diff = parseGraftDiff(raw, options.from, options.to ?? "worktree")
         return filterDiffPath(diff, options.path)
       })
     })

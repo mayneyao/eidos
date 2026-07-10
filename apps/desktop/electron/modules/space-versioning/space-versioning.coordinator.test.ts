@@ -66,6 +66,81 @@ afterEach(async () => {
   )
 })
 
+describe("SpaceVersioningCoordinator.getDiff", () => {
+  it("requests one bounded historical text path without reading the worktree", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn(async () => ({
+      from: "head-1",
+      to: "head-2",
+      paths: [
+        {
+          path: "note.md",
+          change: "modified",
+          kind: "text_file",
+          storage: "inline",
+        },
+      ],
+      content: {
+        path: "note.md",
+        change: "modified",
+        kind: "text_file",
+        storage: "inline",
+        before: {
+          state: "utf8",
+          content: "before",
+          size: 6,
+          content_hash: "hash-before",
+        },
+        after: {
+          state: "utf8",
+          content: "after",
+          size: 5,
+          content_hash: "hash-after",
+        },
+      },
+    }))
+    const coordinator = createCoordinator(root, runJson)
+
+    const result = await coordinator.getDiff("space-a", {
+      from: "head-1",
+      to: "head-2",
+      path: "note.md",
+      includeContent: true,
+    })
+
+    expect(result.content?.path).toBe("note.md")
+    expect(runJson).toHaveBeenCalledWith(
+      await fs.realpath(root),
+      [
+        "diff",
+        "--json",
+        "--content",
+        "--max-content-bytes",
+        "1048576",
+        "--",
+        "head-1",
+        "head-2",
+        "note.md",
+      ],
+      { maxBufferBytes: 4194304 }
+    )
+  })
+
+  it("rejects content mode without two revisions and one path", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn()
+    const coordinator = createCoordinator(root, runJson)
+
+    await expect(
+      coordinator.getDiff("space-a", {
+        from: "head-1",
+        includeContent: true,
+      })
+    ).rejects.toThrow("requires source and target revisions and one path")
+    expect(runJson).not.toHaveBeenCalled()
+  })
+})
+
 describe("SpaceVersioningCoordinator.restorePath", () => {
   it("restores a clean path without moving HEAD or trimming its name", async () => {
     const root = await createSpace()

@@ -302,6 +302,53 @@ describe("Graft v0.5 JSON parsers", () => {
           storage: "inline",
         },
       ],
+      content: null,
+    })
+  })
+
+  it("parses bounded UTF-8 text content without losing absent states", () => {
+    const diff = parseGraftDiff(
+      {
+        from: "commit-1",
+        to: "commit-2",
+        paths: [
+          {
+            path: "note.md",
+            change: "added",
+            kind: "text_file",
+            storage: "inline",
+          },
+        ],
+        content: {
+          path: "note.md",
+          change: "added",
+          kind: "text_file",
+          storage: "inline",
+          before: { state: "absent" },
+          after: {
+            state: "utf8",
+            content: "# Hello\n",
+            size: 8,
+            content_hash: "hash-after",
+          },
+        },
+      },
+      "fallback-from",
+      "fallback-to"
+    )
+
+    expect(diff.content).toEqual({
+      path: "note.md",
+      change: "added",
+      kind: "text_file",
+      storage: "inline",
+      before: { state: "absent" },
+      after: {
+        state: "utf8",
+        content: "# Hello\n",
+        size: 8,
+        contentHash: "hash-after",
+      },
     })
   })
 
