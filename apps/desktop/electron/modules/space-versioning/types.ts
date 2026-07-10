@@ -112,3 +112,26 @@ export interface SpaceVersionDiff {
   to: string
   paths: SpaceVersionPathChange[]
 }
+
+export type SpaceVersionRestoreEffect =
+  | "created"
+  | "modified"
+  | "deleted"
+  | "noop"
+
+export interface SpaceVersionRestorePathOptions {
+  revision: string
+  path: string
+  expectedHead: string
+  overwriteChanges?: boolean
+  allowDelete?: boolean
+}
+
+export interface SpaceVersionRestorePathResult {
+  revision: string
+  path: string
+  kind: SpaceVersionPathKind
+  storage: SpaceVersionPathStorage
+  effect: SpaceVersionRestoreEffect
+  status: SpaceVersionStatus
+}

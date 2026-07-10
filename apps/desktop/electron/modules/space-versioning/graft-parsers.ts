@@ -20,6 +20,15 @@ export interface ParsedGraftLog {
   commits: SpaceVersionCommit[]
 }
 
+export interface ParsedGraftRestoreSource {
+  revision: string
+  path: string
+  change: SpaceVersionChangeKind
+  kind: SpaceVersionPathKind
+  storage: SpaceVersionPathStorage
+  containsPath: boolean
+}
+
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -413,6 +422,68 @@ export function parseGraftCommit(raw: unknown): SpaceVersionCommit {
     timestampMs: nonNegativeInteger(commit.timestamp_ms),
     changes,
     changedPaths: changes.length,
+  }
+}
+
+export function parseGraftRestoreSource(
+  raw: unknown,
+  repositoryPath: string
+): ParsedGraftRestoreSource {
+  if (!isObject(raw)) {
+    throw new Error("Graft returned an invalid restore source response")
+  }
+
+  const revision = stringValue(raw.id)
+  if (!revision) {
+    throw new Error("Graft restore source response is missing an id")
+  }
+  const files = isObject(raw.files) ? raw.files : null
+  const artifacts = isObject(raw.artifacts) ? raw.artifacts : null
+  if (!files && !artifacts) {
+    throw new Error("Graft restore source response is missing its file tree")
+  }
+
+  const changedPath = rawPathChanges(raw.changes).find(
+    (entry) => entry.path === repositoryPath
+  )
+  if (!changedPath) {
+    throw new Error("The selected version did not change this path")
+  }
+
+  const containsFile = files
+    ? Object.prototype.hasOwnProperty.call(files, repositoryPath)
+    : false
+  const containsArtifact = artifacts
+    ? Object.prototype.hasOwnProperty.call(artifacts, repositoryPath)
+    : false
+  if (containsFile && containsArtifact) {
+    throw new Error("Graft restore source contains duplicate file data")
+  }
+  const containsPath = containsFile || containsArtifact
+  const artifact = containsArtifact ? artifacts?.[repositoryPath] : undefined
+  const artifactDetails = isObject(artifact) ? artifact : {}
+  const artifactType = stringValue(artifactDetails.type)
+  const artifactKind = pathKind(artifactDetails.kind)
+  const artifactStorage =
+    artifactType === "large_file"
+      ? "external"
+      : pathStorage(artifactDetails.storage)
+
+  return {
+    revision,
+    path: repositoryPath,
+    change: changedPath.change,
+    kind: containsFile
+      ? "sqlite_database"
+      : artifactKind === "unknown"
+        ? changedPath.kind
+        : artifactKind,
+    storage: containsFile
+      ? "sqlite_snapshot"
+      : artifactStorage === "unknown"
+        ? changedPath.storage
+        : artifactStorage,
+    containsPath,
   }
 }
 

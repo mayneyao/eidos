@@ -10,6 +10,8 @@ import type {
   SpaceVersionDiffOptions,
   SpaceVersionHistoryOptions,
   SpaceVersionHistoryResult,
+  SpaceVersionRestorePathOptions,
+  SpaceVersionRestorePathResult,
   SpaceVersionStatus,
 } from "./types"
 
@@ -53,5 +55,12 @@ export class SpaceVersioningService extends IpcServiceBase {
     options: SpaceVersionDiffOptions
   ): Promise<SpaceVersionDiff> {
     return this.coordinator.getDiff(spaceId, options)
+  }
+
+  restorePath(
+    spaceId: string,
+    options: SpaceVersionRestorePathOptions
+  ): Promise<SpaceVersionRestorePathResult> {
+    return this.coordinator.restorePath(spaceId, options)
   }
 }

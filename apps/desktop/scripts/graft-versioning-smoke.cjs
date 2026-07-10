@@ -35,7 +35,12 @@ function findGraftLibrary() {
     throw new Error(`Unsupported platform: ${process.platform}`)
   }
 
-  const libPath = path.join(__dirname, "..", "dist-sqlite-ext", `libgraft.${ext}`)
+  const libPath = path.join(
+    __dirname,
+    "..",
+    "dist-sqlite-ext",
+    `libgraft.${ext}`
+  )
   if (!fs.existsSync(libPath)) {
     throw new Error(`Graft SQLite extension not found: ${libPath}`)
   }
@@ -184,6 +189,24 @@ function runGraftJson(cliPath, cwd, args) {
   }
 }
 
+function runGraftExpectFailure(cliPath, cwd, args) {
+  console.log(`graft ${formatCommand(args)} (expect failure)`)
+  try {
+    execFileSync(cliPath, args, {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+  } catch (error) {
+    const stdout = String(error.stdout || "").trim()
+    const stderr = String(error.stderr || "").trim()
+    const detail = [stdout, stderr].filter(Boolean).join("\n")
+    if (detail) console.log(detail)
+    return detail
+  }
+  throw new Error(`graft ${formatCommand(args)} unexpectedly succeeded`)
+}
+
 function payloadPaths(payload) {
   if (!Array.isArray(payload?.paths)) {
     throw new Error(`Expected a paths array: ${JSON.stringify(payload)}`)
@@ -226,19 +249,25 @@ function runFileSpaceCliSmoke() {
   )
   const notePath = "note.md"
   const assetPath = "assets/image.png"
+  const gonePath = "archive/gone.md"
+  const laterPath = "later.md"
   const sessionPath = ".eidos/sessions/session.jsonl"
+  const initialNote = "# Smoke note\n\nHello Graft.\n"
+  const initialAsset = Buffer.from([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+  ])
+  const initialGone = "Restore me from the first version.\n"
 
   console.log("File Space smoke root:", root)
   console.log("Graft CLI:", cliPath)
 
   try {
     fs.mkdirSync(path.join(root, "assets"), { recursive: true })
+    fs.mkdirSync(path.join(root, "archive"), { recursive: true })
     fs.mkdirSync(path.join(root, ".eidos", "sessions"), { recursive: true })
-    fs.writeFileSync(path.join(root, notePath), "# Smoke note\n\nHello Graft.\n")
-    fs.writeFileSync(
-      path.join(root, assetPath),
-      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-    )
+    fs.writeFileSync(path.join(root, notePath), initialNote)
+    fs.writeFileSync(path.join(root, assetPath), initialAsset)
+    fs.writeFileSync(path.join(root, gonePath), initialGone)
     fs.writeFileSync(
       path.join(root, sessionPath),
       '{"kind":"private-runtime-state"}\n'
@@ -249,18 +278,23 @@ function runFileSpaceCliSmoke() {
     fs.mkdirSync(path.join(root, ".graft"))
 
     const init = runGraftJson(cliPath, root, ["init", "--json"])
-    if (init.operation !== "init" || !fs.existsSync(path.join(root, ".graft"))) {
-      throw new Error(`Graft repository was not initialized: ${JSON.stringify(init)}`)
+    if (
+      init.operation !== "init" ||
+      !fs.existsSync(path.join(root, ".graft"))
+    ) {
+      throw new Error(
+        `Graft repository was not initialized: ${JSON.stringify(init)}`
+      )
     }
 
     const initialStatus = runGraftJson(cliPath, root, ["status", "--json"])
-    assertPaths(initialStatus, [notePath, assetPath], [sessionPath])
+    assertPaths(initialStatus, [notePath, assetPath, gonePath], [sessionPath])
 
     const add = runGraftJson(cliPath, root, ["add", "--all", "--json"])
-    assertPaths(add, [notePath, assetPath], [sessionPath])
+    assertPaths(add, [notePath, assetPath, gonePath], [sessionPath])
 
     const stagedStatus = runGraftJson(cliPath, root, ["status", "--json"])
-    assertPaths(stagedStatus, [notePath, assetPath], [sessionPath])
+    assertPaths(stagedStatus, [notePath, assetPath, gonePath], [sessionPath])
 
     const commit = runGraftJson(cliPath, root, [
       "commit",
@@ -269,9 +303,11 @@ function runFileSpaceCliSmoke() {
       "Initial file Space version",
     ])
     if (!commit.commit?.id) {
-      throw new Error(`Graft commit returned no commit id: ${JSON.stringify(commit)}`)
+      throw new Error(
+        `Graft commit returned no commit id: ${JSON.stringify(commit)}`
+      )
     }
-    assertPaths(commit, [notePath, assetPath], [sessionPath])
+    assertPaths(commit, [notePath, assetPath, gonePath], [sessionPath])
 
     const cleanStatus = runGraftJson(cliPath, root, ["status", "--json"])
     if (cleanStatus.dirty || payloadPaths(cleanStatus).length !== 0) {
@@ -283,7 +319,9 @@ function runFileSpaceCliSmoke() {
 
     const history = runGraftJson(cliPath, root, ["log", "--json"])
     if (!Array.isArray(history.commits) || history.commits.length === 0) {
-      throw new Error(`Graft log returned no commits: ${JSON.stringify(history)}`)
+      throw new Error(
+        `Graft log returned no commits: ${JSON.stringify(history)}`
+      )
     }
     if (!history.commits.some((entry) => entry.id === commit.commit.id)) {
       throw new Error(
@@ -293,8 +331,18 @@ function runFileSpaceCliSmoke() {
     assertPayloadOmitsPath(history, sessionPath)
 
     fs.appendFileSync(path.join(root, notePath), "\nA second version.\n")
+    fs.writeFileSync(path.join(root, assetPath), Buffer.from([1, 2, 3, 4]))
+    fs.rmSync(path.join(root, "archive"), { recursive: true })
+    fs.writeFileSync(
+      path.join(root, laterPath),
+      "Only in the second version.\n"
+    )
     const secondAdd = runGraftJson(cliPath, root, ["add", "--all", "--json"])
-    assertPaths(secondAdd, [notePath], [sessionPath])
+    assertPaths(
+      secondAdd,
+      [notePath, assetPath, gonePath, laterPath],
+      [sessionPath]
+    )
 
     const secondCommit = runGraftJson(cliPath, root, [
       "commit",
@@ -328,7 +376,7 @@ function runFileSpaceCliSmoke() {
       commit.commit.id,
       secondCommit.commit.id,
     ])
-    assertPaths(diff, [notePath], [assetPath, sessionPath])
+    assertPaths(diff, [notePath, assetPath, gonePath, laterPath], [sessionPath])
 
     const updatedHistory = runGraftJson(cliPath, root, ["log", "--json"])
     if (
@@ -340,6 +388,155 @@ function runFileSpaceCliSmoke() {
       )
     }
     assertPayloadOmitsPath(updatedHistory, sessionPath)
+
+    const headBeforeRestore = updatedHistory.current_head
+    const historyLengthBeforeRestore = updatedHistory.commits.length
+    runGraftJson(cliPath, root, [
+      "restore",
+      "--json",
+      "--source",
+      commit.commit.id,
+      "--",
+      notePath,
+    ])
+    runGraftJson(cliPath, root, [
+      "restore",
+      "--json",
+      "--source",
+      commit.commit.id,
+      "--",
+      assetPath,
+    ])
+    runGraftJson(cliPath, root, [
+      "restore",
+      "--json",
+      "--source",
+      commit.commit.id,
+      "--",
+      gonePath,
+    ])
+    runGraftJson(cliPath, root, [
+      "restore",
+      "--json",
+      "--source",
+      commit.commit.id,
+      "--",
+      laterPath,
+    ])
+
+    if (fs.readFileSync(path.join(root, notePath), "utf8") !== initialNote) {
+      throw new Error("Text restore did not recover the first version")
+    }
+    if (!fs.readFileSync(path.join(root, assetPath)).equals(initialAsset)) {
+      throw new Error("Binary restore did not recover the first version")
+    }
+    if (fs.readFileSync(path.join(root, gonePath), "utf8") !== initialGone) {
+      throw new Error(
+        "Restore did not recreate a deleted file and its missing parent"
+      )
+    }
+    if (fs.existsSync(path.join(root, laterPath))) {
+      throw new Error("Restore did not recover the selected version's deletion")
+    }
+
+    const restoredStatus = runGraftJson(cliPath, root, ["status", "--json"])
+    assertPaths(
+      restoredStatus,
+      [notePath, assetPath, gonePath, laterPath],
+      [sessionPath]
+    )
+    if (restoredStatus.has_staged_changes) {
+      throw new Error(
+        `Restore unexpectedly changed the index: ${JSON.stringify(restoredStatus)}`
+      )
+    }
+
+    const historyAfterRestore = runGraftJson(cliPath, root, ["log", "--json"])
+    if (
+      historyAfterRestore.current_head !== headBeforeRestore ||
+      historyAfterRestore.commits.length !== historyLengthBeforeRestore
+    ) {
+      throw new Error(
+        `Restore changed version history: ${JSON.stringify(historyAfterRestore)}`
+      )
+    }
+  } finally {
+    removeTempRoot(root)
+  }
+}
+
+function runRestoreConflictSmoke() {
+  const cliPath = findGraftCli()
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "eidos-graft-restore-conflict-smoke-")
+  )
+  const notePath = "note.md"
+
+  console.log("Restore conflict smoke root:", root)
+
+  try {
+    fs.writeFileSync(path.join(root, notePath), "base\n")
+    runGraftJson(cliPath, root, ["init", "--json"])
+    runGraftJson(cliPath, root, ["add", "--all", "--json"])
+    runGraftJson(cliPath, root, [
+      "commit",
+      "--json",
+      "-m",
+      "Base conflict note",
+    ])
+    runGraftJson(cliPath, root, ["branch", "--json", "feature/restore"])
+    runGraftJson(cliPath, root, ["switch", "--json", "feature/restore"])
+    fs.writeFileSync(path.join(root, notePath), "feature\n")
+    runGraftJson(cliPath, root, ["add", "--all", "--json"])
+    runGraftJson(cliPath, root, [
+      "commit",
+      "--json",
+      "-m",
+      "Feature conflict note",
+    ])
+    runGraftJson(cliPath, root, ["switch", "--json", "main"])
+    fs.writeFileSync(path.join(root, notePath), "main\n")
+    runGraftJson(cliPath, root, ["add", "--all", "--json"])
+    runGraftJson(cliPath, root, [
+      "commit",
+      "--json",
+      "-m",
+      "Main conflict note",
+    ])
+    const merge = runGraftJson(cliPath, root, [
+      "merge",
+      "--json",
+      "feature/restore",
+    ])
+    if (
+      !Array.isArray(merge.conflicted) ||
+      !merge.conflicted.includes(notePath)
+    ) {
+      throw new Error(`Expected a note conflict: ${JSON.stringify(merge)}`)
+    }
+
+    const beforeRestore = fs.readFileSync(path.join(root, notePath))
+    const restoreError = runGraftExpectFailure(cliPath, root, [
+      "restore",
+      "--json",
+      "--source",
+      "HEAD~1",
+      "--",
+      notePath,
+    ])
+    if (!restoreError.includes("unresolved index conflicts")) {
+      throw new Error(`Restore returned the wrong conflict: ${restoreError}`)
+    }
+    if (!fs.readFileSync(path.join(root, notePath)).equals(beforeRestore)) {
+      throw new Error("A rejected restore changed a conflicted worktree file")
+    }
+
+    const status = runGraftJson(cliPath, root, ["status", "--json"])
+    if (!status.has_conflicts || status.dirty || status.has_unstaged_changes) {
+      throw new Error(
+        `Rejected restore changed repository status: ${JSON.stringify(status)}`
+      )
+    }
   } finally {
     removeTempRoot(root)
   }
@@ -348,6 +545,7 @@ function runFileSpaceCliSmoke() {
 try {
   runSqliteExtensionSmoke()
   runFileSpaceCliSmoke()
+  runRestoreConflictSmoke()
   process.exit(0)
 } catch (error) {
   console.error(error)

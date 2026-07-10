@@ -12,6 +12,7 @@ import {
   parseGraftCommitResult,
   parseGraftDiff,
   parseGraftLog,
+  parseGraftRestoreSource,
   parseGraftStatus,
 } from "./graft-parsers"
 import type {
@@ -22,6 +23,10 @@ import type {
   SpaceVersionDiffOptions,
   SpaceVersionHistoryOptions,
   SpaceVersionHistoryResult,
+  SpaceVersionRestoreEffect,
+  SpaceVersionRestorePathOptions,
+  SpaceVersionRestorePathResult,
+  SpaceVersionPathStatus,
   SpaceVersionStatus,
 } from "./types"
 
@@ -155,17 +160,23 @@ function normalizeHistoryOptions(
   return { limit: rawLimit, cursor }
 }
 
-function normalizeRepositoryPath(value: unknown): string | undefined {
+function normalizeRepositoryPath(
+  value: unknown,
+  label = "Diff path"
+): string | undefined {
   if (value === undefined) {
     return undefined
   }
   if (typeof value !== "string" || !value.trim() || value.includes("\0")) {
-    throw new Error("Diff path is invalid")
+    throw new Error(`${label} is invalid`)
   }
 
-  const slashPath = value.trim().split("\\").join("/")
+  // Graft uses slash-separated paths on Windows, while a backslash is a legal
+  // filename character on POSIX. Preserve that identity outside Windows.
+  const slashPath =
+    process.platform === "win32" ? value.replaceAll("\\", "/") : value
   if (path.posix.isAbsolute(slashPath) || /^[a-zA-Z]:\//.test(slashPath)) {
-    throw new Error("Diff path must be relative to the Space")
+    throw new Error(`${label} must be relative to the Space`)
   }
   const normalized = path.posix.normalize(slashPath)
   if (
@@ -173,7 +184,7 @@ function normalizeRepositoryPath(value: unknown): string | undefined {
     normalized === ".." ||
     normalized.startsWith("../")
   ) {
-    throw new Error("Diff path must stay inside the Space")
+    throw new Error(`${label} must stay inside the Space`)
   }
   return normalized
 }
@@ -193,6 +204,64 @@ function normalizeDiffOptions(value: unknown): SpaceVersionDiffOptions {
     ...(to === undefined ? {} : { to }),
     ...(repositoryPath === undefined ? {} : { path: repositoryPath }),
   }
+}
+
+function normalizeRestorePathOptions(
+  value: unknown
+): Required<SpaceVersionRestorePathOptions> {
+  if (!isObject(value)) {
+    throw new Error("Restore options must be an object")
+  }
+  const revision = normalizeRevision(value.revision, "Restore revision")
+  const expectedHead = normalizeRevision(
+    value.expectedHead,
+    "Expected current version"
+  )
+  const repositoryPath = normalizeRepositoryPath(value.path, "Restore path")
+  if (!repositoryPath) {
+    throw new Error("Restore path is required")
+  }
+  const privatePath = repositoryPath.toLowerCase()
+  if (
+    privatePath === ".graft" ||
+    privatePath.startsWith(".graft/") ||
+    privatePath === ".eidos" ||
+    privatePath.startsWith(".eidos/") ||
+    privatePath === ".graftignore"
+  ) {
+    throw new Error("Private Space paths cannot be restored")
+  }
+
+  const overwriteChanges = value.overwriteChanges ?? false
+  const allowDelete = value.allowDelete ?? false
+  if (typeof overwriteChanges !== "boolean") {
+    throw new Error("overwriteChanges must be a boolean")
+  }
+  if (typeof allowDelete !== "boolean") {
+    throw new Error("allowDelete must be a boolean")
+  }
+  return {
+    revision,
+    path: repositoryPath,
+    expectedHead,
+    overwriteChanges,
+    allowDelete,
+  }
+}
+
+function pathsOverlap(left: string, right: string): boolean {
+  return (
+    left === right ||
+    left.startsWith(`${right}/`) ||
+    right.startsWith(`${left}/`)
+  )
+}
+
+function pathStatusOverlaps(
+  entries: SpaceVersionPathStatus[],
+  repositoryPath: string
+): SpaceVersionPathStatus[] {
+  return entries.filter((entry) => pathsOverlap(entry.path, repositoryPath))
 }
 
 function filterDiffPath(
@@ -272,6 +341,7 @@ export class SpaceVersioningCoordinator {
       const spacePath = await this.resolveFileSpace(spaceId)
       await this.requireRepository(spacePath)
       return this.withRepositoryOperationLock(spacePath, async () => {
+        await ensureEidosGraftIgnore(spacePath)
         const before = await this.readStatus(spaceId, spacePath)
         if (before.hasConflicts) {
           throw new Error("Resolve version conflicts before committing")
@@ -396,6 +466,121 @@ export class SpaceVersioningCoordinator {
     })
   }
 
+  async restorePath(
+    spaceIdValue: unknown,
+    optionsValue: unknown
+  ): Promise<SpaceVersionRestorePathResult> {
+    const spaceId = requireSpaceId(spaceIdValue)
+    const options = normalizeRestorePathOptions(optionsValue)
+    return this.withSpaceLock(spaceId, async () => {
+      const spacePath = await this.resolveFileSpace(spaceId)
+      await this.requireRepository(spacePath)
+      return this.withRepositoryOperationLock(spacePath, async () => {
+        const before = await this.readStatus(spaceId, spacePath)
+        if (before.hasConflicts) {
+          throw new Error("Resolve version conflicts before restoring a file")
+        }
+        if (before.currentHead !== options.expectedHead) {
+          throw new Error(
+            "The Space history changed. Refresh history before restoring this file."
+          )
+        }
+
+        const overlappingChanges = pathStatusOverlaps(
+          before.paths,
+          options.path
+        )
+        if (overlappingChanges.some((entry) => entry.conflicted)) {
+          throw new Error("Resolve this path's conflict before restoring it")
+        }
+        if (overlappingChanges.some((entry) => entry.staged)) {
+          throw new Error(
+            "This path has staged changes. Commit or unstage them before restoring."
+          )
+        }
+        if (overlappingChanges.length > 0 && !options.overwriteChanges) {
+          throw new Error(
+            "This path has uncommitted changes. Confirm that they may be overwritten before restoring."
+          )
+        }
+
+        const source = parseGraftRestoreSource(
+          await this.runner.runJson(spacePath, [
+            "show",
+            "--json",
+            "--",
+            options.revision,
+          ]),
+          options.path
+        )
+        if (source.change === "renamed" || source.change === "unknown") {
+          throw new Error(
+            "Renamed paths cannot be restored safely in this version of Eidos"
+          )
+        }
+        const sourceDeletesPath = source.change === "deleted"
+        if (sourceDeletesPath === source.containsPath) {
+          throw new Error(
+            "Graft returned inconsistent file data for the selected version"
+          )
+        }
+        if (sourceDeletesPath && !options.allowDelete) {
+          throw new Error(
+            "Restoring this version deletes the file and requires explicit confirmation"
+          )
+        }
+
+        const target = await this.inspectRestoreTarget(spacePath, options.path)
+        if (sourceDeletesPath && !target.exists) {
+          return {
+            revision: source.revision,
+            path: source.path,
+            kind: source.kind,
+            storage: source.storage,
+            effect: "noop",
+            status: before,
+          }
+        }
+
+        await this.runner.runJson(
+          spacePath,
+          [
+            "restore",
+            "--json",
+            "--source",
+            source.revision,
+            "--",
+            options.path,
+          ],
+          { timeoutMs: MUTATION_TIMEOUT_MS }
+        )
+        const status = await this.readStatus(spaceId, spacePath)
+        if (status.currentHead !== before.currentHead) {
+          throw new Error(
+            "The current version changed while the file was being restored"
+          )
+        }
+
+        const effect: SpaceVersionRestoreEffect = sourceDeletesPath
+          ? "deleted"
+          : !target.exists
+            ? "created"
+            : overlappingChanges.length === 0 &&
+                pathStatusOverlaps(status.paths, options.path).length === 0
+              ? "noop"
+              : "modified"
+        return {
+          revision: source.revision,
+          path: source.path,
+          kind: source.kind,
+          storage: source.storage,
+          effect,
+          status,
+        }
+      })
+    })
+  }
+
   private async resolveFileSpace(spaceId: string): Promise<string> {
     const space = this.registry.getSpace(spaceId)
     if (!space) {
@@ -461,6 +646,46 @@ export class SpaceVersioningCoordinator {
       await this.runner.runJson(spacePath, ["status", "--json"]),
       spaceId
     )
+  }
+
+  private async inspectRestoreTarget(
+    spacePath: string,
+    repositoryPath: string
+  ): Promise<{ exists: boolean }> {
+    const segments = repositoryPath.split("/")
+    let currentPath = spacePath
+
+    for (let index = 0; index < segments.length; index += 1) {
+      currentPath = path.join(currentPath, segments[index])
+      let stats
+      try {
+        stats = await fs.lstat(currentPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          return { exists: false }
+        }
+        throw error
+      }
+
+      if (stats.isSymbolicLink()) {
+        throw new Error("Restore paths cannot pass through symbolic links")
+      }
+      const isTarget = index === segments.length - 1
+      if (!isTarget && !stats.isDirectory()) {
+        throw new Error("A restore path parent is not a directory")
+      }
+      if (isTarget) {
+        if (stats.isDirectory()) {
+          throw new Error("A file version cannot replace a directory")
+        }
+        if (!stats.isFile()) {
+          throw new Error("Only regular files can be restored")
+        }
+        return { exists: true }
+      }
+    }
+
+    return { exists: false }
   }
 
   private async rollbackAutomaticStaging(

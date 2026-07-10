@@ -7,6 +7,7 @@ import {
   parseGraftCommitResult,
   parseGraftDiff,
   parseGraftLog,
+  parseGraftRestoreSource,
   parseGraftStatus,
 } from "./graft-parsers"
 
@@ -301,6 +302,93 @@ describe("Graft v0.5 JSON parsers", () => {
           storage: "inline",
         },
       ],
+    })
+  })
+
+  it("resolves a changed file against the selected revision tree", () => {
+    expect(
+      parseGraftRestoreSource(
+        {
+          id: "resolved-commit",
+          artifacts: {
+            "assets/image.png": {
+              type: "large_file",
+              kind: "binary_file",
+            },
+          },
+          changes: [
+            {
+              path: "assets/image.png",
+              change: "modified",
+              kind: "binary_file",
+              storage: "external",
+            },
+          ],
+        },
+        "assets/image.png"
+      )
+    ).toEqual({
+      revision: "resolved-commit",
+      path: "assets/image.png",
+      change: "modified",
+      kind: "binary_file",
+      storage: "external",
+      containsPath: true,
+    })
+  })
+
+  it("recognizes a deletion without confusing the full tree inventory", () => {
+    expect(
+      parseGraftRestoreSource(
+        {
+          id: "delete-commit",
+          artifacts: {
+            "keep.md": { type: "file", kind: "text_file" },
+          },
+          changes: [
+            {
+              path: "gone.md",
+              change: "deleted",
+              kind: "text_file",
+              storage: "inline",
+            },
+          ],
+        },
+        "gone.md"
+      )
+    ).toMatchObject({
+      revision: "delete-commit",
+      path: "gone.md",
+      change: "deleted",
+      containsPath: false,
+    })
+  })
+
+  it("recognizes a SQLite path in the revision file inventory", () => {
+    expect(
+      parseGraftRestoreSource(
+        {
+          id: "database-commit",
+          files: {
+            "data/app.db": { snapshot: "snapshot-1" },
+          },
+          artifacts: {},
+          changes: [
+            {
+              path: "data/app.db",
+              change: "modified",
+              kind: "sqlite_database",
+              storage: "sqlite_snapshot",
+            },
+          ],
+        },
+        "data/app.db"
+      )
+    ).toMatchObject({
+      path: "data/app.db",
+      kind: "sqlite_database",
+      storage: "sqlite_snapshot",
+      containsPath: true,
     })
   })
 })
