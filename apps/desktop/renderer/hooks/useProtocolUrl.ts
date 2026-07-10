@@ -5,11 +5,12 @@ import { getSqliteProxy } from "@/packages/core/sqlite/channel"
 import { getToday, uuidv7 } from "@/lib/utils"
 import { useCallback, useEffect, useRef } from "react"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
-import { useExtensionInstaller } from "./useExtensionInstaller"
 import { flushPendingFileWrites } from "@/apps/web-app/components/file-space/pending-writes"
-import { toSpaceFileUrl } from "@/apps/web-app/components/file-space/file-path"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useToast } from "@/components/ui/use-toast"
+
+import { navigateToProtocolFile } from "./protocol-file-navigation"
+import { useExtensionInstaller } from "./useExtensionInstaller"
 
 export const useProtocolUrl = () => {
   const { navigate } = useRouterAdapter()
@@ -123,15 +124,17 @@ export const useProtocolUrl = () => {
           if (filePath) {
             try {
               if (activeSpace?.mode === "file") {
-                const relativePath =
-                  await window.eidos.spaceMgmt.getRelativeFilePath(
-                    activeSpace.id,
-                    filePath
-                  )
-                if (!relativePath) {
-                  throw new Error("The file is outside the current Space")
-                }
-                navigate(toSpaceFileUrl(relativePath))
+                await navigateToProtocolFile({
+                  spaceId: activeSpace.id,
+                  systemPath: filePath,
+                  getRelativeFilePath: (spaceId, systemPath) =>
+                    window.eidos.spaceMgmt.getRelativeFilePath(
+                      spaceId,
+                      systemPath
+                    ),
+                  flushPendingWrites: flushPendingFileWrites,
+                  navigate,
+                })
                 break
               }
               const encodedPath = encodeURIComponent(filePath)
