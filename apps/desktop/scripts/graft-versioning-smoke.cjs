@@ -242,6 +242,50 @@ function assertPayloadOmitsPath(payload, excludedPath) {
   }
 }
 
+function commitAll(cliPath, root, message) {
+  runGraftJson(cliPath, root, ["add", "--all", "--json"])
+  const result = runGraftJson(cliPath, root, [
+    "commit",
+    "--json",
+    "-m",
+    message,
+  ])
+  if (!result.commit?.id) {
+    throw new Error(
+      `Graft commit returned no commit id: ${JSON.stringify(result)}`
+    )
+  }
+  return result.commit.id
+}
+
+function captureRepoSnapshot(cliPath, root) {
+  const history = runGraftJson(cliPath, root, ["log", "--json"])
+  const index = runGraftJson(cliPath, root, ["ls-files", "--json", "--stage"])
+  if (!Array.isArray(history.commits) || !Array.isArray(index.paths)) {
+    throw new Error(
+      `Could not capture Graft repository state: ${JSON.stringify({ history, index })}`
+    )
+  }
+  return {
+    head: history.current_head,
+    commitIds: history.commits.map((commit) => commit.id),
+    indexPaths: index.paths,
+  }
+}
+
+function assertRepoSnapshotUnchanged(cliPath, root, before, operation) {
+  const after = captureRepoSnapshot(cliPath, root)
+  if (
+    after.head !== before.head ||
+    JSON.stringify(after.commitIds) !== JSON.stringify(before.commitIds) ||
+    JSON.stringify(after.indexPaths) !== JSON.stringify(before.indexPaths)
+  ) {
+    throw new Error(
+      `${operation} changed HEAD, history, or the index: ${JSON.stringify({ before, after })}`
+    )
+  }
+}
+
 function runFileSpaceCliSmoke() {
   const cliPath = findGraftCli()
   const root = fs.mkdtempSync(
@@ -565,6 +609,357 @@ function runRestoreConflictSmoke() {
   }
 }
 
+function runWholeSpaceRestoreSmoke() {
+  const cliPath = findGraftCli()
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "eidos-graft-whole-space-restore-smoke-")
+  )
+  const modifiedTextPath = "modified.md"
+  const modifiedBinaryPath = "assets/modified.bin"
+  const deletedTextPath = "missing/parent/deleted.md"
+  const deletedBinaryPath = "missing/parent/deleted.bin"
+  const addedTextPath = "added/new.md"
+  const addedBinaryPath = "added/new.bin"
+  const untrackedPath = "local-only.keep"
+  const oldText = "Text from the target version.\n"
+  const currentText = "Text from the current version.\n"
+  const oldBinary = Buffer.from([0x00, 0x11, 0x7f, 0x80, 0xfe, 0xff])
+  const currentBinary = Buffer.from([0xff, 0xee, 0x90, 0x02, 0x01, 0x00])
+  const deletedText = "Recreate this text file and its parents.\n"
+  const deletedBinary = Buffer.from([0xde, 0xad, 0x00, 0xbe, 0xef])
+  const addedText = "This text only exists in the current version.\n"
+  const addedBinary = Buffer.from([0xca, 0xfe, 0xba, 0xbe, 0x00])
+  const untrackedContent = "Keep this unrelated untracked file.\n"
+
+  console.log("Whole Space restore smoke root:", root)
+
+  try {
+    fs.mkdirSync(path.join(root, "assets"), { recursive: true })
+    fs.mkdirSync(path.join(root, "missing", "parent"), { recursive: true })
+    fs.writeFileSync(path.join(root, modifiedTextPath), oldText)
+    fs.writeFileSync(path.join(root, modifiedBinaryPath), oldBinary)
+    fs.writeFileSync(path.join(root, deletedTextPath), deletedText)
+    fs.writeFileSync(path.join(root, deletedBinaryPath), deletedBinary)
+    runGraftJson(cliPath, root, ["init", "--json"])
+    const targetRevision = commitAll(
+      cliPath,
+      root,
+      "Whole Space restore target"
+    )
+
+    fs.writeFileSync(path.join(root, modifiedTextPath), currentText)
+    fs.writeFileSync(path.join(root, modifiedBinaryPath), currentBinary)
+    fs.rmSync(path.join(root, "missing"), { recursive: true })
+    fs.mkdirSync(path.join(root, "added"), { recursive: true })
+    fs.writeFileSync(path.join(root, addedTextPath), addedText)
+    fs.writeFileSync(path.join(root, addedBinaryPath), addedBinary)
+    const currentRevision = commitAll(
+      cliPath,
+      root,
+      "Current Whole Space version"
+    )
+    fs.writeFileSync(path.join(root, untrackedPath), untrackedContent)
+
+    const before = captureRepoSnapshot(cliPath, root)
+    if (before.head !== currentRevision) {
+      throw new Error(
+        `Whole Space smoke started from the wrong HEAD: ${JSON.stringify(before)}`
+      )
+    }
+
+    const restore = runGraftJson(cliPath, root, [
+      "restore",
+      "--json",
+      "--source",
+      targetRevision,
+      "--",
+      ".",
+    ])
+    assertPaths(
+      restore,
+      [
+        modifiedTextPath,
+        modifiedBinaryPath,
+        deletedTextPath,
+        deletedBinaryPath,
+        addedTextPath,
+        addedBinaryPath,
+      ],
+      [untrackedPath]
+    )
+
+    if (
+      fs.readFileSync(path.join(root, modifiedTextPath), "utf8") !== oldText
+    ) {
+      throw new Error("Whole Space restore did not recover modified text")
+    }
+    if (
+      !fs.readFileSync(path.join(root, modifiedBinaryPath)).equals(oldBinary)
+    ) {
+      throw new Error(
+        "Whole Space restore did not recover modified binary data"
+      )
+    }
+    if (
+      fs.readFileSync(path.join(root, deletedTextPath), "utf8") !== deletedText
+    ) {
+      throw new Error(
+        "Whole Space restore did not recreate deleted text or missing parents"
+      )
+    }
+    if (
+      !fs.readFileSync(path.join(root, deletedBinaryPath)).equals(deletedBinary)
+    ) {
+      throw new Error(
+        "Whole Space restore did not recreate deleted binary data"
+      )
+    }
+    if (
+      fs.existsSync(path.join(root, addedTextPath)) ||
+      fs.existsSync(path.join(root, addedBinaryPath))
+    ) {
+      throw new Error(
+        "Whole Space restore kept files added after the target version"
+      )
+    }
+    if (
+      fs.readFileSync(path.join(root, untrackedPath), "utf8") !==
+      untrackedContent
+    ) {
+      throw new Error("Whole Space restore changed an unrelated untracked file")
+    }
+
+    assertRepoSnapshotUnchanged(cliPath, root, before, "Whole Space restore")
+    const status = runGraftJson(cliPath, root, ["status", "--json"])
+    assertPaths(
+      status,
+      [
+        modifiedTextPath,
+        modifiedBinaryPath,
+        deletedTextPath,
+        deletedBinaryPath,
+        addedTextPath,
+        addedBinaryPath,
+        untrackedPath,
+      ],
+      []
+    )
+    if (
+      !status.dirty ||
+      !status.has_unstaged_changes ||
+      status.has_staged_changes ||
+      status.has_conflicts ||
+      status.staged.length !== 0 ||
+      status.conflicted.length !== 0
+    ) {
+      throw new Error(
+        `Whole Space restore did not leave only unstaged Changes: ${JSON.stringify(status)}`
+      )
+    }
+  } finally {
+    removeTempRoot(root)
+  }
+}
+
+function runWholeSpaceRestoreUntrackedCollisionSmoke() {
+  const cliPath = findGraftCli()
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "eidos-graft-root-restore-collision-smoke-")
+  )
+  const earlyPath = "a-early.md"
+  const collisionPath = "collision/restored.bin"
+  const oldEarly = "target early file\n"
+  const currentEarly = "current early file\n"
+  const historicalCollision = Buffer.from([0x10, 0x20, 0x30, 0x40])
+  const localCollision = Buffer.from([0xaa, 0xbb, 0xcc, 0xdd])
+
+  console.log("Whole Space untracked collision smoke root:", root)
+
+  try {
+    fs.mkdirSync(path.join(root, "collision"), { recursive: true })
+    fs.writeFileSync(path.join(root, earlyPath), oldEarly)
+    fs.writeFileSync(path.join(root, collisionPath), historicalCollision)
+    runGraftJson(cliPath, root, ["init", "--json"])
+    const targetRevision = commitAll(
+      cliPath,
+      root,
+      "Track future collision path"
+    )
+
+    fs.writeFileSync(path.join(root, earlyPath), currentEarly)
+    fs.rmSync(path.join(root, "collision"), { recursive: true })
+    commitAll(cliPath, root, "Delete future collision path")
+    fs.mkdirSync(path.join(root, "collision"), { recursive: true })
+    fs.writeFileSync(path.join(root, collisionPath), localCollision)
+
+    const before = captureRepoSnapshot(cliPath, root)
+    const restoreError = runGraftExpectFailure(cliPath, root, [
+      "restore",
+      "--json",
+      "--source",
+      targetRevision,
+      "--",
+      ".",
+    ])
+    if (!restoreError.includes("untracked paths would be overwritten")) {
+      throw new Error(
+        `Whole Space restore returned the wrong collision error: ${restoreError}`
+      )
+    }
+    if (
+      fs.readFileSync(path.join(root, earlyPath), "utf8") !== currentEarly ||
+      !fs.readFileSync(path.join(root, collisionPath)).equals(localCollision)
+    ) {
+      throw new Error(
+        "Rejected Whole Space restore changed a file before detecting an untracked collision"
+      )
+    }
+    assertRepoSnapshotUnchanged(
+      cliPath,
+      root,
+      before,
+      "Rejected Whole Space collision restore"
+    )
+  } finally {
+    removeTempRoot(root)
+  }
+}
+
+function runWholeSpaceRestoreSymlinkSafetySmoke() {
+  if (process.platform === "win32") return
+
+  const cliPath = findGraftCli()
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "eidos-graft-root-restore-symlink-smoke-")
+  )
+  const externalRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "eidos-graft-root-restore-external-")
+  )
+  const earlyPath = "a-early.md"
+  const linkedPath = "linked/escape.md"
+  const oldEarly = "target early file\n"
+  const currentEarly = "current early file\n"
+  const historicalLinked = "historical linked file\n"
+  const externalSentinel = "external file must not change\n"
+
+  console.log("Whole Space symlink safety smoke root:", root)
+
+  try {
+    fs.mkdirSync(path.join(root, "linked"), { recursive: true })
+    fs.writeFileSync(path.join(root, earlyPath), oldEarly)
+    fs.writeFileSync(path.join(root, linkedPath), historicalLinked)
+    runGraftJson(cliPath, root, ["init", "--json"])
+    const targetRevision = commitAll(
+      cliPath,
+      root,
+      "Track path later replaced by symlink"
+    )
+
+    fs.writeFileSync(path.join(root, earlyPath), currentEarly)
+    fs.rmSync(path.join(root, "linked"), { recursive: true })
+    commitAll(cliPath, root, "Delete linked path")
+    fs.writeFileSync(path.join(externalRoot, "escape.md"), externalSentinel)
+    fs.symlinkSync(externalRoot, path.join(root, "linked"), "dir")
+
+    const before = captureRepoSnapshot(cliPath, root)
+    const restoreError = runGraftExpectFailure(cliPath, root, [
+      "restore",
+      "--json",
+      "--source",
+      targetRevision,
+      "--",
+      ".",
+    ])
+    if (!restoreError.includes("not a directory")) {
+      throw new Error(
+        `Whole Space restore returned the wrong symlink error: ${restoreError}`
+      )
+    }
+    if (
+      fs.readFileSync(path.join(root, earlyPath), "utf8") !== currentEarly ||
+      fs.readFileSync(path.join(externalRoot, "escape.md"), "utf8") !==
+        externalSentinel ||
+      !fs.lstatSync(path.join(root, "linked")).isSymbolicLink()
+    ) {
+      throw new Error(
+        "Rejected Whole Space restore changed the worktree symlink or an external file"
+      )
+    }
+    assertRepoSnapshotUnchanged(
+      cliPath,
+      root,
+      before,
+      "Rejected Whole Space symlink restore"
+    )
+  } finally {
+    removeTempRoot(root)
+    removeTempRoot(externalRoot)
+  }
+}
+
+function runWholeSpaceRestoreAncestorSafetySmoke() {
+  const cliPath = findGraftCli()
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "eidos-graft-root-restore-ancestor-smoke-")
+  )
+  const earlyPath = "a-early.md"
+  const latePath = "z-late/child.md"
+  const ancestorPath = "z-late"
+  const oldEarly = "target early file\n"
+  const currentEarly = "current early file\n"
+  const ancestorContent = "ordinary file blocking a later restore path\n"
+
+  console.log("Whole Space ancestor safety smoke root:", root)
+
+  try {
+    fs.mkdirSync(path.join(root, "z-late"), { recursive: true })
+    fs.writeFileSync(path.join(root, earlyPath), oldEarly)
+    fs.writeFileSync(path.join(root, latePath), "restore this late file\n")
+    runGraftJson(cliPath, root, ["init", "--json"])
+    const targetRevision = commitAll(
+      cliPath,
+      root,
+      "Track path with a later ancestor"
+    )
+
+    fs.writeFileSync(path.join(root, earlyPath), currentEarly)
+    fs.rmSync(path.join(root, "z-late"), { recursive: true })
+    commitAll(cliPath, root, "Delete later nested path")
+    fs.writeFileSync(path.join(root, ancestorPath), ancestorContent)
+
+    const before = captureRepoSnapshot(cliPath, root)
+    const restoreError = runGraftExpectFailure(cliPath, root, [
+      "restore",
+      "--json",
+      "--source",
+      targetRevision,
+      "--",
+      ".",
+    ])
+    if (!restoreError.includes("not a directory")) {
+      throw new Error(
+        `Whole Space restore returned the wrong ancestor error: ${restoreError}`
+      )
+    }
+    if (
+      fs.readFileSync(path.join(root, earlyPath), "utf8") !== currentEarly ||
+      fs.readFileSync(path.join(root, ancestorPath), "utf8") !== ancestorContent
+    ) {
+      throw new Error(
+        "Rejected Whole Space restore changed an earlier file before ancestor preflight failed"
+      )
+    }
+    assertRepoSnapshotUnchanged(
+      cliPath,
+      root,
+      before,
+      "Rejected Whole Space ancestor restore"
+    )
+  } finally {
+    removeTempRoot(root)
+  }
+}
+
 function runAmbiguousPathSafetySmoke() {
   const cliPath = findGraftCli()
   const root = fs.mkdtempSync(
@@ -655,6 +1050,10 @@ try {
   runSqliteExtensionSmoke()
   runFileSpaceCliSmoke()
   runRestoreConflictSmoke()
+  runWholeSpaceRestoreSmoke()
+  runWholeSpaceRestoreUntrackedCollisionSmoke()
+  runWholeSpaceRestoreSymlinkSafetySmoke()
+  runWholeSpaceRestoreAncestorSafetySmoke()
   runAmbiguousPathSafetySmoke()
   process.exit(0)
 } catch (error) {
