@@ -9,6 +9,7 @@ import {
   normalizeSpaceVersionDiff,
   normalizeSpaceVersionHistory,
   normalizeSpaceVersionRestorePathResult,
+  normalizeSpaceVersionRestoreVersionResult,
   normalizeSpaceVersionStatus,
   useSpaceVersioning,
 } from "./use-space-versioning"
@@ -185,6 +186,20 @@ describe("file Space versioning normalization", () => {
       status: { enabled: true, clean: true },
     })
   })
+
+  it("normalizes a whole Space restore result", () => {
+    const result = normalizeSpaceVersionRestoreVersionResult({
+      revision: "commit-1",
+      restoredPaths: ["notes/a.md", "notes/a.md", "assets/image.png"],
+      status: versionStatus(),
+    })
+
+    expect(result).toMatchObject({
+      revision: "commit-1",
+      restoredPaths: ["notes/a.md", "assets/image.png"],
+      status: { enabled: true },
+    })
+  })
 })
 
 type HookResult = ReturnType<typeof useSpaceVersioning>
@@ -278,6 +293,20 @@ function createBridge() {
         kind: "text_file",
         storage: "inline",
         effect: "modified",
+        status: versionStatus(),
+      })
+    ),
+    restoreVersion: vi.fn(
+      async (
+        _spaceId: string,
+        request: {
+          revision: string
+          expectedHead: string
+          overwriteChanges?: boolean
+        }
+      ) => ({
+        revision: request.revision,
+        restoredPaths: ["notes/today.md", "assets/image.png"],
         status: versionStatus(),
       })
     ),
@@ -456,6 +485,49 @@ describe("useSpaceVersioning history coordination", () => {
     expect(bridge.restorePath).toHaveBeenCalledWith("space-a", request)
     unregisterTarget()
     unregisterSibling()
+  })
+
+  it("flushes every pending Space write before restoring a version", async () => {
+    const bridge = createBridge()
+    installBridge(bridge)
+    const firstFlush = vi.fn(async () => true)
+    const secondFlush = vi.fn(async () => true)
+    const unregisterFirst = registerPendingWriteFlusher(
+      "restore-version-first",
+      firstFlush,
+      { spaceId: "space-a", filePath: "notes/today.md" }
+    )
+    const unregisterSecond = registerPendingWriteFlusher(
+      "restore-version-second",
+      secondFlush,
+      { spaceId: "space-a", filePath: "assets/image.png" }
+    )
+
+    await act(async () => {
+      root.render(
+        createElement(VersioningProbe, {
+          name: "history",
+          loadHistory: true,
+        })
+      )
+      await flushEffects()
+    })
+
+    const request = {
+      revision: "commit-1",
+      expectedHead: "commit-3",
+      overwriteChanges: true,
+    }
+    await act(async () => {
+      await hookResults.get("history")?.restoreVersion(request)
+      await flushEffects()
+    })
+
+    expect(firstFlush).toHaveBeenCalledOnce()
+    expect(secondFlush).toHaveBeenCalledOnce()
+    expect(bridge.restoreVersion).toHaveBeenCalledWith("space-a", request)
+    unregisterFirst()
+    unregisterSecond()
   })
 
   it("shares a per-Space mutation gate across hook instances", async () => {

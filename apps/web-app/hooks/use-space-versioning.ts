@@ -131,6 +131,18 @@ export interface SpaceVersionRestorePathResult {
   status: SpaceVersionStatus
 }
 
+export interface SpaceVersionRestoreVersionRequest {
+  revision: string
+  expectedHead: string
+  overwriteChanges?: boolean
+}
+
+export interface SpaceVersionRestoreVersionResult {
+  revision: string
+  restoredPaths: string[]
+  status: SpaceVersionStatus
+}
+
 export type SpaceVersioningOperation =
   | "enabling"
   | "committing"
@@ -153,6 +165,10 @@ interface SpaceVersioningBridge {
   restorePath: (
     spaceId: string,
     request: SpaceVersionRestorePathRequest
+  ) => Promise<unknown>
+  restoreVersion: (
+    spaceId: string,
+    request: SpaceVersionRestoreVersionRequest
   ) => Promise<unknown>
 }
 
@@ -705,6 +721,29 @@ export function normalizeSpaceVersionRestorePathResult(
   }
 }
 
+export function normalizeSpaceVersionRestoreVersionResult(
+  value: unknown
+): SpaceVersionRestoreVersionResult {
+  const payload = unwrapPayload(value)
+  if (!isRecord(payload)) {
+    throw new Error("Desktop returned an invalid Space restore result")
+  }
+  const revision = asString(payload.revision)
+  const restoredPaths = Array.isArray(payload.restoredPaths)
+    ? payload.restoredPaths
+        .map((entry) => normalizePath(entry))
+        .filter((entry): entry is string => entry !== null)
+    : []
+  if (!revision) {
+    throw new Error("Desktop returned an incomplete Space restore result")
+  }
+  return {
+    revision,
+    restoredPaths: [...new Set(restoredPaths)],
+    status: normalizeSpaceVersionStatus(payload.status),
+  }
+}
+
 function getSpaceVersioningBridge(): SpaceVersioningBridge | null {
   if (typeof window === "undefined") return null
   const eidos = (
@@ -1241,6 +1280,49 @@ export function useSpaceVersioning(
     [refresh, requireSpaceId]
   )
 
+  const restoreVersion = useCallback(
+    async (request: SpaceVersionRestoreVersionRequest) => {
+      setError(null)
+      let activeSpaceId: string | undefined
+      let finishOperation: (() => void) | undefined
+      try {
+        activeSpaceId = requireSpaceId()
+        finishOperation = beginSpaceVersioningOperation(
+          activeSpaceId,
+          "restoring"
+        )
+        setOperation("restoring")
+        if (!(await flushPendingFileWrites({ spaceId: activeSpaceId }))) {
+          throw new Error(
+            "Eidos could not save all pending file changes before restoring this Space."
+          )
+        }
+        const raw = await requireSpaceVersioningBridge().restoreVersion(
+          activeSpaceId,
+          request
+        )
+        const result = normalizeSpaceVersionRestoreVersionResult(raw)
+        await refresh()
+        announceSpaceVersioningChange(activeSpaceId, instanceTokenRef.current)
+        return result
+      } catch (requestError) {
+        const nextError = errorFrom(requestError)
+        if (mountedRef.current) setError(nextError)
+        throw nextError
+      } finally {
+        finishOperation?.()
+        if (mountedRef.current) {
+          setOperation(
+            activeSpaceId
+              ? (activeSpaceVersioningOperations.get(activeSpaceId) ?? null)
+              : null
+          )
+        }
+      }
+    },
+    [refresh, requireSpaceId]
+  )
+
   return {
     status,
     history,
@@ -1257,6 +1339,7 @@ export function useSpaceVersioning(
     getCommit,
     getDiff,
     restorePath,
+    restoreVersion,
     refresh,
     refreshStatus,
     refreshHistory,

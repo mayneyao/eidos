@@ -144,6 +144,7 @@ describe("CommitInspector", () => {
     const getCommit = vi.fn(async () => commit)
     const getDiff = createGetDiff()
     const restorePath = vi.fn()
+    const restoreVersion = vi.fn()
 
     await act(async () => {
       root.render(
@@ -154,6 +155,7 @@ describe("CommitInspector", () => {
           status={status}
           operation={null}
           restorePath={restorePath}
+          restoreVersion={restoreVersion}
         />
       )
       await flushEffects()
@@ -205,6 +207,7 @@ describe("CommitInspector", () => {
       effect: "modified" as const,
       status,
     }))
+    const restoreVersion = vi.fn()
 
     await act(async () => {
       root.render(
@@ -215,6 +218,7 @@ describe("CommitInspector", () => {
           status={status}
           operation={null}
           restorePath={restorePath}
+          restoreVersion={restoreVersion}
         />
       )
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -248,6 +252,58 @@ describe("CommitInspector", () => {
     expect(container.textContent).toContain(
       "Review it in Changes before creating a version"
     )
+  })
+
+  it("restores every versioned path without moving history", async () => {
+    const getCommit = vi.fn(async () => commit)
+    const getDiff = createGetDiff()
+    const restoreVersion = vi.fn(async () => ({
+      revision: "commit-2",
+      restoredPaths: ["notes/a.md", "notes/b.md"],
+      status,
+    }))
+
+    await act(async () => {
+      root.render(
+        <CommitInspector
+          commit={commit}
+          getCommit={getCommit}
+          getDiff={getDiff}
+          status={status}
+          operation={null}
+          restorePath={vi.fn()}
+          restoreVersion={restoreVersion}
+        />
+      )
+      await flushEffects()
+    })
+
+    const openButton = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Restore Space"
+    )
+    await act(async () => {
+      openButton?.click()
+      await flushEffects()
+    })
+    expect(document.body.textContent).toContain("history will not be rewritten")
+    expect(document.body.textContent).toContain("Untracked and ignored files")
+
+    const confirmButton = [...document.querySelectorAll("button")].find(
+      (button) =>
+        button.textContent?.trim() === "Restore Space" &&
+        button.closest('[role="alertdialog"]')
+    )
+    await act(async () => {
+      confirmButton?.click()
+      await flushEffects()
+    })
+
+    expect(restoreVersion).toHaveBeenCalledWith({
+      revision: "commit-2",
+      expectedHead: "commit-3",
+      overwriteChanges: true,
+    })
+    expect(container.textContent).toContain("Restored 2 versioned paths")
   })
 
   it("explains when historical text is outside the bounded preview", async () => {
@@ -288,6 +344,7 @@ describe("CommitInspector", () => {
           status={status}
           operation={null}
           restorePath={vi.fn()}
+          restoreVersion={vi.fn()}
         />
       )
       await flushEffects()
@@ -327,6 +384,7 @@ describe("CommitInspector", () => {
       effect: "deleted" as const,
       status,
     }))
+    const restoreVersion = vi.fn()
 
     await act(async () => {
       root.render(
@@ -337,6 +395,7 @@ describe("CommitInspector", () => {
           status={status}
           operation={null}
           restorePath={restorePath}
+          restoreVersion={restoreVersion}
         />
       )
       await new Promise((resolve) => setTimeout(resolve, 0))

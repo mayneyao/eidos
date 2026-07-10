@@ -18,6 +18,8 @@ import type {
   SpaceVersionPathChange,
   SpaceVersionRestorePathRequest,
   SpaceVersionRestorePathResult,
+  SpaceVersionRestoreVersionRequest,
+  SpaceVersionRestoreVersionResult,
   SpaceVersionStatus,
   SpaceVersionTextContentDiff,
   SpaceVersioningOperation,
@@ -50,6 +52,9 @@ interface CommitInspectorProps {
   restorePath: (
     request: SpaceVersionRestorePathRequest
   ) => Promise<SpaceVersionRestorePathResult>
+  restoreVersion: (
+    request: SpaceVersionRestoreVersionRequest
+  ) => Promise<SpaceVersionRestoreVersionResult>
   placement?: "side" | "below"
 }
 
@@ -278,6 +283,7 @@ export function CommitInspector({
   status,
   operation,
   restorePath,
+  restoreVersion,
   placement = "side",
 }: CommitInspectorProps) {
   const [detail, setDetail] = useState<SpaceVersionCommit | null>(null)
@@ -294,6 +300,7 @@ export function CommitInspector({
   const [contentLoading, setContentLoading] = useState(false)
   const [contentError, setContentError] = useState<string | null>(null)
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
+  const [spaceRestoreDialogOpen, setSpaceRestoreDialogOpen] = useState(false)
   const [restoreFeedback, setRestoreFeedback] =
     useState<RestoreFeedback | null>(null)
 
@@ -309,6 +316,7 @@ export function CommitInspector({
     setContentError(null)
     setDetailError(null)
     setRestoreDialogOpen(false)
+    setSpaceRestoreDialogOpen(false)
     setRestoreFeedback(null)
     if (!commit) return
 
@@ -496,6 +504,32 @@ export function CommitInspector({
     }
     return null
   })()
+  const spaceRestoreDisabledReason = (() => {
+    if (!detail) return "Select a version to restore"
+    if (detailLoading || detailReadyId !== detail.id) {
+      return "Wait for version details to load"
+    }
+    if (!status?.enabled || !status.head?.id) {
+      return "Current version information is unavailable"
+    }
+    if (operation) {
+      return restoring
+        ? "The Space is being restored"
+        : "Wait for the current version operation to finish"
+    }
+    if (status.hasConflicts) {
+      return "Resolve version conflicts before restoring the Space"
+    }
+    if (status.changes.some((change) => change.staged)) {
+      return "Commit or unstage all staged paths before restoring the Space"
+    }
+    if (detail.id === status.head.id && status.clean) {
+      return "The Space already matches this version"
+    }
+    return null
+  })()
+  const hasOverwritableSpaceChanges =
+    status?.changes.some((change) => change.status !== "untracked") ?? false
 
   const handleRestoreConfirm = async (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault()
@@ -529,6 +563,49 @@ export function CommitInspector({
             : result.effect === "deleted"
               ? `Restored the deleted state of ${result.path}. Review the deletion in Changes before creating a version.`
               : `Restored ${result.path} from ${shortCommitId(result.revision)}. Review it in Changes before creating a version.`,
+      })
+    } catch (restoreError) {
+      setRestoreFeedback({
+        tone: "error",
+        message:
+          restoreError instanceof Error
+            ? restoreError.message
+            : String(restoreError),
+      })
+    }
+  }
+
+  const handleSpaceRestoreConfirm = async (
+    event: MouseEvent<HTMLButtonElement>
+  ) => {
+    event.preventDefault()
+    if (spaceRestoreDisabledReason || !detail || !status?.head?.id) {
+      return
+    }
+
+    setRestoreFeedback(null)
+    try {
+      const result = await restoreVersion({
+        revision: detail.id,
+        expectedHead: status.head.id,
+        overwriteChanges: true,
+      })
+      setSpaceRestoreDialogOpen(false)
+      const count = result.restoredPaths.length
+      setRestoreFeedback({
+        tone: "success",
+        message:
+          count === 0
+            ? "The Space already matches " +
+              shortCommitId(result.revision) +
+              "."
+            : "Restored " +
+              count +
+              " versioned " +
+              (count === 1 ? "path" : "paths") +
+              " from " +
+              shortCommitId(result.revision) +
+              ". Review the result in Changes before creating a version.",
       })
     } catch (restoreError) {
       setRestoreFeedback({
@@ -593,6 +670,25 @@ export function CommitInspector({
           {detailLoading ? (
             <LoaderCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
           ) : null}
+          <button
+            type="button"
+            className="inline-flex h-6 shrink-0 items-center gap-1 rounded-[2px] px-1.5 text-[10px] font-medium text-muted-foreground outline-hidden hover:bg-accent hover:text-accent-foreground focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-45"
+            title={
+              spaceRestoreDisabledReason ?? "Restore the Space to this version"
+            }
+            disabled={spaceRestoreDisabledReason !== null}
+            onClick={() => {
+              setRestoreFeedback(null)
+              setSpaceRestoreDialogOpen(true)
+            }}
+          >
+            {restoring ? (
+              <LoaderCircle className="h-3 w-3 animate-spin" />
+            ) : (
+              <RotateCcw className="h-3 w-3" />
+            )}
+            <span>Restore Space</span>
+          </button>
         </div>
         {detailError ? (
           <p className="mt-2 text-[10px] leading-4 text-destructive">
@@ -772,6 +868,59 @@ export function CommitInspector({
                 : restoresDeletion
                   ? "Delete working file"
                   : "Restore file"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={spaceRestoreDialogOpen}
+        onOpenChange={(open) => {
+          if (!restoring) setSpaceRestoreDialogOpen(open)
+        }}
+      >
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base">
+              Restore the Space to “{detail.message}”?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="leading-5">
+              Every versioned file will be restored to{" "}
+              {shortCommitId(detail.id)}. Untracked and ignored files that do
+              not collide with versioned paths will remain. If an untracked path
+              would collide, restoration stops before changing any files. HEAD
+              will not move and history will not be rewritten; the result will
+              appear in Changes so you can review it before creating a new
+              version.
+              {hasOverwritableSpaceChanges ? (
+                <span className="mt-2 block font-medium text-foreground">
+                  Current uncommitted changes to versioned paths will be
+                  overwritten.
+                </span>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {restoreFeedback?.tone === "error" ? (
+            <div
+              className="flex items-start gap-2 rounded-[3px] bg-destructive/7 px-2.5 py-2 text-xs leading-5 text-destructive"
+              role="alert"
+            >
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{restoreFeedback.message}</span>
+            </div>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={restoring}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={spaceRestoreDisabledReason !== null}
+              onClick={(event) => void handleSpaceRestoreConfirm(event)}
+            >
+              {restoring ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4" />
+              )}
+              {restoring ? "Restoring…" : "Restore Space"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
