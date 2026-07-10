@@ -17,6 +17,9 @@ import { Toaster } from "@/components/toaster"
 import { WindowControls } from "@/components/window-controls"
 import { useWorker } from "@/apps/web-app/hooks/use-worker"
 import { useAppStoreBase } from "@/apps/web-app/store/app-store"
+import { flushPendingFileWrites } from "@/apps/web-app/components/file-space/pending-writes"
+import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
+import { shouldEnableLegacySpaceRuntime } from "@/apps/web-app/space-runtime-policy"
 
 import { useProtocolUrl } from "./hooks/useProtocolUrl"
 
@@ -25,16 +28,36 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { isInitialized, initWorker } = useWorker()
+  const { currentSpace } = useCurrentSpace()
+  const legacyRuntimeEnabled = shouldEnableLegacySpaceRuntime(
+    currentSpace?.mode
+  )
+  const { initWorker } = useWorker(legacyRuntimeEnabled)
   const { isSidebarOpen, setSidebarOpen } = useAppStoreBase()
   useProtocolUrl()
-  useSyncFileHandlers()
-  useSyncFileActions()
+  useSyncFileHandlers(legacyRuntimeEnabled)
+  useSyncFileActions(legacyRuntimeEnabled)
   useEffect(() => {
-    if (!isInitialized) {
-      initWorker()
+    const listenerId = window.eidos?.on(
+      "window:flush-pending-writes",
+      async (_event: Electron.IpcRendererEvent, requestId: unknown) => {
+        if (typeof requestId !== "string") return
+        const success = await flushPendingFileWrites()
+        window.eidos?.send(
+          `window:flush-pending-writes:complete:${requestId}`,
+          success
+        )
+      }
+    )
+    return () => {
+      if (listenerId) {
+        window.eidos?.off("window:flush-pending-writes", listenerId)
+      }
     }
-  }, [initWorker, isInitialized])
+  }, [])
+  useEffect(() => {
+    return initWorker()
+  }, [initWorker])
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>

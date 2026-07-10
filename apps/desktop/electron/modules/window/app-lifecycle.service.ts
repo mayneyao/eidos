@@ -7,7 +7,6 @@ import { app, ipcMain } from "electron"
 import { Injectable, Inject, IpcInjectable, container } from "../../common/di"
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import { UpdaterService } from "../updater/updater.service"
-import { TrayService } from "./tray.service"
 import { DataSpaceManager } from "../data-space"
 import { GlobalShortcutsService } from "./global-shortcuts.service"
 import { WindowService } from "./window.service"
@@ -20,7 +19,6 @@ export class AppLifecycleService extends IpcServiceBase {
 
   constructor(
     @Inject(UpdaterService) private updaterService: UpdaterService,
-    @Inject(TrayService) private trayService: TrayService,
     @Inject(DataSpaceManager) private dataSpaceManager: DataSpaceManager,
     @Inject(GlobalShortcutsService)
     private globalShortcutsService: GlobalShortcutsService,
@@ -83,10 +81,13 @@ export class AppLifecycleService extends IpcServiceBase {
       onWindowAllClosed?.()
     })
 
-    // Before quit - final cleanup
+    // Mark quit intent before windows close. Final cleanup waits until the quit
+    // is committed so a pending-file save failure can still keep Eidos open.
     app.on("before-quit", () => {
-      onBeforeQuit?.()
       this.forceQuit = true
+    })
+    app.on("will-quit", () => {
+      onBeforeQuit?.()
     })
   }
 
@@ -109,14 +110,6 @@ export class AppLifecycleService extends IpcServiceBase {
 
     ipcMain.handle("app-lifecycle:quitApp", async () => {
       this.forceQuit = true
-      // Destroy tray via DI
-      try {
-        this.trayService.destroyTray()
-      } catch {}
-      // Close dataspace via DI if available
-      try {
-        this.dataSpaceManager.getDataSpace()?.close()
-      } catch {}
       app.quit()
     })
   }

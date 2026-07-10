@@ -2,6 +2,7 @@ import type { BrowserWindow } from "electron"
 import {
   app,
   BrowserWindow as ElectronBrowserWindow,
+  dialog,
   ipcMain,
   shell,
 } from "electron"
@@ -39,6 +40,9 @@ const defaultViewOptions = {
 export class WindowService {
   private mainWindow: BrowserWindow | null = null
   private port: number = 13127
+  private closeApproved = false
+  private closeCheckInProgress = false
+  private closeRequestCounter = 0
 
   constructor(@Inject(ConfigManager) private configManager: ConfigManager) {}
 
@@ -352,19 +356,83 @@ export class WindowService {
     if (!this.mainWindow) return
 
     this.mainWindow.on("close", (event) => {
-      if (!appLifecycleService.isForceQuit()) {
-        if (process.platform === "darwin") {
-          event.preventDefault()
-          this.mainWindow?.hide()
-        } else {
-          appLifecycleService.setForceQuit(true)
-          // Get tray service from container and destroy it
-          try {
-            container.get(TrayService).destroyTray()
-          } catch {}
-          app.quit()
-        }
+      if (this.closeApproved) return
+
+      if (!appLifecycleService.isForceQuit() && process.platform === "darwin") {
+        event.preventDefault()
+        this.mainWindow?.hide()
+        return
       }
+
+      event.preventDefault()
+      if (this.closeCheckInProgress) return
+      this.closeCheckInProgress = true
+      void this.finishCloseAfterPendingWrites(appLifecycleService).finally(
+        () => {
+          this.closeCheckInProgress = false
+        }
+      )
+    })
+  }
+
+  private async finishCloseAfterPendingWrites(
+    appLifecycleService: AppLifecycleService
+  ): Promise<void> {
+    const win = this.mainWindow
+    if (!win || win.isDestroyed()) return
+
+    const saved = await this.requestPendingWriteFlush(win)
+    if (!saved) {
+      const { response } = await dialog.showMessageBox(win, {
+        type: "warning",
+        buttons: ["Keep Eidos Open", "Discard Unsaved Changes"],
+        defaultId: 0,
+        cancelId: 0,
+        title: "Unable to save current file",
+        message: "Eidos could not save all pending file changes.",
+        detail:
+          "Keep Eidos open to resolve the error, or discard the unsaved changes and quit.",
+        noLink: true,
+      })
+      if (response === 0) {
+        appLifecycleService.setForceQuit(false)
+        win.show()
+        return
+      }
+    }
+
+    this.closeApproved = true
+    appLifecycleService.setForceQuit(true)
+    try {
+      container.get(TrayService).destroyTray()
+    } catch {}
+    app.quit()
+  }
+
+  private requestPendingWriteFlush(win: BrowserWindow): Promise<boolean> {
+    if (win.webContents.isDestroyed()) return Promise.resolve(true)
+
+    const requestId = `${Date.now()}-${++this.closeRequestCounter}`
+    const responseChannel = `window:flush-pending-writes:complete:${requestId}`
+    return new Promise((resolve) => {
+      let settled = false
+      const finish = (success: boolean) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
+        ipcMain.removeListener(responseChannel, handleResponse)
+        resolve(success)
+      }
+      const handleResponse = (
+        event: Electron.IpcMainEvent,
+        success: unknown
+      ) => {
+        if (event.sender !== win.webContents) return
+        finish(success === true)
+      }
+      const timeout = setTimeout(() => finish(false), 5000)
+      ipcMain.on(responseChannel, handleResponse)
+      win.webContents.send("window:flush-pending-writes", requestId)
     })
   }
 }
