@@ -6,10 +6,15 @@ const { execFileSync } = require("node:child_process")
 const { downloadFile } = require("./download-utils.cjs")
 
 const DEST_DIR = "dist-sqlite-ext"
+const GRAFT_CLI_DEST_DIR = "dist-cli"
 const GRAFT_REPO =
-  process.env.GRAFT_SQLITE_EXTENSION_REPO || "eidos-space/graft"
+  process.env.GRAFT_RELEASE_REPO ||
+  process.env.GRAFT_SQLITE_EXTENSION_REPO ||
+  "eidos-space/graft"
 const GRAFT_VERSION = normalizeTag(
-  process.env.GRAFT_SQLITE_EXTENSION_VERSION || "v0.4.0"
+  process.env.GRAFT_RELEASE_VERSION ||
+    process.env.GRAFT_SQLITE_EXTENSION_VERSION ||
+    "v0.5.0"
 )
 
 const platformInfoByKey = {
@@ -194,7 +199,7 @@ function comparePnpmPackageEntries(a, b) {
   return 0
 }
 
-function installFileAtomically(sourcePath, finalDestPath) {
+function installFileAtomically(sourcePath, finalDestPath, mode) {
   const destDir = path.dirname(finalDestPath)
   const destBaseName = path.basename(finalDestPath)
   const tempDestPath = path.join(
@@ -203,8 +208,12 @@ function installFileAtomically(sourcePath, finalDestPath) {
   )
 
   try {
+    fs.mkdirSync(destDir, { recursive: true })
     fs.copyFileSync(sourcePath, tempDestPath)
-    fs.chmodSync(tempDestPath, fs.statSync(sourcePath).mode & 0o777)
+    fs.chmodSync(
+      tempDestPath,
+      mode === undefined ? fs.statSync(sourcePath).mode & 0o777 : mode
+    )
     fs.renameSync(tempDestPath, finalDestPath)
   } catch (error) {
     fs.rmSync(tempDestPath, { force: true })
@@ -212,40 +221,66 @@ function installFileAtomically(sourcePath, finalDestPath) {
   }
 }
 
-async function downloadGraftRelease(platformInfo, finalDestPath) {
+async function downloadAndInstallGraftAsset({
+  assetPrefix,
+  finalDestPath,
+  findSource,
+  installMode,
+  logName,
+  platformInfo,
+  tempPrefix,
+}) {
   const assetVersion = GRAFT_VERSION.replace(/^v/, "")
-  const assetName = `sqlite-graft-${assetVersion}-${platformInfo.graftTarget}.${platformInfo.graftArchiveExt}`
+  const assetName = `${assetPrefix}-${assetVersion}-${platformInfo.graftTarget}.${platformInfo.graftArchiveExt}`
   const downloadUrl = `https://github.com/${GRAFT_REPO}/releases/download/${GRAFT_VERSION}/${assetName}`
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "sqlite-graft-"))
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), tempPrefix))
   const archivePath = path.join(tempDir, assetName)
   const extractDir = path.join(tempDir, "extract")
 
   try {
     fs.mkdirSync(extractDir, { recursive: true })
-    console.log(`postinstall-sqlite-graft: Downloading ${downloadUrl}`)
+    console.log(`${logName}: Downloading ${downloadUrl}`)
     await downloadFile(downloadUrl, archivePath)
     extractArchive(archivePath, extractDir, platformInfo.graftArchiveExt)
 
-    const sourcePath = findDynamicLibrary(
-      extractDir,
-      platformInfo.extension,
-      "graft"
-    )
-
+    const sourcePath = findSource(extractDir)
     if (!sourcePath) {
-      throw new Error(
-        `No graft dynamic library found in ${assetName} after extraction`
-      )
+      throw new Error(`Expected file not found in ${assetName} after extraction`)
     }
 
-    console.log(`postinstall-sqlite-graft: Source file: ${sourcePath}`)
-    installFileAtomically(sourcePath, finalDestPath)
+    console.log(`${logName}: Source file: ${sourcePath}`)
+    installFileAtomically(sourcePath, finalDestPath, installMode)
     console.log(
-      `postinstall-sqlite-graft: Installed ${GRAFT_VERSION} to ${finalDestPath}`
+      `${logName}: Installed ${GRAFT_VERSION} to ${finalDestPath}`
     )
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true })
   }
+}
+
+async function downloadGraftRelease(platformInfo, finalDestPath) {
+  await downloadAndInstallGraftAsset({
+    assetPrefix: "sqlite-graft",
+    finalDestPath,
+    findSource: (extractDir) =>
+      findDynamicLibrary(extractDir, platformInfo.extension, "graft"),
+    logName: "postinstall-sqlite-graft",
+    platformInfo,
+    tempPrefix: "sqlite-graft-",
+  })
+}
+
+async function downloadGraftCli(platformInfo, finalDestPath) {
+  const cliFileName = process.platform === "win32" ? "graft.exe" : "graft"
+  await downloadAndInstallGraftAsset({
+    assetPrefix: "graft-cli",
+    finalDestPath,
+    findSource: (extractDir) => findFileByName(extractDir, cliFileName),
+    installMode: process.platform === "win32" ? undefined : 0o755,
+    logName: "postinstall-graft-cli",
+    platformInfo,
+    tempPrefix: "graft-cli-",
+  })
 }
 
 function extractArchive(archivePath, extractDir, archiveExt) {
@@ -309,6 +344,28 @@ function findDynamicLibrary(dir, extension, requiredNamePart) {
   return null
 }
 
+function findFileByName(dir, expectedFileName) {
+  const matches = []
+  const normalizedExpectedName = expectedFileName.toLowerCase()
+  walk(dir, (filePath) => {
+    if (path.basename(filePath).toLowerCase() === normalizedExpectedName) {
+      matches.push(filePath)
+    }
+  })
+
+  if (matches.length === 1) {
+    return matches[0]
+  }
+
+  if (matches.length > 1) {
+    throw new Error(
+      `Found multiple ${expectedFileName} files: ${matches.join(", ")}`
+    )
+  }
+
+  return null
+}
+
 function walk(dir, visit) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const entryPath = path.join(dir, entry.name)
@@ -328,12 +385,20 @@ async function installExtension(pkgConfig, workspaceRoot) {
     return true
   }
 
-  const finalDestDir = path.resolve(process.cwd(), DEST_DIR)
+  const finalDestDir = path.resolve(__dirname, "..", DEST_DIR)
   const finalDestPath = path.join(finalDestDir, platformInfo.destFileName)
   fs.mkdirSync(finalDestDir, { recursive: true })
 
   if (pkgConfig.kind === "graft-release") {
     await downloadGraftRelease(platformInfo, finalDestPath)
+    const cliFileName = process.platform === "win32" ? "graft.exe" : "graft"
+    const cliDestPath = path.resolve(
+      __dirname,
+      "..",
+      GRAFT_CLI_DEST_DIR,
+      cliFileName
+    )
+    await downloadGraftCli(platformInfo, cliDestPath)
     return true
   }
 

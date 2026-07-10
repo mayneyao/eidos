@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/graft-versioning-smoke.yml"
       - "apps/desktop/electron/modules/data-space/**"
+      - "apps/desktop/electron/modules/space-versioning/**"
       - "apps/desktop/scripts/graft-versioning-smoke.cjs"
       - "apps/desktop/scripts/postinstall-sqlite-ext.cjs"
       - "pnpm-lock.yaml"
@@ -18,6 +19,7 @@ on:
     paths:
       - ".github/workflows/graft-versioning-smoke.yml"
       - "apps/desktop/electron/modules/data-space/**"
+      - "apps/desktop/electron/modules/space-versioning/**"
       - "apps/desktop/scripts/graft-versioning-smoke.cjs"
       - "apps/desktop/scripts/postinstall-sqlite-ext.cjs"
       - "pnpm-lock.yaml"
@@ -25,7 +27,7 @@ on:
       - "apps/desktop/package.json"
 
 env:
-  GRAFT_SQLITE_EXTENSION_VERSION: v0.4.0
+  GRAFT_RELEASE_VERSION: v0.5.0
 
 jobs:
   windows-versioning-smoke:

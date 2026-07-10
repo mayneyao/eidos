@@ -16,6 +16,7 @@ import { CliModule } from "./modules/cli/cli.module"
 import { TerminalModule } from "./modules/terminal/terminal.module"
 import { ContextMenuModule } from "./modules/context-menu/context-menu.module"
 import { SpaceManagementModule } from "./modules/space-management/space-management.module"
+import { SpaceVersioningModule } from "./modules/space-versioning/space-versioning.module"
 import { DataSpaceModule } from "./modules/data-space"
 import { WindowModule } from "./modules/window"
 import { BrowserModule } from "./modules/browser"
@@ -59,6 +60,7 @@ import { AgentChannelModule } from "./modules/agent-channel/agent-channel.module
     TerminalModule,
     ContextMenuModule,
     SpaceManagementModule,
+    SpaceVersioningModule,
     DataSpaceModule,
     WindowModule,
     BrowserModule, // BrowserView management (new modular version)

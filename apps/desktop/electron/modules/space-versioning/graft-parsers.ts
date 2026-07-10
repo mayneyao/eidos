@@ -1,0 +1,481 @@
+import type {
+  SpaceVersionChangeKind,
+  SpaceVersionCommit,
+  SpaceVersionCommitResult,
+  SpaceVersionDiff,
+  SpaceVersionPathChange,
+  SpaceVersionPathKind,
+  SpaceVersionPathState,
+  SpaceVersionPathStatus,
+  SpaceVersionPathStorage,
+  SpaceVersionStatus,
+  SpaceVersionStatusCounts,
+} from "./types"
+
+type JsonObject = Record<string, unknown>
+
+export interface ParsedGraftLog {
+  currentHead: string | null
+  currentBranch: string | null
+  commits: SpaceVersionCommit[]
+}
+
+function isObject(value: unknown): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function objectArray(value: unknown): JsonObject[] {
+  return Array.isArray(value) ? value.filter(isObject) : []
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" ? value : null
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : []
+}
+
+function nonNegativeInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : null
+}
+
+function pathKind(value: unknown): SpaceVersionPathKind {
+  switch (value) {
+    case "sqlite_database":
+    case "text_file":
+    case "binary_file":
+      return value
+    default:
+      return "unknown"
+  }
+}
+
+function pathStorage(value: unknown): SpaceVersionPathStorage {
+  switch (value) {
+    case "sqlite_snapshot":
+    case "inline":
+    case "external":
+      return value
+    default:
+      return "unknown"
+  }
+}
+
+function pathState(value: unknown): SpaceVersionPathState {
+  switch (value) {
+    case "none":
+    case "added":
+    case "modified":
+    case "deleted":
+    case "untracked":
+    case "conflicted":
+      return value
+    case "unmerged":
+      return "conflicted"
+    default:
+      return "unknown"
+  }
+}
+
+function changeKind(value: unknown): SpaceVersionChangeKind {
+  switch (value) {
+    case "added":
+    case "modified":
+    case "deleted":
+    case "renamed":
+      return value
+    default:
+      return "unknown"
+  }
+}
+
+function branchFromPayload(payload: JsonObject): string | null {
+  const currentBranch = stringValue(payload.current_branch)
+  if (currentBranch) {
+    return currentBranch
+  }
+
+  const branch = stringValue(payload.branch)
+  if (branch) {
+    return branch
+  }
+
+  const head = isObject(payload.head) ? payload.head : null
+  return head?.type === "branch" ? stringValue(head.name) : null
+}
+
+function headFromPayload(payload: JsonObject): string | null {
+  const currentHead = stringValue(payload.current_head)
+  if (currentHead) {
+    return currentHead
+  }
+
+  const headValue = stringValue(payload.head)
+  if (headValue) {
+    return headValue
+  }
+
+  const headTarget = stringValue(payload.head_target)
+  if (headTarget) {
+    return headTarget
+  }
+
+  const head = isObject(payload.head) ? payload.head : null
+  return head?.type === "detached" ? stringValue(head.commit) : null
+}
+
+interface MutableStatusPath {
+  path: string
+  kind: SpaceVersionPathKind
+  storage: SpaceVersionPathStorage
+  indexState: SpaceVersionPathState
+  worktreeState: SpaceVersionPathState
+  code: string | null
+  staged: boolean
+  conflicted: boolean
+}
+
+function emptyStatusPath(path: string): MutableStatusPath {
+  return {
+    path,
+    kind: "unknown",
+    storage: "unknown",
+    indexState: "none",
+    worktreeState: "none",
+    code: null,
+    staged: false,
+    conflicted: false,
+  }
+}
+
+function mergeStatusChange(
+  entries: Map<string, MutableStatusPath>,
+  raw: JsonObject,
+  area: "unstaged" | "staged" | "conflicted"
+): void {
+  const changedPath = stringValue(raw.path)
+  if (!changedPath) {
+    return
+  }
+
+  const entry = entries.get(changedPath) ?? emptyStatusPath(changedPath)
+  const kind = pathKind(raw.kind)
+  const storage = pathStorage(raw.storage)
+  if (kind !== "unknown") {
+    entry.kind = kind
+  }
+  if (storage !== "unknown") {
+    entry.storage = storage
+  }
+
+  if (area === "unstaged") {
+    entry.worktreeState = pathState(raw.change)
+  } else if (area === "staged") {
+    entry.indexState = pathState(raw.change)
+    entry.staged = true
+  } else {
+    entry.conflicted = true
+  }
+  entries.set(changedPath, entry)
+}
+
+function statusPaths(payload: JsonObject): SpaceVersionPathStatus[] {
+  const entries = new Map<string, MutableStatusPath>()
+
+  for (const raw of objectArray(payload.paths)) {
+    const changedPath = stringValue(raw.path)
+    if (!changedPath) {
+      continue
+    }
+    const indexState = pathState(raw.index_status)
+    const worktreeState = pathState(raw.worktree_status)
+    const conflicted =
+      raw.conflicted === true ||
+      indexState === "conflicted" ||
+      worktreeState === "conflicted"
+    entries.set(changedPath, {
+      path: changedPath,
+      kind: pathKind(raw.kind),
+      storage: pathStorage(raw.storage),
+      indexState,
+      worktreeState,
+      code: stringValue(raw.code),
+      staged:
+        indexState !== "none" &&
+        indexState !== "unknown" &&
+        indexState !== "conflicted",
+      conflicted,
+    })
+  }
+
+  for (const raw of objectArray(payload.unstaged_changes)) {
+    mergeStatusChange(entries, raw, "unstaged")
+  }
+  for (const raw of objectArray(payload.staged_changes)) {
+    mergeStatusChange(entries, raw, "staged")
+  }
+  for (const raw of objectArray(payload.conflicted_changes)) {
+    mergeStatusChange(entries, raw, "conflicted")
+  }
+
+  return [...entries.values()]
+    .map((entry): SpaceVersionPathStatus => {
+      const state: Exclude<SpaceVersionPathState, "none"> = entry.conflicted
+        ? "conflicted"
+        : entry.worktreeState !== "none" && entry.worktreeState !== "unknown"
+          ? entry.worktreeState
+          : entry.indexState !== "none" && entry.indexState !== "unknown"
+            ? entry.indexState
+            : "unknown"
+      return { ...entry, state }
+    })
+    .sort((left, right) =>
+      left.path < right.path ? -1 : left.path > right.path ? 1 : 0
+    )
+}
+
+function statusCounts(
+  payload: JsonObject,
+  paths: SpaceVersionPathStatus[]
+): SpaceVersionStatusCounts {
+  const rawCounts = isObject(payload.counts) ? payload.counts : {}
+  return {
+    unstaged:
+      nonNegativeInteger(rawCounts.unstaged) ??
+      paths.filter(
+        (entry) =>
+          entry.worktreeState !== "none" && entry.worktreeState !== "unknown"
+      ).length,
+    staged:
+      nonNegativeInteger(rawCounts.staged) ??
+      paths.filter((entry) => entry.staged).length,
+    conflicted:
+      nonNegativeInteger(rawCounts.conflicted) ??
+      paths.filter((entry) => entry.conflicted).length,
+  }
+}
+
+export function disabledSpaceVersionStatus(
+  spaceId: string
+): SpaceVersionStatus {
+  return {
+    spaceId,
+    enabled: false,
+    currentHead: null,
+    currentBranch: null,
+    repositoryFormatVersion: null,
+    dirty: false,
+    hasUnstagedChanges: false,
+    hasStagedChanges: false,
+    hasConflicts: false,
+    counts: { unstaged: 0, staged: 0, conflicted: 0 },
+    paths: [],
+  }
+}
+
+export function parseGraftStatus(
+  raw: unknown,
+  spaceId: string
+): SpaceVersionStatus {
+  if (!isObject(raw)) {
+    throw new Error("Graft returned an invalid status response")
+  }
+
+  const paths = statusPaths(raw)
+  const counts = statusCounts(raw, paths)
+  const hasUnstagedChanges =
+    typeof raw.has_unstaged_changes === "boolean"
+      ? raw.has_unstaged_changes
+      : counts.unstaged > 0
+  const hasStagedChanges =
+    typeof raw.has_staged_changes === "boolean"
+      ? raw.has_staged_changes
+      : counts.staged > 0
+  const hasConflicts =
+    typeof raw.has_conflicts === "boolean"
+      ? raw.has_conflicts
+      : counts.conflicted > 0
+
+  return {
+    spaceId,
+    enabled: true,
+    currentHead: headFromPayload(raw),
+    currentBranch: branchFromPayload(raw),
+    repositoryFormatVersion: nonNegativeInteger(raw.repository_format_version),
+    dirty:
+      typeof raw.work_in_progress === "boolean"
+        ? raw.work_in_progress
+        : hasUnstagedChanges || hasStagedChanges || hasConflicts,
+    hasUnstagedChanges,
+    hasStagedChanges,
+    hasConflicts,
+    counts,
+    paths,
+  }
+}
+
+function rawPathChanges(value: unknown): SpaceVersionPathChange[] {
+  const changes: SpaceVersionPathChange[] = []
+  for (const raw of objectArray(value)) {
+    const changedPath = stringValue(raw.path)
+    if (!changedPath) {
+      continue
+    }
+    changes.push({
+      path: changedPath,
+      change: changeKind(raw.change),
+      kind: pathKind(raw.kind),
+      storage: pathStorage(raw.storage),
+    })
+  }
+  return changes
+}
+
+function objectPathChanges(
+  value: unknown,
+  defaultKind: SpaceVersionPathKind,
+  defaultStorage: SpaceVersionPathStorage
+): SpaceVersionPathChange[] {
+  if (!isObject(value)) {
+    return []
+  }
+
+  return Object.entries(value).map(([changedPath, details]) => {
+    const raw = isObject(details) ? details : {}
+    const type = stringValue(raw.type)
+    return {
+      path: changedPath,
+      change: "unknown",
+      kind: pathKind(raw.kind) === "unknown" ? defaultKind : pathKind(raw.kind),
+      storage:
+        type === "large_file"
+          ? "external"
+          : pathStorage(raw.storage) === "unknown"
+            ? defaultStorage
+            : pathStorage(raw.storage),
+    }
+  })
+}
+
+function pathChanges(
+  payload: JsonObject,
+  fallback?: JsonObject
+): SpaceVersionPathChange[] {
+  const direct = rawPathChanges(payload.changes)
+  const wrapper = fallback ? rawPathChanges(fallback.paths) : []
+  const candidates = direct.length > 0 ? direct : wrapper
+  const derived = [
+    ...objectPathChanges(payload.files, "sqlite_database", "sqlite_snapshot"),
+    ...objectPathChanges(payload.artifacts, "unknown", "inline"),
+  ]
+  const source = candidates.length > 0 ? candidates : derived
+  const unique = new Map<string, SpaceVersionPathChange>()
+  for (const change of source) {
+    unique.set(change.path, change)
+  }
+  return [...unique.values()].sort((left, right) =>
+    left.path < right.path ? -1 : left.path > right.path ? 1 : 0
+  )
+}
+
+export function parseGraftCommit(raw: unknown): SpaceVersionCommit {
+  if (!isObject(raw)) {
+    throw new Error("Graft returned an invalid commit response")
+  }
+
+  const commit = isObject(raw.commit) ? raw.commit : raw
+  const id = stringValue(commit.id)
+  if (!id) {
+    throw new Error("Graft commit response is missing an id")
+  }
+
+  const listedParents = stringArray(commit.parents)
+  const legacyParent = stringValue(commit.parent)
+  const parents =
+    listedParents.length > 0
+      ? listedParents
+      : legacyParent
+        ? [legacyParent]
+        : []
+  const changes = pathChanges(commit, raw === commit ? undefined : raw)
+
+  return {
+    id,
+    parent: legacyParent ?? parents[0] ?? null,
+    parents,
+    tree: stringValue(commit.tree),
+    message: stringValue(commit.message) ?? "",
+    timestampMs: nonNegativeInteger(commit.timestamp_ms),
+    changes,
+    changedPaths: changes.length,
+  }
+}
+
+export function parseGraftCommitResult(raw: unknown): SpaceVersionCommitResult {
+  if (!isObject(raw)) {
+    throw new Error("Graft returned an invalid commit response")
+  }
+
+  const commit = parseGraftCommit(raw)
+  return {
+    currentHead: headFromPayload(raw) ?? commit.id,
+    currentBranch: branchFromPayload(raw),
+    commit,
+  }
+}
+
+export function parseGraftLog(raw: unknown): ParsedGraftLog {
+  if (Array.isArray(raw)) {
+    return {
+      currentHead: null,
+      currentBranch: null,
+      commits: raw.map(parseGraftCommit),
+    }
+  }
+  if (!isObject(raw)) {
+    throw new Error("Graft returned an invalid history response")
+  }
+
+  return {
+    currentHead: headFromPayload(raw),
+    currentBranch: branchFromPayload(raw),
+    commits: Array.isArray(raw.commits)
+      ? raw.commits.map(parseGraftCommit)
+      : [],
+  }
+}
+
+export function parseGraftDiff(
+  raw: unknown,
+  fallbackFrom: string,
+  fallbackTo: string
+): SpaceVersionDiff {
+  if (!isObject(raw)) {
+    throw new Error("Graft returned an invalid diff response")
+  }
+
+  let paths = rawPathChanges(raw.paths)
+  if (paths.length === 0) {
+    paths = [...rawPathChanges(raw.files), ...rawPathChanges(raw.artifacts)]
+  }
+
+  const unique = new Map<string, SpaceVersionPathChange>()
+  for (const change of paths) {
+    unique.set(change.path, change)
+  }
+
+  return {
+    currentHead: headFromPayload(raw),
+    currentBranch: branchFromPayload(raw),
+    from: stringValue(raw.from) ?? fallbackFrom,
+    to: stringValue(raw.to) ?? fallbackTo,
+    paths: [...unique.values()].sort((left, right) =>
+      left.path < right.path ? -1 : left.path > right.path ? 1 : 0
+    ),
+  }
+}

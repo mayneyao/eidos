@@ -1,3 +1,4 @@
+const { execFileSync } = require("node:child_process")
 const fs = require("node:fs")
 const os = require("node:os")
 const path = require("node:path")
@@ -8,6 +9,20 @@ const path = require("node:path")
 process.env.SQLITE_USE_URI = "1"
 
 const Database = require("better-sqlite3")
+
+const FILE_SPACE_IGNORE = [
+  ".graft/",
+  ".eidos/db.sqlite3",
+  ".eidos/cache/",
+  ".eidos/indexes/",
+  ".eidos/sessions/",
+  ".eidos/state/",
+  ".eidos/secrets/",
+  ".eidos/secrets.*",
+  ".DS_Store",
+  "*.tmp",
+  "",
+].join("\n")
 
 function findGraftLibrary() {
   const extByPlatform = {
@@ -25,6 +40,15 @@ function findGraftLibrary() {
     throw new Error(`Graft SQLite extension not found: ${libPath}`)
   }
   return libPath
+}
+
+function findGraftCli() {
+  const fileName = process.platform === "win32" ? "graft.exe" : "graft"
+  const cliPath = path.join(__dirname, "..", "dist-cli", fileName)
+  if (!fs.existsSync(cliPath)) {
+    throw new Error(`Graft CLI not found: ${cliPath}`)
+  }
+  return cliPath
 }
 
 function graftDbUri(dbPath) {
@@ -49,43 +73,56 @@ function removeTempRoot(root) {
   }
 }
 
-function main() {
+function closeDatabase(db) {
+  if (!db) return
+  try {
+    db.close()
+  } catch (error) {
+    console.warn("Could not close smoke database:", error)
+  }
+}
+
+function runSqliteExtensionSmoke() {
   const libPath = findGraftLibrary()
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "eidos-graft-smoke-"))
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "eidos-graft-extension-smoke-")
+  )
   const eidosDir = path.join(root, ".eidos")
   const dbPath = path.join(eidosDir, "db.sqlite3")
   fs.mkdirSync(eidosDir, { recursive: true })
 
-  console.log("Smoke root:", root)
+  console.log("SQLite extension smoke root:", root)
   console.log("Graft extension:", libPath)
   console.log("SQLite URI support:", process.env.SQLITE_USE_URI)
 
-  let db = new Database(dbPath)
-  db.pragma("journal_mode = WAL")
-  db.exec(`
-    CREATE TABLE eidos__kv (key TEXT PRIMARY KEY, value TEXT);
-    INSERT INTO eidos__kv VALUES ('eidos:space:settings:doc', '{"ok":true}');
-    CREATE TABLE smoke_rows (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
-    INSERT INTO smoke_rows (name) VALUES ('before-versioning');
-  `)
-  db.exec("PRAGMA wal_checkpoint(TRUNCATE)")
-  db.pragma("journal_mode = DELETE")
-  db.pragma("page_size = 4096")
-  db.exec("VACUUM")
-  db.close()
-
-  const registrationDb = new Database(":memory:")
+  let db
   try {
-    registrationDb.loadExtension(libPath)
-  } finally {
-    registrationDb.close()
-  }
+    db = new Database(dbPath)
+    db.pragma("journal_mode = WAL")
+    db.exec(`
+      CREATE TABLE eidos__kv (key TEXT PRIMARY KEY, value TEXT);
+      INSERT INTO eidos__kv VALUES ('eidos:space:settings:doc', '{"ok":true}');
+      CREATE TABLE smoke_rows (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+      INSERT INTO smoke_rows (name) VALUES ('before-versioning');
+    `)
+    db.exec("PRAGMA wal_checkpoint(TRUNCATE)")
+    db.pragma("journal_mode = DELETE")
+    db.pragma("page_size = 4096")
+    db.exec("VACUUM")
+    closeDatabase(db)
+    db = undefined
 
-  const uri = graftDbUri(dbPath)
-  console.log("Opening graft URI:", uri)
+    const registrationDb = new Database(":memory:")
+    try {
+      registrationDb.loadExtension(libPath)
+    } finally {
+      registrationDb.close()
+    }
 
-  db = new Database(uri)
-  try {
+    const uri = graftDbUri(dbPath)
+    console.log("Opening graft URI:", uri)
+
+    db = new Database(uri)
     db.pragma("page_size = 4096")
     db.pragma("journal_mode = MEMORY")
     db.pragma("graft_init")
@@ -98,15 +135,219 @@ function main() {
     }
 
     const status = db.pragma("graft_json_status")
-    console.log("Graft status:", JSON.stringify(status))
+    console.log("Graft extension status:", JSON.stringify(status))
   } finally {
-    db.close()
+    closeDatabase(db)
+    removeTempRoot(root)
+  }
+}
+
+function formatCommand(args) {
+  return args
+    .map((arg) => (/^[A-Za-z0-9_./:-]+$/.test(arg) ? arg : JSON.stringify(arg)))
+    .join(" ")
+}
+
+function runGraft(cliPath, cwd, args) {
+  console.log(`graft ${formatCommand(args)}`)
+  try {
+    const output = execFileSync(cliPath, args, {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim()
+    if (output) console.log(output)
+    return output
+  } catch (error) {
+    const stdout = String(error.stdout || "").trim()
+    const stderr = String(error.stderr || "").trim()
+    const detail = [stdout, stderr].filter(Boolean).join("\n")
+    throw new Error(
+      `graft ${formatCommand(args)} failed${detail ? `:\n${detail}` : ""}`,
+      { cause: error }
+    )
+  }
+}
+
+function runGraftJson(cliPath, cwd, args) {
+  const output = runGraft(cliPath, cwd, args)
+  if (!output) {
+    throw new Error(`graft ${formatCommand(args)} returned no JSON output`)
+  }
+  try {
+    return JSON.parse(output)
+  } catch (error) {
+    throw new Error(
+      `graft ${formatCommand(args)} returned invalid JSON: ${output}`,
+      { cause: error }
+    )
+  }
+}
+
+function payloadPaths(payload) {
+  if (!Array.isArray(payload?.paths)) {
+    throw new Error(`Expected a paths array: ${JSON.stringify(payload)}`)
+  }
+  return payload.paths.map((entry) =>
+    typeof entry === "string" ? entry : entry?.path
+  )
+}
+
+function assertPaths(payload, expectedPaths, excludedPaths) {
+  const paths = new Set(payloadPaths(payload))
+  for (const expectedPath of expectedPaths) {
+    if (!paths.has(expectedPath)) {
+      throw new Error(
+        `Expected ${expectedPath} in Graft paths: ${JSON.stringify([...paths])}`
+      )
+    }
+  }
+  for (const excludedPath of excludedPaths) {
+    if (paths.has(excludedPath)) {
+      throw new Error(
+        `Ignored path ${excludedPath} appeared in Graft paths: ${JSON.stringify([...paths])}`
+      )
+    }
+  }
+}
+
+function assertPayloadOmitsPath(payload, excludedPath) {
+  if (JSON.stringify(payload).includes(excludedPath)) {
+    throw new Error(
+      `Ignored path ${excludedPath} appeared in Graft output: ${JSON.stringify(payload)}`
+    )
+  }
+}
+
+function runFileSpaceCliSmoke() {
+  const cliPath = findGraftCli()
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "eidos-graft-file-space-smoke-")
+  )
+  const notePath = "note.md"
+  const assetPath = "assets/image.png"
+  const sessionPath = ".eidos/sessions/session.jsonl"
+
+  console.log("File Space smoke root:", root)
+  console.log("Graft CLI:", cliPath)
+
+  try {
+    fs.mkdirSync(path.join(root, "assets"), { recursive: true })
+    fs.mkdirSync(path.join(root, ".eidos", "sessions"), { recursive: true })
+    fs.writeFileSync(path.join(root, notePath), "# Smoke note\n\nHello Graft.\n")
+    fs.writeFileSync(
+      path.join(root, assetPath),
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+    )
+    fs.writeFileSync(
+      path.join(root, sessionPath),
+      '{"kind":"private-runtime-state"}\n'
+    )
+    fs.writeFileSync(path.join(root, ".graftignore"), FILE_SPACE_IGNORE)
+    // Eidos creates the directory first so it can hold the cross-process lock.
+    // Graft init must repair this valid partial-initialization state.
+    fs.mkdirSync(path.join(root, ".graft"))
+
+    const init = runGraftJson(cliPath, root, ["init", "--json"])
+    if (init.operation !== "init" || !fs.existsSync(path.join(root, ".graft"))) {
+      throw new Error(`Graft repository was not initialized: ${JSON.stringify(init)}`)
+    }
+
+    const initialStatus = runGraftJson(cliPath, root, ["status", "--json"])
+    assertPaths(initialStatus, [notePath, assetPath], [sessionPath])
+
+    const add = runGraftJson(cliPath, root, ["add", "--all", "--json"])
+    assertPaths(add, [notePath, assetPath], [sessionPath])
+
+    const stagedStatus = runGraftJson(cliPath, root, ["status", "--json"])
+    assertPaths(stagedStatus, [notePath, assetPath], [sessionPath])
+
+    const commit = runGraftJson(cliPath, root, [
+      "commit",
+      "--json",
+      "-m",
+      "Initial file Space version",
+    ])
+    if (!commit.commit?.id) {
+      throw new Error(`Graft commit returned no commit id: ${JSON.stringify(commit)}`)
+    }
+    assertPaths(commit, [notePath, assetPath], [sessionPath])
+
+    const cleanStatus = runGraftJson(cliPath, root, ["status", "--json"])
+    if (cleanStatus.dirty || payloadPaths(cleanStatus).length !== 0) {
+      throw new Error(
+        `Expected a clean Graft worktree after commit: ${JSON.stringify(cleanStatus)}`
+      )
+    }
+    assertPayloadOmitsPath(cleanStatus, sessionPath)
+
+    const history = runGraftJson(cliPath, root, ["log", "--json"])
+    if (!Array.isArray(history.commits) || history.commits.length === 0) {
+      throw new Error(`Graft log returned no commits: ${JSON.stringify(history)}`)
+    }
+    if (!history.commits.some((entry) => entry.id === commit.commit.id)) {
+      throw new Error(
+        `Graft log did not include commit ${commit.commit.id}: ${JSON.stringify(history)}`
+      )
+    }
+    assertPayloadOmitsPath(history, sessionPath)
+
+    fs.appendFileSync(path.join(root, notePath), "\nA second version.\n")
+    const secondAdd = runGraftJson(cliPath, root, ["add", "--all", "--json"])
+    assertPaths(secondAdd, [notePath], [sessionPath])
+
+    const secondCommit = runGraftJson(cliPath, root, [
+      "commit",
+      "--json",
+      "-m",
+      "Update smoke note",
+    ])
+    if (!secondCommit.commit?.id) {
+      throw new Error(
+        `Second Graft commit returned no commit id: ${JSON.stringify(secondCommit)}`
+      )
+    }
+
+    const detail = runGraftJson(cliPath, root, [
+      "show",
+      "--json",
+      "--",
+      secondCommit.commit.id,
+    ])
+    if (detail.id !== secondCommit.commit.id) {
+      throw new Error(
+        `Graft show returned the wrong commit: ${JSON.stringify(detail)}`
+      )
+    }
+    assertPayloadOmitsPath(detail, sessionPath)
+
+    const diff = runGraftJson(cliPath, root, [
+      "diff",
+      "--json",
+      "--",
+      commit.commit.id,
+      secondCommit.commit.id,
+    ])
+    assertPaths(diff, [notePath], [assetPath, sessionPath])
+
+    const updatedHistory = runGraftJson(cliPath, root, ["log", "--json"])
+    if (
+      !Array.isArray(updatedHistory.commits) ||
+      updatedHistory.commits.length < 2
+    ) {
+      throw new Error(
+        `Graft log did not include both versions: ${JSON.stringify(updatedHistory)}`
+      )
+    }
+    assertPayloadOmitsPath(updatedHistory, sessionPath)
+  } finally {
     removeTempRoot(root)
   }
 }
 
 try {
-  main()
+  runSqliteExtensionSmoke()
+  runFileSpaceCliSmoke()
   process.exit(0)
 } catch (error) {
   console.error(error)

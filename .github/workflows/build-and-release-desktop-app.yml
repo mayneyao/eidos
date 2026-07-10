@@ -6,7 +6,7 @@ on:
       - "v*"
 
 env:
-  GRAFT_SQLITE_EXTENSION_VERSION: v0.4.0
+  GRAFT_RELEASE_VERSION: v0.5.0
 
 jobs:
   build-frontend:
