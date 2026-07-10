@@ -6,10 +6,12 @@ import {
   type FSWatcher,
   type Stats,
 } from "node:fs"
+import { randomUUID } from "node:crypto"
 import {
   copyFile,
   lstat,
   mkdir,
+  open,
   readFile,
   readdir,
   realpath,
@@ -72,6 +74,8 @@ export type SpaceFilesErrorCode =
   | "not-a-directory"
   | "file-exists"
   | "file-changed"
+  | "invalid-encoding"
+  | "not-writable"
 
 export class SpaceFilesError extends Error {
   constructor(
@@ -89,6 +93,7 @@ const PRIVATE_ROOTS = new Set([".eidos", ".graft"])
 const DEFAULT_WATCH_DEBOUNCE_MS = 60
 const STABLE_READ_ATTEMPTS = 3
 const STABLE_READ_RETRY_MS = 8
+const STRICT_UTF8_DECODER = new TextDecoder("utf-8", { fatal: true })
 
 function isWithinRoot(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate)
@@ -122,12 +127,103 @@ function sameFileSnapshot(left: Stats, right: Stats): boolean {
     left.dev === right.dev &&
     left.ino === right.ino &&
     left.size === right.size &&
-    left.mtimeMs === right.mtimeMs
+    left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs
   )
+}
+
+async function syncDirectoryBestEffort(directory: string): Promise<void> {
+  if (process.platform === "win32") return
+  let handle: Awaited<ReturnType<typeof open>> | undefined
+  try {
+    handle = await open(directory, constants.O_RDONLY)
+    await handle.sync()
+  } catch {
+    // The replacement is already durable at the file level. Some filesystems
+    // do not allow directory fsync, so this remains a best-effort hardening.
+  } finally {
+    await handle?.close().catch(() => undefined)
+  }
+}
+
+async function replaceTextFileAtomically(
+  filename: string,
+  content: string,
+  original: Stats,
+  relativePath: string
+): Promise<void> {
+  const directory = path.dirname(filename)
+  const temporaryPath = path.join(
+    directory,
+    "." +
+      path.basename(filename) +
+      ".eidos-" +
+      process.pid +
+      "-" +
+      randomUUID() +
+      ".tmp"
+  )
+  let handle: Awaited<ReturnType<typeof open>> | undefined
+
+  try {
+    if (process.platform !== "win32" && (original.mode & 0o222) === 0) {
+      throw new SpaceFilesError(
+        "not-writable",
+        "Space file is read-only: " + relativePath,
+        relativePath
+      )
+    }
+    try {
+      const writable = await open(filename, "r+")
+      await writable.close()
+    } catch (error) {
+      throw new SpaceFilesError(
+        "not-writable",
+        "Space file is not writable: " + relativePath,
+        relativePath,
+        error
+      )
+    }
+
+    handle = await open(temporaryPath, "wx", original.mode & 0o777)
+    await handle.writeFile(content, "utf8")
+    await handle.chmod(original.mode & 0o777)
+    await handle.sync()
+    await handle.close()
+    handle = undefined
+
+    const beforeReplace = await stat(filename)
+    if (!sameFileSnapshot(original, beforeReplace)) {
+      throw new SpaceFilesError(
+        "file-changed",
+        "Space file changed outside Eidos: " + relativePath,
+        relativePath
+      )
+    }
+
+    await rename(temporaryPath, filename)
+    await syncDirectoryBestEffort(directory)
+  } finally {
+    await handle?.close().catch(() => undefined)
+    await rm(temporaryPath, { force: true }).catch(() => undefined)
+  }
 }
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds))
+}
+
+function decodeUtf8(content: Buffer, relativePath: string): string {
+  try {
+    return STRICT_UTF8_DECODER.decode(content)
+  } catch (error) {
+    throw new SpaceFilesError(
+      "invalid-encoding",
+      "Eidos can only edit UTF-8 text files: " + relativePath,
+      relativePath,
+      error
+    )
+  }
 }
 
 export function uniqueSpaceEntryName(
@@ -231,7 +327,7 @@ export class SpaceFiles {
     } = await this.readStableFile(relativePath)
     return {
       path: this.toRelative(filename),
-      content: content.toString("utf8"),
+      content: decodeUtf8(content, relativePath),
       size: fileStats.size,
       mtimeMs: fileStats.mtimeMs,
     }
@@ -256,15 +352,12 @@ export class SpaceFiles {
     content: string,
     expectedMtimeMs?: number
   ): Promise<SpaceTextFile> {
-    const filename = await this.resolveExisting(relativePath)
-    const currentStats = await stat(filename)
-    if (!currentStats.isFile()) {
-      throw new SpaceFilesError(
-        "not-a-file",
-        `Space path is not a file: ${relativePath}`,
-        relativePath
-      )
-    }
+    const {
+      filename,
+      content: currentContent,
+      stats: currentStats,
+    } = await this.readStableFile(relativePath)
+    decodeUtf8(currentContent, relativePath)
     if (
       expectedMtimeMs !== undefined &&
       currentStats.mtimeMs !== expectedMtimeMs
@@ -275,7 +368,12 @@ export class SpaceFiles {
         relativePath
       )
     }
-    await writeFile(filename, content, "utf8")
+    await replaceTextFileAtomically(
+      filename,
+      content,
+      currentStats,
+      relativePath
+    )
     return this.readText(relativePath)
   }
 
@@ -573,7 +671,7 @@ export class SpaceFiles {
       typeof relativePath !== "string" ||
       relativePath.includes("\0") ||
       path.isAbsolute(relativePath) ||
-      path.win32.isAbsolute(relativePath)
+      (process.platform === "win32" && path.win32.isAbsolute(relativePath))
     ) {
       throw new SpaceFilesError(
         "invalid-path",
@@ -581,7 +679,11 @@ export class SpaceFiles {
         relativePath
       )
     }
-    const parts = relativePath.split(/[\\/]+/).filter(Boolean)
+    const portablePath =
+      process.platform === "win32"
+        ? relativePath.replace(/\\/g, "/")
+        : relativePath
+    const parts = portablePath.split(/\/+/).filter(Boolean)
     if (parts.some((part) => part === "..")) {
       throw new SpaceFilesError(
         "path-outside-space",

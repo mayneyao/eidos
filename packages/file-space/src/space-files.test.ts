@@ -1,12 +1,14 @@
 // @vitest-environment node
 
 import {
+  chmod,
   link,
   mkdtemp,
   mkdir,
   readFile,
   rename,
   rm,
+  stat,
   symlink,
   writeFile,
 } from "node:fs/promises"
@@ -97,6 +99,42 @@ describe("SpaceFiles", () => {
     ).rejects.toMatchObject({ code: "file-changed" })
   })
 
+  it("rejects invalid UTF-8 text without changing its bytes", async () => {
+    const filename = path.join(root, "legacy.md")
+    const original = Buffer.from([0x66, 0x6f, 0x80])
+    await writeFile(filename, original)
+
+    await expect(files.readText("legacy.md")).rejects.toMatchObject({
+      code: "invalid-encoding",
+    })
+    await expect(
+      files.writeText("legacy.md", "replacement")
+    ).rejects.toMatchObject({
+      code: "invalid-encoding",
+    })
+    expect(await readFile(filename)).toEqual(original)
+  })
+
+  it.skipIf(process.platform === "win32")(
+    "does not replace a read-only text file",
+    async () => {
+      const filename = path.join(root, "readonly.md")
+      await writeFile(filename, "keep")
+      await chmod(filename, 0o444)
+
+      try {
+        await expect(
+          files.writeText("readonly.md", "replace")
+        ).rejects.toMatchObject({
+          code: "not-writable",
+        })
+        await expect(readFile(filename, "utf8")).resolves.toBe("keep")
+      } finally {
+        await chmod(filename, 0o644)
+      }
+    }
+  )
+
   it("coalesces rapid watcher events for the same path", async () => {
     await writeFile(path.join(root, "note.md"), "initial")
     const changes: Array<{ eventType: string; path: string }> = []
@@ -164,6 +202,67 @@ describe("SpaceFiles", () => {
     await expect(files.readText("notes/final.md")).rejects.toMatchObject({
       code: "not-found",
     })
+  })
+
+  it.skipIf(process.platform === "win32")(
+    "keeps literal POSIX backslashes distinct from directory separators",
+    async () => {
+      const literalName = "a\\b.md"
+      const driveLikeName = "C:\\note.md"
+      const rootedBackslashName = "\\server.md"
+      await writeFile(path.join(root, literalName), "literal")
+      await writeFile(path.join(root, driveLikeName), "drive-like")
+      await writeFile(path.join(root, rootedBackslashName), "root-like")
+      await mkdir(path.join(root, "a"))
+      await writeFile(path.join(root, "a", "b.md"), "nested")
+
+      const entries = await files.list()
+      const literalEntry = entries.find((entry) => entry.name === literalName)
+      expect(entries.map((entry) => entry.name)).toEqual(
+        expect.arrayContaining([
+          literalName,
+          driveLikeName,
+          rootedBackslashName,
+          "a",
+        ])
+      )
+      expect(literalEntry).toMatchObject({
+        name: literalName,
+        path: literalName,
+        kind: "file",
+      })
+      await expect(files.readText(driveLikeName)).resolves.toMatchObject({
+        content: "drive-like",
+      })
+      await expect(files.readText(rootedBackslashName)).resolves.toMatchObject({
+        content: "root-like",
+      })
+
+      await files.remove(literalEntry!.path)
+
+      await expect(
+        readFile(path.join(root, literalName), "utf8")
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      })
+      await expect(
+        readFile(path.join(root, "a", "b.md"), "utf8")
+      ).resolves.toBe("nested")
+    }
+  )
+
+  it("replaces text atomically while preserving file permissions", async () => {
+    await writeFile(path.join(root, "note.md"), "before", { mode: 0o640 })
+    const before = await stat(path.join(root, "note.md"))
+
+    await files.writeText("note.md", "after", before.mtimeMs)
+
+    const after = await stat(path.join(root, "note.md"))
+    expect(await readFile(path.join(root, "note.md"), "utf8")).toBe("after")
+    if (process.platform !== "win32") {
+      expect(after.mode & 0o777).toBe(0o640)
+      expect(after.ino).not.toBe(before.ino)
+    }
   })
 
   it("imports external files without overwriting Space files", async () => {
