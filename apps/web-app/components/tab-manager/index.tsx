@@ -1,5 +1,9 @@
 import React, { useEffect, useRef } from "react"
 
+import { flushPendingFileWrites } from "@/apps/web-app/components/file-space/pending-writes"
+import { filePathFromSpaceUrl } from "@/apps/web-app/components/file-space/file-path"
+import { isAllowedFileSpaceUrl } from "@/apps/web-app/file-space-route-policy"
+import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 
@@ -11,17 +15,43 @@ export function TabManager({ children }: { children: React.ReactNode }) {
     panels,
     activePanelId,
     openTab,
+    closeTab,
     confirmCloseTab,
     setActiveTab,
     reopenLastClosedTab,
     getActiveTabId,
+    updateTab,
   } = useTabStore()
   const { location } = useRouterAdapter()
+  const { currentSpace } = useCurrentSpace()
   const goInTabHistory = useTabStore((state) => state.goInTabHistory)
   const initGuardRef = useRef(false)
 
   // Get the active tab ID from the active panel
   const activeTabId = getActiveTabId()
+
+  const flushTabFile = React.useCallback(
+    async (tabId: string): Promise<boolean> => {
+      if (currentSpace?.mode !== "file") return true
+      const tab = useTabStore.getState().tabs.find((item) => item.id === tabId)
+      const filePath = tab ? filePathFromSpaceUrl(tab.url) : null
+      if (!filePath) return true
+      return flushPendingFileWrites({
+        spaceId: currentSpace.id,
+        path: filePath,
+      })
+    },
+    [currentSpace]
+  )
+
+  useEffect(() => {
+    if (currentSpace?.mode !== "file") return
+    for (const tab of tabs) {
+      if (!isAllowedFileSpaceUrl(tab.url)) {
+        updateTab(tab.id, { url: "/" })
+      }
+    }
+  }, [currentSpace?.mode, tabs, updateTab])
 
   // Initialize with current route if no tabs exist, avoid duplicate Home (StrictMode)
   useEffect(() => {
@@ -40,7 +70,10 @@ export function TabManager({ children }: { children: React.ReactNode }) {
   // Moved here from TabBar because TabBar is rendered inside each tab (multiple instances),
   // while TabManager is rendered once globally.
   useEffect(() => {
-    const handleGlobalShortcut = (_event: any, action: { id: string }) => {
+    const handleGlobalShortcut = async (
+      _event: any,
+      action: { id: string }
+    ) => {
       const currentActiveTabId = useTabStore.getState().getActiveTabId()
 
       switch (action.id) {
@@ -62,11 +95,27 @@ export function TabManager({ children }: { children: React.ReactNode }) {
             window.eidos?.closeWindow
 
           if (shouldHideWindow) {
+            if (!(await flushPendingFileWrites())) {
+              alert(
+                "Eidos could not save the current file. Resolve the error before closing the window."
+              )
+              break
+            }
             window.eidos?.closeWindow()
             break
           }
 
-          confirmCloseTab(currentActiveTabId)
+          if (currentSpace?.mode === "file") {
+            if (await flushTabFile(currentActiveTabId)) {
+              closeTab(currentActiveTabId)
+            } else {
+              alert(
+                "Eidos could not save the current file. Resolve the error before closing this tab."
+              )
+            }
+          } else {
+            await confirmCloseTab(currentActiveTabId)
+          }
           break
         }
         case "next-tab":
@@ -127,7 +176,15 @@ export function TabManager({ children }: { children: React.ReactNode }) {
         }
       }
     }
-  }, [openTab, confirmCloseTab, setActiveTab, reopenLastClosedTab])
+  }, [
+    closeTab,
+    confirmCloseTab,
+    currentSpace?.mode,
+    flushTabFile,
+    openTab,
+    reopenLastClosedTab,
+    setActiveTab,
+  ])
 
   // Handle mouse side buttons for back/forward within the active tab
   useEffect(() => {
@@ -140,11 +197,15 @@ export function TabManager({ children }: { children: React.ReactNode }) {
 
       if (e.button === 3) {
         e.preventDefault()
-        goInTabHistory(currentActiveTabId, -1)
+        void flushTabFile(currentActiveTabId).then((saved) => {
+          if (saved) goInTabHistory(currentActiveTabId, -1)
+        })
         lastHandled = e.timeStamp
       } else if (e.button === 4) {
         e.preventDefault()
-        goInTabHistory(currentActiveTabId, 1)
+        void flushTabFile(currentActiveTabId).then((saved) => {
+          if (saved) goInTabHistory(currentActiveTabId, 1)
+        })
         lastHandled = e.timeStamp
       }
     }
@@ -163,7 +224,7 @@ export function TabManager({ children }: { children: React.ReactNode }) {
         capture: true,
       } as any)
     }
-  }, [goInTabHistory])
+  }, [flushTabFile, goInTabHistory])
 
   return (
     <div className="relative flex-1 min-h-0 flex flex-col">

@@ -4,13 +4,12 @@
 
 import { app, ipcMain } from "electron"
 
-import { Injectable, Inject, IpcInjectable, container } from "../../common/di"
+import { Injectable, Inject, IpcInjectable } from "../../common/di"
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import { UpdaterService } from "../updater/updater.service"
 import { DataSpaceManager } from "../data-space"
 import { GlobalShortcutsService } from "./global-shortcuts.service"
 import { WindowService } from "./window.service"
-import { BrowserService } from "../browser/browser.service"
 
 @IpcInjectable("app-lifecycle")
 export class AppLifecycleService extends IpcServiceBase {
@@ -97,15 +96,7 @@ export class AppLifecycleService extends IpcServiceBase {
   registerIpcHandlers(): void {
     // Register app-lifecycle handlers
     ipcMain.handle("app-lifecycle:reloadApp", async () => {
-      // Close all BrowserViews before reloading to prevent them from covering the main window
-      try {
-        const browserService = container.get(BrowserService)
-        browserService.closeAll()
-      } catch {
-        // BrowserService might not be available, ignore
-      }
-      app.relaunch()
-      this.windowService.getMainWindow()?.reload()
+      return this.windowService.reloadMainWindow()
     })
 
     ipcMain.handle("app-lifecycle:quitApp", async () => {

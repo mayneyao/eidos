@@ -12,10 +12,13 @@ import { useOptionalTabContext } from "@/apps/web-app/components/tab-manager/tab
 import { useSpaceStore } from "@/apps/web-app/hooks/use-current-space"
 import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 import { shouldEnableLegacySpaceRuntime } from "@/apps/web-app/space-runtime-policy"
+import { filePathFromSpaceUrl } from "@/apps/web-app/components/file-space/file-path"
+import { flushCurrentSpaceFile } from "@/apps/web-app/components/file-space/file-navigation"
 
 export const useRouterAdapter = () => {
   const inRouter = useInRouterContext()
-  const spaceMode = useSpaceStore((state) => state.spaceInfo?.mode)
+  const spaceInfo = useSpaceStore((state) => state.spaceInfo)
+  const spaceMode = spaceInfo?.mode
   const legacyRuntimeEnabled = shouldEnableLegacySpaceRuntime(spaceMode)
 
   // Hooks that might throw if not in router
@@ -133,16 +136,38 @@ export const useRouterAdapter = () => {
       }
 
       if (typeof to === "number") {
-        // Prefer the tab's own router history when available.
-        if (inTabRouter && inRouter && navigate) {
-          navigate(to as any, options)
+        const navigateByDelta = () => {
+          // Prefer the tab's own router history when available.
+          if (inTabRouter && inRouter && navigate) {
+            navigate(to as any, options)
+            return
+          }
+          const { goInTabHistory } = useTabStore.getState()
+          const storeActiveTabId = useTabStore.getState().getActiveTabId()
+          if (storeActiveTabId) {
+            goInTabHistory(storeActiveTabId, to)
+          }
+        }
+        const currentLocation = adapterLocationRef.current
+        const currentFilePath = filePathFromSpaceUrl(
+          currentLocation.pathname +
+            currentLocation.search +
+            currentLocation.hash
+        )
+        if (spaceMode === "file" && currentFilePath) {
+          void flushCurrentSpaceFile(spaceInfo?.id, currentFilePath).then(
+            (saved) => {
+              if (saved) navigateByDelta()
+              else {
+                alert(
+                  "Eidos could not save the current file. Resolve the error before leaving it."
+                )
+              }
+            }
+          )
           return
         }
-        const { goInTabHistory } = useTabStore.getState()
-        const storeActiveTabId = useTabStore.getState().getActiveTabId()
-        if (storeActiveTabId) {
-          goInTabHistory(storeActiveTabId, to)
-        }
+        navigateByDelta()
         return
       }
 
@@ -307,7 +332,15 @@ export const useRouterAdapter = () => {
         setActiveTabAction(targetId)
       }
     },
-    [inTabRouter, inRouter, navigate, reuseExistingTab, tabId]
+    [
+      inTabRouter,
+      inRouter,
+      navigate,
+      reuseExistingTab,
+      spaceInfo?.id,
+      spaceMode,
+      tabId,
+    ]
   )
 
   const adapterParams = useMemo(() => {

@@ -46,6 +46,7 @@ import { isDesktopMode } from "@/lib/env"
 import { cn, isDayPageId } from "@/lib/utils"
 import { isMac, isWindowsDesktop } from "@/lib/web/helper"
 import { useSqlite } from "@/hooks/use-sqlite"
+import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 import { Button } from "@/components/ui/button"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
@@ -53,6 +54,9 @@ import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppStore } from "@/apps/web-app/store/app-store"
 import { useWebviewStore } from "@/apps/web-app/store/webview-store"
+import { shouldEnableLegacySpaceRuntime } from "@/apps/web-app/space-runtime-policy"
+import { filePathFromSpaceUrl } from "@/apps/web-app/components/file-space/file-path"
+import { flushPendingFileWrites } from "@/apps/web-app/components/file-space/pending-writes"
 
 import { TabContextMenu } from "./tab-context-menu"
 import type { Tab } from "@/apps/web-app/store/tabs"
@@ -242,6 +246,7 @@ function TabIcon({ tab }: { tab: Tab }) {
   if (url.startsWith("/trash")) return <Trash2 className={iconClassName} />
   if (url.startsWith("/search")) return <Search className={iconClassName} />
   if (url.startsWith("/graft")) return <GitBranch className={iconClassName} />
+  if (url.startsWith("/version")) return <GitBranch className={iconClassName} />
   if (url.startsWith("/capture")) return <Camera className={iconClassName} />
 
   return <File className={iconClassName} />
@@ -285,6 +290,7 @@ export function TabBar({
     panels,
     activePanelId,
     openTab,
+    closeTab,
     confirmCloseTab,
     closeOtherTabs,
     closeTabsToRight,
@@ -296,6 +302,10 @@ export function TabBar({
     canGoForward,
   } = useTabStore()
   const { setCurrentApp } = useSidebarStore()
+  const { currentSpace } = useCurrentSpace()
+  const legacyRuntimeEnabled = shouldEnableLegacySpaceRuntime(
+    currentSpace?.mode
+  )
   const { sqlite } = useSqlite()
 
   // Get the panel to work with
@@ -318,7 +328,58 @@ export function TabBar({
   // Use useCallback to stabilize handleNewTab reference
   const [newTabContent] = useSqliteKV<string | null>(
     "eidos:space:settings:newtab",
-    ""
+    "",
+    legacyRuntimeEnabled
+  )
+
+  const closeTabSafely = useCallback(
+    async (tabId: string) => {
+      if (currentSpace?.mode !== "file") {
+        await confirmCloseTab(tabId)
+        return
+      }
+      const tab = useTabStore.getState().tabs.find((item) => item.id === tabId)
+      const filePath = tab ? filePathFromSpaceUrl(tab.url) : null
+      if (!filePath) {
+        closeTab(tabId)
+        return
+      }
+      const saved = await flushPendingFileWrites({
+        spaceId: currentSpace.id,
+        path: filePath,
+      })
+      if (saved) {
+        closeTab(tabId)
+        return
+      }
+      if (
+        window.confirm(
+          `Eidos could not save “${tab?.title || filePath}”. Close the tab and discard its unsaved changes?`
+        )
+      ) {
+        closeTab(tabId)
+      }
+    },
+    [closeTab, confirmCloseTab, currentSpace]
+  )
+
+  const runBatchCloseSafely = useCallback(
+    async (closeTabs: () => void) => {
+      if (currentSpace?.mode !== "file") {
+        closeTabs()
+        return
+      }
+      const saved = await flushPendingFileWrites({ spaceId: currentSpace.id })
+      if (
+        saved ||
+        window.confirm(
+          "Eidos could not save one or more open files. Close these tabs and discard their unsaved changes?"
+        )
+      ) {
+        closeTabs()
+      }
+    },
+    [currentSpace]
   )
 
   const handleNewTab = useCallback(() => {
@@ -379,7 +440,7 @@ export function TabBar({
     // Middle-click to close
     if (e.button === 1) {
       e.preventDefault()
-      confirmCloseTab(tabId)
+      void closeTabSafely(tabId)
       return
     }
 
@@ -548,13 +609,19 @@ export function TabBar({
                   setActiveTab(tabId)
                   void locateTabInFileTree(tabId)
                 }}
-                onCloseTab={confirmCloseTab}
+                onCloseTab={(tabId) => void closeTabSafely(tabId)}
                 canGoBack={canGoBack}
                 canGoForward={canGoForward}
                 goInTabHistory={goInTabHistory}
-                closeOtherTabs={closeOtherTabs}
-                closeTabsToRight={closeTabsToRight}
-                closeAllTabs={closeAllTabs}
+                closeOtherTabs={(tabId) =>
+                  void runBatchCloseSafely(() => closeOtherTabs(tabId))
+                }
+                closeTabsToRight={(tabId) =>
+                  void runBatchCloseSafely(() => closeTabsToRight(tabId))
+                }
+                closeAllTabs={() =>
+                  void runBatchCloseSafely(() => closeAllTabs())
+                }
               />
             ))}
           </div>

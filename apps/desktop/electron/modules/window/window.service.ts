@@ -43,6 +43,7 @@ export class WindowService {
   private closeApproved = false
   private closeCheckInProgress = false
   private closeRequestCounter = 0
+  private reloadCheckInProgress = false
 
   constructor(@Inject(ConfigManager) private configManager: ConfigManager) {}
 
@@ -300,14 +301,7 @@ export class WindowService {
 
       if (isReloadShortcut && !input.alt) {
         event.preventDefault()
-        // Close all BrowserViews before reloading to prevent them from covering the main window
-        try {
-          const browserService = container.get(BrowserService)
-          browserService.closeAll()
-        } catch {
-          // BrowserService might not be available yet, ignore
-        }
-        win.webContents.reload()
+        void this.reloadMainWindow()
       }
     })
 
@@ -407,6 +401,38 @@ export class WindowService {
       container.get(TrayService).destroyTray()
     } catch {}
     app.quit()
+  }
+
+  public async reloadMainWindow(): Promise<boolean> {
+    const win = this.mainWindow
+    if (!win || win.isDestroyed() || this.reloadCheckInProgress) return false
+
+    this.reloadCheckInProgress = true
+    try {
+      const saved = await this.requestPendingWriteFlush(win)
+      if (!saved) {
+        const { response } = await dialog.showMessageBox(win, {
+          type: "warning",
+          buttons: ["Keep Eidos Open", "Discard Unsaved Changes and Reload"],
+          defaultId: 0,
+          cancelId: 0,
+          title: "Unable to save current file",
+          message: "Eidos could not save all pending file changes.",
+          detail:
+            "Keep Eidos open to resolve the error, or discard the unsaved changes and reload.",
+          noLink: true,
+        })
+        if (response === 0) return false
+      }
+
+      try {
+        container.get(BrowserService).closeAll()
+      } catch {}
+      win.webContents.reload()
+      return true
+    } finally {
+      this.reloadCheckInProgress = false
+    }
   }
 
   private requestPendingWriteFlush(win: BrowserWindow): Promise<boolean> {
