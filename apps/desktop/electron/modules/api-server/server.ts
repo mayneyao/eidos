@@ -24,6 +24,7 @@ import { createStaticFiles, createSpaFallback } from "./middleware/static"
 
 // Import utils
 import { extractSpaceIdFromRequest } from "./utils/extract-space"
+import { API_SERVER_HOST, createApiServerListenOptions } from "./server-config"
 
 // Re-export types and functions for backward compatibility
 export * from "./routes/oauth"
@@ -111,6 +112,7 @@ export interface ServerContext {
 
 // Channel name for auth state changes
 export const AUTH_STATE_CHANGED_CHANNEL = "auth-state-changed"
+export { API_SERVER_HOST }
 
 /**
  * Create and configure the Hono app with all middleware and routes
@@ -179,13 +181,7 @@ export async function startServer(
 
   const app = createApp(dist, port, ctx)
 
-  serve(
-    {
-      port,
-      fetch: app.fetch,
-    },
-    (info) => {
-      ctx.logger.info(`Server is running on ${info.address}:${info.port}`)
-    }
-  )
+  serve(createApiServerListenOptions(port, app.fetch), (info) => {
+    ctx.logger.info(`Server is running on ${info.address}:${info.port}`)
+  })
 }
