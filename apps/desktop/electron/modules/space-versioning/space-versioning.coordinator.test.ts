@@ -235,6 +235,47 @@ describe("SpaceVersioningCoordinator.restorePath", () => {
     expect(runJson).toHaveBeenCalledTimes(1)
   })
 
+  it("reports partial success when final status fails after restoring a file", async () => {
+    const root = await createSpace()
+    let statusReads = 0
+    const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      if (args[0] === "status") {
+        statusReads += 1
+        if (statusReads === 1) return statusPayload()
+        throw new Error("status unavailable")
+      }
+      if (args[0] === "show") {
+        return {
+          id: "resolved-1",
+          artifacts: { "note.md": { type: "file", kind: "text_file" } },
+          changes: [
+            {
+              path: "note.md",
+              change: "modified",
+              kind: "text_file",
+              storage: "inline",
+            },
+          ],
+        }
+      }
+      if (args[0] === "restore") {
+        return { operation: "restore", current_head: "head-2" }
+      }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    await expect(
+      coordinator.restorePath("space-a", {
+        revision: "old",
+        path: "note.md",
+        expectedHead: "head-2",
+      })
+    ).rejects.toThrow(
+      "Space files may have been restored, but Eidos could not verify the final version state: status unavailable"
+    )
+  })
+
   it("rejects staged paths and dirty descendants without explicit overwrite", async () => {
     const root = await createSpace()
     const staged = vi.fn(async () =>
@@ -699,6 +740,43 @@ describe("SpaceVersioningCoordinator.restoreVersion", () => {
     ).rejects.toThrow("restore failed after materialization")
     const ignore = await fs.readFile(ignorePath, "utf8")
     expect(ignore).toBe("user-rule/\n")
+  })
+
+  it("reports partial success when managed-ignore repair fails after restoring a Space", async () => {
+    const root = await createSpace()
+    const ignorePath = path.join(root, ".graftignore")
+    const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      if (args[0] === "status") {
+        return statusPayload()
+      }
+      if (args[0] === "show") {
+        return {
+          id: args[args.length - 1] === "head-2" ? "head-2" : "resolved-1",
+          files: {},
+          artifacts: { "note.md": { type: "file" } },
+        }
+      }
+      if (args[0] === "restore") {
+        await fs.mkdir(ignorePath)
+        return {
+          operation: "restore",
+          current_head: "head-2",
+          paths: ["note.md"],
+          path_details: [{ path: "note.md" }],
+        }
+      }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    await expect(
+      coordinator.restoreVersion("space-a", {
+        revision: "old",
+        expectedHead: "head-2",
+      })
+    ).rejects.toThrow(
+      "Space files may have been restored, but Eidos could not verify the final version state"
+    )
   })
 
   it("rejects private runtime paths tracked by the source or current tree", async () => {

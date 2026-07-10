@@ -220,12 +220,12 @@ function VersioningProbe({
   return null
 }
 
-function versionStatus() {
+function versionStatus(paths: Array<{ path: string; state: string }> = []) {
   return {
     enabled: true,
     currentHead: "commit-3",
     currentBranch: "main",
-    paths: [],
+    paths,
   }
 }
 
@@ -528,6 +528,95 @@ describe("useSpaceVersioning history coordination", () => {
     expect(bridge.restoreVersion).toHaveBeenCalledWith("space-a", request)
     unregisterFirst()
     unregisterSecond()
+  })
+
+  it("keeps the authoritative restore status when the follow-up refresh fails", async () => {
+    const bridge = createBridge()
+    installBridge(bridge)
+
+    await act(async () => {
+      root.render(
+        createElement(VersioningProbe, {
+          name: "history",
+          loadHistory: false,
+        })
+      )
+      await flushEffects()
+    })
+
+    bridge.restorePath.mockResolvedValueOnce({
+      revision: "commit-1",
+      path: "notes/today.md",
+      kind: "text_file",
+      storage: "inline",
+      effect: "modified",
+      status: {
+        ...versionStatus(),
+        paths: [{ path: "notes/today.md", state: "modified" }],
+      },
+    })
+    bridge.getStatus.mockRejectedValueOnce(new Error("status unavailable"))
+
+    await act(async () => {
+      await hookResults.get("history")?.restorePath({
+        revision: "commit-1",
+        path: "notes/today.md",
+        expectedHead: "commit-3",
+      })
+      await flushEffects()
+    })
+
+    expect(hookResults.get("history")?.status?.changes).toEqual([
+      { path: "notes/today.md", status: "modified" },
+    ])
+    expect(hookResults.get("history")?.error?.message).toBe(
+      "status unavailable"
+    )
+  })
+
+  it("reconciles status after a restore error that may follow file changes", async () => {
+    const bridge = createBridge()
+    installBridge(bridge)
+
+    await act(async () => {
+      root.render(
+        createElement(VersioningProbe, {
+          name: "history",
+          loadHistory: false,
+        })
+      )
+      await flushEffects()
+    })
+
+    const partialSuccessError = new Error(
+      "Space files may have been restored, but final status failed"
+    )
+    bridge.restoreVersion.mockRejectedValueOnce(partialSuccessError)
+    bridge.getStatus.mockResolvedValueOnce({
+      ...versionStatus(),
+      paths: [{ path: "notes/today.md", state: "modified" }],
+    })
+    bridge.getStatus.mockClear()
+
+    let restoreError: unknown
+    await act(async () => {
+      try {
+        await hookResults.get("history")?.restoreVersion({
+          revision: "commit-1",
+          expectedHead: "commit-3",
+        })
+      } catch (error) {
+        restoreError = error
+      }
+      await flushEffects()
+    })
+
+    expect(restoreError).toBe(partialSuccessError)
+    expect(bridge.getStatus).toHaveBeenCalledOnce()
+    expect(hookResults.get("history")?.status?.changes).toEqual([
+      { path: "notes/today.md", status: "modified" },
+    ])
+    expect(hookResults.get("history")?.error).toBe(partialSuccessError)
   })
 
   it("shares a per-Space mutation gate across hook instances", async () => {

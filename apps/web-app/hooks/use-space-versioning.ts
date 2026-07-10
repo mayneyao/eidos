@@ -1064,6 +1064,22 @@ export function useSpaceVersioning(
     }
   }, [applyHistorySnapshot, loadHistory, refreshHistory, refreshStatus])
 
+  const reconcileAfterPossibleRestore = useCallback(
+    async (activeSpaceId: string) => {
+      try {
+        await refresh()
+      } catch {
+        // Reconciliation is best-effort and must never hide the restore result.
+      }
+      try {
+        announceSpaceVersioningChange(activeSpaceId, instanceTokenRef.current)
+      } catch {
+        // A failed notification must not replace the original restore error.
+      }
+    },
+    [refresh]
+  )
+
   useEffect(() => {
     void refresh()
   }, [refresh])
@@ -1237,6 +1253,7 @@ export function useSpaceVersioning(
       setError(null)
       let activeSpaceId: string | undefined
       let finishOperation: (() => void) | undefined
+      let bridgeInvoked = false
       try {
         activeSpaceId = requireSpaceId()
         finishOperation = beginSpaceVersioningOperation(
@@ -1254,16 +1271,22 @@ export function useSpaceVersioning(
             "Eidos could not save pending edits for this file before restoring it."
           )
         }
-        const raw = await requireSpaceVersioningBridge().restorePath(
-          activeSpaceId,
-          request
-        )
+        const bridge = requireSpaceVersioningBridge()
+        bridgeInvoked = true
+        const raw = await bridge.restorePath(activeSpaceId, request)
         const result = normalizeSpaceVersionRestorePathResult(raw)
-        await refresh()
-        announceSpaceVersioningChange(activeSpaceId, instanceTokenRef.current)
+        statusRequestRef.current += 1
+        if (mountedRef.current) {
+          setStatus(result.status)
+          setStatusLoading(false)
+        }
+        await reconcileAfterPossibleRestore(activeSpaceId)
         return result
       } catch (requestError) {
         const nextError = errorFrom(requestError)
+        if (activeSpaceId && bridgeInvoked) {
+          await reconcileAfterPossibleRestore(activeSpaceId)
+        }
         if (mountedRef.current) setError(nextError)
         throw nextError
       } finally {
@@ -1277,7 +1300,7 @@ export function useSpaceVersioning(
         }
       }
     },
-    [refresh, requireSpaceId]
+    [reconcileAfterPossibleRestore, requireSpaceId]
   )
 
   const restoreVersion = useCallback(
@@ -1285,6 +1308,7 @@ export function useSpaceVersioning(
       setError(null)
       let activeSpaceId: string | undefined
       let finishOperation: (() => void) | undefined
+      let bridgeInvoked = false
       try {
         activeSpaceId = requireSpaceId()
         finishOperation = beginSpaceVersioningOperation(
@@ -1297,16 +1321,22 @@ export function useSpaceVersioning(
             "Eidos could not save all pending file changes before restoring this Space."
           )
         }
-        const raw = await requireSpaceVersioningBridge().restoreVersion(
-          activeSpaceId,
-          request
-        )
+        const bridge = requireSpaceVersioningBridge()
+        bridgeInvoked = true
+        const raw = await bridge.restoreVersion(activeSpaceId, request)
         const result = normalizeSpaceVersionRestoreVersionResult(raw)
-        await refresh()
-        announceSpaceVersioningChange(activeSpaceId, instanceTokenRef.current)
+        statusRequestRef.current += 1
+        if (mountedRef.current) {
+          setStatus(result.status)
+          setStatusLoading(false)
+        }
+        await reconcileAfterPossibleRestore(activeSpaceId)
         return result
       } catch (requestError) {
         const nextError = errorFrom(requestError)
+        if (activeSpaceId && bridgeInvoked) {
+          await reconcileAfterPossibleRestore(activeSpaceId)
+        }
         if (mountedRef.current) setError(nextError)
         throw nextError
       } finally {
@@ -1320,7 +1350,7 @@ export function useSpaceVersioning(
         }
       }
     },
-    [refresh, requireSpaceId]
+    [reconcileAfterPossibleRestore, requireSpaceId]
   )
 
   return {

@@ -67,6 +67,12 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+function restoreReconciliationError(error: unknown): Error {
+  return new Error(
+    `Space files may have been restored, but Eidos could not verify the final version state: ${errorMessage(error)}. Refresh the Space before continuing.`
+  )
+}
+
 function repositoryLockOwner(value: unknown): RepositoryLockOwner | null {
   if (
     !isObject(value) ||
@@ -184,7 +190,10 @@ function normalizeRepositoryPath(
   // filename character on POSIX. Preserve that identity outside Windows.
   const slashPath =
     process.platform === "win32" ? value.replace(/\\/g, "/") : value
-  if (path.posix.isAbsolute(slashPath) || /^[a-zA-Z]:\//.test(slashPath)) {
+  if (
+    path.posix.isAbsolute(slashPath) ||
+    (process.platform === "win32" && /^[a-zA-Z]:\//.test(slashPath))
+  ) {
     throw new Error(`${label} must be relative to the Space`)
   }
   const normalized = path.posix.normalize(slashPath)
@@ -629,28 +638,32 @@ export class SpaceVersioningCoordinator {
           ],
           { timeoutMs: MUTATION_TIMEOUT_MS }
         )
-        const status = await this.readStatus(spaceId, spacePath)
-        if (status.currentHead !== before.currentHead) {
-          throw new Error(
-            "The current version changed while the file was being restored"
-          )
-        }
+        try {
+          const status = await this.readStatus(spaceId, spacePath)
+          if (status.currentHead !== before.currentHead) {
+            throw new Error(
+              "The current version changed while the file was being restored"
+            )
+          }
 
-        const effect: SpaceVersionRestoreEffect = sourceDeletesPath
-          ? "deleted"
-          : !target.exists
-            ? "created"
-            : overlappingChanges.length === 0 &&
-                pathStatusOverlaps(status.paths, options.path).length === 0
-              ? "noop"
-              : "modified"
-        return {
-          revision: source.revision,
-          path: source.path,
-          kind: source.kind,
-          storage: source.storage,
-          effect,
-          status,
+          const effect: SpaceVersionRestoreEffect = sourceDeletesPath
+            ? "deleted"
+            : !target.exists
+              ? "created"
+              : overlappingChanges.length === 0 &&
+                  pathStatusOverlaps(status.paths, options.path).length === 0
+                ? "noop"
+                : "modified"
+          return {
+            revision: source.revision,
+            path: source.path,
+            kind: source.kind,
+            storage: source.storage,
+            effect,
+            status,
+          }
+        } catch (error) {
+          throw restoreReconciliationError(error)
         }
       })
     })
@@ -730,19 +743,23 @@ export class SpaceVersioningCoordinator {
           { timeoutMs: MUTATION_TIMEOUT_MS }
         )
 
-        await ensureEidosGraftIgnore(spacePath)
-        const status = await this.readStatus(spaceId, spacePath)
-        if (status.currentHead !== before.currentHead) {
-          throw new Error(
-            "The current version changed while the Space was being restored"
-          )
-        }
-        const restoredPaths = parseGraftRestorePaths(rawRestore)
+        try {
+          await ensureEidosGraftIgnore(spacePath)
+          const status = await this.readStatus(spaceId, spacePath)
+          if (status.currentHead !== before.currentHead) {
+            throw new Error(
+              "The current version changed while the Space was being restored"
+            )
+          }
+          const restoredPaths = parseGraftRestorePaths(rawRestore)
 
-        return {
-          revision: source.revision,
-          restoredPaths,
-          status,
+          return {
+            revision: source.revision,
+            restoredPaths,
+            status,
+          }
+        } catch (error) {
+          throw restoreReconciliationError(error)
         }
       })
     })
