@@ -20,15 +20,13 @@ import { GodModeTooltip } from "@/components/god-mode-tooltip"
 import { AuthProvider } from "@/components/auth-provider"
 
 export default function RootLayout() {
-  const { isInitialized, initWorker } = useWorker()
+  const { initWorker } = useWorker()
   const { isSidebarOpen, setSidebarOpen } = useAppStoreBase()
   const { t } = useTranslation()
 
   useEffect(() => {
-    if (!isInitialized) {
-      return initWorker()
-    }
-  }, [initWorker, isInitialized])
+    return initWorker()
+  }, [initWorker])
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
