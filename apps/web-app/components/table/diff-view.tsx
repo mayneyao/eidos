@@ -1,9 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { parseDiffFromFile, type FileDiffMetadata } from "@pierre/diffs"
+import type { FileDiffMetadata } from "@pierre/diffs"
 import { LoaderIcon } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
+
+import type {
+  DiffComputationRequest,
+  DiffComputationResponse,
+} from "./diff-computation"
 
 /**
  * Renders a side-by-side diff of old/new content using @pierre/diffs.
@@ -22,14 +27,34 @@ export function DiffView({
 }) {
   const { resolvedTheme } = useTheme()
   const [diff, setDiff] = useState<FileDiffMetadata | null>(null)
+  const [diffError, setDiffError] = useState<string | null>(null)
   const [ReadyComponent, setReadyComponent] = useState<any>(null)
 
   useEffect(() => {
-    const result = parseDiffFromFile(
-      { name: filename, contents: oldContent },
-      { name: filename, contents: newContent }
-    )
-    setDiff(result)
+    setDiff(null)
+    setDiffError(null)
+    const worker = new Worker(new URL("./diff-worker.ts", import.meta.url), {
+      type: "module",
+    })
+    worker.onmessage = (event: MessageEvent<DiffComputationResponse>) => {
+      worker.terminate()
+      if (event.data.diff) {
+        setDiff(event.data.diff)
+        return
+      }
+      setDiffError(event.data.error ?? "Unable to compute this diff")
+    }
+    worker.onerror = () => {
+      worker.terminate()
+      setDiffError("Unable to compute this diff")
+    }
+    const request: DiffComputationRequest = {
+      oldContent,
+      newContent,
+      filename,
+    }
+    worker.postMessage(request)
+    return () => worker.terminate()
   }, [oldContent, newContent, filename])
 
   useEffect(() => {
@@ -37,6 +62,14 @@ export function DiffView({
       setReadyComponent(() => mod.FileDiff)
     })
   }, [])
+
+  if (diffError) {
+    return (
+      <div className="py-3 text-xs text-destructive" role="alert">
+        {diffError}
+      </div>
+    )
+  }
 
   if (!diff) {
     return (
