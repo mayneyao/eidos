@@ -5,9 +5,11 @@ import { Navigate, useLocation, useRoutes } from "react-router-dom"
 import { isDesktopMode } from "@/lib/env"
 import { Webview } from "@/apps/web-app/components/webview"
 import { useRegisterTabContextMenuItem } from "@/hooks/use-tab-context-menu-registry"
+import { fileSpaceRoutes } from "@/apps/web-app/file-space-routes"
 import { spaceRoutes } from "@/apps/web-app/routes"
 import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
 import { useTabStore } from "@/apps/web-app/store/tabs"
+import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 
 // Component for tab-specific content (only the main content area)
 export function TabContentLayout() {
@@ -16,7 +18,10 @@ export function TabContentLayout() {
   console.log("[TabContentLayout] Got tabId:", tabId)
   const location = useLocation()
   console.log("[TabContentLayout] Got location:", location.pathname)
-  const element = useRoutes(spaceRoutes)
+  const { currentSpace } = useCurrentSpace()
+  const element = useRoutes(
+    currentSpace?.mode === "file" ? fileSpaceRoutes : spaceRoutes
+  )
   console.log("[TabContentLayout] Got element:", element)
 
   // Get the actual tab URL from store

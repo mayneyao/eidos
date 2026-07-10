@@ -2,6 +2,7 @@ import { BookOpenText } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
 
+import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { type SettingsSection } from "./settings-events"
 import { GlobalAccountSettings } from "./global/global-account-settings"
 import { GlobalAISettings } from "./global/global-ai-settings"
@@ -23,8 +24,15 @@ import { ThemeSettings } from "./space/theme-settings"
 
 export function SettingsContent() {
   const { section } = useParams<{ section?: string }>()
-  const activeSection: SettingsSection =
+  const requestedSection: SettingsSection =
     (section as SettingsSection) || "general"
+  const { currentSpace } = useCurrentSpace()
+  const activeSection: SettingsSection =
+    currentSpace?.mode === "file" &&
+    requestedSection.startsWith("space-") &&
+    requestedSection !== "space-general"
+      ? "space-general"
+      : requestedSection
   const { t, i18n } = useTranslation()
 
   const getDocsUrl = (path: string) => {

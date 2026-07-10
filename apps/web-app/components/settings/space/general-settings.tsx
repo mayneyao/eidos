@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+import { flushPendingFileWrites } from "@/apps/web-app/components/file-space/pending-writes"
 
 import { isDesktopMode } from "@/lib/env"
 import {
@@ -34,10 +35,11 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
-import { useEngine } from "@/apps/web-app/hooks/use-engine"
 import { useSpace } from "@/apps/web-app/hooks/use-space"
 import type { SpaceInfo } from "@/apps/web-app/hooks/use-current-space"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
+import { useSpaceFiles } from "@/apps/web-app/hooks/use-space-files"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 
@@ -60,10 +62,17 @@ function joinLocalPath(dir: string, fileName: string) {
 export function GeneralSettings() {
   const { t } = useTranslation()
   const { space } = useCurrentPathInfo()
-  const { deleteSpace, rebuildIndex, renameSpace, spaceList, updateSpaceList } =
-    useSpace()
+  const {
+    deleteSpace,
+    rebuildIndex: rebuildLegacyIndex,
+    renameSpace,
+    spaceList,
+    updateSpaceList,
+  } = useSpace()
+  const { currentSpace } = useCurrentSpace()
+  const isFileSpace = currentSpace?.mode === "file"
+  const { rebuildIndex: rebuildFileIndex } = useSpaceFiles(currentSpace?.id)
   const { navigate } = useRouterAdapter()
-  const { close } = useEngine()
   const { toast } = useToast()
   const { sqlite } = useSqlite(space)
 
@@ -108,8 +117,10 @@ export function GeneralSettings() {
   useEffect(() => {
     const loadData = async () => {
       if (isDesktopMode) {
-        const folder = await window.eidos.config.get("dataFolder")
-        setDataFolder(folder || "")
+        if (!isFileSpace) {
+          const folder = await window.eidos.config.get("dataFolder")
+          setDataFolder(folder || "")
+        }
 
         // Load current space info
         try {
@@ -120,12 +131,15 @@ export function GeneralSettings() {
       }
     }
     loadData()
-  }, [space])
+  }, [isFileSpace, space])
 
   // Load node name uniqueness settings
   useEffect(() => {
     const loadUniquenessSettings = async () => {
-      if (!sqlite) return
+      if (isFileSpace || !sqlite) {
+        setIsLoadingUniqueness(false)
+        return
+      }
       setIsLoadingUniqueness(true)
       try {
         const enabled = await sqlite.tree.isNameUniquenessEnabled()
@@ -143,7 +157,7 @@ export function GeneralSettings() {
       }
     }
     loadUniquenessSettings()
-  }, [sqlite])
+  }, [isFileSpace, sqlite])
 
   const handleRename = async () => {
     if (!space || !spaceName.trim()) return
@@ -178,25 +192,30 @@ export function GeneralSettings() {
   const handleUnregister = async () => {
     if (confirmName === space) {
       try {
-        await deleteSpace(space)
-        await updateSpaceList()
-        close()
+        if (!(await flushPendingFileWrites())) {
+          throw new Error(
+            "Eidos could not save the current file. Resolve the error before unregistering this Space."
+          )
+        }
+        const removal = await deleteSpace(space)
 
         if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
-          // In desktop mode, switch to another space if available
-          const updatedSpaces = await window.eidos.spaceMgmt.listSpaces()
-          if (updatedSpaces && updatedSpaces.length > 0) {
-            // Switch to the first available space
-            const result = await window.eidos.spaceMgmt.switchSpace(
-              updatedSpaces[0].id
-            )
-            if (result.success) {
-              // Space switched successfully, Electron will automatically reload to new subdomain
-              return
+          if (removal.nextSpaceId) {
+            try {
+              const result = await window.eidos.spaceMgmt.switchSpace(
+                removal.nextSpaceId
+              )
+              if (result.success) return
+            } catch (switchError) {
+              console.error(
+                "Unable to open the next Space after unregistering:",
+                switchError
+              )
             }
           }
-          // If no spaces available, navigate to landing page
-          navigate("/")
+          const landingUrl = new URL("/", window.location.href)
+          landingUrl.hostname = "localhost"
+          window.location.replace(landingUrl.toString())
         } else {
           // Web mode: navigate to landing page
           navigate("/")
@@ -217,7 +236,8 @@ export function GeneralSettings() {
   const handleRebuildIndex = async () => {
     setIsRebuilding(true)
     try {
-      await rebuildIndex()
+      if (isFileSpace) await rebuildFileIndex()
+      else await rebuildLegacyIndex()
       alert(t("space.settings.indexRebuildSuccess"))
     } catch (error) {
       console.error("Error rebuilding index:", error)
@@ -244,7 +264,13 @@ export function GeneralSettings() {
   }
 
   const handleExportDatabase = async () => {
-    if (!isDesktopMode || !space || typeof window === "undefined") return
+    if (
+      isFileSpace ||
+      !isDesktopMode ||
+      !space ||
+      typeof window === "undefined"
+    )
+      return
 
     setIsExportingDatabase(true)
     try {
@@ -289,7 +315,13 @@ export function GeneralSettings() {
   }
 
   const handleDisableRemoteSync = async () => {
-    if (!isDesktopMode || !space || typeof window === "undefined") return
+    if (
+      isFileSpace ||
+      !isDesktopMode ||
+      !space ||
+      typeof window === "undefined"
+    )
+      return
 
     setIsDisablingRemoteSync(true)
     try {
@@ -324,7 +356,13 @@ export function GeneralSettings() {
   }
 
   const handleTurnOffLocalHistory = async () => {
-    if (!isDesktopMode || !space || typeof window === "undefined") return
+    if (
+      isFileSpace ||
+      !isDesktopMode ||
+      !space ||
+      typeof window === "undefined"
+    )
+      return
     if (turnOffHistoryConfirmText !== space) return
 
     setIsTurningOffHistory(true)
@@ -367,7 +405,7 @@ export function GeneralSettings() {
   }
 
   const handleToggleNameUniqueness = async () => {
-    if (!sqlite) return
+    if (isFileSpace || !sqlite) return
     setIsTogglingUniqueness(true)
     try {
       if (nameUniquenessEnabled) {
@@ -521,14 +559,18 @@ export function GeneralSettings() {
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <p className="text-sm text-muted-foreground mb-4">
-              {t("space.settings.dataDescription")}
+              {isFileSpace
+                ? "Files remain the source of truth. Search data is derived and can be rebuilt at any time."
+                : t("space.settings.dataDescription")}
             </p>
             <div className="space-y-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="space-y-0.5 flex-[5] min-w-[240px]">
                   <Label>{t("space.settings.rebuildSearchIndex")}</Label>
                   <p className="text-sm text-muted-foreground">
-                    {t("space.settings.rebuildSearchIndexDescription")}
+                    {isFileSpace
+                      ? "Re-read files and rebuild the in-memory search, link, tag, and backlink index."
+                      : t("space.settings.rebuildSearchIndexDescription")}
                   </p>
                 </div>
                 <Button
@@ -565,7 +607,7 @@ export function GeneralSettings() {
                 </div>
               )}
 
-              {isDesktopMode && isVersioningEnabled && (
+              {isDesktopMode && !isFileSpace && isVersioningEnabled && (
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="space-y-0.5 flex-[5] min-w-[240px]">
                     <Label>{t("space.settings.exportSqliteSnapshot")}</Label>
@@ -588,7 +630,7 @@ export function GeneralSettings() {
                 </div>
               )}
 
-              {isDesktopMode && isRemoteSyncEnabled && (
+              {isDesktopMode && !isFileSpace && isRemoteSyncEnabled && (
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="space-y-0.5 flex-[5] min-w-[240px]">
                     <div className="flex flex-wrap items-center gap-2">
@@ -652,93 +694,97 @@ export function GeneralSettings() {
               )}
 
               {/* Node Name Uniqueness Setting */}
-              <div className="py-6 border-t border-border">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-1 flex-[5] min-w-[240px]">
-                    <Label>{t("node.settings.nameUniqueness")}</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {t("node.settings.nameUniquenessDescription")}
-                    </p>
+              {!isFileSpace ? (
+                <div className="py-6 border-t border-border">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="space-y-1 flex-[5] min-w-[240px]">
+                      <Label>{t("node.settings.nameUniqueness")}</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {t("node.settings.nameUniquenessDescription")}
+                      </p>
 
-                    {!isLoadingUniqueness &&
-                      !nameUniquenessEnabled &&
-                      duplicateCount > 0 && (
-                        <div className="mt-3">
-                          <Alert className="bg-amber-50/50 dark:bg-amber-950/10 border-amber-200/50 dark:border-amber-900/30 py-3">
-                            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500" />
-                            <AlertTitle className="text-sm font-medium text-amber-800 dark:text-amber-400">
-                              {t("node.settings.duplicateNodesFound", {
-                                count: duplicateCount,
-                              })}
-                            </AlertTitle>
-                            <AlertDescription className="text-xs text-amber-700/80 dark:text-amber-500/70">
-                              {t("node.settings.duplicateNodesWillBeRenamed")}
-                            </AlertDescription>
-                          </Alert>
+                      {!isLoadingUniqueness &&
+                        !nameUniquenessEnabled &&
+                        duplicateCount > 0 && (
+                          <div className="mt-3">
+                            <Alert className="bg-amber-50/50 dark:bg-amber-950/10 border-amber-200/50 dark:border-amber-900/30 py-3">
+                              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+                              <AlertTitle className="text-sm font-medium text-amber-800 dark:text-amber-400">
+                                {t("node.settings.duplicateNodesFound", {
+                                  count: duplicateCount,
+                                })}
+                              </AlertTitle>
+                              <AlertDescription className="text-xs text-amber-700/80 dark:text-amber-500/70">
+                                {t("node.settings.duplicateNodesWillBeRenamed")}
+                              </AlertDescription>
+                            </Alert>
+                          </div>
+                        )}
+                    </div>
+
+                    <div className="shrink-0">
+                      {isLoadingUniqueness ? (
+                        <div className="h-8 w-20 bg-muted animate-pulse rounded-md" />
+                      ) : nameUniquenessEnabled ? (
+                        <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span className="text-sm font-medium">
+                            {t("node.settings.nameUniquenessEnabled")}
+                          </span>
                         </div>
-                      )}
-                  </div>
-
-                  <div className="shrink-0">
-                    {isLoadingUniqueness ? (
-                      <div className="h-8 w-20 bg-muted animate-pulse rounded-md" />
-                    ) : nameUniquenessEnabled ? (
-                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                        <CheckCircle2 className="h-4 w-4" />
-                        <span className="text-sm font-medium">
-                          {t("node.settings.nameUniquenessEnabled")}
-                        </span>
-                      </div>
-                    ) : (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={isTogglingUniqueness}
-                            className="shrink-0"
-                          >
-                            {t("common.enable", "Enable")}
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>
-                              {t("node.settings.nameUniqueness")}
-                            </AlertDialogTitle>
-                            <AlertDialogDescription className="space-y-2">
-                              <p>
-                                {t("node.settings.nameUniquenessEnableConfirm")}
-                              </p>
-                              {duplicateCount > 0 && (
-                                <p className="text-amber-600 dark:text-amber-400">
-                                  {t("node.settings.duplicateNodesFound", {
-                                    count: duplicateCount,
-                                  })}{" "}
-                                  -
+                      ) : (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={isTogglingUniqueness}
+                              className="shrink-0"
+                            >
+                              {t("common.enable", "Enable")}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                {t("node.settings.nameUniqueness")}
+                              </AlertDialogTitle>
+                              <AlertDialogDescription className="space-y-2">
+                                <p>
                                   {t(
-                                    "node.settings.duplicateNodesWillBeRenamed"
+                                    "node.settings.nameUniquenessEnableConfirm"
                                   )}
                                 </p>
-                              )}
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>
-                              {t("common.cancel")}
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={handleToggleNameUniqueness}
-                            >
-                              {t("common.continue")}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
+                                {duplicateCount > 0 && (
+                                  <p className="text-amber-600 dark:text-amber-400">
+                                    {t("node.settings.duplicateNodesFound", {
+                                      count: duplicateCount,
+                                    })}{" "}
+                                    -
+                                    {t(
+                                      "node.settings.duplicateNodesWillBeRenamed"
+                                    )}
+                                  </p>
+                                )}
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>
+                                {t("common.cancel")}
+                              </AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={handleToggleNameUniqueness}
+                              >
+                                {t("common.continue")}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -760,7 +806,7 @@ export function GeneralSettings() {
               {t("space.settings.dangerDescription")}
             </p>
             <div className="space-y-4">
-              {isDesktopMode && isVersioningEnabled && (
+              {isDesktopMode && !isFileSpace && isVersioningEnabled && (
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="space-y-0.5 flex-[5] min-w-[240px]">
                     <Label className="text-destructive">

@@ -6,12 +6,18 @@ import { getToday, uuidv7 } from "@/lib/utils"
 import { useCallback, useEffect, useRef } from "react"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useExtensionInstaller } from "./useExtensionInstaller"
+import { flushPendingFileWrites } from "@/apps/web-app/components/file-space/pending-writes"
+import { toSpaceFileUrl } from "@/apps/web-app/components/file-space/file-path"
+import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
+import { useToast } from "@/components/ui/use-toast"
 
 export const useProtocolUrl = () => {
   const { navigate } = useRouterAdapter()
   const { id: userId } = useCurrentUser()
   const listenerRef = useRef<any>()
   const { installExtension } = useExtensionInstaller()
+  const { currentSpace } = useCurrentSpace()
+  const { toast } = useToast()
 
   const createDocWithMarkdown = useCallback(
     async (props: {
@@ -63,6 +69,9 @@ export const useProtocolUrl = () => {
         stack: new Error().stack,
       })
       const { action, searchParams } = data
+      const activeSpace = await window.eidos.spaceMgmt
+        .getCurrentSpace()
+        .catch(() => currentSpace)
       let content = searchParams["content"] || ""
       if ("clipboard" in searchParams) {
         content = await navigator.clipboard.readText()
@@ -87,7 +96,15 @@ export const useProtocolUrl = () => {
               window.eidos
             ) {
               try {
-                await window.eidos.spaceMgmt.switchSpace(spaceId)
+                if (!(await flushPendingFileWrites())) {
+                  throw new Error(
+                    "Eidos could not save the current file before switching Spaces."
+                  )
+                }
+                const result = await window.eidos.spaceMgmt.switchSpace(spaceId)
+                if (!result.success) {
+                  throw new Error(result.error || "Unable to open this Space")
+                }
                 console.log(`✓ Successfully switched to space: ${spaceId}`)
                 // Electron will automatically reload to new subdomain
               } catch (error) {
@@ -104,8 +121,30 @@ export const useProtocolUrl = () => {
           // Handle eidos file command from CLI (like "code file.md")
           const filePath = searchParams["path"]
           if (filePath) {
-            const encodedPath = encodeURIComponent(filePath)
-            navigate(`/editor#${encodedPath}`)
+            try {
+              if (activeSpace?.mode === "file") {
+                const relativePath =
+                  await window.eidos.spaceMgmt.getRelativeFilePath(
+                    activeSpace.id,
+                    filePath
+                  )
+                if (!relativePath) {
+                  throw new Error("The file is outside the current Space")
+                }
+                navigate(toSpaceFileUrl(relativePath))
+                break
+              }
+              const encodedPath = encodeURIComponent(filePath)
+              navigate(`/editor#${encodedPath}`)
+            } catch (error) {
+              console.error("Unable to open file from protocol:", error)
+              toast({
+                title: "Unable to open file",
+                description:
+                  error instanceof Error ? error.message : String(error),
+                variant: "destructive",
+              })
+            }
           }
           break
 
@@ -116,6 +155,14 @@ export const useProtocolUrl = () => {
           break
 
         case "new":
+          if (activeSpace?.mode === "file") {
+            toast({
+              title: "Command unavailable for file Spaces",
+              description:
+                "Create a Markdown note from Eidos while file-Space CLI creation is being added.",
+            })
+            break
+          }
           if ("space" in searchParams) {
             const spaceId = searchParams["space"]
             let title = searchParams["file"] || searchParams["title"] || ""
@@ -133,6 +180,14 @@ export const useProtocolUrl = () => {
           break
 
         case "daily":
+          if (activeSpace?.mode === "file") {
+            toast({
+              title: "Command unavailable for file Spaces",
+              description:
+                "Daily-note protocol commands currently require a legacy Space.",
+            })
+            break
+          }
           const spaceId = searchParams["space"]
           const date = getToday()
           const docId = date
@@ -159,6 +214,12 @@ export const useProtocolUrl = () => {
           break
 
         case "extension":
+          if (activeSpace?.mode === "file") {
+            toast({
+              title: "Extensions are not available in file Spaces yet",
+            })
+            break
+          }
           const extensionId = data.extensionId
           await installExtension(extensionId)
           break
@@ -167,7 +228,7 @@ export const useProtocolUrl = () => {
           console.warn("Unhandled protocol action:", action)
       }
     },
-    [createDocWithMarkdown, navigate, installExtension]
+    [createDocWithMarkdown, currentSpace, navigate, installExtension, toast]
   )
 
   useEffect(() => {

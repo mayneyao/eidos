@@ -10,12 +10,16 @@ import { Loading } from "@/components/loading"
 import { Nav } from "@/components/nav"
 import { ScriptContainer } from "@/components/script-container"
 import { SideBar } from "@/components/sidebar"
+import { FileSpaceSidebar } from "@/apps/web-app/components/file-space/sidebar"
 import { TabManager } from "@/apps/web-app/components/tab-manager"
 import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
+import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
+import { fileSpaceRoutes } from "@/apps/web-app/file-space-routes"
 import { spaceRoutes } from "@/apps/web-app/routes"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { LandingPage } from "@/apps/web-app/pages/page"
 import { IntegratedTerminal } from "@/components/integrated-terminal"
 
 import { useLayoutInit } from "../../../web-app/pages/[database]/hook"
@@ -27,7 +31,10 @@ import { Webview } from "@/apps/web-app/components/webview"
 // Component for tab-specific content (only the main content area)
 function TabContentLayout() {
   const { tabId } = useTabContext()
-  const element = useRoutes(spaceRoutes)
+  const { currentSpace } = useCurrentSpace()
+  const element = useRoutes(
+    currentSpace?.mode === "file" ? fileSpaceRoutes : spaceRoutes
+  )
   const location = useLocation()
 
   // Get the actual tab URL from store to check if it's an external URL
@@ -53,6 +60,37 @@ function TabContentLayout() {
 }
 
 export function DesktopSpaceLayout() {
+  const { currentSpace, isLoading } = useCurrentSpace()
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <Loading />
+      </div>
+    )
+  }
+  if (!currentSpace) return <LandingPage />
+  if (currentSpace.mode === "file") {
+    return <DesktopFileSpaceLayout />
+  }
+  return <DesktopLegacySpaceLayout />
+}
+
+function DesktopFileSpaceLayout() {
+  return (
+    <div className="flex h-screen w-full overflow-hidden bg-background">
+      <FileSpaceSidebar />
+      <main className="flex h-screen min-w-0 flex-1 flex-col">
+        <Nav />
+        <TabManager>
+          <TabContentLayout />
+        </TabManager>
+      </main>
+    </div>
+  )
+}
+
+function DesktopLegacySpaceLayout() {
   const { sqlite } = useSqlite()
   const { isShareMode, isTerminalVisible, setIsTerminalVisible } =
     useAppRuntimeStore()

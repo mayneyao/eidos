@@ -17,12 +17,26 @@ import {
   useGlobalSearch,
   type SearchResult,
 } from "@/apps/web-app/hooks/use-global-search"
+import {
+  useCurrentSpace,
+  useCurrentSpaceId,
+} from "@/apps/web-app/hooks/use-current-space"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { cn } from "@/lib/utils"
 
+import { FileSpaceSearch } from "./file-space-search"
+
 export function GlobalSearch() {
+  const { currentSpace, isLoading } = useCurrentSpace()
+  const currentSpaceId = useCurrentSpaceId()
+  if (isLoading || (currentSpaceId && !currentSpace)) return null
+  if (currentSpace?.mode === "file") return <FileSpaceSearch />
+  return <LegacyGlobalSearch />
+}
+
+function LegacyGlobalSearch() {
   const { isGlobalSearchOpen, setGlobalSearchOpen } = useAppRuntimeStore()
   const { sqlite } = useSqlite()
   const { navigate } = useRouterAdapter()
@@ -107,7 +121,6 @@ export function GlobalSearch() {
         // does the router handle it?
 
         // Let's try navigating to the path.
-        const fileName = decodeURIComponent(result.path.split("/").pop() || "")
         navigate(`/file-handler#${result.path}`, { target: "_blank" })
       }
       setGlobalSearchOpen(false)

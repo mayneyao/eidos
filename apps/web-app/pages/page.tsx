@@ -1,6 +1,6 @@
 import { useEffect } from "react"
-import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
+import { isDesktopMode } from "@/lib/env"
 import { SpaceSelect } from "@/components/space-select"
 import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useSpace } from "@/apps/web-app/hooks/use-space"
@@ -11,13 +11,12 @@ export const LandingPage = () => {
   const { spaceList } = useSpace()
   const { lastOpenedDatabase } = useLastOpened()
   const goto = useGoto()
-  const { navigate } = useRouterAdapter()
 
   useEffect(() => {
-    if (lastOpenedDatabase) {
+    if (!isDesktopMode && lastOpenedDatabase) {
       goto(lastOpenedDatabase)
     }
-  }, [lastOpenedDatabase, goto, navigate])
+  }, [lastOpenedDatabase, goto])
 
   return (
     <div className="flex h-screen w-screen items-center justify-center">

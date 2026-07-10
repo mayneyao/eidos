@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 import { useKeyPress } from "ahooks"
 import { useTranslation } from "react-i18next"
 
@@ -8,9 +8,17 @@ import { getDate, getToday, isDayPageId } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
 import { useTheme } from "@/components/theme-provider"
 import { useBlockTabClick } from "@/apps/web-app/hooks/use-block-tab-click"
+import {
+  filePathFromSpaceUrl,
+  toSpaceFileUrl,
+  uniqueSpaceEntryName,
+} from "@/apps/web-app/components/file-space/file-path"
+import { flushCurrentSpaceFile } from "@/apps/web-app/components/file-space/file-navigation"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+import { useSpaceFiles } from "@/apps/web-app/hooks/use-space-files"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { DEFAULT_TABS, useTabsKV } from "@/apps/web-app/hooks/use-tabs-kv"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
@@ -18,6 +26,7 @@ import { useAppStore } from "@/apps/web-app/store/app-store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useSidebarStore } from "@/apps/web-app/store/sidebar-store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
+import { shouldEnableLegacySpaceRuntime } from "@/apps/web-app/space-runtime-policy"
 
 interface ShortcutAction {
   id: string
@@ -42,11 +51,17 @@ export function ShortCuts() {
   } = useAppRuntimeStore()
   const { isSidebarOpen, setSidebarOpen } = useAppStore()
   const { setCurrentApp } = useSidebarStore()
-  const { tabs: sortedTabs } = useTabsKV()
+  const { currentSpace } = useCurrentSpace()
+  const isFileSpace = currentSpace?.mode === "file"
+  const legacyRuntimeEnabled = shouldEnableLegacySpaceRuntime(
+    currentSpace?.mode
+  )
+  const { tabs: sortedTabs } = useTabsKV(legacyRuntimeEnabled)
   const { openTab } = useTabStore()
-  const { navigate, params } = useRouterAdapter()
+  const { location, navigate, params } = useRouterAdapter()
   const { toast } = useToast()
   const { createDoc, createLink } = useSqlite()
+  const { createText, list } = useSpaceFiles(currentSpace?.id)
   const { day } = params
   const { space } = useCurrentPathInfo()
 
@@ -55,8 +70,79 @@ export function ShortCuts() {
     () => sortedTabs.filter((id) => !DEFAULT_TABS.includes(id)),
     [sortedTabs]
   )
-  const { blocks } = useMblocksBatch(blockIds)
+  const { blocks } = useMblocksBatch(blockIds, legacyRuntimeEnabled)
   const handleBlockTabClick = useBlockTabClick(blocks)
+
+  const createNewDocument = useCallback(async () => {
+    if (!space) return
+    if (isFileSpace) {
+      try {
+        const currentFilePath = filePathFromSpaceUrl(
+          location.pathname + location.search + location.hash
+        )
+        if (!(await flushCurrentSpaceFile(currentSpace?.id, currentFilePath))) {
+          throw new Error(
+            "Eidos could not save the current file. Resolve the error before opening another file."
+          )
+        }
+        const entries = await list("")
+        const filename = uniqueSpaceEntryName(
+          entries.map((entry) => entry.name),
+          "Untitled",
+          ".md"
+        )
+        await createText(filename)
+        navigate(toSpaceFileUrl(filename))
+      } catch (error) {
+        toast({
+          title: "Unable to create note",
+          description: error instanceof Error ? error.message : String(error),
+          variant: "destructive",
+        })
+      }
+      return
+    }
+    const docId = await createDoc("")
+    if (docId) navigate(`/${docId}`)
+  }, [
+    createDoc,
+    createText,
+    currentSpace?.id,
+    isFileSpace,
+    list,
+    location.hash,
+    location.pathname,
+    location.search,
+    navigate,
+    space,
+    toast,
+  ])
+
+  const navigateHistorySafely = useCallback(
+    async (delta: number) => {
+      const currentFilePath = filePathFromSpaceUrl(
+        location.pathname + location.search + location.hash
+      )
+      if (!(await flushCurrentSpaceFile(currentSpace?.id, currentFilePath))) {
+        toast({
+          title: "Unable to leave this file",
+          description:
+            "Eidos could not save the current file. Resolve the error and try again.",
+          variant: "destructive",
+        })
+        return
+      }
+      navigate(delta)
+    },
+    [
+      currentSpace?.id,
+      location.hash,
+      location.pathname,
+      location.search,
+      navigate,
+      toast,
+    ]
+  )
 
   // Helper function to check if current active tab is a webview (external URL)
   const checkIsWebviewTab = () => {
@@ -74,14 +160,13 @@ export function ShortCuts() {
     const handleGlobalShortcut = async (action: ShortcutAction) => {
       switch (action.id) {
         case "navigate-today":
+          if (isFileSpace) break
           const date = getToday()
           navigate(`/journals/${date}`)
           break
 
         case "create-new-doc":
-          if (!space) return
-          const docId = await createDoc("")
-          navigate(`/${docId}`)
+          await createNewDocument()
           break
 
         case "toggle-theme":
@@ -93,6 +178,7 @@ export function ShortCuts() {
           break
 
         case "open-agent":
+          if (isFileSpace) break
           navigate("/agent")
           break
 
@@ -103,7 +189,7 @@ export function ShortCuts() {
             navigate(`/journals/${newDay}`)
           } else {
             // Normal browser back navigation
-            navigate(-1)
+            await navigateHistorySafely(-1)
           }
           break
 
@@ -114,17 +200,19 @@ export function ShortCuts() {
             navigate(`/journals/${newDay}`)
           } else {
             // Normal browser forward navigation
-            navigate(1)
+            await navigateHistorySafely(1)
           }
           break
 
         case "navigate-previous-day":
+          if (isFileSpace) break
           // Force navigate to previous day
           const prevDay = getDate(-1, day || getToday())
           navigate(`/journals/${prevDay}`)
           break
 
         case "navigate-next-day":
+          if (isFileSpace) break
           // Force navigate to next day
           const nextDay = getDate(1, day || getToday())
           navigate(`/journals/${nextDay}`)
@@ -168,6 +256,7 @@ export function ShortCuts() {
           break
 
         case "bookmark-current-tab": {
+          if (isFileSpace) break
           const activeTabId = useTabStore.getState().getActiveTabId()
           if (!activeTabId) break
           const activeTab = useTabStore
@@ -213,6 +302,7 @@ export function ShortCuts() {
         default:
           // Handle sidebar tab switching (switch-sidebar-tab-1 through switch-sidebar-tab-9)
           if (action.id.startsWith("switch-sidebar-tab-")) {
+            if (isFileSpace) break
             const tabIndex = parseInt(action.id.split("-").pop() || "0")
             if (tabIndex >= 1 && tabIndex <= 9) {
               // Use the actual tab order from sortedTabs
@@ -290,8 +380,10 @@ export function ShortCuts() {
     space,
     day,
     navigate,
-    createDoc,
     createLink,
+    createNewDocument,
+    navigateHistorySafely,
+    isFileSpace,
     setTheme,
     setCmdkOpen,
     toast,
@@ -316,12 +408,7 @@ export function ShortCuts() {
 
   // create new doc
   useKeyPress(["ctrl.n", "meta.n"], () => {
-    const createNewDoc = async () => {
-      if (!space) return
-      const docId = await createDoc("")
-      navigate(`/${docId}`)
-    }
-    createNewDoc()
+    void createNewDocument()
   })
 
   useKeyPress(["shift.ctrl.l", "shift.meta.l"], (e) => {
@@ -331,7 +418,7 @@ export function ShortCuts() {
 
   useKeyPress(["ctrl.openbracket", "meta.openbracket"], (e) => {
     if (!e.shiftKey) {
-      navigate(-1)
+      void navigateHistorySafely(-1)
     } else if (isDayPageId(day)) {
       // day
       const newDay = getDate(-1, day)
@@ -341,7 +428,7 @@ export function ShortCuts() {
 
   useKeyPress(["ctrl.closebracket", "meta.closebracket"], (e) => {
     if (!e.shiftKey) {
-      navigate(1)
+      void navigateHistorySafely(1)
     } else if (isDayPageId(day)) {
       // day
       const newDay = getDate(1, day)
@@ -377,7 +464,7 @@ export function ShortCuts() {
   // Add shortcut for AI Agent
   useKeyPress(["ctrl.j", "meta.j"], (e) => {
     e.preventDefault()
-    navigate("/agent")
+    if (!isFileSpace) navigate("/agent")
   })
 
   return null

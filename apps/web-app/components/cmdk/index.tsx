@@ -35,13 +35,22 @@ import {
 import { useToast } from "@/components/ui/use-toast"
 import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
+import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+import { useSpaceFiles } from "@/apps/web-app/hooks/use-space-files"
+import { flushPendingFileWrites } from "@/apps/web-app/components/file-space/pending-writes"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
-import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
+import {
+  filePathFromSpaceUrl,
+  toSpaceFileUrl,
+  uniqueSpaceEntryName,
+} from "@/apps/web-app/components/file-space/file-path"
+import { flushCurrentSpaceFile } from "@/apps/web-app/components/file-space/file-navigation"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useDevToolsStore } from "@/components/dev-tools"
+import { shouldEnableLegacySpaceRuntime } from "@/apps/web-app/space-runtime-policy"
 import {
   useBrowserSettingsStore,
   getSearchUrl,
@@ -74,8 +83,14 @@ export function CommandDialogDemo() {
   const { input, setInput, mode } = useInput()
   const { resolvedTheme, setTheme } = useTheme()
   const { space } = useCurrentPathInfo()
+  const { currentSpace } = useCurrentSpace()
+  const isFileSpace = currentSpace?.mode === "file"
+  const legacyRuntimeEnabled = shouldEnableLegacySpaceRuntime(
+    currentSpace?.mode
+  )
+  const { createText, list } = useSpaceFiles(currentSpace?.id)
   const [secondaryView, setSecondaryView] = useState<SecondaryView>(null)
-  const { resetTabs } = useFavBlocks()
+  const { resetTabs } = useFavBlocks(legacyRuntimeEnabled)
 
   const currentNode = useCurrentNode()
 
@@ -96,8 +111,6 @@ export function CommandDialogDemo() {
     e.preventDefault()
     setCmdkOpen(!isCmdkOpen)
   })
-
-  const { lastOpenedDatabase } = useLastOpened()
 
   const {
     createDoc,
@@ -128,7 +141,6 @@ export function CommandDialogDemo() {
     }
   }, [])
 
-  // Use current workspace in desktop mode, otherwise use lastOpenedDatabase
   const goEveryday = goto(`/journals`)
 
   const today = getToday()
@@ -150,7 +162,7 @@ export function CommandDialogDemo() {
     )
   }
 
-  const { navigate } = useRouterAdapter()
+  const { location, navigate } = useRouterAdapter()
   const openUrlInWebview = () => {
     const trimmed = input.trim()
     setCmdkOpen(false)
@@ -513,8 +525,36 @@ export function CommandDialogDemo() {
   }
 
   const createNewDoc = async () => {
+    if (isFileSpace) {
+      try {
+        const currentFilePath = filePathFromSpaceUrl(
+          location.pathname + location.search + location.hash
+        )
+        if (!(await flushCurrentSpaceFile(currentSpace?.id, currentFilePath))) {
+          throw new Error(
+            "Eidos could not save the current file. Resolve the error before opening another file."
+          )
+        }
+        const entries = await list("")
+        const filename = uniqueSpaceEntryName(
+          entries.map((entry) => entry.name),
+          "Untitled",
+          ".md"
+        )
+        await createText(filename)
+        setCmdkOpen(false)
+        navigate(toSpaceFileUrl(filename))
+      } catch (error) {
+        toast({
+          title: "Unable to create note",
+          description: error instanceof Error ? error.message : String(error),
+          variant: "destructive",
+        })
+      }
+      return
+    }
     const docId = await createDoc("")
-    goto(`/${docId}`)()
+    if (docId) goto(`/${docId}`)()
   }
 
   const handleResetTabs = () => {
@@ -530,6 +570,15 @@ export function CommandDialogDemo() {
   }
 
   const handleReloadApp = async () => {
+    if (!(await flushPendingFileWrites())) {
+      toast({
+        title: "Unable to reload Eidos",
+        description:
+          "Eidos could not save the current file. Resolve the error and try again.",
+        variant: "destructive",
+      })
+      return
+    }
     setCmdkOpen(false)
     await window.eidos.reloadApp()
   }
@@ -667,18 +716,22 @@ export function CommandDialogDemo() {
                         </div>
                       </CommandItem>
                     )}
-                    <CommandItem onSelect={goToday} value="today">
-                      <Clock3Icon className="mr-2 h-4 w-4" />
-                      <span>{t("common.today")}</span>
-                    </CommandItem>
+                    {!isFileSpace ? (
+                      <CommandItem onSelect={goToday} value="today">
+                        <Clock3Icon className="mr-2 h-4 w-4" />
+                        <span>{t("common.today")}</span>
+                      </CommandItem>
+                    ) : null}
                     <CommandItem onSelect={createNewDoc} value="new draft doc">
                       <FilePlus2Icon className="mr-2 h-4 w-4" />
                       <span>{t("cmdk.newDraftDoc")}</span>
                     </CommandItem>
-                    <CommandItem onSelect={goAgent} value="agent ai">
-                      <Bot className="mr-2 h-4 w-4" />
-                      <span>{t("common.ai")}</span>
-                    </CommandItem>
+                    {!isFileSpace ? (
+                      <CommandItem onSelect={goAgent} value="agent ai">
+                        <Bot className="mr-2 h-4 w-4" />
+                        <span>{t("common.ai")}</span>
+                      </CommandItem>
+                    ) : null}
                     {/* <CommandItem onSelect={goPipeline} value="pipeline runner">
                       <Terminal className="mr-2 h-4 w-4" />
                       <div className="flex flex-col">
@@ -692,89 +745,91 @@ export function CommandDialogDemo() {
                 )}
                 <CommandSeparator />
                 {/* Table commands: import schema is always visible; rebuild FTS etc. are table-node only */}
-                <CommandGroup heading={t("cmdk.table")}>
-                  {/* Import schema: available globally */}
-                  <CommandItem
-                    value="import table schema recreate from base64"
-                    onSelect={() => {
-                      setSecondaryView({
-                        component: (
-                          <ImportSchema
-                            onDone={() => {
-                              setSecondaryView(null)
-                              setCmdkOpen(false)
-                            }}
-                          />
-                        ),
-                        title: "Import Table Schema",
-                      })
-                    }}
-                  >
-                    <TableIcon className="mr-2 h-4 w-4" />
-                    <div className="flex flex-col">
-                      <span>Import Table Schema</span>
-                      <span className="text-xs opacity-60">
-                        Paste a base64 schema to recreate a table
-                      </span>
-                    </div>
-                  </CommandItem>
+                {!isFileSpace ? (
+                  <CommandGroup heading={t("cmdk.table")}>
+                    {/* Import schema: available globally */}
+                    <CommandItem
+                      value="import table schema recreate from base64"
+                      onSelect={() => {
+                        setSecondaryView({
+                          component: (
+                            <ImportSchema
+                              onDone={() => {
+                                setSecondaryView(null)
+                                setCmdkOpen(false)
+                              }}
+                            />
+                          ),
+                          title: "Import Table Schema",
+                        })
+                      }}
+                    >
+                      <TableIcon className="mr-2 h-4 w-4" />
+                      <div className="flex flex-col">
+                        <span>Import Table Schema</span>
+                        <span className="text-xs opacity-60">
+                          Paste a base64 schema to recreate a table
+                        </span>
+                      </div>
+                    </CommandItem>
 
-                  {/* Desktop-only / table-node-specific commands */}
-                  {isDesktopMode && currentNode?.type === "table" && (
-                    <>
-                      <CommandItem
-                        onSelect={() => {
-                          rebuildTableFTS(currentNode.id)
-                        }}
-                        value={`${t("cmdk.rebuildFTS")} ${t("cmdk.rebuildFTS.desc")}`}
-                      >
-                        <RefreshCcwIcon className="mr-2 h-4 w-4" />
-                        <div className="flex flex-col">
-                          <span>{t("cmdk.rebuildFTS")}</span>
-                          <span className="text-xs opacity-60">
-                            {t("cmdk.rebuildFTS.desc")}
-                          </span>
-                        </div>
-                      </CommandItem>
-                      <CommandItem
-                        onSelect={handleMigrateTableFilePaths}
-                        disabled={isMigratingTable}
-                        value={`${t("cmdk.migrateTableFilePaths")} ${t("cmdk.migrateTableFilePaths.desc")}`}
-                      >
-                        {isMigratingTable ? (
-                          <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Wrench className="mr-2 h-4 w-4" />
-                        )}
-                        <div className="flex flex-col">
-                          <span>{t("cmdk.migrateTableFilePaths")}</span>
-                          <span className="text-xs opacity-60">
-                            {t("cmdk.migrateTableFilePaths.desc")}
-                          </span>
-                        </div>
-                      </CommandItem>
-                      <CommandItem
-                        onSelect={handleFixTableSchema}
-                        disabled={isFixingSchema}
-                        value={`${t("cmdk.fixTableSchema")} ${t("cmdk.fixTableSchema.desc")}`}
-                      >
-                        {isFixingSchema ? (
-                          <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Wand2 className="mr-2 h-4 w-4" />
-                        )}
-                        <div className="flex flex-col">
-                          <span>{t("cmdk.fixTableSchema")}</span>
-                          <span className="text-xs opacity-60">
-                            {t("cmdk.fixTableSchema.desc")}
-                          </span>
-                        </div>
-                      </CommandItem>
-                    </>
-                  )}
-                </CommandGroup>
+                    {/* Desktop-only / table-node-specific commands */}
+                    {isDesktopMode && currentNode?.type === "table" && (
+                      <>
+                        <CommandItem
+                          onSelect={() => {
+                            rebuildTableFTS(currentNode.id)
+                          }}
+                          value={`${t("cmdk.rebuildFTS")} ${t("cmdk.rebuildFTS.desc")}`}
+                        >
+                          <RefreshCcwIcon className="mr-2 h-4 w-4" />
+                          <div className="flex flex-col">
+                            <span>{t("cmdk.rebuildFTS")}</span>
+                            <span className="text-xs opacity-60">
+                              {t("cmdk.rebuildFTS.desc")}
+                            </span>
+                          </div>
+                        </CommandItem>
+                        <CommandItem
+                          onSelect={handleMigrateTableFilePaths}
+                          disabled={isMigratingTable}
+                          value={`${t("cmdk.migrateTableFilePaths")} ${t("cmdk.migrateTableFilePaths.desc")}`}
+                        >
+                          {isMigratingTable ? (
+                            <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Wrench className="mr-2 h-4 w-4" />
+                          )}
+                          <div className="flex flex-col">
+                            <span>{t("cmdk.migrateTableFilePaths")}</span>
+                            <span className="text-xs opacity-60">
+                              {t("cmdk.migrateTableFilePaths.desc")}
+                            </span>
+                          </div>
+                        </CommandItem>
+                        <CommandItem
+                          onSelect={handleFixTableSchema}
+                          disabled={isFixingSchema}
+                          value={`${t("cmdk.fixTableSchema")} ${t("cmdk.fixTableSchema.desc")}`}
+                        >
+                          {isFixingSchema ? (
+                            <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Wand2 className="mr-2 h-4 w-4" />
+                          )}
+                          <div className="flex flex-col">
+                            <span>{t("cmdk.fixTableSchema")}</span>
+                            <span className="text-xs opacity-60">
+                              {t("cmdk.fixTableSchema.desc")}
+                            </span>
+                          </div>
+                        </CommandItem>
+                      </>
+                    )}
+                  </CommandGroup>
+                ) : null}
 
-                {currentNode?.type === "doc" && (
+                {!isFileSpace && currentNode?.type === "doc" && (
                   <>
                     <CommandGroup heading={t("cmdk.document")}>
                       <CommandItem
@@ -818,35 +873,42 @@ export function CommandDialogDemo() {
                 </div>
               </CommandItem>
 
-              <CommandItem
-                onSelect={handleMigrateFilePaths}
-                disabled={isMigrating}
-                value="migrate file paths"
-              >
-                {isMigrating ? (
-                  <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Wrench className="mr-2 h-4 w-4" />
-                )}
-                <div className="flex flex-col">
-                  <span>{t("cmdk.migrateFilePaths")}</span>
-                  <span className="text-xs opacity-60">
-                    {t("cmdk.migrateFilePaths.desc")}
-                  </span>
-                </div>
-              </CommandItem>
-              <CommandItem
-                onSelect={handleResetTabs}
-                value="reset sidebar tabs"
-              >
-                <LayoutGrid className="mr-2 h-4 w-4" />
-                <div className="flex flex-col">
-                  <span>{t("cmdk.resetTabs", "Reset Sidebar Tabs")}</span>
-                  <span className="text-xs opacity-60">
-                    {t("cmdk.resetTabs.desc", "Reset sidebar tabs to default")}
-                  </span>
-                </div>
-              </CommandItem>
+              {!isFileSpace ? (
+                <>
+                  <CommandItem
+                    onSelect={handleMigrateFilePaths}
+                    disabled={isMigrating}
+                    value="migrate file paths"
+                  >
+                    {isMigrating ? (
+                      <RefreshCcwIcon className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wrench className="mr-2 h-4 w-4" />
+                    )}
+                    <div className="flex flex-col">
+                      <span>{t("cmdk.migrateFilePaths")}</span>
+                      <span className="text-xs opacity-60">
+                        {t("cmdk.migrateFilePaths.desc")}
+                      </span>
+                    </div>
+                  </CommandItem>
+                  <CommandItem
+                    onSelect={handleResetTabs}
+                    value="reset sidebar tabs"
+                  >
+                    <LayoutGrid className="mr-2 h-4 w-4" />
+                    <div className="flex flex-col">
+                      <span>{t("cmdk.resetTabs", "Reset Sidebar Tabs")}</span>
+                      <span className="text-xs opacity-60">
+                        {t(
+                          "cmdk.resetTabs.desc",
+                          "Reset sidebar tabs to default"
+                        )}
+                      </span>
+                    </div>
+                  </CommandItem>
+                </>
+              ) : null}
               {!isInkServiceMode && (
                 <CommandItem
                   onSelect={() => {

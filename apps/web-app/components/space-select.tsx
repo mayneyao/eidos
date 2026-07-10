@@ -5,6 +5,7 @@ import {
   Check,
   ChevronsUpDown,
   Cloud,
+  FolderRoot,
   FolderOpen,
   HardDrive,
   HistoryIcon,
@@ -17,6 +18,7 @@ import { useTranslation } from "react-i18next"
 
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
+import { flushPendingFileWrites } from "@/apps/web-app/components/file-space/pending-writes"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -43,7 +45,6 @@ import {
 } from "@/components/ui/popover"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import type { SpaceInfo } from "@/apps/web-app/hooks/use-current-space"
-import { useGoto } from "@/apps/web-app/hooks/use-goto"
 import { useSpace } from "@/apps/web-app/hooks/use-space"
 import { useLastOpened } from "@/apps/web-app/pages/[database]/hook"
 
@@ -54,6 +55,7 @@ import { Progress } from "@/components/ui/progress"
 
 interface ISpaceSelectProps {
   spaces: SpaceInfo[]
+  variant?: "default" | "titlebar" | "sidebar-footer"
 }
 
 const getRemotePathname = (remotePath?: string) => {
@@ -82,13 +84,18 @@ interface SyncProvider {
 
 type SpacePathConflictType = "same" | "inside" | "contains"
 
-export function SpaceSelect({ spaces }: ISpaceSelectProps) {
+export function SpaceSelect({
+  spaces,
+  variant = "default",
+}: ISpaceSelectProps) {
   const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
   const { spaceList, updateSpaceList } = useSpace()
 
   const { lastOpenedDatabase, setLastOpenedDatabase } = useLastOpened()
   const { space } = useCurrentPathInfo()
+  const isTitlebar = variant === "titlebar"
+  const isSidebarChrome = variant !== "default"
 
   const [searchValue, setSearchValue] = React.useState("")
   const [showNewSpaceDialog, setShowNewSpaceDialog] = React.useState(false)
@@ -181,20 +188,34 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
     }
   }
 
-  const goto = useGoto()
-
-  const handleSelect = async (currentValue: string) => {
-    setLastOpenedDatabase(currentValue)
-    setOpen(false)
-
+  const handleSelect = async (currentValue: string): Promise<boolean> => {
+    if (!(await flushPendingFileWrites())) {
+      alert(
+        "Eidos could not save the current file. Resolve the error before switching Spaces."
+      )
+      return false
+    }
     if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
       try {
-        await window.eidos.spaceMgmt.switchSpace(currentValue)
+        const result = await window.eidos.spaceMgmt.switchSpace(currentValue)
+        if (!result.success) {
+          throw new Error(result.error || "Unable to open this Space")
+        }
+        setLastOpenedDatabase(currentValue)
+        setOpen(false)
+        return true
       } catch (error) {
         console.error("Error switching space:", error)
+        const message =
+          error instanceof Error ? error.message : "Unable to open this Space"
+        alert(`Failed to open Space: ${message}`)
+        return false
       }
     } else {
+      setLastOpenedDatabase(currentValue)
+      setOpen(false)
       window.location.href = `/${currentValue}`
+      return true
     }
   }
 
@@ -211,9 +232,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
           setSpacePathConflictType(pathConflict?.type || null)
           // Extract folder name as default space name
           const folderName = folderPath.split(/[/\\]/).pop() || ""
-          if (!spaceName && folderName) {
-            setSpaceName(folderName)
-          }
+          setSpaceName(folderName)
         }
       } catch (error) {
         console.error("Error selecting folder:", error)
@@ -259,10 +278,11 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
     if (!localPath) return
 
     setLoading(true)
+    let opened = false
     try {
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
         if (registeredSpaceForPath && canOpenRegisteredSpaceForPath) {
-          await handleSelect(registeredSpaceForPath.id)
+          opened = await handleSelect(registeredSpaceForPath.id)
           return
         }
 
@@ -272,13 +292,13 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
 
         if (result.success && result.space) {
           await updateSpaceList()
-          await handleSelect(result.space.id as string)
+          opened = await handleSelect(result.space.id as string)
         } else if (
           result.existingSpace &&
           result.pathConflictType !== "contains"
         ) {
           await updateSpaceList()
-          await handleSelect(result.existingSpace.id as string)
+          opened = await handleSelect(result.existingSpace.id as string)
         } else {
           throw new Error(result.error || "Failed to create space")
         }
@@ -290,8 +310,10 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
       alert(`Failed to create space: ${errorMessage}`)
     } finally {
       setLoading(false)
-      setShowNewSpaceDialog(false)
-      resetWizard()
+      if (opened) {
+        setShowNewSpaceDialog(false)
+        resetWizard()
+      }
     }
   }
 
@@ -300,8 +322,9 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
 
     setLoading(true)
     if (registeredSpaceForPath && canOpenRegisteredSpaceForPath) {
-      await handleSelect(registeredSpaceForPath.id)
-      resetWizard()
+      const opened = await handleSelect(registeredSpaceForPath.id)
+      if (opened) resetWizard()
+      else setLoading(false)
       return
     }
 
@@ -375,8 +398,8 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
           result.pathConflictType !== "contains"
         ) {
           await updateSpaceList()
-          await handleSelect(result.existingSpace.id as string)
-          resetWizard()
+          const opened = await handleSelect(result.existingSpace.id as string)
+          if (opened) resetWizard()
         } else {
           throw new Error(result.error || "Failed to clone space")
         }
@@ -394,7 +417,8 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
 
   const handleCloneComplete = async () => {
     if (clonedSpace) {
-      await handleSelect(clonedSpace.id as string)
+      const opened = await handleSelect(clonedSpace.id as string)
+      if (!opened) return
     }
     resetWizard()
   }
@@ -456,7 +480,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         return (
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Choose how you want to set up your space.
+              Open a local folder or clone an existing legacy Space.
             </p>
             <div className="grid grid-cols-1 gap-3">
               <button
@@ -467,9 +491,9 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                   <HardDrive className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-medium">Create New Space</h3>
+                  <h3 className="font-medium">Open Local Folder</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Create a new local space on this device.
+                    Use an existing folder as a file-based Space.
                   </p>
                 </div>
               </button>
@@ -495,8 +519,8 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
         return (
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Choose a local folder for your new space. Data will be stored
-              locally by default.
+              Choose a local folder to open as a Space. Its files remain the
+              source of truth.
             </p>
             <div className="space-y-2">
               <Label htmlFor="folder-path">Local Folder</Label>
@@ -517,8 +541,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Your data will be stored in this folder. Versioning and sync can
-                be enabled later from Graft.
+                Eidos reads and writes the files in this folder directly.
               </p>
             </div>
             {renderPathConflictNotice()}
@@ -532,10 +555,10 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                 className="flex-1"
               >
                 {loading
-                  ? t("common.creating", "Creating...")
+                  ? "Opening..."
                   : canOpenRegisteredSpaceForPath
                     ? "Open Existing Space"
-                    : t("space.createSpace", "Create Space")}
+                    : "Open as Space"}
               </Button>
             </div>
           </div>
@@ -727,7 +750,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
       case "choose-action":
         return "Add Space"
       case "create-local-path":
-        return "Create Space - Local Folder"
+        return "Open Folder as Space"
       case "clone-choose-provider":
         return "Clone Space - Select Provider"
       case "clone-select-space":
@@ -754,24 +777,46 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
             role="combobox"
             size="sm"
             aria-expanded={open}
-            className="w-full min-w-[180px] justify-start h-auto py-2 gap-2"
+            className={cn(
+              "h-auto w-full min-w-[180px] justify-start gap-2 py-2",
+              isSidebarChrome &&
+                "group h-7 min-w-0 gap-1.5 rounded-sm px-1.5 py-0 text-[13px] hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground"
+            )}
+            style={
+              isTitlebar
+                ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties)
+                : undefined
+            }
           >
             {space ? (
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-80" />
+                {isSidebarChrome ? (
+                  <FolderRoot className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                ) : (
+                  <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-80" />
+                )}
                 <span className="truncate font-medium">
                   {spaces.find((s) => s.id === space)?.name || space}
                 </span>
+                {isSidebarChrome ? (
+                  <ChevronsUpDown className="ml-auto h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-60 group-focus-visible:opacity-60 group-data-[state=open]:opacity-60" />
+                ) : null}
               </div>
             ) : (
-              t("space.select.selectDatabase")
+              t("space.select.selectSpace")
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-full min-w-[180px] p-0">
+        <PopoverContent
+          align={isSidebarChrome ? "start" : "center"}
+          className={cn(
+            "w-full min-w-[180px] p-0",
+            isSidebarChrome && "w-[260px]"
+          )}
+        >
           <Command>
             <CommandInput
-              placeholder={t("space.select.searchDatabase")}
+              placeholder={t("space.select.searchSpace")}
               value={searchValue}
               onValueChange={setSearchValue}
               autoFocus
@@ -786,8 +831,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
                     key={space.id}
                     value={space.id}
                     onSelect={(currentValue) => {
-                      handleSelect(currentValue)
-                      setOpen(false)
+                      void handleSelect(currentValue)
                     }}
                   >
                     <Check
@@ -842,7 +886,7 @@ export function SpaceSelect({ spaces }: ISpaceSelectProps) {
           <DialogTitle>{getDialogTitle()}</DialogTitle>
           <DialogDescription>
             {isDesktopMode
-              ? "Set up a new space for your data."
+              ? "Open a folder as a Space or connect an existing legacy Space."
               : "Space management is only available in the desktop app."}
           </DialogDescription>
         </DialogHeader>

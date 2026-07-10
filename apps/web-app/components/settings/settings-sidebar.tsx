@@ -207,7 +207,11 @@ export function SettingsSidebar({
     },
   ]
 
-  const spaceSections = settingsSections.filter((s) => s.category === "space")
+  const spaceSections = settingsSections.filter(
+    (section) =>
+      section.category === "space" &&
+      (spaceInfo?.mode !== "file" || section.id === "space-general")
+  )
   const globalSections = settingsSections.filter((s) => s.category === "global")
   const goto = useGoto()
 

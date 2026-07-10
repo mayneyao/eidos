@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, type ComponentProps } from "react"
 import Prism from "prismjs"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
@@ -24,6 +24,9 @@ interface MarkdownRendererProps {
   className?: string
   enableGfm?: boolean
   customComponents?: Partial<Components>
+  remarkPlugins?: NonNullable<
+    ComponentProps<typeof ReactMarkdown>["remarkPlugins"]
+  >
 }
 
 export const MarkdownRenderer = ({
@@ -31,6 +34,7 @@ export const MarkdownRenderer = ({
   className = "",
   enableGfm = true,
   customComponents = {},
+  remarkPlugins = [],
 }: MarkdownRendererProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const resizeTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -245,7 +249,7 @@ export const MarkdownRenderer = ({
   // Merge default components with custom components
   const components = { ...defaultComponents, ...customComponents }
 
-  const plugins = enableGfm ? [remarkGfm] : []
+  const plugins = [...(enableGfm ? [remarkGfm] : []), ...remarkPlugins]
 
   return (
     <div

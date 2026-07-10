@@ -22,10 +22,20 @@ import { useTabTitle } from "@/hooks/use-tab-title"
 import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
 import { BlockApp } from "@/apps/web-app/components/block-renderer/block-app"
 import { useTabStore } from "@/apps/web-app/store/tabs"
+import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 
 import AgentPage from "./agent/page"
+import { FileSpaceHome } from "./file-space-home"
 
 export default function DatabaseHome() {
+  const { currentSpace } = useCurrentSpace()
+  if (currentSpace?.mode === "file") {
+    return <FileSpaceHome />
+  }
+  return <LegacyDatabaseHome />
+}
+
+function LegacyDatabaseHome() {
   const { t } = useTranslation()
   const { space } = useCurrentPathInfo()
   const { createDoc } = useSqlite(space)
