@@ -31,6 +31,11 @@ export interface ParsedGraftRestoreSource {
   containsPath: boolean
 }
 
+export interface ParsedGraftRestoreVersionSource {
+  revision: string
+  paths: string[]
+}
+
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -546,6 +551,74 @@ export function parseGraftRestoreSource(
         : artifactStorage,
     containsPath,
   }
+}
+
+export function parseGraftRestoreVersionSource(
+  raw: unknown
+): ParsedGraftRestoreVersionSource {
+  if (!isObject(raw)) {
+    throw new Error("Graft returned an invalid restore source response")
+  }
+
+  const revision = stringValue(raw.id)
+  if (!revision) {
+    throw new Error("Graft restore source response is missing an id")
+  }
+  const files = isObject(raw.files) ? raw.files : null
+  const artifacts = isObject(raw.artifacts) ? raw.artifacts : null
+  if (!files && !artifacts) {
+    throw new Error("Graft restore source response is missing its file tree")
+  }
+
+  const paths = new Set(Object.keys(files ?? {}))
+  for (const artifactPath of Object.keys(artifacts ?? {})) {
+    if (paths.has(artifactPath)) {
+      throw new Error("Graft restore source contains duplicate file data")
+    }
+    paths.add(artifactPath)
+  }
+
+  return {
+    revision,
+    paths: [...paths].sort(),
+  }
+}
+
+export function parseGraftRestorePaths(raw: unknown): string[] {
+  if (!isObject(raw) || raw.operation !== "restore") {
+    throw new Error("Graft returned an invalid restore response")
+  }
+
+  const detailPaths = Array.isArray(raw.path_details)
+    ? raw.path_details.map((entry) => {
+        const restoredPath = isObject(entry) ? stringValue(entry.path) : null
+        if (!restoredPath) {
+          throw new Error("Graft restore response contains an invalid path")
+        }
+        return restoredPath
+      })
+    : []
+  const listedPaths = Array.isArray(raw.paths)
+    ? raw.paths.map((entry) => {
+        if (typeof entry !== "string" || !entry) {
+          throw new Error("Graft restore response contains an invalid path")
+        }
+        return entry
+      })
+    : []
+  const singlePath = stringValue(raw.path)
+  const paths =
+    detailPaths.length > 0
+      ? detailPaths
+      : listedPaths.length > 0
+        ? listedPaths
+        : singlePath
+          ? [singlePath]
+          : []
+  if (paths.length === 0) {
+    throw new Error("Graft restore response is missing restored paths")
+  }
+  return [...new Set(paths)].sort()
 }
 
 export function parseGraftCommitResult(raw: unknown): SpaceVersionCommitResult {

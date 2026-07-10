@@ -160,3 +160,15 @@ export interface SpaceVersionRestorePathResult {
   effect: SpaceVersionRestoreEffect
   status: SpaceVersionStatus
 }
+
+export interface SpaceVersionRestoreOptions {
+  revision: string
+  expectedHead: string
+  overwriteChanges?: boolean
+}
+
+export interface SpaceVersionRestoreResult {
+  revision: string
+  restoredPaths: string[]
+  status: SpaceVersionStatus
+}

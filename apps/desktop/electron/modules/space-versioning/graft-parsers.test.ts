@@ -7,7 +7,9 @@ import {
   parseGraftCommitResult,
   parseGraftDiff,
   parseGraftLog,
+  parseGraftRestorePaths,
   parseGraftRestoreSource,
+  parseGraftRestoreVersionSource,
   parseGraftStatus,
 } from "./graft-parsers"
 
@@ -437,5 +439,48 @@ describe("Graft v0.5 JSON parsers", () => {
       storage: "sqlite_snapshot",
       containsPath: true,
     })
+  })
+
+  it("canonicalizes a whole-Space restore source and lists its exact paths", () => {
+    expect(
+      parseGraftRestoreVersionSource({
+        id: "resolved-commit",
+        files: {
+          "data/app.db": { snapshot: "snapshot-1" },
+        },
+        artifacts: {
+          " note.md ": { type: "file", kind: "text_file" },
+          "assets/image.png": { type: "large_file", kind: "binary_file" },
+        },
+      })
+    ).toEqual({
+      revision: "resolved-commit",
+      paths: [" note.md ", "assets/image.png", "data/app.db"],
+    })
+  })
+
+  it("rejects duplicate whole-Space source tree entries", () => {
+    expect(() =>
+      parseGraftRestoreVersionSource({
+        id: "resolved-commit",
+        files: { "data/app.db": {} },
+        artifacts: { "data/app.db": {} },
+      })
+    ).toThrow("duplicate file data")
+  })
+
+  it("parses and de-duplicates exact paths restored by Graft", () => {
+    expect(
+      parseGraftRestorePaths({
+        operation: "restore",
+        path: null,
+        paths: ["ignored-fallback.md"],
+        path_details: [
+          { path: "notes/today.md", kind: "artifact" },
+          { path: " note.md ", kind: "artifact" },
+          { path: "notes/today.md", kind: "artifact" },
+        ],
+      })
+    ).toEqual([" note.md ", "notes/today.md"])
   })
 })

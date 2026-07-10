@@ -12,7 +12,9 @@ import {
   parseGraftCommitResult,
   parseGraftDiff,
   parseGraftLog,
+  parseGraftRestorePaths,
   parseGraftRestoreSource,
+  parseGraftRestoreVersionSource,
   parseGraftStatus,
 } from "./graft-parsers"
 import type {
@@ -23,6 +25,8 @@ import type {
   SpaceVersionDiffOptions,
   SpaceVersionHistoryOptions,
   SpaceVersionHistoryResult,
+  SpaceVersionRestoreOptions,
+  SpaceVersionRestoreResult,
   SpaceVersionRestoreEffect,
   SpaceVersionRestorePathOptions,
   SpaceVersionRestorePathResult,
@@ -43,6 +47,9 @@ const REPOSITORY_LOCK_OWNER_FILE = "owner.json"
 const REPOSITORY_LOCK_RETRY_MS = 75
 const REPOSITORY_LOCK_TIMEOUT_MS = MUTATION_TIMEOUT_MS + 15_000
 const REPOSITORY_LOCK_STALE_MS = 10 * 60_000
+// Graft currently models a whole-Space worktree restore as a root pathspec.
+// Keep this isolated so Eidos can switch to a future first-class --all form.
+const RESTORE_VERSION_PATHSPEC = "."
 
 type JsonObject = Record<string, unknown>
 
@@ -176,7 +183,7 @@ function normalizeRepositoryPath(
   // Graft uses slash-separated paths on Windows, while a backslash is a legal
   // filename character on POSIX. Preserve that identity outside Windows.
   const slashPath =
-    process.platform === "win32" ? value.replaceAll("\\", "/") : value
+    process.platform === "win32" ? value.replace(/\\/g, "/") : value
   if (path.posix.isAbsolute(slashPath) || /^[a-zA-Z]:\//.test(slashPath)) {
     throw new Error(`${label} must be relative to the Space`)
   }
@@ -261,6 +268,24 @@ function normalizeRestorePathOptions(
   }
 }
 
+function normalizeRestoreOptions(
+  value: unknown
+): Required<SpaceVersionRestoreOptions> {
+  if (!isObject(value)) {
+    throw new Error("Restore options must be an object")
+  }
+  const revision = normalizeRevision(value.revision, "Restore revision")
+  const expectedHead = normalizeRevision(
+    value.expectedHead,
+    "Expected current version"
+  )
+  const overwriteChanges = value.overwriteChanges ?? false
+  if (typeof overwriteChanges !== "boolean") {
+    throw new Error("overwriteChanges must be a boolean")
+  }
+  return { revision, expectedHead, overwriteChanges }
+}
+
 function pathsOverlap(left: string, right: string): boolean {
   return (
     left === right ||
@@ -274,6 +299,32 @@ function pathStatusOverlaps(
   repositoryPath: string
 ): SpaceVersionPathStatus[] {
   return entries.filter((entry) => pathsOverlap(entry.path, repositoryPath))
+}
+
+function isPrivateRuntimePath(repositoryPath: string): boolean {
+  const candidate = repositoryPath.toLowerCase()
+  if (candidate === ".graft" || candidate.startsWith(".graft/")) {
+    return true
+  }
+  if (candidate === ".eidos/db.sqlite3") {
+    return true
+  }
+  for (const directory of ["cache", "indexes", "sessions", "state"]) {
+    const prefix = `.eidos/${directory}`
+    if (candidate === prefix || candidate.startsWith(`${prefix}/`)) {
+      return true
+    }
+  }
+  return candidate.startsWith(".eidos/secrets")
+}
+
+function requireSafeRestoreTree(paths: Iterable<string>): void {
+  const privatePaths = [...new Set(paths)].filter(isPrivateRuntimePath).sort()
+  if (privatePaths.length > 0) {
+    throw new Error(
+      `A historical version contains private Eidos runtime data and cannot be restored safely: ${privatePaths.join(", ")}`
+    )
+  }
 }
 
 function filterDiffPath(
@@ -599,6 +650,98 @@ export class SpaceVersioningCoordinator {
           kind: source.kind,
           storage: source.storage,
           effect,
+          status,
+        }
+      })
+    })
+  }
+
+  async restoreVersion(
+    spaceIdValue: unknown,
+    optionsValue: unknown
+  ): Promise<SpaceVersionRestoreResult> {
+    const spaceId = requireSpaceId(spaceIdValue)
+    const options = normalizeRestoreOptions(optionsValue)
+    return this.withSpaceLock(spaceId, async () => {
+      const spacePath = await this.resolveFileSpace(spaceId)
+      await this.requireRepository(spacePath)
+      return this.withRepositoryOperationLock(spacePath, async () => {
+        const before = await this.readStatus(spaceId, spacePath)
+        if (before.hasConflicts) {
+          throw new Error("Resolve version conflicts before restoring a Space")
+        }
+        if (before.currentHead !== options.expectedHead) {
+          throw new Error(
+            "The Space history changed. Refresh history before restoring this version."
+          )
+        }
+        if (before.hasStagedChanges) {
+          throw new Error(
+            "The Space has staged changes. Commit or unstage them before restoring."
+          )
+        }
+        if (
+          (before.dirty || before.hasUnstagedChanges) &&
+          !options.overwriteChanges
+        ) {
+          throw new Error(
+            "The Space has uncommitted changes. Confirm that they may be overwritten before restoring."
+          )
+        }
+
+        const source = parseGraftRestoreVersionSource(
+          await this.runner.runJson(spacePath, [
+            "show",
+            "--json",
+            "--",
+            options.revision,
+          ])
+        )
+        requireSafeRestoreTree(source.paths)
+
+        const currentTree =
+          source.revision === before.currentHead
+            ? source
+            : parseGraftRestoreVersionSource(
+                await this.runner.runJson(spacePath, [
+                  "show",
+                  "--json",
+                  "--",
+                  before.currentHead,
+                ])
+              )
+        if (currentTree.revision !== before.currentHead) {
+          throw new Error(
+            "The Space history changed. Refresh history before restoring this version."
+          )
+        }
+        requireSafeRestoreTree(currentTree.paths)
+
+        const rawRestore = await this.runner.runJson(
+          spacePath,
+          [
+            "restore",
+            "--json",
+            "--source",
+            source.revision,
+            "--",
+            RESTORE_VERSION_PATHSPEC,
+          ],
+          { timeoutMs: MUTATION_TIMEOUT_MS }
+        )
+
+        await ensureEidosGraftIgnore(spacePath)
+        const status = await this.readStatus(spaceId, spacePath)
+        if (status.currentHead !== before.currentHead) {
+          throw new Error(
+            "The current version changed while the Space was being restored"
+          )
+        }
+        const restoredPaths = parseGraftRestorePaths(rawRestore)
+
+        return {
+          revision: source.revision,
+          restoredPaths,
           status,
         }
       })

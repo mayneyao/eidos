@@ -434,6 +434,368 @@ describe("SpaceVersioningCoordinator.restorePath", () => {
   )
 })
 
+describe("SpaceVersioningCoordinator.restoreVersion", () => {
+  it("restores the whole Space from a canonical revision without moving HEAD", async () => {
+    const root = await createSpace()
+    const ignorePath = path.join(root, ".graftignore")
+    await fs.writeFile(ignorePath, "user-rule/\n", "utf8")
+    let statusReads = 0
+    const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      if (args[0] === "status") {
+        statusReads += 1
+        if (statusReads === 1) {
+          return statusPayload(
+            [
+              {
+                path: "draft.md",
+                kind: "text_file",
+                storage: "inline",
+                index_status: "none",
+                worktree_status: "modified",
+              },
+            ],
+            { work_in_progress: true }
+          )
+        }
+        const ignore = await fs.readFile(ignorePath, "utf8")
+        expect(ignore).toContain("user-rule/\n")
+        expect(ignore).toContain(".eidos/sessions/\n")
+        return statusPayload([
+          {
+            path: "draft.md",
+            kind: "text_file",
+            storage: "inline",
+            index_status: "none",
+            worktree_status: "modified",
+          },
+          {
+            path: "later.md",
+            kind: "text_file",
+            storage: "inline",
+            index_status: "none",
+            worktree_status: "deleted",
+          },
+        ])
+      }
+      if (args[0] === "show") {
+        if (args[args.length - 1] === "head-2") {
+          return {
+            id: "head-2",
+            files: {},
+            artifacts: {
+              ".eidos/extensions/calendar.ts": {
+                type: "file",
+                kind: "text_file",
+              },
+              ".graftignore": { type: "file", kind: "text_file" },
+              "draft.md": { type: "file", kind: "text_file" },
+              "later.md": { type: "file", kind: "text_file" },
+            },
+          }
+        }
+        return {
+          id: "resolved-1",
+          files: {},
+          artifacts: {
+            ".eidos/extensions/calendar.ts": {
+              type: "file",
+              kind: "text_file",
+            },
+            ".graftignore": { type: "file", kind: "text_file" },
+            "draft.md": { type: "file", kind: "text_file" },
+          },
+        }
+      }
+      if (args[0] === "restore") {
+        // A historical tree can replace an older .graftignore. Eidos must
+        // repair its managed block before reading the final status.
+        await fs.writeFile(ignorePath, "user-rule/\n", "utf8")
+        return {
+          operation: "restore",
+          current_head: "head-2",
+          paths: [
+            "later.md",
+            "draft.md",
+            ".graftignore",
+            ".eidos/extensions/calendar.ts",
+          ],
+          path_details: [
+            { path: "later.md" },
+            { path: "draft.md" },
+            { path: ".graftignore" },
+            { path: ".eidos/extensions/calendar.ts" },
+          ],
+        }
+      }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    const result = await coordinator.restoreVersion("space-a", {
+      revision: "HEAD~1",
+      expectedHead: "head-2",
+      overwriteChanges: true,
+    })
+
+    expect(result).toMatchObject({
+      revision: "resolved-1",
+      restoredPaths: [
+        ".eidos/extensions/calendar.ts",
+        ".graftignore",
+        "draft.md",
+        "later.md",
+      ],
+      status: { currentHead: "head-2", hasUnstagedChanges: true },
+    })
+    expect(runJson.mock.calls.map(([, args]) => args[0])).toEqual([
+      "status",
+      "show",
+      "show",
+      "restore",
+      "status",
+    ])
+    expect(runJson).toHaveBeenCalledWith(
+      await fs.realpath(root),
+      ["restore", "--json", "--source", "resolved-1", "--", "."],
+      { timeoutMs: 120_000 }
+    )
+  })
+
+  it("rejects stale history, conflicts, staged work, and unconfirmed dirty work before show", async () => {
+    const cases: Array<{
+      name: string
+      payload: Record<string, unknown>
+      options?: { expectedHead?: string; overwriteChanges?: boolean }
+      message: string
+    }> = [
+      {
+        name: "stale history",
+        payload: statusPayload(),
+        options: { expectedHead: "stale-head" },
+        message: "history changed",
+      },
+      {
+        name: "conflict",
+        payload: statusPayload([], {
+          has_conflicts: true,
+          work_in_progress: true,
+        }),
+        options: { overwriteChanges: true },
+        message: "Resolve version conflicts",
+      },
+      {
+        name: "staged work",
+        payload: statusPayload([], {
+          has_staged_changes: true,
+          work_in_progress: true,
+        }),
+        options: { overwriteChanges: true },
+        message: "staged changes",
+      },
+      {
+        name: "dirty work",
+        payload: statusPayload([], {
+          has_unstaged_changes: true,
+          work_in_progress: true,
+        }),
+        message: "uncommitted changes",
+      },
+    ]
+
+    for (const testCase of cases) {
+      const root = await createSpace()
+      const runJson = vi.fn(async () => testCase.payload)
+      const coordinator = createCoordinator(root, runJson)
+
+      await expect(
+        coordinator.restoreVersion("space-a", {
+          revision: "old",
+          expectedHead: testCase.options?.expectedHead ?? "head-2",
+          overwriteChanges: testCase.options?.overwriteChanges,
+        })
+      ).rejects.toThrow(testCase.message)
+      expect(runJson, testCase.name).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it("rejects a restore whose final status moved HEAD", async () => {
+    const root = await createSpace()
+    let statusReads = 0
+    const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      if (args[0] === "status") {
+        statusReads += 1
+        return statusPayload([], {
+          current_head: statusReads === 1 ? "head-2" : "head-1",
+        })
+      }
+      if (args[0] === "show") {
+        if (args[args.length - 1] === "head-2") {
+          return {
+            id: "head-2",
+            files: {},
+            artifacts: { "note.md": { type: "file" } },
+          }
+        }
+        return {
+          id: "resolved-1",
+          files: {},
+          artifacts: { "note.md": { type: "file" } },
+        }
+      }
+      if (args[0] === "restore") {
+        return {
+          operation: "restore",
+          current_head: "head-1",
+          path: "note.md",
+          path_details: [{ path: "note.md" }],
+        }
+      }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    await expect(
+      coordinator.restoreVersion("space-a", {
+        revision: "old",
+        expectedHead: "head-2",
+      })
+    ).rejects.toThrow("current version changed")
+  })
+
+  it("does not edit managed ignores when Graft rejects the restore", async () => {
+    const root = await createSpace()
+    const ignorePath = path.join(root, ".graftignore")
+    const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      if (args[0] === "status") {
+        return statusPayload()
+      }
+      if (args[0] === "show") {
+        if (args[args.length - 1] === "head-2") {
+          return {
+            id: "head-2",
+            files: {},
+            artifacts: { "note.md": { type: "file" } },
+          }
+        }
+        return {
+          id: "resolved-1",
+          files: {},
+          artifacts: { "note.md": { type: "file" } },
+        }
+      }
+      if (args[0] === "restore") {
+        await fs.writeFile(ignorePath, "user-rule/\n", "utf8")
+        throw new Error("restore failed after materialization")
+      }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    await expect(
+      coordinator.restoreVersion("space-a", {
+        revision: "old",
+        expectedHead: "head-2",
+      })
+    ).rejects.toThrow("restore failed after materialization")
+    const ignore = await fs.readFile(ignorePath, "utf8")
+    expect(ignore).toBe("user-rule/\n")
+  })
+
+  it("rejects private runtime paths tracked by the source or current tree", async () => {
+    const sourceRoot = await createSpace()
+    const sourceRunner = vi.fn(
+      async (_cwd: string, args: readonly string[]) => {
+        if (args[0] === "status") {
+          return statusPayload()
+        }
+        if (args[0] === "show") {
+          return {
+            id: "resolved-1",
+            files: {},
+            artifacts: {
+              ".eidos/secrets.json": { type: "file" },
+              ".eidos/extensions/calendar.ts": { type: "file" },
+              ".graftignore": { type: "file" },
+            },
+          }
+        }
+        throw new Error("Restore must not run for a private source tree")
+      }
+    )
+    const sourceCoordinator = createCoordinator(sourceRoot, sourceRunner)
+
+    await expect(
+      sourceCoordinator.restoreVersion("space-a", {
+        revision: "old",
+        expectedHead: "head-2",
+      })
+    ).rejects.toThrow(".eidos/secrets.json")
+    expect(sourceRunner.mock.calls.map(([, args]) => args[0])).toEqual([
+      "status",
+      "show",
+    ])
+
+    const currentRoot = await createSpace()
+    const currentRunner = vi.fn(
+      async (_cwd: string, args: readonly string[]) => {
+        if (args[0] === "status") {
+          return statusPayload()
+        }
+        if (args[0] === "show" && args[args.length - 1] === "old") {
+          return {
+            id: "resolved-1",
+            files: {},
+            artifacts: { "note.md": { type: "file" } },
+          }
+        }
+        if (args[0] === "show") {
+          return {
+            id: "head-2",
+            files: {},
+            artifacts: {
+              ".eidos/cache/index.bin": { type: "large_file" },
+            },
+          }
+        }
+        throw new Error("Restore must not run for a private current tree")
+      }
+    )
+    const currentCoordinator = createCoordinator(currentRoot, currentRunner)
+
+    await expect(
+      currentCoordinator.restoreVersion("space-a", {
+        revision: "old",
+        expectedHead: "head-2",
+      })
+    ).rejects.toThrow(".eidos/cache/index.bin")
+    expect(currentRunner.mock.calls.map(([, args]) => args[0])).toEqual([
+      "status",
+      "show",
+      "show",
+    ])
+  })
+
+  it("is unavailable for a legacy database Space", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn()
+    const registry = {
+      getSpace: () => ({ id: "space-a", mode: "db", path: root }),
+    }
+    const coordinator = new SpaceVersioningCoordinator(
+      registry as unknown as SpaceRegistry,
+      { runJson } as unknown as GraftCliRunner
+    )
+
+    await expect(
+      coordinator.restoreVersion("space-a", {
+        revision: "old",
+        expectedHead: "head-2",
+      })
+    ).rejects.toThrow("only available for file Spaces")
+    expect(runJson).not.toHaveBeenCalled()
+  })
+})
+
 describe("SpaceVersioningCoordinator.commit", () => {
   it("repairs managed ignores before status and staging while preserving user rules", async () => {
     const root = await createSpace()
