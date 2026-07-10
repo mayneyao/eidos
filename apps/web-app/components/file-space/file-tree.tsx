@@ -2,7 +2,9 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react"
 import type { SpaceFileEntry } from "@eidos.space/file-space"
@@ -73,6 +75,11 @@ import { flushPendingFileWrites } from "./pending-writes"
 
 interface FileSpaceTreeProps {
   spaceId: string
+}
+
+interface VisibleTreeItem {
+  entry: SpaceFileEntry
+  level: number
 }
 
 type EntryDraft =
@@ -173,6 +180,8 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const [submittingDraft, setSubmittingDraft] = useState(false)
   const [draggedEntry, setDraggedEntry] = useState<SpaceFileEntry | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const [focusedPath, setFocusedPath] = useState<string | null>(null)
+  const treeItemRefs = useRef(new Map<string, HTMLDivElement>())
 
   const selectedPath = useMemo(() => {
     if (!location.pathname.endsWith("/space-file")) return null
@@ -540,6 +549,114 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
     [navigate, selectedPath, spaceId]
   )
 
+  const visibleTreeItems = useMemo(() => {
+    const items: VisibleTreeItem[] = []
+    const visit = (directory: string, level: number) => {
+      for (const entry of entriesByDirectory.get(directory) ?? []) {
+        items.push({ entry, level })
+        if (entry.kind === "directory" && expanded.has(entry.path)) {
+          visit(entry.path, level + 1)
+        }
+      }
+    }
+    visit("", 0)
+    return items
+  }, [entriesByDirectory, expanded])
+
+  const visiblePaths = useMemo(
+    () => new Set(visibleTreeItems.map(({ entry }) => entry.path)),
+    [visibleTreeItems]
+  )
+  const rovingPath =
+    (focusedPath && visiblePaths.has(focusedPath) ? focusedPath : null) ??
+    (selectedPath && visiblePaths.has(selectedPath) ? selectedPath : null) ??
+    visibleTreeItems[0]?.entry.path ??
+    null
+
+  const focusTreeItem = useCallback((path: string) => {
+    setFocusedPath(path)
+    treeItemRefs.current.get(path)?.focus()
+  }, [])
+
+  const handleTreeItemKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>, entry: SpaceFileEntry) => {
+      // Tree items are nested. Let the deepest focused item own the event.
+      if (event.target !== event.currentTarget) return
+
+      const index = visibleTreeItems.findIndex(
+        ({ entry: visibleEntry }) => visibleEntry.path === entry.path
+      )
+      if (index < 0) return
+
+      const focusAt = (nextIndex: number) => {
+        const nextPath = visibleTreeItems[nextIndex]?.entry.path
+        if (nextPath) focusTreeItem(nextPath)
+      }
+      const isDirectory = entry.kind === "directory"
+
+      switch (event.key) {
+        case "ArrowDown":
+          event.preventDefault()
+          event.stopPropagation()
+          focusAt(Math.min(index + 1, visibleTreeItems.length - 1))
+          return
+        case "ArrowUp":
+          event.preventDefault()
+          event.stopPropagation()
+          focusAt(Math.max(index - 1, 0))
+          return
+        case "Home":
+          event.preventDefault()
+          event.stopPropagation()
+          focusAt(0)
+          return
+        case "End":
+          event.preventDefault()
+          event.stopPropagation()
+          focusAt(visibleTreeItems.length - 1)
+          return
+        case "ArrowRight":
+          if (!isDirectory) return
+          event.preventDefault()
+          event.stopPropagation()
+          if (!expanded.has(entry.path)) {
+            toggleDirectory(entry)
+            return
+          }
+          if (visibleTreeItems[index + 1]?.entry.parentPath === entry.path) {
+            focusAt(index + 1)
+          }
+          return
+        case "ArrowLeft":
+          event.preventDefault()
+          event.stopPropagation()
+          if (isDirectory && expanded.has(entry.path)) {
+            toggleDirectory(entry)
+            return
+          }
+          if (entry.parentPath && visiblePaths.has(entry.parentPath)) {
+            focusTreeItem(entry.parentPath)
+          }
+          return
+        case "Enter":
+        case " ":
+          event.preventDefault()
+          event.stopPropagation()
+          if (isDirectory) toggleDirectory(entry)
+          else void openFile(entry)
+          return
+      }
+    },
+    [
+      expanded,
+      focusTreeItem,
+      openFile,
+      toggleDirectory,
+      visiblePaths,
+      visibleTreeItems,
+    ]
+  )
+
   const renderDraft = (level: number, key: string) => {
     if (!draft) return null
     const isDirectoryDraft =
@@ -549,6 +666,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
     return (
       <div
         key={key}
+        role="none"
         className="flex h-[22px] min-w-0 items-center gap-1 pr-1"
         style={{ paddingLeft: 24 + level * 12 }}
       >
@@ -608,15 +726,31 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
       }
 
       rows.push(
-        <div key={entry.path}>
+        <div
+          key={entry.path}
+          ref={(node) => {
+            if (node) treeItemRefs.current.set(entry.path, node)
+            else treeItemRefs.current.delete(entry.path)
+          }}
+          role="treeitem"
+          aria-level={level + 1}
+          aria-expanded={isDirectory ? isExpanded : undefined}
+          aria-selected={isSelected}
+          tabIndex={rovingPath === entry.path ? 0 : -1}
+          className="group/treeitem focus:outline-hidden"
+          onFocus={(event) => {
+            if (event.target === event.currentTarget) {
+              setFocusedPath(entry.path)
+            }
+          }}
+          onKeyDown={(event) => handleTreeItemKeyDown(event, entry)}
+        >
           <ContextMenu>
             <ContextMenuTrigger asChild>
-              <button
-                type="button"
-                role="treeitem"
+              <div
                 draggable={!draft}
                 className={cn(
-                  "group flex h-[22px] w-full min-w-0 items-center gap-1 pr-2 text-left text-[13px] leading-none transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-sidebar-ring",
+                  "group flex h-[22px] w-full min-w-0 items-center gap-1 pr-2 text-left text-[13px] leading-none transition-colors group-focus-visible/treeitem:ring-1 group-focus-visible/treeitem:ring-inset group-focus-visible/treeitem:ring-sidebar-ring",
                   draggedEntry?.path === entry.path && "opacity-50",
                   dropTarget === entry.path &&
                     "bg-sidebar-accent ring-1 ring-sidebar-ring",
@@ -626,11 +760,14 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
                 )}
                 style={{ paddingLeft: 4 + level * 12 }}
                 title={entry.path}
-                onClick={() =>
-                  isDirectory ? toggleDirectory(entry) : void openFile(entry)
-                }
-                aria-expanded={isDirectory ? isExpanded : undefined}
-                aria-selected={isSelected}
+                onMouseDown={(event) => {
+                  if (event.button === 0) focusTreeItem(entry.path)
+                }}
+                onClick={() => {
+                  focusTreeItem(entry.path)
+                  if (isDirectory) toggleDirectory(entry)
+                  else void openFile(entry)
+                }}
                 onDragStart={(event) => {
                   setDraggedEntry(entry)
                   setDropTarget(null)
@@ -671,7 +808,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
                 </span>
                 <Icon className="h-[15px] w-[15px] shrink-0 text-muted-foreground" />
                 <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-              </button>
+              </div>
             </ContextMenuTrigger>
             <ContextMenuContent className="w-48">
               {isDirectory ? (
@@ -714,9 +851,9 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
-          {isDirectory && isExpanded
-            ? renderDirectory(entry.path, level + 1)
-            : null}
+          {isDirectory && isExpanded ? (
+            <div role="group">{renderDirectory(entry.path, level + 1)}</div>
+          ) : null}
         </div>
       )
     }
