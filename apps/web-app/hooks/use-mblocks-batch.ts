@@ -10,13 +10,13 @@ import {
 } from "@/lib/const"
 import { ExtensionTableName } from "@/packages/core/sqlite/const"
 
-export const useMblocksBatch = (ids: string[]) => {
+export const useMblocksBatch = (ids: string[], enabled = true) => {
   const [blocks, setBlocks] = useState<Record<string, IExtension | null>>({})
   const [loading, setLoading] = useState(false)
   const { sqlite } = useSqlite()
 
   useEffect(() => {
-    if (!sqlite || ids.length === 0) {
+    if (!enabled || !sqlite || ids.length === 0) {
       setBlocks({})
       return
     }
@@ -54,9 +54,10 @@ export const useMblocksBatch = (ids: string[]) => {
     }
 
     fetchBlocks()
-  }, [sqlite, ids.join(",")])
+  }, [enabled, sqlite, ids.join(",")])
 
   useEffect(() => {
+    if (!enabled) return
     const bc = new BroadcastChannel(EidosDataEventChannelName)
 
     const handler = async (ev: MessageEvent<EidosDataEventChannelMsg>) => {
@@ -88,7 +89,7 @@ export const useMblocksBatch = (ids: string[]) => {
       bc.removeEventListener("message", handler)
       bc.close()
     }
-  }, [])
+  }, [enabled])
 
   useEffect(() => {
     setBlocks((prev) => {
@@ -100,7 +101,7 @@ export const useMblocksBatch = (ids: string[]) => {
       })
       return newBlocks
     })
-  }, [ids.join(",")])
+  }, [enabled, ids.join(",")])
 
   return { blocks, loading }
 }

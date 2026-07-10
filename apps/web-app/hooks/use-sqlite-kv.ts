@@ -35,7 +35,8 @@ const getDataType = (defaultValue: any): KVGetType => {
 
 export const useSqliteKV = <T = any>(
   key: string,
-  defaultValue: T
+  defaultValue: T,
+  enabled = true
 ): [T | null, (newValue: T) => void] => {
   // Use selector to only subscribe to this specific key's changes
   const cachedValue = useKVStore(
@@ -46,12 +47,13 @@ export const useSqliteKV = <T = any>(
   const { sqlite } = useSqlite()
 
   // If cache has value, use it. Otherwise default.
-  const value = cachedValue !== undefined ? (cachedValue as T) : defaultValue
+  const value =
+    enabled && cachedValue !== undefined ? (cachedValue as T) : defaultValue
 
   const dataType = useMemo(() => getDataType(defaultValue), [defaultValue])
 
   useEffect(() => {
-    if (!sqlite || !key) return
+    if (!enabled || !sqlite || !key) return
 
     // Always fetch latest from DB to ensure cache is fresh (SWR pattern)
     sqlite.kv.get(key, dataType).then((result) => {
@@ -68,19 +70,21 @@ export const useSqliteKV = <T = any>(
 
       setCache(key, newValue)
     })
-  }, [sqlite, key, dataType, defaultValue, setCache])
+  }, [enabled, sqlite, key, dataType, defaultValue, setCache])
 
   const _setValue = useCallback(
     (newValue: T) => {
+      if (!enabled) return
       setCache(key, newValue)
       if (sqlite) {
         sqlite.kv.put(key, newValue)
       }
     },
-    [sqlite, key, setCache]
+    [enabled, sqlite, key, setCache]
   )
 
   useEffect(() => {
+    if (!enabled) return
     const bc = new BroadcastChannel(EidosDataEventChannelName)
     const handler = async (ev: MessageEvent<EidosDataEventChannelMsg>) => {
       const { type, payload } = ev.data
@@ -102,7 +106,7 @@ export const useSqliteKV = <T = any>(
       bc.removeEventListener("message", handler)
       bc.close()
     }
-  }, [sqlite, key, dataType, setCache])
+  }, [enabled, sqlite, key, dataType, setCache])
 
   return [value, _setValue]
 }

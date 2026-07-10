@@ -33,14 +33,17 @@ export const useSpace = () => {
   }, [updateSpaceList])
 
   const deleteSpace = useCallback(
-    async (spaceId: string) => {
+    async (
+      spaceId: string
+    ): Promise<{ success: boolean; nextSpaceId?: string }> => {
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
         // In desktop mode, use IPC to delete workspace
         try {
           const result = await window.eidos.spaceMgmt.removeSpace(spaceId)
           if (result.success) {
-            setLastOpenedDatabase("")
+            setLastOpenedDatabase(result.nextSpaceId ?? "")
             await updateSpaceList()
+            return result
           } else {
             throw new Error("Failed to remove space")
           }
@@ -50,6 +53,7 @@ export const useSpace = () => {
         }
       }
       // Web mode doesn't support space deletion
+      return { success: false, nextSpaceId: undefined }
     },
     [setLastOpenedDatabase, updateSpaceList]
   )

@@ -20,15 +20,16 @@ export const DEFAULT_TABS: TabId[] = [
   "agent",
 ]
 
-export const useTabsKV = () => {
+export const useTabsKV = (enabled = true) => {
   const [tabs, setTabs] = useSqliteKV<TabId[]>(
     "eidos:space:sidebar:tabs",
-    DEFAULT_TABS
+    DEFAULT_TABS,
+    enabled
   )
 
   // Initialize with default tabs if not set, or ensure all default tabs are present
   useEffect(() => {
-    if (!tabs) return
+    if (!enabled || !tabs) return
 
     if (tabs.length === 0) {
       setTabs(DEFAULT_TABS)
@@ -46,11 +47,11 @@ export const useTabsKV = () => {
       const newTabs = [...tabs, ...missingDefaults]
       setTabs(newTabs)
     }
-  }, [tabs, setTabs])
+  }, [enabled, tabs, setTabs])
 
   const addTab = useCallback(
     (tabId: TabId) => {
-      if (!tabs) return
+      if (!enabled || !tabs) return
 
       // Don't add if already exists
       if (tabs.includes(tabId)) return
@@ -58,12 +59,12 @@ export const useTabsKV = () => {
       const newTabs = [...tabs, tabId]
       setTabs(newTabs)
     },
-    [tabs, setTabs]
+    [enabled, tabs, setTabs]
   )
 
   const removeTab = useCallback(
     (tabId: TabId) => {
-      if (!tabs) return
+      if (!enabled || !tabs) return
 
       // Don't remove default tabs
       if (DEFAULT_TABS.includes(tabId as any)) return
@@ -71,21 +72,24 @@ export const useTabsKV = () => {
       const newTabs = tabs.filter((id) => id !== tabId)
       setTabs(newTabs)
     },
-    [tabs, setTabs]
+    [enabled, tabs, setTabs]
   )
 
   const reorderTabs = useCallback(
     (newTabs: TabId[]) => {
+      if (!enabled) return
       setTabs(newTabs)
     },
-    [setTabs]
+    [enabled, setTabs]
   )
 
   const resetTabs = useCallback(() => {
+    if (!enabled) return
     setTabs(DEFAULT_TABS)
-  }, [setTabs])
+  }, [enabled, setTabs])
 
-  const { isExtensionEnabled, enabledExtensions } = useExtensionSettings()
+  const { isExtensionEnabled, enabledExtensions } =
+    useExtensionSettings(enabled)
 
   // Filter out disabled built-in extensions
   const filteredTabs = useMemo(() => {

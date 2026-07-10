@@ -33,7 +33,7 @@ const Markdown = lazy(() =>
   }))
 )
 
-export const useWorker = () => {
+export const useWorker = (enableLegacyDataEvents = true) => {
   const { setInitialized, isInitialized } = useSqliteStore()
   const { navigate } = useRouterAdapter()
   const navigateRef = React.useRef(navigate)
@@ -185,9 +185,10 @@ export const useWorker = () => {
     let listenerId2: string | undefined
     let listenerId3: string | undefined
     // BroadcastChannel for forwarding data update events (for cross-component reactive updates)
-    const dataEventBc = isDesktopMode
-      ? new BroadcastChannel(EidosDataEventChannelName)
-      : null
+    const dataEventBc =
+      isDesktopMode && enableLegacyDataEvents
+        ? new BroadcastChannel(EidosDataEventChannelName)
+        : null
 
     if (isDesktopMode) {
       listenerId = window.eidos.on("request-from-main", requestHandler)
@@ -198,15 +199,17 @@ export const useWorker = () => {
         }
       ) as unknown as string
       // Listen for data update events from worker (via EidosDataEventChannelName)
-      listenerId3 = window.eidos.on(
-        EidosDataEventChannelName,
-        async (event: any, arg: any) => {
-          // Forward data update events to BroadcastChannel for reactive updates across components
-          if (dataEventBc && arg) {
-            dataEventBc.postMessage(arg)
+      if (enableLegacyDataEvents) {
+        listenerId3 = window.eidos.on(
+          EidosDataEventChannelName,
+          async (event: any, arg: any) => {
+            // Forward data update events to BroadcastChannel for reactive updates across components
+            if (dataEventBc && arg) {
+              dataEventBc.postMessage(arg)
+            }
           }
-        }
-      ) as unknown as string
+        ) as unknown as string
+      }
       setInitialized(true)
     } else {
       const worker = getWorker()
@@ -237,6 +240,7 @@ export const useWorker = () => {
   }, [
     setBlockUIData,
     setBlockUIMsg,
+    enableLegacyDataEvents,
     setInitialized,
     setWebsocketConnected,
     toast,

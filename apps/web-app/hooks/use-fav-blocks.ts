@@ -1,8 +1,8 @@
 import { useCallback } from "react"
 import { useTabsKV, type FavBlock } from "./use-tabs-kv"
 
-export const useFavBlocks = () => {
-  const { tabs, addTab, removeTab, resetTabs } = useTabsKV()
+export const useFavBlocks = (enabled = true) => {
+  const { tabs, addTab, removeTab, resetTabs } = useTabsKV(enabled)
 
   const addFavBlock = useCallback(
     (block: Omit<FavBlock, "space">) => {

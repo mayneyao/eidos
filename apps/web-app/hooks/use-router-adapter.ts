@@ -9,10 +9,14 @@ import {
 
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useOptionalTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
+import { useSpaceStore } from "@/apps/web-app/hooks/use-current-space"
 import { useSqliteKV } from "@/apps/web-app/hooks/use-sqlite-kv"
+import { shouldEnableLegacySpaceRuntime } from "@/apps/web-app/space-runtime-policy"
 
 export const useRouterAdapter = () => {
   const inRouter = useInRouterContext()
+  const spaceMode = useSpaceStore((state) => state.spaceInfo?.mode)
+  const legacyRuntimeEnabled = shouldEnableLegacySpaceRuntime(spaceMode)
 
   // Hooks that might throw if not in router
   const location = inRouter ? useRouterLocation() : null
@@ -25,7 +29,8 @@ export const useRouterAdapter = () => {
   // Space settings for tabs
   const [alwaysOpenInNewTab] = useSqliteKV<boolean>(
     "eidos:space:settings:alwaysOpenInNewTab",
-    false
+    false,
+    legacyRuntimeEnabled
   )
 
   const alwaysOpenInNewTabRef = useRef(alwaysOpenInNewTab)
@@ -33,7 +38,8 @@ export const useRouterAdapter = () => {
 
   const [reuseExistingTab] = useSqliteKV<boolean>(
     "eidos:space:settings:reuseExistingTab",
-    true
+    true,
+    legacyRuntimeEnabled
   )
 
   // Tab store state

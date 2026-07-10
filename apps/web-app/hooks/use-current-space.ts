@@ -1,25 +1,18 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect } from "react"
 import { create } from "zustand"
 
 import { isDesktopMode } from "@/lib/env"
-import type { RelayChannel, RelayConfig } from "@eidos.space/space-manager"
+import type {
+  RelayChannel,
+  RelayConfig,
+  SpaceInfo as RegisteredSpaceInfo,
+} from "@eidos.space/space-manager"
+
+import { canReuseCurrentSpaceInfo } from "./current-space-cache"
 
 export type { RelayChannel, RelayConfig }
 
-export interface SpaceInfo {
-  id: string
-  name: string
-  path: string
-  sync?: {
-    enabled: boolean
-    remote: string
-    provider?: string
-  }
-  versioning?: {
-    enabled: boolean
-  }
-  relay?: RelayConfig
-}
+export type SpaceInfo = RegisteredSpaceInfo
 
 interface SpaceState {
   spaceInfo: SpaceInfo | null
@@ -95,51 +88,54 @@ export const useCurrentSpace = () => {
     setLastFetched,
   } = useSpaceStore()
 
-  const fetchSpaceInfo = useCallback(async () => {
-    if (!spaceId) {
-      setSpaceInfo(null)
-      setLoading(false)
-      setError(null)
-      return
-    }
-
-    // Check if we have recent data (within 30 seconds)
-    if (lastFetched && Date.now() - lastFetched.getTime() < 30000) {
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
-        const info = await window.eidos.spaceMgmt.getCurrentSpace()
-        setSpaceInfo(info || null)
-        setLastFetched(new Date())
-      } else {
-        // Fallback for web mode or when eidos is not available
-        const fallbackInfo: SpaceInfo = {
-          id: spaceId,
-          name: spaceId.charAt(0).toUpperCase() + spaceId.slice(1),
-          path: "",
-        }
-        setSpaceInfo(fallbackInfo)
-        setLastFetched(new Date())
+  const fetchSpaceInfo = useCallback(
+    async (force = false) => {
+      if (!spaceId) {
+        setSpaceInfo(null)
+        setLoading(false)
+        setError(null)
+        return
       }
-    } catch (err) {
-      console.error("Error fetching space info:", err)
-      setError(
-        err instanceof Error ? err : new Error("Failed to fetch space info")
-      )
-      setSpaceInfo(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [spaceId, lastFetched, setSpaceInfo, setLoading, setError, setLastFetched])
+
+      if (canReuseCurrentSpaceInfo(lastFetched, force)) {
+        return
+      }
+
+      setLoading(true)
+      setError(null)
+
+      try {
+        if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
+          const info = await window.eidos.spaceMgmt.getCurrentSpace()
+          setSpaceInfo(info || null)
+          setLastFetched(new Date())
+        } else {
+          // Fallback for web mode or when eidos is not available
+          const fallbackInfo: SpaceInfo = {
+            id: spaceId,
+            name: spaceId.charAt(0).toUpperCase() + spaceId.slice(1),
+            path: "",
+            mode: "legacy",
+          }
+          setSpaceInfo(fallbackInfo)
+          setLastFetched(new Date())
+        }
+      } catch (err) {
+        console.error("Error fetching space info:", err)
+        setError(
+          err instanceof Error ? err : new Error("Failed to fetch space info")
+        )
+        setSpaceInfo(null)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [spaceId, lastFetched, setSpaceInfo, setLoading, setError, setLastFetched]
+  )
 
   const reload = useCallback(() => {
-    setLastFetched(null) // Force refetch
-    fetchSpaceInfo()
+    setLastFetched(null)
+    return fetchSpaceInfo(true)
   }, [fetchSpaceInfo, setLastFetched])
 
   useEffect(() => {

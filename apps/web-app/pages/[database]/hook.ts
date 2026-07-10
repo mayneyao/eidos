@@ -30,7 +30,6 @@ import { useDocPropertyTypes } from "@/components/doc-property-global/property-t
 import { useSyncFileActions } from "@/apps/web-app/hooks/use-all-file-actions"
 import { createEidos, useEidosStore } from "@eidos.space/react"
 
-const mainServiceWorkerChannel = new BroadcastChannel(EidosSharedEnvChannelName)
 export const useCurrentDomain = () => {
   const [domain, setDomain] = useState("")
 
@@ -173,12 +172,16 @@ export const useLayoutInit = () => {
   }, [database, setLastOpenedDatabase])
 
   useEffect(() => {
+    const mainServiceWorkerChannel = new BroadcastChannel(
+      EidosSharedEnvChannelName
+    )
     mainServiceWorkerChannel.postMessage({
       type: MainServiceWorkerMsgType.SetData,
       data: {
         space: database,
       },
     })
+    return () => mainServiceWorkerChannel.close()
   }, [database])
 
   useEffect(() => {

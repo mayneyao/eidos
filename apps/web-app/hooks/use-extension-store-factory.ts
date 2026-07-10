@@ -84,7 +84,7 @@ export function createUseSyncExtension<T extends IExtension>(
 ) {
   const { filterFn, metaTypeValue, fineGrainedUpdates = true } = options
 
-  return function useSyncExtension() {
+  return function useSyncExtension(enabled = true) {
     const { sqlite } = useSqlite()
     const setItems = useStore((state) => state.setItems)
     const addItem = useStore((state) => state.addItem)
@@ -94,7 +94,7 @@ export function createUseSyncExtension<T extends IExtension>(
     const setReload = useStore((state) => state.setReload)
 
     const reload = useCallback(async () => {
-      if (!sqlite) return
+      if (!enabled || !sqlite) return
 
       setLoading(true)
       try {
@@ -107,7 +107,7 @@ export function createUseSyncExtension<T extends IExtension>(
       } finally {
         setLoading(false)
       }
-    }, [sqlite, setItems, setLoading])
+    }, [enabled, sqlite, setItems, setLoading])
 
     useEffect(() => {
       setReload(reload)
@@ -118,6 +118,7 @@ export function createUseSyncExtension<T extends IExtension>(
     }, [reload])
 
     useEffect(() => {
+      if (!enabled) return
       const bc = new BroadcastChannel(EidosDataEventChannelName)
 
       const handler = async (ev: MessageEvent<EidosDataEventChannelMsg>) => {
@@ -210,7 +211,7 @@ export function createUseSyncExtension<T extends IExtension>(
         bc.removeEventListener("message", handler)
         bc.close()
       }
-    }, [reload, addItem, updateItem, removeItem])
+    }, [enabled, reload, addItem, updateItem, removeItem])
   }
 }
 
