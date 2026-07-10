@@ -255,7 +255,7 @@ describe("SpaceFiles", () => {
     }
   )
 
-  it("writes text while preserving file identity and permissions", async () => {
+  it("replaces text atomically while preserving file permissions", async () => {
     await writeFile(path.join(root, "note.md"), "before", { mode: 0o640 })
     const before = await stat(path.join(root, "note.md"))
 
@@ -265,12 +265,12 @@ describe("SpaceFiles", () => {
     expect(await readFile(path.join(root, "note.md"), "utf8")).toBe("after")
     if (process.platform !== "win32") {
       expect(after.mode & 0o777).toBe(0o640)
-      expect(after.ino).toBe(before.ino)
+      expect(after.ino).not.toBe(before.ino)
     }
   })
 
   it.skipIf(process.platform === "win32")(
-    "preserves hard-link identity when saving text",
+    "rejects hard-linked text without changing either link",
     async () => {
       const note = path.join(root, "note.md")
       const alias = path.join(root, "alias.md")
@@ -278,14 +278,16 @@ describe("SpaceFiles", () => {
       await link(note, alias)
       const before = await stat(note)
 
-      await files.writeText("note.md", "after", before.mtimeMs)
+      await expect(
+        files.writeText("note.md", "after", before.mtimeMs)
+      ).rejects.toMatchObject({ code: "unsupported-file-metadata" })
 
       const [noteStats, aliasStats] = await Promise.all([
         stat(note),
         stat(alias),
       ])
-      await expect(readFile(note, "utf8")).resolves.toBe("after")
-      await expect(readFile(alias, "utf8")).resolves.toBe("after")
+      await expect(readFile(note, "utf8")).resolves.toBe("before")
+      await expect(readFile(alias, "utf8")).resolves.toBe("before")
       expect(noteStats.ino).toBe(before.ino)
       expect(aliasStats.ino).toBe(before.ino)
       expect(noteStats.nlink).toBe(2)

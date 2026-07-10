@@ -6,6 +6,8 @@ import {
   type FSWatcher,
   type Stats,
 } from "node:fs"
+import { execFile } from "node:child_process"
+import { randomUUID } from "node:crypto"
 import {
   copyFile,
   lstat,
@@ -21,6 +23,7 @@ import {
   writeFile,
 } from "node:fs/promises"
 import path from "node:path"
+import { promisify } from "node:util"
 
 export type SpaceFileEntryKind = "file" | "directory" | "symbolicLink"
 
@@ -76,6 +79,7 @@ export type SpaceFilesErrorCode =
   | "invalid-encoding"
   | "not-writable"
   | "write-failed"
+  | "unsupported-file-metadata"
 
 export class SpaceFilesError extends Error {
   constructor(
@@ -94,6 +98,7 @@ const DEFAULT_WATCH_DEBOUNCE_MS = 60
 const STABLE_READ_ATTEMPTS = 3
 const STABLE_READ_RETRY_MS = 8
 const STRICT_UTF8_DECODER = new TextDecoder("utf-8", { fatal: true })
+const execFileAsync = promisify(execFile)
 
 function isWithinRoot(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate)
@@ -134,35 +139,69 @@ function sameFileSnapshot(left: Stats, right: Stats): boolean {
   )
 }
 
-async function writeBufferToFile(
-  handle: Awaited<ReturnType<typeof open>>,
-  content: Buffer
-): Promise<void> {
-  let offset = 0
-  while (offset < content.length) {
-    const { bytesWritten } = await handle.write(
-      content,
-      offset,
-      content.length - offset,
-      offset
-    )
-    if (bytesWritten === 0) {
-      throw new Error("The operating system wrote zero bytes")
-    }
-    offset += bytesWritten
+async function syncDirectoryBestEffort(directory: string): Promise<void> {
+  if (process.platform === "win32") return
+  let handle: Awaited<ReturnType<typeof open>> | undefined
+  try {
+    handle = await open(directory, constants.O_RDONLY)
+    await handle.sync()
+  } catch {
+    // Some filesystems do not support directory fsync. The replacement file
+    // itself has already been flushed before rename.
+  } finally {
+    await handle?.close().catch(() => undefined)
   }
-  await handle.truncate(content.length)
 }
 
-async function writeTextFilePreservingMetadata(
+async function copyFileWithMetadata(
+  source: string,
+  destination: string,
+  relativePath: string
+): Promise<void> {
+  try {
+    if (process.platform === "darwin") {
+      await execFileAsync("/bin/cp", ["-p", "--", source, destination])
+      return
+    }
+    if (process.platform === "linux") {
+      await execFileAsync("cp", [
+        "--preserve=all",
+        "--reflink=auto",
+        "--",
+        source,
+        destination,
+      ])
+      return
+    }
+    await copyFile(source, destination, constants.COPYFILE_EXCL)
+  } catch (error) {
+    throw new SpaceFilesError(
+      "write-failed",
+      "Eidos could not preserve file metadata while saving: " + relativePath,
+      relativePath,
+      error
+    )
+  }
+}
+
+async function replaceTextFileAtomically(
   filename: string,
   content: string,
   original: Stats,
-  originalContent: Buffer,
   relativePath: string
 ): Promise<void> {
+  const directory = path.dirname(filename)
+  const temporaryPath = path.join(
+    directory,
+    "." +
+      path.basename(filename) +
+      ".eidos-" +
+      process.pid +
+      "-" +
+      randomUUID() +
+      ".tmp"
+  )
   let handle: Awaited<ReturnType<typeof open>> | undefined
-  let mayHaveChangedFile = false
 
   try {
     if (process.platform !== "win32" && (original.mode & 0o222) === 0) {
@@ -172,25 +211,24 @@ async function writeTextFilePreservingMetadata(
         relativePath
       )
     }
-    try {
-      handle = await open(filename, "r+")
-    } catch (error) {
+    if (original.nlink > 1) {
       throw new SpaceFilesError(
-        "not-writable",
-        "Space file is not writable: " + relativePath,
-        relativePath,
-        error
+        "unsupported-file-metadata",
+        "Eidos cannot safely replace a hard-linked Space file: " + relativePath,
+        relativePath
       )
     }
 
-    const [openedFile, currentPath] = await Promise.all([
-      handle.stat(),
-      stat(filename),
-    ])
-    if (
-      !sameFileSnapshot(original, openedFile) ||
-      !sameFileSnapshot(original, currentPath)
-    ) {
+    await copyFileWithMetadata(filename, temporaryPath, relativePath)
+    handle = await open(temporaryPath, "r+")
+    await handle.writeFile(content, "utf8")
+    await handle.truncate(Buffer.byteLength(content, "utf8"))
+    await handle.sync()
+    await handle.close()
+    handle = undefined
+
+    const beforeReplace = await stat(filename)
+    if (!sameFileSnapshot(original, beforeReplace)) {
       throw new SpaceFilesError(
         "file-changed",
         "Space file changed outside Eidos: " + relativePath,
@@ -198,29 +236,11 @@ async function writeTextFilePreservingMetadata(
       )
     }
 
-    try {
-      mayHaveChangedFile = true
-      await writeBufferToFile(handle, Buffer.from(content, "utf8"))
-      await handle.sync()
-    } catch (error) {
-      if (mayHaveChangedFile) {
-        try {
-          await writeBufferToFile(handle, originalContent)
-          await handle.sync()
-        } catch (rollbackError) {
-          throw new SpaceFilesError(
-            "write-failed",
-            "Eidos could not finish saving or restore the original Space file: " +
-              relativePath,
-            relativePath,
-            new AggregateError([error, rollbackError])
-          )
-        }
-      }
-      throw error
-    }
+    await rename(temporaryPath, filename)
+    await syncDirectoryBestEffort(directory)
   } finally {
     await handle?.close().catch(() => undefined)
+    await rm(temporaryPath, { force: true }).catch(() => undefined)
   }
 }
 
@@ -383,11 +403,10 @@ export class SpaceFiles {
         relativePath
       )
     }
-    await writeTextFilePreservingMetadata(
+    await replaceTextFileAtomically(
       filename,
       content,
       currentStats,
-      currentContent,
       relativePath
     )
     return this.readText(relativePath)
