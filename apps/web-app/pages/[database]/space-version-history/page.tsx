@@ -89,6 +89,7 @@ export function SpaceVersionHistoryPage() {
     enable,
     getCommit,
     getDiff,
+    restorePath,
     refresh,
     loadMoreHistory,
   } = useSpaceVersioning(spaceId, { loadHistory: true, historyLimit: 250 })
@@ -599,6 +600,9 @@ export function SpaceVersionHistoryPage() {
             commit={selectedCommit}
             getCommit={getCommit}
             getDiff={getDiff}
+            status={status}
+            operation={operation}
+            restorePath={restorePath}
             placement={compactLayout ? "below" : "side"}
           />
         </div>

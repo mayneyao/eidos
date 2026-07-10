@@ -15,6 +15,8 @@ export interface SpaceVersionChange {
   path: string
   status: SpaceVersionChangeStatus
   previousPath?: string
+  staged?: true
+  conflicted?: true
 }
 
 export interface SpaceVersionCommit {
@@ -29,6 +31,7 @@ export interface SpaceVersionCommit {
 export interface SpaceVersionStatus {
   enabled: boolean
   clean: boolean
+  hasConflicts: boolean
   branch: string | null
   head: SpaceVersionCommit | null
   changes: SpaceVersionChange[]
@@ -80,7 +83,34 @@ export interface SpaceVersionDiffRequest {
   path?: string
 }
 
-export type SpaceVersioningOperation = "enabling" | "committing" | null
+export type SpaceVersionRestoreEffect =
+  | "created"
+  | "modified"
+  | "deleted"
+  | "noop"
+
+export interface SpaceVersionRestorePathRequest {
+  revision: string
+  path: string
+  expectedHead: string
+  overwriteChanges?: boolean
+  allowDelete?: boolean
+}
+
+export interface SpaceVersionRestorePathResult {
+  revision: string
+  path: string
+  kind: SpaceVersionPathKind
+  storage: SpaceVersionPathStorage
+  effect: SpaceVersionRestoreEffect
+  status: SpaceVersionStatus
+}
+
+export type SpaceVersioningOperation =
+  | "enabling"
+  | "committing"
+  | "restoring"
+  | null
 
 interface SpaceVersioningBridge {
   getStatus: (spaceId: string) => Promise<unknown>
@@ -95,6 +125,10 @@ interface SpaceVersioningBridge {
     spaceId: string,
     request: SpaceVersionDiffRequest
   ) => Promise<unknown>
+  restorePath: (
+    spaceId: string,
+    request: SpaceVersionRestorePathRequest
+  ) => Promise<unknown>
 }
 
 interface EidosEventBridge {
@@ -108,6 +142,14 @@ interface EidosEventBridge {
 type UnknownRecord = Record<string, unknown>
 
 export const SPACE_VERSIONING_CHANGED_EVENT = "space-versioning:changed"
+export const SPACE_VERSIONING_OPERATION_EVENT = "space-versioning:operation"
+
+type ActiveSpaceVersioningOperation = Exclude<SpaceVersioningOperation, null>
+
+const activeSpaceVersioningOperations = new Map<
+  string,
+  ActiveSpaceVersioningOperation
+>()
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -153,9 +195,9 @@ function unwrapPayload(value: unknown): unknown {
 }
 
 function normalizePath(value: unknown): string | null {
-  const path = asString(value)
-  if (!path) return null
-  return path.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "")
+  if (typeof value !== "string" || !value.trim()) return null
+  const normalized = value.replace(/^\.\//, "").replace(/^\/+/, "")
+  return normalized || null
 }
 
 export function normalizeChangeStatus(
@@ -211,12 +253,18 @@ function normalizeChange(
   const previousPath = normalizePath(
     firstValue(value, ["previousPath", "oldPath", "from", "source"])
   )
+  const status = normalizeChangeStatus(
+    firstValue(value, ["status", "state", "change", "changeType", "type"])
+  )
+  const staged = asBoolean(value.staged) === true
+  const conflicted =
+    asBoolean(value.conflicted) === true || status === "conflicted"
   return {
     path,
-    status: normalizeChangeStatus(
-      firstValue(value, ["status", "state", "change", "changeType", "type"])
-    ),
+    status,
     ...(previousPath && previousPath !== path ? { previousPath } : {}),
+    ...(staged ? { staged: true as const } : {}),
+    ...(conflicted ? { conflicted: true as const } : {}),
   }
 }
 
@@ -346,6 +394,7 @@ export function normalizeSpaceVersionStatus(
     return {
       enabled: false,
       clean: true,
+      hasConflicts: false,
       branch: null,
       head: null,
       changes: [],
@@ -379,6 +428,11 @@ export function normalizeSpaceVersionStatus(
     )
   const clean =
     asBoolean(firstValue(payload, ["clean", "isClean"])) ?? changes.length === 0
+  const hasConflicts =
+    asBoolean(firstValue(payload, ["hasConflicts", "has_conflicts"])) ??
+    changes.some(
+      (change) => change.conflicted || change.status === "conflicted"
+    )
   const headValue = firstValue(payload, [
     "head",
     "latest",
@@ -401,6 +455,7 @@ export function normalizeSpaceVersionStatus(
   return {
     enabled,
     clean,
+    hasConflicts,
     branch:
       asString(
         firstValue(payload, [
@@ -538,6 +593,40 @@ export function normalizeSpaceVersionDiff(value: unknown): SpaceVersionDiff {
   }
 }
 
+function normalizeRestoreEffect(value: unknown): SpaceVersionRestoreEffect {
+  switch (asString(value)) {
+    case "created":
+    case "modified":
+    case "deleted":
+    case "noop":
+      return value as SpaceVersionRestoreEffect
+    default:
+      throw new Error("Desktop returned an invalid file restore result")
+  }
+}
+
+export function normalizeSpaceVersionRestorePathResult(
+  value: unknown
+): SpaceVersionRestorePathResult {
+  const payload = unwrapPayload(value)
+  if (!isRecord(payload)) {
+    throw new Error("Desktop returned an invalid file restore result")
+  }
+  const revision = asString(payload.revision)
+  const restoredPath = normalizePath(payload.path)
+  if (!revision || !restoredPath) {
+    throw new Error("Desktop returned an incomplete file restore result")
+  }
+  return {
+    revision,
+    path: restoredPath,
+    kind: normalizePathKind(payload.kind),
+    storage: normalizePathStorage(payload.storage),
+    effect: normalizeRestoreEffect(payload.effect),
+    status: normalizeSpaceVersionStatus(payload.status),
+  }
+}
+
 function getSpaceVersioningBridge(): SpaceVersioningBridge | null {
   if (typeof window === "undefined") return null
   const eidos = (
@@ -578,6 +667,42 @@ function announceSpaceVersioningChange(spaceId: string, source: object) {
       detail: { spaceId, source },
     })
   )
+}
+
+function announceSpaceVersioningOperation(
+  spaceId: string,
+  operation: SpaceVersioningOperation
+) {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(
+    new window.CustomEvent(SPACE_VERSIONING_OPERATION_EVENT, {
+      detail: { spaceId, operation },
+    })
+  )
+}
+
+function beginSpaceVersioningOperation(
+  spaceId: string,
+  operation: ActiveSpaceVersioningOperation
+): () => void {
+  const activeOperation = activeSpaceVersioningOperations.get(spaceId)
+  if (activeOperation) {
+    throw new Error(
+      `Another version operation is already running (${activeOperation}).`
+    )
+  }
+
+  activeSpaceVersioningOperations.set(spaceId, operation)
+  announceSpaceVersioningOperation(spaceId, operation)
+  let finished = false
+  return () => {
+    if (finished) return
+    finished = true
+    if (activeSpaceVersioningOperations.get(spaceId) === operation) {
+      activeSpaceVersioningOperations.delete(spaceId)
+      announceSpaceVersioningOperation(spaceId, null)
+    }
+  }
 }
 
 export function useSpaceVersioning(
@@ -644,6 +769,9 @@ export function useSpaceVersioning(
     setStatusLoading(true)
     setHistoryLoading(loadHistory)
     setHistoryLoadingMore(false)
+    setOperation(
+      spaceId ? (activeSpaceVersioningOperations.get(spaceId) ?? null) : null
+    )
   }, [loadHistory, spaceId])
 
   const requireSpaceId = useCallback(() => {
@@ -844,6 +972,28 @@ export function useSpaceVersioning(
 
   useEffect(() => {
     if (!spaceId || typeof window === "undefined") return
+    setOperation(activeSpaceVersioningOperations.get(spaceId) ?? null)
+    const listener = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail
+      if (!isRecord(detail) || detail.spaceId !== spaceId) return
+      const nextOperation = detail.operation
+      if (
+        nextOperation === null ||
+        nextOperation === "enabling" ||
+        nextOperation === "committing" ||
+        nextOperation === "restoring"
+      ) {
+        setOperation(nextOperation)
+      }
+    }
+    window.addEventListener(SPACE_VERSIONING_OPERATION_EVENT, listener)
+    return () => {
+      window.removeEventListener(SPACE_VERSIONING_OPERATION_EVENT, listener)
+    }
+  }, [spaceId])
+
+  useEffect(() => {
+    if (!spaceId || typeof window === "undefined") return
     const eventBridge = (window as unknown as { eidos?: EidosEventBridge })
       .eidos
     if (!eventBridge?.on) return
@@ -869,10 +1019,13 @@ export function useSpaceVersioning(
   }, [refreshStatus, spaceId])
 
   const enable = useCallback(async () => {
-    setOperation("enabling")
     setError(null)
+    let activeSpaceId: string | undefined
+    let finishOperation: (() => void) | undefined
     try {
-      const activeSpaceId = requireSpaceId()
+      activeSpaceId = requireSpaceId()
+      finishOperation = beginSpaceVersioningOperation(activeSpaceId, "enabling")
+      setOperation("enabling")
       if (!(await flushPendingFileWrites({ spaceId: activeSpaceId }))) {
         throw new Error(
           "Eidos could not save all pending file changes before enabling version history."
@@ -886,7 +1039,14 @@ export function useSpaceVersioning(
       if (mountedRef.current) setError(nextError)
       throw nextError
     } finally {
-      if (mountedRef.current) setOperation(null)
+      finishOperation?.()
+      if (mountedRef.current) {
+        setOperation(
+          activeSpaceId
+            ? (activeSpaceVersioningOperations.get(activeSpaceId) ?? null)
+            : null
+        )
+      }
     }
   }, [refresh, requireSpaceId])
 
@@ -894,10 +1054,16 @@ export function useSpaceVersioning(
     async (message: string) => {
       const normalizedMessage = message.trim()
       if (!normalizedMessage) throw new Error("Enter a version message")
-      setOperation("committing")
       setError(null)
+      let activeSpaceId: string | undefined
+      let finishOperation: (() => void) | undefined
       try {
-        const activeSpaceId = requireSpaceId()
+        activeSpaceId = requireSpaceId()
+        finishOperation = beginSpaceVersioningOperation(
+          activeSpaceId,
+          "committing"
+        )
+        setOperation("committing")
         if (!(await flushPendingFileWrites({ spaceId: activeSpaceId }))) {
           throw new Error(
             "Eidos could not save all pending file changes before creating this version."
@@ -914,7 +1080,14 @@ export function useSpaceVersioning(
         if (mountedRef.current) setError(nextError)
         throw nextError
       } finally {
-        if (mountedRef.current) setOperation(null)
+        finishOperation?.()
+        if (mountedRef.current) {
+          setOperation(
+            activeSpaceId
+              ? (activeSpaceVersioningOperations.get(activeSpaceId) ?? null)
+              : null
+          )
+        }
       }
     },
     [refresh, requireSpaceId]
@@ -942,6 +1115,54 @@ export function useSpaceVersioning(
     [requireSpaceId]
   )
 
+  const restorePath = useCallback(
+    async (request: SpaceVersionRestorePathRequest) => {
+      setError(null)
+      let activeSpaceId: string | undefined
+      let finishOperation: (() => void) | undefined
+      try {
+        activeSpaceId = requireSpaceId()
+        finishOperation = beginSpaceVersioningOperation(
+          activeSpaceId,
+          "restoring"
+        )
+        setOperation("restoring")
+        if (
+          !(await flushPendingFileWrites({
+            spaceId: activeSpaceId,
+            path: request.path,
+          }))
+        ) {
+          throw new Error(
+            "Eidos could not save pending edits for this file before restoring it."
+          )
+        }
+        const raw = await requireSpaceVersioningBridge().restorePath(
+          activeSpaceId,
+          request
+        )
+        const result = normalizeSpaceVersionRestorePathResult(raw)
+        await refresh()
+        announceSpaceVersioningChange(activeSpaceId, instanceTokenRef.current)
+        return result
+      } catch (requestError) {
+        const nextError = errorFrom(requestError)
+        if (mountedRef.current) setError(nextError)
+        throw nextError
+      } finally {
+        finishOperation?.()
+        if (mountedRef.current) {
+          setOperation(
+            activeSpaceId
+              ? (activeSpaceVersioningOperations.get(activeSpaceId) ?? null)
+              : null
+          )
+        }
+      }
+    },
+    [refresh, requireSpaceId]
+  )
+
   return {
     status,
     history,
@@ -957,6 +1178,7 @@ export function useSpaceVersioning(
     commit,
     getCommit,
     getDiff,
+    restorePath,
     refresh,
     refreshStatus,
     refreshHistory,

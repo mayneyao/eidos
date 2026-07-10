@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState, type MouseEvent } from "react"
 import {
+  AlertTriangle,
   Copy,
   FileDiff,
   FileText,
   GitCommitHorizontal,
   LoaderCircle,
+  RotateCcw,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -13,7 +15,21 @@ import type {
   SpaceVersionDiff,
   SpaceVersionDiffRequest,
   SpaceVersionPathChange,
+  SpaceVersionRestorePathRequest,
+  SpaceVersionRestorePathResult,
+  SpaceVersionStatus,
+  SpaceVersioningOperation,
 } from "@/apps/web-app/hooks/use-space-versioning"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 import {
   STATUS_META,
@@ -26,7 +42,25 @@ interface CommitInspectorProps {
   commit: SpaceVersionCommit | null
   getCommit: (commitId: string) => Promise<SpaceVersionCommit | null>
   getDiff: (request: SpaceVersionDiffRequest) => Promise<SpaceVersionDiff>
+  status: SpaceVersionStatus | null
+  operation: SpaceVersioningOperation
+  restorePath: (
+    request: SpaceVersionRestorePathRequest
+  ) => Promise<SpaceVersionRestorePathResult>
   placement?: "side" | "below"
+}
+
+interface RestoreFeedback {
+  tone: "success" | "error"
+  message: string
+}
+
+function pathsOverlap(left: string, right: string): boolean {
+  return (
+    left === right ||
+    left.startsWith(`${right}/`) ||
+    right.startsWith(`${left}/`)
+  )
 }
 
 function ChangeDetails({
@@ -137,6 +171,9 @@ export function CommitInspector({
   commit,
   getCommit,
   getDiff,
+  status,
+  operation,
+  restorePath,
   placement = "side",
 }: CommitInspectorProps) {
   const [detail, setDetail] = useState<SpaceVersionCommit | null>(null)
@@ -148,6 +185,9 @@ export function CommitInspector({
   const [diffLoading, setDiffLoading] = useState(false)
   const [diffError, setDiffError] = useState<string | null>(null)
   const [diffNotice, setDiffNotice] = useState<string | null>(null)
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
+  const [restoreFeedback, setRestoreFeedback] =
+    useState<RestoreFeedback | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -157,6 +197,8 @@ export function CommitInspector({
     setDiff(null)
     setDiffNotice(null)
     setDetailError(null)
+    setRestoreDialogOpen(false)
+    setRestoreFeedback(null)
     if (!commit) return
 
     setDetailLoading(true)
@@ -234,6 +276,108 @@ export function CommitInspector({
       cancelled = true
     }
   }, [detail, detailReadyId, getDiff])
+
+  useEffect(() => {
+    setRestoreFeedback(null)
+    setRestoreDialogOpen(false)
+  }, [selectedPath])
+
+  const selectedChange = useMemo(
+    () =>
+      detail?.changedPaths.find((change) => change.path === selectedPath) ??
+      null,
+    [detail, selectedPath]
+  )
+  const currentPathChanges = useMemo(
+    () =>
+      selectedPath
+        ? (status?.changes.filter((change) =>
+            pathsOverlap(change.path, selectedPath)
+          ) ?? [])
+        : [],
+    [selectedPath, status?.changes]
+  )
+  const restoring = operation === "restoring"
+  const restoresDeletion = selectedChange?.status === "deleted"
+  const restoreDisabledReason = (() => {
+    if (!detail || !selectedChange || !selectedPath) {
+      return "Select a changed path to restore"
+    }
+    if (detailLoading || detailReadyId !== detail.id) {
+      return "Wait for version details to load"
+    }
+    if (!status?.enabled || !status.head?.id) {
+      return "Current version information is unavailable"
+    }
+    if (operation) {
+      return restoring
+        ? "This file is being restored"
+        : "Wait for the current version operation to finish"
+    }
+    if (status.hasConflicts) {
+      return "Resolve version conflicts before restoring a file"
+    }
+    if (
+      selectedChange.status === "renamed" ||
+      selectedChange.status === "unknown"
+    ) {
+      return "Renamed paths cannot be restored safely yet"
+    }
+    if (currentPathChanges.some((change) => change.conflicted)) {
+      return "Resolve this path's conflict before restoring it"
+    }
+    if (currentPathChanges.some((change) => change.staged)) {
+      return "Commit or unstage this path before restoring it"
+    }
+    if (detail.id === status.head.id && currentPathChanges.length === 0) {
+      return "This file already matches the current version"
+    }
+    return null
+  })()
+
+  const handleRestoreConfirm = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    if (
+      restoreDisabledReason ||
+      !detail ||
+      !selectedChange ||
+      !selectedPath ||
+      !status?.head?.id
+    ) {
+      return
+    }
+
+    setRestoreFeedback(null)
+    try {
+      const result = await restorePath({
+        revision: detail.id,
+        path: selectedPath,
+        expectedHead: status.head.id,
+        // The confirmation explicitly grants replacing any edits flushed just
+        // before the restore. Staged changes remain blocked by Desktop.
+        overwriteChanges: true,
+        allowDelete: restoresDeletion,
+      })
+      setRestoreDialogOpen(false)
+      setRestoreFeedback({
+        tone: "success",
+        message:
+          result.effect === "noop"
+            ? `${result.path} already matches ${shortCommitId(result.revision)}.`
+            : result.effect === "deleted"
+              ? `Restored the deleted state of ${result.path}. Review the deletion in Changes before creating a version.`
+              : `Restored ${result.path} from ${shortCommitId(result.revision)}. Review it in Changes before creating a version.`,
+      })
+    } catch (restoreError) {
+      setRestoreFeedback({
+        tone: "error",
+        message:
+          restoreError instanceof Error
+            ? restoreError.message
+            : String(restoreError),
+      })
+    }
+  }
 
   if (!commit || !detail) {
     return (
@@ -351,14 +495,51 @@ export function CommitInspector({
       </section>
 
       <section className="flex min-h-0 flex-1 flex-col">
-        <div className="flex h-7 shrink-0 items-center gap-1.5 border-b bg-muted/45 px-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-          <FileDiff className="h-3 w-3" />
-          <span className="shrink-0">Change details</span>
-          <span aria-hidden="true">·</span>
-          <span className="min-w-0 truncate normal-case tracking-normal">
-            {selectedPath ?? "Select a path"}
+        <div className="flex h-7 shrink-0 items-center justify-between gap-2 border-b bg-muted/45 px-2.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <FileDiff className="h-3 w-3 shrink-0" />
+            <span className="shrink-0">Change details</span>
+            <span aria-hidden="true">·</span>
+            <span className="min-w-0 truncate normal-case tracking-normal">
+              {selectedPath ?? "Select a path"}
+            </span>
           </span>
+          <button
+            type="button"
+            className="inline-flex h-5 shrink-0 items-center gap-1 rounded-[2px] px-1.5 text-[10px] font-medium normal-case tracking-normal text-muted-foreground outline-hidden hover:bg-accent hover:text-accent-foreground focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-45"
+            aria-label={
+              selectedPath
+                ? `Restore ${selectedPath} from this version`
+                : "Restore selected path from this version"
+            }
+            title={restoreDisabledReason ?? "Restore this file"}
+            disabled={restoreDisabledReason !== null}
+            onClick={() => {
+              setRestoreFeedback(null)
+              setRestoreDialogOpen(true)
+            }}
+          >
+            {restoring ? (
+              <LoaderCircle className="h-3 w-3 animate-spin" />
+            ) : (
+              <RotateCcw className="h-3 w-3" />
+            )}
+            <span>Restore</span>
+          </button>
         </div>
+        {restoreFeedback ? (
+          <div
+            className={cn(
+              "shrink-0 border-b px-3 py-2 text-[11px] leading-4",
+              restoreFeedback.tone === "error"
+                ? "border-destructive/25 bg-destructive/5 text-destructive"
+                : "border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
+            )}
+            role={restoreFeedback.tone === "error" ? "alert" : "status"}
+          >
+            {restoreFeedback.message}
+          </div>
+        ) : null}
         <div className="min-h-0 flex-1 overflow-auto">
           <ChangeDetails
             diff={diff}
@@ -369,6 +550,67 @@ export function CommitInspector({
           />
         </div>
       </section>
+
+      <AlertDialog
+        open={restoreDialogOpen}
+        onOpenChange={(open) => {
+          if (!restoring) setRestoreDialogOpen(open)
+        }}
+      >
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base">
+              {restoresDeletion
+                ? `Restore the deletion of “${selectedPath}”?`
+                : `Restore “${selectedPath}” from ${shortCommitId(detail.id)}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="leading-5">
+              {restoresDeletion
+                ? `This version does not contain ${selectedPath}. Restoring its state will delete the working file.`
+                : `Eidos will replace ${selectedPath} with the copy from “${detail.message}” (${shortCommitId(detail.id)}).`}{" "}
+              HEAD will not move and no version will be created. The result will
+              appear in Changes.
+              {currentPathChanges.length > 0 ? (
+                <span className="mt-2 block font-medium text-foreground">
+                  This path has uncommitted changes. They will be overwritten;
+                  create a version first if you may need them.
+                </span>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {restoreFeedback?.tone === "error" ? (
+            <div
+              className="flex items-start gap-2 rounded-[3px] bg-destructive/7 px-2.5 py-2 text-xs leading-5 text-destructive"
+              role="alert"
+            >
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{restoreFeedback.message}</span>
+            </div>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={restoring}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={cn(
+                restoresDeletion &&
+                  "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              )}
+              disabled={restoreDisabledReason !== null}
+              onClick={(event) => void handleRestoreConfirm(event)}
+            >
+              {restoring ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4" />
+              )}
+              {restoring
+                ? "Restoring…"
+                : restoresDeletion
+                  ? "Delete working file"
+                  : "Restore file"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   )
 }

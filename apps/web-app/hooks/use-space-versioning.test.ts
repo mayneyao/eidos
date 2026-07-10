@@ -8,6 +8,7 @@ import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-spac
 import {
   normalizeSpaceVersionDiff,
   normalizeSpaceVersionHistory,
+  normalizeSpaceVersionRestorePathResult,
   normalizeSpaceVersionStatus,
   useSpaceVersioning,
 } from "./use-space-versioning"
@@ -43,6 +44,23 @@ describe("file Space versioning normalization", () => {
     expect(status.changes).toEqual([
       { path: "notes/today.md", status: "modified" },
       { path: "assets/cover.png", status: "untracked" },
+    ])
+  })
+
+  it("preserves legal leading and trailing spaces in repository paths", () => {
+    const status = normalizeSpaceVersionStatus({
+      enabled: true,
+      paths: [
+        { path: " note.md ", state: "modified" },
+        { path: "foo\\bar.md", state: "modified" },
+        { path: "foo/bar.md", state: "modified" },
+      ],
+    })
+
+    expect(status.changes).toEqual([
+      { path: " note.md ", status: "modified" },
+      { path: "foo\\bar.md", status: "modified" },
+      { path: "foo/bar.md", status: "modified" },
     ])
   })
 
@@ -105,6 +123,26 @@ describe("file Space versioning normalization", () => {
           storage: "unknown",
         },
       ],
+    })
+  })
+
+  it("normalizes a restored path and its refreshed status", () => {
+    const result = normalizeSpaceVersionRestorePathResult({
+      revision: "commit-1",
+      path: "notes/today.md",
+      kind: "text_file",
+      storage: "inline",
+      effect: "modified",
+      status: versionStatus(),
+    })
+
+    expect(result).toMatchObject({
+      revision: "commit-1",
+      path: "notes/today.md",
+      kind: "text_file",
+      storage: "inline",
+      effect: "modified",
+      status: { enabled: true, clean: true },
     })
   })
 })
@@ -182,6 +220,25 @@ function createBridge() {
         from: "commit-2",
         to: "commit-3",
         paths: [],
+      })
+    ),
+    restorePath: vi.fn(
+      async (
+        _spaceId: string,
+        request: {
+          revision: string
+          path: string
+          expectedHead: string
+          overwriteChanges?: boolean
+          allowDelete?: boolean
+        }
+      ) => ({
+        revision: request.revision,
+        path: request.path,
+        kind: "text_file",
+        storage: "inline",
+        effect: "modified",
+        status: versionStatus(),
       })
     ),
   }
@@ -316,6 +373,124 @@ describe("useSpaceVersioning history coordination", () => {
     ).rejects.toThrow("could not save all pending file changes")
     expect(bridge.commit).not.toHaveBeenCalled()
     unregister()
+  })
+
+  it("flushes only the restored path before calling Desktop", async () => {
+    const bridge = createBridge()
+    installBridge(bridge)
+    const targetFlush = vi.fn(async () => true)
+    const siblingFlush = vi.fn(async () => true)
+    const unregisterTarget = registerPendingWriteFlusher(
+      "restore-target",
+      targetFlush,
+      { spaceId: "space-a", filePath: "notes/today.md" }
+    )
+    const unregisterSibling = registerPendingWriteFlusher(
+      "restore-sibling",
+      siblingFlush,
+      { spaceId: "space-a", filePath: "notes/other.md" }
+    )
+
+    await act(async () => {
+      root.render(
+        createElement(VersioningProbe, {
+          name: "history",
+          loadHistory: true,
+        })
+      )
+      await flushEffects()
+    })
+
+    const request = {
+      revision: "commit-1",
+      path: "notes/today.md",
+      expectedHead: "commit-3",
+    }
+    await act(async () => {
+      await hookResults.get("history")?.restorePath(request)
+      await flushEffects()
+    })
+
+    expect(targetFlush).toHaveBeenCalledOnce()
+    expect(siblingFlush).not.toHaveBeenCalled()
+    expect(bridge.restorePath).toHaveBeenCalledWith("space-a", request)
+    unregisterTarget()
+    unregisterSibling()
+  })
+
+  it("shares a per-Space mutation gate across hook instances", async () => {
+    const bridge = createBridge()
+    let finishRestore:
+      | ((value: Awaited<ReturnType<typeof bridge.restorePath>>) => void)
+      | undefined
+    bridge.restorePath.mockImplementation(
+      (_spaceId, request) =>
+        new Promise((resolve) => {
+          finishRestore = resolve
+        })
+    )
+    installBridge(bridge)
+
+    await act(async () => {
+      root.render(
+        createElement(
+          Fragment,
+          null,
+          createElement(VersioningProbe, {
+            key: "source",
+            name: "source",
+            loadHistory: false,
+          }),
+          createElement(VersioningProbe, {
+            key: "history",
+            name: "history",
+            loadHistory: true,
+          })
+        )
+      )
+      await flushEffects()
+    })
+
+    let restorePromise: Promise<unknown> | undefined
+    await act(async () => {
+      restorePromise = hookResults.get("history")?.restorePath({
+        revision: "commit-1",
+        path: "notes/today.md",
+        expectedHead: "commit-3",
+      })
+      await Promise.resolve()
+    })
+    expect(hookResults.get("source")?.operation).toBe("restoring")
+    expect(hookResults.get("history")?.operation).toBe("restoring")
+
+    let busyError: unknown
+    await act(async () => {
+      try {
+        await hookResults.get("source")?.commit("Must not queue")
+      } catch (error) {
+        busyError = error
+      }
+    })
+    expect(busyError).toBeInstanceOf(Error)
+    expect((busyError as Error).message).toContain(
+      "Another version operation is already running"
+    )
+    expect(bridge.commit).not.toHaveBeenCalled()
+
+    await act(async () => {
+      finishRestore?.({
+        revision: "commit-1",
+        path: "notes/today.md",
+        kind: "text_file",
+        storage: "inline",
+        effect: "modified",
+        status: versionStatus(),
+      })
+      await restorePromise
+      await flushEffects()
+    })
+    expect(hookResults.get("source")?.operation).toBeNull()
+    expect(hookResults.get("history")?.operation).toBeNull()
   })
 
   it("loads cursor pages, deduplicates boundary commits, and resets on refresh", async () => {

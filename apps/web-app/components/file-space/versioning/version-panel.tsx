@@ -8,8 +8,14 @@ import {
   LoaderCircle,
   RefreshCw,
 } from "lucide-react"
+import { useLocation, useNavigate } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
+import { navigateAfterFlushingSpaceFile } from "@/apps/web-app/components/file-space/file-navigation"
+import {
+  filePathFromSpaceUrl,
+  toSpaceFileUrl,
+} from "@/apps/web-app/components/file-space/file-path"
 import { useSpaceVersioning } from "@/apps/web-app/hooks/use-space-versioning"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { Button } from "@/components/ui/button"
@@ -283,6 +289,8 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
   const [activeView, setActiveView] = useState<VersionPanelView>("changes")
   const [message, setMessage] = useState("")
   const [localError, setLocalError] = useState<string | null>(null)
+  const location = useLocation()
+  const navigate = useNavigate()
   const openTab = useTabStore((state) => state.openTab)
   const tabs = useTabStore((state) => state.tabs)
   const updateTab = useTabStore((state) => state.updateTab)
@@ -301,6 +309,23 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
   } = useSpaceVersioning(spaceId, { loadHistory: true, historyLimit: 250 })
 
   const busy = statusLoading || historyLoading || operation !== null
+  const currentFilePath = filePathFromSpaceUrl(
+    `${location.pathname}${location.search}${location.hash}`
+  )
+  const openChangedPath = async (path: string) => {
+    setLocalError(null)
+    const navigated = await navigateAfterFlushingSpaceFile({
+      spaceId,
+      currentFilePath,
+      destination: toSpaceFileUrl(path),
+      navigate,
+    })
+    if (!navigated) {
+      setLocalError(
+        "Eidos could not save the current file before opening this change."
+      )
+    }
+  }
   const openFullHistory = (commitId?: string) => {
     const url = commitId
       ? `/version/history?commit=${encodeURIComponent(commitId)}`
@@ -412,7 +437,11 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
               </span>
             </div>
             {status?.changes.length ? (
-              <VersionChangeTree changes={status.changes} />
+              <VersionChangeTree
+                changes={status.changes}
+                selectedPath={currentFilePath}
+                onSelectPath={(path) => void openChangedPath(path)}
+              />
             ) : (
               <div className="flex items-start gap-2 px-3 py-3 text-[11px] leading-5 text-sidebar-foreground/55">
                 <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
@@ -434,7 +463,7 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
               className="min-h-[54px] resize-none border-sidebar-border bg-sidebar px-2 py-1.5 text-xs leading-4 shadow-none"
               placeholder="Version message (Ctrl+Enter)"
               aria-label="Version message"
-              disabled={!status?.changes.length || operation === "committing"}
+              disabled={!status?.changes.length || operation !== null}
               onChange={(event) => {
                 setMessage(event.target.value)
                 setLocalError(null)
@@ -453,9 +482,7 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
               size="xs"
               className="mt-1.5 h-7 w-full text-xs"
               disabled={
-                !status?.changes.length ||
-                !message.trim() ||
-                operation === "committing"
+                !status?.changes.length || !message.trim() || operation !== null
               }
               onClick={() => void submitCommit()}
             >
