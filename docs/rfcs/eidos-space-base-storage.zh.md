@@ -1,4 +1,4 @@
-# RFC：Eidos Vault/Base 存储模型
+# RFC：Eidos Space/Base 存储模型
 
 状态：草案
 日期：2026-07-08
@@ -6,16 +6,16 @@
 
 ## 摘要
 
-Eidos 应该逐步转向一种 vault-native 的存储模型：
+Eidos 应该逐步转向一种 file-based 的存储模型：
 
-- Markdown 文件仍然是 vault 里的普通文件。
-- Base 文件是 vault 里用户可见的一等结构化数据文件。
+- Markdown 文件仍然是 Space 里的普通文件。
+- Base 文件是 Space 里用户可见的一等结构化数据文件。
 - Eidos 命名空间下的状态放在 `.eidos/` 下，但需要区分可版本管理的 source/config 和私有运行时状态。
-- Graft 为整个 vault 提供版本管理，并且能对 Base 文件提供 SQLite 级别的 diff。
+- Graft 为整个 Space 提供版本管理，并且能对 Base 文件提供 SQLite 级别的 diff。
 
 目标产品叙事不应该是「Eidos 把 Obsidian vault 存进一个隐藏数据库」。目标叙事应该是：
 
-> Eidos 打开一个本地 vault，保留 Markdown 和资源文件的文件形态，新增一等的结构化 Base 文件，并使用 graft 为整个空间提供版本管理。
+> Eidos 打开一个本地 Space，保留 Markdown 和资源文件的文件形态，新增一等的结构化 Base 文件，并使用 graft 为整个空间提供版本管理。
 
 这是一次产品底座级别的改动，不应该一次性完成。迁移期间，当前 `.eidos/db.sqlite3` 模型可以继续存在。
 
@@ -24,7 +24,7 @@ Eidos 应该逐步转向一种 vault-native 的存储模型：
 当前 Eidos 把大量 app state 存在 `.eidos/db.sqlite3` 中，包括类似文档正文的状态，例如 `eidos__docs`。这对一个 database-native app 来说是合理的，但它和 Obsidian 用户的心智模型冲突：
 
 - Obsidian 用户预期 Markdown 文件就是 source of truth。
-- 他们预期 vault 离开原 app 也依然可读、可编辑。
+- 他们预期 Space 离开原 app 也依然可读、可编辑。
 - 他们天然警惕隐藏数据库成为文档的主存储。
 
 与此同时，Eidos 最强的差异化并不是「更好的 Markdown 文件管理」。更强的切入点是：
@@ -40,19 +40,19 @@ Eidos 应该逐步转向一种 vault-native 的存储模型：
 
 ## 产品定位
 
-Eidos 应该被定位成面向本地 vault 的结构化工作台。
+Eidos 应该被定位成面向本地 Space 的结构化工作台。
 
 Obsidian：
 
-- Markdown vault 是核心资产。
+- Markdown Space 是核心资产。
 - 插件围绕文件提供增强能力。
 
 Eidos：
 
-- Vault 仍然是一个本地文件夹。
+- Space 仍然是一个本地文件夹。
 - Markdown 文件仍然是文档资产。
 - Base 文件是结构化数据资产。
-- Graft 为 vault 提供版本管理，并理解 Base 的内部变更。
+- Graft 为 Space 提供版本管理，并理解 Base 的内部变更。
 
 用户可见的资产类型是：
 
@@ -70,8 +70,8 @@ folders   组织结构
 
 - 让 Base 成为用户可见的一等文件格式。
 - 保持 Markdown 文档为普通文件，而不是隐藏数据库记录。
-- 让 Eidos 能直接打开现有的 Obsidian-style vault，而不需要把 Markdown 导入到私有主数据库。
-- 使用 graft 作为 vault 的通用版本管理层。
+- 让 Eidos 能把现有的 Obsidian vault 作为 Space 直接打开，而不需要把 Markdown 导入到私有主数据库。
+- 使用 graft 作为 Space 的通用版本管理层。
 - 为 `.base` 文件提供 SQLite/table-aware 的 status 和 diff。
 - 将 `.eidos/` 作为 Eidos namespace，同时区分可版本管理的 source/config 与私有、本地、生成态运行时状态。
 - 避免把 Eidos 内部运行态展示成用户需要处理的变更。
@@ -86,16 +86,16 @@ folders   组织结构
 
 ## 核心概念
 
-### Vault
+### Space
 
-Vault 是用户选择的普通文件夹。
+Space 是用户选择的普通文件夹。
 
 它可以包含 Markdown 文件、Base 文件、资源文件、app 配置目录和 graft 元数据。
 
 示例：
 
 ```txt
-my-vault/
+my-space/
   notes/project.md
   notes/idea.md
   tasks.base
@@ -106,7 +106,7 @@ my-vault/
   .graft/
 ```
 
-Vault root 就是 graft worktree root。
+Space root 就是 graft worktree root。
 
 ### Markdown 文档
 
@@ -174,16 +174,16 @@ Eidos 可以直接打开一个 Base 文件，将其渲染成表格和视图，�
 
 ### Graft 仓库
 
-`.graft/` 位于 vault root。
+`.graft/` 位于 Space root。
 
-这样 graft 负责整个 vault worktree，而 tracking 和 ignore 规则定义哪些内容被视为用户状态。
+这样 graft 负责整个 Space worktree，而 tracking 和 ignore 规则定义哪些内容被视为用户状态。
 
 Graft 应该保持通用，不需要写死 Eidos 专属逻辑来理解 `.base` 文件是 SQLite。它应该基于文件检测和配置的 tracking rules 工作。
 
 ## 目标存储布局
 
 ```txt
-my-vault/
+my-space/
   notes/
     project.md
     idea.md
@@ -240,7 +240,7 @@ track.default_roots:
 
 这对当前隐藏数据库模型是合理的。
 
-但在目标 Vault/Base 模型中，graft 应该追踪用户可见的 vault 资产和选定的 Eidos 项目文件，并忽略私有运行态。
+但在目标 Space/Base 模型中，graft 应该追踪用户可见的 Space 资产和选定的 Eidos 项目文件，并忽略私有运行态。
 
 推荐目标默认值：
 
@@ -271,11 +271,11 @@ track.default_roots:
   files/**
 ```
 
-保守默认值更安全，但不够 vault-native。更宽的默认值更容易被用户理解：
+保守默认值更安全，但不够 file-based。更宽的默认值更容易被用户理解：
 
-> 我在 vault 里看得见的内容都会被版本管理，除了 app 私有 dot 目录和临时文件。
+> 我在 Space 里看得见的内容都会被版本管理，除了 app 私有 dot 目录和临时文件。
 
-推荐的产品默认是更宽的 vault-native 规则，并搭配清晰的 ignore 规则。
+推荐的产品默认是更宽的 file-based 规则，并搭配清晰的 ignore 规则。
 
 ## Status 与 Diff UI
 
@@ -316,7 +316,7 @@ tasks.base
 
 这样可以保持统一心智：
 
-> Base 是 vault 里的一个文件，但 Eidos 能检查它内部的 SQLite 变更。
+> Base 是 Space 里的一个文件，但 Eidos 能检查它内部的 SQLite 变更。
 
 目标模型下，UI 不应该把 `.eidos/db.sqlite3` 暴露成主要用户资产。
 
@@ -369,17 +369,17 @@ application/vnd.eidos.base+sqlite3
 - Markdown 正文不应该以 `eidos__docs` 作为 canonical state。
 - Base 专属的表、视图、字段和关系迁移到 `.base` 文件里。
 - `.eidos/db.sqlite3` 应该收缩为 workspace 私有元数据、缓存、本地设置和迁移支持。
-- 文件元数据需要重新考虑。如果文件是普通 vault 文件，它的文件系统路径可以是 canonical identity。如果它是 Base 内部引用的附件，Base 可以通过相对路径或托管 payload ID 引用它。
+- 文件元数据需要重新考虑。如果文件是普通 Space 文件，它的文件系统路径可以是 canonical identity。如果它是 Base 内部引用的附件，Base 可以通过相对路径或托管 payload ID 引用它。
 
 `eidos__tree` 需要单独决策：
 
-- 对 vault 文件来说，真实文件系统树应该是 canonical tree。
+- 对 Space 文件来说，真实文件系统树应该是 canonical tree。
 - 对 Base 内部来说，tables/views 可以在 Base 内部拥有自己的排序和分组。
 - Eidos 可以继续保存 UI 组织元数据，但它不应该成为 Markdown 文件的第二套 canonical tree。
 
 ## Obsidian 互操作
 
-Eidos 应该能直接打开现有的 Obsidian-style vault。
+Eidos 应该能把现有的 Obsidian vault 作为 Space 直接打开。
 
 推荐行为：
 
@@ -387,7 +387,7 @@ Eidos 应该能直接打开现有的 Obsidian-style vault。
 - 保留 `.obsidian/`，
 - 不要求把 Markdown 导入到 `.eidos/db.sqlite3`，
 - 保留普通资源文件和链接，
-- 将 `.base` 文件作为 Eidos 专属结构化资产加入 vault，
+- 将 `.base` 文件作为 Eidos 专属结构化资产加入 Space，
 - 只有在启用版本管理时才添加 `.graft/`。
 
 是否追踪 `.obsidian/` 应该是一个产品/用户决策：
@@ -420,13 +420,13 @@ ignore:
 - 编辑 `.base` 内表格数据，
 - 检测 `.base` 是 SQLite-backed Eidos Base。
 
-### Phase 2：Graft Vault Mode
+### Phase 2：Graft Space Mode
 
-让 Eidos 能在 vault root 初始化 graft，用于用户可见文件。
+让 Eidos 能在 Space root 初始化 graft，用于用户可见文件。
 
 里程碑：
 
-- `.graft/` 位于 vault root，
+- `.graft/` 位于 Space root，
 - 默认 ignore `.eidos/cache/**`、`.eidos/indexes/**`、`.eidos/sessions/**` 和 `.eidos/state/**`，
 - Markdown/assets 有文件级 status，
 - `.base` 有 SQLite-aware diff。
@@ -440,7 +440,7 @@ ignore:
 - 文件树来自真实文件系统，
 - Markdown 编辑器直接读写 `.md`，
 - backlinks/search/indexes 是生成态，
-- vault Markdown 不再依赖 `eidos__docs` 存正文。
+- Space Markdown 不再依赖 `eidos__docs` 存正文。
 
 ### Phase 4：导出现有 Spaces
 
@@ -450,7 +450,7 @@ ignore:
 
 - 将 `eidos__docs` 导出为 `.md`，
 - 将结构化表格导出到一个或多个 `.base` 文件，
-- 将 attachments/assets 导出为普通 vault 路径，
+- 将 attachments/assets 导出为普通 Space 路径，
 - 尽量保留链接关系，
 - 写入迁移报告。
 
@@ -460,7 +460,7 @@ ignore:
 
 里程碑：
 
-- 新 vault 不再把 canonical 用户文档存进 `.eidos/db.sqlite3`，
+- 新 Space 不再把 canonical 用户文档存进 `.eidos/db.sqlite3`，
 - 新结构化数据进入 `.base`，
 - `.eidos/db.sqlite3` 只包含私有、生成、本地状态。
 
@@ -481,15 +481,15 @@ ignore:
 .eidos/files/**
 ```
 
-只适用于当前隐藏数据库模型。在 Vault/Base mode 中，它应该被替换为 vault-level 用户文件追踪，并显式追踪 `.eidos/extensions/**` 这类稳定 Eidos 项目文件。
+只适用于当前隐藏数据库模型。在 Space/Base mode 中，它应该被替换为 Space-level 用户文件追踪，并显式追踪 `.eidos/extensions/**` 这类稳定 Eidos 项目文件。
 
 ## 关键决策
 
 1. Base 是用户可见文件，不是隐藏 `.eidos` 数据库。
-2. Vault mode 下 Markdown 文件是 source of truth。
+2. Space mode 下 Markdown 文件是 source of truth。
 3. `.eidos/` 是 Eidos namespace；私有运行时子目录默认忽略。
-4. `.graft/` 位于 vault root。
-5. Graft 追踪用户可见的 vault 资产和选定的 Eidos 项目文件。
+4. `.graft/` 位于 Space root。
+5. Graft 追踪用户可见的 Space 资产和选定的 Eidos 项目文件。
 6. `.base` 文件是带 Eidos 元数据的 SQLite 数据库。
 7. 扩展源码属于 `.eidos/extensions/**`，扩展运行时状态属于 `.eidos/cache/**` 和 `.eidos/state/**`。
 8. Eidos Changes UI 先展示 path-level changes，再在展开 Base 时展示内部变更。
@@ -497,10 +497,10 @@ ignore:
 ## 开放问题
 
 1. 扩展名应该是 `.base`、`.eidosbase`，还是两者都支持？
-2. 默认 vault tracking 应该是宽规则 `**/*` 搭配 ignore，还是显式规则 `**/*.md`、`**/*.base`、`assets/**`？
+2. 默认 Space tracking 应该是宽规则 `**/*` 搭配 ignore，还是显式规则 `**/*.md`、`**/*.base`、`assets/**`？
 3. 哪些 `.obsidian/` 文件应该默认进入版本管理？
 4. Base attachments 应该作为普通 sibling files、托管 assets 目录，还是 Base 专属 payload 目录？
-5. 一个 vault 应该默认有一个 Base、多个 Base，还是两者都支持？
+5. 一个 Space 应该默认有一个 Base、多个 Base，还是两者都支持？
 6. 当前 `eidos__tree` 模型在 file-backed Markdown 中还保留多少？
 7. 默认扩展源码目录是否就叫 `.eidos/extensions/`，还是应该可配置？
 8. 对依赖 `eidos__docs` 的现有 Eidos spaces，精确迁移路径是什么？
@@ -510,7 +510,7 @@ ignore:
 构建一个很小的 vertical slice：
 
 ```txt
-sample-vault/
+sample-space/
   note.md
   tasks.base
   assets/image.png
@@ -520,7 +520,7 @@ sample-vault/
 
 这个 slice 应该证明：
 
-- Eidos 可以打开 vault。
+- Eidos 可以打开 Space。
 - Eidos 可以编辑 `note.md`。
 - Eidos 可以打开并编辑 `tasks.base`。
 - Graft status 显示 `note.md`、`tasks.base` 和 `assets/image.png`。

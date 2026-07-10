@@ -1,23 +1,23 @@
-# RFC: File-Based Extensions for Eidos Vaults
+# RFC: File-Based Extensions for Eidos Spaces
 
 Status: Draft
 Date: 2026-07-09
 Owner: Eidos
 Related:
 
-- `eidos-vault-base-storage.md`
+- `eidos-space-base-storage.md`
 - `eidos-base-file-format.md`
-- `eidos-vault-markdown-runtime.md`
-- `eidos-graft-vault-versioning.md`
+- `eidos-space-markdown-runtime.md`
+- `eidos-graft-space-versioning.md`
 
 ## Summary
 
-Eidos extensions should move toward a file-based source model in vault-native workspaces.
+Eidos extensions should move toward a file-based source model in file-based workspaces.
 
-The canonical source for user/space extensions should live in the vault as ordinary files:
+The canonical source for user/space extensions should live in the Space as ordinary files:
 
 ```txt
-my-vault/
+my-space/
   .eidos/
     extensions/
       kanban-view/
@@ -37,7 +37,7 @@ The split is:
 - `.eidos/extensions/**` is Eidos-owned extension source and should be tracked by graft.
 - `.eidos/cache/**`, `.eidos/state/**`, `.eidos/sessions/**`, and `.eidos/indexes/**` are private runtime state and should be ignored by graft.
 
-This keeps the vault mental model consistent:
+This keeps the Space mental model consistent:
 
 ```txt
 .md            documents
@@ -58,7 +58,7 @@ The current Eidos extension mechanism already has a file-like surface. Extension
 
 But this is a projection over the `eidos__extensions` table. The source code, compiled code, metadata, enabled state, bindings, and marketplace IDs all live in the workspace database.
 
-That model is convenient for a database-native app, but it conflicts with the vault-native direction:
+That model is convenient for a database-native app, but it conflicts with the file-based direction:
 
 - extension source is user/developer authored content,
 - extension source can define how a space behaves,
@@ -68,7 +68,7 @@ That model is convenient for a database-native app, but it conflicts with the va
 
 The `.github/workflows` model is the useful analogy: files live in an app-specific hidden namespace, but they are still project-owned source files. Hiddenness prevents root namespace collisions; it does not decide whether content is versioned user state.
 
-If a user opens a vault with custom table views, file handlers, folder handlers, or actions, those definitions should be part of the visible vault state.
+If a user opens a Space with custom table views, file handlers, folder handlers, or actions, those definitions should be part of the visible Space state.
 
 ## Goals
 
@@ -78,14 +78,14 @@ If a user opens a vault with custom table views, file handlers, folder handlers,
 - Preserve the current extension concepts: script extensions, block extensions, table views, file handlers, folder handlers, UDFs, tools, and actions.
 - Support future marketplace extensions without making downloaded build artifacts canonical user state.
 - Make extension changes appear in the Changes UI as normal path changes.
-- Add an explicit trust boundary before running extension code from a vault.
+- Add an explicit trust boundary before running extension code from a Space.
 
 ## Non-Goals
 
 - This RFC does not define a full extension marketplace.
 - This RFC does not define a complete sandbox implementation.
 - This RFC does not require immediately removing `eidos__extensions`.
-- This RFC does not require all built-in extensions to become vault files.
+- This RFC does not require all built-in extensions to become Space files.
 - This RFC does not make extension runtime caches portable.
 
 ## Current Implementation Snapshot
@@ -133,7 +133,7 @@ The target model should invert that:
 Recommended default layout:
 
 ```txt
-my-vault/
+my-space/
   .eidos/
     extensions/
       todo-actions/
@@ -192,7 +192,7 @@ The compiled output is not portable source state. It should be rebuilt into `.ei
 
 ### Tracked Source State
 
-These files are part of the vault and should be tracked:
+These files are part of the Space and should be tracked:
 
 ```txt
 .eidos/extensions/<slug>/extension.json
@@ -239,7 +239,7 @@ If an extension needs configurable bindings, the manifest may define the schema,
 
 File-based extensions create an explicit executable-code boundary.
 
-Eidos should not silently execute extension code from a newly opened or newly synced vault. The user should see a trust prompt or extension review state.
+Eidos should not silently execute extension code from a newly opened or newly synced Space. The user should see a trust prompt or extension review state.
 
 Recommended states:
 
@@ -264,7 +264,7 @@ This is the main reason not to store execution state purely in tracked files.
 
 ## Graft Semantics
 
-With the default broad vault tracking rule, extension source appears as normal path changes:
+With the default broad Space tracking rule, extension source appears as normal path changes:
 
 ```txt
 .eidos/extensions/kanban-view/extension.json
@@ -339,7 +339,7 @@ If an extension is missing or untrusted, Eidos should degrade gracefully:
 
 ## Built-In Extensions
 
-Built-in Eidos extensions do not need to live in the vault.
+Built-in Eidos extensions do not need to live in the Space.
 
 They can remain bundled with the app:
 
@@ -349,7 +349,7 @@ app bundle / built-in registry
 
 Only user-authored or space-specific extensions should be created under `.eidos/extensions/**`.
 
-If a user ejects or customizes a built-in extension, Eidos can write a copy into the vault:
+If a user ejects or customizes a built-in extension, Eidos can write a copy into the Space:
 
 ```txt
 .eidos/extensions/ejected/<slug>/
@@ -420,11 +420,11 @@ Eidos can read both:
 - legacy `eidos__extensions`,
 - file-based `.eidos/extensions/**`.
 
-File-based extensions should win on slug conflicts in vault-native spaces.
+File-based extensions should win on slug conflicts in file-based spaces.
 
 ### Phase 3: File-Based Create/Edit
 
-New extensions created in vault-native spaces are written to `.eidos/extensions/**`.
+New extensions created in file-based spaces are written to `.eidos/extensions/**`.
 
 The extension editor reads and writes real files.
 
@@ -434,7 +434,7 @@ Move enabled state, trust state, permissions, and bindings into `.eidos/state/ex
 
 ### Phase 5: Legacy Freeze
 
-For new vault-native spaces, stop creating user extensions in `eidos__extensions`.
+For new file-based spaces, stop creating user extensions in `eidos__extensions`.
 
 Legacy spaces can keep using the old model until migrated.
 

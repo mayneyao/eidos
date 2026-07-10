@@ -1,23 +1,23 @@
-# RFC: Graft Versioning for Eidos Vaults
+# RFC: Graft Versioning for Eidos Spaces
 
 Status: Draft
 Date: 2026-07-08
 Owner: Eidos
 Related:
 
-- `eidos-vault-base-storage.md`
+- `eidos-space-base-storage.md`
 - `eidos-base-file-format.md`
-- `eidos-vault-markdown-runtime.md`
+- `eidos-space-markdown-runtime.md`
 - `eidos-file-based-extensions.md`
 
 ## Summary
 
-This RFC defines how Eidos should use graft when a vault contains Markdown files, Base files, ordinary assets, and Eidos-owned project files such as `.eidos/extensions/**`.
+This RFC defines how Eidos should use graft when a Space contains Markdown files, Base files, ordinary assets, and Eidos-owned project files such as `.eidos/extensions/**`.
 
 The target model:
 
-- `.graft/` lives at the vault root.
-- Graft manages user-visible vault assets and selected Eidos-owned project files.
+- `.graft/` lives at the Space root.
+- Graft manages user-visible Space assets and selected Eidos-owned project files.
 - Private `.eidos` runtime subtrees are ignored by default.
 - Markdown and ordinary files are file-level changes.
 - `.base` files are SQLite-backed paths with table-level expansion.
@@ -28,13 +28,13 @@ The target model:
 
 Users should feel:
 
-> Eidos versions my vault, not Eidos' private runtime directory.
+> Eidos versions my Space, not Eidos' private runtime directory.
 
-Versioning should match what users can see and reason about in the vault.
+Versioning should match what users can see and reason about in the Space.
 
 ## Goals
 
-- Use graft as the versioning layer for the vault root.
+- Use graft as the versioning layer for the Space root.
 - Track Markdown, Base files, and user assets.
 - Track user/space extension source files.
 - Ignore `.graft/` and private `.eidos` runtime subtrees by default.
@@ -54,7 +54,7 @@ Versioning should match what users can see and reason about in the vault.
 Example:
 
 ```txt
-my-vault/
+my-space/
   notes/project.md
   tasks.base
   .eidos/extensions/kanban-view/index.tsx
@@ -64,13 +64,13 @@ my-vault/
   .graft/
 ```
 
-`.graft/` is at `my-vault/.graft`.
+`.graft/` is at `my-space/.graft`.
 
-Graft worktree root is `my-vault/`.
+Graft worktree root is `my-space/`.
 
 ## Default Tracking Rule
 
-For vault-native Eidos, the recommended default is broad tracking with ignores:
+For file-based Eidos, the recommended default is broad tracking with ignores:
 
 ```txt
 track.default_roots:
@@ -91,13 +91,13 @@ ignore:
 
 Why broad tracking:
 
-- It matches the vault mental model.
+- It matches the Space mental model.
 - It avoids forcing users to classify every new asset.
 - It naturally includes Markdown, `.base`, images, PDFs, and other user files, while explicitly including `.eidos/extensions/**` as Eidos-owned project source.
 
 Eidos may expose advanced settings for stricter tracking, but the default should be understandable:
 
-> Vault/project content is versioned; app-private runtime state is not.
+> Space/project content is versioned; app-private runtime state is not.
 
 ## Explicit User Tracking
 
@@ -106,7 +106,7 @@ Some users may want to exclude or include specific paths.
 Recommended config concepts:
 
 ```txt
-track.default_roots   app/default vault tracking
+track.default_roots   app/default Space tracking
 track.user_roots      user-added tracking roots
 ignore                ignored paths
 ```
@@ -180,7 +180,7 @@ Normal behavior:
 - Eidos calculates changed paths from graft status.
 - Configured default roots are auto-discovered.
 - User does not need to manually add files.
-- Commit creates a version for the vault state.
+- Commit creates a version for the Space state.
 
 Advanced behavior:
 
@@ -192,7 +192,7 @@ Advanced behavior:
 
 Graft can choose storage strategy by file type and size.
 
-For Eidos vaults:
+For Eidos Spaces:
 
 - text files can be stored inline,
 - binary files can use external payload storage,
@@ -259,7 +259,7 @@ Changes UI should show:
 
 It should avoid showing:
 
-- `.eidos/db.sqlite3` as the primary user asset in vault mode,
+- `.eidos/db.sqlite3` as the primary user asset in Space mode,
 - `.eidos/sessions/**`,
 - generated index churn.
 
@@ -274,7 +274,7 @@ Current interim integration tracks:
 
 That is appropriate only for the hidden-database model.
 
-Vault mode should replace it with:
+Space mode should replace it with:
 
 ```txt
 track.default_roots = ["**/*", ".eidos/extensions/**"]
@@ -294,7 +294,7 @@ Existing repos may need a cleanup migration if they previously tracked `.eidos/s
 ## Recommended Vertical Slice
 
 ```txt
-sample-vault/
+sample-space/
   note.md
   tasks.base
   assets/image.png

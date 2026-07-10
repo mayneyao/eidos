@@ -1,18 +1,18 @@
-# RFC：从 Legacy Eidos Space 迁移到 Vault/Base
+# RFC：从 Legacy Eidos Space 迁移到 Space/Base
 
 状态：草案
 日期：2026-07-08
 负责人：Eidos
 相关文档：
 
-- `eidos-vault-base-storage.zh.md`
+- `eidos-space-base-storage.zh.md`
 - `eidos-base-file-format.zh.md`
-- `eidos-vault-markdown-runtime.zh.md`
-- `eidos-graft-vault-versioning.zh.md`
+- `eidos-space-markdown-runtime.zh.md`
+- `eidos-graft-space-versioning.zh.md`
 
 ## 摘要
 
-本 RFC 定义从当前隐藏数据库式 Eidos space 迁移到 vault-native Markdown + Base 模型的策略。
+本 RFC 定义从当前隐藏数据库式 Eidos Space 迁移到 file-based Markdown + Base 模型的策略。
 
 当前模型：
 
@@ -40,7 +40,7 @@ assets/**             user assets
 - 保留用户内容。
 - 将旧文档转换为 Markdown 文件。
 - 将旧表格转换为 `.base` 文件。
-- 尽可能将 managed files 转成 vault assets。
+- 尽可能将 managed files 转成 Space assets。
 - 生成 migration report。
 - 允许用户在提交前预览。
 - 避免第一版做破坏性原地迁移。
@@ -77,10 +77,10 @@ Legacy Eidos spaces 可能包含：
 
 ## 目标模型
 
-示例目标 vault：
+示例目标 Space：
 
 ```txt
-my-vault/
+my-space/
   notes/
     project.md
     ideas.md
@@ -122,7 +122,7 @@ Canonical 用户内容：
 
 ### 原地迁移模式
 
-将现有 space 原地转换成 vault-native 形态。
+将现有 space 原地转换成 file-based 形态。
 
 应该稍后再做，并要求显式确认。
 
@@ -226,7 +226,7 @@ assets/**
 - 将物理文件复制到可见 assets folder，
 - 尽可能保留文件名，
 - 使用稳定的冲突处理，
-- 将 file field paths 改写为 vault-relative paths，
+- 将 file field paths 改写为 Space-relative paths，
 - 必要时改写 Markdown asset references。
 
 ### Tree 映射
@@ -243,7 +243,7 @@ eidos__tree
 - 表格对应 Base 内 `eidos__tables` rows，
 - 可选 UI metadata 放在 `.eidos/`。
 
-Legacy tree 不应该成为 canonical vault tree。
+Legacy tree 不应该成为 canonical Space tree。
 
 ### 私有状态
 
@@ -298,7 +298,7 @@ Report 应包含：
 .graft/
 ```
 
-默认 vault tracking 应忽略私有 `.eidos` 运行时子目录，追踪用户可见文件，并追踪 `.eidos/extensions/**` 这类稳定 Eidos 项目文件。
+默认 Space tracking 应忽略私有 `.eidos` 运行时子目录，追踪用户可见文件，并追踪 `.eidos/extensions/**` 这类稳定 Eidos 项目文件。
 
 Initial commit 应包含：
 
@@ -323,7 +323,7 @@ Export mode 回滚很简单：
 In-place migration 必须先创建 backup：
 
 ```txt
-.eidos/backups/pre-vault-migration-<timestamp>/
+.eidos/backups/pre-Space-migration-<timestamp>/
 ```
 
 In-place mode 在 restore 被测试前不应该发布。
@@ -333,7 +333,7 @@ In-place mode 在 restore 被测试前不应该发布。
 1. v1 应该把所有 tables 导出到 `main.base`，还是询问用户？
 2. Lexical-only blocks 应该如何序列化为 Markdown？
 3. `eidos__chats` 和 `eidos__messages` 是否可以导出为 Markdown transcripts？
-4. 旧 graft history 应该保留，还是迁移后的 vault 从新 initial commit 开始？
+4. 旧 graft history 应该保留，还是迁移后的 Space 从新 initial commit 开始？
 5. Markdown frontmatter 应该写入多少 metadata？
 
 ## 推荐垂直切片
@@ -351,7 +351,7 @@ Legacy input：
 Output：
 
 ```txt
-migrated-vault/
+migrated-Space/
   notes/doc.md
   main.base
   assets/logo.png

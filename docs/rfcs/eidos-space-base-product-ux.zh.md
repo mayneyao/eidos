@@ -1,18 +1,18 @@
-# RFC：Vault、Base 与 Changes 的产品交互
+# RFC：Space、Base 与 Changes 的产品交互
 
 状态：草案
 日期：2026-07-08
 负责人：Eidos
 相关文档：
 
-- `eidos-vault-base-storage.zh.md`
+- `eidos-space-base-storage.zh.md`
 - `eidos-base-file-format.zh.md`
-- `eidos-vault-markdown-runtime.zh.md`
-- `eidos-graft-vault-versioning.zh.md`
+- `eidos-space-markdown-runtime.zh.md`
+- `eidos-graft-space-versioning.zh.md`
 
 ## 摘要
 
-本 RFC 定义 Eidos 转向 vault-native Markdown 文件和 `.base` 结构化数据文件后的产品交互模型。
+本 RFC 定义 Eidos 转向 file-based Markdown 文件和 `.base` 结构化数据文件后的产品交互模型。
 
 UI 应该让存储模型变得清楚：
 
@@ -21,7 +21,7 @@ UI 应该让存储模型变得清楚：
 - Assets 是普通文件。
 - `.eidos/extensions/**` 是通过 Extensions UX 呈现的 Eidos 项目源码。
 - 私有 `.eidos` 运行时状态保持隐藏。
-- Graft 为可见 vault 做版本管理。
+- Graft 为可见 Space 做版本管理。
 
 目标是避免把内部实现细节暴露成主要用户概念。
 
@@ -29,7 +29,7 @@ UI 应该让存储模型变得清楚：
 
 Eidos 应该感觉像：
 
-> 面向本地 vault 的结构化工作台。
+> 面向本地 Space 的结构化工作台。
 
 而不是：
 
@@ -37,12 +37,12 @@ Eidos 应该感觉像：
 
 ## 导航模型
 
-主导航是 vault 文件树。
+主导航是 Space 文件树。
 
 示例：
 
 ```txt
-my-vault
+my-space
   notes/
     project.md
   tasks.base
@@ -58,13 +58,13 @@ my-vault
 - folders 可以展开/收起，
 - `.eidos/` 和 `.graft/` 默认隐藏。
 
-## 打开 Vault
+## 打开 Space
 
 主要入口：
 
-- Open Folder as Vault，
-- Open Recent Vault，
-- Create New Vault。
+- Open Folder as Space，
+- Open Recent Space，
+- Create New Space。
 
 打开已有文件夹时，Eidos 应检测：
 
@@ -78,10 +78,10 @@ my-vault
 
 检测不应该强制转换。它应该选择模式：
 
-- plain vault，
-- Obsidian-style vault，
-- legacy Eidos space，
-- graft-enabled vault。
+- plain Space，
+- Obsidian-compatible Space，
+- legacy Eidos Space，
+- graft-enabled Space。
 
 ## 创建内容
 
@@ -137,7 +137,7 @@ tasks.base
 - properties/settings，
 - open file location。
 
-Base 内部对象不应该作为单独 vault 文件出现。
+Base 内部对象不应该作为单独 Space 文件出现。
 
 ## Markdown 编辑器
 
@@ -182,7 +182,7 @@ Changes 4
 - 二进制文件显示 preview/summary，
 - Base 文件显示 table-level diff。
 
-Vault mode 下，UI 不应该用这个作为主要变更项：
+Space mode 下，UI 不应该用这个作为主要变更项：
 
 ```txt
 .eidos/db.sqlite3
@@ -208,7 +208,7 @@ Commit flow：
 
 ## History UI
 
-History 应展示 vault-level commits：
+History 应展示 Space-level commits：
 
 ```txt
 Update tasks and project notes
@@ -222,15 +222,15 @@ Update tasks and project notes
 - 查看 Markdown diff，
 - 查看 Base table diff，
 - restore file/path，
-- restore whole vault state。
+- restore whole Space state。
 
 ## Sync UI
 
-Sync 应被表述为 vault sync：
+Sync 应被表述为 Space sync：
 
 ```txt
-Push vault
-Pull vault
+Push Space
+Pull Space
 Resolve conflicts
 ```
 
@@ -247,7 +247,7 @@ Payload hydration 应默认隐藏，除非需要用户操作：
 Settings 应拆成：
 
 ```txt
-Vault
+Space
   visible files
   ignored paths
   Obsidian compatibility
@@ -270,7 +270,7 @@ Track/ignore 配置是高级设置。快速开始不应该迫使用户理解它�
 
 ## Empty States
 
-新 vault empty state 应提供：
+新 Space empty state 应提供：
 
 - create note，
 - create Base，
@@ -296,8 +296,8 @@ No changes
 对 legacy spaces，Eidos 应显示：
 
 ```txt
-This space uses the legacy Eidos database model.
-Export to Vault/Base when ready.
+This Space uses the legacy Eidos database model.
+Export to Space/Base when ready.
 ```
 
 Migration flow：
@@ -324,7 +324,7 @@ Migration flow：
 围绕这个结构构建一个可点击 vertical slice：
 
 ```txt
-sample-vault/
+sample-space/
   note.md
   tasks.base
   assets/image.png

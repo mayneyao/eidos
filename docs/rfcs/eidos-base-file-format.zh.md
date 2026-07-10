@@ -3,13 +3,13 @@
 状态：草案
 日期：2026-07-08
 负责人：Eidos
-相关文档：`eidos-vault-base-storage.zh.md`
+相关文档：`eidos-space-base-storage.zh.md`
 
 ## 摘要
 
 本 RFC 定义 Eidos Base 文件的第一版实现形态。
 
-Base 文件是 vault 中用户可见的 `.base` 文件。它底层是 SQLite 数据库，并尽量复用当前 Eidos 的表格运行时：
+Base 文件是 Space 中用户可见的 `.base` 文件。它底层是 SQLite 数据库，并尽量复用当前 Eidos 的表格运行时：
 
 - 命名为 `tb_<tableId>` 的用户数据表，
 - 来自 `eidos__columns` 的字段元数据，
@@ -25,7 +25,7 @@ Base v1 应该是当前表格模型的一次小心抽离，而不是重新发明
 
 ## 背景动机
 
-Vault/Base 存储模型 RFC 已经提出：Eidos 应该让 `.base` 成为 vault 中的一等资产。本 RFC 回答下一个问题：
+Space/Base 存储模型 RFC 已经提出：Eidos 应该让 `.base` 成为 Space 中的一等资产。本 RFC 回答下一个问题：
 
 > `.base` 文件内部到底有什么，它和当前 Eidos 表格实现是什么关系？
 
@@ -89,7 +89,7 @@ CREATE TABLE tb_<tableId> (
 - 尽量复用当前 table/field/view runtime。
 - 让 `.base` 文件可移植、可独立打开。
 - 保持 `.base` 是合法 SQLite 文件。
-- 将 Base canonical state 和 vault/workspace 私有状态分开。
+- 将 Base canonical state 和 Space/workspace 私有状态分开。
 - 避免依赖 workspace `eidos__tree` 作为 canonical table registry。
 - 允许 graft 将 `.base` 作为 SQLite 数据库 diff，并展示 table-level changes。
 - 尽可能把生成态 indexes 和 caches 排除在 canonical Base state 之外。
@@ -394,8 +394,8 @@ Base v1 应该继续让 file field value 保持为字符串，但需要定义路
 
 - remote URLs 保持不变，
 - data URLs 保持不变，
-- 本地 vault 资源尽量使用 vault-relative paths，
-- Eidos 托管附件可以使用 vault 配置的 managed assets folder，
+- 本地 Space 资源尽量使用 Space-relative paths，
+- Eidos 托管附件可以使用 Space 配置的 managed assets folder，
 - 机器本地 absolute paths 不适合作为可移植 Base 的默认值。
 
 Base 文件不应该默默把任意文件复制进自身。
@@ -436,7 +436,7 @@ ext__*
 - `table_id` 指向 `eidos__tables.id`。
 - `query` 作用域限定在同一个 Base 内的 tables。
 - `properties`、`filter`、`order_map`、`hidden_fields` 继续是 JSON。
-- Views 属于 table，而不是 vault 文件树。
+- Views 属于 table，而不是 Space 文件树。
 
 ## 附件与资源
 
@@ -445,7 +445,7 @@ Base v1 默认不应该把任意二进制 payload 嵌入 `.base` SQLite 文件�
 推荐模型：
 
 ```txt
-my-vault/
+my-space/
   tasks.base
   assets/
     image.png
@@ -465,7 +465,7 @@ tasks.assets/
   image.png
 ```
 
-默认应该优先使用普通 vault assets，因为它们容易检查，也容易被 graft 版本管理。
+默认应该优先使用普通 Space assets，因为它们容易检查，也容易被 graft 版本管理。
 
 ## 生成态状态
 
@@ -506,8 +506,8 @@ Generated/private state 最好放在 `.eidos/indexes/`，或按需重建。如�
 Base v1 应该引入运行时边界：
 
 ```txt
-Vault runtime:
-  打开 vault
+Space runtime:
+  打开 Space
   管理文件树
   管理 .eidos 私有状态
   管理 graft repo
@@ -522,7 +522,7 @@ Base runtime:
 
 重要边界：
 
-- Workspace/vault state 不应该是 table CRUD 的必需条件。
+- Workspace/Space state 不应该是 table CRUD 的必需条件。
 - Table CRUD 不应该要求 `eidos__tree` 作为 workspace tree。
 - Base 应该拥有自己的 table registry。
 
@@ -601,7 +601,7 @@ Base export 不包含：
 - chat/message/session tables，
 - cache/index tables，
 - global settings，
-- vault file tree。
+- Space file tree。
 
 ## 兼容阶段
 
@@ -633,12 +633,12 @@ Base export 不包含：
 
 ### Phase 6：默认 Base Runtime
 
-新的 vault-native Eidos workspace 将表格创建到 `.base` 文件中，而不是隐藏的 `.eidos/db.sqlite3`。
+新的 file-based Eidos workspace 将表格创建到 `.base` 文件中，而不是隐藏的 `.eidos/db.sqlite3`。
 
 ## 开放问题
 
 1. `eidos__tables` 是否应该立即替代 Base 内的 `eidos__tree`，还是 v1 保留兼容 `eidos__tree`？
-2. Base 专属 assets 应该使用 `tasks.assets/` 这类 sibling folders，还是普通 vault `assets/`？
+2. Base 专属 assets 应该使用 `tasks.assets/` 这类 sibling folders，还是普通 Space `assets/`？
 3. FTS 和 embeddings 应该存在 `.base` 内、sidecar `.eidos/indexes/`，还是按需重建？
 4. `.base` 是否默认允许 extension-defined view types？
 5. 跨 Base links 应该表示为 file path + row ID，还是完全推迟？
@@ -649,7 +649,7 @@ Base export 不包含：
 先构建这个最小切片：
 
 ```txt
-sample-vault/
+sample-space/
   tasks.base
   assets/logo.png
   .eidos/

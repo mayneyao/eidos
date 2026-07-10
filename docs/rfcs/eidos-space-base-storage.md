@@ -1,4 +1,4 @@
-# RFC: Eidos Vault/Base Storage Model
+# RFC: Eidos Space/Base Storage Model
 
 Status: Draft
 Date: 2026-07-08
@@ -6,16 +6,16 @@ Owner: Eidos
 
 ## Summary
 
-Eidos should move toward a vault-native storage model:
+Eidos should move toward a file-based storage model:
 
-- Markdown files remain normal files in the vault.
-- Base files are user-visible structured data files in the vault.
+- Markdown files remain normal files in the Space.
+- Base files are user-visible structured data files in the Space.
 - Eidos-owned state lives under `.eidos/`, with versioned source/config separated from private runtime state.
-- Graft provides version management for the whole vault, with SQLite-aware diffs for Base files.
+- Graft provides version management for the whole Space, with SQLite-aware diffs for Base files.
 
 The target product story is not "Eidos stores an Obsidian vault inside a hidden database". The target story is:
 
-> Eidos opens a local vault, keeps Markdown and assets as files, adds first-class structured Base files, and uses graft to version the whole space.
+> Eidos opens a local Space, keeps Markdown and assets as files, adds first-class structured Base files, and uses graft to version the whole Space.
 
 This is a large product and architecture shift. It should be introduced gradually while the current `.eidos/db.sqlite3` model remains available during migration.
 
@@ -24,7 +24,7 @@ This is a large product and architecture shift. It should be introduced graduall
 Eidos currently stores much of the app state in `.eidos/db.sqlite3`, including document-like state through tables such as `eidos__docs`. This makes sense for a database-native app, but it conflicts with the mental model of users coming from Obsidian:
 
 - Obsidian users expect Markdown files to be the source of truth.
-- They expect the vault to remain readable and editable without the original app.
+- They expect the Space to remain readable and editable without the original app.
 - They are wary of hidden databases becoming the canonical document store.
 
 At the same time, Eidos' strongest differentiation is not "better Markdown files". The stronger wedge is:
@@ -40,19 +40,19 @@ The storage model should make that explicit. Markdown should stay Markdown. Eido
 
 ## Product Positioning
 
-Eidos should be positioned as a structured workspace for local vaults.
+Eidos should be positioned as a structured workspace for local Spaces.
 
 Obsidian:
 
-- Markdown vault is the core asset.
+- Markdown Space is the core asset.
 - Plugins add behavior around files.
 
 Eidos:
 
-- Vault is still a local folder.
+- Space is still a local folder.
 - Markdown files remain document assets.
 - Base files are structured data assets.
-- Graft versions the vault and understands Base internals.
+- Graft versions the Space and understands Base internals.
 
 The user-facing asset types are:
 
@@ -70,8 +70,8 @@ This avoids forcing users to choose between "plain files" and "structured data".
 
 - Make Base a first-class user-visible file format.
 - Keep Markdown documents as files, not hidden database records.
-- Let Eidos open existing Obsidian-style vaults without importing them into a private canonical database.
-- Use graft as a generic version management layer for the vault.
+- Let Eidos open existing Obsidian vaults as Spaces without importing them into a private canonical database.
+- Use graft as a generic version management layer for the Space.
 - Provide SQLite/table-aware status and diff for `.base` files.
 - Use `.eidos/` as the Eidos namespace, while separating versioned source/config from private, local, and generated runtime state.
 - Avoid showing Eidos internal runtime state as user changes.
@@ -86,16 +86,16 @@ This avoids forcing users to choose between "plain files" and "structured data".
 
 ## Core Concepts
 
-### Vault
+### Space
 
-A vault is a normal folder selected by the user.
+A Space is a normal folder selected by the user.
 
 It may contain Markdown files, Base files, assets, app config folders, and graft metadata.
 
 Example:
 
 ```txt
-my-vault/
+my-space/
   notes/project.md
   notes/idea.md
   tasks.base
@@ -106,7 +106,7 @@ my-vault/
   .graft/
 ```
 
-The vault root is the graft worktree root.
+The Space root is the graft worktree root.
 
 ### Markdown Document
 
@@ -174,16 +174,16 @@ Some data under `.eidos/` may be important to Eidos at runtime, but that does no
 
 ### Graft Repository
 
-`.graft/` lives at the vault root.
+`.graft/` lives at the Space root.
 
-This makes graft responsible for the whole vault worktree, while tracking and ignore rules define what is considered user state.
+This makes graft responsible for the whole Space worktree, while tracking and ignore rules define what is considered user state.
 
 Graft should be generic. It should not need Eidos-specific hardcoding to understand that `.base` files are SQLite. It should use file detection and configured tracking rules.
 
 ## Target Storage Layout
 
 ```txt
-my-vault/
+my-space/
   notes/
     project.md
     idea.md
@@ -240,7 +240,7 @@ track.default_roots:
 
 That makes sense for the current hidden-database model.
 
-In the target Vault/Base model, graft should track user-visible vault assets and selected Eidos project files, while ignoring private runtime state.
+In the target Space/Base model, graft should track user-visible Space assets and selected Eidos project files, while ignoring private runtime state.
 
 Recommended target default:
 
@@ -271,11 +271,11 @@ track.default_roots:
   files/**
 ```
 
-The stricter default is safer but less vault-native. The broader default is easier for users to understand:
+The stricter default is safer but less file-based. The broader default is easier for users to understand:
 
-> Everything I can see in my vault is versioned, except app-private dot directories and temporary files.
+> Everything I can see in my Space is versioned, except app-private dot directories and temporary files.
 
-The recommended product default is the broader vault-native rule, with clear ignore rules.
+The recommended product default is the broader file-based rule, with clear ignore rules.
 
 ## Status and Diff UI
 
@@ -316,7 +316,7 @@ tasks.base
 
 This keeps the mental model unified:
 
-> A Base is a file in the vault, but Eidos can inspect its internal SQLite changes.
+> A Base is a file in the Space, but Eidos can inspect its internal SQLite changes.
 
 The UI should not expose `.eidos/db.sqlite3` as the main user asset in the target model.
 
@@ -369,17 +369,17 @@ In the target model:
 - Markdown body content should not be stored in `eidos__docs` as canonical state.
 - Base-specific tables, views, fields, and relations move into `.base` files.
 - `.eidos/db.sqlite3` should shrink into workspace-private metadata, cache, local settings, and migration support.
-- File metadata should be reconsidered. If a file is a normal vault file, its file system path may be the canonical identity. If it is an attachment inside a Base, the Base can reference it by relative path or managed payload ID.
+- File metadata should be reconsidered. If a file is a normal Space file, its file system path may be the canonical identity. If it is an attachment inside a Base, the Base can reference it by relative path or managed payload ID.
 
 `eidos__tree` needs a separate decision:
 
-- For vault files, the file system tree should be the canonical tree.
+- For Space files, the file system tree should be the canonical tree.
 - For Base internals, tables/views can have their own ordering and grouping inside the Base.
 - Eidos may still keep UI organization metadata, but it should not become a second canonical file tree for Markdown files.
 
 ## Obsidian Interop
 
-Eidos should be able to open an existing Obsidian-style vault.
+Eidos should be able to open an existing Obsidian vault as a Space.
 
 Recommended behavior:
 
@@ -420,13 +420,13 @@ Milestones:
 - edit table data in `.base`,
 - detect `.base` as SQLite-backed Eidos Base.
 
-### Phase 2: Graft Vault Mode
+### Phase 2: Graft Space Mode
 
-Teach Eidos to initialize graft at vault root for user-visible files.
+Teach Eidos to initialize graft at Space root for user-visible files.
 
 Milestones:
 
-- `.graft/` at vault root,
+- `.graft/` at Space root,
 - default ignore for private `.eidos` runtime subtrees,
 - file-level status for Markdown/assets,
 - SQLite-aware diff for `.base`.
@@ -440,7 +440,7 @@ Milestones:
 - file tree from real file system,
 - Markdown editor reads/writes `.md`,
 - backlinks/search/indexes are generated state,
-- no canonical doc-body dependency on `eidos__docs` for vault Markdown.
+- no canonical doc-body dependency on `eidos__docs` for Space Markdown.
 
 ### Phase 4: Export Existing Spaces
 
@@ -450,7 +450,7 @@ Milestones:
 
 - export `eidos__docs` documents to `.md`,
 - export structured tables into one or more `.base` files,
-- export attachments/assets to normal vault paths,
+- export attachments/assets to normal Space paths,
 - preserve links as much as possible,
 - write a migration report.
 
@@ -460,7 +460,7 @@ After `.md` and `.base` are stable, reduce `.eidos/db.sqlite3` to private state.
 
 Milestones:
 
-- new vaults do not store canonical user docs in `.eidos/db.sqlite3`,
+- new Spaces do not store canonical user docs in `.eidos/db.sqlite3`,
 - new structured data lives in `.base`,
 - `.eidos/db.sqlite3` contains only private/generated/local state.
 
@@ -481,15 +481,15 @@ However, the current Eidos default tracking scope:
 .eidos/files/**
 ```
 
-is only correct for the current hidden-database model. In Vault/Base mode, it should be replaced by vault-level user file tracking plus explicit tracking for stable Eidos project files such as `.eidos/extensions/**`.
+is only correct for the current hidden-database model. In Space/Base mode, it should be replaced by Space-level user file tracking plus explicit tracking for stable Eidos project files such as `.eidos/extensions/**`.
 
 ## Key Decisions
 
 1. Base is a user-visible file, not a hidden `.eidos` database.
-2. Markdown files are source of truth in vault mode.
+2. Markdown files are source of truth in Space mode.
 3. `.eidos/` is the Eidos namespace; private runtime subtrees are ignored by default.
-4. `.graft/` is at the vault root.
-5. Graft tracks user-visible vault assets and selected Eidos project files.
+4. `.graft/` is at the Space root.
+5. Graft tracks user-visible Space assets and selected Eidos project files.
 6. `.base` files are SQLite databases with Eidos metadata.
 7. Extension source belongs in `.eidos/extensions/**`, while extension runtime state belongs in `.eidos/cache/**` and `.eidos/state/**`.
 8. Eidos Changes UI shows path-level changes first, then Base internals on expansion.
@@ -497,10 +497,10 @@ is only correct for the current hidden-database model. In Vault/Base mode, it sh
 ## Open Questions
 
 1. Should the extension be `.base`, `.eidosbase`, or should Eidos support both?
-2. Should the default vault tracking rule be broad `**/*` with ignores, or explicit `**/*.md`, `**/*.base`, `assets/**`?
+2. Should the default Space tracking rule be broad `**/*` with ignores, or explicit `**/*.md`, `**/*.base`, `assets/**`?
 3. Which `.obsidian/` files should be versioned by default?
 4. Should Base attachments live as ordinary sibling files, inside a managed assets folder, or in a Base-specific payload directory?
-5. Should a vault have one default Base, many Base files, or both?
+5. Should a Space have one default Base, many Base files, or both?
 6. How much of the current `eidos__tree` model survives for file-backed Markdown?
 7. Should the default extension source folder be exactly `.eidos/extensions/`, or configurable?
 8. What is the exact migration path for existing Eidos spaces that rely on `eidos__docs`?
@@ -510,7 +510,7 @@ is only correct for the current hidden-database model. In Vault/Base mode, it sh
 Build a small vertical slice:
 
 ```txt
-sample-vault/
+sample-space/
   note.md
   tasks.base
   assets/image.png
@@ -520,7 +520,7 @@ sample-vault/
 
 The slice should prove:
 
-- Eidos can open the vault.
+- Eidos can open the Space.
 - Eidos can edit `note.md`.
 - Eidos can open and edit `tasks.base`.
 - Graft status shows `note.md`, `tasks.base`, and `assets/image.png`.

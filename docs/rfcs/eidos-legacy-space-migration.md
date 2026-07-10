@@ -1,18 +1,18 @@
-# RFC: Migration From Legacy Eidos Spaces to Vault/Base
+# RFC: Migration From Legacy Eidos Spaces to Space/Base
 
 Status: Draft
 Date: 2026-07-08
 Owner: Eidos
 Related:
 
-- `eidos-vault-base-storage.md`
+- `eidos-space-base-storage.md`
 - `eidos-base-file-format.md`
-- `eidos-vault-markdown-runtime.md`
-- `eidos-graft-vault-versioning.md`
+- `eidos-space-markdown-runtime.md`
+- `eidos-graft-space-versioning.md`
 
 ## Summary
 
-This RFC defines a migration strategy from the current hidden-database Eidos space model to the vault-native Markdown + Base model.
+This RFC defines a migration strategy from the current hidden-database Eidos Space model to the file-based Markdown + Base model.
 
 Current model:
 
@@ -40,7 +40,7 @@ Migration should be export-based first, reversible, and explicit. It should not 
 - Preserve user content.
 - Convert old documents to Markdown files.
 - Convert old tables to `.base` files.
-- Convert managed files into vault assets where possible.
+- Convert managed files into Space assets where possible.
 - Keep a migration report.
 - Allow users to preview before committing.
 - Avoid destructive in-place migration as the first implementation.
@@ -77,10 +77,10 @@ Some current concepts are user content. Others are private/runtime state.
 
 ## Target Model
 
-Example target vault:
+Example target Space:
 
 ```txt
-my-vault/
+my-space/
   notes/
     project.md
     ideas.md
@@ -122,7 +122,7 @@ Pros:
 
 ### In-Place Mode
 
-Transform an existing space into vault-native shape.
+Transform an existing space into file-based shape.
 
 Should come later and require explicit confirmation.
 
@@ -226,7 +226,7 @@ Rules:
 - copy physical files into a visible assets folder,
 - preserve filenames when possible,
 - use stable collision handling,
-- rewrite file field paths to vault-relative paths,
+- rewrite file field paths to Space-relative paths,
 - rewrite Markdown asset references when needed.
 
 ### Tree
@@ -243,7 +243,7 @@ Target:
 - `eidos__tables` rows for Base tables,
 - optional UI metadata under `.eidos/`.
 
-The legacy tree should not become the canonical vault tree.
+The legacy tree should not become the canonical Space tree.
 
 ### Private State
 
@@ -298,7 +298,7 @@ After export, Eidos may offer to enable graft:
 .graft/
 ```
 
-Default vault tracking should ignore private `.eidos` runtime subtrees, track user-visible files, and track stable Eidos project files such as `.eidos/extensions/**`.
+Default Space tracking should ignore private `.eidos` runtime subtrees, track user-visible files, and track stable Eidos project files such as `.eidos/extensions/**`.
 
 The initial commit should include:
 
@@ -323,7 +323,7 @@ Export mode rollback is simple:
 In-place migration must create a backup first:
 
 ```txt
-.eidos/backups/pre-vault-migration-<timestamp>/
+.eidos/backups/pre-Space-migration-<timestamp>/
 ```
 
 In-place mode should not ship until restore has been tested.
@@ -333,7 +333,7 @@ In-place mode should not ship until restore has been tested.
 1. Should v1 export all tables into `main.base` or ask the user?
 2. How should Lexical-only blocks be serialized to Markdown?
 3. Should `eidos__chats` and `eidos__messages` be exportable as Markdown transcripts?
-4. Should old graft history be preserved or should migrated vaults start with a new initial commit?
+4. Should old graft history be preserved or should migrated Spaces start with a new initial commit?
 5. How much metadata should be written into Markdown frontmatter?
 
 ## Recommended Vertical Slice
@@ -351,7 +351,7 @@ Legacy input:
 Output:
 
 ```txt
-migrated-vault/
+migrated-Space/
   notes/doc.md
   main.base
   assets/logo.png

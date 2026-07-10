@@ -1,18 +1,18 @@
-# RFC: Product UX for Vaults, Bases, and Changes
+# RFC: Product UX for Spaces, Bases, and Changes
 
 Status: Draft
 Date: 2026-07-08
 Owner: Eidos
 Related:
 
-- `eidos-vault-base-storage.md`
+- `eidos-space-base-storage.md`
 - `eidos-base-file-format.md`
-- `eidos-vault-markdown-runtime.md`
-- `eidos-graft-vault-versioning.md`
+- `eidos-space-markdown-runtime.md`
+- `eidos-graft-space-versioning.md`
 
 ## Summary
 
-This RFC defines the product interaction model for Eidos after moving toward vault-native Markdown files and `.base` structured data files.
+This RFC defines the product interaction model for Eidos after moving toward file-based Markdown files and `.base` structured data files.
 
 The UI should make the storage model obvious:
 
@@ -21,7 +21,7 @@ The UI should make the storage model obvious:
 - Assets are ordinary files.
 - `.eidos/extensions/**` is Eidos-owned project source shown through Extensions UX.
 - Private `.eidos` runtime state stays hidden.
-- Graft versions the visible vault.
+- Graft versions the visible Space.
 
 The goal is to avoid exposing internal implementation details as primary user concepts.
 
@@ -29,7 +29,7 @@ The goal is to avoid exposing internal implementation details as primary user co
 
 Eidos should feel like:
 
-> A structured workspace for local vaults.
+> A structured workspace for local Spaces.
 
 Not:
 
@@ -37,12 +37,12 @@ Not:
 
 ## Navigation Model
 
-The primary navigation is the vault file tree.
+The primary navigation is the Space file tree.
 
 Example:
 
 ```txt
-my-vault
+my-space
   notes/
     project.md
   tasks.base
@@ -58,13 +58,13 @@ Default behavior:
 - folders expand/collapse,
 - `.eidos/` and `.graft/` are hidden by default.
 
-## Opening a Vault
+## Opening a Space
 
 Primary entry points:
 
-- Open Folder as Vault,
-- Open Recent Vault,
-- Create New Vault.
+- Open Folder as Space,
+- Open Recent Space,
+- Create New Space.
 
 When opening an existing folder, Eidos should detect:
 
@@ -78,10 +78,10 @@ When opening an existing folder, Eidos should detect:
 
 Detection should not force conversion. It should choose a mode:
 
-- plain vault,
-- Obsidian-style vault,
-- legacy Eidos space,
-- graft-enabled vault.
+- plain Space,
+- Obsidian-compatible Space,
+- legacy Eidos Space,
+- graft-enabled Space.
 
 ## Creating Content
 
@@ -137,7 +137,7 @@ Expected controls:
 - properties/settings,
 - open file location.
 
-Base internals should not appear as separate vault files.
+Base internals should not appear as separate Space files.
 
 ## Markdown Editor
 
@@ -188,7 +188,7 @@ The UI should not lead with:
 .eidos/db.sqlite3
 ```
 
-in vault mode.
+in Space mode.
 
 ## Commit Flow
 
@@ -210,7 +210,7 @@ Advanced users may later get:
 
 ## History UI
 
-History should show versions as vault-level commits:
+History should show versions as Space-level commits:
 
 ```txt
 Update tasks and project notes
@@ -224,15 +224,15 @@ Opening a version should allow:
 - inspect Markdown diff,
 - inspect Base table diff,
 - restore file/path,
-- restore whole vault state.
+- restore whole Space state.
 
 ## Sync UI
 
-Sync should be framed as vault sync:
+Sync should be framed as Space sync:
 
 ```txt
-Push vault
-Pull vault
+Push Space
+Pull Space
 Resolve conflicts
 ```
 
@@ -249,7 +249,7 @@ Payload hydration should be hidden unless action is needed:
 Settings should separate:
 
 ```txt
-Vault
+Space
   visible files
   ignored paths
   Obsidian compatibility
@@ -272,7 +272,7 @@ Track/ignore configuration is advanced. Quick start should not force users to le
 
 ## Empty States
 
-New vault empty state should offer:
+New Space empty state should offer:
 
 - create note,
 - create Base,
@@ -300,8 +300,8 @@ For legacy spaces:
 Eidos should show:
 
 ```txt
-This space uses the legacy Eidos database model.
-Export to Vault/Base when ready.
+This Space uses the legacy Eidos database model.
+Export to Space/Base when ready.
 ```
 
 Migration flow:
@@ -328,7 +328,7 @@ No silent migration.
 Build a clickable vertical slice around:
 
 ```txt
-sample-vault/
+sample-space/
   note.md
   tasks.base
   assets/image.png

@@ -1,23 +1,23 @@
-# RFC：Eidos Vault 的 Graft 版本管理
+# RFC：Eidos Space 的 Graft 版本管理
 
 状态：草案
 日期：2026-07-08
 负责人：Eidos
 相关文档：
 
-- `eidos-vault-base-storage.zh.md`
+- `eidos-space-base-storage.zh.md`
 - `eidos-base-file-format.zh.md`
-- `eidos-vault-markdown-runtime.zh.md`
+- `eidos-space-markdown-runtime.zh.md`
 - `eidos-file-based-extensions.zh.md`
 
 ## 摘要
 
-本 RFC 定义当一个 vault 包含 Markdown 文件、Base 文件、普通资源文件，以及 `.eidos/extensions/**` 这类 Eidos 命名空间下的项目文件时，Eidos 应该如何使用 graft。
+本 RFC 定义当一个 Space 包含 Markdown 文件、Base 文件、普通资源文件，以及 `.eidos/extensions/**` 这类 Eidos 命名空间下的项目文件时，Eidos 应该如何使用 graft。
 
 目标模型：
 
-- `.graft/` 位于 vault root。
-- Graft 管理用户可见的 vault 资产和选定的 Eidos 项目文件。
+- `.graft/` 位于 Space root。
+- Graft 管理用户可见的 Space 资产和选定的 Eidos 项目文件。
 - 私有 `.eidos` 运行时子目录默认忽略。
 - Markdown 和普通文件是 file-level changes。
 - `.base` 文件是 SQLite-backed paths，可以展开为 table-level changes。
@@ -28,13 +28,13 @@
 
 用户应该感受到：
 
-> Eidos 在为我的 vault 做版本管理，而不是在同步 Eidos 自己的私有运行目录。
+> Eidos 在为我的 Space 做版本管理，而不是在同步 Eidos 自己的私有运行目录。
 
-版本管理应该匹配用户在 vault 中能看见、能理解的内容。
+版本管理应该匹配用户在 Space 中能看见、能理解的内容。
 
 ## 目标
 
-- 使用 graft 作为 vault root 的版本管理层。
+- 使用 graft 作为 Space root 的版本管理层。
 - 追踪 Markdown、Base 文件和用户资源文件。
 - 追踪用户/空间扩展源码文件。
 - 默认忽略 `.graft/` 和私有 `.eidos` 运行时子目录。
@@ -54,7 +54,7 @@
 示例：
 
 ```txt
-my-vault/
+my-space/
   notes/project.md
   tasks.base
   .eidos/extensions/kanban-view/index.tsx
@@ -64,13 +64,13 @@ my-vault/
   .graft/
 ```
 
-`.graft/` 位于 `my-vault/.graft`。
+`.graft/` 位于 `my-space/.graft`。
 
-Graft worktree root 是 `my-vault/`。
+Graft worktree root 是 `my-space/`。
 
 ## 默认追踪规则
 
-对 vault-native Eidos，推荐默认使用宽追踪规则搭配 ignore：
+对 file-based Eidos，推荐默认使用宽追踪规则搭配 ignore：
 
 ```txt
 track.default_roots:
@@ -91,13 +91,13 @@ ignore:
 
 选择宽追踪的原因：
 
-- 它符合 vault 心智。
+- 它符合 Space 心智。
 - 它不要求用户为每个新资源做分类。
 - 它自然包含 Markdown、`.base`、图片、PDF 和其它用户文件，同时显式包含 `.eidos/extensions/**` 这类 Eidos 命名空间下的项目源码。
 
 Eidos 可以暴露高级设置支持更严格的追踪，但默认应该容易理解：
 
-> Vault/project 内容被版本管理；app-private runtime state 不被版本管理。
+> Space/project 内容被版本管理；app-private runtime state 不被版本管理。
 
 ## 显式用户追踪
 
@@ -106,7 +106,7 @@ Eidos 可以暴露高级设置支持更严格的追踪，但默认应该容易�
 推荐配置概念：
 
 ```txt
-track.default_roots   app/default vault tracking
+track.default_roots   app/default Space tracking
 track.user_roots      user-added tracking roots
 ignore                ignored paths
 ```
@@ -180,7 +180,7 @@ Commit
 - Eidos 从 graft status 计算 changed paths。
 - 配置的 default roots 自动发现。
 - 用户不需要手动 add。
-- Commit 为 vault state 创建一个版本。
+- Commit 为 Space state 创建一个版本。
 
 高级行为：
 
@@ -192,7 +192,7 @@ Commit
 
 Graft 可以按文件类型和大小选择存储策略。
 
-对 Eidos vault：
+对 Eidos Space：
 
 - text files 可以 inline，
 - binary files 可以使用 external payload storage，
@@ -259,7 +259,7 @@ Changes UI 应展示：
 
 它应该避免展示：
 
-- vault mode 下将 `.eidos/db.sqlite3` 作为主要用户资产，
+- Space mode 下将 `.eidos/db.sqlite3` 作为主要用户资产，
 - `.eidos/sessions/**`，
 - generated index churn。
 
@@ -274,7 +274,7 @@ Changes UI 应展示：
 
 这只适用于隐藏数据库模型。
 
-Vault mode 应替换为：
+Space mode 应替换为：
 
 ```txt
 track.default_roots = ["**/*", ".eidos/extensions/**"]
@@ -294,7 +294,7 @@ ignore = [".graft/**", ".eidos/cache/**", ".eidos/sessions/**", ".eidos/indexes/
 ## 推荐垂直切片
 
 ```txt
-sample-vault/
+sample-space/
   note.md
   tasks.base
   assets/image.png

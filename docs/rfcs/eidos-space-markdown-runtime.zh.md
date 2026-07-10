@@ -1,32 +1,32 @@
-# RFC：Eidos Vault 与 Markdown 运行时
+# RFC：Eidos Space 与 Markdown 运行时
 
 状态：草案
 日期：2026-07-08
 负责人：Eidos
 相关文档：
 
-- `eidos-vault-base-storage.zh.md`
+- `eidos-space-base-storage.zh.md`
 - `eidos-base-file-format.zh.md`
 
 ## 摘要
 
-本 RFC 定义 Eidos 如何打开和编辑一个以 Markdown 文件作为 canonical document state 的 vault。
+本 RFC 定义 Eidos 如何打开和编辑一个以 Markdown 文件作为 canonical document state 的 Space。
 
 目标模型：
 
-- Vault 文件系统是真实文档树。
+- Space 文件系统是真实文档树。
 - `.md` 文件被直接读写。
-- Vault mode 下，`eidos__docs` 不再是 Markdown 正文的 canonical store。
+- Space mode 下，`eidos__docs` 不再是 Markdown 正文的 canonical store。
 - `.eidos/` 存放生成态索引、缓存、会话、本地 UI 状态。
-- `.base` 文件在同一个 vault 中提供结构化数据能力。
+- `.base` 文件在同一个 Space 中提供结构化数据能力。
 
-这样 Eidos 可以直接打开 Obsidian-style vault，而不需要把用户文档导入到隐藏主数据库。
+这样 Eidos 可以把 Obsidian vault 作为 Space 直接打开，而不需要把用户文档导入到隐藏主数据库。
 
 ## 产品原则
 
-Vault mode 应该保留用户的安全感：
+Space mode 应该保留用户的安全感：
 
-> 用户用其它编辑器打开 vault 时，Markdown 文档仍然在那里。
+> 用户用其它编辑器打开 Space 时，Markdown 文档仍然在那里。
 
 Eidos 可以增加更好的编辑器、表格、视图、搜索、agent 和版本管理，但不应该让 Markdown 依赖 `.eidos/db.sqlite3` 作为 source of truth。
 
@@ -34,7 +34,7 @@ Eidos 可以增加更好的编辑器、表格、视图、搜索、agent 和版�
 
 - 将 Markdown 文档作为真实文件读写。
 - 使用真实文件系统树作为 canonical document tree。
-- 保持 Obsidian-style vault 离开 Eidos 也可用。
+- 保持从 Obsidian vault 打开的 Space 离开 Eidos 也可用。
 - 让 Eidos 可以构建索引和 backlinks，但不拥有文档正文。
 - 默认不把 Eidos 私有状态展示到 graft status。
 - 为需要元数据的 Eidos-native 能力保留空间。
@@ -48,13 +48,13 @@ Eidos 可以增加更好的编辑器、表格、视图、搜索、agent 和版�
 
 ## 运行时边界
 
-Vault mode 应该拆成三个运行时：
+Space mode 应该拆成三个运行时：
 
 ```txt
-Vault runtime:
+Space runtime:
   打开文件夹
   读取真实文件树
-  解析 vault-relative paths
+  解析 Space-relative paths
   管理 .eidos 私有状态
   管理 graft
 
@@ -73,12 +73,12 @@ Markdown runtime 不应该依赖 `DataSpaceWithTable`。Base runtime 也不应�
 
 ## 文件树
 
-Vault mode 的左侧文件树应该来自文件系统，而不是 `eidos__tree`。
+Space mode 的左侧文件树应该来自文件系统，而不是 `eidos__tree`。
 
 示例：
 
 ```txt
-my-vault/
+my-space/
   notes/project.md
   tasks.base
   assets/image.png
@@ -97,11 +97,11 @@ my-vault/
 - 将 `.md` 识别为文档，
 - 将 `.base` 识别为 Eidos Base 文件。
 
-`eidos__tree` 可以继续为 legacy spaces 或 app-internal metadata 存在，但它不应该是 vault 文件树的 canonical source。
+`eidos__tree` 可以继续为 legacy spaces 或 app-internal metadata 存在，但它不应该是 Space 文件树的 canonical source。
 
 ## Markdown 的 Source of Truth
 
-Vault mode 下：
+Space mode 下：
 
 ```txt
 notes/project.md
@@ -148,7 +148,7 @@ tags:
 
 ## 链接与引用
 
-Vault mode 应该支持常见 Markdown link 形式：
+Space mode 应该支持常见 Markdown link 形式：
 
 ```txt
 [Project](./project.md)
@@ -166,7 +166,7 @@ Eidos 可以在 `.eidos/` 下构建 backlink index，但 Markdown 文件仍然�
 
 ## 附件
 
-附件默认应该是普通 vault 文件：
+附件默认应该是普通 Space 文件：
 
 ```txt
 assets/image.png
@@ -179,7 +179,7 @@ Eidos 可以提供 managed attachment folders，但文件仍然应该可见，�
 
 ## Obsidian 互操作
 
-打开 Obsidian-style vault 时，Eidos 应该：
+把 Obsidian vault 作为 Space 打开时，Eidos 应该：
 
 - 保留 `.obsidian/`，
 - 直接读取 Markdown 文件，
@@ -210,7 +210,7 @@ Eidos 可以提供 managed attachment folders，但文件仍然应该可见，�
 
 ## Watch 与刷新
 
-Eidos 应该监听 vault 文件变化：
+Eidos 应该监听 Space 文件变化：
 
 - 外部编辑器修改，
 - 文件重命名，
@@ -233,24 +233,24 @@ eidos__tree
 兼容性应该显式处理：
 
 - legacy spaces 继续通过旧模型打开，
-- vault mode 打开真实文件，
+- Space mode 打开真实文件，
 - migration/export 将旧 docs 转成 `.md`，
-- 新的 vault-native spaces 不再在 `eidos__docs` 中创建 canonical Markdown。
+- 新的 file-based spaces 不再在 `eidos__docs` 中创建 canonical Markdown。
 
 ## API 方向
 
 目标 APIs：
 
 ```ts
-const vault = await eidos.openVault(path)
-const doc = await vault.openMarkdown("notes/project.md")
+const Space = await eidos.openSpace(path)
+const doc = await Space.openMarkdown("notes/project.md")
 await doc.save(markdown)
 
-const base = await vault.openBase("tasks.base")
+const base = await Space.openBase("tasks.base")
 await base.schema.createTable(...)
 ```
 
-过渡期兼容 APIs 可以路由到默认 vault/base，但新代码应该显式表达目标对象。
+过渡期兼容 APIs 可以路由到默认 Space/base，但新代码应该显式表达目标对象。
 
 ## 开放问题
 
@@ -263,7 +263,7 @@ await base.schema.createTable(...)
 ## 推荐垂直切片
 
 ```txt
-sample-vault/
+sample-space/
   notes/project.md
   assets/image.png
   .eidos/
@@ -271,7 +271,7 @@ sample-vault/
 
 这个 slice 应该证明：
 
-- Eidos 可以打开 vault。
+- Eidos 可以打开 Space。
 - 文件树来自文件系统。
 - Eidos 可以编辑 `notes/project.md`。
 - 外部修改文件后 Eidos 能感知。

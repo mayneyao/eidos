@@ -3,13 +3,13 @@
 Status: Draft
 Date: 2026-07-08
 Owner: Eidos
-Related: `eidos-vault-base-storage.md`
+Related: `eidos-space-base-storage.md`
 
 ## Summary
 
 This RFC defines the first implementation shape for Eidos Base files.
 
-A Base file is a user-visible `.base` file in a vault. It is a SQLite database under the hood and reuses the current Eidos table runtime as much as possible:
+A Base file is a user-visible `.base` file in a Space. It is a SQLite database under the hood and reuses the current Eidos table runtime as much as possible:
 
 - user data tables named `tb_<tableId>`,
 - field metadata from `eidos__columns`,
@@ -25,7 +25,7 @@ Base v1 should be a small extraction of the existing table model, not a new spre
 
 ## Motivation
 
-The storage model RFC says that Eidos should make `.base` files first-class assets inside a vault. This RFC answers the next question:
+The storage model RFC says that Eidos should make `.base` files first-class assets inside a Space. This RFC answers the next question:
 
 > What exactly is inside a `.base` file, and how does it relate to the current Eidos table implementation?
 
@@ -89,7 +89,7 @@ This shape should remain valid in Base v1.
 - Reuse the current table/field/view runtime with minimal rewrite.
 - Make a `.base` file portable and independently openable.
 - Keep `.base` valid SQLite.
-- Keep Base canonical state separate from vault/workspace private state.
+- Keep Base canonical state separate from Space/workspace private state.
 - Avoid depending on the workspace `eidos__tree` as the canonical table registry.
 - Allow graft to diff `.base` as a SQLite database and show table-level changes.
 - Keep generated indexes and caches out of canonical Base state when possible.
@@ -396,8 +396,8 @@ Base v1 should keep file field values as strings, but define path rules:
 
 - remote URLs remain unchanged,
 - data URLs remain unchanged,
-- local vault assets should use vault-relative paths when possible,
-- Eidos-managed attachments may use a managed assets folder configured by the vault,
+- local Space assets should use Space-relative paths when possible,
+- Eidos-managed attachments may use a managed assets folder configured by the Space,
 - absolute machine-local paths should be discouraged in portable Bases.
 
 The Base file should not silently copy arbitrary files into itself.
@@ -438,7 +438,7 @@ Rules:
 - `table_id` points to `eidos__tables.id`.
 - `query` is scoped to tables inside the same Base.
 - `properties`, `filter`, `order_map`, and `hidden_fields` remain JSON.
-- Views belong to a table, not to the vault file tree.
+- Views belong to a table, not to the Space file tree.
 
 ## Attachments and Assets
 
@@ -447,7 +447,7 @@ Base v1 should not embed arbitrary binary payloads inside the `.base` SQLite fil
 Recommended model:
 
 ```txt
-my-vault/
+my-space/
   tasks.base
   assets/
     image.png
@@ -467,7 +467,7 @@ tasks.assets/
   image.png
 ```
 
-The default should favor normal vault assets because they are easy to inspect and version with graft.
+The default should favor normal Space assets because they are easy to inspect and version with graft.
 
 ## Generated State
 
@@ -508,8 +508,8 @@ Generated/private state should preferably live under `.eidos/indexes/` or be reb
 Base v1 should introduce a runtime boundary:
 
 ```txt
-Vault runtime:
-  opens vault
+Space runtime:
+  opens Space
   manages file tree
   manages .eidos private state
   manages graft repo
@@ -524,7 +524,7 @@ Current code can be adapted by parameterizing `DataSpaceWithTable`/`SchemaClient
 
 Important separation:
 
-- Workspace/vault state should not be required for table CRUD.
+- Workspace/Space state should not be required for table CRUD.
 - Table CRUD should not require `eidos__tree` as the workspace tree.
 - Base should have its own table registry.
 
@@ -603,7 +603,7 @@ Out of scope for Base export:
 - chat/message/session tables,
 - cache/index tables,
 - global settings,
-- vault file tree.
+- Space file tree.
 
 ## Compatibility Phases
 
@@ -635,12 +635,12 @@ Show `.base` path-level changes and table-level expansion in Changes UI.
 
 ### Phase 6: Default Base Runtime
 
-New vault-native Eidos workspaces create tables in `.base` files instead of hidden `.eidos/db.sqlite3`.
+New file-based Eidos workspaces create tables in `.base` files instead of hidden `.eidos/db.sqlite3`.
 
 ## Open Questions
 
 1. Should `eidos__tables` replace `eidos__tree` immediately inside Base, or should v1 keep a compatibility `eidos__tree`?
-2. Should Base-specific assets use sibling folders such as `tasks.assets/`, or normal vault assets such as `assets/`?
+2. Should Base-specific assets use sibling folders such as `tasks.assets/`, or normal Space assets such as `assets/`?
 3. Should FTS and embeddings live inside `.base`, sidecar `.eidos/indexes/`, or be rebuilt on demand?
 4. Should `.base` allow extension-defined view types by default?
 5. Should cross-Base links be represented as file-path plus row ID, or deferred entirely?
@@ -651,7 +651,7 @@ New vault-native Eidos workspaces create tables in `.base` files instead of hidd
 Build this first:
 
 ```txt
-sample-vault/
+sample-space/
   tasks.base
   assets/logo.png
   .eidos/

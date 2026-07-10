@@ -1,23 +1,23 @@
-# RFC：Eidos Vault 的文件化扩展机制
+# RFC：Eidos Space 的文件化扩展机制
 
 状态：草案
 日期：2026-07-09
 负责人：Eidos
 相关文档：
 
-- `eidos-vault-base-storage.zh.md`
+- `eidos-space-base-storage.zh.md`
 - `eidos-base-file-format.zh.md`
-- `eidos-vault-markdown-runtime.zh.md`
-- `eidos-graft-vault-versioning.zh.md`
+- `eidos-space-markdown-runtime.zh.md`
+- `eidos-graft-space-versioning.zh.md`
 
 ## 摘要
 
-Vault-native workspace 中，Eidos 扩展应该逐步转向 file-based source model。
+File-based workspace 中，Eidos 扩展应该逐步转向 file-based source model。
 
-用户/空间自定义扩展的 canonical source 应该作为普通文件放在 vault 中：
+用户/空间自定义扩展的 canonical source 应该作为普通文件放在 Space 中：
 
 ```txt
-my-vault/
+my-space/
   .eidos/
     extensions/
       kanban-view/
@@ -37,7 +37,7 @@ my-vault/
 - `.eidos/extensions/**` 是 Eidos 命名空间下的扩展源码，应该被 graft 追踪。
 - `.eidos/cache/**`、`.eidos/state/**`、`.eidos/sessions/**` 和 `.eidos/indexes/**` 是私有运行时状态，应该被 graft 忽略。
 
-这样可以保持 vault 心智模型一致：
+这样可以保持 Space 心智模型一致：
 
 ```txt
 .md            文档
@@ -58,7 +58,7 @@ my-vault/
 
 但这只是 `eidos__extensions` 表上的投影。源码、编译后代码、metadata、enabled state、bindings 和 marketplace id 都存在 workspace database 中。
 
-这个模型对 database-native app 很方便，但它和 vault-native 方向冲突：
+这个模型对 database-native app 很方便，但它和 file-based 方向冲突：
 
 - 扩展源码是用户/开发者创作的内容，
 - 扩展源码会定义一个 space 的行为，
@@ -68,7 +68,7 @@ my-vault/
 
 `.github/workflows` 是更好的类比：文件位于 app-specific hidden namespace，但它们仍然是项目拥有的源码/配置文件。隐藏目录用于避免根目录命名冲突，不决定内容是否应该进入版本管理。
 
-如果用户打开一个带自定义 table view、file handler、folder handler 或 action 的 vault，这些定义应该是可见的 vault state。
+如果用户打开一个带自定义 table view、file handler、folder handler 或 action 的 Space，这些定义应该是可见的 Space state。
 
 ## 目标
 
@@ -78,14 +78,14 @@ my-vault/
 - 保留当前扩展概念：script extensions、block extensions、table views、file handlers、folder handlers、UDFs、tools 和 actions。
 - 支持未来 marketplace extensions，但不把下载缓存和编译产物变成 canonical user state。
 - 让扩展变更在 Changes UI 中表现为普通 path changes。
-- 在运行 vault 中的扩展代码前建立明确的 trust boundary。
+- 在运行 Space 中的扩展代码前建立明确的 trust boundary。
 
 ## 非目标
 
 - 本 RFC 不定义完整 extension marketplace。
 - 本 RFC 不定义完整 sandbox 实现。
 - 本 RFC 不要求立刻移除 `eidos__extensions`。
-- 本 RFC 不要求所有 built-in extensions 都变成 vault 文件。
+- 本 RFC 不要求所有 built-in extensions 都变成 Space 文件。
 - 本 RFC 不让扩展运行时缓存具备可移植性。
 
 ## 当前实现盘点
@@ -133,7 +133,7 @@ Virtual file system 会把这张表映射成：
 推荐默认布局：
 
 ```txt
-my-vault/
+my-space/
   .eidos/
     extensions/
       todo-actions/
@@ -192,7 +192,7 @@ Manifest 是可移植 source state，可以被 graft 追踪。
 
 ### 被追踪的源码状态
 
-这些文件属于 vault，应该被追踪：
+这些文件属于 Space，应该被追踪：
 
 ```txt
 .eidos/extensions/<slug>/extension.json
@@ -239,7 +239,7 @@ Secrets 和敏感 bindings 不能被追踪。
 
 文件化扩展会引入明确的 executable-code boundary。
 
-Eidos 不应该在新打开或刚同步下来的 vault 中静默执行扩展代码。用户应该看到 trust prompt 或 extension review state。
+Eidos 不应该在新打开或刚同步下来的 Space 中静默执行扩展代码。用户应该看到 trust prompt 或 extension review state。
 
 推荐状态：
 
@@ -339,7 +339,7 @@ tasks.base
 
 ## Built-In Extensions
 
-Eidos 内置扩展不需要放在 vault 中。
+Eidos 内置扩展不需要放在 Space 中。
 
 它们可以继续随 app bundle 分发：
 
@@ -349,7 +349,7 @@ app bundle / built-in registry
 
 只有用户创作或 space-specific 的扩展才应该创建到 `.eidos/extensions/**`。
 
-如果用户 eject 或自定义 built-in extension，Eidos 可以把它复制到 vault：
+如果用户 eject 或自定义 built-in extension，Eidos 可以把它复制到 Space：
 
 ```txt
 .eidos/extensions/ejected/<slug>/
@@ -420,11 +420,11 @@ Eidos 可以同时读取：
 - legacy `eidos__extensions`，
 - file-based `.eidos/extensions/**`。
 
-Vault-native spaces 中，如果 slug 冲突，file-based extensions 应该优先。
+File-based spaces 中，如果 slug 冲突，file-based extensions 应该优先。
 
 ### Phase 3：File-Based Create/Edit
 
-Vault-native spaces 创建的新扩展写入 `.eidos/extensions/**`。
+File-based spaces 创建的新扩展写入 `.eidos/extensions/**`。
 
 Extension editor 读取和写入真实文件。
 
@@ -434,7 +434,7 @@ Extension editor 读取和写入真实文件。
 
 ### Phase 5：Legacy Freeze
 
-对新的 vault-native spaces，停止把用户扩展创建到 `eidos__extensions`。
+对新的 file-based spaces，停止把用户扩展创建到 `eidos__extensions`。
 
 Legacy spaces 可以继续使用旧模型，直到迁移完成。
 

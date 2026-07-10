@@ -1,32 +1,32 @@
-# RFC: Eidos Vault and Markdown Runtime
+# RFC: Eidos Space and Markdown Runtime
 
 Status: Draft
 Date: 2026-07-08
 Owner: Eidos
 Related:
 
-- `eidos-vault-base-storage.md`
+- `eidos-space-base-storage.md`
 - `eidos-base-file-format.md`
 
 ## Summary
 
-This RFC defines how Eidos should open and edit a vault where Markdown files are the canonical document state.
+This RFC defines how Eidos should open and edit a Space where Markdown files are the canonical document state.
 
 The target model:
 
-- The vault file system is the canonical document tree.
+- The Space file system is the canonical document tree.
 - `.md` files are read and written directly.
-- `eidos__docs` is not the canonical Markdown body store in vault mode.
+- `eidos__docs` is not the canonical Markdown body store in Space mode.
 - `.eidos/` stores generated indexes, caches, sessions, and local UI state.
-- `.base` files provide structured data inside the same vault.
+- `.base` files provide structured data inside the same Space.
 
-This lets Eidos open Obsidian-style vaults without importing the user's documents into a hidden primary database.
+This lets Eidos open Obsidian vaults as Spaces without importing the user's documents into a hidden primary database.
 
 ## Product Principle
 
-Vault mode should preserve the user's trust:
+Space mode should preserve the user's trust:
 
-> If a user opens the vault with another editor, their Markdown documents are still there.
+> If a user opens the Space with another editor, their Markdown documents are still there.
 
 Eidos can add better editing, tables, views, search, agents, and versioning. It should not make Markdown depend on `.eidos/db.sqlite3` as the source of truth.
 
@@ -34,7 +34,7 @@ Eidos can add better editing, tables, views, search, agents, and versioning. It 
 
 - Read and write Markdown documents as real files.
 - Use the real file system tree as the canonical document tree.
-- Keep Obsidian-style vaults usable outside Eidos.
+- Keep Spaces created from Obsidian vaults usable outside Eidos.
 - Let Eidos build indexes and backlinks without owning the document body.
 - Keep Eidos-private state out of graft status by default.
 - Preserve a path for Eidos-native features that need metadata.
@@ -48,13 +48,13 @@ Eidos can add better editing, tables, views, search, agents, and versioning. It 
 
 ## Runtime Boundaries
 
-Vault mode should separate three runtimes:
+Space mode should separate three runtimes:
 
 ```txt
-Vault runtime:
+Space runtime:
   opens the folder
   reads the real file tree
-  resolves vault-relative paths
+  resolves Space-relative paths
   manages .eidos private state
   manages graft
 
@@ -73,12 +73,12 @@ The Markdown runtime should not require `DataSpaceWithTable`. The Base runtime s
 
 ## File Tree
 
-The left file tree in vault mode should be backed by the file system, not `eidos__tree`.
+The left file tree in Space mode should be backed by the file system, not `eidos__tree`.
 
 Example:
 
 ```txt
-my-vault/
+my-space/
   notes/project.md
   tasks.base
   assets/image.png
@@ -97,11 +97,11 @@ Default tree behavior:
 - recognize `.md` as documents,
 - recognize `.base` as Eidos Base files.
 
-`eidos__tree` may continue to exist for legacy spaces or app-internal metadata, but it should not be the canonical vault file tree.
+`eidos__tree` may continue to exist for legacy spaces or app-internal metadata, but it should not be the canonical Space file tree.
 
 ## Markdown Source of Truth
 
-In vault mode:
+In Space mode:
 
 ```txt
 notes/project.md
@@ -148,7 +148,7 @@ Rules:
 
 ## Links and References
 
-Vault mode should support common Markdown link styles:
+Space mode should support common Markdown link styles:
 
 ```txt
 [Project](./project.md)
@@ -166,7 +166,7 @@ Open questions:
 
 ## Attachments
 
-Attachments should be ordinary vault files by default:
+Attachments should be ordinary Space files by default:
 
 ```txt
 assets/image.png
@@ -179,7 +179,7 @@ Eidos may offer managed attachment folders, but the files should remain visible 
 
 ## Obsidian Interop
 
-When opening an Obsidian-style vault, Eidos should:
+When opening an Obsidian vault as a Space, Eidos should:
 
 - leave `.obsidian/` intact,
 - read Markdown files directly,
@@ -210,7 +210,7 @@ Recommended invariant:
 
 ## Watch and Refresh
 
-Eidos should watch the vault for file changes:
+Eidos should watch the Space for file changes:
 
 - external editor changes,
 - file rename,
@@ -233,24 +233,24 @@ eidos__tree
 Compatibility should be explicit:
 
 - legacy spaces continue to open through the old model,
-- vault mode opens real files,
+- Space mode opens real files,
 - migration/export converts old docs to `.md`,
-- new vault-native spaces should not create canonical Markdown in `eidos__docs`.
+- new file-based spaces should not create canonical Markdown in `eidos__docs`.
 
 ## API Direction
 
 Target APIs:
 
 ```ts
-const vault = await eidos.openVault(path)
-const doc = await vault.openMarkdown("notes/project.md")
+const Space = await eidos.openSpace(path)
+const doc = await Space.openMarkdown("notes/project.md")
 await doc.save(markdown)
 
-const base = await vault.openBase("tasks.base")
+const base = await Space.openBase("tasks.base")
 await base.schema.createTable(...)
 ```
 
-Compatibility APIs may route to a default vault/base during transition, but new code should make the target explicit.
+Compatibility APIs may route to a default Space/base during transition, but new code should make the target explicit.
 
 ## Open Questions
 
@@ -263,7 +263,7 @@ Compatibility APIs may route to a default vault/base during transition, but new 
 ## Recommended Vertical Slice
 
 ```txt
-sample-vault/
+sample-space/
   notes/project.md
   assets/image.png
   .eidos/
@@ -271,7 +271,7 @@ sample-vault/
 
 The slice should prove:
 
-- Eidos opens the vault.
+- Eidos opens the Space.
 - The file tree comes from the file system.
 - Eidos edits `notes/project.md`.
 - An external edit to the file appears in Eidos.
