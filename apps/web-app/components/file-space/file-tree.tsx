@@ -31,6 +31,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+import { useActiveSpaceVersioningOperation } from "@/apps/web-app/hooks/use-space-versioning"
 import {
   useSpaceFileChanges,
   useSpaceFiles,
@@ -164,6 +165,8 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
     remove,
     reveal,
   } = useSpaceFiles(spaceId)
+  const versioningOperation = useActiveSpaceVersioningOperation(spaceId)
+  const restoringVersion = versioningOperation === "restoring"
   const { location, navigate } = useRouterAdapter()
   const setGlobalSearchOpen = useAppRuntimeStore(
     (state) => state.setGlobalSearchOpen
@@ -182,6 +185,14 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [focusedPath, setFocusedPath] = useState<string | null>(null)
   const treeItemRefs = useRef(new Map<string, HTMLDivElement>())
+
+  const blockMutationDuringRestore = useCallback(() => {
+    if (!restoringVersion) return false
+    setOperationError(
+      "Wait for the Space restore to finish before changing files."
+    )
+    return true
+  }, [restoringVersion])
 
   const selectedPath = useMemo(() => {
     if (!location.pathname.endsWith("/space-file")) return null
@@ -276,6 +287,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
 
   const startCreate = useCallback(
     async (parentPath: string, type: "create-file" | "create-directory") => {
+      if (blockMutationDuringRestore()) return
       setOperationError(null)
       setFilesExpanded(true)
       if (parentPath) {
@@ -300,21 +312,26 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
               ),
       })
     },
-    [entriesByDirectory, loadDirectory]
+    [blockMutationDuringRestore, entriesByDirectory, loadDirectory]
   )
 
-  const startRename = useCallback((entry: SpaceFileEntry) => {
-    setOperationError(null)
-    setDraft({
-      type: "rename",
-      parentPath: entry.parentPath,
-      value: entry.name,
-      entry,
-    })
-  }, [])
+  const startRename = useCallback(
+    (entry: SpaceFileEntry) => {
+      if (blockMutationDuringRestore()) return
+      setOperationError(null)
+      setDraft({
+        type: "rename",
+        parentPath: entry.parentPath,
+        value: entry.name,
+        entry,
+      })
+    },
+    [blockMutationDuringRestore]
+  )
 
   const importInto = useCallback(
     async (directory: string) => {
+      if (blockMutationDuringRestore()) return
       setOperationError(null)
       try {
         const result = await importFiles(directory)
@@ -342,11 +359,14 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
         )
       }
     },
-    [importFiles, loadDirectory]
+    [blockMutationDuringRestore, importFiles, loadDirectory]
   )
 
   const performMove = useCallback(
     async (entry: SpaceFileEntry, destinationPath: string) => {
+      if (blockMutationDuringRestore()) {
+        throw new Error("The Space is being restored")
+      }
       if (destinationPath === entry.path) return
       const destinationParent = parentSpacePath(destinationPath)
       const shouldRestoreExpansion =
@@ -391,12 +411,12 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
       )
       if (shouldRestoreExpansion) await loadDirectory(destinationPath)
     },
-    [expanded, loadDirectory, move, spaceId]
+    [blockMutationDuringRestore, expanded, loadDirectory, move, spaceId]
   )
 
   const canDropInto = useCallback(
     (directory: string) => {
-      if (!draggedEntry) return false
+      if (restoringVersion || !draggedEntry) return false
       return canMoveSpaceEntryTo(
         draggedEntry.path,
         draggedEntry.parentPath,
@@ -404,7 +424,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
         directory
       )
     },
-    [draggedEntry]
+    [draggedEntry, restoringVersion]
   )
 
   const dropInto = useCallback(
@@ -433,6 +453,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   )
 
   const commitDraft = useCallback(async () => {
+    if (blockMutationDuringRestore()) return
     if (!draft || submittingDraft) return
     const currentDraft = draft
     const name = currentDraft.value.trim()
@@ -480,6 +501,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   }, [
     createDirectory,
     createText,
+    blockMutationDuringRestore,
     draft,
     loadDirectory,
     navigate,
@@ -491,6 +513,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
 
   const deleteEntry = useCallback(
     async (entry: SpaceFileEntry) => {
+      if (blockMutationDuringRestore()) return
       const message =
         entry.kind === "directory"
           ? `Delete “${entry.name}” and everything inside it? This cannot be undone.`
@@ -529,7 +552,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
         )
       }
     },
-    [loadDirectory, remove, spaceId]
+    [blockMutationDuringRestore, loadDirectory, remove, spaceId]
   )
 
   const openFile = useCallback(
@@ -748,7 +771,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
           <ContextMenu>
             <ContextMenuTrigger asChild>
               <div
-                draggable={!draft}
+                draggable={!draft && !restoringVersion}
                 className={cn(
                   "group flex h-[22px] w-full min-w-0 items-center gap-1 pr-2 text-left text-[13px] leading-none transition-colors group-focus-visible/treeitem:ring-1 group-focus-visible/treeitem:ring-inset group-focus-visible/treeitem:ring-sidebar-ring",
                   draggedEntry?.path === entry.path && "opacity-50",
@@ -814,12 +837,14 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
               {isDirectory ? (
                 <>
                   <ContextMenuItem
+                    disabled={restoringVersion}
                     onClick={() => void startCreate(entry.path, "create-file")}
                   >
                     <FilePlus2 className="mr-2 h-4 w-4" />
                     New note
                   </ContextMenuItem>
                   <ContextMenuItem
+                    disabled={restoringVersion}
                     onClick={() =>
                       void startCreate(entry.path, "create-directory")
                     }
@@ -827,14 +852,20 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
                     <FolderPlus className="mr-2 h-4 w-4" />
                     New folder
                   </ContextMenuItem>
-                  <ContextMenuItem onClick={() => void importInto(entry.path)}>
+                  <ContextMenuItem
+                    disabled={restoringVersion}
+                    onClick={() => void importInto(entry.path)}
+                  >
                     <Upload className="mr-2 h-4 w-4" />
                     Import files
                   </ContextMenuItem>
                   <ContextMenuSeparator />
                 </>
               ) : null}
-              <ContextMenuItem onClick={() => startRename(entry)}>
+              <ContextMenuItem
+                disabled={restoringVersion}
+                onClick={() => startRename(entry)}
+              >
                 <PencilLine className="mr-2 h-4 w-4" />
                 Rename
               </ContextMenuItem>
@@ -844,6 +875,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
               </ContextMenuItem>
               <ContextMenuItem
                 className="text-destructive focus:text-destructive"
+                disabled={restoringVersion}
                 onClick={() => void deleteEntry(entry)}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
@@ -898,6 +930,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
             className="h-[22px] w-[22px] rounded-[3px] text-sidebar-foreground/80"
             title="New note"
             aria-label="New note"
+            disabled={restoringVersion}
             onClick={() => void startCreate("", "create-file")}
           >
             <FilePlus2 className="h-3.5 w-3.5" />
@@ -909,6 +942,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
             className="h-[22px] w-[22px] rounded-[3px] text-sidebar-foreground/80"
             title="New folder"
             aria-label="New folder"
+            disabled={restoringVersion}
             onClick={() => void startCreate("", "create-directory")}
           >
             <FolderPlus className="h-3.5 w-3.5" />
@@ -957,7 +991,10 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
                 Search Space
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => void importInto("")}>
+              <DropdownMenuItem
+                disabled={restoringVersion}
+                onSelect={() => void importInto("")}
+              >
                 <Upload />
                 Import files…
               </DropdownMenuItem>

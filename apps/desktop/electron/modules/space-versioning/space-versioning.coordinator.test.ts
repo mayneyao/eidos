@@ -261,7 +261,17 @@ describe("SpaceVersioningCoordinator.restorePath", () => {
     const realRoot = await fs.realpath(root)
     expect(runJson).toHaveBeenCalledWith(
       realRoot,
-      ["restore", "--json", "--source", "resolved-1", "--", repositoryPath],
+      [
+        "restore",
+        "--json",
+        "--expected-head",
+        "head-2",
+        "--require-clean",
+        "--source",
+        "resolved-1",
+        "--",
+        repositoryPath,
+      ],
       { timeoutMs: 120_000 }
     )
   })
@@ -525,6 +535,9 @@ describe("SpaceVersioningCoordinator.restorePath", () => {
         [
           "restore",
           "--json",
+          "--expected-head",
+          "head-2",
+          "--require-clean",
           "--source",
           "resolved-backslash",
           "--",
@@ -658,7 +671,16 @@ describe("SpaceVersioningCoordinator.restoreVersion", () => {
     ])
     expect(runJson).toHaveBeenCalledWith(
       await fs.realpath(root),
-      ["restore", "--json", "--source", "resolved-1", "--", "."],
+      [
+        "restore",
+        "--json",
+        "--expected-head",
+        "head-2",
+        "--source",
+        "resolved-1",
+        "--",
+        ".",
+      ],
       { timeoutMs: 120_000 }
     )
   })

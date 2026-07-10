@@ -29,6 +29,7 @@ import {
   toSpaceFileUrl,
 } from "@/apps/web-app/components/file-space/file-path"
 import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-space/pending-writes"
+import { useActiveSpaceVersioningOperation } from "@/apps/web-app/hooks/use-space-versioning"
 import { navigateAfterFlushingSpaceFile } from "@/apps/web-app/components/file-space/file-navigation"
 import { remarkHeadingIds } from "@/apps/web-app/components/file-space/remark-heading-ids"
 import { remarkObsidianLinks } from "@/apps/web-app/components/file-space/remark-obsidian-links"
@@ -168,6 +169,10 @@ function SpaceTextEditor({
 }) {
   const { currentSpace } = useCurrentSpace()
   const { readText, search, writeText } = useSpaceFiles(currentSpace?.id)
+  const versioningOperation = useActiveSpaceVersioningOperation(
+    currentSpace?.id
+  )
+  const restoringVersion = versioningOperation === "restoring"
   const { resolvedTheme } = useTheme()
   const isMarkdown = extension === "md" || extension === "markdown"
   const [content, setContent] = useState("")
@@ -358,10 +363,10 @@ function SpaceTextEditor({
   }, [currentSpace?.id, filePath, flushPendingWrite, pendingWriteKey])
 
   useEffect(() => {
-    if (!isDirty || saving || externalChange) return
+    if (!isDirty || saving || externalChange || restoringVersion) return
     const timeout = window.setTimeout(() => void save(content), 700)
     return () => window.clearTimeout(timeout)
-  }, [content, externalChange, isDirty, save, saving])
+  }, [content, externalChange, isDirty, restoringVersion, save, saving])
 
   if (loading) return <FileState loading message="Opening file…" />
   if (unavailable) {
@@ -459,11 +464,17 @@ function SpaceTextEditor({
               lineNumbers: "on",
               minimap: { enabled: false },
               padding: { top: 18, bottom: 18 },
+              readOnly: restoringVersion,
+              readOnlyMessage: {
+                value:
+                  "This Space is being restored. Editing will resume when the restore finishes.",
+              },
               scrollBeyondLastLine: false,
               tabSize: 2,
               wordWrap: isMarkdown ? "on" : "off",
             }}
             onChange={(value) => {
+              if (restoringVersion) return
               const nextContent = value ?? ""
               editorContentRef.current = nextContent
               setContent(nextContent)

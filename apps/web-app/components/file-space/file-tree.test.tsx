@@ -259,4 +259,26 @@ describe("FileSpaceTree accessibility", () => {
     await press("Enter")
     expect(navigateMock).toHaveBeenCalledTimes(2)
   })
+
+  it("blocks file mutations while the Space is being restored", async () => {
+    await renderTree()
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("space-versioning:operation", {
+          detail: { spaceId: "test-space", operation: "restoring" },
+        })
+      )
+      await Promise.resolve()
+    })
+
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        'button[aria-label="New note"]'
+      )?.disabled
+    ).toBe(true)
+    expect(
+      container.querySelector<HTMLElement>('[title="root.md"]')?.draggable
+    ).toBe(false)
+  })
 })

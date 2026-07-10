@@ -3,6 +3,7 @@ import fs from "fs/promises"
 import path from "path"
 
 import { Injectable, Inject } from "../../common/di"
+import { withFileSpaceOperationLock } from "../space-management/file-space-operation-lock"
 import { SpaceRegistry } from "../space-management/space-management.module"
 import { GraftCliRunner } from "./graft-cli-runner"
 import { ensureEidosGraftIgnore } from "./graft-ignore"
@@ -369,8 +370,6 @@ function filterDiffPath(
 
 @Injectable()
 export class SpaceVersioningCoordinator {
-  private readonly operationTails = new Map<string, Promise<void>>()
-
   constructor(
     @Inject(SpaceRegistry) private readonly registry: SpaceRegistry,
     @Inject(GraftCliRunner) private readonly runner: GraftCliRunner
@@ -651,18 +650,19 @@ export class SpaceVersioningCoordinator {
           }
         }
 
-        await this.runner.runJson(
-          spacePath,
-          [
-            "restore",
-            "--json",
-            "--source",
-            source.revision,
-            "--",
-            options.path,
-          ],
-          { timeoutMs: MUTATION_TIMEOUT_MS }
-        )
+        const restoreArgs = [
+          "restore",
+          "--json",
+          "--expected-head",
+          options.expectedHead,
+        ]
+        if (!options.overwriteChanges) {
+          restoreArgs.push("--require-clean")
+        }
+        restoreArgs.push("--source", source.revision, "--", options.path)
+        await this.runner.runJson(spacePath, restoreArgs, {
+          timeoutMs: MUTATION_TIMEOUT_MS,
+        })
         try {
           const status = await this.readStatus(spaceId, spacePath)
           if (status.currentHead !== before.currentHead) {
@@ -755,18 +755,24 @@ export class SpaceVersioningCoordinator {
         }
         requireSafeRestoreTree(currentTree.paths)
 
-        const rawRestore = await this.runner.runJson(
-          spacePath,
-          [
-            "restore",
-            "--json",
-            "--source",
-            source.revision,
-            "--",
-            RESTORE_VERSION_PATHSPEC,
-          ],
-          { timeoutMs: MUTATION_TIMEOUT_MS }
+        const restoreArgs = [
+          "restore",
+          "--json",
+          "--expected-head",
+          options.expectedHead,
+        ]
+        if (!options.overwriteChanges) {
+          restoreArgs.push("--require-clean")
+        }
+        restoreArgs.push(
+          "--source",
+          source.revision,
+          "--",
+          RESTORE_VERSION_PATHSPEC
         )
+        const rawRestore = await this.runner.runJson(spacePath, restoreArgs, {
+          timeoutMs: MUTATION_TIMEOUT_MS,
+        })
 
         try {
           await ensureEidosGraftIgnore(spacePath)
@@ -1039,20 +1045,6 @@ export class SpaceVersioningCoordinator {
     spaceId: string,
     operation: () => Promise<T>
   ): Promise<T> {
-    const previous = this.operationTails.get(spaceId) ?? Promise.resolve()
-    const result = previous.catch(() => undefined).then(operation)
-    const tail = result.then(
-      () => undefined,
-      () => undefined
-    )
-    this.operationTails.set(spaceId, tail)
-
-    try {
-      return await result
-    } finally {
-      if (this.operationTails.get(spaceId) === tail) {
-        this.operationTails.delete(spaceId)
-      }
-    }
+    return withFileSpaceOperationLock(spaceId, operation)
   }
 }

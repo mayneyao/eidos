@@ -31,6 +31,7 @@ import { getCredentialsManager } from "../sync/sync.module"
 import { getConfigManager } from "../config/config-manager"
 import { PORT } from "../../main"
 import { BrowserService } from "../browser/browser.service"
+import { withFileSpaceOperationLock } from "./file-space-operation-lock"
 
 /**
  * Space Management Service - Provides space management via IPC
@@ -317,13 +318,15 @@ export class SpaceManagementService extends IpcServiceBase {
     content: string,
     expectedMtimeMs?: number
   ): Promise<SpaceTextFile> {
-    const file = await this._getFileSpace(spaceId).writeText(
-      relativePath,
-      content,
-      expectedMtimeMs
-    )
-    this.fileSpaceIndexes.get(spaceId)?.updateTextFile(file)
-    return file
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const file = await this._getFileSpace(spaceId).writeText(
+        relativePath,
+        content,
+        expectedMtimeMs
+      )
+      this.fileSpaceIndexes.get(spaceId)?.updateTextFile(file)
+      return file
+    })
   }
 
   async createFile(
@@ -331,22 +334,26 @@ export class SpaceManagementService extends IpcServiceBase {
     relativePath: string,
     content = ""
   ): Promise<SpaceTextFile> {
-    const file = await this._getFileSpace(spaceId).createText(
-      relativePath,
-      content
-    )
-    this.fileSpaceIndexes.get(spaceId)?.updateTextFile(file)
-    return file
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const file = await this._getFileSpace(spaceId).createText(
+        relativePath,
+        content
+      )
+      this.fileSpaceIndexes.get(spaceId)?.updateTextFile(file)
+      return file
+    })
   }
 
   async createDirectory(
     spaceId: string,
     relativePath: string
   ): Promise<SpaceFileEntry> {
-    const directory =
-      await this._getFileSpace(spaceId).createDirectory(relativePath)
-    this._invalidateFileIndex(spaceId)
-    return directory
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const directory =
+        await this._getFileSpace(spaceId).createDirectory(relativePath)
+      this._invalidateFileIndex(spaceId)
+      return directory
+    })
   }
 
   async moveFile(
@@ -354,18 +361,22 @@ export class SpaceManagementService extends IpcServiceBase {
     sourcePath: string,
     destinationPath: string
   ): Promise<{ success: true }> {
-    await this._getFileSpace(spaceId).move(sourcePath, destinationPath)
-    this.fileSpaceIndexes.get(spaceId)?.movePath(sourcePath, destinationPath)
-    return { success: true }
+    return withFileSpaceOperationLock(spaceId, async () => {
+      await this._getFileSpace(spaceId).move(sourcePath, destinationPath)
+      this.fileSpaceIndexes.get(spaceId)?.movePath(sourcePath, destinationPath)
+      return { success: true }
+    })
   }
 
   async removeFile(
     spaceId: string,
     relativePath: string
   ): Promise<{ success: true }> {
-    await this._getFileSpace(spaceId).remove(relativePath)
-    this.fileSpaceIndexes.get(spaceId)?.removePath(relativePath)
-    return { success: true }
+    return withFileSpaceOperationLock(spaceId, async () => {
+      await this._getFileSpace(spaceId).remove(relativePath)
+      this.fileSpaceIndexes.get(spaceId)?.removePath(relativePath)
+      return { success: true }
+    })
   }
 
   async importFiles(
@@ -376,11 +387,6 @@ export class SpaceManagementService extends IpcServiceBase {
     imported: SpaceFileEntry[]
     errors: Array<{ sourcePath: string; message: string }>
   }> {
-    const files = this._getFileSpace(spaceId)
-    const existingEntries = await files.list(destinationDirectory)
-    const existingNames = new Set(
-      existingEntries.map((entry) => entry.name.toLowerCase())
-    )
     const options: OpenDialogOptions = {
       properties: ["openFile", "multiSelections"],
     }
@@ -392,34 +398,41 @@ export class SpaceManagementService extends IpcServiceBase {
       return { canceled: true, imported: [], errors: [] }
     }
 
-    const imported: SpaceFileEntry[] = []
-    const errors: Array<{ sourcePath: string; message: string }> = []
-    for (const sourcePath of selection.filePaths) {
-      const filename = uniqueSpaceEntryName(
-        existingNames,
-        path.basename(sourcePath)
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const files = this._getFileSpace(spaceId)
+      const existingEntries = await files.list(destinationDirectory)
+      const existingNames = new Set(
+        existingEntries.map((entry) => entry.name.toLowerCase())
       )
-      const destinationPath = destinationDirectory
-        ? `${destinationDirectory}/${filename}`
-        : filename
-      try {
-        const entry = await files.importFile(sourcePath, destinationPath)
-        imported.push(entry)
-        existingNames.add(filename.toLowerCase())
-        const index = this.fileSpaceIndexes.get(spaceId)
-        if (index) {
-          await index
-            .handleFileChange(entry.path)
-            .catch(() => index.invalidate())
+      const imported: SpaceFileEntry[] = []
+      const errors: Array<{ sourcePath: string; message: string }> = []
+      for (const sourcePath of selection.filePaths) {
+        const filename = uniqueSpaceEntryName(
+          existingNames,
+          path.basename(sourcePath)
+        )
+        const destinationPath = destinationDirectory
+          ? `${destinationDirectory}/${filename}`
+          : filename
+        try {
+          const entry = await files.importFile(sourcePath, destinationPath)
+          imported.push(entry)
+          existingNames.add(filename.toLowerCase())
+          const index = this.fileSpaceIndexes.get(spaceId)
+          if (index) {
+            await index
+              .handleFileChange(entry.path)
+              .catch(() => index.invalidate())
+          }
+        } catch (error) {
+          errors.push({
+            sourcePath,
+            message: error instanceof Error ? error.message : "Import failed",
+          })
         }
-      } catch (error) {
-        errors.push({
-          sourcePath,
-          message: error instanceof Error ? error.message : "Import failed",
-        })
       }
-    }
-    return { canceled: false, imported, errors }
+      return { canceled: false, imported, errors }
+    })
   }
 
   async searchFiles(

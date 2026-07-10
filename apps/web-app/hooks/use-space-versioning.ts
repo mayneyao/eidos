@@ -188,10 +188,42 @@ export const SPACE_VERSIONING_OPERATION_EVENT = "space-versioning:operation"
 
 type ActiveSpaceVersioningOperation = Exclude<SpaceVersioningOperation, null>
 
+interface SpaceVersioningOperationDetail {
+  spaceId: string
+  operation: SpaceVersioningOperation
+}
+
 const activeSpaceVersioningOperations = new Map<
   string,
   ActiveSpaceVersioningOperation
 >()
+
+export function useActiveSpaceVersioningOperation(
+  spaceId: string | undefined
+): SpaceVersioningOperation {
+  const [operation, setOperation] = useState<SpaceVersioningOperation>(() =>
+    spaceId ? (activeSpaceVersioningOperations.get(spaceId) ?? null) : null
+  )
+
+  useEffect(() => {
+    setOperation(
+      spaceId ? (activeSpaceVersioningOperations.get(spaceId) ?? null) : null
+    )
+    if (!spaceId || typeof window === "undefined") return
+
+    const listener = (event: Event) => {
+      const detail = (event as CustomEvent<SpaceVersioningOperationDetail>)
+        .detail
+      if (detail?.spaceId === spaceId) setOperation(detail.operation)
+    }
+    window.addEventListener(SPACE_VERSIONING_OPERATION_EVENT, listener)
+    return () => {
+      window.removeEventListener(SPACE_VERSIONING_OPERATION_EVENT, listener)
+    }
+  }, [spaceId])
+
+  return operation
+}
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value)
