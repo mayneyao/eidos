@@ -31,6 +31,8 @@
       "@eidos.space/v3/*": ["./packages/v3/src/*"],
       "@eidos.space/space-manager": ["./packages/space-manager/src/index.ts"],
       "@eidos.space/space-manager/*": ["./packages/space-manager/src/*"],
+      "@eidos.space/file-space": ["./packages/file-space/src/index.ts"],
+      "@eidos.space/file-space/*": ["./packages/file-space/src/*"],
       "@eidos.space/proxy": ["./packages/proxy/src/index.ts"],
       "@eidos.space/proxy/*": ["./packages/proxy/src/*"],
       "@eidos.space/sync": ["./packages/sync/index.ts"],

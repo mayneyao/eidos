@@ -2,6 +2,7 @@ export { SpaceRegistry, getSpaceRegistry } from "./space-registry"
 export { SpaceInitializer, createSpaceInitializer } from "./space-initializer"
 export type {
   SpaceInfo,
+  SpaceMode,
   SpacePathConflict,
   SpacePathConflictType,
   SpacesConfig,

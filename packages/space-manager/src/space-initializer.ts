@@ -66,6 +66,7 @@ export class SpaceInitializer {
       const space = registry.registerSpace(targetPath, {
         customName: this.options.name,
         remoteUrl: this.options.remoteUrl,
+        mode: "legacy",
       })
       this.logger?.log(`Space registered with ID: ${space.id}`)
 

@@ -8,10 +8,13 @@ export interface RelayConfig {
   channels: RelayChannel[]
 }
 
+export type SpaceMode = "legacy" | "file"
+
 export interface SpaceInfo {
   id: string
   name: string
   path: string
+  mode: SpaceMode
   sync?: {
     enabled: boolean
     // Remote storage path format: <provider-id>/<bucket-name>/<space-name>

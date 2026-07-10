@@ -52,6 +52,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@eidos.space/core": "workspace:*",
+    "@eidos.space/file-space": "workspace:*",
     "@emoji-mart/data": "^1.1.2",
     "@emoji-mart/react": "^1.1.1",
     "@floating-ui/react": "^0.26.13",

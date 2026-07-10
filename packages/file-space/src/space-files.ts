@@ -1,0 +1,718 @@
+import {
+  constants,
+  realpathSync,
+  statSync,
+  watch as watchFileSystem,
+  type FSWatcher,
+  type Stats,
+} from "node:fs"
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rename,
+  rm,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises"
+import path from "node:path"
+
+export type SpaceFileEntryKind = "file" | "directory" | "symbolicLink"
+
+export interface SpaceFileEntry {
+  name: string
+  path: string
+  parentPath: string
+  kind: SpaceFileEntryKind
+  size: number
+  mtimeMs: number
+}
+
+export interface SpaceTextFile {
+  path: string
+  content: string
+  size: number
+  mtimeMs: number
+}
+
+export interface SpaceBinaryFile {
+  path: string
+  content: Uint8Array
+  size: number
+  mtimeMs: number
+}
+
+export interface SpaceFileChange {
+  eventType: "rename" | "change" | "rescan"
+  path: string
+}
+
+export interface WatchSpaceFilesOptions {
+  debounceMs?: number
+}
+
+export interface SpaceFileWatcher {
+  close(): void
+}
+
+export interface ListSpaceFilesOptions {
+  includeHidden?: boolean
+}
+
+export type SpaceFilesErrorCode =
+  | "invalid-root"
+  | "invalid-path"
+  | "path-outside-space"
+  | "not-found"
+  | "not-a-file"
+  | "not-a-directory"
+  | "file-exists"
+  | "file-changed"
+
+export class SpaceFilesError extends Error {
+  constructor(
+    readonly code: SpaceFilesErrorCode,
+    message: string,
+    readonly filePath?: string,
+    readonly cause?: unknown
+  ) {
+    super(message)
+    this.name = "SpaceFilesError"
+  }
+}
+
+const PRIVATE_ROOTS = new Set([".eidos", ".graft"])
+const DEFAULT_WATCH_DEBOUNCE_MS = 60
+const STABLE_READ_ATTEMPTS = 3
+const STABLE_READ_RETRY_MS = 8
+
+function isWithinRoot(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate)
+  return (
+    relative === "" ||
+    (relative !== ".." &&
+      !relative.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relative))
+  )
+}
+
+function toPortablePath(value: string): string {
+  return value.split(path.sep).join("/")
+}
+
+function parentPortablePath(relativePath: string): string {
+  const parent = path.posix.dirname(relativePath)
+  return parent === "." ? "" : parent
+}
+
+function isNodeError(error: unknown, code: string): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error as NodeJS.ErrnoException).code === code
+  )
+}
+
+function sameFileSnapshot(left: Stats, right: Stats): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs
+  )
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds))
+}
+
+export function uniqueSpaceEntryName(
+  existingNames: Iterable<string>,
+  filename: string
+): string {
+  const existing = new Set([...existingNames].map((name) => name.toLowerCase()))
+  const extension =
+    filename.startsWith(".") && !filename.slice(1).includes(".")
+      ? ""
+      : path.extname(filename)
+  const stem = filename.slice(0, filename.length - extension.length)
+  let candidate = filename
+  let counter = 2
+  while (existing.has(candidate.toLowerCase())) {
+    candidate = `${stem} ${counter}${extension}`
+    counter += 1
+  }
+  return candidate
+}
+
+export class SpaceFiles {
+  readonly root: string
+
+  constructor(spaceRoot: string) {
+    if (!spaceRoot || typeof spaceRoot !== "string") {
+      throw new SpaceFilesError(
+        "invalid-root",
+        "A non-empty Space root is required"
+      )
+    }
+    try {
+      this.root = realpathSync.native(path.resolve(spaceRoot))
+      if (!statSync(this.root).isDirectory()) {
+        throw new Error("Space root is not a directory")
+      }
+    } catch (error) {
+      throw new SpaceFilesError(
+        "invalid-root",
+        `Invalid Space root: ${spaceRoot}`,
+        undefined,
+        error
+      )
+    }
+  }
+
+  async list(
+    relativeDirectory = "",
+    options: ListSpaceFilesOptions = {}
+  ): Promise<SpaceFileEntry[]> {
+    const directory = await this.resolveExisting(relativeDirectory, true)
+    const directoryStats = await stat(directory)
+    if (!directoryStats.isDirectory()) {
+      throw new SpaceFilesError(
+        "not-a-directory",
+        `Space path is not a directory: ${relativeDirectory}`,
+        relativeDirectory
+      )
+    }
+
+    const entries = await readdir(directory, { withFileTypes: true })
+    const parentPath = this.toRelative(directory)
+    const result: SpaceFileEntry[] = []
+    for (const entry of entries) {
+      const relativePath = parentPath
+        ? `${parentPath}/${entry.name}`
+        : entry.name
+      if (this.shouldHide(relativePath, options.includeHidden ?? false)) {
+        continue
+      }
+
+      const entryPath = path.join(directory, entry.name)
+      const entryStats = await lstat(entryPath)
+      const kind: SpaceFileEntryKind = entry.isDirectory()
+        ? "directory"
+        : entry.isSymbolicLink()
+          ? "symbolicLink"
+          : "file"
+      result.push({
+        name: entry.name,
+        path: relativePath,
+        parentPath,
+        kind,
+        size: entryStats.size,
+        mtimeMs: entryStats.mtimeMs,
+      })
+    }
+
+    return result.sort((left, right) => {
+      if (left.kind === "directory" && right.kind !== "directory") return -1
+      if (left.kind !== "directory" && right.kind === "directory") return 1
+      return left.name.localeCompare(right.name)
+    })
+  }
+
+  async readText(relativePath: string): Promise<SpaceTextFile> {
+    const {
+      filename,
+      content,
+      stats: fileStats,
+    } = await this.readStableFile(relativePath)
+    return {
+      path: this.toRelative(filename),
+      content: content.toString("utf8"),
+      size: fileStats.size,
+      mtimeMs: fileStats.mtimeMs,
+    }
+  }
+
+  async readBinary(relativePath: string): Promise<SpaceBinaryFile> {
+    const {
+      filename,
+      content,
+      stats: fileStats,
+    } = await this.readStableFile(relativePath)
+    return {
+      path: this.toRelative(filename),
+      content: new Uint8Array(content),
+      size: fileStats.size,
+      mtimeMs: fileStats.mtimeMs,
+    }
+  }
+
+  async writeText(
+    relativePath: string,
+    content: string,
+    expectedMtimeMs?: number
+  ): Promise<SpaceTextFile> {
+    const filename = await this.resolveExisting(relativePath)
+    const currentStats = await stat(filename)
+    if (!currentStats.isFile()) {
+      throw new SpaceFilesError(
+        "not-a-file",
+        `Space path is not a file: ${relativePath}`,
+        relativePath
+      )
+    }
+    if (
+      expectedMtimeMs !== undefined &&
+      currentStats.mtimeMs !== expectedMtimeMs
+    ) {
+      throw new SpaceFilesError(
+        "file-changed",
+        `Space file changed outside Eidos: ${relativePath}`,
+        relativePath
+      )
+    }
+    await writeFile(filename, content, "utf8")
+    return this.readText(relativePath)
+  }
+
+  async createText(relativePath: string, content = ""): Promise<SpaceTextFile> {
+    const filename = await this.resolveNew(relativePath)
+    try {
+      await writeFile(filename, content, { encoding: "utf8", flag: "wx" })
+    } catch (error) {
+      if (isNodeError(error, "EEXIST")) {
+        throw new SpaceFilesError(
+          "file-exists",
+          `Space file already exists: ${relativePath}`,
+          relativePath,
+          error
+        )
+      }
+      throw error
+    }
+    return this.readText(relativePath)
+  }
+
+  async createDirectory(relativePath: string): Promise<SpaceFileEntry> {
+    const directory = await this.resolveNew(relativePath)
+    try {
+      await mkdir(directory)
+    } catch (error) {
+      if (isNodeError(error, "EEXIST")) {
+        throw new SpaceFilesError(
+          "file-exists",
+          `Space path already exists: ${relativePath}`,
+          relativePath,
+          error
+        )
+      }
+      throw error
+    }
+    const directoryStats = await stat(directory)
+    const portablePath = this.toRelative(directory)
+    return {
+      name: path.basename(directory),
+      path: portablePath,
+      parentPath: toPortablePath(path.posix.dirname(portablePath)).replace(
+        /^\.$/,
+        ""
+      ),
+      kind: "directory",
+      size: directoryStats.size,
+      mtimeMs: directoryStats.mtimeMs,
+    }
+  }
+
+  async importFile(
+    sourcePath: string,
+    destinationPath: string
+  ): Promise<SpaceFileEntry> {
+    if (!path.isAbsolute(sourcePath) && !path.win32.isAbsolute(sourcePath)) {
+      throw new SpaceFilesError(
+        "invalid-path",
+        `Imported file paths must be absolute: ${sourcePath}`,
+        sourcePath
+      )
+    }
+    let sourceStats: Stats
+    try {
+      sourceStats = await stat(sourcePath)
+    } catch (error) {
+      if (isNodeError(error, "ENOENT")) {
+        throw new SpaceFilesError(
+          "not-found",
+          `Imported file does not exist: ${sourcePath}`,
+          sourcePath,
+          error
+        )
+      }
+      throw error
+    }
+    if (!sourceStats.isFile()) {
+      throw new SpaceFilesError(
+        "not-a-file",
+        `Imported path is not a file: ${sourcePath}`,
+        sourcePath
+      )
+    }
+
+    const destination = await this.resolveNew(destinationPath)
+    try {
+      await copyFile(sourcePath, destination, constants.COPYFILE_EXCL)
+    } catch (error) {
+      if (isNodeError(error, "EEXIST")) {
+        throw new SpaceFilesError(
+          "file-exists",
+          `Space file already exists: ${destinationPath}`,
+          destinationPath,
+          error
+        )
+      }
+      throw error
+    }
+    const destinationStats = await stat(destination)
+    const portablePath = this.toRelative(destination)
+    return {
+      name: path.basename(destination),
+      path: portablePath,
+      parentPath: toPortablePath(path.posix.dirname(portablePath)).replace(
+        /^\.$/,
+        ""
+      ),
+      kind: "file",
+      size: destinationStats.size,
+      mtimeMs: destinationStats.mtimeMs,
+    }
+  }
+
+  async move(sourcePath: string, destinationPath: string): Promise<void> {
+    const normalizedSource = this.normalize(sourcePath)
+    const normalizedDestination = this.normalize(destinationPath)
+    const source = await this.resolveExistingEntry(sourcePath)
+    if (normalizedSource === normalizedDestination) return
+    const sourceStats = await lstat(source)
+    if (
+      sourceStats.isDirectory() &&
+      normalizedDestination.startsWith(`${normalizedSource}/`)
+    ) {
+      throw new SpaceFilesError(
+        "invalid-path",
+        `A Space folder cannot be moved inside itself: ${destinationPath}`,
+        destinationPath
+      )
+    }
+    const destination = await this.resolveNew(destinationPath)
+    try {
+      const destinationStats = await lstat(destination)
+      const [canonicalSource, canonicalDestination] = await Promise.all([
+        realpath(source),
+        realpath(destination),
+      ])
+      const isSameDirectoryEntry =
+        sourceStats.dev === destinationStats.dev &&
+        sourceStats.ino === destinationStats.ino &&
+        canonicalSource === canonicalDestination
+      if (!isSameDirectoryEntry) {
+        throw new SpaceFilesError(
+          "file-exists",
+          `Space path already exists: ${destinationPath}`,
+          destinationPath
+        )
+      }
+    } catch (error) {
+      if (error instanceof SpaceFilesError) throw error
+      if (!isNodeError(error, "ENOENT")) throw error
+    }
+    await rename(source, destination)
+  }
+
+  async getSystemPath(relativePath = ""): Promise<string> {
+    if (!relativePath) return this.root
+    return this.resolveExisting(relativePath)
+  }
+
+  async getRelativeFilePath(systemPath: string): Promise<string | null> {
+    if (!path.isAbsolute(systemPath) && !path.win32.isAbsolute(systemPath)) {
+      throw new SpaceFilesError(
+        "invalid-path",
+        `System file paths must be absolute: ${systemPath}`,
+        systemPath
+      )
+    }
+    let canonicalFile: string
+    try {
+      canonicalFile = await realpath(systemPath)
+    } catch (error) {
+      if (isNodeError(error, "ENOENT")) return null
+      throw error
+    }
+    const canonicalRoot = await realpath(this.root)
+    if (!isWithinRoot(canonicalRoot, canonicalFile)) return null
+    this.assertCanonicalPathIsPublic(canonicalRoot, canonicalFile)
+    const fileStats = await stat(canonicalFile)
+    if (!fileStats.isFile()) return null
+    return this.toRelative(canonicalFile)
+  }
+
+  async remove(relativePath: string): Promise<void> {
+    const target = await this.resolveExistingEntry(relativePath)
+    const targetStats = await lstat(target)
+    if (targetStats.isDirectory()) {
+      await rm(target, { recursive: true })
+    } else {
+      await unlink(target)
+    }
+  }
+
+  watch(
+    onChange: (change: SpaceFileChange) => void,
+    options: WatchSpaceFilesOptions = {}
+  ): SpaceFileWatcher {
+    const debounceMs = Math.max(
+      0,
+      Math.min(2_000, options.debounceMs ?? DEFAULT_WATCH_DEBOUNCE_MS)
+    )
+    const pending = new Map<string, NodeJS.Timeout>()
+    const queueChange = (change: SpaceFileChange) => {
+      if (debounceMs === 0) {
+        onChange(change)
+        return
+      }
+      const key = `${change.eventType}:${change.path}`
+      const existing = pending.get(key)
+      if (existing) clearTimeout(existing)
+      const timer = setTimeout(() => {
+        pending.delete(key)
+        onChange(change)
+      }, debounceMs)
+      pending.set(key, timer)
+    }
+    const watcher: FSWatcher = watchFileSystem(
+      this.root,
+      { recursive: true },
+      (eventType, filename) => {
+        if (!filename) return
+        const relativePath = toPortablePath(String(filename))
+        if (this.shouldHide(relativePath, false)) return
+        queueChange(
+          eventType === "rename"
+            ? {
+                eventType: "rescan",
+                path: parentPortablePath(relativePath),
+              }
+            : { eventType: "change", path: relativePath }
+        )
+      }
+    )
+    watcher.on("error", () => {
+      queueChange({ eventType: "rescan", path: "" })
+    })
+    return {
+      close: () => {
+        for (const timer of pending.values()) clearTimeout(timer)
+        pending.clear()
+        watcher.close()
+      },
+    }
+  }
+
+  private async readStableFile(relativePath: string): Promise<{
+    filename: string
+    content: Buffer
+    stats: Stats
+  }> {
+    let lastError: unknown
+    let observedChange = false
+    for (let attempt = 0; attempt < STABLE_READ_ATTEMPTS; attempt += 1) {
+      try {
+        const filename = await this.resolveExisting(relativePath)
+        const before = await stat(filename)
+        if (!before.isFile()) {
+          throw new SpaceFilesError(
+            "not-a-file",
+            `Space path is not a file: ${relativePath}`,
+            relativePath
+          )
+        }
+        const content = await readFile(filename)
+        const after = await stat(filename)
+        if (sameFileSnapshot(before, after)) {
+          return { filename, content, stats: after }
+        }
+        observedChange = true
+      } catch (error) {
+        lastError = error
+        if (
+          !(
+            isNodeError(error, "ENOENT") ||
+            (error instanceof SpaceFilesError && error.code === "not-found")
+          )
+        ) {
+          throw error
+        }
+      }
+      if (attempt + 1 < STABLE_READ_ATTEMPTS) {
+        await wait(STABLE_READ_RETRY_MS)
+      }
+    }
+    if (!observedChange && lastError) throw lastError
+    throw new SpaceFilesError(
+      "file-changed",
+      `Space file kept changing while Eidos was reading it: ${relativePath}`,
+      relativePath,
+      lastError
+    )
+  }
+
+  private normalize(relativePath: string, allowRoot = false): string {
+    if (
+      typeof relativePath !== "string" ||
+      relativePath.includes("\0") ||
+      path.isAbsolute(relativePath) ||
+      path.win32.isAbsolute(relativePath)
+    ) {
+      throw new SpaceFilesError(
+        "invalid-path",
+        `Space paths must be relative: ${relativePath}`,
+        relativePath
+      )
+    }
+    const parts = relativePath.split(/[\\/]+/).filter(Boolean)
+    if (parts.some((part) => part === "..")) {
+      throw new SpaceFilesError(
+        "path-outside-space",
+        `Space path escapes its root: ${relativePath}`,
+        relativePath
+      )
+    }
+    const normalized = parts.filter((part) => part !== ".").join("/")
+    if (!allowRoot && normalized.length === 0) {
+      throw new SpaceFilesError(
+        "invalid-path",
+        "A Space file path is required",
+        relativePath
+      )
+    }
+    if (PRIVATE_ROOTS.has(parts[0]?.toLowerCase())) {
+      throw new SpaceFilesError(
+        "invalid-path",
+        `Private Space state is not available through the file API: ${relativePath}`,
+        relativePath
+      )
+    }
+    return normalized
+  }
+
+  private async resolveExisting(
+    relativePath: string,
+    allowRoot = false
+  ): Promise<string> {
+    const normalized = this.normalize(relativePath, allowRoot)
+    const candidate = path.resolve(this.root, ...normalized.split("/"))
+    try {
+      const canonicalRoot = await realpath(this.root)
+      const canonicalCandidate = await realpath(candidate)
+      if (!isWithinRoot(canonicalRoot, canonicalCandidate)) {
+        throw new SpaceFilesError(
+          "path-outside-space",
+          `Space path resolves outside its root: ${relativePath}`,
+          relativePath
+        )
+      }
+      this.assertCanonicalPathIsPublic(canonicalRoot, canonicalCandidate)
+      return canonicalCandidate
+    } catch (error) {
+      if (error instanceof SpaceFilesError) throw error
+      if (isNodeError(error, "ENOENT")) {
+        throw new SpaceFilesError(
+          "not-found",
+          `Space path does not exist: ${relativePath}`,
+          relativePath,
+          error
+        )
+      }
+      throw error
+    }
+  }
+
+  private async resolveNew(relativePath: string): Promise<string> {
+    const normalized = this.normalize(relativePath)
+    const candidate = path.resolve(this.root, ...normalized.split("/"))
+    const canonicalRoot = await realpath(this.root)
+    const canonicalParent = await realpath(path.dirname(candidate))
+    if (!isWithinRoot(canonicalRoot, canonicalParent)) {
+      throw new SpaceFilesError(
+        "path-outside-space",
+        `Space path resolves outside its root: ${relativePath}`,
+        relativePath
+      )
+    }
+    this.assertCanonicalPathIsPublic(canonicalRoot, canonicalParent)
+    return path.join(canonicalParent, path.basename(candidate))
+  }
+
+  private async resolveExistingEntry(relativePath: string): Promise<string> {
+    const normalized = this.normalize(relativePath)
+    const candidate = path.resolve(this.root, ...normalized.split("/"))
+    const canonicalRoot = await realpath(this.root)
+    try {
+      const canonicalParent = await realpath(path.dirname(candidate))
+      if (!isWithinRoot(canonicalRoot, canonicalParent)) {
+        throw new SpaceFilesError(
+          "path-outside-space",
+          `Space path resolves outside its root: ${relativePath}`,
+          relativePath
+        )
+      }
+      this.assertCanonicalPathIsPublic(canonicalRoot, canonicalParent)
+      const entryPath = path.join(canonicalParent, path.basename(candidate))
+      await lstat(entryPath)
+      return entryPath
+    } catch (error) {
+      if (error instanceof SpaceFilesError) throw error
+      if (isNodeError(error, "ENOENT")) {
+        throw new SpaceFilesError(
+          "not-found",
+          `Space path does not exist: ${relativePath}`,
+          relativePath,
+          error
+        )
+      }
+      throw error
+    }
+  }
+
+  private assertCanonicalPathIsPublic(
+    canonicalRoot: string,
+    canonicalPath: string
+  ): void {
+    const [rootName] = toPortablePath(
+      path.relative(canonicalRoot, canonicalPath)
+    ).split("/")
+    if (PRIVATE_ROOTS.has(rootName.toLowerCase())) {
+      throw new SpaceFilesError(
+        "invalid-path",
+        "Private Space state is not available through the file API"
+      )
+    }
+  }
+
+  private toRelative(absolutePath: string): string {
+    return toPortablePath(path.relative(this.root, absolutePath))
+  }
+
+  private shouldHide(relativePath: string, includeHidden: boolean): boolean {
+    const pathParts = relativePath.split("/")
+    const [rootName] = pathParts
+    const normalizedRootName = rootName.toLowerCase()
+    if (PRIVATE_ROOTS.has(normalizedRootName)) return true
+    if (!includeHidden && pathParts.some((part) => part.startsWith("."))) {
+      return true
+    }
+    return path.basename(relativePath) === ".DS_Store"
+  }
+}

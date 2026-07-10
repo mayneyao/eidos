@@ -11,6 +11,7 @@
   },
   "scripts": {
     "build": "tsdown",
+    "test": "vitest run",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit",
     "typecheck:tsgo": "tsgo --noEmit"
@@ -27,6 +28,7 @@
   "devDependencies": {
     "@types/node": "^20.4.1",
     "tsdown": "^0.12.9",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   }
 }

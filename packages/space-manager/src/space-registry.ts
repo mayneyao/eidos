@@ -5,6 +5,7 @@ import path from "path"
 import type {
   GlobalConfig,
   SpaceInfo,
+  SpaceMode,
   SpacePathConflict,
   SpacesConfig,
 } from "./types"
@@ -65,7 +66,15 @@ export class SpaceRegistry {
 
     try {
       const data = fs.readFileSync(this.spacesConfigPath, "utf-8")
-      return JSON.parse(data)
+      const config = JSON.parse(data) as Partial<SpacesConfig>
+      return {
+        spaces: Array.isArray(config.spaces)
+          ? config.spaces.map((space) => ({
+              ...space,
+              mode: space.mode === "file" ? "file" : "legacy",
+            }))
+          : [],
+      }
     } catch (error) {
       console.error("Error loading spaces config:", error)
       return { spaces: [] }
@@ -173,13 +182,19 @@ export class SpaceRegistry {
     return spaces.length > 0 ? spaces[0] : null
   }
 
+  public getFirstValidSpace(): SpaceInfo | null {
+    return (
+      this.getAllSpaces().find((space) => this.validateSpace(space.id)) ?? null
+    )
+  }
+
   /**
    * Get the last opened space
    */
   public getLastOpenedSpace(): SpaceInfo | null {
     const globalConfig = this.loadGlobalConfig()
     if (!globalConfig.lastOpenedSpace) {
-      return this.getFirstSpace()
+      return this.getFirstValidSpace()
     }
     return this.getSpace(globalConfig.lastOpenedSpace)
   }
@@ -201,10 +216,14 @@ export class SpaceRegistry {
       customName?: string
       remoteUrl?: string
       provider?: string
+      mode?: SpaceMode
     } = {}
   ): SpaceInfo {
     if (!fs.existsSync(spacePath)) {
       throw new Error(`Path does not exist: ${spacePath}`)
+    }
+    if (!fs.statSync(spacePath).isDirectory()) {
+      throw new Error(`Space path is not a directory: ${spacePath}`)
     }
 
     const normalizedPath = this.normalizeSpacePath(spacePath)
@@ -242,8 +261,13 @@ export class SpaceRegistry {
       id: spaceId,
       name:
         options.customName ||
-        folderName.charAt(0).toUpperCase() + folderName.slice(1),
+        (folderName
+          ? folderName.charAt(0).toUpperCase() + folderName.slice(1)
+          : "Space"),
       path: normalizedPath,
+      mode:
+        options.mode ??
+        (options.remoteUrl ? "legacy" : this.detectSpaceMode(normalizedPath)),
       sync: options.remoteUrl
         ? {
             enabled: true,
@@ -277,8 +301,7 @@ export class SpaceRegistry {
 
     const globalConfig = this.loadGlobalConfig()
     if (globalConfig.lastOpenedSpace === spaceId) {
-      globalConfig.lastOpenedSpace =
-        config.spaces.length > 0 ? config.spaces[0].id : undefined
+      globalConfig.lastOpenedSpace = this.getFirstValidSpace()?.id
       this.saveGlobalConfig(globalConfig)
     }
 
@@ -302,11 +325,16 @@ export class SpaceRegistry {
   }
 
   protected sanitizeId(id: string): string {
-    return id
+    const sanitized = id
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
       .replace(/[^a-z0-9-]/g, "-")
       .replace(/-+/g, "-")
       .replace(/^-|-$/g, "")
+      .slice(0, 48)
+      .replace(/-+$/g, "")
+    return sanitized || "space"
   }
 
   protected normalizeSpacePath(spacePath: string): string {
@@ -320,6 +348,13 @@ export class SpaceRegistry {
 
   protected hasGraftRepository(spacePath: string): boolean {
     return fs.existsSync(path.join(spacePath, ".eidos", ".graft"))
+  }
+
+  protected detectSpaceMode(spacePath: string): SpaceMode {
+    const legacyDatabase = path.join(spacePath, ".eidos", "db.sqlite3")
+    return fs.existsSync(legacyDatabase) || this.hasGraftRepository(spacePath)
+      ? "legacy"
+      : "file"
   }
 
   protected isSubPath(parentPath: string, childPath: string): boolean {
@@ -350,18 +385,26 @@ export class SpaceRegistry {
       return false
     }
 
-    if (!fs.existsSync(space.path)) {
+    try {
+      if (!fs.existsSync(space.path)) {
+        return false
+      }
+
+      if (space.mode === "file") {
+        return fs.statSync(space.path).isDirectory()
+      }
+
+      if (space.sync?.enabled || space.versioning?.enabled) {
+        // check is .eidos/.graft exists
+        const graftPath = path.join(space.path, ".eidos", ".graft")
+        return fs.existsSync(graftPath)
+      }
+      // Check for database in the .eidos subdirectory structure
+      const dbPath = path.join(space.path, ".eidos", "db.sqlite3")
+      return fs.existsSync(dbPath)
+    } catch {
       return false
     }
-
-    if (space.sync?.enabled || space.versioning?.enabled) {
-      // check is .eidos/.graft exists
-      const graftPath = path.join(space.path, ".eidos", ".graft")
-      return fs.existsSync(graftPath)
-    }
-    // Check for database in the .eidos subdirectory structure
-    const dbPath = path.join(space.path, ".eidos", "db.sqlite3")
-    return fs.existsSync(dbPath)
   }
 }
 

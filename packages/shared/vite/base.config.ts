@@ -45,6 +45,7 @@ const workspacePackageWildcard = (
 export const sharedAlias = [
   // Local workspace packages - exact matches (higher priority)
   workspacePackage("@eidos.space/core", "index.ts"),
+  workspacePackage("@eidos.space/file-space"),
   workspacePackage("@eidos.space/react"),
   workspacePackage("@eidos.space/v3"),
   workspacePackage("@eidos.space/client"),
@@ -71,6 +72,7 @@ export const sharedAlias = [
 
   // Wildcard matches (lower priority)
   workspacePackageWildcard("@eidos.space/core"),
+  workspacePackageWildcard("@eidos.space/file-space"),
   workspacePackageWildcard("@eidos.space/react"),
   workspacePackageWildcard("@eidos.space/v3"),
   workspacePackageWildcard("@eidos.space/client"),
