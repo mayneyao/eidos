@@ -20,7 +20,8 @@ open 和紧凑的 Outline/Backlinks sections 已经接入，并且没有增加�
 
 `.base` route 现已使用 production Grid 交互层，支持按可见区域分页加载、optimistic
 cell edit、持久化 column layout 和基于 compact ranges 的批量删行。working Changes
-与 History 也已提供 Base-aware table/row inspector。
+与 History 也已提供 Base-aware table/row inspector。紧凑 structure menu 按需提供
+table/field rename/delete 与 select/multi-select options 编辑。
 
 file Space Settings 已拆分为 General、Files/Obsidian、Versioning 和派生 Indexes；
 Space sync、conflict resolution 和 migration UX 仍待实现。

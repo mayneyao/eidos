@@ -18,9 +18,10 @@ Desktop file Spaces can create and open `.base` files. The initial HTML table
 has been replaced by a Base adapter over the production Glide DataEditor
 interaction layer, restoring keyboard navigation, rectangular selection,
 copy/paste, fill handles, column reordering, and column resizing without
-coupling the Base runtime to `@eidos.space/core`. Users can add tables and
-fields, and grid order/width state is persisted inside `eidos__views` in the
-Base file.
+coupling the Base runtime to `@eidos.space/core`. Users can create, rename, and
+delete tables and fields, edit select/multi-select choices, and persist grid
+order/width state inside `eidos__views` in the Base file. Structural deletes
+also clean dependent references and view layout metadata transactionally.
 
 Graft row diffs are preserved through the Desktop boundary and shown as compact
 table/column/row changes in both the working Changes tab and historical version
@@ -32,8 +33,8 @@ Base snapshots now carry row counts instead of capped row arrays. The Grid
 requests 100-row pages around the visible region, caches loaded pages, and
 passes compact row ranges to transactional batch deletion without materializing
 an entire selection in the renderer. The runtime path is covered with a
-10,000-row fixture. Complete table/field rename and delete workflows, richer
-field semantics, and export from legacy Spaces remain.
+10,000-row fixture. CSV import, richer field semantics, and export from legacy
+Spaces remain.
 
 ## Summary
 

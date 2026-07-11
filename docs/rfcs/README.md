@@ -8,15 +8,15 @@ This directory contains draft RFCs for moving Eidos toward a file-based storage 
 
 ## Implementation Status
 
-| RFC                   | Status                | Current implementation boundary                                                                                                                                      |
-| --------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Space/Base storage    | In progress           | The core file-based vertical slice, standalone Base runtime, and Base-aware diffs work. Migration, remote sync, and file-based extensions remain.                    |
-| Markdown runtime      | Usable vertical slice | Real file tree, direct editing, safe saves, watcher, indexed quick open, wiki-link completion, outline, backlinks, and attachments exist. Persistent indexes remain. |
-| Graft versioning      | Local workflow usable | Changes, staging, commit, diff, history, restore, and Base table/row inspection work. Remote sync and conflicts remain.                                              |
-| Product UX            | In progress           | Files/Version, Diff/History, contextual Settings, and the paged production Base grid work. Sync and Migration UX remain.                                             |
-| Base format/runtime   | Vertical slice        | The standalone package and paged Grid adapter support primitive editing, multi-table/field creation, view layout, and batch row deletion; richer authoring remains.  |
-| File-based extensions | Not started           | The RFC remains the target design.                                                                                                                                   |
-| Legacy migration      | Not started           | Implementation waits for the Base runtime and export format.                                                                                                         |
+| RFC                   | Status                | Current implementation boundary                                                                                                                                        |
+| --------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Space/Base storage    | In progress           | The core file-based vertical slice, standalone Base runtime, and Base-aware diffs work. Migration, remote sync, and file-based extensions remain.                      |
+| Markdown runtime      | Usable vertical slice | Real file tree, direct editing, safe saves, watcher, indexed quick open, wiki-link completion, outline, backlinks, and attachments exist. Persistent indexes remain.   |
+| Graft versioning      | Local workflow usable | Changes, staging, commit, diff, history, restore, and Base table/row inspection work. Remote sync and conflicts remain.                                                |
+| Product UX            | In progress           | Files/Version, Diff/History, contextual Settings, and the paged production Base grid work. Sync and Migration UX remain.                                               |
+| Base format/runtime   | Vertical slice        | The standalone package and paged Grid support primitive editing, table/field lifecycle, choice options, view layout, and batch deletion; CSV and richer fields remain. |
+| File-based extensions | Not started           | The RFC remains the target design.                                                                                                                                     |
+| Legacy migration      | Not started           | Implementation waits for the Base runtime and export format.                                                                                                           |
 
 The implementation order has intentionally changed from Base-first to:
 
