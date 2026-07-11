@@ -81,6 +81,13 @@ describe("Eidos Base files", () => {
     expect(base.listTables()).toMatchObject([
       { id: "tasks", name: "Tasks", rawTableName: "tb_tasks" },
     ])
+    base.createTable({ id: "people", name: "People" })
+    expect(base.listTables()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "tasks", name: "Tasks" }),
+        expect.objectContaining({ id: "people", name: "People" }),
+      ])
+    )
     expect(base.listFields("tasks")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -136,13 +143,16 @@ describe("Eidos Base files", () => {
     expect(inspection).toMatchObject({
       valid: true,
       metadata: { format: BASE_FORMAT, defaultTableId: "tasks" },
-      tables: [{ id: "tasks", rawTableName: "tb_tasks" }],
+      tables: [
+        { id: "tasks", rawTableName: "tb_tasks" },
+        { id: "people", rawTableName: "tb_people" },
+      ],
       errors: [],
     })
 
     const reopened = openBaseFile(filePath, { readonly: true })
     expect(reopened.info().title).toBe("Project Tasks")
-    expect(reopened.listTables()).toHaveLength(1)
+    expect(reopened.listTables()).toHaveLength(2)
     reopened.close()
   })
 

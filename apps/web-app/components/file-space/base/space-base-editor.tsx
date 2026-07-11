@@ -7,6 +7,7 @@ import type {
 } from "@eidos.space/base"
 import {
   AlertTriangle,
+  Columns3,
   LoaderCircle,
   Plus,
   RefreshCw,
@@ -19,68 +20,29 @@ import { useSpaceBase } from "@/apps/web-app/hooks/use-space-base"
 import { useSpaceFileChanges } from "@/apps/web-app/hooks/use-space-files"
 import { Button } from "@/components/ui/button"
 
+import { BaseGrid } from "./base-grid"
+import { BaseStructureDialog } from "./base-structure-dialog"
+
 interface SpaceBaseEditorProps {
   filePath: string
 }
 
-interface SelectOption {
-  id: string
-  name: string
-}
-
-function visibleFields(fields: BaseFieldInfo[]): BaseFieldInfo[] {
-  return fields.filter(
-    (field) =>
-      !field.isHidden &&
-      (field.tableColumnName === "title" || field.valueKind === "source")
-  )
-}
-
-function inputValue(value: BaseSqlPrimitive | undefined): string {
-  if (value === null || value === undefined) return ""
-  if (value instanceof Uint8Array) return `${value.byteLength} bytes`
-  return String(value)
-}
-
-function selectOptions(field: BaseFieldInfo): SelectOption[] {
-  const options = field.property?.options
-  if (!Array.isArray(options)) return []
-  return options.flatMap((option) => {
-    if (
-      typeof option === "object" &&
-      option !== null &&
-      "id" in option &&
-      "name" in option &&
-      typeof option.id === "string" &&
-      typeof option.name === "string"
-    ) {
-      return [{ id: option.id, name: option.name }]
-    }
-    return []
-  })
-}
-
-function normalizeEditedValue(
-  field: BaseFieldInfo,
-  value: string
-): BaseSqlPrimitive {
-  if (value === "") return null
-  if (field.type === "number" || field.type === "rating") {
-    const number = Number(value)
-    return Number.isFinite(number) ? number : value
-  }
-  return value
-}
-
 export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const { currentSpace } = useCurrentSpace()
-  const { getSnapshot, insertRow, updateRow } = useSpaceBase(currentSpace?.id)
+  const { getSnapshot, createTable, addField, insertRow, updateRow } =
+    useSpaceBase(currentSpace?.id)
   const [snapshot, setSnapshot] = useState<BaseSnapshot | null>(null)
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [mutating, setMutating] = useState(false)
+  const [pendingMutations, setPendingMutations] = useState(0)
   const mutatingRef = useRef(false)
+  const pendingMutationCountRef = useRef(0)
+  const mutationRevisionRef = useRef(0)
+  const mutationQueueRef = useRef<Promise<void>>(Promise.resolve())
   const [error, setError] = useState<string | null>(null)
+  const [structureDialog, setStructureDialog] = useState<
+    "table" | "field" | null
+  >(null)
 
   const applySnapshot = useCallback((next: BaseSnapshot) => {
     setSnapshot(next)
@@ -125,51 +87,126 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       snapshot?.tables.find(({ table }) => table.id === activeTableId) ?? null,
     [activeTableId, snapshot?.tables]
   )
-  const fields = useMemo(
-    () => visibleFields(activeTable?.fields ?? []),
-    [activeTable?.fields]
-  )
-
-  const mutate = useCallback(
-    async (operation: () => Promise<BaseSnapshot>) => {
+  const enqueueMutation = useCallback(
+    (
+      operation: () => Promise<BaseSnapshot>,
+      onSuccess?: (snapshot: BaseSnapshot) => void
+    ): Promise<void> => {
+      const revision = ++mutationRevisionRef.current
+      pendingMutationCountRef.current += 1
       mutatingRef.current = true
-      setMutating(true)
-      try {
-        applySnapshot(await operation())
-        setError(null)
-      } catch (mutationError) {
-        setError(
-          mutationError instanceof Error
-            ? mutationError.message
-            : "Unable to update Base"
+      setPendingMutations((current) => current + 1)
+
+      const run = mutationQueueRef.current
+        .catch(() => undefined)
+        .then(operation)
+      const settled = run
+        .then(
+          (next) => {
+            if (revision === mutationRevisionRef.current) applySnapshot(next)
+            onSuccess?.(next)
+            setError(null)
+          },
+          (mutationError) => {
+            setError(
+              mutationError instanceof Error
+                ? mutationError.message
+                : "Unable to update Base"
+            )
+            void load()
+          }
         )
-      } finally {
-        mutatingRef.current = false
-        setMutating(false)
-      }
+        .finally(() => {
+          pendingMutationCountRef.current -= 1
+          mutatingRef.current = pendingMutationCountRef.current > 0
+          setPendingMutations((current) => Math.max(0, current - 1))
+        })
+      mutationQueueRef.current = settled
+      return settled
     },
-    [applySnapshot]
+    [applySnapshot, load]
   )
 
-  const createRow = () => {
-    if (!activeTable) return
-    void mutate(() =>
+  const createRow = useCallback((): Promise<void> => {
+    if (!activeTable) return Promise.resolve()
+    return enqueueMutation(() =>
       insertRow(filePath, activeTable.table.id, { title: "Untitled" })
     )
-  }
+  }, [activeTable, enqueueMutation, filePath, insertRow])
 
-  const saveCell = (
-    row: BaseRow,
-    field: BaseFieldInfo,
-    value: BaseSqlPrimitive
-  ) => {
-    if (!activeTable || !row._id || row[field.tableColumnName] === value) return
-    void mutate(() =>
-      updateRow(filePath, activeTable.table.id, String(row._id), {
-        [field.tableColumnName]: value,
-      })
-    )
-  }
+  const saveCell = useCallback(
+    (
+      row: BaseRow,
+      field: BaseFieldInfo,
+      value: BaseSqlPrimitive
+    ): Promise<void> => {
+      if (
+        !activeTable ||
+        !row._id ||
+        Object.is(row[field.tableColumnName], value)
+      ) {
+        return Promise.resolve()
+      }
+      const rowId = String(row._id)
+      const tableId = activeTable.table.id
+      setSnapshot((current) =>
+        current
+          ? {
+              ...current,
+              tables: current.tables.map((candidate) =>
+                candidate.table.id !== tableId
+                  ? candidate
+                  : {
+                      ...candidate,
+                      rows: candidate.rows.map((candidateRow) =>
+                        String(candidateRow._id) !== rowId
+                          ? candidateRow
+                          : {
+                              ...candidateRow,
+                              [field.tableColumnName]: value,
+                            }
+                      ),
+                    }
+              ),
+            }
+          : current
+      )
+      return enqueueMutation(() =>
+        updateRow(filePath, tableId, rowId, {
+          [field.tableColumnName]: value,
+        })
+      )
+    },
+    [activeTable, enqueueMutation, filePath, updateRow]
+  )
+
+  const createTableInBase = useCallback(
+    (table: Parameters<typeof createTable>[1]): Promise<void> => {
+      const existingIds = new Set(
+        snapshot?.tables.map((candidate) => candidate.table.id) ?? []
+      )
+      return enqueueMutation(
+        () => createTable(filePath, table),
+        (next) => {
+          const created = next.tables.find(
+            (candidate) => !existingIds.has(candidate.table.id)
+          )
+          if (created) setActiveTableId(created.table.id)
+        }
+      )
+    },
+    [createTable, enqueueMutation, filePath, snapshot?.tables]
+  )
+
+  const createFieldInBase = useCallback(
+    (field: Parameters<typeof addField>[2]): Promise<void> => {
+      if (!activeTable) return Promise.resolve()
+      return enqueueMutation(() =>
+        addField(filePath, activeTable.table.id, field)
+      )
+    },
+    [activeTable, addField, enqueueMutation, filePath]
+  )
 
   if (loading && !snapshot) {
     return (
@@ -215,9 +252,18 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               ) : null}
             </button>
           ))}
+          <button
+            type="button"
+            className="flex h-9 w-8 shrink-0 items-center justify-center text-muted-foreground outline-hidden hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+            aria-label="Add Base table"
+            title="New table"
+            onClick={() => setStructureDialog("table")}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
         </div>
         <div className="flex h-9 shrink-0 items-center gap-1 pl-2">
-          {mutating ? (
+          {pendingMutations > 0 ? (
             <LoaderCircle className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
           ) : null}
           <Button
@@ -225,8 +271,19 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             variant="ghost"
             size="sm"
             className="h-7 gap-1 px-2 text-xs"
-            disabled={!activeTable || mutating}
-            onClick={createRow}
+            disabled={!activeTable}
+            onClick={() => setStructureDialog("field")}
+          >
+            <Columns3 className="h-3.5 w-3.5" />
+            New field
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs"
+            disabled={!activeTable}
+            onClick={() => void createRow()}
           >
             <Plus className="h-3.5 w-3.5" />
             New row
@@ -238,7 +295,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             className="h-7 w-7"
             aria-label="Refresh Base"
             title="Refresh Base"
-            disabled={loading || mutating}
+            disabled={loading || pendingMutations > 0}
             onClick={() => void load()}
           >
             <RefreshCw
@@ -259,123 +316,24 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           This Base has no tables yet.
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full min-w-max border-separate border-spacing-0 text-[13px]">
-            <thead className="sticky top-0 z-10 bg-background">
-              <tr>
-                <th className="h-8 w-10 border-b border-r bg-muted/20 px-2 text-center text-[11px] font-normal text-muted-foreground">
-                  #
-                </th>
-                {fields.map((field) => (
-                  <th
-                    key={field.tableColumnName}
-                    className="h-8 min-w-44 border-b border-r bg-muted/20 px-2 text-left text-[12px] font-medium text-muted-foreground last:border-r-0"
-                  >
-                    {field.name}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {activeTable.rows.map((row, index) => (
-                <tr key={String(row._id)} className="group/row">
-                  <td className="h-8 border-b border-r bg-muted/10 px-2 text-center text-[11px] tabular-nums text-muted-foreground">
-                    {index + 1}
-                  </td>
-                  {fields.map((field) => (
-                    <td
-                      key={field.tableColumnName}
-                      className="h-8 border-b border-r p-0 last:border-r-0 focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring"
-                    >
-                      <BaseCellEditor
-                        field={field}
-                        row={row}
-                        disabled={mutating}
-                        onCommit={(value) => saveCell(row, field, value)}
-                      />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {activeTable.rows.length === 0 ? (
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 border-b px-4 py-5 text-left text-sm text-muted-foreground hover:bg-muted/20 hover:text-foreground"
-              onClick={createRow}
-            >
-              <Plus className="h-4 w-4" />
-              Create the first row
-            </button>
-          ) : null}
+        <div className="min-h-0 flex-1">
+          <BaseGrid
+            table={activeTable}
+            onAddRow={createRow}
+            onCellEdit={saveCell}
+          />
         </div>
       )}
+
+      <BaseStructureDialog
+        mode={structureDialog ?? "table"}
+        open={structureDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setStructureDialog(null)
+        }}
+        onCreateTable={createTableInBase}
+        onCreateField={createFieldInBase}
+      />
     </div>
-  )
-}
-
-function BaseCellEditor({
-  field,
-  row,
-  disabled,
-  onCommit,
-}: {
-  field: BaseFieldInfo
-  row: BaseRow
-  disabled: boolean
-  onCommit: (value: BaseSqlPrimitive) => void
-}) {
-  const value = row[field.tableColumnName]
-  if (field.type === "checkbox") {
-    return (
-      <label className="flex h-full items-center px-2">
-        <input
-          type="checkbox"
-          className="h-3.5 w-3.5 rounded border-input accent-primary"
-          checked={value === 1 || value === "1"}
-          disabled={disabled}
-          onChange={(event) => onCommit(event.target.checked ? 1 : 0)}
-        />
-      </label>
-    )
-  }
-
-  const options = selectOptions(field)
-  if (field.type === "select" && options.length > 0) {
-    return (
-      <select
-        className="h-full w-full bg-transparent px-2 outline-hidden disabled:opacity-50"
-        value={inputValue(value)}
-        disabled={disabled}
-        onChange={(event) => onCommit(event.target.value || null)}
-      >
-        <option value="" />
-        {options.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.name}
-          </option>
-        ))}
-      </select>
-    )
-  }
-
-  return (
-    <input
-      key={`${String(row._id)}:${field.tableColumnName}:${inputValue(value)}`}
-      type={
-        field.type === "number" || field.type === "rating" ? "number" : "text"
-      }
-      className="h-full w-full bg-transparent px-2 outline-hidden placeholder:text-muted-foreground/50 disabled:opacity-50"
-      defaultValue={inputValue(value)}
-      disabled={disabled}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") event.currentTarget.blur()
-      }}
-      onBlur={(event) => {
-        const next = normalizeEditedValue(field, event.currentTarget.value)
-        if (next !== value) onCommit(next)
-      }}
-    />
   )
 }

@@ -1,35 +1,10 @@
-import type { DataEditorProps } from "@glideapps/glide-data-grid"
 import { GridCellKind } from "@glideapps/glide-data-grid"
 
 import { ColumnTableName } from "@/packages/core/sqlite/const"
 import type { IField } from "@/packages/core/types/IField"
 
 import { defaultAllColumnsHandle } from "../../fields/colums"
-import { headerIcons } from "../../fields/header-icons"
-
-export const defaultConfig: Partial<DataEditorProps> = {
-  smoothScrollX: true,
-  smoothScrollY: true,
-  getCellsForSelection: true,
-  width: "100%",
-  rowHeight: 36,
-  headerHeight: 36,
-  freezeColumns: 1,
-  rowMarkers: {
-    kind: "both",
-  },
-  trailingRowOptions: {
-    tint: false,
-    hint: "New",
-    sticky: true,
-  },
-  // auto handle copy and paste
-  onPaste: true,
-  headerIcons: headerIcons,
-  experimental: {
-    kineticScrollPerfHack: true,
-  },
-}
+export { defaultConfig, getScrollbarWidth } from "./grid-default-config"
 
 export function getColumnsHandleMap(): {
   [kind: string]: Omit<(typeof defaultAllColumnsHandle)[0], "getContent"> & {
@@ -110,27 +85,4 @@ export const createTemplateTableColumnsSql = () => {
   
   
 `
-}
-
-let scrollbarWidthCache: number | null = null
-
-export const getScrollbarWidth = function () {
-  if (scrollbarWidthCache !== null) {
-    return scrollbarWidthCache
-  }
-  const outer = document.createElement("div")
-  outer.style.visibility = "hidden"
-  outer.style.width = "100px"
-  document.body.appendChild(outer)
-
-  const widthNoScroll = outer.offsetWidth
-  outer.style.overflow = "scroll"
-
-  const inner = document.createElement("div")
-  inner.style.width = "100%"
-  outer.appendChild(inner)
-  const widthWithScroll = inner.offsetWidth
-  outer.parentNode?.removeChild(outer)
-  scrollbarWidthCache = widthNoScroll - widthWithScroll
-  return scrollbarWidthCache
 }

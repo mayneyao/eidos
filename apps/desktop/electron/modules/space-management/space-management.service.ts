@@ -8,6 +8,7 @@ import type {
   BaseSnapshot,
   CreateBaseFieldInput,
   CreateBaseOptions,
+  CreateBaseTableInput,
 } from "@eidos.space/base"
 import {
   createBaseFile as createBaseDatabase,
@@ -427,6 +428,23 @@ export class SpaceManagementService extends IpcServiceBase {
       const base = await this._openBase(spaceId, relativePath, true)
       try {
         base.addField(tableId, field)
+      } finally {
+        base.close()
+      }
+      this._invalidateFileIndex(spaceId)
+      return this._getBaseSnapshot(spaceId, relativePath)
+    })
+  }
+
+  async createBaseTable(
+    spaceId: string,
+    relativePath: string,
+    table: CreateBaseTableInput
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        base.createTable(table)
       } finally {
         base.close()
       }
