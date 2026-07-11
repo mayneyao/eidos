@@ -89,6 +89,38 @@ describe("MarkdownEditor", () => {
     expect(container.querySelector("p")?.textContent).toBe("Write locally.")
   })
 
+  it("keeps Lexical composition state intact for IME input", async () => {
+    const container = render(<MarkdownEditor defaultValue="输入" />)
+    await settle()
+
+    const root = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const editor = lexicalEditorFor(root)
+    const text = lastTextNode(root)
+    act(() => {
+      root.focus()
+      placeCaret(text, text.data.length)
+      root.dispatchEvent(
+        new CompositionEvent("compositionstart", {
+          bubbles: true,
+          cancelable: true,
+          data: "法",
+        })
+      )
+    })
+    expect(editor.isComposing()).toBe(true)
+
+    act(() => {
+      root.dispatchEvent(
+        new CompositionEvent("compositionend", {
+          bubbles: true,
+          cancelable: true,
+          data: "法",
+        })
+      )
+    })
+    expect(editor.isComposing()).toBe(false)
+  })
+
   it("renders a keyboard-focusable read-only viewer", async () => {
     const container = render(
       <MarkdownViewer markdown="A [link](https://eidos.space)." />
