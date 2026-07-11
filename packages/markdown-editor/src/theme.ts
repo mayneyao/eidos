@@ -1,0 +1,49 @@
+import type { EditorThemeClasses } from "lexical"
+
+/** Class-only theme. Consumers can replace any visual using CSS variables. */
+export const MARKDOWN_EDITOR_THEME: EditorThemeClasses = {
+  code: "eidos-md-code-block",
+  heading: {
+    h1: "eidos-md-heading eidos-md-heading-h1",
+    h2: "eidos-md-heading eidos-md-heading-h2",
+    h3: "eidos-md-heading eidos-md-heading-h3",
+    h4: "eidos-md-heading eidos-md-heading-h4",
+    h5: "eidos-md-heading eidos-md-heading-h5",
+    h6: "eidos-md-heading eidos-md-heading-h6",
+  },
+  hr: "eidos-md-rule",
+  hrSelected: "eidos-md-rule-selected",
+  image: "eidos-md-image-node",
+  indent: "eidos-md-indent",
+  link: "eidos-md-link",
+  list: {
+    checklist: "eidos-md-check-list",
+    listitem: "eidos-md-list-item",
+    listitemChecked: "eidos-md-list-item-checked",
+    listitemUnchecked: "eidos-md-list-item-unchecked",
+    nested: {
+      list: "eidos-md-nested-list",
+      listitem: "eidos-md-nested-list-item",
+    },
+    ol: "eidos-md-list eidos-md-ordered-list",
+    ul: "eidos-md-list eidos-md-unordered-list",
+  },
+  ltr: "eidos-md-ltr",
+  paragraph: "eidos-md-paragraph",
+  quote: "eidos-md-quote",
+  root: "eidos-md-content",
+  rtl: "eidos-md-rtl",
+  table: "eidos-md-table",
+  tableCell: "eidos-md-table-cell",
+  tableCellHeader: "eidos-md-table-cell eidos-md-table-cell-header",
+  tableRow: "eidos-md-table-row",
+  tableScrollableWrapper: "eidos-md-table-scroll",
+  tableSelected: "eidos-md-table-selected",
+  text: {
+    bold: "eidos-md-bold",
+    code: "eidos-md-inline-code",
+    italic: "eidos-md-italic",
+    strikethrough: "eidos-md-strikethrough",
+  },
+  wikiLink: "eidos-md-wiki-link-node",
+}

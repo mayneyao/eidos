@@ -1,0 +1,475 @@
+.eidos-markdown-editor {
+  --eidos-md-font:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --eidos-md-mono:
+    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --eidos-md-foreground: var(--foreground, #252422);
+  --eidos-md-muted: var(--muted-foreground, #74716b);
+  --eidos-md-border: var(--border, #dfddd8);
+  --eidos-md-surface: var(--card, #f7f6f3);
+  --eidos-md-selection: var(--accent, #e9e7e1);
+  --eidos-md-link: var(--primary, #345f9d);
+  --eidos-md-focus: var(--ring, #6c8bc3);
+  color: var(--eidos-md-foreground);
+  font-family: var(--eidos-md-font);
+  font-size: 16px;
+  line-height: 1.62;
+  min-width: 0;
+  position: relative;
+}
+
+.eidos-md-editor-surface {
+  min-width: 0;
+  position: relative;
+}
+
+.eidos-md-content {
+  caret-color: currentColor;
+  min-height: 12rem;
+  outline: none;
+  overflow-wrap: anywhere;
+  padding: 2px 0 32vh;
+  position: relative;
+  tab-size: 2;
+  white-space: pre-wrap;
+}
+
+.eidos-markdown-editor-readonly .eidos-md-content {
+  min-height: 0;
+  padding-bottom: 0;
+}
+
+.eidos-md-content:focus-visible {
+  outline: none;
+}
+
+.eidos-markdown-editor-readonly .eidos-md-content:focus-visible {
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--eidos-md-focus) 50%, transparent);
+}
+
+.eidos-md-placeholder {
+  color: var(--eidos-md-muted);
+  inset: 2px 0 auto;
+  opacity: 0.72;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eidos-md-paragraph {
+  margin: 0.22em 0;
+  min-height: 1.62em;
+  position: relative;
+}
+
+.eidos-md-heading {
+  color: var(--eidos-md-foreground);
+  font-weight: 650;
+  letter-spacing: -0.018em;
+  line-height: 1.24;
+  margin: 1.55em 0 0.28em;
+  text-wrap: pretty;
+}
+
+.eidos-md-content > .eidos-md-heading:first-child {
+  margin-top: 0;
+}
+
+.eidos-md-heading-h1 {
+  font-size: clamp(1.85rem, 1.55rem + 0.8vw, 2.35rem);
+  letter-spacing: -0.035em;
+}
+
+.eidos-md-heading-h2 {
+  font-size: clamp(1.45rem, 1.3rem + 0.45vw, 1.8rem);
+}
+
+.eidos-md-heading-h3 {
+  font-size: 1.3rem;
+}
+
+.eidos-md-heading-h4 {
+  font-size: 1.13rem;
+}
+
+.eidos-md-heading-h5,
+.eidos-md-heading-h6 {
+  font-size: 1rem;
+}
+
+.eidos-md-heading-h6 {
+  color: var(--eidos-md-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.055em;
+}
+
+.eidos-md-bold {
+  font-weight: 650;
+}
+
+.eidos-md-italic {
+  font-style: italic;
+}
+
+.eidos-md-strikethrough {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+.eidos-md-inline-code {
+  background: var(--eidos-md-surface);
+  border-radius: 3px;
+  color: inherit;
+  font-family: var(--eidos-md-mono);
+  font-size: 0.87em;
+  padding: 0.13em 0.34em;
+}
+
+.eidos-md-code-block {
+  background: var(--eidos-md-surface);
+  border: 1px solid var(--eidos-md-border);
+  border-radius: 5px;
+  color: var(--eidos-md-foreground);
+  display: block;
+  font-family: var(--eidos-md-mono);
+  font-size: 0.84rem;
+  line-height: 1.58;
+  margin: 0.85em 0;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.82rem 0.95rem;
+  white-space: pre;
+}
+
+.eidos-md-quote {
+  border-left: 3px solid var(--eidos-md-border);
+  color: color-mix(
+    in srgb,
+    var(--eidos-md-foreground) 78%,
+    var(--eidos-md-muted)
+  );
+  margin: 0.7em 0;
+  padding: 0.12em 0 0.12em 0.9em;
+}
+
+.eidos-md-list {
+  margin: 0.35em 0;
+  padding-inline-start: 1.55em;
+}
+
+.eidos-md-list .eidos-md-list {
+  margin-block: 0.08em;
+}
+
+.eidos-md-list-item {
+  margin: 0.12em 0;
+  padding-inline-start: 0.12em;
+}
+
+.eidos-md-nested-list-item {
+  list-style: none;
+}
+
+.eidos-md-check-list {
+  list-style: none;
+  padding-inline-start: 0.18em;
+}
+
+.eidos-md-list-item-checked,
+.eidos-md-list-item-unchecked {
+  list-style: none;
+  margin-inline-start: 0;
+  padding-inline-start: 1.62em;
+  position: relative;
+}
+
+.eidos-md-list-item-checked::before,
+.eidos-md-list-item-unchecked::before {
+  border: 1.5px solid var(--eidos-md-muted);
+  border-radius: 3px;
+  box-sizing: border-box;
+  content: "";
+  height: 0.92em;
+  inset: 0.33em auto auto 0.08em;
+  position: absolute;
+  width: 0.92em;
+}
+
+.eidos-md-list-item-checked {
+  color: var(--eidos-md-muted);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, currentColor 55%, transparent);
+}
+
+.eidos-md-list-item-checked::before {
+  background: var(--eidos-md-foreground);
+  border-color: var(--eidos-md-foreground);
+}
+
+.eidos-md-list-item-checked::after {
+  border: solid var(--eidos-md-surface);
+  border-width: 0 1.5px 1.5px 0;
+  content: "";
+  height: 0.44em;
+  inset: 0.39em auto auto 0.42em;
+  position: absolute;
+  transform: rotate(45deg);
+  width: 0.23em;
+}
+
+.eidos-md-link {
+  color: var(--eidos-md-link);
+  text-decoration-color: color-mix(in srgb, currentColor 38%, transparent);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.16em;
+}
+
+.eidos-md-link:hover {
+  text-decoration-color: currentColor;
+}
+
+.eidos-md-wiki-link-node,
+.eidos-md-image-node {
+  display: inline;
+}
+
+.eidos-md-wiki-link {
+  background: color-mix(in srgb, var(--eidos-md-link) 9%, transparent);
+  border-radius: 3px;
+  color: var(--eidos-md-link);
+  padding: 0.08em 0.22em;
+  text-decoration: none;
+}
+
+.eidos-md-wiki-link:hover {
+  background: color-mix(in srgb, var(--eidos-md-link) 15%, transparent);
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
+
+.eidos-md-image-frame {
+  display: inline-block;
+  margin: 0.45em 0;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.eidos-md-image-frame[role="button"] {
+  cursor: pointer;
+}
+
+.eidos-md-image-frame:focus-visible {
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--eidos-md-focus) 55%, transparent);
+  outline: none;
+}
+
+.eidos-md-image {
+  border-radius: 4px;
+  display: block;
+  height: auto;
+  max-width: min(100%, 72rem);
+}
+
+.eidos-md-rule {
+  background: var(--eidos-md-border);
+  border: 0;
+  height: 1px;
+  margin: 1.35em 0;
+  padding: 0;
+}
+
+.eidos-md-rule-selected {
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--eidos-md-focus) 55%, transparent);
+}
+
+.eidos-md-indent {
+  --lexical-indent-base-value: 2rem;
+}
+
+.eidos-md-ltr {
+  text-align: left;
+}
+
+.eidos-md-rtl {
+  text-align: right;
+}
+
+.eidos-md-content ::selection {
+  background: var(--eidos-md-selection);
+}
+
+.eidos-md-table-scroll {
+  margin: 0.9em 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.eidos-md-table {
+  border-collapse: collapse;
+  font-size: 0.92em;
+  width: 100%;
+}
+
+.eidos-md-table-cell {
+  border: 1px solid var(--eidos-md-border);
+  min-width: 5.5rem;
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.eidos-md-table-cell-header {
+  background: color-mix(in srgb, var(--eidos-md-surface) 76%, transparent);
+  font-weight: 650;
+}
+
+.eidos-md-table-selected {
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--eidos-md-focus) 52%, transparent);
+}
+
+.eidos-md-command-menu {
+  background: var(--eidos-md-surface);
+  border: 1px solid var(--eidos-md-border);
+  border-radius: 6px;
+  box-shadow:
+    0 10px 30px color-mix(in srgb, var(--eidos-md-foreground) 12%, transparent),
+    0 2px 8px color-mix(in srgb, var(--eidos-md-foreground) 8%, transparent);
+  color: var(--eidos-md-foreground);
+  font-family: var(--eidos-md-font);
+  max-height: min(23rem, 55vh);
+  min-width: 17.5rem;
+  overflow-y: auto;
+  padding: 0.35rem;
+  position: absolute;
+  width: max-content;
+  z-index: 80;
+}
+
+.eidos-md-command-heading {
+  color: var(--eidos-md-muted);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.055em;
+  padding: 0.42rem 0.5rem 0.28rem;
+  text-transform: uppercase;
+}
+
+.eidos-md-command-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.eidos-md-command-menu li {
+  align-items: center;
+  border-radius: 4px;
+  cursor: default;
+  display: flex;
+  gap: 0.65rem;
+  min-height: 2.7rem;
+  padding: 0.35rem 0.45rem;
+}
+
+.eidos-md-command-menu li.eidos-md-command-selected {
+  background: var(--eidos-md-selection);
+}
+
+.eidos-md-command-marker {
+  align-items: center;
+  border: 1px solid var(--eidos-md-border);
+  border-radius: 4px;
+  color: var(--eidos-md-muted);
+  display: inline-flex;
+  flex: 0 0 2rem;
+  font-family: var(--eidos-md-mono);
+  font-size: 0.72rem;
+  height: 2rem;
+  justify-content: center;
+}
+
+.eidos-md-command-copy {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.eidos-md-command-copy strong {
+  font-size: 0.82rem;
+  font-weight: 580;
+}
+
+.eidos-md-command-copy small {
+  color: var(--eidos-md-muted);
+  font-size: 0.72rem;
+  margin-top: 0.12rem;
+}
+
+.eidos-md-unsupported-view {
+  min-width: 0;
+}
+
+.eidos-md-compatibility-notice {
+  align-items: baseline;
+  background: color-mix(in srgb, var(--eidos-md-surface) 78%, transparent);
+  border-bottom: 1px solid var(--eidos-md-border);
+  color: var(--eidos-md-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  gap: 0.35rem 0.7rem;
+  padding: 0.55rem 0.7rem;
+}
+
+.eidos-md-compatibility-notice strong {
+  color: var(--eidos-md-foreground);
+  font-weight: 620;
+}
+
+.eidos-md-raw-source {
+  background: transparent;
+  color: var(--eidos-md-foreground);
+  font-family: var(--eidos-md-mono);
+  font-size: 0.82rem;
+  line-height: 1.58;
+  margin: 0;
+  max-width: 100%;
+  min-height: 8rem;
+  overflow: auto;
+  padding: 0.9rem;
+  tab-size: 2;
+  white-space: pre-wrap;
+}
+
+.eidos-md-raw-source:focus-visible {
+  box-shadow: inset 0 0 0 2px
+    color-mix(in srgb, var(--eidos-md-focus) 48%, transparent);
+  outline: none;
+}
+
+@media (max-width: 560px) {
+  .eidos-markdown-editor {
+    font-size: 15px;
+  }
+
+  .eidos-md-content {
+    padding-bottom: 22vh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eidos-markdown-editor *,
+  .eidos-markdown-editor *::before,
+  .eidos-markdown-editor *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
