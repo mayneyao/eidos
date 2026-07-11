@@ -25,6 +25,8 @@ import {
 import path from "node:path"
 import { promisify } from "node:util"
 
+export { uniqueSpaceEntryName } from "./names"
+
 export type SpaceFileEntryKind = "file" | "directory" | "symbolicLink"
 
 export interface SpaceFileEntry {
@@ -259,25 +261,6 @@ function decodeUtf8(content: Buffer, relativePath: string): string {
       error
     )
   }
-}
-
-export function uniqueSpaceEntryName(
-  existingNames: Iterable<string>,
-  filename: string
-): string {
-  const existing = new Set([...existingNames].map((name) => name.toLowerCase()))
-  const extension =
-    filename.startsWith(".") && !filename.slice(1).includes(".")
-      ? ""
-      : path.extname(filename)
-  const stem = filename.slice(0, filename.length - extension.length)
-  let candidate = filename
-  let counter = 2
-  while (existing.has(candidate.toLowerCase())) {
-    candidate = `${stem} ${counter}${extension}`
-    counter += 1
-  }
-  return candidate
 }
 
 export class SpaceFiles {

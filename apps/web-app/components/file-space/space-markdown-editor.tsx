@@ -12,8 +12,8 @@ import {
   type MarkdownLinkActivation,
   type MarkdownRenderingOptions,
 } from "@eidos.space/markdown-editor"
-import { uniqueSpaceEntryName } from "@eidos.space/file-space"
 import { markdownHeadingSlug } from "@eidos.space/file-space/markdown"
+import { uniqueSpaceEntryName } from "@eidos.space/file-space/names"
 import { ImageOff } from "lucide-react"
 
 import {

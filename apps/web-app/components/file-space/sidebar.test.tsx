@@ -122,7 +122,7 @@ describe("FileSpaceSidebar layout", () => {
     expect(modeNavigation).not.toBeNull()
     expect(modeNavigation?.textContent).toContain("Files")
     expect(modeNavigation?.textContent).toContain("Version")
-    expect(modeNavigation?.textContent).toContain("Logs")
+    expect(modeNavigation?.textContent).not.toContain("Logs")
     expect(footerSpaceSelect?.textContent).toBe("new-base")
     expect(
       container.querySelector('button[aria-label="Space settings"]')
@@ -133,7 +133,7 @@ describe("FileSpaceSidebar layout", () => {
     expect(modeNavigation?.parentElement?.className).toContain("!pl-[72px]")
   })
 
-  it("switches between Files, Version, and Logs panels", async () => {
+  it("switches between Files and Version panels", async () => {
     await renderSidebar()
 
     expect(
@@ -152,16 +152,6 @@ describe("FileSpaceSidebar layout", () => {
     expect(
       container.querySelector('[data-file-tree-space-id="new-base"]')
     ).toBeNull()
-
-    const logsButton = container.querySelector<HTMLButtonElement>(
-      'button[title="Logs"]'
-    )
-    await act(async () => logsButton?.click())
-
-    expect(container.textContent).toContain(
-      "Space activity and extension logs will appear here."
-    )
-    expect(logsButton?.getAttribute("aria-pressed")).toBe("true")
 
     const filesButton = container.querySelector<HTMLButtonElement>(
       'button[title="Files"]'

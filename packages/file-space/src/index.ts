@@ -1,7 +1,6 @@
 export {
   SpaceFiles,
   SpaceFilesError,
-  uniqueSpaceEntryName,
   type ListSpaceFilesOptions,
   type SpaceBinaryFile,
   type SpaceFileChange,
@@ -12,6 +11,7 @@ export {
   type SpaceTextFile,
   type WatchSpaceFilesOptions,
 } from "./space-files"
+export { uniqueSpaceEntryName } from "./names"
 export {
   FileSpaceIndex,
   type FileSpaceBacklink,

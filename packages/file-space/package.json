@@ -15,6 +15,11 @@
       "types": "./dist/markdown.d.ts",
       "import": "./dist/markdown.js",
       "default": "./dist/markdown.js"
+    },
+    "./names": {
+      "types": "./dist/names.d.ts",
+      "import": "./dist/names.js",
+      "default": "./dist/names.js"
     }
   },
   "files": [
