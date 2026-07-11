@@ -120,6 +120,18 @@ describe("Eidos Base files", () => {
     expect(base.listRows("tasks")).toEqual([])
     base.close()
 
+    const checkboxBase = createBaseFile(path.join(root, "checkbox.base"), {
+      defaultTable: {
+        id: "tasks",
+        name: "Tasks",
+        fields: [{ name: "Done", columnName: "done", type: "checkbox" }],
+      },
+    })
+    expect(
+      checkboxBase.insertRow("tasks", { title: "Boolean input", done: true })
+    ).toMatchObject({ done: 1 })
+    checkboxBase.close()
+
     const inspection = inspectBaseFile(filePath)
     expect(inspection).toMatchObject({
       valid: true,

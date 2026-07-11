@@ -107,7 +107,8 @@ export interface CreateBaseFieldInput {
   storageCodec?: BaseStorageCodec
 }
 
-export type BaseRow = Record<string, BaseSqlPrimitive>
+export type BaseRowValue = BaseSqlPrimitive | boolean
+export type BaseRow = Record<string, BaseRowValue>
 
 export interface BaseValidationIssue {
   code: string

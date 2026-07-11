@@ -120,6 +120,10 @@ function defaultStorageCodec(
   return type === "multi-select" ? "csv_ids" : "scalar"
 }
 
+function sqliteParameter(value: BaseRow[string]): BaseSqlParams[number] {
+  return typeof value === "boolean" ? (value ? 1 : 0) : value
+}
+
 export class BaseRuntime {
   constructor(
     readonly connection: BaseConnection,
@@ -335,12 +339,12 @@ export class BaseRuntime {
     this.connection.run(
       `INSERT INTO ${quoteIdentifier(table.rawTableName)}
         (${columns.map(quoteIdentifier).join(", ")}) VALUES (${placeholders})`,
-      columns.map((column) => record[column]) as BaseSqlParams
+      columns.map((column) => sqliteParameter(record[column]))
     )
     setBaseMetadata(this.connection, {})
     return this.connection.get<BaseRow>(
       `SELECT * FROM ${quoteIdentifier(table.rawTableName)} WHERE _id = ?`,
-      [record._id]
+      [sqliteParameter(record._id)]
     )!
   }
 
@@ -371,7 +375,7 @@ export class BaseRuntime {
         `UPDATE ${quoteIdentifier(table.rawTableName)}
             SET ${assignments}, _last_edited_time = CURRENT_TIMESTAMP
           WHERE _id = ?`,
-        [...columns.map((column) => changes[column]), rowId]
+        [...columns.map((column) => sqliteParameter(changes[column])), rowId]
       )
       setBaseMetadata(this.connection, {})
     }
