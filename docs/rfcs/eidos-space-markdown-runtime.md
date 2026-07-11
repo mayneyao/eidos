@@ -17,13 +17,11 @@ Implemented:
 - file watching and renderer refresh events,
 - a standalone Lexical Markdown editor package,
 - basic CommonMark/GFM editing, attachments, wiki links, and source preservation,
-- an in-memory rebuildable search/link/tag/backlink index.
+- an in-memory rebuildable search/link/tag/backlink index,
+- indexed quick open, editor wiki-link completion, outline, and backlinks UI.
 
 Remaining for this slice:
 
-- indexed quick-open/search UI,
-- wiki-link completion in the editor,
-- outline and backlink navigation,
 - persistent derived indexes under `.eidos/indexes/**` for large Spaces,
 - desktop acceptance coverage for IME, keyboard, clipboard, and long documents.
 

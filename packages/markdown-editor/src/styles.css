@@ -427,6 +427,16 @@
   text-transform: uppercase;
 }
 
+.eidos-md-command-empty {
+  color: var(--eidos-md-muted);
+  font-size: 0.78rem;
+  padding: 0.65rem 0.6rem 0.75rem;
+}
+
+.eidos-md-wiki-menu {
+  min-width: min(22rem, calc(100vw - 2rem));
+}
+
 .eidos-md-command-menu ul {
   list-style: none;
   margin: 0;

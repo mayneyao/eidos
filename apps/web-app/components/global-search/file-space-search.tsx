@@ -3,7 +3,11 @@ import type { FileSpaceSearchResult } from "@eidos.space/file-space"
 import { File, FileCode2, FileImage, FileText, Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { toSpaceFileUrl } from "@/apps/web-app/components/file-space/file-path"
+import {
+  filePathFromSpaceUrl,
+  toSpaceFileUrl,
+} from "@/apps/web-app/components/file-space/file-path"
+import { navigateAfterFlushingSpaceFile } from "@/apps/web-app/components/file-space/file-navigation"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import {
@@ -77,7 +81,7 @@ function matchLabel(result: FileSpaceSearchResult): string {
 export function FileSpaceSearch() {
   const { currentSpace } = useCurrentSpace()
   const { search } = useSpaceFiles(currentSpace?.id)
-  const { navigate } = useRouterAdapter()
+  const { location, navigate } = useRouterAdapter()
   const { isGlobalSearchOpen, setGlobalSearchOpen } = useAppRuntimeStore()
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<FileSpaceSearchResult[]>([])
@@ -135,11 +139,33 @@ export function FileSpaceSearch() {
   }, [isGlobalSearchOpen])
 
   const openResult = useCallback(
-    (result: FileSpaceSearchResult) => {
-      navigate(toSpaceFileUrl(result.path), { target: "_blank" })
+    async (result: FileSpaceSearchResult) => {
+      const currentFilePath = filePathFromSpaceUrl(
+        location.pathname + location.search + location.hash
+      )
+      const navigated = await navigateAfterFlushingSpaceFile({
+        spaceId: currentSpace?.id,
+        currentFilePath,
+        destination: toSpaceFileUrl(result.path),
+        navigate,
+        options: { target: "_blank" },
+      })
+      if (!navigated) {
+        setError(
+          "Eidos could not save the current file before opening this result."
+        )
+        return
+      }
       setGlobalSearchOpen(false)
     },
-    [navigate, setGlobalSearchOpen]
+    [
+      currentSpace?.id,
+      location.hash,
+      location.pathname,
+      location.search,
+      navigate,
+      setGlobalSearchOpen,
+    ]
   )
 
   return (
@@ -184,7 +210,7 @@ export function FileSpaceSearch() {
                       key={result.path}
                       value={result.path}
                       className="items-start py-2.5"
-                      onSelect={() => openResult(result)}
+                      onSelect={() => void openResult(result)}
                     >
                       <Icon className="mt-0.5 h-4 w-4 text-muted-foreground" />
                       <div className="min-w-0 flex-1">

@@ -36,3 +36,7 @@ export type {
 } from "./rendering"
 export { MARKDOWN_EDITOR_THEME } from "./theme"
 export { sanitizeMarkdownHref } from "./url"
+export type {
+  MarkdownWikiLinkSuggestion,
+  MarkdownWikiLinkSuggestionProvider,
+} from "./wiki-link-plugin"

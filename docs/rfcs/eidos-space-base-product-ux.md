@@ -15,8 +15,9 @@ Related:
 Implemented UX includes opening folders as Spaces, a Pierre Trees-based file
 tree, Files/Version sidebar modes, a standalone Notion-style Markdown editor,
 VS Code-style staged Changes, Diff tabs, a dedicated History tab, and a
-contextual Codex-style Settings sidebar. The current Space switcher remains at
-the bottom of the sidebar.
+contextual Codex-style Settings sidebar. Indexed quick open and compact
+Outline/Backlinks sections are integrated without adding document chrome. The
+current Space switcher remains at the bottom of the sidebar.
 
 Base workspace, Space sync, conflict resolution, and migration UX are not
 implemented. File-Space Settings currently exposes only the supported General

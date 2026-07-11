@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/sidebar"
 
 import { FileSpaceTree } from "./file-tree"
+import { DocumentNavigationPanel } from "./document-navigation-panel"
 import { filePathFromSpaceUrl } from "./file-path"
 import { navigateAfterFlushingSpaceFile } from "./file-navigation"
 import { VersionPanel } from "./versioning/version-panel"
@@ -108,7 +109,12 @@ export function FileSpaceSidebar() {
       </SidebarHeader>
       <SidebarContent className="px-0 py-0">
         {activeView === "files" ? (
-          <FileSpaceTree spaceId={currentSpace.id} />
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="min-h-0 flex-1">
+              <FileSpaceTree spaceId={currentSpace.id} />
+            </div>
+            <DocumentNavigationPanel spaceId={currentSpace.id} />
+          </div>
         ) : (
           <VersionPanel spaceId={currentSpace.id} />
         )}

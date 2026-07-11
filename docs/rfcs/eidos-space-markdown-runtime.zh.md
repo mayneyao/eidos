@@ -17,13 +17,11 @@
 - file watcher 和 renderer refresh events，
 - 独立的 Lexical Markdown editor package，
 - 基础 CommonMark/GFM 编辑、附件、wiki links 和 source preservation，
-- 可重建的内存 search/link/tag/backlink index。
+- 可重建的内存 search/link/tag/backlink index，
+- indexed quick open、编辑器 wiki-link completion、outline 和 backlinks UI。
 
 本切片剩余：
 
-- indexed quick-open/search UI，
-- 编辑器中的 wiki-link completion，
-- outline 和 backlink navigation，
 - 面向大型 Space 的 `.eidos/indexes/**` 持久派生索引，
 - IME、keyboard、clipboard 和长文档的 desktop acceptance coverage。
 

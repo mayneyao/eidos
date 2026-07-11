@@ -49,6 +49,10 @@ import { MARKDOWN_EDITOR_THEME } from "./theme"
 import { ListKeyboardPlugin } from "./list-keyboard-plugin"
 import { MarkdownPastePlugin } from "./markdown-paste-plugin"
 import {
+  WikiLinkCompletionPlugin,
+  type MarkdownWikiLinkSuggestionProvider,
+} from "./wiki-link-plugin"
+import {
   ImageUploadPlugin,
   type MarkdownImageUploader,
 } from "./image-upload-plugin"
@@ -102,6 +106,8 @@ export interface MarkdownEditorProps {
   uploadImages?: MarkdownImageUploader
   onImageUploadError?: (error: Error) => void
   enableBlockControls?: boolean
+  /** Host-provided Space document suggestions for the `[[…` typeahead. */
+  wikiLinkSuggestions?: MarkdownWikiLinkSuggestionProvider
 }
 
 interface EditorBridgeProps {
@@ -216,6 +222,7 @@ export const MarkdownEditor = forwardRef<
     uploadImages,
     onImageUploadError,
     enableBlockControls = true,
+    wikiLinkSuggestions,
   },
   ref
 ) {
@@ -441,6 +448,11 @@ export const MarkdownEditor = forwardRef<
                 <TabIndentationPlugin />
                 <ListKeyboardPlugin />
                 <MarkdownPastePlugin />
+                {wikiLinkSuggestions ? (
+                  <WikiLinkCompletionPlugin
+                    provideSuggestions={wikiLinkSuggestions}
+                  />
+                ) : null}
                 <BlockCommandMenuPlugin />
                 {uploadImages ? (
                   <ImageUploadPlugin

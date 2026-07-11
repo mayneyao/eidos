@@ -14,8 +14,9 @@
 
 已经实现的 UX 包括：打开文件夹作为 Space、基于 Pierre Trees 的文件树、Files/Version
 sidebar modes、独立 Notion 风格 Markdown editor、VS Code 风格 staged Changes、
-Diff tabs、独立 History tab 和上下文 Codex 风格 Settings sidebar。当前 Space
-switcher 保持在侧边栏底部。
+Diff tabs、独立 History tab 和上下文 Codex 风格 Settings sidebar。Indexed quick
+open 和紧凑的 Outline/Backlinks sections 已经接入，并且没有增加文档区 chrome。
+当前 Space switcher 保持在侧边栏底部。
 
 Base workspace、Space sync、conflict resolution 和 migration UX 尚未实现。file Space
 Settings 当前只开放已经支持的 General surface；专门的 Files/Obsidian、Versioning

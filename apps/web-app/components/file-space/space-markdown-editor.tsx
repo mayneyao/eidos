@@ -11,6 +11,7 @@ import {
   type MarkdownImageUpload,
   type MarkdownLinkActivation,
   type MarkdownRenderingOptions,
+  type MarkdownWikiLinkSuggestionProvider,
 } from "@eidos.space/markdown-editor"
 import { markdownHeadingSlug } from "@eidos.space/file-space/markdown"
 import { uniqueSpaceEntryName } from "@eidos.space/file-space/names"
@@ -24,6 +25,7 @@ import {
   toSpaceFileUrl,
 } from "@/apps/web-app/components/file-space/file-path"
 import { navigateAfterFlushingSpaceFile } from "@/apps/web-app/components/file-space/file-navigation"
+import { createWikiLinkCompletions } from "@/apps/web-app/components/file-space/wiki-link-completion"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import {
@@ -81,9 +83,8 @@ export function SpaceMarkdownEditor({
 }: SpaceMarkdownEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { currentSpace } = useCurrentSpace()
-  const { createBinary, createDirectory, list, resolveLink } = useSpaceFiles(
-    currentSpace?.id
-  )
+  const { createBinary, createDirectory, list, resolveLink, search } =
+    useSpaceFiles(currentSpace?.id)
   const { navigate } = useRouterAdapter()
   const { toast } = useToast()
 
@@ -212,17 +213,39 @@ export function SpaceMarkdownEditor({
     [createBinary, createDirectory, filePath, list]
   )
 
+  const wikiLinkSuggestions = useCallback<MarkdownWikiLinkSuggestionProvider>(
+    async (query) =>
+      createWikiLinkCompletions(
+        await search(query, { includeContent: false, limit: 30 }),
+        filePath
+      ).map((completion) => ({
+        key: `${completion.description}:${completion.insertText}`,
+        label: completion.label,
+        description: completion.description,
+        insertText: completion.insertText,
+      })),
+    [filePath, search]
+  )
+
   useEffect(() => {
     if (!heading || !containerRef.current) return
-    const expectedSlug = markdownHeadingSlug(heading)
+    const expectedSlug = heading
     const timer = window.setTimeout(() => {
       const headings = containerRef.current?.querySelectorAll(
         "h1, h2, h3, h4, h5, h6"
       )
-      const target = [...(headings ?? [])].find(
-        (candidate) =>
-          markdownHeadingSlug(candidate.textContent ?? "") === expectedSlug
-      )
+      const slugCounts = new Map<string, number>()
+      const target = [...(headings ?? [])].find((candidate) => {
+        const text = candidate.textContent ?? ""
+        const base = markdownHeadingSlug(text)
+        const occurrence = slugCounts.get(base) ?? 0
+        slugCounts.set(base, occurrence + 1)
+        const candidateSlug = markdownHeadingSlug(text, occurrence)
+        return (
+          candidateSlug === expectedSlug ||
+          (occurrence === 0 && candidateSlug === markdownHeadingSlug(heading))
+        )
+      })
       target?.scrollIntoView({ block: "start" })
     }, 0)
     return () => window.clearTimeout(timer)
@@ -260,6 +283,7 @@ export function SpaceMarkdownEditor({
         rendering={rendering}
         uploadImages={readOnly ? undefined : uploadImages}
         value={value}
+        wikiLinkSuggestions={readOnly ? undefined : wikiLinkSuggestions}
       />
     </div>
   )

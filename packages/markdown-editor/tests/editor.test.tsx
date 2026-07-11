@@ -20,6 +20,7 @@ import {
   MarkdownViewer,
 } from "../src"
 import { render, settle } from "./setup"
+import { matchWikiLinkTypeahead } from "../src/wiki-link-plugin"
 
 import "../src/styles.css"
 
@@ -60,6 +61,16 @@ function lexicalEditorFor(element: HTMLElement): LexicalEditor {
 }
 
 describe("MarkdownEditor", () => {
+  it("matches unfinished wiki links for Space completion", () => {
+    expect(matchWikiLinkTypeahead("See [[proj")).toEqual({
+      leadOffset: 4,
+      matchingString: "proj",
+      replaceableString: "[[proj",
+    })
+    expect(matchWikiLinkTypeahead("[[Plan|label")).toBeNull()
+    expect(matchWikiLinkTypeahead("[[Plan#heading")).toBeNull()
+  })
+
   it("renders an accessible editable document", async () => {
     const container = render(
       <MarkdownEditor

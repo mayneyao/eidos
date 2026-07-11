@@ -73,6 +73,12 @@ vi.mock("./file-tree", () => ({
   ),
 }))
 
+vi.mock("./document-navigation-panel", () => ({
+  DocumentNavigationPanel: ({ spaceId }: { spaceId: string }) => (
+    <div data-document-navigation-space-id={spaceId}>Document navigation</div>
+  ),
+}))
+
 vi.mock("./versioning/version-panel", () => ({
   VersionPanel: ({ spaceId }: { spaceId: string }) => (
     <div data-version-panel-space-id={spaceId}>Version panel</div>
