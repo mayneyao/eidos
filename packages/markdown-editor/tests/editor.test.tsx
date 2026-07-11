@@ -1,5 +1,17 @@
 import React, { createRef, useState } from "react"
 import { act } from "react"
+import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode"
+import {
+  $getRoot,
+  $getSelection,
+  $isRangeSelection,
+  $isTextNode,
+  COMMAND_PRIORITY_NORMAL,
+  KEY_BACKSPACE_COMMAND,
+  KEY_TAB_COMMAND,
+  PASTE_COMMAND,
+  type LexicalEditor,
+} from "lexical"
 import { vi } from "vitest"
 
 import {
@@ -8,6 +20,44 @@ import {
   MarkdownViewer,
 } from "../src"
 import { render, settle } from "./setup"
+
+import "../src/styles.css"
+
+function placeCaret(node: Node, offset: number) {
+  const selection = window.getSelection()
+  const range = document.createRange()
+  range.setStart(node, offset)
+  range.collapse(true)
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+  document.dispatchEvent(new Event("selectionchange"))
+}
+
+function pressKey(editor: HTMLElement, key: string) {
+  editor.dispatchEvent(
+    new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key })
+  )
+}
+
+function lastTextNode(element: Element): Text {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+  let current = walker.nextNode()
+  let last: Text | null = null
+  while (current) {
+    last = current as Text
+    current = walker.nextNode()
+  }
+  if (!last) throw new Error("Expected element to contain a text node")
+  return last
+}
+
+function lexicalEditorFor(element: HTMLElement): LexicalEditor {
+  const editor = (
+    element as HTMLElement & { __lexicalEditor?: LexicalEditor | null }
+  ).__lexicalEditor
+  if (!editor) throw new Error("Expected Lexical editor on content editable")
+  return editor
+}
 
 describe("MarkdownEditor", () => {
   it("renders an accessible editable document", async () => {
@@ -268,5 +318,224 @@ describe("MarkdownEditor", () => {
     act(() => handle?.click())
     await settle()
     expect(first.classList.contains("eidos-md-block-selected")).toBe(true)
+  })
+
+  it("lets the rich-text handler process Backspace at a text caret", async () => {
+    const container = render(<MarkdownEditor defaultValue="Draft" />)
+    await settle()
+
+    const editor = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const lexicalEditor = lexicalEditorFor(editor)
+    let reachedRichTextPipeline = false
+    const unregister = lexicalEditor.registerCommand(
+      KEY_BACKSPACE_COMMAND,
+      () => {
+        reachedRichTextPipeline = true
+        return false
+      },
+      COMMAND_PRIORITY_NORMAL
+    )
+    act(() => {
+      editor.focus()
+      lexicalEditor.update(
+        () => {
+          const text = $getRoot().getFirstDescendant()
+          if (!$isTextNode(text)) throw new Error("Expected text node")
+          text.select(text.getTextContentSize(), text.getTextContentSize())
+          if (!$isRangeSelection($getSelection())) {
+            throw new Error("Expected range selection")
+          }
+          lexicalEditor.dispatchCommand(
+            KEY_BACKSPACE_COMMAND,
+            new KeyboardEvent("keydown", {
+              bubbles: true,
+              cancelable: true,
+              key: "Backspace",
+            })
+          )
+        },
+        { discrete: true }
+      )
+    })
+    await settle()
+    unregister()
+
+    expect(reachedRichTextPipeline).toBe(true)
+  })
+
+  it("inserts a paragraph when Enter follows a block selection", async () => {
+    const container = render(<MarkdownEditor defaultValue="First block" />)
+    await settle()
+
+    const editor = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const first = container.querySelector<HTMLElement>("p")!
+    first.getBoundingClientRect = () =>
+      ({
+        bottom: 30,
+        height: 30,
+        left: 30,
+        right: 330,
+        top: 0,
+        width: 300,
+        x: 30,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect
+
+    act(() =>
+      first.dispatchEvent(
+        new MouseEvent("mousemove", { bubbles: true, clientY: 10 })
+      )
+    )
+    await settle()
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Select and drag block"]'
+        )
+        ?.click()
+    )
+    await settle()
+    act(() => pressKey(editor, "Enter"))
+    await settle()
+
+    expect(container.querySelectorAll("p")).toHaveLength(2)
+    expect(container.querySelectorAll("p")[1]?.textContent).toBe("")
+  })
+
+  it("continues and exits a Markdown list with Enter", async () => {
+    const container = render(<MarkdownEditor defaultValue="- First" />)
+    await settle()
+
+    const editor = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const text = lastTextNode(container.querySelector("li")!)
+    act(() => {
+      editor.focus()
+      placeCaret(text, text.data.length)
+    })
+    await settle()
+
+    act(() => pressKey(editor, "Enter"))
+    await settle()
+    expect(container.querySelectorAll("li")).toHaveLength(2)
+
+    act(() => pressKey(editor, "Enter"))
+    await settle()
+    expect(container.querySelectorAll("li")).toHaveLength(1)
+    expect(container.querySelectorAll("p")).toHaveLength(1)
+  })
+
+  it("indents and outdents list items with Tab", async () => {
+    const container = render(
+      <MarkdownEditor defaultValue={"- Parent\n- Child"} />
+    )
+    await settle()
+
+    const editor = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const lexicalEditor = lexicalEditorFor(editor)
+    act(() => {
+      editor.focus()
+      lexicalEditor.update(
+        () => {
+          const child = $getRoot().getAllTextNodes()[1]
+          child.select(child.getTextContentSize(), child.getTextContentSize())
+          lexicalEditor.dispatchCommand(
+            KEY_TAB_COMMAND,
+            new KeyboardEvent("keydown", {
+              bubbles: true,
+              cancelable: true,
+              key: "Tab",
+            })
+          )
+        },
+        { discrete: true }
+      )
+    })
+    await settle()
+    expect(container.querySelectorAll("ul ul")).toHaveLength(1)
+
+    act(() => {
+      lexicalEditor.dispatchCommand(
+        KEY_TAB_COMMAND,
+        new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          key: "Tab",
+          shiftKey: true,
+        })
+      )
+    })
+    await settle()
+    expect(container.querySelectorAll("ul ul")).toHaveLength(0)
+    expect(container.querySelectorAll("li")).toHaveLength(2)
+  })
+
+  it("restores visible markers for ordered and unordered lists", async () => {
+    const container = render(
+      <MarkdownEditor defaultValue={"- Bullet\n\n1. Numbered"} />
+    )
+    await settle()
+
+    expect(getComputedStyle(container.querySelector("ul")!).listStyleType).toBe(
+      "disc"
+    )
+    expect(getComputedStyle(container.querySelector("ol")!).listStyleType).toBe(
+      "decimal"
+    )
+  })
+
+  it("pastes recognizable Markdown as document blocks", async () => {
+    const container = render(<MarkdownEditor defaultValue="" />)
+    await settle()
+
+    const root = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const editor = lexicalEditorFor(root)
+    const event = new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData: {
+        files: [],
+        types: ["text/plain", "text/markdown"],
+        getData: (type: string) =>
+          type === "text/plain" ? "## Pasted\n\n- One\n- Two" : "",
+      } as unknown as DataTransfer,
+    })
+
+    act(() => {
+      editor.update(
+        () => {
+          $getRoot().getFirstChild()?.selectStart()
+          editor.dispatchCommand(PASTE_COMMAND, event)
+        },
+        { discrete: true }
+      )
+    })
+    await settle()
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(container.querySelector("h2")?.textContent).toBe("Pasted")
+    expect(
+      Array.from(container.querySelectorAll("li"), (item) => item.textContent)
+    ).toEqual(["One", "Two"])
+  })
+
+  it("supports thematic break insertion from editor controls", async () => {
+    const container = render(<MarkdownEditor defaultValue="Before" />)
+    await settle()
+
+    const root = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const editor = lexicalEditorFor(root)
+    act(() => {
+      editor.update(
+        () => {
+          $getRoot().getFirstChild()?.selectEnd()
+          editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined)
+        },
+        { discrete: true }
+      )
+    })
+    await settle()
+
+    expect(container.querySelector("hr")).not.toBeNull()
   })
 })

@@ -200,8 +200,29 @@
 }
 
 .eidos-md-list {
+  list-style-position: outside;
   margin: 0.35em 0;
   padding-inline-start: 1.55em;
+}
+
+.eidos-md-unordered-list {
+  list-style-type: disc;
+}
+
+.eidos-md-ordered-list {
+  list-style-type: decimal;
+}
+
+.eidos-md-list .eidos-md-unordered-list {
+  list-style-type: circle;
+}
+
+.eidos-md-list .eidos-md-list .eidos-md-unordered-list {
+  list-style-type: square;
+}
+
+.eidos-md-list-item::marker {
+  color: var(--eidos-md-muted);
 }
 
 .eidos-md-list .eidos-md-list {

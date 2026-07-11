@@ -46,6 +46,8 @@ import {
   type MarkdownRenderingOptions,
 } from "./rendering"
 import { MARKDOWN_EDITOR_THEME } from "./theme"
+import { ListKeyboardPlugin } from "./list-keyboard-plugin"
+import { MarkdownPastePlugin } from "./markdown-paste-plugin"
 import {
   ImageUploadPlugin,
   type MarkdownImageUploader,
@@ -425,7 +427,7 @@ export const MarkdownEditor = forwardRef<
               onChange={onChange}
               onInternalSourceChange={setUncontrolledSource}
             />
-            <ListPlugin hasStrictIndent />
+            <ListPlugin />
             <LinkPlugin />
             <TablePlugin hasCellMerge={false} hasHorizontalScroll />
             {effectiveReadOnly ? (
@@ -437,6 +439,8 @@ export const MarkdownEditor = forwardRef<
                 <HistoryPlugin />
                 <CheckListPlugin />
                 <TabIndentationPlugin />
+                <ListKeyboardPlugin />
+                <MarkdownPastePlugin />
                 <BlockCommandMenuPlugin />
                 {uploadImages ? (
                   <ImageUploadPlugin

@@ -22,6 +22,7 @@ import {
   COMMAND_PRIORITY_LOW,
   DRAGOVER_COMMAND,
   DROP_COMMAND,
+  INSERT_PARAGRAPH_COMMAND,
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_UP_COMMAND,
   KEY_BACKSPACE_COMMAND,
@@ -100,6 +101,15 @@ export function BlockSelectionPlugin() {
     selectedKeysRef.current = nextKeys
   }, [editor])
 
+  const deleteSelectedBlocks = useCallback((event: KeyboardEvent | null) => {
+    const selection = $getSelection()
+    if (!$isNodeSelection(selection)) return false
+    event?.preventDefault()
+    for (const node of selection.getNodes()) topLevelNode(node).remove()
+    if ($getRoot().isEmpty()) $getRoot().append($createParagraphNode())
+    return true
+  }, [])
+
   useEffect(
     () =>
       mergeRegister(
@@ -162,19 +172,12 @@ export function BlockSelectionPlugin() {
         ),
         editor.registerCommand(
           KEY_DELETE_COMMAND,
-          (event) => {
-            const selection = $getSelection()
-            if (!$isNodeSelection(selection)) return false
-            event?.preventDefault()
-            for (const node of selection.getNodes()) topLevelNode(node).remove()
-            if ($getRoot().isEmpty()) $getRoot().append($createParagraphNode())
-            return true
-          },
+          deleteSelectedBlocks,
           COMMAND_PRIORITY_HIGH
         ),
         editor.registerCommand(
           KEY_BACKSPACE_COMMAND,
-          (event) => editor.dispatchCommand(KEY_DELETE_COMMAND, event),
+          deleteSelectedBlocks,
           COMMAND_PRIORITY_HIGH
         ),
         editor.registerCommand(
@@ -187,7 +190,7 @@ export function BlockSelectionPlugin() {
             event?.preventDefault()
             topLevelNode(node).selectEnd()
             queueMicrotask(() => editor.focus())
-            return true
+            return editor.dispatchCommand(INSERT_PARAGRAPH_COMMAND, undefined)
           },
           COMMAND_PRIORITY_HIGH
         ),
@@ -206,7 +209,7 @@ export function BlockSelectionPlugin() {
           COMMAND_PRIORITY_LOW
         )
       ),
-    [editor, paintSelection]
+    [deleteSelectedBlocks, editor, paintSelection]
   )
 
   useEffect(

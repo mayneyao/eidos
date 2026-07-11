@@ -1,4 +1,4 @@
-import { configExtension } from "@lexical/extension"
+import { configExtension, HorizontalRuleExtension } from "@lexical/extension"
 import {
   MdastCommonMarkExtension,
   MdastExtension,
@@ -116,7 +116,11 @@ export const EIDOS_MARKDOWN_DOCUMENT_EXTENSION =
 /** Interactive graph adds shortcuts driven by the exact same mdast grammar. */
 export const EIDOS_MARKDOWN_EDITOR_EXTENSION =
   /* @__PURE__ */ defineExtension({
-    dependencies: [EIDOS_MARKDOWN_DOCUMENT_EXTENSION, MdastShortcutsExtension],
+    dependencies: [
+      EIDOS_MARKDOWN_DOCUMENT_EXTENSION,
+      MdastShortcutsExtension,
+      HorizontalRuleExtension,
+    ],
     name: "@eidos.space/markdown-editor/Editor",
   })
 
