@@ -10,7 +10,6 @@ import type {
 } from "@eidos.space/base"
 import {
   AlertTriangle,
-  Columns3,
   LoaderCircle,
   Plus,
   RefreshCw,
@@ -35,11 +34,24 @@ import {
 } from "@/components/ui/alert-dialog"
 
 import { BaseGrid } from "./base-grid"
+import { BaseRenameDialog } from "./base-rename-dialog"
 import { BaseStructureDialog } from "./base-structure-dialog"
+import { BaseStructureMenu } from "./base-structure-menu"
 
 interface SpaceBaseEditorProps {
   filePath: string
 }
+
+type RenameTarget =
+  | { kind: "table"; tableId: string; name: string }
+  | {
+      kind: "field"
+      tableId: string
+      columnName: string
+      name: string
+    }
+
+type DeleteTarget = RenameTarget
 
 export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const { currentSpace } = useCurrentSpace()
@@ -47,7 +59,11 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     getSnapshot,
     getTablePage,
     createTable,
+    updateTable,
+    deleteTable,
     addField,
+    updateField,
+    deleteField,
     updateView,
     insertRow,
     updateRow,
@@ -64,6 +80,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const [gridReloadToken, setGridReloadToken] = useState(0)
   const [selectedRowRanges, setSelectedRowRanges] = useState<BaseRowRange[]>([])
   const [deleteRowsDialogOpen, setDeleteRowsDialogOpen] = useState(false)
+  const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
   const [structureDialog, setStructureDialog] = useState<
     "table" | "field" | null
   >(null)
@@ -283,6 +301,48 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     [activeTable, addField, applySnapshot, enqueueMutation, filePath]
   )
 
+  const renameStructure = useCallback(
+    (name: string): Promise<void> => {
+      if (!renameTarget) return Promise.resolve()
+      const operation = () =>
+        renameTarget.kind === "table"
+          ? updateTable(filePath, renameTarget.tableId, { name })
+          : updateField(
+              filePath,
+              renameTarget.tableId,
+              renameTarget.columnName,
+              { name }
+            )
+      return enqueueMutation(operation, applySnapshot).then(() => undefined)
+    },
+    [
+      applySnapshot,
+      enqueueMutation,
+      filePath,
+      renameTarget,
+      updateField,
+      updateTable,
+    ]
+  )
+
+  const deleteStructure = useCallback((): Promise<void> => {
+    if (!deleteTarget) return Promise.resolve()
+    const operation = () =>
+      deleteTarget.kind === "table"
+        ? deleteTable(filePath, deleteTarget.tableId)
+        : deleteField(filePath, deleteTarget.tableId, deleteTarget.columnName)
+    return enqueueMutation(operation, applySnapshot).then(() => {
+      setDeleteTarget(null)
+    })
+  }, [
+    applySnapshot,
+    deleteField,
+    deleteTable,
+    deleteTarget,
+    enqueueMutation,
+    filePath,
+  ])
+
   const updateActiveView = useCallback(
     (changes: Parameters<typeof updateView>[2]): Promise<void> => {
       const view = activeTable?.views.find(
@@ -373,17 +433,44 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               Delete {selectedRowCount}
             </Button>
           ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1 px-2 text-xs"
-            disabled={!activeTable}
-            onClick={() => setStructureDialog("field")}
-          >
-            <Columns3 className="h-3.5 w-3.5" />
-            New field
-          </Button>
+          {activeTable ? (
+            <BaseStructureMenu
+              table={activeTable.table}
+              fields={activeTable.fields}
+              disabled={pendingMutations > 0}
+              onNewField={() => setStructureDialog("field")}
+              onRenameTable={() =>
+                setRenameTarget({
+                  kind: "table",
+                  tableId: activeTable.table.id,
+                  name: activeTable.table.name,
+                })
+              }
+              onDeleteTable={() =>
+                setDeleteTarget({
+                  kind: "table",
+                  tableId: activeTable.table.id,
+                  name: activeTable.table.name,
+                })
+              }
+              onRenameField={(field) =>
+                setRenameTarget({
+                  kind: "field",
+                  tableId: activeTable.table.id,
+                  columnName: field.tableColumnName,
+                  name: field.name,
+                })
+              }
+              onDeleteField={(field) =>
+                setDeleteTarget({
+                  kind: "field",
+                  tableId: activeTable.table.id,
+                  columnName: field.tableColumnName,
+                  name: field.name,
+                })
+              }
+            />
+          ) : null}
           <Button
             type="button"
             variant="ghost"
@@ -449,6 +536,16 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         onCreateField={createFieldInBase}
       />
 
+      <BaseRenameDialog
+        kind={renameTarget?.kind ?? "table"}
+        name={renameTarget?.name ?? ""}
+        open={renameTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRenameTarget(null)
+        }}
+        onRename={renameStructure}
+      />
+
       <AlertDialog
         open={deleteRowsDialogOpen}
         onOpenChange={setDeleteRowsDialogOpen}
@@ -474,6 +571,38 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               }}
             >
               Delete rows
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+      >
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {deleteTarget?.kind} “{deleteTarget?.name}”?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.kind === "table"
+                ? "All rows, fields, and views in this table will be removed from the Base file."
+                : "All values stored in this field will be removed from the Base file."}{" "}
+              You can recover this change from Version history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                void deleteStructure().catch(() => undefined)
+              }}
+            >
+              Delete {deleteTarget?.kind}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

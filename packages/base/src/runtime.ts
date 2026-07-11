@@ -2,6 +2,7 @@ import type { BaseConnection, BaseSqlParams } from "./connection"
 import {
   BASE_COLUMNS_TABLE,
   BASE_META_TABLE,
+  BASE_REFERENCES_TABLE,
   BASE_TABLES_TABLE,
   BASE_VIEWS_TABLE,
 } from "./constants"
@@ -26,6 +27,8 @@ import type {
   BaseViewInfo,
   CreateBaseFieldInput,
   CreateBaseTableInput,
+  UpdateBaseFieldInput,
+  UpdateBaseTableInput,
   UpdateBaseViewInput,
 } from "./types"
 import { validateBase } from "./validation"
@@ -258,6 +261,77 @@ export class BaseRuntime {
     return this.getTable(tableId)
   }
 
+  updateTable(tableId: string, changes: UpdateBaseTableInput): BaseTableInfo {
+    const table = this.getTable(tableId)
+    const name = changes.name === undefined ? table.name : changes.name.trim()
+    if (!name) {
+      throw new BaseError("invalid-identifier", "Base table name is required")
+    }
+    this.connection.transaction(() => {
+      this.connection.run(
+        `UPDATE ${BASE_TABLES_TABLE}
+            SET name = ?, icon = ?, description = ?,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?`,
+        [
+          name,
+          changes.icon === undefined ? table.icon : changes.icon,
+          changes.description === undefined
+            ? table.description
+            : changes.description,
+          tableId,
+        ]
+      )
+      setBaseMetadata(this.connection, {})
+    })
+    return this.getTable(tableId)
+  }
+
+  deleteTable(tableId: string): boolean {
+    const table = this.getTable(tableId)
+    return this.connection.transaction(() => {
+      this.connection.run(
+        `DELETE FROM ${BASE_REFERENCES_TABLE}
+          WHERE self_table_name = ? OR ref_table_name = ? OR link_table_name = ?`,
+        [table.rawTableName, table.rawTableName, table.rawTableName]
+      )
+      this.connection.run(
+        `DELETE FROM ${BASE_VIEWS_TABLE} WHERE table_id = ?`,
+        [tableId]
+      )
+      this.connection.run(
+        `DELETE FROM ${BASE_COLUMNS_TABLE} WHERE table_name = ?`,
+        [table.rawTableName]
+      )
+      this.connection.run(`DELETE FROM ${BASE_TABLES_TABLE} WHERE id = ?`, [
+        tableId,
+      ])
+      this.connection.exec(`DROP TABLE ${quoteIdentifier(table.rawTableName)}`)
+
+      const currentDefault = this.connection.get<{ value: string }>(
+        `SELECT value FROM ${BASE_META_TABLE} WHERE key = 'default_table_id'`
+      )
+      if (currentDefault?.value === tableId) {
+        const nextDefault = this.connection.get<{ id: string }>(
+          `SELECT id FROM ${BASE_TABLES_TABLE}
+            ORDER BY position, created_at, id LIMIT 1`
+        )
+        if (nextDefault) {
+          this.connection.run(
+            `UPDATE ${BASE_META_TABLE} SET value = ? WHERE key = 'default_table_id'`,
+            [nextDefault.id]
+          )
+        } else {
+          this.connection.run(
+            `DELETE FROM ${BASE_META_TABLE} WHERE key = 'default_table_id'`
+          )
+        }
+      }
+      setBaseMetadata(this.connection, {})
+      return true
+    })
+  }
+
   listFields(tableId: string): BaseFieldInfo[] {
     const table = this.getTable(tableId)
     return this.connection
@@ -395,6 +469,123 @@ export class BaseRuntime {
       )
     }
     return created
+  }
+
+  updateField(
+    tableId: string,
+    columnName: string,
+    changes: UpdateBaseFieldInput
+  ): BaseFieldInfo {
+    const table = this.getTable(tableId)
+    const field = this.getField(tableId, columnName)
+    const name = changes.name === undefined ? field.name : changes.name.trim()
+    if (!name) {
+      throw new BaseError("invalid-identifier", "Base field name is required")
+    }
+    this.connection.transaction(() => {
+      this.connection.run(
+        `UPDATE ${BASE_COLUMNS_TABLE}
+            SET name = ?, property = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE table_name = ? AND table_column_name = ?`,
+        [
+          name,
+          changes.property === undefined
+            ? field.property === null
+              ? null
+              : JSON.stringify(field.property)
+            : changes.property === null
+              ? null
+              : JSON.stringify(changes.property),
+          table.rawTableName,
+          field.tableColumnName,
+        ]
+      )
+      setBaseMetadata(this.connection, {})
+    })
+    return this.getField(tableId, field.tableColumnName)
+  }
+
+  deleteField(tableId: string, columnName: string): boolean {
+    const table = this.getTable(tableId)
+    const field = this.getField(tableId, columnName)
+    if (field.valueKind === "system" || field.tableColumnName === "title") {
+      throw new BaseError(
+        "protected-field",
+        `Base system field cannot be deleted: ${field.name}`
+      )
+    }
+    return this.connection.transaction(() => {
+      this.connection.run(
+        `DELETE FROM ${BASE_REFERENCES_TABLE}
+          WHERE (self_table_name = ? AND self_table_column_name = ?)
+             OR (ref_table_name = ? AND ref_table_column_name = ?)
+             OR (link_table_name = ? AND link_table_column_name = ?)`,
+        [
+          table.rawTableName,
+          field.tableColumnName,
+          table.rawTableName,
+          field.tableColumnName,
+          table.rawTableName,
+          field.tableColumnName,
+        ]
+      )
+      this.connection.exec(
+        `ALTER TABLE ${quoteIdentifier(table.rawTableName)}
+          DROP COLUMN ${quoteIdentifier(field.tableColumnName)}`
+      )
+      this.connection.run(
+        `DELETE FROM ${BASE_COLUMNS_TABLE}
+          WHERE table_name = ? AND table_column_name = ?`,
+        [table.rawTableName, field.tableColumnName]
+      )
+      for (const view of this.listViews(tableId)) {
+        const orderMap = { ...(view.orderMap ?? {}) }
+        delete orderMap[field.tableColumnName]
+        const properties = { ...(view.properties ?? {}) }
+        const fieldWidthMap = properties.fieldWidthMap
+        if (
+          typeof fieldWidthMap === "object" &&
+          fieldWidthMap !== null &&
+          !Array.isArray(fieldWidthMap)
+        ) {
+          const nextWidths: Record<string, unknown> = { ...fieldWidthMap }
+          delete nextWidths[field.tableColumnName]
+          properties.fieldWidthMap = nextWidths
+        }
+        this.connection.run(
+          `UPDATE ${BASE_VIEWS_TABLE}
+              SET properties = ?, order_map = ?, hidden_fields = ?,
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?`,
+          [
+            JSON.stringify(properties),
+            JSON.stringify(orderMap),
+            JSON.stringify(
+              view.hiddenFields.filter(
+                (candidate) => candidate !== field.tableColumnName
+              )
+            ),
+            view.id,
+          ]
+        )
+      }
+      setBaseMetadata(this.connection, {})
+      return true
+    })
+  }
+
+  private getField(tableId: string, columnName: string): BaseFieldInfo {
+    const safeColumnName = assertBaseColumnName(columnName)
+    const field = this.listFields(tableId).find(
+      (candidate) => candidate.tableColumnName === safeColumnName
+    )
+    if (!field) {
+      throw new BaseError(
+        "field-not-found",
+        `Base field not found: ${safeColumnName}`
+      )
+    }
+    return field
   }
 
   listRows(tableId: string, limit = 200, offset = 0): BaseRow[] {

@@ -13,6 +13,8 @@ import type {
   CreateBaseFieldInput,
   CreateBaseOptions,
   CreateBaseTableInput,
+  UpdateBaseFieldInput,
+  UpdateBaseTableInput,
   UpdateBaseViewInput,
 } from "@eidos.space/base"
 import {
@@ -457,6 +459,43 @@ export class SpaceManagementService extends IpcServiceBase {
     })
   }
 
+  async updateBaseField(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    columnName: string,
+    changes: UpdateBaseFieldInput
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        base.updateField(tableId, columnName, changes)
+      } finally {
+        base.close()
+      }
+      this._invalidateFileIndex(spaceId)
+      return this._getBaseSnapshot(spaceId, relativePath)
+    })
+  }
+
+  async deleteBaseField(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    columnName: string
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        base.deleteField(tableId, columnName)
+      } finally {
+        base.close()
+      }
+      this._invalidateFileIndex(spaceId)
+      return this._getBaseSnapshot(spaceId, relativePath)
+    })
+  }
+
   async createBaseTable(
     spaceId: string,
     relativePath: string,
@@ -466,6 +505,41 @@ export class SpaceManagementService extends IpcServiceBase {
       const base = await this._openBase(spaceId, relativePath, true)
       try {
         base.createTable(table)
+      } finally {
+        base.close()
+      }
+      this._invalidateFileIndex(spaceId)
+      return this._getBaseSnapshot(spaceId, relativePath)
+    })
+  }
+
+  async updateBaseTable(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    changes: UpdateBaseTableInput
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        base.updateTable(tableId, changes)
+      } finally {
+        base.close()
+      }
+      this._invalidateFileIndex(spaceId)
+      return this._getBaseSnapshot(spaceId, relativePath)
+    })
+  }
+
+  async deleteBaseTable(
+    spaceId: string,
+    relativePath: string,
+    tableId: string
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        base.deleteTable(tableId)
       } finally {
         base.close()
       }

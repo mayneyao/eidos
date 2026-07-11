@@ -109,6 +109,12 @@ export interface CreateBaseTableInput {
   createDefaultView?: boolean
 }
 
+export interface UpdateBaseTableInput {
+  name?: string
+  icon?: string | null
+  description?: string | null
+}
+
 export interface CreateBaseFieldInput {
   name: string
   columnName: string
@@ -126,6 +132,11 @@ export interface CreateBaseFieldInput {
   >
   property?: Record<string, unknown>
   storageCodec?: BaseStorageCodec
+}
+
+export interface UpdateBaseFieldInput {
+  name?: string
+  property?: Record<string, unknown> | null
 }
 
 export type BaseRowValue = BaseSqlPrimitive | boolean

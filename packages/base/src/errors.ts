@@ -5,6 +5,7 @@ export type BaseErrorCode =
   | "invalid-schema"
   | "invalid-identifier"
   | "invalid-range"
+  | "protected-field"
   | "table-not-found"
   | "row-not-found"
   | "field-not-found"

@@ -192,6 +192,71 @@ describe("Eidos Base files", () => {
     expectBaseError(() => openBaseFile(sqlitePath), "not-base")
   })
 
+  it("renames and deletes Base tables and fields transactionally", () => {
+    const filePath = path.join(root, "structure.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: {
+        id: "tasks",
+        name: "Tasks",
+        fields: [
+          {
+            name: "Status",
+            columnName: "status",
+            type: "select",
+            property: { options: [{ id: "todo", name: "Todo" }] },
+          },
+          { name: "Notes", columnName: "notes", type: "text" },
+        ],
+      },
+    })
+    base.createTable({ id: "people", name: "People" })
+
+    expect(base.updateTable("people", { name: "Contacts" })).toMatchObject({
+      id: "people",
+      name: "Contacts",
+    })
+    expect(
+      base.updateField("tasks", "status", {
+        name: "State",
+        property: { options: [{ id: "done", name: "Done" }] },
+      })
+    ).toMatchObject({
+      name: "State",
+      tableColumnName: "status",
+      property: { options: [{ id: "done", name: "Done" }] },
+    })
+
+    const view = base.listViews("tasks")[0]
+    base.updateView(view.id, {
+      properties: { fieldWidthMap: { title: 240, status: 160 } },
+      orderMap: { title: 0, status: 1, notes: 2 },
+      hiddenFields: ["status"],
+    })
+    expect(base.deleteField("tasks", "status")).toBe(true)
+    expect(base.listFields("tasks")).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ tableColumnName: "status" }),
+      ])
+    )
+    expect(base.listViews("tasks")[0]).toMatchObject({
+      properties: { fieldWidthMap: { title: 240 } },
+      orderMap: { title: 0, notes: 2 },
+      hiddenFields: [],
+    })
+    expectBaseError(() => base.deleteField("tasks", "title"), "protected-field")
+
+    expect(base.deleteTable("tasks")).toBe(true)
+    expect(base.listTables()).toMatchObject([
+      { id: "people", name: "Contacts" },
+    ])
+    expect(base.info().defaultTableId).toBe("people")
+    expectBaseError(() => base.getTable("tasks"), "table-not-found")
+    expect(base.deleteTable("people")).toBe(true)
+    expect(base.listTables()).toEqual([])
+    expect(base.info().defaultTableId).toBeUndefined()
+    base.close()
+  })
+
   it("migrates compatible pre-v1 field metadata without core", () => {
     const filePath = path.join(root, "legacy.base")
     createBaseFile(filePath).close()

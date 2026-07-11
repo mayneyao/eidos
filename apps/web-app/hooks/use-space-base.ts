@@ -9,6 +9,8 @@ import type {
   CreateBaseFieldInput,
   CreateBaseOptions,
   CreateBaseTableInput,
+  UpdateBaseFieldInput,
+  UpdateBaseTableInput,
   UpdateBaseViewInput,
 } from "@eidos.space/base"
 
@@ -68,12 +70,65 @@ export function useSpaceBase(spaceId: string | undefined) {
     [requireSpaceId]
   )
 
+  const updateField = useCallback(
+    (
+      relativePath: string,
+      tableId: string,
+      columnName: string,
+      changes: UpdateBaseFieldInput
+    ): Promise<BaseSnapshot> =>
+      requireBaseApi().updateBaseField(
+        requireSpaceId(),
+        relativePath,
+        tableId,
+        columnName,
+        changes
+      ),
+    [requireSpaceId]
+  )
+
+  const deleteField = useCallback(
+    (
+      relativePath: string,
+      tableId: string,
+      columnName: string
+    ): Promise<BaseSnapshot> =>
+      requireBaseApi().deleteBaseField(
+        requireSpaceId(),
+        relativePath,
+        tableId,
+        columnName
+      ),
+    [requireSpaceId]
+  )
+
   const createTable = useCallback(
     (
       relativePath: string,
       table: CreateBaseTableInput
     ): Promise<BaseSnapshot> =>
       requireBaseApi().createBaseTable(requireSpaceId(), relativePath, table),
+    [requireSpaceId]
+  )
+
+  const updateTable = useCallback(
+    (
+      relativePath: string,
+      tableId: string,
+      changes: UpdateBaseTableInput
+    ): Promise<BaseSnapshot> =>
+      requireBaseApi().updateBaseTable(
+        requireSpaceId(),
+        relativePath,
+        tableId,
+        changes
+      ),
+    [requireSpaceId]
+  )
+
+  const deleteTable = useCallback(
+    (relativePath: string, tableId: string): Promise<BaseSnapshot> =>
+      requireBaseApi().deleteBaseTable(requireSpaceId(), relativePath, tableId),
     [requireSpaceId]
   )
 
@@ -159,7 +214,11 @@ export function useSpaceBase(spaceId: string | undefined) {
     getSnapshot,
     getTablePage,
     createTable,
+    updateTable,
+    deleteTable,
     addField,
+    updateField,
+    deleteField,
     updateView,
     insertRow,
     updateRow,

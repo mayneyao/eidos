@@ -11,7 +11,11 @@ import { SpaceBaseEditor } from "./space-base-editor"
 const getSnapshotMock = vi.hoisted(() => vi.fn())
 const getTablePageMock = vi.hoisted(() => vi.fn())
 const createTableMock = vi.hoisted(() => vi.fn())
+const updateTableMock = vi.hoisted(() => vi.fn())
+const deleteTableMock = vi.hoisted(() => vi.fn())
 const addFieldMock = vi.hoisted(() => vi.fn())
+const updateFieldMock = vi.hoisted(() => vi.fn())
+const deleteFieldMock = vi.hoisted(() => vi.fn())
 const updateViewMock = vi.hoisted(() => vi.fn())
 const insertRowMock = vi.hoisted(() => vi.fn())
 const updateRowMock = vi.hoisted(() => vi.fn())
@@ -26,7 +30,11 @@ vi.mock("@/apps/web-app/hooks/use-space-base", () => ({
     getSnapshot: getSnapshotMock,
     getTablePage: getTablePageMock,
     createTable: createTableMock,
+    updateTable: updateTableMock,
+    deleteTable: deleteTableMock,
     addField: addFieldMock,
+    updateField: updateFieldMock,
+    deleteField: deleteFieldMock,
     updateView: updateViewMock,
     insertRow: insertRowMock,
     updateRow: updateRowMock,
@@ -64,6 +72,86 @@ vi.mock("./base-structure-dialog", () => ({
         }
       >
         Confirm {mode}
+      </button>
+    ) : null,
+}))
+
+vi.mock("./base-structure-menu", () => ({
+  BaseStructureMenu: ({
+    fields,
+    onNewField,
+    onRenameTable,
+    onDeleteTable,
+    onRenameField,
+    onDeleteField,
+  }: {
+    fields: (typeof snapshot)["tables"][number]["fields"]
+    onNewField: () => void
+    onRenameTable: () => void
+    onDeleteTable: () => void
+    onRenameField: (
+      field: (typeof snapshot)["tables"][number]["fields"][number]
+    ) => void
+    onDeleteField: (
+      field: (typeof snapshot)["tables"][number]["fields"][number]
+    ) => void
+  }) => {
+    const field = fields.find(
+      (candidate) => candidate.tableColumnName === "status"
+    )
+    return (
+      <>
+        <button type="button" onClick={onNewField}>
+          New field
+        </button>
+        <button type="button" onClick={onRenameTable}>
+          Rename table
+        </button>
+        <button type="button" onClick={onDeleteTable}>
+          Delete table
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (field) onRenameField(field)
+          }}
+        >
+          Rename field
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (field) onDeleteField(field)
+          }}
+        >
+          Delete field
+        </button>
+      </>
+    )
+  },
+}))
+
+vi.mock("./base-rename-dialog", () => ({
+  BaseRenameDialog: ({
+    name,
+    open,
+    onRename,
+    onOpenChange,
+  }: {
+    name: string
+    open: boolean
+    onRename: (name: string) => void
+    onOpenChange: (open: boolean) => void
+  }) =>
+    open ? (
+      <button
+        type="button"
+        onClick={() => {
+          onRename(name + " renamed")
+          onOpenChange(false)
+        }}
+      >
+        Confirm rename
       </button>
     ) : null,
 }))
@@ -219,7 +307,11 @@ describe("SpaceBaseEditor", () => {
     getSnapshotMock.mockReset()
     getTablePageMock.mockReset()
     createTableMock.mockReset()
+    updateTableMock.mockReset()
+    deleteTableMock.mockReset()
     addFieldMock.mockReset()
+    updateFieldMock.mockReset()
+    deleteFieldMock.mockReset()
     updateViewMock.mockReset()
     insertRowMock.mockReset()
     updateRowMock.mockReset()
@@ -233,7 +325,11 @@ describe("SpaceBaseEditor", () => {
       rows: [{ _id: "row_1", title: "Write RFC", status: "todo" }],
     })
     createTableMock.mockResolvedValue(snapshot)
+    updateTableMock.mockResolvedValue(snapshot)
+    deleteTableMock.mockResolvedValue(snapshot)
     addFieldMock.mockResolvedValue(snapshot)
+    updateFieldMock.mockResolvedValue(snapshot)
+    deleteFieldMock.mockResolvedValue(snapshot)
     updateViewMock.mockResolvedValue(snapshot)
     insertRowMock.mockResolvedValue({
       tableId: "tasks",
@@ -344,6 +440,79 @@ describe("SpaceBaseEditor", () => {
       columnName: "owner",
       type: "text",
     })
+  })
+
+  it("renames and deletes tables and fields through the structure menu", async () => {
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Rename table")
+        ?.click()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Confirm rename")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(updateTableMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      { name: "Tasks renamed" }
+    )
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Rename field")
+        ?.click()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Confirm rename")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(updateFieldMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      "status",
+      { name: "Status renamed" }
+    )
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Delete field")
+        ?.click()
+    })
+    expect(document.body.textContent).toContain("Delete field “Status”?")
+    await act(async () => {
+      Array.from(document.body.querySelectorAll("button"))
+        .filter((button) => button.textContent === "Delete field")
+        .at(-1)
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(deleteFieldMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      "status"
+    )
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Delete table")
+        ?.click()
+    })
+    expect(document.body.textContent).toContain("Delete table “Tasks”?")
+    await act(async () => {
+      Array.from(document.body.querySelectorAll("button"))
+        .filter((button) => button.textContent === "Delete table")
+        .at(-1)
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(deleteTableMock).toHaveBeenCalledWith("projects/tasks.base", "tasks")
   })
 
   it("deletes the rows selected by the Grid in one operation", async () => {
