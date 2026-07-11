@@ -5,6 +5,7 @@ import type {
   CreateBaseFieldInput,
   CreateBaseOptions,
   CreateBaseTableInput,
+  UpdateBaseViewInput,
 } from "@eidos.space/base"
 
 function requireBaseApi() {
@@ -73,6 +74,21 @@ export function useSpaceBase(spaceId: string | undefined) {
     [requireSpaceId]
   )
 
+  const updateView = useCallback(
+    (
+      relativePath: string,
+      viewId: string,
+      changes: UpdateBaseViewInput
+    ): Promise<BaseSnapshot> =>
+      requireBaseApi().updateBaseView(
+        requireSpaceId(),
+        relativePath,
+        viewId,
+        changes
+      ),
+    [requireSpaceId]
+  )
+
   const updateRow = useCallback(
     (
       relativePath: string,
@@ -110,6 +126,7 @@ export function useSpaceBase(spaceId: string | undefined) {
     getSnapshot,
     createTable,
     addField,
+    updateView,
     insertRow,
     updateRow,
     deleteRow,

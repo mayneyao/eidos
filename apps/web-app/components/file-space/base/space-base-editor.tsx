@@ -29,8 +29,14 @@ interface SpaceBaseEditorProps {
 
 export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const { currentSpace } = useCurrentSpace()
-  const { getSnapshot, createTable, addField, insertRow, updateRow } =
-    useSpaceBase(currentSpace?.id)
+  const {
+    getSnapshot,
+    createTable,
+    addField,
+    updateView,
+    insertRow,
+    updateRow,
+  } = useSpaceBase(currentSpace?.id)
   const [snapshot, setSnapshot] = useState<BaseSnapshot | null>(null)
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -208,6 +214,17 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     [activeTable, addField, enqueueMutation, filePath]
   )
 
+  const updateActiveView = useCallback(
+    (changes: Parameters<typeof updateView>[2]): Promise<void> => {
+      const view = activeTable?.views.find(
+        (candidate) => candidate.type === "grid"
+      )
+      if (!view) return Promise.resolve()
+      return enqueueMutation(() => updateView(filePath, view.id, changes))
+    },
+    [activeTable?.views, enqueueMutation, filePath, updateView]
+  )
+
   if (loading && !snapshot) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -319,8 +336,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         <div className="min-h-0 flex-1">
           <BaseGrid
             table={activeTable}
+            view={activeTable.views.find((view) => view.type === "grid")}
             onAddRow={createRow}
             onCellEdit={saveCell}
+            onViewUpdate={updateActiveView}
           />
         </div>
       )}

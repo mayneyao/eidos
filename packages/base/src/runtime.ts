@@ -21,8 +21,10 @@ import type {
   BaseRow,
   BaseStorageCodec,
   BaseTableInfo,
+  BaseViewInfo,
   CreateBaseFieldInput,
   CreateBaseTableInput,
+  UpdateBaseViewInput,
 } from "./types"
 import { validateBase } from "./validation"
 
@@ -49,6 +51,21 @@ interface FieldRow {
   is_derived: number
   source_table_column_name: string | null
   depends_on: string | null
+}
+
+interface ViewRow {
+  id: string
+  name: string
+  type: string
+  table_id: string
+  query: string
+  properties: string | null
+  filter: string | null
+  order_map: string | null
+  hidden_fields: string | null
+  position: number | null
+  created_at: string
+  updated_at: string
 }
 
 const SYSTEM_FIELDS: Array<{
@@ -264,6 +281,81 @@ export class BaseRuntime {
         sourceTableColumnName: field.source_table_column_name,
         dependsOn: parseJson(field.depends_on),
       }))
+  }
+
+  listViews(tableId: string): BaseViewInfo[] {
+    this.getTable(tableId)
+    return this.connection
+      .query<ViewRow>(
+        `SELECT id, name, type, table_id, query, properties, filter,
+                order_map, hidden_fields, position, created_at, updated_at
+           FROM ${BASE_VIEWS_TABLE}
+          WHERE table_id = ?
+          ORDER BY position, created_at, id`,
+        [tableId]
+      )
+      .map((view) => ({
+        id: view.id,
+        name: view.name,
+        type: view.type,
+        tableId: view.table_id,
+        query: view.query,
+        properties: parseJson(view.properties) as Record<
+          string,
+          unknown
+        > | null,
+        filter: parseJson(view.filter),
+        orderMap: parseJson(view.order_map) as Record<string, number> | null,
+        hiddenFields: (parseJson(view.hidden_fields) as string[] | null) ?? [],
+        position: view.position,
+        createdAt: view.created_at,
+        updatedAt: view.updated_at,
+      }))
+  }
+
+  updateView(viewId: string, changes: UpdateBaseViewInput): BaseViewInfo {
+    const existing = this.connection.get<ViewRow>(
+      `SELECT id, name, type, table_id, query, properties, filter,
+              order_map, hidden_fields, position, created_at, updated_at
+         FROM ${BASE_VIEWS_TABLE}
+        WHERE id = ?`,
+      [viewId]
+    )
+    if (!existing) {
+      throw new BaseError("view-not-found", `Base view not found: ${viewId}`)
+    }
+    this.connection.run(
+      `UPDATE ${BASE_VIEWS_TABLE}
+          SET properties = ?, order_map = ?, hidden_fields = ?,
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?`,
+      [
+        JSON.stringify(
+          changes.properties === undefined
+            ? parseJson(existing.properties)
+            : changes.properties
+        ),
+        JSON.stringify(
+          changes.orderMap === undefined
+            ? parseJson(existing.order_map)
+            : changes.orderMap
+        ),
+        JSON.stringify(
+          changes.hiddenFields === undefined
+            ? parseJson(existing.hidden_fields)
+            : changes.hiddenFields
+        ),
+        viewId,
+      ]
+    )
+    setBaseMetadata(this.connection, {})
+    const updated = this.listViews(existing.table_id).find(
+      (view) => view.id === viewId
+    )
+    if (!updated) {
+      throw new BaseError("view-not-found", `Base view not found: ${viewId}`)
+    }
+    return updated
   }
 
   addField(tableId: string, field: CreateBaseFieldInput): BaseFieldInfo {

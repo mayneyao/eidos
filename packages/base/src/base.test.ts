@@ -106,6 +106,17 @@ describe("Eidos Base files", () => {
         }),
       ])
     )
+    const gridView = base.listViews("tasks")[0]
+    expect(gridView).toMatchObject({ name: "Grid", type: "grid" })
+    expect(
+      base.updateView(gridView.id, {
+        properties: { fieldWidthMap: { title: 320 } },
+        orderMap: { title: 0, status: 1, attachment: 2 },
+      })
+    ).toMatchObject({
+      properties: { fieldWidthMap: { title: 320 } },
+      orderMap: { title: 0, status: 1, attachment: 2 },
+    })
 
     const inserted = base.insertRow("tasks", {
       title: "Ship Base v1",
@@ -153,6 +164,9 @@ describe("Eidos Base files", () => {
     const reopened = openBaseFile(filePath, { readonly: true })
     expect(reopened.info().title).toBe("Project Tasks")
     expect(reopened.listTables()).toHaveLength(2)
+    expect(reopened.listViews("tasks")[0]).toMatchObject({
+      properties: { fieldWidthMap: { title: 320 } },
+    })
     reopened.close()
   })
 

@@ -72,6 +72,27 @@ export interface BaseFieldInfo {
   dependsOn: unknown
 }
 
+export interface BaseViewInfo {
+  id: string
+  name: string
+  type: string
+  tableId: string
+  query: string
+  properties: Record<string, unknown> | null
+  filter: unknown
+  orderMap: Record<string, number> | null
+  hiddenFields: string[]
+  position: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface UpdateBaseViewInput {
+  properties?: Record<string, unknown> | null
+  orderMap?: Record<string, number> | null
+  hiddenFields?: string[]
+}
+
 export interface CreateBaseOptions {
   title?: string
   description?: string
@@ -127,6 +148,7 @@ export interface BaseValidationResult {
 export interface BaseTableSnapshot {
   table: BaseTableInfo
   fields: BaseFieldInfo[]
+  views: BaseViewInfo[]
   rows: BaseRow[]
 }
 

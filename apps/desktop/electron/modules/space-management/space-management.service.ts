@@ -9,6 +9,7 @@ import type {
   CreateBaseFieldInput,
   CreateBaseOptions,
   CreateBaseTableInput,
+  UpdateBaseViewInput,
 } from "@eidos.space/base"
 import {
   createBaseFile as createBaseDatabase,
@@ -471,6 +472,24 @@ export class SpaceManagementService extends IpcServiceBase {
     })
   }
 
+  async updateBaseView(
+    spaceId: string,
+    relativePath: string,
+    viewId: string,
+    changes: UpdateBaseViewInput
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        base.updateView(viewId, changes)
+      } finally {
+        base.close()
+      }
+      this._invalidateFileIndex(spaceId)
+      return this._getBaseSnapshot(spaceId, relativePath)
+    })
+  }
+
   async updateBaseRow(
     spaceId: string,
     relativePath: string,
@@ -697,6 +716,7 @@ export class SpaceManagementService extends IpcServiceBase {
         tables: base.listTables().map((table) => ({
           table,
           fields: base.listFields(table.id),
+          views: base.listViews(table.id),
           rows: base.listRows(table.id, rowLimit),
         })),
       }

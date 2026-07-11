@@ -83,6 +83,22 @@ const table: BaseTableSnapshot = {
       dependsOn: null,
     },
   ],
+  views: [
+    {
+      id: "view_tasks",
+      name: "Grid",
+      type: "grid",
+      tableId: "tasks",
+      query: "SELECT * FROM tb_tasks",
+      properties: null,
+      filter: null,
+      orderMap: null,
+      hiddenFields: [],
+      position: 1,
+      createdAt: "2026-07-12 00:00:00",
+      updatedAt: "2026-07-12 00:00:00",
+    },
+  ],
   rows: [{ _id: "row_1", title: "Write RFC", done: 0 }],
 }
 
@@ -98,6 +114,7 @@ describe("BaseGrid", () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     act(() => root.unmount())
     container.remove()
   })
@@ -150,5 +167,53 @@ describe("BaseGrid", () => {
       await mocks.props?.onRowAppended?.()
     })
     expect(onAddRow).toHaveBeenCalledOnce()
+  })
+
+  it("hydrates and persists Base view column layout", () => {
+    vi.useFakeTimers()
+    const onViewUpdate = vi.fn()
+    const view = {
+      ...table.views[0],
+      properties: { fieldWidthMap: { done: 140 } },
+      orderMap: { done: 0, title: 1 },
+    }
+    act(() =>
+      root.render(
+        <BaseGrid
+          table={table}
+          view={view}
+          onAddRow={vi.fn()}
+          onCellEdit={vi.fn()}
+          onViewUpdate={onViewUpdate}
+        />
+      )
+    )
+
+    expect(mocks.props?.columns.map((column) => column.title)).toEqual([
+      "Done",
+      "Title",
+    ])
+    expect(
+      mocks.props && "width" in mocks.props.columns[0]
+        ? mocks.props.columns[0].width
+        : undefined
+    ).toBe(140)
+
+    act(() => {
+      mocks.props?.onColumnResize?.(mocks.props.columns[0], 210, 0, 210)
+    })
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    expect(onViewUpdate).toHaveBeenCalledWith({
+      properties: { fieldWidthMap: { done: 210 } },
+    })
+
+    act(() => {
+      mocks.props?.onColumnMoved?.(0, 1)
+    })
+    expect(onViewUpdate).toHaveBeenCalledWith({
+      orderMap: { title: 0, done: 1 },
+    })
   })
 })

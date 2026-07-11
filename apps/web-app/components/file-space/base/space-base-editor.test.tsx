@@ -11,6 +11,7 @@ import { SpaceBaseEditor } from "./space-base-editor"
 const getSnapshotMock = vi.hoisted(() => vi.fn())
 const createTableMock = vi.hoisted(() => vi.fn())
 const addFieldMock = vi.hoisted(() => vi.fn())
+const updateViewMock = vi.hoisted(() => vi.fn())
 const insertRowMock = vi.hoisted(() => vi.fn())
 const updateRowMock = vi.hoisted(() => vi.fn())
 
@@ -23,6 +24,7 @@ vi.mock("@/apps/web-app/hooks/use-space-base", () => ({
     getSnapshot: getSnapshotMock,
     createTable: createTableMock,
     addField: addFieldMock,
+    updateView: updateViewMock,
     insertRow: insertRowMock,
     updateRow: updateRowMock,
   }),
@@ -174,6 +176,22 @@ const snapshot: BaseSnapshot = {
           dependsOn: null,
         },
       ],
+      views: [
+        {
+          id: "view_tasks",
+          name: "Grid",
+          type: "grid",
+          tableId: "tasks",
+          query: "SELECT * FROM tb_tasks",
+          properties: null,
+          filter: null,
+          orderMap: null,
+          hiddenFields: [],
+          position: 1,
+          createdAt: "2026-07-12 00:00:00",
+          updatedAt: "2026-07-12 00:00:00",
+        },
+      ],
       rows: [{ _id: "row_1", title: "Write RFC", status: "todo" }],
     },
   ],
@@ -187,11 +205,13 @@ describe("SpaceBaseEditor", () => {
     getSnapshotMock.mockReset()
     createTableMock.mockReset()
     addFieldMock.mockReset()
+    updateViewMock.mockReset()
     insertRowMock.mockReset()
     updateRowMock.mockReset()
     getSnapshotMock.mockResolvedValue(snapshot)
     createTableMock.mockResolvedValue(snapshot)
     addFieldMock.mockResolvedValue(snapshot)
+    updateViewMock.mockResolvedValue(snapshot)
     insertRowMock.mockResolvedValue(snapshot)
     updateRowMock.mockResolvedValue(snapshot)
     container = document.createElement("div")

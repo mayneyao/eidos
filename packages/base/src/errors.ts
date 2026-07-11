@@ -7,6 +7,7 @@ export type BaseErrorCode =
   | "table-not-found"
   | "row-not-found"
   | "field-not-found"
+  | "view-not-found"
   | "file-exists"
   | "file-not-found"
 
