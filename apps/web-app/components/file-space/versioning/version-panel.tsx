@@ -9,7 +9,6 @@ import {
   RefreshCw,
   Undo2,
 } from "lucide-react"
-import { useLocation, useNavigate } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { FILE_SPACE_VERSION_DIFF_ROUTE } from "@/apps/web-app/file-space-route-policy"
@@ -20,6 +19,7 @@ import {
   toSpaceFileUrl,
 } from "@/apps/web-app/components/file-space/file-path"
 import { useSpaceVersioning } from "@/apps/web-app/hooks/use-space-versioning"
+import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { Button } from "@/components/ui/button"
 import {
@@ -305,8 +305,7 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
   const [localNotice, setLocalNotice] = useState<string | null>(null)
   const [busyPath, setBusyPath] = useState<string | null>(null)
   const [discardTarget, setDiscardTarget] = useState<string | null>(null)
-  const location = useLocation()
-  const navigate = useNavigate()
+  const { location, navigate } = useRouterAdapter()
   const openTab = useTabStore((state) => state.openTab)
   const tabs = useTabStore((state) => state.tabs)
   const updateTab = useTabStore((state) => state.updateTab)

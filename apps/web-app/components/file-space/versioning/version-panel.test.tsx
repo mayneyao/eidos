@@ -2,7 +2,6 @@
 
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-space/pending-writes"
@@ -17,6 +16,18 @@ const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
   setActiveTab: vi.fn(),
   updateTab: vi.fn(),
+  navigate: vi.fn(),
+}))
+
+vi.mock("@/apps/web-app/hooks/use-router-adapter", () => ({
+  useRouterAdapter: () => ({
+    location: {
+      pathname: "/space-file",
+      search: "",
+      hash: "#open.md",
+    },
+    navigate: mocks.navigate,
+  }),
 }))
 
 vi.mock("@/apps/web-app/hooks/use-space-versioning", () => ({
@@ -74,6 +85,7 @@ describe("VersionPanel changed-file diff", () => {
     mocks.discardPath.mockClear()
     mocks.setActiveTab.mockReset()
     mocks.updateTab.mockReset()
+    mocks.navigate.mockReset()
     container = document.createElement("div")
     document.body.append(container)
     root = createRoot(container)
@@ -92,11 +104,7 @@ describe("VersionPanel changed-file diff", () => {
     )
 
     await act(async () => {
-      root.render(
-        <MemoryRouter initialEntries={["/space-file#open.md"]}>
-          <VersionPanel spaceId="space-a" />
-        </MemoryRouter>
-      )
+      root.render(<VersionPanel spaceId="space-a" />)
     })
 
     await act(async () => {
@@ -121,11 +129,7 @@ describe("VersionPanel changed-file diff", () => {
     )
 
     await act(async () => {
-      root.render(
-        <MemoryRouter initialEntries={["/space-file#open.md"]}>
-          <VersionPanel spaceId="space-a" />
-        </MemoryRouter>
-      )
+      root.render(<VersionPanel spaceId="space-a" />)
     })
     await act(async () => {
       container
