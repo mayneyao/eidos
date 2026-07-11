@@ -2,6 +2,8 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type { SpaceFileEntry } from "@eidos.space/file-space"
 
+import { useFileSpaceSettings } from "@/apps/web-app/store/file-space-settings"
+
 import { FileSpaceTree } from "./file-tree"
 
 ;(
@@ -128,6 +130,7 @@ describe("FileSpaceTree accessibility", () => {
   let root: Root
 
   beforeEach(() => {
+    useFileSpaceSettings.setState({ bySpace: {} })
     currentEntriesByDirectory = Object.fromEntries(
       Object.entries(entriesByDirectory).map(([directory, entries]) => [
         directory,
@@ -165,6 +168,7 @@ describe("FileSpaceTree accessibility", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    useFileSpaceSettings.setState({ bySpace: {} })
   })
 
   const getTreeItem = (path: string) => {
@@ -213,6 +217,24 @@ describe("FileSpaceTree accessibility", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
   }
+
+  it("applies the per-Space hidden file settings to directory reads", async () => {
+    useFileSpaceSettings.setState({
+      bySpace: {
+        "test-space": {
+          showHiddenFiles: true,
+          showObsidianFolder: true,
+        },
+      },
+    })
+
+    await renderTree()
+
+    expect(listMock).toHaveBeenCalledWith("", {
+      includeHidden: true,
+      includeObsidian: true,
+    })
+  })
 
   it("exposes the selected item and a single roving tab stop", async () => {
     await renderTree()

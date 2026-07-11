@@ -26,6 +26,7 @@ import {
 } from "@/apps/web-app/hooks/use-space-files"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useFileSpaceSettings } from "@/apps/web-app/store/file-space-settings"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -103,6 +104,9 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const [operationError, setOperationError] = useState<string | null>(null)
   const [filesExpanded, setFilesExpanded] = useState(true)
   const treeRef = useRef<SpaceFilesTreeHandle>(null)
+  const viewSettings = useFileSpaceSettings((state) => state.bySpace[spaceId])
+  const showHiddenFiles = viewSettings?.showHiddenFiles ?? false
+  const showObsidianFolder = viewSettings?.showObsidianFolder ?? false
 
   const blockMutationDuringRestore = useCallback(() => {
     if (!restoringVersion) return false
@@ -125,7 +129,10 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
     async (directory: string): Promise<SpaceFileEntry[]> => {
       setLoading((current) => new Set(current).add(directory))
       try {
-        const entries = await list(directory)
+        const entries = await list(directory, {
+          includeHidden: showHiddenFiles,
+          includeObsidian: showObsidianFolder,
+        })
         setEntriesByDirectory((current) => {
           const next = new Map(current)
           next.set(directory, entries)
@@ -149,7 +156,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
         })
       }
     },
-    [list]
+    [list, showHiddenFiles, showObsidianFolder]
   )
 
   useEffect(() => {

@@ -68,11 +68,19 @@ describe("SpaceFiles", () => {
       { name: "readme.md", path: "readme.md", kind: "file" },
     ])
     await expect(files.list("", { includeHidden: true })).resolves.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ name: ".git" }),
-        expect.objectContaining({ name: ".obsidian" }),
-      ])
+      expect.arrayContaining([expect.objectContaining({ name: ".git" })])
     )
+    expect(
+      (await files.list("", { includeHidden: true })).map((entry) => entry.name)
+    ).not.toContain(".obsidian")
+    await expect(files.list("", { includeObsidian: true })).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: ".obsidian" })])
+    )
+    expect(
+      (await files.list("", { includeObsidian: true })).map(
+        (entry) => entry.name
+      )
+    ).not.toContain(".git")
     await expect(files.list("notes")).resolves.toEqual([])
     await expect(files.list("notes", { includeHidden: true })).resolves.toEqual(
       [expect.objectContaining({ name: ".drafts", path: "notes/.drafts" })]
@@ -83,7 +91,8 @@ describe("SpaceFiles", () => {
     await mkdir(path.join(root, ".OBSIDIAN"))
 
     await expect(files.list()).resolves.toEqual([])
-    await expect(files.list("", { includeHidden: true })).resolves.toEqual([
+    await expect(files.list("", { includeHidden: true })).resolves.toEqual([])
+    await expect(files.list("", { includeObsidian: true })).resolves.toEqual([
       expect.objectContaining({ name: ".OBSIDIAN" }),
     ])
   })

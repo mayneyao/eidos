@@ -13,6 +13,9 @@ import { GlobalStorageSettings } from "./global/global-storage-settings"
 import { GlobalSyncSettings } from "./global/global-sync-settings"
 import { DocumentSettings } from "./space/document-settings"
 import { ExtensionSettings } from "./space/extension-settings"
+import { FileSpaceFilesSettings } from "./space/file-space-files-settings"
+import { FileSpaceIndexesSettings } from "./space/file-space-indexes-settings"
+import { FileSpaceVersioningSettings } from "./space/file-space-versioning-settings"
 import { GlobalSecretsSettings } from "./global/global-secrets-settings"
 
 import { GeneralSettings } from "./space/general-settings"
@@ -22,6 +25,13 @@ import { TabsSettings } from "./space/tab-settings"
 import { RelaySettings } from "./space/relay-settings"
 import { ThemeSettings } from "./space/theme-settings"
 
+const FILE_SPACE_SECTIONS = new Set<SettingsSection>([
+  "space-general",
+  "space-files",
+  "space-versioning",
+  "space-indexes",
+])
+
 export function SettingsContent() {
   const { section } = useParams<{ section?: string }>()
   const requestedSection: SettingsSection =
@@ -30,7 +40,7 @@ export function SettingsContent() {
   const activeSection: SettingsSection =
     currentSpace?.mode === "file" &&
     requestedSection.startsWith("space-") &&
-    requestedSection !== "space-general"
+    !FILE_SPACE_SECTIONS.has(requestedSection)
       ? "space-general"
       : requestedSection
   const { t, i18n } = useTranslation()
@@ -45,6 +55,12 @@ export function SettingsContent() {
     switch (section) {
       case "space-general":
         return t("space.settings.general")
+      case "space-files":
+        return t("space.settings.fileSpace.files.title", "Files & Obsidian")
+      case "space-versioning":
+        return t("space.settings.fileSpace.versioning.title", "Versioning")
+      case "space-indexes":
+        return t("space.settings.fileSpace.indexes.title", "Indexes")
       case "space-document":
         return t("space.settings.document")
       case "space-mounts":
@@ -84,6 +100,12 @@ export function SettingsContent() {
     switch (activeSection) {
       case "space-general":
         return <GeneralSettings />
+      case "space-files":
+        return <FileSpaceFilesSettings />
+      case "space-versioning":
+        return <FileSpaceVersioningSettings />
+      case "space-indexes":
+        return <FileSpaceIndexesSettings />
       case "space-document":
         return <DocumentSettings />
       case "space-mounts":

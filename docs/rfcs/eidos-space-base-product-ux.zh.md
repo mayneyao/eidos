@@ -19,8 +19,8 @@ open 和紧凑的 Outline/Backlinks sections 已经接入，并且没有增加�
 当前 Space switcher 保持在侧边栏底部。
 
 Base workspace、Space sync、conflict resolution 和 migration UX 尚未实现。file Space
-Settings 当前只开放已经支持的 General surface；专门的 Files/Obsidian、Versioning
-和 Indexes sections 仍待实现。
+Settings 现已拆分为 General、Files/Obsidian、Versioning 和派生 Indexes；数据库
+Space 专属的旧设置不会出现在 file Space 中。
 
 ## 摘要
 

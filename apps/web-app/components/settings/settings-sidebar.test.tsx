@@ -133,6 +133,9 @@ describe("SettingsSidebar", () => {
     expect(container.textContent).toContain("General")
     expect(container.textContent).toContain("AI")
     expect(container.textContent).toContain("Space general")
+    expect(container.textContent).toContain("Files & Obsidian")
+    expect(container.textContent).toContain("Versioning")
+    expect(container.textContent).toContain("Indexes")
     expect(container.textContent).not.toContain("Document")
     expect(
       container.querySelector<HTMLButtonElement>("button[aria-current='page']")

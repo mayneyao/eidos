@@ -2,8 +2,11 @@ import {
   ArrowLeft,
   Bot,
   Cloud,
+  DatabaseZap,
   FileText,
+  Files,
   Folder,
+  GitBranch,
   Network,
   Info,
   Package,
@@ -36,11 +39,19 @@ interface SettingsItem {
   disabled?: boolean
   isBeta?: boolean
   category: "space" | "global"
+  availability?: "all" | "file" | "database"
 }
 
 interface SettingsSidebarProps {
   showSpaceSettings?: boolean
 }
+
+const FILE_SPACE_SECTIONS = new Set<SettingsSection>([
+  "space-general",
+  "space-files",
+  "space-versioning",
+  "space-indexes",
+])
 
 export function SettingsSidebar({
   showSpaceSettings = true,
@@ -57,7 +68,7 @@ export function SettingsSidebar({
   const activeSection: SettingsSection =
     spaceInfo?.mode === "file" &&
     requestedSection.startsWith("space-") &&
-    requestedSection !== "space-general"
+    !FILE_SPACE_SECTIONS.has(requestedSection)
       ? "space-general"
       : requestedSection
   const tabs = useTabStore((state) => state.tabs)
@@ -81,28 +92,53 @@ export function SettingsSidebar({
       category: "space",
     },
     {
+      id: "space-files",
+      title: t("space.settings.fileSpace.files.title", "Files & Obsidian"),
+      icon: Files,
+      category: "space",
+      availability: "file",
+    },
+    {
+      id: "space-versioning",
+      title: t("space.settings.fileSpace.versioning.title", "Versioning"),
+      icon: GitBranch,
+      category: "space",
+      availability: "file",
+    },
+    {
+      id: "space-indexes",
+      title: t("space.settings.fileSpace.indexes.title", "Indexes"),
+      icon: DatabaseZap,
+      category: "space",
+      availability: "file",
+    },
+    {
       id: "space-extensions",
       title: "Extensions",
       icon: Package,
       category: "space",
+      availability: "database",
     },
     {
       id: "space-tabs",
       title: t("space.settings.tabs.title", "Tabs"),
       icon: LayoutTemplate,
       category: "space",
+      availability: "database",
     },
     {
       id: "space-document",
       title: t("space.settings.document"),
       icon: FileText,
       category: "space",
+      availability: "database",
     },
     {
       id: "space-mounts",
       title: t("space.settings.mounts"),
       icon: Folder,
       category: "space",
+      availability: "database",
     },
     {
       id: "space-relay",
@@ -110,12 +146,14 @@ export function SettingsSidebar({
       icon: Network,
       isBeta: true,
       category: "space",
+      availability: "database",
     },
     {
       id: "space-theme",
       title: t("space.settings.theme", "Theme"),
       icon: Paintbrush,
       category: "space",
+      availability: "database",
     },
 
     // Global Settings
@@ -169,7 +207,11 @@ export function SettingsSidebar({
   const spaceSections = visibleSections.filter(
     (section) =>
       section.category === "space" &&
-      (spaceInfo?.mode !== "file" || section.id === "space-general")
+      (section.availability === undefined ||
+        section.availability === "all" ||
+        (spaceInfo?.mode === "file"
+          ? section.availability === "file"
+          : section.availability === "database"))
   )
   const globalSections = visibleSections.filter(
     (section) => section.category === "global"

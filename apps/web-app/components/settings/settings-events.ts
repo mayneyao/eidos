@@ -1,6 +1,9 @@
 // Settings modal event system
 export type SettingsSection =
   | "space-general"
+  | "space-files"
+  | "space-versioning"
+  | "space-indexes"
   | "space-document"
   | "space-mounts"
   | "space-extensions"

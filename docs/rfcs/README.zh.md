@@ -8,15 +8,15 @@
 
 ## 实施状态
 
-| RFC               | 状态         | 当前实现边界                                                                                                                         |
-| ----------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Space/Base 存储   | 实施中       | file-based Space 和 Space-root Graft 已存在；Base 尚未实现。                                                                         |
-| Markdown runtime  | 垂直切片可用 | 已有真实文件树、直接编辑、安全保存、watcher、indexed quick open、wiki-link completion、outline、backlinks 和附件；持久索引仍待实现。 |
-| Graft 版本管理    | 本地链路可用 | 已有 Changes、staging、commit、diff、history、path restore 和 Space restore；remote sync、conflict 和 Base-aware diff 尚未实现。     |
-| 产品 UX           | 实施中       | 已有 Files/Version 侧边栏、Diff/History tabs 和上下文 Settings；Base、Sync 和 Migration UX 尚未实现。                                |
-| Base 格式/runtime | 未开始       | 将由独立 package 实现，并且不依赖 `@libsql/client`。                                                                                 |
-| 文件化扩展        | 未开始       | RFC 仍是目标设计。                                                                                                                   |
-| Legacy migration  | 未开始       | 等待 Base runtime 和导出格式稳定。                                                                                                   |
+| RFC               | 状态         | 当前实现边界                                                                                                                                   |
+| ----------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Space/Base 存储   | 实施中       | file-based Space 和 Space-root Graft 已存在；Base 尚未实现。                                                                                   |
+| Markdown runtime  | 垂直切片可用 | 已有真实文件树、直接编辑、安全保存、watcher、indexed quick open、wiki-link completion、outline、backlinks 和附件；持久索引仍待实现。           |
+| Graft 版本管理    | 本地链路可用 | 已有 Changes、staging、commit、diff、history、path restore 和 Space restore；remote sync、conflict 和 Base-aware diff 尚未实现。               |
+| 产品 UX           | 实施中       | 已有 Files/Version 模式、Diff/History tabs，以及 file Space 的 General、Files、Versioning、Indexes 设置；Base、Sync 和 Migration UX 尚未实现。 |
+| Base 格式/runtime | 未开始       | 将由独立 package 实现，并且不依赖 `@libsql/client`。                                                                                           |
+| 文件化扩展        | 未开始       | RFC 仍是目标设计。                                                                                                                             |
+| Legacy migration  | 未开始       | 等待 Base runtime 和导出格式稳定。                                                                                                             |
 
 实施顺序已经从 Base-first 调整为：
 

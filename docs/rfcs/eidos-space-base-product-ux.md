@@ -20,8 +20,9 @@ Outline/Backlinks sections are integrated without adding document chrome. The
 current Space switcher remains at the bottom of the sidebar.
 
 Base workspace, Space sync, conflict resolution, and migration UX are not
-implemented. File-Space Settings currently exposes only the supported General
-surface; dedicated Files/Obsidian, Versioning, and Indexes sections remain.
+implemented. File-Space Settings now separates General, Files/Obsidian,
+Versioning, and derived Indexes controls; legacy database-only settings stay
+out of file Spaces.
 
 ## Summary
 

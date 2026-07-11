@@ -67,6 +67,7 @@ export interface SpaceFileWatcher {
 
 export interface ListSpaceFilesOptions {
   includeHidden?: boolean
+  includeObsidian?: boolean
 }
 
 export type SpaceFilesErrorCode =
@@ -309,7 +310,7 @@ export class SpaceFiles {
       const relativePath = parentPath
         ? `${parentPath}/${entry.name}`
         : entry.name
-      if (this.shouldHide(relativePath, options.includeHidden ?? false)) {
+      if (this.shouldHide(relativePath, options)) {
         continue
       }
 
@@ -634,7 +635,13 @@ export class SpaceFiles {
       (eventType, filename) => {
         if (!filename) return
         const relativePath = toPortablePath(String(filename))
-        if (this.shouldHide(relativePath, false)) return
+        if (
+          this.shouldHide(relativePath, {
+            includeHidden: true,
+            includeObsidian: true,
+          })
+        )
+          return
         queueChange(
           eventType === "rename"
             ? {
@@ -846,12 +853,21 @@ export class SpaceFiles {
     return toPortablePath(path.relative(this.root, absolutePath))
   }
 
-  private shouldHide(relativePath: string, includeHidden: boolean): boolean {
+  private shouldHide(
+    relativePath: string,
+    options: ListSpaceFilesOptions
+  ): boolean {
     const pathParts = relativePath.split("/")
     const [rootName] = pathParts
     const normalizedRootName = rootName.toLowerCase()
     if (PRIVATE_ROOTS.has(normalizedRootName)) return true
-    if (!includeHidden && pathParts.some((part) => part.startsWith("."))) {
+    if (normalizedRootName === ".obsidian") {
+      return !options.includeObsidian
+    }
+    if (
+      !options.includeHidden &&
+      pathParts.some((part) => part.startsWith("."))
+    ) {
       return true
     }
     return path.basename(relativePath) === ".DS_Store"

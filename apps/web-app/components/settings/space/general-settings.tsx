@@ -9,7 +9,6 @@ import {
   HardDrive,
   History,
   Save,
-  Search,
   Settings2,
   Trash2,
 } from "lucide-react"
@@ -39,7 +38,6 @@ import { useSpace } from "@/apps/web-app/hooks/use-space"
 import type { SpaceInfo } from "@/apps/web-app/hooks/use-current-space"
 import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
-import { useSpaceFiles } from "@/apps/web-app/hooks/use-space-files"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 
@@ -71,7 +69,6 @@ export function GeneralSettings() {
   } = useSpace()
   const { currentSpace } = useCurrentSpace()
   const isFileSpace = currentSpace?.mode === "file"
-  const { rebuildIndex: rebuildFileIndex } = useSpaceFiles(currentSpace?.id)
   const { navigate } = useRouterAdapter()
   const { toast } = useToast()
   const { sqlite } = useSqlite(space)
@@ -236,8 +233,7 @@ export function GeneralSettings() {
   const handleRebuildIndex = async () => {
     setIsRebuilding(true)
     try {
-      if (isFileSpace) await rebuildFileIndex()
-      else await rebuildLegacyIndex()
+      await rebuildLegacyIndex()
       alert(t("space.settings.indexRebuildSuccess"))
     } catch (error) {
       console.error("Error rebuilding index:", error)
@@ -560,32 +556,31 @@ export function GeneralSettings() {
           <div className="flex-1">
             <p className="text-sm text-muted-foreground mb-4">
               {isFileSpace
-                ? "Files remain the source of truth. Search data is derived and can be rebuilt at any time."
+                ? "Files remain the source of truth. Open the Space folder to inspect or edit them with other tools."
                 : t("space.settings.dataDescription")}
             </p>
             <div className="space-y-6">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="space-y-0.5 flex-[5] min-w-[240px]">
-                  <Label>{t("space.settings.rebuildSearchIndex")}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {isFileSpace
-                      ? "Re-read files and rebuild the in-memory search, link, tag, and backlink index."
-                      : t("space.settings.rebuildSearchIndexDescription")}
-                  </p>
+              {!isFileSpace && (
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="space-y-0.5 flex-[5] min-w-[240px]">
+                    <Label>{t("space.settings.rebuildSearchIndex")}</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {t("space.settings.rebuildSearchIndexDescription")}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRebuildIndex}
+                    disabled={isRebuilding}
+                    className="shrink-0"
+                  >
+                    {isRebuilding
+                      ? t("space.settings.rebuilding")
+                      : t("common.rebuild", "Rebuild")}
+                  </Button>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRebuildIndex}
-                  disabled={isRebuilding}
-                  className="shrink-0"
-                >
-                  <Search className="h-4 w-4 mr-2" />
-                  {isRebuilding
-                    ? t("space.settings.rebuilding")
-                    : t("common.rebuild", "Rebuild")}
-                </Button>
-              </div>
+              )}
 
               {isDesktopMode && (
                 <div className="flex flex-wrap items-start justify-between gap-4">
