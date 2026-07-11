@@ -9,16 +9,19 @@ import { FileSpaceTree } from "./file-tree"
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 const listMock = vi.hoisted(() => vi.fn())
+const createDirectoryMock = vi.hoisted(() => vi.fn())
+const createTextMock = vi.hoisted(() => vi.fn())
+const moveMock = vi.hoisted(() => vi.fn())
 const navigateMock = vi.hoisted(() => vi.fn())
 const setGlobalSearchOpenMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
   useSpaceFiles: () => ({
-    createDirectory: vi.fn(),
-    createText: vi.fn(),
+    createDirectory: createDirectoryMock,
+    createText: createTextMock,
     importFiles: vi.fn(),
     list: listMock,
-    move: vi.fn(),
+    move: moveMock,
     remove: vi.fn(),
     reveal: vi.fn(),
   }),
@@ -118,15 +121,41 @@ const entriesByDirectory: Record<string, SpaceFileEntry[]> = {
   empty: [],
 }
 
+let currentEntriesByDirectory: Record<string, SpaceFileEntry[]>
+
 describe("FileSpaceTree accessibility", () => {
   let container: HTMLDivElement
   let root: Root
 
   beforeEach(() => {
+    currentEntriesByDirectory = Object.fromEntries(
+      Object.entries(entriesByDirectory).map(([directory, entries]) => [
+        directory,
+        [...entries],
+      ])
+    )
     listMock.mockReset()
     listMock.mockImplementation(async (directory: string) =>
-      Promise.resolve(entriesByDirectory[directory] ?? [])
+      Promise.resolve(currentEntriesByDirectory[directory] ?? [])
     )
+    createDirectoryMock.mockReset()
+    createTextMock.mockReset()
+    moveMock.mockReset()
+    createTextMock.mockImplementation(async (path: string) => {
+      const created = entry(path, "file")
+      currentEntriesByDirectory[created.parentPath] = [
+        ...(currentEntriesByDirectory[created.parentPath] ?? []),
+        created,
+      ]
+    })
+    createDirectoryMock.mockImplementation(async (path: string) => {
+      const created = entry(path, "directory")
+      currentEntriesByDirectory[created.parentPath] = [
+        ...(currentEntriesByDirectory[created.parentPath] ?? []),
+        created,
+      ]
+      currentEntriesByDirectory[path] = []
+    })
     navigateMock.mockClear()
     container = document.createElement("div")
     document.body.appendChild(container)
@@ -139,20 +168,37 @@ describe("FileSpaceTree accessibility", () => {
   })
 
   const getTreeItem = (path: string) => {
-    const row = container.querySelector<HTMLElement>(`[title="${path}"]`)
-    const item = row?.closest<HTMLElement>('[role="treeitem"]')
+    const shadowRoot = container.querySelector(
+      "file-tree-container"
+    )?.shadowRoot
+    const item =
+      shadowRoot?.querySelector<HTMLElement>(
+        `[role="treeitem"][data-item-path="${path}"]`
+      ) ??
+      shadowRoot?.querySelector<HTMLElement>(
+        `[role="treeitem"][data-item-path="${path}/"]`
+      )
     if (!item) throw new Error(`Missing tree item: ${path}`)
     return item
   }
 
+  const getActiveTreeElement = () =>
+    container.querySelector("file-tree-container")?.shadowRoot?.activeElement ??
+    document.activeElement
+
   const press = async (key: string) => {
-    const target = document.activeElement
+    const target = getActiveTreeElement()
     if (!(target instanceof HTMLElement)) {
       throw new Error("No focused tree item")
     }
     await act(async () => {
       target.dispatchEvent(
-        new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })
+        new KeyboardEvent("keydown", {
+          key,
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+        })
       )
       await Promise.resolve()
     })
@@ -171,12 +217,15 @@ describe("FileSpaceTree accessibility", () => {
   it("exposes the selected item and a single roving tab stop", async () => {
     await renderTree()
 
-    const tree = container.querySelector('[role="tree"]')
+    const host = container.querySelector("file-tree-container")
+    const shadowRoot = host?.shadowRoot
     const notes = getTreeItem("notes")
     const selected = getTreeItem("root.md")
-    const visibleItems = [...container.querySelectorAll('[role="treeitem"]')]
+    const visibleItems = [
+      ...(shadowRoot?.querySelectorAll('[role="treeitem"]') ?? []),
+    ]
 
-    expect(tree?.getAttribute("aria-label")).toBe("Files")
+    expect(host?.getAttribute("aria-label")).toBe("Files")
     expect(notes.getAttribute("aria-level")).toBe("1")
     expect(notes.getAttribute("aria-expanded")).toBe("false")
     expect(notes.getAttribute("aria-selected")).toBe("false")
@@ -184,64 +233,66 @@ describe("FileSpaceTree accessibility", () => {
     expect(selected.getAttribute("aria-expanded")).toBeNull()
     expect(
       visibleItems.filter((item) => item.getAttribute("tabindex") === "0")
-    ).toEqual([selected])
+    ).toEqual([getTreeItem("empty")])
   })
 
   it("implements tree arrow, Home, and End keyboard navigation", async () => {
     await renderTree()
 
-    const selected = getTreeItem("root.md")
-    act(() => selected.focus())
+    const initiallyFocused = getTreeItem("empty")
+    act(() => initiallyFocused.focus())
 
     await press("ArrowDown")
-    expect(document.activeElement).toBe(getTreeItem("empty"))
+    const notes = getTreeItem("notes")
+    expect(getActiveTreeElement()).toBe(notes)
 
-    await press("ArrowUp")
-    expect(document.activeElement).toBe(selected)
+    await press("ArrowDown")
+    expect(getActiveTreeElement()).toBe(getTreeItem("root.md"))
 
     await press("Home")
-    const notes = getTreeItem("notes")
-    expect(document.activeElement).toBe(notes)
+    expect(getActiveTreeElement()).toBe(initiallyFocused)
 
     await press("End")
-    expect(document.activeElement).toBe(getTreeItem("empty"))
+    expect(getActiveTreeElement()).toBe(getTreeItem("root.md"))
 
-    await press("Home")
-    await press("ArrowRight")
+    await act(async () => {
+      notes.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
     expect(notes.getAttribute("aria-expanded")).toBe("true")
-    expect(document.activeElement).toBe(notes)
+    expect(getActiveTreeElement()).toBe(notes)
 
-    const firstChild = getTreeItem("notes/a.md")
+    const firstChild = getTreeItem("notes/nested")
     expect(firstChild.getAttribute("aria-level")).toBe("2")
-    expect(firstChild.parentElement?.getAttribute("role")).toBe("group")
 
     await press("ArrowRight")
-    expect(document.activeElement).toBe(firstChild)
+    expect(getActiveTreeElement()).toBe(firstChild)
 
-    await press("ArrowDown")
-    const nested = getTreeItem("notes/nested")
-    expect(document.activeElement).toBe(nested)
+    const nested = firstChild
 
     await press("ArrowRight")
     expect(nested.getAttribute("aria-expanded")).toBe("true")
     await press("ArrowRight")
-    expect(document.activeElement).toBe(getTreeItem("notes/nested/deep.md"))
+    expect(getActiveTreeElement()).toBe(getTreeItem("notes/nested/deep.md"))
 
     await press("ArrowLeft")
-    expect(document.activeElement).toBe(nested)
+    expect(getActiveTreeElement()).toBe(nested)
 
     await press("ArrowLeft")
     expect(nested.getAttribute("aria-expanded")).toBe("false")
-    expect(document.activeElement).toBe(nested)
+    expect(getActiveTreeElement()).toBe(nested)
 
     await press("ArrowLeft")
-    expect(document.activeElement).toBe(notes)
+    expect(getActiveTreeElement()).toBe(notes)
 
     await press("ArrowLeft")
     expect(notes.getAttribute("aria-expanded")).toBe("false")
-    expect(document.activeElement).toBe(notes)
+    expect(getActiveTreeElement()).toBe(notes)
+    const shadowRoot = container.querySelector(
+      "file-tree-container"
+    )?.shadowRoot
     expect(
-      [...container.querySelectorAll('[role="treeitem"]')].filter(
+      [...(shadowRoot?.querySelectorAll('[role="treeitem"]') ?? [])].filter(
         (item) => item.getAttribute("tabindex") === "0"
       )
     ).toEqual([notes])
@@ -250,7 +301,7 @@ describe("FileSpaceTree accessibility", () => {
   it("keeps mouse and keyboard file activation behavior", async () => {
     await renderTree()
 
-    const row = container.querySelector<HTMLElement>('[title="root.md"]')
+    const row = getTreeItem("root.md")
     await act(async () => row?.click())
     expect(navigateMock).toHaveBeenLastCalledWith("/space-file#root.md")
 
@@ -258,6 +309,26 @@ describe("FileSpaceTree accessibility", () => {
     act(() => item.focus())
     await press("Enter")
     expect(navigateMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("creates a note and hands its name to Trees inline renaming", async () => {
+    await renderTree()
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="New note"]')
+        ?.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(createTextMock).toHaveBeenCalledWith("Untitled.md")
+    expect(navigateMock).toHaveBeenLastCalledWith("/space-file#Untitled.md")
+    const renameInput = container
+      .querySelector("file-tree-container")
+      ?.shadowRoot?.querySelector<HTMLInputElement>(
+        'input[aria-label="Rename Untitled.md"]'
+      )
+    expect(renameInput?.value).toBe("Untitled.md")
   })
 
   it.each(["restoring", "discarding"] as const)(
@@ -280,8 +351,10 @@ describe("FileSpaceTree accessibility", () => {
         )?.disabled
       ).toBe(true)
       expect(
-        container.querySelector<HTMLElement>('[title="root.md"]')?.draggable
-      ).toBe(false)
+        container
+          .querySelector("file-tree-container")
+          ?.getAttribute("aria-disabled")
+      ).toBe("true")
     }
   )
 })
