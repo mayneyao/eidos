@@ -162,6 +162,7 @@ function SpaceTextEditor({
   const mtimeMsRef = useRef<number | undefined>()
   const externalChangeRef = useRef(false)
   const pendingWriteContentRef = useRef<string | null>(null)
+  const requestedWriteContentRef = useRef<string | null>(null)
   const savePromiseRef = useRef<Promise<boolean> | null>(null)
   const pendingWriteKey = useId()
   const isDirty = content !== savedContent
@@ -252,47 +253,62 @@ function SpaceTextEditor({
 
   const save = useCallback(
     (nextContent: string): Promise<boolean> => {
-      if (savePromiseRef.current) return savePromiseRef.current
       if (externalChangeRef.current) return Promise.resolve(false)
+      if (savePromiseRef.current) {
+        requestedWriteContentRef.current = nextContent
+        return savePromiseRef.current
+      }
       if (nextContent === savedContentRef.current) return Promise.resolve(true)
 
+      requestedWriteContentRef.current = nextContent
       setSaving(true)
-      pendingWriteContentRef.current = nextContent
-      const expectedMtimeMs = mtimeMsRef.current
       const savePromise = (async () => {
-        try {
-          const file = await writeText(filePath, nextContent, expectedMtimeMs)
-          savedContentRef.current = nextContent
-          setSavedContent(nextContent)
-          mtimeMsRef.current = file.mtimeMs
-          setUnavailable(false)
-          setError(null)
-          return true
-        } catch (saveError) {
-          const message =
-            saveError instanceof Error
-              ? saveError.message
-              : "Unable to save file"
-          setError(message)
-          if (
-            /changed outside|does not exist|not found|no longer available/i.test(
-              message
+        while (requestedWriteContentRef.current !== null) {
+          if (externalChangeRef.current) return false
+          const contentToWrite = requestedWriteContentRef.current
+          requestedWriteContentRef.current = null
+          if (contentToWrite === savedContentRef.current) continue
+
+          pendingWriteContentRef.current = contentToWrite
+          const expectedMtimeMs = mtimeMsRef.current
+          try {
+            const file = await writeText(
+              filePath,
+              contentToWrite,
+              expectedMtimeMs
             )
-          ) {
-            updateExternalChange(true)
+            savedContentRef.current = contentToWrite
+            setSavedContent(contentToWrite)
+            mtimeMsRef.current = file.mtimeMs
+            setUnavailable(false)
+            setError(null)
+          } catch (saveError) {
+            const message =
+              saveError instanceof Error
+                ? saveError.message
+                : "Unable to save file"
+            setError(message)
+            if (
+              /changed outside|does not exist|not found|no longer available/i.test(
+                message
+              )
+            ) {
+              updateExternalChange(true)
+            }
+            return false
+          } finally {
+            if (pendingWriteContentRef.current === contentToWrite) {
+              pendingWriteContentRef.current = null
+            }
           }
-          return false
-        } finally {
-          if (pendingWriteContentRef.current === nextContent) {
-            pendingWriteContentRef.current = null
-          }
-          setSaving(false)
         }
+        return true
       })()
       savePromiseRef.current = savePromise
       void savePromise.finally(() => {
         if (savePromiseRef.current === savePromise) {
           savePromiseRef.current = null
+          setSaving(false)
         }
       })
       return savePromise
@@ -343,20 +359,6 @@ function SpaceTextEditor({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="flex h-9 shrink-0 items-center justify-between gap-3 border-b border-border/60 px-3 text-xs text-muted-foreground">
-        <span className="min-w-0 truncate">{filePath}</span>
-        <div className="flex shrink-0 items-center gap-2">
-          <span>
-            {externalChange
-              ? "Changed elsewhere"
-              : saving
-                ? "Saving…"
-                : isDirty
-                  ? "Waiting to save…"
-                  : "Saved"}
-          </span>
-        </div>
-      </div>
       {externalChange ? (
         <div className="flex items-center justify-between gap-3 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
           <div className="flex items-center gap-2">

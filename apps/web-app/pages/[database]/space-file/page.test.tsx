@@ -18,9 +18,13 @@ vi.mock("@monaco-editor/react", () => ({
 
 vi.mock("@/apps/web-app/components/file-space/space-markdown-editor", () => ({
   SpaceMarkdownEditor: ({
+    onChange,
+    onSave,
     readOnly,
     value,
   }: {
+    onChange?: (value: string) => void
+    onSave?: () => void
     readOnly?: boolean
     value: string
   }) => (
@@ -28,7 +32,11 @@ vi.mock("@/apps/web-app/components/file-space/space-markdown-editor", () => ({
       data-testid="lexical-markdown-editor"
       data-readonly={String(Boolean(readOnly))}
       data-value={value}
-    />
+    >
+      <button data-testid="edit-first" onClick={() => onChange?.("first")} />
+      <button data-testid="edit-latest" onClick={() => onChange?.("latest")} />
+      <button data-testid="save" onClick={() => onSave?.()} />
+    </div>
   ),
 }))
 
@@ -75,6 +83,14 @@ async function flushEffects() {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
 describe("SpaceFilePage editor selection", () => {
   let container: HTMLDivElement
   let root: Root
@@ -116,6 +132,8 @@ describe("SpaceFilePage editor selection", () => {
     )
     expect(lexical?.dataset.value).toBe("# Today\n")
     expect(container.querySelector('[data-testid="monaco-editor"]')).toBeNull()
+    expect(container.textContent).not.toContain("notes/today.md")
+    expect(container.textContent).not.toContain("Saved")
   })
 
   it("keeps Monaco for non-Markdown text files", async () => {
@@ -166,5 +184,91 @@ describe("SpaceFilePage editor selection", () => {
         '[data-testid="lexical-markdown-editor"]'
       )?.dataset.readonly
     ).toBe("true")
+  })
+
+  it("writes the latest edit immediately after an in-flight save", async () => {
+    const firstWrite = deferred<{
+      path: string
+      content: string
+      size: number
+      mtimeMs: number
+    }>()
+    const latestWrite = deferred<{
+      path: string
+      content: string
+      size: number
+      mtimeMs: number
+    }>()
+    mocks.readText.mockResolvedValue({
+      path: "notes/today.md",
+      content: "initial",
+      size: 7,
+      mtimeMs: 1,
+    })
+    mocks.writeText
+      .mockReturnValueOnce(firstWrite.promise)
+      .mockReturnValueOnce(latestWrite.promise)
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/space-file#notes%2Ftoday.md"]}>
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="edit-first"]')
+        ?.click()
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="save"]')
+        ?.click()
+    })
+    expect(mocks.writeText).toHaveBeenNthCalledWith(
+      1,
+      "notes/today.md",
+      "first",
+      1
+    )
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="edit-latest"]')
+        ?.click()
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="save"]')
+        ?.click()
+    })
+    expect(mocks.writeText).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      firstWrite.resolve({
+        path: "notes/today.md",
+        content: "first",
+        size: 5,
+        mtimeMs: 2,
+      })
+      await firstWrite.promise
+      await flushEffects()
+    })
+    expect(mocks.writeText).toHaveBeenNthCalledWith(
+      2,
+      "notes/today.md",
+      "latest",
+      2
+    )
+
+    await act(async () => {
+      latestWrite.resolve({
+        path: "notes/today.md",
+        content: "latest",
+        size: 6,
+        mtimeMs: 3,
+      })
+      await latestWrite.promise
+      await flushEffects()
+    })
   })
 })
