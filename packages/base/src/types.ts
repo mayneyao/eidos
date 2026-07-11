@@ -1,0 +1,124 @@
+import type { BaseSqlPrimitive } from "./connection"
+
+export interface BaseMetadata {
+  format: "eidos-base"
+  formatVersion: number
+  schemaVersion: number
+  app: string
+  createdAt: string
+  updatedAt: string
+  title?: string
+  description?: string
+  defaultTableId?: string
+}
+
+export interface BaseTableInfo {
+  id: string
+  name: string
+  rawTableName: string
+  position: number | null
+  icon: string | null
+  description: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type BaseFieldType =
+  | "title"
+  | "text"
+  | "number"
+  | "checkbox"
+  | "date"
+  | "datetime"
+  | "file"
+  | "multi-select"
+  | "rating"
+  | "select"
+  | "url"
+  | "formula"
+  | "link"
+  | "lookup"
+  | "created-time"
+  | "created-by"
+  | "last-edited-time"
+  | "last-edited-by"
+  | "row-id"
+
+export type BaseStorageCodec =
+  | "scalar"
+  | "csv_ids"
+  | "json_array"
+  | "relation"
+  | "materialized_text"
+
+export type BaseValueKind =
+  | "source"
+  | "relation"
+  | "derived"
+  | "materialized"
+  | "system"
+
+export interface BaseFieldInfo {
+  name: string
+  type: BaseFieldType
+  tableName: string
+  tableColumnName: string
+  property: Record<string, unknown> | null
+  storageCodec: BaseStorageCodec
+  valueKind: BaseValueKind
+  isHidden: boolean
+  isDerived: boolean
+  sourceTableColumnName: string | null
+  dependsOn: unknown
+}
+
+export interface CreateBaseOptions {
+  title?: string
+  description?: string
+  createdAt?: string
+  defaultTable?: CreateBaseTableInput
+}
+
+export interface CreateBaseTableInput {
+  id?: string
+  name: string
+  icon?: string
+  description?: string
+  fields?: CreateBaseFieldInput[]
+  createDefaultView?: boolean
+}
+
+export interface CreateBaseFieldInput {
+  name: string
+  columnName: string
+  type: Exclude<
+    BaseFieldType,
+    | "title"
+    | "row-id"
+    | "formula"
+    | "link"
+    | "lookup"
+    | "created-time"
+    | "created-by"
+    | "last-edited-time"
+    | "last-edited-by"
+  >
+  property?: Record<string, unknown>
+  storageCodec?: BaseStorageCodec
+}
+
+export type BaseRow = Record<string, BaseSqlPrimitive>
+
+export interface BaseValidationIssue {
+  code: string
+  message: string
+  table?: string
+}
+
+export interface BaseValidationResult {
+  valid: boolean
+  metadata: BaseMetadata | null
+  tables: BaseTableInfo[]
+  errors: BaseValidationIssue[]
+  warnings: BaseValidationIssue[]
+}
