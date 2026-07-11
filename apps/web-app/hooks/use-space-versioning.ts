@@ -93,6 +93,49 @@ export interface SpaceVersionTextContentDiff {
   after: SpaceVersionTextContentState
 }
 
+export type SpaceVersionSqliteValue = string | number | boolean | null
+
+export type SpaceVersionSqliteRowOperation = "insert" | "update" | "delete"
+
+export interface SpaceVersionSqliteRowChange {
+  operation: SpaceVersionSqliteRowOperation
+  rowId: number
+  values: SpaceVersionSqliteValue[]
+  beforeValues: SpaceVersionSqliteValue[] | null
+}
+
+export interface SpaceVersionSqliteTableDiff {
+  name: string
+  columns: string[]
+  changes: SpaceVersionSqliteRowChange[]
+}
+
+export interface SpaceVersionSqliteLimitation {
+  kind: string
+  subject: string | null
+}
+
+export interface SpaceVersionSqliteOpaqueChange {
+  name: string
+  change: string
+  reason: string
+  owner: string | null
+}
+
+export interface SpaceVersionSqliteFileDiff {
+  path: string
+  change: SpaceVersionPathChangeKind
+  kind: "sqlite_database"
+  storage: SpaceVersionPathStorage
+  rowDiffAvailable: boolean
+  logicalStatus: string
+  capabilities: string[]
+  limitations: SpaceVersionSqliteLimitation[]
+  message: string | null
+  tables: SpaceVersionSqliteTableDiff[]
+  opaqueChanges: SpaceVersionSqliteOpaqueChange[]
+}
+
 export interface SpaceVersionDiff {
   currentHead: string | null
   currentBranch: string | null
@@ -100,6 +143,7 @@ export interface SpaceVersionDiff {
   to: string | null
   paths: SpaceVersionPathChange[]
   content: SpaceVersionTextContentDiff | null
+  sqliteFiles: SpaceVersionSqliteFileDiff[]
 }
 
 export interface SpaceVersionDiffRequest {
@@ -108,6 +152,7 @@ export interface SpaceVersionDiffRequest {
   to?: string
   path?: string
   includeContent?: boolean
+  includeRows?: boolean
 }
 
 export interface SpaceVersionStagePathRequest {
@@ -753,6 +798,118 @@ function normalizeTextContentDiff(
   }
 }
 
+function isSqliteValue(value: unknown): value is SpaceVersionSqliteValue {
+  return (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  )
+}
+
+function normalizeSqliteRowChange(
+  value: unknown
+): SpaceVersionSqliteRowChange | null {
+  if (!isRecord(value)) return null
+  if (
+    value.operation !== "insert" &&
+    value.operation !== "update" &&
+    value.operation !== "delete"
+  ) {
+    return null
+  }
+  if (typeof value.rowId !== "number" || !Number.isSafeInteger(value.rowId)) {
+    return null
+  }
+  if (!Array.isArray(value.values) || !value.values.every(isSqliteValue)) {
+    return null
+  }
+  const beforeValues =
+    value.beforeValues === null
+      ? null
+      : Array.isArray(value.beforeValues) &&
+          value.beforeValues.every(isSqliteValue)
+        ? value.beforeValues
+        : undefined
+  if (beforeValues === undefined) return null
+  if (value.operation === "update" && beforeValues === null) return null
+  return {
+    operation: value.operation,
+    rowId: value.rowId,
+    values: value.values,
+    beforeValues,
+  }
+}
+
+function normalizeSqliteTableDiff(
+  value: unknown
+): SpaceVersionSqliteTableDiff | null {
+  if (!isRecord(value)) return null
+  const name = asString(value.name)
+  if (!name) return null
+  const columns = Array.isArray(value.columns)
+    ? value.columns.filter(
+        (column): column is string => typeof column === "string"
+      )
+    : []
+  const changes = Array.isArray(value.changes)
+    ? value.changes
+        .map(normalizeSqliteRowChange)
+        .filter(
+          (change): change is SpaceVersionSqliteRowChange => change !== null
+        )
+    : []
+  return { name, columns, changes }
+}
+
+function normalizeSqliteFileDiff(
+  value: unknown
+): SpaceVersionSqliteFileDiff | null {
+  if (!isRecord(value) || value.kind !== "sqlite_database") return null
+  const path = normalizePath(value.path)
+  if (!path || typeof value.rowDiffAvailable !== "boolean") return null
+  const limitations = Array.isArray(value.limitations)
+    ? value.limitations.flatMap((entry) => {
+        if (!isRecord(entry)) return []
+        const kind = asString(entry.kind)
+        return kind ? [{ kind, subject: asString(entry.subject) }] : []
+      })
+    : []
+  const opaqueChanges = Array.isArray(value.opaqueChanges)
+    ? value.opaqueChanges.flatMap((entry) => {
+        if (!isRecord(entry)) return []
+        const name = asString(entry.name)
+        const change = asString(entry.change)
+        const reason = asString(entry.reason)
+        return name && change && reason
+          ? [{ name, change, reason, owner: asString(entry.owner) }]
+          : []
+      })
+    : []
+  const tables = Array.isArray(value.tables)
+    ? value.tables
+        .map(normalizeSqliteTableDiff)
+        .filter((table): table is SpaceVersionSqliteTableDiff => table !== null)
+    : []
+  return {
+    path,
+    change: normalizePathChangeKind(value.change),
+    kind: "sqlite_database",
+    storage: normalizePathStorage(value.storage),
+    rowDiffAvailable: value.rowDiffAvailable,
+    logicalStatus: asString(value.logicalStatus) ?? "unknown",
+    capabilities: Array.isArray(value.capabilities)
+      ? value.capabilities.filter(
+          (capability): capability is string => typeof capability === "string"
+        )
+      : [],
+    limitations,
+    message: asString(value.message),
+    tables,
+    opaqueChanges,
+  }
+}
+
 export function normalizeSpaceVersionDiff(value: unknown): SpaceVersionDiff {
   const payload = unwrapPayload(value)
   if (!isRecord(payload)) {
@@ -763,6 +920,7 @@ export function normalizeSpaceVersionDiff(value: unknown): SpaceVersionDiff {
       to: null,
       paths: [],
       content: null,
+      sqliteFiles: [],
     }
   }
   const rawPaths = Array.isArray(payload.paths) ? payload.paths : []
@@ -776,6 +934,11 @@ export function normalizeSpaceVersionDiff(value: unknown): SpaceVersionDiff {
     to: asString(payload.to),
     paths,
     content: normalizeTextContentDiff(payload.content),
+    sqliteFiles: Array.isArray(payload.sqliteFiles)
+      ? payload.sqliteFiles
+          .map(normalizeSqliteFileDiff)
+          .filter((file): file is SpaceVersionSqliteFileDiff => file !== null)
+      : [],
   }
 }
 

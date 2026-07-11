@@ -309,6 +309,7 @@ describe("Graft v0.5 JSON parsers", () => {
         },
       ],
       content: null,
+      sqliteFiles: [],
     })
   })
 
@@ -356,6 +357,112 @@ describe("Graft v0.5 JSON parsers", () => {
         contentHash: "hash-after",
       },
     })
+    expect(diff.sqliteFiles).toEqual([])
+  })
+
+  it("preserves Graft row-level SQLite changes for one Base file", () => {
+    const diff = parseGraftDiff(
+      {
+        current_head: "commit-2",
+        current_branch: "main",
+        from: "commit-1",
+        to: "commit-2",
+        paths: [
+          {
+            path: "tasks.base",
+            change: "modified",
+            kind: "sqlite_database",
+            storage: "sqlite_snapshot",
+          },
+        ],
+        files: [
+          {
+            path: "tasks.base",
+            change: "modified",
+            kind: "sqlite_database",
+            storage: "sqlite_snapshot",
+            row_diff_available: true,
+            logical_status: "logical_changes",
+            capabilities: ["rowid_table_rows", "schema_entries"],
+            limitations: [
+              { kind: "index_btree", subject: "sqlite_autoindex_tasks_1" },
+            ],
+            tables: [
+              {
+                name: "tb_tasks",
+                columns: ["_id", "title", "done"],
+                changes: [
+                  {
+                    op: "update",
+                    rowid: 1,
+                    values: ["1", "First", 1],
+                    old_values: ["1", "First", 0],
+                  },
+                  {
+                    op: "insert",
+                    rowid: 2,
+                    values: ["2", "Second", 0],
+                  },
+                ],
+              },
+            ],
+            opaque_changes: [
+              {
+                name: "sqlite_autoindex_tasks_1",
+                change: "modified",
+                reason: "index_btree",
+              },
+            ],
+          },
+        ],
+      },
+      "fallback-from",
+      "fallback-to"
+    )
+
+    expect(diff.sqliteFiles).toEqual([
+      {
+        path: "tasks.base",
+        change: "modified",
+        kind: "sqlite_database",
+        storage: "sqlite_snapshot",
+        rowDiffAvailable: true,
+        logicalStatus: "logical_changes",
+        capabilities: ["rowid_table_rows", "schema_entries"],
+        limitations: [
+          { kind: "index_btree", subject: "sqlite_autoindex_tasks_1" },
+        ],
+        message: null,
+        tables: [
+          {
+            name: "tb_tasks",
+            columns: ["_id", "title", "done"],
+            changes: [
+              {
+                operation: "update",
+                rowId: 1,
+                values: ["1", "First", 1],
+                beforeValues: ["1", "First", 0],
+              },
+              {
+                operation: "insert",
+                rowId: 2,
+                values: ["2", "Second", 0],
+                beforeValues: null,
+              },
+            ],
+          },
+        ],
+        opaqueChanges: [
+          {
+            name: "sqlite_autoindex_tasks_1",
+            change: "modified",
+            reason: "index_btree",
+            owner: null,
+          },
+        ],
+      },
+    ])
   })
 
   it("resolves a changed file against the selected revision tree", () => {

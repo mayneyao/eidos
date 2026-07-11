@@ -62,6 +62,7 @@ const diff: SpaceVersionDiff = {
     },
   ],
   content: null,
+  sqliteFiles: [],
 }
 
 function createGetDiff(baseDiff: SpaceVersionDiff = diff) {

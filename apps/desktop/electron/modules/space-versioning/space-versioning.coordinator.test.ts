@@ -352,6 +352,64 @@ describe("SpaceVersioningCoordinator.getDiff", () => {
       { maxBufferBytes: 4194304 }
     )
   })
+
+  it("requests row-level SQLite changes for one Base path", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn(async () => ({
+      current_head: "head-2",
+      current_branch: "main",
+      from: "head-1",
+      to: "head-2",
+      paths: [
+        {
+          path: "tasks.base",
+          change: "modified",
+          kind: "sqlite_database",
+          storage: "sqlite_snapshot",
+        },
+      ],
+      files: [
+        {
+          path: "tasks.base",
+          change: "modified",
+          kind: "sqlite_database",
+          storage: "sqlite_snapshot",
+          row_diff_available: true,
+          logical_status: "logical_changes",
+          tables: [],
+        },
+      ],
+    }))
+    const coordinator = createCoordinator(root, runJson)
+
+    const result = await coordinator.getDiff("space-a", {
+      from: "head-1",
+      to: "head-2",
+      path: "tasks.base",
+      includeRows: true,
+    })
+
+    expect(result.sqliteFiles).toHaveLength(1)
+    expect(runJson).toHaveBeenCalledWith(
+      await fs.realpath(root),
+      ["diff", "--json", "--rows", "head-1", "head-2", "--", "tasks.base"],
+      { maxBufferBytes: 16 * 1024 * 1024 }
+    )
+  })
+
+  it("rejects SQLite row mode without one path", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn()
+    const coordinator = createCoordinator(root, runJson)
+
+    await expect(
+      coordinator.getDiff("space-a", {
+        from: "head-1",
+        includeRows: true,
+      })
+    ).rejects.toThrow("SQLite row diff requires one path")
+    expect(runJson).not.toHaveBeenCalled()
+  })
 })
 
 describe("SpaceVersioningCoordinator change actions", () => {

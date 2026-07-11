@@ -46,6 +46,7 @@ const MAX_HISTORY_LIMIT = 2_000
 const HISTORY_MAX_BUFFER_BYTES = 64 * 1024 * 1024
 const TEXT_DIFF_MAX_CONTENT_BYTES = 1024 * 1024
 const TEXT_DIFF_MAX_BUFFER_BYTES = 3 * TEXT_DIFF_MAX_CONTENT_BYTES + 1024 * 1024
+const SQLITE_DIFF_MAX_BUFFER_BYTES = 16 * 1024 * 1024
 const MAX_MESSAGE_LENGTH = 4_096
 const MAX_REVISION_LENGTH = 512
 const REPOSITORY_LOCK_DIRECTORY = ".eidos-operation.lock"
@@ -271,12 +272,23 @@ function normalizeDiffOptions(value: unknown): SpaceVersionDiffOptions {
       "Text content diff requires a source or root target and one path"
     )
   }
+  const includeRows = value.includeRows ?? false
+  if (typeof includeRows !== "boolean") {
+    throw new Error("includeRows must be a boolean")
+  }
+  if (includeContent && includeRows) {
+    throw new Error("Text content and SQLite rows cannot be requested together")
+  }
+  if (includeRows && !repositoryPath) {
+    throw new Error("SQLite row diff requires one path")
+  }
   return {
     ...(root === undefined ? {} : { root }),
     ...(from === undefined ? {} : { from }),
     ...(to === undefined ? {} : { to }),
     ...(repositoryPath === undefined ? {} : { path: repositoryPath }),
     ...(includeContent ? { includeContent: true } : {}),
+    ...(includeRows ? { includeRows: true } : {}),
   }
 }
 
@@ -485,6 +497,10 @@ function filterDiffPath(
       (entry) =>
         entry.path === repositoryPath || entry.path.startsWith(descendantPrefix)
     ),
+    sqliteFiles: diff.sqliteFiles.filter(
+      (entry) =>
+        entry.path === repositoryPath || entry.path.startsWith(descendantPrefix)
+    ),
   }
 }
 
@@ -643,9 +659,12 @@ export class SpaceVersioningCoordinator {
             String(TEXT_DIFF_MAX_CONTENT_BYTES)
           )
         }
+        if (options.includeRows) {
+          args.push("--rows")
+        }
         if (options.root) {
           args.push("--root", options.root)
-          if (options.includeContent && options.path) {
+          if ((options.includeContent || options.includeRows) && options.path) {
             args.push("--", options.path)
           }
         } else {
@@ -653,15 +672,18 @@ export class SpaceVersioningCoordinator {
           if (options.to) {
             args.push(options.to)
           }
-          if (options.includeContent && options.path) {
+          if ((options.includeContent || options.includeRows) && options.path) {
             args.push("--", options.path)
           }
         }
-        const raw = options.includeContent
-          ? await this.runner.runJson(spacePath, args, {
-              maxBufferBytes: TEXT_DIFF_MAX_BUFFER_BYTES,
-            })
-          : await this.runner.runJson(spacePath, args)
+        const raw =
+          options.includeContent || options.includeRows
+            ? await this.runner.runJson(spacePath, args, {
+                maxBufferBytes: options.includeRows
+                  ? SQLITE_DIFF_MAX_BUFFER_BYTES
+                  : TEXT_DIFF_MAX_BUFFER_BYTES,
+              })
+            : await this.runner.runJson(spacePath, args)
         const diff = parseGraftDiff(
           raw,
           options.root ? "root" : options.from!,

@@ -105,6 +105,7 @@ export interface SpaceVersionDiffOptions {
   to?: string
   path?: string
   includeContent?: boolean
+  includeRows?: boolean
 }
 
 export type SpaceVersionTextContentState =
@@ -130,6 +131,49 @@ export interface SpaceVersionTextContentDiff {
   after: SpaceVersionTextContentState
 }
 
+export type SpaceVersionSqliteValue = string | number | boolean | null
+
+export type SpaceVersionSqliteRowOperation = "insert" | "update" | "delete"
+
+export interface SpaceVersionSqliteRowChange {
+  operation: SpaceVersionSqliteRowOperation
+  rowId: number
+  values: SpaceVersionSqliteValue[]
+  beforeValues: SpaceVersionSqliteValue[] | null
+}
+
+export interface SpaceVersionSqliteTableDiff {
+  name: string
+  columns: string[]
+  changes: SpaceVersionSqliteRowChange[]
+}
+
+export interface SpaceVersionSqliteLimitation {
+  kind: string
+  subject: string | null
+}
+
+export interface SpaceVersionSqliteOpaqueChange {
+  name: string
+  change: string
+  reason: string
+  owner: string | null
+}
+
+export interface SpaceVersionSqliteFileDiff {
+  path: string
+  change: SpaceVersionChangeKind
+  kind: "sqlite_database"
+  storage: SpaceVersionPathStorage
+  rowDiffAvailable: boolean
+  logicalStatus: string
+  capabilities: string[]
+  limitations: SpaceVersionSqliteLimitation[]
+  message: string | null
+  tables: SpaceVersionSqliteTableDiff[]
+  opaqueChanges: SpaceVersionSqliteOpaqueChange[]
+}
+
 export interface SpaceVersionDiff {
   currentHead: string | null
   currentBranch: string | null
@@ -137,6 +181,7 @@ export interface SpaceVersionDiff {
   to: string
   paths: SpaceVersionPathChange[]
   content: SpaceVersionTextContentDiff | null
+  sqliteFiles: SpaceVersionSqliteFileDiff[]
 }
 
 export interface SpaceVersionStagePathOptions {

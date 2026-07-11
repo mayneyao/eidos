@@ -125,6 +125,7 @@ describe("file Space versioning normalization", () => {
         },
       ],
       content: null,
+      sqliteFiles: [],
     })
   })
 
@@ -164,6 +165,68 @@ describe("file Space versioning normalization", () => {
       path: "notes/today.md",
       before: { state: "utf8", content: "before\n" },
       after: { state: "utf8", content: "after\n" },
+    })
+    expect(diff.sqliteFiles).toEqual([])
+  })
+
+  it("normalizes row-level Base changes from the Desktop boundary", () => {
+    const diff = normalizeSpaceVersionDiff({
+      from: "commit-1",
+      to: "commit-2",
+      paths: [
+        {
+          path: "tasks.base",
+          change: "modified",
+          kind: "sqlite_database",
+          storage: "sqlite_snapshot",
+        },
+      ],
+      sqliteFiles: [
+        {
+          path: "tasks.base",
+          change: "modified",
+          kind: "sqlite_database",
+          storage: "sqlite_snapshot",
+          rowDiffAvailable: true,
+          logicalStatus: "logical_changes",
+          capabilities: ["rowid_table_rows"],
+          limitations: [{ kind: "index_btree", subject: "tasks_index" }],
+          message: null,
+          tables: [
+            {
+              name: "tb_tasks",
+              columns: ["_id", "title", "done"],
+              changes: [
+                {
+                  operation: "update",
+                  rowId: 1,
+                  values: ["1", "Write tests", true],
+                  beforeValues: ["1", "Write tests", false],
+                },
+              ],
+            },
+          ],
+          opaqueChanges: [],
+        },
+      ],
+    })
+
+    expect(diff.sqliteFiles[0]).toMatchObject({
+      path: "tasks.base",
+      rowDiffAvailable: true,
+      tables: [
+        {
+          name: "tb_tasks",
+          changes: [
+            {
+              operation: "update",
+              rowId: 1,
+              beforeValues: ["1", "Write tests", false],
+              values: ["1", "Write tests", true],
+            },
+          ],
+        },
+      ],
     })
   })
 

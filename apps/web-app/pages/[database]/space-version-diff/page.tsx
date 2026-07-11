@@ -235,6 +235,7 @@ export function SpaceVersionDiffPage() {
           to: "worktree",
           paths: [nextChange],
           content: nextContent,
+          sqliteFiles: [],
         }
         setMetadata(nextMetadata)
         setChange(nextChange)

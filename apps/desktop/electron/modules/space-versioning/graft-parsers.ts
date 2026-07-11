@@ -10,6 +10,12 @@ import type {
   SpaceVersionPathStorage,
   SpaceVersionStatus,
   SpaceVersionStatusCounts,
+  SpaceVersionSqliteFileDiff,
+  SpaceVersionSqliteLimitation,
+  SpaceVersionSqliteOpaqueChange,
+  SpaceVersionSqliteRowChange,
+  SpaceVersionSqliteTableDiff,
+  SpaceVersionSqliteValue,
   SpaceVersionTextContentDiff,
   SpaceVersionTextContentState,
 } from "./types"
@@ -60,6 +66,109 @@ function nonNegativeInteger(value: unknown): number | null {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
     ? value
     : null
+}
+
+function safeInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) ? value : null
+}
+
+function sqliteValue(value: unknown): SpaceVersionSqliteValue {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return value
+  }
+  throw new Error("Graft SQLite diff contains an invalid cell value")
+}
+
+function sqliteValues(value: unknown): SpaceVersionSqliteValue[] {
+  if (!Array.isArray(value)) {
+    throw new Error("Graft SQLite diff row values are invalid")
+  }
+  return value.map(sqliteValue)
+}
+
+function sqliteRowChange(value: JsonObject): SpaceVersionSqliteRowChange {
+  const rowId = safeInteger(value.rowid)
+  if (rowId === null) {
+    throw new Error("Graft SQLite diff row id is invalid")
+  }
+  if (value.op !== "insert" && value.op !== "update" && value.op !== "delete") {
+    throw new Error("Graft SQLite diff row operation is invalid")
+  }
+  const beforeValues =
+    value.old_values === undefined || value.old_values === null
+      ? null
+      : sqliteValues(value.old_values)
+  if (value.op === "update" && beforeValues === null) {
+    throw new Error("Graft SQLite update is missing its previous values")
+  }
+  return {
+    operation: value.op,
+    rowId,
+    values: sqliteValues(value.values),
+    beforeValues,
+  }
+}
+
+function sqliteTableDiff(value: JsonObject): SpaceVersionSqliteTableDiff {
+  const name = stringValue(value.name)
+  if (!name) {
+    throw new Error("Graft SQLite diff table name is missing")
+  }
+  return {
+    name,
+    columns: stringArray(value.columns),
+    changes: objectArray(value.changes).map(sqliteRowChange),
+  }
+}
+
+function sqliteLimitation(value: JsonObject): SpaceVersionSqliteLimitation {
+  const kind = stringValue(value.kind)
+  if (!kind) {
+    throw new Error("Graft SQLite diff limitation kind is missing")
+  }
+  return { kind, subject: stringValue(value.subject) }
+}
+
+function sqliteOpaqueChange(value: JsonObject): SpaceVersionSqliteOpaqueChange {
+  const name = stringValue(value.name)
+  const change = stringValue(value.change)
+  const reason = stringValue(value.reason)
+  if (!name || !change || !reason) {
+    throw new Error("Graft SQLite opaque change metadata is invalid")
+  }
+  return {
+    name,
+    change,
+    reason,
+    owner: stringValue(value.owner),
+  }
+}
+
+function sqliteFileDiff(value: JsonObject): SpaceVersionSqliteFileDiff | null {
+  if (value.kind !== "sqlite_database") return null
+  if (typeof value.row_diff_available !== "boolean") return null
+  const filePath = stringValue(value.path)
+  if (!filePath) {
+    throw new Error("Graft SQLite diff path is missing")
+  }
+  return {
+    path: filePath,
+    change: changeKind(value.change),
+    kind: "sqlite_database",
+    storage: pathStorage(value.storage),
+    rowDiffAvailable: value.row_diff_available,
+    logicalStatus: stringValue(value.logical_status) ?? "unknown",
+    capabilities: stringArray(value.capabilities),
+    limitations: objectArray(value.limitations).map(sqliteLimitation),
+    message: stringValue(value.message),
+    tables: objectArray(value.tables).map(sqliteTableDiff),
+    opaqueChanges: objectArray(value.opaque_changes).map(sqliteOpaqueChange),
+  }
 }
 
 function requiredString(value: unknown, label: string): string {
@@ -685,6 +794,15 @@ export function parseGraftDiff(
     throw new Error("Graft text diff path is missing from the comparison")
   }
 
+  const sqliteFiles = objectArray(raw.files)
+    .map(sqliteFileDiff)
+    .filter((entry): entry is SpaceVersionSqliteFileDiff => entry !== null)
+  for (const file of sqliteFiles) {
+    if (!unique.has(file.path)) {
+      throw new Error("Graft SQLite diff path is missing from the comparison")
+    }
+  }
+
   return {
     currentHead: headFromPayload(raw),
     currentBranch: branchFromPayload(raw),
@@ -694,5 +812,6 @@ export function parseGraftDiff(
       left.path < right.path ? -1 : left.path > right.path ? 1 : 0
     ),
     content,
+    sqliteFiles,
   }
 }
