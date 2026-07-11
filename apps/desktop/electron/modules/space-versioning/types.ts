@@ -139,6 +139,33 @@ export interface SpaceVersionDiff {
   content: SpaceVersionTextContentDiff | null
 }
 
+export interface SpaceVersionStagePathOptions {
+  path: string
+  expectedHead: string | null
+}
+
+export interface SpaceVersionStagePathResult {
+  path: string
+  status: SpaceVersionStatus
+}
+
+export type SpaceVersionUnstagePathOptions = SpaceVersionStagePathOptions
+export type SpaceVersionUnstagePathResult = SpaceVersionStagePathResult
+
+export interface SpaceVersionDiscardPathOptions {
+  path: string
+  expectedHead: string | null
+  confirmed?: boolean
+}
+
+export type SpaceVersionDiscardEffect = "deleted" | "restored" | "noop"
+
+export interface SpaceVersionDiscardPathResult {
+  path: string
+  effect: SpaceVersionDiscardEffect
+  status: SpaceVersionStatus
+}
+
 export type SpaceVersionRestoreEffect =
   | "created"
   | "modified"

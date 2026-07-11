@@ -6,6 +6,8 @@ import type {
   SpaceVersionCommit,
   SpaceVersionCommitOptions,
   SpaceVersionCommitResult,
+  SpaceVersionDiscardPathOptions,
+  SpaceVersionDiscardPathResult,
   SpaceVersionDiff,
   SpaceVersionDiffOptions,
   SpaceVersionHistoryOptions,
@@ -14,7 +16,11 @@ import type {
   SpaceVersionRestorePathOptions,
   SpaceVersionRestorePathResult,
   SpaceVersionRestoreResult,
+  SpaceVersionStagePathOptions,
+  SpaceVersionStagePathResult,
   SpaceVersionStatus,
+  SpaceVersionUnstagePathOptions,
+  SpaceVersionUnstagePathResult,
 } from "./types"
 
 @IpcInjectable("space-versioning")
@@ -57,6 +63,27 @@ export class SpaceVersioningService extends IpcServiceBase {
     options: SpaceVersionDiffOptions
   ): Promise<SpaceVersionDiff> {
     return this.coordinator.getDiff(spaceId, options)
+  }
+
+  stagePath(
+    spaceId: string,
+    options: SpaceVersionStagePathOptions
+  ): Promise<SpaceVersionStagePathResult> {
+    return this.coordinator.stagePath(spaceId, options)
+  }
+
+  unstagePath(
+    spaceId: string,
+    options: SpaceVersionUnstagePathOptions
+  ): Promise<SpaceVersionUnstagePathResult> {
+    return this.coordinator.unstagePath(spaceId, options)
+  }
+
+  discardPath(
+    spaceId: string,
+    options: SpaceVersionDiscardPathOptions
+  ): Promise<SpaceVersionDiscardPathResult> {
+    return this.coordinator.discardPath(spaceId, options)
   }
 
   restorePath(

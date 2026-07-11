@@ -22,6 +22,8 @@ import type {
   SpaceVersionCommit,
   SpaceVersionCommitOptions,
   SpaceVersionCommitResult,
+  SpaceVersionDiscardPathOptions,
+  SpaceVersionDiscardPathResult,
   SpaceVersionDiff,
   SpaceVersionDiffOptions,
   SpaceVersionHistoryOptions,
@@ -32,7 +34,10 @@ import type {
   SpaceVersionRestorePathOptions,
   SpaceVersionRestorePathResult,
   SpaceVersionPathStatus,
+  SpaceVersionStagePathOptions,
+  SpaceVersionStagePathResult,
   SpaceVersionStatus,
+  SpaceVersionUnstagePathResult,
 } from "./types"
 
 const MUTATION_TIMEOUT_MS = 120_000
@@ -71,6 +76,12 @@ function errorMessage(error: unknown): string {
 function restoreReconciliationError(error: unknown): Error {
   return new Error(
     `Space files may have been restored, but Eidos could not verify the final version state: ${errorMessage(error)}. Refresh the Space before continuing.`
+  )
+}
+
+function discardReconciliationError(error: unknown): Error {
+  return new Error(
+    `File changes may have been discarded, but Eidos could not verify the final version state: ${errorMessage(error)}. Refresh Changes before continuing.`
   )
 }
 
@@ -147,6 +158,12 @@ function normalizeRevision(value: unknown, label: string): string {
     throw new Error(`${label} is invalid`)
   }
   return revision
+}
+
+function normalizeExpectedHead(value: unknown): string | null {
+  return value === null
+    ? null
+    : normalizeRevision(value, "Expected current version")
 }
 
 function normalizeHistoryOptions(
@@ -235,9 +252,9 @@ function normalizeDiffOptions(value: unknown): SpaceVersionDiffOptions {
   if (typeof includeContent !== "boolean") {
     throw new Error("includeContent must be a boolean")
   }
-  if (includeContent && (!repositoryPath || (!root && !to))) {
+  if (includeContent && !repositoryPath) {
     throw new Error(
-      "Text content diff requires a root target or two revisions and one path"
+      "Text content diff requires a source or root target and one path"
     )
   }
   return {
@@ -246,6 +263,53 @@ function normalizeDiffOptions(value: unknown): SpaceVersionDiffOptions {
     ...(to === undefined ? {} : { to }),
     ...(repositoryPath === undefined ? {} : { path: repositoryPath }),
     ...(includeContent ? { includeContent: true } : {}),
+  }
+}
+
+function normalizeVersionPath(value: unknown, label: string): string {
+  const repositoryPath = normalizeRepositoryPath(value, label)
+  if (!repositoryPath) {
+    throw new Error(`${label} is required`)
+  }
+  const privatePath = repositoryPath.toLowerCase()
+  const isProductExtension = privatePath.startsWith(".eidos/extensions/")
+  if (
+    privatePath === ".graft" ||
+    privatePath.startsWith(".graft/") ||
+    privatePath === ".eidos" ||
+    (privatePath.startsWith(".eidos/") && !isProductExtension) ||
+    privatePath === ".graftignore"
+  ) {
+    throw new Error("Private Space paths cannot be changed through versioning")
+  }
+  return repositoryPath
+}
+
+function normalizeStagePathOptions(
+  value: unknown
+): SpaceVersionStagePathOptions {
+  if (!isObject(value)) {
+    throw new Error("Stage options must be an object")
+  }
+  return {
+    path: normalizeVersionPath(value.path, "Stage path"),
+    expectedHead: normalizeExpectedHead(value.expectedHead),
+  }
+}
+
+function normalizeDiscardPathOptions(
+  value: unknown
+): Required<SpaceVersionDiscardPathOptions> {
+  if (!isObject(value)) {
+    throw new Error("Discard options must be an object")
+  }
+  if (value.confirmed !== true) {
+    throw new Error("Discarding file changes requires explicit confirmation")
+  }
+  return {
+    path: normalizeVersionPath(value.path, "Discard path"),
+    expectedHead: normalizeExpectedHead(value.expectedHead),
+    confirmed: true,
   }
 }
 
@@ -260,20 +324,7 @@ function normalizeRestorePathOptions(
     value.expectedHead,
     "Expected current version"
   )
-  const repositoryPath = normalizeRepositoryPath(value.path, "Restore path")
-  if (!repositoryPath) {
-    throw new Error("Restore path is required")
-  }
-  const privatePath = repositoryPath.toLowerCase()
-  if (
-    privatePath === ".graft" ||
-    privatePath.startsWith(".graft/") ||
-    privatePath === ".eidos" ||
-    privatePath.startsWith(".eidos/") ||
-    privatePath === ".graftignore"
-  ) {
-    throw new Error("Private Space paths cannot be restored")
-  }
+  const repositoryPath = normalizeVersionPath(value.path, "Restore path")
 
   const overwriteChanges = value.overwriteChanges ?? false
   const allowDelete = value.allowDelete ?? false
@@ -433,10 +484,16 @@ export class SpaceVersioningCoordinator {
         }
 
         try {
-          await this.runner.runJson(spacePath, ["add", "--all", "--json"], {
-            timeoutMs: MUTATION_TIMEOUT_MS,
-          })
-          const staged = await this.readStatus(spaceId, spacePath)
+          const staged = before.hasStagedChanges
+            ? before
+            : await (async () => {
+                await this.runner.runJson(
+                  spacePath,
+                  ["add", "--all", "--json"],
+                  { timeoutMs: MUTATION_TIMEOUT_MS }
+                )
+                return this.readStatus(spaceId, spacePath)
+              })()
           if (staged.hasConflicts) {
             throw new Error("Resolve version conflicts before committing")
           }
@@ -551,12 +608,12 @@ export class SpaceVersioningCoordinator {
             args.push("--", options.path)
           }
         } else {
-          args.push("--", options.from!)
+          args.push(options.from!)
           if (options.to) {
             args.push(options.to)
           }
           if (options.includeContent && options.path) {
-            args.push(options.path)
+            args.push("--", options.path)
           }
         }
         const raw = options.includeContent
@@ -570,6 +627,213 @@ export class SpaceVersioningCoordinator {
           options.root ?? options.to ?? "worktree"
         )
         return filterDiffPath(diff, options.path)
+      })
+    })
+  }
+
+  async stagePath(
+    spaceIdValue: unknown,
+    optionsValue: unknown
+  ): Promise<SpaceVersionStagePathResult> {
+    const spaceId = requireSpaceId(spaceIdValue)
+    const options = normalizeStagePathOptions(optionsValue)
+    return this.withSpaceLock(spaceId, async () => {
+      const spacePath = await this.resolveFileSpace(spaceId)
+      await this.requireRepository(spacePath)
+      return this.withRepositoryOperationLock(spacePath, async () => {
+        const before = await this.readStatus(spaceId, spacePath)
+        if (before.currentHead !== options.expectedHead) {
+          throw new Error(
+            "The Space history changed. Refresh Changes before including this file."
+          )
+        }
+        const change = before.paths.find((entry) => entry.path === options.path)
+        if (!change) {
+          throw new Error("This file no longer has changes to include")
+        }
+        if (change.conflicted) {
+          throw new Error("Resolve this file's conflict before including it")
+        }
+        if (change.worktreeState === "none" && change.staged) {
+          return { path: options.path, status: before }
+        }
+
+        await this.runner.runJson(
+          spacePath,
+          ["add", "--json", "--", options.path],
+          { timeoutMs: MUTATION_TIMEOUT_MS }
+        )
+        const status = await this.readStatus(spaceId, spacePath)
+        if (status.currentHead !== before.currentHead) {
+          throw new Error(
+            "The current version changed while the file was being included"
+          )
+        }
+        return { path: options.path, status }
+      })
+    })
+  }
+
+  async unstagePath(
+    spaceIdValue: unknown,
+    optionsValue: unknown
+  ): Promise<SpaceVersionUnstagePathResult> {
+    const spaceId = requireSpaceId(spaceIdValue)
+    const options = normalizeStagePathOptions(optionsValue)
+    return this.withSpaceLock(spaceId, async () => {
+      const spacePath = await this.resolveFileSpace(spaceId)
+      await this.requireRepository(spacePath)
+      return this.withRepositoryOperationLock(spacePath, async () => {
+        const before = await this.readStatus(spaceId, spacePath)
+        if (before.currentHead !== options.expectedHead) {
+          throw new Error(
+            "The Space history changed. Refresh Changes before excluding this file."
+          )
+        }
+        const change = before.paths.find((entry) => entry.path === options.path)
+        if (!change) {
+          throw new Error("This file no longer has changes to exclude")
+        }
+        if (change.conflicted) {
+          throw new Error("Resolve this file's conflict before excluding it")
+        }
+        if (!change.staged) {
+          return { path: options.path, status: before }
+        }
+
+        await this.runner.runJson(
+          spacePath,
+          [
+            "restore",
+            "--json",
+            "--staged",
+            ...(options.expectedHead
+              ? ["--expected-head", options.expectedHead]
+              : []),
+            "--",
+            options.path,
+          ],
+          { timeoutMs: MUTATION_TIMEOUT_MS }
+        )
+        const status = await this.readStatus(spaceId, spacePath)
+        if (status.currentHead !== before.currentHead) {
+          throw new Error(
+            "The current version changed while the file was being excluded"
+          )
+        }
+        return { path: options.path, status }
+      })
+    })
+  }
+
+  async discardPath(
+    spaceIdValue: unknown,
+    optionsValue: unknown
+  ): Promise<SpaceVersionDiscardPathResult> {
+    const spaceId = requireSpaceId(spaceIdValue)
+    const options = normalizeDiscardPathOptions(optionsValue)
+    return this.withSpaceLock(spaceId, async () => {
+      const spacePath = await this.resolveFileSpace(spaceId)
+      await this.requireRepository(spacePath)
+      return this.withRepositoryOperationLock(spacePath, async () => {
+        const before = await this.readStatus(spaceId, spacePath)
+        if (before.currentHead !== options.expectedHead) {
+          throw new Error(
+            "The Space history changed. Refresh Changes before discarding this file."
+          )
+        }
+        const change = before.paths.find((entry) => entry.path === options.path)
+        if (!change) {
+          return { path: options.path, effect: "noop", status: before }
+        }
+        if (change.conflicted) {
+          throw new Error("Resolve this file's conflict before discarding it")
+        }
+        const overlapping = pathStatusOverlaps(before.paths, options.path)
+        if (overlapping.some((entry) => entry.path !== options.path)) {
+          throw new Error(
+            "This file overlaps nested changes. Discard those paths individually first."
+          )
+        }
+
+        const target = await this.inspectRestoreTarget(spacePath, options.path)
+        const stagedAddition = change.staged && change.indexState === "added"
+        const untracked = change.worktreeState === "untracked"
+        const expectedHeadArgs = options.expectedHead
+          ? ["--expected-head", options.expectedHead]
+          : []
+
+        if (stagedAddition) {
+          await this.runner.runJson(
+            spacePath,
+            [
+              "restore",
+              "--json",
+              "--staged",
+              ...expectedHeadArgs,
+              "--",
+              options.path,
+            ],
+            { timeoutMs: MUTATION_TIMEOUT_MS }
+          )
+        }
+
+        if (untracked || stagedAddition) {
+          if (target.exists) {
+            await this.discardUntrackedTarget(spacePath, options.path, target)
+          }
+        } else {
+          if (!options.expectedHead) {
+            throw new Error(
+              "This tracked file cannot be discarded before the first version exists"
+            )
+          }
+          await this.runner.runJson(
+            spacePath,
+            [
+              "restore",
+              "--json",
+              "--expected-head",
+              options.expectedHead,
+              "--source",
+              options.expectedHead,
+              "--",
+              options.path,
+            ],
+            { timeoutMs: MUTATION_TIMEOUT_MS }
+          )
+          if (change.staged) {
+            await this.runner.runJson(
+              spacePath,
+              [
+                "restore",
+                "--json",
+                "--staged",
+                "--expected-head",
+                options.expectedHead,
+                "--",
+                options.path,
+              ],
+              { timeoutMs: MUTATION_TIMEOUT_MS }
+            )
+          }
+        }
+
+        try {
+          const status = await this.readStatus(spaceId, spacePath)
+          if (status.currentHead !== before.currentHead) {
+            throw new Error(
+              "The current version changed while the file was being discarded"
+            )
+          }
+          return {
+            path: options.path,
+            effect: untracked || stagedAddition ? "deleted" : "restored",
+            status,
+          }
+        } catch (error) {
+          throw discardReconciliationError(error)
+        }
       })
     })
   }
@@ -866,7 +1130,16 @@ export class SpaceVersioningCoordinator {
   private async inspectRestoreTarget(
     spacePath: string,
     repositoryPath: string
-  ): Promise<{ exists: boolean }> {
+  ): Promise<
+    | { exists: false }
+    | {
+        exists: true
+        device: number
+        inode: number
+        size: number
+        mtimeMs: number
+      }
+  > {
     const segments = repositoryPath.split("/")
     let currentPath = spacePath
 
@@ -896,11 +1169,67 @@ export class SpaceVersioningCoordinator {
         if (!stats.isFile()) {
           throw new Error("Only regular files can be restored")
         }
-        return { exists: true }
+        return {
+          exists: true,
+          device: stats.dev,
+          inode: stats.ino,
+          size: stats.size,
+          mtimeMs: stats.mtimeMs,
+        }
       }
     }
 
     return { exists: false }
+  }
+
+  private async discardUntrackedTarget(
+    spacePath: string,
+    repositoryPath: string,
+    expected: {
+      exists: true
+      device: number
+      inode: number
+      size: number
+      mtimeMs: number
+    }
+  ): Promise<void> {
+    const targetPath = path.join(spacePath, ...repositoryPath.split("/"))
+    const quarantineName = randomUUID()
+    const quarantinePath = path.join(
+      spacePath,
+      ".graft",
+      `.eidos-discard-${quarantineName}`
+    )
+
+    try {
+      await fs.rename(targetPath, quarantinePath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return
+      throw error
+    }
+
+    const moved = await fs.lstat(quarantinePath)
+    const unchanged =
+      moved.isFile() &&
+      moved.dev === expected.device &&
+      moved.ino === expected.inode &&
+      moved.size === expected.size &&
+      moved.mtimeMs === expected.mtimeMs
+    if (!unchanged) {
+      try {
+        await fs.link(quarantinePath, targetPath)
+        await fs.unlink(quarantinePath)
+      } catch (restoreError) {
+        throw new Error(
+          `The file changed after discard was confirmed. The replacement was preserved at .graft/.eidos-discard-${quarantineName}: ${errorMessage(restoreError)}`
+        )
+      }
+      throw new Error(
+        "The file changed after discard was confirmed. It was kept in the Space; refresh Changes and try again."
+      )
+    }
+
+    await fs.unlink(quarantinePath)
   }
 
   private async rollbackAutomaticStaging(
