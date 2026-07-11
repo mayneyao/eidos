@@ -240,7 +240,7 @@ describe("Eidos Base files", () => {
     )
     expect(base.listViews("tasks")[0]).toMatchObject({
       properties: { fieldWidthMap: { title: 240 } },
-      orderMap: { title: 0, notes: 2 },
+      orderMap: { title: 0, notes: 1 },
       hiddenFields: [],
     })
     expectBaseError(() => base.deleteField("tasks", "title"), "protected-field")

@@ -83,6 +83,7 @@ vi.mock("./base-structure-menu", () => ({
     onRenameTable,
     onDeleteTable,
     onRenameField,
+    onEditFieldOptions,
     onDeleteField,
   }: {
     fields: (typeof snapshot)["tables"][number]["fields"]
@@ -90,6 +91,9 @@ vi.mock("./base-structure-menu", () => ({
     onRenameTable: () => void
     onDeleteTable: () => void
     onRenameField: (
+      field: (typeof snapshot)["tables"][number]["fields"][number]
+    ) => void
+    onEditFieldOptions: (
       field: (typeof snapshot)["tables"][number]["fields"][number]
     ) => void
     onDeleteField: (
@@ -126,9 +130,42 @@ vi.mock("./base-structure-menu", () => ({
         >
           Delete field
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (field) onEditFieldOptions(field)
+          }}
+        >
+          Edit options
+        </button>
       </>
     )
   },
+}))
+
+vi.mock("./base-field-options-dialog", () => ({
+  BaseFieldOptionsDialog: ({
+    open,
+    onOpenChange,
+    onSave,
+  }: {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    onSave: (property: Record<string, unknown>) => void
+  }) =>
+    open ? (
+      <button
+        type="button"
+        onClick={() => {
+          onSave({
+            options: [{ id: "done", name: "Done", color: "default" }],
+          })
+          onOpenChange(false)
+        }}
+      >
+        Confirm options
+      </button>
+    ) : null,
 }))
 
 vi.mock("./base-rename-dialog", () => ({
@@ -478,6 +515,28 @@ describe("SpaceBaseEditor", () => {
       "tasks",
       "status",
       { name: "Status renamed" }
+    )
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit options")
+        ?.click()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Confirm options")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(updateFieldMock).toHaveBeenLastCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      "status",
+      {
+        property: {
+          options: [{ id: "done", name: "Done", color: "default" }],
+        },
+      }
     )
 
     await act(async () => {

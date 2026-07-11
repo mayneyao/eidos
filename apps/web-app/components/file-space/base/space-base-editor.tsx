@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/alert-dialog"
 
 import { BaseGrid } from "./base-grid"
+import { BaseFieldOptionsDialog } from "./base-field-options-dialog"
 import { BaseRenameDialog } from "./base-rename-dialog"
 import { BaseStructureDialog } from "./base-structure-dialog"
 import { BaseStructureMenu } from "./base-structure-menu"
@@ -82,6 +83,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const [deleteRowsDialogOpen, setDeleteRowsDialogOpen] = useState(false)
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
+  const [fieldOptionsTarget, setFieldOptionsTarget] =
+    useState<BaseFieldInfo | null>(null)
   const [structureDialog, setStructureDialog] = useState<
     "table" | "field" | null
   >(null)
@@ -343,6 +346,30 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     filePath,
   ])
 
+  const saveFieldOptions = useCallback(
+    (property: Record<string, unknown>): Promise<void> => {
+      if (!activeTable || !fieldOptionsTarget) return Promise.resolve()
+      return enqueueMutation(
+        () =>
+          updateField(
+            filePath,
+            activeTable.table.id,
+            fieldOptionsTarget.tableColumnName,
+            { property }
+          ),
+        applySnapshot
+      ).then(() => undefined)
+    },
+    [
+      activeTable,
+      applySnapshot,
+      enqueueMutation,
+      fieldOptionsTarget,
+      filePath,
+      updateField,
+    ]
+  )
+
   const updateActiveView = useCallback(
     (changes: Parameters<typeof updateView>[2]): Promise<void> => {
       const view = activeTable?.views.find(
@@ -461,6 +488,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
                   name: field.name,
                 })
               }
+              onEditFieldOptions={setFieldOptionsTarget}
               onDeleteField={(field) =>
                 setDeleteTarget({
                   kind: "field",
@@ -544,6 +572,15 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           if (!open) setRenameTarget(null)
         }}
         onRename={renameStructure}
+      />
+
+      <BaseFieldOptionsDialog
+        field={fieldOptionsTarget}
+        open={fieldOptionsTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setFieldOptionsTarget(null)
+        }}
+        onSave={saveFieldOptions}
       />
 
       <AlertDialog

@@ -539,8 +539,12 @@ export class BaseRuntime {
         [table.rawTableName, field.tableColumnName]
       )
       for (const view of this.listViews(tableId)) {
-        const orderMap = { ...(view.orderMap ?? {}) }
-        delete orderMap[field.tableColumnName]
+        const orderMap = Object.fromEntries(
+          Object.entries(view.orderMap ?? {})
+            .filter(([columnName]) => columnName !== field.tableColumnName)
+            .sort((left, right) => left[1] - right[1])
+            .map(([columnName], index) => [columnName, index])
+        )
         const properties = { ...(view.properties ?? {}) }
         const fieldWidthMap = properties.fieldWidthMap
         if (

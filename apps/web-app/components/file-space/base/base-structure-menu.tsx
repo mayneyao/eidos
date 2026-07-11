@@ -1,5 +1,12 @@
 import type { BaseFieldInfo, BaseTableInfo } from "@eidos.space/base"
-import { Columns3, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react"
+import {
+  Columns3,
+  ListPlus,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -22,6 +29,7 @@ interface BaseStructureMenuProps {
   onRenameTable: () => void
   onDeleteTable: () => void
   onRenameField: (field: BaseFieldInfo) => void
+  onEditFieldOptions: (field: BaseFieldInfo) => void
   onDeleteField: (field: BaseFieldInfo) => void
 }
 
@@ -33,6 +41,7 @@ export function BaseStructureMenu({
   onRenameTable,
   onDeleteTable,
   onRenameField,
+  onEditFieldOptions,
   onDeleteField,
 }: BaseStructureMenuProps) {
   const visibleFields = fields.filter((field) => !field.isHidden)
@@ -88,6 +97,15 @@ export function BaseStructureMenu({
                       <Pencil className="mr-2 h-3.5 w-3.5" />
                       Rename
                     </DropdownMenuItem>
+                    {field.type === "select" ||
+                    field.type === "multi-select" ? (
+                      <DropdownMenuItem
+                        onSelect={() => onEditFieldOptions(field)}
+                      >
+                        <ListPlus className="mr-2 h-3.5 w-3.5" />
+                        Edit options
+                      </DropdownMenuItem>
+                    ) : null}
                     <DropdownMenuItem
                       disabled={!canDelete}
                       className="text-destructive focus:text-destructive"
