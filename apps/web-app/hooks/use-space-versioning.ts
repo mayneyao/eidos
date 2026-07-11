@@ -16,6 +16,7 @@ export interface SpaceVersionChange {
   status: SpaceVersionChangeStatus
   previousPath?: string
   staged?: true
+  unstaged?: true
   conflicted?: true
 }
 
@@ -109,6 +110,33 @@ export interface SpaceVersionDiffRequest {
   includeContent?: boolean
 }
 
+export interface SpaceVersionStagePathRequest {
+  path: string
+  expectedHead: string | null
+}
+
+export interface SpaceVersionStagePathResult {
+  path: string
+  status: SpaceVersionStatus
+}
+
+export type SpaceVersionUnstagePathRequest = SpaceVersionStagePathRequest
+export type SpaceVersionUnstagePathResult = SpaceVersionStagePathResult
+
+export interface SpaceVersionDiscardPathRequest {
+  path: string
+  expectedHead: string | null
+  confirmed: true
+}
+
+export type SpaceVersionDiscardEffect = "deleted" | "restored" | "noop"
+
+export interface SpaceVersionDiscardPathResult {
+  path: string
+  effect: SpaceVersionDiscardEffect
+  status: SpaceVersionStatus
+}
+
 export type SpaceVersionRestoreEffect =
   | "created"
   | "modified"
@@ -147,8 +175,16 @@ export interface SpaceVersionRestoreVersionResult {
 export type SpaceVersioningOperation =
   | "enabling"
   | "committing"
+  | "staging"
+  | "discarding"
   | "restoring"
   | null
+
+export function isDestructiveSpaceVersioningOperation(
+  operation: SpaceVersioningOperation
+): boolean {
+  return operation === "restoring" || operation === "discarding"
+}
 
 interface SpaceVersioningBridge {
   getStatus: (spaceId: string) => Promise<unknown>
@@ -162,6 +198,18 @@ interface SpaceVersioningBridge {
   getDiff: (
     spaceId: string,
     request: SpaceVersionDiffRequest
+  ) => Promise<unknown>
+  stagePath: (
+    spaceId: string,
+    request: SpaceVersionStagePathRequest
+  ) => Promise<unknown>
+  unstagePath: (
+    spaceId: string,
+    request: SpaceVersionUnstagePathRequest
+  ) => Promise<unknown>
+  discardPath: (
+    spaceId: string,
+    request: SpaceVersionDiscardPathRequest
   ) => Promise<unknown>
   restorePath: (
     spaceId: string,
@@ -331,6 +379,16 @@ function normalizeChange(
     firstValue(value, ["status", "state", "change", "changeType", "type"])
   )
   const staged = asBoolean(value.staged) === true
+  const worktreeState = normalizeChangeStatus(
+    firstValue(value, [
+      "worktreeState",
+      "worktree_state",
+      "unstagedChange",
+      "unstaged_change",
+    ])
+  )
+  const unstaged =
+    asBoolean(value.unstaged) === true || worktreeState !== "unknown"
   const conflicted =
     asBoolean(value.conflicted) === true || status === "conflicted"
   return {
@@ -338,6 +396,7 @@ function normalizeChange(
     status,
     ...(previousPath && previousPath !== path ? { previousPath } : {}),
     ...(staged ? { staged: true as const } : {}),
+    ...(unstaged ? { unstaged: true as const } : {}),
     ...(conflicted ? { conflicted: true as const } : {}),
   }
 }
@@ -720,6 +779,46 @@ export function normalizeSpaceVersionDiff(value: unknown): SpaceVersionDiff {
   }
 }
 
+export function normalizeSpaceVersionStagePathResult(
+  value: unknown
+): SpaceVersionStagePathResult {
+  const payload = unwrapPayload(value)
+  if (!isRecord(payload)) {
+    throw new Error("Desktop returned an invalid include result")
+  }
+  const stagedPath = normalizePath(payload.path)
+  if (!stagedPath || payload.status === undefined) {
+    throw new Error("Desktop returned an incomplete include result")
+  }
+  return {
+    path: stagedPath,
+    status: normalizeSpaceVersionStatus(payload.status),
+  }
+}
+
+export function normalizeSpaceVersionDiscardPathResult(
+  value: unknown
+): SpaceVersionDiscardPathResult {
+  const payload = unwrapPayload(value)
+  if (!isRecord(payload)) {
+    throw new Error("Desktop returned an invalid discard result")
+  }
+  const discardedPath = normalizePath(payload.path)
+  const effect = asString(payload.effect)
+  if (
+    !discardedPath ||
+    !["deleted", "restored", "noop"].includes(effect ?? "") ||
+    payload.status === undefined
+  ) {
+    throw new Error("Desktop returned an incomplete discard result")
+  }
+  return {
+    path: discardedPath,
+    effect: effect as SpaceVersionDiscardEffect,
+    status: normalizeSpaceVersionStatus(payload.status),
+  }
+}
+
 function normalizeRestoreEffect(value: unknown): SpaceVersionRestoreEffect {
   switch (asString(value)) {
     case "created":
@@ -1097,17 +1196,17 @@ export function useSpaceVersioning(
     }
   }, [applyHistorySnapshot, loadHistory, refreshHistory, refreshStatus])
 
-  const reconcileAfterPossibleRestore = useCallback(
+  const reconcileAfterPossibleMutation = useCallback(
     async (activeSpaceId: string) => {
       try {
         await refresh()
       } catch {
-        // Reconciliation is best-effort and must never hide the restore result.
+        // Reconciliation is best-effort and must never hide the mutation result.
       }
       try {
         announceSpaceVersioningChange(activeSpaceId, instanceTokenRef.current)
       } catch {
-        // A failed notification must not replace the original restore error.
+        // A failed notification must not replace the original mutation error.
       }
     },
     [refresh]
@@ -1147,6 +1246,8 @@ export function useSpaceVersioning(
         nextOperation === null ||
         nextOperation === "enabling" ||
         nextOperation === "committing" ||
+        nextOperation === "staging" ||
+        nextOperation === "discarding" ||
         nextOperation === "restoring"
       ) {
         setOperation(nextOperation)
@@ -1281,6 +1382,161 @@ export function useSpaceVersioning(
     [requireSpaceId]
   )
 
+  const stagePath = useCallback(
+    async (request: SpaceVersionStagePathRequest) => {
+      setError(null)
+      let activeSpaceId: string | undefined
+      let finishOperation: (() => void) | undefined
+      let bridgeInvoked = false
+      try {
+        activeSpaceId = requireSpaceId()
+        finishOperation = beginSpaceVersioningOperation(
+          activeSpaceId,
+          "staging"
+        )
+        setOperation("staging")
+        if (
+          !(await flushPendingFileWrites({
+            spaceId: activeSpaceId,
+            path: request.path,
+          }))
+        ) {
+          throw new Error(
+            "Eidos could not save pending edits for this file before including it."
+          )
+        }
+        const bridge = requireSpaceVersioningBridge()
+        bridgeInvoked = true
+        const raw = await bridge.stagePath(activeSpaceId, request)
+        const result = normalizeSpaceVersionStagePathResult(raw)
+        statusRequestRef.current += 1
+        if (mountedRef.current) {
+          setStatus(result.status)
+          setStatusLoading(false)
+        }
+        await reconcileAfterPossibleMutation(activeSpaceId)
+        return result
+      } catch (requestError) {
+        const nextError = errorFrom(requestError)
+        if (activeSpaceId && bridgeInvoked) {
+          await reconcileAfterPossibleMutation(activeSpaceId)
+        }
+        if (mountedRef.current) setError(nextError)
+        throw nextError
+      } finally {
+        finishOperation?.()
+        if (mountedRef.current) {
+          setOperation(
+            activeSpaceId
+              ? (activeSpaceVersioningOperations.get(activeSpaceId) ?? null)
+              : null
+          )
+        }
+      }
+    },
+    [reconcileAfterPossibleMutation, requireSpaceId]
+  )
+
+  const unstagePath = useCallback(
+    async (request: SpaceVersionUnstagePathRequest) => {
+      setError(null)
+      let activeSpaceId: string | undefined
+      let finishOperation: (() => void) | undefined
+      let bridgeInvoked = false
+      try {
+        activeSpaceId = requireSpaceId()
+        finishOperation = beginSpaceVersioningOperation(
+          activeSpaceId,
+          "staging"
+        )
+        setOperation("staging")
+        const bridge = requireSpaceVersioningBridge()
+        bridgeInvoked = true
+        const raw = await bridge.unstagePath(activeSpaceId, request)
+        const result = normalizeSpaceVersionStagePathResult(raw)
+        statusRequestRef.current += 1
+        if (mountedRef.current) {
+          setStatus(result.status)
+          setStatusLoading(false)
+        }
+        await reconcileAfterPossibleMutation(activeSpaceId)
+        return result
+      } catch (requestError) {
+        const nextError = errorFrom(requestError)
+        if (activeSpaceId && bridgeInvoked) {
+          await reconcileAfterPossibleMutation(activeSpaceId)
+        }
+        if (mountedRef.current) setError(nextError)
+        throw nextError
+      } finally {
+        finishOperation?.()
+        if (mountedRef.current) {
+          setOperation(
+            activeSpaceId
+              ? (activeSpaceVersioningOperations.get(activeSpaceId) ?? null)
+              : null
+          )
+        }
+      }
+    },
+    [reconcileAfterPossibleMutation, requireSpaceId]
+  )
+
+  const discardPath = useCallback(
+    async (request: SpaceVersionDiscardPathRequest) => {
+      setError(null)
+      let activeSpaceId: string | undefined
+      let finishOperation: (() => void) | undefined
+      let bridgeInvoked = false
+      try {
+        activeSpaceId = requireSpaceId()
+        finishOperation = beginSpaceVersioningOperation(
+          activeSpaceId,
+          "discarding"
+        )
+        setOperation("discarding")
+        if (
+          !(await flushPendingFileWrites({
+            spaceId: activeSpaceId,
+            path: request.path,
+          }))
+        ) {
+          throw new Error(
+            "Eidos could not save pending edits for this file before discarding it."
+          )
+        }
+        const bridge = requireSpaceVersioningBridge()
+        bridgeInvoked = true
+        const raw = await bridge.discardPath(activeSpaceId, request)
+        const result = normalizeSpaceVersionDiscardPathResult(raw)
+        statusRequestRef.current += 1
+        if (mountedRef.current) {
+          setStatus(result.status)
+          setStatusLoading(false)
+        }
+        await reconcileAfterPossibleMutation(activeSpaceId)
+        return result
+      } catch (requestError) {
+        const nextError = errorFrom(requestError)
+        if (activeSpaceId && bridgeInvoked) {
+          await reconcileAfterPossibleMutation(activeSpaceId)
+        }
+        if (mountedRef.current) setError(nextError)
+        throw nextError
+      } finally {
+        finishOperation?.()
+        if (mountedRef.current) {
+          setOperation(
+            activeSpaceId
+              ? (activeSpaceVersioningOperations.get(activeSpaceId) ?? null)
+              : null
+          )
+        }
+      }
+    },
+    [reconcileAfterPossibleMutation, requireSpaceId]
+  )
+
   const restorePath = useCallback(
     async (request: SpaceVersionRestorePathRequest) => {
       setError(null)
@@ -1313,12 +1569,12 @@ export function useSpaceVersioning(
           setStatus(result.status)
           setStatusLoading(false)
         }
-        await reconcileAfterPossibleRestore(activeSpaceId)
+        await reconcileAfterPossibleMutation(activeSpaceId)
         return result
       } catch (requestError) {
         const nextError = errorFrom(requestError)
         if (activeSpaceId && bridgeInvoked) {
-          await reconcileAfterPossibleRestore(activeSpaceId)
+          await reconcileAfterPossibleMutation(activeSpaceId)
         }
         if (mountedRef.current) setError(nextError)
         throw nextError
@@ -1333,7 +1589,7 @@ export function useSpaceVersioning(
         }
       }
     },
-    [reconcileAfterPossibleRestore, requireSpaceId]
+    [reconcileAfterPossibleMutation, requireSpaceId]
   )
 
   const restoreVersion = useCallback(
@@ -1363,12 +1619,12 @@ export function useSpaceVersioning(
           setStatus(result.status)
           setStatusLoading(false)
         }
-        await reconcileAfterPossibleRestore(activeSpaceId)
+        await reconcileAfterPossibleMutation(activeSpaceId)
         return result
       } catch (requestError) {
         const nextError = errorFrom(requestError)
         if (activeSpaceId && bridgeInvoked) {
-          await reconcileAfterPossibleRestore(activeSpaceId)
+          await reconcileAfterPossibleMutation(activeSpaceId)
         }
         if (mountedRef.current) setError(nextError)
         throw nextError
@@ -1383,7 +1639,7 @@ export function useSpaceVersioning(
         }
       }
     },
-    [reconcileAfterPossibleRestore, requireSpaceId]
+    [reconcileAfterPossibleMutation, requireSpaceId]
   )
 
   return {
@@ -1401,6 +1657,9 @@ export function useSpaceVersioning(
     commit,
     getCommit,
     getDiff,
+    stagePath,
+    unstagePath,
+    discardPath,
     restorePath,
     restoreVersion,
     refresh,

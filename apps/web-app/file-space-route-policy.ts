@@ -1,6 +1,7 @@
 export const FILE_SPACE_FILE_ROUTE = "space-file"
 export const FILE_SPACE_SETTINGS_ROUTE = "settings/:section?"
 export const FILE_SPACE_VERSION_HISTORY_ROUTE = "version/history"
+export const FILE_SPACE_VERSION_DIFF_ROUTE = "version/diff"
 
 export function isAllowedFileSpaceUrl(url: string): boolean {
   if (/^https?:\/\//i.test(url)) return true
@@ -10,6 +11,7 @@ export function isAllowedFileSpaceUrl(url: string): boolean {
       pathname === "/" ||
       pathname === `/${FILE_SPACE_FILE_ROUTE}` ||
       pathname === `/${FILE_SPACE_VERSION_HISTORY_ROUTE}` ||
+      pathname === `/${FILE_SPACE_VERSION_DIFF_ROUTE}` ||
       /^\/settings(?:\/[^/]+)?$/.test(pathname)
     )
   } catch {

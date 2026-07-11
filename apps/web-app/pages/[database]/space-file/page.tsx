@@ -29,7 +29,10 @@ import {
   toSpaceFileUrl,
 } from "@/apps/web-app/components/file-space/file-path"
 import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-space/pending-writes"
-import { useActiveSpaceVersioningOperation } from "@/apps/web-app/hooks/use-space-versioning"
+import {
+  isDestructiveSpaceVersioningOperation,
+  useActiveSpaceVersioningOperation,
+} from "@/apps/web-app/hooks/use-space-versioning"
 import { navigateAfterFlushingSpaceFile } from "@/apps/web-app/components/file-space/file-navigation"
 import { remarkHeadingIds } from "@/apps/web-app/components/file-space/remark-heading-ids"
 import { remarkObsidianLinks } from "@/apps/web-app/components/file-space/remark-obsidian-links"
@@ -172,7 +175,8 @@ function SpaceTextEditor({
   const versioningOperation = useActiveSpaceVersioningOperation(
     currentSpace?.id
   )
-  const restoringVersion = versioningOperation === "restoring"
+  const destructiveVersionMutation =
+    isDestructiveSpaceVersioningOperation(versioningOperation)
   const { resolvedTheme } = useTheme()
   const isMarkdown = extension === "md" || extension === "markdown"
   const [content, setContent] = useState("")
@@ -363,10 +367,18 @@ function SpaceTextEditor({
   }, [currentSpace?.id, filePath, flushPendingWrite, pendingWriteKey])
 
   useEffect(() => {
-    if (!isDirty || saving || externalChange || restoringVersion) return
+    if (!isDirty || saving || externalChange || destructiveVersionMutation)
+      return
     const timeout = window.setTimeout(() => void save(content), 700)
     return () => window.clearTimeout(timeout)
-  }, [content, externalChange, isDirty, restoringVersion, save, saving])
+  }, [
+    content,
+    destructiveVersionMutation,
+    externalChange,
+    isDirty,
+    save,
+    saving,
+  ])
 
   if (loading) return <FileState loading message="Opening file…" />
   if (unavailable) {
@@ -464,17 +476,19 @@ function SpaceTextEditor({
               lineNumbers: "on",
               minimap: { enabled: false },
               padding: { top: 18, bottom: 18 },
-              readOnly: restoringVersion,
+              readOnly: destructiveVersionMutation,
               readOnlyMessage: {
                 value:
-                  "This Space is being restored. Editing will resume when the restore finishes.",
+                  versioningOperation === "discarding"
+                    ? "A file discard is in progress. Editing will resume when it finishes."
+                    : "This Space is being restored. Editing will resume when the restore finishes.",
               },
               scrollBeyondLastLine: false,
               tabSize: 2,
               wordWrap: isMarkdown ? "on" : "off",
             }}
             onChange={(value) => {
-              if (restoringVersion) return
+              if (destructiveVersionMutation) return
               const nextContent = value ?? ""
               editorContentRef.current = nextContent
               setContent(nextContent)
@@ -485,6 +499,7 @@ function SpaceTextEditor({
               })
               editor.onKeyDown((event) => {
                 if (
+                  !destructiveVersionMutation &&
                   event.keyCode === monaco.KeyCode.KeyS &&
                   (event.ctrlKey || event.metaKey)
                 ) {

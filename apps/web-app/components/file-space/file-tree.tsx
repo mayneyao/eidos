@@ -31,7 +31,10 @@ import {
 
 import { cn } from "@/lib/utils"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
-import { useActiveSpaceVersioningOperation } from "@/apps/web-app/hooks/use-space-versioning"
+import {
+  isDestructiveSpaceVersioningOperation,
+  useActiveSpaceVersioningOperation,
+} from "@/apps/web-app/hooks/use-space-versioning"
 import {
   useSpaceFileChanges,
   useSpaceFiles,
@@ -166,7 +169,8 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
     reveal,
   } = useSpaceFiles(spaceId)
   const versioningOperation = useActiveSpaceVersioningOperation(spaceId)
-  const restoringVersion = versioningOperation === "restoring"
+  const restoringVersion =
+    isDestructiveSpaceVersioningOperation(versioningOperation)
   const { location, navigate } = useRouterAdapter()
   const setGlobalSearchOpen = useAppRuntimeStore(
     (state) => state.setGlobalSearchOpen
@@ -189,10 +193,12 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const blockMutationDuringRestore = useCallback(() => {
     if (!restoringVersion) return false
     setOperationError(
-      "Wait for the Space restore to finish before changing files."
+      versioningOperation === "discarding"
+        ? "Wait for the file discard to finish before changing files."
+        : "Wait for the Space restore to finish before changing files."
     )
     return true
-  }, [restoringVersion])
+  }, [restoringVersion, versioningOperation])
 
   const selectedPath = useMemo(() => {
     if (!location.pathname.endsWith("/space-file")) return null

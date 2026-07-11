@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from "react"
 import {
+  Check,
   ChevronDown,
   ChevronRight,
+  ExternalLink,
   File,
   FileCode2,
   FileImage,
   FileText,
   Folder,
   FolderOpen,
+  LoaderCircle,
+  Minus,
+  Plus,
+  Undo2,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -24,7 +30,13 @@ interface VersionChangeTreeProps {
   changes: SpaceVersionChange[]
   className?: string
   selectedPath?: string | null
-  onSelectPath?: (path: string) => void
+  busyPath?: string | null
+  actionsDisabled?: boolean
+  onOpenDiff?: (path: string) => void
+  onRevealPath?: (path: string) => void
+  onStagePath?: (path: string) => void
+  onUnstagePath?: (path: string) => void
+  onDiscardPath?: (path: string) => void
 }
 
 const CODE_EXTENSIONS = new Set([
@@ -66,25 +78,41 @@ function ChangeTreeRow({
   depth,
   expanded,
   selectedPath,
+  busyPath,
+  actionsDisabled,
   onToggle,
-  onSelectPath,
+  onOpenDiff,
+  onRevealPath,
+  onStagePath,
+  onUnstagePath,
+  onDiscardPath,
 }: {
   node: ChangeTreeNode
   depth: number
   expanded: Set<string>
   selectedPath?: string | null
+  busyPath?: string | null
+  actionsDisabled?: boolean
   onToggle: (path: string) => void
-  onSelectPath?: (path: string) => void
+  onOpenDiff?: (path: string) => void
+  onRevealPath?: (path: string) => void
+  onStagePath?: (path: string) => void
+  onUnstagePath?: (path: string) => void
+  onDiscardPath?: (path: string) => void
 }) {
   const isExpanded = node.directory && expanded.has(node.path)
+  const fileUnavailable = !node.directory && node.status === "deleted"
   const Icon = iconForNode(node, isExpanded)
   const statusMeta = STATUS_META[node.status]
-  const row = (
+  const fullyIncluded =
+    node.change?.staged === true && node.change.unstaged !== true
+  const mainButton = (
     <button
       type="button"
       aria-expanded={node.directory ? isExpanded : undefined}
+      disabled={!node.directory && actionsDisabled}
       className={cn(
-        "group flex h-[24px] w-full min-w-0 items-center pr-2 text-left text-[12px] text-sidebar-foreground/85 outline-hidden",
+        "flex h-[24px] min-w-0 flex-1 items-center text-left text-[12px] text-sidebar-foreground/85 outline-hidden",
         "hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-sidebar-ring",
         selectedPath === node.path &&
           "bg-sidebar-accent text-sidebar-accent-foreground"
@@ -93,7 +121,7 @@ function ChangeTreeRow({
       title={node.path}
       onClick={() => {
         if (node.directory) onToggle(node.path)
-        else onSelectPath?.(node.path)
+        else onOpenDiff?.(node.path)
       }}
     >
       <span className="flex h-4 w-4 shrink-0 items-center justify-center text-sidebar-foreground/55">
@@ -116,6 +144,15 @@ function ChangeTreeRow({
       >
         {node.name}
       </span>
+      {node.change?.staged ? (
+        <span
+          className="ml-1 flex h-3 w-3 shrink-0 items-center justify-center text-emerald-600 dark:text-emerald-400"
+          aria-label="Included in the next version"
+          title="Included in the next version"
+        >
+          <Check className="h-3 w-3" />
+        </span>
+      ) : null}
       <span
         className={cn(
           "ml-2 w-3 shrink-0 text-right text-[10px] font-semibold",
@@ -131,7 +168,88 @@ function ChangeTreeRow({
 
   return (
     <li>
-      {row}
+      {node.directory ? (
+        mainButton
+      ) : (
+        <div
+          className={cn(
+            "group relative flex h-[24px] min-w-0 items-center pr-1",
+            "hover:bg-sidebar-accent/70 focus-within:bg-sidebar-accent",
+            selectedPath === node.path &&
+              "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          {mainButton}
+          <div className="absolute right-1 top-0 flex h-[24px] items-center bg-sidebar-accent opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+            <button
+              type="button"
+              className="flex h-5 w-5 items-center justify-center rounded-[3px] text-sidebar-foreground/60 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:opacity-40"
+              aria-label={
+                fileUnavailable
+                  ? `${node.path} cannot be opened because it was deleted`
+                  : `Open ${node.path}`
+              }
+              title={
+                fileUnavailable ? "Deleted files cannot be opened" : "Open file"
+              }
+              disabled={
+                actionsDisabled || busyPath === node.path || fileUnavailable
+              }
+              onClick={() => onRevealPath?.(node.path)}
+            >
+              <ExternalLink className="h-3 w-3" />
+            </button>
+            <button
+              type="button"
+              className="flex h-5 w-5 items-center justify-center rounded-[3px] text-sidebar-foreground/60 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:opacity-40"
+              aria-label={
+                fullyIncluded
+                  ? `Exclude ${node.path} from the next version`
+                  : `Include ${node.path} in the next version`
+              }
+              title={
+                fullyIncluded
+                  ? "Exclude from next version"
+                  : node.change?.staged
+                    ? "Update included content"
+                    : "Include in next version"
+              }
+              disabled={
+                actionsDisabled ||
+                busyPath === node.path ||
+                node.change?.conflicted === true
+              }
+              onClick={() =>
+                fullyIncluded
+                  ? onUnstagePath?.(node.path)
+                  : onStagePath?.(node.path)
+              }
+            >
+              {busyPath === node.path ? (
+                <LoaderCircle className="h-3 w-3 animate-spin" />
+              ) : fullyIncluded ? (
+                <Minus className="h-3 w-3" />
+              ) : (
+                <Plus className="h-3 w-3" />
+              )}
+            </button>
+            <button
+              type="button"
+              className="flex h-5 w-5 items-center justify-center rounded-[3px] text-sidebar-foreground/60 outline-hidden hover:bg-destructive/10 hover:text-destructive focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:opacity-40"
+              aria-label={`Discard changes to ${node.path}`}
+              title="Discard changes…"
+              disabled={
+                actionsDisabled ||
+                busyPath === node.path ||
+                node.change?.conflicted === true
+              }
+              onClick={() => onDiscardPath?.(node.path)}
+            >
+              <Undo2 className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      )}
       {node.directory && isExpanded && node.children.length > 0 ? (
         <ul>
           {node.children.map((child) => (
@@ -141,8 +259,14 @@ function ChangeTreeRow({
               depth={depth + 1}
               expanded={expanded}
               selectedPath={selectedPath}
+              busyPath={busyPath}
+              actionsDisabled={actionsDisabled}
               onToggle={onToggle}
-              onSelectPath={onSelectPath}
+              onOpenDiff={onOpenDiff}
+              onRevealPath={onRevealPath}
+              onStagePath={onStagePath}
+              onUnstagePath={onUnstagePath}
+              onDiscardPath={onDiscardPath}
             />
           ))}
         </ul>
@@ -155,7 +279,13 @@ export function VersionChangeTree({
   changes,
   className,
   selectedPath,
-  onSelectPath,
+  busyPath,
+  actionsDisabled,
+  onOpenDiff,
+  onRevealPath,
+  onStagePath,
+  onUnstagePath,
+  onDiscardPath,
 }: VersionChangeTreeProps) {
   const tree = useMemo(() => buildChangeTree(changes), [changes])
   const directoryPaths = useMemo(() => collectDirectoryPaths(tree), [tree])
@@ -180,6 +310,8 @@ export function VersionChangeTree({
           depth={0}
           expanded={expanded}
           selectedPath={selectedPath}
+          busyPath={busyPath}
+          actionsDisabled={actionsDisabled}
           onToggle={(path) => {
             setExpanded((current) => {
               const next = new Set(current)
@@ -188,7 +320,11 @@ export function VersionChangeTree({
               return next
             })
           }}
-          onSelectPath={onSelectPath}
+          onOpenDiff={onOpenDiff}
+          onRevealPath={onRevealPath}
+          onStagePath={onStagePath}
+          onUnstagePath={onUnstagePath}
+          onDiscardPath={onDiscardPath}
         />
       ))}
     </ul>

@@ -1,4 +1,4 @@
-import { useMemo, useState, type KeyboardEvent } from "react"
+import { useMemo, useState, type KeyboardEvent, type MouseEvent } from "react"
 import {
   Check,
   ExternalLink,
@@ -7,11 +7,14 @@ import {
   History,
   LoaderCircle,
   RefreshCw,
+  Undo2,
 } from "lucide-react"
 import { useLocation, useNavigate } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
+import { FILE_SPACE_VERSION_DIFF_ROUTE } from "@/apps/web-app/file-space-route-policy"
 import { navigateAfterFlushingSpaceFile } from "@/apps/web-app/components/file-space/file-navigation"
+import { flushPendingFileWrites } from "@/apps/web-app/components/file-space/pending-writes"
 import {
   filePathFromSpaceUrl,
   toSpaceFileUrl,
@@ -19,6 +22,16 @@ import {
 import { useSpaceVersioning } from "@/apps/web-app/hooks/use-space-versioning"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -289,6 +302,9 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
   const [activeView, setActiveView] = useState<VersionPanelView>("changes")
   const [message, setMessage] = useState("")
   const [localError, setLocalError] = useState<string | null>(null)
+  const [localNotice, setLocalNotice] = useState<string | null>(null)
+  const [busyPath, setBusyPath] = useState<string | null>(null)
+  const [discardTarget, setDiscardTarget] = useState<string | null>(null)
   const location = useLocation()
   const navigate = useNavigate()
   const openTab = useTabStore((state) => state.openTab)
@@ -305,6 +321,9 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
     available,
     enable,
     commit,
+    stagePath,
+    unstagePath,
+    discardPath,
     refresh,
   } = useSpaceVersioning(spaceId, { loadHistory: true, historyLimit: 250 })
 
@@ -312,8 +331,18 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
   const currentFilePath = filePathFromSpaceUrl(
     `${location.pathname}${location.search}${location.hash}`
   )
-  const openChangedPath = async (path: string) => {
+  const stagedCount =
+    status?.changes.filter((change) => change.staged).length ?? 0
+  const unstagedCount =
+    status?.changes.filter((change) => !change.staged || change.unstaged)
+      .length ?? 0
+  const commitPathCount = stagedCount || status?.changes.length || 0
+  const clearFeedback = () => {
     setLocalError(null)
+    setLocalNotice(null)
+  }
+  const openChangedPath = async (path: string) => {
+    clearFeedback()
     const navigated = await navigateAfterFlushingSpaceFile({
       spaceId,
       currentFilePath,
@@ -324,6 +353,100 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
       setLocalError(
         "Eidos could not save the current file before opening this change."
       )
+    }
+  }
+  const openChangedDiff = async (path: string) => {
+    clearFeedback()
+    const flushed = await flushPendingFileWrites({
+      spaceId,
+      path,
+    })
+    if (!flushed) {
+      setLocalError(
+        "Eidos could not save the current file before opening this diff."
+      )
+      return
+    }
+    const params = new URLSearchParams({ path })
+    const url = `/${FILE_SPACE_VERSION_DIFF_ROUTE}?${params.toString()}`
+    const existingTab = tabs.find((tab) => {
+      try {
+        const candidate = new URL(tab.url, "https://eidos.local")
+        return (
+          candidate.pathname === `/${FILE_SPACE_VERSION_DIFF_ROUTE}` &&
+          candidate.searchParams.get("path") === path
+        )
+      } catch {
+        return false
+      }
+    })
+    if (existingTab) {
+      updateTab(existingTab.id, { url })
+      setActiveTab(existingTab.id)
+      return
+    }
+    const filename = path.split("/").pop() || path
+    openTab(url, `${filename} (Diff)`)
+  }
+  const includeChangedPath = async (path: string) => {
+    if (operation || busyPath) return
+    clearFeedback()
+    setBusyPath(path)
+    try {
+      await stagePath({ path, expectedHead: status?.head?.id ?? null })
+      setLocalNotice(`${path} is included in the next version.`)
+    } catch (stageError) {
+      setLocalError(
+        stageError instanceof Error ? stageError.message : String(stageError)
+      )
+    } finally {
+      setBusyPath(null)
+    }
+  }
+  const excludeChangedPath = async (path: string) => {
+    if (operation || busyPath) return
+    clearFeedback()
+    setBusyPath(path)
+    try {
+      await unstagePath({ path, expectedHead: status?.head?.id ?? null })
+      setLocalNotice(`${path} is excluded from the next version.`)
+    } catch (unstageError) {
+      setLocalError(
+        unstageError instanceof Error
+          ? unstageError.message
+          : String(unstageError)
+      )
+    } finally {
+      setBusyPath(null)
+    }
+  }
+  const confirmDiscard = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    if (!discardTarget || operation || busyPath) return
+    clearFeedback()
+    setBusyPath(discardTarget)
+    try {
+      const result = await discardPath({
+        path: discardTarget,
+        expectedHead: status?.head?.id ?? null,
+        confirmed: true,
+      })
+      setLocalNotice(
+        result.effect === "deleted"
+          ? `${result.path} was deleted from the Space.`
+          : result.effect === "noop"
+            ? `${result.path} no longer has changes to discard.`
+            : `${result.path} now matches the current version.`
+      )
+      setDiscardTarget(null)
+    } catch (discardError) {
+      setLocalError(
+        discardError instanceof Error
+          ? discardError.message
+          : String(discardError)
+      )
+    } finally {
+      setBusyPath(null)
     }
   }
   const openFullHistory = (commitId?: string) => {
@@ -342,7 +465,7 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
   }
   const submitCommit = async () => {
     if (!message.trim() || operation) return
-    setLocalError(null)
+    clearFeedback()
     try {
       await commit(message)
       setMessage("")
@@ -360,153 +483,218 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
   }
 
   return (
-    <section
-      className="flex h-full min-h-0 flex-col bg-sidebar text-sidebar-foreground"
-      aria-label="Space version history"
-    >
-      <PanelToolbar
-        activeView={activeView}
-        busy={busy}
-        onViewChange={setActiveView}
-        onRefresh={() => void refresh()}
-      />
-
-      {error && status !== null && !localError ? (
-        <p
-          className="shrink-0 border-b border-destructive/30 bg-destructive/5 px-3 py-1.5 text-[10px] leading-4 text-destructive"
-          role="alert"
-        >
-          {error.message}
-        </p>
-      ) : null}
-
-      {!available ? (
-        <VersioningUnavailable message="Open this Space in the desktop app to use Graft." />
-      ) : error && status === null ? (
-        <VersioningUnavailable
-          message={error.message}
-          actionLabel="Repair version history"
-          busy={operation === "enabling"}
-          onAction={() => {
-            setLocalError(null)
-            void enable().catch((enableError) => {
-              setLocalError(
-                enableError instanceof Error
-                  ? enableError.message
-                  : String(enableError)
-              )
-            })
-          }}
+    <>
+      <section
+        className="flex h-full min-h-0 flex-col bg-sidebar text-sidebar-foreground"
+        aria-label="Space version history"
+      >
+        <PanelToolbar
+          activeView={activeView}
+          busy={busy}
+          onViewChange={setActiveView}
+          onRefresh={() => void refresh()}
         />
-      ) : statusLoading && status === null ? (
-        <div className="flex flex-1 items-center justify-center text-sidebar-foreground/45">
-          <LoaderCircle
-            className="h-4 w-4 animate-spin"
-            aria-label="Loading version status"
+
+        {error && status !== null && !localError ? (
+          <p
+            className="shrink-0 border-b border-destructive/30 bg-destructive/5 px-3 py-1.5 text-[10px] leading-4 text-destructive"
+            role="alert"
+          >
+            {error.message}
+          </p>
+        ) : null}
+
+        {localError && status?.enabled ? (
+          <p
+            className="shrink-0 border-b border-destructive/30 bg-destructive/5 px-3 py-1.5 text-[10px] leading-4 text-destructive"
+            role="alert"
+          >
+            {localError}
+          </p>
+        ) : localNotice && status?.enabled ? (
+          <p
+            className="shrink-0 border-b border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5 text-[10px] leading-4 text-emerald-700 dark:text-emerald-300"
+            role="status"
+          >
+            {localNotice}
+          </p>
+        ) : null}
+
+        {!available ? (
+          <VersioningUnavailable message="Open this Space in the desktop app to use Graft." />
+        ) : error && status === null ? (
+          <VersioningUnavailable
+            message={error.message}
+            actionLabel="Repair version history"
+            busy={operation === "enabling"}
+            onAction={() => {
+              setLocalError(null)
+              void enable().catch((enableError) => {
+                setLocalError(
+                  enableError instanceof Error
+                    ? enableError.message
+                    : String(enableError)
+                )
+              })
+            }}
           />
-        </div>
-      ) : status === null ? (
-        <VersioningUnavailable message="Version status could not be loaded." />
-      ) : status && !status.enabled ? (
-        <EnableVersioning
-          busy={operation === "enabling"}
-          onEnable={() => {
-            setLocalError(null)
-            void enable().catch((enableError) => {
-              setLocalError(
-                enableError instanceof Error
-                  ? enableError.message
-                  : String(enableError)
-              )
-            })
-          }}
-        />
-      ) : activeView === "history" ? (
-        <CompactHistory
-          commits={history}
-          loading={historyLoading}
-          onOpenFullHistory={openFullHistory}
-        />
-      ) : (
-        <>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="flex h-[28px] items-center justify-between px-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-sidebar-foreground/60">
-              <span>Changes</span>
-              <span className="tabular-nums">
-                {status?.changes.length ?? 0}
-              </span>
-            </div>
-            {status?.changes.length ? (
-              <VersionChangeTree
-                changes={status.changes}
-                selectedPath={currentFilePath}
-                onSelectPath={(path) => void openChangedPath(path)}
-              />
-            ) : (
-              <div className="flex items-start gap-2 px-3 py-3 text-[11px] leading-5 text-sidebar-foreground/55">
-                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                <span>This Space matches the latest version.</span>
-              </div>
-            )}
-          </div>
-          <div className="shrink-0 border-t border-sidebar-border/60 p-1.5">
-            <label
-              htmlFor={`space-version-message-${spaceId}`}
-              className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.06em] text-sidebar-foreground/60"
-            >
-              Message
-            </label>
-            <Textarea
-              id={`space-version-message-${spaceId}`}
-              value={message}
-              rows={2}
-              className="min-h-[54px] resize-none border-sidebar-border bg-sidebar px-2 py-1.5 text-xs leading-4 shadow-none"
-              placeholder="Version message (Ctrl+Enter)"
-              aria-label="Version message"
-              disabled={!status?.changes.length || operation !== null}
-              onChange={(event) => {
-                setMessage(event.target.value)
-                setLocalError(null)
-              }}
-              onKeyDown={handleCommitKeyDown}
+        ) : statusLoading && status === null ? (
+          <div className="flex flex-1 items-center justify-center text-sidebar-foreground/45">
+            <LoaderCircle
+              className="h-4 w-4 animate-spin"
+              aria-label="Loading version status"
             />
-            {localError && (
-              <p
-                className="mt-1.5 text-[10px] leading-4 text-destructive"
-                role="alert"
+          </div>
+        ) : status === null ? (
+          <VersioningUnavailable message="Version status could not be loaded." />
+        ) : status && !status.enabled ? (
+          <EnableVersioning
+            busy={operation === "enabling"}
+            onEnable={() => {
+              setLocalError(null)
+              void enable().catch((enableError) => {
+                setLocalError(
+                  enableError instanceof Error
+                    ? enableError.message
+                    : String(enableError)
+                )
+              })
+            }}
+          />
+        ) : activeView === "history" ? (
+          <CompactHistory
+            commits={history}
+            loading={historyLoading}
+            onOpenFullHistory={openFullHistory}
+          />
+        ) : (
+          <>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <div className="flex h-[28px] items-center justify-between px-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-sidebar-foreground/60">
+                <span>Changes</span>
+                <span className="tabular-nums">
+                  {status?.changes.length ?? 0}
+                </span>
+              </div>
+              {status?.changes.length ? (
+                <VersionChangeTree
+                  changes={status.changes}
+                  selectedPath={currentFilePath}
+                  busyPath={busyPath}
+                  actionsDisabled={operation !== null}
+                  onOpenDiff={(path) => void openChangedDiff(path)}
+                  onRevealPath={(path) => void openChangedPath(path)}
+                  onStagePath={(path) => void includeChangedPath(path)}
+                  onUnstagePath={(path) => void excludeChangedPath(path)}
+                  onDiscardPath={setDiscardTarget}
+                />
+              ) : (
+                <div className="flex items-start gap-2 px-3 py-3 text-[11px] leading-5 text-sidebar-foreground/55">
+                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <span>This Space matches the latest version.</span>
+                </div>
+              )}
+            </div>
+            <div className="shrink-0 border-t border-sidebar-border/60 p-1.5">
+              <label
+                htmlFor={`space-version-message-${spaceId}`}
+                className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.06em] text-sidebar-foreground/60"
               >
-                {localError}
-              </p>
-            )}
-            <Button
-              size="xs"
-              className="mt-1.5 h-7 w-full text-xs"
-              disabled={
-                !status?.changes.length || !message.trim() || operation !== null
-              }
-              onClick={() => void submitCommit()}
+                Message
+              </label>
+              <Textarea
+                id={`space-version-message-${spaceId}`}
+                value={message}
+                rows={2}
+                className="min-h-[54px] resize-none border-sidebar-border bg-sidebar px-2 py-1.5 text-xs leading-4 shadow-none"
+                placeholder="Version message (Ctrl+Enter)"
+                aria-label="Version message"
+                disabled={!status?.changes.length || operation !== null}
+                onChange={(event) => {
+                  setMessage(event.target.value)
+                  setLocalError(null)
+                }}
+                onKeyDown={handleCommitKeyDown}
+              />
+              {status?.changes.length ? (
+                <p className="mt-1 text-[10px] leading-4 text-sidebar-foreground/50">
+                  {stagedCount > 0
+                    ? `${stagedCount} included${unstagedCount > 0 ? ` · ${unstagedCount} working ${unstagedCount === 1 ? "change" : "changes"} remain` : ""}`
+                    : "All working changes will be included."}
+                </p>
+              ) : null}
+              <Button
+                size="xs"
+                className="mt-1.5 h-7 w-full text-xs"
+                disabled={
+                  !status?.changes.length ||
+                  !message.trim() ||
+                  operation !== null
+                }
+                onClick={() => void submitCommit()}
+              >
+                {operation === "committing" ? (
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <GitCommitHorizontal className="h-3.5 w-3.5" />
+                )}
+                {operation === "committing"
+                  ? "Creating version…"
+                  : `Create version${commitPathCount ? ` (${commitPathCount})` : ""}`}
+              </Button>
+            </div>
+          </>
+        )}
+
+        {localError && (!status || !status.enabled) ? (
+          <p
+            className="shrink-0 border-t border-sidebar-border/60 px-3 py-2 text-[10px] leading-4 text-destructive"
+            role="alert"
+          >
+            {localError}
+          </p>
+        ) : null}
+      </section>
+
+      <AlertDialog
+        open={discardTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !busyPath) setDiscardTarget(null)
+        }}
+      >
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base">
+              Discard changes to this file?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="leading-5">
+              <code className="break-all font-mono text-foreground">
+                {discardTarget}
+              </code>{" "}
+              will be restored to the current version. If it is untracked, the
+              file will be deleted from the Space. Included and working changes
+              for this path will both be discarded.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busyPath !== null}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={busyPath !== null}
+              onClick={(event) => void confirmDiscard(event)}
             >
-              {operation === "committing" ? (
+              {busyPath ? (
                 <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <GitCommitHorizontal className="h-3.5 w-3.5" />
+                <Undo2 className="h-3.5 w-3.5" />
               )}
-              {operation === "committing"
-                ? "Creating version…"
-                : `Create version${status?.changes.length ? ` (${status.changes.length})` : ""}`}
-            </Button>
-          </div>
-        </>
-      )}
-
-      {localError && (!status || !status.enabled) ? (
-        <p
-          className="shrink-0 border-t border-sidebar-border/60 px-3 py-2 text-[10px] leading-4 text-destructive"
-          role="alert"
-        >
-          {localError}
-        </p>
-      ) : null}
-    </section>
+              {busyPath ? "Discarding…" : "Discard changes"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

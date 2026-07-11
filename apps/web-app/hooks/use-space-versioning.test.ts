@@ -220,7 +220,9 @@ function VersioningProbe({
   return null
 }
 
-function versionStatus(paths: Array<{ path: string; state: string }> = []) {
+function versionStatus(
+  paths: Array<{ path: string; state: string } & Record<string, unknown>> = []
+) {
   return {
     enabled: true,
     currentHead: "commit-3",
@@ -275,6 +277,45 @@ function createBridge() {
         from: "commit-2",
         to: "commit-3",
         paths: [],
+      })
+    ),
+    stagePath: vi.fn(
+      async (
+        _spaceId: string,
+        request: { path: string; expectedHead: string | null }
+      ) => ({
+        path: request.path,
+        status: versionStatus([
+          {
+            path: request.path,
+            state: "modified",
+            staged: true,
+            worktreeState: "none",
+          },
+        ]),
+      })
+    ),
+    unstagePath: vi.fn(
+      async (
+        _spaceId: string,
+        request: { path: string; expectedHead: string | null }
+      ) => ({
+        path: request.path,
+        status: versionStatus([{ path: request.path, state: "modified" }]),
+      })
+    ),
+    discardPath: vi.fn(
+      async (
+        _spaceId: string,
+        request: {
+          path: string
+          expectedHead: string | null
+          confirmed: true
+        }
+      ) => ({
+        path: request.path,
+        effect: "restored",
+        status: versionStatus([]),
       })
     ),
     restorePath: vi.fn(
@@ -441,6 +482,119 @@ describe("useSpaceVersioning history coordination", () => {
       })
     ).rejects.toThrow("could not save all pending file changes")
     expect(bridge.commit).not.toHaveBeenCalled()
+    unregister()
+  })
+
+  it("flushes only the selected file before including it", async () => {
+    const bridge = createBridge()
+    installBridge(bridge)
+    const targetFlush = vi.fn(async () => true)
+    const siblingFlush = vi.fn(async () => true)
+    const unregisterTarget = registerPendingWriteFlusher(
+      "stage-target",
+      targetFlush,
+      { spaceId: "space-a", filePath: "notes/today.md" }
+    )
+    const unregisterSibling = registerPendingWriteFlusher(
+      "stage-sibling",
+      siblingFlush,
+      { spaceId: "space-a", filePath: "notes/other.md" }
+    )
+
+    await act(async () => {
+      root.render(
+        createElement(VersioningProbe, {
+          name: "changes",
+          loadHistory: false,
+        })
+      )
+      await flushEffects()
+    })
+
+    const request = {
+      path: "notes/today.md",
+      expectedHead: "commit-3",
+    }
+    await act(async () => {
+      await hookResults.get("changes")?.stagePath(request)
+      await flushEffects()
+    })
+
+    expect(targetFlush).toHaveBeenCalledOnce()
+    expect(siblingFlush).not.toHaveBeenCalled()
+    expect(bridge.stagePath).toHaveBeenCalledWith("space-a", request)
+    expect(targetFlush.mock.invocationCallOrder[0]).toBeLessThan(
+      bridge.stagePath.mock.invocationCallOrder[0]
+    )
+    unregisterTarget()
+    unregisterSibling()
+  })
+
+  it("excludes an included file without flushing unrelated editor content", async () => {
+    const bridge = createBridge()
+    installBridge(bridge)
+    const flush = vi.fn(async () => true)
+    const unregister = registerPendingWriteFlusher("unstage-editor", flush, {
+      spaceId: "space-a",
+      filePath: "notes/today.md",
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(VersioningProbe, {
+          name: "changes",
+          loadHistory: false,
+        })
+      )
+      await flushEffects()
+    })
+    await act(async () => {
+      await hookResults.get("changes")?.unstagePath({
+        path: "notes/today.md",
+        expectedHead: "commit-3",
+      })
+      await flushEffects()
+    })
+
+    expect(flush).not.toHaveBeenCalled()
+    expect(bridge.unstagePath).toHaveBeenCalledWith("space-a", {
+      path: "notes/today.md",
+      expectedHead: "commit-3",
+    })
+    unregister()
+  })
+
+  it("flushes the selected file and preserves explicit discard confirmation", async () => {
+    const bridge = createBridge()
+    installBridge(bridge)
+    const flush = vi.fn(async () => true)
+    const unregister = registerPendingWriteFlusher("discard-editor", flush, {
+      spaceId: "space-a",
+      filePath: "notes/today.md",
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(VersioningProbe, {
+          name: "changes",
+          loadHistory: false,
+        })
+      )
+      await flushEffects()
+    })
+
+    const request = {
+      path: "notes/today.md",
+      expectedHead: "commit-3",
+      confirmed: true as const,
+    }
+    await act(async () => {
+      await hookResults.get("changes")?.discardPath(request)
+      await flushEffects()
+    })
+
+    expect(flush).toHaveBeenCalledOnce()
+    expect(bridge.discardPath).toHaveBeenCalledWith("space-a", request)
     unregister()
   })
 
