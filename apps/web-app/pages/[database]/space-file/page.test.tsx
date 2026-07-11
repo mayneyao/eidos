@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { SpaceFilePage } from "./page"
 
 const mocks = vi.hoisted(() => ({
+  fileChangeHandler: null as
+    | ((event: { eventType: string; path: string }) => void)
+    | null,
   readText: vi.fn(),
   registerPendingWriteFlusher: vi.fn(() => vi.fn()),
   versioningOperation: null as string | null,
@@ -55,7 +58,12 @@ vi.mock("@/apps/web-app/hooks/use-current-space", () => ({
 }))
 
 vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
-  useSpaceFileChanges: () => undefined,
+  useSpaceFileChanges: (
+    _spaceId: string | undefined,
+    handler: (event: { eventType: string; path: string }) => void
+  ) => {
+    mocks.fileChangeHandler = handler
+  },
   useSpaceFiles: () => ({
     readText: mocks.readText,
     writeText: mocks.writeText,
@@ -105,6 +113,7 @@ describe("SpaceFilePage editor selection", () => {
     mocks.readText.mockReset()
     mocks.writeText.mockReset()
     mocks.registerPendingWriteFlusher.mockClear()
+    mocks.fileChangeHandler = null
     mocks.versioningOperation = null
     container = document.createElement("div")
     document.body.append(container)
@@ -296,5 +305,128 @@ describe("SpaceFilePage editor selection", () => {
       await latestWrite.promise
       await flushEffects()
     })
+  })
+
+  it("flushes the current Markdown edit before navigation or versioning", async () => {
+    mocks.readText.mockResolvedValue({
+      path: "notes/today.md",
+      content: "initial",
+      size: 7,
+      mtimeMs: 1,
+    })
+    mocks.writeText.mockResolvedValue({
+      path: "notes/today.md",
+      content: "latest",
+      size: 6,
+      mtimeMs: 2,
+    })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/space-file#notes%2Ftoday.md"]}>
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="edit-latest"]')
+        ?.click()
+    })
+
+    const flusher = mocks.registerPendingWriteFlusher.mock.calls[0]?.[1] as
+      | (() => Promise<boolean>)
+      | undefined
+    await act(async () => {
+      await expect(flusher?.()).resolves.toBe(true)
+      await flushEffects()
+    })
+
+    expect(mocks.writeText).toHaveBeenCalledWith("notes/today.md", "latest", 1)
+  })
+
+  it("reloads a clean Markdown editor after an external file change", async () => {
+    mocks.readText.mockResolvedValue({
+      path: "notes/today.md",
+      content: "initial",
+      size: 7,
+      mtimeMs: 1,
+    })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/space-file#notes%2Ftoday.md"]}>
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+    mocks.readText.mockResolvedValueOnce({
+      path: "notes/today.md",
+      content: "outside",
+      size: 7,
+      mtimeMs: 2,
+    })
+    await act(async () => {
+      mocks.fileChangeHandler?.({
+        eventType: "change",
+        path: "notes/today.md",
+      })
+      await flushEffects()
+    })
+
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-testid="lexical-markdown-editor"]'
+      )?.dataset.value
+    ).toBe("outside")
+    expect(container.textContent).not.toContain("changed outside Eidos")
+  })
+
+  it("preserves dirty Markdown and reports an external edit conflict", async () => {
+    mocks.readText.mockResolvedValue({
+      path: "notes/today.md",
+      content: "initial",
+      size: 7,
+      mtimeMs: 1,
+    })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/space-file#notes%2Ftoday.md"]}>
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="edit-latest"]')
+        ?.click()
+    })
+    mocks.readText.mockResolvedValueOnce({
+      path: "notes/today.md",
+      content: "outside",
+      size: 7,
+      mtimeMs: 2,
+    })
+    await act(async () => {
+      mocks.fileChangeHandler?.({
+        eventType: "change",
+        path: "notes/today.md",
+      })
+      await flushEffects()
+    })
+
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-testid="lexical-markdown-editor"]'
+      )?.dataset.value
+    ).toBe("latest")
+    expect(container.textContent).toContain(
+      "This file changed outside Eidos while you were editing."
+    )
+    expect(mocks.writeText).not.toHaveBeenCalled()
   })
 })
