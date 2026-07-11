@@ -19,6 +19,8 @@ import type {
   BaseFieldType,
   BaseMetadata,
   BaseRow,
+  BaseRowPage,
+  BaseRowRange,
   BaseStorageCodec,
   BaseTableInfo,
   BaseViewInfo,
@@ -398,9 +400,31 @@ export class BaseRuntime {
   listRows(tableId: string, limit = 200, offset = 0): BaseRow[] {
     const table = this.getTable(tableId)
     return this.connection.query<BaseRow>(
-      `SELECT * FROM ${quoteIdentifier(table.rawTableName)} LIMIT ? OFFSET ?`,
+      `SELECT * FROM ${quoteIdentifier(table.rawTableName)}
+        ORDER BY rowid LIMIT ? OFFSET ?`,
       [Math.max(0, limit), Math.max(0, offset)]
     )
+  }
+
+  countRows(tableId: string): number {
+    const table = this.getTable(tableId)
+    return (
+      this.connection.get<{ count: number }>(
+        `SELECT COUNT(*) AS count FROM ${quoteIdentifier(table.rawTableName)}`
+      )?.count ?? 0
+    )
+  }
+
+  getRowPage(tableId: string, offset = 0, limit = 100): BaseRowPage {
+    const safeOffset = Math.max(0, Math.trunc(offset))
+    const safeLimit = Math.min(500, Math.max(1, Math.trunc(limit)))
+    return {
+      tableId,
+      offset: safeOffset,
+      limit: safeLimit,
+      total: this.countRows(tableId),
+      rows: this.listRows(tableId, safeLimit, safeOffset),
+    }
   }
 
   insertRow(tableId: string, row: BaseRow): BaseRow {
@@ -480,12 +504,82 @@ export class BaseRuntime {
   }
 
   deleteRow(tableId: string, rowId: string): boolean {
+    return this.deleteRows(tableId, [rowId]).length === 1
+  }
+
+  deleteRows(tableId: string, rowIds: string[]): string[] {
     const table = this.getTable(tableId)
-    const result = this.connection.run(
-      `DELETE FROM ${quoteIdentifier(table.rawTableName)} WHERE _id = ?`,
-      [rowId]
+    const uniqueIds = [...new Set(rowIds)]
+    if (uniqueIds.length === 0) return []
+    return this.connection.transaction(() =>
+      this.deleteRowsInTransaction(table.rawTableName, uniqueIds)
     )
-    if (result.changes > 0) setBaseMetadata(this.connection, {})
-    return result.changes > 0
+  }
+
+  deleteRowRanges(tableId: string, ranges: BaseRowRange[]): number {
+    const table = this.getTable(tableId)
+    const normalized = this.normalizeRowRanges(ranges)
+    if (normalized.length === 0) return 0
+    return this.connection.transaction(() => {
+      let deletedCount = 0
+      for (const { startIndex, endIndex } of normalized.reverse()) {
+        const result = this.connection.run(
+          `DELETE FROM ${quoteIdentifier(table.rawTableName)}
+            WHERE rowid IN (
+              SELECT rowid FROM ${quoteIdentifier(table.rawTableName)}
+              ORDER BY rowid LIMIT ? OFFSET ?
+            )`,
+          [endIndex - startIndex, startIndex]
+        )
+        deletedCount += result.changes
+      }
+      if (deletedCount > 0) setBaseMetadata(this.connection, {})
+      return deletedCount
+    })
+  }
+
+  private normalizeRowRanges(ranges: BaseRowRange[]): BaseRowRange[] {
+    const sorted = ranges
+      .map(({ startIndex, endIndex }) => {
+        if (
+          !Number.isSafeInteger(startIndex) ||
+          !Number.isSafeInteger(endIndex) ||
+          startIndex < 0 ||
+          endIndex <= startIndex
+        ) {
+          throw new BaseError(
+            "invalid-range",
+            `Invalid Base row range: ${startIndex}..${endIndex}`
+          )
+        }
+        return { startIndex, endIndex }
+      })
+      .sort((left, right) => left.startIndex - right.startIndex)
+    const merged: BaseRowRange[] = []
+    for (const range of sorted) {
+      const previous = merged.at(-1)
+      if (!previous || range.startIndex > previous.endIndex) {
+        merged.push({ ...range })
+      } else {
+        previous.endIndex = Math.max(previous.endIndex, range.endIndex)
+      }
+    }
+    return merged
+  }
+
+  private deleteRowsInTransaction(
+    rawTableName: string,
+    rowIds: string[]
+  ): string[] {
+    const deleted: string[] = []
+    for (const rowId of new Set(rowIds)) {
+      const result = this.connection.run(
+        `DELETE FROM ${quoteIdentifier(rawTableName)} WHERE _id = ?`,
+        [rowId]
+      )
+      if (result.changes > 0) deleted.push(rowId)
+    }
+    if (deleted.length > 0) setBaseMetadata(this.connection, {})
+    return deleted
   }
 }

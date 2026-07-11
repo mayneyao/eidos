@@ -89,14 +89,15 @@ export function BaseStructureDialog({
     event.preventDefault()
     const trimmedName = name.trim()
     if (!trimmedName) return
+    let creation: Promise<void> | void
     if (mode === "table") {
-      void onCreateTable({ name: trimmedName })
+      creation = onCreateTable({ name: trimmedName })
     } else {
       const optionNames = options
         .split(",")
         .map((option) => option.trim())
         .filter(Boolean)
-      void onCreateField({
+      creation = onCreateField({
         name: trimmedName,
         columnName: columnNameFor(trimmedName),
         type: fieldType,
@@ -116,6 +117,7 @@ export function BaseStructureDialog({
           : {}),
       })
     }
+    void Promise.resolve(creation).catch(() => undefined)
     onOpenChange(false)
   }
 

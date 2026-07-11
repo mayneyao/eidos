@@ -2,17 +2,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
   BaseFieldInfo,
   BaseRow,
+  BaseRowMutationResult,
+  BaseRowPage,
+  BaseRowRange,
   BaseSqlPrimitive,
   BaseTableSnapshot,
   BaseViewInfo,
   UpdateBaseViewInput,
 } from "@eidos.space/base"
 import DataEditor, {
+  GridCellKind,
   type DataEditorProps,
   type DataEditorRef,
   type EditableGridCell,
   type GridColumn,
+  type GridSelection,
   type Item,
+  type Rectangle,
 } from "@glideapps/glide-data-grid"
 import { useTheme } from "@/components/theme-provider"
 
@@ -31,17 +37,24 @@ import {
 
 import "@glideapps/glide-data-grid/dist/index.css"
 
+const PAGE_SIZE = 100
+const PAGE_OVERSCAN = 1
+
 interface BaseGridProps {
   table: BaseTableSnapshot
   view?: BaseViewInfo
   disabled?: boolean
-  onAddRow: () => Promise<void> | void
+  reloadToken?: number
+  loadPage: (offset: number, limit: number) => Promise<BaseRowPage>
+  onAddRow: () => Promise<BaseRowMutationResult>
   onCellEdit: (
     row: BaseRow,
     field: BaseFieldInfo,
     value: BaseSqlPrimitive
-  ) => Promise<void> | void
+  ) => Promise<BaseRowMutationResult>
+  onSelectedRowsChange?: (ranges: BaseRowRange[]) => void
   onViewUpdate?: (changes: UpdateBaseViewInput) => Promise<void> | void
+  onError?: (error: unknown) => void
 }
 
 function sameFields(left: BaseFieldInfo[], right: BaseFieldInfo[]): boolean {
@@ -66,19 +79,54 @@ function viewWidths(view: BaseViewInfo | undefined): Record<string, number> {
   )
 }
 
+function rowSelectionRanges(selection: GridSelection): BaseRowRange[] {
+  const compactRanges = (
+    selection.rows as unknown as {
+      items?: readonly (readonly [number, number])[]
+    }
+  ).items
+  if (compactRanges) {
+    return compactRanges.map(([startIndex, endIndex]) => ({
+      startIndex,
+      endIndex,
+    }))
+  }
+
+  const ranges: BaseRowRange[] = []
+  for (const index of selection.rows) {
+    const previous = ranges.at(-1)
+    if (previous?.endIndex === index) {
+      previous.endIndex = index + 1
+    } else {
+      ranges.push({ startIndex: index, endIndex: index + 1 })
+    }
+  }
+  return ranges
+}
+
 export function BaseGrid({
   table,
   view,
   disabled = false,
+  reloadToken = 0,
+  loadPage,
   onAddRow,
   onCellEdit,
+  onSelectedRowsChange,
   onViewUpdate,
+  onError,
 }: BaseGridProps) {
   const { resolvedTheme } = useTheme()
   const { css: spaceThemeCss } = useCurrentTheme()
   const theme = useDynamicTheme(resolvedTheme, spaceThemeCss)
   const gridRef = useRef<DataEditorRef>(null)
   const widthSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rowsRef = useRef(new Map<number, BaseRow>())
+  const loadedPagesRef = useRef(new Set<number>())
+  const loadingPagesRef = useRef(new Map<number, number>())
+  const generationRef = useRef(0)
+  const [cacheRevision, setCacheRevision] = useState(0)
+  const [rowCount, setRowCount] = useState(table.rowCount)
   const availableFields = useMemo(
     () =>
       visibleBaseFields(table.fields).sort((left, right) => {
@@ -96,6 +144,48 @@ export function BaseGrid({
     viewWidths(view)
   )
 
+  const loadPageIndex = useCallback(
+    async (pageIndex: number) => {
+      if (
+        pageIndex < 0 ||
+        loadedPagesRef.current.has(pageIndex) ||
+        loadingPagesRef.current.has(pageIndex)
+      ) {
+        return
+      }
+      const generation = generationRef.current
+      loadingPagesRef.current.set(pageIndex, generation)
+      try {
+        const page = await loadPage(pageIndex * PAGE_SIZE, PAGE_SIZE)
+        if (generation !== generationRef.current) return
+        page.rows.forEach((row, index) => {
+          rowsRef.current.set(page.offset + index, row)
+        })
+        loadedPagesRef.current.add(pageIndex)
+        setRowCount(page.total)
+        setCacheRevision((current) => current + 1)
+      } catch (error) {
+        if (generation === generationRef.current) onError?.(error)
+      } finally {
+        if (loadingPagesRef.current.get(pageIndex) === generation) {
+          loadingPagesRef.current.delete(pageIndex)
+        }
+      }
+    },
+    [loadPage, onError]
+  )
+
+  useEffect(() => {
+    generationRef.current += 1
+    rowsRef.current.clear()
+    loadedPagesRef.current.clear()
+    loadingPagesRef.current.clear()
+    setRowCount(table.rowCount)
+    setCacheRevision((current) => current + 1)
+    onSelectedRowsChange?.([])
+    void loadPageIndex(0)
+  }, [loadPageIndex, onSelectedRowsChange, reloadToken, table.table.id])
+
   useEffect(() => {
     setFields((current) =>
       sameFields(current, availableFields) ? current : availableFields
@@ -108,6 +198,7 @@ export function BaseGrid({
 
   useEffect(
     () => () => {
+      generationRef.current += 1
       if (widthSaveTimerRef.current) clearTimeout(widthSaveTimerRef.current)
     },
     []
@@ -132,30 +223,70 @@ export function BaseGrid({
   >(
     ([columnIndex, rowIndex]) => {
       const field = fields[columnIndex]
-      const row = table.rows[rowIndex]
+      const row = rowsRef.current.get(rowIndex)
       if (!field || !row) {
-        return {
-          kind: "loading",
-          allowOverlay: false,
-        } as ReturnType<NonNullable<DataEditorProps["getCellContent"]>>
+        return { kind: GridCellKind.Loading, allowOverlay: false }
       }
       return baseValueToGridCell(field, row[field.tableColumnName], disabled)
     },
-    [disabled, fields, table.rows]
+    [cacheRevision, disabled, fields]
   )
+
+  const requestVisiblePages = useCallback(
+    (range: Rectangle) => {
+      if (rowCount === 0) return
+      const firstPage = Math.max(
+        0,
+        Math.floor(range.y / PAGE_SIZE) - PAGE_OVERSCAN
+      )
+      const lastPage = Math.min(
+        Math.ceil(rowCount / PAGE_SIZE) - 1,
+        Math.floor((range.y + Math.max(0, range.height - 1)) / PAGE_SIZE) +
+          PAGE_OVERSCAN
+      )
+      for (let page = firstPage; page <= lastPage; page += 1) {
+        void loadPageIndex(page)
+      }
+    },
+    [loadPageIndex, rowCount]
+  )
+
+  const onVisibleRegionChanged = useCallback<
+    NonNullable<DataEditorProps["onVisibleRegionChanged"]>
+  >((range) => requestVisiblePages(range), [requestVisiblePages])
 
   const commitCell = useCallback(
     (location: Item, nextCell: EditableGridCell) => {
       if (disabled) return
       const [columnIndex, rowIndex] = location
       const field = fields[columnIndex]
-      const row = table.rows[rowIndex]
+      const row = rowsRef.current.get(rowIndex)
       if (!field || !row) return
       const nextValue = gridCellToBaseValue(field, nextCell)
       if (Object.is(row[field.tableColumnName], nextValue)) return
+
+      const previous = row
+      rowsRef.current.set(rowIndex, {
+        ...row,
+        [field.tableColumnName]: nextValue,
+      })
+      setCacheRevision((current) => current + 1)
       void onCellEdit(row, field, nextValue)
+        .then((result) => {
+          const current = rowsRef.current.get(rowIndex)
+          if (current && String(current._id) === String(result.row._id)) {
+            rowsRef.current.set(rowIndex, result.row)
+            setRowCount(result.rowCount)
+            setCacheRevision((revision) => revision + 1)
+          }
+        })
+        .catch((error) => {
+          rowsRef.current.set(rowIndex, previous)
+          setCacheRevision((revision) => revision + 1)
+          onError?.(error)
+        })
     },
-    [disabled, fields, onCellEdit, table.rows]
+    [disabled, fields, onCellEdit, onError]
   )
 
   const onCellsEdited = useCallback<
@@ -166,6 +297,27 @@ export function BaseGrid({
       return true
     },
     [commitCell]
+  )
+
+  const appendRow = useCallback(async () => {
+    try {
+      const result = await onAddRow()
+      const index = Math.max(0, result.rowCount - 1)
+      rowsRef.current.set(index, result.row)
+      setRowCount(result.rowCount)
+      setCacheRevision((current) => current + 1)
+      return "bottom" as const
+    } catch (error) {
+      onError?.(error)
+      return undefined
+    }
+  }, [onAddRow, onError])
+
+  const onGridSelectionChange = useCallback(
+    (selection: GridSelection) => {
+      onSelectedRowsChange?.(rowSelectionRanges(selection))
+    },
+    [onSelectedRowsChange]
   )
 
   const onColumnResize = useCallback(
@@ -219,22 +371,17 @@ export function BaseGrid({
         ref={gridRef}
         theme={theme}
         columns={columns}
-        rows={table.rows.length}
+        rows={rowCount}
         getCellContent={getCellContent}
+        onVisibleRegionChanged={onVisibleRegionChanged}
         customRenderers={[SelectCell, MultiSelectCell]}
         fillHandle={!disabled}
         onCellEdited={disabled ? undefined : commitCell}
         onCellsEdited={disabled ? undefined : onCellsEdited}
+        onGridSelectionChange={onGridSelectionChange}
         onColumnResize={onColumnResize}
         onColumnMoved={onColumnMoved}
-        onRowAppended={
-          disabled
-            ? undefined
-            : async () => {
-                await onAddRow()
-                return "bottom" as const
-              }
-        }
+        onRowAppended={disabled ? undefined : appendRow}
       />
     </div>
   )

@@ -5,6 +5,10 @@
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import type {
   BaseRow,
+  BaseRowMutationResult,
+  BaseRowPage,
+  BaseRowRange,
+  BaseRowsDeleteResult,
   BaseSnapshot,
   CreateBaseFieldInput,
   CreateBaseOptions,
@@ -406,17 +410,33 @@ export class SpaceManagementService extends IpcServiceBase {
 
   async getBaseSnapshot(
     spaceId: string,
-    relativePath: string,
-    options: { maxRowsPerTable?: number } = {}
+    relativePath: string
   ): Promise<BaseSnapshot> {
     return withFileSpaceOperationLock(spaceId, () =>
-      this._getBaseSnapshot(
-        spaceId,
-        relativePath,
-        options.maxRowsPerTable,
-        true
-      )
+      this._getBaseSnapshot(spaceId, relativePath, true)
     )
+  }
+
+  async getBaseTablePage(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    options: { offset: number; limit: number }
+  ): Promise<BaseRowPage> {
+    if (!Number.isSafeInteger(options.offset) || options.offset < 0) {
+      throw new Error("Base row page offset must be a non-negative integer")
+    }
+    if (!Number.isSafeInteger(options.limit) || options.limit < 1) {
+      throw new Error("Base row page limit must be a positive integer")
+    }
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        return base.getRowPage(tableId, options.offset, options.limit)
+      } finally {
+        base.close()
+      }
+    })
   }
 
   async addBaseField(
@@ -459,16 +479,18 @@ export class SpaceManagementService extends IpcServiceBase {
     relativePath: string,
     tableId: string,
     row: BaseRow
-  ): Promise<BaseSnapshot> {
+  ): Promise<BaseRowMutationResult> {
     return withFileSpaceOperationLock(spaceId, async () => {
       const base = await this._openBase(spaceId, relativePath, true)
       try {
-        base.insertRow(tableId, row)
+        return {
+          tableId,
+          row: base.insertRow(tableId, row),
+          rowCount: base.countRows(tableId),
+        }
       } finally {
         base.close()
       }
-      this._invalidateFileIndex(spaceId)
-      return this._getBaseSnapshot(spaceId, relativePath)
     })
   }
 
@@ -496,16 +518,58 @@ export class SpaceManagementService extends IpcServiceBase {
     tableId: string,
     rowId: string,
     changes: BaseRow
-  ): Promise<BaseSnapshot> {
+  ): Promise<BaseRowMutationResult> {
     return withFileSpaceOperationLock(spaceId, async () => {
       const base = await this._openBase(spaceId, relativePath, true)
       try {
-        base.updateRow(tableId, rowId, changes)
+        return {
+          tableId,
+          row: base.updateRow(tableId, rowId, changes),
+          rowCount: base.countRows(tableId),
+        }
       } finally {
         base.close()
       }
-      this._invalidateFileIndex(spaceId)
-      return this._getBaseSnapshot(spaceId, relativePath)
+    })
+  }
+
+  async deleteBaseRows(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    rowIds: string[]
+  ): Promise<BaseRowsDeleteResult> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        return {
+          tableId,
+          deletedCount: base.deleteRows(tableId, rowIds).length,
+          rowCount: base.countRows(tableId),
+        }
+      } finally {
+        base.close()
+      }
+    })
+  }
+
+  async deleteBaseRowRanges(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    ranges: BaseRowRange[]
+  ): Promise<BaseRowsDeleteResult> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        return {
+          tableId,
+          deletedCount: base.deleteRowRanges(tableId, ranges),
+          rowCount: base.countRows(tableId),
+        }
+      } finally {
+        base.close()
+      }
     })
   }
 
@@ -514,17 +578,8 @@ export class SpaceManagementService extends IpcServiceBase {
     relativePath: string,
     tableId: string,
     rowId: string
-  ): Promise<BaseSnapshot> {
-    return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
-      try {
-        base.deleteRow(tableId, rowId)
-      } finally {
-        base.close()
-      }
-      this._invalidateFileIndex(spaceId)
-      return this._getBaseSnapshot(spaceId, relativePath)
-    })
+  ): Promise<BaseRowsDeleteResult> {
+    return this.deleteBaseRows(spaceId, relativePath, tableId, [rowId])
   }
 
   async moveFile(
@@ -703,13 +758,11 @@ export class SpaceManagementService extends IpcServiceBase {
   private async _getBaseSnapshot(
     spaceId: string,
     relativePath: string,
-    maxRowsPerTable = 200,
     migrate = false
   ): Promise<BaseSnapshot> {
     const base = await this._openBase(spaceId, relativePath, migrate)
     try {
       const metadata = base.info()
-      const rowLimit = Math.min(500, Math.max(0, maxRowsPerTable))
       return {
         path: relativePath,
         metadata,
@@ -717,7 +770,7 @@ export class SpaceManagementService extends IpcServiceBase {
           table,
           fields: base.listFields(table.id),
           views: base.listViews(table.id),
-          rows: base.listRows(table.id, rowLimit),
+          rowCount: base.countRows(table.id),
         })),
       }
     } finally {

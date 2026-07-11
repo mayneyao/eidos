@@ -149,7 +149,32 @@ export interface BaseTableSnapshot {
   table: BaseTableInfo
   fields: BaseFieldInfo[]
   views: BaseViewInfo[]
+  rowCount: number
+}
+
+export interface BaseRowPage {
+  tableId: string
+  offset: number
+  limit: number
+  total: number
   rows: BaseRow[]
+}
+
+export interface BaseRowMutationResult {
+  tableId: string
+  row: BaseRow
+  rowCount: number
+}
+
+export interface BaseRowRange {
+  startIndex: number
+  endIndex: number
+}
+
+export interface BaseRowsDeleteResult {
+  tableId: string
+  deletedCount: number
+  rowCount: number
 }
 
 export interface BaseSnapshot {

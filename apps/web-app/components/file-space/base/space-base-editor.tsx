@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
   BaseFieldInfo,
   BaseRow,
+  BaseRowMutationResult,
+  BaseRowRange,
+  BaseRowsDeleteResult,
   BaseSnapshot,
   BaseSqlPrimitive,
 } from "@eidos.space/base"
@@ -12,6 +15,7 @@ import {
   Plus,
   RefreshCw,
   Table2,
+  Trash2,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -19,6 +23,16 @@ import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useSpaceBase } from "@/apps/web-app/hooks/use-space-base"
 import { useSpaceFileChanges } from "@/apps/web-app/hooks/use-space-files"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 import { BaseGrid } from "./base-grid"
 import { BaseStructureDialog } from "./base-structure-dialog"
@@ -31,11 +45,13 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const { currentSpace } = useCurrentSpace()
   const {
     getSnapshot,
+    getTablePage,
     createTable,
     addField,
     updateView,
     insertRow,
     updateRow,
+    deleteRowRanges,
   } = useSpaceBase(currentSpace?.id)
   const [snapshot, setSnapshot] = useState<BaseSnapshot | null>(null)
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
@@ -43,9 +59,11 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const [pendingMutations, setPendingMutations] = useState(0)
   const mutatingRef = useRef(false)
   const pendingMutationCountRef = useRef(0)
-  const mutationRevisionRef = useRef(0)
   const mutationQueueRef = useRef<Promise<void>>(Promise.resolve())
   const [error, setError] = useState<string | null>(null)
+  const [gridReloadToken, setGridReloadToken] = useState(0)
+  const [selectedRowRanges, setSelectedRowRanges] = useState<BaseRowRange[]>([])
+  const [deleteRowsDialogOpen, setDeleteRowsDialogOpen] = useState(false)
   const [structureDialog, setStructureDialog] = useState<
     "table" | "field" | null
   >(null)
@@ -64,6 +82,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     setLoading(true)
     try {
       applySnapshot(await getSnapshot(filePath))
+      setGridReloadToken((current) => current + 1)
       setError(null)
     } catch (loadError) {
       setError(
@@ -93,12 +112,19 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       snapshot?.tables.find(({ table }) => table.id === activeTableId) ?? null,
     [activeTableId, snapshot?.tables]
   )
+  const selectedRowCount = useMemo(
+    () =>
+      selectedRowRanges.reduce(
+        (count, range) => count + range.endIndex - range.startIndex,
+        0
+      ),
+    [selectedRowRanges]
+  )
   const enqueueMutation = useCallback(
-    (
-      operation: () => Promise<BaseSnapshot>,
-      onSuccess?: (snapshot: BaseSnapshot) => void
-    ): Promise<void> => {
-      const revision = ++mutationRevisionRef.current
+    <T,>(
+      operation: () => Promise<T>,
+      onSuccess?: (result: T) => void
+    ): Promise<T> => {
       pendingMutationCountRef.current += 1
       mutatingRef.current = true
       setPendingMutations((current) => current + 1)
@@ -106,12 +132,12 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       const run = mutationQueueRef.current
         .catch(() => undefined)
         .then(operation)
-      const settled = run
+      const handled = run
         .then(
-          (next) => {
-            if (revision === mutationRevisionRef.current) applySnapshot(next)
-            onSuccess?.(next)
+          (result) => {
+            onSuccess?.(result)
             setError(null)
+            return result
           },
           (mutationError) => {
             setError(
@@ -120,6 +146,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
                 : "Unable to update Base"
             )
             void load()
+            throw mutationError
           }
         )
         .finally(() => {
@@ -127,64 +154,104 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           mutatingRef.current = pendingMutationCountRef.current > 0
           setPendingMutations((current) => Math.max(0, current - 1))
         })
-      mutationQueueRef.current = settled
-      return settled
+      mutationQueueRef.current = handled.then(
+        () => undefined,
+        () => undefined
+      )
+      return handled
     },
-    [applySnapshot, load]
+    [load]
   )
 
-  const createRow = useCallback((): Promise<void> => {
-    if (!activeTable) return Promise.resolve()
-    return enqueueMutation(() =>
-      insertRow(filePath, activeTable.table.id, { title: "Untitled" })
+  const updateTableRowCount = useCallback(
+    (tableId: string, rowCount: number) => {
+      setSnapshot((current) =>
+        current
+          ? {
+              ...current,
+              tables: current.tables.map((candidate) =>
+                candidate.table.id === tableId
+                  ? { ...candidate, rowCount }
+                  : candidate
+              ),
+            }
+          : current
+      )
+    },
+    []
+  )
+
+  const loadActiveTablePage = useCallback(
+    (offset: number, limit: number) => {
+      if (!activeTableId) {
+        return Promise.reject(new Error("No active Base table"))
+      }
+      return getTablePage(filePath, activeTableId, offset, limit)
+    },
+    [activeTableId, filePath, getTablePage]
+  )
+
+  const createRow = useCallback((): Promise<BaseRowMutationResult> => {
+    if (!activeTable) return Promise.reject(new Error("No active Base table"))
+    const tableId = activeTable.table.id
+    return enqueueMutation(
+      () => insertRow(filePath, tableId, { title: "Untitled" }),
+      (result) => updateTableRowCount(tableId, result.rowCount)
     )
-  }, [activeTable, enqueueMutation, filePath, insertRow])
+  }, [activeTable, enqueueMutation, filePath, insertRow, updateTableRowCount])
 
   const saveCell = useCallback(
     (
       row: BaseRow,
       field: BaseFieldInfo,
       value: BaseSqlPrimitive
-    ): Promise<void> => {
+    ): Promise<BaseRowMutationResult> => {
       if (
         !activeTable ||
         !row._id ||
         Object.is(row[field.tableColumnName], value)
       ) {
-        return Promise.resolve()
+        return Promise.resolve({
+          tableId: activeTable?.table.id ?? "",
+          row,
+          rowCount: activeTable?.rowCount ?? 0,
+        })
       }
       const rowId = String(row._id)
       const tableId = activeTable.table.id
-      setSnapshot((current) =>
-        current
-          ? {
-              ...current,
-              tables: current.tables.map((candidate) =>
-                candidate.table.id !== tableId
-                  ? candidate
-                  : {
-                      ...candidate,
-                      rows: candidate.rows.map((candidateRow) =>
-                        String(candidateRow._id) !== rowId
-                          ? candidateRow
-                          : {
-                              ...candidateRow,
-                              [field.tableColumnName]: value,
-                            }
-                      ),
-                    }
-              ),
-            }
-          : current
-      )
-      return enqueueMutation(() =>
-        updateRow(filePath, tableId, rowId, {
-          [field.tableColumnName]: value,
-        })
+      return enqueueMutation(
+        () =>
+          updateRow(filePath, tableId, rowId, {
+            [field.tableColumnName]: value,
+          }),
+        (result) => updateTableRowCount(tableId, result.rowCount)
       )
     },
-    [activeTable, enqueueMutation, filePath, updateRow]
+    [activeTable, enqueueMutation, filePath, updateRow, updateTableRowCount]
   )
+
+  const deleteSelectedRows = useCallback((): Promise<BaseRowsDeleteResult> => {
+    if (!activeTable || selectedRowRanges.length === 0) {
+      return Promise.reject(new Error("No Base rows selected"))
+    }
+    const tableId = activeTable.table.id
+    const ranges = selectedRowRanges.map((range) => ({ ...range }))
+    return enqueueMutation(
+      () => deleteRowRanges(filePath, tableId, ranges),
+      (result) => {
+        updateTableRowCount(tableId, result.rowCount)
+        setSelectedRowRanges([])
+        setGridReloadToken((current) => current + 1)
+      }
+    )
+  }, [
+    activeTable,
+    deleteRowRanges,
+    enqueueMutation,
+    filePath,
+    selectedRowRanges,
+    updateTableRowCount,
+  ])
 
   const createTableInBase = useCallback(
     (table: Parameters<typeof createTable>[1]): Promise<void> => {
@@ -194,24 +261,26 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       return enqueueMutation(
         () => createTable(filePath, table),
         (next) => {
+          applySnapshot(next)
           const created = next.tables.find(
             (candidate) => !existingIds.has(candidate.table.id)
           )
           if (created) setActiveTableId(created.table.id)
         }
-      )
+      ).then(() => undefined)
     },
-    [createTable, enqueueMutation, filePath, snapshot?.tables]
+    [applySnapshot, createTable, enqueueMutation, filePath, snapshot?.tables]
   )
 
   const createFieldInBase = useCallback(
     (field: Parameters<typeof addField>[2]): Promise<void> => {
       if (!activeTable) return Promise.resolve()
-      return enqueueMutation(() =>
-        addField(filePath, activeTable.table.id, field)
-      )
+      return enqueueMutation(
+        () => addField(filePath, activeTable.table.id, field),
+        applySnapshot
+      ).then(() => undefined)
     },
-    [activeTable, addField, enqueueMutation, filePath]
+    [activeTable, addField, applySnapshot, enqueueMutation, filePath]
   )
 
   const updateActiveView = useCallback(
@@ -220,10 +289,19 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         (candidate) => candidate.type === "grid"
       )
       if (!view) return Promise.resolve()
-      return enqueueMutation(() => updateView(filePath, view.id, changes))
+      return enqueueMutation(
+        () => updateView(filePath, view.id, changes),
+        applySnapshot
+      ).then(() => undefined)
     },
-    [activeTable?.views, enqueueMutation, filePath, updateView]
+    [activeTable?.views, applySnapshot, enqueueMutation, filePath, updateView]
   )
+
+  const handleGridError = useCallback((gridError: unknown) => {
+    setError(
+      gridError instanceof Error ? gridError.message : "Unable to update Base"
+    )
+  }, [])
 
   if (loading && !snapshot) {
     return (
@@ -283,6 +361,18 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           {pendingMutations > 0 ? (
             <LoaderCircle className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
           ) : null}
+          {selectedRowCount > 0 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 px-2 text-xs text-destructive hover:text-destructive"
+              onClick={() => setDeleteRowsDialogOpen(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete {selectedRowCount}
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="ghost"
@@ -300,7 +390,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             size="sm"
             className="h-7 gap-1 px-2 text-xs"
             disabled={!activeTable}
-            onClick={() => void createRow()}
+            onClick={() => void createRow().catch(() => undefined)}
           >
             <Plus className="h-3.5 w-3.5" />
             New row
@@ -335,11 +425,16 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       ) : (
         <div className="min-h-0 flex-1">
           <BaseGrid
+            key={activeTable.table.id}
             table={activeTable}
             view={activeTable.views.find((view) => view.type === "grid")}
+            reloadToken={gridReloadToken}
+            loadPage={loadActiveTablePage}
             onAddRow={createRow}
             onCellEdit={saveCell}
+            onSelectedRowsChange={setSelectedRowRanges}
             onViewUpdate={updateActiveView}
+            onError={handleGridError}
           />
         </div>
       )}
@@ -353,6 +448,36 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         onCreateTable={createTableInBase}
         onCreateField={createFieldInBase}
       />
+
+      <AlertDialog
+        open={deleteRowsDialogOpen}
+        onOpenChange={setDeleteRowsDialogOpen}
+      >
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {selectedRowCount}{" "}
+              {selectedRowCount === 1 ? "row" : "rows"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This updates the Base file immediately. You can recover the rows
+              from Version history until the change is committed or discarded.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setDeleteRowsDialogOpen(false)
+                void deleteSelectedRows().catch(() => undefined)
+              }}
+            >
+              Delete rows
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

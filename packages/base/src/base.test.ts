@@ -266,4 +266,55 @@ describe("Eidos Base files", () => {
       ],
     })
   })
+
+  it("pages large tables and deletes selected rows without a snapshot cap", () => {
+    const filePath = path.join(root, "large.base")
+    createBaseFile(filePath, {
+      defaultTable: { id: "records", name: "Records" },
+    }).close()
+    const sqlite = new Database(filePath)
+    const insert = sqlite.prepare(
+      "INSERT INTO tb_records (_id, title) VALUES (?, ?)"
+    )
+    sqlite.transaction(() => {
+      for (let index = 0; index < 10_000; index += 1) {
+        insert.run(`row_${index}`, `Row ${index}`)
+      }
+    })()
+    sqlite.close()
+    const base = openBaseFile(filePath)
+
+    expect(base.countRows("records")).toBe(10_000)
+    const lastPage = base.getRowPage("records", 9_975, 50)
+    expect(lastPage).toMatchObject({
+      tableId: "records",
+      offset: 9_975,
+      limit: 50,
+      total: 10_000,
+    })
+    expect(lastPage.rows).toHaveLength(25)
+    expect(lastPage.rows[0]).toMatchObject({
+      _id: "row_9975",
+      title: "Row 9975",
+    })
+
+    expect(
+      base.deleteRowRanges("records", [
+        { startIndex: 1, endIndex: 3 },
+        { startIndex: 5_000, endIndex: 9_000 },
+        { startIndex: 8_990, endIndex: 9_010 },
+      ])
+    ).toBe(4_012)
+    expect(base.countRows("records")).toBe(5_988)
+    expectBaseError(
+      () => base.deleteRowRanges("records", [{ startIndex: 4, endIndex: 4 }]),
+      "invalid-range"
+    )
+
+    expect(
+      base.deleteRows("records", ["row_3", "row_3", "row_9010", "missing"])
+    ).toEqual(["row_3", "row_9010"])
+    expect(base.countRows("records")).toBe(5_986)
+    base.close()
+  })
 })

@@ -9,11 +9,13 @@ import { SpaceBaseEditor } from "./space-base-editor"
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 const getSnapshotMock = vi.hoisted(() => vi.fn())
+const getTablePageMock = vi.hoisted(() => vi.fn())
 const createTableMock = vi.hoisted(() => vi.fn())
 const addFieldMock = vi.hoisted(() => vi.fn())
 const updateViewMock = vi.hoisted(() => vi.fn())
 const insertRowMock = vi.hoisted(() => vi.fn())
 const updateRowMock = vi.hoisted(() => vi.fn())
+const deleteRowRangesMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/apps/web-app/hooks/use-current-space", () => ({
   useCurrentSpace: () => ({ currentSpace: { id: "space-a", mode: "file" } }),
@@ -22,11 +24,13 @@ vi.mock("@/apps/web-app/hooks/use-current-space", () => ({
 vi.mock("@/apps/web-app/hooks/use-space-base", () => ({
   useSpaceBase: () => ({
     getSnapshot: getSnapshotMock,
+    getTablePage: getTablePageMock,
     createTable: createTableMock,
     addField: addFieldMock,
     updateView: updateViewMock,
     insertRow: insertRowMock,
     updateRow: updateRowMock,
+    deleteRowRanges: deleteRowRangesMock,
   }),
 }))
 
@@ -72,15 +76,19 @@ vi.mock("./base-grid", () => ({
   BaseGrid: ({
     table,
     onCellEdit,
+    onSelectedRowsChange,
   }: {
     table: (typeof snapshot)["tables"][number]
     onCellEdit: (
-      row: (typeof snapshot)["tables"][number]["rows"][number],
+      row: { _id: string; title: string; status: string },
       field: (typeof snapshot)["tables"][number]["fields"][number],
       value: string
     ) => void
+    onSelectedRowsChange: (
+      ranges: Array<{ startIndex: number; endIndex: number }>
+    ) => void
   }) => {
-    const row = table.rows[0]
+    const row = { _id: "row_1", title: "Write RFC", status: "todo" }
     const title = table.fields.find(
       (field) => field.tableColumnName === "title"
     )
@@ -100,6 +108,12 @@ vi.mock("./base-grid", () => ({
           }}
         >
           Edit title
+        </button>
+        <button
+          type="button"
+          onClick={() => onSelectedRowsChange([{ startIndex: 0, endIndex: 1 }])}
+        >
+          Select row
         </button>
       </div>
     )
@@ -192,7 +206,7 @@ const snapshot: BaseSnapshot = {
           updatedAt: "2026-07-12 00:00:00",
         },
       ],
-      rows: [{ _id: "row_1", title: "Write RFC", status: "todo" }],
+      rowCount: 1,
     },
   ],
 }
@@ -203,17 +217,43 @@ describe("SpaceBaseEditor", () => {
 
   beforeEach(() => {
     getSnapshotMock.mockReset()
+    getTablePageMock.mockReset()
     createTableMock.mockReset()
     addFieldMock.mockReset()
     updateViewMock.mockReset()
     insertRowMock.mockReset()
     updateRowMock.mockReset()
+    deleteRowRangesMock.mockReset()
     getSnapshotMock.mockResolvedValue(snapshot)
+    getTablePageMock.mockResolvedValue({
+      tableId: "tasks",
+      offset: 0,
+      limit: 100,
+      total: 1,
+      rows: [{ _id: "row_1", title: "Write RFC", status: "todo" }],
+    })
     createTableMock.mockResolvedValue(snapshot)
     addFieldMock.mockResolvedValue(snapshot)
     updateViewMock.mockResolvedValue(snapshot)
-    insertRowMock.mockResolvedValue(snapshot)
-    updateRowMock.mockResolvedValue(snapshot)
+    insertRowMock.mockResolvedValue({
+      tableId: "tasks",
+      row: { _id: "row_2", title: "Untitled", status: null },
+      rowCount: 2,
+    })
+    updateRowMock.mockResolvedValue({
+      tableId: "tasks",
+      row: {
+        _id: "row_1",
+        title: "Write implementation",
+        status: "todo",
+      },
+      rowCount: 1,
+    })
+    deleteRowRangesMock.mockResolvedValue({
+      tableId: "tasks",
+      deletedCount: 1,
+      rowCount: 0,
+    })
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -304,5 +344,34 @@ describe("SpaceBaseEditor", () => {
       columnName: "owner",
       type: "text",
     })
+  })
+
+  it("deletes the rows selected by the Grid in one operation", async () => {
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Select row")
+        ?.click()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent?.includes("Delete 1"))
+        ?.click()
+    })
+    expect(document.body.textContent).toContain("Delete 1 row?")
+
+    await act(async () => {
+      Array.from(document.body.querySelectorAll("button"))
+        .find((button) => button.textContent === "Delete rows")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(deleteRowRangesMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      [{ startIndex: 0, endIndex: 1 }]
+    )
   })
 })

@@ -3,7 +3,11 @@
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type { BaseTableSnapshot } from "@eidos.space/base"
-import { GridCellKind, type DataEditorProps } from "@glideapps/glide-data-grid"
+import {
+  CompactSelection,
+  GridCellKind,
+  type DataEditorProps,
+} from "@glideapps/glide-data-grid"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BaseGrid } from "./base-grid"
@@ -99,7 +103,36 @@ const table: BaseTableSnapshot = {
       updatedAt: "2026-07-12 00:00:00",
     },
   ],
-  rows: [{ _id: "row_1", title: "Write RFC", done: 0 }],
+  rowCount: 250,
+}
+
+function rowAt(index: number) {
+  return {
+    _id: `row_${index}`,
+    title: index === 0 ? "Write RFC" : `Row ${index}`,
+    done: 0,
+  }
+}
+
+function createLoadPage() {
+  return vi.fn(async (offset: number, limit: number) => ({
+    tableId: "tasks",
+    offset,
+    limit,
+    total: table.rowCount,
+    rows: Array.from(
+      { length: Math.min(limit, Math.max(0, table.rowCount - offset)) },
+      (_, index) => rowAt(offset + index)
+    ),
+  }))
+}
+
+function createCellEdit() {
+  return vi.fn(async (row, field, value) => ({
+    tableId: "tasks",
+    row: { ...row, [field.tableColumnName]: value },
+    rowCount: table.rowCount,
+  }))
 }
 
 describe("BaseGrid", () => {
@@ -119,14 +152,23 @@ describe("BaseGrid", () => {
     container.remove()
   })
 
-  it("adapts Base rows to the production grid contract", () => {
-    const onCellEdit = vi.fn()
-    act(() =>
+  it("adapts paged Base rows to the production grid contract", async () => {
+    const onCellEdit = createCellEdit()
+    const loadPage = createLoadPage()
+    await act(async () => {
       root.render(
-        <BaseGrid table={table} onAddRow={vi.fn()} onCellEdit={onCellEdit} />
+        <BaseGrid
+          table={table}
+          loadPage={loadPage}
+          onAddRow={vi.fn()}
+          onCellEdit={onCellEdit}
+        />
       )
-    )
+      await Promise.resolve()
+    })
 
+    expect(loadPage).toHaveBeenCalledWith(0, 100)
+    expect(mocks.props?.rows).toBe(250)
     expect(mocks.props?.columns.map((column) => column.title)).toEqual([
       "Title",
       "Done",
@@ -140,26 +182,36 @@ describe("BaseGrid", () => {
       data: false,
     })
 
-    act(() => {
+    await act(async () => {
       mocks.props?.onCellEdited?.([0, 0], {
         kind: GridCellKind.Text,
         allowOverlay: true,
         data: "Write implementation",
         displayData: "Write implementation",
       })
+      await Promise.resolve()
     })
     expect(onCellEdit).toHaveBeenCalledWith(
-      table.rows[0],
+      rowAt(0),
       table.fields[0],
       "Write implementation"
     )
   })
 
   it("forwards the trailing row action", async () => {
-    const onAddRow = vi.fn(async () => undefined)
+    const onAddRow = vi.fn(async () => ({
+      tableId: "tasks",
+      row: rowAt(250),
+      rowCount: 251,
+    }))
     act(() =>
       root.render(
-        <BaseGrid table={table} onAddRow={onAddRow} onCellEdit={vi.fn()} />
+        <BaseGrid
+          table={table}
+          loadPage={createLoadPage()}
+          onAddRow={onAddRow}
+          onCellEdit={createCellEdit()}
+        />
       )
     )
 
@@ -167,9 +219,14 @@ describe("BaseGrid", () => {
       await mocks.props?.onRowAppended?.()
     })
     expect(onAddRow).toHaveBeenCalledOnce()
+    expect(mocks.props?.rows).toBe(251)
+    expect(mocks.props?.getCellContent([0, 250])).toMatchObject({
+      kind: GridCellKind.Text,
+      data: "Row 250",
+    })
   })
 
-  it("hydrates and persists Base view column layout", () => {
+  it("hydrates and persists Base view column layout", async () => {
     vi.useFakeTimers()
     const onViewUpdate = vi.fn()
     const view = {
@@ -177,17 +234,19 @@ describe("BaseGrid", () => {
       properties: { fieldWidthMap: { done: 140 } },
       orderMap: { done: 0, title: 1 },
     }
-    act(() =>
+    await act(async () => {
       root.render(
         <BaseGrid
           table={table}
           view={view}
+          loadPage={createLoadPage()}
           onAddRow={vi.fn()}
-          onCellEdit={vi.fn()}
+          onCellEdit={createCellEdit()}
           onViewUpdate={onViewUpdate}
         />
       )
-    )
+      await Promise.resolve()
+    })
 
     expect(mocks.props?.columns.map((column) => column.title)).toEqual([
       "Done",
@@ -215,5 +274,67 @@ describe("BaseGrid", () => {
     expect(onViewUpdate).toHaveBeenCalledWith({
       orderMap: { title: 0, done: 1 },
     })
+  })
+
+  it("loads only the pages around the visible Grid region", async () => {
+    const loadPage = createLoadPage()
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={table}
+          loadPage={loadPage}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      mocks.props?.onVisibleRegionChanged?.(
+        { x: 0, y: 180, width: 2, height: 30 },
+        0,
+        0,
+        {}
+      )
+      await Promise.resolve()
+    })
+
+    expect(loadPage).toHaveBeenCalledWith(100, 100)
+    expect(loadPage).toHaveBeenCalledWith(200, 100)
+    expect(mocks.props?.getCellContent([0, 180])).toMatchObject({
+      kind: GridCellKind.Text,
+      data: "Row 180",
+    })
+  })
+
+  it("reports compact cross-page row ranges without loading every row", async () => {
+    const loadPage = createLoadPage()
+    const onSelectedRowsChange = vi.fn()
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={table}
+          loadPage={loadPage}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+          onSelectedRowsChange={onSelectedRowsChange}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.fromSingleSelection([90, 210]),
+        current: undefined,
+      })
+    })
+
+    expect(onSelectedRowsChange).toHaveBeenLastCalledWith([
+      { startIndex: 90, endIndex: 210 },
+    ])
+    expect(loadPage).toHaveBeenCalledTimes(1)
   })
 })

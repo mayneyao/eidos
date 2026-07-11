@@ -1,6 +1,10 @@
 import { useCallback } from "react"
 import type {
   BaseRow,
+  BaseRowMutationResult,
+  BaseRowPage,
+  BaseRowRange,
+  BaseRowsDeleteResult,
   BaseSnapshot,
   CreateBaseFieldInput,
   CreateBaseOptions,
@@ -28,10 +32,24 @@ export function useSpaceBase(spaceId: string | undefined) {
   )
 
   const getSnapshot = useCallback(
-    (relativePath: string, maxRowsPerTable = 200): Promise<BaseSnapshot> =>
-      requireBaseApi().getBaseSnapshot(requireSpaceId(), relativePath, {
-        maxRowsPerTable,
-      }),
+    (relativePath: string): Promise<BaseSnapshot> =>
+      requireBaseApi().getBaseSnapshot(requireSpaceId(), relativePath),
+    [requireSpaceId]
+  )
+
+  const getTablePage = useCallback(
+    (
+      relativePath: string,
+      tableId: string,
+      offset: number,
+      limit: number
+    ): Promise<BaseRowPage> =>
+      requireBaseApi().getBaseTablePage(
+        requireSpaceId(),
+        relativePath,
+        tableId,
+        { offset, limit }
+      ),
     [requireSpaceId]
   )
 
@@ -64,7 +82,7 @@ export function useSpaceBase(spaceId: string | undefined) {
       relativePath: string,
       tableId: string,
       row: BaseRow
-    ): Promise<BaseSnapshot> =>
+    ): Promise<BaseRowMutationResult> =>
       requireBaseApi().insertBaseRow(
         requireSpaceId(),
         relativePath,
@@ -95,7 +113,7 @@ export function useSpaceBase(spaceId: string | undefined) {
       tableId: string,
       rowId: string,
       changes: BaseRow
-    ): Promise<BaseSnapshot> =>
+    ): Promise<BaseRowMutationResult> =>
       requireBaseApi().updateBaseRow(
         requireSpaceId(),
         relativePath,
@@ -106,17 +124,32 @@ export function useSpaceBase(spaceId: string | undefined) {
     [requireSpaceId]
   )
 
-  const deleteRow = useCallback(
+  const deleteRows = useCallback(
     (
       relativePath: string,
       tableId: string,
-      rowId: string
-    ): Promise<BaseSnapshot> =>
-      requireBaseApi().deleteBaseRow(
+      rowIds: string[]
+    ): Promise<BaseRowsDeleteResult> =>
+      requireBaseApi().deleteBaseRows(
         requireSpaceId(),
         relativePath,
         tableId,
-        rowId
+        rowIds
+      ),
+    [requireSpaceId]
+  )
+
+  const deleteRowRanges = useCallback(
+    (
+      relativePath: string,
+      tableId: string,
+      ranges: BaseRowRange[]
+    ): Promise<BaseRowsDeleteResult> =>
+      requireBaseApi().deleteBaseRowRanges(
+        requireSpaceId(),
+        relativePath,
+        tableId,
+        ranges
       ),
     [requireSpaceId]
   )
@@ -124,11 +157,13 @@ export function useSpaceBase(spaceId: string | undefined) {
   return {
     create,
     getSnapshot,
+    getTablePage,
     createTable,
     addField,
     updateView,
     insertRow,
     updateRow,
-    deleteRow,
+    deleteRows,
+    deleteRowRanges,
   }
 }
