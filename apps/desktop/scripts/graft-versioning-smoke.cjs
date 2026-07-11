@@ -295,6 +295,7 @@ function runFileSpaceCliSmoke() {
   const assetPath = "assets/image.png"
   const gonePath = "archive/gone.md"
   const laterPath = "later.md"
+  const quotedPath = "notes/John's  note.md"
   const sessionPath = ".eidos/sessions/session.jsonl"
   const initialNote = "# Smoke note\n\nHello Graft.\n"
   const updatedNote = `${initialNote}\nA second version.\n`
@@ -302,6 +303,8 @@ function runFileSpaceCliSmoke() {
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
   ])
   const initialGone = "Restore me from the first version.\n"
+  const initialQuoted = "A path with quotes and repeated spaces.\n"
+  const updatedQuoted = "Updated quoted path.\n"
 
   console.log("File Space smoke root:", root)
   console.log("Graft CLI:", cliPath)
@@ -309,10 +312,12 @@ function runFileSpaceCliSmoke() {
   try {
     fs.mkdirSync(path.join(root, "assets"), { recursive: true })
     fs.mkdirSync(path.join(root, "archive"), { recursive: true })
+    fs.mkdirSync(path.join(root, "notes"), { recursive: true })
     fs.mkdirSync(path.join(root, ".eidos", "sessions"), { recursive: true })
     fs.writeFileSync(path.join(root, notePath), initialNote)
     fs.writeFileSync(path.join(root, assetPath), initialAsset)
     fs.writeFileSync(path.join(root, gonePath), initialGone)
+    fs.writeFileSync(path.join(root, quotedPath), initialQuoted)
     fs.writeFileSync(
       path.join(root, sessionPath),
       '{"kind":"private-runtime-state"}\n'
@@ -333,13 +338,21 @@ function runFileSpaceCliSmoke() {
     }
 
     const initialStatus = runGraftJson(cliPath, root, ["status", "--json"])
-    assertPaths(initialStatus, [notePath, assetPath, gonePath], [sessionPath])
+    assertPaths(
+      initialStatus,
+      [notePath, assetPath, gonePath, quotedPath],
+      [sessionPath]
+    )
 
     const add = runGraftJson(cliPath, root, ["add", "--all", "--json"])
-    assertPaths(add, [notePath, assetPath, gonePath], [sessionPath])
+    assertPaths(add, [notePath, assetPath, gonePath, quotedPath], [sessionPath])
 
     const stagedStatus = runGraftJson(cliPath, root, ["status", "--json"])
-    assertPaths(stagedStatus, [notePath, assetPath, gonePath], [sessionPath])
+    assertPaths(
+      stagedStatus,
+      [notePath, assetPath, gonePath, quotedPath],
+      [sessionPath]
+    )
 
     const commit = runGraftJson(cliPath, root, [
       "commit",
@@ -352,7 +365,11 @@ function runFileSpaceCliSmoke() {
         `Graft commit returned no commit id: ${JSON.stringify(commit)}`
       )
     }
-    assertPaths(commit, [notePath, assetPath, gonePath], [sessionPath])
+    assertPaths(
+      commit,
+      [notePath, assetPath, gonePath, quotedPath],
+      [sessionPath]
+    )
 
     const cleanStatus = runGraftJson(cliPath, root, ["status", "--json"])
     if (cleanStatus.dirty || payloadPaths(cleanStatus).length !== 0) {
@@ -375,6 +392,44 @@ function runFileSpaceCliSmoke() {
     }
     assertPayloadOmitsPath(history, sessionPath)
 
+    const rootDiff = runGraftJson(cliPath, root, [
+      "diff",
+      "--json",
+      "--root",
+      commit.commit.id,
+    ])
+    if (rootDiff.from !== "root" || rootDiff.to !== commit.commit.id) {
+      throw new Error(
+        `Graft root diff returned the wrong revisions: ${JSON.stringify(rootDiff)}`
+      )
+    }
+    assertPaths(
+      rootDiff,
+      [notePath, assetPath, gonePath, quotedPath],
+      [sessionPath]
+    )
+
+    const rootContentDiff = runGraftJson(cliPath, root, [
+      "diff",
+      "--json",
+      "--content",
+      "--max-content-bytes",
+      "1048576",
+      "--root",
+      commit.commit.id,
+      "--",
+      quotedPath,
+    ])
+    if (
+      rootContentDiff.content?.before?.state !== "absent" ||
+      rootContentDiff.content?.after?.state !== "utf8" ||
+      rootContentDiff.content.after.content !== initialQuoted
+    ) {
+      throw new Error(
+        `Graft root content diff returned the wrong file: ${JSON.stringify(rootContentDiff)}`
+      )
+    }
+
     fs.writeFileSync(path.join(root, notePath), updatedNote)
     fs.writeFileSync(path.join(root, assetPath), Buffer.from([1, 2, 3, 4]))
     fs.rmSync(path.join(root, "archive"), { recursive: true })
@@ -382,10 +437,82 @@ function runFileSpaceCliSmoke() {
       path.join(root, laterPath),
       "Only in the second version.\n"
     )
+    fs.writeFileSync(path.join(root, quotedPath), updatedQuoted)
+
+    const worktreeContentDiff = runGraftJson(cliPath, root, [
+      "diff",
+      "--json",
+      "--content",
+      "--max-content-bytes",
+      "1048576",
+      "HEAD",
+      "--",
+      quotedPath,
+    ])
+    if (
+      worktreeContentDiff.to !== "worktree" ||
+      worktreeContentDiff.content?.before?.state !== "utf8" ||
+      worktreeContentDiff.content.before.content !== initialQuoted ||
+      worktreeContentDiff.content?.after?.state !== "utf8" ||
+      worktreeContentDiff.content.after.content !== updatedQuoted
+    ) {
+      throw new Error(
+        `Graft worktree content diff returned the wrong file: ${JSON.stringify(worktreeContentDiff)}`
+      )
+    }
+
+    const includedQuoted = runGraftJson(cliPath, root, [
+      "add",
+      "--json",
+      "--",
+      quotedPath,
+    ])
+    if (
+      JSON.stringify(payloadPaths(includedQuoted)) !==
+      JSON.stringify([quotedPath])
+    ) {
+      throw new Error(
+        `Graft single-path add included the wrong paths: ${JSON.stringify(includedQuoted)}`
+      )
+    }
+    const includedStatus = runGraftJson(cliPath, root, ["status", "--json"])
+    const includedEntry = includedStatus.paths.find(
+      (entry) => entry.path === quotedPath
+    )
+    if (
+      includedEntry?.index_status !== "modified" ||
+      includedEntry?.worktree_status !== "none"
+    ) {
+      throw new Error(
+        `Graft did not stage only the selected path: ${JSON.stringify(includedStatus)}`
+      )
+    }
+    runGraftJson(cliPath, root, [
+      "restore",
+      "--json",
+      "--staged",
+      "--expected-head",
+      commit.commit.id,
+      "--",
+      quotedPath,
+    ])
+    const excludedStatus = runGraftJson(cliPath, root, ["status", "--json"])
+    const excludedEntry = excludedStatus.paths.find(
+      (entry) => entry.path === quotedPath
+    )
+    if (
+      excludedEntry?.index_status !== "none" ||
+      excludedEntry?.worktree_status !== "modified"
+    ) {
+      throw new Error(
+        `Graft did not unstage the selected path: ${JSON.stringify(excludedStatus)}`
+      )
+    }
+
     const secondAdd = runGraftJson(cliPath, root, ["add", "--all", "--json"])
     assertPaths(
       secondAdd,
-      [notePath, assetPath, gonePath, laterPath],
+      [notePath, assetPath, gonePath, laterPath, quotedPath],
       [sessionPath]
     )
 
@@ -421,7 +548,11 @@ function runFileSpaceCliSmoke() {
       commit.commit.id,
       secondCommit.commit.id,
     ])
-    assertPaths(diff, [notePath, assetPath, gonePath, laterPath], [sessionPath])
+    assertPaths(
+      diff,
+      [notePath, assetPath, gonePath, laterPath, quotedPath],
+      [sessionPath]
+    )
 
     const textContentDiff = runGraftJson(cliPath, root, [
       "diff",
@@ -458,9 +589,53 @@ function runFileSpaceCliSmoke() {
 
     const headBeforeRestore = updatedHistory.current_head
     const historyLengthBeforeRestore = updatedHistory.commits.length
+    const staleHeadError = runGraftExpectFailure(cliPath, root, [
+      "restore",
+      "--json",
+      "--expected-head",
+      commit.commit.id,
+      "--source",
+      commit.commit.id,
+      "--",
+      notePath,
+    ])
+    if (!/HEAD changed/i.test(staleHeadError)) {
+      throw new Error(
+        `Graft returned the wrong stale-HEAD error: ${staleHeadError}`
+      )
+    }
+    if (fs.readFileSync(path.join(root, notePath), "utf8") !== updatedNote) {
+      throw new Error("A stale expected HEAD changed the worktree")
+    }
+
+    const localDraft = "Local draft must survive require-clean.\n"
+    fs.writeFileSync(path.join(root, notePath), localDraft)
+    const dirtyError = runGraftExpectFailure(cliPath, root, [
+      "restore",
+      "--json",
+      "--expected-head",
+      headBeforeRestore,
+      "--require-clean",
+      "--source",
+      commit.commit.id,
+      "--",
+      notePath,
+    ])
+    if (!/tracked worktree changes/i.test(dirtyError)) {
+      throw new Error(
+        `Graft returned the wrong require-clean error: ${dirtyError}`
+      )
+    }
+    if (fs.readFileSync(path.join(root, notePath), "utf8") !== localDraft) {
+      throw new Error("A rejected require-clean restore changed the worktree")
+    }
+    fs.writeFileSync(path.join(root, notePath), updatedNote)
+
     runGraftJson(cliPath, root, [
       "restore",
       "--json",
+      "--expected-head",
+      headBeforeRestore,
       "--source",
       commit.commit.id,
       "--",
@@ -469,6 +644,8 @@ function runFileSpaceCliSmoke() {
     runGraftJson(cliPath, root, [
       "restore",
       "--json",
+      "--expected-head",
+      headBeforeRestore,
       "--source",
       commit.commit.id,
       "--",
@@ -477,6 +654,8 @@ function runFileSpaceCliSmoke() {
     runGraftJson(cliPath, root, [
       "restore",
       "--json",
+      "--expected-head",
+      headBeforeRestore,
       "--source",
       commit.commit.id,
       "--",
@@ -485,10 +664,22 @@ function runFileSpaceCliSmoke() {
     runGraftJson(cliPath, root, [
       "restore",
       "--json",
+      "--expected-head",
+      headBeforeRestore,
       "--source",
       commit.commit.id,
       "--",
       laterPath,
+    ])
+    runGraftJson(cliPath, root, [
+      "restore",
+      "--json",
+      "--expected-head",
+      headBeforeRestore,
+      "--source",
+      commit.commit.id,
+      "--",
+      quotedPath,
     ])
 
     if (fs.readFileSync(path.join(root, notePath), "utf8") !== initialNote) {
@@ -505,11 +696,16 @@ function runFileSpaceCliSmoke() {
     if (fs.existsSync(path.join(root, laterPath))) {
       throw new Error("Restore did not recover the selected version's deletion")
     }
+    if (
+      fs.readFileSync(path.join(root, quotedPath), "utf8") !== initialQuoted
+    ) {
+      throw new Error("Restore changed a quoted or repeated-space path")
+    }
 
     const restoredStatus = runGraftJson(cliPath, root, ["status", "--json"])
     assertPaths(
       restoredStatus,
-      [notePath, assetPath, gonePath, laterPath],
+      [notePath, assetPath, gonePath, laterPath, quotedPath],
       [sessionPath]
     )
     if (restoredStatus.has_staged_changes) {
@@ -670,6 +866,8 @@ function runWholeSpaceRestoreSmoke() {
     const restore = runGraftJson(cliPath, root, [
       "restore",
       "--json",
+      "--expected-head",
+      currentRevision,
       "--source",
       targetRevision,
       "--",
@@ -756,6 +954,95 @@ function runWholeSpaceRestoreSmoke() {
         `Whole Space restore did not leave only unstaged Changes: ${JSON.stringify(status)}`
       )
     }
+  } finally {
+    removeTempRoot(root)
+  }
+}
+
+function runWholeSpaceTopologyRestoreSmoke() {
+  const cliPath = findGraftCli()
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "eidos-graft-root-restore-topology-smoke-")
+  )
+  const shapePath = "shape"
+  const childPath = "shape/child.md"
+  const fileContent = "This version stores shape as a file.\n"
+  const childContent = "This version stores shape as a directory.\n"
+
+  console.log("Whole Space topology restore smoke root:", root)
+
+  try {
+    fs.writeFileSync(path.join(root, shapePath), fileContent)
+    runGraftJson(cliPath, root, ["init", "--json"])
+    const fileRevision = commitAll(cliPath, root, "Track shape as a file")
+
+    fs.rmSync(path.join(root, shapePath))
+    fs.mkdirSync(path.join(root, shapePath))
+    fs.writeFileSync(path.join(root, childPath), childContent)
+    const directoryRevision = commitAll(
+      cliPath,
+      root,
+      "Track shape as a directory"
+    )
+
+    const beforeFileRestore = captureRepoSnapshot(cliPath, root)
+    const fileRestore = runGraftJson(cliPath, root, [
+      "restore",
+      "--json",
+      "--expected-head",
+      directoryRevision,
+      "--source",
+      fileRevision,
+      "--",
+      ".",
+    ])
+    assertPaths(fileRestore, [shapePath, childPath], [])
+    if (
+      !fs.statSync(path.join(root, shapePath)).isFile() ||
+      fs.readFileSync(path.join(root, shapePath), "utf8") !== fileContent
+    ) {
+      throw new Error(
+        "Whole Space restore did not replace a directory with its historical file"
+      )
+    }
+    assertRepoSnapshotUnchanged(
+      cliPath,
+      root,
+      beforeFileRestore,
+      "Directory-to-file Whole Space restore"
+    )
+
+    const restoredFileRevision = commitAll(
+      cliPath,
+      root,
+      "Commit restored file topology"
+    )
+    const beforeDirectoryRestore = captureRepoSnapshot(cliPath, root)
+    const directoryRestore = runGraftJson(cliPath, root, [
+      "restore",
+      "--json",
+      "--expected-head",
+      restoredFileRevision,
+      "--source",
+      directoryRevision,
+      "--",
+      ".",
+    ])
+    assertPaths(directoryRestore, [shapePath, childPath], [])
+    if (
+      !fs.statSync(path.join(root, shapePath)).isDirectory() ||
+      fs.readFileSync(path.join(root, childPath), "utf8") !== childContent
+    ) {
+      throw new Error(
+        "Whole Space restore did not replace a file with its historical directory"
+      )
+    }
+    assertRepoSnapshotUnchanged(
+      cliPath,
+      root,
+      beforeDirectoryRestore,
+      "File-to-directory Whole Space restore"
+    )
   } finally {
     removeTempRoot(root)
   }
@@ -1051,6 +1338,7 @@ try {
   runFileSpaceCliSmoke()
   runRestoreConflictSmoke()
   runWholeSpaceRestoreSmoke()
+  runWholeSpaceTopologyRestoreSmoke()
   runWholeSpaceRestoreUntrackedCollisionSmoke()
   runWholeSpaceRestoreSymlinkSafetySmoke()
   runWholeSpaceRestoreAncestorSafetySmoke()
