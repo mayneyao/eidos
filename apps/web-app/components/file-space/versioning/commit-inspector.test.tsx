@@ -219,6 +219,7 @@ describe("CommitInspector", () => {
         },
       ],
       content: null,
+      sqliteFiles: [],
     }
     const getDiff = vi.fn(
       async (request: SpaceVersionDiffRequest): Promise<SpaceVersionDiff> =>
@@ -389,7 +390,6 @@ describe("CommitInspector", () => {
         {
           path: "notes/a.md",
           status: "modified",
-          staged: false,
           conflicted: true,
         },
       ],
