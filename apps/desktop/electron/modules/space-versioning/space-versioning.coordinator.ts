@@ -65,6 +65,20 @@ interface RepositoryLockOwner {
   createdAtMs: number
 }
 
+interface DiscardTargetSnapshot {
+  exists: true
+  device: number
+  inode: number
+  size: number
+  mtimeMs: number
+}
+
+interface QuarantinedDiscardTarget {
+  repositoryPath: string
+  targetPath: string
+  quarantinePath: string
+}
+
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -778,77 +792,66 @@ export class SpaceVersioningCoordinator {
         const before = await this.readStatus(spaceId, spacePath)
         if (before.currentHead !== options.expectedHead) {
           throw new Error(
-            "The Space history changed. Refresh Changes before discarding this file."
+            "The Space history changed. Refresh Changes before discarding this path."
           )
         }
-        const change = before.paths.find((entry) => entry.path === options.path)
-        if (!change) {
+        const changes = before.paths.filter(
+          (entry) =>
+            entry.path === options.path ||
+            entry.path.startsWith(`${options.path}/`)
+        )
+        if (changes.length === 0) {
           return { path: options.path, effect: "noop", status: before }
         }
-        if (change.conflicted) {
-          throw new Error("Resolve this file's conflict before discarding it")
-        }
-        const overlapping = pathStatusOverlaps(before.paths, options.path)
-        if (overlapping.some((entry) => entry.path !== options.path)) {
-          throw new Error(
-            "This file overlaps nested changes. Discard those paths individually first."
-          )
+        if (changes.some((change) => change.conflicted)) {
+          throw new Error("Resolve conflicts in this path before discarding it")
         }
 
-        const target = await this.inspectRestoreTarget(spacePath, options.path)
-        const stagedAddition = change.staged && change.indexState === "added"
-        const untracked = change.worktreeState === "untracked"
+        const disposableChanges = changes.filter(
+          (change) =>
+            change.worktreeState === "untracked" ||
+            (change.staged && change.indexState === "added")
+        )
+        const disposableTargets = await Promise.all(
+          disposableChanges.map(async (change) => ({
+            repositoryPath: change.path,
+            target: await this.inspectRestoreTarget(spacePath, change.path),
+          }))
+        )
+        const quarantined = await this.quarantineDiscardTargets(
+          spacePath,
+          disposableTargets.flatMap(({ repositoryPath, target }) =>
+            target.exists ? [{ repositoryPath, target }] : []
+          )
+        )
+        const requiresWorktreeRestore = changes.some(
+          (change) =>
+            change.worktreeState !== "untracked" &&
+            !(change.staged && change.indexState === "added")
+        )
+        const hasStagedChanges = changes.some((change) => change.staged)
+        const directoryDiscard = changes.some(
+          (change) => change.path !== options.path
+        )
         const expectedHeadArgs = options.expectedHead
           ? ["--expected-head", options.expectedHead]
           : []
 
-        if (stagedAddition) {
-          await this.runner.runJson(
-            spacePath,
-            [
-              "restore",
-              "--json",
-              "--staged",
-              ...expectedHeadArgs,
-              "--",
-              options.path,
-            ],
-            { timeoutMs: MUTATION_TIMEOUT_MS }
-          )
-        }
-
-        if (untracked || stagedAddition) {
-          if (target.exists) {
-            await this.discardUntrackedTarget(spacePath, options.path, target)
-          }
-        } else {
-          if (!options.expectedHead) {
-            throw new Error(
-              "This tracked file cannot be discarded before the first version exists"
-            )
-          }
-          await this.runner.runJson(
-            spacePath,
-            [
-              "restore",
-              "--json",
-              "--expected-head",
-              options.expectedHead,
-              "--source",
-              options.expectedHead,
-              "--",
-              options.path,
-            ],
-            { timeoutMs: MUTATION_TIMEOUT_MS }
-          )
-          if (change.staged) {
+        try {
+          if (requiresWorktreeRestore) {
+            if (!options.expectedHead) {
+              throw new Error(
+                "Tracked files cannot be discarded before the first version exists"
+              )
+            }
             await this.runner.runJson(
               spacePath,
               [
                 "restore",
                 "--json",
-                "--staged",
                 "--expected-head",
+                options.expectedHead,
+                "--source",
                 options.expectedHead,
                 "--",
                 options.path,
@@ -856,21 +859,53 @@ export class SpaceVersioningCoordinator {
               { timeoutMs: MUTATION_TIMEOUT_MS }
             )
           }
-        }
 
-        try {
+          if (hasStagedChanges) {
+            await this.runner.runJson(
+              spacePath,
+              [
+                "restore",
+                "--json",
+                "--staged",
+                ...expectedHeadArgs,
+                "--",
+                options.path,
+              ],
+              { timeoutMs: MUTATION_TIMEOUT_MS }
+            )
+          }
+
           const status = await this.readStatus(spaceId, spacePath)
           if (status.currentHead !== before.currentHead) {
             throw new Error(
-              "The current version changed while the file was being discarded"
+              "The current version changed while the path was being discarded"
             )
           }
+          if (pathStatusOverlaps(status.paths, options.path).length > 0) {
+            throw new Error(
+              "Files in this path changed after discard was confirmed. Refresh Changes and try again."
+            )
+          }
+          if (directoryDiscard) {
+            await this.pruneEmptyDiscardDirectories(spacePath, options.path)
+          }
+          await this.finalizeQuarantinedDiscardTargets(quarantined)
           return {
             path: options.path,
-            effect: untracked || stagedAddition ? "deleted" : "restored",
+            effect:
+              disposableChanges.length === changes.length
+                ? "deleted"
+                : "restored",
             status,
           }
         } catch (error) {
+          const preserved =
+            await this.rollbackQuarantinedDiscardTargets(quarantined)
+          if (preserved.length > 0) {
+            throw new Error(
+              `${errorMessage(error)} Original files were preserved in Graft quarantine: ${preserved.join(", ")}`
+            )
+          }
           throw discardReconciliationError(error)
         }
       })
@@ -1223,54 +1258,127 @@ export class SpaceVersioningCoordinator {
     return { exists: false }
   }
 
-  private async discardUntrackedTarget(
+  private async quarantineDiscardTargets(
     spacePath: string,
-    repositoryPath: string,
-    expected: {
-      exists: true
-      device: number
-      inode: number
-      size: number
-      mtimeMs: number
-    }
-  ): Promise<void> {
-    const targetPath = path.join(spacePath, ...repositoryPath.split("/"))
-    const quarantineName = randomUUID()
-    const quarantinePath = path.join(
-      spacePath,
-      ".graft",
-      `.eidos-discard-${quarantineName}`
-    )
-
+    targets: Array<{
+      repositoryPath: string
+      target: DiscardTargetSnapshot
+    }>
+  ): Promise<QuarantinedDiscardTarget[]> {
+    const quarantined: QuarantinedDiscardTarget[] = []
     try {
-      await fs.rename(targetPath, quarantinePath)
+      for (const { repositoryPath, target } of targets) {
+        const targetPath = path.join(spacePath, ...repositoryPath.split("/"))
+        const quarantinePath = path.join(
+          spacePath,
+          ".graft",
+          `.eidos-discard-${randomUUID()}`
+        )
+        try {
+          await fs.rename(targetPath, quarantinePath)
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") continue
+          throw error
+        }
+        quarantined.push({ repositoryPath, targetPath, quarantinePath })
+        const moved = await fs.lstat(quarantinePath)
+        if (
+          !moved.isFile() ||
+          moved.dev !== target.device ||
+          moved.ino !== target.inode ||
+          moved.size !== target.size ||
+          moved.mtimeMs !== target.mtimeMs
+        ) {
+          throw new Error(
+            `${repositoryPath} changed after discard was confirmed`
+          )
+        }
+      }
+      return quarantined
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return
-      throw error
-    }
-
-    const moved = await fs.lstat(quarantinePath)
-    const unchanged =
-      moved.isFile() &&
-      moved.dev === expected.device &&
-      moved.ino === expected.inode &&
-      moved.size === expected.size &&
-      moved.mtimeMs === expected.mtimeMs
-    if (!unchanged) {
-      try {
-        await fs.link(quarantinePath, targetPath)
-        await fs.unlink(quarantinePath)
-      } catch (restoreError) {
+      const preserved =
+        await this.rollbackQuarantinedDiscardTargets(quarantined)
+      if (preserved.length > 0) {
         throw new Error(
-          `The file changed after discard was confirmed. The replacement was preserved at .graft/.eidos-discard-${quarantineName}: ${errorMessage(restoreError)}`
+          `${errorMessage(error)} Original files were preserved in Graft quarantine: ${preserved.join(", ")}`
         )
       }
-      throw new Error(
-        "The file changed after discard was confirmed. It was kept in the Space; refresh Changes and try again."
-      )
+      throw error
     }
+  }
 
-    await fs.unlink(quarantinePath)
+  private async rollbackQuarantinedDiscardTargets(
+    quarantined: QuarantinedDiscardTarget[]
+  ): Promise<string[]> {
+    const preserved: string[] = []
+    for (const entry of [...quarantined].reverse()) {
+      try {
+        await fs.lstat(entry.targetPath)
+        preserved.push(
+          `${entry.repositoryPath} (${path.basename(entry.quarantinePath)})`
+        )
+        continue
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          preserved.push(
+            `${entry.repositoryPath} (${path.basename(entry.quarantinePath)})`
+          )
+          continue
+        }
+      }
+      try {
+        await fs.mkdir(path.dirname(entry.targetPath), { recursive: true })
+        await fs.rename(entry.quarantinePath, entry.targetPath)
+      } catch {
+        preserved.push(
+          `${entry.repositoryPath} (${path.basename(entry.quarantinePath)})`
+        )
+      }
+    }
+    return preserved
+  }
+
+  private async finalizeQuarantinedDiscardTargets(
+    quarantined: QuarantinedDiscardTarget[]
+  ): Promise<void> {
+    await Promise.all(
+      quarantined.map((entry) => fs.unlink(entry.quarantinePath))
+    )
+  }
+
+  private async pruneEmptyDiscardDirectories(
+    spacePath: string,
+    repositoryPath: string
+  ): Promise<void> {
+    const root = path.join(spacePath, ...repositoryPath.split("/"))
+    const prune = async (directory: string): Promise<void> => {
+      let entries
+      try {
+        const stats = await fs.lstat(directory)
+        if (!stats.isDirectory() || stats.isSymbolicLink()) return
+        entries = await fs.readdir(directory, { withFileTypes: true })
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return
+        throw error
+      }
+      for (const entry of entries) {
+        if (entry.isDirectory() && !entry.isSymbolicLink()) {
+          await prune(path.join(directory, entry.name))
+        }
+      }
+      try {
+        await fs.rmdir(directory)
+      } catch (error) {
+        if (
+          !["ENOENT", "ENOTEMPTY", "EEXIST"].includes(
+            (error as NodeJS.ErrnoException).code ?? ""
+          )
+        ) {
+          throw error
+        }
+      }
+    }
+    await prune(root)
   }
 
   private async withRepositoryOperationLock<T>(

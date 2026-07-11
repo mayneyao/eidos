@@ -641,6 +641,130 @@ describe("SpaceVersioningCoordinator change actions", () => {
     ])
   })
 
+  it("discards every staged, working, deleted, and untracked change in a directory", async () => {
+    const root = await createSpace()
+    const notes = path.join(root, "notes")
+    const untracked = path.join(notes, "untracked.md")
+    await fs.mkdir(notes)
+    await fs.writeFile(untracked, "draft", "utf8")
+    let statusReads = 0
+    const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      if (args[0] === "status") {
+        statusReads += 1
+        return statusReads === 1
+          ? statusPayload([
+              {
+                path: "notes/one.md",
+                kind: "text_file",
+                storage: "inline",
+                index_status: "modified",
+                worktree_status: "modified",
+              },
+              {
+                path: "notes/nested/two.md",
+                kind: "text_file",
+                storage: "inline",
+                index_status: "none",
+                worktree_status: "deleted",
+              },
+              {
+                path: "notes/untracked.md",
+                kind: "text_file",
+                storage: "inline",
+                index_status: "none",
+                worktree_status: "untracked",
+              },
+            ])
+          : statusPayload()
+      }
+      if (args[0] === "restore") return { operation: "restore" }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    const result = await coordinator.discardPath("space-a", {
+      path: "notes",
+      expectedHead: "head-2",
+      confirmed: true,
+    })
+
+    expect(result).toMatchObject({ path: "notes", effect: "restored" })
+    expect(
+      runJson.mock.calls
+        .map(([, args]) => args)
+        .filter((args) => args[0] === "restore")
+    ).toEqual([
+      [
+        "restore",
+        "--json",
+        "--expected-head",
+        "head-2",
+        "--source",
+        "head-2",
+        "--",
+        "notes",
+      ],
+      [
+        "restore",
+        "--json",
+        "--staged",
+        "--expected-head",
+        "head-2",
+        "--",
+        "notes",
+      ],
+    ])
+    await expect(fs.stat(untracked)).rejects.toMatchObject({ code: "ENOENT" })
+    await expect(fs.stat(notes)).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
+  it("deletes an untracked directory before the first version", async () => {
+    const root = await createSpace()
+    const notes = path.join(root, "notes")
+    await fs.mkdir(path.join(notes, "nested"), { recursive: true })
+    await fs.writeFile(path.join(notes, "one.md"), "one", "utf8")
+    await fs.writeFile(path.join(notes, "nested", "two.md"), "two", "utf8")
+    let statusReads = 0
+    const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      if (args[0] !== "status") {
+        throw new Error(`Unexpected command: ${args.join(" ")}`)
+      }
+      statusReads += 1
+      return statusReads === 1
+        ? statusPayload(
+            [
+              {
+                path: "notes/one.md",
+                kind: "text_file",
+                storage: "inline",
+                index_status: "none",
+                worktree_status: "untracked",
+              },
+              {
+                path: "notes/nested/two.md",
+                kind: "text_file",
+                storage: "inline",
+                index_status: "none",
+                worktree_status: "untracked",
+              },
+            ],
+            { current_head: null }
+          )
+        : statusPayload([], { current_head: null })
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    const result = await coordinator.discardPath("space-a", {
+      path: "notes",
+      expectedHead: null,
+      confirmed: true,
+    })
+
+    expect(result).toMatchObject({ path: "notes", effect: "deleted" })
+    expect(runJson).toHaveBeenCalledTimes(2)
+    await expect(fs.stat(notes)).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
   it("deletes an untracked file safely before the first version", async () => {
     const root = await createSpace()
     const draft = path.join(root, "draft.md")

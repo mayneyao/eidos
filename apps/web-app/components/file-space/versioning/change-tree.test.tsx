@@ -104,6 +104,7 @@ describe("VersionChangeTree", () => {
   it("stages and unstages a whole directory from its section", async () => {
     const stage = vi.fn()
     const unstage = vi.fn()
+    const discard = vi.fn()
 
     await act(async () => {
       root.render(
@@ -118,6 +119,7 @@ describe("VersionChangeTree", () => {
             },
           ]}
           onStagePath={stage}
+          onDiscardPath={discard}
         />
       )
     })
@@ -128,6 +130,13 @@ describe("VersionChangeTree", () => {
       )
       ?.click()
     expect(stage).toHaveBeenCalledWith("notes")
+
+    container
+      .querySelector<HTMLButtonElement>(
+        'button[aria-label="Discard changes in directory notes"]'
+      )
+      ?.click()
+    expect(discard).toHaveBeenCalledWith("notes")
 
     await act(async () => {
       root.render(

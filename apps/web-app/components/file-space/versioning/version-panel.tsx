@@ -184,6 +184,11 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
     status?.changes.filter((change) => change.unstaged || !change.staged) ?? []
   const stagedCount = stagedChanges.length
   const unstagedCount = unstagedChanges.length
+  const discardTargetIsDirectory =
+    discardTarget !== null &&
+    unstagedChanges.some((change) =>
+      change.path.startsWith(`${discardTarget}/`)
+    )
   const clearFeedback = () => {
     setLocalError(null)
     setLocalNotice(null)
@@ -272,6 +277,7 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
     if (!discardTarget || operation || busyPath) return
     clearFeedback()
     setBusyPath(discardTarget)
+    const discardingDirectory = discardTargetIsDirectory
     try {
       const result = await discardPath({
         path: discardTarget,
@@ -280,7 +286,9 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
       })
       setLocalNotice(
         result.effect === "deleted"
-          ? `${result.path} was deleted from the Space.`
+          ? discardingDirectory
+            ? `Untracked changes in ${result.path} were deleted from the Space.`
+            : `${result.path} was deleted from the Space.`
           : result.effect === "noop"
             ? `${result.path} no longer has changes to discard.`
             : `${result.path} now matches the current version.`
@@ -517,15 +525,17 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-base">
-              Discard changes to this file?
+              {discardTargetIsDirectory
+                ? "Discard changes in this folder?"
+                : "Discard changes to this file?"}
             </AlertDialogTitle>
             <AlertDialogDescription className="leading-5">
               <code className="break-all font-mono text-foreground">
                 {discardTarget}
               </code>{" "}
-              will be restored to the current version. If it is untracked, the
-              file will be deleted from the Space. Included and working changes
-              for this path will both be discarded.
+              {discardTargetIsDirectory
+                ? "and every changed file inside it will be restored to the current version. Untracked files will be deleted from the Space. Included and working changes in this folder will both be discarded."
+                : "will be restored to the current version. If it is untracked, the file will be deleted from the Space. Included and working changes for this path will both be discarded."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

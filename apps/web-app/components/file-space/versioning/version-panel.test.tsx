@@ -9,6 +9,7 @@ import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-spac
 import { VersionPanel } from "./version-panel"
 
 const mocks = vi.hoisted(() => ({
+  changes: [{ path: "open.md", status: "modified", unstaged: true }],
   discardPath: vi.fn(async (request: { path: string }) => ({
     path: request.path,
     effect: "restored",
@@ -38,7 +39,7 @@ vi.mock("@/apps/web-app/hooks/use-space-versioning", () => ({
       hasConflicts: false,
       branch: "main",
       head: { id: "head-2" },
-      changes: [{ path: "open.md", status: "modified", unstaged: true }],
+      changes: mocks.changes,
     },
     history: [],
     statusLoading: false,
@@ -81,6 +82,7 @@ describe("VersionPanel changed-file diff", () => {
   let root: Root
 
   beforeEach(() => {
+    mocks.changes = [{ path: "open.md", status: "modified", unstaged: true }]
     mocks.openTab.mockReset()
     mocks.discardPath.mockClear()
     mocks.setActiveTab.mockReset()
@@ -157,5 +159,43 @@ describe("VersionPanel changed-file diff", () => {
       confirmed: true,
     })
     unregister()
+  })
+
+  it("confirms and discards every change below a directory", async () => {
+    mocks.changes = [
+      { path: "notes/one.md", status: "modified", unstaged: true },
+      { path: "notes/nested/two.md", status: "untracked", unstaged: true },
+    ]
+
+    await act(async () => {
+      root.render(<VersionPanel spaceId="space-a" />)
+    })
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Discard changes in directory notes"]'
+        )
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(document.body.textContent).toContain(
+      "Discard changes in this folder?"
+    )
+    expect(document.body.textContent).toContain("every changed file inside it")
+    const confirm = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Discard changes"
+    )
+    await act(async () => {
+      confirm?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mocks.discardPath).toHaveBeenCalledWith({
+      path: "notes",
+      expectedHead: "head-2",
+      confirmed: true,
+    })
   })
 })

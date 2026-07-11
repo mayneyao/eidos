@@ -74,6 +74,10 @@ function iconForNode(node: ChangeTreeNode, expanded: boolean) {
   return File
 }
 
+function nodeHasConflict(node: ChangeTreeNode): boolean {
+  return node.change?.conflicted === true || node.children.some(nodeHasConflict)
+}
+
 function ChangeTreeRow({
   node,
   mode,
@@ -175,37 +179,58 @@ function ChangeTreeRow({
       {node.directory ? (
         <div className="group relative flex h-[24px] min-w-0 items-center pr-1 hover:bg-sidebar-accent/70 focus-within:bg-sidebar-accent">
           {mainButton}
-          {(onStagePath || onUnstagePath) &&
-          !node.children.some((child) => child.change?.conflicted) ? (
+          {(onStagePath || onUnstagePath || onDiscardPath) &&
+          !nodeHasConflict(node) ? (
             <div className="absolute right-1 top-0 flex h-[24px] items-center bg-sidebar-accent opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-              <button
-                type="button"
-                className="flex h-5 w-5 items-center justify-center rounded-[3px] text-sidebar-foreground/60 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:opacity-40"
-                aria-label={
-                  shouldUnstage
-                    ? `Exclude directory ${node.path} from the next version`
-                    : `Include directory ${node.path} in the next version`
-                }
-                title={
-                  shouldUnstage
-                    ? "Exclude directory from next version"
-                    : "Include directory in next version"
-                }
-                disabled={actionsDisabled || busyPath === node.path}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  if (shouldUnstage) onUnstagePath?.(node.path)
-                  else onStagePath?.(node.path)
-                }}
-              >
-                {busyPath === node.path ? (
-                  <LoaderCircle className="h-3 w-3 animate-spin" />
-                ) : shouldUnstage ? (
-                  <Minus className="h-3 w-3" />
-                ) : (
-                  <Plus className="h-3 w-3" />
-                )}
-              </button>
+              {onStagePath || onUnstagePath ? (
+                <button
+                  type="button"
+                  className="flex h-5 w-5 items-center justify-center rounded-[3px] text-sidebar-foreground/60 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:opacity-40"
+                  aria-label={
+                    shouldUnstage
+                      ? `Exclude directory ${node.path} from the next version`
+                      : `Include directory ${node.path} in the next version`
+                  }
+                  title={
+                    shouldUnstage
+                      ? "Exclude directory from next version"
+                      : "Include directory in next version"
+                  }
+                  disabled={actionsDisabled || busyPath === node.path}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (shouldUnstage) onUnstagePath?.(node.path)
+                    else onStagePath?.(node.path)
+                  }}
+                >
+                  {busyPath === node.path ? (
+                    <LoaderCircle className="h-3 w-3 animate-spin" />
+                  ) : shouldUnstage ? (
+                    <Minus className="h-3 w-3" />
+                  ) : (
+                    <Plus className="h-3 w-3" />
+                  )}
+                </button>
+              ) : null}
+              {onDiscardPath ? (
+                <button
+                  type="button"
+                  className="flex h-5 w-5 items-center justify-center rounded-[3px] text-sidebar-foreground/60 outline-hidden hover:bg-destructive/10 hover:text-destructive focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:opacity-40"
+                  aria-label={`Discard changes in directory ${node.path}`}
+                  title="Discard directory changes…"
+                  disabled={actionsDisabled || busyPath === node.path}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onDiscardPath(node.path)
+                  }}
+                >
+                  {busyPath === node.path ? (
+                    <LoaderCircle className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Undo2 className="h-3 w-3" />
+                  )}
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>
