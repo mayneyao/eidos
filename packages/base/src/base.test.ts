@@ -257,6 +257,119 @@ describe("Eidos Base files", () => {
     base.close()
   })
 
+  it("imports legacy field semantics, views, references, and historical rows", () => {
+    const filePath = path.join(root, "imported.base")
+    const base = createBaseFile(filePath, { title: "Imported Space" })
+    base.createTable({
+      id: "tasks",
+      name: "Tasks",
+      createDefaultView: false,
+    })
+    base.createTable({
+      id: "people",
+      name: "People",
+      createDefaultView: false,
+    })
+    base.importField("tasks", {
+      name: "Computed label",
+      columnName: "computed_label",
+      type: "formula",
+      property: { formula: "upper(title)" },
+      storageCodec: "materialized_text",
+      valueKind: "materialized",
+      isDerived: true,
+      dependsOn: ["title"],
+    })
+    base.importField("tasks", {
+      name: "Owner",
+      columnName: "owner",
+      type: "link",
+      storageCodec: "relation",
+      valueKind: "relation",
+    })
+    base.importField("people", {
+      name: "Task lookup",
+      columnName: "task_lookup",
+      type: "lookup",
+      valueKind: "materialized",
+      isDerived: true,
+      sourceTableColumnName: "owner",
+    })
+    base.importField("tasks", {
+      name: "Task title",
+      columnName: "title",
+      type: "title",
+      property: { migrated: true },
+    })
+    base.createView("tasks", {
+      id: "legacy_grid",
+      name: "All tasks",
+      type: "grid",
+      query: "SELECT * FROM tb_tasks",
+      orderMap: { title: 0, owner: 1, computed_label: 2 },
+      hiddenFields: ["computed_label"],
+    })
+    base.createReference({
+      selfTableId: "people",
+      selfColumnName: "task_lookup",
+      refTableId: "tasks",
+      refColumnName: "title",
+      linkTableId: "tasks",
+      linkColumnName: "owner",
+    })
+
+    expect(
+      base.insertImportedRow("tasks", {
+        _id: "legacy-row",
+        title: "Ship migration",
+        computed_label: "SHIP MIGRATION",
+        owner: "person-1",
+        _created_time: "2025-01-02 03:04:05",
+        _last_edited_time: "2025-01-03 04:05:06",
+        _created_by: "legacy-user",
+        _last_edited_by: "legacy-user",
+      })
+    ).toMatchObject({
+      _id: "legacy-row",
+      computed_label: "SHIP MIGRATION",
+      _created_time: "2025-01-02 03:04:05",
+    })
+    expect(base.listFields("tasks")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tableColumnName: "title",
+          property: { migrated: true },
+        }),
+        expect.objectContaining({
+          tableColumnName: "computed_label",
+          type: "formula",
+          valueKind: "materialized",
+          isDerived: true,
+          dependsOn: ["title"],
+        }),
+      ])
+    )
+    expect(base.listViews("tasks")).toEqual([
+      expect.objectContaining({
+        id: "legacy_grid",
+        orderMap: { title: 0, owner: 1, computed_label: 2 },
+        hiddenFields: ["computed_label"],
+      }),
+    ])
+    expect(
+      base.connection.query("SELECT self, ref, link FROM eidos__references")
+    ).toEqual([
+      {
+        self: "tb_people.task_lookup",
+        ref: "tb_tasks.title",
+        link: "tb_tasks.owner",
+      },
+    ])
+    base.close()
+
+    expect(inspectBaseFile(filePath)).toMatchObject({ valid: true, errors: [] })
+  })
+
   it("migrates compatible pre-v1 field metadata without core", () => {
     const filePath = path.join(root, "legacy.base")
     createBaseFile(filePath).close()

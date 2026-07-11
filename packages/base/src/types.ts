@@ -134,6 +134,40 @@ export interface CreateBaseFieldInput {
   storageCodec?: BaseStorageCodec
 }
 
+export interface ImportBaseFieldInput {
+  name: string
+  columnName: string
+  type: BaseFieldType
+  property?: Record<string, unknown> | null
+  storageCodec?: BaseStorageCodec
+  valueKind?: BaseValueKind
+  isHidden?: boolean
+  isDerived?: boolean
+  sourceTableColumnName?: string | null
+  dependsOn?: unknown
+}
+
+export interface CreateBaseViewInput {
+  id?: string
+  name: string
+  type: string
+  query: string
+  properties?: Record<string, unknown> | null
+  filter?: unknown
+  orderMap?: Record<string, number> | null
+  hiddenFields?: string[]
+  position?: number | null
+}
+
+export interface CreateBaseReferenceInput {
+  selfTableId: string
+  selfColumnName: string
+  refTableId: string
+  refColumnName: string
+  linkTableId: string
+  linkColumnName: string
+}
+
 export interface UpdateBaseFieldInput {
   name?: string
   property?: Record<string, unknown> | null

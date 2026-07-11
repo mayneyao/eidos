@@ -26,7 +26,10 @@ import type {
   BaseTableInfo,
   BaseViewInfo,
   CreateBaseFieldInput,
+  CreateBaseReferenceInput,
   CreateBaseTableInput,
+  CreateBaseViewInput,
+  ImportBaseFieldInput,
   UpdateBaseFieldInput,
   UpdateBaseTableInput,
   UpdateBaseViewInput,
@@ -129,17 +132,18 @@ function parseJson(value: string | null): unknown {
   }
 }
 
-function sqlTypeForField(type: CreateBaseFieldInput["type"]): string {
+function sqlTypeForField(type: BaseFieldType): string {
   if (type === "checkbox") return "BOOLEAN"
   if (type === "number") return "REAL"
   if (type === "rating") return "INT"
   return "TEXT"
 }
 
-function defaultStorageCodec(
-  type: CreateBaseFieldInput["type"]
-): BaseStorageCodec {
-  return type === "multi-select" ? "csv_ids" : "scalar"
+function defaultStorageCodec(type: BaseFieldType): BaseStorageCodec {
+  if (type === "multi-select") return "csv_ids"
+  if (type === "link") return "relation"
+  if (type === "formula" || type === "lookup") return "materialized_text"
+  return "scalar"
 }
 
 function sqliteParameter(value: BaseRow[string]): BaseSqlParams[number] {
@@ -434,6 +438,48 @@ export class BaseRuntime {
     return updated
   }
 
+  createView(tableId: string, input: CreateBaseViewInput): BaseViewInfo {
+    this.getTable(tableId)
+    const viewId = input.id ?? createBaseId("view")
+    const position =
+      input.position ??
+      this.connection.get<{ position: number }>(
+        `SELECT COALESCE(MAX(position), 0) + 1 AS position
+           FROM ${BASE_VIEWS_TABLE} WHERE table_id = ?`,
+        [tableId]
+      )?.position ??
+      1
+    this.connection.run(
+      `INSERT INTO ${BASE_VIEWS_TABLE}
+        (id, name, type, table_id, query, properties, filter,
+         order_map, hidden_fields, position)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        viewId,
+        input.name,
+        input.type,
+        tableId,
+        input.query,
+        input.properties === undefined
+          ? null
+          : JSON.stringify(input.properties),
+        input.filter === undefined ? null : JSON.stringify(input.filter),
+        input.orderMap === undefined ? null : JSON.stringify(input.orderMap),
+        JSON.stringify(input.hiddenFields ?? []),
+        position,
+      ]
+    )
+    setBaseMetadata(this.connection, {})
+    const created = this.listViews(tableId).find((view) => view.id === viewId)
+    if (!created) {
+      throw new BaseError(
+        "view-not-found",
+        `Unable to create Base view: ${viewId}`
+      )
+    }
+    return created
+  }
+
   addField(tableId: string, field: CreateBaseFieldInput): BaseFieldInfo {
     const table = this.getTable(tableId)
     const columnName = assertBaseColumnName(field.columnName)
@@ -469,6 +515,117 @@ export class BaseRuntime {
       )
     }
     return created
+  }
+
+  importField(tableId: string, field: ImportBaseFieldInput): BaseFieldInfo {
+    const table = this.getTable(tableId)
+    const existing = this.listFields(tableId).find(
+      (candidate) => candidate.tableColumnName === field.columnName
+    )
+    const columnName = existing
+      ? existing.tableColumnName
+      : assertBaseColumnName(field.columnName)
+    this.connection.transaction(() => {
+      if (!existing) {
+        this.connection.exec(
+          `ALTER TABLE ${quoteIdentifier(table.rawTableName)}
+             ADD COLUMN ${quoteIdentifier(columnName)} ${sqlTypeForField(field.type)} NULL`
+        )
+        this.connection.run(
+          `INSERT INTO ${BASE_COLUMNS_TABLE}
+            (name, type, table_name, table_column_name, property,
+             storage_codec, value_kind, is_hidden, is_derived,
+             source_table_column_name, depends_on)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            field.name,
+            field.type,
+            table.rawTableName,
+            columnName,
+            field.property === undefined || field.property === null
+              ? null
+              : JSON.stringify(field.property),
+            field.storageCodec ?? defaultStorageCodec(field.type),
+            field.valueKind ?? "source",
+            field.isHidden ? 1 : 0,
+            field.isDerived ? 1 : 0,
+            field.sourceTableColumnName ?? null,
+            field.dependsOn === undefined
+              ? null
+              : JSON.stringify(field.dependsOn),
+          ]
+        )
+      } else {
+        this.connection.run(
+          `UPDATE ${BASE_COLUMNS_TABLE}
+              SET name = ?, type = ?, property = ?, storage_codec = ?,
+                  value_kind = ?, is_hidden = ?, is_derived = ?,
+                  source_table_column_name = ?, depends_on = ?,
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE table_name = ? AND table_column_name = ?`,
+          [
+            field.name,
+            field.type,
+            field.property === undefined || field.property === null
+              ? null
+              : JSON.stringify(field.property),
+            field.storageCodec ?? existing.storageCodec,
+            field.valueKind ?? existing.valueKind,
+            field.isHidden === undefined
+              ? existing.isHidden
+                ? 1
+                : 0
+              : field.isHidden
+                ? 1
+                : 0,
+            field.isDerived === undefined
+              ? existing.isDerived
+                ? 1
+                : 0
+              : field.isDerived
+                ? 1
+                : 0,
+            field.sourceTableColumnName === undefined
+              ? existing.sourceTableColumnName
+              : field.sourceTableColumnName,
+            field.dependsOn === undefined
+              ? existing.dependsOn === null
+                ? null
+                : JSON.stringify(existing.dependsOn)
+              : JSON.stringify(field.dependsOn),
+            table.rawTableName,
+            columnName,
+          ]
+        )
+      }
+      setBaseMetadata(this.connection, {})
+    })
+    return this.getField(tableId, columnName)
+  }
+
+  createReference(input: CreateBaseReferenceInput): void {
+    const selfTable = this.getTable(input.selfTableId)
+    const refTable = this.getTable(input.refTableId)
+    const linkTable = this.getTable(input.linkTableId)
+    const selfField = this.getField(input.selfTableId, input.selfColumnName)
+    const refField = this.getField(input.refTableId, input.refColumnName)
+    const linkField = this.getField(input.linkTableId, input.linkColumnName)
+    this.connection.run(
+      `INSERT INTO ${BASE_REFERENCES_TABLE}
+        (self_table_name, self_table_column_name,
+         ref_table_name, ref_table_column_name,
+         link_table_name, link_table_column_name)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        selfTable.rawTableName,
+        selfField.tableColumnName,
+        refTable.rawTableName,
+        refField.tableColumnName,
+        linkTable.rawTableName,
+        linkField.tableColumnName,
+      ]
+    )
+    setBaseMetadata(this.connection, {})
   }
 
   updateField(
@@ -650,6 +807,42 @@ export class BaseRuntime {
     this.connection.run(
       `INSERT INTO ${quoteIdentifier(table.rawTableName)}
         (${columns.map(quoteIdentifier).join(", ")}) VALUES (${placeholders})`,
+      columns.map((column) => sqliteParameter(record[column]))
+    )
+    setBaseMetadata(this.connection, {})
+    return this.connection.get<BaseRow>(
+      `SELECT * FROM ${quoteIdentifier(table.rawTableName)} WHERE _id = ?`,
+      [sqliteParameter(record._id)]
+    )!
+  }
+
+  insertImportedRow(tableId: string, row: BaseRow): BaseRow {
+    const table = this.getTable(tableId)
+    const writableColumns = new Set(
+      this.connection
+        .query<{ name: string; hidden: number }>(
+          `PRAGMA table_xinfo(${quoteIdentifier(table.rawTableName)})`
+        )
+        .filter((column) => column.hidden === 0)
+        .map((column) => column.name)
+    )
+    const record: BaseRow = {
+      ...row,
+      _id: row._id ?? createBaseId("row"),
+    }
+    const columns = Object.keys(record)
+    for (const column of columns) {
+      if (!writableColumns.has(column)) {
+        throw new BaseError(
+          "field-not-found",
+          `Base field cannot be imported: ${column}`
+        )
+      }
+    }
+    this.connection.run(
+      `INSERT INTO ${quoteIdentifier(table.rawTableName)}
+        (${columns.map(quoteIdentifier).join(", ")})
+       VALUES (${columns.map(() => "?").join(", ")})`,
       columns.map((column) => sqliteParameter(record[column]))
     )
     setBaseMetadata(this.connection, {})
