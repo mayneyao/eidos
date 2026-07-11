@@ -1,6 +1,6 @@
 # RFC：从 Legacy Eidos Space 迁移到 Space/Base
 
-状态：草案
+状态：草案，尚未开始实施
 日期：2026-07-08
 负责人：Eidos
 相关文档：
@@ -9,6 +9,11 @@
 - `eidos-base-file-format.zh.md`
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-graft-space-versioning.zh.md`
+
+## 实施状态（2026-07-11）
+
+尚未开始实施。export-mode migration 仍是第一目标，但会等待独立 Base 格式和校验
+APIs 稳定后再开始。第一版不规划 silent migration 或 in-place migration。
 
 ## 摘要
 

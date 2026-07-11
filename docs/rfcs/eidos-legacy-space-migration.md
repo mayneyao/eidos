@@ -1,6 +1,6 @@
 # RFC: Migration From Legacy Eidos Spaces to Space/Base
 
-Status: Draft
+Status: Draft, implementation not started
 Date: 2026-07-08
 Owner: Eidos
 Related:
@@ -9,6 +9,13 @@ Related:
 - `eidos-base-file-format.md`
 - `eidos-space-markdown-runtime.md`
 - `eidos-graft-space-versioning.md`
+
+## Implementation Status (2026-07-11)
+
+Implementation has not started. Export-mode migration remains the first target,
+but work is intentionally deferred until the standalone Base format and its
+validation APIs are stable. Silent or in-place migration is not planned for the
+first release.
 
 ## Summary
 

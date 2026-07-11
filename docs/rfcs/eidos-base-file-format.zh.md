@@ -1,9 +1,16 @@
 # RFC：Eidos Base 文件格式与运行时
 
-状态：草案
+状态：草案，尚未开始实施
 日期：2026-07-08
 负责人：Eidos
 相关文档：`eidos-space-base-storage.zh.md`
+
+## 实施状态（2026-07-11）
+
+本 RFC 的目标尚未实现。Base runtime 将作为独立的 `@eidos.space/base` package
+创建，通过显式 adapters 复用当前 table semantics，并且不依赖 `@libsql/client`。
+第一切片仍然是创建/打开/校验一个 `.base`、通过现有 grid UI 编辑一张表，以及提供
+path-level 和最小 table-level Graft diffs。
 
 ## 摘要
 

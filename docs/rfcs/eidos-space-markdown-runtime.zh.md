@@ -1,12 +1,31 @@
 # RFC：Eidos Space 与 Markdown 运行时
 
-状态：草案
+状态：草案，垂直切片可用
 日期：2026-07-08
 负责人：Eidos
 相关文档：
 
 - `eidos-space-base-storage.zh.md`
 - `eidos-base-file-format.zh.md`
+
+## 实施状态（2026-07-11）
+
+已经实现：
+
+- 文件系统驱动的 Space tree 和文件 CRUD，
+- 带外部变化检测的安全原子 Markdown 保存，
+- file watcher 和 renderer refresh events，
+- 独立的 Lexical Markdown editor package，
+- 基础 CommonMark/GFM 编辑、附件、wiki links 和 source preservation，
+- 可重建的内存 search/link/tag/backlink index。
+
+本切片剩余：
+
+- indexed quick-open/search UI，
+- 编辑器中的 wiki-link completion，
+- outline 和 backlink navigation，
+- 面向大型 Space 的 `.eidos/indexes/**` 持久派生索引，
+- IME、keyboard、clipboard 和长文档的 desktop acceptance coverage。
 
 ## 摘要
 

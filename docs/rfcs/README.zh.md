@@ -1,9 +1,29 @@
 # Eidos 存储 RFCs
 
-状态：草案集合
+状态：草案集合，实施中
 日期：2026-07-08
+实施快照：2026-07-11
 
 本目录包含 Eidos 转向 file-based 存储模型的一组草案 RFC。
+
+## 实施状态
+
+| RFC               | 状态         | 当前实现边界                                                                                                                     |
+| ----------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| Space/Base 存储   | 实施中       | file-based Space 和 Space-root Graft 已存在；Base 尚未实现。                                                                     |
+| Markdown runtime  | 垂直切片可用 | 已有真实文件树、Markdown 直接编辑、安全保存、watcher、派生索引、链接和附件；搜索/backlinks UI 尚未完成。                         |
+| Graft 版本管理    | 本地链路可用 | 已有 Changes、staging、commit、diff、history、path restore 和 Space restore；remote sync、conflict 和 Base-aware diff 尚未实现。 |
+| 产品 UX           | 实施中       | 已有 Files/Version 侧边栏、Diff/History tabs 和上下文 Settings；Base、Sync 和 Migration UX 尚未实现。                            |
+| Base 格式/runtime | 未开始       | 将由独立 package 实现，并且不依赖 `@libsql/client`。                                                                             |
+| 文件化扩展        | 未开始       | RFC 仍是目标设计。                                                                                                               |
+| Legacy migration  | 未开始       | 等待 Base runtime 和导出格式稳定。                                                                                               |
+
+实施顺序已经从 Base-first 调整为：
+
+1. 完成 Markdown file-based Space 垂直切片，
+2. 稳定本地 Graft 版本管理，
+3. 构建独立 Base package 和垂直切片，
+4. 再实现 legacy migration、文件化扩展、remote sync 和 conflicts。
 
 推荐阅读顺序：
 

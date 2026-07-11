@@ -1,6 +1,6 @@
 # RFC: Product UX for Spaces, Bases, and Changes
 
-Status: Draft
+Status: Draft, implementation in progress
 Date: 2026-07-08
 Owner: Eidos
 Related:
@@ -9,6 +9,18 @@ Related:
 - `eidos-base-file-format.md`
 - `eidos-space-markdown-runtime.md`
 - `eidos-graft-space-versioning.md`
+
+## Implementation Status (2026-07-11)
+
+Implemented UX includes opening folders as Spaces, a Pierre Trees-based file
+tree, Files/Version sidebar modes, a standalone Notion-style Markdown editor,
+VS Code-style staged Changes, Diff tabs, a dedicated History tab, and a
+contextual Codex-style Settings sidebar. The current Space switcher remains at
+the bottom of the sidebar.
+
+Base workspace, Space sync, conflict resolution, and migration UX are not
+implemented. File-Space Settings currently exposes only the supported General
+surface; dedicated Files/Obsidian, Versioning, and Indexes sections remain.
 
 ## Summary
 

@@ -1,6 +1,6 @@
 # RFC: File-Based Extensions for Eidos Spaces
 
-Status: Draft
+Status: Draft, implementation not started
 Date: 2026-07-09
 Owner: Eidos
 Related:
@@ -9,6 +9,12 @@ Related:
 - `eidos-base-file-format.md`
 - `eidos-space-markdown-runtime.md`
 - `eidos-graft-space-versioning.md`
+
+## Implementation Status (2026-07-11)
+
+Implementation has not started. This work follows the standalone Base vertical
+slice. Existing bundled and database-backed extensions remain compatibility
+paths; no new file-based Space should depend on this RFC yet.
 
 ## Summary
 

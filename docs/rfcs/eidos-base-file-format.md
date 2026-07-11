@@ -1,9 +1,17 @@
 # RFC: Eidos Base File Format and Runtime
 
-Status: Draft
+Status: Draft, implementation not started
 Date: 2026-07-08
 Owner: Eidos
 Related: `eidos-space-base-storage.md`
+
+## Implementation Status (2026-07-11)
+
+The RFC target has not been implemented. The Base runtime will be created as a
+standalone `@eidos.space/base` package, will reuse current table semantics
+through explicit adapters, and will not depend on `@libsql/client`. The first
+slice remains create/open/validate one `.base`, edit one table through the
+existing grid UI, and expose path-level plus minimal table-level Graft diffs.
 
 ## Summary
 

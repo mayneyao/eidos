@@ -1,6 +1,6 @@
 # RFC：Eidos Space 的文件化扩展机制
 
-状态：草案
+状态：草案，尚未开始实施
 日期：2026-07-09
 负责人：Eidos
 相关文档：
@@ -9,6 +9,11 @@
 - `eidos-base-file-format.zh.md`
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-graft-space-versioning.zh.md`
+
+## 实施状态（2026-07-11）
+
+尚未开始实施。本工作排在独立 Base 垂直切片之后。现有 bundled 和 database-backed
+extensions 继续作为兼容路径；新的 file-based Space 暂时不应依赖本 RFC。
 
 ## 摘要
 

@@ -1,6 +1,6 @@
 # RFC：Space、Base 与 Changes 的产品交互
 
-状态：草案
+状态：草案，实施中
 日期：2026-07-08
 负责人：Eidos
 相关文档：
@@ -9,6 +9,17 @@
 - `eidos-base-file-format.zh.md`
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-graft-space-versioning.zh.md`
+
+## 实施状态（2026-07-11）
+
+已经实现的 UX 包括：打开文件夹作为 Space、基于 Pierre Trees 的文件树、Files/Version
+sidebar modes、独立 Notion 风格 Markdown editor、VS Code 风格 staged Changes、
+Diff tabs、独立 History tab 和上下文 Codex 风格 Settings sidebar。当前 Space
+switcher 保持在侧边栏底部。
+
+Base workspace、Space sync、conflict resolution 和 migration UX 尚未实现。file Space
+Settings 当前只开放已经支持的 General surface；专门的 Files/Obsidian、Versioning
+和 Indexes sections 仍待实现。
 
 ## 摘要
 

@@ -1,8 +1,17 @@
 # RFC：Eidos Space/Base 存储模型
 
-状态：草案
+状态：草案，实施中
 日期：2026-07-08
 负责人：Eidos
+
+## 实施状态（2026-07-11）
+
+项目正在通过 Markdown-first 垂直切片实施本 RFC。file-based Space、真实文件操作、
+Markdown 派生索引和 Space-root 本地 Graft 版本管理已经实现；`.base` runtime、
+legacy migration、remote sync 和文件化扩展尚未实现。
+
+因此本文的 phase 顺序只描述能力依赖，不再代表当前执行顺序。当前顺序是 Markdown
+Space、本地 Graft、独立 Base runtime，最后是 migration/extensions/sync。
 
 ## 摘要
 

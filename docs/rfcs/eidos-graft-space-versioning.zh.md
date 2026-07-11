@@ -1,6 +1,6 @@
 # RFC：Eidos Space 的 Graft 版本管理
 
-状态：草案
+状态：草案，本地链路可用
 日期：2026-07-08
 负责人：Eidos
 相关文档：
@@ -9,6 +9,20 @@
 - `eidos-base-file-format.zh.md`
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-file-based-extensions.zh.md`
+
+## 实施状态（2026-07-11）
+
+本地链路已经实现。普通操作通过持久 SQLite/Graft PRAGMA connection 执行，只有
+repository initialization 仍是一次性 CLI。UI 已提供 Changes 与 Staged Changes、
+path/directory stage/unstage/discard、文本 Diff tabs、commit history、path restore
+和 whole-Space restore，并隐藏私有 `.eidos` runtime paths。
+
+以下产品决策取代本文较早的开放问题：
+
+- path-level staging 进入 v1，并采用 VS Code 交互，
+- History 从 Changes 打开为独立内容 tab，不作为 sidebar mode，
+- 主 sidebar modes 保持 Files 和 Version，不规划 Logs mode，
+- remote sync、conflicts 和 Base-aware diffs 留到后续。
 
 ## 摘要
 
