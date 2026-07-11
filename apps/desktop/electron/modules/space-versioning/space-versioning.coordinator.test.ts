@@ -308,6 +308,50 @@ describe("SpaceVersioningCoordinator change actions", () => {
     )
   })
 
+  it("stages every changed descendant with one directory pathspec", async () => {
+    const root = await createSpace()
+    let statusReads = 0
+    const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      if (args[0] === "status") {
+        statusReads += 1
+        const indexStatus = statusReads === 1 ? "none" : "modified"
+        const worktreeStatus = statusReads === 1 ? "modified" : "none"
+        return statusPayload([
+          {
+            path: "notes/one.md",
+            kind: "text_file",
+            storage: "inline",
+            index_status: indexStatus,
+            worktree_status: worktreeStatus,
+          },
+          {
+            path: "notes/nested/two.md",
+            kind: "text_file",
+            storage: "inline",
+            index_status: indexStatus,
+            worktree_status: worktreeStatus,
+          },
+        ])
+      }
+      if (args[0] === "add") return { operation: "add" }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    const result = await coordinator.stagePath("space-a", {
+      path: "notes",
+      expectedHead: "head-2",
+    })
+
+    expect(result.status.paths.every((entry) => entry.staged)).toBe(true)
+    expect(runJson).toHaveBeenNthCalledWith(
+      2,
+      await fs.realpath(root),
+      ["add", "--json", "--", "notes"],
+      { timeoutMs: 120_000 }
+    )
+  })
+
   it("unstages one included path while preserving its working change", async () => {
     const root = await createSpace()
     let statusReads = 0
@@ -356,6 +400,56 @@ describe("SpaceVersioningCoordinator change actions", () => {
         "head-2",
         "--",
         "note.md",
+      ],
+      { timeoutMs: 120_000 }
+    )
+  })
+
+  it("unstages every included descendant with one directory pathspec", async () => {
+    const root = await createSpace()
+    let statusReads = 0
+    const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      if (args[0] === "status") {
+        statusReads += 1
+        return statusPayload([
+          {
+            path: "notes/one.md",
+            kind: "text_file",
+            storage: "inline",
+            index_status: statusReads === 1 ? "modified" : "none",
+            worktree_status: "modified",
+          },
+          {
+            path: "notes/nested/two.md",
+            kind: "text_file",
+            storage: "inline",
+            index_status: statusReads === 1 ? "modified" : "none",
+            worktree_status: "modified",
+          },
+        ])
+      }
+      if (args[0] === "restore") return { operation: "restore" }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    const result = await coordinator.unstagePath("space-a", {
+      path: "notes",
+      expectedHead: "head-2",
+    })
+
+    expect(result.status.paths.every((entry) => !entry.staged)).toBe(true)
+    expect(runJson).toHaveBeenNthCalledWith(
+      2,
+      await fs.realpath(root),
+      [
+        "restore",
+        "--json",
+        "--staged",
+        "--expected-head",
+        "head-2",
+        "--",
+        "notes",
       ],
       { timeoutMs: 120_000 }
     )
@@ -1367,31 +1461,24 @@ describe("SpaceVersioningCoordinator.commit", () => {
     ])
   })
 
-  it("repairs managed ignores before status and staging while preserving user rules", async () => {
+  it("repairs managed ignores before committing while preserving user rules", async () => {
     const root = await createSpace()
     const ignorePath = path.join(root, ".graftignore")
     await fs.writeFile(ignorePath, "user-rule/\n", "utf8")
-    let statusReads = 0
     const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
       if (args[0] === "status") {
-        statusReads += 1
         const ignore = await fs.readFile(ignorePath, "utf8")
         expect(ignore).toContain("user-rule/\n")
         expect(ignore).toContain(".eidos/sessions/\n")
-        return statusReads === 1
-          ? statusPayload()
-          : statusPayload([
-              {
-                path: "note.md",
-                kind: "text_file",
-                storage: "inline",
-                index_status: "modified",
-                worktree_status: "none",
-              },
-            ])
-      }
-      if (args[0] === "add") {
-        return { operation: "add" }
+        return statusPayload([
+          {
+            path: "note.md",
+            kind: "text_file",
+            storage: "inline",
+            index_status: "modified",
+            worktree_status: "none",
+          },
+        ])
       }
       if (args[0] === "commit") {
         return {
@@ -1426,9 +1513,31 @@ describe("SpaceVersioningCoordinator.commit", () => {
     })
     expect(runJson.mock.calls.map(([, args]) => args[0])).toEqual([
       "status",
-      "add",
-      "status",
       "commit",
     ])
+  })
+
+  it("requires an explicit staged selection before committing", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      if (args[0] === "status") {
+        return statusPayload([
+          {
+            path: "draft.md",
+            kind: "text_file",
+            storage: "inline",
+            index_status: "none",
+            worktree_status: "modified",
+          },
+        ])
+      }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    await expect(
+      coordinator.commit("space-a", { message: "Not staged" })
+    ).rejects.toThrow("Stage changes before creating a version")
+    expect(runJson).toHaveBeenCalledTimes(1)
   })
 })

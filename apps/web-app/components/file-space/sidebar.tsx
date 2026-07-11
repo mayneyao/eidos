@@ -1,5 +1,5 @@
 import { useState, type ComponentType, type CSSProperties } from "react"
-import { Files, GitBranch, ScrollText, Settings } from "lucide-react"
+import { Files, GitBranch, Settings } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { isMacDesktop } from "@/lib/web/helper"
@@ -22,7 +22,7 @@ import { filePathFromSpaceUrl } from "./file-path"
 import { navigateAfterFlushingSpaceFile } from "./file-navigation"
 import { VersionPanel } from "./versioning/version-panel"
 
-type FileSpaceSidebarView = "files" | "version" | "logs"
+type FileSpaceSidebarView = "files" | "version"
 
 const SIDEBAR_VIEWS: Array<{
   id: FileSpaceSidebarView
@@ -31,30 +31,7 @@ const SIDEBAR_VIEWS: Array<{
 }> = [
   { id: "files", label: "Files", icon: Files },
   { id: "version", label: "Version", icon: GitBranch },
-  { id: "logs", label: "Logs", icon: ScrollText },
 ]
-
-function PendingSidebarView({
-  icon: Icon,
-  label,
-  description,
-}: {
-  icon: ComponentType<{ className?: string }>
-  label: string
-  description: string
-}) {
-  return (
-    <section aria-labelledby={`file-space-${label.toLowerCase()}-heading`}>
-      <div className="flex h-[30px] items-center gap-1.5 border-b border-sidebar-border/50 px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-sidebar-foreground/75">
-        <Icon className="h-3.5 w-3.5" />
-        <h2 id={`file-space-${label.toLowerCase()}-heading`}>{label}</h2>
-      </div>
-      <p className="px-4 py-3 text-xs leading-relaxed text-muted-foreground">
-        {description}
-      </p>
-    </section>
-  )
-}
 
 export function FileSpaceSidebar() {
   const { currentSpace } = useCurrentSpace()
@@ -132,14 +109,8 @@ export function FileSpaceSidebar() {
       <SidebarContent className="px-0 py-0">
         {activeView === "files" ? (
           <FileSpaceTree spaceId={currentSpace.id} />
-        ) : activeView === "version" ? (
-          <VersionPanel spaceId={currentSpace.id} />
         ) : (
-          <PendingSidebarView
-            icon={ScrollText}
-            label="Logs"
-            description="Space activity and extension logs will appear here."
-          />
+          <VersionPanel spaceId={currentSpace.id} />
         )}
       </SidebarContent>
       <SidebarFooter className="shrink-0 p-1.5">

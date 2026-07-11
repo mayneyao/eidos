@@ -100,4 +100,57 @@ describe("VersionChangeTree", () => {
     expect(openDeleted?.disabled).toBe(true)
     expect(openDeleted?.title).toBe("Deleted files cannot be opened")
   })
+
+  it("stages and unstages a whole directory from its section", async () => {
+    const stage = vi.fn()
+    const unstage = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <VersionChangeTree
+          mode="unstaged"
+          changes={[
+            { path: "notes/one.md", status: "modified", unstaged: true },
+            {
+              path: "notes/nested/two.md",
+              status: "modified",
+              unstaged: true,
+            },
+          ]}
+          onStagePath={stage}
+        />
+      )
+    })
+
+    container
+      .querySelector<HTMLButtonElement>(
+        'button[aria-label="Include directory notes in the next version"]'
+      )
+      ?.click()
+    expect(stage).toHaveBeenCalledWith("notes")
+
+    await act(async () => {
+      root.render(
+        <VersionChangeTree
+          mode="staged"
+          changes={[
+            { path: "notes/one.md", status: "modified", staged: true },
+            {
+              path: "notes/nested/two.md",
+              status: "modified",
+              staged: true,
+            },
+          ]}
+          onUnstagePath={unstage}
+        />
+      )
+    })
+
+    container
+      .querySelector<HTMLButtonElement>(
+        'button[aria-label="Exclude directory notes from the next version"]'
+      )
+      ?.click()
+    expect(unstage).toHaveBeenCalledWith("notes")
+  })
 })

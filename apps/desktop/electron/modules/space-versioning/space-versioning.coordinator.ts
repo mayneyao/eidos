@@ -483,38 +483,16 @@ export class SpaceVersioningCoordinator {
           throw new Error("Resolve version conflicts before committing")
         }
 
-        try {
-          const staged = before.hasStagedChanges
-            ? before
-            : await (async () => {
-                await this.runner.runJson(
-                  spacePath,
-                  ["add", "--all", "--json"],
-                  { timeoutMs: MUTATION_TIMEOUT_MS }
-                )
-                return this.readStatus(spaceId, spacePath)
-              })()
-          if (staged.hasConflicts) {
-            throw new Error("Resolve version conflicts before committing")
-          }
-          if (!staged.hasStagedChanges) {
-            throw new Error("There are no changes to commit")
-          }
-
-          const raw = await this.runner.runJson(
-            spacePath,
-            ["commit", "--json", "-m", options.message],
-            { timeoutMs: MUTATION_TIMEOUT_MS }
-          )
-          return parseGraftCommitResult(raw)
-        } catch (error) {
-          return this.rollbackAutomaticStaging(
-            spaceId,
-            spacePath,
-            before,
-            error
-          )
+        if (!before.hasStagedChanges) {
+          throw new Error("Stage changes before creating a version")
         }
+
+        const raw = await this.runner.runJson(
+          spacePath,
+          ["commit", "--json", "-m", options.message],
+          { timeoutMs: MUTATION_TIMEOUT_MS }
+        )
+        return parseGraftCommitResult(raw)
       })
     })
   }
@@ -647,14 +625,22 @@ export class SpaceVersioningCoordinator {
             "The Space history changed. Refresh Changes before including this file."
           )
         }
-        const change = before.paths.find((entry) => entry.path === options.path)
-        if (!change) {
-          throw new Error("This file no longer has changes to include")
+        const changes = before.paths.filter(
+          (entry) =>
+            entry.path === options.path ||
+            entry.path.startsWith(`${options.path}/`)
+        )
+        if (changes.length === 0) {
+          throw new Error("This path no longer has changes to include")
         }
-        if (change.conflicted) {
-          throw new Error("Resolve this file's conflict before including it")
+        if (changes.some((change) => change.conflicted)) {
+          throw new Error("Resolve conflicts in this path before including it")
         }
-        if (change.worktreeState === "none" && change.staged) {
+        if (
+          changes.every(
+            (change) => change.worktreeState === "none" && change.staged
+          )
+        ) {
           return { path: options.path, status: before }
         }
 
@@ -690,14 +676,18 @@ export class SpaceVersioningCoordinator {
             "The Space history changed. Refresh Changes before excluding this file."
           )
         }
-        const change = before.paths.find((entry) => entry.path === options.path)
-        if (!change) {
-          throw new Error("This file no longer has changes to exclude")
+        const changes = before.paths.filter(
+          (entry) =>
+            entry.path === options.path ||
+            entry.path.startsWith(`${options.path}/`)
+        )
+        if (changes.length === 0) {
+          throw new Error("This path no longer has changes to exclude")
         }
-        if (change.conflicted) {
-          throw new Error("Resolve this file's conflict before excluding it")
+        if (changes.some((change) => change.conflicted)) {
+          throw new Error("Resolve conflicts in this path before excluding it")
         }
-        if (!change.staged) {
+        if (changes.every((change) => !change.staged)) {
           return { path: options.path, status: before }
         }
 
@@ -1230,35 +1220,6 @@ export class SpaceVersioningCoordinator {
     }
 
     await fs.unlink(quarantinePath)
-  }
-
-  private async rollbackAutomaticStaging(
-    spaceId: string,
-    spacePath: string,
-    before: SpaceVersionStatus,
-    originalError: unknown
-  ): Promise<never> {
-    // If staged content existed before Eidos started, restoring all would erase
-    // user-owned index state. In that case preserve it for a retry.
-    if (before.hasStagedChanges) {
-      throw originalError
-    }
-
-    try {
-      const current = await this.readStatus(spaceId, spacePath)
-      if (current.hasStagedChanges && !current.hasConflicts) {
-        await this.runner.runJson(
-          spacePath,
-          ["restore", "--staged", "--all", "--json"],
-          { timeoutMs: MUTATION_TIMEOUT_MS }
-        )
-      }
-    } catch (rollbackError) {
-      throw new Error(
-        `${errorMessage(originalError)} (also failed to restore automatically staged changes: ${errorMessage(rollbackError)})`
-      )
-    }
-    throw originalError
   }
 
   private async withRepositoryOperationLock<T>(

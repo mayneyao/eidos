@@ -28,6 +28,7 @@ import {
 
 interface VersionChangeTreeProps {
   changes: SpaceVersionChange[]
+  mode?: "staged" | "unstaged" | "mixed"
   className?: string
   selectedPath?: string | null
   busyPath?: string | null
@@ -75,6 +76,7 @@ function iconForNode(node: ChangeTreeNode, expanded: boolean) {
 
 function ChangeTreeRow({
   node,
+  mode,
   depth,
   expanded,
   selectedPath,
@@ -88,6 +90,7 @@ function ChangeTreeRow({
   onDiscardPath,
 }: {
   node: ChangeTreeNode
+  mode: "staged" | "unstaged" | "mixed"
   depth: number
   expanded: Set<string>
   selectedPath?: string | null
@@ -106,6 +109,7 @@ function ChangeTreeRow({
   const statusMeta = STATUS_META[node.status]
   const fullyIncluded =
     node.change?.staged === true && node.change.unstaged !== true
+  const shouldUnstage = mode === "staged" || (mode === "mixed" && fullyIncluded)
   const mainButton = (
     <button
       type="button"
@@ -169,7 +173,42 @@ function ChangeTreeRow({
   return (
     <li>
       {node.directory ? (
-        mainButton
+        <div className="group relative flex h-[24px] min-w-0 items-center pr-1 hover:bg-sidebar-accent/70 focus-within:bg-sidebar-accent">
+          {mainButton}
+          {(onStagePath || onUnstagePath) &&
+          !node.children.some((child) => child.change?.conflicted) ? (
+            <div className="absolute right-1 top-0 flex h-[24px] items-center bg-sidebar-accent opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+              <button
+                type="button"
+                className="flex h-5 w-5 items-center justify-center rounded-[3px] text-sidebar-foreground/60 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:opacity-40"
+                aria-label={
+                  shouldUnstage
+                    ? `Exclude directory ${node.path} from the next version`
+                    : `Include directory ${node.path} in the next version`
+                }
+                title={
+                  shouldUnstage
+                    ? "Exclude directory from next version"
+                    : "Include directory in next version"
+                }
+                disabled={actionsDisabled || busyPath === node.path}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  if (shouldUnstage) onUnstagePath?.(node.path)
+                  else onStagePath?.(node.path)
+                }}
+              >
+                {busyPath === node.path ? (
+                  <LoaderCircle className="h-3 w-3 animate-spin" />
+                ) : shouldUnstage ? (
+                  <Minus className="h-3 w-3" />
+                ) : (
+                  <Plus className="h-3 w-3" />
+                )}
+              </button>
+            </div>
+          ) : null}
+        </div>
       ) : (
         <div
           className={cn(
@@ -203,12 +242,12 @@ function ChangeTreeRow({
               type="button"
               className="flex h-5 w-5 items-center justify-center rounded-[3px] text-sidebar-foreground/60 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:opacity-40"
               aria-label={
-                fullyIncluded
+                shouldUnstage
                   ? `Exclude ${node.path} from the next version`
                   : `Include ${node.path} in the next version`
               }
               title={
-                fullyIncluded
+                shouldUnstage
                   ? "Exclude from next version"
                   : node.change?.staged
                     ? "Update included content"
@@ -220,14 +259,14 @@ function ChangeTreeRow({
                 node.change?.conflicted === true
               }
               onClick={() =>
-                fullyIncluded
+                shouldUnstage
                   ? onUnstagePath?.(node.path)
                   : onStagePath?.(node.path)
               }
             >
               {busyPath === node.path ? (
                 <LoaderCircle className="h-3 w-3 animate-spin" />
-              ) : fullyIncluded ? (
+              ) : shouldUnstage ? (
                 <Minus className="h-3 w-3" />
               ) : (
                 <Plus className="h-3 w-3" />
@@ -256,6 +295,7 @@ function ChangeTreeRow({
             <ChangeTreeRow
               key={`${child.directory ? "directory" : "file"}:${child.path}`}
               node={child}
+              mode={mode}
               depth={depth + 1}
               expanded={expanded}
               selectedPath={selectedPath}
@@ -277,6 +317,7 @@ function ChangeTreeRow({
 
 export function VersionChangeTree({
   changes,
+  mode = "mixed",
   className,
   selectedPath,
   busyPath,
@@ -307,6 +348,7 @@ export function VersionChangeTree({
         <ChangeTreeRow
           key={`${node.directory ? "directory" : "file"}:${node.path}`}
           node={node}
+          mode={mode}
           depth={0}
           expanded={expanded}
           selectedPath={selectedPath}
