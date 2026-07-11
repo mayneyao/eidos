@@ -10,11 +10,11 @@ This directory contains draft RFCs for moving Eidos toward a file-based storage 
 
 | RFC                   | Status                | Current implementation boundary                                                                                                                                      |
 | --------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Space/Base storage    | In progress           | File-based Spaces and Space-root Graft exist; Base files do not.                                                                                                     |
+| Space/Base storage    | In progress           | File-based Spaces, Space-root Graft, and standalone Base format/runtime foundations exist. Migration and Base-aware diffs do not.                                    |
 | Markdown runtime      | Usable vertical slice | Real file tree, direct editing, safe saves, watcher, indexed quick open, wiki-link completion, outline, backlinks, and attachments exist. Persistent indexes remain. |
 | Graft versioning      | Local workflow usable | Changes, staging, commit, diff, history, path restore, and Space restore exist. Remote sync, conflicts, and Base-aware diffs do not.                                 |
-| Product UX            | In progress           | Files/Version modes, Diff/History tabs, and file-Space General, Files, Versioning, and Indexes settings exist. Base, Sync, and Migration UX do not.                  |
-| Base format/runtime   | Not started           | The implementation will live in a standalone package and will not depend on `@libsql/client`.                                                                        |
+| Product UX            | In progress           | Files/Version modes, Diff/History, contextual Settings, and a first compact `.base` table surface exist. Production Base grid, Sync, and Migration UX do not.        |
+| Base format/runtime   | Vertical slice        | Standalone package creates, opens, validates, migrates, and edits primitive table rows without Eidos core or `@libsql/client`; grid adapters remain.                 |
 | File-based extensions | Not started           | The RFC remains the target design.                                                                                                                                   |
 | Legacy migration      | Not started           | Implementation waits for the Base runtime and export format.                                                                                                         |
 

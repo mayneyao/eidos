@@ -122,3 +122,15 @@ export interface BaseValidationResult {
   errors: BaseValidationIssue[]
   warnings: BaseValidationIssue[]
 }
+
+export interface BaseTableSnapshot {
+  table: BaseTableInfo
+  fields: BaseFieldInfo[]
+  rows: BaseRow[]
+}
+
+export interface BaseSnapshot {
+  path: string
+  metadata: BaseMetadata
+  tables: BaseTableSnapshot[]
+}

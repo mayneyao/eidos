@@ -3,6 +3,16 @@
  */
 
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
+import type {
+  BaseRow,
+  BaseSnapshot,
+  CreateBaseFieldInput,
+  CreateBaseOptions,
+} from "@eidos.space/base"
+import {
+  createBaseFile as createBaseDatabase,
+  openBaseFile,
+} from "@eidos.space/base/better-sqlite3"
 import {
   FileSpaceIndex,
   SpaceFiles,
@@ -371,6 +381,115 @@ export class SpaceManagementService extends IpcServiceBase {
     })
   }
 
+  async createBase(
+    spaceId: string,
+    relativePath: string,
+    options: CreateBaseOptions = {}
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const files = this._getFileSpace(spaceId)
+      await files.createBinary(relativePath, new Uint8Array())
+      const systemPath = await files.getSystemPath(relativePath)
+      try {
+        const base = createBaseDatabase(systemPath, options)
+        base.close()
+        this._invalidateFileIndex(spaceId)
+        return await this._getBaseSnapshot(spaceId, relativePath)
+      } catch (error) {
+        await files.remove(relativePath).catch(() => undefined)
+        throw error
+      }
+    })
+  }
+
+  async getBaseSnapshot(
+    spaceId: string,
+    relativePath: string,
+    options: { maxRowsPerTable?: number } = {}
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, () =>
+      this._getBaseSnapshot(
+        spaceId,
+        relativePath,
+        options.maxRowsPerTable,
+        true
+      )
+    )
+  }
+
+  async addBaseField(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    field: CreateBaseFieldInput
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        base.addField(tableId, field)
+      } finally {
+        base.close()
+      }
+      this._invalidateFileIndex(spaceId)
+      return this._getBaseSnapshot(spaceId, relativePath)
+    })
+  }
+
+  async insertBaseRow(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    row: BaseRow
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        base.insertRow(tableId, row)
+      } finally {
+        base.close()
+      }
+      this._invalidateFileIndex(spaceId)
+      return this._getBaseSnapshot(spaceId, relativePath)
+    })
+  }
+
+  async updateBaseRow(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    rowId: string,
+    changes: BaseRow
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        base.updateRow(tableId, rowId, changes)
+      } finally {
+        base.close()
+      }
+      this._invalidateFileIndex(spaceId)
+      return this._getBaseSnapshot(spaceId, relativePath)
+    })
+  }
+
+  async deleteBaseRow(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    rowId: string
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        base.deleteRow(tableId, rowId)
+      } finally {
+        base.close()
+      }
+      this._invalidateFileIndex(spaceId)
+      return this._getBaseSnapshot(spaceId, relativePath)
+    })
+  }
+
   async moveFile(
     spaceId: string,
     sourcePath: string,
@@ -532,6 +651,40 @@ export class SpaceManagementService extends IpcServiceBase {
     this.fileSpaces.set(spaceId, files)
     this.fileSpaceIndexes.delete(spaceId)
     return files
+  }
+
+  private async _openBase(
+    spaceId: string,
+    relativePath: string,
+    migrate = false
+  ) {
+    const systemPath =
+      await this._getFileSpace(spaceId).getSystemPath(relativePath)
+    return openBaseFile(systemPath, { migrate })
+  }
+
+  private async _getBaseSnapshot(
+    spaceId: string,
+    relativePath: string,
+    maxRowsPerTable = 200,
+    migrate = false
+  ): Promise<BaseSnapshot> {
+    const base = await this._openBase(spaceId, relativePath, migrate)
+    try {
+      const metadata = base.info()
+      const rowLimit = Math.min(500, Math.max(0, maxRowsPerTable))
+      return {
+        path: relativePath,
+        metadata,
+        tables: base.listTables().map((table) => ({
+          table,
+          fields: base.listFields(table.id),
+          rows: base.listRows(table.id, rowLimit),
+        })),
+      }
+    } finally {
+      base.close()
+    }
   }
 
   private _getFileIndex(spaceId: string): FileSpaceIndex {

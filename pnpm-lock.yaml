@@ -53,6 +53,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@eidos.space/base':
+        specifier: workspace:*
+        version: link:../../packages/base
       '@eidos.space/bashkit':
         specifier: ^0.6.5
         version: 0.6.5(zod@3.25.67)

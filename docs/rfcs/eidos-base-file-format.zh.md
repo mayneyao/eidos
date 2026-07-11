@@ -1,16 +1,20 @@
 # RFC：Eidos Base 文件格式与运行时
 
-状态：草案，尚未开始实施
+状态：草案，实施中
 日期：2026-07-08
 负责人：Eidos
 相关文档：`eidos-space-base-storage.zh.md`
 
-## 实施状态（2026-07-11）
+## 实施状态（2026-07-12）
 
-本 RFC 的目标尚未实现。Base runtime 将作为独立的 `@eidos.space/base` package
-创建，通过显式 adapters 复用当前 table semantics，并且不依赖 `@libsql/client`。
-第一切片仍然是创建/打开/校验一个 `.base`、通过现有 grid UI 编辑一张表，以及提供
-path-level 和最小 table-level Graft diffs。
+独立的 `@eidos.space/base` package 已经可以创建、打开、校验并迁移真实 `.base`
+SQLite 文件，而且不依赖 Eidos core 或 `@libsql/client`。当前实现包含 v1 metadata、
+table registry、field/view/reference schemas、primitive fields 和 row CRUD，并通过显式
+SQLite connection boundary 隔离实现；`better-sqlite3` adapter 位于独立的可选入口。
+
+desktop file Space 已经可以创建和打开 `.base`，第一版紧凑 table surface 可以读取和
+编辑 primitive cells。复用正式 grid runtime、multi-table authoring、旧 Space 导出和
+Base-aware Graft diff 展开仍待实现。
 
 ## 摘要
 

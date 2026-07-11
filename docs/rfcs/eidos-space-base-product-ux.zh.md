@@ -10,7 +10,7 @@
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-graft-space-versioning.zh.md`
 
-## 实施状态（2026-07-11）
+## 实施状态（2026-07-12）
 
 已经实现的 UX 包括：打开文件夹作为 Space、基于 Pierre Trees 的文件树、Files/Version
 sidebar modes、独立 Notion 风格 Markdown editor、VS Code 风格 staged Changes、
@@ -18,9 +18,10 @@ Diff tabs、独立 History tab 和上下文 Codex 风格 Settings sidebar。Inde
 open 和紧凑的 Outline/Backlinks sections 已经接入，并且没有增加文档区 chrome。
 当前 Space switcher 保持在侧边栏底部。
 
-Base workspace、Space sync、conflict resolution 和 migration UX 尚未实现。file Space
-Settings 现已拆分为 General、Files/Obsidian、Versioning 和派生 Indexes；数据库
-Space 专属的旧设置不会出现在 file Space 中。
+第一版 `.base` route 和紧凑可编辑 table surface 已经实现；正式 grid workspace 和
+Base-aware change inspector 尚未实现。file Space Settings 已拆分为 General、
+Files/Obsidian、Versioning 和派生 Indexes；Space sync、conflict resolution 和
+migration UX 仍待实现。
 
 ## 摘要
 

@@ -4,12 +4,13 @@ Status: Draft, implementation in progress
 Date: 2026-07-08
 Owner: Eidos
 
-## Implementation Status (2026-07-11)
+## Implementation Status (2026-07-12)
 
 The project is implementing this RFC through a Markdown-first vertical slice.
-File-based Spaces, direct file operations, derived Markdown indexing, and
-Space-root local Graft versioning are implemented. The `.base` runtime,
-legacy migration, remote sync, and file-based extensions are not implemented.
+File-based Spaces, direct file operations, derived Markdown indexing,
+Space-root local Graft versioning, and the standalone `.base` format/runtime
+foundation are implemented. Legacy migration, Base-aware Graft diffs, remote
+sync, and file-based extensions are not implemented.
 
 The phase order in this document is therefore descriptive rather than the
 current execution order. The active order is Markdown Space, local Graft,

@@ -16,6 +16,12 @@ vi.mock("@monaco-editor/react", () => ({
   default: () => <div data-testid="monaco-editor" />,
 }))
 
+vi.mock("@/apps/web-app/components/file-space/base/space-base-editor", () => ({
+  SpaceBaseEditor: ({ filePath }: { filePath: string }) => (
+    <div data-testid="base-editor" data-path={filePath} />
+  ),
+}))
+
 vi.mock("@/apps/web-app/components/file-space/space-markdown-editor", () => ({
   SpaceMarkdownEditor: ({
     onChange,
@@ -156,6 +162,26 @@ describe("SpaceFilePage editor selection", () => {
     expect(
       container.querySelector('[data-testid="monaco-editor"]')
     ).not.toBeNull()
+    expect(
+      container.querySelector('[data-testid="lexical-markdown-editor"]')
+    ).toBeNull()
+  })
+
+  it("opens .base files in the standalone Base editor", async () => {
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/space-file#projects%2Ftasks.base"]}>
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+
+    expect(
+      container.querySelector<HTMLElement>('[data-testid="base-editor"]')
+        ?.dataset.path
+    ).toBe("projects/tasks.base")
+    expect(container.querySelector('[data-testid="monaco-editor"]')).toBeNull()
     expect(
       container.querySelector('[data-testid="lexical-markdown-editor"]')
     ).toBeNull()

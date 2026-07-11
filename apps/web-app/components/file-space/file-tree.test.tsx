@@ -16,6 +16,11 @@ const createTextMock = vi.hoisted(() => vi.fn())
 const moveMock = vi.hoisted(() => vi.fn())
 const navigateMock = vi.hoisted(() => vi.fn())
 const setGlobalSearchOpenMock = vi.hoisted(() => vi.fn())
+const createBaseMock = vi.hoisted(() => vi.fn())
+
+vi.mock("@/apps/web-app/hooks/use-space-base", () => ({
+  useSpaceBase: () => ({ create: createBaseMock }),
+}))
 
 vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
   useSpaceFiles: () => ({
@@ -143,6 +148,7 @@ describe("FileSpaceTree accessibility", () => {
     )
     createDirectoryMock.mockReset()
     createTextMock.mockReset()
+    createBaseMock.mockReset()
     moveMock.mockReset()
     createTextMock.mockImplementation(async (path: string) => {
       const created = entry(path, "file")

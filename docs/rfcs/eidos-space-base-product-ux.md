@@ -10,7 +10,7 @@ Related:
 - `eidos-space-markdown-runtime.md`
 - `eidos-graft-space-versioning.md`
 
-## Implementation Status (2026-07-11)
+## Implementation Status (2026-07-12)
 
 Implemented UX includes opening folders as Spaces, a Pierre Trees-based file
 tree, Files/Version sidebar modes, a standalone Notion-style Markdown editor,
@@ -19,10 +19,10 @@ contextual Codex-style Settings sidebar. Indexed quick open and compact
 Outline/Backlinks sections are integrated without adding document chrome. The
 current Space switcher remains at the bottom of the sidebar.
 
-Base workspace, Space sync, conflict resolution, and migration UX are not
-implemented. File-Space Settings now separates General, Files/Obsidian,
-Versioning, and derived Indexes controls; legacy database-only settings stay
-out of file Spaces.
+The first `.base` route and compact editable table surface are implemented;
+the production grid workspace and Base-aware change inspector are not.
+File-Space Settings separates General, Files/Obsidian, Versioning, and derived
+Indexes controls. Space sync, conflict resolution, and migration UX remain.
 
 ## Summary
 

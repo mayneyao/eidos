@@ -10,12 +10,14 @@ import {
   MoreHorizontal,
   RefreshCw,
   Search,
+  Table2,
   Upload,
   X,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
+import { useSpaceBase } from "@/apps/web-app/hooks/use-space-base"
 import {
   isDestructiveSpaceVersioningOperation,
   useActiveSpaceVersioningOperation,
@@ -88,6 +90,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
     remove,
     reveal,
   } = useSpaceFiles(spaceId)
+  const { create: createBase } = useSpaceBase(spaceId)
   const versioningOperation = useActiveSpaceVersioningOperation(spaceId)
   const restoringVersion =
     isDestructiveSpaceVersioningOperation(versioningOperation)
@@ -258,6 +261,46 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
       spaceId,
     ]
   )
+
+  const createBaseAtRoot = useCallback(async () => {
+    if (blockMutationDuringRestore()) return
+    setOperationError(null)
+    const entries = entriesByDirectory.has("")
+      ? (entriesByDirectory.get("") ?? [])
+      : await loadDirectory("")
+    const name = uniqueSpaceEntryName(
+      entries.map((entry) => entry.name),
+      "Untitled",
+      ".base"
+    )
+    try {
+      if (!(await flushCurrentSpaceFile(spaceId, selectedPath))) {
+        throw new Error(
+          "Eidos could not save the current file. Resolve the error before opening another file."
+        )
+      }
+      await createBase(name, {
+        title: name.slice(0, -".base".length),
+        defaultTable: { name: "Table" },
+      })
+      await loadDirectory("")
+      navigate(toSpaceFileUrl(name))
+    } catch (operationFailure) {
+      setOperationError(
+        operationFailure instanceof Error
+          ? operationFailure.message
+          : "Unable to create Base"
+      )
+    }
+  }, [
+    blockMutationDuringRestore,
+    createBase,
+    entriesByDirectory,
+    loadDirectory,
+    navigate,
+    selectedPath,
+    spaceId,
+  ])
 
   const importInto = useCallback(
     async (directory: string) => {
@@ -539,6 +582,13 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
                 Search Space
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={restoringVersion}
+                onSelect={() => void createBaseAtRoot()}
+              >
+                <Table2 />
+                New Base
+              </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={restoringVersion}
                 onSelect={() => void importInto("")}

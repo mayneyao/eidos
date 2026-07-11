@@ -4,11 +4,12 @@
 日期：2026-07-08
 负责人：Eidos
 
-## 实施状态（2026-07-11）
+## 实施状态（2026-07-12）
 
 项目正在通过 Markdown-first 垂直切片实施本 RFC。file-based Space、真实文件操作、
-Markdown 派生索引和 Space-root 本地 Graft 版本管理已经实现；`.base` runtime、
-legacy migration、remote sync 和文件化扩展尚未实现。
+Markdown 派生索引、Space-root 本地 Graft 版本管理和独立 `.base` 格式/runtime
+基础已经实现；legacy migration、Base-aware Graft diff、remote sync 和文件化扩展
+尚未实现。
 
 因此本文的 phase 顺序只描述能力依赖，不再代表当前执行顺序。当前顺序是 Markdown
 Space、本地 Graft、独立 Base runtime，最后是 migration/extensions/sync。

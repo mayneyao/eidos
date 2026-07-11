@@ -9,6 +9,7 @@ import {
   toSpaceAssetUrl,
 } from "@/apps/web-app/components/file-space/file-path"
 import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-space/pending-writes"
+import { SpaceBaseEditor } from "@/apps/web-app/components/file-space/base/space-base-editor"
 import { SpaceMarkdownEditor } from "@/apps/web-app/components/file-space/space-markdown-editor"
 import {
   isDestructiveSpaceVersioningOperation,
@@ -109,6 +110,9 @@ export function SpaceFilePage() {
 
   if (!filePath) {
     return <FileState message="No file selected" />
+  }
+  if (extension === "base") {
+    return <SpaceBaseEditor key={filePath} filePath={filePath} />
   }
   if (TEXT_EXTENSIONS.has(extension)) {
     return (
