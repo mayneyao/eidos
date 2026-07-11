@@ -2,21 +2,21 @@
 
 状态：草案集合，实施中
 日期：2026-07-08
-实施快照：2026-07-11
+实施快照：2026-07-12
 
 本目录包含 Eidos 转向 file-based 存储模型的一组草案 RFC。
 
 ## 实施状态
 
-| RFC               | 状态         | 当前实现边界                                                                                                                          |
-| ----------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Space/Base 存储   | 实施中       | file-based Space、Space-root Graft 和独立 Base 格式/runtime 基础已实现；migration 和 Base-aware diff 尚未实现。                       |
-| Markdown runtime  | 垂直切片可用 | 已有真实文件树、直接编辑、安全保存、watcher、indexed quick open、wiki-link completion、outline、backlinks 和附件；持久索引仍待实现。  |
-| Graft 版本管理    | 本地链路可用 | 已有 Changes、staging、commit、diff、history、path restore 和 Space restore；remote sync、conflict 和 Base-aware diff 尚未实现。      |
-| 产品 UX           | 实施中       | 已有 Files/Version、Diff/History、上下文 Settings 和第一版紧凑 `.base` table surface；正式 Base grid、Sync 和 Migration UX 尚未实现。 |
-| Base 格式/runtime | 垂直切片     | 独立 package 已支持创建、打开、校验、迁移和 primitive row 编辑，不依赖 Eidos core 或 `@libsql/client`；grid adapters 仍待实现。       |
-| 文件化扩展        | 未开始       | RFC 仍是目标设计。                                                                                                                    |
-| Legacy migration  | 未开始       | 等待 Base runtime 和导出格式稳定。                                                                                                    |
+| RFC               | 状态         | 当前实现边界                                                                                                                         |
+| ----------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Space/Base 存储   | 实施中       | file-based 核心垂直切片、独立 Base runtime 和 Base-aware diff 已跑通；migration、remote sync 和文件化扩展仍待实现。                  |
+| Markdown runtime  | 垂直切片可用 | 已有真实文件树、直接编辑、安全保存、watcher、indexed quick open、wiki-link completion、outline、backlinks 和附件；持久索引仍待实现。 |
+| Graft 版本管理    | 本地链路可用 | Changes、staging、commit、diff、history、restore 和 Base table/row inspection 已跑通；remote sync 和 conflicts 仍待实现。            |
+| 产品 UX           | 实施中       | Files/Version、Diff/History、上下文 Settings 和分页正式 Base grid 已可用；Sync 和 Migration UX 仍待实现。                            |
+| Base 格式/runtime | 垂直切片     | 独立 package 和分页 Grid adapter 已支持 primitive 编辑、多 table/field 创建、view layout 与批量删行；更完整 authoring 仍待实现。     |
+| 文件化扩展        | 未开始       | RFC 仍是目标设计。                                                                                                                   |
+| Legacy migration  | 未开始       | 等待 Base runtime 和导出格式稳定。                                                                                                   |
 
 实施顺序已经从 Base-first 调整为：
 

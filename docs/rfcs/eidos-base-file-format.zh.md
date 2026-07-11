@@ -12,9 +12,15 @@ SQLite 文件，而且不依赖 Eidos core 或 `@libsql/client`。当前实现�
 table registry、field/view/reference schemas、primitive fields 和 row CRUD，并通过显式
 SQLite connection boundary 隔离实现；`better-sqlite3` adapter 位于独立的可选入口。
 
-desktop file Space 已经可以创建和打开 `.base`，第一版紧凑 table surface 可以读取和
-编辑 primitive cells。复用正式 grid runtime、multi-table authoring、旧 Space 导出和
-Base-aware Graft diff 展开仍待实现。
+desktop file Space 已经可以创建和打开 `.base`。初始 HTML table 已替换为 production
+Glide DataEditor 上的 Base adapter，恢复 keyboard navigation、rectangular selection、
+copy/paste、fill handle、column reorder/resize，并支持创建 table/field 与持久化 Grid
+order/width。Graft row diff 也已贯通 working Changes 和历史 inspector。
+
+Base snapshot 现在只携带 row count，Grid 按可见区域请求并缓存 100-row pages；批量删行
+使用 compact row ranges 在 runtime 内事务执行，不需要在 renderer 物化整表选择，并已用
+10,000-row fixture 验证。完整 table/field rename/delete、更丰富字段语义和 legacy Space
+导出仍待实现。
 
 ## 摘要
 

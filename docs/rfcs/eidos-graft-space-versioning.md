@@ -10,20 +10,22 @@ Related:
 - `eidos-space-markdown-runtime.md`
 - `eidos-file-based-extensions.md`
 
-## Implementation Status (2026-07-11)
+## Implementation Status (2026-07-12)
 
 The local workflow is implemented with a persistent SQLite/Graft PRAGMA
 connection for normal operations; only repository initialization remains a
 one-shot CLI operation. The UI provides Changes and Staged Changes, path and
 directory stage/unstage/discard, text Diff tabs, commit history, path restore,
 and whole-Space restore. Private `.eidos` runtime paths are hidden.
+Working Changes and historical inspectors also expand `.base` paths into
+compact table/column/row operations through path-scoped Graft row details.
 
 Confirmed product decisions that supersede earlier open questions:
 
 - path-level staging is part of v1 and follows the VS Code interaction model,
 - History opens as a dedicated content tab from Changes, not as a sidebar mode,
 - the primary sidebar modes remain Files and Version; no Logs mode is planned,
-- remote sync, conflicts, and Base-aware diffs remain future work.
+- remote sync and conflicts remain future work.
 
 ## Summary
 

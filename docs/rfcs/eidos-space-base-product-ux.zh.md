@@ -18,10 +18,12 @@ Diff tabs、独立 History tab 和上下文 Codex 风格 Settings sidebar。Inde
 open 和紧凑的 Outline/Backlinks sections 已经接入，并且没有增加文档区 chrome。
 当前 Space switcher 保持在侧边栏底部。
 
-第一版 `.base` route 和紧凑可编辑 table surface 已经实现；正式 grid workspace 和
-Base-aware change inspector 尚未实现。file Space Settings 已拆分为 General、
-Files/Obsidian、Versioning 和派生 Indexes；Space sync、conflict resolution 和
-migration UX 仍待实现。
+`.base` route 现已使用 production Grid 交互层，支持按可见区域分页加载、optimistic
+cell edit、持久化 column layout 和基于 compact ranges 的批量删行。working Changes
+与 History 也已提供 Base-aware table/row inspector。
+
+file Space Settings 已拆分为 General、Files/Obsidian、Versioning 和派生 Indexes；
+Space sync、conflict resolution 和 migration UX 仍待实现。
 
 ## 摘要
 

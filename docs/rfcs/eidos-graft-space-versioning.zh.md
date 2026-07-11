@@ -10,19 +10,21 @@
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-file-based-extensions.zh.md`
 
-## 实施状态（2026-07-11）
+## 实施状态（2026-07-12）
 
 本地链路已经实现。普通操作通过持久 SQLite/Graft PRAGMA connection 执行，只有
 repository initialization 仍是一次性 CLI。UI 已提供 Changes 与 Staged Changes、
 path/directory stage/unstage/discard、文本 Diff tabs、commit history、path restore
 和 whole-Space restore，并隐藏私有 `.eidos` runtime paths。
+Changes 与历史 inspector 也已通过 path-scoped Graft row details，将 `.base` path
+展开成紧凑的 table/column/row operations。
 
 以下产品决策取代本文较早的开放问题：
 
 - path-level staging 进入 v1，并采用 VS Code 交互，
 - History 从 Changes 打开为独立内容 tab，不作为 sidebar mode，
 - 主 sidebar modes 保持 Files 和 Version，不规划 Logs mode，
-- remote sync、conflicts 和 Base-aware diffs 留到后续。
+- remote sync 和 conflicts 留到后续。
 
 ## 摘要
 

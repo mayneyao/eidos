@@ -28,9 +28,12 @@ inspector. Pure `updated_at` metadata noise and internal audit columns are
 hidden in the UI, while structural changes remain tracked at the whole-file
 level.
 
-The current UI snapshot remains capped at 200 rows. A paged Base data source,
-complete table/field rename and delete workflows, richer field semantics, and
-export from legacy Spaces remain.
+Base snapshots now carry row counts instead of capped row arrays. The Grid
+requests 100-row pages around the visible region, caches loaded pages, and
+passes compact row ranges to transactional batch deletion without materializing
+an entire selection in the renderer. The runtime path is covered with a
+10,000-row fixture. Complete table/field rename and delete workflows, richer
+field semantics, and export from legacy Spaces remain.
 
 ## Summary
 

@@ -19,8 +19,11 @@ contextual Codex-style Settings sidebar. Indexed quick open and compact
 Outline/Backlinks sections are integrated without adding document chrome. The
 current Space switcher remains at the bottom of the sidebar.
 
-The first `.base` route and compact editable table surface are implemented;
-the production grid workspace and Base-aware change inspector are not.
+The `.base` route now uses the production Grid interaction layer with paged
+visible-region loading, optimistic cell edits, persisted column layout, and
+compact range-based batch row deletion. Working Changes and History provide a
+Base-aware table/row inspector.
+
 File-Space Settings separates General, Files/Obsidian, Versioning, and derived
 Indexes controls. Space sync, conflict resolution, and migration UX remain.
 
