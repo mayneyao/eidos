@@ -9,8 +9,11 @@ Owner: Eidos
 The project is implementing this RFC through a Markdown-first vertical slice.
 File-based Spaces, direct file operations, derived Markdown indexing,
 Space-root local Graft versioning, and the standalone `.base` format/runtime
-foundation are implemented. Legacy migration, Base-aware Graft diffs, remote
-sync, and file-based extensions are not implemented.
+foundation are implemented. Base-aware Graft diff expansion is also implemented
+for working changes and historical versions: Eidos requests row details only
+for the selected SQLite path, then displays table and row operations without
+polluting normal status refreshes. Legacy migration, remote sync, and file-based
+extensions are not implemented.
 
 The phase order in this document is therefore descriptive rather than the
 current execution order. The active order is Markdown Space, local Graft,
@@ -517,9 +520,14 @@ is only correct for the current hidden-database model. In Space/Base mode, it sh
 7. Should the default extension source folder be exactly `.eidos/extensions/`, or configurable?
 8. What is the exact migration path for existing Eidos spaces that rely on `eidos__docs`?
 
-## Recommended Next Step
+## Proven Vertical Slice and Recommended Next Step
 
-Build a small vertical slice:
+The following vertical slice is now implemented and covered by a repeatable
+real-Base/Graft smoke test:
+
+```bash
+pnpm --filter eidos smoke:base-versioning
+```
 
 ```txt
 sample-space/
@@ -530,13 +538,18 @@ sample-space/
   .graft/
 ```
 
-The slice should prove:
+It proves:
 
 - Eidos can open the Space.
 - Eidos can edit `note.md`.
 - Eidos can open and edit `tasks.base`.
 - Graft status shows `note.md`, `tasks.base`, and `assets/image.png`.
-- Expanding `tasks.base` shows table-level changes.
+- Expanding `tasks.base` shows table- and row-level changes.
 - `.eidos/sessions/**` never appears in status.
 
-This slice will reveal whether the product model is coherent before the full migration begins.
+The next step is to replace the compact Base editing surface with an adapter
+over the existing production table/grid runtime. That work should add
+multi-table authoring, field management, view persistence, keyboard workflows,
+and large-table behavior without moving file-format responsibilities back into
+`@eidos.space/core`. After that interaction layer is stable, implement the
+previewable legacy Space export to Markdown and Base files before remote sync.

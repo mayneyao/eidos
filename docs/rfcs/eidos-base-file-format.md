@@ -15,9 +15,14 @@ connection boundary. A `better-sqlite3` adapter is isolated in its own optional
 entry point.
 
 Desktop file Spaces can create and open `.base` files, and the first compact
-table surface can read and edit primitive cells. Reusing the production grid
-runtime, multi-table authoring, export from legacy Spaces, and Base-aware Graft
-diff expansion remain.
+table surface can read and edit primitive cells. Graft row diffs are now
+preserved through the Desktop boundary and shown as compact table/column/row
+changes in both the working Changes tab and historical version inspector. Pure
+`updated_at` metadata noise and internal audit columns are hidden in the UI,
+while structural changes remain tracked at the whole-file level.
+
+Reusing the production grid runtime, multi-table authoring, richer Base schema
+semantics, and export from legacy Spaces remain.
 
 ## Summary
 
