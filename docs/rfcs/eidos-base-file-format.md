@@ -14,15 +14,23 @@ reference schemas, primitive fields, and row CRUD through an explicit SQLite
 connection boundary. A `better-sqlite3` adapter is isolated in its own optional
 entry point.
 
-Desktop file Spaces can create and open `.base` files, and the first compact
-table surface can read and edit primitive cells. Graft row diffs are now
-preserved through the Desktop boundary and shown as compact table/column/row
-changes in both the working Changes tab and historical version inspector. Pure
-`updated_at` metadata noise and internal audit columns are hidden in the UI,
-while structural changes remain tracked at the whole-file level.
+Desktop file Spaces can create and open `.base` files. The initial HTML table
+has been replaced by a Base adapter over the production Glide DataEditor
+interaction layer, restoring keyboard navigation, rectangular selection,
+copy/paste, fill handles, column reordering, and column resizing without
+coupling the Base runtime to `@eidos.space/core`. Users can add tables and
+fields, and grid order/width state is persisted inside `eidos__views` in the
+Base file.
 
-Reusing the production grid runtime, multi-table authoring, richer Base schema
-semantics, and export from legacy Spaces remain.
+Graft row diffs are preserved through the Desktop boundary and shown as compact
+table/column/row changes in both the working Changes tab and historical version
+inspector. Pure `updated_at` metadata noise and internal audit columns are
+hidden in the UI, while structural changes remain tracked at the whole-file
+level.
+
+The current UI snapshot remains capped at 200 rows. A paged Base data source,
+complete table/field rename and delete workflows, richer field semantics, and
+export from legacy Spaces remain.
 
 ## Summary
 

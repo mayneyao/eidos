@@ -547,9 +547,13 @@ It proves:
 - Expanding `tasks.base` shows table- and row-level changes.
 - `.eidos/sessions/**` never appears in status.
 
-The next step is to replace the compact Base editing surface with an adapter
-over the existing production table/grid runtime. That work should add
-multi-table authoring, field management, view persistence, keyboard workflows,
-and large-table behavior without moving file-format responsibilities back into
-`@eidos.space/core`. After that interaction layer is stable, implement the
-previewable legacy Space export to Markdown and Base files before remote sync.
+The compact Base editing surface has now been replaced with an adapter over the
+existing production Grid interaction layer. Basic multi-table/field authoring,
+keyboard workflows, selection, paste/fill behavior, and persisted column
+layout are implemented without moving file-format responsibilities back into
+`@eidos.space/core`.
+
+The next step is to replace the 200-row snapshot with a paged Base data source,
+then complete table/field rename and delete workflows and richer field
+properties. After that interaction layer is stable, implement the previewable
+legacy Space export to Markdown and Base files before remote sync.
