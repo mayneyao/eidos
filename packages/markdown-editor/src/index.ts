@@ -16,6 +16,10 @@ export {
   type MarkdownEditorProps,
   type MarkdownViewerProps,
 } from "./editor"
+export type {
+  MarkdownImageUpload,
+  MarkdownImageUploader,
+} from "./image-upload-plugin"
 export {
   inspectMarkdownCompatibility,
   markdownToSourceSnapshot,

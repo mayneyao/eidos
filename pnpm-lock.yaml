@@ -1230,6 +1230,10 @@ importers:
 
   packages/markdown-editor:
     dependencies:
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
+    devDependencies:
       '@lexical/code':
         specifier: 0.47.0
         version: 0.47.0(typescript@5.8.3)
@@ -1260,13 +1264,6 @@ importers:
       '@lexical/utils':
         specifier: 0.47.0
         version: 0.47.0(typescript@5.8.3)
-      lexical:
-        specifier: 0.47.0
-        version: 0.47.0(typescript@5.8.3)
-      yaml:
-        specifier: ^2.9.0
-        version: 2.9.0
-    devDependencies:
       '@types/react':
         specifier: ^18.2.0
         version: 18.3.23
@@ -1276,6 +1273,9 @@ importers:
       jsdom:
         specifier: ^26.1.0
         version: 26.1.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      lexical:
+        specifier: 0.47.0
+        version: 0.47.0(typescript@5.8.3)
       react:
         specifier: ^18.2.0
         version: 18.3.1

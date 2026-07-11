@@ -344,6 +344,21 @@ export class SpaceManagementService extends IpcServiceBase {
     })
   }
 
+  async createBinaryFile(
+    spaceId: string,
+    relativePath: string,
+    content: Uint8Array
+  ): Promise<SpaceBinaryFile> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const file = await this._getFileSpace(spaceId).createBinary(
+        relativePath,
+        content
+      )
+      this._invalidateFileIndex(spaceId)
+      return file
+    })
+  }
+
   async createDirectory(
     spaceId: string,
     relativePath: string

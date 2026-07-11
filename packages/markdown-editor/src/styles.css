@@ -23,6 +23,49 @@
   position: relative;
 }
 
+.eidos-md-block-handle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--eidos-md-muted);
+  cursor: grab;
+  display: flex;
+  font-family: var(--eidos-md-font);
+  font-size: 17px;
+  height: 24px;
+  justify-content: center;
+  left: -30px;
+  opacity: 0.48;
+  padding: 0;
+  position: absolute;
+  transition:
+    background-color 100ms ease,
+    color 100ms ease,
+    opacity 100ms ease;
+  width: 24px;
+  z-index: 2;
+}
+
+.eidos-md-block-handle:hover,
+.eidos-md-block-handle:focus-visible {
+  background: var(--eidos-md-selection);
+  color: var(--eidos-md-foreground);
+  opacity: 1;
+  outline: none;
+}
+
+.eidos-md-block-handle:active {
+  cursor: grabbing;
+}
+
+.eidos-md-block-selected {
+  background: color-mix(in srgb, var(--eidos-md-selection) 82%, transparent);
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--eidos-md-focus) 28%, transparent);
+}
+
 .eidos-md-content {
   caret-color: currentColor;
   min-height: 12rem;

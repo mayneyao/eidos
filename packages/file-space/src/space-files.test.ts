@@ -339,6 +339,21 @@ describe("SpaceFiles", () => {
     ).rejects.toMatchObject({ code: "file-exists" })
   })
 
+  it("creates binary attachments without overwriting existing files", async () => {
+    await files.createDirectory("assets")
+
+    await expect(
+      files.createBinary("assets/pasted.png", new Uint8Array([1, 2, 3, 4]))
+    ).resolves.toMatchObject({
+      path: "assets/pasted.png",
+      content: new Uint8Array([1, 2, 3, 4]),
+      size: 4,
+    })
+    await expect(
+      files.createBinary("assets/pasted.png", new Uint8Array([5]))
+    ).rejects.toMatchObject({ code: "file-exists" })
+  })
+
   it("rejects relative and directory import sources", async () => {
     await expect(
       files.importFile("relative.md", "relative.md")

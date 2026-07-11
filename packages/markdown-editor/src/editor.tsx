@@ -19,10 +19,15 @@ import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin"
 import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
+import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin"
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin"
 import type { EditorState, EditorThemeClasses, LexicalEditor } from "lexical"
 
 import { BlockCommandMenuPlugin } from "./block-menu"
+import {
+  BlockSelectionPlugin,
+  DraggableBlockPlugin,
+} from "./block-controls-plugin"
 import { splitMarkdownDocument, type MarkdownFrontmatter } from "./document"
 import { createMarkdownExtension } from "./mdast-extension"
 import {
@@ -41,6 +46,10 @@ import {
   type MarkdownRenderingOptions,
 } from "./rendering"
 import { MARKDOWN_EDITOR_THEME } from "./theme"
+import {
+  ImageUploadPlugin,
+  type MarkdownImageUploader,
+} from "./image-upload-plugin"
 
 export interface MarkdownEditorHandle {
   focus: () => void
@@ -87,6 +96,10 @@ export interface MarkdownEditorProps {
     props: UnsupportedMarkdownViewProps
   ) => React.ReactNode
   rendering?: MarkdownRenderingOptions
+  /** Host adapter that persists pasted/dropped images and returns Markdown paths. */
+  uploadImages?: MarkdownImageUploader
+  onImageUploadError?: (error: Error) => void
+  enableBlockControls?: boolean
 }
 
 interface EditorBridgeProps {
@@ -198,6 +211,9 @@ export const MarkdownEditor = forwardRef<
     allowUnsupportedMarkdownEditing = false,
     renderUnsupportedMarkdown,
     rendering = {},
+    uploadImages,
+    onImageUploadError,
+    enableBlockControls = true,
   },
   ref
 ) {
@@ -231,6 +247,7 @@ export const MarkdownEditor = forwardRef<
   const lastEmittedRef = useRef<string | null>(null)
   const editorRef = useRef<LexicalEditor | null>(null)
   const rawViewRef = useRef<HTMLPreElement | null>(null)
+  const surfaceRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     onCompatibilityChange?.(compatibility)
@@ -376,7 +393,7 @@ export const MarkdownEditor = forwardRef<
           contentEditable={null}
           extension={editorExtension}
         >
-          <div className="eidos-md-editor-surface">
+          <div className="eidos-md-editor-surface" ref={surfaceRef}>
             <RichTextPlugin
               contentEditable={
                 <ContentEditable
@@ -419,7 +436,20 @@ export const MarkdownEditor = forwardRef<
               <>
                 <HistoryPlugin />
                 <CheckListPlugin />
+                <TabIndentationPlugin />
                 <BlockCommandMenuPlugin />
+                {uploadImages ? (
+                  <ImageUploadPlugin
+                    uploadImages={uploadImages}
+                    onUploadError={onImageUploadError}
+                  />
+                ) : null}
+                {enableBlockControls ? (
+                  <>
+                    <BlockSelectionPlugin />
+                    <DraggableBlockPlugin surfaceRef={surfaceRef} />
+                  </>
+                ) : null}
                 {autoFocus && <AutoFocusPlugin />}
               </>
             )}

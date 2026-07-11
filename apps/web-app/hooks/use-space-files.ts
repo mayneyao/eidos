@@ -81,6 +81,16 @@ export function useSpaceFiles(spaceId: string | undefined) {
     [requireSpaceId]
   )
 
+  const createBinary = useCallback(
+    (relativePath: string, content: Uint8Array): Promise<SpaceBinaryFile> =>
+      requireDesktopSpaceApi().createBinaryFile(
+        requireSpaceId(),
+        relativePath,
+        content
+      ),
+    [requireSpaceId]
+  )
+
   const createDirectory = useCallback(
     (relativePath: string): Promise<SpaceFileEntry> =>
       requireDesktopSpaceApi().createDirectory(requireSpaceId(), relativePath),
@@ -185,6 +195,7 @@ export function useSpaceFiles(spaceId: string | undefined) {
     readBinary,
     writeText,
     createText,
+    createBinary,
     createDirectory,
     move,
     remove,

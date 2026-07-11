@@ -194,4 +194,79 @@ describe("MarkdownEditor", () => {
       sourcePreserved: true,
     })
   })
+
+  it("persists pasted images through the host adapter and inserts Markdown", async () => {
+    const onChange = vi.fn()
+    const uploadImages = vi.fn(async () => [
+      { src: "../assets/pasted.png", alt: "Pasted diagram" },
+    ])
+    const container = render(
+      <MarkdownEditor
+        defaultValue="Paste below"
+        onChange={onChange}
+        uploadImages={uploadImages}
+      />
+    )
+    await settle()
+
+    const editor = container.querySelector<HTMLElement>('[role="textbox"]')!
+    act(() => editor.focus())
+    const file = new File([new Uint8Array([1, 2, 3])], "diagram.png", {
+      type: "image/png",
+    })
+    const event = new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData: {
+        files: [file],
+        types: ["Files"],
+      } as unknown as DataTransfer,
+    })
+
+    act(() => editor.dispatchEvent(event))
+    await settle()
+    await settle()
+
+    expect(uploadImages).toHaveBeenCalledWith([file])
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.stringContaining("![Pasted diagram](../assets/pasted.png)"),
+      expect.objectContaining({ sourcePreserved: false })
+    )
+  })
+
+  it("selects a top-level block from the reusable drag gutter", async () => {
+    const container = render(
+      <MarkdownEditor defaultValue={"First block\n\nSecond block"} />
+    )
+    await settle()
+
+    const first = container.querySelector<HTMLElement>("p")!
+    first.getBoundingClientRect = () =>
+      ({
+        bottom: 30,
+        height: 30,
+        left: 30,
+        right: 330,
+        top: 0,
+        width: 300,
+        x: 30,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect
+
+    act(() =>
+      first.dispatchEvent(
+        new MouseEvent("mousemove", { bubbles: true, clientY: 10 })
+      )
+    )
+    await settle()
+    const handle = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Select and drag block"]'
+    )
+    expect(handle).not.toBeNull()
+
+    act(() => handle?.click())
+    await settle()
+    expect(first.classList.contains("eidos-md-block-selected")).toBe(true)
+  })
 })

@@ -430,6 +430,27 @@ export class SpaceFiles {
     return this.readText(relativePath)
   }
 
+  async createBinary(
+    relativePath: string,
+    content: Uint8Array
+  ): Promise<SpaceBinaryFile> {
+    const filename = await this.resolveNew(relativePath)
+    try {
+      await writeFile(filename, content, { flag: "wx" })
+    } catch (error) {
+      if (isNodeError(error, "EEXIST")) {
+        throw new SpaceFilesError(
+          "file-exists",
+          `Space file already exists: ${relativePath}`,
+          relativePath,
+          error
+        )
+      }
+      throw error
+    }
+    return this.readBinary(relativePath)
+  }
+
   async createDirectory(relativePath: string): Promise<SpaceFileEntry> {
     const directory = await this.resolveNew(relativePath)
     try {
