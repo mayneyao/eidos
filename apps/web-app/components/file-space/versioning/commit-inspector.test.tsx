@@ -476,6 +476,86 @@ describe("CommitInspector", () => {
     expect(container.textContent).toContain("2.0 MB")
   })
 
+  it("loads Base table details only after a SQLite path is selected", async () => {
+    const baseCommit: SpaceVersionCommit = {
+      ...commit,
+      message: "Update tasks",
+      changedPaths: [{ path: "tasks.base", status: "modified" }],
+    }
+    const path = {
+      path: "tasks.base",
+      change: "modified" as const,
+      kind: "sqlite_database" as const,
+      storage: "sqlite_snapshot" as const,
+    }
+    const metadata: SpaceVersionDiff = {
+      ...diff,
+      paths: [path],
+      sqliteFiles: [],
+    }
+    const getDiff = vi.fn(
+      async (request: SpaceVersionDiffRequest): Promise<SpaceVersionDiff> =>
+        request.includeRows
+          ? {
+              ...metadata,
+              sqliteFiles: [
+                {
+                  ...path,
+                  rowDiffAvailable: true,
+                  logicalStatus: "logical_changes",
+                  capabilities: ["rowid_table_rows"],
+                  limitations: [],
+                  message: null,
+                  tables: [
+                    {
+                      name: "tb_tasks",
+                      columns: ["_id", "title"],
+                      changes: [
+                        {
+                          operation: "insert",
+                          rowId: 2,
+                          values: ["2", "Plan migration"],
+                          beforeValues: null,
+                        },
+                      ],
+                    },
+                  ],
+                  opaqueChanges: [],
+                },
+              ],
+            }
+          : metadata
+    )
+
+    await act(async () => {
+      root.render(
+        <CommitInspector
+          commit={baseCommit}
+          getCommit={vi.fn(async () => baseCommit)}
+          getDiff={getDiff}
+          status={status}
+          operation={null}
+          restorePath={vi.fn()}
+          restoreVersion={vi.fn()}
+        />
+      )
+      await flushEffects()
+    })
+
+    expect(getDiff).toHaveBeenNthCalledWith(1, {
+      from: "commit-1",
+      to: "commit-2",
+    })
+    expect(getDiff).toHaveBeenNthCalledWith(2, {
+      from: "commit-1",
+      to: "commit-2",
+      path: "tasks.base",
+      includeRows: true,
+    })
+    expect(container.textContent).toContain("1 changed table")
+    expect(container.textContent).toContain("Plan migration")
+  })
+
   it("uses a destructive confirmation when restoring a deleted state", async () => {
     const deletedCommit: SpaceVersionCommit = {
       ...commit,

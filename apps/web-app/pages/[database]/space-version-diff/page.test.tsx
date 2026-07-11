@@ -202,6 +202,87 @@ describe("SpaceVersionDiffPage", () => {
     expect(container.textContent).toContain("Empty Space → working file")
   })
 
+  it("loads table and row changes for a modified Base file", async () => {
+    mocks.status = {
+      enabled: true,
+      clean: false,
+      hasConflicts: false,
+      branch: "main",
+      head: { id: "head-2" },
+      changes: [{ path: "tasks.base", status: "modified", unstaged: true }],
+    }
+    const path = {
+      path: "tasks.base",
+      change: "modified",
+      kind: "sqlite_database",
+      storage: "sqlite_snapshot",
+    }
+    mocks.getDiff
+      .mockResolvedValueOnce({
+        currentHead: "head-2",
+        currentBranch: "main",
+        from: "head-2",
+        to: "worktree",
+        paths: [path],
+        content: null,
+        sqliteFiles: [],
+      })
+      .mockResolvedValueOnce({
+        currentHead: "head-2",
+        currentBranch: "main",
+        from: "head-2",
+        to: "worktree",
+        paths: [path],
+        content: null,
+        sqliteFiles: [
+          {
+            ...path,
+            rowDiffAvailable: true,
+            logicalStatus: "logical_changes",
+            capabilities: ["rowid_table_rows"],
+            limitations: [],
+            message: null,
+            tables: [
+              {
+                name: "tb_tasks",
+                columns: ["_id", "title"],
+                changes: [
+                  {
+                    operation: "insert",
+                    rowId: 2,
+                    values: ["2", "Second task"],
+                    beforeValues: null,
+                  },
+                ],
+              },
+            ],
+            opaqueChanges: [],
+          },
+        ],
+      })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/version/diff?path=tasks.base"]}>
+          <SpaceVersionDiffPage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+
+    expect(mocks.getDiff).toHaveBeenNthCalledWith(1, {
+      from: "head-2",
+      path: "tasks.base",
+    })
+    expect(mocks.getDiff).toHaveBeenNthCalledWith(2, {
+      from: "head-2",
+      path: "tasks.base",
+      includeRows: true,
+    })
+    expect(container.textContent).toContain("1 changed table")
+    expect(container.textContent).toContain("Second task")
+  })
+
   it("disables Open file when the working file was deleted", async () => {
     mocks.status = {
       enabled: true,

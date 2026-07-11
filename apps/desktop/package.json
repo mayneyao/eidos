@@ -16,6 +16,7 @@
     "package": "cross-env BUILD_MODE=1 electron-builder --publish never --config electron/electron-builder.json",
     "package:dev": "cross-env BUILD_MODE=1 electron-builder --publish never --config electron/electron-builder.dev.json",
     "build:cli": "node scripts/build-cli-local.cjs",
+    "smoke:base-versioning": "pnpm --filter @eidos.space/base build && cross-env ELECTRON_RUN_AS_NODE=1 SQLITE_USE_URI=1 electron scripts/base-versioning-smoke.mjs",
     "typecheck": "tsc --noEmit",
     "typecheck:tsgo": "tsgo --noEmit"
   },

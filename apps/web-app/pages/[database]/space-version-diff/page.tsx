@@ -12,6 +12,7 @@ import { useLocation } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { toSpaceFileUrl } from "@/apps/web-app/components/file-space/file-path"
+import { BaseDiffView } from "@/apps/web-app/components/file-space/versioning/base-diff-view"
 import {
   STATUS_META,
   shortCommitId,
@@ -20,6 +21,7 @@ import {
   useSpaceVersioning,
   type SpaceVersionDiff,
   type SpaceVersionPathChange,
+  type SpaceVersionSqliteFileDiff,
   type SpaceVersionTextContentDiff,
   type SpaceVersionTextContentState,
 } from "@/apps/web-app/hooks/use-space-versioning"
@@ -159,6 +161,9 @@ export function SpaceVersionDiffPage() {
   const [content, setContent] = useState<SpaceVersionTextContentDiff | null>(
     null
   )
+  const [baseDiff, setBaseDiff] = useState<SpaceVersionSqliteFileDiff | null>(
+    null
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [style, setStyle] = useState<DiffStyle>("split")
@@ -181,6 +186,7 @@ export function SpaceVersionDiffPage() {
     setMetadata(null)
     setChange(null)
     setContent(null)
+    setBaseDiff(null)
     if (!repositoryPath) return
 
     setLoading(true)
@@ -198,12 +204,15 @@ export function SpaceVersionDiffPage() {
           path: repositoryPath,
           change: "added",
           kind:
-            extension && TEXT_EXTENSIONS.has(extension)
-              ? "text_file"
-              : "unknown",
-          storage: "inline",
+            extension === "base"
+              ? "sqlite_database"
+              : extension && TEXT_EXTENSIONS.has(extension)
+                ? "text_file"
+                : "unknown",
+          storage: extension === "base" ? "sqlite_snapshot" : "inline",
         }
         let nextContent: SpaceVersionTextContentDiff | null = null
+        let nextBaseDiff: SpaceVersionSqliteFileDiff | null = null
         if (nextChange.kind === "text_file") {
           const file = await readText(repositoryPath)
           nextContent = {
@@ -226,6 +235,21 @@ export function SpaceVersionDiffPage() {
                     contentHash: "worktree",
                   },
           }
+        } else if (nextChange.kind === "sqlite_database") {
+          nextBaseDiff = {
+            path: repositoryPath,
+            change: "added",
+            kind: "sqlite_database",
+            storage: "sqlite_snapshot",
+            rowDiffAvailable: false,
+            logicalStatus: "unversioned",
+            capabilities: [],
+            limitations: [],
+            message:
+              "Create the first version of this Space to inspect Base table changes.",
+            tables: [],
+            opaqueChanges: [],
+          }
         }
         if (requestId !== requestRef.current) return
         const nextMetadata: SpaceVersionDiff = {
@@ -240,6 +264,7 @@ export function SpaceVersionDiffPage() {
         setMetadata(nextMetadata)
         setChange(nextChange)
         setContent(nextContent)
+        setBaseDiff(nextBaseDiff)
         return
       }
 
@@ -261,6 +286,17 @@ export function SpaceVersionDiffPage() {
         })
         if (requestId !== requestRef.current) return
         setContent(contentDiff.content)
+      } else if (nextChange?.kind === "sqlite_database") {
+        const rowDiff = await getDiff({
+          from: baseline,
+          path: repositoryPath,
+          includeRows: true,
+        })
+        if (requestId !== requestRef.current) return
+        setBaseDiff(
+          rowDiff.sqliteFiles.find((file) => file.path === repositoryPath) ??
+            null
+        )
       }
     } catch (requestError) {
       if (requestId !== requestRef.current) return
@@ -423,6 +459,15 @@ export function SpaceVersionDiffPage() {
           title="No differences"
           description="This file now matches the current version. You can close this diff tab."
         />
+      ) : change.kind === "sqlite_database" ? (
+        baseDiff ? (
+          <BaseDiffView file={baseDiff} className="min-h-0 flex-1" />
+        ) : (
+          <DiffEmptyState
+            title="Base details unavailable"
+            description="Graft returned the Base file change without table-level details. Refresh to try again."
+          />
+        )
       ) : change.kind !== "text_file" ? (
         <DiffEmptyState
           title="Text preview unavailable"

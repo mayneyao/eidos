@@ -20,6 +20,7 @@ import type {
   SpaceVersionRestorePathResult,
   SpaceVersionRestoreVersionRequest,
   SpaceVersionRestoreVersionResult,
+  SpaceVersionSqliteFileDiff,
   SpaceVersionStatus,
   SpaceVersionTextContentDiff,
   SpaceVersioningOperation,
@@ -35,6 +36,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+
+import { BaseDiffView } from "./base-diff-view"
 
 import {
   STATUS_META,
@@ -139,6 +142,43 @@ function TextContentDetails({
   )
 }
 
+function BaseContentDetails({
+  file,
+  loading,
+  error,
+}: {
+  file: SpaceVersionSqliteFileDiff | null
+  loading: boolean
+  error: string | null
+}) {
+  if (loading) {
+    return (
+      <div className="flex min-h-24 items-center justify-center text-muted-foreground">
+        <LoaderCircle
+          className="h-4 w-4 animate-spin"
+          aria-label="Loading Base changes"
+        />
+      </div>
+    )
+  }
+  if (error) {
+    return (
+      <div className="flex items-start gap-2 px-3 py-3 text-xs text-destructive">
+        <FileWarning className="mt-0.5 h-4 w-4 shrink-0" />
+        <p className="leading-5">{error}</p>
+      </div>
+    )
+  }
+  if (!file) {
+    return (
+      <p className="px-3 py-3 text-xs leading-5 text-muted-foreground">
+        Base row changes were not returned for this path.
+      </p>
+    )
+  }
+  return <BaseDiffView file={file} />
+}
+
 function pathsOverlap(left: string, right: string): boolean {
   return (
     left === right ||
@@ -156,6 +196,9 @@ function ChangeDetails({
   content,
   contentLoading,
   contentError,
+  baseDiff,
+  baseLoading,
+  baseError,
 }: {
   diff: SpaceVersionDiff | null
   loading: boolean
@@ -165,6 +208,9 @@ function ChangeDetails({
   content: SpaceVersionTextContentDiff | null
   contentLoading: boolean
   contentError: string | null
+  baseDiff: SpaceVersionSqliteFileDiff | null
+  baseLoading: boolean
+  baseError: string | null
 }) {
   if (loading) {
     return (
@@ -223,11 +269,9 @@ function ChangeDetails({
   const metadataNotice =
     pathChange.kind === "binary_file"
       ? "Binary history is tracked, but content preview is not available. Restore this version to inspect the file in the Space."
-      : pathChange.kind === "sqlite_database"
-        ? "SQLite-aware table details will arrive with Base support. This version still tracks and restores the complete file."
-        : pathChange.kind === "unknown"
-          ? "Graft did not return a recognized content type for this path."
-          : null
+      : pathChange.kind === "unknown"
+        ? "Graft did not return a recognized content type for this path."
+        : null
   return (
     <div className="flex min-h-full flex-col text-xs">
       <div className="flex shrink-0 items-start gap-2.5 border-b px-3 py-2.5">
@@ -271,6 +315,12 @@ function ChangeDetails({
           error={contentError}
           path={selectedPath}
         />
+      ) : pathChange.kind === "sqlite_database" && selectedPath ? (
+        <BaseContentDetails
+          file={baseDiff}
+          loading={baseLoading || (!baseDiff && !baseError)}
+          error={baseError}
+        />
       ) : null}
     </div>
   )
@@ -299,6 +349,11 @@ export function CommitInspector({
     useState<SpaceVersionTextContentDiff | null>(null)
   const [contentLoading, setContentLoading] = useState(false)
   const [contentError, setContentError] = useState<string | null>(null)
+  const [baseDiff, setBaseDiff] = useState<SpaceVersionSqliteFileDiff | null>(
+    null
+  )
+  const [baseLoading, setBaseLoading] = useState(false)
+  const [baseError, setBaseError] = useState<string | null>(null)
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
   const [spaceRestoreDialogOpen, setSpaceRestoreDialogOpen] = useState(false)
   const [restoreFeedback, setRestoreFeedback] =
@@ -316,6 +371,9 @@ export function CommitInspector({
     setContentDiff(null)
     setContentLoading(false)
     setContentError(null)
+    setBaseDiff(null)
+    setBaseLoading(false)
+    setBaseError(null)
     setDetailError(null)
     setRestoreDialogOpen(false)
     setSpaceRestoreDialogOpen(false)
@@ -395,6 +453,9 @@ export function CommitInspector({
     setContentDiff(null)
     setContentError(null)
     setContentLoading(false)
+    setBaseDiff(null)
+    setBaseError(null)
+    setBaseLoading(false)
     if (
       !detail ||
       detailReadyId !== detail.id ||
@@ -407,41 +468,64 @@ export function CommitInspector({
     const selectedMetadata = diff.paths.find(
       (entry) => entry.path === selectedPath
     )
-    if (selectedMetadata?.kind !== "text_file") {
+    if (
+      selectedMetadata?.kind !== "text_file" &&
+      selectedMetadata?.kind !== "sqlite_database"
+    ) {
       return
     }
 
-    setContentLoading(true)
+    const includeContent = selectedMetadata.kind === "text_file"
+    if (includeContent) setContentLoading(true)
+    else setBaseLoading(true)
     const request: SpaceVersionDiffRequest =
       diff.from === "root"
         ? {
             root: diff.to,
             path: selectedPath,
-            includeContent: true,
+            ...(includeContent
+              ? { includeContent: true }
+              : { includeRows: true }),
           }
         : {
             from: diff.from ?? undefined,
             to: diff.to,
             path: selectedPath,
-            includeContent: true,
+            ...(includeContent
+              ? { includeContent: true }
+              : { includeRows: true }),
           }
     void getDiff(request)
-      .then((contentResult) => {
+      .then((detailResult) => {
         if (cancelled) return
-        if (!contentResult.content) {
-          throw new Error("Graft returned no text content for this path")
+        if (includeContent) {
+          if (!detailResult.content) {
+            throw new Error("Graft returned no text content for this path")
+          }
+          setContentDiff(detailResult.content)
+          return
         }
-        setContentDiff(contentResult.content)
+        const nextBaseDiff = detailResult.sqliteFiles.find(
+          (file) => file.path === selectedPath
+        )
+        if (!nextBaseDiff) {
+          throw new Error("Graft returned no Base row changes for this path")
+        }
+        setBaseDiff(nextBaseDiff)
       })
       .catch((loadError) => {
         if (!cancelled) {
-          setContentError(
+          const message =
             loadError instanceof Error ? loadError.message : String(loadError)
-          )
+          if (includeContent) setContentError(message)
+          else setBaseError(message)
         }
       })
       .finally(() => {
-        if (!cancelled) setContentLoading(false)
+        if (!cancelled) {
+          if (includeContent) setContentLoading(false)
+          else setBaseLoading(false)
+        }
       })
     return () => {
       cancelled = true
@@ -827,6 +911,9 @@ export function CommitInspector({
             content={contentDiff?.path === selectedPath ? contentDiff : null}
             contentLoading={contentLoading}
             contentError={contentError}
+            baseDiff={baseDiff}
+            baseLoading={baseLoading}
+            baseError={baseError}
           />
         </div>
       </section>
