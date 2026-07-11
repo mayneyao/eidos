@@ -1,58 +1,29 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
 import Editor from "@monaco-editor/react"
-import { markdownHeadingSlug } from "@eidos.space/file-space/markdown"
-import {
-  AlertTriangle,
-  Code2,
-  Eye,
-  FileQuestion,
-  ImageOff,
-  RefreshCw,
-} from "lucide-react"
+import { AlertTriangle, FileQuestion, RefreshCw } from "lucide-react"
 import { useLocation } from "react-router-dom"
-import type { Components } from "react-markdown"
 
 import {
-  headingFromSpaceLink,
   headingFromSpaceUrl,
   parentSpacePath,
-  resolveSpaceLink,
   toSpaceAssetUrl,
-  toSpaceFileUrl,
 } from "@/apps/web-app/components/file-space/file-path"
 import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-space/pending-writes"
+import { SpaceMarkdownEditor } from "@/apps/web-app/components/file-space/space-markdown-editor"
 import {
   isDestructiveSpaceVersioningOperation,
   useActiveSpaceVersioningOperation,
 } from "@/apps/web-app/hooks/use-space-versioning"
-import { navigateAfterFlushingSpaceFile } from "@/apps/web-app/components/file-space/file-navigation"
-import { remarkHeadingIds } from "@/apps/web-app/components/file-space/remark-heading-ids"
-import { remarkObsidianLinks } from "@/apps/web-app/components/file-space/remark-obsidian-links"
 import { decideTextFileChange } from "@/apps/web-app/components/file-space/text-file-change"
-import {
-  createWikiLinkCompletions,
-  getWikiLinkCompletionContext,
-} from "@/apps/web-app/components/file-space/wiki-link-completion"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
-import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import {
   useSpaceFileChanges,
   useSpaceFiles,
 } from "@/apps/web-app/hooks/use-space-files"
 import { useTabDirty } from "@/apps/web-app/hooks/use-tab-dirty"
 import { useTabTitle } from "@/apps/web-app/hooks/use-tab-title"
-import { MarkdownRenderer } from "@/components/markdown-renderer"
 import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
-import { useToast } from "@/components/ui/use-toast"
 
 const TEXT_EXTENSIONS = new Set([
   "css",
@@ -171,7 +142,7 @@ function SpaceTextEditor({
   heading?: string
 }) {
   const { currentSpace } = useCurrentSpace()
-  const { readText, search, writeText } = useSpaceFiles(currentSpace?.id)
+  const { readText, writeText } = useSpaceFiles(currentSpace?.id)
   const versioningOperation = useActiveSpaceVersioningOperation(
     currentSpace?.id
   )
@@ -186,16 +157,12 @@ function SpaceTextEditor({
   const [error, setError] = useState<string | null>(null)
   const [unavailable, setUnavailable] = useState(false)
   const [externalChange, setExternalChange] = useState(false)
-  const [viewMode, setViewMode] = useState<"edit" | "preview">(
-    isMarkdown ? "preview" : "edit"
-  )
   const editorContentRef = useRef("")
   const savedContentRef = useRef("")
   const mtimeMsRef = useRef<number | undefined>()
   const externalChangeRef = useRef(false)
   const pendingWriteContentRef = useRef<string | null>(null)
   const savePromiseRef = useRef<Promise<boolean> | null>(null)
-  const completionProvider = useRef<{ dispose: () => void } | null>(null)
   const pendingWriteKey = useId()
   const isDirty = content !== savedContent
   useTabDirty(isDirty)
@@ -230,17 +197,6 @@ function SpaceTextEditor({
   useEffect(() => {
     void load()
   }, [load])
-
-  useEffect(() => {
-    setViewMode(isMarkdown ? "preview" : "edit")
-  }, [filePath, isMarkdown])
-
-  useEffect(() => {
-    return () => {
-      completionProvider.current?.dispose()
-      completionProvider.current = null
-    }
-  }, [])
 
   useSpaceFileChanges(
     currentSpace?.id,
@@ -390,30 +346,6 @@ function SpaceTextEditor({
       <div className="flex h-9 shrink-0 items-center justify-between gap-3 border-b border-border/60 px-3 text-xs text-muted-foreground">
         <span className="min-w-0 truncate">{filePath}</span>
         <div className="flex shrink-0 items-center gap-2">
-          {isMarkdown ? (
-            <div className="flex items-center rounded-sm bg-muted/60 p-0.5">
-              <Button
-                type="button"
-                variant={viewMode === "edit" ? "secondary" : "ghost"}
-                size="sm"
-                className="h-6 gap-1 px-1.5 text-[11px]"
-                onClick={() => setViewMode("edit")}
-              >
-                <Code2 className="h-3 w-3" />
-                Edit
-              </Button>
-              <Button
-                type="button"
-                variant={viewMode === "preview" ? "secondary" : "ghost"}
-                size="sm"
-                className="h-6 gap-1 px-1.5 text-[11px]"
-                onClick={() => setViewMode("preview")}
-              >
-                <Eye className="h-3 w-3" />
-                Preview
-              </Button>
-            </div>
-          ) : null}
           <span>
             {externalChange
               ? "Changed elsewhere"
@@ -457,11 +389,25 @@ function SpaceTextEditor({
         </div>
       ) : null}
       <div className="min-h-0 flex-1">
-        {isMarkdown && viewMode === "preview" ? (
-          <SpaceMarkdownPreview
+        {isMarkdown ? (
+          <SpaceMarkdownEditor
             filePath={filePath}
-            content={content}
             heading={heading}
+            value={content}
+            readOnly={destructiveVersionMutation}
+            onBlur={() => {
+              void flushPendingWrite()
+            }}
+            onChange={(nextContent) => {
+              if (destructiveVersionMutation) return
+              editorContentRef.current = nextContent
+              setContent(nextContent)
+            }}
+            onSave={() => {
+              if (!destructiveVersionMutation) {
+                void save(editorContentRef.current)
+              }
+            }}
           />
         ) : (
           <Editor
@@ -485,7 +431,7 @@ function SpaceTextEditor({
               },
               scrollBeyondLastLine: false,
               tabSize: 2,
-              wordWrap: isMarkdown ? "on" : "off",
+              wordWrap: "off",
             }}
             onChange={(value) => {
               if (destructiveVersionMutation) return
@@ -507,347 +453,12 @@ function SpaceTextEditor({
                   void save(editor.getValue())
                 }
               })
-              if (!isMarkdown) return
-              const editorModel = editor.getModel()
-              completionProvider.current?.dispose()
-              const provider = monaco.languages.registerCompletionItemProvider(
-                "markdown",
-                {
-                  triggerCharacters: ["["],
-                  provideCompletionItems: async (model, position) => {
-                    if (model !== editorModel) return { suggestions: [] }
-                    const linePrefix = model.getValueInRange({
-                      startLineNumber: position.lineNumber,
-                      startColumn: 1,
-                      endLineNumber: position.lineNumber,
-                      endColumn: position.column,
-                    })
-                    const lineSuffix = model.getValueInRange({
-                      startLineNumber: position.lineNumber,
-                      startColumn: position.column,
-                      endLineNumber: position.lineNumber,
-                      endColumn: model.getLineMaxColumn(position.lineNumber),
-                    })
-                    const completionContext =
-                      getWikiLinkCompletionContext(linePrefix)
-                    if (!completionContext) {
-                      return { suggestions: [] }
-                    }
-                    try {
-                      const results = await search(completionContext.query, {
-                        limit: 50,
-                        includeContent: false,
-                      })
-                      const completions = createWikiLinkCompletions(
-                        results,
-                        filePath
-                      )
-                      const range = {
-                        startLineNumber: position.lineNumber,
-                        startColumn:
-                          position.column - completionContext.replaceLength,
-                        endLineNumber: position.lineNumber,
-                        endColumn: position.column,
-                      }
-                      return {
-                        suggestions: completions.map((completion, index) => ({
-                          label: {
-                            label: completion.label,
-                            description: completion.description,
-                          },
-                          kind: monaco.languages.CompletionItemKind.Reference,
-                          insertText:
-                            completion.insertText +
-                            (lineSuffix.startsWith("]]") ? "" : "]]"),
-                          filterText: `${completion.label} ${completion.description}`,
-                          sortText: String(index).padStart(4, "0"),
-                          range,
-                        })),
-                      }
-                    } catch {
-                      return { suggestions: [] }
-                    }
-                  },
-                }
-              )
-              completionProvider.current = provider
-              editor.onDidDispose(() => {
-                if (completionProvider.current === provider) {
-                  provider.dispose()
-                  completionProvider.current = null
-                }
-              })
             }}
           />
         )}
       </div>
     </div>
   )
-}
-
-function SpaceMarkdownPreview({
-  filePath,
-  content,
-  heading,
-}: {
-  filePath: string
-  content: string
-  heading?: string
-}) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const components = useMemo<Partial<Components>>(
-    () => ({
-      a: ({ href = "", children, title }) => (
-        <SpaceMarkdownLink
-          currentFilePath={filePath}
-          target={href}
-          title={title}
-        >
-          {children}
-        </SpaceMarkdownLink>
-      ),
-      img: ({ src = "", alt = "", title }) => {
-        if (src.startsWith("#") || !resolveSpaceLink(filePath, src)) {
-          return <img src={src} alt={alt} title={title} />
-        }
-        return (
-          <SpaceMarkdownImage
-            currentFilePath={filePath}
-            target={src}
-            alt={alt}
-            title={title}
-          />
-        )
-      },
-    }),
-    [filePath]
-  )
-
-  useEffect(() => {
-    if (!heading || !containerRef.current) return
-    const headingId = markdownHeadingSlug(heading)
-    const timer = window.setTimeout(() => {
-      const target = [
-        ...(containerRef.current?.querySelectorAll("[id]") ?? []),
-      ].find((element) => element.id === headingId)
-      target?.scrollIntoView({ block: "start" })
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [content, heading])
-
-  return (
-    <div ref={containerRef} className="h-full overflow-auto bg-background">
-      <MarkdownRenderer
-        className="mx-auto max-w-3xl px-8 py-10"
-        customComponents={components}
-        remarkPlugins={[remarkObsidianLinks, remarkHeadingIds]}
-      >
-        {content}
-      </MarkdownRenderer>
-    </div>
-  )
-}
-
-function SpaceMarkdownLink({
-  currentFilePath,
-  target,
-  title,
-  children,
-}: {
-  currentFilePath: string
-  target: string
-  title?: string
-  children: ReactNode
-}) {
-  const { navigate } = useRouterAdapter()
-  const { currentSpace } = useCurrentSpace()
-  const { toast } = useToast()
-  const {
-    path: linkedPath,
-    fragment,
-    ambiguous,
-  } = useResolvedSpaceLink(currentFilePath, target)
-  if (!linkedPath) {
-    const external = /^(?:https?:|mailto:|tel:)/i.test(target)
-    return external ? (
-      <a
-        href={target}
-        title={title}
-        className="text-primary underline underline-offset-2"
-        target={external ? "_blank" : undefined}
-        rel={external ? "noreferrer" : undefined}
-      >
-        {children}
-      </a>
-    ) : (
-      <span
-        role="link"
-        aria-disabled="true"
-        title={[title, "Link target not found in this Space."]
-          .filter(Boolean)
-          .join(" ")}
-        className="cursor-not-allowed text-muted-foreground underline decoration-dashed underline-offset-2"
-      >
-        {children}
-      </span>
-    )
-  }
-
-  const resolutionTitle = ambiguous
-    ? [title, "Multiple files match this link; Eidos chose the nearest one."]
-        .filter(Boolean)
-        .join(" ")
-    : title
-  return (
-    <a
-      href={toSpaceFileUrl(linkedPath, fragment)}
-      title={resolutionTitle}
-      className="text-primary underline underline-offset-2"
-      onClick={(event) => {
-        event.preventDefault()
-        void navigateAfterFlushingSpaceFile({
-          spaceId: currentSpace?.id,
-          currentFilePath,
-          destination: toSpaceFileUrl(linkedPath, fragment),
-          navigate,
-        }).then((navigated) => {
-          if (!navigated) {
-            toast({
-              title: "Unable to open link",
-              description:
-                "Eidos could not save the current file. Resolve the error and try again.",
-              variant: "destructive",
-            })
-          }
-        })
-      }}
-    >
-      {children}
-    </a>
-  )
-}
-
-function SpaceMarkdownImage({
-  currentFilePath,
-  target,
-  alt,
-  title,
-}: {
-  currentFilePath: string
-  target: string
-  alt: string
-  title?: string
-}) {
-  const { path: filePath, loading } = useResolvedSpaceLink(
-    currentFilePath,
-    target
-  )
-  if (loading || !filePath) {
-    return <span className="text-sm text-muted-foreground">Loading image…</span>
-  }
-  return (
-    <ResolvedSpaceMarkdownImage filePath={filePath} alt={alt} title={title} />
-  )
-}
-
-function ResolvedSpaceMarkdownImage({
-  filePath,
-  alt,
-  title,
-}: {
-  filePath: string
-  alt: string
-  title?: string
-}) {
-  const { error, url } = useSpaceAssetUrl(filePath)
-
-  if (error) {
-    return (
-      <span className="my-3 flex items-center gap-2 text-sm text-muted-foreground">
-        <ImageOff className="h-4 w-4" />
-        {alt || filenameOf(filePath)}
-      </span>
-    )
-  }
-  if (!url) {
-    return <span className="text-sm text-muted-foreground">Loading image…</span>
-  }
-  return (
-    <img
-      src={url}
-      alt={alt}
-      title={title}
-      className="my-5 max-h-[70vh] rounded-sm object-contain"
-    />
-  )
-}
-
-function useResolvedSpaceLink(currentFilePath: string, target: string) {
-  const { currentSpace } = useCurrentSpace()
-  const { resolveLink } = useSpaceFiles(currentSpace?.id)
-  const fallbackPath = useMemo(
-    () => resolveSpaceLink(currentFilePath, target),
-    [currentFilePath, target]
-  )
-  const fallbackFragment = useMemo(() => headingFromSpaceLink(target), [target])
-  const resolutionKey = `${currentFilePath}\0${target}`
-  const [resolution, setResolution] = useState<{
-    key: string
-    path: string | null
-    fragment?: string
-    ambiguous: boolean
-  } | null>(null)
-
-  useEffect(() => {
-    if (!fallbackPath) {
-      setResolution({
-        key: resolutionKey,
-        path: null,
-        fragment: undefined,
-        ambiguous: false,
-      })
-      return
-    }
-    let active = true
-    void resolveLink(currentFilePath, target)
-      .then((resolved) => {
-        if (!active) return
-        setResolution({
-          key: resolutionKey,
-          path: resolved.path ?? fallbackPath,
-          fragment: resolved.fragment ?? fallbackFragment,
-          ambiguous: resolved.ambiguous,
-        })
-      })
-      .catch(() => {
-        if (!active) return
-        setResolution({
-          key: resolutionKey,
-          path: fallbackPath,
-          fragment: fallbackFragment,
-          ambiguous: false,
-        })
-      })
-    return () => {
-      active = false
-    }
-  }, [
-    currentFilePath,
-    fallbackFragment,
-    fallbackPath,
-    resolutionKey,
-    resolveLink,
-    target,
-  ])
-
-  const currentResolution =
-    resolution?.key === resolutionKey ? resolution : null
-  return {
-    path: currentResolution?.path ?? fallbackPath,
-    fragment: currentResolution?.fragment ?? fallbackFragment,
-    ambiguous: currentResolution?.ambiguous ?? false,
-    loading: Boolean(fallbackPath && !currentResolution),
-  }
 }
 
 function useSpaceAssetUrl(filePath: string) {
