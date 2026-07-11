@@ -120,10 +120,10 @@ export function SettingsContent() {
   }
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-      <div className="p-4 lg:p-6 overflow-y-auto flex-1">
-        <div className="max-w-2xl mx-auto w-full">
-          <h2 className="text-xl lg:text-2xl font-semibold mb-4 lg:mb-6 flex items-center gap-2">
+    <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-5xl px-6 pb-20 pt-10 sm:px-8 lg:px-12 lg:pt-14">
+          <h1 className="mb-10 flex items-center gap-2 text-[28px] font-semibold tracking-[-0.025em] text-foreground">
             {getSectionTitle(activeSection)}
             {activeSection === "space-relay" && (
               <a
@@ -131,9 +131,9 @@ export function SettingsContent() {
                 target="_blank"
                 rel="noopener noreferrer"
                 title={t("space.settings.relay.docsLink")}
-                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
               >
-                <BookOpenText className="h-5 w-5" />
+                <BookOpenText className="h-4 w-4" />
               </a>
             )}
             {activeSection === "sync" && (
@@ -142,9 +142,9 @@ export function SettingsContent() {
                 target="_blank"
                 rel="noopener noreferrer"
                 title={t("settings.sync.docsLink")}
-                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
               >
-                <BookOpenText className="h-5 w-5" />
+                <BookOpenText className="h-4 w-4" />
               </a>
             )}
             {activeSection === "space-extensions" && (
@@ -153,9 +153,9 @@ export function SettingsContent() {
                 target="_blank"
                 rel="noopener noreferrer"
                 title={t("space.settings.extensions.docsLink")}
-                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
               >
-                <BookOpenText className="h-5 w-5" />
+                <BookOpenText className="h-4 w-4" />
               </a>
             )}
             {activeSection === "space-tabs" && (
@@ -164,9 +164,9 @@ export function SettingsContent() {
                 target="_blank"
                 rel="noopener noreferrer"
                 title={t("space.settings.tabs.newtab.docsLink")}
-                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
               >
-                <BookOpenText className="h-5 w-5" />
+                <BookOpenText className="h-4 w-4" />
               </a>
             )}
             {activeSection === "space-mounts" && (
@@ -175,9 +175,9 @@ export function SettingsContent() {
                 target="_blank"
                 rel="noopener noreferrer"
                 title={t("space.settings.mounts.docsLink")}
-                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
               >
-                <BookOpenText className="h-5 w-5" />
+                <BookOpenText className="h-4 w-4" />
               </a>
             )}
             {activeSection === "space-theme" && (
@@ -189,15 +189,20 @@ export function SettingsContent() {
                   "space.settings.theme.docsLink",
                   "Theme documentation"
                 )}
-                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
               >
-                <BookOpenText className="h-5 w-5" />
+                <BookOpenText className="h-4 w-4" />
               </a>
             )}
-          </h2>
-          {renderContent()}
+          </h1>
+          <div
+            data-settings-content-body="true"
+            className="[&>div>div:has(>h3)]:pb-2 [&>div>div:has(>h3)]:pt-5 [&>div>div:has(>h3):first-child]:pt-0 [&>div>div:has(>h3)_h3]:text-[15px] [&>div>div:has(>h3)_h3]:font-medium [&>div>hr]:hidden [&>div>hr+div]:mb-7 [&>div>hr+div]:rounded-xl [&>div>hr+div]:border [&>div>hr+div]:border-border/80 [&>div>hr+div]:bg-card/30 [&>div>hr+div]:px-5 [&>div>hr+div]:!py-4 [&>div[data-settings-row-groups]>hr+div]:!py-0"
+          >
+            {renderContent()}
+          </div>
         </div>
       </div>
-    </div>
+    </main>
   )
 }

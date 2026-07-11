@@ -178,16 +178,16 @@ export function GlobalGeneralSettings() {
   }
 
   return (
-    <div className="space-y-0">
+    <div className="space-y-0" data-settings-row-groups="true">
       {/* App Section */}
-      <div className="py-4">
-        <h3 className="text-lg font-medium">{t("settings.general.app")}</h3>
+      <div className="pb-2">
+        <h3 className="text-[15px] font-medium">{t("settings.general.app")}</h3>
       </div>
 
       <hr className="border-border" />
 
-      <div className="py-6">
-        <div className="space-y-6">
+      <div className="py-0">
+        <div className="divide-y divide-border/70 [&>*]:py-4">
           {/* Current Version */}
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-0.5 flex-[5] min-w-[240px]">
@@ -374,17 +374,17 @@ export function GlobalGeneralSettings() {
         </div>
       </div>
       {/* Appearance Section */}
-      <div className="py-4">
-        <h3 className="text-lg font-medium">
+      <div className="pb-2 pt-5">
+        <h3 className="text-[15px] font-medium">
           {t("settings.appearance.title")}
         </h3>
       </div>
 
       <hr className="border-border" />
 
-      <div className="py-6">
+      <div className="py-0">
         <Form {...appearanceForm}>
-          <form className="space-y-6">
+          <form className="divide-y divide-border/70 [&>*]:py-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-0.5 flex-[5] min-w-[240px]">
                 <Label>{t("settings.appearance.language")}</Label>
@@ -505,14 +505,16 @@ export function GlobalGeneralSettings() {
       </div>
 
       {/* About Section */}
-      <div className="py-4">
-        <h3 className="text-lg font-medium">{t("settings.about", "About")}</h3>
+      <div className="pb-2 pt-5">
+        <h3 className="text-[15px] font-medium">
+          {t("settings.about", "About")}
+        </h3>
       </div>
 
       <hr className="border-border" />
 
-      <div className="py-6">
-        <div className="space-y-4">
+      <div className="py-0">
+        <div className="divide-y divide-border/70 py-1">
           {/* Links */}
           {[
             {
@@ -542,7 +544,7 @@ export function GlobalGeneralSettings() {
               href={link.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-3 px-3 py-2 -mx-3 rounded-md hover:bg-muted transition-colors"
+              className="flex items-center gap-3 rounded-md px-2 py-3 transition-colors hover:bg-muted"
             >
               <div className="text-muted-foreground">{link.icon}</div>
               <div className="flex-1 min-w-0">

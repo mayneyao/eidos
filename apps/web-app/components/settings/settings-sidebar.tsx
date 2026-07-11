@@ -13,10 +13,11 @@ import {
   User,
   Globe,
   Key,
+  Search,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import type { ComponentType, CSSProperties } from "react"
+import { useState, type ComponentType, type CSSProperties } from "react"
 
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
@@ -46,6 +47,7 @@ export function SettingsSidebar({
 }: SettingsSidebarProps) {
   const { t } = useTranslation()
   const { navigate, location } = useRouterAdapter()
+  const [query, setQuery] = useState("")
 
   // Parse section from URL: /settings/:section
   const pathParts = location.pathname.split("/").filter(Boolean)
@@ -158,12 +160,20 @@ export function SettingsSidebar({
     },
   ]
 
-  const spaceSections = settingsSections.filter(
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+  const visibleSections = settingsSections.filter(
+    (section) =>
+      !normalizedQuery ||
+      section.title.toLocaleLowerCase().includes(normalizedQuery)
+  )
+  const spaceSections = visibleSections.filter(
     (section) =>
       section.category === "space" &&
       (spaceInfo?.mode !== "file" || section.id === "space-general")
   )
-  const globalSections = settingsSections.filter((s) => s.category === "global")
+  const globalSections = visibleSections.filter(
+    (section) => section.category === "global"
+  )
 
   const handleBackToApp = () => {
     const target = resolveBackToAppTarget({
@@ -197,14 +207,14 @@ export function SettingsSidebar({
         disabled={section.disabled}
         aria-current={isActive ? "page" : undefined}
         className={cn(
-          "group flex h-7 w-full items-center gap-2 rounded-sm px-2 text-left text-[13px] outline-hidden transition-colors",
+          "group flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13px] outline-hidden transition-colors",
           isActive
             ? "bg-sidebar-accent text-sidebar-accent-foreground"
             : "text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
           section.disabled && "cursor-not-allowed opacity-40"
         )}
       >
-        <Icon className="h-3.5 w-3.5 shrink-0" />
+        <Icon className="h-4 w-4 shrink-0 stroke-[1.7]" />
         <span className="min-w-0 flex-1 truncate">{section.title}</span>
         {section.isBeta && (
           <span className="rounded-sm bg-sidebar-accent px-1 py-px text-[9px] font-medium uppercase tracking-wide text-sidebar-foreground/60">
@@ -222,46 +232,64 @@ export function SettingsSidebar({
     >
       <header
         className={cn(
-          "drag-region flex h-[38px] shrink-0 items-center border-b border-sidebar-border/60 bg-muted/60 px-1",
-          isMacDesktop() && "pl-[72px]"
+          "drag-region shrink-0 bg-sidebar",
+          isMacDesktop() && "pt-[38px]"
         )}
       >
-        <button
-          type="button"
-          onClick={handleBackToApp}
-          className="flex h-7 min-w-0 items-center gap-1.5 rounded-sm px-2 text-[12px] font-medium text-sidebar-foreground/75 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-sidebar-ring"
-          style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
-          aria-label={t("settings.backToApp", "Back to app")}
-        >
-          <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">
-            {t("settings.backToApp", "Back to app")}
-          </span>
-        </button>
+        <div className="flex h-11 items-center px-3">
+          <button
+            type="button"
+            onClick={handleBackToApp}
+            className="flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-[13px] font-medium text-sidebar-foreground/65 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-sidebar-ring"
+            style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+            aria-label={t("settings.backToApp", "Back to app")}
+          >
+            <ArrowLeft className="h-4 w-4 shrink-0 stroke-[1.7]" />
+            <span className="truncate">
+              {t("settings.backToApp", "Back to app")}
+            </span>
+          </button>
+        </div>
       </header>
+
+      <div className="shrink-0 px-3 pb-3">
+        <label className="relative block">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-sidebar-foreground/40" />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t("settings.search", "Search settings…")}
+            aria-label={t("settings.search", "Search settings")}
+            className="h-9 w-full rounded-lg border border-sidebar-border bg-background/70 pl-8 pr-3 text-[13px] text-sidebar-foreground shadow-xs outline-hidden placeholder:text-sidebar-foreground/40 focus:border-sidebar-ring focus:ring-1 focus:ring-sidebar-ring"
+          />
+        </label>
+      </div>
 
       <nav
         aria-label={t("settings.title")}
-        className="min-h-0 flex-1 select-none overflow-y-auto px-2 py-2"
+        className="min-h-0 flex-1 select-none overflow-y-auto px-3 pb-4"
       >
-        <div className="space-y-3">
-          <section aria-labelledby="global-settings-heading">
-            <h2
-              id="global-settings-heading"
-              className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/50"
-            >
-              {t("settings.title")}
-            </h2>
-            <div className="space-y-px">
-              {globalSections.map(renderSectionItem)}
-            </div>
-          </section>
+        <div className="space-y-4">
+          {globalSections.length > 0 ? (
+            <section aria-labelledby="global-settings-heading">
+              <h2
+                id="global-settings-heading"
+                className="px-2.5 pb-1.5 text-[12px] font-medium text-sidebar-foreground/45"
+              >
+                {t("settings.app", "App")}
+              </h2>
+              <div className="space-y-px">
+                {globalSections.map(renderSectionItem)}
+              </div>
+            </section>
+          ) : null}
 
-          {showSpaceSettings && (
+          {showSpaceSettings && spaceSections.length > 0 ? (
             <section aria-labelledby="space-settings-heading">
               <h2
                 id="space-settings-heading"
-                className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/50"
+                className="px-2.5 pb-1.5 text-[12px] font-medium text-sidebar-foreground/45"
               >
                 {t("space.settings.title")}
               </h2>
@@ -269,7 +297,12 @@ export function SettingsSidebar({
                 {spaceSections.map(renderSectionItem)}
               </div>
             </section>
-          )}
+          ) : null}
+          {globalSections.length === 0 && spaceSections.length === 0 ? (
+            <p className="px-2.5 py-6 text-center text-xs text-sidebar-foreground/45">
+              {t("settings.noResults", "No settings found")}
+            </p>
+          ) : null}
         </div>
       </nav>
     </div>

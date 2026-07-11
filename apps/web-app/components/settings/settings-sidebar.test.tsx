@@ -162,6 +162,30 @@ describe("SettingsSidebar", () => {
     expect(navigateMock).not.toHaveBeenCalled()
   })
 
+  it("filters settings without leaving the settings mode", async () => {
+    await renderSidebar()
+
+    const search = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Search settings"]'
+    )
+    expect(search).not.toBeNull()
+    await act(async () => {
+      if (!search) return
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(search, "AI")
+      search.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+
+    const itemLabels = [...container.querySelectorAll("nav button")].map(
+      (button) => button.textContent?.trim()
+    )
+    expect(itemLabels).toContain("AI")
+    expect(itemLabels).not.toContain("General")
+    expect(container.textContent).not.toContain("Space general")
+  })
+
   it("returns to the Space home when Settings is the only tab", async () => {
     useTabStore.setState({
       tabs: [
