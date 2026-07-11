@@ -12,7 +12,10 @@ const Database = require("better-sqlite3")
 
 const FILE_SPACE_IGNORE = [
   ".graft/",
+  ".graftignore",
   ".eidos/db.sqlite3",
+  ".eidos/inbox.sqlite3",
+  ".eidos/raw.sqlite3",
   ".eidos/cache/",
   ".eidos/indexes/",
   ".eidos/sessions/",

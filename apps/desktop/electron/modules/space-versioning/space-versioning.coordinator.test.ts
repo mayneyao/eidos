@@ -66,6 +66,61 @@ afterEach(async () => {
   )
 })
 
+describe("SpaceVersioningCoordinator.getStatus", () => {
+  it("refreshes managed ignores and hides private Eidos runtime paths", async () => {
+    const root = await createSpace()
+    const ignorePath = path.join(root, ".graftignore")
+    await fs.writeFile(
+      ignorePath,
+      [
+        "# >>> Eidos managed versioning ignores",
+        ".eidos/db.sqlite3",
+        "# <<< Eidos managed versioning ignores",
+        "",
+      ].join("\n"),
+      "utf8"
+    )
+    const changedPaths = [
+      ".eidos/inbox.sqlite3",
+      ".eidos/raw.sqlite3",
+      ".eidos/extensions/kanban/index.tsx",
+      ".graftignore",
+      "todo.md",
+    ].map((changedPath) => ({
+      path: changedPath,
+      kind: "text_file",
+      storage: "inline",
+      index_status: "none",
+      worktree_status: "untracked",
+    }))
+    const runJson = vi.fn(async () =>
+      statusPayload(changedPaths, {
+        counts: { unstaged: changedPaths.length, staged: 0, conflicted: 0 },
+      })
+    )
+    const coordinator = createCoordinator(root, runJson)
+
+    const result = await coordinator.getStatus("space-a")
+
+    expect(result.paths.map((entry) => entry.path)).toEqual([
+      ".eidos/extensions/kanban/index.tsx",
+      ".graftignore",
+      "todo.md",
+    ])
+    expect(result.counts).toEqual({
+      unstaged: 3,
+      staged: 0,
+      conflicted: 0,
+    })
+    expect(await fs.readFile(ignorePath, "utf8")).toContain(
+      ".eidos/inbox.sqlite3"
+    )
+    expect(await fs.readFile(ignorePath, "utf8")).toContain(
+      ".eidos/raw.sqlite3"
+    )
+  })
+})
+
 describe("SpaceVersioningCoordinator.getHistory", () => {
   it("requests one bounded Graft page instead of slicing a full log", async () => {
     const root = await createSpace()
@@ -342,6 +397,41 @@ describe("SpaceVersioningCoordinator change actions", () => {
       2,
       await fs.realpath(root),
       ["add", "--json", "--", "notes/today.md"],
+      { timeoutMs: 120_000 }
+    )
+  })
+
+  it("allows a managed ignore migration to be included in the next version", async () => {
+    const root = await createSpace()
+    let statusReads = 0
+    const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      if (args[0] === "status") {
+        statusReads += 1
+        return statusPayload([
+          {
+            path: ".graftignore",
+            kind: "text_file",
+            storage: "inline",
+            index_status: statusReads === 1 ? "none" : "modified",
+            worktree_status: statusReads === 1 ? "modified" : "none",
+          },
+        ])
+      }
+      if (args[0] === "add") return { operation: "add" }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    const result = await coordinator.stagePath("space-a", {
+      path: ".graftignore",
+      expectedHead: "head-2",
+    })
+
+    expect(result.status.paths[0]).toMatchObject({ staged: true })
+    expect(runJson).toHaveBeenNthCalledWith(
+      2,
+      await fs.realpath(root),
+      ["add", "--json", "--", ".graftignore"],
       { timeoutMs: 120_000 }
     )
   })

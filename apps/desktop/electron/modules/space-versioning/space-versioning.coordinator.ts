@@ -266,19 +266,29 @@ function normalizeDiffOptions(value: unknown): SpaceVersionDiffOptions {
   }
 }
 
-function normalizeVersionPath(value: unknown, label: string): string {
+function isPrivateVersionPath(repositoryPath: string): boolean {
+  const privatePath = repositoryPath.toLowerCase()
+  const isProductExtension = privatePath.startsWith(".eidos/extensions/")
+  return (
+    privatePath === ".graft" ||
+    privatePath.startsWith(".graft/") ||
+    privatePath === ".eidos" ||
+    (privatePath.startsWith(".eidos/") && !isProductExtension)
+  )
+}
+
+function normalizeVersionPath(
+  value: unknown,
+  label: string,
+  allowGraftIgnore = false
+): string {
   const repositoryPath = normalizeRepositoryPath(value, label)
   if (!repositoryPath) {
     throw new Error(`${label} is required`)
   }
-  const privatePath = repositoryPath.toLowerCase()
-  const isProductExtension = privatePath.startsWith(".eidos/extensions/")
   if (
-    privatePath === ".graft" ||
-    privatePath.startsWith(".graft/") ||
-    privatePath === ".eidos" ||
-    (privatePath.startsWith(".eidos/") && !isProductExtension) ||
-    privatePath === ".graftignore"
+    isPrivateVersionPath(repositoryPath) ||
+    (!allowGraftIgnore && repositoryPath.toLowerCase() === ".graftignore")
   ) {
     throw new Error("Private Space paths cannot be changed through versioning")
   }
@@ -292,7 +302,7 @@ function normalizeStagePathOptions(
     throw new Error("Stage options must be an object")
   }
   return {
-    path: normalizeVersionPath(value.path, "Stage path"),
+    path: normalizeVersionPath(value.path, "Stage path", true),
     expectedHead: normalizeExpectedHead(value.expectedHead),
   }
 }
@@ -307,7 +317,7 @@ function normalizeDiscardPathOptions(
     throw new Error("Discarding file changes requires explicit confirmation")
   }
   return {
-    path: normalizeVersionPath(value.path, "Discard path"),
+    path: normalizeVersionPath(value.path, "Discard path", true),
     expectedHead: normalizeExpectedHead(value.expectedHead),
     confirmed: true,
   }
@@ -381,7 +391,11 @@ function isPrivateRuntimePath(repositoryPath: string): boolean {
   if (candidate === ".graft" || candidate.startsWith(".graft/")) {
     return true
   }
-  if (candidate === ".eidos/db.sqlite3") {
+  if (
+    candidate === ".eidos/db.sqlite3" ||
+    candidate === ".eidos/inbox.sqlite3" ||
+    candidate === ".eidos/raw.sqlite3"
+  ) {
     return true
   }
   for (const directory of ["cache", "indexes", "sessions", "state"]) {
@@ -391,6 +405,47 @@ function isPrivateRuntimePath(repositoryPath: string): boolean {
     }
   }
   return candidate.startsWith(".eidos/secrets")
+}
+
+function visibleVersionStatus(status: SpaceVersionStatus): SpaceVersionStatus {
+  const privatePaths = status.paths.filter((entry) =>
+    isPrivateVersionPath(entry.path)
+  )
+  const paths = status.paths.filter(
+    (entry) => !isPrivateVersionPath(entry.path)
+  )
+  const counts = {
+    unstaged: Math.max(
+      0,
+      Math.max(status.counts.unstaged, status.hasUnstagedChanges ? 1 : 0) -
+        privatePaths.filter(
+          (entry) =>
+            entry.worktreeState !== "none" && entry.worktreeState !== "unknown"
+        ).length
+    ),
+    staged: Math.max(
+      0,
+      Math.max(status.counts.staged, status.hasStagedChanges ? 1 : 0) -
+        privatePaths.filter((entry) => entry.staged).length
+    ),
+    conflicted: Math.max(
+      0,
+      Math.max(status.counts.conflicted, status.hasConflicts ? 1 : 0) -
+        privatePaths.filter((entry) => entry.conflicted).length
+    ),
+  }
+  const hasUnstagedChanges = counts.unstaged > 0
+  const hasStagedChanges = counts.staged > 0
+  const hasConflicts = counts.conflicted > 0
+  return {
+    ...status,
+    paths,
+    counts,
+    dirty: hasUnstagedChanges || hasStagedChanges || hasConflicts,
+    hasUnstagedChanges,
+    hasStagedChanges,
+    hasConflicts,
+  }
 }
 
 function requireSafeRestoreTree(paths: Iterable<string>): void {
@@ -433,9 +488,10 @@ export class SpaceVersioningCoordinator {
       if (!(await this.hasRepository(spacePath))) {
         return disabledSpaceVersionStatus(spaceId)
       }
-      return this.withRepositoryOperationLock(spacePath, () =>
-        this.readStatus(spaceId, spacePath)
-      )
+      return this.withRepositoryOperationLock(spacePath, async () => {
+        await ensureEidosGraftIgnore(spacePath)
+        return this.readStatus(spaceId, spacePath)
+      })
     })
   }
 
@@ -1104,9 +1160,11 @@ export class SpaceVersioningCoordinator {
     spaceId: string,
     spacePath: string
   ): Promise<SpaceVersionStatus> {
-    return parseGraftStatus(
-      await this.runner.runJson(spacePath, ["status", "--json"]),
-      spaceId
+    return visibleVersionStatus(
+      parseGraftStatus(
+        await this.runner.runJson(spacePath, ["status", "--json"]),
+        spaceId
+      )
     )
   }
 

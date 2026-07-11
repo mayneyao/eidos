@@ -7,7 +7,10 @@ export const EIDOS_GRAFT_IGNORE_END = "# <<< Eidos managed versioning ignores"
 
 const EIDOS_GRAFT_IGNORE_RULES = [
   ".graft/",
+  ".graftignore",
   ".eidos/db.sqlite3",
+  ".eidos/inbox.sqlite3",
+  ".eidos/raw.sqlite3",
   ".eidos/cache/",
   ".eidos/indexes/",
   ".eidos/sessions/",

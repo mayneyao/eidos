@@ -29,6 +29,9 @@ describe("mergeEidosGraftIgnore", () => {
 
     expect(result).toContain(EIDOS_GRAFT_IGNORE_START)
     expect(result).toContain(".graft/\n")
+    expect(result).toContain(".graftignore\n")
+    expect(result).toContain(".eidos/inbox.sqlite3\n")
+    expect(result).toContain(".eidos/raw.sqlite3\n")
     expect(result).toContain(".eidos/sessions/\n")
     expect(result).toContain(".eidos/secrets.*\n")
     expect(result).toContain(".DS_Store\n")
