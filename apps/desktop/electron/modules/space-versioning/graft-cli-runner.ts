@@ -56,7 +56,7 @@ function parseJsonOutput(stdout: string, command: string): unknown {
 }
 
 @Injectable()
-export class GraftCliRunner {
+export class GraftCliProcessRunner {
   async runJson(
     cwd: string,
     args: readonly string[],

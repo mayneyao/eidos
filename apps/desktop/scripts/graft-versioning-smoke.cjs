@@ -189,6 +189,86 @@ function runGraftJson(cliPath, cwd, args) {
   }
 }
 
+function runGraftPragmaJson(db, name, argument) {
+  const statement =
+    argument === undefined ? name : `${name} = ${quotePragma(argument)}`
+  const raw = db.pragma(statement, { simple: true })
+  if (typeof raw !== "string" || !raw.trim()) {
+    throw new Error(`${name} returned an empty JSON response`)
+  }
+  return JSON.parse(raw)
+}
+
+function runPersistentFileSpacePragmaSmoke() {
+  const cliPath = findGraftCli()
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "eidos-graft-persistent-smoke-")
+  )
+  const notePath = "notes/today.md"
+  let db
+
+  console.log("Persistent Graft smoke root:", root)
+  try {
+    fs.mkdirSync(path.join(root, "notes"), { recursive: true })
+    fs.writeFileSync(path.join(root, notePath), "first\n")
+    runGraftJson(cliPath, root, ["init", "--json"])
+
+    db = new Database(graftDbUri(path.join(root, ".graft", "control.sqlite")))
+    runGraftPragmaJson(db, "graft_json_add", '-- "notes"')
+    const first = runGraftPragmaJson(
+      db,
+      "graft_json_commit",
+      "First persistent version"
+    )
+
+    fs.writeFileSync(path.join(root, notePath), "second\n")
+    const dirty = runGraftPragmaJson(db, "graft_json_status")
+    if (!dirty.has_unstaged_changes) {
+      throw new Error(`Persistent status missed the edit: ${JSON.stringify(dirty)}`)
+    }
+    runGraftPragmaJson(db, "graft_json_add", '-- "notes"')
+    const second = runGraftPragmaJson(
+      db,
+      "graft_json_commit",
+      "Second persistent version"
+    )
+
+    const firstPage = runGraftPragmaJson(
+      db,
+      "graft_json_log",
+      "--with-status --limit 1"
+    )
+    if (
+      firstPage.commits?.[0]?.id !== second.current_head ||
+      firstPage.has_more !== true ||
+      !firstPage.next_cursor
+    ) {
+      throw new Error(`Invalid first history page: ${JSON.stringify(firstPage)}`)
+    }
+    const secondPage = runGraftPragmaJson(
+      db,
+      "graft_json_log",
+      `--with-status --limit 1 --after ${firstPage.next_cursor}`
+    )
+    if (
+      secondPage.commits?.[0]?.id !== first.current_head ||
+      secondPage.has_more !== false
+    ) {
+      throw new Error(`Invalid second history page: ${JSON.stringify(secondPage)}`)
+    }
+
+    const startedAt = performance.now()
+    for (let index = 0; index < 25; index += 1) {
+      runGraftPragmaJson(db, "graft_json_status")
+    }
+    const averageMs = (performance.now() - startedAt) / 25
+    console.log(`Persistent Graft status average: ${averageMs.toFixed(2)}ms`)
+  } finally {
+    closeDatabase(db)
+    removeTempRoot(root)
+  }
+}
+
 function runGraftExpectFailure(cliPath, cwd, args) {
   console.log(`graft ${formatCommand(args)} (expect failure)`)
   try {
@@ -1335,6 +1415,7 @@ function runAmbiguousPathSafetySmoke() {
 
 try {
   runSqliteExtensionSmoke()
+  runPersistentFileSpacePragmaSmoke()
   runFileSpaceCliSmoke()
   runRestoreConflictSmoke()
   runWholeSpaceRestoreSmoke()

@@ -183,6 +183,8 @@ describe("Graft v0.5 JSON parsers", () => {
     const history = parseGraftLog({
       current_head: "commit-2",
       current_branch: "main",
+      next_cursor: "commit-2",
+      has_more: true,
       commits: [
         {
           id: "commit-2",
@@ -204,6 +206,8 @@ describe("Graft v0.5 JSON parsers", () => {
     })
 
     expect(history.currentHead).toBe("commit-2")
+    expect(history.nextCursor).toBe("commit-2")
+    expect(history.hasMore).toBe(true)
     expect(history.commits[0]).toEqual({
       id: "commit-2",
       parent: "commit-1",

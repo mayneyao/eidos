@@ -1,13 +1,17 @@
 import { Module } from "../../common/di"
 import { SpaceManagementModule } from "../space-management/space-management.module"
-import { GraftCliRunner } from "./graft-cli-runner"
+import { GraftCliProcessRunner } from "./graft-cli-runner"
+import { GraftRunner } from "./graft-runner"
+import { GraftSqliteExecutor } from "./graft-sqlite-executor"
 import { SpaceVersioningCoordinator } from "./space-versioning.coordinator"
 import { SpaceVersioningService } from "./space-versioning.service"
 
 @Module({
   imports: [SpaceManagementModule],
   providers: [
-    GraftCliRunner,
+    GraftCliProcessRunner,
+    GraftSqliteExecutor,
+    GraftRunner,
     SpaceVersioningCoordinator,
     SpaceVersioningService,
   ],

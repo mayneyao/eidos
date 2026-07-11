@@ -20,6 +20,8 @@ export interface ParsedGraftLog {
   currentHead: string | null
   currentBranch: string | null
   commits: SpaceVersionCommit[]
+  nextCursor: string | null
+  hasMore: boolean
 }
 
 export interface ParsedGraftRestoreSource {
@@ -640,6 +642,8 @@ export function parseGraftLog(raw: unknown): ParsedGraftLog {
       currentHead: null,
       currentBranch: null,
       commits: raw.map(parseGraftCommit),
+      nextCursor: null,
+      hasMore: false,
     }
   }
   if (!isObject(raw)) {
@@ -652,6 +656,8 @@ export function parseGraftLog(raw: unknown): ParsedGraftLog {
     commits: Array.isArray(raw.commits)
       ? raw.commits.map(parseGraftCommit)
       : [],
+    nextCursor: stringValue(raw.next_cursor),
+    hasMore: raw.has_more === true,
   }
 }
 

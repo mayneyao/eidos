@@ -5,7 +5,7 @@ import path from "path"
 import { Injectable, Inject } from "../../common/di"
 import { withFileSpaceOperationLock } from "../space-management/file-space-operation-lock"
 import { SpaceRegistry } from "../space-management/space-management.module"
-import { GraftCliRunner } from "./graft-cli-runner"
+import { GraftRunner } from "./graft-runner"
 import { ensureEidosGraftIgnore } from "./graft-ignore"
 import {
   disabledSpaceVersionStatus,
@@ -423,7 +423,7 @@ function filterDiffPath(
 export class SpaceVersioningCoordinator {
   constructor(
     @Inject(SpaceRegistry) private readonly registry: SpaceRegistry,
-    @Inject(GraftCliRunner) private readonly runner: GraftCliRunner
+    @Inject(GraftRunner) private readonly runner: GraftRunner
   ) {}
 
   async getStatus(spaceIdValue: unknown): Promise<SpaceVersionStatus> {
@@ -508,33 +508,26 @@ export class SpaceVersioningCoordinator {
       await this.requireRepository(spacePath)
       return this.withRepositoryOperationLock(spacePath, async () => {
         const history = parseGraftLog(
-          await this.runner.runJson(spacePath, ["log", "--json"], {
-            maxBufferBytes: HISTORY_MAX_BUFFER_BYTES,
-          })
-        )
-
-        let start = 0
-        if (options.cursor) {
-          const cursorIndex = history.commits.findIndex(
-            (commit) => commit.id === options.cursor
+          await this.runner.runJson(
+            spacePath,
+            [
+              "log",
+              "--json",
+              "--limit",
+              String(options.limit),
+              ...(options.cursor ? ["--after", options.cursor] : []),
+            ],
+            {
+              maxBufferBytes: HISTORY_MAX_BUFFER_BYTES,
+            }
           )
-          if (cursorIndex === -1) {
-            throw new Error("History cursor no longer exists")
-          }
-          start = cursorIndex + 1
-        }
-
-        const commits = history.commits.slice(start, start + options.limit)
-        const hasMore = start + commits.length < history.commits.length
+        )
         return {
           currentHead: history.currentHead,
           currentBranch: history.currentBranch,
-          commits,
-          nextCursor:
-            hasMore && commits.length > 0
-              ? commits[commits.length - 1].id
-              : null,
-          hasMore,
+          commits: history.commits,
+          nextCursor: history.nextCursor,
+          hasMore: history.hasMore,
         }
       })
     })

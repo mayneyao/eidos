@@ -6,14 +6,14 @@ import path from "path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { SpaceRegistry } from "../space-management/space-management.module"
-import type { GraftCliRunner } from "./graft-cli-runner"
+import type { GraftRunner } from "./graft-runner"
 import { SpaceVersioningCoordinator } from "./space-versioning.coordinator"
 
 vi.mock("../space-management/space-management.module", () => ({
   SpaceRegistry: class SpaceRegistry {},
 }))
-vi.mock("./graft-cli-runner", () => ({
-  GraftCliRunner: class GraftCliRunner {},
+vi.mock("./graft-runner", () => ({
+  GraftRunner: class GraftRunner {},
 }))
 vi.mock("../../common/di", () => ({
   Inject: () => () => undefined,
@@ -54,7 +54,7 @@ function createCoordinator(root: string, runJson: ReturnType<typeof vi.fn>) {
   }
   return new SpaceVersioningCoordinator(
     registry as unknown as SpaceRegistry,
-    { runJson } as unknown as GraftCliRunner
+    { runJson } as unknown as GraftRunner
   )
 }
 
@@ -64,6 +64,44 @@ afterEach(async () => {
       .splice(0)
       .map((root) => fs.rm(root, { recursive: true, force: true }))
   )
+})
+
+describe("SpaceVersioningCoordinator.getHistory", () => {
+  it("requests one bounded Graft page instead of slicing a full log", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn(async () => ({
+      current_head: "head-3",
+      current_branch: "main",
+      commits: [
+        {
+          id: "head-1",
+          message: "First",
+          parents: [],
+          changes: [],
+        },
+      ],
+      next_cursor: null,
+      has_more: false,
+    }))
+    const coordinator = createCoordinator(root, runJson)
+
+    const result = await coordinator.getHistory("space-a", {
+      limit: 25,
+      cursor: "head-2",
+    })
+
+    expect(result).toMatchObject({
+      currentHead: "head-3",
+      commits: [{ id: "head-1" }],
+      nextCursor: null,
+      hasMore: false,
+    })
+    expect(runJson).toHaveBeenCalledWith(
+      await fs.realpath(root),
+      ["log", "--json", "--limit", "25", "--after", "head-2"],
+      { maxBufferBytes: 64 * 1024 * 1024 }
+    )
+  })
 })
 
 describe("SpaceVersioningCoordinator.getDiff", () => {
@@ -1390,7 +1428,7 @@ describe("SpaceVersioningCoordinator.restoreVersion", () => {
     }
     const coordinator = new SpaceVersioningCoordinator(
       registry as unknown as SpaceRegistry,
-      { runJson } as unknown as GraftCliRunner
+      { runJson } as unknown as GraftRunner
     )
 
     await expect(

@@ -1,0 +1,40 @@
+{
+  "name": "@eidos.space/graft-client",
+  "version": "0.1.0",
+  "description": "Typed Graft repository client for long-lived SQLite PRAGMA transports",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "eidos.space",
+    "graft",
+    "sqlite",
+    "version-control"
+  ],
+  "author": "mayneyao",
+  "license": "MIT",
+  "devDependencies": {
+    "tsdown": "^0.21.7",
+    "typescript": "5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

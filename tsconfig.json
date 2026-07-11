@@ -33,6 +33,8 @@
       "@eidos.space/space-manager/*": ["./packages/space-manager/src/*"],
       "@eidos.space/file-space": ["./packages/file-space/src/index.ts"],
       "@eidos.space/file-space/*": ["./packages/file-space/src/*"],
+      "@eidos.space/graft-client": ["./packages/graft-client/src/index.ts"],
+      "@eidos.space/graft-client/*": ["./packages/graft-client/src/*"],
       "@eidos.space/markdown-editor": [
         "./packages/markdown-editor/src/index.ts"
       ],
