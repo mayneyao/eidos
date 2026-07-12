@@ -25,8 +25,8 @@ Base product refinements and file-based extensions remain.
 The phase order in this document is therefore descriptive rather than the
 current execution order. The completed sequence is Markdown Space, local Graft,
 standalone Base runtime, migration, then native remote Graft acceptance.
-Base delivery closure is next: finish the remaining table-view refinements and
-native two-Space row-conflict acceptance before file-based extensions.
+Base delivery closure is next: finish the remaining table-view refinements
+before file-based extensions.
 
 ## Summary
 

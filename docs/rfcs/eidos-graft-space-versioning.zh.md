@@ -10,7 +10,7 @@
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-file-based-extensions.zh.md`
 
-## 实施状态（2026-07-12）
+## 实施状态（2026-07-13）
 
 本地链路已经实现。普通操作通过持久 SQLite/Graft PRAGMA connection 执行，只有
 repository initialization 仍是一次性 CLI。UI 已提供 Changes 与 Staged Changes、
@@ -41,8 +41,13 @@ worktree。
 展示 ahead/behind，pull 产生 conflict，点击 path 打开双栏 Diff tab，Accept theirs
 把 resolution 放入 Staged，Create version 保留双 parent，Push 后回到 clean 且
 up-to-date。已有但没有 Eidos markers 的 `.graftignore` 保持用户所有，打开或 merge
-remote repository 不再产生无关本地修改。剩余工作是更细的 Base row-level conflict
-展示。
+remote repository 不再产生无关本地修改。
+
+双 Space 原生 Base 验收现在也已覆盖同一 SQLite row 的分叉修改：点击冲突 `.base` path
+会打开 row-aware Diff tab；Resolve 会打开独立、非模态的审阅 tab，按 Base、Current、
+Incoming 展示字段值。接受 incoming row 后只 stage 该 Base path，Create version 生成双
+parent merge，Push 后 remote 指向 merge head，Space 回到 clean 且 up-to-date。schema 和
+opaque SQLite conflicts 仍明确降级为 whole-file 选择。
 
 以下产品决策取代本文较早的开放问题：
 
@@ -50,8 +55,8 @@ remote repository 不再产生无关本地修改。剩余工作是更细的 Base
 - History 从 Changes 打开为独立内容 tab，不作为 sidebar mode，
 - 主 sidebar modes 保持 Files 和 Version，不规划 Logs mode，
 - remote synchronization 使用显式 Pull/Push，而不是隐式 autosync，
-- conflicts 继续在 Changes 中 path-first 展示；更细的 Base row resolution 可以在
-  不改变 remote protocol 的前提下继续叠加。
+- conflicts 继续在 Changes 中 path-first 展示；受支持的 Base row conflict 会在不改变
+  remote protocol 的前提下打开结构化审阅 tab。
 
 ## 摘要
 
@@ -326,13 +331,11 @@ ignore = [".graft/**", ".eidos/cache/**", ".eidos/sessions/**", ".eidos/indexes/
 
 如果旧 repo 曾经追踪 `.eidos/sessions/**` 或其它私有路径，可能需要 cleanup migration。
 
-## 开放问题
+## 剩余开放问题
 
 1. `.obsidian/**` 是否默认追踪，还是部分 ignore？
-2. Eidos v1 是否支持 path-level staging？
-3. 发布前需要多少 row-level Base conflict resolution？
-4. 是否所有 binary files 都自动走 external payload storage？
-5. Eidos 是否在设置中暴露 graft config，还是只提供 presets？
+2. 是否所有 binary files 都自动走 external payload storage？
+3. Eidos 是否在设置中暴露 graft config，还是只提供 presets？
 
 ## 推荐垂直切片
 

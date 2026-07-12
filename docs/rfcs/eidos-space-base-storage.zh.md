@@ -19,7 +19,7 @@ Desktop Settings 也已接入 legacy Space 的 plan/export/validation flow。只
 
 因此本文的 phase 顺序只描述能力依赖，不再代表当前执行顺序。已经完成的顺序是 Markdown
 Space、本地 Graft、独立 Base runtime、migration 和原生 remote Graft 验收。下一步是
-完成剩余 table-view 细化与双 Space 原生 row-conflict 验收，随后进入文件化扩展。
+完成剩余 table-view 细化，随后进入文件化扩展。
 
 ## 摘要
 

@@ -10,7 +10,7 @@ Related:
 - `eidos-space-markdown-runtime.md`
 - `eidos-file-based-extensions.md`
 
-## Implementation Status (2026-07-12)
+## Implementation Status (2026-07-13)
 
 The local workflow is implemented with a persistent SQLite/Graft PRAGMA
 connection for normal operations; only repository initialization remains a
@@ -46,7 +46,15 @@ clicking the path opens the side-by-side Diff tab, accepting theirs stages the
 resolution, Create version preserves both parents, and Push returns to a clean
 up-to-date status. Existing unmarked `.graftignore` files remain user-owned, so
 opening or merging a remote repository no longer creates an unrelated local
-change. Richer row-level Base conflict presentation remains.
+change.
+
+Native two-Space Base acceptance now covers a divergent update to the same
+SQLite row. Clicking the conflicted `.base` path opens a row-aware Diff tab;
+Resolve opens a dedicated non-modal review tab with Base, Current, and Incoming
+values. Accepting the incoming row stages only that Base path, Create version
+produces a two-parent merge, and Push returns the remote to the merge head with
+a clean, up-to-date Space. Schema and opaque SQLite conflicts deliberately
+retain the explicit whole-file fallback.
 
 Confirmed product decisions that supersede earlier open questions:
 
@@ -54,8 +62,8 @@ Confirmed product decisions that supersede earlier open questions:
 - History opens as a dedicated content tab from Changes, not as a sidebar mode,
 - the primary sidebar modes remain Files and Version; no Logs mode is planned,
 - remote synchronization is explicit Pull/Push rather than implicit autosync,
-- conflicts remain path-first in Changes; detailed Base row resolution can be
-  layered on without changing the remote protocol.
+- conflicts remain path-first in Changes; supported Base row conflicts open a
+  structured review tab without changing the remote protocol.
 
 ## Summary
 
@@ -330,13 +338,11 @@ ignore = [".graft/**", ".eidos/cache/**", ".eidos/sessions/**", ".eidos/indexes/
 
 Existing repos may need a cleanup migration if they previously tracked `.eidos/sessions/**` or other private paths.
 
-## Open Questions
+## Remaining Open Questions
 
 1. Should `.obsidian/**` be tracked by default or partially ignored?
-2. Should Eidos support path-level staging in v1?
-3. How much row-level Base conflict resolution is required before release?
-4. Should external payload storage be automatic for all binary files?
-5. Should Eidos expose graft config in settings or keep it hidden behind presets?
+2. Should external payload storage be automatic for all binary files?
+3. Should Eidos expose graft config in settings or keep it hidden behind presets?
 
 ## Recommended Vertical Slice
 
