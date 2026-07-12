@@ -1,4 +1,4 @@
-import { ipcMain, ipcRenderer } from "electron"
+import type { IpcMain, IpcRenderer } from "electron"
 
 /**
  * IPC Service Registry
@@ -34,6 +34,7 @@ export const registry = new IpcRegistry()
  * This runs in the main process context
  */
 export function setupRegistryIpc() {
+  const { ipcMain } = require("electron") as { ipcMain: IpcMain }
   // Use a unique channel for registry queries
   ipcMain.on("__ipc_registry_get_methods", (event, namespace: string) => {
     const methods = registry.getMethodsSync(namespace)
@@ -54,6 +55,7 @@ export function setupRegistryIpc() {
 export function createPreloadApiByNamespace(
   namespace: string
 ): Record<string, Function> {
+  const { ipcRenderer } = require("electron") as { ipcRenderer: IpcRenderer }
   // Synchronously get method names from registry via IPC
   const methods = ipcRenderer.sendSync("__ipc_registry_get_methods", namespace)
 

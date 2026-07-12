@@ -1,6 +1,5 @@
 // IPC Decorator Framework - Zero Boilerplate IPC Management
-import type { IpcMainInvokeEvent } from "electron"
-import { ipcMain } from "electron"
+import type { IpcMain, IpcMainInvokeEvent } from "electron"
 import { registry } from "./registry"
 
 // Logger interface for IPC logging
@@ -139,6 +138,7 @@ export abstract class IpcServiceBase {
    */
   register(): void {
     if (this._registered) return
+    const { ipcMain } = require("electron") as { ipcMain: IpcMain }
 
     const constructor = this.constructor as any
     const namespace = constructor[NAMESPACE_KEY] || this.getDefaultNamespace()
@@ -173,6 +173,7 @@ export abstract class IpcServiceBase {
    * Call this when the service is being destroyed
    */
   unregister(): void {
+    const { ipcMain } = require("electron") as { ipcMain: IpcMain }
     for (const channel of this._channels) {
       ipcMain.removeHandler(channel)
     }
