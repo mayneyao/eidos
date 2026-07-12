@@ -16,7 +16,11 @@ const deleteTableMock = vi.hoisted(() => vi.fn())
 const addFieldMock = vi.hoisted(() => vi.fn())
 const updateFieldMock = vi.hoisted(() => vi.fn())
 const deleteFieldMock = vi.hoisted(() => vi.fn())
+const createViewMock = vi.hoisted(() => vi.fn())
 const updateViewMock = vi.hoisted(() => vi.fn())
+const duplicateViewMock = vi.hoisted(() => vi.fn())
+const deleteViewMock = vi.hoisted(() => vi.fn())
+const reorderViewsMock = vi.hoisted(() => vi.fn())
 const insertRowMock = vi.hoisted(() => vi.fn())
 const updateRowMock = vi.hoisted(() => vi.fn())
 const deleteRowRangesMock = vi.hoisted(() => vi.fn())
@@ -35,7 +39,11 @@ vi.mock("@/apps/web-app/hooks/use-space-base", () => ({
     addField: addFieldMock,
     updateField: updateFieldMock,
     deleteField: deleteFieldMock,
+    createView: createViewMock,
     updateView: updateViewMock,
+    duplicateView: duplicateViewMock,
+    deleteView: deleteViewMock,
+    reorderViews: reorderViewsMock,
     insertRow: insertRowMock,
     updateRow: updateRowMock,
     deleteRowRanges: deleteRowRangesMock,
@@ -246,6 +254,52 @@ vi.mock("./base-grid", () => ({
   },
 }))
 
+vi.mock("./base-view-selector", () => ({
+  BaseViewSelector: ({
+    activeView,
+    onCreate,
+    onRename,
+    onDuplicate,
+    onDelete,
+    onReorder,
+  }: {
+    activeView?: (typeof snapshot)["tables"][number]["views"][number]
+    onCreate: (name: string) => void
+    onRename: (viewId: string, name: string) => void
+    onDuplicate: (viewId: string) => void
+    onDelete: (viewId: string) => void
+    onReorder: (viewIds: string[]) => void
+  }) => (
+    <div data-testid="base-view-selector">
+      <span>{activeView?.name ?? "Views"}</span>
+      <button type="button" onClick={() => onCreate("By priority")}>
+        Create view
+      </button>
+      <button
+        type="button"
+        onClick={() => activeView && onRename(activeView.id, "Renamed view")}
+      >
+        Rename view
+      </button>
+      <button
+        type="button"
+        onClick={() => activeView && onDuplicate(activeView.id)}
+      >
+        Duplicate view
+      </button>
+      <button
+        type="button"
+        onClick={() => activeView && onDelete(activeView.id)}
+      >
+        Delete view
+      </button>
+      <button type="button" onClick={() => onReorder(["view_tasks"])}>
+        Reorder views
+      </button>
+    </div>
+  ),
+}))
+
 const snapshot: BaseSnapshot = {
   path: "projects/tasks.base",
   metadata: {
@@ -351,7 +405,11 @@ describe("SpaceBaseEditor", () => {
     addFieldMock.mockReset()
     updateFieldMock.mockReset()
     deleteFieldMock.mockReset()
+    createViewMock.mockReset()
     updateViewMock.mockReset()
+    duplicateViewMock.mockReset()
+    deleteViewMock.mockReset()
+    reorderViewsMock.mockReset()
     insertRowMock.mockReset()
     updateRowMock.mockReset()
     deleteRowRangesMock.mockReset()
@@ -369,7 +427,11 @@ describe("SpaceBaseEditor", () => {
     addFieldMock.mockResolvedValue(snapshot)
     updateFieldMock.mockResolvedValue(snapshot)
     deleteFieldMock.mockResolvedValue(snapshot)
+    createViewMock.mockResolvedValue(snapshot)
     updateViewMock.mockResolvedValue(snapshot)
+    duplicateViewMock.mockResolvedValue(snapshot)
+    deleteViewMock.mockResolvedValue(snapshot)
+    reorderViewsMock.mockResolvedValue(snapshot)
     insertRowMock.mockResolvedValue({
       tableId: "tasks",
       row: { _id: "row_2", title: "Untitled", status: null },
@@ -479,6 +541,49 @@ describe("SpaceBaseEditor", () => {
       columnName: "owner",
       type: "text",
     })
+  })
+
+  it("routes view lifecycle actions through the Base file API", async () => {
+    await renderEditor()
+
+    for (const label of [
+      "Create view",
+      "Rename view",
+      "Duplicate view",
+      "Delete view",
+      "Reorder views",
+    ]) {
+      await act(async () => {
+        Array.from(container.querySelectorAll("button"))
+          .find((button) => button.textContent === label)
+          ?.click()
+        await Promise.resolve()
+      })
+    }
+
+    expect(createViewMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      { name: "By priority", type: "grid" }
+    )
+    expect(updateViewMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "view_tasks",
+      { name: "Renamed view" }
+    )
+    expect(duplicateViewMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "view_tasks"
+    )
+    expect(deleteViewMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "view_tasks"
+    )
+    expect(reorderViewsMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      ["view_tasks"]
+    )
   })
 
   it("renames and deletes tables and fields through the structure menu", async () => {

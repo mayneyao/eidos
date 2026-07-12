@@ -47,6 +47,7 @@ import { BaseRenameDialog } from "./base-rename-dialog"
 import { BaseStructureDialog } from "./base-structure-dialog"
 import { BaseStructureMenu } from "./base-structure-menu"
 import { BaseViewMenu } from "./base-view-menu"
+import { BaseViewSelector } from "./base-view-selector"
 
 interface SpaceBaseEditorProps {
   filePath: string
@@ -76,13 +77,18 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     addField,
     updateField,
     deleteField,
+    createView,
     updateView,
+    duplicateView,
+    deleteView,
+    reorderViews,
     insertRow,
     updateRow,
     deleteRowRanges,
   } = useSpaceBase(currentSpace?.id)
   const [snapshot, setSnapshot] = useState<BaseSnapshot | null>(null)
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
+  const [activeViewIds, setActiveViewIds] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [pendingMutations, setPendingMutations] = useState(0)
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
@@ -148,10 +154,15 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       snapshot?.tables.find(({ table }) => table.id === activeTableId) ?? null,
     [activeTableId, snapshot?.tables]
   )
-  const activeView = useMemo(
-    () => activeTable?.views.find((view) => view.type === "grid"),
-    [activeTable?.views]
-  )
+  const activeView = useMemo(() => {
+    if (!activeTable) return undefined
+    const selectedId = activeViewIds[activeTable.table.id]
+    return (
+      activeTable.views.find(
+        (view) => view.id === selectedId && view.type === "grid"
+      ) ?? activeTable.views.find((view) => view.type === "grid")
+    )
+  }, [activeTable, activeViewIds])
   const activeQuery = useMemo<BaseRowQuery>(
     () => ({
       ...(search ? { search } : {}),
@@ -167,7 +178,16 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   useEffect(() => {
     setSearch("")
     setVisibleRowCount(null)
-  }, [activeTableId, filePath])
+  }, [activeTableId, activeView?.id, filePath])
+
+  useEffect(() => {
+    if (!activeTable || !activeView) return
+    if (activeViewIds[activeTable.table.id] === activeView.id) return
+    setActiveViewIds((current) => ({
+      ...current,
+      [activeTable.table.id]: activeView.id,
+    }))
+  }, [activeTable, activeView, activeViewIds])
 
   useEffect(() => {
     const handleFind = (event: KeyboardEvent) => {
@@ -442,18 +462,119 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     ]
   )
 
-  const updateActiveView = useCallback(
-    (changes: Parameters<typeof updateView>[2]): Promise<void> => {
-      const view = activeTable?.views.find(
-        (candidate) => candidate.type === "grid"
-      )
-      if (!view) return Promise.resolve()
+  const selectActiveView = useCallback(
+    (viewId: string) => {
+      if (!activeTable) return
+      setActiveViewIds((current) => ({
+        ...current,
+        [activeTable.table.id]: viewId,
+      }))
+    },
+    [activeTable]
+  )
+
+  const createViewInBase = useCallback(
+    (name: string): Promise<void> => {
+      if (!activeTable) return Promise.resolve()
+      const tableId = activeTable.table.id
+      const existingIds = new Set(activeTable.views.map((view) => view.id))
       return enqueueMutation(
-        () => updateView(filePath, view.id, changes),
+        () => createView(filePath, tableId, { name, type: "grid" }),
+        (next) => {
+          applySnapshot(next)
+          const created = next.tables
+            .find((candidate) => candidate.table.id === tableId)
+            ?.views.find((view) => !existingIds.has(view.id))
+          if (created) {
+            setActiveViewIds((current) => ({
+              ...current,
+              [tableId]: created.id,
+            }))
+          }
+        }
+      ).then(() => undefined)
+    },
+    [activeTable, applySnapshot, createView, enqueueMutation, filePath]
+  )
+
+  const renameViewInBase = useCallback(
+    (viewId: string, name: string): Promise<void> =>
+      enqueueMutation(
+        () => updateView(filePath, viewId, { name }),
+        applySnapshot
+      ).then(() => undefined),
+    [applySnapshot, enqueueMutation, filePath, updateView]
+  )
+
+  const duplicateViewInBase = useCallback(
+    (viewId: string): Promise<void> => {
+      if (!activeTable) return Promise.resolve()
+      const tableId = activeTable.table.id
+      const existingIds = new Set(activeTable.views.map((view) => view.id))
+      return enqueueMutation(
+        () => duplicateView(filePath, viewId),
+        (next) => {
+          applySnapshot(next)
+          const created = next.tables
+            .find((candidate) => candidate.table.id === tableId)
+            ?.views.find((view) => !existingIds.has(view.id))
+          if (created) {
+            setActiveViewIds((current) => ({
+              ...current,
+              [tableId]: created.id,
+            }))
+          }
+        }
+      ).then(() => undefined)
+    },
+    [activeTable, applySnapshot, duplicateView, enqueueMutation, filePath]
+  )
+
+  const deleteViewInBase = useCallback(
+    (viewId: string): Promise<void> => {
+      if (!activeTable) return Promise.resolve()
+      const tableId = activeTable.table.id
+      const index = activeTable.views.findIndex((view) => view.id === viewId)
+      const remaining = activeTable.views.filter((view) => view.id !== viewId)
+      const fallback =
+        remaining[Math.min(Math.max(index, 0), remaining.length - 1)]
+      return enqueueMutation(
+        () => deleteView(filePath, viewId),
+        (next) => {
+          applySnapshot(next)
+          setActiveViewIds((current) => {
+            if (current[tableId] !== viewId) return current
+            const updated = { ...current }
+            if (fallback) updated[tableId] = fallback.id
+            else delete updated[tableId]
+            return updated
+          })
+        }
+      ).then(() => undefined)
+    },
+    [activeTable, applySnapshot, deleteView, enqueueMutation, filePath]
+  )
+
+  const reorderViewsInBase = useCallback(
+    (viewIds: string[]): Promise<void> => {
+      if (!activeTable) return Promise.resolve()
+      return enqueueMutation(
+        () => reorderViews(filePath, activeTable.table.id, viewIds),
         applySnapshot
       ).then(() => undefined)
     },
-    [activeTable?.views, applySnapshot, enqueueMutation, filePath, updateView]
+    [activeTable, applySnapshot, enqueueMutation, filePath, reorderViews]
+  )
+
+  const updateActiveView = useCallback(
+    (changes: Parameters<typeof updateView>[2]): Promise<void> => {
+      if (!activeView) return Promise.resolve()
+      return enqueueMutation(
+        () => updateView(filePath, activeView.id, changes),
+        applySnapshot
+      ).then(() => undefined)
+    },
+    [activeView, applySnapshot, enqueueMutation, filePath, updateView]
   )
 
   const handleGridError = useCallback((gridError: unknown) => {
@@ -559,6 +680,17 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           ) : null}
           {activeTable ? (
             <>
+              <BaseViewSelector
+                views={activeTable.views}
+                activeView={activeView}
+                disabled={pendingMutations > 0}
+                onSelect={selectActiveView}
+                onCreate={createViewInBase}
+                onRename={renameViewInBase}
+                onDuplicate={duplicateViewInBase}
+                onDelete={deleteViewInBase}
+                onReorder={reorderViewsInBase}
+              />
               <BaseQueryToolbar
                 fields={activeTable.fields}
                 filter={activeView?.filter ?? null}
@@ -673,7 +805,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       ) : (
         <div className="relative min-h-0 flex-1">
           <BaseGrid
-            key={activeTable.table.id}
+            key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
             table={activeTable}
             view={activeView}
             reloadToken={gridReloadToken}
