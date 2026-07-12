@@ -122,6 +122,25 @@ function parentPortablePath(relativePath: string): string {
   return parent === "." ? "" : parent
 }
 
+function nearestExistingDirectory(
+  root: string,
+  relativeDirectory: string
+): string {
+  let current = relativeDirectory
+  while (current) {
+    const candidate = path.resolve(root, ...current.split("/"))
+    if (!isWithinRoot(root, candidate)) return ""
+    try {
+      if (statSync(candidate).isDirectory()) return current
+    } catch {
+      // A rename event can describe a directory that was deleted before the
+      // watcher debounce settled. Walk upward until refresh has a valid root.
+    }
+    current = parentPortablePath(current)
+  }
+  return ""
+}
+
 function isNodeError(error: unknown, code: string): boolean {
   return (
     error instanceof Error &&
@@ -625,7 +644,14 @@ export class SpaceFiles {
       if (existing) clearTimeout(existing)
       const timer = setTimeout(() => {
         pending.delete(key)
-        onChange(change)
+        onChange(
+          change.eventType === "rescan"
+            ? {
+                ...change,
+                path: nearestExistingDirectory(this.root, change.path),
+              }
+            : change
+        )
       }, debounceMs)
       pending.set(key, timer)
     }

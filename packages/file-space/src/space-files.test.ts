@@ -203,6 +203,29 @@ describe("SpaceFiles", () => {
     })
   })
 
+  it("refreshes the nearest existing ancestor after a directory is deleted", async () => {
+    await mkdir(path.join(root, "scratch", "nested"), { recursive: true })
+    await writeFile(path.join(root, "scratch", "nested", "note.md"), "draft")
+    const changes: Array<{ eventType: string; path: string }> = []
+    const watcher = files.watch((change) => changes.push(change), {
+      debounceMs: 80,
+    })
+    try {
+      await delay(25)
+      await rm(path.join(root, "scratch"), { recursive: true })
+      await waitFor(() =>
+        changes.some((change) => change.eventType === "rescan")
+      )
+      await delay(120)
+    } finally {
+      watcher.close()
+    }
+
+    const rescans = changes.filter((change) => change.eventType === "rescan")
+    expect(rescans.length).toBeGreaterThan(0)
+    expect(rescans.every((change) => change.path === "")).toBe(true)
+  })
+
   it("creates, moves, and removes files inside the Space", async () => {
     await files.createDirectory("notes")
     await files.createText("notes/new.md", "draft")
