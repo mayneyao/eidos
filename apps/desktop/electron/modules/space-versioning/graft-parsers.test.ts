@@ -273,7 +273,7 @@ describe("Graft v0.5 JSON parsers", () => {
     })
   })
 
-  it("parses conflict paths and file-level resolution results", () => {
+  it("parses conflict paths, row artifacts, and resolution results", () => {
     expect(
       parseGraftConflicts({
         current_head: "head-2",
@@ -290,6 +290,26 @@ describe("Graft v0.5 JSON parsers", () => {
             resolved: 0,
           },
         ],
+        conflicts: [
+          {
+            id: "tasks.base:row:tb_tasks:7",
+            path: "tasks.base",
+            path_kind: "sqlite_database",
+            storage: "sqlite_snapshot",
+            kind: "row",
+            reason: "row_conflict",
+            status: "unresolved",
+            table: "tb_tasks",
+            columns: ["_id", "title", "status"],
+            rowid: 7,
+            semantic_key: ["task-7"],
+            ours_op: "update",
+            theirs_op: "update",
+            base_row: ["task-7", "Draft", "todo"],
+            ours_row: ["task-7", "Local title", "todo"],
+            theirs_row: ["task-7", "Draft", "done"],
+          },
+        ],
       })
     ).toEqual({
       currentHead: "head-2",
@@ -304,6 +324,35 @@ describe("Graft v0.5 JSON parsers", () => {
           total: 1,
           unresolved: 1,
           resolved: 0,
+        },
+      ],
+      conflicts: [
+        {
+          id: "tasks.base:row:tb_tasks:7",
+          path: "tasks.base",
+          pathKind: "sqlite_database",
+          storage: "sqlite_snapshot",
+          kind: "row",
+          reason: "row_conflict",
+          status: "unresolved",
+          resolution: null,
+          table: "tb_tasks",
+          columns: ["_id", "title", "status"],
+          rowId: 7,
+          oursRowId: null,
+          theirsRowId: null,
+          semanticKey: ["task-7"],
+          name: null,
+          entryType: null,
+          columnChanges: [],
+          change: null,
+          owner: null,
+          oursOperation: "update",
+          theirsOperation: "update",
+          baseRow: ["task-7", "Draft", "todo"],
+          oursRow: ["task-7", "Local title", "todo"],
+          theirsRow: ["task-7", "Draft", "done"],
+          message: null,
         },
       ],
     })

@@ -323,10 +323,35 @@ function normalizeResolveConflictOptions(
   ) {
     throw new Error("Conflict resolution must be ours, theirs, or manual")
   }
+  let target: SpaceVersionResolveConflictOptions["target"]
+  if (value.target !== undefined) {
+    if (!isObject(value.target)) {
+      throw new Error("Row conflict target must be an object")
+    }
+    const table = value.target.table
+    const rowId = value.target.rowId
+    if (
+      typeof table !== "string" ||
+      !table.trim() ||
+      table.length > 255 ||
+      table.startsWith("-") ||
+      table.includes("\0")
+    ) {
+      throw new Error("Row conflict table is invalid")
+    }
+    if (typeof rowId !== "number" || !Number.isSafeInteger(rowId)) {
+      throw new Error("Row conflict row ID is invalid")
+    }
+    if (value.resolution === "manual") {
+      throw new Error("Row conflicts must keep ours or accept theirs")
+    }
+    target = { table, rowId }
+  }
   return {
     path: repositoryPath,
     resolution: value.resolution,
     expectedHead: normalizeExpectedHead(value.expectedHead),
+    target,
   }
 }
 
@@ -855,6 +880,9 @@ export class SpaceVersioningCoordinator {
           paths: conflicts.paths.filter(
             (entry) => !isPrivateVersionPath(entry.path)
           ),
+          conflicts: conflicts.conflicts.filter(
+            (entry) => !isPrivateVersionPath(entry.path)
+          ),
         }
       })
     })
@@ -889,6 +917,9 @@ export class SpaceVersioningCoordinator {
               "resolve",
               "--json",
               `--${options.resolution}`,
+              ...(options.target
+                ? ["--row", options.target.table, String(options.target.rowId)]
+                : []),
               "--path",
               options.path,
             ],

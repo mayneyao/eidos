@@ -99,6 +99,49 @@ export interface SpaceVersionConflictList {
   currentBranch: string | null
   mergeHead: string | null
   paths: SpaceVersionConflictPath[]
+  conflicts: SpaceVersionConflictArtifact[]
+}
+
+export type SpaceVersionConflictArtifactKind =
+  | "row"
+  | "schema"
+  | "opaque"
+  | "file"
+  | "unknown"
+
+export interface SpaceVersionSchemaColumnChange {
+  side: string
+  operation: string
+  from: string | null
+  to: string | null
+}
+
+export interface SpaceVersionConflictArtifact {
+  id: string
+  path: string
+  pathKind: SpaceVersionPathKind
+  storage: SpaceVersionPathStorage
+  kind: SpaceVersionConflictArtifactKind
+  reason: string
+  status: "unresolved" | "resolved"
+  resolution: SpaceVersionConflictResolution | null
+  table: string | null
+  columns: string[]
+  rowId: number | null
+  oursRowId: number | null
+  theirsRowId: number | null
+  semanticKey: string[]
+  name: string | null
+  entryType: string | null
+  columnChanges: SpaceVersionSchemaColumnChange[]
+  change: string | null
+  owner: string | null
+  oursOperation: string | null
+  theirsOperation: string | null
+  baseRow: unknown[] | null
+  oursRow: unknown[] | null
+  theirsRow: unknown[] | null
+  message: string | null
 }
 
 export type SpaceVersionConflictResolution = "ours" | "theirs" | "manual"
@@ -107,6 +150,12 @@ export interface SpaceVersionResolveConflictRequest {
   path: string
   resolution: SpaceVersionConflictResolution
   expectedHead: string | null
+  target?: SpaceVersionRowConflictTarget
+}
+
+export interface SpaceVersionRowConflictTarget {
+  table: string
+  rowId: number
 }
 
 export interface SpaceVersionResolveConflictResult {
@@ -460,6 +509,10 @@ function asNonNegativeInteger(value: unknown): number | null {
     : null
 }
 
+function asSafeInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) ? value : null
+}
+
 function firstValue(record: UnknownRecord, keys: string[]): unknown {
   for (const key of keys) {
     if (record[key] !== undefined && record[key] !== null) return record[key]
@@ -620,7 +673,7 @@ function normalizeTimestamp(value: unknown): number | null {
   return Number.isNaN(parsed) ? null : parsed
 }
 
-function normalizeStringArray(value: unknown): string[] {
+function normalizeConflictStringArray(value: unknown): string[] {
   if (typeof value === "string") {
     return value
       .split(/[\s,]+/)
@@ -1162,6 +1215,113 @@ function normalizeConflictPath(
   }
 }
 
+function normalizeConflictArtifactKind(
+  value: unknown
+): SpaceVersionConflictArtifactKind {
+  switch (asString(value)) {
+    case "row":
+    case "schema":
+    case "opaque":
+    case "file":
+      return asString(value) as SpaceVersionConflictArtifactKind
+    default:
+      return "unknown"
+  }
+}
+
+function normalizeConflictResolution(
+  value: unknown
+): SpaceVersionConflictResolution | null {
+  const resolution = asString(value)
+  return resolution === "ours" ||
+    resolution === "theirs" ||
+    resolution === "manual"
+    ? resolution
+    : null
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.flatMap((entry) => {
+        const normalized = asString(entry)
+        return normalized ? [normalized] : []
+      })
+    : []
+}
+
+function normalizeSchemaColumnChange(
+  value: unknown
+): SpaceVersionSchemaColumnChange | null {
+  if (!isRecord(value)) return null
+  const side = asString(value.side)
+  const operation = asString(value.operation)
+  if (!side || !operation) return null
+  return {
+    side,
+    operation,
+    from: asString(value.from),
+    to: asString(value.to),
+  }
+}
+
+function normalizeConflictArtifact(
+  value: unknown
+): SpaceVersionConflictArtifact | null {
+  if (!isRecord(value)) return null
+  const id = asString(value.id)
+  const path = normalizePath(value.path)
+  const status = asString(value.status)
+  if (!id || !path || (status !== "unresolved" && status !== "resolved")) {
+    return null
+  }
+  const columnChanges = firstValue(value, ["columnChanges", "column_changes"])
+  return {
+    id,
+    path,
+    pathKind: normalizePathKind(firstValue(value, ["pathKind", "path_kind"])),
+    storage: normalizePathStorage(value.storage),
+    kind: normalizeConflictArtifactKind(value.kind),
+    reason: asString(value.reason) ?? "",
+    status,
+    resolution: normalizeConflictResolution(value.resolution),
+    table: asString(value.table),
+    columns: normalizeConflictStringArray(value.columns),
+    rowId: asSafeInteger(firstValue(value, ["rowId", "rowid"])),
+    oursRowId: asSafeInteger(firstValue(value, ["oursRowId", "ours_rowid"])),
+    theirsRowId: asSafeInteger(
+      firstValue(value, ["theirsRowId", "theirs_rowid"])
+    ),
+    semanticKey: normalizeConflictStringArray(
+      firstValue(value, ["semanticKey", "semantic_key"])
+    ),
+    name: asString(value.name),
+    entryType: asString(firstValue(value, ["entryType", "entry_type"])),
+    columnChanges: Array.isArray(columnChanges)
+      ? columnChanges
+          .map(normalizeSchemaColumnChange)
+          .filter(
+            (entry): entry is SpaceVersionSchemaColumnChange => entry !== null
+          )
+      : [],
+    change: asString(value.change),
+    owner: asString(value.owner),
+    oursOperation: asString(firstValue(value, ["oursOperation", "ours_op"])),
+    theirsOperation: asString(
+      firstValue(value, ["theirsOperation", "theirs_op"])
+    ),
+    baseRow: Array.isArray(firstValue(value, ["baseRow", "base_row"]))
+      ? (firstValue(value, ["baseRow", "base_row"]) as unknown[])
+      : null,
+    oursRow: Array.isArray(firstValue(value, ["oursRow", "ours_row"]))
+      ? (firstValue(value, ["oursRow", "ours_row"]) as unknown[])
+      : null,
+    theirsRow: Array.isArray(firstValue(value, ["theirsRow", "theirs_row"]))
+      ? (firstValue(value, ["theirsRow", "theirs_row"]) as unknown[])
+      : null,
+    message: asString(value.message),
+  }
+}
+
 export function normalizeSpaceVersionConflicts(
   value: unknown
 ): SpaceVersionConflictList {
@@ -1172,6 +1332,7 @@ export function normalizeSpaceVersionConflicts(
       currentBranch: null,
       mergeHead: null,
       paths: [],
+      conflicts: [],
     }
   }
   return {
@@ -1182,6 +1343,13 @@ export function normalizeSpaceVersionConflicts(
       ? payload.paths
           .map(normalizeConflictPath)
           .filter((entry): entry is SpaceVersionConflictPath => entry !== null)
+      : [],
+    conflicts: Array.isArray(payload.conflicts)
+      ? payload.conflicts
+          .map(normalizeConflictArtifact)
+          .filter(
+            (entry): entry is SpaceVersionConflictArtifact => entry !== null
+          )
       : [],
   }
 }

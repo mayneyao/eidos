@@ -132,6 +132,49 @@ export interface SpaceVersionConflictList {
   currentBranch: string | null
   mergeHead: string | null
   paths: SpaceVersionConflictPath[]
+  conflicts: SpaceVersionConflictArtifact[]
+}
+
+export type SpaceVersionConflictArtifactKind =
+  | "row"
+  | "schema"
+  | "opaque"
+  | "file"
+  | "unknown"
+
+export interface SpaceVersionSchemaColumnChange {
+  side: string
+  operation: string
+  from: string | null
+  to: string | null
+}
+
+export interface SpaceVersionConflictArtifact {
+  id: string
+  path: string
+  pathKind: SpaceVersionPathKind
+  storage: SpaceVersionPathStorage
+  kind: SpaceVersionConflictArtifactKind
+  reason: string
+  status: "unresolved" | "resolved"
+  resolution: SpaceVersionConflictResolution | null
+  table: string | null
+  columns: string[]
+  rowId: number | null
+  oursRowId: number | null
+  theirsRowId: number | null
+  semanticKey: string[]
+  name: string | null
+  entryType: string | null
+  columnChanges: SpaceVersionSchemaColumnChange[]
+  change: string | null
+  owner: string | null
+  oursOperation: string | null
+  theirsOperation: string | null
+  baseRow: unknown[] | null
+  oursRow: unknown[] | null
+  theirsRow: unknown[] | null
+  message: string | null
 }
 
 export type SpaceVersionConflictResolution = "ours" | "theirs" | "manual"
@@ -140,6 +183,12 @@ export interface SpaceVersionResolveConflictOptions {
   path: string
   resolution: SpaceVersionConflictResolution
   expectedHead: string | null
+  target?: SpaceVersionRowConflictTarget
+}
+
+export interface SpaceVersionRowConflictTarget {
+  table: string
+  rowId: number
 }
 
 export interface SpaceVersionResolveConflictResult {

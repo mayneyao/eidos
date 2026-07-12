@@ -683,7 +683,7 @@ describe("useSpaceVersioning history coordination", () => {
     bridge.getStatus.mockResolvedValue({
       ...versionStatus([
         {
-          path: "notes/conflict.md",
+          path: "tasks.base",
           state: "conflicted",
           conflicted: true,
         },
@@ -697,13 +697,31 @@ describe("useSpaceVersioning history coordination", () => {
       mergeHead: "remote-3",
       paths: [
         {
-          path: "notes/conflict.md",
-          kind: "text_file",
-          storage: "inline",
+          path: "tasks.base",
+          kind: "sqlite_database",
+          storage: "sqlite_snapshot",
           status: "unresolved",
           total: 1,
           unresolved: 1,
           resolved: 0,
+        },
+      ],
+      conflicts: [
+        {
+          id: "tasks.base:row:tb_tasks:7",
+          path: "tasks.base",
+          pathKind: "sqlite_database",
+          storage: "sqlite_snapshot",
+          kind: "row",
+          reason: "row_conflict",
+          status: "unresolved",
+          table: "tb_tasks",
+          columns: ["_id", "title"],
+          rowId: 7,
+          oursOperation: "update",
+          theirsOperation: "update",
+          oursRow: ["task-7", "Local"],
+          theirsRow: ["task-7", "Remote"],
         },
       ],
     })
@@ -714,7 +732,7 @@ describe("useSpaceVersioning history coordination", () => {
       flush,
       {
         spaceId: "space-a",
-        filePath: "notes/conflict.md",
+        filePath: "tasks.base",
       }
     )
 
@@ -728,11 +746,22 @@ describe("useSpaceVersioning history coordination", () => {
       await flushEffects()
     })
     expect(hookResults.get("source")?.conflicts?.paths).toHaveLength(1)
+    expect(hookResults.get("source")?.conflicts?.conflicts).toMatchObject([
+      {
+        path: "tasks.base",
+        kind: "row",
+        table: "tb_tasks",
+        rowId: 7,
+        oursRow: ["task-7", "Local"],
+        theirsRow: ["task-7", "Remote"],
+      },
+    ])
 
     const request = {
-      path: "notes/conflict.md",
+      path: "tasks.base",
       resolution: "ours" as const,
       expectedHead: "commit-3",
+      target: { table: "tb_tasks", rowId: 7 },
     }
     await act(async () => {
       await hookResults.get("source")?.resolveConflict(request)

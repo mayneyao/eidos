@@ -3,6 +3,8 @@ import type {
   SpaceVersionCommit,
   SpaceVersionCommitResult,
   SpaceVersionConflictList,
+  SpaceVersionConflictArtifact,
+  SpaceVersionConflictArtifactKind,
   SpaceVersionConflictPath,
   SpaceVersionConflictResolution,
   SpaceVersionDiff,
@@ -25,6 +27,7 @@ import type {
   SpaceVersionSqliteRowChange,
   SpaceVersionSqliteTableDiff,
   SpaceVersionSqliteValue,
+  SpaceVersionSchemaColumnChange,
   SpaceVersionTextContentDiff,
   SpaceVersionTextContentState,
 } from "./types"
@@ -628,6 +631,95 @@ function conflictPath(value: unknown): SpaceVersionConflictPath {
   }
 }
 
+function conflictArtifactKind(
+  value: unknown
+): SpaceVersionConflictArtifactKind {
+  switch (value) {
+    case "row":
+    case "schema":
+    case "opaque":
+    case "file":
+      return value
+    default:
+      return "unknown"
+  }
+}
+
+function conflictResolution(
+  value: unknown
+): SpaceVersionConflictResolution | null {
+  return value === "ours" || value === "theirs" || value === "manual"
+    ? value
+    : null
+}
+
+function optionalArray(value: unknown): unknown[] | null {
+  return Array.isArray(value) ? value : null
+}
+
+function schemaColumnChange(
+  value: unknown
+): SpaceVersionSchemaColumnChange | null {
+  if (!isObject(value)) return null
+  const side = stringValue(value.side)
+  const operation = stringValue(value.operation)
+  if (!side || !operation) return null
+  return {
+    side,
+    operation,
+    from: stringValue(value.from),
+    to: stringValue(value.to),
+  }
+}
+
+function conflictArtifact(value: unknown): SpaceVersionConflictArtifact {
+  if (!isObject(value)) {
+    throw new Error("Graft returned invalid conflict artifact information")
+  }
+  const id = stringValue(value.id)
+  const path = stringValue(value.path)
+  const status = stringValue(value.status)
+  if (!id || !path || (status !== "unresolved" && status !== "resolved")) {
+    throw new Error("Graft conflict artifact metadata is invalid")
+  }
+  return {
+    id,
+    path,
+    pathKind: pathKind(value.path_kind ?? value.pathKind),
+    storage: pathStorage(value.storage),
+    kind: conflictArtifactKind(value.kind),
+    reason: stringValue(value.reason) ?? "",
+    status,
+    resolution: conflictResolution(value.resolution),
+    table: stringValue(value.table),
+    columns: stringArray(value.columns),
+    rowId: safeInteger(value.rowid),
+    oursRowId: safeInteger(value.ours_rowid ?? value.oursRowId),
+    theirsRowId: safeInteger(value.theirs_rowid ?? value.theirsRowId),
+    semanticKey: stringArray(value.semantic_key ?? value.semanticKey),
+    name: stringValue(value.name),
+    entryType: stringValue(value.entry_type ?? value.entryType),
+    columnChanges: (Array.isArray(value.column_changes)
+      ? value.column_changes
+      : Array.isArray(value.columnChanges)
+        ? value.columnChanges
+        : []
+    )
+      .map(schemaColumnChange)
+      .filter(
+        (entry): entry is SpaceVersionSchemaColumnChange => entry !== null
+      ),
+    change: stringValue(value.change),
+    owner: stringValue(value.owner),
+    oursOperation: stringValue(value.ours_op ?? value.oursOp),
+    theirsOperation: stringValue(value.theirs_op ?? value.theirsOp),
+    baseRow: optionalArray(value.base_row ?? value.baseRow),
+    oursRow: optionalArray(value.ours_row ?? value.oursRow),
+    theirsRow: optionalArray(value.theirs_row ?? value.theirsRow),
+    message: stringValue(value.message),
+  }
+}
+
 export function parseGraftConflicts(raw: unknown): SpaceVersionConflictList {
   if (!isObject(raw)) {
     throw new Error("Graft returned an invalid conflict list")
@@ -637,6 +729,9 @@ export function parseGraftConflicts(raw: unknown): SpaceVersionConflictList {
     currentBranch: branchFromPayload(raw),
     mergeHead: stringValue(raw.merge_head),
     paths: Array.isArray(raw.paths) ? raw.paths.map(conflictPath) : [],
+    conflicts: Array.isArray(raw.conflicts)
+      ? raw.conflicts.map(conflictArtifact)
+      : [],
   }
 }
 

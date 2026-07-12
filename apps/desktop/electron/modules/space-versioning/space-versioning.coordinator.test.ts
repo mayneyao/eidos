@@ -340,6 +340,26 @@ describe("SpaceVersioningCoordinator conflicts", () => {
               resolved: 0,
             },
           ],
+          conflicts: [
+            {
+              id: "notes/a b.md:file",
+              path: "notes/a b.md",
+              path_kind: "text_file",
+              storage: "inline",
+              kind: "file",
+              reason: "content_conflict",
+              status: "unresolved",
+            },
+            {
+              id: ".eidos/secrets/token:file",
+              path: ".eidos/secrets/token",
+              path_kind: "text_file",
+              storage: "inline",
+              kind: "file",
+              reason: "content_conflict",
+              status: "unresolved",
+            },
+          ],
         }
       }
       if (args[0] === "status") {
@@ -384,6 +404,7 @@ describe("SpaceVersioningCoordinator conflicts", () => {
     expect(conflicts).toMatchObject({
       mergeHead: "remote-2",
       paths: [{ path: "notes/a b.md", status: "unresolved" }],
+      conflicts: [{ path: "notes/a b.md", kind: "file" }],
     })
 
     const result = await coordinator.resolveConflict("space-a", {
@@ -400,6 +421,63 @@ describe("SpaceVersioningCoordinator conflicts", () => {
     expect(runJson).toHaveBeenCalledWith(
       await fs.realpath(root),
       ["resolve", "--json", "--theirs", "--path", "notes/a b.md"],
+      { timeoutMs: 120_000 }
+    )
+  })
+
+  it("resolves one SQLite row without accepting the whole file", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn(async (_root: string, args: string[]) => {
+      if (args[0] === "status") {
+        return statusPayload(
+          [
+            {
+              path: "tasks.base",
+              kind: "sqlite_database",
+              storage: "sqlite_snapshot",
+              index_status: "unmerged",
+              worktree_status: "unmerged",
+              conflicted: true,
+            },
+          ],
+          {
+            merge_head: "remote-2",
+            has_conflicts: true,
+            counts: { unstaged: 0, staged: 0, conflicted: 1 },
+          }
+        )
+      }
+      if (args[0] === "resolve") {
+        return {
+          operation: "resolve_conflict",
+          path: "tasks.base",
+          resolution: "ours",
+          remaining_conflicts: 1,
+        }
+      }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    await coordinator.resolveConflict("space-a", {
+      path: "tasks.base",
+      resolution: "ours",
+      expectedHead: "head-2",
+      target: { table: "tb_tasks", rowId: 7 },
+    })
+
+    expect(runJson).toHaveBeenCalledWith(
+      await fs.realpath(root),
+      [
+        "resolve",
+        "--json",
+        "--ours",
+        "--row",
+        "tb_tasks",
+        "7",
+        "--path",
+        "tasks.base",
+      ],
       { timeoutMs: 120_000 }
     )
   })
