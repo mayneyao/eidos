@@ -19,6 +19,10 @@ order/width。table/field 现已支持 create、rename、delete，select/multi-s
 可以继续编辑；结构删除会在事务中清理依赖 references 与 view layout metadata。Graft
 row diff 也已贯通 working Changes 和历史 inspector。
 
+view runtime 与 Desktop UI 现已支持多个 Grid views 的创建、重命名、复制、排序、
+删除保护、切换，以及各自独立的 query/layout state。Gallery 和 Kanban metadata 会
+保持可移植，但它们的实时 renderer 不在当前 delivery slice 中。
+
 Base snapshot 现在只携带 row count，Grid 按可见区域请求并缓存 100-row pages；批量删行
 使用 compact row ranges 在 runtime 内事务执行，不需要在 renderer 物化整表选择，并已用
 10,000-row fixture 验证。公开 runtime 也已增加 migration-oriented import boundary，支持

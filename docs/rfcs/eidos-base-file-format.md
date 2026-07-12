@@ -25,6 +25,10 @@ cannot publish a zero-byte canonical `.base`. Users can create, rename, and
 delete tables and fields, edit select/multi-select choices, and persist grid
 order/width/visibility state inside `eidos__views` in the Base file. Structural
 deletes also clean dependent references and view layout metadata transactionally.
+The view runtime and Desktop UI now cover creation, rename, duplication,
+ordering, deletion protection, switching, and per-view query/layout state for
+multiple Grid views. Gallery and Kanban metadata remain portable but their live
+renderers are not part of this delivery slice.
 
 Graft row diffs are preserved through the Desktop boundary and shown as compact
 table/column/row changes in both the working Changes tab and historical version

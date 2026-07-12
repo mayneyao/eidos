@@ -28,8 +28,14 @@ so a selection always mutates the rows shown in the Grid. Base creation is
 named, template-aware, and publishes the SQLite file atomically. Working
 Changes and History provide a Base-aware table/row inspector.
 
+Tables now support multiple independent Grid views. The compact anchored view
+switcher creates, renames, duplicates, reorders, and deletes views without
+opening a centered dialog; each view owns its query, field visibility, column
+order, and width state. Imported non-Grid view metadata remains visible but is
+not presented as a working layout until that renderer exists.
+
 Base is still in delivery closure, not product acceptance. Advanced nested
-filter authoring, richer file/relation/formula fields, multi-view behavior,
+filter authoring, richer file/relation/formula fields, Gallery/Kanban layouts,
 accessible table semantics, and a complete native
 create/edit/restart/version/restore run remain. Routine Base configuration uses
 inline controls, header menus, and anchored popovers. Modal dialogs are

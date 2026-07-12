@@ -24,8 +24,13 @@ cell edit、copy/paste、undo/redo、持久化 column layout、基于 compact ra
 结构化查询模型，因此删除的始终是 Grid 当前展示并选中的记录。Base 创建支持命名、
 模板和原子发布。working Changes 与 History 也已提供 Base-aware table/row inspector。
 
+每个 table 现在可以拥有多个彼此独立的 Grid views。紧凑的锚定 view switcher 支持
+创建、重命名、复制、重排和删除，不打开居中弹窗；每个 view 分别保存 query、字段
+显隐、列顺序和列宽。迁移导入的非 Grid view metadata 会继续保留并显示类型，但在
+相应 renderer 完成前不会伪装成可工作的布局。
+
 Base 仍处于 delivery closure，而不是产品验收。高级嵌套筛选编辑、完整的
-file/relation/formula 字段、多视图、无障碍表格语义和完整原生
+file/relation/formula 字段、Gallery/Kanban layouts、无障碍表格语义和完整原生
 create/edit/restart/version/restore 验收仍未完成。Base 日常编辑和配置优先使用单元格
 内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留给破坏性确认或必须中断
 当前工作流的决策。
