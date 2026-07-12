@@ -5,18 +5,12 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react"
-import {
-  autoUpdate,
-  flip,
-  FloatingPortal,
-  offset,
-  shift,
-  useFloating,
-} from "@floating-ui/react"
+import { createPortal } from "react-dom"
 import type {
   ContextMenuItem,
   ContextMenuOpenContext,
@@ -35,6 +29,8 @@ import { FileTree, useFileTree } from "@pierre/trees/react"
 import type { SpaceFileEntry } from "@eidos.space/file-space"
 
 import { cn } from "@/lib/utils"
+
+import { resolveTreeContextMenuPosition } from "./tree-context-menu-position"
 
 export interface SpaceFilesTreeHandle {
   beginCreate: (entry: SpaceFileEntry) => void
@@ -110,23 +106,44 @@ function SpaceTreeContextMenu({
   onRename: (path: string) => void
   onReveal: SpaceFilesTreeProps["onReveal"]
 }) {
-  const { refs, floatingStyles } = useFloating({
-    placement: "bottom-end",
-    strategy: "fixed",
-    whileElementsMounted: autoUpdate,
-    middleware: [offset(4), flip({ padding: 8 }), shift({ padding: 8 })],
-  })
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState(() =>
+    resolveTreeContextMenuPosition(
+      context.anchorRect,
+      { width: 224, height: 0 },
+      {
+        width: typeof window === "undefined" ? 0 : window.innerWidth,
+        height: typeof window === "undefined" ? 0 : window.innerHeight,
+      }
+    )
+  )
 
   useLayoutEffect(() => {
-    refs.setReference(context.anchorElement)
-    return () => refs.setReference(null)
-  }, [context.anchorElement, refs])
+    const menu = menuRef.current
+    if (!menu) return
 
-  useLayoutEffect(() => {
-    refs.floating.current
-      ?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')
-      ?.focus()
-  }, [refs])
+    const updatePosition = () => {
+      const bounds = menu.getBoundingClientRect()
+      setPosition(
+        resolveTreeContextMenuPosition(
+          context.anchorRect,
+          { width: bounds.width || 224, height: bounds.height },
+          { width: window.innerWidth, height: window.innerHeight }
+        )
+      )
+    }
+
+    updatePosition()
+    menu.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus()
+
+    const resizeObserver = new ResizeObserver(updatePosition)
+    resizeObserver.observe(menu)
+    window.addEventListener("resize", updatePosition)
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener("resize", updatePosition)
+    }
+  }, [context.anchorRect])
 
   const run = (action: () => void) => {
     context.close({ restoreFocus: false })
@@ -137,10 +154,10 @@ function SpaceTreeContextMenu({
 
   const menu = (
     <div
-      ref={refs.setFloating}
+      ref={menuRef}
       data-file-tree-context-menu-root="true"
-      className="z-50 max-h-[calc(100vh-1rem)] w-56 overflow-y-auto rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-lg"
-      style={floatingStyles}
+      className="fixed z-[100] max-h-[calc(100vh-1rem)] w-56 overflow-y-auto rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-lg"
+      style={{ left: position.left, top: position.top }}
       role="menu"
       aria-label={`Actions for ${entry.name}`}
       onKeyDown={(event) => {
@@ -245,11 +262,9 @@ function SpaceTreeContextMenu({
     </div>
   )
 
-  return typeof document === "undefined" ? (
-    menu
-  ) : (
-    <FloatingPortal>{menu}</FloatingPortal>
-  )
+  return typeof document === "undefined"
+    ? menu
+    : createPortal(menu, document.body)
 }
 
 const TREE_CSS = `
@@ -260,6 +275,19 @@ const TREE_CSS = `
 
   button[data-type="item"] {
     border-radius: 4px;
+  }
+
+  [data-file-tree-virtualized-scroll="true"] {
+    padding-block: 4px 8px;
+  }
+
+  button[data-type="context-menu-trigger"] {
+    border-radius: 4px;
+  }
+
+  button[data-type="context-menu-trigger"]:hover,
+  button[data-type="context-menu-trigger"][aria-expanded="true"] {
+    background: var(--trees-bg-muted);
   }
 
   button[data-type="item"]:focus-visible {
@@ -279,7 +307,7 @@ export const SpaceFilesTree = forwardRef<
   const { model } = useFileTree({
     paths: [],
     density: 1,
-    itemHeight: 32,
+    itemHeight: 34,
     initialExpansion: "closed",
     flattenEmptyDirectories: false,
     icons: { set: "standard", colored: false },
@@ -435,13 +463,14 @@ export const SpaceFilesTree = forwardRef<
     "--trees-fg-override": "hsl(var(--sidebar-foreground))",
     "--trees-fg-muted-override": "hsl(var(--sidebar-foreground) / 0.62)",
     "--trees-font-family-override": "inherit",
-    "--trees-font-size-override": "13px",
+    "--trees-font-size-override": "14px",
     "--trees-focus-ring-color-override": "hsl(var(--sidebar-ring))",
     "--trees-focus-ring-offset-override": "-1px",
     "--trees-focus-ring-width-override": "1px",
-    "--trees-icon-width-override": "16px",
+    "--trees-action-lane-width-override": "24px",
+    "--trees-icon-width-override": "17px",
     "--trees-item-margin-x-override": "4px",
-    "--trees-item-row-gap-override": "6px",
+    "--trees-item-row-gap-override": "7px",
     "--trees-item-padding-x-override": "6px",
     "--trees-level-gap-override": "12px",
     "--trees-padding-inline-override": "8px",
