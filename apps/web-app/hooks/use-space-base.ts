@@ -12,6 +12,7 @@ import type {
   BaseCsvImportResult,
   BaseFormulaPreview,
   BaseFormulaPreviewInput,
+  BaseFieldPlacement,
   CreateBaseFieldInput,
   CreateBaseOptions,
   CreateBaseTableInput,
@@ -96,13 +97,15 @@ export function useSpaceBase(spaceId: string | undefined) {
     (
       relativePath: string,
       tableId: string,
-      field: CreateBaseFieldInput
+      field: CreateBaseFieldInput,
+      placement?: BaseFieldPlacement
     ): Promise<BaseSnapshot> =>
       requireBaseApi().addBaseField(
         requireSpaceId(),
         relativePath,
         tableId,
-        field
+        field,
+        placement
       ),
     [requireSpaceId]
   )

@@ -26,6 +26,7 @@ import {
 } from "./query"
 import type {
   BaseFieldInfo,
+  BaseFieldPlacement,
   BaseFieldType,
   BaseFormulaPreview,
   BaseFormulaPreviewInput,
@@ -922,13 +923,40 @@ export class BaseRuntime {
     return this.listViews(tableId)
   }
 
-  addField(tableId: string, field: CreateBaseFieldInput): BaseFieldInfo {
+  addField(
+    tableId: string,
+    field: CreateBaseFieldInput,
+    placement?: BaseFieldPlacement
+  ): BaseFieldInfo {
     const table = this.getTable(tableId)
     const columnName = assertBaseColumnName(field.columnName)
     const quotedTable = quoteIdentifier(table.rawTableName)
     const quotedColumn = quoteIdentifier(columnName)
     let property: Record<string, unknown> | null = field.property ?? null
     let dependsOn: string[] | null = null
+    if (
+      placement &&
+      (!Number.isSafeInteger(placement.index) || placement.index < 0)
+    ) {
+      throw new BaseError(
+        "invalid-range",
+        "Base field placement index must be a non-negative integer"
+      )
+    }
+    const placementView = placement
+      ? this.connection.get<Pick<ViewRow, "id" | "order_map">>(
+          `SELECT id, order_map
+             FROM ${BASE_VIEWS_TABLE}
+            WHERE id = ? AND table_id = ?`,
+          [placement.viewId, tableId]
+        )
+      : undefined
+    if (placement && !placementView) {
+      throw new BaseError(
+        "view-not-found",
+        `Base view not found: ${placement.viewId}`
+      )
+    }
     if (field.type === "link") {
       const targetTable = this.getTable(field.property.targetTableId)
       const targetField = this.getField(
@@ -1016,6 +1044,55 @@ export class BaseRuntime {
           dependsOn ? JSON.stringify(dependsOn) : null,
         ]
       )
+      if (placement && placementView) {
+        const currentOrder =
+          (parseJson(placementView.order_map) as Record<
+            string,
+            number
+          > | null) ?? {}
+        const fields = this.listFields(tableId)
+        const createdField = fields.find(
+          (candidate) => candidate.tableColumnName === columnName
+        )
+        const orderedFields = fields
+          .filter(
+            (candidate) =>
+              candidate.tableColumnName !== columnName &&
+              !candidate.isHidden &&
+              (candidate.tableColumnName === "title" ||
+                candidate.valueKind === "source" ||
+                candidate.valueKind === "relation" ||
+                candidate.valueKind === "derived")
+          )
+          .sort(
+            (left, right) =>
+              (currentOrder[left.tableColumnName] ?? Number.MAX_SAFE_INTEGER) -
+              (currentOrder[right.tableColumnName] ?? Number.MAX_SAFE_INTEGER)
+          )
+        if (createdField) {
+          orderedFields.splice(
+            Math.min(placement.index, orderedFields.length),
+            0,
+            createdField
+          )
+        }
+        this.connection.run(
+          `UPDATE ${BASE_VIEWS_TABLE}
+              SET order_map = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?`,
+          [
+            JSON.stringify(
+              Object.fromEntries(
+                orderedFields.map((candidate, index) => [
+                  candidate.tableColumnName,
+                  index,
+                ])
+              )
+            ),
+            placement.viewId,
+          ]
+        )
+      }
       setBaseMetadata(this.connection, {})
     })
     const created = this.listFields(tableId).find(

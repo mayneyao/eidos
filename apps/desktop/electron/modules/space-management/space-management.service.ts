@@ -17,6 +17,7 @@ import type {
   BaseCsvImportResult,
   BaseFormulaPreview,
   BaseFormulaPreviewInput,
+  BaseFieldPlacement,
   CreateBaseFieldInput,
   CreateBaseOptions,
   CreateBaseTableInput,
@@ -559,12 +560,13 @@ export class SpaceManagementService extends IpcServiceBase {
     spaceId: string,
     relativePath: string,
     tableId: string,
-    field: CreateBaseFieldInput
+    field: CreateBaseFieldInput,
+    placement?: BaseFieldPlacement
   ): Promise<BaseSnapshot> {
     return withFileSpaceOperationLock(spaceId, async () => {
       const base = await this._openBase(spaceId, relativePath, true)
       try {
-        base.addField(tableId, field)
+        base.addField(tableId, field, placement)
       } finally {
         base.close()
       }

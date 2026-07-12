@@ -603,6 +603,46 @@ describe("Eidos Base files", () => {
     reopened.close()
   })
 
+  it("creates a field and places it in a Grid view atomically", () => {
+    const filePath = path.join(root, "field-placement.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: {
+        id: "tasks",
+        name: "Tasks",
+        fields: [{ name: "Status", columnName: "status", type: "text" }],
+      },
+    })
+    const view = base.listViews("tasks")[0]
+    base.updateView(view.id, { orderMap: { status: 0, title: 1 } })
+
+    base.addField(
+      "tasks",
+      { name: "Priority", columnName: "priority", type: "number" },
+      { viewId: view.id, index: 1 }
+    )
+
+    expect(base.listViews("tasks")[0].orderMap).toEqual({
+      status: 0,
+      priority: 1,
+      title: 2,
+    })
+    expectBaseError(
+      () =>
+        base.addField(
+          "tasks",
+          { name: "Owner", columnName: "owner", type: "text" },
+          { viewId: "missing", index: 1 }
+        ),
+      "view-not-found"
+    )
+    expect(
+      base
+        .listFields("tasks")
+        .some((field) => field.tableColumnName === "owner")
+    ).toBe(false)
+    base.close()
+  })
+
   it("renames and deletes Base tables and fields transactionally", () => {
     const filePath = path.join(root, "structure.base")
     const base = createBaseFile(filePath, {

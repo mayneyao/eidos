@@ -278,6 +278,11 @@ export type CreateBaseFieldInput =
   | CreateBaseFormulaFieldInput
   | CreateBaseLookupFieldInput
 
+export interface BaseFieldPlacement {
+  viewId: string
+  index: number
+}
+
 export interface BaseRelationValue {
   id: string
   title: string
