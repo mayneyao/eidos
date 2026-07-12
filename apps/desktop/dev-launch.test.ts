@@ -1,10 +1,20 @@
 // @vitest-environment node
 
+import { readFileSync } from "node:fs"
+
 import { describe, expect, it } from "vitest"
 
 import { desktopDevLaunchArgs } from "./dev-launch"
 
 describe("Desktop development launch arguments", () => {
+  it("prepares workspace build artifacts before the QA launch", () => {
+    const packageJson = JSON.parse(
+      readFileSync(new URL("./package.json", import.meta.url), "utf8")
+    ) as { scripts: Record<string, string> }
+
+    expect(packageJson.scripts["predev:qa"]).toBe("pnpm run predev")
+  })
+
   it("keeps the normal development launch private by default", () => {
     expect(desktopDevLaunchArgs("")).toEqual([".", "--no-sandbox"])
   })
