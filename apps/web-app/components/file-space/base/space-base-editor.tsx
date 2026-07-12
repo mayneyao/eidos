@@ -131,6 +131,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const [structureDialog, setStructureDialog] = useState<
     "table" | "field" | null
   >(null)
+  const [fieldInsertIndex, setFieldInsertIndex] = useState<number | null>(null)
 
   const applySnapshot = useCallback((next: BaseSnapshot) => {
     setSnapshot(next)
@@ -516,13 +517,35 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const createFieldInBase = useCallback(
     (field: Parameters<typeof addField>[2]): Promise<void> => {
       if (!activeTable) return Promise.resolve()
+      const placement =
+        activeView && fieldInsertIndex !== null
+          ? { viewId: activeView.id, index: fieldInsertIndex }
+          : undefined
       return enqueueMutation(
-        () => addField(filePath, activeTable.table.id, field),
+        () =>
+          placement
+            ? addField(filePath, activeTable.table.id, field, placement)
+            : addField(filePath, activeTable.table.id, field),
         applySnapshot
-      ).then(() => undefined)
+      ).then(() => {
+        setFieldInsertIndex(null)
+      })
     },
-    [activeTable, addField, applySnapshot, enqueueMutation, filePath]
+    [
+      activeTable,
+      activeView,
+      addField,
+      applySnapshot,
+      enqueueMutation,
+      fieldInsertIndex,
+      filePath,
+    ]
   )
+
+  const openFieldCreator = useCallback((position?: number) => {
+    setFieldInsertIndex(position ?? null)
+    setStructureDialog("field")
+  }, [])
 
   const renameStructure = useCallback(
     (name: string): Promise<void> => {
@@ -912,7 +935,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
                 table={activeTable.table}
                 fields={activeTable.fields}
                 disabled={pendingMutations > 0}
-                onNewField={() => setStructureDialog("field")}
+                onNewField={() => openFieldCreator()}
                 onRenameTable={() =>
                   setRenameTarget({
                     kind: "table",
@@ -1012,6 +1035,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
             table={activeTable}
             view={activeView}
+            disabled={pendingMutations > 0}
             reloadToken={gridReloadToken}
             loadPage={loadActiveTablePage}
             onAddRow={createRow}
@@ -1023,7 +1047,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             onOpenFile={openBaseFileReference}
             onRevealFile={(path) => reveal(path).then(() => undefined)}
             onSearchRelation={searchRelationRecords}
-            onAddField={() => setStructureDialog("field")}
+            onAddField={openFieldCreator}
             onRenameField={(field) =>
               setRenameTarget({
                 kind: "field",
@@ -1043,6 +1067,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
                 name: field.name,
               })
             }
+            onRequestDeleteRows={(ranges) => {
+              setSelectedRowRanges(ranges)
+              setDeleteRowsDialogOpen(true)
+            }}
             onViewUpdate={updateActiveView}
             onError={handleGridError}
           />
@@ -1072,7 +1100,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => setStructureDialog("field")}
+                        onClick={() => openFieldCreator()}
                       >
                         Add field
                       </Button>
@@ -1108,7 +1136,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         mode={structureDialog ?? "table"}
         open={structureDialog !== null}
         onOpenChange={(open) => {
-          if (!open) setStructureDialog(null)
+          if (!open) {
+            setStructureDialog(null)
+            setFieldInsertIndex(null)
+          }
         }}
         onCreateTable={createTableInBase}
         onCreateField={createFieldInBase}

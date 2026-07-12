@@ -22,14 +22,7 @@ import DataEditor, {
   type Item,
   type Rectangle,
 } from "@glideapps/glide-data-grid"
-import {
-  Calculator,
-  ListRestart,
-  Pencil,
-  Plus,
-  Trash2,
-  Waypoints,
-} from "lucide-react"
+import { Plus } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 
 import { useCurrentTheme } from "@/apps/web-app/hooks/use-current-theme"
@@ -41,13 +34,11 @@ import { defaultConfig } from "@/components/table/views/grid/grid-default-config
 import { useUndoRedo } from "@/components/table/views/grid/hooks/use-undo-redo"
 import { useDynamicTheme } from "@/components/table/views/grid/theme"
 import { Button } from "@/components/ui/button"
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 
 import {
   baseGridColumn,
   baseValueToGridCell,
   gridCellToBaseValue,
-  visibleBaseFields,
 } from "./base-grid-adapter"
 import {
   baseFileDisplayData,
@@ -58,7 +49,24 @@ import {
   BaseRelationCellRenderer,
   type BaseRelationCell,
 } from "./base-relation-cell"
-import { encodeBaseFilePaths } from "@eidos.space/base"
+import { decodeBaseFilePaths, encodeBaseFilePaths } from "@eidos.space/base"
+
+import {
+  BaseCellMenu,
+  BaseFieldMenu,
+  type BaseCellMenuState,
+  type BaseFieldMenuState,
+} from "./base-grid-menus"
+import { BaseRecordInspector } from "./base-record-inspector"
+import { baseRecordFieldText } from "./base-record-format"
+import {
+  baseViewFreezeColumns,
+  contextRowRanges,
+  nextBaseFieldSorts,
+  orderedBaseFields,
+  rowRangeCount,
+  rowSelectionRanges,
+} from "./base-view-layout"
 
 import "@glideapps/glide-data-grid/dist/index.css"
 
@@ -87,12 +95,13 @@ interface BaseGridProps {
     field: BaseFieldInfo,
     query: string
   ) => Promise<BaseRelationValue[]>
-  onAddField?: () => void
+  onAddField?: (position?: number) => void
   onRenameField?: (field: BaseFieldInfo) => void
   onEditFieldOptions?: (field: BaseFieldInfo) => void
   onEditFormula?: (field: BaseFieldInfo) => void
   onEditLookup?: (field: BaseFieldInfo) => void
   onDeleteField?: (field: BaseFieldInfo) => void
+  onRequestDeleteRows?: (ranges: BaseRowRange[]) => void
   onViewUpdate?: (changes: UpdateBaseViewInput) => Promise<void> | void
   onError?: (error: unknown) => void
 }
@@ -126,31 +135,6 @@ function viewWidths(view: BaseViewInfo | undefined): Record<string, number> {
   )
 }
 
-function rowSelectionRanges(selection: GridSelection): BaseRowRange[] {
-  const compactRanges = (
-    selection.rows as unknown as {
-      items?: readonly (readonly [number, number])[]
-    }
-  ).items
-  if (compactRanges) {
-    return compactRanges.map(([startIndex, endIndex]) => ({
-      startIndex,
-      endIndex,
-    }))
-  }
-
-  const ranges: BaseRowRange[] = []
-  for (const index of selection.rows) {
-    const previous = ranges.at(-1)
-    if (previous?.endIndex === index) {
-      previous.endIndex = index + 1
-    } else {
-      ranges.push({ startIndex: index, endIndex: index + 1 })
-    }
-  }
-  return ranges
-}
-
 export function BaseGrid({
   table,
   view,
@@ -172,6 +156,7 @@ export function BaseGrid({
   onEditFormula,
   onEditLookup,
   onDeleteField,
+  onRequestDeleteRows,
   onViewUpdate,
   onError,
 }: BaseGridProps) {
@@ -187,28 +172,24 @@ export function BaseGrid({
   const generationRef = useRef(0)
   const [cacheRevision, setCacheRevision] = useState(0)
   const [rowCount, setRowCount] = useState(table.rowCount)
-  const [fieldMenu, setFieldMenu] = useState<{
-    field: BaseFieldInfo
-    bounds: Rectangle
-  } | null>(null)
+  const [fieldMenu, setFieldMenu] = useState<BaseFieldMenuState | null>(null)
+  const [cellMenu, setCellMenu] = useState<BaseCellMenuState | null>(null)
+  const [inspectedRowIndex, setInspectedRowIndex] = useState<number | null>(
+    null
+  )
   const availableFields = useMemo(
-    () =>
-      visibleBaseFields(table.fields, view?.hiddenFields).sort(
-        (left, right) => {
-          const leftOrder = view?.orderMap?.[left.tableColumnName]
-          const rightOrder = view?.orderMap?.[right.tableColumnName]
-          return (
-            (leftOrder ?? Number.MAX_SAFE_INTEGER) -
-            (rightOrder ?? Number.MAX_SAFE_INTEGER)
-          )
-        }
-      ),
+    () => orderedBaseFields(table.fields, view),
     [table.fields, view?.hiddenFields, view?.orderMap]
   )
   const [fields, setFields] = useState(availableFields)
   const [widths, setWidths] = useState<Record<string, number>>(() =>
     viewWidths(view)
   )
+  const freezeColumns = baseViewFreezeColumns(view, fields.length)
+  const inspectedRow =
+    inspectedRowIndex === null
+      ? undefined
+      : rowsRef.current.get(inspectedRowIndex)
 
   const loadPageIndex = useCallback(
     async (pageIndex: number) => {
@@ -251,6 +232,9 @@ export function BaseGrid({
     onRowCountChange?.(null)
     setCacheRevision((current) => current + 1)
     onSelectedRowsChange?.([])
+    setFieldMenu(null)
+    setCellMenu(null)
+    setInspectedRowIndex(null)
     void loadPageIndex(0)
   }, [
     loadPageIndex,
@@ -565,166 +549,236 @@ export function BaseGrid({
       const field = fields[columnIndex]
       if (!field) return
       event.preventDefault()
-      setFieldMenu({ field, bounds: event.bounds })
+      setCellMenu(null)
+      setFieldMenu({ field, fieldIndex: columnIndex, bounds: event.bounds })
     },
     [fields]
   )
 
+  const onCellContextMenu = useCallback<
+    NonNullable<DataEditorProps["onCellContextMenu"]>
+  >(
+    ([fieldIndex, rowIndex], event) => {
+      const field = fields[fieldIndex]
+      const row = rowsRef.current.get(rowIndex)
+      if (!field || !row) return
+      event.preventDefault()
+      setFieldMenu(null)
+      setCellMenu({
+        bounds: event.bounds,
+        field,
+        fieldIndex,
+        point: {
+          x:
+            event.bounds.x +
+            Math.min(event.bounds.width, Math.max(0, event.localEventX)),
+          y:
+            event.bounds.y +
+            Math.min(event.bounds.height, Math.max(0, event.localEventY)),
+        },
+        row,
+        rowIndex,
+        rowRanges: contextRowRanges(
+          history.gridSelection ?? undefined,
+          rowIndex
+        ),
+      })
+    },
+    [fields, history.gridSelection]
+  )
+
+  const updateView = useCallback(
+    (changes: UpdateBaseViewInput) => {
+      if (!onViewUpdate) return
+      void Promise.resolve(onViewUpdate(changes)).catch((error) =>
+        onError?.(error)
+      )
+    },
+    [onError, onViewUpdate]
+  )
+
+  const copyText = useCallback(
+    (value: string) => {
+      if (!value) return
+      if (!navigator.clipboard) {
+        onError?.(new Error("Clipboard access is unavailable"))
+        return
+      }
+      void navigator.clipboard
+        .writeText(value)
+        .catch((error) => onError?.(error))
+    },
+    [onError]
+  )
+
+  const fieldSortDirection = fieldMenu
+    ? view?.sorts.find((sort) => sort.field === fieldMenu.field.tableColumnName)
+        ?.direction
+    : undefined
+  const fieldHasPropertyEditor =
+    fieldMenu?.field.type === "select" ||
+    fieldMenu?.field.type === "multi-select" ||
+    fieldMenu?.field.type === "formula" ||
+    fieldMenu?.field.type === "lookup"
+  const cellText = cellMenu
+    ? baseRecordFieldText(cellMenu.row, cellMenu.field)
+    : ""
+  const cellIsEmpty =
+    !cellMenu ||
+    cellMenu.row[cellMenu.field.tableColumnName] === null ||
+    cellMenu.row[cellMenu.field.tableColumnName] === undefined ||
+    cellMenu.row[cellMenu.field.tableColumnName] === ""
+  const cellFilePaths =
+    cellMenu?.field.type === "file"
+      ? decodeBaseFilePaths(cellMenu.row[cellMenu.field.tableColumnName])
+      : []
+
   return (
     <div
       ref={containerRef}
-      className="relative h-full min-h-0 w-full overflow-hidden"
+      className="flex h-full min-h-0 w-full overflow-hidden"
     >
-      <DataEditor
-        {...defaultConfig}
-        ref={gridRef}
-        theme={theme}
-        columns={columns}
-        rows={rowCount}
-        getCellContent={getCellContent}
-        onVisibleRegionChanged={onVisibleRegionChanged}
-        customRenderers={[
-          RatingCell,
-          SelectCell,
-          MultiSelectCell,
-          DatePickerCell,
-          BaseFileCellRenderer,
-          BaseRelationCellRenderer,
-        ]}
-        onDragOverCell={onDragOverCell}
-        onDragLeave={() => setFileDropHighlights([])}
-        onDrop={onDrop}
-        highlightRegions={fileDropHighlights}
-        fillHandle={!disabled}
-        gridSelection={history.gridSelection ?? undefined}
-        onCellEdited={disabled ? undefined : history.onCellEdited}
-        onCellsEdited={disabled ? undefined : onCellsEdited}
-        onGridSelectionChange={history.onGridSelectionChange}
-        onHeaderClicked={onHeaderClicked}
-        onHeaderContextMenu={onHeaderClicked}
-        onColumnResize={onColumnResize}
-        onColumnMoved={onColumnMoved}
-        onRowAppended={disabled ? undefined : appendRow}
-        rightElement={
-          !disabled && onAddField ? (
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-9 w-full justify-start rounded-none px-2 text-muted-foreground"
-              aria-label="Add field"
-              title="New field"
-              onClick={onAddField}
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-          ) : undefined
-        }
-        rightElementProps={{ fill: true }}
-      />
-      <Popover
-        open={fieldMenu !== null}
-        onOpenChange={(open) => {
-          if (!open) setFieldMenu(null)
-        }}
-      >
-        <PopoverAnchor asChild>
-          <span
-            className="pointer-events-none fixed h-px w-px"
-            style={
-              fieldMenu
-                ? {
-                    left: fieldMenu.bounds.x,
-                    top: fieldMenu.bounds.y + fieldMenu.bounds.height,
+      <div className="relative min-w-0 flex-1 overflow-hidden">
+        <DataEditor
+          {...defaultConfig}
+          ref={gridRef}
+          theme={theme}
+          columns={columns}
+          rows={rowCount}
+          freezeColumns={freezeColumns}
+          getCellContent={getCellContent}
+          onVisibleRegionChanged={onVisibleRegionChanged}
+          customRenderers={[
+            RatingCell,
+            SelectCell,
+            MultiSelectCell,
+            DatePickerCell,
+            BaseFileCellRenderer,
+            BaseRelationCellRenderer,
+          ]}
+          onDragOverCell={onDragOverCell}
+          onDragLeave={() => setFileDropHighlights([])}
+          onDrop={onDrop}
+          highlightRegions={fileDropHighlights}
+          fillHandle={!disabled}
+          gridSelection={history.gridSelection ?? undefined}
+          onCellEdited={disabled ? undefined : history.onCellEdited}
+          onCellsEdited={disabled ? undefined : onCellsEdited}
+          onGridSelectionChange={history.onGridSelectionChange}
+          onHeaderClicked={onHeaderClicked}
+          onHeaderContextMenu={onHeaderClicked}
+          onCellContextMenu={onCellContextMenu}
+          onColumnResize={onColumnResize}
+          onColumnMoved={onColumnMoved}
+          onRowAppended={disabled ? undefined : appendRow}
+          rightElement={
+            !disabled && onAddField ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 w-full justify-start rounded-none px-2 text-muted-foreground"
+                aria-label="Add field"
+                title="New field"
+                onClick={() => onAddField()}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+            ) : undefined
+          }
+          rightElementProps={{ fill: true }}
+        />
+        <BaseFieldMenu
+          state={fieldMenu}
+          open={fieldMenu !== null}
+          sortDirection={fieldSortDirection}
+          frozen={fieldMenu !== null && fieldMenu.fieldIndex < freezeColumns}
+          canUpdateView={!disabled && Boolean(view && onViewUpdate)}
+          canEditStructure={!disabled}
+          onOpenChange={(open) => {
+            if (!open) setFieldMenu(null)
+          }}
+          onEditProperty={
+            fieldHasPropertyEditor
+              ? (field) => {
+                  if (
+                    field.type === "select" ||
+                    field.type === "multi-select"
+                  ) {
+                    onEditFieldOptions?.(field)
+                  } else if (field.type === "formula") {
+                    onEditFormula?.(field)
+                  } else if (field.type === "lookup") {
+                    onEditLookup?.(field)
                   }
-                : undefined
-            }
-          />
-        </PopoverAnchor>
-        <PopoverContent
-          align="start"
-          side="bottom"
-          sideOffset={2}
-          className="w-52 p-1"
-        >
-          {fieldMenu ? (
-            <>
-              <div className="px-2 py-1.5">
-                <p className="truncate text-xs font-medium">
-                  {fieldMenu.field.name}
-                </p>
-                <p className="text-[11px] capitalize text-muted-foreground">
-                  {fieldMenu.field.type.replace("-", " ")}
-                </p>
-              </div>
-              <div className="my-1 h-px bg-border" />
-              <button
-                type="button"
-                className="flex h-7 w-full items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-accent"
-                onClick={() => {
-                  onRenameField?.(fieldMenu.field)
-                  setFieldMenu(null)
-                }}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Rename field
-              </button>
-              {fieldMenu.field.type === "select" ||
-              fieldMenu.field.type === "multi-select" ? (
-                <button
-                  type="button"
-                  className="flex h-7 w-full items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-accent"
-                  onClick={() => {
-                    onEditFieldOptions?.(fieldMenu.field)
-                    setFieldMenu(null)
-                  }}
-                >
-                  <ListRestart className="h-3.5 w-3.5" />
-                  Edit options
-                </button>
-              ) : null}
-              {fieldMenu.field.type === "formula" ? (
-                <button
-                  type="button"
-                  className="flex h-7 w-full items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-accent"
-                  onClick={() => {
-                    onEditFormula?.(fieldMenu.field)
-                    setFieldMenu(null)
-                  }}
-                >
-                  <Calculator className="h-3.5 w-3.5" />
-                  Edit formula
-                </button>
-              ) : null}
-              {fieldMenu.field.type === "lookup" ? (
-                <button
-                  type="button"
-                  className="flex h-7 w-full items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-accent"
-                  onClick={() => {
-                    onEditLookup?.(fieldMenu.field)
-                    setFieldMenu(null)
-                  }}
-                >
-                  <Waypoints className="h-3.5 w-3.5" />
-                  Edit lookup
-                </button>
-              ) : null}
-              <div className="my-1 h-px bg-border" />
-              <button
-                type="button"
-                className="flex h-7 w-full items-center gap-2 rounded-sm px-2 text-left text-xs text-destructive hover:bg-accent hover:text-destructive disabled:opacity-45"
-                disabled={fieldMenu.field.tableColumnName === "title"}
-                onClick={() => {
-                  onDeleteField?.(fieldMenu.field)
-                  setFieldMenu(null)
-                }}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete field
-              </button>
-            </>
-          ) : null}
-        </PopoverContent>
-      </Popover>
+                }
+              : undefined
+          }
+          onRename={(field) => onRenameField?.(field)}
+          onSort={(field, direction) =>
+            updateView({
+              sorts: nextBaseFieldSorts(
+                view?.sorts ?? [],
+                field.tableColumnName,
+                direction
+              ),
+            })
+          }
+          onInsert={(index) => onAddField?.(index)}
+          onToggleFreeze={(fieldIndex, frozen) =>
+            updateView({
+              properties: {
+                ...(view?.properties ?? {}),
+                freezeColumns: frozen ? 0 : fieldIndex + 1,
+              },
+            })
+          }
+          onDelete={(field) => onDeleteField?.(field)}
+        />
+        <BaseCellMenu
+          state={cellMenu}
+          open={cellMenu !== null}
+          selectionCount={cellMenu ? rowRangeCount(cellMenu.rowRanges) : 0}
+          cellText={cellIsEmpty ? "" : cellText}
+          filePaths={cellFilePaths}
+          canDelete={!disabled && Boolean(onRequestDeleteRows)}
+          onOpenChange={(open) => {
+            if (!open) setCellMenu(null)
+          }}
+          onOpenRecord={(state) => setInspectedRowIndex(state.rowIndex)}
+          onCopyCell={copyText}
+          onCopyRecordId={copyText}
+          onOpenUrl={(url) => window.open(url, "_blank", "noopener,noreferrer")}
+          onOpenFile={onOpenFile}
+          onRevealFile={
+            onRevealFile
+              ? (path) => {
+                  void Promise.resolve(onRevealFile(path)).catch((error) =>
+                    onError?.(error)
+                  )
+                }
+              : undefined
+          }
+          onDeleteRows={(ranges) => onRequestDeleteRows?.(ranges)}
+        />
+      </div>
+      {inspectedRow ? (
+        <BaseRecordInspector
+          row={inspectedRow}
+          fields={fields}
+          onClose={() => setInspectedRowIndex(null)}
+          onCopyRecordId={copyText}
+          onOpenFile={onOpenFile}
+          onRevealFile={
+            onRevealFile
+              ? (path) => {
+                  void Promise.resolve(onRevealFile(path)).catch((error) =>
+                    onError?.(error)
+                  )
+                }
+              : undefined
+          }
+        />
+      ) : null}
     </div>
   )
 }

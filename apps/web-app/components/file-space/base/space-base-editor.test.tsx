@@ -303,6 +303,7 @@ vi.mock("./base-grid", () => ({
     onOpenFile,
     onRevealFile,
     onSearchRelation,
+    onAddField,
     onEditFormula,
     onEditLookup,
   }: {
@@ -323,6 +324,7 @@ vi.mock("./base-grid", () => ({
       field: (typeof snapshot)["tables"][number]["fields"][number],
       query: string
     ) => Promise<Array<{ id: string; title: string }>>
+    onAddField?: (position?: number) => void
     onEditFormula?: (
       field: (typeof snapshot)["tables"][number]["fields"][number]
     ) => void
@@ -356,6 +358,9 @@ vi.mock("./base-grid", () => ({
           onClick={() => onSelectedRowsChange([{ startIndex: 0, endIndex: 1 }])}
         >
           Select row
+        </button>
+        <button type="button" onClick={() => onAddField?.(1)}>
+          Insert field at 1
         </button>
         <button type="button" onClick={() => void onImportFiles?.()}>
           Import attachments
@@ -756,6 +761,24 @@ describe("SpaceBaseEditor", () => {
       columnName: "owner",
       type: "text",
     })
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Insert field at 1")
+        ?.click()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Confirm field")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(addFieldMock).toHaveBeenLastCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      { name: "Owner", columnName: "owner", type: "text" },
+      { viewId: "view_tasks", index: 1 }
+    )
   })
 
   it("routes view lifecycle actions through the Base file API", async () => {

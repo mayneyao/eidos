@@ -257,6 +257,105 @@ describe("BaseGrid", () => {
     expect(onRenameField).toHaveBeenCalledWith(table.fields[0])
   })
 
+  it("persists sort, insertion, and freeze commands from the field menu", async () => {
+    const onViewUpdate = vi.fn()
+    const onAddField = vi.fn()
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={table}
+          view={table.views[0]}
+          loadPage={createLoadPage()}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+          onAddField={onAddField}
+          onViewUpdate={onViewUpdate}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const openDoneMenu = () => {
+      act(() => {
+        mocks.props?.onHeaderClicked?.(1, {
+          bounds: { x: 220, y: 20, width: 180, height: 36 },
+          preventDefault: vi.fn(),
+        } as never)
+      })
+    }
+    const clickMenuItem = (label: string) => {
+      const button = [...document.body.querySelectorAll("button")].find(
+        (candidate) => candidate.textContent?.includes(label)
+      )
+      expect(button).toBeTruthy()
+      act(() => button?.click())
+    }
+
+    openDoneMenu()
+    clickMenuItem("Sort descending")
+    expect(onViewUpdate).toHaveBeenLastCalledWith({
+      sorts: [{ field: "done", direction: "desc" }],
+    })
+
+    openDoneMenu()
+    clickMenuItem("Insert field left")
+    expect(onAddField).toHaveBeenCalledWith(1)
+
+    openDoneMenu()
+    clickMenuItem("Freeze to this field")
+    expect(onViewUpdate).toHaveBeenLastCalledWith({
+      properties: { freezeColumns: 2 },
+    })
+  })
+
+  it("opens record details and deletes the right-clicked record", async () => {
+    const onRequestDeleteRows = vi.fn()
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={table}
+          view={table.views[0]}
+          loadPage={createLoadPage()}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+          onRequestDeleteRows={onRequestDeleteRows}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const openCellMenu = () => {
+      act(() => {
+        mocks.props?.onCellContextMenu?.([0, 0], {
+          bounds: { x: 40, y: 56, width: 180, height: 36 },
+          localEventX: 30,
+          localEventY: 18,
+          preventDefault: vi.fn(),
+        } as never)
+      })
+    }
+
+    openCellMenu()
+    const openRecord = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.includes("Open record")
+    )
+    expect(openRecord).toBeTruthy()
+    act(() => openRecord?.click())
+    expect(
+      container.querySelector('[aria-label="Record details for Write RFC"]')
+    ).toBeTruthy()
+
+    openCellMenu()
+    const deleteRecord = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.includes("Delete record")
+    )
+    expect(deleteRecord).toBeTruthy()
+    act(() => deleteRecord?.click())
+    expect(onRequestDeleteRows).toHaveBeenCalledWith([
+      { startIndex: 0, endIndex: 1 },
+    ])
+  })
+
   it("hydrates and persists Base view column layout", async () => {
     vi.useFakeTimers()
     const onViewUpdate = vi.fn()
