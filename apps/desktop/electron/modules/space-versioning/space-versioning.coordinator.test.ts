@@ -420,7 +420,7 @@ describe("SpaceVersioningCoordinator conflicts", () => {
     })
     expect(runJson).toHaveBeenCalledWith(
       await fs.realpath(root),
-      ["resolve", "--json", "--theirs", "--path", "notes/a b.md"],
+      ["resolve", "--json", "--theirs", "notes/a b.md"],
       { timeoutMs: 120_000 }
     )
   })
@@ -468,16 +468,7 @@ describe("SpaceVersioningCoordinator conflicts", () => {
 
     expect(runJson).toHaveBeenCalledWith(
       await fs.realpath(root),
-      [
-        "resolve",
-        "--json",
-        "--ours",
-        "--row",
-        "tb_tasks",
-        "7",
-        "--path",
-        "tasks.base",
-      ],
+      ["resolve", "--json", "--ours", "--row", "tb_tasks", "7", "tasks.base"],
       { timeoutMs: 120_000 }
     )
   })

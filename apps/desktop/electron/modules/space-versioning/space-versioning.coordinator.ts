@@ -920,7 +920,6 @@ export class SpaceVersioningCoordinator {
               ...(options.target
                 ? ["--row", options.target.table, String(options.target.rowId)]
                 : []),
-              "--path",
               options.path,
             ],
             { timeoutMs: MUTATION_TIMEOUT_MS }
