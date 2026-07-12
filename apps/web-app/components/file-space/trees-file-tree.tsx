@@ -5,12 +5,18 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react"
-import { createPortal } from "react-dom"
+import {
+  autoUpdate,
+  flip,
+  FloatingPortal,
+  offset,
+  shift,
+  useFloating,
+} from "@floating-ui/react"
 import type {
   ContextMenuItem,
   ContextMenuOpenContext,
@@ -29,8 +35,6 @@ import { FileTree, useFileTree } from "@pierre/trees/react"
 import type { SpaceFileEntry } from "@eidos.space/file-space"
 
 import { cn } from "@/lib/utils"
-
-import { resolveTreeContextMenuPosition } from "./tree-context-menu-position"
 
 export interface SpaceFilesTreeHandle {
   beginCreate: (entry: SpaceFileEntry) => void
@@ -85,8 +89,6 @@ function eventTreePath(
   return null
 }
 
-const TREE_CONTEXT_MENU_WIDTH = 208
-
 function SpaceTreeContextMenu({
   item,
   context,
@@ -108,55 +110,37 @@ function SpaceTreeContextMenu({
   onRename: (path: string) => void
   onReveal: SpaceFilesTreeProps["onReveal"]
 }) {
-  const menuRef = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState(() =>
-    resolveTreeContextMenuPosition(
-      context.anchorRect,
-      { width: TREE_CONTEXT_MENU_WIDTH, height: 0 },
-      {
-        width: typeof window === "undefined" ? 0 : window.innerWidth,
-        height: typeof window === "undefined" ? 0 : window.innerHeight,
-      }
-    )
-  )
+  const { refs, floatingStyles } = useFloating({
+    placement: "bottom-end",
+    strategy: "fixed",
+    whileElementsMounted: autoUpdate,
+    middleware: [offset(4), flip({ padding: 8 }), shift({ padding: 8 })],
+  })
 
   useLayoutEffect(() => {
-    const menu = menuRef.current
-    if (!menu) return
+    refs.setReference(context.anchorElement)
+    return () => refs.setReference(null)
+  }, [context.anchorElement, refs])
 
-    const updatePosition = () => {
-      const bounds = menu.getBoundingClientRect()
-      setPosition(
-        resolveTreeContextMenuPosition(
-          context.anchorRect,
-          {
-            width: bounds.width || TREE_CONTEXT_MENU_WIDTH,
-            height: bounds.height,
-          },
-          { width: window.innerWidth, height: window.innerHeight }
-        )
-      )
-    }
-
-    updatePosition()
-    menu.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus()
-    window.addEventListener("resize", updatePosition)
-    return () => window.removeEventListener("resize", updatePosition)
-  }, [context.anchorRect])
+  useLayoutEffect(() => {
+    refs.floating.current
+      ?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')
+      ?.focus()
+  }, [refs])
 
   const run = (action: () => void) => {
     context.close({ restoreFocus: false })
     action()
   }
   const itemClassName =
-    "flex h-7 w-full items-center gap-2 rounded-[3px] px-2 text-left text-xs text-popover-foreground outline-hidden hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent disabled:pointer-events-none disabled:opacity-45"
+    "flex h-8 w-full items-center gap-2.5 rounded-[4px] px-2.5 text-left text-[13px] text-popover-foreground outline-hidden hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent disabled:pointer-events-none disabled:opacity-45"
 
   const menu = (
     <div
-      ref={menuRef}
+      ref={refs.setFloating}
       data-file-tree-context-menu-root="true"
-      className="fixed z-50 w-52 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
-      style={{ left: position.left, top: position.top }}
+      className="z-50 max-h-[calc(100vh-1rem)] w-56 overflow-y-auto rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-lg"
+      style={floatingStyles}
       role="menu"
       aria-label={`Actions for ${entry.name}`}
       onKeyDown={(event) => {
@@ -261,9 +245,11 @@ function SpaceTreeContextMenu({
     </div>
   )
 
-  return typeof document === "undefined"
-    ? menu
-    : createPortal(menu, document.body)
+  return typeof document === "undefined" ? (
+    menu
+  ) : (
+    <FloatingPortal>{menu}</FloatingPortal>
+  )
 }
 
 const TREE_CSS = `
@@ -273,7 +259,7 @@ const TREE_CSS = `
   }
 
   button[data-type="item"] {
-    border-radius: 0;
+    border-radius: 4px;
   }
 
   button[data-type="item"]:focus-visible {
@@ -293,7 +279,7 @@ export const SpaceFilesTree = forwardRef<
   const { model } = useFileTree({
     paths: [],
     density: 1,
-    itemHeight: 28,
+    itemHeight: 32,
     initialExpansion: "closed",
     flattenEmptyDirectories: false,
     icons: { set: "standard", colored: false },
@@ -454,10 +440,11 @@ export const SpaceFilesTree = forwardRef<
     "--trees-focus-ring-offset-override": "-1px",
     "--trees-focus-ring-width-override": "1px",
     "--trees-icon-width-override": "16px",
-    "--trees-item-margin-x-override": "0px",
-    "--trees-item-row-gap-override": "4px",
-    "--trees-item-padding-x-override": "4px",
+    "--trees-item-margin-x-override": "4px",
+    "--trees-item-row-gap-override": "6px",
+    "--trees-item-padding-x-override": "6px",
     "--trees-level-gap-override": "12px",
+    "--trees-padding-inline-override": "8px",
     "--trees-selected-bg-override": "hsl(var(--sidebar-accent))",
     "--trees-selected-fg-override": "hsl(var(--sidebar-accent-foreground))",
   } as CSSProperties
