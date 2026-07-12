@@ -76,6 +76,8 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
           "electron/main.ts",
           "electron/modules/data-space/worker/worker.ts",
           "electron/modules/data-space/worker/sync-worker.ts",
+          "electron/modules/space-versioning/graft-worker.ts",
+          "electron/modules/space-management/base-csv-worker.ts",
         ],
         onstart: async ({ startup }) => {
           await startup(desktopDevLaunchArgs())

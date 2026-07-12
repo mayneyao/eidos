@@ -2,7 +2,8 @@ export interface GraftPragmaExecutor {
   execute(
     repositoryPath: string,
     pragma: string,
-    argument?: string
+    argument?: string,
+    options?: GraftRunOptions
   ): Promise<unknown>
   close?(repositoryPath?: string): Promise<void> | void
 }
@@ -200,7 +201,7 @@ export class GraftClient {
   async runJson(
     repositoryPath: string,
     args: readonly string[],
-    _options: GraftRunOptions = {}
+    options: GraftRunOptions = {}
   ): Promise<unknown> {
     const command = args[0] as SupportedCommand | "remote" | undefined
     const commandArgs = args
@@ -211,7 +212,8 @@ export class GraftClient {
       return this.executor.execute(
         repositoryPath,
         remote.pragma,
-        remote.argument
+        remote.argument,
+        options
       )
     }
     if (!command || !(command in JSON_COMMAND_PRAGMAS)) {
@@ -222,7 +224,8 @@ export class GraftClient {
     return this.executor.execute(
       repositoryPath,
       JSON_COMMAND_PRAGMAS[command],
-      commandArgument(command, args)
+      commandArgument(command, args),
+      options
     )
   }
 

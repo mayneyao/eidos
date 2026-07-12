@@ -28,13 +28,15 @@ describe("GraftClient", () => {
       1,
       "/space",
       "json_status",
-      undefined
+      undefined,
+      {}
     )
     expect(execute).toHaveBeenNthCalledWith(
       2,
       "/space",
       "json_log",
-      '--with-status --limit "25" --after "abc123"'
+      '--with-status --limit "25" --after "abc123"',
+      {}
     )
   })
 
@@ -56,13 +58,15 @@ describe("GraftClient", () => {
       1,
       "/space",
       "json_add",
-      '-- "notes/a b.md"'
+      '-- "notes/a b.md"',
+      {}
     )
     expect(execute).toHaveBeenNthCalledWith(
       2,
       "/space",
       "json_restore",
-      '--staged --expected-head "head-2" -- "notes/a b.md"'
+      '--staged --expected-head "head-2" -- "notes/a b.md"',
+      {}
     )
   })
 
@@ -79,7 +83,8 @@ describe("GraftClient", () => {
     expect(execute).toHaveBeenCalledWith(
       "/space",
       "json_commit",
-      'Write "quoted" docs'
+      'Write "quoted" docs',
+      {}
     )
 
     await client.runJson("/space", [
@@ -90,7 +95,8 @@ describe("GraftClient", () => {
     expect(execute).toHaveBeenLastCalledWith(
       "/space",
       "json_merge_continue",
-      "Merge remote versions"
+      "Merge remote versions",
+      {}
     )
   })
 
@@ -118,25 +124,29 @@ describe("GraftClient", () => {
       1,
       "/space",
       "json_remotes",
-      undefined
+      undefined,
+      {}
     )
     expect(execute).toHaveBeenNthCalledWith(
       2,
       "/space",
       "json_remote_add",
-      "origin fs:///tmp/Eidos Remote"
+      "origin fs:///tmp/Eidos Remote",
+      {}
     )
     expect(execute).toHaveBeenNthCalledWith(
       3,
       "/space",
       "json_remote_set_url",
-      "origin graft+https://example.test/spaces/demo"
+      "origin graft+https://example.test/spaces/demo",
+      {}
     )
     expect(execute).toHaveBeenNthCalledWith(
       4,
       "/space",
       "json_remote_remove",
-      "origin"
+      "origin",
+      {}
     )
   })
 
@@ -161,13 +171,27 @@ describe("GraftClient", () => {
     ])
 
     expect(execute.mock.calls).toEqual([
-      ["/space", "json_fetch", "origin main"],
-      ["/space", "json_pull", "origin main"],
-      ["/space", "json_push", "origin main"],
-      ["/space", "json_branch_upstream", "main origin/main"],
-      ["/space", "json_conflicts", undefined],
-      ["/space", "json_resolve_conflict", "--theirs notes/a b.md"],
+      ["/space", "json_fetch", "origin main", {}],
+      ["/space", "json_pull", "origin main", {}],
+      ["/space", "json_push", "origin main", {}],
+      ["/space", "json_branch_upstream", "main origin/main", {}],
+      ["/space", "json_conflicts", undefined, {}],
+      ["/space", "json_resolve_conflict", "--theirs notes/a b.md", {}],
     ])
+  })
+
+  it("passes execution limits to the persistent executor", async () => {
+    const { client, execute } = createClient()
+
+    await client.runJson("/space", ["status", "--json"], {
+      timeoutMs: 2_000,
+      maxBufferBytes: 4_096,
+    })
+
+    expect(execute).toHaveBeenCalledWith("/space", "json_status", undefined, {
+      timeoutMs: 2_000,
+      maxBufferBytes: 4_096,
+    })
   })
 
   it("rejects ambiguous remote names and unsupported sync flags", async () => {

@@ -31,6 +31,7 @@ import { DataSpaceIpcService } from "./modules/data-space"
 import { registerElectronFetchIpc } from "./modules/network/fetch-proxy"
 import {
   SpaceRegistry,
+  SpaceResourceLifecycle,
   resolveStartupSpace,
 } from "./modules/space-management/space-management.module"
 // Import window services directly from their files to avoid circular deps
@@ -195,6 +196,9 @@ async function main() {
     appLifecycleService.onCleanup(() =>
       container.get(AgentChannelService).stop()
     )
+    appLifecycleService.onCleanup(() => {
+      void container.get(SpaceResourceLifecycle).releaseAll()
+    })
 
     // Set WindowService for services that need it (avoid circular deps)
     rawDataService.setWindowService(windowService)
@@ -206,6 +210,7 @@ async function main() {
       rawDataService.closeAll()
       terminalService.cleanup()
       container.get(AgentChannelService).stop()
+      void container.get(SpaceResourceLifecycle).releaseAll()
     })
     appLifecycleService.registerIpcHandlers()
 

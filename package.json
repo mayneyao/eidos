@@ -31,6 +31,7 @@
     "patch": "node scripts/version.cjs patch",
     "minor": "node scripts/version.cjs minor",
     "major": "node scripts/version.cjs major",
+    "pretest": "node scripts/use-better-sqlite3-runtime.cjs node",
     "test": "vitest",
     "knip": "knip",
     "prepare": "husky"

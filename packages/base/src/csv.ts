@@ -12,8 +12,8 @@ import type {
   BaseRow,
 } from "./types"
 
-const PREVIEW_ROW_COUNT = 5
-const INFERENCE_ROW_COUNT = 1_000
+export const BASE_CSV_PREVIEW_ROW_COUNT = 5
+export const BASE_CSV_INFERENCE_ROW_COUNT = 1_000
 
 interface ParsedCsv {
   header: string[]
@@ -200,7 +200,9 @@ function buildColumns(
       name,
       columnName: columnIdentifier(name, sourceIndex, usedColumns),
       type: inferType(
-        rows.slice(0, INFERENCE_ROW_COUNT).map((row) => row[sourceIndex] ?? "")
+        rows
+          .slice(0, BASE_CSV_INFERENCE_ROW_COUNT)
+          .map((row) => row[sourceIndex] ?? "")
       ),
     }
   })
@@ -211,7 +213,9 @@ export function planBaseCsvImport(
   options: BaseCsvImportOptions = {}
 ): BaseCsvImportPlan {
   const { plan, parsed } = buildImportPlan(file, options)
-  parsed.rows.forEach((row, rowIndex) => rowToBaseRow(row, rowIndex, plan))
+  parsed.rows.forEach((row, rowIndex) =>
+    baseCsvRowToBaseRow(row, rowIndex + 2, plan)
+  )
   return plan
 }
 
@@ -222,7 +226,9 @@ export function prepareBaseCsvImport(
   const { plan, parsed } = buildImportPlan(file, options)
   return {
     plan,
-    rows: parsed.rows.map((row, rowIndex) => rowToBaseRow(row, rowIndex, plan)),
+    rows: parsed.rows.map((row, rowIndex) =>
+      baseCsvRowToBaseRow(row, rowIndex + 2, plan)
+    ),
   }
 }
 
@@ -262,7 +268,36 @@ function buildImportPlan(
   options: BaseCsvImportOptions
 ): { plan: BaseCsvImportPlan; parsed: ParsedCsv } {
   const parsed = parseCsv(file.content)
-  const columns = buildColumns(parsed.header, parsed.rows)
+  const plan = createBaseCsvImportPlan(
+    {
+      fileName: file.name,
+      header: parsed.header,
+      inferenceRows: parsed.rows,
+      rowCount: parsed.rows.length,
+      skippedRowCount: parsed.skippedRowCount,
+      sampleRows: parsed.rows.slice(0, BASE_CSV_PREVIEW_ROW_COUNT),
+      issues: parsed.issues,
+    },
+    options
+  )
+  return { plan, parsed }
+}
+
+export interface BaseCsvImportPlanSource {
+  fileName: string
+  header: string[]
+  inferenceRows: string[][]
+  rowCount: number
+  skippedRowCount: number
+  sampleRows: string[][]
+  issues: BaseCsvImportIssue[]
+}
+
+export function createBaseCsvImportPlan(
+  source: BaseCsvImportPlanSource,
+  options: BaseCsvImportOptions = {}
+): BaseCsvImportPlan {
+  const columns = buildColumns(source.header, source.inferenceRows)
   const overrides = new Map(
     (options.columns ?? []).map((override) => [override.sourceIndex, override])
   )
@@ -278,17 +313,17 @@ function buildImportPlan(
     }
     if (column.type !== "title" && override.type) column.type = override.type
   }
-  const tableName = options.tableName?.trim() || defaultTableName(file.name)
-  const plan: BaseCsvImportPlan = {
-    fileName: file.name,
+  const tableName =
+    options.tableName?.trim() || defaultTableName(source.fileName)
+  return {
+    fileName: source.fileName,
     tableName,
-    rowCount: parsed.rows.length,
-    skippedRowCount: parsed.skippedRowCount,
+    rowCount: source.rowCount,
+    skippedRowCount: source.skippedRowCount,
     columns,
-    sampleRows: parsed.rows.slice(0, PREVIEW_ROW_COUNT),
-    issues: parsed.issues,
+    sampleRows: source.sampleRows,
+    issues: source.issues,
   }
-  return { plan, parsed }
 }
 
 function convertValue(
@@ -321,9 +356,9 @@ function convertValue(
   return value
 }
 
-function rowToBaseRow(
+export function baseCsvRowToBaseRow(
   row: string[],
-  rowIndex: number,
+  rowNumber: number,
   plan: BaseCsvImportPlan
 ): BaseRow {
   return Object.fromEntries(
@@ -332,7 +367,7 @@ function rowToBaseRow(
       convertValue(
         row[column.sourceIndex] ?? "",
         column.type,
-        rowIndex + 2,
+        rowNumber,
         column.name
       ),
     ])
@@ -344,6 +379,6 @@ export function parseBaseCsvRows(
   plan: BaseCsvImportPlan
 ): BaseRow[] {
   return parseCsv(file.content).rows.map((row, rowIndex) =>
-    rowToBaseRow(row, rowIndex, plan)
+    baseCsvRowToBaseRow(row, rowIndex + 2, plan)
   )
 }

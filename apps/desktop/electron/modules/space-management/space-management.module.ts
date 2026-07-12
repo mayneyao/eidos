@@ -9,6 +9,8 @@ import { Module, container } from "../../common/di"
 import { SpaceManagementService } from "./space-management.service"
 import { SpaceRegistry } from "./space-registry"
 import { MainWindowProvider } from "./main-window.provider"
+import { SpaceResourceLifecycle } from "./space-resource-lifecycle"
+import { BaseCsvWorkerRunner } from "./base-csv-worker-runner"
 
 /**
  * Space Management Module
@@ -22,8 +24,20 @@ import { MainWindowProvider } from "./main-window.provider"
  * - MainWindowProvider requires setWindowProvider() to be called
  */
 @Module({
-  providers: [SpaceManagementService, SpaceRegistry, MainWindowProvider],
-  exports: [SpaceManagementService, SpaceRegistry, MainWindowProvider],
+  providers: [
+    SpaceManagementService,
+    SpaceRegistry,
+    MainWindowProvider,
+    SpaceResourceLifecycle,
+    BaseCsvWorkerRunner,
+  ],
+  exports: [
+    SpaceManagementService,
+    SpaceRegistry,
+    MainWindowProvider,
+    SpaceResourceLifecycle,
+    BaseCsvWorkerRunner,
+  ],
 })
 export class SpaceManagementModule {}
 
@@ -35,6 +49,7 @@ export {
   type GlobalConfig,
 } from "./space-registry"
 export { MainWindowProvider } from "./main-window.provider"
+export { SpaceResourceLifecycle } from "./space-resource-lifecycle"
 export { resolveStartupSpace } from "./space-registry"
 
 // Backward compatibility helper

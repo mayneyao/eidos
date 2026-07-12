@@ -26,7 +26,6 @@ import type {
   UpdateBaseTableInput,
   UpdateBaseViewInput,
 } from "@eidos.space/base"
-import { importBaseCsv, planBaseCsvImport } from "@eidos.space/base/csv"
 import {
   createBaseFile as createBaseDatabase,
   openBaseFile,
@@ -62,6 +61,9 @@ import { PORT } from "../../main"
 import { BrowserService } from "../browser/browser.service"
 import { withFileSpaceOperationLock } from "./file-space-operation-lock"
 import { createBaseFileAtomically } from "./atomic-base-file"
+import { SpaceResourceLifecycle } from "./space-resource-lifecycle"
+import { BaseCsvWorkerRunner } from "./base-csv-worker-runner"
+import type { BaseCsvFileFingerprint } from "./base-csv-worker-protocol"
 
 /**
  * Space Management Service - Provides space management via IPC
@@ -89,6 +91,7 @@ export class SpaceManagementService extends IpcServiceBase {
       sourcePath: string
       fileName: string
       selectedAt: number
+      fingerprint: BaseCsvFileFingerprint
     }
   >()
 
@@ -96,7 +99,11 @@ export class SpaceManagementService extends IpcServiceBase {
     @Inject(SpaceRegistry) private registry: SpaceRegistry,
     @Inject(MainWindowProvider) private windowProvider: MainWindowProvider,
     @Inject(DataSpaceManager) private dataSpaceManager: DataSpaceManager,
-    @Inject(DataSpaceProcessPool) private processPool: DataSpaceProcessPool
+    @Inject(DataSpaceProcessPool) private processPool: DataSpaceProcessPool,
+    @Inject(SpaceResourceLifecycle)
+    private resourceLifecycle: SpaceResourceLifecycle,
+    @Inject(BaseCsvWorkerRunner)
+    private baseCsvWorker: BaseCsvWorkerRunner
   ) {
     super()
   }
@@ -191,7 +198,12 @@ export class SpaceManagementService extends IpcServiceBase {
     nextSpaceId?: string
   }> {
     const configManager = getConfigManager()
+    const removingSpace = this.registry.getSpace(spaceId)
+    if (!removingSpace) return { success: false }
     const removingCurrent = configManager.getLastOpenedSpace() === spaceId
+    if (removingSpace.mode === "file") {
+      await this.resourceLifecycle.release(removingSpace.path)
+    }
     const success = this.registry.removeSpace(spaceId)
     if (!success) return { success: false }
 
@@ -444,7 +456,7 @@ export class SpaceManagementService extends IpcServiceBase {
     | { canceled: true; token: null; plan: null }
     | { canceled: false; token: string; plan: BaseCsvImportPlan }
   > {
-    this._getFileSpace(spaceId)
+    const files = this._getFileSpace(spaceId)
     const options: OpenDialogOptions = {
       properties: ["openFile"],
       filters: [{ name: "CSV", extensions: ["csv"] }],
@@ -458,8 +470,17 @@ export class SpaceManagementService extends IpcServiceBase {
     }
     const sourcePath = selection.filePaths[0]
     const fileName = path.basename(sourcePath)
-    const content = await fs.promises.readFile(sourcePath, "utf8")
-    const plan = planBaseCsvImport({ name: fileName, content })
+    const sourceStat = await fs.promises.stat(sourcePath)
+    const fingerprint = {
+      size: sourceStat.size,
+      mtimeMs: sourceStat.mtimeMs,
+    }
+    const plan = await this.baseCsvWorker.plan(
+      files.root,
+      sourcePath,
+      fileName,
+      fingerprint
+    )
     const token = globalThis.crypto.randomUUID()
     const cutoff = Date.now() - 30 * 60 * 1_000
     for (const [candidate, value] of this.baseCsvSelections) {
@@ -470,6 +491,7 @@ export class SpaceManagementService extends IpcServiceBase {
       sourcePath,
       fileName,
       selectedAt: Date.now(),
+      fingerprint,
     })
     return { canceled: false, token, plan }
   }
@@ -480,8 +502,13 @@ export class SpaceManagementService extends IpcServiceBase {
     options: BaseCsvImportOptions = {}
   ): Promise<BaseCsvImportPlan> {
     const source = this._getBaseCsvSelection(spaceId, token)
-    const content = await fs.promises.readFile(source.sourcePath, "utf8")
-    return planBaseCsvImport({ name: source.fileName, content }, options)
+    return this.baseCsvWorker.plan(
+      this._getFileSpace(spaceId).root,
+      source.sourcePath,
+      source.fileName,
+      source.fingerprint,
+      options
+    )
   }
 
   async importBaseCsv(
@@ -491,19 +518,17 @@ export class SpaceManagementService extends IpcServiceBase {
     options: BaseCsvImportOptions = {}
   ): Promise<{ result: BaseCsvImportResult; snapshot: BaseSnapshot }> {
     const source = this._getBaseCsvSelection(spaceId, token)
-    const content = await fs.promises.readFile(source.sourcePath, "utf8")
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
-      let result: BaseCsvImportResult
-      try {
-        result = importBaseCsv(
-          base,
-          { name: source.fileName, content },
-          options
-        )
-      } finally {
-        base.close()
-      }
+      const targetPath =
+        await this._getFileSpace(spaceId).getSystemPath(relativePath)
+      const result = await this.baseCsvWorker.import(
+        this._getFileSpace(spaceId).root,
+        source.sourcePath,
+        source.fileName,
+        source.fingerprint,
+        targetPath,
+        options
+      )
       this.baseCsvSelections.delete(token)
       this._invalidateFileIndex(spaceId)
       return {
