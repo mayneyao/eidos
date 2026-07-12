@@ -87,12 +87,23 @@ CSV import is now implemented through the standalone Base package's dedicated
 Node/Desktop entry rather than the browser-safe root entry. The Desktop native
 picker returns an expiring token instead of exposing the source path to the
 renderer. An anchored mapping panel previews sample rows, inferred field types,
-duplicate/blank header normalization, and malformed-row issues. Import creates
-a new table, maps the first column to its title field, allows conservative type
-overrides, batches prepared inserts, and commits table metadata and rows in one
-transaction. The current parser still holds the selected CSV in memory; a
-streaming parser and progress reporting remain hardening work for exceptionally
-large CSV files.
+duplicate/blank header normalization, and malformed-row issues. Planning and
+import run in a worker thread over a streaming parser with bounded file, row,
+column, record, and cell sizes. The source fingerprint is checked before and
+after import so replacing the selected file cannot silently import different
+content. Import creates a new table, maps the first column to its title field,
+allows conservative type overrides, batches prepared inserts, and commits table
+metadata and rows in one transaction. Progress reporting and cancellation are
+the remaining large-import UX work; the selected CSV is no longer buffered in
+Electron's main process.
+
+Opening a Base now treats metadata as an untrusted file boundary. Validation
+checks registry sizes, enum values, JSON shapes, stored-column existence, view
+references, and formula/lookup definitions before exposing the runtime.
+Formula execution always recompiles the canonical formula text, ignores cached
+SQL/dependency metadata, rejects nested queries and excessive ASTs, and permits
+only an explicit set of deterministic SQLite helpers. Row writes update Base
+metadata only after the target row is known to exist, in the same transaction.
 
 ## Summary
 

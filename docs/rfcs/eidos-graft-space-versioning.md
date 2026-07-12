@@ -12,9 +12,14 @@ Related:
 
 ## Implementation Status (2026-07-13)
 
-The local workflow is implemented with a persistent SQLite/Graft PRAGMA
-connection for normal operations; only repository initialization remains a
-one-shot CLI operation. The UI provides Changes and Staged Changes, path and
+The local workflow is implemented with a repository-scoped SQLite/Graft PRAGMA
+executor for normal operations; only repository initialization remains a
+one-shot CLI operation. Each active repository is isolated in a short-lived
+child process because Graft's registered VFS and Fjall lock are process-scoped.
+Requests reuse that process while active, enforce real timeout and response-size
+limits, then close it after an idle window or when the Space/app closes. This
+keeps repeated status/diff operations fast without retaining repository locks
+in Electron's main process. The UI provides Changes and Staged Changes, path and
 directory stage/unstage/discard, text Diff tabs, commit history, path restore,
 and whole-Space restore. Private `.eidos` runtime paths are hidden.
 Working Changes and historical inspectors also expand `.base` paths into

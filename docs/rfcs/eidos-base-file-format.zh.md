@@ -58,9 +58,17 @@ cursor；一个包含 1,110,847 行的真实 Space 约 15.1 秒完成导出并�
 CSV import 已通过独立 Base package 的 Node/Desktop 子入口实现，不会进入 browser-safe
 根入口。Desktop 原生文件选择器只向 renderer 返回有时效的 token，不暴露源文件路径；
 锚定 mapping panel 会展示 sample rows、推断字段类型、重复/空 header 归一化结果和异常行
-提示。导入会创建新 table，将第一列映射为 title field，允许保守的类型覆盖，使用 prepared
-statement 批量写入，并在同一事务中提交 table metadata 与 rows。当前 parser 仍会把选中的
-CSV 保存在内存中；面向超大 CSV 的 streaming parser 和进度反馈仍属于后续 hardening。
+提示。plan 与 import 现在都在 worker thread 中使用 streaming parser，并对文件、行数、列数、
+record 和 cell 大小设置边界。导入前后都会核对源文件 fingerprint，避免选择后被替换的文件
+静默进入 Base。导入会创建新 table，将第一列映射为 title field，允许保守的类型覆盖，使用
+prepared statement 批量写入，并在同一事务中提交 table metadata 与 rows。剩余工作是大文件
+导入的进度和取消 UX；CSV 已不再被完整缓存在 Electron main process。
+
+打开 Base 现在会把 metadata 视为不可信文件边界：runtime 在暴露数据前校验 registry 数量、
+枚举值、JSON shape、物理存储列、view references 以及 formula/lookup definitions。公式始终从
+canonical formula text 重新编译，不信任缓存的 SQL/dependencies；嵌套查询、过大的 AST 和未在
+allowlist 中的 SQLite function 都会被拒绝。row write 也会在同一事务中确认目标行存在后，才更新
+Base metadata。
 
 ## 摘要
 

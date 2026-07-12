@@ -12,8 +12,12 @@
 
 ## 实施状态（2026-07-13）
 
-本地链路已经实现。普通操作通过持久 SQLite/Graft PRAGMA connection 执行，只有
-repository initialization 仍是一次性 CLI。UI 已提供 Changes 与 Staged Changes、
+本地链路已经实现。普通操作通过 repository-scoped SQLite/Graft PRAGMA executor
+执行，只有 repository initialization 仍是一次性 CLI。由于 Graft 注册的 VFS 和
+Fjall lock 都是 process-scoped，每个活跃 repository 现在运行在隔离的短时常驻子进程中：
+连续请求会复用连接，同时执行真实 timeout 与 response-size 限制；空闲、关闭 Space 或退出
+应用时会退出子进程并释放 repository lock。这样既避免重复 status/diff 的 CLI 启动成本，
+也不会把 Graft lock 留在 Electron main process。UI 已提供 Changes 与 Staged Changes、
 path/directory stage/unstage/discard、文本 Diff tabs、commit history、path restore
 和 whole-Space restore，并隐藏私有 `.eidos` runtime paths。
 Changes 与历史 inspector 也已通过 path-scoped Graft row details，将 `.base` path
