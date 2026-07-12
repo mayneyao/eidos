@@ -1,6 +1,9 @@
+import { useEffect, useState } from "react"
 import {
+  CloudCog,
   GitBranch,
   History,
+  Link2Off,
   LoaderCircle,
   RefreshCw,
   ShieldCheck,
@@ -12,6 +15,7 @@ import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSpaceVersioning } from "@/apps/web-app/hooks/use-space-versioning"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
 export function FileSpaceVersioningSettings() {
@@ -26,13 +30,73 @@ export function FileSpaceVersioningSettings() {
     error,
     available,
     enable,
+    getRemotes,
+    configureRemote,
+    removeRemote,
     refresh,
   } = useSpaceVersioning(spaceId)
+  const [remoteUrl, setRemoteUrl] = useState("")
+  const [savedRemoteUrl, setSavedRemoteUrl] = useState("")
+  const [remoteError, setRemoteError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!spaceId || !status?.enabled || !getRemotes) return
+    void getRemotes()
+      .then((remotes) => {
+        if (cancelled) return
+        const origin = remotes.find((remote) => remote.name === "origin")
+        const url = origin?.url ?? remotes[0]?.url ?? ""
+        setRemoteUrl(url)
+        setSavedRemoteUrl(url)
+        setRemoteError(null)
+      })
+      .catch((remoteRequestError) => {
+        if (!cancelled) {
+          setRemoteError(
+            remoteRequestError instanceof Error
+              ? remoteRequestError.message
+              : String(remoteRequestError)
+          )
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [getRemotes, spaceId, status?.enabled, status?.remoteNames?.length])
 
   if (!spaceId || currentSpace?.mode !== "file") return null
 
   const enabled = status?.enabled === true
   const busy = statusLoading || operation !== null
+  const remoteConfigured = (status?.remoteNames?.length ?? 0) > 0
+  const saveRemote = async () => {
+    setRemoteError(null)
+    try {
+      await configureRemote({ url: remoteUrl })
+      setSavedRemoteUrl(remoteUrl.trim())
+    } catch (remoteRequestError) {
+      setRemoteError(
+        remoteRequestError instanceof Error
+          ? remoteRequestError.message
+          : String(remoteRequestError)
+      )
+    }
+  }
+  const disconnectRemote = async () => {
+    setRemoteError(null)
+    try {
+      await removeRemote("origin")
+      setRemoteUrl("")
+      setSavedRemoteUrl("")
+    } catch (remoteRequestError) {
+      setRemoteError(
+        remoteRequestError instanceof Error
+          ? remoteRequestError.message
+          : String(remoteRequestError)
+      )
+    }
+  }
 
   return (
     <div className="space-y-0" data-settings-row-groups="true">
@@ -156,6 +220,91 @@ export function FileSpaceVersioningSettings() {
             {error.message}
           </p>
         ) : null}
+      </div>
+      <div className="pt-10">
+        <div className="pb-2">
+          <h3>Remote sync</h3>
+        </div>
+        <hr />
+        <div className="divide-y divide-border/70">
+          <div className="flex min-h-[92px] items-start justify-between gap-6 py-4">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              <CloudCog className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="file-space-graft-remote">
+                      Graft remote
+                    </Label>
+                    <Badge variant={remoteConfigured ? "secondary" : "outline"}>
+                      {remoteConfigured ? "Connected" : "Local only"}
+                    </Badge>
+                  </div>
+                  <p className="text-sm leading-5 text-muted-foreground">
+                    Push and pull committed Space versions through a Graft
+                    remote. Local file changes are never uploaded until they are
+                    committed.
+                  </p>
+                </div>
+                <Input
+                  id="file-space-graft-remote"
+                  value={remoteUrl}
+                  className="max-w-xl font-mono text-xs"
+                  placeholder="fs:///path/to/remote or graft+https://…"
+                  disabled={!enabled || busy}
+                  onChange={(event) => setRemoteUrl(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      void saveRemote()
+                    }
+                  }}
+                />
+                {!status?.head && enabled ? (
+                  <p className="text-xs text-muted-foreground">
+                    Create the first version before connecting a remote.
+                  </p>
+                ) : null}
+                {remoteError ? (
+                  <p className="text-xs text-destructive" role="alert">
+                    {remoteError}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {remoteConfigured ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void disconnectRemote()}
+                >
+                  <Link2Off className="h-4 w-4" />
+                  Disconnect
+                </Button>
+              ) : null}
+              <Button
+                size="sm"
+                disabled={
+                  !enabled ||
+                  !status?.head ||
+                  !remoteUrl.trim() ||
+                  remoteUrl.trim() === savedRemoteUrl ||
+                  busy
+                }
+                onClick={() => void saveRemote()}
+              >
+                {operation === "configuring-remote" ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CloudCog className="h-4 w-4" />
+                )}
+                {remoteConfigured ? "Update" : "Connect"}
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

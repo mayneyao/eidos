@@ -1,6 +1,10 @@
 import { useState, type KeyboardEvent, type MouseEvent } from "react"
 import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
   Check,
+  Cloud,
+  CloudCog,
   GitBranch,
   GitCommitHorizontal,
   History,
@@ -20,7 +24,16 @@ import {
 import { useSpaceVersioning } from "@/apps/web-app/hooks/use-space-versioning"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useTabStore } from "@/apps/web-app/store/tabs"
+import { openSettings } from "@/components/settings/settings-events"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,10 +54,24 @@ export interface VersionPanelProps {
 
 function PanelToolbar({
   busy,
+  branch,
+  remoteConfigured,
+  ahead,
+  behind,
+  onFetch,
+  onPull,
+  onPush,
   onOpenHistory,
   onRefresh,
 }: {
   busy: boolean
+  branch: string | null
+  remoteConfigured: boolean
+  ahead: number
+  behind: number
+  onFetch: () => void
+  onPull: () => void
+  onPush: () => void
   onOpenHistory: () => void
   onRefresh: () => void
 }) {
@@ -53,6 +80,70 @@ function PanelToolbar({
       <span className="min-w-0 flex-1 truncate px-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-sidebar-foreground/70">
         Changes
       </span>
+      {remoteConfigured ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex h-6 max-w-[108px] shrink-0 items-center gap-1 rounded-[3px] px-1.5 text-[10px] text-sidebar-foreground/60 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:opacity-50"
+              aria-label="Synchronize Space versions"
+              title="Synchronize versions"
+              disabled={busy}
+            >
+              <Cloud className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{branch ?? "remote"}</span>
+              {ahead > 0 ? <span>↑{ahead}</span> : null}
+              {behind > 0 ? <span>↓{behind}</span> : null}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuLabel className="px-2 py-1 text-[11px] font-medium text-muted-foreground">
+              {branch ?? "Remote versions"}
+              {ahead || behind ? ` · ↑${ahead} ↓${behind}` : " · up to date"}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onFetch}>
+              <RefreshCw />
+              Check for updates
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onPull}>
+              <ArrowDownToLine />
+              Pull versions
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onPush}>
+              <ArrowUpFromLine />
+              Push versions
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() =>
+                openSettings({
+                  section: "space-versioning",
+                  showSpaceSettings: true,
+                })
+              }
+            >
+              <CloudCog />
+              Configure remote…
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <button
+          type="button"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[3px] text-sidebar-foreground/60 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+          aria-label="Configure remote version sync"
+          title="Configure remote version sync"
+          onClick={() =>
+            openSettings({
+              section: "space-versioning",
+              showSpaceSettings: true,
+            })
+          }
+        >
+          <CloudCog className="h-3.5 w-3.5" />
+        </button>
+      )}
       <button
         type="button"
         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[3px] text-sidebar-foreground/60 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring"
@@ -172,6 +263,9 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
     stagePath,
     unstagePath,
     discardPath,
+    fetchRemote,
+    pullRemote,
+    pushRemote,
     refresh,
   } = useSpaceVersioning(spaceId)
 
@@ -336,6 +430,44 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
       void submitCommit()
     }
   }
+  const synchronize = async (action: "fetch" | "pull" | "push") => {
+    if (operation || !status) return
+    clearFeedback()
+    try {
+      const request = { expectedHead: status.head?.id ?? null }
+      const result =
+        action === "fetch"
+          ? await fetchRemote(request)
+          : action === "pull"
+            ? await pullRemote(request)
+            : await pushRemote(request)
+      if (action === "fetch") {
+        setLocalNotice(
+          result.status.behind > 0
+            ? `${result.status.behind} remote ${result.status.behind === 1 ? "version is" : "versions are"} ready to pull.`
+            : "Remote version information is up to date."
+        )
+      } else if (action === "pull") {
+        setLocalNotice(
+          result.status.hasConflicts
+            ? "Remote versions were pulled. Resolve the conflicts in Changes."
+            : result.commits > 0
+              ? `Pulled ${result.commits} ${result.commits === 1 ? "version" : "versions"}.`
+              : "This Space is already up to date."
+        )
+      } else {
+        setLocalNotice(
+          result.commits > 0
+            ? `Pushed ${result.commits} ${result.commits === 1 ? "version" : "versions"}.`
+            : "Remote versions are already up to date."
+        )
+      }
+    } catch (syncError) {
+      setLocalError(
+        syncError instanceof Error ? syncError.message : String(syncError)
+      )
+    }
+  }
 
   return (
     <>
@@ -345,6 +477,17 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
       >
         <PanelToolbar
           busy={busy}
+          branch={
+            status?.upstream
+              ? `${status.upstream.remote}/${status.upstream.branch}`
+              : (status?.branch ?? null)
+          }
+          remoteConfigured={(status?.remoteNames?.length ?? 0) > 0}
+          ahead={status?.upstream?.ahead ?? status?.ahead ?? 0}
+          behind={status?.upstream?.behind ?? status?.behind ?? 0}
+          onFetch={() => void synchronize("fetch")}
+          onPull={() => void synchronize("pull")}
+          onPush={() => void synchronize("push")}
           onOpenHistory={() => openFullHistory()}
           onRefresh={() => void refresh()}
         />

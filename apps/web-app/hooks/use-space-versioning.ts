@@ -36,6 +36,51 @@ export interface SpaceVersionStatus {
   branch: string | null
   head: SpaceVersionCommit | null
   changes: SpaceVersionChange[]
+  remoteNames: string[]
+  upstream: SpaceVersionUpstream | null
+  ahead: number
+  behind: number
+}
+
+export type SpaceVersionUpstreamState =
+  | "up_to_date"
+  | "ahead"
+  | "behind"
+  | "diverged"
+  | "unknown"
+
+export interface SpaceVersionUpstream {
+  remote: string
+  branch: string
+  ahead: number
+  behind: number
+  state: SpaceVersionUpstreamState
+}
+
+export interface SpaceVersionRemote {
+  name: string
+  url: string
+}
+
+export interface SpaceVersionConfigureRemoteRequest {
+  name?: string
+  url: string
+  branch?: string
+}
+
+export interface SpaceVersionSyncRequest {
+  remote?: string
+  branch?: string
+  expectedHead?: string | null
+}
+
+export interface SpaceVersionSyncResult {
+  operation: "fetch" | "pull" | "push"
+  remote: string
+  branch: string | null
+  commits: number
+  forced: boolean
+  status: SpaceVersionStatus
 }
 
 export interface SpaceVersionHistory {
@@ -223,17 +268,46 @@ export type SpaceVersioningOperation =
   | "staging"
   | "discarding"
   | "restoring"
+  | "configuring-remote"
+  | "fetching"
+  | "pulling"
+  | "pushing"
   | null
 
 export function isDestructiveSpaceVersioningOperation(
   operation: SpaceVersioningOperation
 ): boolean {
-  return operation === "restoring" || operation === "discarding"
+  return (
+    operation === "restoring" ||
+    operation === "discarding" ||
+    operation === "pulling"
+  )
 }
 
 interface SpaceVersioningBridge {
   getStatus: (spaceId: string) => Promise<unknown>
   enable: (spaceId: string) => Promise<unknown>
+  getRemotes: (spaceId: string) => Promise<unknown>
+  configureRemote: (
+    spaceId: string,
+    options: SpaceVersionConfigureRemoteRequest
+  ) => Promise<unknown>
+  removeRemote: (
+    spaceId: string,
+    options?: { name?: string }
+  ) => Promise<unknown>
+  fetchRemote: (
+    spaceId: string,
+    options?: SpaceVersionSyncRequest
+  ) => Promise<unknown>
+  pullRemote: (
+    spaceId: string,
+    options?: SpaceVersionSyncRequest
+  ) => Promise<unknown>
+  pushRemote: (
+    spaceId: string,
+    options?: SpaceVersionSyncRequest
+  ) => Promise<unknown>
   commit: (spaceId: string, options: { message: string }) => Promise<unknown>
   getHistory: (
     spaceId: string,
@@ -338,6 +412,12 @@ function asBoolean(value: unknown): boolean | null {
   if (value === 1 || value === "true") return true
   if (value === 0 || value === "false") return false
   return null
+}
+
+function asNonNegativeInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : null
 }
 
 function firstValue(record: UnknownRecord, keys: string[]): unknown {
@@ -564,6 +644,30 @@ export function normalizeSpaceVersionCommit(
   }
 }
 
+function normalizeSpaceVersionUpstream(
+  value: unknown
+): SpaceVersionUpstream | null {
+  if (!isRecord(value)) return null
+  const remote = asString(value.remote)
+  const branch = asString(value.branch)
+  if (!remote || !branch) return null
+  const rawState = asString(value.state)
+  const state: SpaceVersionUpstreamState =
+    rawState === "up_to_date" ||
+    rawState === "ahead" ||
+    rawState === "behind" ||
+    rawState === "diverged"
+      ? rawState
+      : "unknown"
+  return {
+    remote,
+    branch,
+    ahead: asNonNegativeInteger(value.ahead) ?? 0,
+    behind: asNonNegativeInteger(value.behind) ?? 0,
+    state,
+  }
+}
+
 export function normalizeSpaceVersionStatus(
   value: unknown
 ): SpaceVersionStatus {
@@ -576,6 +680,10 @@ export function normalizeSpaceVersionStatus(
       branch: null,
       head: null,
       changes: [],
+      remoteNames: [],
+      upstream: null,
+      ahead: 0,
+      behind: 0,
     }
   }
 
@@ -657,6 +765,16 @@ export function normalizeSpaceVersionStatus(
           }
         : null),
     changes,
+    remoteNames: normalizeStringArray(
+      firstValue(payload, ["remoteNames", "remote_names"])
+    ),
+    upstream: normalizeSpaceVersionUpstream(
+      firstValue(payload, ["upstream", "upstreamStatus", "upstream_status"])
+    ),
+    ahead:
+      asNonNegativeInteger(firstValue(payload, ["ahead", "aheadCount"])) ?? 0,
+    behind:
+      asNonNegativeInteger(firstValue(payload, ["behind", "behindCount"])) ?? 0,
   }
 }
 
@@ -939,6 +1057,46 @@ export function normalizeSpaceVersionDiff(value: unknown): SpaceVersionDiff {
           .map(normalizeSqliteFileDiff)
           .filter((file): file is SpaceVersionSqliteFileDiff => file !== null)
       : [],
+  }
+}
+
+export function normalizeSpaceVersionRemotes(
+  value: unknown
+): SpaceVersionRemote[] {
+  const payload = unwrapPayload(value)
+  const remotes = isRecord(payload) ? payload.remotes : undefined
+  if (!Array.isArray(remotes)) return []
+  return remotes.flatMap((entry) => {
+    if (!isRecord(entry)) return []
+    const name = asString(entry.name)
+    const url = asString(entry.url)
+    return name && url ? [{ name, url }] : []
+  })
+}
+
+export function normalizeSpaceVersionSyncResult(
+  value: unknown
+): SpaceVersionSyncResult {
+  const payload = unwrapPayload(value)
+  if (!isRecord(payload)) {
+    throw new Error("Desktop returned an invalid remote sync result")
+  }
+  const operation = asString(payload.operation)
+  const remote = asString(payload.remote)
+  if (
+    (operation !== "fetch" && operation !== "pull" && operation !== "push") ||
+    !remote ||
+    payload.status === undefined
+  ) {
+    throw new Error("Desktop returned an incomplete remote sync result")
+  }
+  return {
+    operation,
+    remote,
+    branch: asString(payload.branch),
+    commits: asNonNegativeInteger(payload.commits) ?? 0,
+    forced: asBoolean(payload.forced) ?? false,
+    status: normalizeSpaceVersionStatus(payload.status),
   }
 }
 
@@ -1411,7 +1569,11 @@ export function useSpaceVersioning(
         nextOperation === "committing" ||
         nextOperation === "staging" ||
         nextOperation === "discarding" ||
-        nextOperation === "restoring"
+        nextOperation === "restoring" ||
+        nextOperation === "configuring-remote" ||
+        nextOperation === "fetching" ||
+        nextOperation === "pulling" ||
+        nextOperation === "pushing"
       ) {
         setOperation(nextOperation)
       }
@@ -1479,6 +1641,182 @@ export function useSpaceVersioning(
       }
     }
   }, [refresh, requireSpaceId])
+
+  const getRemotes = useCallback(async () => {
+    const raw =
+      await requireSpaceVersioningBridge().getRemotes(requireSpaceId())
+    return normalizeSpaceVersionRemotes(raw)
+  }, [requireSpaceId])
+
+  const configureRemote = useCallback(
+    async (request: SpaceVersionConfigureRemoteRequest) => {
+      setError(null)
+      let activeSpaceId: string | undefined
+      let finishOperation: (() => void) | undefined
+      try {
+        activeSpaceId = requireSpaceId()
+        finishOperation = beginSpaceVersioningOperation(
+          activeSpaceId,
+          "configuring-remote"
+        )
+        setOperation("configuring-remote")
+        const raw = await requireSpaceVersioningBridge().configureRemote(
+          activeSpaceId,
+          request
+        )
+        const payload = unwrapPayload(raw)
+        if (!isRecord(payload) || payload.status === undefined) {
+          throw new Error("Desktop returned an invalid remote configuration")
+        }
+        const nextStatus = normalizeSpaceVersionStatus(payload.status)
+        statusRequestRef.current += 1
+        if (mountedRef.current) {
+          setStatus(nextStatus)
+          setStatusLoading(false)
+        }
+        await reconcileAfterPossibleMutation(activeSpaceId)
+        return nextStatus
+      } catch (requestError) {
+        const nextError = errorFrom(requestError)
+        if (mountedRef.current) setError(nextError)
+        throw nextError
+      } finally {
+        finishOperation?.()
+        if (mountedRef.current) {
+          setOperation(
+            activeSpaceId
+              ? (activeSpaceVersioningOperations.get(activeSpaceId) ?? null)
+              : null
+          )
+        }
+      }
+    },
+    [reconcileAfterPossibleMutation, requireSpaceId]
+  )
+
+  const removeRemote = useCallback(
+    async (name = "origin") => {
+      setError(null)
+      let activeSpaceId: string | undefined
+      let finishOperation: (() => void) | undefined
+      try {
+        activeSpaceId = requireSpaceId()
+        finishOperation = beginSpaceVersioningOperation(
+          activeSpaceId,
+          "configuring-remote"
+        )
+        setOperation("configuring-remote")
+        const raw = await requireSpaceVersioningBridge().removeRemote(
+          activeSpaceId,
+          { name }
+        )
+        const payload = unwrapPayload(raw)
+        if (!isRecord(payload) || payload.status === undefined) {
+          throw new Error("Desktop returned an invalid remote removal result")
+        }
+        const nextStatus = normalizeSpaceVersionStatus(payload.status)
+        statusRequestRef.current += 1
+        if (mountedRef.current) {
+          setStatus(nextStatus)
+          setStatusLoading(false)
+        }
+        await reconcileAfterPossibleMutation(activeSpaceId)
+        return nextStatus
+      } catch (requestError) {
+        const nextError = errorFrom(requestError)
+        if (mountedRef.current) setError(nextError)
+        throw nextError
+      } finally {
+        finishOperation?.()
+        if (mountedRef.current) {
+          setOperation(
+            activeSpaceId
+              ? (activeSpaceVersioningOperations.get(activeSpaceId) ?? null)
+              : null
+          )
+        }
+      }
+    },
+    [reconcileAfterPossibleMutation, requireSpaceId]
+  )
+
+  const syncRemote = useCallback(
+    async (
+      syncOperation: SpaceVersionSyncResult["operation"],
+      request: SpaceVersionSyncRequest = {}
+    ) => {
+      setError(null)
+      let activeSpaceId: string | undefined
+      let finishOperation: (() => void) | undefined
+      try {
+        activeSpaceId = requireSpaceId()
+        const activeOperation: ActiveSpaceVersioningOperation =
+          syncOperation === "fetch"
+            ? "fetching"
+            : syncOperation === "pull"
+              ? "pulling"
+              : "pushing"
+        finishOperation = beginSpaceVersioningOperation(
+          activeSpaceId,
+          activeOperation
+        )
+        setOperation(activeOperation)
+        if (
+          syncOperation !== "fetch" &&
+          !(await flushPendingFileWrites({ spaceId: activeSpaceId }))
+        ) {
+          throw new Error(
+            `Eidos could not save all pending file changes before ${syncOperation}.`
+          )
+        }
+        const bridge = requireSpaceVersioningBridge()
+        const raw =
+          syncOperation === "fetch"
+            ? await bridge.fetchRemote(activeSpaceId, request)
+            : syncOperation === "pull"
+              ? await bridge.pullRemote(activeSpaceId, request)
+              : await bridge.pushRemote(activeSpaceId, request)
+        const result = normalizeSpaceVersionSyncResult(raw)
+        statusRequestRef.current += 1
+        if (mountedRef.current) {
+          setStatus(result.status)
+          setStatusLoading(false)
+        }
+        await reconcileAfterPossibleMutation(activeSpaceId)
+        return result
+      } catch (requestError) {
+        const nextError = errorFrom(requestError)
+        if (activeSpaceId) {
+          await reconcileAfterPossibleMutation(activeSpaceId)
+        }
+        if (mountedRef.current) setError(nextError)
+        throw nextError
+      } finally {
+        finishOperation?.()
+        if (mountedRef.current) {
+          setOperation(
+            activeSpaceId
+              ? (activeSpaceVersioningOperations.get(activeSpaceId) ?? null)
+              : null
+          )
+        }
+      }
+    },
+    [reconcileAfterPossibleMutation, requireSpaceId]
+  )
+
+  const fetchRemote = useCallback(
+    (request: SpaceVersionSyncRequest = {}) => syncRemote("fetch", request),
+    [syncRemote]
+  )
+  const pullRemote = useCallback(
+    (request: SpaceVersionSyncRequest = {}) => syncRemote("pull", request),
+    [syncRemote]
+  )
+  const pushRemote = useCallback(
+    (request: SpaceVersionSyncRequest = {}) => syncRemote("push", request),
+    [syncRemote]
+  )
 
   const commit = useCallback(
     async (message: string) => {
@@ -1817,6 +2155,12 @@ export function useSpaceVersioning(
     error,
     available: getSpaceVersioningBridge() !== null,
     enable,
+    getRemotes,
+    configureRemote,
+    removeRemote,
+    fetchRemote,
+    pullRemote,
+    pushRemote,
     commit,
     getCommit,
     getDiff,

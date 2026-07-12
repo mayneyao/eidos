@@ -115,6 +115,10 @@ const status: SpaceVersionStatus = {
   clean: true,
   hasConflicts: false,
   branch: "main",
+  remoteNames: [],
+  upstream: null,
+  ahead: 0,
+  behind: 0,
   head: {
     id: "commit-3",
     message: "Current version",

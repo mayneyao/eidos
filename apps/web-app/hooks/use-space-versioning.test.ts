@@ -24,6 +24,16 @@ describe("file Space versioning normalization", () => {
       enabled: true,
       currentHead: "abcdef123456",
       currentBranch: "main",
+      remoteNames: ["origin"],
+      upstream: {
+        remote: "origin",
+        branch: "main",
+        ahead: 2,
+        behind: 1,
+        state: "diverged",
+      },
+      ahead: 2,
+      behind: 1,
       paths: [
         {
           path: "notes/today.md",
@@ -42,6 +52,14 @@ describe("file Space versioning normalization", () => {
     expect(status.clean).toBe(false)
     expect(status.branch).toBe("main")
     expect(status.head?.id).toBe("abcdef123456")
+    expect(status.remoteNames).toEqual(["origin"])
+    expect(status.upstream).toEqual({
+      remote: "origin",
+      branch: "main",
+      ahead: 2,
+      behind: 1,
+      state: "diverged",
+    })
     expect(status.changes).toEqual([
       { path: "notes/today.md", status: "modified" },
       { path: "assets/cover.png", status: "untracked" },
@@ -291,6 +309,10 @@ function versionStatus(
     currentHead: "commit-3",
     currentBranch: "main",
     paths,
+    remoteNames: [] as string[],
+    upstream: null,
+    ahead: 0,
+    behind: 0,
   }
 }
 
@@ -314,6 +336,54 @@ function createBridge() {
   return {
     getStatus: vi.fn(async (_spaceId: string) => versionStatus()),
     enable: vi.fn(async (_spaceId: string) => versionStatus()),
+    getRemotes: vi.fn(async (_spaceId: string) => ({
+      remotes: [{ name: "origin", url: "fs:///tmp/remote" }],
+    })),
+    configureRemote: vi.fn(async (_spaceId: string) => ({
+      remote: { name: "origin", url: "fs:///tmp/remote" },
+      status: {
+        ...versionStatus(),
+        remoteNames: ["origin"],
+      },
+    })),
+    removeRemote: vi.fn(async (_spaceId: string) => ({
+      name: "origin",
+      status: versionStatus(),
+    })),
+    fetchRemote: vi.fn(async (_spaceId: string) => ({
+      operation: "fetch",
+      remote: "origin",
+      branch: "main",
+      commits: 1,
+      forced: false,
+      status: {
+        ...versionStatus(),
+        remoteNames: ["origin"],
+        behind: 1,
+      },
+    })),
+    pullRemote: vi.fn(async (_spaceId: string) => ({
+      operation: "pull",
+      remote: "origin",
+      branch: "main",
+      commits: 1,
+      forced: false,
+      status: {
+        ...versionStatus(),
+        remoteNames: ["origin"],
+      },
+    })),
+    pushRemote: vi.fn(async (_spaceId: string) => ({
+      operation: "push",
+      remote: "origin",
+      branch: "main",
+      commits: 1,
+      forced: false,
+      status: {
+        ...versionStatus(),
+        remoteNames: ["origin"],
+      },
+    })),
     commit: vi.fn(async (_spaceId: string, _options: { message: string }) => ({
       commit: commit("commit-4", "commit-3"),
     })),
@@ -545,6 +615,44 @@ describe("useSpaceVersioning history coordination", () => {
       })
     ).rejects.toThrow("could not save all pending file changes")
     expect(bridge.commit).not.toHaveBeenCalled()
+    unregister()
+  })
+
+  it("flushes pending writes before pulling and applies remote status", async () => {
+    const bridge = createBridge()
+    bridge.getStatus.mockResolvedValue({
+      ...versionStatus(),
+      remoteNames: ["origin"],
+    })
+    installBridge(bridge)
+    const flush = vi.fn(async () => true)
+    const unregister = registerPendingWriteFlusher("pull-version-test", flush, {
+      spaceId: "space-a",
+      filePath: "notes/today.md",
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(VersioningProbe, {
+          name: "source",
+          loadHistory: false,
+        })
+      )
+      await flushEffects()
+    })
+
+    const request = { expectedHead: "commit-3" }
+    await act(async () => {
+      await hookResults.get("source")?.pullRemote(request)
+      await flushEffects()
+    })
+
+    expect(flush).toHaveBeenCalledOnce()
+    expect(bridge.pullRemote).toHaveBeenCalledWith("space-a", request)
+    expect(flush.mock.invocationCallOrder[0]).toBeLessThan(
+      bridge.pullRemote.mock.invocationCallOrder[0]
+    )
+    expect(hookResults.get("source")?.status?.remoteNames).toEqual(["origin"])
     unregister()
   })
 
