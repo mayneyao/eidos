@@ -7,6 +7,9 @@ import type {
   BaseRowRange,
   BaseRowsDeleteResult,
   BaseSnapshot,
+  BaseCsvImportOptions,
+  BaseCsvImportPlan,
+  BaseCsvImportResult,
   BaseFormulaPreview,
   BaseFormulaPreviewInput,
   CreateBaseFieldInput,
@@ -40,6 +43,35 @@ export function useSpaceBase(spaceId: string | undefined) {
   const getSnapshot = useCallback(
     (relativePath: string): Promise<BaseSnapshot> =>
       requireBaseApi().getBaseSnapshot(requireSpaceId(), relativePath),
+    [requireSpaceId]
+  )
+
+  const selectCsv = useCallback(
+    () => requireBaseApi().selectBaseCsv(requireSpaceId()),
+    [requireSpaceId]
+  )
+
+  const previewCsvImport = useCallback(
+    (
+      token: string,
+      options: BaseCsvImportOptions = {}
+    ): Promise<BaseCsvImportPlan> =>
+      requireBaseApi().previewBaseCsvImport(requireSpaceId(), token, options),
+    [requireSpaceId]
+  )
+
+  const importCsv = useCallback(
+    (
+      relativePath: string,
+      token: string,
+      options: BaseCsvImportOptions = {}
+    ): Promise<{ result: BaseCsvImportResult; snapshot: BaseSnapshot }> =>
+      requireBaseApi().importBaseCsv(
+        requireSpaceId(),
+        relativePath,
+        token,
+        options
+      ),
     [requireSpaceId]
   )
 
@@ -284,6 +316,9 @@ export function useSpaceBase(spaceId: string | undefined) {
 
   return {
     create,
+    selectCsv,
+    previewCsvImport,
+    importCsv,
     getSnapshot,
     getTablePage,
     createTable,

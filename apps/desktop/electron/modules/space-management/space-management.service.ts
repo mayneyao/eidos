@@ -12,6 +12,9 @@ import type {
   BaseRowRange,
   BaseRowsDeleteResult,
   BaseSnapshot,
+  BaseCsvImportOptions,
+  BaseCsvImportPlan,
+  BaseCsvImportResult,
   BaseFormulaPreview,
   BaseFormulaPreviewInput,
   CreateBaseFieldInput,
@@ -22,6 +25,7 @@ import type {
   UpdateBaseTableInput,
   UpdateBaseViewInput,
 } from "@eidos.space/base"
+import { planBaseCsvImport } from "@eidos.space/base"
 import {
   createBaseFile as createBaseDatabase,
   openBaseFile,
@@ -77,6 +81,15 @@ export class SpaceManagementService extends IpcServiceBase {
   private readonly fileSpaceIndexes = new Map<string, FileSpaceIndex>()
   private activeFileWatcher: ReturnType<SpaceFiles["watch"]> | null = null
   private activeFileWatcherSpaceId: string | null = null
+  private readonly baseCsvSelections = new Map<
+    string,
+    {
+      spaceId: string
+      sourcePath: string
+      fileName: string
+      selectedAt: number
+    }
+  >()
 
   constructor(
     @Inject(SpaceRegistry) private registry: SpaceRegistry,
@@ -422,6 +435,77 @@ export class SpaceManagementService extends IpcServiceBase {
     return withFileSpaceOperationLock(spaceId, () =>
       this._getBaseSnapshot(spaceId, relativePath, true)
     )
+  }
+
+  async selectBaseCsv(
+    spaceId: string
+  ): Promise<
+    | { canceled: true; token: null; plan: null }
+    | { canceled: false; token: string; plan: BaseCsvImportPlan }
+  > {
+    this._getFileSpace(spaceId)
+    const options: OpenDialogOptions = {
+      properties: ["openFile"],
+      filters: [{ name: "CSV", extensions: ["csv"] }],
+    }
+    const owner = this.windowProvider.getWindow()
+    const selection = owner
+      ? await dialog.showOpenDialog(owner, options)
+      : await dialog.showOpenDialog(options)
+    if (selection.canceled || !selection.filePaths[0]) {
+      return { canceled: true, token: null, plan: null }
+    }
+    const sourcePath = selection.filePaths[0]
+    const fileName = path.basename(sourcePath)
+    const content = await fs.promises.readFile(sourcePath, "utf8")
+    const plan = planBaseCsvImport({ name: fileName, content })
+    const token = globalThis.crypto.randomUUID()
+    const cutoff = Date.now() - 30 * 60 * 1_000
+    for (const [candidate, value] of this.baseCsvSelections) {
+      if (value.selectedAt < cutoff) this.baseCsvSelections.delete(candidate)
+    }
+    this.baseCsvSelections.set(token, {
+      spaceId,
+      sourcePath,
+      fileName,
+      selectedAt: Date.now(),
+    })
+    return { canceled: false, token, plan }
+  }
+
+  async previewBaseCsvImport(
+    spaceId: string,
+    token: string,
+    options: BaseCsvImportOptions = {}
+  ): Promise<BaseCsvImportPlan> {
+    const source = this._getBaseCsvSelection(spaceId, token)
+    const content = await fs.promises.readFile(source.sourcePath, "utf8")
+    return planBaseCsvImport({ name: source.fileName, content }, options)
+  }
+
+  async importBaseCsv(
+    spaceId: string,
+    relativePath: string,
+    token: string,
+    options: BaseCsvImportOptions = {}
+  ): Promise<{ result: BaseCsvImportResult; snapshot: BaseSnapshot }> {
+    const source = this._getBaseCsvSelection(spaceId, token)
+    const content = await fs.promises.readFile(source.sourcePath, "utf8")
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      let result: BaseCsvImportResult
+      try {
+        result = base.importCsv({ name: source.fileName, content }, options)
+      } finally {
+        base.close()
+      }
+      this.baseCsvSelections.delete(token)
+      this._invalidateFileIndex(spaceId)
+      return {
+        result,
+        snapshot: await this._getBaseSnapshot(spaceId, relativePath),
+      }
+    })
   }
 
   async getBaseTablePage(
@@ -914,6 +998,16 @@ export class SpaceManagementService extends IpcServiceBase {
     this.fileSpaceIndexes.get(spaceId)?.close()
     this.fileSpaceIndexes.delete(spaceId)
     return files
+  }
+
+  private _getBaseCsvSelection(spaceId: string, token: string) {
+    const source = this.baseCsvSelections.get(token)
+    const expired = source && source.selectedAt < Date.now() - 30 * 60 * 1_000
+    if (!source || source.spaceId !== spaceId || expired) {
+      this.baseCsvSelections.delete(token)
+      throw new Error("The selected CSV file has expired; choose it again")
+    }
+    return source
   }
 
   private async _openBase(
