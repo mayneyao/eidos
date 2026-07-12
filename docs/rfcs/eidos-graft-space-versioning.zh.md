@@ -19,6 +19,12 @@ path/directory stage/unstage/discard、文本 Diff tabs、commit history、path 
 Changes 与历史 inspector 也已通过 path-scoped Graft row details，将 `.base` path
 展开成紧凑的 table/column/row operations。
 
+原生 Electron acceptance 现已覆盖：点击 Changes 打开独立文本 Diff tab、path 与
+directory staging、commit、cursor 分页 history、单 path restore、whole-Space
+restore 和目录 discard。Graft v0.5.3 使用向后兼容的 Base64 `file-blob-v2` object
+替代 inline file blob 的二次复杂度 Base58 编码；验收机器上 165 KB Markdown 的
+stage 从约 98 秒降至约 27 ms。
+
 以下产品决策取代本文较早的开放问题：
 
 - path-level staging 进入 v1，并采用 VS Code 交互，

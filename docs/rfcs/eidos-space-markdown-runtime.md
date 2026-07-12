@@ -35,10 +35,13 @@ Labeled fenced code blocks use the Lexical 0.47 Prism extension for syntax
 highlighting, line gutters, and a compact language label. Unlabeled fences keep
 their language unset so highlighting never changes Markdown semantics.
 
-Remaining for this slice:
-
-- native Desktop acceptance for IME, OS clipboard/image paste, and very long
-  documents.
+Native Electron acceptance now covers list Enter/Backspace/Tab behavior, IME
+composition and deletion, OS image paste with asset persistence, Cmd+S, and a
+5,000-block Markdown document. On the acceptance machine, the long document
+opened in about 1.88 seconds, a text edit completed in about 258 ms, and save
+completed in about 234 ms. This closes the native acceptance boundary for the
+current vertical slice; further long-document work is optimization rather than
+missing correctness.
 
 ## Summary
 

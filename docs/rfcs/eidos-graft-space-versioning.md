@@ -20,6 +20,13 @@ and whole-Space restore. Private `.eidos` runtime paths are hidden.
 Working Changes and historical inspectors also expand `.base` paths into
 compact table/column/row operations through path-scoped Graft row details.
 
+Native Electron acceptance now covers a Changes click opening a dedicated text
+Diff tab, path and directory staging, commit, cursor-paged history, single-path
+restore, whole-Space restore, and directory discard. Graft v0.5.3 replaces the
+quadratic Base58 encoding of inline file blobs with backward-compatible Base64
+`file-blob-v2` objects. Staging the 165 KB acceptance Markdown file dropped from
+about 98 seconds to about 27 ms on the acceptance machine.
+
 Confirmed product decisions that supersede earlier open questions:
 
 - path-level staging is part of v1 and follows the VS Code interaction model,

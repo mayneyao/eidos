@@ -33,9 +33,10 @@ Rebuild 和损坏 schema 恢复都会完全从 Space 文件重建索引。
 带语言标记的 fenced code 使用 Lexical 0.47 Prism extension 提供语法高亮、行号和
 紧凑语言标签；未标记语言的 fence 会保持 unset，确保高亮不会改变 Markdown 语义。
 
-本切片剩余：
-
-- IME、系统 clipboard/图片粘贴和超长文档的原生 Desktop acceptance。
+原生 Electron acceptance 现已覆盖 list 的 Enter/Backspace/Tab、IME 组合输入与删除、
+系统图片粘贴及 asset 落盘、Cmd+S，以及包含 5,000 个 blocks 的 Markdown 文档。
+验收机器上长文档打开约 1.88 秒、文本编辑约 258 ms、保存约 234 ms。当前垂直切片的
+原生验收边界已经闭合，后续长文档工作属于性能优化，而不是正确性缺口。
 
 ## 摘要
 
