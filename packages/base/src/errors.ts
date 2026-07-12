@@ -6,6 +6,7 @@ export type BaseErrorCode =
   | "invalid-identifier"
   | "invalid-range"
   | "protected-field"
+  | "protected-view"
   | "table-not-found"
   | "row-not-found"
   | "field-not-found"

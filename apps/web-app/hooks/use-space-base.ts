@@ -10,6 +10,7 @@ import type {
   CreateBaseFieldInput,
   CreateBaseOptions,
   CreateBaseTableInput,
+  CreateBaseViewInput,
   UpdateBaseFieldInput,
   UpdateBaseTableInput,
   UpdateBaseViewInput,
@@ -164,6 +165,57 @@ export function useSpaceBase(spaceId: string | undefined) {
     [requireSpaceId]
   )
 
+  const createView = useCallback(
+    (
+      relativePath: string,
+      tableId: string,
+      input: CreateBaseViewInput
+    ): Promise<BaseSnapshot> =>
+      requireBaseApi().createBaseView(
+        requireSpaceId(),
+        relativePath,
+        tableId,
+        input
+      ),
+    [requireSpaceId]
+  )
+
+  const duplicateView = useCallback(
+    (
+      relativePath: string,
+      viewId: string,
+      name?: string
+    ): Promise<BaseSnapshot> =>
+      requireBaseApi().duplicateBaseView(
+        requireSpaceId(),
+        relativePath,
+        viewId,
+        name
+      ),
+    [requireSpaceId]
+  )
+
+  const deleteView = useCallback(
+    (relativePath: string, viewId: string): Promise<BaseSnapshot> =>
+      requireBaseApi().deleteBaseView(requireSpaceId(), relativePath, viewId),
+    [requireSpaceId]
+  )
+
+  const reorderViews = useCallback(
+    (
+      relativePath: string,
+      tableId: string,
+      viewIds: string[]
+    ): Promise<BaseSnapshot> =>
+      requireBaseApi().reorderBaseViews(
+        requireSpaceId(),
+        relativePath,
+        tableId,
+        viewIds
+      ),
+    [requireSpaceId]
+  )
+
   const updateRow = useCallback(
     (
       relativePath: string,
@@ -223,7 +275,11 @@ export function useSpaceBase(spaceId: string | undefined) {
     addField,
     updateField,
     deleteField,
+    createView,
     updateView,
+    duplicateView,
+    deleteView,
+    reorderViews,
     insertRow,
     updateRow,
     deleteRows,

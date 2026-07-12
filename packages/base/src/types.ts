@@ -89,6 +89,8 @@ export interface BaseViewInfo {
 }
 
 export interface UpdateBaseViewInput {
+  name?: string
+  position?: number | null
   properties?: Record<string, unknown> | null
   filter?: BaseFilterGroup | null
   sorts?: BaseSort[]
@@ -154,7 +156,7 @@ export interface CreateBaseViewInput {
   id?: string
   name: string
   type: string
-  query: string
+  query?: string
   properties?: Record<string, unknown> | null
   filter?: BaseFilterGroup | null
   sorts?: BaseSort[]

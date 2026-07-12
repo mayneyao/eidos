@@ -181,6 +181,18 @@ try {
   const persistedView = persisted.listViews("tasks")[0]
   assert.deepEqual(persistedView?.filter, query.filter)
   assert.deepEqual(persistedView?.sorts, query.sorts)
+  const copiedView = persisted.duplicateView(persistedView.id, "QA copy")
+  assert.deepEqual(
+    persisted
+      .reorderViews("tasks", [copiedView.id, persistedView.id])
+      .map((view) => view.name),
+    ["QA copy", persistedView.name]
+  )
+  assert.equal(persisted.deleteView(copiedView.id), true)
+  assert.deepEqual(
+    persisted.listViews("tasks").map((view) => view.id),
+    [persistedView.id]
+  )
   persisted.close()
 
   runGraft(root, ["init", "--json"])

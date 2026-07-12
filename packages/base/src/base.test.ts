@@ -193,6 +193,66 @@ describe("Eidos Base files", () => {
     expectBaseError(() => openBaseFile(sqlitePath), "not-base")
   })
 
+  it("persists the complete Grid view lifecycle independently per view", () => {
+    const filePath = path.join(root, "views.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: {
+        id: "tasks",
+        name: "Tasks",
+        fields: [{ name: "Priority", columnName: "priority", type: "number" }],
+      },
+    })
+    const original = base.listViews("tasks")[0]
+    base.updateView(original.id, {
+      name: "All tasks",
+      properties: { fieldWidthMap: { title: 280 } },
+      hiddenFields: ["priority"],
+    })
+    const priority = base.createView("tasks", {
+      name: "By priority",
+      type: "grid",
+      sorts: [{ field: "priority", direction: "desc" }],
+      orderMap: { priority: 0, title: 1 },
+    })
+    const duplicate = base.duplicateView(priority.id)
+
+    expect(duplicate).toMatchObject({
+      name: "By priority copy",
+      type: "grid",
+      sorts: [{ field: "priority", direction: "desc" }],
+      orderMap: { priority: 0, title: 1 },
+    })
+    expect(base.updateView(duplicate.id, { name: "Focus" })).toMatchObject({
+      name: "Focus",
+    })
+    expect(
+      base.reorderViews("tasks", [duplicate.id, original.id, priority.id])
+    ).toMatchObject([
+      { id: duplicate.id, position: 1 },
+      { id: original.id, position: 2 },
+      { id: priority.id, position: 3 },
+    ])
+    expectBaseError(
+      () => base.reorderViews("tasks", [original.id, priority.id]),
+      "invalid-range"
+    )
+    expect(base.deleteView(priority.id)).toBe(true)
+    expect(base.deleteView(duplicate.id)).toBe(true)
+    expectBaseError(() => base.deleteView(original.id), "protected-view")
+    base.close()
+
+    const reopened = openBaseFile(filePath)
+    expect(reopened.listViews("tasks")).toMatchObject([
+      {
+        id: original.id,
+        name: "All tasks",
+        properties: { fieldWidthMap: { title: 280 } },
+        hiddenFields: ["priority"],
+      },
+    ])
+    reopened.close()
+  })
+
   it("renames and deletes Base tables and fields transactionally", () => {
     const filePath = path.join(root, "structure.base")
     const base = createBaseFile(filePath, {

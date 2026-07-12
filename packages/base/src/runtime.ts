@@ -426,6 +426,21 @@ export class BaseRuntime {
     if (!existing) {
       throw new BaseError("view-not-found", `Base view not found: ${viewId}`)
     }
+    const name =
+      changes.name === undefined ? existing.name : changes.name.trim()
+    if (!name) {
+      throw new BaseError("invalid-identifier", "Base view name is required")
+    }
+    if (
+      changes.position !== undefined &&
+      changes.position !== null &&
+      (!Number.isSafeInteger(changes.position) || changes.position < 0)
+    ) {
+      throw new BaseError(
+        "invalid-range",
+        "Base view position must be a non-negative integer"
+      )
+    }
     const currentProperties = parseJson(existing.properties) as Record<
       string,
       unknown
@@ -441,10 +456,13 @@ export class BaseRuntime {
           }
     this.connection.run(
       `UPDATE ${BASE_VIEWS_TABLE}
-          SET properties = ?, filter = ?, order_map = ?, hidden_fields = ?,
+          SET name = ?, position = ?, properties = ?, filter = ?,
+              order_map = ?, hidden_fields = ?,
               updated_at = CURRENT_TIMESTAMP
         WHERE id = ?`,
       [
+        name,
+        changes.position === undefined ? existing.position : changes.position,
         JSON.stringify(properties),
         JSON.stringify(
           changes.filter === undefined
@@ -475,7 +493,25 @@ export class BaseRuntime {
   }
 
   createView(tableId: string, input: CreateBaseViewInput): BaseViewInfo {
-    this.getTable(tableId)
+    const table = this.getTable(tableId)
+    const name = input.name.trim()
+    const type = input.type.trim()
+    if (!name || !type) {
+      throw new BaseError(
+        "invalid-identifier",
+        "Base view name and type are required"
+      )
+    }
+    if (
+      input.position !== undefined &&
+      input.position !== null &&
+      (!Number.isSafeInteger(input.position) || input.position < 0)
+    ) {
+      throw new BaseError(
+        "invalid-range",
+        "Base view position must be a non-negative integer"
+      )
+    }
     const viewId = input.id ?? createBaseId("view")
     const position =
       input.position ??
@@ -492,10 +528,10 @@ export class BaseRuntime {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         viewId,
-        input.name,
-        input.type,
+        name,
+        type,
         tableId,
-        input.query,
+        input.query ?? `SELECT * FROM ${quoteIdentifier(table.rawTableName)}`,
         input.properties === undefined && input.sorts === undefined
           ? null
           : JSON.stringify({
@@ -521,6 +557,91 @@ export class BaseRuntime {
       )
     }
     return created
+  }
+
+  duplicateView(viewId: string, name?: string): BaseViewInfo {
+    const existing = this.connection.get<ViewRow>(
+      `SELECT id, name, type, table_id, query, properties, filter,
+              order_map, hidden_fields, position, created_at, updated_at
+         FROM ${BASE_VIEWS_TABLE}
+        WHERE id = ?`,
+      [viewId]
+    )
+    if (!existing) {
+      throw new BaseError("view-not-found", `Base view not found: ${viewId}`)
+    }
+    const view = this.listViews(existing.table_id).find(
+      (candidate) => candidate.id === viewId
+    )
+    if (!view) {
+      throw new BaseError("view-not-found", `Base view not found: ${viewId}`)
+    }
+    return this.createView(view.tableId, {
+      name: name?.trim() || `${view.name} copy`,
+      type: view.type,
+      query: view.query,
+      properties: view.properties,
+      filter: view.filter,
+      sorts: view.sorts,
+      orderMap: view.orderMap,
+      hiddenFields: view.hiddenFields,
+    })
+  }
+
+  deleteView(viewId: string): boolean {
+    const existing = this.connection.get<{ table_id: string }>(
+      `SELECT table_id FROM ${BASE_VIEWS_TABLE} WHERE id = ?`,
+      [viewId]
+    )
+    if (!existing) {
+      throw new BaseError("view-not-found", `Base view not found: ${viewId}`)
+    }
+    const count =
+      this.connection.get<{ count: number }>(
+        `SELECT COUNT(*) AS count FROM ${BASE_VIEWS_TABLE} WHERE table_id = ?`,
+        [existing.table_id]
+      )?.count ?? 0
+    if (count <= 1) {
+      throw new BaseError(
+        "protected-view",
+        "A Base table must keep at least one view"
+      )
+    }
+    return this.connection.transaction(() => {
+      const result = this.connection.run(
+        `DELETE FROM ${BASE_VIEWS_TABLE} WHERE id = ?`,
+        [viewId]
+      )
+      if (result.changes > 0) setBaseMetadata(this.connection, {})
+      return result.changes > 0
+    })
+  }
+
+  reorderViews(tableId: string, viewIds: string[]): BaseViewInfo[] {
+    const current = this.listViews(tableId)
+    const expected = new Set(current.map((view) => view.id))
+    if (
+      viewIds.length !== current.length ||
+      new Set(viewIds).size !== viewIds.length ||
+      viewIds.some((viewId) => !expected.has(viewId))
+    ) {
+      throw new BaseError(
+        "invalid-range",
+        "Base view order must contain every table view exactly once"
+      )
+    }
+    this.connection.transaction(() => {
+      viewIds.forEach((viewId, index) => {
+        this.connection.run(
+          `UPDATE ${BASE_VIEWS_TABLE}
+              SET position = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND table_id = ?`,
+          [index + 1, viewId, tableId]
+        )
+      })
+      setBaseMetadata(this.connection, {})
+    })
+    return this.listViews(tableId)
   }
 
   addField(tableId: string, field: CreateBaseFieldInput): BaseFieldInfo {

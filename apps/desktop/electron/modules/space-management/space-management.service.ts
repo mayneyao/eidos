@@ -15,6 +15,7 @@ import type {
   CreateBaseFieldInput,
   CreateBaseOptions,
   CreateBaseTableInput,
+  CreateBaseViewInput,
   UpdateBaseFieldInput,
   UpdateBaseTableInput,
   UpdateBaseViewInput,
@@ -585,6 +586,77 @@ export class SpaceManagementService extends IpcServiceBase {
       const base = await this._openBase(spaceId, relativePath, true)
       try {
         base.updateView(viewId, changes)
+      } finally {
+        base.close()
+      }
+      this._invalidateFileIndex(spaceId)
+      return this._getBaseSnapshot(spaceId, relativePath)
+    })
+  }
+
+  async createBaseView(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    input: CreateBaseViewInput
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        base.createView(tableId, input)
+      } finally {
+        base.close()
+      }
+      this._invalidateFileIndex(spaceId)
+      return this._getBaseSnapshot(spaceId, relativePath)
+    })
+  }
+
+  async duplicateBaseView(
+    spaceId: string,
+    relativePath: string,
+    viewId: string,
+    name?: string
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        base.duplicateView(viewId, name)
+      } finally {
+        base.close()
+      }
+      this._invalidateFileIndex(spaceId)
+      return this._getBaseSnapshot(spaceId, relativePath)
+    })
+  }
+
+  async deleteBaseView(
+    spaceId: string,
+    relativePath: string,
+    viewId: string
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        base.deleteView(viewId)
+      } finally {
+        base.close()
+      }
+      this._invalidateFileIndex(spaceId)
+      return this._getBaseSnapshot(spaceId, relativePath)
+    })
+  }
+
+  async reorderBaseViews(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    viewIds: string[]
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        base.reorderViews(tableId, viewIds)
       } finally {
         base.close()
       }
