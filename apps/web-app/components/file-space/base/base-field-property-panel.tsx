@@ -308,7 +308,7 @@ export function BaseFieldPropertyPanel({
               </Select>
             ) : (
               <div className="flex h-8 items-center rounded-md border bg-muted/30 px-3 text-xs capitalize text-muted-foreground">
-                {field.type.replaceAll("-", " ")}
+                {field.type.replace(/-/g, " ")}
               </div>
             )}
           </label>
