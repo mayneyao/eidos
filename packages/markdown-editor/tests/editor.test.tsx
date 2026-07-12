@@ -637,6 +637,77 @@ describe("MarkdownEditor", () => {
     expect(container.querySelector(".eidos-md-block-marquee")).toBeNull()
   })
 
+  it("marquee-selects and deletes individual list items", async () => {
+    const container = render(
+      <MarkdownEditor defaultValue={"- First\n- Second\n- Third"} />
+    )
+    await settle()
+
+    const root = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const surface = container.querySelector<HTMLElement>(
+      ".eidos-md-editor-surface"
+    )!
+    const items = Array.from(container.querySelectorAll<HTMLElement>("li"))
+    surface.getBoundingClientRect = () =>
+      ({
+        bottom: 200,
+        height: 200,
+        left: 0,
+        right: 400,
+        top: 0,
+        width: 400,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect
+    items.forEach((item, index) => {
+      const top = 10 + index * 40
+      item.getBoundingClientRect = () =>
+        ({
+          bottom: top + 30,
+          height: 30,
+          left: 40,
+          right: 340,
+          top,
+          width: 300,
+          x: 40,
+          y: top,
+          toJSON: () => ({}),
+        }) as DOMRect
+    })
+
+    act(() => {
+      root.dispatchEvent(
+        new MouseEvent("mousedown", {
+          bubbles: true,
+          button: 0,
+          clientX: 10,
+          clientY: 45,
+        })
+      )
+      window.dispatchEvent(
+        new MouseEvent("mousemove", {
+          bubbles: true,
+          clientX: 360,
+          clientY: 85,
+        })
+      )
+    })
+    await settle()
+
+    expect(items[0].classList.contains("eidos-md-block-selected")).toBe(false)
+    expect(items[1].classList.contains("eidos-md-block-selected")).toBe(true)
+    expect(items[2].classList.contains("eidos-md-block-selected")).toBe(false)
+
+    act(() => pressKey(root, "Backspace"))
+    await settle()
+
+    expect(
+      Array.from(container.querySelectorAll("li"), (item) => item.textContent)
+    ).toEqual(["First", "Third"])
+    expect(container.querySelectorAll("ul")).toHaveLength(1)
+  })
+
   it("inserts a paragraph when Enter follows a block selection", async () => {
     const container = render(<MarkdownEditor defaultValue="First block" />)
     await settle()

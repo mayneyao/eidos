@@ -7,12 +7,14 @@ import {
   type RefObject,
 } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
+import { $isListItemNode, $isListNode } from "@lexical/list"
 import { eventFiles } from "@lexical/rich-text"
 import { mergeRegister } from "@lexical/utils"
 import {
   $createNodeSelection,
   $createParagraphNode,
   $getNearestNodeFromDOMNode,
+  $getNodeByKey,
   $getRoot,
   $getSelection,
   $isNodeSelection,
@@ -50,6 +52,67 @@ function topLevelNode(node: LexicalNode): LexicalNode {
   return node.getTopLevelElementOrThrow()
 }
 
+function selectableBlockNode(node: LexicalNode): LexicalNode {
+  let candidate: LexicalNode | null = node
+  while (candidate) {
+    if ($isListItemNode(candidate)) return candidate
+    const parent: LexicalNode | null = candidate.getParent()
+    if (!parent || parent.getType() === "root") break
+    candidate = parent
+  }
+  return topLevelNode(node)
+}
+
+function selectableBlockElements(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.children).flatMap((element) => {
+    if (!(element instanceof HTMLElement)) return []
+    if (!element.matches("ol, ul")) return [element]
+    const listItems = Array.from(element.children).filter(
+      (child): child is HTMLElement =>
+        child instanceof HTMLElement && child.matches("li")
+    )
+    return listItems.length > 0 ? listItems : [element]
+  })
+}
+
+function allSelectableBlockKeys(): NodeKey[] {
+  return $getRoot()
+    .getChildren()
+    .flatMap((node) =>
+      $isListNode(node)
+        ? node
+            .getChildren()
+            .flatMap((child) =>
+              $isListItemNode(child) ? [child.getKey()] : []
+            )
+        : [node.getKey()]
+    )
+}
+
+function nextSelectableBlock(node: LexicalNode): LexicalNode | null {
+  const block = selectableBlockNode(node)
+  const next = block.getNextSibling()
+  if (next) {
+    if ($isListNode(next)) return next.getFirstChild()
+    return next
+  }
+  if ($isListItemNode(block)) return block.getParent()?.getNextSibling() ?? null
+  return null
+}
+
+function previousSelectableBlock(node: LexicalNode): LexicalNode | null {
+  const block = selectableBlockNode(node)
+  const previous = block.getPreviousSibling()
+  if (previous) {
+    if ($isListNode(previous)) return previous.getLastChild()
+    return previous
+  }
+  if ($isListItemNode(block)) {
+    return block.getParent()?.getPreviousSibling() ?? null
+  }
+  return null
+}
+
 function selectBlocks(keys: readonly NodeKey[]) {
   if (keys.length === 0) {
     $setSelection(null)
@@ -66,6 +129,12 @@ function blockElementAtTarget(
 ): HTMLElement | null {
   const root = editor.getRootElement()
   if (!root || !(target instanceof Node)) return null
+  const targetElement =
+    target instanceof Element ? target : target.parentElement
+  const listItem = targetElement?.closest("li")
+  if (listItem instanceof HTMLElement && root.contains(listItem)) {
+    return listItem
+  }
   return (
     (Array.from(root.children).find((element) => element.contains(target)) as
       | HTMLElement
@@ -81,7 +150,7 @@ function nodeForBlockElement(
   editor.getEditorState().read(
     () => {
       const nearest = $getNearestNodeFromDOMNode(element)
-      node = nearest ? topLevelNode(nearest) : null
+      node = nearest ? selectableBlockNode(nearest) : null
     },
     { editor }
   )
@@ -102,7 +171,7 @@ export function BlockSelectionPlugin({
     const selection = $getSelection()
     if ($isNodeSelection(selection)) {
       for (const node of selection.getNodes()) {
-        nextKeys.add(topLevelNode(node).getKey())
+        nextKeys.add(selectableBlockNode(node).getKey())
       }
     }
 
@@ -122,7 +191,13 @@ export function BlockSelectionPlugin({
       const selection = $getSelection()
       if (!$isNodeSelection(selection)) return false
       event?.preventDefault()
-      for (const node of selection.getNodes()) topLevelNode(node).remove()
+      const blocks = new Map(
+        selection
+          .getNodes()
+          .map(selectableBlockNode)
+          .map((node) => [node.getKey(), node] as const)
+      )
+      for (const node of blocks.values()) node.remove()
       const root = $getRoot()
       if (root.isEmpty()) root.append($createParagraphNode())
       root.selectStart()
@@ -149,7 +224,9 @@ export function BlockSelectionPlugin({
             const selection = $getSelection()
             if (!$isRangeSelection(selection)) return false
             event?.preventDefault()
-            selectBlocks([topLevelNode(selection.anchor.getNode()).getKey()])
+            selectBlocks([
+              selectableBlockNode(selection.anchor.getNode()).getKey(),
+            ])
             return true
           },
           COMMAND_PRIORITY_HIGH
@@ -159,9 +236,9 @@ export function BlockSelectionPlugin({
           (event) => {
             const selection = $getSelection()
             if (!$isNodeSelection(selection)) return false
-            const blocks = selection.getNodes().map(topLevelNode)
+            const blocks = selection.getNodes().map(selectableBlockNode)
             const current = blocks.at(-1)
-            const next = current?.getNextSibling()
+            const next = current ? nextSelectableBlock(current) : null
             if (!next) return true
             event?.preventDefault()
             selectBlocks(
@@ -178,9 +255,9 @@ export function BlockSelectionPlugin({
           (event) => {
             const selection = $getSelection()
             if (!$isNodeSelection(selection)) return false
-            const blocks = selection.getNodes().map(topLevelNode)
+            const blocks = selection.getNodes().map(selectableBlockNode)
             const current = blocks[0]
-            const previous = current?.getPreviousSibling()
+            const previous = current ? previousSelectableBlock(current) : null
             if (!previous) return true
             event?.preventDefault()
             selectBlocks(
@@ -210,7 +287,7 @@ export function BlockSelectionPlugin({
             const node = selection.getNodes().at(-1)
             if (!node) return false
             event?.preventDefault()
-            topLevelNode(node).selectEnd()
+            selectableBlockNode(node).selectEnd()
             queueMicrotask(() => editor.focus())
             return editor.dispatchCommand(INSERT_PARAGRAPH_COMMAND, undefined)
           },
@@ -225,7 +302,7 @@ export function BlockSelectionPlugin({
             const selection = $getSelection()
             if (!$isNodeSelection(selection)) return false
             event.preventDefault()
-            selectBlocks($getRoot().getChildrenKeys())
+            selectBlocks(allSelectableBlockKeys())
             return true
           },
           COMMAND_PRIORITY_LOW
@@ -269,7 +346,7 @@ export function BlockSelectionPlugin({
         width: right - left,
       })
 
-      const keys = Array.from(root.children).flatMap((element) => {
+      const keys = selectableBlockElements(root).flatMap((element) => {
         const rect = element.getBoundingClientRect()
         const intersects =
           left <= rect.right &&
@@ -277,7 +354,7 @@ export function BlockSelectionPlugin({
           top <= rect.bottom &&
           bottom >= rect.top
         if (!intersects) return []
-        const node = nodeForBlockElement(editor, element as HTMLElement)
+        const node = nodeForBlockElement(editor, element)
         return node ? [node.getKey()] : []
       })
       editor.update(() => selectBlocks(keys))
@@ -385,12 +462,13 @@ export function DraggableBlockPlugin({
             if (!targetElement) return false
             event.preventDefault()
             editor.update(() => {
-              const dragged = $getRoot()
-                .getChildren()
-                .find((node) => node.getKey() === draggedKey)
+              const dragged = $getNodeByKey(draggedKey)
               const nearest = $getNearestNodeFromDOMNode(targetElement)
-              const target = nearest ? topLevelNode(nearest) : null
+              const target = nearest ? selectableBlockNode(nearest) : null
               if (!dragged || !target || dragged.is(target)) return
+              const draggingListItem = $isListItemNode(dragged)
+              const targetListItem = $isListItemNode(target)
+              if (draggingListItem !== targetListItem) return
               const rect = targetElement.getBoundingClientRect()
               if (event.clientY > rect.top + rect.height / 2) {
                 target.insertAfter(dragged)
