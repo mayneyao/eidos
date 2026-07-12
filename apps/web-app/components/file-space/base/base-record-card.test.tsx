@@ -120,4 +120,41 @@ describe("BaseRecordCard", () => {
       "object-contain"
     )
   })
+
+  it("exposes record actions from the card menu", async () => {
+    const onOpen = vi.fn()
+    const onDelete = vi.fn()
+    const row = { _id: "row_1", title: "Write RFC", cover: null }
+
+    await act(async () => {
+      root.render(
+        <BaseRecordCard
+          row={row}
+          fields={fields}
+          view={{ ...view, properties: null }}
+          onOpen={onOpen}
+          onDelete={onDelete}
+        />
+      )
+    })
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="More actions for Write RFC"]'
+        )
+        ?.dispatchEvent(
+          new MouseEvent("pointerdown", { bubbles: true, button: 0 })
+        )
+    })
+    await act(async () => {
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      )
+        .find((item) => item.textContent?.includes("Delete record"))
+        ?.click()
+    })
+
+    expect(onDelete).toHaveBeenCalledWith(row)
+    expect(onOpen).not.toHaveBeenCalled()
+  })
 })

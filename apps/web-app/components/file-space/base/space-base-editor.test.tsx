@@ -30,6 +30,7 @@ const revealFileMock = vi.hoisted(() => vi.fn())
 const openTabMock = vi.hoisted(() => vi.fn())
 const insertRowMock = vi.hoisted(() => vi.fn())
 const updateRowMock = vi.hoisted(() => vi.fn())
+const deleteRowsMock = vi.hoisted(() => vi.fn())
 const deleteRowRangesMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/apps/web-app/hooks/use-current-space", () => ({
@@ -54,6 +55,7 @@ vi.mock("@/apps/web-app/hooks/use-space-base", () => ({
     reorderViews: reorderViewsMock,
     insertRow: insertRowMock,
     updateRow: updateRowMock,
+    deleteRows: deleteRowsMock,
     deleteRowRanges: deleteRowRangesMock,
   }),
 }))
@@ -501,7 +503,21 @@ vi.mock("./base-view-selector", () => ({
 }))
 
 vi.mock("./base-gallery-view", () => ({
-  BaseGalleryView: () => <div data-testid="base-gallery-view">Gallery</div>,
+  BaseGalleryView: ({
+    onDeleteRow,
+  }: {
+    onDeleteRow?: (row: { _id: string; title: string }) => Promise<void>
+  }) => (
+    <div data-testid="base-gallery-view">
+      Gallery
+      <button
+        type="button"
+        onClick={() => void onDeleteRow?.({ _id: "row_1", title: "Write RFC" })}
+      >
+        Delete gallery row
+      </button>
+    </div>
+  ),
 }))
 
 vi.mock("./base-kanban-view", () => ({
@@ -627,6 +643,7 @@ describe("SpaceBaseEditor", () => {
     openTabMock.mockReset()
     insertRowMock.mockReset()
     updateRowMock.mockReset()
+    deleteRowsMock.mockReset()
     deleteRowRangesMock.mockReset()
     getSnapshotMock.mockResolvedValue(snapshot)
     getTablePageMock.mockResolvedValue({
@@ -674,6 +691,11 @@ describe("SpaceBaseEditor", () => {
         status: "todo",
       },
       rowCount: 1,
+    })
+    deleteRowsMock.mockResolvedValue({
+      tableId: "tasks",
+      deletedCount: 1,
+      rowCount: 0,
     })
     deleteRowRangesMock.mockResolvedValue({
       tableId: "tasks",
@@ -1133,6 +1155,34 @@ describe("SpaceBaseEditor", () => {
       "tasks",
       [{ startIndex: 0, endIndex: 1 }],
       { filter: null, sorts: [] }
+    )
+  })
+
+  it("deletes a card record by stable row id", async () => {
+    getSnapshotMock.mockResolvedValueOnce({
+      ...snapshot,
+      tables: snapshot.tables.map((candidate) => ({
+        ...candidate,
+        views: candidate.views.map((view) => ({
+          ...view,
+          name: "Cards",
+          type: "gallery",
+        })),
+      })),
+    })
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Delete gallery row")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(deleteRowsMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      ["row_1"]
     )
   })
 })

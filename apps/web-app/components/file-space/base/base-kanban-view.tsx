@@ -29,6 +29,7 @@ import {
   type BaseSelectOption,
 } from "./base-field-properties"
 import { BaseRecordCard } from "./base-record-card"
+import { BaseRecordDeleteDialog } from "./base-record-delete-dialog"
 import { BaseRecordInspector } from "./base-record-inspector"
 import { orderedBaseFields } from "./base-view-layout"
 
@@ -92,6 +93,7 @@ function BaseKanbanColumn({
   onLoadMore,
   onCreate,
   readBinary,
+  onDelete,
 }: {
   group: BaseKanbanGroup
   table: BaseTableSnapshot
@@ -103,6 +105,7 @@ function BaseKanbanColumn({
   onLoadMore: (group: BaseKanbanGroup) => void
   onCreate: (group: BaseKanbanGroup, title: string) => Promise<void>
   readBinary?: (path: string) => Promise<SpaceBinaryFile>
+  onDelete?: (row: BaseRow) => void
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -206,6 +209,7 @@ function BaseKanbanColumn({
                     compact
                     readBinary={readBinary}
                     onOpen={onOpen}
+                    onDelete={onDelete}
                   />
                 </KanbanCard>
               ))
@@ -296,6 +300,7 @@ export function BaseKanbanView({
   onCellEdit,
   onAddRow,
   readBinary,
+  onDeleteRow,
   onOpenFile,
   onRevealFile,
   onError,
@@ -322,6 +327,7 @@ export function BaseKanbanView({
     title: string
   ) => Promise<BaseRowMutationResult>
   readBinary?: (path: string) => Promise<SpaceBinaryFile>
+  onDeleteRow?: (row: BaseRow) => Promise<void>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => Promise<void> | void
   onError?: (error: unknown) => void
@@ -344,6 +350,7 @@ export function BaseKanbanView({
     .join("|")
   const [groups, setGroups] = useState<BaseKanbanGroup[]>([])
   const [inspectedRow, setInspectedRow] = useState<BaseRow | null>(null)
+  const [deleteRow, setDeleteRow] = useState<BaseRow | null>(null)
   const fields = orderedBaseFields(table.fields, view)
 
   useEffect(() => {
@@ -560,6 +567,7 @@ export function BaseKanbanView({
               color={baseOptionColor(group.color, theme)}
               readBinary={readBinary}
               onOpen={setInspectedRow}
+              onDelete={onDeleteRow ? setDeleteRow : undefined}
               onLoadMore={(candidate) => void loadMore(candidate)}
               onCreate={createInGroup}
             />
@@ -585,6 +593,16 @@ export function BaseKanbanView({
             }
           />
         ) : null)}
+      {onDeleteRow ? (
+        <BaseRecordDeleteDialog
+          row={deleteRow}
+          onOpenChange={(open) => {
+            if (!open) setDeleteRow(null)
+          }}
+          onDelete={onDeleteRow}
+          onError={onError}
+        />
+      ) : null}
     </div>
   )
 }

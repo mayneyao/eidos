@@ -132,6 +132,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     reorderViews,
     insertRow,
     updateRow,
+    deleteRows,
     deleteRowRanges,
   } = useSpaceBase(currentSpace?.id)
   const [snapshot, setSnapshot] = useState<BaseSnapshot | null>(null)
@@ -574,6 +575,23 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     selectedRowRanges,
     updateTableRowCount,
   ])
+
+  const deleteSingleRow = useCallback(
+    (row: BaseRow): Promise<void> => {
+      if (!activeTable || row._id === undefined || row._id === null) {
+        return Promise.reject(new Error("No Base row selected"))
+      }
+      const tableId = activeTable.table.id
+      return enqueueMutation(
+        () => deleteRows(filePath, tableId, [String(row._id)]),
+        (result) => {
+          updateTableRowCount(tableId, result.rowCount)
+          setGridReloadToken((current) => current + 1)
+        }
+      ).then(() => undefined)
+    },
+    [activeTable, deleteRows, enqueueMutation, filePath, updateTableRowCount]
+  )
 
   const createTableInBase = useCallback(
     (table: Parameters<typeof createTable>[1]): Promise<void> => {
@@ -1165,6 +1183,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               reloadToken={gridReloadToken}
               loadPage={loadActiveTablePage}
               readBinary={readBinary}
+              onDeleteRow={deleteSingleRow}
               onOpenFile={openBaseFileReference}
               onRevealFile={(path) => reveal(path).then(() => undefined)}
               onError={handleGridError}
@@ -1181,6 +1200,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               onCellEdit={saveCell}
               onAddRow={createRowInGroup}
               readBinary={readBinary}
+              onDeleteRow={deleteSingleRow}
               onOpenFile={openBaseFileReference}
               onRevealFile={(path) => reveal(path).then(() => undefined)}
               onError={handleGridError}

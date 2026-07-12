@@ -2,11 +2,31 @@ import { useEffect, useState } from "react"
 import type { BaseFieldInfo, BaseRow, BaseViewInfo } from "@eidos.space/base"
 import { decodeBaseFilePaths } from "@eidos.space/base"
 import type { SpaceBinaryFile } from "@eidos.space/file-space"
-import { Check, Eye, FileText, Minus, Paperclip } from "lucide-react"
+import {
+  Check,
+  Eye,
+  FileText,
+  Minus,
+  MoreHorizontal,
+  Paperclip,
+  Trash2,
+} from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  NativeContextMenu,
+  NativeContextMenuContent,
+  NativeContextMenuItem,
+  NativeContextMenuTrigger,
+} from "@/components/ui/native-context-menu"
 
 import { baseOptionColor, baseSelectOptions } from "./base-field-properties"
 import { baseRecordFieldText, baseRecordTitle } from "./base-record-format"
@@ -213,6 +233,7 @@ export function BaseRecordCard({
   compact = false,
   readBinary,
   onOpen,
+  onDelete,
 }: {
   row: BaseRow
   fields: BaseFieldInfo[]
@@ -220,6 +241,7 @@ export function BaseRecordCard({
   compact?: boolean
   readBinary?: (path: string) => Promise<SpaceBinaryFile>
   onOpen: (row: BaseRow) => void
+  onDelete?: (row: BaseRow) => void
 }) {
   const hideEmptyFields = view.properties?.hideEmptyFields !== false
   const visibleFields = orderedBaseFields(fields, view)
@@ -239,7 +261,7 @@ export function BaseRecordCard({
     (field) => field.tableColumnName === coverFieldName && field.type === "file"
   )
 
-  return (
+  const card = (
     <article className="group/card relative overflow-hidden rounded-lg border bg-card text-card-foreground shadow-xs transition-shadow hover:shadow-sm">
       {coverField ? (
         <BaseRecordCover
@@ -256,16 +278,46 @@ export function BaseRecordCard({
           <h3 className="min-w-0 flex-1 break-words text-sm font-medium leading-5">
             {title}
           </h3>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="-mr-1 -mt-1 h-7 w-7 shrink-0 opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100"
-            aria-label={`Open ${title}`}
-            onClick={() => onOpen(row)}
-          >
-            <Eye className="h-3.5 w-3.5" />
-          </Button>
+          <span className="-mr-1 -mt-1 flex shrink-0 items-center">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100"
+              aria-label={`Open ${title}`}
+              onClick={() => onOpen(row)}
+            >
+              <Eye className="h-3.5 w-3.5" />
+            </Button>
+            {onDelete ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 opacity-0 group-hover/card:opacity-100 data-[state=open]:opacity-100 focus-visible:opacity-100"
+                    aria-label={`More actions for ${title}`}
+                  >
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem onSelect={() => onOpen(row)}>
+                    <Eye className="mr-2 h-3.5 w-3.5" />
+                    Open details
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={() => onDelete(row)}
+                  >
+                    <Trash2 className="mr-2 h-3.5 w-3.5" />
+                    Delete record
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+          </span>
         </div>
         {visibleFields.length > 0 ? (
           <div className="grid gap-2">
@@ -286,5 +338,20 @@ export function BaseRecordCard({
         ) : null}
       </div>
     </article>
+  )
+
+  if (!onDelete) return card
+  return (
+    <NativeContextMenu>
+      <NativeContextMenuTrigger asChild>{card}</NativeContextMenuTrigger>
+      <NativeContextMenuContent className="w-52">
+        <NativeContextMenuItem onClick={() => onOpen(row)}>
+          Open details
+        </NativeContextMenuItem>
+        <NativeContextMenuItem onClick={() => onDelete(row)}>
+          Delete record
+        </NativeContextMenuItem>
+      </NativeContextMenuContent>
+    </NativeContextMenu>
   )
 }

@@ -11,6 +11,7 @@ import { LoaderCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 import { BaseRecordCard } from "./base-record-card"
+import { BaseRecordDeleteDialog } from "./base-record-delete-dialog"
 import { BaseRecordInspector } from "./base-record-inspector"
 import { orderedBaseFields } from "./base-view-layout"
 
@@ -29,6 +30,7 @@ export function BaseGalleryView({
   reloadToken = 0,
   loadPage,
   readBinary,
+  onDeleteRow,
   onOpenFile,
   onRevealFile,
   onError,
@@ -39,6 +41,7 @@ export function BaseGalleryView({
   reloadToken?: number
   loadPage: (offset: number, limit: number) => Promise<BaseRowPage>
   readBinary?: (path: string) => Promise<SpaceBinaryFile>
+  onDeleteRow?: (row: BaseRow) => Promise<void>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => Promise<void> | void
   onError?: (error: unknown) => void
@@ -50,6 +53,7 @@ export function BaseGalleryView({
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [inspectedRow, setInspectedRow] = useState<BaseRow | null>(null)
+  const [deleteRow, setDeleteRow] = useState<BaseRow | null>(null)
   const fields = orderedBaseFields(table.fields, view)
 
   const requestPage = useCallback(
@@ -119,6 +123,7 @@ export function BaseGalleryView({
                 view={view}
                 readBinary={readBinary}
                 onOpen={setInspectedRow}
+                onDelete={onDeleteRow ? setDeleteRow : undefined}
               />
             ))}
           </div>
@@ -160,6 +165,16 @@ export function BaseGalleryView({
             }
           />
         ) : null)}
+      {onDeleteRow ? (
+        <BaseRecordDeleteDialog
+          row={deleteRow}
+          onOpenChange={(open) => {
+            if (!open) setDeleteRow(null)
+          }}
+          onDelete={onDeleteRow}
+          onError={onError}
+        />
+      ) : null}
     </div>
   )
 }
