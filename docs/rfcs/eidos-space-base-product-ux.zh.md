@@ -34,8 +34,12 @@ Space 可见的 `assets/` 目录、拖放到单元格、重排或移除附件、
 文件管理器中定位。日常附件编辑保持在 Grid overlay 内，只有必要的原生文件选择器会
 中断工作流。
 
-Base 仍处于 delivery closure，而不是产品验收。高级嵌套筛选编辑、完整的
-relation/formula 字段、Gallery/Kanban layouts、无障碍表格语义和完整原生
+relation 字段现在沿用原表格交互：单元格显示关联记录标题，打开可搜索、多选的 Grid
+overlay，并且只保存稳定 row IDs。formula 字段实时计算，按配置的 display type 只读
+呈现，并通过带字段插入快捷项的锚定字段控制创建或修改；两个流程都不打开居中弹窗。
+
+Base 仍处于 delivery closure，而不是产品验收。高级嵌套筛选编辑、lookup/rollup
+字段、更丰富的 formula completion/preview、Gallery/Kanban layouts、无障碍表格语义和完整原生
 create/edit/restart/version/restore 验收仍未完成。Base 日常编辑和配置优先使用单元格
 内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留给破坏性确认或必须中断
 当前工作流的决策。新增交互应先参考并复用原表格已经验证过的编辑方式，不应仅为了

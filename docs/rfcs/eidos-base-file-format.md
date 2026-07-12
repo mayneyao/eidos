@@ -37,6 +37,17 @@ multi-file thumbnail/reorder/remove behavior while importing new attachments
 as ordinary visible files under `assets/`; Graft therefore versions the Base
 reference and the asset itself through their normal paths.
 
+Relation fields now store stable target row IDs as JSON arrays and hydrate
+their display titles in bounded batches. The Grid reuses the original table's
+searchable multi-record overlay, while the runtime protects referenced tables
+and display fields from invalid deletion. Formula fields are live, readonly
+query projections rather than stale materialized text: the standalone package
+parses SQLite expressions, resolves raw columns or `prop("Field name")`, orders
+formula dependencies, rejects cycles, and makes calculated values available to
+normal paging, filtering, sorting, edits, and Graft row diffs. Field creation
+and formula editing remain in anchored table controls rather than centered
+dialogs.
+
 Graft row diffs are preserved through the Desktop boundary and shown as compact
 table/column/row changes in both the working Changes tab and historical version
 inspector. Pure `updated_at` metadata noise and internal audit columns are
@@ -51,7 +62,8 @@ an entire selection in the renderer. The runtime path is covered with a
 import boundary for advanced field metadata, views, references, materialized
 derived values, and historical system columns. The legacy migration package
 uses this boundary to produce validated multi-table `main.base` exports. CSV
-import and richer live formula/lookup semantics remain. Desktop Settings now
+import, lookup/rollup fields, and richer formula completion/preview remain.
+Desktop Settings now
 provides preview, progress, validation issues, export, and open-new-Space UX for
 these legacy exports. Batched imports reuse prepared statements and migration
 reads use a rowid cursor; a real 1,110,847-row export completed in about 15.1
@@ -378,29 +390,34 @@ should use `json_array` instead of `csv_ids`.
 
 ### Formula
 
-Formula fields currently map to SQLite generated columns.
+New Base formula fields are stored as metadata and evaluated as ordered,
+readonly query projections. This avoids stale materialized values and lets a
+formula definition change without rebuilding the physical user table. Imported
+legacy generated/materialized formula columns remain readable for compatibility.
 
-Base v1 can keep this behavior, with stricter requirements:
+Base v1 requirements:
 
 - formulas must be valid SQLite expressions after Eidos transformation,
 - formulas must only reference fields in the same Base,
 - formulas should not depend on workspace-local functions unless declared by the Base runtime,
-- migration should validate formula columns before writing a Base.
+- dependency order and cycles must be validated before a formula is saved,
+- filtering and sorting must use the same calculated projection as row paging,
+- migration should validate formula definitions or preserve materialized legacy values explicitly.
 
 ### Link
 
-Link fields currently store linked row IDs and maintain helper title columns such as `<field>__title`.
+Link fields store stable linked row IDs and resolve titles from the target table.
 
 Base v1 rules:
 
 - link targets are inside the same Base by default,
 - cross-Base links are out of scope for v1,
 - link field metadata remains in `eidos__columns.property`,
-- link cell values may continue to use `storage_codec = 'csv_ids'` for stable
-  linked row IDs,
+- new link cell values use `storage_codec = 'relation'` with a JSON array of
+  stable linked row IDs; legacy CSV IDs remain readable,
 - dependency metadata can remain in `eidos__references`,
-- helper columns may remain as implementation detail but should be modeled as
-  hidden materialized fields instead of accidental columns.
+- resolved titles are transient display data and are not written as accidental
+  helper columns.
 
 The important rule is that comma-separated values are only valid for stable
 internal IDs. Display text such as linked titles should not rely on comma
@@ -644,7 +661,7 @@ For each selected table:
 3. Copy matching `eidos__views` rows.
 4. Copy matching `eidos__references` rows.
 5. Create `eidos__tables` rows from table nodes in `eidos__tree`.
-6. Validate field properties, formula generated columns, link helper columns, and lookup dependencies.
+6. Validate field properties, formula definitions/materialized compatibility values, relation IDs, and lookup dependencies.
 7. Rewrite file field paths if needed.
 8. Write `eidos__meta`.
 

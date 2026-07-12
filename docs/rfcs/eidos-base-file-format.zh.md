@@ -28,6 +28,13 @@ view runtime 与 Desktop UI 现已支持多个 Grid views 的创建、重命名�
 的多文件缩略图、重排和移除交互，并把新附件作为 `assets/` 下用户可见的普通文件导入。
 因此 Graft 会通过正常路径同时版本化 Base 引用和资源文件本身。
 
+relation 字段现在以 JSON array 保存稳定的目标 row IDs，并分批补全显示标题；Grid
+复用原表格的可搜索多记录 overlay，runtime 会阻止删除仍被引用的 table 或显示字段。
+formula 字段不再是容易过期的 materialized text，而是实时、只读的 query projection：
+独立 package 会解析 SQLite expression，解析 raw column 或 `prop("字段名")`，排序公式
+依赖、拒绝循环，并让计算值参与正常的分页、筛选、排序、编辑刷新和 Graft row diff。
+字段创建和公式编辑继续使用锚定的表格控制，不打开居中弹窗。
+
 Base snapshot 现在只携带 row count，Grid 按可见区域请求并缓存 100-row pages；批量删行
 使用 compact row ranges 在 runtime 内事务执行，不需要在 renderer 物化整表选择，并已用
 10,000-row fixture 验证。公开 runtime 也已增加 migration-oriented import boundary，支持
@@ -36,7 +43,7 @@ columns；legacy migration package 通过该边界生成经过校验的 multi-ta
 Desktop Settings 已提供这些 legacy exports 的 preview、progress、validation issues、
 export 和 open-new-Space UX。批量导入会复用 prepared statement，迁移读取使用 rowid
 cursor；一个包含 1,110,847 行的真实 Space 约 15.1 秒完成导出并通过全部 Base/count 校验。
-CSV import 和更丰富的实时 formula/lookup 语义仍待实现。
+CSV import、lookup/rollup 字段以及更丰富的 formula completion/preview 仍待实现。
 
 ## 摘要
 
@@ -358,29 +365,32 @@ value 中。如果未来某个字段要存任意用户文本列表，应使用 `
 
 ### Formula 字段
 
-Formula fields 当前映射为 SQLite generated columns。
+新建 Base formula 以 metadata 保存，并作为有依赖顺序的只读 query projection 实时
+计算。这样修改公式定义不需要重建物理 user table，也不会留下过期 materialized value；
+迁移导入的旧 generated/materialized formula columns 仍保持兼容可读。
 
-Base v1 可以保留这个行为，但需要更严格的要求：
+Base v1 要求：
 
 - formula 经过 Eidos transformation 后必须是合法 SQLite expression，
 - formula 只能引用同一个 Base 内的 fields，
 - formula 不应该依赖 workspace-local functions，除非 Base runtime 明确声明，
-- migration 在写入 Base 前应该校验 formula columns。
+- 保存前必须校验依赖顺序和循环依赖，
+- 筛选、排序与 row paging 必须使用同一个计算 projection，
+- migration 应校验 formula definition，或明确保留 materialized legacy values。
 
 ### Link 字段
 
-Link fields 当前存储 linked row IDs，并维护 `<field>__title` 这类 helper title columns。
+Link fields 保存稳定的 linked row IDs，并从目标 table 解析显示标题。
 
 Base v1 规则：
 
 - link targets 默认在同一个 Base 内，
 - 跨 Base links 不进入 v1 范围，
 - link field metadata 继续存在 `eidos__columns.property` 中，
-- link cell values 可以继续使用 `storage_codec = 'csv_ids'` 存稳定的 linked
-  row IDs，
+- 新 link cell values 使用 `storage_codec = 'relation'` 和 JSON array 保存稳定的
+  linked row IDs；旧 CSV IDs 仍可读取，
 - dependency metadata 可以继续放在 `eidos__references`，
-- helper columns 可以作为实现细节保留，但应该被建模成 hidden materialized
-  fields，而不是 accidental columns。
+- resolved titles 是临时 display data，不写成 accidental helper columns。
 
 关键规则是：comma-separated values 只适合稳定内部 ID。linked titles 这类显示文本
 不能依赖逗号 split，除非它们有明确的安全编码。
@@ -623,7 +633,7 @@ Graft 不应该需要 Eidos-specific path hardcoding。它应该检测 `.base` �
 3. 复制匹配的 `eidos__views` rows。
 4. 复制匹配的 `eidos__references` rows。
 5. 从 `eidos__tree` 的 table nodes 创建 `eidos__tables` rows。
-6. 校验 field properties、formula generated columns、link helper columns 和 lookup dependencies。
+6. 校验 field properties、formula definitions/materialized compatibility values、relation IDs 和 lookup dependencies。
 7. 必要时重写 file field paths。
 8. 写入 `eidos__meta`。
 

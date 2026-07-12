@@ -41,8 +41,15 @@ them in Eidos, or reveal them in the file manager. Routine attachment editing
 stays inside the Grid overlay; only the necessary native file picker interrupts
 the workflow.
 
+Relation fields now follow the original table interaction: cells display linked
+record titles and open a searchable, multi-select Grid overlay that stores only
+stable row IDs. Formula fields calculate live, render readonly using their
+configured display type, and are created or edited from anchored field controls
+with field insertion shortcuts. Neither workflow opens a centered modal.
+
 Base is still in delivery closure, not product acceptance. Advanced nested
-filter authoring, richer relation/formula fields, Gallery/Kanban layouts,
+filter authoring, lookup/rollup fields, richer formula completion and preview,
+Gallery/Kanban layouts,
 accessible table semantics, and a complete native
 create/edit/restart/version/restore run remain. Routine Base configuration uses
 inline controls, header menus, and anchored popovers. Modal dialogs are
