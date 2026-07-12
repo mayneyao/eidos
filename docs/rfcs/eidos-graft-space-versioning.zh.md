@@ -1,6 +1,6 @@
 # RFC：Eidos Space 的 Graft 版本管理
 
-状态：草案，本地链路可用
+状态：草案，remote 垂直切片可用
 日期：2026-07-08
 负责人：Eidos
 相关文档：
@@ -25,12 +25,27 @@ restore 和目录 discard。Graft v0.5.3 使用向后兼容的 Base64 `file-blob
 替代 inline file blob 的二次复杂度 Base58 编码；验收机器上 165 KB Markdown 的
 stage 从约 98 秒降至约 27 ms。
 
+remote 垂直切片现已通过同一条持久 Graft connection 实现。File Space Settings
+负责配置 remote；Version 顶部的紧凑菜单提供 fetch、pull、push、upstream、ahead
+和 behind 状态。Pull 会阻止 dirty worktree。分叉 pull 产生的冲突在 Changes 中按
+path 展示，点击打开 HEAD 到 merge-head 的 Diff tab，并可选择 ours、theirs 或把
+当前文件作为解决结果。全部解决后，Create version 会使用 `merge-continue`，保留
+两个 parent。
+
+隔离的双 Space `fs://` 验收现已覆盖 initial push、clone、remote push、diverged
+pull、conflict list、文本内容 diff、resolution、双 parent merge continuation 和
+最终 push。Graft v0.5.4 同时修复普通 `graft clone <remote>`，默认以当前目录作为
+worktree。剩余验收是原生 Desktop 视觉 dogfooding，以及更细的 Base row-level
+conflict 展示。
+
 以下产品决策取代本文较早的开放问题：
 
 - path-level staging 进入 v1，并采用 VS Code 交互，
 - History 从 Changes 打开为独立内容 tab，不作为 sidebar mode，
 - 主 sidebar modes 保持 Files 和 Version，不规划 Logs mode，
-- remote sync 和 conflicts 留到后续。
+- remote synchronization 使用显式 Pull/Push，而不是隐式 autosync，
+- conflicts 继续在 Changes 中 path-first 展示；更细的 Base row resolution 可以在
+  不改变 remote protocol 的前提下继续叠加。
 
 ## 摘要
 

@@ -1,6 +1,6 @@
 # RFC: Graft Versioning for Eidos Spaces
 
-Status: Draft, local workflow usable
+Status: Draft, remote vertical slice usable
 Date: 2026-07-08
 Owner: Eidos
 Related:
@@ -27,12 +27,29 @@ quadratic Base58 encoding of inline file blobs with backward-compatible Base64
 `file-blob-v2` objects. Staging the 165 KB acceptance Markdown file dropped from
 about 98 seconds to about 27 ms on the acceptance machine.
 
+The remote vertical slice is now implemented over the same persistent Graft
+connection. File Space Settings configures the remote; the compact Version
+toolbar exposes fetch, pull, push, upstream, ahead, and behind state. Pull
+blocks dirty worktrees. Diverged pulls surface path-first conflicts in Changes,
+open HEAD-to-merge-head Diff tabs, and offer ours, theirs, or current-file
+resolution. Creating the next version after resolution uses `merge-continue`
+and preserves both parents.
+
+An isolated two-Space `fs://` acceptance now covers initial push, clone, remote
+push, diverged pull, conflict listing, text content diff, resolution,
+two-parent merge continuation, and final push. Graft v0.5.4 also fixes plain
+`graft clone <remote>` so it uses the current directory as the worktree. The
+remaining acceptance work is native Desktop visual dogfooding and richer
+row-level Base conflict presentation.
+
 Confirmed product decisions that supersede earlier open questions:
 
 - path-level staging is part of v1 and follows the VS Code interaction model,
 - History opens as a dedicated content tab from Changes, not as a sidebar mode,
 - the primary sidebar modes remain Files and Version; no Logs mode is planned,
-- remote sync and conflicts remain future work.
+- remote synchronization is explicit Pull/Push rather than implicit autosync,
+- conflicts remain path-first in Changes; detailed Base row resolution can be
+  layered on without changing the remote protocol.
 
 ## Summary
 

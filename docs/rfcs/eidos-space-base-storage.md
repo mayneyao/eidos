@@ -17,12 +17,14 @@ plan and atomically produce validated Markdown + `main.base` + asset Spaces;
 Desktop Settings now exposes that plan/export/validation flow for legacy
 Spaces. Read-only audits can plan every one of the 29 registered legacy Spaces
 whose source database still exists, and representative small, medium, and
-1.1-million-row exports pass end-to-end validation. Remote sync and file-based
-extensions are not implemented.
+1.1-million-row exports pass end-to-end validation. The persistent Graft remote
+sync/conflict vertical slice also passes isolated two-Space acceptance; native
+Desktop dogfooding and file-based extensions remain.
 
 The phase order in this document is therefore descriptive rather than the
-current execution order. The active order is Markdown Space, local Graft,
-standalone Base runtime, then migration/extensions/sync.
+current execution order. The completed sequence is Markdown Space, local Graft,
+standalone Base runtime, migration, then the remote Graft vertical slice. Native
+remote dogfooding and file-based extensions are next.
 
 ## Summary
 
