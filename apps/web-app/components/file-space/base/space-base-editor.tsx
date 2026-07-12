@@ -3,6 +3,7 @@ import type {
   BaseFieldInfo,
   BaseRow,
   BaseRowMutationResult,
+  BaseRowQuery,
   BaseRowRange,
   BaseRowsDeleteResult,
   BaseSnapshot,
@@ -41,6 +42,7 @@ import {
 import { BaseGrid } from "./base-grid"
 import { baseOpenErrorPresentation } from "./base-open-error"
 import { BaseFieldOptionsDialog } from "./base-field-options-dialog"
+import { BaseQueryToolbar } from "./base-query-toolbar"
 import { BaseRenameDialog } from "./base-rename-dialog"
 import { BaseStructureDialog } from "./base-structure-dialog"
 import { BaseStructureMenu } from "./base-structure-menu"
@@ -62,6 +64,7 @@ type RenameTarget =
 type DeleteTarget = RenameTarget
 
 export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
+  const editorRef = useRef<HTMLDivElement>(null)
   const { currentSpace } = useCurrentSpace()
   const { reveal } = useSpaceFiles(currentSpace?.id)
   const {
@@ -88,6 +91,9 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const mutationQueueRef = useRef<Promise<void>>(Promise.resolve())
   const [error, setError] = useState<string | null>(null)
   const [gridReloadToken, setGridReloadToken] = useState(0)
+  const [search, setSearch] = useState("")
+  const [focusSearchToken, setFocusSearchToken] = useState(0)
+  const [visibleRowCount, setVisibleRowCount] = useState<number | null>(null)
   const [selectedRowRanges, setSelectedRowRanges] = useState<BaseRowRange[]>([])
   const [deleteRowsDialogOpen, setDeleteRowsDialogOpen] = useState(false)
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
@@ -142,6 +148,41 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       snapshot?.tables.find(({ table }) => table.id === activeTableId) ?? null,
     [activeTableId, snapshot?.tables]
   )
+  const activeView = useMemo(
+    () => activeTable?.views.find((view) => view.type === "grid"),
+    [activeTable?.views]
+  )
+  const activeQuery = useMemo<BaseRowQuery>(
+    () => ({
+      ...(search ? { search } : {}),
+      filter: activeView?.filter ?? null,
+      sorts: activeView?.sorts ?? [],
+    }),
+    [activeView?.filter, activeView?.sorts, search]
+  )
+  const hasActiveQuery = Boolean(
+    search || activeView?.filter || activeView?.sorts.length
+  )
+
+  useEffect(() => {
+    setSearch("")
+    setVisibleRowCount(null)
+  }, [activeTableId, filePath])
+
+  useEffect(() => {
+    const handleFind = (event: KeyboardEvent) => {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.key.toLowerCase() === "f" &&
+        editorRef.current?.contains(document.activeElement)
+      ) {
+        event.preventDefault()
+        setFocusSearchToken((current) => current + 1)
+      }
+    }
+    document.addEventListener("keydown", handleFind)
+    return () => document.removeEventListener("keydown", handleFind)
+  }, [])
   const selectedRowCount = useMemo(
     () =>
       selectedRowRanges.reduce(
@@ -217,9 +258,9 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       if (!activeTableId) {
         return Promise.reject(new Error("No active Base table"))
       }
-      return getTablePage(filePath, activeTableId, offset, limit)
+      return getTablePage(filePath, activeTableId, offset, limit, activeQuery)
     },
-    [activeTableId, filePath, getTablePage]
+    [activeQuery, activeTableId, filePath, getTablePage]
   )
 
   const createRow = useCallback((): Promise<BaseRowMutationResult> => {
@@ -227,9 +268,19 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     const tableId = activeTable.table.id
     return enqueueMutation(
       () => insertRow(filePath, tableId, { title: "Untitled" }),
-      (result) => updateTableRowCount(tableId, result.rowCount)
+      (result) => {
+        updateTableRowCount(tableId, result.rowCount)
+        if (hasActiveQuery) setGridReloadToken((current) => current + 1)
+      }
     )
-  }, [activeTable, enqueueMutation, filePath, insertRow, updateTableRowCount])
+  }, [
+    activeTable,
+    enqueueMutation,
+    filePath,
+    hasActiveQuery,
+    insertRow,
+    updateTableRowCount,
+  ])
 
   const saveCell = useCallback(
     (
@@ -255,10 +306,20 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           updateRow(filePath, tableId, rowId, {
             [field.tableColumnName]: value,
           }),
-        (result) => updateTableRowCount(tableId, result.rowCount)
+        (result) => {
+          updateTableRowCount(tableId, result.rowCount)
+          if (hasActiveQuery) setGridReloadToken((current) => current + 1)
+        }
       )
     },
-    [activeTable, enqueueMutation, filePath, updateRow, updateTableRowCount]
+    [
+      activeTable,
+      enqueueMutation,
+      filePath,
+      hasActiveQuery,
+      updateRow,
+      updateTableRowCount,
+    ]
   )
 
   const deleteSelectedRows = useCallback((): Promise<BaseRowsDeleteResult> => {
@@ -268,7 +329,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     const tableId = activeTable.table.id
     const ranges = selectedRowRanges.map((range) => ({ ...range }))
     return enqueueMutation(
-      () => deleteRowRanges(filePath, tableId, ranges),
+      () => deleteRowRanges(filePath, tableId, ranges, activeQuery),
       (result) => {
         updateTableRowCount(tableId, result.rowCount)
         setSelectedRowRanges([])
@@ -277,6 +338,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     )
   }, [
     activeTable,
+    activeQuery,
     deleteRowRanges,
     enqueueMutation,
     filePath,
@@ -438,7 +500,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col bg-background">
+    <div
+      ref={editorRef}
+      className="relative flex h-full min-h-0 flex-col bg-background"
+    >
       <div className="flex h-10 shrink-0 items-end border-b bg-muted/15 px-2">
         <div className="flex min-w-0 flex-1 items-end gap-px overflow-x-auto">
           {snapshot.tables.map(({ table }) => (
@@ -494,14 +559,22 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           ) : null}
           {activeTable ? (
             <>
+              <BaseQueryToolbar
+                fields={activeTable.fields}
+                filter={activeView?.filter ?? null}
+                sorts={activeView?.sorts ?? []}
+                search={search}
+                disabled={pendingMutations > 0}
+                focusSearchToken={focusSearchToken}
+                onSearchChange={setSearch}
+                onFilterChange={(filter) => updateActiveView({ filter })}
+                onSortsChange={(sorts) => updateActiveView({ sorts })}
+              />
               <BaseViewMenu
                 fields={activeTable.fields.filter(
                   (field) => !field.isHidden && field.valueKind === "source"
                 )}
-                hiddenFields={
-                  activeTable.views.find((view) => view.type === "grid")
-                    ?.hiddenFields ?? []
-                }
+                hiddenFields={activeView?.hiddenFields ?? []}
                 disabled={pendingMutations > 0}
                 onHiddenFieldsChange={(hiddenFields) =>
                   void updateActiveView({ hiddenFields })
@@ -602,12 +675,13 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           <BaseGrid
             key={activeTable.table.id}
             table={activeTable}
-            view={activeTable.views.find((view) => view.type === "grid")}
+            view={activeView}
             reloadToken={gridReloadToken}
             loadPage={loadActiveTablePage}
             onAddRow={createRow}
             onCellEdit={saveCell}
             onSelectedRowsChange={setSelectedRowRanges}
+            onRowCountChange={setVisibleRowCount}
             onAddField={() => setStructureDialog("field")}
             onRenameField={(field) =>
               setRenameTarget({
@@ -629,34 +703,58 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             onViewUpdate={updateActiveView}
             onError={handleGridError}
           />
-          {activeTable.rowCount === 0 ? (
+          {activeTable.rowCount === 0 ||
+          (hasActiveQuery && visibleRowCount === 0) ? (
             <div className="pointer-events-none absolute inset-x-0 top-16 flex justify-center px-6">
               <div className="pointer-events-auto border bg-background/95 px-5 py-4 text-center shadow-sm backdrop-blur-sm">
-                <h2 className="text-sm font-medium">
-                  Start building {activeTable.table.name}
-                </h2>
-                <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
-                  Add a row to enter data, or define fields before you begin.
-                  Changes are saved directly to this Base file.
-                </p>
-                <div className="mt-3 flex items-center justify-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => void createRow().catch(() => undefined)}
-                  >
-                    <Plus className="mr-1.5 h-3.5 w-3.5" />
-                    Add first row
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setStructureDialog("field")}
-                  >
-                    Add field
-                  </Button>
-                </div>
+                {activeTable.rowCount === 0 ? (
+                  <>
+                    <h2 className="text-sm font-medium">
+                      Start building {activeTable.table.name}
+                    </h2>
+                    <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
+                      Add a row to enter data, or define fields before you
+                      begin. Changes are saved directly to this Base file.
+                    </p>
+                    <div className="mt-3 flex items-center justify-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => void createRow().catch(() => undefined)}
+                      >
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />
+                        Add first row
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setStructureDialog("field")}
+                      >
+                        Add field
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="text-sm font-medium">No matching rows</h2>
+                    <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
+                      Try another search or clear this view's filters.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => {
+                        setSearch("")
+                        void updateActiveView({ filter: null })
+                      }}
+                    >
+                      Clear search and filters
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           ) : null}

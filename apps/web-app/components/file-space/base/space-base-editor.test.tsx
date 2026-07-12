@@ -325,6 +325,7 @@ const snapshot: BaseSnapshot = {
           query: "SELECT * FROM tb_tasks",
           properties: null,
           filter: null,
+          sorts: [],
           orderMap: null,
           hiddenFields: [],
           position: 1,
@@ -600,7 +601,8 @@ describe("SpaceBaseEditor", () => {
     expect(deleteRowRangesMock).toHaveBeenCalledWith(
       "projects/tasks.base",
       "tasks",
-      [{ startIndex: 0, endIndex: 1 }]
+      [{ startIndex: 0, endIndex: 1 }],
+      { filter: null, sorts: [] }
     )
   })
 })

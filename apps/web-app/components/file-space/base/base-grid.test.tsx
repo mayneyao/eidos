@@ -96,6 +96,7 @@ const table: BaseTableSnapshot = {
       query: "SELECT * FROM tb_tasks",
       properties: null,
       filter: null,
+      sorts: [],
       orderMap: null,
       hiddenFields: [],
       position: 1,

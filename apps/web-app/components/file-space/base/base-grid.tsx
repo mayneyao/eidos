@@ -60,6 +60,7 @@ interface BaseGridProps {
     value: BaseSqlPrimitive
   ) => Promise<BaseRowMutationResult>
   onSelectedRowsChange?: (ranges: BaseRowRange[]) => void
+  onRowCountChange?: (rowCount: number | null) => void
   onAddField?: () => void
   onRenameField?: (field: BaseFieldInfo) => void
   onEditFieldOptions?: (field: BaseFieldInfo) => void
@@ -124,6 +125,7 @@ export function BaseGrid({
   onAddRow,
   onCellEdit,
   onSelectedRowsChange,
+  onRowCountChange,
   onAddField,
   onRenameField,
   onEditFieldOptions,
@@ -185,6 +187,7 @@ export function BaseGrid({
         })
         loadedPagesRef.current.add(pageIndex)
         setRowCount(page.total)
+        onRowCountChange?.(page.total)
         setCacheRevision((current) => current + 1)
       } catch (error) {
         if (generation === generationRef.current) onError?.(error)
@@ -194,7 +197,7 @@ export function BaseGrid({
         }
       }
     },
-    [loadPage, onError]
+    [loadPage, onError, onRowCountChange]
   )
 
   useEffect(() => {
@@ -203,10 +206,18 @@ export function BaseGrid({
     loadedPagesRef.current.clear()
     loadingPagesRef.current.clear()
     setRowCount(table.rowCount)
+    onRowCountChange?.(null)
     setCacheRevision((current) => current + 1)
     onSelectedRowsChange?.([])
     void loadPageIndex(0)
-  }, [loadPageIndex, onSelectedRowsChange, reloadToken, table.table.id])
+  }, [
+    loadPageIndex,
+    onRowCountChange,
+    onSelectedRowsChange,
+    reloadToken,
+    table.rowCount,
+    table.table.id,
+  ])
 
   useEffect(() => {
     setFields((current) =>
