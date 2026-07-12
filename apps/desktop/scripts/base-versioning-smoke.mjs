@@ -216,6 +216,24 @@ try {
     filter: query.filter,
     sorts: query.sorts,
   })
+  const galleryView = base.createView("tasks", {
+    name: "Cards",
+    type: "gallery",
+    properties: {
+      cardSize: "medium",
+      coverPreview: "attachment",
+      fitContent: true,
+      hideEmptyFields: true,
+    },
+  })
+  const kanbanView = base.createView("tasks", {
+    name: "Status board",
+    type: "kanban",
+    properties: {
+      cardSize: "medium",
+      groupByField: "status",
+    },
+  })
   assert.equal(
     base.deleteRowRanges("tasks", [{ startIndex: 0, endIndex: 1 }], query),
     1
@@ -229,26 +247,73 @@ try {
   base.close()
 
   const persisted = openBaseFile(basePath)
-  const persistedView = persisted.listViews("tasks")[0]
+  const persistedViews = persisted.listViews("tasks")
+  const persistedView = persistedViews.find((view) => view.type === "grid")
+  assert.ok(persistedView, "Reopened Base should retain its Grid view")
   assert.deepEqual(persistedView?.filter, query.filter)
   assert.deepEqual(persistedView?.sorts, query.sorts)
+  assert.deepEqual(
+    persistedViews.map((view) => ({
+      id: view.id,
+      name: view.name,
+      type: view.type,
+      properties: view.properties,
+    })),
+    [
+      {
+        id: persistedView.id,
+        name: persistedView.name,
+        type: "grid",
+        properties: persistedView.properties,
+      },
+      {
+        id: galleryView.id,
+        name: "Cards",
+        type: "gallery",
+        properties: {
+          cardSize: "medium",
+          coverPreview: "attachment",
+          fitContent: true,
+          hideEmptyFields: true,
+        },
+      },
+      {
+        id: kanbanView.id,
+        name: "Status board",
+        type: "kanban",
+        properties: { cardSize: "medium", groupByField: "status" },
+      },
+    ]
+  )
   const copiedView = persisted.duplicateView(persistedView.id, "QA copy")
   assert.deepEqual(
     persisted
-      .reorderViews("tasks", [copiedView.id, persistedView.id])
+      .reorderViews("tasks", [
+        copiedView.id,
+        kanbanView.id,
+        galleryView.id,
+        persistedView.id,
+      ])
       .map((view) => view.name),
-    ["QA copy", persistedView.name]
+    ["QA copy", "Status board", "Cards", persistedView.name]
   )
   assert.equal(persisted.deleteView(copiedView.id), true)
   assert.deepEqual(
     persisted.listViews("tasks").map((view) => view.id),
-    [persistedView.id]
+    [kanbanView.id, galleryView.id, persistedView.id]
   )
   persisted.close()
 
   runGraft(root, ["init", "--json"])
   runGraft(root, ["add", relativeBasePath, "--json"])
-  runGraft(root, ["commit", "--message", "Initial Base", "--json"])
+  const initialCommit = runGraft(root, [
+    "commit",
+    "--message",
+    "Initial Base",
+    "--json",
+  ])
+  const initialRevision = initialCommit?.commit?.id
+  assert.equal(typeof initialRevision, "string")
 
   const updated = openBaseFile(basePath)
   const linked = updated.updateRow("tasks", String(first._id), {
@@ -293,6 +358,59 @@ try {
   assert.ok(tasks.columns.includes("title"))
   assert.ok(tasks.columns.includes("done"))
 
+  const restore = runGraft(root, [
+    "restore",
+    "--json",
+    "--expected-head",
+    initialRevision,
+    "--source",
+    initialRevision,
+    "--",
+    relativeBasePath,
+  ])
+  assert.deepEqual(
+    (restore.paths ?? [restore.path]).map((entry) =>
+      typeof entry === "string" ? entry : entry?.path
+    ),
+    [relativeBasePath]
+  )
+
+  const restored = openBaseFile(basePath)
+  const restoredRows = restored.listRows("tasks")
+  const restoredFirst = restoredRows.find(
+    (row) => String(row._id) === String(first._id)
+  )
+  assert.equal(restoredFirst?.done, 0)
+  assert.equal(restoredFirst?.priority, 2)
+  assert.equal(restoredFirst?.owner_count, 1)
+  assert.equal(
+    restoredRows.some((row) => row.title === "Render row changes"),
+    false
+  )
+  assert.deepEqual(
+    restored.listViews("tasks").map((view) => view.type),
+    ["kanban", "gallery", "grid"]
+  )
+  restored.close()
+
+  const cleanStatus = runGraft(root, ["status", "--json"])
+  assert.equal(cleanStatus.has_staged_changes, false)
+  assert.equal(cleanStatus.has_unstaged_changes, false)
+
+  // Run the in-process pragma check last. Loading the extension into the
+  // Electron helper process intentionally keeps its VFS registered for the
+  // process lifetime, so no separate Graft CLI process should follow it.
+  const scopedUpdated = openBaseFile(basePath)
+  scopedUpdated.updateRow("tasks", String(first._id), {
+    done: true,
+    priority: 4,
+    owners: JSON.stringify([ada._id, grace._id]),
+  })
+  scopedUpdated.insertRow("tasks", {
+    title: "Render row changes",
+    done: false,
+  })
+  scopedUpdated.close()
   const scopedDiff = runPathScopedPragmaDiff(root)
   assert.deepEqual(scopedDiff.paths, diff.paths)
   assert.equal(scopedDiff.files[0]?.path, relativeBasePath)
@@ -303,6 +421,7 @@ try {
       {
         path: file.path,
         logicalStatus: file.logical_status,
+        restoredRevision: initialRevision,
         tables: file.tables.map((table) => ({
           name: table.name,
           operations: table.changes.map((change) => change.op),
