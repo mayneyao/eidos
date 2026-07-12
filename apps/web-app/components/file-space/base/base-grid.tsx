@@ -809,6 +809,8 @@ export function BaseGrid({
           onCellEdit={editInspectedRecord}
           disabled={disabled}
           onError={onError}
+          onImportFiles={onImportFiles}
+          onImportDroppedFiles={onImportDroppedFiles}
           onOpenFile={onOpenFile}
           onRevealFile={
             onRevealFile

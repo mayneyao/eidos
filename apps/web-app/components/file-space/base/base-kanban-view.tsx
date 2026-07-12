@@ -303,6 +303,8 @@ export function BaseKanbanView({
   onAddRow,
   readBinary,
   onDeleteRow,
+  onImportFiles,
+  onImportDroppedFiles,
   onOpenFile,
   onRevealFile,
   onError,
@@ -330,6 +332,8 @@ export function BaseKanbanView({
   ) => Promise<BaseRowMutationResult>
   readBinary?: (path: string) => Promise<SpaceBinaryFile>
   onDeleteRow?: (row: BaseRow) => Promise<void>
+  onImportFiles?: () => Promise<string[]>
+  onImportDroppedFiles?: (files: File[]) => Promise<string[]>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => Promise<void> | void
   onError?: (error: unknown) => void
@@ -606,6 +610,8 @@ export function BaseKanbanView({
             onCellEdit={editInspectedRecord}
             disabled={disabled}
             onError={onError}
+            onImportFiles={onImportFiles}
+            onImportDroppedFiles={onImportDroppedFiles}
             onOpenFile={onOpenFile}
             onRevealFile={
               onRevealFile

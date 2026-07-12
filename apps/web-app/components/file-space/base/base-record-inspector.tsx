@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 import { BaseRecordFieldEditor } from "./base-record-field-editor"
+import { BaseRecordFileEditor } from "./base-record-file-editor"
 import { baseRecordFieldText, baseRecordTitle } from "./base-record-format"
 
 function FieldValue({
@@ -119,6 +120,8 @@ export function BaseRecordInspector({
   onCellEdit,
   disabled = false,
   onError,
+  onImportFiles,
+  onImportDroppedFiles,
   onOpenFile,
   onRevealFile,
 }: {
@@ -133,6 +136,8 @@ export function BaseRecordInspector({
   ) => Promise<BaseRowMutationResult>
   disabled?: boolean
   onError?: (error: unknown) => void
+  onImportFiles?: () => Promise<string[]>
+  onImportDroppedFiles?: (files: File[]) => Promise<string[]>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => void
 }) {
@@ -211,10 +216,21 @@ export function BaseRecordInspector({
               <p className="text-[11px] font-medium text-muted-foreground">
                 {field.name}
               </p>
-              {onCellEdit &&
-              (field.valueKind === "source" || field.type === "title") &&
-              field.type !== "file" &&
-              field.type !== "link" ? (
+              {onCellEdit && field.type === "file" && onImportFiles ? (
+                <BaseRecordFileEditor
+                  value={currentRow[field.tableColumnName]}
+                  disabled={disabled || savingField !== null}
+                  onChange={(value) => editField(field, value)}
+                  onImportFiles={onImportFiles}
+                  onImportDroppedFiles={onImportDroppedFiles}
+                  onOpenFile={onOpenFile}
+                  onRevealFile={onRevealFile}
+                  onError={onError}
+                />
+              ) : onCellEdit &&
+                (field.valueKind === "source" || field.type === "title") &&
+                field.type !== "file" &&
+                field.type !== "link" ? (
                 <BaseRecordFieldEditor
                   field={field}
                   row={currentRow}

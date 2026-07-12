@@ -1183,6 +1183,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               loadPage={loadActiveTablePage}
               readBinary={readBinary}
               onCellEdit={saveCell}
+              onImportFiles={importBaseFiles}
+              onImportDroppedFiles={importDroppedBaseFiles}
               onDeleteRow={deleteSingleRow}
               onOpenFile={openBaseFileReference}
               onRevealFile={(path) => reveal(path).then(() => undefined)}
@@ -1199,6 +1201,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               loadGroupPage={loadKanbanGroupPage}
               onCellEdit={saveCell}
               onAddRow={createRowInGroup}
+              onImportFiles={importBaseFiles}
+              onImportDroppedFiles={importDroppedBaseFiles}
               readBinary={readBinary}
               onDeleteRow={deleteSingleRow}
               onOpenFile={openBaseFileReference}

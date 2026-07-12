@@ -34,6 +34,8 @@ export function BaseGalleryView({
   loadPage,
   readBinary,
   onCellEdit,
+  onImportFiles,
+  onImportDroppedFiles,
   onDeleteRow,
   onOpenFile,
   onRevealFile,
@@ -50,6 +52,8 @@ export function BaseGalleryView({
     field: BaseFieldInfo,
     value: BaseSqlPrimitive
   ) => Promise<BaseRowMutationResult>
+  onImportFiles?: () => Promise<string[]>
+  onImportDroppedFiles?: (files: File[]) => Promise<string[]>
   onDeleteRow?: (row: BaseRow) => Promise<void>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => Promise<void> | void
@@ -185,6 +189,8 @@ export function BaseGalleryView({
             onCopyRecordId={copyRecordId}
             onCellEdit={onCellEdit ? editRecord : undefined}
             onError={onError}
+            onImportFiles={onImportFiles}
+            onImportDroppedFiles={onImportDroppedFiles}
             onOpenFile={onOpenFile}
             onRevealFile={
               onRevealFile
