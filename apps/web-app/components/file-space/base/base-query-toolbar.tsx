@@ -7,7 +7,16 @@ import type {
   BaseFilterValue,
   BaseSort,
 } from "@eidos.space/base"
-import { ArrowUpDown, Filter, Plus, Search, Trash2, X } from "lucide-react"
+import {
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
+  Filter,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -783,7 +792,10 @@ export function BaseQueryToolbar({
   search,
   disabled,
   focusSearchToken = 0,
+  searchResultCount = null,
+  searchResultIndex = null,
   onSearchChange,
+  onNavigateSearch,
   onFilterChange,
   onSortsChange,
 }: {
@@ -793,7 +805,10 @@ export function BaseQueryToolbar({
   search: string
   disabled?: boolean
   focusSearchToken?: number
+  searchResultCount?: number | null
+  searchResultIndex?: number | null
   onSearchChange: (search: string) => void
+  onNavigateSearch?: (direction: "next" | "previous") => void
   onFilterChange: (filter: BaseFilterGroup | null) => Promise<void> | void
   onSortsChange: (sorts: BaseSort[]) => Promise<void> | void
 }) {
@@ -805,10 +820,23 @@ export function BaseQueryToolbar({
   useEffect(() => {
     if (focusSearchToken > 0) setShowSearch(true)
   }, [focusSearchToken])
+  useEffect(() => {
+    if (search) setShowSearch(true)
+  }, [search])
+  const hasSearch = search.trim().length > 0
+  const hasResults =
+    hasSearch && searchResultCount !== null && searchResultCount > 0
+  const resultStatus = !hasSearch
+    ? ""
+    : searchResultCount === null
+      ? "Searching"
+      : searchResultCount === 0
+        ? "No results"
+        : `${(searchResultIndex ?? 0) + 1} of ${searchResultCount}`
   return (
     <div className="flex min-w-0 items-center gap-0.5">
       {showSearch ? (
-        <div className="flex h-7 w-52 items-center rounded-md border bg-background px-2 shadow-xs">
+        <div className="flex h-7 w-72 items-center rounded-md border bg-background pl-2 pr-1 shadow-xs">
           <Search className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <input
             ref={inputRef}
@@ -821,14 +849,52 @@ export function BaseQueryToolbar({
               if (event.key === "Escape") {
                 onSearchChange("")
                 setShowSearch(false)
+                return
+              }
+              if (event.key === "Enter" && hasResults) {
+                event.preventDefault()
+                onNavigateSearch?.(event.shiftKey ? "previous" : "next")
               }
             }}
           />
+          {hasSearch ? (
+            <span
+              className="ml-1 shrink-0 text-[10px] tabular-nums text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              {resultStatus}
+            </span>
+          ) : null}
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="-mr-1 h-5 w-5 text-muted-foreground"
+            className="ml-0.5 h-5 w-5 shrink-0 text-muted-foreground"
+            aria-label="Previous search result"
+            title="Previous result (Shift+Enter)"
+            disabled={!hasResults}
+            onClick={() => onNavigateSearch?.("previous")}
+          >
+            <ChevronUp className="h-3 w-3" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 shrink-0 text-muted-foreground"
+            aria-label="Next search result"
+            title="Next result (Enter)"
+            disabled={!hasResults}
+            onClick={() => onNavigateSearch?.("next")}
+          >
+            <ChevronDown className="h-3 w-3" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 shrink-0 text-muted-foreground"
             aria-label="Close search"
             onClick={() => {
               onSearchChange("")

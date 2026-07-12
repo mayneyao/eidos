@@ -90,6 +90,7 @@ interface BaseGridProps {
   ) => Promise<BaseRowMutationResult>
   onSelectedRowsChange?: (ranges: BaseRowRange[]) => void
   onRowCountChange?: (rowCount: number | null) => void
+  searchResultIndex?: number | null
   onImportFiles?: () => Promise<string[]>
   onImportDroppedFiles?: (files: File[]) => Promise<string[]>
   onOpenFile?: (path: string) => void
@@ -153,6 +154,7 @@ export function BaseGrid({
   onCellEdit,
   onSelectedRowsChange,
   onRowCountChange,
+  searchResultIndex = null,
   onImportFiles,
   onImportDroppedFiles,
   onOpenFile,
@@ -366,6 +368,25 @@ export function BaseGrid({
     NonNullable<DataEditorProps["onVisibleRegionChanged"]>
   >((range) => requestVisiblePages(range), [requestVisiblePages])
 
+  useEffect(() => {
+    if (
+      searchResultIndex === null ||
+      searchResultIndex < 0 ||
+      searchResultIndex >= rowCount
+    ) {
+      return
+    }
+    requestVisiblePages({
+      x: 0,
+      y: searchResultIndex,
+      width: Math.max(1, columns.length),
+      height: 1,
+    })
+    gridRef.current?.scrollTo(0, searchResultIndex, "vertical", 0, 24, {
+      vAlign: "center",
+    })
+  }, [columns.length, requestVisiblePages, rowCount, searchResultIndex])
+
   const commitCell = useCallback(
     (location: Item, nextCell: EditableGridCell) => {
       if (disabled) return
@@ -463,6 +484,27 @@ export function BaseGrid({
   const [fileDropHighlights, setFileDropHighlights] = useState<
     NonNullable<DataEditorProps["highlightRegions"]>
   >([])
+  const searchHighlightRegions = useMemo<
+    NonNullable<DataEditorProps["highlightRegions"]>
+  >(
+    () =>
+      searchResultIndex !== null &&
+      searchResultIndex >= 0 &&
+      searchResultIndex < rowCount
+        ? [
+            {
+              color: "rgba(245, 194, 66, 0.24)",
+              range: {
+                x: 0,
+                y: searchResultIndex,
+                width: Math.max(1, columns.length),
+                height: 1,
+              },
+            },
+          ]
+        : [],
+    [columns.length, rowCount, searchResultIndex]
+  )
   const onDragOverCell = useCallback<
     NonNullable<DataEditorProps["onDragOverCell"]>
   >(
@@ -691,7 +733,7 @@ export function BaseGrid({
           onDragOverCell={onDragOverCell}
           onDragLeave={() => setFileDropHighlights([])}
           onDrop={onDrop}
-          highlightRegions={fileDropHighlights}
+          highlightRegions={[...searchHighlightRegions, ...fileDropHighlights]}
           fillHandle={!disabled}
           gridSelection={history.gridSelection ?? undefined}
           onCellEdited={disabled ? undefined : history.onCellEdited}

@@ -97,6 +97,7 @@ function BaseKanbanColumn({
   onDelete,
   moveGroups,
   onMove,
+  focusedRowId,
 }: {
   group: BaseKanbanGroup
   table: BaseTableSnapshot
@@ -111,11 +112,16 @@ function BaseKanbanColumn({
   onDelete?: (row: BaseRow) => void
   moveGroups: BaseKanbanGroup[]
   onMove: (row: BaseRow, targetGroupKey: string) => void
+  focusedRowId?: string
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState("")
   const [creating, setCreating] = useState(false)
+
+  useEffect(() => {
+    if (focusedRowId) setCollapsed(false)
+  }, [focusedRowId])
 
   const create = async () => {
     const next = title.trim()
@@ -215,6 +221,7 @@ function BaseKanbanColumn({
                     view={view}
                     compact
                     readBinary={readBinary}
+                    focused={focusedRowId === String(row._id)}
                     onOpen={onOpen}
                     onDelete={onDelete}
                     moveOptions={moveGroups.map((candidate) => ({
@@ -309,6 +316,7 @@ export function BaseKanbanView({
   view,
   disabled = false,
   reloadToken = 0,
+  searchResultIndex = null,
   loadGroupPage,
   onCellEdit,
   onAddRow,
@@ -319,6 +327,7 @@ export function BaseKanbanView({
   onSearchRelation,
   onOpenFile,
   onRevealFile,
+  onRowCountChange,
   onError,
   sidePanel,
 }: {
@@ -326,6 +335,7 @@ export function BaseKanbanView({
   view: BaseViewInfo
   disabled?: boolean
   reloadToken?: number
+  searchResultIndex?: number | null
   loadGroupPage: (
     field: BaseFieldInfo,
     value: string | null,
@@ -352,12 +362,14 @@ export function BaseKanbanView({
   ) => Promise<BaseRelationValue[]>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => Promise<void> | void
+  onRowCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
 }) {
   const { resolvedTheme } = useTheme()
   const theme = resolvedTheme === "dark" ? "dark" : "light"
   const generationRef = useRef(0)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const groupFieldName = view.properties?.groupByField
   const groupField = table.fields.find(
     (field) =>
@@ -374,11 +386,15 @@ export function BaseKanbanView({
   const [inspectedRow, setInspectedRow] = useState<BaseRow | null>(null)
   const [deleteRow, setDeleteRow] = useState<BaseRow | null>(null)
   const fields = orderedBaseFields(table.fields, view)
+  const groupCountSignature = groups
+    .map((group) => `${group.key}:${group.total}:${group.loading ? 1 : 0}`)
+    .join("|")
 
   useEffect(() => {
     generationRef.current += 1
     const generation = generationRef.current
     setInspectedRow(null)
+    onRowCountChange?.(null)
     if (!groupField) {
       setGroups([])
       return
@@ -426,7 +442,13 @@ export function BaseKanbanView({
     reloadToken,
     table.table.id,
     view.id,
+    onRowCountChange,
   ])
+
+  useEffect(() => {
+    if (groups.length === 0 || groups.some((group) => group.loading)) return
+    onRowCountChange?.(groups.reduce((count, group) => count + group.total, 0))
+  }, [groupCountSignature, groups, onRowCountChange])
 
   const loadMore = async (group: BaseKanbanGroup) => {
     if (!groupField || group.loadingMore) return
@@ -467,6 +489,47 @@ export function BaseKanbanView({
       onError?.(error)
     }
   }
+
+  let focusedGroup: BaseKanbanGroup | undefined
+  let focusedGroupIndex = -1
+  if (searchResultIndex !== null && searchResultIndex >= 0) {
+    let remaining = searchResultIndex
+    for (const group of groups) {
+      if (remaining < group.total) {
+        focusedGroup = group
+        focusedGroupIndex = remaining
+        break
+      }
+      remaining -= group.total
+    }
+  }
+  const focusedRow =
+    focusedGroup && focusedGroupIndex >= 0
+      ? focusedGroup.rows[focusedGroupIndex]
+      : undefined
+
+  useEffect(() => {
+    if (!focusedGroup || focusedGroupIndex < 0) return
+    if (focusedGroupIndex >= focusedGroup.rows.length) {
+      if (
+        !focusedGroup.loading &&
+        !focusedGroup.loadingMore &&
+        focusedGroup.rows.length < focusedGroup.total
+      ) {
+        void loadMore(focusedGroup)
+      }
+      return
+    }
+    const row = focusedGroup.rows[focusedGroupIndex]
+    if (!row) return
+    const rowId = String(row._id)
+    const target = Array.from(
+      scrollContainerRef.current?.querySelectorAll<HTMLElement>(
+        "[data-base-row-id]"
+      ) ?? []
+    ).find((element) => element.dataset.baseRowId === rowId)
+    target?.scrollIntoView({ block: "nearest", inline: "nearest" })
+  }, [focusedGroup, focusedGroupIndex])
 
   const moveRecord = (rowId: string, targetKey: string) => {
     if (!groupField || disabled) return
@@ -596,7 +659,10 @@ export function BaseKanbanView({
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden">
-      <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden p-3">
+      <div
+        ref={scrollContainerRef}
+        className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden p-3"
+      >
         <KanbanProvider
           onDragEnd={dragEnd}
           className="!flex h-full min-w-max items-stretch gap-3"
@@ -617,6 +683,7 @@ export function BaseKanbanView({
               onMove={(row, targetGroupKey) =>
                 moveRecord(String(row._id), targetGroupKey)
               }
+              focusedRowId={focusedRow ? String(focusedRow._id) : undefined}
               onLoadMore={(candidate) => void loadMore(candidate)}
               onCreate={createInGroup}
             />

@@ -85,8 +85,14 @@ const view: BaseViewInfo = {
 describe("BaseGalleryView", () => {
   let container: HTMLDivElement
   let root: Root
+  const scrollIntoView = vi.fn()
 
   beforeEach(() => {
+    scrollIntoView.mockReset()
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    })
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -142,5 +148,46 @@ describe("BaseGalleryView", () => {
     })
     expect(loadPage).toHaveBeenLastCalledWith(2, 100)
     expect(container.textContent).toContain("Review UX")
+  })
+
+  it("loads and reveals a paged search result", async () => {
+    const loadPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: "tasks",
+      offset,
+      limit,
+      total: 3,
+      rows:
+        offset === 0
+          ? [
+              { _id: "row_1", title: "Write RFC", status: "todo" },
+              { _id: "row_2", title: "Ship Base", status: null },
+            ]
+          : [{ _id: "row_3", title: "Review UX", status: "todo" }],
+    }))
+    const onRowCountChange = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <BaseGalleryView
+          table={table}
+          view={view}
+          searchResultIndex={2}
+          loadPage={loadPage}
+          onRowCountChange={onRowCountChange}
+        />
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(loadPage).toHaveBeenLastCalledWith(2, 100)
+    expect(onRowCountChange).toHaveBeenLastCalledWith(3)
+    expect(
+      container
+        .querySelector('[data-base-row-id="row_3"]')
+        ?.getAttribute("aria-current")
+    ).toBe("true")
+    expect(scrollIntoView).toHaveBeenCalled()
   })
 })

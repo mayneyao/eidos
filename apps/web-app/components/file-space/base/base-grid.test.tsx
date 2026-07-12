@@ -14,6 +14,7 @@ import { BaseGrid } from "./base-grid"
 
 const mocks = vi.hoisted(() => ({
   props: null as DataEditorProps | null,
+  scrollTo: vi.fn(),
 }))
 
 vi.mock("@glideapps/glide-data-grid", async (importOriginal) => {
@@ -21,8 +22,9 @@ vi.mock("@glideapps/glide-data-grid", async (importOriginal) => {
   const React = await import("react")
   return {
     ...actual,
-    default: React.forwardRef((_props: DataEditorProps, _ref) => {
+    default: React.forwardRef((_props: DataEditorProps, ref) => {
       mocks.props = _props
+      React.useImperativeHandle(ref, () => ({ scrollTo: mocks.scrollTo }))
       return <div data-testid="glide-grid" />
     }),
   }
@@ -142,6 +144,7 @@ describe("BaseGrid", () => {
 
   beforeEach(() => {
     mocks.props = null
+    mocks.scrollTo.mockReset()
     container = document.createElement("div")
     document.body.append(container)
     root = createRoot(container)
@@ -436,6 +439,31 @@ describe("BaseGrid", () => {
       kind: GridCellKind.Text,
       data: "Row 180",
     })
+  })
+
+  it("scrolls to and highlights a filtered search result", async () => {
+    const loadPage = createLoadPage()
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={table}
+          searchResultIndex={180}
+          loadPage={loadPage}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(mocks.scrollTo).toHaveBeenCalledWith(0, 180, "vertical", 0, 24, {
+      vAlign: "center",
+    })
+    expect(loadPage).toHaveBeenCalledWith(100, 100)
+    expect(loadPage).toHaveBeenCalledWith(200, 100)
+    expect(mocks.props?.highlightRegions).toMatchObject([
+      { range: { x: 0, y: 180, width: 2, height: 1 } },
+    ])
   })
 
   it("reports compact cross-page row ranges without loading every row", async () => {

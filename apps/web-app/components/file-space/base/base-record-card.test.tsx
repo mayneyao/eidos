@@ -157,4 +157,24 @@ describe("BaseRecordCard", () => {
     expect(onDelete).toHaveBeenCalledWith(row)
     expect(onOpen).not.toHaveBeenCalled()
   })
+
+  it("marks the active search result without changing the record action", () => {
+    act(() => {
+      root.render(
+        <BaseRecordCard
+          row={{ _id: "row_1", title: "Write RFC", cover: null }}
+          fields={fields}
+          view={{ ...view, properties: null }}
+          focused
+          onOpen={vi.fn()}
+        />
+      )
+    })
+
+    const card = container.querySelector<HTMLElement>(
+      '[data-base-row-id="row_1"]'
+    )
+    expect(card?.getAttribute("aria-current")).toBe("true")
+    expect(card?.className).toContain("ring-ring")
+  })
 })

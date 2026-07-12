@@ -60,6 +60,7 @@ describe("BaseQueryToolbar", () => {
   let container: HTMLDivElement
   let root: Root
   const onSearchChange = vi.fn()
+  const onNavigateSearch = vi.fn()
   const onFilterChange = vi.fn()
   const onSortsChange = vi.fn()
 
@@ -69,6 +70,7 @@ describe("BaseQueryToolbar", () => {
       value: vi.fn(),
     })
     onSearchChange.mockReset()
+    onNavigateSearch.mockReset()
     onFilterChange.mockReset()
     onSortsChange.mockReset()
     container = document.createElement("div")
@@ -110,6 +112,57 @@ describe("BaseQueryToolbar", () => {
       input.dispatchEvent(new Event("input", { bubbles: true }))
     })
     expect(onSearchChange).toHaveBeenCalledWith("roadmap")
+  })
+
+  it("navigates filtered row results without leaving the search input", () => {
+    act(() => {
+      root.render(
+        <BaseQueryToolbar
+          fields={fields}
+          filter={null}
+          sorts={[]}
+          search="roadmap"
+          searchResultCount={3}
+          searchResultIndex={1}
+          onSearchChange={onSearchChange}
+          onNavigateSearch={onNavigateSearch}
+          onFilterChange={onFilterChange}
+          onSortsChange={onSortsChange}
+        />
+      )
+    })
+
+    expect(document.body.textContent).toContain("2 of 3")
+    const input = document.body.querySelector<HTMLInputElement>(
+      'input[placeholder="Search rows"]'
+    )
+    const next = document.body.querySelector<HTMLButtonElement>(
+      '[aria-label="Next search result"]'
+    )
+    const previous = document.body.querySelector<HTMLButtonElement>(
+      '[aria-label="Previous search result"]'
+    )
+    act(() => next?.click())
+    act(() => previous?.click())
+    act(() =>
+      input?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    )
+    act(() =>
+      input?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          shiftKey: true,
+          bubbles: true,
+        })
+      )
+    )
+
+    expect(onNavigateSearch.mock.calls.map(([direction]) => direction)).toEqual(
+      ["next", "previous", "next", "previous"]
+    )
+    expect(document.activeElement).toBe(input)
   })
 
   it("builds filter state in an anchored popover", async () => {

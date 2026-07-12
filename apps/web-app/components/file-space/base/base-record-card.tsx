@@ -246,6 +246,7 @@ export function BaseRecordCard({
   moveOptions,
   onMove,
   role,
+  focused = false,
 }: {
   row: BaseRow
   fields: BaseFieldInfo[]
@@ -257,6 +258,7 @@ export function BaseRecordCard({
   moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
   onMove?: (row: BaseRow, targetId: string) => void
   role?: AriaRole
+  focused?: boolean
 }) {
   const hideEmptyFields = view.properties?.hideEmptyFields !== false
   const visibleFields = orderedBaseFields(fields, view)
@@ -278,8 +280,15 @@ export function BaseRecordCard({
 
   const card = (
     <article
-      className="group/card relative overflow-hidden rounded-lg border bg-card text-card-foreground shadow-xs transition-shadow hover:shadow-sm"
+      className={cn(
+        "group/card relative overflow-hidden rounded-lg border bg-card text-card-foreground shadow-xs outline-hidden transition-[box-shadow,border-color] hover:shadow-sm",
+        focused &&
+          "border-ring ring-2 ring-ring/45 ring-offset-2 ring-offset-background"
+      )}
       aria-label={title}
+      aria-current={focused ? "true" : undefined}
+      data-base-row-id={String(row._id)}
+      tabIndex={-1}
       role={role}
     >
       {coverField ? (

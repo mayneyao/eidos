@@ -55,13 +55,18 @@ vi.mock("./base-record-card", () => ({
     onOpen,
     moveOptions,
     onMove,
+    focused,
   }: {
     row: { _id?: string; title?: string }
     onOpen: (row: { _id?: string; title?: string }) => void
     moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
     onMove?: (row: { _id?: string; title?: string }, targetId: string) => void
+    focused?: boolean
   }) => (
-    <div>
+    <div
+      data-base-row-id={String(row._id)}
+      aria-current={focused ? "true" : undefined}
+    >
       <button onClick={() => onOpen(row)}>{row.title}</button>
       {moveOptions
         ?.filter((option) => !option.disabled)
@@ -149,9 +154,15 @@ const view: BaseViewInfo = {
 describe("BaseKanbanView", () => {
   let container: HTMLDivElement
   let root: Root
+  const scrollIntoView = vi.fn()
 
   beforeEach(() => {
     kanbanMocks.onDragEnd = undefined
+    scrollIntoView.mockReset()
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    })
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -283,5 +294,56 @@ describe("BaseKanbanView", () => {
       "Draft release"
     )
     expect(todoColumn?.textContent).toContain("Draft release")
+  })
+
+  it("loads the target group page and reveals a search result", async () => {
+    const loadGroupPage = vi.fn(
+      async (_field, value: string | null, offset: number, limit: number) => ({
+        tableId: "tasks",
+        offset,
+        limit,
+        total: value === "todo" ? 51 : 0,
+        rows:
+          value === "todo"
+            ? Array.from({ length: offset === 0 ? 50 : 1 }, (_, index) => ({
+                _id: `row_${offset + index}`,
+                title: `Task ${offset + index}`,
+                status: "todo",
+              }))
+            : [],
+      })
+    )
+    const onRowCountChange = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          searchResultIndex={50}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+          onRowCountChange={onRowCountChange}
+        />
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(loadGroupPage).toHaveBeenCalledWith(
+      expect.objectContaining({ tableColumnName: "status" }),
+      "todo",
+      50,
+      50
+    )
+    expect(onRowCountChange).toHaveBeenLastCalledWith(51)
+    expect(
+      container
+        .querySelector('[data-base-row-id="row_50"]')
+        ?.getAttribute("aria-current")
+    ).toBe("true")
+    expect(scrollIntoView).toHaveBeenCalled()
   })
 })

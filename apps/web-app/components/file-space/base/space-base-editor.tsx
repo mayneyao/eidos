@@ -147,6 +147,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const [error, setError] = useState<string | null>(null)
   const [gridReloadToken, setGridReloadToken] = useState(0)
   const [search, setSearch] = useState("")
+  const [searchResultCount, setSearchResultCount] = useState<number | null>(
+    null
+  )
+  const [searchResultIndex, setSearchResultIndex] = useState(0)
   const [focusSearchToken, setFocusSearchToken] = useState(0)
   const [visibleRowCount, setVisibleRowCount] = useState<number | null>(null)
   const [selectedRowRanges, setSelectedRowRanges] = useState<BaseRowRange[]>([])
@@ -236,9 +240,48 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const hasActiveQuery = Boolean(
     search || activeView?.filter || activeView?.sorts.length
   )
+  const searchActive = search.trim().length > 0
+  const searchActiveRef = useRef(searchActive)
+  searchActiveRef.current = searchActive
+  const activeSearchResultIndex =
+    searchActive && searchResultCount !== null && searchResultCount > 0
+      ? Math.min(searchResultIndex, searchResultCount - 1)
+      : null
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value)
+    setSearchResultCount(null)
+    setSearchResultIndex(0)
+  }, [])
+
+  const handleSearchResultCountChange = useCallback(
+    (rowCount: number | null) => {
+      setVisibleRowCount(rowCount)
+      if (!searchActiveRef.current) return
+      setSearchResultCount(rowCount)
+      setSearchResultIndex((current) =>
+        rowCount && rowCount > 0 ? Math.min(current, rowCount - 1) : 0
+      )
+    },
+    []
+  )
+
+  const navigateSearchResults = useCallback(
+    (direction: "next" | "previous") => {
+      setSearchResultIndex((current) => {
+        if (!searchResultCount || searchResultCount < 1) return 0
+        return direction === "next"
+          ? (current + 1) % searchResultCount
+          : (current - 1 + searchResultCount) % searchResultCount
+      })
+    },
+    [searchResultCount]
+  )
 
   useEffect(() => {
     setSearch("")
+    setSearchResultCount(null)
+    setSearchResultIndex(0)
     setVisibleRowCount(null)
     setSelectedRowRanges([])
     setFieldPropertyColumn(null)
@@ -1064,7 +1107,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
                 search={search}
                 disabled={pendingMutations > 0}
                 focusSearchToken={focusSearchToken}
-                onSearchChange={setSearch}
+                searchResultCount={searchResultCount}
+                searchResultIndex={activeSearchResultIndex}
+                onSearchChange={handleSearchChange}
+                onNavigateSearch={navigateSearchResults}
                 onFilterChange={(filter) => updateActiveView({ filter })}
                 onSortsChange={(sorts) => updateActiveView({ sorts })}
               />
@@ -1180,6 +1226,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               table={activeTable}
               view={activeView}
               reloadToken={gridReloadToken}
+              searchResultIndex={activeSearchResultIndex}
               loadPage={loadActiveTablePage}
               readBinary={readBinary}
               onCellEdit={saveCell}
@@ -1189,6 +1236,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               onDeleteRow={deleteSingleRow}
               onOpenFile={openBaseFileReference}
               onRevealFile={(path) => reveal(path).then(() => undefined)}
+              onRowCountChange={handleSearchResultCountChange}
               onError={handleGridError}
               sidePanel={fieldPropertySidePanel}
             />
@@ -1199,6 +1247,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               view={activeView}
               disabled={pendingMutations > 0}
               reloadToken={gridReloadToken}
+              searchResultIndex={activeSearchResultIndex}
               loadGroupPage={loadKanbanGroupPage}
               onCellEdit={saveCell}
               onAddRow={createRowInGroup}
@@ -1209,6 +1258,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               onDeleteRow={deleteSingleRow}
               onOpenFile={openBaseFileReference}
               onRevealFile={(path) => reveal(path).then(() => undefined)}
+              onRowCountChange={handleSearchResultCountChange}
               onError={handleGridError}
               sidePanel={fieldPropertySidePanel}
             />
@@ -1223,7 +1273,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               onAddRow={createRow}
               onCellEdit={saveCell}
               onSelectedRowsChange={setSelectedRowRanges}
-              onRowCountChange={setVisibleRowCount}
+              onRowCountChange={handleSearchResultCountChange}
+              searchResultIndex={activeSearchResultIndex}
               onImportFiles={importBaseFiles}
               onImportDroppedFiles={importDroppedBaseFiles}
               onOpenFile={openBaseFileReference}

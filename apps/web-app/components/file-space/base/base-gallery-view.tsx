@@ -32,6 +32,7 @@ export function BaseGalleryView({
   table,
   view,
   reloadToken = 0,
+  searchResultIndex = null,
   loadPage,
   readBinary,
   onCellEdit,
@@ -41,12 +42,14 @@ export function BaseGalleryView({
   onDeleteRow,
   onOpenFile,
   onRevealFile,
+  onRowCountChange,
   onError,
   sidePanel,
 }: {
   table: BaseTableSnapshot
   view: BaseViewInfo
   reloadToken?: number
+  searchResultIndex?: number | null
   loadPage: (offset: number, limit: number) => Promise<BaseRowPage>
   readBinary?: (path: string) => Promise<SpaceBinaryFile>
   onCellEdit?: (
@@ -63,10 +66,12 @@ export function BaseGalleryView({
   onDeleteRow?: (row: BaseRow) => Promise<void>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => Promise<void> | void
+  onRowCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
 }) {
   const generationRef = useRef(0)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [rows, setRows] = useState<BaseRow[]>([])
   const [total, setTotal] = useState(table.rowCount)
   const [loading, setLoading] = useState(true)
@@ -84,6 +89,7 @@ export function BaseGalleryView({
         if (generation !== generationRef.current) return
         setRows((current) => (append ? [...current, ...page.rows] : page.rows))
         setTotal(page.total)
+        onRowCountChange?.(page.total)
       } catch (error) {
         if (generation === generationRef.current) onError?.(error)
       } finally {
@@ -92,18 +98,42 @@ export function BaseGalleryView({
         }
       }
     },
-    [loadPage, onError]
+    [loadPage, onError, onRowCountChange]
   )
 
   useEffect(() => {
     generationRef.current += 1
     setRows([])
     setInspectedRow(null)
+    onRowCountChange?.(null)
     void requestPage(0, false)
     return () => {
       generationRef.current += 1
     }
-  }, [reloadToken, requestPage, table.table.id, view.id])
+  }, [onRowCountChange, reloadToken, requestPage, table.table.id, view.id])
+
+  const focusedRow =
+    searchResultIndex !== null ? rows[searchResultIndex] : undefined
+
+  useEffect(() => {
+    if (searchResultIndex === null || searchResultIndex < 0) return
+    if (searchResultIndex >= total) return
+    if (searchResultIndex >= rows.length) {
+      if (!loading && !loadingMore && rows.length < total) {
+        void requestPage(rows.length, true)
+      }
+      return
+    }
+    const row = rows[searchResultIndex]
+    if (!row) return
+    const rowId = String(row._id)
+    const target = Array.from(
+      scrollContainerRef.current?.querySelectorAll<HTMLElement>(
+        "[data-base-row-id]"
+      ) ?? []
+    ).find((element) => element.dataset.baseRowId === rowId)
+    target?.scrollIntoView({ block: "nearest", inline: "nearest" })
+  }, [loading, loadingMore, requestPage, rows, searchResultIndex, total])
 
   const copyRecordId = (id: string) => {
     if (!navigator.clipboard) {
@@ -133,7 +163,10 @@ export function BaseGalleryView({
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden">
-      <div className="min-w-0 flex-1 overflow-y-auto p-4">
+      <div
+        ref={scrollContainerRef}
+        className="min-w-0 flex-1 overflow-y-auto p-4"
+      >
         {loading ? (
           <div className="flex h-40 items-center justify-center gap-2 text-xs text-muted-foreground">
             <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -162,6 +195,10 @@ export function BaseGalleryView({
                 view={view}
                 readBinary={readBinary}
                 role="listitem"
+                focused={
+                  focusedRow !== undefined &&
+                  String(focusedRow._id) === String(row._id)
+                }
                 onOpen={setInspectedRow}
                 onDelete={onDeleteRow ? setDeleteRow : undefined}
               />

@@ -273,6 +273,8 @@ vi.mock("./base-grid", () => ({
     onAddField,
     onEditFormula,
     onEditLookup,
+    searchResultIndex,
+    onRowCountChange,
   }: {
     table: (typeof snapshot)["tables"][number]
     onCellEdit: (
@@ -303,6 +305,8 @@ vi.mock("./base-grid", () => ({
     onEditLookup?: (
       field: (typeof snapshot)["tables"][number]["fields"][number]
     ) => void
+    searchResultIndex?: number | null
+    onRowCountChange?: (rowCount: number | null) => void
   }) => {
     const row = { _id: "row_1", title: "Write RFC", status: "todo" }
     const title = table.fields.find(
@@ -317,6 +321,12 @@ vi.mock("./base-grid", () => ({
           ))}
         <span>{String(row?.title ?? "")}</span>
         <span>{String(row?.status ?? "")}</span>
+        <span data-testid="base-search-result-index">
+          Search result {searchResultIndex ?? "none"}
+        </span>
+        <button type="button" onClick={() => onRowCountChange?.(3)}>
+          Report search results
+        </button>
         <button
           type="button"
           onClick={() => {
@@ -968,6 +978,49 @@ describe("SpaceBaseEditor", () => {
       50,
       { search: "Ada" }
     )
+  })
+
+  it("coordinates row search navigation with the active Base layout", async () => {
+    await renderEditor()
+
+    act(() => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent?.trim() === "Search")
+        ?.click()
+    })
+    const input = container.querySelector<HTMLInputElement>(
+      'input[placeholder="Search rows"]'
+    )
+    act(() => {
+      if (!input) return
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set
+      setter?.call(input, "RFC")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    act(() => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Report search results")
+        ?.click()
+    })
+
+    expect(container.textContent).toContain("1 of 3")
+    expect(
+      container.querySelector('[data-testid="base-search-result-index"]')
+        ?.textContent
+    ).toContain("Search result 0")
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Next search result"]')
+        ?.click()
+    })
+    expect(
+      container.querySelector('[data-testid="base-search-result-index"]')
+        ?.textContent
+    ).toContain("Search result 1")
   })
 
   it("updates formula metadata and reloads calculated rows", async () => {
