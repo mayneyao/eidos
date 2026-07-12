@@ -43,33 +43,28 @@ export const transformAggregateItems2SqlString = (
         expr = {
           type: "call",
           function: {
-            name: "COUNT",
+            name: "count",
           },
-          args: [
-            {
-              type: "call",
-              function: {
-                name: "DISTINCT",
-              },
-              args: [columnRef],
-            },
-          ],
+          args: [columnRef],
+          distinct: "distinct",
         }
         break
       case "count":
         expr = {
           type: "call",
           function: {
-            name: "COUNT",
+            name: "count",
           },
-          args: item.column === "*" ? [] : [columnRef],
+          args: [columnRef],
         }
         break
       default:
         expr = {
           type: "call",
           function: {
-            name: item.function.toUpperCase(),
+            // pgsql-ast-parser quotes upper-case function identifiers. Keep the
+            // canonical lower-case name so the generated SQL remains portable.
+            name: item.function.toLowerCase(),
           },
           args: [columnRef],
         }

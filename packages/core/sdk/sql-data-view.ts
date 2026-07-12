@@ -56,12 +56,11 @@ export class SqlDataView {
       await this.dataSpace.view.deleteByTableId(id)
       await this.dataSpace.column.deleteByRawTableName(viewName)
       await this.dataSpace.tree.del(id)
+      await this.dataSpace.db.prepare("COMMIT;").run()
     } catch (error) {
       await this.dataSpace.db.prepare("ROLLBACK;").run()
       console.error("Error in delete view transaction:", error)
       throw error
-    } finally {
-      await this.dataSpace.db.prepare("COMMIT;").run()
     }
   }
 
@@ -151,7 +150,7 @@ export class SqlDataView {
     property: any
   }) {
     const defaultFieldProperty =
-      allFieldTypesMap[type].getDefaultFieldProperty()
+      allFieldTypesMap[type]?.getDefaultFieldProperty?.() ?? {}
 
     const isEmptyProperty = Object.keys(property).length === 0
     const updateData = {
@@ -186,9 +185,10 @@ export class SqlDataView {
     await this.dataSpace.db.prepare("BEGIN TRANSACTION;").run()
 
     try {
+      const temporaryKeyword = isTemp ? "TEMPORARY " : ""
       await this.dataSpace.db
         .prepare(
-          `CREATE ${isTemp ? "TEMPORARY" : ""} VIEW IF NOT EXISTS ${viewName} AS \n ${createViewSql};`
+          `CREATE ${temporaryKeyword}VIEW IF NOT EXISTS ${viewName} AS \n ${createViewSql};`
         )
         .run()
       await this.dataSpace.view.add({
@@ -199,13 +199,14 @@ export class SqlDataView {
         query: `select * from ${viewName}`,
       })
       // Parse column types from SQL comments and create column metadata
-      await this.createColumnMetadataFromComments(viewName, createViewSql)
+      if (!isTemp) {
+        await this.createColumnMetadataFromComments(viewName, createViewSql)
+      }
+      await this.dataSpace.db.prepare("COMMIT;").run()
     } catch (error) {
       await this.dataSpace.db.prepare("ROLLBACK;").run()
       console.error("Error in createDataView transaction:", error)
       throw error
-    } finally {
-      await this.dataSpace.db.prepare("COMMIT;").run()
     }
     return true
   }
@@ -232,7 +233,7 @@ export class SqlDataView {
       // Create column metadata only for columns with type comments
       for (const [columnName, fieldType] of Object.entries(columnTypes)) {
         const defaultProperty =
-          allFieldTypesMap[fieldType].getDefaultFieldProperty()
+          allFieldTypesMap[fieldType]?.getDefaultFieldProperty?.() ?? {}
         await this.dataSpace.column.addPureUIColumn({
           name: columnName,
           type: fieldType,
