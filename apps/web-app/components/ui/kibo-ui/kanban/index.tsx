@@ -25,6 +25,8 @@ export type KanbanBoardProps = {
   children: ReactNode
   className?: string
   style?: React.CSSProperties
+  role?: React.AriaRole
+  "aria-label"?: string
 }
 
 export const KanbanBoard = ({
@@ -32,6 +34,8 @@ export const KanbanBoard = ({
   children,
   className,
   style,
+  role,
+  "aria-label": ariaLabel,
 }: KanbanBoardProps) => {
   const { isOver, setNodeRef } = useDroppable({ id })
 
@@ -43,6 +47,8 @@ export const KanbanBoard = ({
         className
       )}
       style={style}
+      role={role}
+      aria-label={ariaLabel}
       ref={setNodeRef}
     >
       {children}

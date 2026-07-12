@@ -136,6 +136,8 @@ export function BaseGalleryView({
         ) : (
           <div
             className="grid items-start gap-3"
+            role="list"
+            aria-label={`${view.name} records`}
             style={{
               gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${galleryCardWidth(
                 view
@@ -149,6 +151,7 @@ export function BaseGalleryView({
                 fields={table.fields}
                 view={view}
                 readBinary={readBinary}
+                role="listitem"
                 onOpen={setInspectedRow}
                 onDelete={onDeleteRow ? setDeleteRow : undefined}
               />

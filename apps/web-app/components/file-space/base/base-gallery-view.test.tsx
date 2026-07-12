@@ -122,6 +122,8 @@ describe("BaseGalleryView", () => {
     expect(loadPage).toHaveBeenCalledWith(0, 100)
     expect(container.textContent).toContain("Write RFC")
     expect(container.textContent).toContain("Todo")
+    expect(container.querySelector('[role="list"]')).not.toBeNull()
+    expect(container.querySelectorAll('[role="listitem"]')).toHaveLength(2)
 
     await act(async () => {
       container

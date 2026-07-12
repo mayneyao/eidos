@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type AriaRole } from "react"
 import type { BaseFieldInfo, BaseRow, BaseViewInfo } from "@eidos.space/base"
 import { decodeBaseFilePaths } from "@eidos.space/base"
 import type { SpaceBinaryFile } from "@eidos.space/file-space"
@@ -234,6 +234,7 @@ export function BaseRecordCard({
   readBinary,
   onOpen,
   onDelete,
+  role,
 }: {
   row: BaseRow
   fields: BaseFieldInfo[]
@@ -242,6 +243,7 @@ export function BaseRecordCard({
   readBinary?: (path: string) => Promise<SpaceBinaryFile>
   onOpen: (row: BaseRow) => void
   onDelete?: (row: BaseRow) => void
+  role?: AriaRole
 }) {
   const hideEmptyFields = view.properties?.hideEmptyFields !== false
   const visibleFields = orderedBaseFields(fields, view)
@@ -265,6 +267,7 @@ export function BaseRecordCard({
     <article
       className="group/card relative overflow-hidden rounded-lg border bg-card text-card-foreground shadow-xs transition-shadow hover:shadow-sm"
       aria-label={title}
+      role={role}
     >
       {coverField ? (
         <BaseRecordCover

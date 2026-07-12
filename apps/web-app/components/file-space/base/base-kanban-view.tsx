@@ -128,6 +128,8 @@ function BaseKanbanColumn({
   return (
     <KanbanBoard
       id={group.key}
+      role="region"
+      aria-label={`${group.name}, ${group.total} records`}
       className={cn(
         "shrink-0 gap-2 rounded-lg border p-2",
         collapsed && "items-center"

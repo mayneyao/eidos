@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react"
+import { act, type AriaRole } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type { BaseTableSnapshot, BaseViewInfo } from "@eidos.space/base"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -29,10 +29,18 @@ vi.mock("@/components/ui/kibo-ui/kanban", () => ({
   KanbanBoard: ({
     children,
     id,
+    role,
+    "aria-label": ariaLabel,
   }: {
     children: React.ReactNode
     id: string
-  }) => <section data-board-id={id}>{children}</section>,
+    role?: AriaRole
+    "aria-label"?: string
+  }) => (
+    <section data-board-id={id} role={role} aria-label={ariaLabel}>
+      {children}
+    </section>
+  ),
   KanbanCard: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -173,6 +181,9 @@ describe("BaseKanbanView", () => {
       null,
     ])
     expect(container.textContent).toContain("Write RFC")
+    expect(
+      container.querySelector('[role="region"][aria-label="Todo, 1 records"]')
+    ).not.toBeNull()
 
     await act(async () => {
       kanbanMocks.onDragEnd?.({
