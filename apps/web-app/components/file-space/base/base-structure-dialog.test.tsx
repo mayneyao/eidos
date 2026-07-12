@@ -1,10 +1,37 @@
 // @vitest-environment jsdom
 
-import { act } from "react"
+import { act, type ForwardedRef } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BaseStructureDialog } from "./base-structure-dialog"
+
+vi.mock("@/components/formula-editor/codemirror-editor", async () => {
+  const React = await import("react")
+  return {
+    CodeMirrorFormulaEditor: React.forwardRef(
+      (
+        props: { value: string; onChange: (value: string) => void },
+        ref: ForwardedRef<{
+          focus: () => void
+          insertText: (text: string) => void
+        }>
+      ) => {
+        React.useImperativeHandle(ref, () => ({
+          focus: () => undefined,
+          insertText: (text: string) => props.onChange(props.value + text),
+        }))
+        return (
+          <textarea
+            aria-label="Formula expression"
+            value={props.value}
+            onChange={(event) => props.onChange(event.target.value)}
+          />
+        )
+      }
+    ),
+  }
+})
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -178,6 +205,19 @@ describe("BaseStructureDialog", () => {
 
   it("creates a calculated formula field in the anchored field flow", async () => {
     const onCreateField = vi.fn()
+    const sourceFields = ["price", "quantity"].map((columnName) => ({
+      name: columnName,
+      type: "number" as const,
+      tableName: "tb_orders",
+      tableColumnName: columnName,
+      property: null,
+      storageCodec: "scalar" as const,
+      valueKind: "source" as const,
+      isHidden: false,
+      isDerived: false,
+      sourceTableColumnName: null,
+      dependsOn: null,
+    }))
     act(() =>
       root.render(
         <BaseStructureDialog
@@ -186,6 +226,7 @@ describe("BaseStructureDialog", () => {
           onOpenChange={vi.fn()}
           onCreateTable={vi.fn()}
           onCreateField={onCreateField}
+          fields={sourceFields}
         />
       )
     )
@@ -205,10 +246,12 @@ describe("BaseStructureDialog", () => {
       | undefined
     await act(async () => formulaOption?.click())
     const formula = document.body.querySelector<HTMLTextAreaElement>(
-      'textarea[placeholder^="upper"]'
+      'textarea[aria-label="Formula expression"]'
     )
     await act(async () => {
       if (formula) setInput(formula, "price * quantity")
+    })
+    await act(async () => {
       document.body
         .querySelector("form")
         ?.dispatchEvent(

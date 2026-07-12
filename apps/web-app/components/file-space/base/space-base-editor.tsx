@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
   BaseFieldInfo,
+  BaseFormulaPreviewInput,
   BaseRow,
   BaseRowMutationResult,
   BaseRowQuery,
@@ -89,6 +90,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     updateTable,
     deleteTable,
     addField,
+    previewFormula: previewFormulaDraft,
     updateField,
     deleteField,
     createView,
@@ -598,6 +600,16 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     ]
   )
 
+  const previewActiveFormula = useCallback(
+    (input: BaseFormulaPreviewInput) => {
+      if (!activeTable) {
+        return Promise.reject(new Error("No active Base table"))
+      }
+      return previewFormulaDraft(filePath, activeTable.table.id, input)
+    },
+    [activeTable, filePath, previewFormulaDraft]
+  )
+
   const saveLookup = useCallback(
     (property: Record<string, unknown>): Promise<void> => {
       if (!activeTable || !lookupTarget) return Promise.resolve()
@@ -1086,6 +1098,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           ])
         )}
         activeTableId={activeTable?.table.id}
+        onPreviewFormula={previewActiveFormula}
       />
 
       <BaseRenameDialog
@@ -1114,6 +1127,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         onOpenChange={(open) => {
           if (!open) setFormulaTarget(null)
         }}
+        onPreview={previewActiveFormula}
         onSave={saveFormula}
       />
 

@@ -103,7 +103,8 @@ export function useEditor({
         onEnter,
         placeholder,
         // Disable autocompletion if explicitly requested or if in AI prompt mode
-        disableAutocompletion || value.trim().startsWith("//")
+        disableAutocompletion ||
+          (Boolean(onAiComplete) && value.trim().startsWith("//"))
       )
       editorViewRef.current = view
       initializedRef.current = true
@@ -193,7 +194,8 @@ export function useEditor({
       !isDestroyedRef.current
     ) {
       const content = editorViewRef.current.state.doc.toString()
-      const newAiPromptMode = content.trim().startsWith("//")
+      const newAiPromptMode =
+        Boolean(onAiComplete) && content.trim().startsWith("//")
 
       if (newAiPromptMode !== isAiPromptMode) {
         setIsAiPromptMode(newAiPromptMode)

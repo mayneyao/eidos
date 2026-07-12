@@ -14,6 +14,7 @@ const createTableMock = vi.hoisted(() => vi.fn())
 const updateTableMock = vi.hoisted(() => vi.fn())
 const deleteTableMock = vi.hoisted(() => vi.fn())
 const addFieldMock = vi.hoisted(() => vi.fn())
+const previewFormulaMock = vi.hoisted(() => vi.fn())
 const updateFieldMock = vi.hoisted(() => vi.fn())
 const deleteFieldMock = vi.hoisted(() => vi.fn())
 const createViewMock = vi.hoisted(() => vi.fn())
@@ -43,6 +44,7 @@ vi.mock("@/apps/web-app/hooks/use-space-base", () => ({
     updateTable: updateTableMock,
     deleteTable: deleteTableMock,
     addField: addFieldMock,
+    previewFormula: previewFormulaMock,
     updateField: updateFieldMock,
     deleteField: deleteFieldMock,
     createView: createViewMock,
@@ -185,20 +187,42 @@ vi.mock("./base-field-options-dialog", () => ({
 vi.mock("./base-formula-editor", () => ({
   BaseFormulaEditor: ({
     open,
+    onPreview,
     onSave,
   }: {
     open: boolean
+    onPreview: (input: {
+      name: string
+      columnName: string
+      formula: string
+      displayType: "number"
+    }) => void
     onSave: (property: Record<string, unknown>) => void
   }) =>
     open ? (
-      <button
-        type="button"
-        onClick={() =>
-          onSave({ formula: "price * quantity", displayType: "number" })
-        }
-      >
-        Confirm formula
-      </button>
+      <>
+        <button
+          type="button"
+          onClick={() =>
+            onPreview({
+              name: "Total",
+              columnName: "total",
+              formula: "price * quantity",
+              displayType: "number",
+            })
+          }
+        >
+          Preview formula
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onSave({ formula: "price * quantity", displayType: "number" })
+          }
+        >
+          Confirm formula
+        </button>
+      </>
     ) : null,
 }))
 
@@ -573,6 +597,7 @@ describe("SpaceBaseEditor", () => {
     updateTableMock.mockReset()
     deleteTableMock.mockReset()
     addFieldMock.mockReset()
+    previewFormulaMock.mockReset()
     updateFieldMock.mockReset()
     deleteFieldMock.mockReset()
     createViewMock.mockReset()
@@ -601,6 +626,11 @@ describe("SpaceBaseEditor", () => {
     updateTableMock.mockResolvedValue(snapshot)
     deleteTableMock.mockResolvedValue(snapshot)
     addFieldMock.mockResolvedValue(snapshot)
+    previewFormulaMock.mockResolvedValue({
+      expression: "price * quantity",
+      dependencies: [],
+      samples: [],
+    })
     updateFieldMock.mockResolvedValue(snapshot)
     deleteFieldMock.mockResolvedValue(snapshot)
     createViewMock.mockResolvedValue(snapshot)
@@ -861,6 +891,22 @@ describe("SpaceBaseEditor", () => {
         .find((button) => button.textContent === "Edit formula")
         ?.click()
     })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Preview formula")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(previewFormulaMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      {
+        name: "Total",
+        columnName: "total",
+        formula: "price * quantity",
+        displayType: "number",
+      }
+    )
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
         .find((button) => button.textContent === "Confirm formula")

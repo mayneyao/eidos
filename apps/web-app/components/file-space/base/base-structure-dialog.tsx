@@ -2,6 +2,8 @@ import { useEffect, useId, useState, type FormEvent } from "react"
 import type {
   BaseFieldInfo,
   BaseFormulaDisplayType,
+  BaseFormulaPreview,
+  BaseFormulaPreviewInput,
   BaseLookupAggregate,
   CreateBaseFieldInput,
   CreateBaseTableInput,
@@ -11,7 +13,6 @@ import type {
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -19,6 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+
+import { BaseFormulaComposer } from "./base-formula-composer"
 
 type FieldType = CreateBaseFieldInput["type"]
 
@@ -53,18 +56,6 @@ const LOOKUP_AGGREGATES: Array<{
   { value: "max", label: "Maximum" },
 ]
 
-const FORMULA_DISPLAY_TYPES: Array<{
-  value: BaseFormulaDisplayType
-  label: string
-}> = [
-  { value: "text", label: "Text" },
-  { value: "number", label: "Number" },
-  { value: "checkbox", label: "Checkbox" },
-  { value: "date", label: "Date" },
-  { value: "datetime", label: "Date & time" },
-  { value: "url", label: "URL" },
-]
-
 function columnNameFor(label: string): string {
   const ascii = label
     .normalize("NFKD")
@@ -96,6 +87,7 @@ export function BaseStructureDialog({
   fields = [],
   tableFields = {},
   activeTableId,
+  onPreviewFormula,
 }: {
   mode: "table" | "field"
   open: boolean
@@ -106,6 +98,9 @@ export function BaseStructureDialog({
   fields?: BaseFieldInfo[]
   tableFields?: Record<string, BaseFieldInfo[]>
   activeTableId?: string | null
+  onPreviewFormula?: (
+    input: BaseFormulaPreviewInput
+  ) => Promise<BaseFormulaPreview>
 }) {
   const [name, setName] = useState("")
   const [fieldType, setFieldType] = useState<FieldType>("text")
@@ -114,6 +109,7 @@ export function BaseStructureDialog({
   const [formula, setFormula] = useState("")
   const [formulaDisplayType, setFormulaDisplayType] =
     useState<BaseFormulaDisplayType>("text")
+  const [formulaValid, setFormulaValid] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lookupRelationField, setLookupRelationField] = useState("")
@@ -130,6 +126,7 @@ export function BaseStructureDialog({
     setOptions("")
     setFormula("")
     setFormulaDisplayType("text")
+    setFormulaValid(false)
     setSubmitting(false)
     setError(null)
     setLookupRelationField("")
@@ -184,7 +181,7 @@ export function BaseStructureDialog({
         },
       })
     } else if (fieldType === "formula") {
-      if (!formula.trim()) return
+      if (!formula.trim() || !formulaValid) return
       creation = onCreateField({
         name: trimmedName,
         columnName: columnNameFor(trimmedName),
@@ -260,7 +257,15 @@ export function BaseStructureDialog({
       <PopoverAnchor asChild>
         <span className="pointer-events-none absolute right-2 top-10 h-px w-px" />
       </PopoverAnchor>
-      <PopoverContent align="end" side="bottom" className="w-80 p-0">
+      <PopoverContent
+        align="end"
+        side="bottom"
+        className={
+          mode === "field" && fieldType === "formula"
+            ? "w-[700px] max-w-[calc(100vw-32px)] p-0"
+            : "w-80 p-0"
+        }
+      >
         <div className="border-b px-4 py-3">
           <h2 className="text-sm font-semibold">
             {mode === "table" ? "New table" : "New field"}
@@ -345,69 +350,23 @@ export function BaseStructureDialog({
               </label>
             ) : null}
             {mode === "field" && fieldType === "formula" ? (
-              <div className="grid gap-3">
-                <label className="grid gap-1.5 text-xs font-medium">
-                  Formula
-                  <Textarea
-                    value={formula}
-                    autoFocus
-                    spellCheck={false}
-                    className="min-h-20 resize-y font-mono text-xs leading-5"
-                    placeholder='upper(title) or prop("Due date")'
-                    onChange={(event) => {
-                      setFormula(event.target.value)
-                      setError(null)
-                    }}
-                  />
-                </label>
-                <div>
-                  <p className="mb-1.5 text-xs font-medium">Insert field</p>
-                  <div className="flex max-h-20 flex-wrap gap-1 overflow-y-auto">
-                    {fields
-                      .filter((field) => !field.isHidden)
-                      .map((field) => (
-                        <button
-                          key={field.tableColumnName}
-                          type="button"
-                          className="h-6 max-w-36 truncate rounded-sm border px-2 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
-                          title={`${field.name} · ${field.tableColumnName}`}
-                          onClick={() =>
-                            setFormula((current) =>
-                              current
-                                ? `${current} ${field.tableColumnName}`
-                                : field.tableColumnName
-                            )
-                          }
-                        >
-                          {field.name}
-                        </button>
-                      ))}
-                  </div>
-                </div>
-                <label className="grid gap-1.5 text-xs font-medium">
-                  Display as
-                  <Select
-                    value={formulaDisplayType}
-                    onValueChange={(value) =>
-                      setFormulaDisplayType(value as BaseFormulaDisplayType)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {FORMULA_DISPLAY_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </label>
-                <p className="text-[11px] leading-4 text-muted-foreground">
-                  Uses SQLite expressions. Formula fields update immediately
-                  when their source values change.
-                </p>
+              <div className="-mx-4 border-y">
+                <BaseFormulaComposer
+                  field={null}
+                  fields={fields}
+                  name={name.trim() || "Formula"}
+                  columnName={columnNameFor(name.trim() || "formula")}
+                  formula={formula}
+                  displayType={formulaDisplayType}
+                  onFormulaChange={(value) => {
+                    setFormula(value)
+                    setError(null)
+                  }}
+                  onDisplayTypeChange={setFormulaDisplayType}
+                  onPreview={onPreviewFormula}
+                  onValidityChange={setFormulaValid}
+                  onEscape={() => onOpenChange(false)}
+                />
               </div>
             ) : null}
             {mode === "field" && fieldType === "lookup" ? (
@@ -510,7 +469,7 @@ export function BaseStructureDialog({
                 (mode === "field" && fieldType === "link" && !targetTableId) ||
                 (mode === "field" &&
                   fieldType === "formula" &&
-                  !formula.trim()) ||
+                  (!formula.trim() || !formulaValid)) ||
                 (mode === "field" &&
                   fieldType === "lookup" &&
                   (!selectedRelation || !selectedLookupTarget))

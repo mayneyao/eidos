@@ -1,10 +1,37 @@
 // @vitest-environment jsdom
 
-import { act } from "react"
+import { act, type ForwardedRef } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type { BaseFieldInfo } from "@eidos.space/base"
 
 import { BaseFormulaEditor } from "./base-formula-editor"
+
+vi.mock("@/components/formula-editor/codemirror-editor", async () => {
+  const React = await import("react")
+  return {
+    CodeMirrorFormulaEditor: React.forwardRef(
+      (
+        props: { value: string; onChange: (value: string) => void },
+        ref: ForwardedRef<{
+          focus: () => void
+          insertText: (text: string) => void
+        }>
+      ) => {
+        React.useImperativeHandle(ref, () => ({
+          focus: () => undefined,
+          insertText: (text: string) => props.onChange(props.value + text),
+        }))
+        return (
+          <textarea
+            aria-label="Formula expression"
+            value={props.value}
+            onChange={(event) => props.onChange(event.target.value)}
+          />
+        )
+      }
+    ),
+  }
+})
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -23,6 +50,19 @@ const formulaField: BaseFieldInfo = {
   sourceTableColumnName: null,
   dependsOn: ["price", "quantity"],
 }
+
+const sourceFields: BaseFieldInfo[] = ["price", "quantity"].map(
+  (columnName) => ({
+    ...formulaField,
+    name: columnName,
+    type: "number",
+    tableColumnName: columnName,
+    property: null,
+    valueKind: "source",
+    isDerived: false,
+    dependsOn: null,
+  })
+)
 
 describe("BaseFormulaEditor", () => {
   let container: HTMLDivElement
@@ -45,7 +85,7 @@ describe("BaseFormulaEditor", () => {
       root.render(
         <BaseFormulaEditor
           field={formulaField}
-          fields={[formulaField]}
+          fields={[...sourceFields, formulaField]}
           open
           onOpenChange={vi.fn()}
           onSave={onSave}
