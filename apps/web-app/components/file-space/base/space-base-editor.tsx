@@ -9,6 +9,7 @@ import type {
   BaseSnapshot,
   BaseSqlPrimitive,
 } from "@eidos.space/base"
+import { uniqueSpaceEntryName } from "@eidos.space/file-space/names"
 import {
   AlertTriangle,
   Check,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { toSpaceFileUrl } from "@/apps/web-app/components/file-space/file-path"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useSpaceBase } from "@/apps/web-app/hooks/use-space-base"
 import {
@@ -28,6 +30,7 @@ import {
   useSpaceFiles,
 } from "@/apps/web-app/hooks/use-space-files"
 import { Button } from "@/components/ui/button"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,6 +56,8 @@ interface SpaceBaseEditorProps {
   filePath: string
 }
 
+const BASE_ATTACHMENT_DIRECTORY = "assets"
+
 type RenameTarget =
   | { kind: "table"; tableId: string; name: string }
   | {
@@ -67,7 +72,13 @@ type DeleteTarget = RenameTarget
 export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const { currentSpace } = useCurrentSpace()
-  const { reveal } = useSpaceFiles(currentSpace?.id)
+  const {
+    reveal,
+    list: listFiles,
+    createDirectory,
+    createBinary,
+    importFiles,
+  } = useSpaceFiles(currentSpace?.id)
   const {
     getSnapshot,
     getTablePage,
@@ -272,6 +283,60 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     },
     []
   )
+
+  const ensureAttachmentDirectory = useCallback(async () => {
+    try {
+      await listFiles(BASE_ATTACHMENT_DIRECTORY)
+    } catch {
+      try {
+        await createDirectory(BASE_ATTACHMENT_DIRECTORY)
+      } catch {
+        await listFiles(BASE_ATTACHMENT_DIRECTORY)
+      }
+    }
+  }, [createDirectory, listFiles])
+
+  const importBaseFiles = useCallback(async (): Promise<string[]> => {
+    await ensureAttachmentDirectory()
+    const result = await importFiles(BASE_ATTACHMENT_DIRECTORY)
+    if (result.errors.length > 0) {
+      console.warn("Some Base attachments could not be imported", result.errors)
+    }
+    return result.imported.map((entry) => entry.path)
+  }, [ensureAttachmentDirectory, importFiles])
+
+  const importDroppedBaseFiles = useCallback(
+    async (files: File[]): Promise<string[]> => {
+      if (files.length === 0) return []
+      await ensureAttachmentDirectory()
+      const existingNames = (await listFiles(BASE_ATTACHMENT_DIRECTORY)).map(
+        (entry) => entry.name
+      )
+      const imported: string[] = []
+      for (const file of files) {
+        const name = uniqueSpaceEntryName(
+          existingNames,
+          file.name || `attachment-${Date.now()}`
+        )
+        existingNames.push(name)
+        const path = `${BASE_ATTACHMENT_DIRECTORY}/${name}`
+        await createBinary(path, new Uint8Array(await file.arrayBuffer()))
+        imported.push(path)
+      }
+      return imported
+    },
+    [createBinary, ensureAttachmentDirectory, listFiles]
+  )
+
+  const openBaseFileReference = useCallback((path: string) => {
+    if (/^https?:/i.test(path)) {
+      window.open(path, "_blank")
+      return
+    }
+    useTabStore
+      .getState()
+      .openTab(toSpaceFileUrl(path), path.split("/").at(-1) ?? path)
+  }, [])
 
   const loadActiveTablePage = useCallback(
     (offset: number, limit: number) => {
@@ -814,6 +879,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             onCellEdit={saveCell}
             onSelectedRowsChange={setSelectedRowRanges}
             onRowCountChange={setVisibleRowCount}
+            onImportFiles={importBaseFiles}
+            onImportDroppedFiles={importDroppedBaseFiles}
+            onOpenFile={openBaseFileReference}
+            onRevealFile={(path) => reveal(path).then(() => undefined)}
             onAddField={() => setStructureDialog("field")}
             onRenameField={(field) =>
               setRenameTarget({

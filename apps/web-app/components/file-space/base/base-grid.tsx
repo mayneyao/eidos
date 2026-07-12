@@ -41,6 +41,12 @@ import {
   gridCellToBaseValue,
   visibleBaseFields,
 } from "./base-grid-adapter"
+import {
+  baseFileDisplayData,
+  BaseFileCellRenderer,
+  type BaseFileCell,
+} from "./base-file-cell"
+import { encodeBaseFilePaths } from "@eidos.space/base"
 
 import "@glideapps/glide-data-grid/dist/index.css"
 
@@ -61,6 +67,10 @@ interface BaseGridProps {
   ) => Promise<BaseRowMutationResult>
   onSelectedRowsChange?: (ranges: BaseRowRange[]) => void
   onRowCountChange?: (rowCount: number | null) => void
+  onImportFiles?: () => Promise<string[]>
+  onImportDroppedFiles?: (files: File[]) => Promise<string[]>
+  onOpenFile?: (path: string) => void
+  onRevealFile?: (path: string) => Promise<void> | void
   onAddField?: () => void
   onRenameField?: (field: BaseFieldInfo) => void
   onEditFieldOptions?: (field: BaseFieldInfo) => void
@@ -126,6 +136,10 @@ export function BaseGrid({
   onCellEdit,
   onSelectedRowsChange,
   onRowCountChange,
+  onImportFiles,
+  onImportDroppedFiles,
+  onOpenFile,
+  onRevealFile,
   onAddField,
   onRenameField,
   onEditFieldOptions,
@@ -260,9 +274,28 @@ export function BaseGrid({
       if (!field || !row) {
         return { kind: GridCellKind.Loading, allowOverlay: false }
       }
-      return baseValueToGridCell(field, row[field.tableColumnName], disabled)
+      const cell = baseValueToGridCell(
+        field,
+        row[field.tableColumnName],
+        disabled
+      )
+      if (
+        cell.kind === GridCellKind.Custom &&
+        (cell.data as { kind?: unknown }).kind === "base-file-cell"
+      ) {
+        return {
+          ...cell,
+          data: {
+            ...cell.data,
+            onImport: onImportFiles,
+            onOpen: onOpenFile,
+            onReveal: onRevealFile,
+          },
+        } as BaseFileCell
+      }
+      return cell
     },
-    [cacheRevision, disabled, fields]
+    [cacheRevision, disabled, fields, onImportFiles, onOpenFile, onRevealFile]
   )
 
   const requestVisiblePages = useCallback(
@@ -356,6 +389,68 @@ export function BaseGrid({
     isGridActive
   )
 
+  const [fileDropHighlights, setFileDropHighlights] = useState<
+    NonNullable<DataEditorProps["highlightRegions"]>
+  >([])
+  const onDragOverCell = useCallback<
+    NonNullable<DataEditorProps["onDragOverCell"]>
+  >(
+    (location, transfer) => {
+      const field = fields[location[0]]
+      const hasFiles = transfer
+        ? Array.from(transfer.items).some((item) => item.kind === "file")
+        : false
+      setFileDropHighlights(
+        field?.type === "file" && hasFiles
+          ? [
+              {
+                color: "#44BB0022",
+                range: {
+                  x: location[0],
+                  y: location[1],
+                  width: 1,
+                  height: 1,
+                },
+              },
+            ]
+          : []
+      )
+    },
+    [fields]
+  )
+  const onDrop = useCallback<NonNullable<DataEditorProps["onDrop"]>>(
+    (location, transfer) => {
+      setFileDropHighlights([])
+      if (!transfer || !onImportDroppedFiles) return
+      const current = getCellContent(location)
+      if (
+        current.kind !== GridCellKind.Custom ||
+        (current.data as { kind?: unknown }).kind !== "base-file-cell"
+      ) {
+        return
+      }
+      const files = Array.from(transfer.files)
+      if (files.length === 0) return
+      void onImportDroppedFiles(files)
+        .then((imported) => {
+          if (imported.length === 0) return
+          const fileCell = current as BaseFileCell
+          const paths = [...fileCell.data.paths, ...imported]
+          history.onCellEdited(location, {
+            ...fileCell,
+            copyData: encodeBaseFilePaths(paths) ?? "",
+            data: {
+              ...fileCell.data,
+              paths,
+              displayData: baseFileDisplayData(paths),
+            },
+          })
+        })
+        .catch((error) => onError?.(error))
+    },
+    [getCellContent, history.onCellEdited, onError, onImportDroppedFiles]
+  )
+
   useEffect(() => {
     history.reset()
   }, [history.reset, reloadToken, table.table.id])
@@ -442,7 +537,12 @@ export function BaseGrid({
           SelectCell,
           MultiSelectCell,
           DatePickerCell,
+          BaseFileCellRenderer,
         ]}
+        onDragOverCell={onDragOverCell}
+        onDragLeave={() => setFileDropHighlights([])}
+        onDrop={onDrop}
+        highlightRegions={fileDropHighlights}
         fillHandle={!disabled}
         gridSelection={history.gridSelection ?? undefined}
         onCellEdited={disabled ? undefined : history.onCellEdited}

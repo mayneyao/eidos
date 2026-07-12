@@ -93,6 +93,33 @@ describe("Base Grid adapter", () => {
     })
   })
 
+  it("maps file fields to portable multi-attachment cells", () => {
+    expect(
+      baseValueToGridCell(
+        { ...field("file"), storageCodec: "json_array" },
+        '["assets/cover.png","assets/report, final.pdf"]'
+      )
+    ).toMatchObject({
+      kind: GridCellKind.Custom,
+      data: {
+        kind: "base-file-cell",
+        paths: ["assets/cover.png", "assets/report, final.pdf"],
+      },
+    })
+    expect(
+      gridCellToBaseValue(field("file"), {
+        kind: GridCellKind.Custom,
+        allowOverlay: true,
+        copyData: "",
+        data: {
+          kind: "base-file-cell",
+          paths: ["/assets/cover.png", "assets/report, final.pdf"],
+          displayData: [],
+        },
+      })
+    ).toBe('["assets/cover.png","assets/report, final.pdf"]')
+  })
+
   it("applies per-view field visibility without changing Base schema", () => {
     expect(
       visibleBaseFields([field("text"), field("number")], ["number"]).map(

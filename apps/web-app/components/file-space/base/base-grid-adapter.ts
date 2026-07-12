@@ -3,12 +3,15 @@ import type {
   BaseRowValue,
   BaseSqlPrimitive,
 } from "@eidos.space/base"
+import { decodeBaseFilePaths, encodeBaseFilePaths } from "@eidos.space/base"
 import {
   GridCellKind,
   type EditableGridCell,
   type GridCell,
   type GridColumn,
 } from "@glideapps/glide-data-grid"
+
+import { baseFileDisplayData, type BaseFileCell } from "./base-file-cell"
 
 interface BaseSelectOption {
   id: string
@@ -114,6 +117,20 @@ export function baseValueToGridCell(
   value: BaseRowValue | undefined,
   readonly = false
 ): GridCell {
+  if (field.type === "file") {
+    const paths = decodeBaseFilePaths(value)
+    return {
+      kind: GridCellKind.Custom,
+      allowOverlay: true,
+      readonly,
+      copyData: encodeBaseFilePaths(paths) ?? "",
+      data: {
+        kind: "base-file-cell",
+        paths,
+        displayData: baseFileDisplayData(paths),
+      },
+    } satisfies BaseFileCell
+  }
   if (field.type === "select") {
     const selected = typeof value === "string" ? value : null
     return {
@@ -229,6 +246,14 @@ export function gridCellToBaseValue(
           )
         : []
       return values.length > 0 ? values.join(",") : null
+    }
+    if (data.kind === "base-file-cell") {
+      const paths = Array.isArray(data.paths)
+        ? data.paths.filter(
+            (entry): entry is string => typeof entry === "string"
+          )
+        : []
+      return encodeBaseFilePaths(paths)
     }
     if (data.kind === "rating-cell") {
       return typeof data.rating === "number" ? data.rating : null

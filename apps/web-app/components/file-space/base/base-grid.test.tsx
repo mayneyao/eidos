@@ -368,4 +368,80 @@ describe("BaseGrid", () => {
     ])
     expect(loadPage).toHaveBeenCalledTimes(1)
   })
+
+  it("imports dropped files into file cells through the Grid edit history", async () => {
+    const fileField = {
+      ...table.fields[1],
+      name: "Files",
+      type: "file" as const,
+      tableColumnName: "files",
+      storageCodec: "json_array" as const,
+    }
+    const fileTable: BaseTableSnapshot = {
+      ...table,
+      fields: [...table.fields, fileField],
+      rowCount: 1,
+    }
+    const row = {
+      ...rowAt(0),
+      files: '["assets/existing.pdf"]',
+    }
+    const loadPage = vi.fn(async () => ({
+      tableId: "tasks",
+      offset: 0,
+      limit: 100,
+      total: 1,
+      rows: [row],
+    }))
+    const onCellEdit = createCellEdit()
+    const onImportFiles = vi.fn().mockResolvedValue(["assets/picked.pdf"])
+    const onImportDroppedFiles = vi
+      .fn()
+      .mockResolvedValue(["assets/dropped.png"])
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={fileTable}
+          loadPage={loadPage}
+          onAddRow={vi.fn()}
+          onCellEdit={onCellEdit}
+          onImportFiles={onImportFiles}
+          onImportDroppedFiles={onImportDroppedFiles}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(mocks.props?.getCellContent([2, 0])).toMatchObject({
+      kind: GridCellKind.Custom,
+      data: {
+        kind: "base-file-cell",
+        paths: ["assets/existing.pdf"],
+        onImport: onImportFiles,
+      },
+    })
+
+    const dropped = new File(["image"], "dropped.png", {
+      type: "image/png",
+    })
+    const transfer = {
+      files: [dropped],
+      items: [{ kind: "file", type: "image/png" }],
+    } as unknown as DataTransfer
+    act(() => mocks.props?.onDragOverCell?.([2, 0], transfer))
+    expect(mocks.props?.highlightRegions).toMatchObject([
+      { range: { x: 2, y: 0, width: 1, height: 1 } },
+    ])
+    await act(async () => {
+      mocks.props?.onDrop?.([2, 0], transfer)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(onImportDroppedFiles).toHaveBeenCalledWith([dropped])
+    expect(onCellEdit).toHaveBeenCalledWith(
+      row,
+      fileField,
+      '["assets/existing.pdf","assets/dropped.png"]'
+    )
+  })
 })

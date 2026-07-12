@@ -21,6 +21,12 @@ const updateViewMock = vi.hoisted(() => vi.fn())
 const duplicateViewMock = vi.hoisted(() => vi.fn())
 const deleteViewMock = vi.hoisted(() => vi.fn())
 const reorderViewsMock = vi.hoisted(() => vi.fn())
+const listFilesMock = vi.hoisted(() => vi.fn())
+const createDirectoryMock = vi.hoisted(() => vi.fn())
+const createBinaryMock = vi.hoisted(() => vi.fn())
+const importFilesMock = vi.hoisted(() => vi.fn())
+const revealFileMock = vi.hoisted(() => vi.fn())
+const openTabMock = vi.hoisted(() => vi.fn())
 const insertRowMock = vi.hoisted(() => vi.fn())
 const updateRowMock = vi.hoisted(() => vi.fn())
 const deleteRowRangesMock = vi.hoisted(() => vi.fn())
@@ -203,7 +209,19 @@ vi.mock("./base-rename-dialog", () => ({
 
 vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
   useSpaceFileChanges: () => undefined,
-  useSpaceFiles: () => ({ reveal: vi.fn() }),
+  useSpaceFiles: () => ({
+    reveal: revealFileMock,
+    list: listFilesMock,
+    createDirectory: createDirectoryMock,
+    createBinary: createBinaryMock,
+    importFiles: importFilesMock,
+  }),
+}))
+
+vi.mock("@/apps/web-app/store/tabs", () => ({
+  useTabStore: {
+    getState: () => ({ openTab: openTabMock }),
+  },
 }))
 
 vi.mock("./base-grid", () => ({
@@ -211,6 +229,10 @@ vi.mock("./base-grid", () => ({
     table,
     onCellEdit,
     onSelectedRowsChange,
+    onImportFiles,
+    onImportDroppedFiles,
+    onOpenFile,
+    onRevealFile,
   }: {
     table: (typeof snapshot)["tables"][number]
     onCellEdit: (
@@ -221,6 +243,10 @@ vi.mock("./base-grid", () => ({
     onSelectedRowsChange: (
       ranges: Array<{ startIndex: number; endIndex: number }>
     ) => void
+    onImportFiles?: () => Promise<string[]>
+    onImportDroppedFiles?: (files: File[]) => Promise<string[]>
+    onOpenFile?: (path: string) => void
+    onRevealFile?: (path: string) => Promise<void> | void
   }) => {
     const row = { _id: "row_1", title: "Write RFC", status: "todo" }
     const title = table.fields.find(
@@ -248,6 +274,32 @@ vi.mock("./base-grid", () => ({
           onClick={() => onSelectedRowsChange([{ startIndex: 0, endIndex: 1 }])}
         >
           Select row
+        </button>
+        <button type="button" onClick={() => void onImportFiles?.()}>
+          Import attachments
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void onImportDroppedFiles?.([
+              {
+                name: "cover.png",
+                type: "image/png",
+                arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+              } as File,
+            ])
+          }
+        >
+          Drop attachment
+        </button>
+        <button type="button" onClick={() => onOpenFile?.("assets/report.pdf")}>
+          Open attachment
+        </button>
+        <button
+          type="button"
+          onClick={() => void onRevealFile?.("assets/report.pdf")}
+        >
+          Reveal attachment
         </button>
       </div>
     )
@@ -410,6 +462,12 @@ describe("SpaceBaseEditor", () => {
     duplicateViewMock.mockReset()
     deleteViewMock.mockReset()
     reorderViewsMock.mockReset()
+    listFilesMock.mockReset()
+    createDirectoryMock.mockReset()
+    createBinaryMock.mockReset()
+    importFilesMock.mockReset()
+    revealFileMock.mockReset()
+    openTabMock.mockReset()
     insertRowMock.mockReset()
     updateRowMock.mockReset()
     deleteRowRangesMock.mockReset()
@@ -432,6 +490,15 @@ describe("SpaceBaseEditor", () => {
     duplicateViewMock.mockResolvedValue(snapshot)
     deleteViewMock.mockResolvedValue(snapshot)
     reorderViewsMock.mockResolvedValue(snapshot)
+    listFilesMock.mockResolvedValue([])
+    createDirectoryMock.mockResolvedValue({})
+    createBinaryMock.mockResolvedValue({})
+    importFilesMock.mockResolvedValue({
+      canceled: true,
+      imported: [],
+      errors: [],
+    })
+    revealFileMock.mockResolvedValue({ success: true })
     insertRowMock.mockResolvedValue({
       tableId: "tasks",
       row: { _id: "row_2", title: "Untitled", status: null },
@@ -584,6 +651,64 @@ describe("SpaceBaseEditor", () => {
       "tasks",
       ["view_tasks"]
     )
+  })
+
+  it("imports, opens, and reveals Base attachments as Space files", async () => {
+    importFilesMock.mockResolvedValue({
+      canceled: false,
+      imported: [
+        {
+          name: "report.pdf",
+          path: "assets/report.pdf",
+          parentPath: "assets",
+          kind: "file",
+          size: 10,
+          mtimeMs: 1,
+        },
+      ],
+      errors: [],
+    })
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Import attachments")
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(listFilesMock).toHaveBeenCalledWith("assets")
+    expect(importFilesMock).toHaveBeenCalledWith("assets")
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Drop attachment")
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(createBinaryMock).toHaveBeenCalledWith(
+      "assets/cover.png",
+      expect.any(Uint8Array)
+    )
+
+    act(() => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Open attachment")
+        ?.click()
+    })
+    expect(openTabMock).toHaveBeenCalledWith(
+      "/space-file#assets%2Freport.pdf",
+      "report.pdf"
+    )
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Reveal attachment")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(revealFileMock).toHaveBeenCalledWith("assets/report.pdf")
   })
 
   it("renames and deletes tables and fields through the structure menu", async () => {
