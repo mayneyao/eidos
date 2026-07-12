@@ -334,6 +334,13 @@ describe("Eidos Base files", () => {
       computed_label: "SHIP MIGRATION",
       _created_time: "2025-01-02 03:04:05",
     })
+    expect(
+      base.insertImportedRows("tasks", [
+        { _id: "legacy-row-2", title: "Second" },
+        { _id: "legacy-row-3", title: "Third" },
+      ])
+    ).toHaveLength(2)
+    expect(base.countRows("tasks")).toBe(3)
     expect(base.listFields("tasks")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

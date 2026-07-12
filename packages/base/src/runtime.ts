@@ -817,6 +817,16 @@ export class BaseRuntime {
   }
 
   insertImportedRow(tableId: string, row: BaseRow): BaseRow {
+    const record = this.insertImportedRows(tableId, [row])[0]
+    const table = this.getTable(tableId)
+    return this.connection.get<BaseRow>(
+      `SELECT * FROM ${quoteIdentifier(table.rawTableName)} WHERE _id = ?`,
+      [sqliteParameter(record._id)]
+    )!
+  }
+
+  insertImportedRows(tableId: string, rows: BaseRow[]): BaseRow[] {
+    if (rows.length === 0) return []
     const table = this.getTable(tableId)
     const writableColumns = new Set(
       this.connection
@@ -826,30 +836,31 @@ export class BaseRuntime {
         .filter((column) => column.hidden === 0)
         .map((column) => column.name)
     )
-    const record: BaseRow = {
+    const records: BaseRow[] = rows.map((row) => ({
       ...row,
       _id: row._id ?? createBaseId("row"),
-    }
-    const columns = Object.keys(record)
-    for (const column of columns) {
-      if (!writableColumns.has(column)) {
-        throw new BaseError(
-          "field-not-found",
-          `Base field cannot be imported: ${column}`
+    }))
+    this.connection.transaction(() => {
+      for (const record of records) {
+        const columns = Object.keys(record)
+        for (const column of columns) {
+          if (!writableColumns.has(column)) {
+            throw new BaseError(
+              "field-not-found",
+              `Base field cannot be imported: ${column}`
+            )
+          }
+        }
+        this.connection.run(
+          `INSERT INTO ${quoteIdentifier(table.rawTableName)}
+            (${columns.map(quoteIdentifier).join(", ")})
+           VALUES (${columns.map(() => "?").join(", ")})`,
+          columns.map((column) => sqliteParameter(record[column]))
         )
       }
-    }
-    this.connection.run(
-      `INSERT INTO ${quoteIdentifier(table.rawTableName)}
-        (${columns.map(quoteIdentifier).join(", ")})
-       VALUES (${columns.map(() => "?").join(", ")})`,
-      columns.map((column) => sqliteParameter(record[column]))
-    )
+    })
     setBaseMetadata(this.connection, {})
-    return this.connection.get<BaseRow>(
-      `SELECT * FROM ${quoteIdentifier(table.rawTableName)} WHERE _id = ?`,
-      [sqliteParameter(record._id)]
-    )!
+    return records
   }
 
   updateRow(tableId: string, rowId: string, changes: BaseRow): BaseRow {

@@ -590,7 +590,7 @@ export async function exportLegacySpace(
           offset,
           batchSize
         )
-        for (const row of rows) {
+        const rewrittenRows = rows.map((row) => {
           const rewritten = { ...row }
           for (const columnName of fileColumns) {
             rewritten[columnName] = rewriteFileValue(
@@ -598,9 +598,11 @@ export async function exportLegacySpace(
               assetLookup
             )
           }
-          baseRuntime.insertImportedRow(sourceTable.id, rewritten)
-          exportedRowCount += 1
-        }
+          return rewritten
+        })
+        baseRuntime.insertImportedRows(sourceTable.id, rewrittenRows)
+        exportedRowCount += rewrittenRows.length
+        await new Promise<void>((resolve) => setImmediate(resolve))
       }
       emitProgress(options, {
         phase: "tables",
