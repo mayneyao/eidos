@@ -10,6 +10,11 @@
   --eidos-md-selection: var(--accent, #e9e7e1);
   --eidos-md-link: var(--primary, #345f9d);
   --eidos-md-focus: var(--ring, #6c8bc3);
+  --eidos-md-code-comment: #7a8175;
+  --eidos-md-code-keyword: #8554a1;
+  --eidos-md-code-number: #b45f3a;
+  --eidos-md-code-string: #427a53;
+  --eidos-md-code-function: #356c9b;
   color: var(--eidos-md-foreground);
   font-family: var(--eidos-md-font);
   font-size: 16px;
@@ -272,7 +277,85 @@
   max-width: 100%;
   overflow-x: auto;
   padding: 0.82rem 0.95rem;
+  position: relative;
+  tab-size: 2;
   white-space: pre;
+}
+
+.eidos-md-code-block[data-gutter] {
+  padding-left: 3.75rem;
+}
+
+.eidos-md-code-block[data-gutter]::before {
+  border-right: 1px solid
+    color-mix(in srgb, var(--eidos-md-border) 72%, transparent);
+  color: color-mix(in srgb, var(--eidos-md-muted) 70%, transparent);
+  content: attr(data-gutter);
+  inset: 0.82rem auto 0.82rem 0;
+  min-width: 2.8rem;
+  padding-right: 0.7rem;
+  pointer-events: none;
+  position: absolute;
+  text-align: right;
+  user-select: none;
+  white-space: pre;
+}
+
+.eidos-md-code-block[data-language] {
+  padding-top: 2.1rem;
+}
+
+.eidos-md-code-block[data-language]::after {
+  color: var(--eidos-md-muted);
+  content: attr(data-language);
+  font-family: var(--eidos-md-font);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  position: absolute;
+  right: 0.75rem;
+  text-transform: uppercase;
+  top: 0.55rem;
+  user-select: none;
+}
+
+.eidos-md-token-comment,
+.eidos-md-token-muted {
+  color: var(--eidos-md-code-comment);
+}
+
+.eidos-md-token-keyword,
+.eidos-md-token-builtin,
+.eidos-md-token-class {
+  color: var(--eidos-md-code-keyword);
+}
+
+.eidos-md-token-number {
+  color: var(--eidos-md-code-number);
+}
+
+.eidos-md-token-string,
+.eidos-md-token-regex,
+.eidos-md-token-inserted {
+  color: var(--eidos-md-code-string);
+}
+
+.eidos-md-token-function,
+.eidos-md-token-property,
+.eidos-md-token-variable {
+  color: var(--eidos-md-code-function);
+}
+
+.eidos-md-token-tag,
+.eidos-md-token-selector,
+.eidos-md-token-link,
+.eidos-md-token-operator {
+  color: var(--eidos-md-link);
+}
+
+.eidos-md-token-deleted {
+  color: var(--destructive, #bd3d3d);
+  text-decoration: line-through;
 }
 
 .eidos-md-quote {

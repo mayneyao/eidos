@@ -829,6 +829,38 @@ describe("MarkdownEditor", () => {
     )
   })
 
+  it("highlights labeled fenced code without changing its Markdown", async () => {
+    const ref = createRef<MarkdownEditorHandle>()
+    const source = "```js\nconst answer = 42\n```"
+    const container = render(<MarkdownEditor ref={ref} defaultValue={source} />)
+    await settle()
+    await settle()
+
+    const code = container.querySelector<HTMLElement>(".eidos-md-code-block")!
+    expect(code.dataset.language).toBe("js")
+    expect(code.dataset.gutter).toBe("1")
+    expect(code.querySelector(".eidos-md-token-keyword")).not.toBeNull()
+    expect(code.querySelector(".eidos-md-token-number")).not.toBeNull()
+    expect(ref.current?.getMarkdown()).toMatchObject({
+      markdown: source,
+      sourcePreserved: true,
+    })
+  })
+
+  it("does not invent a language for unlabeled fenced code", async () => {
+    const ref = createRef<MarkdownEditorHandle>()
+    const source = "```\nplain text\n```"
+    const container = render(<MarkdownEditor ref={ref} defaultValue={source} />)
+    await settle()
+
+    const code = container.querySelector<HTMLElement>(".eidos-md-code-block")!
+    expect(code.hasAttribute("data-language")).toBe(false)
+    expect(ref.current?.getMarkdown()).toMatchObject({
+      markdown: source,
+      sourcePreserved: true,
+    })
+  })
+
   it("pastes recognizable Markdown as document blocks", async () => {
     const container = render(<MarkdownEditor defaultValue="" />)
     await settle()

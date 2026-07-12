@@ -1,4 +1,9 @@
 import { configExtension, HorizontalRuleExtension } from "@lexical/extension"
+import {
+  CodePrismExtension,
+  PrismTokenizer,
+  type Tokenizer,
+} from "@lexical/code-prism"
 import { $isAutoLinkNode, AutoLinkNode } from "@lexical/link"
 import {
   MdastCommonMarkExtension,
@@ -32,6 +37,11 @@ import {
 
 const WIKI_LINK_SCHEME = "eidos-wiki:"
 const WIKI_EMBED_SCHEME = "eidos-wiki-embed:"
+const MARKDOWN_PRISM_TOKENIZER: Tokenizer = {
+  ...PrismTokenizer,
+  // An unlabeled fence must stay unlabeled after a Markdown round-trip.
+  defaultLanguage: null,
+}
 
 const $importImage: MdastImportHandler<Image> = (node) => {
   const wiki = decodeWikiPlaceholder(node.url)
@@ -132,6 +142,9 @@ export const EIDOS_MARKDOWN_EDITOR_EXTENSION =
       EIDOS_MARKDOWN_DOCUMENT_EXTENSION,
       MdastShortcutsExtension,
       HorizontalRuleExtension,
+      /* @__PURE__ */ configExtension(CodePrismExtension, {
+        tokenizer: MARKDOWN_PRISM_TOKENIZER,
+      }),
     ],
     name: "@eidos.space/markdown-editor/Editor",
   })

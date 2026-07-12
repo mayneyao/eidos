@@ -52,6 +52,7 @@
   },
   "peerDependencies": {
     "@lexical/code": "0.47.0",
+    "@lexical/code-prism": "0.47.0",
     "@lexical/extension": "0.47.0",
     "@lexical/link": "0.47.0",
     "@lexical/list": "0.47.0",
@@ -67,6 +68,7 @@
   },
   "devDependencies": {
     "@lexical/code": "0.47.0",
+    "@lexical/code-prism": "0.47.0",
     "@lexical/extension": "0.47.0",
     "@lexical/link": "0.47.0",
     "@lexical/list": "0.47.0",

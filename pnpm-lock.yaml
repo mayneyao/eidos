@@ -1304,6 +1304,9 @@ importers:
       '@lexical/code':
         specifier: 0.47.0
         version: 0.47.0(typescript@5.8.3)
+      '@lexical/code-prism':
+        specifier: 0.47.0
+        version: 0.47.0(typescript@5.8.3)
       '@lexical/extension':
         specifier: 0.47.0
         version: 0.47.0(typescript@5.8.3)
