@@ -22,7 +22,7 @@ import {
  * This service acts as a backward-compatible API for existing code.
  * New code should use the specific services directly.
  */
-@IpcInjectable("browser.view")
+@IpcInjectable("browser.view", { exposeMode: "decorated" })
 export class BrowserService extends IpcServiceBase {
   constructor(
     @Inject(WindowService) private windowService: WindowService,

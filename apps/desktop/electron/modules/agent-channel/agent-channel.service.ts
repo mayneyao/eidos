@@ -6,7 +6,7 @@ import { SpaceRegistry } from "../space-management/space-management.module"
 import { DataSpaceManager } from "../data-space"
 import { LoggerService } from "../logger/logger.module"
 
-@IpcInjectable("agent-channel")
+@IpcInjectable("agent-channel", { exposeMode: "decorated" })
 export class AgentChannelService extends IpcServiceBase {
   private channelService: ChannelService | null = null
 

@@ -5,13 +5,13 @@
 import { app, ipcMain } from "electron"
 
 import { Injectable, Inject, IpcInjectable } from "../../common/di"
-import { IpcServiceBase } from "@eidos.space/electron-ipc"
+import { IpcMethod, IpcServiceBase } from "@eidos.space/electron-ipc"
 import { UpdaterService } from "../updater/updater.service"
 import { DataSpaceManager } from "../data-space"
 import { GlobalShortcutsService } from "./global-shortcuts.service"
 import { WindowService } from "./window.service"
 
-@IpcInjectable("app-lifecycle")
+@IpcInjectable("app-lifecycle", { exposeMode: "decorated" })
 export class AppLifecycleService extends IpcServiceBase {
   private forceQuit = false
   private cleanupCallbacks: Array<() => void> = []
@@ -108,6 +108,7 @@ export class AppLifecycleService extends IpcServiceBase {
   /**
    * Check for available updates
    */
+  @IpcMethod()
   checkForUpdates(): void {
     this.updaterService.checkForUpdatesManually()
   }
@@ -115,6 +116,7 @@ export class AppLifecycleService extends IpcServiceBase {
   /**
    * Quit and install updates
    */
+  @IpcMethod()
   quitAndInstall(): void {
     this.forceQuit = true
     this.updaterService.quitAndInstall()

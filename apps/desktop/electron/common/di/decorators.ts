@@ -7,11 +7,7 @@
 
 import { inject, injectable } from "inversify"
 import "reflect-metadata"
-import {
-  IpcService,
-  IpcServiceBase,
-  type IpcServiceOptions,
-} from "@eidos.space/electron-ipc"
+import { IpcService, type IpcServiceOptions } from "@eidos.space/electron-ipc"
 
 // Re-export inversify decorators
 export { inject as Inject, injectable as Injectable }
@@ -90,20 +86,6 @@ export function IpcInjectable(
     // Apply both decorators
     injectable()(target)
     IpcService(namespace, options)(target)
-
-    // Ensure it extends IpcServiceBase
-    const originalRegister = target.prototype.register
-    target.prototype.register = function () {
-      if (this._registered) return
-
-      // Call original register which handles IPC binding
-      if (originalRegister) {
-        originalRegister.call(this)
-      } else {
-        // Fallback to base class registration
-        IpcServiceBase.prototype.register.call(this)
-      }
-    }
 
     return target
   }

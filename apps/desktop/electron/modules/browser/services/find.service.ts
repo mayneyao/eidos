@@ -29,7 +29,7 @@ const MAIN_WINDOW_VIEW_ID = "__main__"
 /**
  * Find Service - Provides find-in-page functionality for BrowserViews and the main window
  */
-@IpcInjectable("browser.find")
+@IpcInjectable("browser.find", { exposeMode: "decorated" })
 export class FindService extends IpcServiceBase {
   constructor(
     @Inject(ViewManagerService) private viewManager: ViewManagerService,

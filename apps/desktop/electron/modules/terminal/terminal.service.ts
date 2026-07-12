@@ -78,15 +78,15 @@ export class TerminalService extends IpcServiceBase {
     super()
     this.logger = loggerService.child("Terminal")
     this.logger.info("TerminalService constructor starting...")
-    this.defaultShell = this.detectDefaultShell()
+    this.defaultShell = this._detectDefaultShell()
     this.logger.info("Default shell detected:", this.defaultShell)
-    this.initialize()
+    this._initialize()
   }
 
-  private async initialize(): Promise<void> {
+  private async _initialize(): Promise<void> {
     try {
       this.logger.info("Initializing terminal service...")
-      await this.getPty()
+      await this._getPty()
       this.isReady = true
       this.logger.info("Terminal service initialized successfully")
     } catch (error) {
@@ -95,7 +95,7 @@ export class TerminalService extends IpcServiceBase {
     }
   }
 
-  private async getPty(): Promise<typeof NodePty> {
+  private async _getPty(): Promise<typeof NodePty> {
     if (!ptyModule) {
       try {
         this.logger.info("Loading node-pty module...")
@@ -111,7 +111,7 @@ export class TerminalService extends IpcServiceBase {
     return ptyModule
   }
 
-  private detectDefaultShell(): string {
+  private _detectDefaultShell(): string {
     const platform = os.platform()
     this.logger.info("Detecting shell for platform:", platform)
 
@@ -150,7 +150,7 @@ export class TerminalService extends IpcServiceBase {
     return "/bin/sh"
   }
 
-  private findExecutable(command: string): string | null {
+  private _findExecutable(command: string): string | null {
     if (path.isAbsolute(command)) {
       return fs.existsSync(command) ? command : null
     }
@@ -180,7 +180,7 @@ export class TerminalService extends IpcServiceBase {
     return null
   }
 
-  private generateSessionId(): string {
+  private _generateSessionId(): string {
     return `term_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   }
 
@@ -197,7 +197,7 @@ export class TerminalService extends IpcServiceBase {
     )
 
     try {
-      const pty = await this.getPty()
+      const pty = await this._getPty()
 
       if (!this.isReady) {
         this.logger.error("Service not ready")
@@ -207,7 +207,7 @@ export class TerminalService extends IpcServiceBase {
         }
       }
 
-      const sessionId = this.generateSessionId()
+      const sessionId = this._generateSessionId()
       this.logger.info("Generated session ID:", sessionId)
 
       let shell = options.shell || this.defaultShell
@@ -218,7 +218,7 @@ export class TerminalService extends IpcServiceBase {
       this.logger.info("Session config:", { shell, cwd, cols, rows })
 
       // Resolve shell path if it's just a command name
-      const resolvedShell = this.findExecutable(shell)
+      const resolvedShell = this._findExecutable(shell)
       if (!resolvedShell) {
         this.logger.error("Shell does not exist:", shell)
         return {

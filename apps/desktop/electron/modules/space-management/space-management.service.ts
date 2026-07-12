@@ -1276,7 +1276,7 @@ export class SpaceManagementService extends IpcServiceBase {
         if (!reloadedDataSpace) {
           throw new Error("Failed to reload data space after disabling history")
         }
-        this.removeGraftRepository(space.path)
+        this._removeGraftRepository(space.path)
       }
       return { success: true, reloadRequired: false }
     } catch (error: any) {
@@ -1287,7 +1287,7 @@ export class SpaceManagementService extends IpcServiceBase {
     }
   }
 
-  private removeGraftRepository(spacePath: string): void {
+  private _removeGraftRepository(spacePath: string): void {
     const graftPath = path.join(spacePath, ".eidos", ".graft")
     if (!fs.existsSync(graftPath)) {
       return

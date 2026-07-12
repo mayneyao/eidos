@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import fs from "node:fs"
 import path from "node:path"
-import { IpcServiceBase } from "@eidos.space/electron-ipc"
+import { IpcMethod, IpcServiceBase } from "@eidos.space/electron-ipc"
 import { planLegacySpaceMigration } from "@eidos.space/legacy-space-migration"
 import {
   exportLegacySpace,
@@ -30,7 +30,7 @@ interface StoredPlan extends SpaceMigrationPlanHandle {
 
 const PLAN_TTL_MS = 30 * 60 * 1000
 
-@IpcInjectable("space-migration")
+@IpcInjectable("space-migration", { exposeMode: "decorated" })
 export class SpaceMigrationService extends IpcServiceBase {
   private readonly plans = new Map<string, StoredPlan>()
 
@@ -42,6 +42,7 @@ export class SpaceMigrationService extends IpcServiceBase {
     super()
   }
 
+  @IpcMethod()
   createPlan(spaceId: string, targetRoot: string): SpaceMigrationPlanHandle {
     this.prunePlans()
     const space = this.registry.getSpace(spaceId)
@@ -73,6 +74,7 @@ export class SpaceMigrationService extends IpcServiceBase {
     return this.publicHandle(stored)
   }
 
+  @IpcMethod()
   async executePlan(planId: string): Promise<LegacySpaceMigrationResult> {
     const stored = this.plans.get(planId)
     if (!stored || stored.createdAt < Date.now() - PLAN_TTL_MS) {
@@ -97,6 +99,7 @@ export class SpaceMigrationService extends IpcServiceBase {
     }
   }
 
+  @IpcMethod()
   discardPlan(planId: string): boolean {
     const stored = this.plans.get(planId)
     if (!stored || stored.running) return false
