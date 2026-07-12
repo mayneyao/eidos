@@ -19,12 +19,19 @@ contextual Codex-style Settings sidebar. Indexed quick open and compact
 Outline/Backlinks sections are integrated without adding document chrome. The
 current Space switcher remains at the bottom of the sidebar.
 
-The `.base` route now uses the production Grid interaction layer with paged
-visible-region loading, optimistic cell edits, persisted column layout, and
-compact range-based batch row deletion. Working Changes and History provide a
-Base-aware table/row inspector. A compact structure menu exposes table/field
-rename and delete actions plus select/multi-select option editing only when
-requested.
+The `.base` route now uses the production Grid foundation with paged
+visible-region loading, optimistic cell edits, persisted column layout,
+copy/paste, undo/redo, field visibility, header actions, and compact range-based
+batch row deletion. Base creation is named, template-aware, and publishes the
+SQLite file atomically. Working Changes and History provide a Base-aware
+table/row inspector.
+
+Base is still in delivery closure, not product acceptance. Search, sort,
+filter, richer file/relation/formula fields, multi-view behavior, accessible
+table semantics, and a complete native create/edit/restart/version/restore run
+remain. Routine Base configuration uses inline controls, header menus, and
+anchored popovers. Modal dialogs are reserved for destructive confirmation or
+other decisions that must interrupt the workflow.
 
 File-Space Settings separates General, Files/Obsidian, Versioning, and derived
 Indexes controls. Legacy-Space Settings also provides server-owned migration
@@ -158,6 +165,16 @@ Expected controls:
 - import CSV,
 - properties/settings,
 - open file location.
+
+Interaction rules:
+
+- adding and configuring fields happens from the grid header or adjacent
+  controls,
+- table/view configuration uses anchored menus and progressive disclosure,
+- routine editing must not open centered modal dialogs,
+- destructive deletion may require confirmation,
+- keyboard, clipboard, range selection, and undo/redo should match the existing
+  Eidos table unless the Base file model requires an explicit difference.
 
 Base internals should not appear as separate Space files.
 

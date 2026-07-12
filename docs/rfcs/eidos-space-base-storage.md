@@ -19,12 +19,13 @@ Spaces. Read-only audits can plan every one of the 29 registered legacy Spaces
 whose source database still exists, and representative small, medium, and
 1.1-million-row exports pass end-to-end validation. Persistent Graft remote
 sync/conflict also passes isolated and native Desktop two-Space acceptance;
-file-based extensions remain.
+Base product delivery and file-based extensions remain.
 
 The phase order in this document is therefore descriptive rather than the
 current execution order. The completed sequence is Markdown Space, local Graft,
 standalone Base runtime, migration, then native remote Graft acceptance.
-File-based extensions are next.
+Base delivery closure is next. It must pass atomic creation and the native
+create/edit/restart/version/restore lifecycle before file-based extensions.
 
 ## Summary
 

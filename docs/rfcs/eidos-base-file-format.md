@@ -17,11 +17,14 @@ entry point.
 Desktop file Spaces can create and open `.base` files. The initial HTML table
 has been replaced by a Base adapter over the production Glide DataEditor
 interaction layer, restoring keyboard navigation, rectangular selection,
-copy/paste, fill handles, column reordering, and column resizing without
-coupling the Base runtime to `@eidos.space/core`. Users can create, rename, and
+copy/paste, scoped undo/redo, fill handles, column reordering, column resizing,
+field visibility, header actions, and the existing date/rating cells without
+coupling the Base runtime to `@eidos.space/core`. Desktop initializes a hidden
+temporary Base and atomically renames it into place, so interrupted creation
+cannot publish a zero-byte canonical `.base`. Users can create, rename, and
 delete tables and fields, edit select/multi-select choices, and persist grid
-order/width state inside `eidos__views` in the Base file. Structural deletes
-also clean dependent references and view layout metadata transactionally.
+order/width/visibility state inside `eidos__views` in the Base file. Structural
+deletes also clean dependent references and view layout metadata transactionally.
 
 Graft row diffs are preserved through the Desktop boundary and shown as compact
 table/column/row changes in both the working Changes tab and historical version
