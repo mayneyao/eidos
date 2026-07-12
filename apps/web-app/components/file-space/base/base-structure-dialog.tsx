@@ -1,5 +1,7 @@
 import { useEffect, useId, useState, type FormEvent } from "react"
 import type {
+  BaseFieldInfo,
+  BaseFormulaDisplayType,
   CreateBaseFieldInput,
   CreateBaseTableInput,
   BaseTableInfo,
@@ -8,6 +10,7 @@ import type {
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -32,6 +35,19 @@ const FIELD_TYPES: Array<{ value: FieldType; label: string }> = [
   { value: "file", label: "File" },
   { value: "rating", label: "Rating" },
   { value: "link", label: "Relation" },
+  { value: "formula", label: "Formula" },
+]
+
+const FORMULA_DISPLAY_TYPES: Array<{
+  value: BaseFormulaDisplayType
+  label: string
+}> = [
+  { value: "text", label: "Text" },
+  { value: "number", label: "Number" },
+  { value: "checkbox", label: "Checkbox" },
+  { value: "date", label: "Date" },
+  { value: "datetime", label: "Date & time" },
+  { value: "url", label: "URL" },
 ]
 
 function columnNameFor(label: string): string {
@@ -62,6 +78,7 @@ export function BaseStructureDialog({
   onCreateTable,
   onCreateField,
   tables = EMPTY_TABLES,
+  fields = [],
   activeTableId,
 }: {
   mode: "table" | "field"
@@ -70,12 +87,18 @@ export function BaseStructureDialog({
   onCreateTable: (table: CreateBaseTableInput) => Promise<void> | void
   onCreateField: (field: CreateBaseFieldInput) => Promise<void> | void
   tables?: BaseTableInfo[]
+  fields?: BaseFieldInfo[]
   activeTableId?: string | null
 }) {
   const [name, setName] = useState("")
   const [fieldType, setFieldType] = useState<FieldType>("text")
   const [options, setOptions] = useState("")
   const [targetTableId, setTargetTableId] = useState("")
+  const [formula, setFormula] = useState("")
+  const [formulaDisplayType, setFormulaDisplayType] =
+    useState<BaseFormulaDisplayType>("text")
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const nameId = useId()
   const optionsId = useId()
 
@@ -84,6 +107,10 @@ export function BaseStructureDialog({
     setName("")
     setFieldType("text")
     setOptions("")
+    setFormula("")
+    setFormulaDisplayType("text")
+    setSubmitting(false)
+    setError(null)
     setTargetTableId(
       tables.find((table) => table.id !== activeTableId)?.id ??
         tables[0]?.id ??
@@ -92,7 +119,7 @@ export function BaseStructureDialog({
   }, [activeTableId, mode, open, tables])
 
   const hasOptions = fieldType === "select" || fieldType === "multi-select"
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
     const trimmedName = name.trim()
     if (!trimmedName) return
@@ -109,6 +136,17 @@ export function BaseStructureDialog({
           targetTableId,
           targetField: "title",
           multiple: true,
+        },
+      })
+    } else if (fieldType === "formula") {
+      if (!formula.trim()) return
+      creation = onCreateField({
+        name: trimmedName,
+        columnName: columnNameFor(trimmedName),
+        type: "formula",
+        property: {
+          formula: formula.trim(),
+          displayType: formulaDisplayType,
         },
       })
     } else {
@@ -136,8 +174,20 @@ export function BaseStructureDialog({
           : {}),
       })
     }
-    void Promise.resolve(creation).catch(() => undefined)
-    onOpenChange(false)
+    setSubmitting(true)
+    setError(null)
+    try {
+      await creation
+      onOpenChange(false)
+    } catch (creationError) {
+      setError(
+        creationError instanceof Error
+          ? creationError.message
+          : "Unable to create Base structure"
+      )
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -156,7 +206,7 @@ export function BaseStructureDialog({
               : "Add a field to the active table."}
           </p>
         </div>
-        <form onSubmit={submit}>
+        <form onSubmit={(event) => void submit(event)}>
           <div className="grid gap-4 px-4 py-3">
             <label
               className="grid gap-1.5 text-xs font-medium"
@@ -229,11 +279,83 @@ export function BaseStructureDialog({
                 </span>
               </label>
             ) : null}
+            {mode === "field" && fieldType === "formula" ? (
+              <div className="grid gap-3">
+                <label className="grid gap-1.5 text-xs font-medium">
+                  Formula
+                  <Textarea
+                    value={formula}
+                    autoFocus
+                    spellCheck={false}
+                    className="min-h-20 resize-y font-mono text-xs leading-5"
+                    placeholder='upper(title) or prop("Due date")'
+                    onChange={(event) => {
+                      setFormula(event.target.value)
+                      setError(null)
+                    }}
+                  />
+                </label>
+                <div>
+                  <p className="mb-1.5 text-xs font-medium">Insert field</p>
+                  <div className="flex max-h-20 flex-wrap gap-1 overflow-y-auto">
+                    {fields
+                      .filter((field) => !field.isHidden)
+                      .map((field) => (
+                        <button
+                          key={field.tableColumnName}
+                          type="button"
+                          className="h-6 max-w-36 truncate rounded-sm border px-2 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                          title={`${field.name} · ${field.tableColumnName}`}
+                          onClick={() =>
+                            setFormula((current) =>
+                              current
+                                ? `${current} ${field.tableColumnName}`
+                                : field.tableColumnName
+                            )
+                          }
+                        >
+                          {field.name}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+                <label className="grid gap-1.5 text-xs font-medium">
+                  Display as
+                  <Select
+                    value={formulaDisplayType}
+                    onValueChange={(value) =>
+                      setFormulaDisplayType(value as BaseFormulaDisplayType)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FORMULA_DISPLAY_TYPES.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <p className="text-[11px] leading-4 text-muted-foreground">
+                  Uses SQLite expressions. Formula fields update immediately
+                  when their source values change.
+                </p>
+              </div>
+            ) : null}
+            {error ? (
+              <p className="text-xs text-destructive" role="alert">
+                {error}
+              </p>
+            ) : null}
           </div>
           <div className="flex items-center justify-end gap-2 border-t px-4 py-2.5">
             <Button
               type="button"
               variant="ghost"
+              disabled={submitting}
               onClick={() => onOpenChange(false)}
             >
               Cancel
@@ -242,10 +364,12 @@ export function BaseStructureDialog({
               type="submit"
               disabled={
                 !name.trim() ||
-                (mode === "field" && fieldType === "link" && !targetTableId)
+                submitting ||
+                (mode === "field" && fieldType === "link" && !targetTableId) ||
+                (mode === "field" && fieldType === "formula" && !formula.trim())
               }
             >
-              Create
+              {submitting ? "Creating…" : "Create"}
             </Button>
           </div>
         </form>

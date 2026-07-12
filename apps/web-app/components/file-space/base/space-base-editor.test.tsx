@@ -182,6 +182,26 @@ vi.mock("./base-field-options-dialog", () => ({
     ) : null,
 }))
 
+vi.mock("./base-formula-editor", () => ({
+  BaseFormulaEditor: ({
+    open,
+    onSave,
+  }: {
+    open: boolean
+    onSave: (property: Record<string, unknown>) => void
+  }) =>
+    open ? (
+      <button
+        type="button"
+        onClick={() =>
+          onSave({ formula: "price * quantity", displayType: "number" })
+        }
+      >
+        Confirm formula
+      </button>
+    ) : null,
+}))
+
 vi.mock("./base-rename-dialog", () => ({
   BaseRenameDialog: ({
     name,
@@ -234,6 +254,7 @@ vi.mock("./base-grid", () => ({
     onOpenFile,
     onRevealFile,
     onSearchRelation,
+    onEditFormula,
   }: {
     table: (typeof snapshot)["tables"][number]
     onCellEdit: (
@@ -252,6 +273,9 @@ vi.mock("./base-grid", () => ({
       field: (typeof snapshot)["tables"][number]["fields"][number],
       query: string
     ) => Promise<Array<{ id: string; title: string }>>
+    onEditFormula?: (
+      field: (typeof snapshot)["tables"][number]["fields"][number]
+    ) => void
   }) => {
     const row = { _id: "row_1", title: "Write RFC", status: "todo" }
     const title = table.fields.find(
@@ -328,6 +352,22 @@ vi.mock("./base-grid", () => ({
           }
         >
           Search relation
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onEditFormula?.({
+              ...title!,
+              name: "Total",
+              type: "formula",
+              tableColumnName: "total",
+              valueKind: "derived",
+              isDerived: true,
+              property: { formula: "price", displayType: "number" },
+            })
+          }
+        >
+          Edit formula
         </button>
       </div>
     )
@@ -761,6 +801,29 @@ describe("SpaceBaseEditor", () => {
       0,
       50,
       { search: "Ada" }
+    )
+  })
+
+  it("updates formula metadata and reloads calculated rows", async () => {
+    await renderEditor()
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit formula")
+        ?.click()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Confirm formula")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(updateFieldMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      "total",
+      {
+        property: { formula: "price * quantity", displayType: "number" },
+      }
     )
   })
 

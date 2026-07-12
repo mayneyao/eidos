@@ -45,6 +45,9 @@
       "optional": true
     }
   },
+  "dependencies": {
+    "pgsql-ast-parser": "^11.2.0"
+  },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.4.1",

@@ -124,6 +124,12 @@ try {
       multiple: true,
     },
   })
+  base.addField("tasks", {
+    name: "Score",
+    columnName: "score",
+    type: "formula",
+    property: { formula: "priority * 10", displayType: "number" },
+  })
   const first = base.insertRow("tasks", {
     title: "Prove Base diff",
     done: false,
@@ -135,6 +141,7 @@ try {
   })
   assert.equal(first.attachment, '["assets/spec.pdf"]')
   assert.equal(first.owners, JSON.stringify([ada._id]))
+  assert.equal(first.score, 20)
   assert.equal(
     first.owners__display,
     JSON.stringify([{ id: ada._id, title: "Ada Lovelace" }])
@@ -224,8 +231,10 @@ try {
   const updated = openBaseFile(basePath)
   const linked = updated.updateRow("tasks", String(first._id), {
     done: true,
+    priority: 4,
     owners: JSON.stringify([ada._id, grace._id]),
   })
+  assert.equal(linked.score, 40)
   assert.equal(
     linked.owners__display,
     JSON.stringify([

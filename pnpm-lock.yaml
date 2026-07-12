@@ -1050,6 +1050,10 @@ importers:
         version: 5.8.3
 
   packages/base:
+    dependencies:
+      pgsql-ast-parser:
+        specifier: ^11.2.0
+        version: 11.2.0
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.13

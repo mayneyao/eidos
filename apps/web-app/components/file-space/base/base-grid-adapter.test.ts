@@ -160,6 +160,24 @@ describe("Base Grid adapter", () => {
     ).toBe('["row_ada","row_grace"]')
   })
 
+  it("renders formulas with their configured display type as readonly", () => {
+    const formula = {
+      ...field("formula", {
+        formula: "price * quantity",
+        displayType: "number",
+      }),
+      tableColumnName: "total",
+      valueKind: "derived" as const,
+      isDerived: true,
+    }
+    expect(baseValueToGridCell(formula, 120)).toMatchObject({
+      kind: GridCellKind.Number,
+      data: 120,
+      readonly: true,
+    })
+    expect(visibleBaseFields([formula])).toEqual([formula])
+  })
+
   it("applies per-view field visibility without changing Base schema", () => {
     expect(
       visibleBaseFields([field("text"), field("number")], ["number"]).map(

@@ -80,7 +80,7 @@ describe("Base row query", () => {
     expect(compiled.whereSql).toContain('priority" >= ?')
     expect(compiled.whereSql).toContain("',' || COALESCE")
     expect(compiled.orderSql).toBe(
-      'ORDER BY "priority" DESC, "title" COLLATE NOCASE ASC, rowid ASC'
+      'ORDER BY "priority" DESC, "title" COLLATE NOCASE ASC, "__base_rowid" ASC'
     )
     expect(compiled.params).toEqual([
       "%100\\%\\_ready%",

@@ -262,6 +262,105 @@ describe("Eidos Base files", () => {
     base.close()
   })
 
+  it("calculates chained formulas across edits, queries, and field lifecycle", () => {
+    const filePath = path.join(root, "formulas.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: {
+        id: "orders",
+        name: "Orders",
+        fields: [
+          { name: "Unit price", columnName: "unit_price", type: "number" },
+          { name: "Quantity", columnName: "quantity", type: "number" },
+        ],
+      },
+    })
+    expect(
+      base.addField("orders", {
+        name: "Total",
+        columnName: "total",
+        type: "formula",
+        property: {
+          formula: 'prop("Unit price") * quantity',
+          displayType: "number",
+        },
+      })
+    ).toMatchObject({
+      valueKind: "derived",
+      isDerived: true,
+      dependsOn: ["unit_price", "quantity"],
+    })
+    base.addField("orders", {
+      name: "With tax",
+      columnName: "with_tax",
+      type: "formula",
+      property: { formula: "total * 1.2", displayType: "number" },
+    })
+
+    const first = base.insertRow("orders", {
+      title: "Keyboard",
+      unit_price: 50,
+      quantity: 2,
+    })
+    const second = base.insertRow("orders", {
+      title: "Mouse",
+      unit_price: 25,
+      quantity: 1,
+    })
+    expect(first).toMatchObject({ total: 100, with_tax: 120 })
+    expect(second).toMatchObject({ total: 25, with_tax: 30 })
+    expect(
+      base
+        .getRowPage("orders", 0, 20, {
+          filter: {
+            type: "group",
+            conjunction: "and",
+            children: [
+              {
+                type: "rule",
+                field: "total",
+                operator: "greater-than",
+                value: 50,
+              },
+            ],
+          },
+          sorts: [{ field: "with_tax", direction: "desc" }],
+        })
+        .rows.map((row) => row.title)
+    ).toEqual(["Keyboard"])
+
+    expect(
+      base.updateRow("orders", String(first._id), { quantity: 3 })
+    ).toMatchObject({ total: 150, with_tax: 180 })
+    expect(
+      base.updateField("orders", "total", {
+        property: {
+          formula: "unit_price * quantity * 2",
+          displayType: "number",
+        },
+      })
+    ).toMatchObject({ dependsOn: ["unit_price", "quantity"] })
+    expect(base.listRows("orders")[0]).toMatchObject({
+      total: 300,
+      with_tax: 360,
+    })
+
+    expectBaseError(
+      () =>
+        base.updateField("orders", "total", {
+          property: { formula: "with_tax", displayType: "number" },
+        }),
+      "invalid-schema"
+    )
+    expectBaseError(
+      () => base.deleteField("orders", "unit_price"),
+      "formula-in-use"
+    )
+    expect(base.deleteField("orders", "with_tax")).toBe(true)
+    expect(base.deleteField("orders", "total")).toBe(true)
+    expect(base.deleteField("orders", "unit_price")).toBe(true)
+    base.close()
+  })
+
   it("persists the complete Grid view lifecycle independently per view", () => {
     const filePath = path.join(root, "views.base")
     const base = createBaseFile(filePath, {

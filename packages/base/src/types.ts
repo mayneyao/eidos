@@ -153,9 +153,32 @@ export interface CreateBaseRelationFieldInput {
   storageCodec?: "relation"
 }
 
+export type BaseFormulaDisplayType =
+  | "text"
+  | "number"
+  | "checkbox"
+  | "date"
+  | "datetime"
+  | "url"
+
+export interface BaseFormulaProperty extends Record<string, unknown> {
+  formula: string
+  displayType: BaseFormulaDisplayType
+  expression?: string
+}
+
+export interface CreateBaseFormulaFieldInput {
+  name: string
+  columnName: string
+  type: "formula"
+  property: BaseFormulaProperty
+  storageCodec?: "scalar"
+}
+
 export type CreateBaseFieldInput =
   | CreateBaseSourceFieldInput
   | CreateBaseRelationFieldInput
+  | CreateBaseFormulaFieldInput
 
 export interface BaseRelationValue {
   id: string

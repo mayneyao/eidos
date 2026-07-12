@@ -8,6 +8,7 @@ export type BaseErrorCode =
   | "protected-field"
   | "protected-view"
   | "relation-in-use"
+  | "formula-in-use"
   | "table-not-found"
   | "row-not-found"
   | "field-not-found"

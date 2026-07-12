@@ -22,7 +22,7 @@ import DataEditor, {
   type Item,
   type Rectangle,
 } from "@glideapps/glide-data-grid"
-import { ListRestart, Pencil, Plus, Trash2 } from "lucide-react"
+import { Calculator, ListRestart, Pencil, Plus, Trash2 } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 
 import { useCurrentTheme } from "@/apps/web-app/hooks/use-current-theme"
@@ -83,6 +83,7 @@ interface BaseGridProps {
   onAddField?: () => void
   onRenameField?: (field: BaseFieldInfo) => void
   onEditFieldOptions?: (field: BaseFieldInfo) => void
+  onEditFormula?: (field: BaseFieldInfo) => void
   onDeleteField?: (field: BaseFieldInfo) => void
   onViewUpdate?: (changes: UpdateBaseViewInput) => Promise<void> | void
   onError?: (error: unknown) => void
@@ -92,7 +93,14 @@ function sameFields(left: BaseFieldInfo[], right: BaseFieldInfo[]): boolean {
   return (
     left.length === right.length &&
     left.every(
-      (field, index) => field.tableColumnName === right[index]?.tableColumnName
+      (field, index) =>
+        field.tableColumnName === right[index]?.tableColumnName &&
+        field.name === right[index]?.name &&
+        field.type === right[index]?.type &&
+        field.valueKind === right[index]?.valueKind &&
+        field.isHidden === right[index]?.isHidden &&
+        JSON.stringify(field.property) ===
+          JSON.stringify(right[index]?.property)
     )
   )
 }
@@ -153,6 +161,7 @@ export function BaseGrid({
   onAddField,
   onRenameField,
   onEditFieldOptions,
+  onEditFormula,
   onDeleteField,
   onViewUpdate,
   onError,
@@ -662,6 +671,19 @@ export function BaseGrid({
                 >
                   <ListRestart className="h-3.5 w-3.5" />
                   Edit options
+                </button>
+              ) : null}
+              {fieldMenu.field.type === "formula" ? (
+                <button
+                  type="button"
+                  className="flex h-7 w-full items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-accent"
+                  onClick={() => {
+                    onEditFormula?.(fieldMenu.field)
+                    setFieldMenu(null)
+                  }}
+                >
+                  <Calculator className="h-3.5 w-3.5" />
+                  Edit formula
                 </button>
               ) : null}
               <div className="my-1 h-px bg-border" />

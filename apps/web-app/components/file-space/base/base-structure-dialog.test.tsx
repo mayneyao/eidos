@@ -10,11 +10,15 @@ import { BaseStructureDialog } from "./base-structure-dialog"
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
 
-function setInput(input: HTMLInputElement, value: string) {
-  Object.getOwnPropertyDescriptor(
-    HTMLInputElement.prototype,
-    "value"
-  )?.set?.call(input, value)
+function setInput(
+  input: HTMLInputElement | HTMLTextAreaElement,
+  value: string
+) {
+  const prototype =
+    input instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype
+  Object.getOwnPropertyDescriptor(prototype, "value")?.set?.call(input, value)
   input.dispatchEvent(new Event("input", { bubbles: true }))
 }
 
@@ -169,6 +173,54 @@ describe("BaseStructureDialog", () => {
         targetField: "title",
         multiple: true,
       },
+    })
+  })
+
+  it("creates a calculated formula field in the anchored field flow", async () => {
+    const onCreateField = vi.fn()
+    act(() =>
+      root.render(
+        <BaseStructureDialog
+          mode="field"
+          open
+          onOpenChange={vi.fn()}
+          onCreateTable={vi.fn()}
+          onCreateField={onCreateField}
+        />
+      )
+    )
+    const name = document.body.querySelector<HTMLInputElement>(
+      'input[placeholder="Status"]'
+    )
+    await act(async () => {
+      if (name) setInput(name, "Total")
+      document.body
+        .querySelector<HTMLButtonElement>('[role="combobox"]')
+        ?.click()
+    })
+    const formulaOption = [
+      ...document.body.querySelectorAll('[role="option"]'),
+    ].find((option) => option.textContent?.includes("Formula")) as
+      | HTMLElement
+      | undefined
+    await act(async () => formulaOption?.click())
+    const formula = document.body.querySelector<HTMLTextAreaElement>(
+      'textarea[placeholder^="upper"]'
+    )
+    await act(async () => {
+      if (formula) setInput(formula, "price * quantity")
+      document.body
+        .querySelector("form")
+        ?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true })
+        )
+      await Promise.resolve()
+    })
+    expect(onCreateField).toHaveBeenCalledWith({
+      name: "Total",
+      columnName: "total",
+      type: "formula",
+      property: { formula: "price * quantity", displayType: "text" },
     })
   })
 })

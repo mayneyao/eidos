@@ -129,6 +129,29 @@ export function baseValueToGridCell(
   readonly = false,
   row?: BaseRow
 ): GridCell {
+  if (field.type === "formula") {
+    const displayType = field.property?.displayType
+    const supported = new Set([
+      "text",
+      "number",
+      "checkbox",
+      "date",
+      "datetime",
+      "url",
+    ])
+    return baseValueToGridCell(
+      {
+        ...field,
+        type:
+          typeof displayType === "string" && supported.has(displayType)
+            ? (displayType as BaseFieldInfo["type"])
+            : "text",
+      },
+      value,
+      true,
+      row
+    )
+  }
   if (field.type === "link") {
     const ids = decodeBaseRelationIds(value)
     const display = decodeBaseRelationDisplay(

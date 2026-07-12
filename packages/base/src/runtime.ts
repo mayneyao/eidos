@@ -8,6 +8,7 @@ import {
 } from "./constants"
 import { BaseError } from "./errors"
 import { decodeBaseFilePaths, encodeBaseFilePaths } from "./file-values"
+import { compileBaseFormula, compileBaseFormulaFields } from "./formula"
 import { decodeBaseRelationIds, encodeBaseRelationIds } from "./relation-values"
 import {
   assertBaseColumnName,
@@ -215,6 +216,30 @@ export class BaseRuntime {
       (candidate) => candidate.rawTableName === legacyTableName
     )
     return table ? { tableId: table.id, columnName: legacyColumnName } : null
+  }
+
+  private rowSourceSql(tableId: string, fields: BaseFieldInfo[]): string {
+    const table = this.getTable(tableId)
+    let source = `(SELECT rowid AS "__base_rowid", *
+                     FROM ${quoteIdentifier(table.rawTableName)}) AS "base_rows"`
+    compileBaseFormulaFields(fields).forEach((formula, index) => {
+      source = `(SELECT *, (${formula.expression}) AS ${quoteIdentifier(formula.field.tableColumnName)}
+                   FROM ${source}) AS ${quoteIdentifier(`formula_layer_${index + 1}`)}`
+    })
+    return source
+  }
+
+  private getComputedRow(
+    tableId: string,
+    rowId: BaseSqlParams[number],
+    fields: BaseFieldInfo[]
+  ): BaseRow | undefined {
+    const row = this.connection.get<BaseRow>(
+      `SELECT * FROM ${this.rowSourceSql(tableId, fields)} WHERE _id = ?`,
+      [rowId]
+    )
+    if (row) delete row.__base_rowid
+    return row
   }
 
   info(): BaseMetadata {
@@ -702,6 +727,8 @@ export class BaseRuntime {
     const columnName = assertBaseColumnName(field.columnName)
     const quotedTable = quoteIdentifier(table.rawTableName)
     const quotedColumn = quoteIdentifier(columnName)
+    let property: Record<string, unknown> | null = field.property ?? null
+    let dependsOn: string[] | null = null
     if (field.type === "link") {
       const targetTable = this.getTable(field.property.targetTableId)
       const targetField = this.getField(
@@ -714,24 +741,62 @@ export class BaseRuntime {
           "A Base relation cannot display another relation field"
         )
       }
+      if (targetField.isDerived) {
+        throw new BaseError(
+          "invalid-schema",
+          "A Base relation display field must be stored on the target table"
+        )
+      }
+    } else if (field.type === "formula") {
+      const draft: BaseFieldInfo = {
+        name: field.name,
+        type: "formula",
+        tableName: table.rawTableName,
+        tableColumnName: columnName,
+        property: field.property,
+        storageCodec: "scalar",
+        valueKind: "derived",
+        isHidden: false,
+        isDerived: true,
+        sourceTableColumnName: null,
+        dependsOn: null,
+      }
+      const fields = [...this.listFields(tableId), draft]
+      const compiled = compileBaseFormula(draft, fields)
+      dependsOn = compiled.dependencies
+      property = { ...field.property, expression: compiled.expression }
+      compileBaseFormulaFields([
+        ...fields.slice(0, -1),
+        { ...draft, property, dependsOn },
+      ])
     }
     this.connection.transaction(() => {
-      this.connection.exec(
-        `ALTER TABLE ${quotedTable} ADD COLUMN ${quotedColumn} ${sqlTypeForField(field.type)} NULL`
-      )
+      if (field.type !== "formula") {
+        this.connection.exec(
+          `ALTER TABLE ${quotedTable} ADD COLUMN ${quotedColumn} ${sqlTypeForField(field.type)} NULL`
+        )
+      }
       this.connection.run(
         `INSERT INTO ${BASE_COLUMNS_TABLE}
           (name, type, table_name, table_column_name, property,
-           storage_codec, value_kind, is_hidden, is_derived)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0)`,
+           storage_codec, value_kind, is_hidden, is_derived, depends_on)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
         [
           field.name,
           field.type,
           table.rawTableName,
           columnName,
-          field.property ? JSON.stringify(field.property) : null,
-          field.storageCodec ?? defaultStorageCodec(field.type),
-          field.type === "link" ? "relation" : "source",
+          property ? JSON.stringify(property) : null,
+          field.type === "formula"
+            ? "scalar"
+            : (field.storageCodec ?? defaultStorageCodec(field.type)),
+          field.type === "link"
+            ? "relation"
+            : field.type === "formula"
+              ? "derived"
+              : "source",
+          field.type === "formula" ? 1 : 0,
+          dependsOn ? JSON.stringify(dependsOn) : null,
         ]
       )
       setBaseMetadata(this.connection, {})
@@ -870,20 +935,42 @@ export class BaseRuntime {
     if (!name) {
       throw new BaseError("invalid-identifier", "Base field name is required")
     }
+    let property =
+      changes.property === undefined ? field.property : changes.property
+    let dependsOn = field.dependsOn
+    if (field.type === "formula" && changes.property !== undefined) {
+      const formulaProperty = { ...(property ?? {}) }
+      delete formulaProperty.expression
+      const draft: BaseFieldInfo = {
+        ...field,
+        name,
+        property: formulaProperty,
+        dependsOn: null,
+      }
+      const fields = this.listFields(tableId).map((candidate) =>
+        candidate.tableColumnName === field.tableColumnName ? draft : candidate
+      )
+      const compiled = compileBaseFormula(draft, fields)
+      property = { ...formulaProperty, expression: compiled.expression }
+      dependsOn = compiled.dependencies
+      compileBaseFormulaFields(
+        fields.map((candidate) =>
+          candidate.tableColumnName === field.tableColumnName
+            ? { ...draft, property, dependsOn }
+            : candidate
+        )
+      )
+    }
     this.connection.transaction(() => {
       this.connection.run(
         `UPDATE ${BASE_COLUMNS_TABLE}
-            SET name = ?, property = ?, updated_at = CURRENT_TIMESTAMP
+            SET name = ?, property = ?, depends_on = ?,
+                updated_at = CURRENT_TIMESTAMP
           WHERE table_name = ? AND table_column_name = ?`,
         [
           name,
-          changes.property === undefined
-            ? field.property === null
-              ? null
-              : JSON.stringify(field.property)
-            : changes.property === null
-              ? null
-              : JSON.stringify(changes.property),
+          property === null ? null : JSON.stringify(property),
+          dependsOn === null ? null : JSON.stringify(dependsOn),
           table.rawTableName,
           field.tableColumnName,
         ]
@@ -900,6 +987,19 @@ export class BaseRuntime {
       throw new BaseError(
         "protected-field",
         `Base system field cannot be deleted: ${field.name}`
+      )
+    }
+    const dependentFormulas = this.listFields(tableId).filter(
+      (candidate) =>
+        candidate.type === "formula" &&
+        candidate.tableColumnName !== field.tableColumnName &&
+        Array.isArray(candidate.dependsOn) &&
+        candidate.dependsOn.includes(field.tableColumnName)
+    )
+    if (dependentFormulas.length > 0) {
+      throw new BaseError(
+        "formula-in-use",
+        `Base field “${field.name}” is used by ${dependentFormulas.length} formula field${dependentFormulas.length === 1 ? "" : "s"}`
       )
     }
     const inboundRelations = this.listTables().flatMap((sourceTable) =>
@@ -929,10 +1029,12 @@ export class BaseRuntime {
           field.tableColumnName,
         ]
       )
-      this.connection.exec(
-        `ALTER TABLE ${quoteIdentifier(table.rawTableName)}
-          DROP COLUMN ${quoteIdentifier(field.tableColumnName)}`
-      )
+      if (!(field.type === "formula" && field.valueKind === "derived")) {
+        this.connection.exec(
+          `ALTER TABLE ${quoteIdentifier(table.rawTableName)}
+            DROP COLUMN ${quoteIdentifier(field.tableColumnName)}`
+        )
+      }
       this.connection.run(
         `DELETE FROM ${BASE_COLUMNS_TABLE}
           WHERE table_name = ? AND table_column_name = ?`,
@@ -1004,14 +1106,14 @@ export class BaseRuntime {
     offset = 0,
     query: BaseRowQuery = {}
   ): BaseRow[] {
-    const table = this.getTable(tableId)
     const fields = this.listFields(tableId)
     const compiled = compileBaseRowQuery(fields, query)
     const rows = this.connection.query<BaseRow>(
-      `SELECT * FROM ${quoteIdentifier(table.rawTableName)}
+      `SELECT * FROM ${this.rowSourceSql(tableId, fields)}
         ${compiled.whereSql} ${compiled.orderSql} LIMIT ? OFFSET ?`,
       [...compiled.params, Math.max(0, limit), Math.max(0, offset)]
     )
+    rows.forEach((row) => delete row.__base_rowid)
     return this.hydrateRelationRows(rows, fields)
   }
 
@@ -1071,11 +1173,11 @@ export class BaseRuntime {
   }
 
   countRows(tableId: string, query: BaseRowQuery = {}): number {
-    const table = this.getTable(tableId)
-    const compiled = compileBaseRowQuery(this.listFields(tableId), query)
+    const fields = this.listFields(tableId)
+    const compiled = compileBaseRowQuery(fields, query)
     return (
       this.connection.get<{ count: number }>(
-        `SELECT COUNT(*) AS count FROM ${quoteIdentifier(table.rawTableName)}
+        `SELECT COUNT(*) AS count FROM ${this.rowSourceSql(tableId, fields)}
           ${compiled.whereSql}`,
         compiled.params
       )?.count ?? 0
@@ -1141,9 +1243,10 @@ export class BaseRuntime {
       columns.map((column) => sqliteParameter(record[column]))
     )
     setBaseMetadata(this.connection, {})
-    const inserted = this.connection.get<BaseRow>(
-      `SELECT * FROM ${quoteIdentifier(table.rawTableName)} WHERE _id = ?`,
-      [sqliteParameter(record._id)]
+    const inserted = this.getComputedRow(
+      tableId,
+      sqliteParameter(record._id),
+      fields
     )!
     return this.hydrateRelationRows([inserted], fields)[0]
   }
@@ -1258,10 +1361,7 @@ export class BaseRuntime {
       )
       setBaseMetadata(this.connection, {})
     }
-    const row = this.connection.get<BaseRow>(
-      `SELECT * FROM ${quoteIdentifier(table.rawTableName)} WHERE _id = ?`,
-      [rowId]
-    )
+    const row = this.getComputedRow(tableId, rowId, fields)
     if (!row) throw new BaseError("row-not-found", `Row not found: ${rowId}`)
     return this.hydrateRelationRows([row], fields)[0]
   }
@@ -1285,7 +1385,8 @@ export class BaseRuntime {
     query: BaseRowQuery = {}
   ): number {
     const table = this.getTable(tableId)
-    const compiled = compileBaseRowQuery(this.listFields(tableId), query)
+    const fields = this.listFields(tableId)
+    const compiled = compileBaseRowQuery(fields, query)
     const normalized = this.normalizeRowRanges(ranges)
     if (normalized.length === 0) return 0
     return this.connection.transaction(() => {
@@ -1293,8 +1394,8 @@ export class BaseRuntime {
       for (const { startIndex, endIndex } of normalized.reverse()) {
         const result = this.connection.run(
           `DELETE FROM ${quoteIdentifier(table.rawTableName)}
-            WHERE rowid IN (
-              SELECT rowid FROM ${quoteIdentifier(table.rawTableName)}
+            WHERE _id IN (
+              SELECT _id FROM ${this.rowSourceSql(tableId, fields)}
               ${compiled.whereSql} ${compiled.orderSql} LIMIT ? OFFSET ?
             )`,
           [...compiled.params, endIndex - startIndex, startIndex]

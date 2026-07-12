@@ -1,6 +1,7 @@
 import type { BaseFieldInfo, BaseTableInfo } from "@eidos.space/base"
 import {
   Columns3,
+  Calculator,
   ListPlus,
   MoreHorizontal,
   Pencil,
@@ -30,6 +31,7 @@ interface BaseStructureMenuProps {
   onDeleteTable: () => void
   onRenameField: (field: BaseFieldInfo) => void
   onEditFieldOptions: (field: BaseFieldInfo) => void
+  onEditFormula: (field: BaseFieldInfo) => void
   onDeleteField: (field: BaseFieldInfo) => void
 }
 
@@ -42,6 +44,7 @@ export function BaseStructureMenu({
   onDeleteTable,
   onRenameField,
   onEditFieldOptions,
+  onEditFormula,
   onDeleteField,
 }: BaseStructureMenuProps) {
   const visibleFields = fields.filter((field) => !field.isHidden)
@@ -104,6 +107,12 @@ export function BaseStructureMenu({
                       >
                         <ListPlus className="mr-2 h-3.5 w-3.5" />
                         Edit options
+                      </DropdownMenuItem>
+                    ) : null}
+                    {field.type === "formula" ? (
+                      <DropdownMenuItem onSelect={() => onEditFormula(field)}>
+                        <Calculator className="mr-2 h-3.5 w-3.5" />
+                        Edit formula
                       </DropdownMenuItem>
                     ) : null}
                     <DropdownMenuItem

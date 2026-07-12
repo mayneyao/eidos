@@ -46,6 +46,7 @@ import {
 import { BaseGrid } from "./base-grid"
 import { baseOpenErrorPresentation } from "./base-open-error"
 import { BaseFieldOptionsDialog } from "./base-field-options-dialog"
+import { BaseFormulaEditor } from "./base-formula-editor"
 import { BaseQueryToolbar } from "./base-query-toolbar"
 import { BaseRenameDialog } from "./base-rename-dialog"
 import { BaseStructureDialog } from "./base-structure-dialog"
@@ -118,6 +119,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
   const [fieldOptionsTarget, setFieldOptionsTarget] =
     useState<BaseFieldInfo | null>(null)
+  const [formulaTarget, setFormulaTarget] = useState<BaseFieldInfo | null>(null)
   const [structureDialog, setStructureDialog] = useState<
     "table" | "field" | null
   >(null)
@@ -567,6 +569,33 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     ]
   )
 
+  const saveFormula = useCallback(
+    (property: Record<string, unknown>): Promise<void> => {
+      if (!activeTable || !formulaTarget) return Promise.resolve()
+      return enqueueMutation(
+        () =>
+          updateField(
+            filePath,
+            activeTable.table.id,
+            formulaTarget.tableColumnName,
+            { property }
+          ),
+        (next) => {
+          applySnapshot(next)
+          setGridReloadToken((current) => current + 1)
+        }
+      ).then(() => undefined)
+    },
+    [
+      activeTable,
+      applySnapshot,
+      enqueueMutation,
+      filePath,
+      formulaTarget,
+      updateField,
+    ]
+  )
+
   const selectActiveView = useCallback(
     (viewId: string) => {
       if (!activeTable) return
@@ -849,6 +878,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
                   })
                 }
                 onEditFieldOptions={setFieldOptionsTarget}
+                onEditFormula={setFormulaTarget}
                 onDeleteField={(field) =>
                   setDeleteTarget({
                     kind: "field",
@@ -938,6 +968,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               })
             }
             onEditFieldOptions={setFieldOptionsTarget}
+            onEditFormula={setFormulaTarget}
             onDeleteField={(field) =>
               setDeleteTarget({
                 kind: "field",
@@ -1016,6 +1047,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         onCreateTable={createTableInBase}
         onCreateField={createFieldInBase}
         tables={snapshot.tables.map((candidate) => candidate.table)}
+        fields={activeTable?.fields ?? []}
         activeTableId={activeTable?.table.id}
       />
 
@@ -1036,6 +1068,16 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           if (!open) setFieldOptionsTarget(null)
         }}
         onSave={saveFieldOptions}
+      />
+
+      <BaseFormulaEditor
+        field={formulaTarget}
+        fields={activeTable?.fields ?? []}
+        open={formulaTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setFormulaTarget(null)
+        }}
+        onSave={saveFormula}
       />
 
       <AlertDialog

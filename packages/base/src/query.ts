@@ -150,7 +150,8 @@ function searchableFields(fields: BaseFieldInfo[]): BaseFieldInfo[] {
       !field.isHidden &&
       (field.tableColumnName === "title" ||
         field.valueKind === "source" ||
-        field.valueKind === "materialized")
+        field.valueKind === "materialized" ||
+        field.valueKind === "derived")
   )
 }
 
@@ -305,6 +306,11 @@ function compileSorts(
     const field = requireField(fields, sort.field)
     seen.add(sort.field)
     const column = quoteIdentifier(field.tableColumnName)
+    const displayType =
+      field.type === "formula" &&
+      typeof field.property?.displayType === "string"
+        ? field.property.displayType
+        : field.type
     const textLike = new Set([
       "title",
       "text",
@@ -312,14 +318,14 @@ function compileSorts(
       "select",
       "multi-select",
       "file",
-    ]).has(field.type)
+    ]).has(displayType)
     clauses.push(
       `${column}${textLike ? " COLLATE NOCASE" : ""} ${
         sort.direction === "desc" ? "DESC" : "ASC"
       }`
     )
   }
-  clauses.push("rowid ASC")
+  clauses.push('"__base_rowid" ASC')
   return `ORDER BY ${clauses.join(", ")}`
 }
 
