@@ -23,7 +23,7 @@ Implemented:
   `.eidos/indexes/markdown.sqlite3`,
 - indexed quick open, editor wiki-link completion, outline, and backlinks UI.
 
-The standalone editor currently has 54 package acceptance tests. Desktop host
+The standalone editor currently has 55 package acceptance tests. Desktop host
 integration tests also cover runtime loading, save behavior, and conflict paths.
 
 The Desktop index scans filesystem metadata on startup so files remain
@@ -35,8 +35,7 @@ Remaining for this slice:
 
 - native Desktop acceptance for IME, OS clipboard/image paste, and very long
   documents,
-- finer-grained marquee selection inside list containers and additional fenced
-  code presentation polish.
+- additional fenced code presentation polish.
 
 ## Summary
 

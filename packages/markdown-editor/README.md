@@ -30,8 +30,9 @@ CommonMark, GFM tables and task lists, YAML frontmatter, local images, and
 Space-style `[[wiki links]]` / `![[image embeds]]`. Its editing surface includes
 Markdown-aware Enter/Backspace and list indentation, Markdown and image
 paste/drop, automatic URL and email links, a floating text/link toolbar, and
-gutter, keyboard, and marquee block selection. A host can resolve Space assets
-and links without coupling the package to Eidos routes:
+gutter, keyboard, and marquee block selection, including individual list items.
+A host can resolve Space assets and links without coupling the package to Eidos
+routes:
 
 ```tsx
 <MarkdownEditor

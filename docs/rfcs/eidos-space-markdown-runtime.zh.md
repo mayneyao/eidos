@@ -23,7 +23,7 @@
   search/link/tag/backlink index，
 - indexed quick open、编辑器 wiki-link completion、outline 和 backlinks UI。
 
-独立编辑器当前有 54 个 package acceptance tests；Desktop host integration
+独立编辑器当前有 55 个 package acceptance tests；Desktop host integration
 tests 也覆盖了 runtime loading、保存行为和冲突处理路径。
 
 Desktop 启动时仍会扫描文件系统元数据以保证文件具有最终权威；未变化的正文和
@@ -33,7 +33,7 @@ Rebuild 和损坏 schema 恢复都会完全从 Space 文件重建索引。
 本切片剩余：
 
 - IME、系统 clipboard/图片粘贴和超长文档的原生 Desktop acceptance，
-- list 容器内部更细粒度的框选，以及 fenced code 展示细节完善。
+- fenced code 展示细节完善。
 
 ## 摘要
 
