@@ -34,8 +34,15 @@ opening a centered dialog; each view owns its query, field visibility, column
 order, and width state. Imported non-Grid view metadata remains visible but is
 not presented as a working layout until that renderer exists.
 
+File fields now use a Base-specific multi-attachment cell adapted from the
+existing table interaction. Users can import files into the visible Space
+`assets/` folder, drop files onto a cell, reorder or remove attachments, open
+them in Eidos, or reveal them in the file manager. Routine attachment editing
+stays inside the Grid overlay; only the necessary native file picker interrupts
+the workflow.
+
 Base is still in delivery closure, not product acceptance. Advanced nested
-filter authoring, richer file/relation/formula fields, Gallery/Kanban layouts,
+filter authoring, richer relation/formula fields, Gallery/Kanban layouts,
 accessible table semantics, and a complete native
 create/edit/restart/version/restore run remain. Routine Base configuration uses
 inline controls, header menus, and anchored popovers. Modal dialogs are

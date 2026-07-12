@@ -30,6 +30,13 @@ ordering, deletion protection, switching, and per-view query/layout state for
 multiple Grid views. Gallery and Kanban metadata remain portable but their live
 renderers are not part of this delivery slice.
 
+New file fields use the `json_array` storage codec and store normalized
+Space-relative paths rather than private database payload identifiers. The
+runtime still reads legacy comma/newline values. Desktop restores the existing
+multi-file thumbnail/reorder/remove behavior while importing new attachments
+as ordinary visible files under `assets/`; Graft therefore versions the Base
+reference and the asset itself through their normal paths.
+
 Graft row diffs are preserved through the Desktop boundary and shown as compact
 table/column/row changes in both the working Changes tab and historical version
 inspector. Pure `updated_at` metadata noise and internal audit columns are

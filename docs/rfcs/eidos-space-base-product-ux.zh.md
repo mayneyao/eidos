@@ -29,8 +29,13 @@ cell edit、copy/paste、undo/redo、持久化 column layout、基于 compact ra
 显隐、列顺序和列宽。迁移导入的非 Grid view metadata 会继续保留并显示类型，但在
 相应 renderer 完成前不会伪装成可工作的布局。
 
+file 字段现在使用从原表格交互适配出的 Base 专用多附件 cell。用户可以把文件导入
+Space 可见的 `assets/` 目录、拖放到单元格、重排或移除附件、在 Eidos 中打开，或在
+文件管理器中定位。日常附件编辑保持在 Grid overlay 内，只有必要的原生文件选择器会
+中断工作流。
+
 Base 仍处于 delivery closure，而不是产品验收。高级嵌套筛选编辑、完整的
-file/relation/formula 字段、Gallery/Kanban layouts、无障碍表格语义和完整原生
+relation/formula 字段、Gallery/Kanban layouts、无障碍表格语义和完整原生
 create/edit/restart/version/restore 验收仍未完成。Base 日常编辑和配置优先使用单元格
 内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留给破坏性确认或必须中断
 当前工作流的决策。

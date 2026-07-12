@@ -8,15 +8,15 @@ This directory contains draft RFCs for moving Eidos toward a file-based storage 
 
 ## Implementation Status
 
-| RFC                   | Status                | Current implementation boundary                                                                                                                                                                       |
-| --------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Space/Base storage    | In progress           | The file-based slice, standalone Base runtime, Base-aware diffs, validated legacy export, and native remote acceptance work. File-based extensions and remaining Base refinements remain.             |
-| Markdown runtime      | Desktop accepted      | Real file tree, direct editing, safe saves, watcher, persistent derived index, quick open, wiki-link completion, outline, backlinks, attachments, IME, image paste, and long documents work.          |
-| Graft versioning      | Desktop accepted      | Native Desktop acceptance covers persistent fetch/pull/push, diverged text diff, path-first resolution, two-parent continuation, clean reconciliation, and final push.                                |
-| Product UX            | Delivery closure      | Files/Version, Diff/History, Settings, and migration flows are accepted. Base now has atomic named/template creation and a richer Grid, but full table-parity and native lifecycle acceptance remain. |
-| Base format/runtime   | Delivery closure      | The standalone package and paged Grid support structured queries, complete multi-Grid view lifecycle, table/field lifecycle, choice options, layout, batch deletion, and streamed imports.            |
-| File-based extensions | Not started           | The RFC remains the target design.                                                                                                                                                                    |
-| Legacy migration      | Real exports accepted | Standalone planning, atomic export, Desktop Settings, schema recovery, and 1.1M-row real-Space acceptance are complete; live derived recomputation remains.                                           |
+| RFC                   | Status                | Current implementation boundary                                                                                                                                                                         |
+| --------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Space/Base storage    | In progress           | The file-based slice, standalone Base runtime, Base-aware diffs, validated legacy export, and native remote acceptance work. File-based extensions and remaining Base refinements remain.               |
+| Markdown runtime      | Desktop accepted      | Real file tree, direct editing, safe saves, watcher, persistent derived index, quick open, wiki-link completion, outline, backlinks, attachments, IME, image paste, and long documents work.            |
+| Graft versioning      | Desktop accepted      | Native Desktop acceptance covers persistent fetch/pull/push, diverged text diff, path-first resolution, two-parent continuation, clean reconciliation, and final push.                                  |
+| Product UX            | Delivery closure      | Files/Version, Diff/History, Settings, and migration flows are accepted. Base now has atomic named/template creation and a richer Grid, but full table-parity and native lifecycle acceptance remain.   |
+| Base format/runtime   | Delivery closure      | The standalone package and paged Grid support structured queries, multi-Grid lifecycle, portable rich file fields, table/field lifecycle, choice options, layout, batch deletion, and streamed imports. |
+| File-based extensions | Not started           | The RFC remains the target design.                                                                                                                                                                      |
+| Legacy migration      | Real exports accepted | Standalone planning, atomic export, Desktop Settings, schema recovery, and 1.1M-row real-Space acceptance are complete; live derived recomputation remains.                                             |
 
 The implementation order has intentionally changed from Base-first. The first
 four milestones are now complete:
