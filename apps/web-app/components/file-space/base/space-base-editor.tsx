@@ -1185,6 +1185,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               onCellEdit={saveCell}
               onImportFiles={importBaseFiles}
               onImportDroppedFiles={importDroppedBaseFiles}
+              onSearchRelation={searchRelationRecords}
               onDeleteRow={deleteSingleRow}
               onOpenFile={openBaseFileReference}
               onRevealFile={(path) => reveal(path).then(() => undefined)}
@@ -1203,6 +1204,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               onAddRow={createRowInGroup}
               onImportFiles={importBaseFiles}
               onImportDroppedFiles={importDroppedBaseFiles}
+              onSearchRelation={searchRelationRecords}
               readBinary={readBinary}
               onDeleteRow={deleteSingleRow}
               onOpenFile={openBaseFileReference}

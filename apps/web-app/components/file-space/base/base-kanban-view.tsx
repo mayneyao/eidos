@@ -4,6 +4,7 @@ import type {
   BaseRow,
   BaseRowMutationResult,
   BaseRowPage,
+  BaseRelationValue,
   BaseSqlPrimitive,
   BaseTableSnapshot,
   BaseViewInfo,
@@ -305,6 +306,7 @@ export function BaseKanbanView({
   onDeleteRow,
   onImportFiles,
   onImportDroppedFiles,
+  onSearchRelation,
   onOpenFile,
   onRevealFile,
   onError,
@@ -334,6 +336,10 @@ export function BaseKanbanView({
   onDeleteRow?: (row: BaseRow) => Promise<void>
   onImportFiles?: () => Promise<string[]>
   onImportDroppedFiles?: (files: File[]) => Promise<string[]>
+  onSearchRelation?: (
+    field: BaseFieldInfo,
+    query: string
+  ) => Promise<BaseRelationValue[]>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => Promise<void> | void
   onError?: (error: unknown) => void
@@ -612,6 +618,7 @@ export function BaseKanbanView({
             onError={onError}
             onImportFiles={onImportFiles}
             onImportDroppedFiles={onImportDroppedFiles}
+            onSearchRelation={onSearchRelation}
             onOpenFile={onOpenFile}
             onRevealFile={
               onRevealFile

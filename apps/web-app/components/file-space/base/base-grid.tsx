@@ -811,6 +811,7 @@ export function BaseGrid({
           onError={onError}
           onImportFiles={onImportFiles}
           onImportDroppedFiles={onImportDroppedFiles}
+          onSearchRelation={onSearchRelation}
           onOpenFile={onOpenFile}
           onRevealFile={
             onRevealFile

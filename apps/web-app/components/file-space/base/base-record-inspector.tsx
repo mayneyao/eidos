@@ -3,6 +3,7 @@ import type {
   BaseFieldInfo,
   BaseRow,
   BaseRowMutationResult,
+  BaseRelationValue,
   BaseSqlPrimitive,
 } from "@eidos.space/base"
 import { decodeBaseFilePaths } from "@eidos.space/base"
@@ -22,6 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 
 import { BaseRecordFieldEditor } from "./base-record-field-editor"
 import { BaseRecordFileEditor } from "./base-record-file-editor"
+import { BaseRecordRelationEditor } from "./base-record-relation-editor"
 import { baseRecordFieldText, baseRecordTitle } from "./base-record-format"
 
 function FieldValue({
@@ -122,6 +124,7 @@ export function BaseRecordInspector({
   onError,
   onImportFiles,
   onImportDroppedFiles,
+  onSearchRelation,
   onOpenFile,
   onRevealFile,
 }: {
@@ -138,6 +141,10 @@ export function BaseRecordInspector({
   onError?: (error: unknown) => void
   onImportFiles?: () => Promise<string[]>
   onImportDroppedFiles?: (files: File[]) => Promise<string[]>
+  onSearchRelation?: (
+    field: BaseFieldInfo,
+    query: string
+  ) => Promise<BaseRelationValue[]>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => void
 }) {
@@ -225,6 +232,15 @@ export function BaseRecordInspector({
                   onImportDroppedFiles={onImportDroppedFiles}
                   onOpenFile={onOpenFile}
                   onRevealFile={onRevealFile}
+                  onError={onError}
+                />
+              ) : onCellEdit && field.type === "link" && onSearchRelation ? (
+                <BaseRecordRelationEditor
+                  row={currentRow}
+                  field={field}
+                  disabled={disabled || savingField !== null}
+                  onChange={(value) => editField(field, value)}
+                  onSearch={onSearchRelation}
                   onError={onError}
                 />
               ) : onCellEdit &&

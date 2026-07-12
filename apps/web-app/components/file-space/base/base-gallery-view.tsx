@@ -4,6 +4,7 @@ import type {
   BaseRow,
   BaseRowMutationResult,
   BaseRowPage,
+  BaseRelationValue,
   BaseSqlPrimitive,
   BaseTableSnapshot,
   BaseViewInfo,
@@ -36,6 +37,7 @@ export function BaseGalleryView({
   onCellEdit,
   onImportFiles,
   onImportDroppedFiles,
+  onSearchRelation,
   onDeleteRow,
   onOpenFile,
   onRevealFile,
@@ -54,6 +56,10 @@ export function BaseGalleryView({
   ) => Promise<BaseRowMutationResult>
   onImportFiles?: () => Promise<string[]>
   onImportDroppedFiles?: (files: File[]) => Promise<string[]>
+  onSearchRelation?: (
+    field: BaseFieldInfo,
+    query: string
+  ) => Promise<BaseRelationValue[]>
   onDeleteRow?: (row: BaseRow) => Promise<void>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => Promise<void> | void
@@ -191,6 +197,7 @@ export function BaseGalleryView({
             onError={onError}
             onImportFiles={onImportFiles}
             onImportDroppedFiles={onImportDroppedFiles}
+            onSearchRelation={onSearchRelation}
             onOpenFile={onOpenFile}
             onRevealFile={
               onRevealFile
