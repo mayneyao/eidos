@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/alert-dialog"
 
 import { BaseGrid } from "./base-grid"
+import { BaseCsvImportPopover } from "./base-csv-import-popover"
 import { baseOpenErrorPresentation } from "./base-open-error"
 import { BaseFieldOptionsDialog } from "./base-field-options-dialog"
 import { BaseFormulaEditor } from "./base-formula-editor"
@@ -85,6 +86,9 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   } = useSpaceFiles(currentSpace?.id)
   const {
     getSnapshot,
+    selectCsv,
+    previewCsvImport,
+    importCsv,
     getTablePage,
     createTable,
     updateTable,
@@ -494,6 +498,19 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       ).then(() => undefined)
     },
     [applySnapshot, createTable, enqueueMutation, filePath, snapshot?.tables]
+  )
+
+  const importCsvIntoBase = useCallback(
+    (token: string, options: Parameters<typeof importCsv>[2]): Promise<void> =>
+      enqueueMutation(
+        () => importCsv(filePath, token, options),
+        ({ snapshot: next, result }) => {
+          applySnapshot(next)
+          setActiveTableId(result.table.id)
+          setGridReloadToken((current) => current + 1)
+        }
+      ).then(() => undefined),
+    [applySnapshot, enqueueMutation, filePath, importCsv]
   )
 
   const createFieldInBase = useCallback(
@@ -932,6 +949,12 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               />
             </>
           ) : null}
+          <BaseCsvImportPopover
+            disabled={loading || pendingMutations > 0}
+            onSelect={selectCsv}
+            onPreview={previewCsvImport}
+            onImport={importCsvIntoBase}
+          />
           <Button
             type="button"
             variant="ghost"
