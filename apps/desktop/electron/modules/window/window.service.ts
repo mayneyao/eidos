@@ -16,6 +16,7 @@ import { TrayService } from "./tray.service"
 import type { AppLifecycleService } from "./app-lifecycle.service"
 import { setupGeolocationHandler } from "./geolocation"
 import { BrowserService } from "../browser/browser.service"
+import type { OverlayService as OverlayServiceInstance } from "../browser/services/overlay.service"
 
 const defaultViewOptions = {
   webPreferences: {
@@ -205,7 +206,8 @@ export class WindowService {
         const {
           OverlayService,
         } = require("../browser/services/overlay.service")
-        const overlayService = container.get(OverlayService)
+        const overlayService =
+          container.get<OverlayServiceInstance>(OverlayService)
         overlayService.updateMainWindowFindOverlayPosition()
       } catch {
         // OverlayService might not be available yet, ignore

@@ -1,6 +1,6 @@
 import { create } from "zustand"
 
-interface ChatMessage {
+export interface ChatMessage {
   id: string
   role: "system" | "user" | "assistant" | "function" | "data" | "tool"
   content: string
@@ -37,7 +37,7 @@ interface EditorStore {
   setChatId: (id: string) => void
   chatHistory: Array<ChatMessage>
   setChatHistory: (history: Array<ChatMessage>) => void
-  addChatMessage: (message: Message) => void
+  addChatMessage: (message: ChatMessage) => void
   clearChatHistory: () => void
 
   isRemixMode: boolean

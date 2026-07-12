@@ -1,15 +1,15 @@
 // IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
 import "../../data-space/worker/sqlite-server/env"
 
+import type { RawData } from "@eidos.space/rawdata"
 import {
-  RawData,
   SourceDataStore,
   type GoodCategory,
   type RawDataAdapter,
   type RawDataResult,
   type RelationType,
 } from "@eidos.space/rawdata"
-import Database from "better-sqlite3"
+import type Database from "better-sqlite3"
 
 import { Injectable } from "../../../common/di"
 

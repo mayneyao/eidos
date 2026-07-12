@@ -1,4 +1,5 @@
-import { protocol, app, WebContentsView } from "electron"
+import type { WebContentsView } from "electron"
+import { protocol, app } from "electron"
 import { IpcMethod } from "@eidos.space/electron-ipc"
 import { parseHTML } from "linkedom"
 import { Defuddle } from "defuddle/node"

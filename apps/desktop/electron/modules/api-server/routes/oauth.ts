@@ -1,5 +1,5 @@
 import { OAUTH_CONFIG } from "@/lib/const"
-import { Hono } from "hono"
+import type { Hono } from "hono"
 import type { ServerContext } from "../server"
 
 // Simple PKCE implementation

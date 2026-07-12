@@ -1,6 +1,6 @@
 import { z } from "zod"
 import type { DataSpace } from "@/packages/core/data-space"
-import { LightCli } from "./light-cli"
+import type { LightCli } from "./light-cli"
 import * as handlers from "./table-handlers"
 
 export const PROPERTY_HELP_TEXT = `--property format by field type (values are merged with existing):

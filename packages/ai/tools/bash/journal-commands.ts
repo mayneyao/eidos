@@ -1,6 +1,6 @@
 import { z } from "zod"
 import type { DataSpace } from "@/packages/core/data-space"
-import { LightCli } from "./light-cli"
+import type { LightCli } from "./light-cli"
 import type { ExecResult } from "./table-handlers"
 import * as jh from "./journal-handlers"
 

@@ -25,10 +25,8 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
 import { useSpaceTheme } from "@/apps/web-app/hooks/use-space-theme"
-import {
-  useThemeMarket,
-  ThemeWithStatus,
-} from "@/apps/web-app/hooks/use-theme-market"
+import type { ThemeWithStatus } from "@/apps/web-app/hooks/use-theme-market"
+import { useThemeMarket } from "@/apps/web-app/hooks/use-theme-market"
 import { cn } from "@/lib/utils"
 
 // Compact Theme Thumbnail

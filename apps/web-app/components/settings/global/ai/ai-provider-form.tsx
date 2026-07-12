@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { zodResolver } from "@hookform/resolvers/zod"
 import { useDebounceFn } from "ahooks"
 import { Loader2 } from "lucide-react"
-import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import * as z from "zod"
 
 import type { LLMProvider } from "@/packages/ai/config"
 import { llmProviderSchema as baseLlmProviderSchema } from "@/packages/ai/config"
@@ -36,6 +33,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/react-hook-form/form"
+
+import { useCompatibleZodForm } from "./zod-resolver"
 
 interface AIProviderFormProps {
   provider?: LLMProvider
@@ -85,9 +84,9 @@ export function AIProviderForm({
     )
   }, [existingNames, provider, t])
 
-  const form = useForm<LLMProvider>({
-    resolver: zodResolver(llmProviderSchema),
-    defaultValues: provider || {
+  const form = useCompatibleZodForm<LLMProvider>(
+    llmProviderSchema,
+    provider || {
       name: "",
       type: "openai",
       apiKey: "",
@@ -95,8 +94,8 @@ export function AIProviderForm({
       models: "",
       enabled: true,
       ...defaultValues,
-    },
-  })
+    }
+  )
   const [hasChanges, setHasChanges] = useState(false)
   const initialValues = useRef(form.getValues())
   const providerInfo = LLM_PROVIDER_INFO[form.watch("type")]

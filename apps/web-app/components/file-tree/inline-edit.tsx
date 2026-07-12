@@ -12,6 +12,7 @@ interface InlineEditProps {
     | "doc"
     | "folder"
     | "dataview"
+    | "link"
     | `ext__${string}`
   /** Callback when edit is confirmed (Enter or Blur) */
   onConfirm: (newValue: string) => void

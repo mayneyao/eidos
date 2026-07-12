@@ -1,5 +1,7 @@
 // @vitest-environment node
 
+import { describe, expect, it, vi } from "vitest"
+
 import { API_SERVER_HOST, createApiServerListenOptions } from "./server-config"
 
 describe("desktop API server binding", () => {

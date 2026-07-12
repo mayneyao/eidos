@@ -19,9 +19,9 @@ import {
 } from "@/components/ui/alert-dialog"
 import { toast } from "@/components/ui/use-toast"
 
+import type { SearchEngineConfig } from "../stores/browser-settings-store"
 import {
   useBrowserSettingsStore,
-  SearchEngineConfig,
   getAllSearchEngines,
   BUILT_IN_SEARCH_ENGINES,
 } from "../stores/browser-settings-store"

@@ -23,6 +23,10 @@ vi.mock("@/apps/web-app/hooks/use-tab-title", () => ({
   useTabTitle: () => undefined,
 }))
 
+vi.mock("@/apps/web-app/components/tab-manager/tab-context", () => ({
+  useTabContext: () => ({ isActive: true }),
+}))
+
 vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
   useSpaceFiles: () => ({ readText: mocks.readText }),
 }))

@@ -1,5 +1,5 @@
 import { parseArgs } from "node:util"
-import { z } from "zod"
+import type { z } from "zod"
 
 export interface ExecResult {
   exitCode: number

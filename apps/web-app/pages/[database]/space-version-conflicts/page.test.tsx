@@ -26,6 +26,10 @@ vi.mock("@/apps/web-app/hooks/use-tab-title", () => ({
   useTabTitle: vi.fn(),
 }))
 
+vi.mock("@/apps/web-app/components/tab-manager/tab-context", () => ({
+  useTabContext: () => ({ isActive: true }),
+}))
+
 vi.mock("@/apps/web-app/store/tabs", () => ({
   useTabStore: (
     selector: (state: { openTab: typeof mocks.openTab }) => unknown

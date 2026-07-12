@@ -1,7 +1,5 @@
 import { aiFormSchema, type AIFormValues } from "@/packages/ai/config"
-import { zodResolver } from "@hookform/resolvers/zod"
 import { useEffect } from "react"
-import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
@@ -18,15 +16,13 @@ import {
 
 import { TaskType } from "./hooks"
 import { ModelTestButton } from "./model-test-button"
+import { useCompatibleZodForm } from "./zod-resolver"
 
 export function AITaskConfigForm({
   onDirtyChange,
 }: { onDirtyChange?: (isDirty: boolean) => void } = {}) {
   const { setAiConfig, aiConfig } = useAIConfigStore()
-  const form = useForm<AIFormValues>({
-    resolver: zodResolver(aiFormSchema),
-    defaultValues: aiConfig,
-  })
+  const form = useCompatibleZodForm<AIFormValues>(aiFormSchema, aiConfig)
   const { reset } = form
   const { t } = useTranslation()
   const { location } = useRouterAdapter()

@@ -1,7 +1,8 @@
 // IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
 import "../../data-space/worker/sqlite-server/env"
 
-import { BrowserWindow, WebContentsView } from "electron"
+import type { BrowserWindow } from "electron"
+import { WebContentsView } from "electron"
 
 import { Injectable } from "../../../common/di"
 

@@ -464,7 +464,9 @@ export function BaseFormulaComposer({
                 {typeof selectedCompletion.info === "string"
                   ? selectedCompletion.info
                   : "detail" in selectedCompletion
-                    ? selectedCompletion.detail
+                    ? typeof selectedCompletion.detail === "string"
+                      ? selectedCompletion.detail
+                      : selectedCompletion.type
                     : selectedCompletion.type}
               </p>
             </>

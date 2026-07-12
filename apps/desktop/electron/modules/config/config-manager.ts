@@ -103,6 +103,7 @@ const emptyConfig: AppConfig = {
     translationModel: "",
     codingModel: "",
     agentNotificationSound: true,
+    agentPermissionBypass: false,
   },
   security: {
     webSecurity: true,

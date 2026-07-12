@@ -1,13 +1,11 @@
 // IMPORTANT: Import env first to set SQLITE_USE_URI before better-sqlite3 is loaded
 import "../../data-space/worker/sqlite-server/env"
 
-import {
-  RawData,
-  type RawDataAdapter,
-  type RawDataResult,
-} from "@eidos.space/rawdata"
+import type { RawData } from "@eidos.space/rawdata"
+import { type RawDataAdapter, type RawDataResult } from "@eidos.space/rawdata"
 import type Database from "better-sqlite3"
-import { BrowserWindow, WebContentsView } from "electron"
+import type { BrowserWindow } from "electron"
+import { WebContentsView } from "electron"
 
 import { Inject, Injectable } from "../../../common/di"
 import { DataPersisterService } from "../persistence/data-persister.service"

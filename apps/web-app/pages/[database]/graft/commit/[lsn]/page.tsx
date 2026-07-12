@@ -1150,7 +1150,8 @@ function formatOwnedMetaRecordName(
 function hasDocPreviewColumns(row: any) {
   const columns = Array.isArray(row.columns) ? row.columns : []
   return columns.some(
-    (column) => column === "markdown" || isDocCustomPropertyColumn(column)
+    (column: unknown) =>
+      column === "markdown" || isDocCustomPropertyColumn(column)
   )
 }
 
@@ -1170,7 +1171,7 @@ function getDocFrontmatterProperties(row: any, side: RowValueSide) {
       value: getRowSideValue(row, index, side),
     }))
     .filter(
-      ({ key, value }) =>
+      ({ key, value }: { key: string; value: unknown }) =>
         isDocCustomPropertyColumn(key) && isFrontmatterValuePresent(value)
     )
 }

@@ -2,7 +2,9 @@
  * Terminal Service - Manages terminal sessions using node-pty
  */
 
-import { app, BrowserWindow } from "electron"
+import type { BrowserWindow } from "electron"
+import type * as NodePty from "node-pty"
+import { app } from "electron"
 import * as fs from "fs"
 import * as os from "os"
 import * as path from "path"
@@ -12,11 +14,11 @@ import { IpcInjectable, Inject, Injectable } from "../../common/di"
 import type { WindowService } from "../window/window.service"
 
 // Dynamic import for node-pty to handle native module loading
-let ptyModule: typeof import("node-pty") | null = null
+let ptyModule: typeof NodePty | null = null
 
 export interface TerminalSession {
   id: string
-  ptyProcess: import("node-pty").IPty
+  ptyProcess: NodePty.IPty
   shell: string
   cwd: string
   createdAt: number
@@ -93,7 +95,7 @@ export class TerminalService extends IpcServiceBase {
     }
   }
 
-  private async getPty(): Promise<typeof import("node-pty")> {
+  private async getPty(): Promise<typeof NodePty> {
     if (!ptyModule) {
       try {
         this.logger.info("Loading node-pty module...")
@@ -255,7 +257,7 @@ export class TerminalService extends IpcServiceBase {
           process.env.PATH || "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin",
       }
 
-      let ptyProcess: import("node-pty").IPty
+      let ptyProcess: NodePty.IPty
 
       try {
         ptyProcess = pty.spawn(shell, [], {

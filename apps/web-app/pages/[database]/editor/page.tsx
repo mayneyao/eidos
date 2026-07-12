@@ -10,6 +10,7 @@ import type * as Monaco from "monaco-editor"
 
 import { isDesktopMode } from "@/lib/env"
 import { useTheme } from "@/components/theme-provider"
+import { toast } from "@/components/ui/use-toast"
 import { useTabTitle } from "@/apps/web-app/hooks/use-tab-title"
 import { useTabDirty } from "@/apps/web-app/hooks/use-tab-dirty"
 import { useFilePathFromHash } from "@/apps/web-app/pages/[database]/file-handler/hooks/use-file-path-from-hash"
@@ -170,20 +171,14 @@ export function EditorPage() {
         await window.eidos.nativeFs.writeFile(filePath, codeToSave)
         savedContentRef.current = codeToSave
         setIsDirty(false)
-        if (window.eidos?.space?.notify) {
-          window.eidos.space.notify({
-            title: "File Saved",
-            description: `Saved ${fileName}`,
-          })
-        }
+        toast({ title: "File Saved", description: `Saved ${fileName}` })
       } catch (err: any) {
         setError(`Save failed: ${err.message}`)
-        if (window.eidos?.space?.notify) {
-          window.eidos.space.notify({
-            title: "Save Failed",
-            description: err.message,
-          })
-        }
+        toast({
+          title: "Save Failed",
+          description: err.message,
+          variant: "destructive",
+        })
       } finally {
         setSaving(false)
       }

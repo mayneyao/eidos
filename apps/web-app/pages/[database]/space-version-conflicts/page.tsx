@@ -158,10 +158,10 @@ function ResolutionButton({
   onResolve,
 }: {
   label: string
-  resolution: "ours" | "theirs"
+  resolution: SpaceVersionConflictResolution
   disabled: boolean
   loading: boolean
-  onResolve: (resolution: "ours" | "theirs") => void
+  onResolve: (resolution: SpaceVersionConflictResolution) => void
 }) {
   return (
     <Button
@@ -186,7 +186,7 @@ function RowConflict({
   artifact: SpaceVersionConflictArtifact
   disabled: boolean
   loading: boolean
-  onResolve: (resolution: "ours" | "theirs") => void
+  onResolve: (resolution: SpaceVersionConflictResolution) => void
 }) {
   const columns = artifactColumns(artifact)
   const resolved = artifact.status === "resolved"

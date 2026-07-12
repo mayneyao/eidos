@@ -1,10 +1,7 @@
 import { spawn } from "node:child_process"
 
-import {
-  RawData,
-  type RawDataAdapter,
-  type RawDataResult,
-} from "@eidos.space/rawdata"
+import type { RawData } from "@eidos.space/rawdata"
+import { type RawDataAdapter, type RawDataResult } from "@eidos.space/rawdata"
 import type Database from "better-sqlite3"
 
 import { Inject, Injectable } from "../../../common/di"
