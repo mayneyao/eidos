@@ -290,13 +290,15 @@ const hookResults = new Map<string, HookResult>()
 function VersioningProbe({
   name,
   loadHistory,
+  active = true,
 }: {
   name: string
   loadHistory: boolean
+  active?: boolean
 }) {
   hookResults.set(
     name,
-    useSpaceVersioning("space-a", { loadHistory, historyLimit: 2 })
+    useSpaceVersioning("space-a", { loadHistory, historyLimit: 2, active })
   )
   return null
 }
@@ -391,6 +393,7 @@ function createBridge() {
       currentBranch: "main",
       mergeHead: "remote-3",
       paths: [] as unknown[],
+      conflicts: [] as unknown[],
     })),
     resolveConflict: vi.fn(
       async (
@@ -565,7 +568,7 @@ describe("useSpaceVersioning history coordination", () => {
       await hookResults.get("source")?.enable()
       await flushEffects()
     })
-    expect(bridge.getStatus).toHaveBeenCalledTimes(2)
+    expect(bridge.getStatus).toHaveBeenCalledTimes(1)
     expect(bridge.getHistory).toHaveBeenCalledTimes(1)
 
     bridge.getStatus.mockClear()
@@ -574,8 +577,39 @@ describe("useSpaceVersioning history coordination", () => {
       await hookResults.get("source")?.commit("Save the Space")
       await flushEffects()
     })
-    expect(bridge.getStatus).toHaveBeenCalledTimes(2)
+    expect(bridge.getStatus).toHaveBeenCalledTimes(1)
     expect(bridge.getHistory).toHaveBeenCalledTimes(1)
+  })
+
+  it("suspends inactive tab instances and refreshes when activated", async () => {
+    const bridge = createBridge()
+    installBridge(bridge)
+
+    await act(async () => {
+      root.render(
+        createElement(VersioningProbe, {
+          name: "history",
+          loadHistory: true,
+          active: false,
+        })
+      )
+      await flushEffects()
+    })
+    expect(bridge.getStatus).not.toHaveBeenCalled()
+    expect(bridge.getHistory).not.toHaveBeenCalled()
+
+    await act(async () => {
+      root.render(
+        createElement(VersioningProbe, {
+          name: "history",
+          loadHistory: true,
+          active: true,
+        })
+      )
+      await flushEffects()
+    })
+    expect(bridge.getStatus).toHaveBeenCalledOnce()
+    expect(bridge.getHistory).toHaveBeenCalledOnce()
   })
 
   it("flushes current Space writes before creating a version", async () => {

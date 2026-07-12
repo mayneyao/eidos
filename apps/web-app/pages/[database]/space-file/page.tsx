@@ -6,7 +6,6 @@ import { useLocation } from "react-router-dom"
 import {
   headingFromSpaceUrl,
   isSameOrDescendant,
-  parentSpacePath,
   toSpaceAssetUrl,
 } from "@/apps/web-app/components/file-space/file-path"
 import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-space/pending-writes"
@@ -517,7 +516,7 @@ function useSpaceAssetUrl(filePath: string) {
         if (
           event.path === filePath ||
           (event.eventType === "rescan" &&
-            event.path === parentSpacePath(filePath))
+            isSameOrDescendant(filePath, event.path))
         ) {
           setRevision((current) => current + 1)
         }

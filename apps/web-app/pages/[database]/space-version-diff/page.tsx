@@ -12,6 +12,7 @@ import { useLocation } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { toSpaceFileUrl } from "@/apps/web-app/components/file-space/file-path"
+import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
 import { BaseDiffView } from "@/apps/web-app/components/file-space/versioning/base-diff-view"
 import {
   STATUS_META,
@@ -142,6 +143,7 @@ function DiffEmptyState({
 }
 
 export function SpaceVersionDiffPage() {
+  const { isActive } = useTabContext()
   const location = useLocation()
   const searchParams = useMemo(
     () => new URLSearchParams(location.search),
@@ -156,7 +158,7 @@ export function SpaceVersionDiffPage() {
   const { currentSpace } = useCurrentSpace()
   const spaceId = currentSpace?.id
   const { status, statusLoading, available, getDiff, refreshStatus } =
-    useSpaceVersioning(spaceId)
+    useSpaceVersioning(spaceId, { active: isActive })
   const { readText } = useSpaceFiles(spaceId)
   const openTab = useTabStore((state) => state.openTab)
   const [metadata, setMetadata] = useState<SpaceVersionDiff | null>(null)

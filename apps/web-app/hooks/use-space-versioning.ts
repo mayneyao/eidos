@@ -1503,6 +1503,26 @@ interface HistorySnapshot {
   hasMore: boolean
 }
 
+const sharedVersionRequests = new Map<string, Promise<unknown>>()
+const latestVersionStatuses = new Map<string, SpaceVersionStatus>()
+
+function sharedVersionRequest<T>(
+  key: string,
+  request: () => Promise<T>
+): Promise<T> {
+  const existing = sharedVersionRequests.get(key)
+  if (existing) return existing as Promise<T>
+  const pending = request()
+  sharedVersionRequests.set(key, pending)
+  const release = () => {
+    if (sharedVersionRequests.get(key) === pending) {
+      sharedVersionRequests.delete(key)
+    }
+  }
+  void pending.then(release, release)
+  return pending
+}
+
 function mergeCommits(
   current: SpaceVersionCommit[],
   incoming: SpaceVersionCommit[]
@@ -1557,9 +1577,13 @@ function beginSpaceVersioningOperation(
 
 export function useSpaceVersioning(
   spaceId: string | undefined,
-  options: { loadHistory?: boolean; historyLimit?: number } = {}
+  options: {
+    loadHistory?: boolean
+    historyLimit?: number
+    active?: boolean
+  } = {}
 ) {
-  const { loadHistory = false, historyLimit = 250 } = options
+  const { loadHistory = false, historyLimit = 250, active = true } = options
   const [status, setStatus] = useState<SpaceVersionStatus | null>(null)
   const [history, setHistory] = useState<SpaceVersionCommit[]>([])
   const [conflicts, setConflicts] = useState<SpaceVersionConflictList | null>(
@@ -1569,8 +1593,8 @@ export function useSpaceVersioning(
     null
   )
   const [historyHasMore, setHistoryHasMore] = useState(false)
-  const [statusLoading, setStatusLoading] = useState(true)
-  const [historyLoading, setHistoryLoading] = useState(loadHistory)
+  const [statusLoading, setStatusLoading] = useState(active)
+  const [historyLoading, setHistoryLoading] = useState(loadHistory && active)
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false)
   const [conflictsLoading, setConflictsLoading] = useState(false)
   const [operation, setOperation] = useState<SpaceVersioningOperation>(null)
@@ -1623,14 +1647,14 @@ export function useSpaceVersioning(
     setHistoryNextCursor(null)
     setHistoryHasMore(false)
     setError(null)
-    setStatusLoading(true)
-    setHistoryLoading(loadHistory)
+    setStatusLoading(active)
+    setHistoryLoading(loadHistory && active)
     setHistoryLoadingMore(false)
     setConflictsLoading(false)
     setOperation(
       spaceId ? (activeSpaceVersioningOperations.get(spaceId) ?? null) : null
     )
-  }, [loadHistory, spaceId])
+  }, [active, loadHistory, spaceId])
 
   const requireSpaceId = useCallback(() => {
     if (!spaceId) throw new Error("No active Space")
@@ -1646,8 +1670,11 @@ export function useSpaceVersioning(
     }
     setStatusLoading(true)
     try {
-      const raw = await requireSpaceVersioningBridge().getStatus(spaceId)
+      const raw = await sharedVersionRequest(`status:${spaceId}`, () =>
+        requireSpaceVersioningBridge().getStatus(spaceId)
+      )
       const nextStatus = normalizeSpaceVersionStatus(raw)
+      latestVersionStatuses.set(spaceId, nextStatus)
       if (mountedRef.current && requestId === statusRequestRef.current) {
         setStatus(nextStatus)
         setError(null)
@@ -1687,9 +1714,13 @@ export function useSpaceVersioning(
     setHistoryLoading(true)
     setHistoryLoadingMore(false)
     try {
-      const raw = await requireSpaceVersioningBridge().getHistory(spaceId, {
-        limit: historyLimit,
-      })
+      const raw = await sharedVersionRequest(
+        `history:${spaceId}:${historyLimit}:initial`,
+        () =>
+          requireSpaceVersioningBridge().getHistory(spaceId, {
+            limit: historyLimit,
+          })
+      )
       const page = normalizeSpaceVersionHistory(raw)
       const snapshot: HistorySnapshot = {
         commits: page.commits,
@@ -1796,7 +1827,9 @@ export function useSpaceVersioning(
     }
     setConflictsLoading(true)
     try {
-      const raw = await requireSpaceVersioningBridge().getConflicts(spaceId)
+      const raw = await sharedVersionRequest(`conflicts:${spaceId}`, () =>
+        requireSpaceVersioningBridge().getConflicts(spaceId)
+      )
       const nextConflicts = normalizeSpaceVersionConflicts(raw)
       if (mountedRef.current && requestId === conflictsRequestRef.current) {
         setConflicts(nextConflicts)
@@ -1862,11 +1895,17 @@ export function useSpaceVersioning(
   )
 
   useEffect(() => {
+    if (!active) {
+      setStatusLoading(false)
+      setHistoryLoading(false)
+      setConflictsLoading(false)
+      return
+    }
     void refresh()
-  }, [refresh])
+  }, [active, refresh])
 
   useEffect(() => {
-    if (!spaceId || typeof window === "undefined") return
+    if (!active || !spaceId || typeof window === "undefined") return
     const listener = (event: Event) => {
       const detail = (event as CustomEvent<unknown>).detail
       if (
@@ -1876,16 +1915,33 @@ export function useSpaceVersioning(
       ) {
         return
       }
-      void refresh()
+      const nextStatus = latestVersionStatuses.get(spaceId)
+      if (!nextStatus) {
+        void refresh()
+        return
+      }
+      statusRequestRef.current += 1
+      setStatus(nextStatus)
+      setStatusLoading(false)
+      if (nextStatus.hasConflicts) {
+        void refreshConflicts()
+      } else {
+        conflictsRequestRef.current += 1
+        setConflicts(null)
+        setConflictsLoading(false)
+      }
+      if ((loadHistory || historyLoadedRef.current) && nextStatus.enabled) {
+        void refreshHistory()
+      }
     }
     window.addEventListener(SPACE_VERSIONING_CHANGED_EVENT, listener)
     return () => {
       window.removeEventListener(SPACE_VERSIONING_CHANGED_EVENT, listener)
     }
-  }, [refresh, spaceId])
+  }, [active, loadHistory, refresh, refreshConflicts, refreshHistory, spaceId])
 
   useEffect(() => {
-    if (!spaceId || typeof window === "undefined") return
+    if (!active || !spaceId || typeof window === "undefined") return
     setOperation(activeSpaceVersioningOperations.get(spaceId) ?? null)
     const listener = (event: Event) => {
       const detail = (event as CustomEvent<unknown>).detail
@@ -1911,10 +1967,10 @@ export function useSpaceVersioning(
     return () => {
       window.removeEventListener(SPACE_VERSIONING_OPERATION_EVENT, listener)
     }
-  }, [spaceId])
+  }, [active, spaceId])
 
   useEffect(() => {
-    if (!spaceId || typeof window === "undefined") return
+    if (!active || !spaceId || typeof window === "undefined") return
     const eventBridge = (window as unknown as { eidos?: EidosEventBridge })
       .eidos
     if (!eventBridge?.on) return
@@ -1937,7 +1993,7 @@ export function useSpaceVersioning(
       if (timer) clearTimeout(timer)
       if (listenerId) eventBridge.off?.("space-files:changed", listenerId)
     }
-  }, [refreshStatus, spaceId])
+  }, [active, refreshStatus, spaceId])
 
   const enable = useCallback(async () => {
     setError(null)
@@ -1998,6 +2054,7 @@ export function useSpaceVersioning(
           throw new Error("Desktop returned an invalid remote configuration")
         }
         const nextStatus = normalizeSpaceVersionStatus(payload.status)
+        latestVersionStatuses.set(activeSpaceId, nextStatus)
         statusRequestRef.current += 1
         if (mountedRef.current) {
           setStatus(nextStatus)
@@ -2044,6 +2101,7 @@ export function useSpaceVersioning(
           throw new Error("Desktop returned an invalid remote removal result")
         }
         const nextStatus = normalizeSpaceVersionStatus(payload.status)
+        latestVersionStatuses.set(activeSpaceId, nextStatus)
         statusRequestRef.current += 1
         if (mountedRef.current) {
           setStatus(nextStatus)
@@ -2106,6 +2164,7 @@ export function useSpaceVersioning(
               ? await bridge.pullRemote(activeSpaceId, request)
               : await bridge.pushRemote(activeSpaceId, request)
         const result = normalizeSpaceVersionSyncResult(raw)
+        latestVersionStatuses.set(activeSpaceId, result.status)
         statusRequestRef.current += 1
         if (mountedRef.current) {
           setStatus(result.status)
@@ -2174,6 +2233,7 @@ export function useSpaceVersioning(
         bridgeInvoked = true
         const raw = await bridge.resolveConflict(activeSpaceId, request)
         const result = normalizeSpaceVersionResolveConflictResult(raw)
+        latestVersionStatuses.set(activeSpaceId, result.status)
         statusRequestRef.current += 1
         if (mountedRef.current) {
           setStatus(result.status)
@@ -2294,6 +2354,7 @@ export function useSpaceVersioning(
         bridgeInvoked = true
         const raw = await bridge.stagePath(activeSpaceId, request)
         const result = normalizeSpaceVersionStagePathResult(raw)
+        latestVersionStatuses.set(activeSpaceId, result.status)
         statusRequestRef.current += 1
         if (mountedRef.current) {
           setStatus(result.status)
@@ -2339,6 +2400,7 @@ export function useSpaceVersioning(
         bridgeInvoked = true
         const raw = await bridge.unstagePath(activeSpaceId, request)
         const result = normalizeSpaceVersionStagePathResult(raw)
+        latestVersionStatuses.set(activeSpaceId, result.status)
         statusRequestRef.current += 1
         if (mountedRef.current) {
           setStatus(result.status)
@@ -2394,6 +2456,7 @@ export function useSpaceVersioning(
         bridgeInvoked = true
         const raw = await bridge.discardPath(activeSpaceId, request)
         const result = normalizeSpaceVersionDiscardPathResult(raw)
+        latestVersionStatuses.set(activeSpaceId, result.status)
         statusRequestRef.current += 1
         if (mountedRef.current) {
           setStatus(result.status)
@@ -2449,6 +2512,7 @@ export function useSpaceVersioning(
         bridgeInvoked = true
         const raw = await bridge.restorePath(activeSpaceId, request)
         const result = normalizeSpaceVersionRestorePathResult(raw)
+        latestVersionStatuses.set(activeSpaceId, result.status)
         statusRequestRef.current += 1
         if (mountedRef.current) {
           setStatus(result.status)
@@ -2499,6 +2563,7 @@ export function useSpaceVersioning(
         bridgeInvoked = true
         const raw = await bridge.restoreVersion(activeSpaceId, request)
         const result = normalizeSpaceVersionRestoreVersionResult(raw)
+        latestVersionStatuses.set(activeSpaceId, result.status)
         statusRequestRef.current += 1
         if (mountedRef.current) {
           setStatus(result.status)

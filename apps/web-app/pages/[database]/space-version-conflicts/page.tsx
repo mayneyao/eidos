@@ -12,6 +12,7 @@ import {
 import { useLocation, useNavigate } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
+import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
 import {
   useSpaceVersioning,
   type SpaceVersionConflictArtifact,
@@ -157,10 +158,10 @@ function ResolutionButton({
   onResolve,
 }: {
   label: string
-  resolution: SpaceVersionConflictResolution
+  resolution: "ours" | "theirs"
   disabled: boolean
   loading: boolean
-  onResolve: (resolution: SpaceVersionConflictResolution) => void
+  onResolve: (resolution: "ours" | "theirs") => void
 }) {
   return (
     <Button
@@ -348,6 +349,7 @@ function FileConflictResolution({
 
 export function SpaceVersionConflictsPage() {
   useTabTitle("Resolve Conflicts")
+  const { isActive } = useTabContext()
   const { currentSpace } = useCurrentSpace()
   const spaceId = currentSpace?.id
   const location = useLocation()
@@ -363,7 +365,7 @@ export function SpaceVersionConflictsPage() {
     available,
     resolveConflict,
     refresh,
-  } = useSpaceVersioning(spaceId)
+  } = useSpaceVersioning(spaceId, { active: isActive })
   const [resolvingId, setResolvingId] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)

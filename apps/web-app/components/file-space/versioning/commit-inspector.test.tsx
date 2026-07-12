@@ -285,7 +285,11 @@ describe("CommitInspector", () => {
       kind: "text_file" as const,
       storage: "inline" as const,
       effect: "modified" as const,
-      status,
+      status: {
+        ...status,
+        clean: false,
+        changes: [{ path: "notes/a.md", status: "modified" as const }],
+      },
     }))
     const restoreVersion = vi.fn()
 
@@ -384,6 +388,9 @@ describe("CommitInspector", () => {
       overwriteChanges: true,
     })
     expect(container.textContent).toContain("Restored 2 versioned paths")
+    expect(container.textContent).toContain(
+      "The Space now matches the current version"
+    )
   })
 
   it("keeps disabled restore controls focusable and exposes their reason", async () => {

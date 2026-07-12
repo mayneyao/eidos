@@ -10,7 +10,10 @@ const mocks = vi.hoisted(() => ({
     | ((event: { eventType: string; path: string }) => void)
     | null,
   readText: vi.fn(),
-  registerPendingWriteFlusher: vi.fn(() => vi.fn()),
+  fetch: vi.fn(async () => ({ ok: true, status: 200 })),
+  registerPendingWriteFlusher: vi.fn(
+    (_id: string, _flusher: () => Promise<boolean>) => vi.fn()
+  ),
   versioningOperation: null as string | null,
   writeText: vi.fn(),
 }))
@@ -111,6 +114,8 @@ describe("SpaceFilePage editor selection", () => {
 
   beforeEach(() => {
     mocks.readText.mockReset()
+    mocks.fetch.mockClear()
+    vi.stubGlobal("fetch", mocks.fetch)
     mocks.writeText.mockReset()
     mocks.registerPendingWriteFlusher.mockClear()
     mocks.fileChangeHandler = null
@@ -123,6 +128,7 @@ describe("SpaceFilePage editor selection", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    vi.unstubAllGlobals()
   })
 
   it("mounts the standalone Lexical editor, never Monaco, for Markdown", async () => {
@@ -194,6 +200,31 @@ describe("SpaceFilePage editor selection", () => {
     expect(
       container.querySelector('[data-testid="lexical-markdown-editor"]')
     ).toBeNull()
+  })
+
+  it("refreshes a nested asset preview after a whole Space rescan", async () => {
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/space-file#assets%2Fcover.png"]}>
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+    expect(mocks.fetch).toHaveBeenCalledWith("/~/assets/cover.png", {
+      method: "HEAD",
+      cache: "no-store",
+    })
+
+    await act(async () => {
+      mocks.fileChangeHandler?.({ eventType: "rescan", path: "" })
+      await flushEffects()
+    })
+
+    expect(mocks.fetch).toHaveBeenLastCalledWith("/~/assets/cover.png?v=1", {
+      method: "HEAD",
+      cache: "no-store",
+    })
   })
 
   it("makes the Markdown surface read-only during destructive restores", async () => {

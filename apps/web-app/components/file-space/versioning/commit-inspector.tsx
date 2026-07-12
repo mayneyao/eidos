@@ -640,14 +640,19 @@ export function CommitInspector({
         allowDelete: restoresDeletion,
       })
       setRestoreDialogOpen(false)
+      const remainsChanged = result.status.changes.some(
+        (change) => change.path === result.path
+      )
       setRestoreFeedback({
         tone: "success",
         message:
           result.effect === "noop"
             ? `${result.path} already matches ${shortCommitId(result.revision)}.`
-            : result.effect === "deleted"
-              ? `Restored the deleted state of ${result.path}. Review the deletion in Changes before creating a version.`
-              : `Restored ${result.path} from ${shortCommitId(result.revision)}. Review it in Changes before creating a version.`,
+            : !remainsChanged
+              ? `Restored ${result.path} from ${shortCommitId(result.revision)}. The working file now matches the current version.`
+              : result.effect === "deleted"
+                ? `Restored the deleted state of ${result.path}. Review the deletion in Changes before creating a version.`
+                : `Restored ${result.path} from ${shortCommitId(result.revision)}. Review it in Changes before creating a version.`,
       })
     } catch (restoreError) {
       setRestoreFeedback({
@@ -677,6 +682,7 @@ export function CommitInspector({
       })
       setSpaceRestoreDialogOpen(false)
       const count = result.restoredPaths.length
+      const cleanAfterRestore = result.status.clean
       setRestoreFeedback({
         tone: "success",
         message:
@@ -690,7 +696,9 @@ export function CommitInspector({
               (count === 1 ? "path" : "paths") +
               " from " +
               shortCommitId(result.revision) +
-              ". Review the result in Changes before creating a version.",
+              (cleanAfterRestore
+                ? ". The Space now matches the current version."
+                : ". Review the result in Changes before creating a version."),
       })
     } catch (restoreError) {
       setRestoreFeedback({
@@ -935,8 +943,8 @@ export function CommitInspector({
               {restoresDeletion
                 ? `This version does not contain ${selectedPath}. Restoring its state will delete the working file.`
                 : `Eidos will replace ${selectedPath} with the copy from “${detail.message}” (${shortCommitId(detail.id)}).`}{" "}
-              HEAD will not move and no version will be created. The result will
-              appear in Changes.
+              HEAD will not move and no version will be created. Changes will
+              show any resulting difference from the current version.
               {currentPathChanges.length > 0 ? (
                 <span className="mt-2 block font-medium text-foreground">
                   This path has uncommitted changes. They will be overwritten;
@@ -995,9 +1003,8 @@ export function CommitInspector({
               {shortCommitId(detail.id)}. Untracked and ignored files that do
               not collide with versioned paths will remain. If an untracked path
               would collide, restoration stops before changing any files. HEAD
-              will not move and history will not be rewritten; the result will
-              appear in Changes so you can review it before creating a new
-              version.
+              will not move and history will not be rewritten. Changes will show
+              any resulting difference from the current version.
               {hasOverwritableSpaceChanges ? (
                 <span className="mt-2 block font-medium text-foreground">
                   Current uncommitted changes to versioned paths will be

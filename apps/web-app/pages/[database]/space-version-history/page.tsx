@@ -23,6 +23,7 @@ import {
   commitGraphWidth,
 } from "@/apps/web-app/components/file-space/versioning/commit-graph"
 import { CommitInspector } from "@/apps/web-app/components/file-space/versioning/commit-inspector"
+import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
 import {
   formatAbsoluteVersionTime,
   formatVersionTime,
@@ -66,6 +67,7 @@ function HistoryEmptyState({ filtered }: { filtered: boolean }) {
 
 export function SpaceVersionHistoryPage() {
   useTabTitle("Version History")
+  const { isActive } = useTabContext()
   const { currentSpace } = useCurrentSpace()
   const spaceId = currentSpace?.id
   const location = useLocation()
@@ -93,7 +95,11 @@ export function SpaceVersionHistoryPage() {
     restoreVersion,
     refresh,
     loadMoreHistory,
-  } = useSpaceVersioning(spaceId, { loadHistory: true, historyLimit: 250 })
+  } = useSpaceVersioning(spaceId, {
+    loadHistory: true,
+    historyLimit: 250,
+    active: isActive,
+  })
 
   const requestedCommitId = useMemo(
     () => new URLSearchParams(location.search).get("commit"),
