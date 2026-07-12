@@ -225,7 +225,7 @@ describe("VersionPanel changed-file diff", () => {
     })
   })
 
-  it("opens ours-to-theirs diff and resolves a conflicted file", async () => {
+  it("opens ours-to-theirs diff and a dedicated conflict review tab", async () => {
     mocks.changes = [
       {
         path: "conflict.md",
@@ -258,18 +258,10 @@ describe("VersionPanel changed-file diff", () => {
         ?.click()
       await Promise.resolve()
     })
-    const acceptTheirs = [...document.body.querySelectorAll("button")].find(
-      (button) => button.textContent?.trim() === "Accept theirs"
+    expect(mocks.openTab).toHaveBeenLastCalledWith(
+      "/version/conflicts?path=conflict.md",
+      "Resolve Conflicts"
     )
-    await act(async () => {
-      acceptTheirs?.click()
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-    expect(mocks.resolveConflict).toHaveBeenCalledWith({
-      path: "conflict.md",
-      resolution: "theirs",
-      expectedHead: "head-2",
-    })
+    expect(document.body.querySelector('[role="alertdialog"]')).toBeNull()
   })
 })

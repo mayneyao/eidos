@@ -9,6 +9,7 @@ describe("file Space route policy", () => {
     "/space-file?heading=Intro#Notes%2FToday.md",
     "/version/history",
     "/version/diff?path=Notes%2FToday.md",
+    "/version/conflicts?path=Tasks.base",
     "/settings",
     "/settings/space-general",
     "https://example.com/reference",

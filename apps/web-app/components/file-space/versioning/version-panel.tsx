@@ -14,7 +14,10 @@ import {
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { FILE_SPACE_VERSION_DIFF_ROUTE } from "@/apps/web-app/file-space-route-policy"
+import {
+  FILE_SPACE_VERSION_CONFLICTS_ROUTE,
+  FILE_SPACE_VERSION_DIFF_ROUTE,
+} from "@/apps/web-app/file-space-route-policy"
 import { navigateAfterFlushingSpaceFile } from "@/apps/web-app/components/file-space/file-navigation"
 import { flushPendingFileWrites } from "@/apps/web-app/components/file-space/pending-writes"
 import {
@@ -22,7 +25,6 @@ import {
   toSpaceFileUrl,
 } from "@/apps/web-app/components/file-space/file-path"
 import { useSpaceVersioning } from "@/apps/web-app/hooks/use-space-versioning"
-import type { SpaceVersionConflictResolution } from "@/apps/web-app/hooks/use-space-versioning"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { openSettings } from "@/components/settings/settings-events"
@@ -248,7 +250,6 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
   const [localNotice, setLocalNotice] = useState<string | null>(null)
   const [busyPath, setBusyPath] = useState<string | null>(null)
   const [discardTarget, setDiscardTarget] = useState<string | null>(null)
-  const [conflictTarget, setConflictTarget] = useState<string | null>(null)
   const { location, navigate } = useRouterAdapter()
   const openTab = useTabStore((state) => state.openTab)
   const tabs = useTabStore((state) => state.tabs)
@@ -268,7 +269,6 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
     fetchRemote,
     pullRemote,
     pushRemote,
-    resolveConflict,
     refresh,
   } = useSpaceVersioning(spaceId)
 
@@ -422,6 +422,19 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
     }
     openTab(url, "Version History")
   }
+  const openConflictReview = (path: string) => {
+    const url = `/${FILE_SPACE_VERSION_CONFLICTS_ROUTE}?path=${encodeURIComponent(path)}`
+    const existingTab = tabs.find(
+      (tab) =>
+        tab.url.split(/[?#]/, 1)[0] === `/${FILE_SPACE_VERSION_CONFLICTS_ROUTE}`
+    )
+    if (existingTab) {
+      updateTab(existingTab.id, { url, title: "Resolve Conflicts" })
+      setActiveTab(existingTab.id)
+      return
+    }
+    openTab(url, "Resolve Conflicts")
+  }
   const submitCommit = async () => {
     if (!message.trim() || operation) return
     clearFeedback()
@@ -478,35 +491,6 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
       )
     }
   }
-  const resolveSelectedConflict = async (
-    resolution: SpaceVersionConflictResolution
-  ) => {
-    if (!conflictTarget || operation || busyPath) return
-    clearFeedback()
-    setBusyPath(conflictTarget)
-    try {
-      const result = await resolveConflict({
-        path: conflictTarget,
-        resolution,
-        expectedHead: status?.head?.id ?? null,
-      })
-      setLocalNotice(
-        result.remainingConflicts > 0
-          ? `${result.path} was resolved. ${result.remainingConflicts} ${result.remainingConflicts === 1 ? "conflict remains" : "conflicts remain"}.`
-          : `${result.path} was resolved. Create a version to finish the merge.`
-      )
-      setConflictTarget(null)
-    } catch (resolveError) {
-      setLocalError(
-        resolveError instanceof Error
-          ? resolveError.message
-          : String(resolveError)
-      )
-    } finally {
-      setBusyPath(null)
-    }
-  }
-
   return (
     <>
       <section
@@ -632,7 +616,7 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
                   onRevealPath={(path) => void openChangedPath(path)}
                   onStagePath={(path) => void includeChangedPath(path)}
                   onDiscardPath={setDiscardTarget}
-                  onResolveConflict={setConflictTarget}
+                  onResolveConflict={openConflictReview}
                 />
               ) : (
                 <div className="flex items-start gap-2 px-3 py-3 text-[11px] leading-5 text-sidebar-foreground/55">
@@ -735,62 +719,6 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
                 <Undo2 className="h-3.5 w-3.5" />
               )}
               {busyPath ? "Discarding…" : "Discard changes"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={conflictTarget !== null}
-        onOpenChange={(open) => {
-          if (!open && !busyPath) setConflictTarget(null)
-        }}
-      >
-        <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-base">
-              Resolve this file conflict
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2 leading-5">
-              <code className="block break-all font-mono text-foreground">
-                {conflictTarget}
-              </code>
-              <span className="block">
-                Keep your local version, accept the remote version, or mark the
-                currently edited file as the resolved result. You can inspect
-                both versions by clicking the file before choosing.
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="sm:flex-wrap">
-            <AlertDialogCancel disabled={busyPath !== null}>
-              Cancel
-            </AlertDialogCancel>
-            <Button
-              variant="outline"
-              disabled={busyPath !== null}
-              onClick={() => void resolveSelectedConflict("manual")}
-            >
-              Use current file
-            </Button>
-            <Button
-              variant="outline"
-              disabled={busyPath !== null}
-              onClick={() => void resolveSelectedConflict("ours")}
-            >
-              Keep ours
-            </Button>
-            <AlertDialogAction
-              disabled={busyPath !== null}
-              onClick={(event) => {
-                event.preventDefault()
-                void resolveSelectedConflict("theirs")
-              }}
-            >
-              {busyPath ? (
-                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-              ) : null}
-              Accept theirs
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
