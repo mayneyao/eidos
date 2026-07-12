@@ -228,7 +228,7 @@ describe("BaseGrid", () => {
   })
 
   it("opens routine field actions from the column header", async () => {
-    const onRenameField = vi.fn()
+    const onPropertyFieldOpen = vi.fn()
     await act(async () => {
       root.render(
         <BaseGrid
@@ -236,7 +236,7 @@ describe("BaseGrid", () => {
           loadPage={createLoadPage()}
           onAddRow={vi.fn()}
           onCellEdit={createCellEdit()}
-          onRenameField={onRenameField}
+          onPropertyFieldOpen={onPropertyFieldOpen}
         />
       )
       await Promise.resolve()
@@ -249,12 +249,12 @@ describe("BaseGrid", () => {
         preventDefault: vi.fn(),
       } as never)
     })
-    const rename = [...document.body.querySelectorAll("button")].find(
-      (button) => button.textContent?.includes("Rename field")
+    const editProperty = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.includes("Edit property")
     )
-    expect(rename).toBeTruthy()
-    act(() => rename?.click())
-    expect(onRenameField).toHaveBeenCalledWith(table.fields[0])
+    expect(editProperty).toBeTruthy()
+    act(() => editProperty?.click())
+    expect(onPropertyFieldOpen).toHaveBeenCalledWith(table.fields[0])
   })
 
   it("persists sort, insertion, and freeze commands from the field menu", async () => {

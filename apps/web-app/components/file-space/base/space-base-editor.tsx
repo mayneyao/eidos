@@ -10,6 +10,7 @@ import type {
   BaseRowsDeleteResult,
   BaseSnapshot,
   BaseSqlPrimitive,
+  UpdateBaseFieldInput,
 } from "@eidos.space/base"
 import { uniqueSpaceEntryName } from "@eidos.space/file-space/names"
 import {
@@ -47,7 +48,6 @@ import {
 import { BaseGrid } from "./base-grid"
 import { BaseCsvImportPopover } from "./base-csv-import-popover"
 import { baseOpenErrorPresentation } from "./base-open-error"
-import { BaseFieldOptionsDialog } from "./base-field-options-dialog"
 import { BaseFormulaEditor } from "./base-formula-editor"
 import { BaseLookupEditor } from "./base-lookup-editor"
 import { BaseQueryToolbar } from "./base-query-toolbar"
@@ -63,14 +63,7 @@ interface SpaceBaseEditorProps {
 
 const BASE_ATTACHMENT_DIRECTORY = "assets"
 
-type RenameTarget =
-  | { kind: "table"; tableId: string; name: string }
-  | {
-      kind: "field"
-      tableId: string
-      columnName: string
-      name: string
-    }
+type RenameTarget = { kind: "table"; tableId: string; name: string }
 
 type DeleteTarget = RenameTarget
 
@@ -124,8 +117,9 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const [deleteRowsDialogOpen, setDeleteRowsDialogOpen] = useState(false)
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
-  const [fieldOptionsTarget, setFieldOptionsTarget] =
-    useState<BaseFieldInfo | null>(null)
+  const [fieldPropertyColumn, setFieldPropertyColumn] = useState<string | null>(
+    null
+  )
   const [formulaTarget, setFormulaTarget] = useState<BaseFieldInfo | null>(null)
   const [lookupTarget, setLookupTarget] = useState<BaseFieldInfo | null>(null)
   const [structureDialog, setStructureDialog] = useState<
@@ -177,6 +171,13 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       snapshot?.tables.find(({ table }) => table.id === activeTableId) ?? null,
     [activeTableId, snapshot?.tables]
   )
+  const fieldPropertyTarget = useMemo(
+    () =>
+      activeTable?.fields.find(
+        (field) => field.tableColumnName === fieldPropertyColumn
+      ) ?? null,
+    [activeTable?.fields, fieldPropertyColumn]
+  )
   const activeView = useMemo(() => {
     if (!activeTable) return undefined
     const selectedId = activeViewIds[activeTable.table.id]
@@ -201,6 +202,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   useEffect(() => {
     setSearch("")
     setVisibleRowCount(null)
+    setFieldPropertyColumn(null)
   }, [activeTableId, activeView?.id, filePath])
 
   useEffect(() => {
@@ -550,25 +552,12 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const renameStructure = useCallback(
     (name: string): Promise<void> => {
       if (!renameTarget) return Promise.resolve()
-      const operation = () =>
-        renameTarget.kind === "table"
-          ? updateTable(filePath, renameTarget.tableId, { name })
-          : updateField(
-              filePath,
-              renameTarget.tableId,
-              renameTarget.columnName,
-              { name }
-            )
-      return enqueueMutation(operation, applySnapshot).then(() => undefined)
+      return enqueueMutation(
+        () => updateTable(filePath, renameTarget.tableId, { name }),
+        applySnapshot
+      ).then(() => undefined)
     },
-    [
-      applySnapshot,
-      enqueueMutation,
-      filePath,
-      renameTarget,
-      updateField,
-      updateTable,
-    ]
+    [applySnapshot, enqueueMutation, filePath, renameTarget, updateTable]
   )
 
   const deleteStructure = useCallback((): Promise<void> => {
@@ -578,6 +567,11 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         ? deleteTable(filePath, deleteTarget.tableId)
         : deleteField(filePath, deleteTarget.tableId, deleteTarget.columnName)
     return enqueueMutation(operation, applySnapshot).then(() => {
+      if (deleteTarget.kind === "field") {
+        setFieldPropertyColumn((current) =>
+          current === deleteTarget.columnName ? null : current
+        )
+      }
       setDeleteTarget(null)
     })
   }, [
@@ -589,28 +583,28 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     filePath,
   ])
 
-  const saveFieldOptions = useCallback(
-    (property: Record<string, unknown>): Promise<void> => {
-      if (!activeTable || !fieldOptionsTarget) return Promise.resolve()
+  const updateFieldInBase = useCallback(
+    (field: BaseFieldInfo, changes: UpdateBaseFieldInput): Promise<void> => {
+      if (!activeTable) {
+        return Promise.reject(new Error("No active Base table"))
+      }
       return enqueueMutation(
         () =>
           updateField(
             filePath,
             activeTable.table.id,
-            fieldOptionsTarget.tableColumnName,
-            { property }
+            field.tableColumnName,
+            changes
           ),
-        applySnapshot
+        (next) => {
+          applySnapshot(next)
+          if (changes.type !== undefined || changes.property !== undefined) {
+            setGridReloadToken((current) => current + 1)
+          }
+        }
       ).then(() => undefined)
     },
-    [
-      activeTable,
-      applySnapshot,
-      enqueueMutation,
-      fieldOptionsTarget,
-      filePath,
-      updateField,
-    ]
+    [activeTable, applySnapshot, enqueueMutation, filePath, updateField]
   )
 
   const saveFormula = useCallback(
@@ -950,17 +944,9 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
                     name: activeTable.table.name,
                   })
                 }
-                onRenameField={(field) =>
-                  setRenameTarget({
-                    kind: "field",
-                    tableId: activeTable.table.id,
-                    columnName: field.tableColumnName,
-                    name: field.name,
-                  })
+                onEditField={(field) =>
+                  setFieldPropertyColumn(field.tableColumnName)
                 }
-                onEditFieldOptions={setFieldOptionsTarget}
-                onEditFormula={setFormulaTarget}
-                onEditLookup={setLookupTarget}
                 onDeleteField={(field) =>
                   setDeleteTarget({
                     kind: "field",
@@ -1047,16 +1033,13 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             onOpenFile={openBaseFileReference}
             onRevealFile={(path) => reveal(path).then(() => undefined)}
             onSearchRelation={searchRelationRecords}
-            onAddField={openFieldCreator}
-            onRenameField={(field) =>
-              setRenameTarget({
-                kind: "field",
-                tableId: activeTable.table.id,
-                columnName: field.tableColumnName,
-                name: field.name,
-              })
+            propertyField={fieldPropertyTarget}
+            onPropertyFieldOpen={(field) =>
+              setFieldPropertyColumn(field.tableColumnName)
             }
-            onEditFieldOptions={setFieldOptionsTarget}
+            onPropertyFieldClose={() => setFieldPropertyColumn(null)}
+            onFieldUpdate={updateFieldInBase}
+            onAddField={openFieldCreator}
             onEditFormula={setFormulaTarget}
             onEditLookup={setLookupTarget}
             onDeleteField={(field) =>
@@ -1163,15 +1146,6 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           if (!open) setRenameTarget(null)
         }}
         onRename={renameStructure}
-      />
-
-      <BaseFieldOptionsDialog
-        field={fieldOptionsTarget}
-        open={fieldOptionsTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setFieldOptionsTarget(null)
-        }}
-        onSave={saveFieldOptions}
       />
 
       <BaseFormulaEditor

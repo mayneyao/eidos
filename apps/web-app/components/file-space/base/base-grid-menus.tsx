@@ -17,7 +17,6 @@ import {
   FolderOpen,
   ListX,
   PanelRightOpen,
-  Pencil,
   Pin,
   PinOff,
   SlidersHorizontal,
@@ -97,7 +96,6 @@ export function BaseFieldMenu({
   canEditStructure,
   onOpenChange,
   onEditProperty,
-  onRename,
   onSort,
   onInsert,
   onToggleFreeze,
@@ -111,7 +109,6 @@ export function BaseFieldMenu({
   canEditStructure: boolean
   onOpenChange: (open: boolean) => void
   onEditProperty?: (field: BaseFieldInfo) => void
-  onRename: (field: BaseFieldInfo) => void
   onSort: (field: BaseFieldInfo, direction: BaseSortDirection | null) => void
   onInsert: (index: number) => void
   onToggleFreeze: (fieldIndex: number, frozen: boolean) => void
@@ -164,13 +161,6 @@ export function BaseFieldMenu({
                 Edit property
               </MenuItem>
             ) : null}
-            <MenuItem
-              disabled={!canEditStructure}
-              onClick={() => run(() => onRename(state.field))}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Rename field
-            </MenuItem>
             <div className="my-1 h-px bg-border" role="separator" />
             <MenuItem
               disabled={!canUpdateView}

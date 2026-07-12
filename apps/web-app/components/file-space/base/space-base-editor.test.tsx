@@ -98,18 +98,14 @@ vi.mock("./base-structure-menu", () => ({
     onNewField,
     onRenameTable,
     onDeleteTable,
-    onRenameField,
-    onEditFieldOptions,
+    onEditField,
     onDeleteField,
   }: {
     fields: (typeof snapshot)["tables"][number]["fields"]
     onNewField: () => void
     onRenameTable: () => void
     onDeleteTable: () => void
-    onRenameField: (
-      field: (typeof snapshot)["tables"][number]["fields"][number]
-    ) => void
-    onEditFieldOptions: (
+    onEditField: (
       field: (typeof snapshot)["tables"][number]["fields"][number]
     ) => void
     onDeleteField: (
@@ -133,14 +129,6 @@ vi.mock("./base-structure-menu", () => ({
         <button
           type="button"
           onClick={() => {
-            if (field) onRenameField(field)
-          }}
-        >
-          Rename field
-        </button>
-        <button
-          type="button"
-          onClick={() => {
             if (field) onDeleteField(field)
           }}
         >
@@ -149,39 +137,14 @@ vi.mock("./base-structure-menu", () => ({
         <button
           type="button"
           onClick={() => {
-            if (field) onEditFieldOptions(field)
+            if (field) onEditField(field)
           }}
         >
-          Edit options
+          Edit property
         </button>
       </>
     )
   },
-}))
-
-vi.mock("./base-field-options-dialog", () => ({
-  BaseFieldOptionsDialog: ({
-    open,
-    onOpenChange,
-    onSave,
-  }: {
-    open: boolean
-    onOpenChange: (open: boolean) => void
-    onSave: (property: Record<string, unknown>) => void
-  }) =>
-    open ? (
-      <button
-        type="button"
-        onClick={() => {
-          onSave({
-            options: [{ id: "done", name: "Done", color: "default" }],
-          })
-          onOpenChange(false)
-        }}
-      >
-        Confirm options
-      </button>
-    ) : null,
 }))
 
 vi.mock("./base-formula-editor", () => ({
@@ -303,6 +266,8 @@ vi.mock("./base-grid", () => ({
     onOpenFile,
     onRevealFile,
     onSearchRelation,
+    propertyField,
+    onFieldUpdate,
     onAddField,
     onEditFormula,
     onEditLookup,
@@ -324,6 +289,11 @@ vi.mock("./base-grid", () => ({
       field: (typeof snapshot)["tables"][number]["fields"][number],
       query: string
     ) => Promise<Array<{ id: string; title: string }>>
+    propertyField?: (typeof snapshot)["tables"][number]["fields"][number] | null
+    onFieldUpdate?: (
+      field: (typeof snapshot)["tables"][number]["fields"][number],
+      changes: Record<string, unknown>
+    ) => Promise<void> | void
     onAddField?: (position?: number) => void
     onEditFormula?: (
       field: (typeof snapshot)["tables"][number]["fields"][number]
@@ -362,6 +332,31 @@ vi.mock("./base-grid", () => ({
         <button type="button" onClick={() => onAddField?.(1)}>
           Insert field at 1
         </button>
+        {propertyField ? (
+          <>
+            <span>Properties for {propertyField.name}</span>
+            <button
+              type="button"
+              onClick={() =>
+                void onFieldUpdate?.(propertyField, {
+                  property: {
+                    options: [{ id: "done", name: "Done", color: "default" }],
+                  },
+                })
+              }
+            >
+              Save property
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                void onFieldUpdate?.(propertyField, { type: "text" })
+              }
+            >
+              Convert field
+            </button>
+          </>
+        ) : null}
         <button type="button" onClick={() => void onImportFiles?.()}>
           Import attachments
         </button>
@@ -974,7 +969,7 @@ describe("SpaceBaseEditor", () => {
     )
   })
 
-  it("renames and deletes tables and fields through the structure menu", async () => {
+  it("renames tables and edits or deletes fields through the structure menu", async () => {
     await renderEditor()
 
     await act(async () => {
@@ -996,30 +991,13 @@ describe("SpaceBaseEditor", () => {
 
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "Rename field")
+        .find((button) => button.textContent === "Edit property")
         ?.click()
     })
+    expect(container.textContent).toContain("Properties for Status")
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "Confirm rename")
-        ?.click()
-      await Promise.resolve()
-    })
-    expect(updateFieldMock).toHaveBeenCalledWith(
-      "projects/tasks.base",
-      "tasks",
-      "status",
-      { name: "Status renamed" }
-    )
-
-    await act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "Edit options")
-        ?.click()
-    })
-    await act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "Confirm options")
+        .find((button) => button.textContent === "Save property")
         ?.click()
       await Promise.resolve()
     })
@@ -1032,6 +1010,19 @@ describe("SpaceBaseEditor", () => {
           options: [{ id: "done", name: "Done", color: "default" }],
         },
       }
+    )
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Convert field")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(updateFieldMock).toHaveBeenLastCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      "status",
+      { type: "text" }
     )
 
     await act(async () => {

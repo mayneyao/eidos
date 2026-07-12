@@ -17,7 +17,9 @@ import {
   type GridCell,
   type GridColumn,
 } from "@glideapps/glide-data-grid"
+import type { RangeCell } from "@/components/table/views/grid/cells/range-cell"
 
+import { baseNumberProperty } from "./base-field-properties"
 import { baseFileDisplayData, type BaseFileCell } from "./base-file-cell"
 import type { BaseRelationCell } from "./base-relation-cell"
 
@@ -51,6 +53,25 @@ function localDateString(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0")
   const day = String(date.getDate()).padStart(2, "0")
   return `${year}-${month}-${day}`
+}
+
+function formatBaseNumber(value: number, format: string): string {
+  if (format === "percent") {
+    return new Intl.NumberFormat(undefined, {
+      style: "percent",
+      maximumFractionDigits: 2,
+    }).format(value)
+  }
+  if (format === "currency") {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 2,
+    }).format(value)
+  }
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 12,
+  }).format(value)
 }
 
 export function visibleBaseFields(
@@ -255,12 +276,33 @@ export function baseValueToGridCell(
   if (field.type === "number") {
     const number = typeof value === "number" ? value : Number(value)
     const data = Number.isFinite(number) ? number : undefined
+    const property = baseNumberProperty(field)
+    if (data !== undefined && property.showAs === "bar") {
+      return {
+        kind: GridCellKind.Custom,
+        allowOverlay: true,
+        readonly,
+        copyData: String(data),
+        data: {
+          kind: "range-cell",
+          min: 0,
+          max: property.divideBy,
+          step: 1,
+          value: data,
+          label: property.showNumber
+            ? formatBaseNumber(data, property.format)
+            : undefined,
+          color: property.color,
+        },
+      } satisfies RangeCell
+    }
     return {
       kind: GridCellKind.Number,
       allowOverlay: true,
       readonly,
       data,
-      displayData: data === undefined ? "" : String(data),
+      displayData:
+        data === undefined ? "" : formatBaseNumber(data, property.format),
     }
   }
   const text = scalarText(value)
@@ -326,6 +368,9 @@ export function gridCellToBaseValue(
     }
     if (data.kind === "rating-cell") {
       return typeof data.rating === "number" ? data.rating : null
+    }
+    if (data.kind === "range-cell") {
+      return typeof data.value === "number" ? data.value : null
     }
     if (data.kind === "date-picker-cell") {
       if (!(data.date instanceof Date) || Number.isNaN(data.date.getTime())) {

@@ -9,6 +9,7 @@ import type {
   BaseSqlPrimitive,
   BaseTableSnapshot,
   BaseViewInfo,
+  UpdateBaseFieldInput,
   UpdateBaseViewInput,
 } from "@eidos.space/base"
 import DataEditor, {
@@ -30,6 +31,7 @@ import MultiSelectCell from "@/components/table/views/grid/cells/multi-select-ce
 import SelectCell from "@/components/table/views/grid/cells/select-cell"
 import DatePickerCell from "@/components/table/views/grid/cells/date-picker-cell"
 import RatingCell from "@/components/table/views/grid/cells/rating-cell"
+import RangeCell from "@/components/table/views/grid/cells/range-cell"
 import { defaultConfig } from "@/components/table/views/grid/grid-default-config"
 import { useUndoRedo } from "@/components/table/views/grid/hooks/use-undo-redo"
 import { useDynamicTheme } from "@/components/table/views/grid/theme"
@@ -49,6 +51,7 @@ import {
   BaseRelationCellRenderer,
   type BaseRelationCell,
 } from "./base-relation-cell"
+import { BaseFieldPropertyPanel } from "./base-field-property-panel"
 import { decodeBaseFilePaths, encodeBaseFilePaths } from "@eidos.space/base"
 
 import {
@@ -95,9 +98,14 @@ interface BaseGridProps {
     field: BaseFieldInfo,
     query: string
   ) => Promise<BaseRelationValue[]>
+  propertyField?: BaseFieldInfo | null
+  onPropertyFieldOpen?: (field: BaseFieldInfo) => void
+  onPropertyFieldClose?: () => void
+  onFieldUpdate?: (
+    field: BaseFieldInfo,
+    changes: UpdateBaseFieldInput
+  ) => Promise<void> | void
   onAddField?: (position?: number) => void
-  onRenameField?: (field: BaseFieldInfo) => void
-  onEditFieldOptions?: (field: BaseFieldInfo) => void
   onEditFormula?: (field: BaseFieldInfo) => void
   onEditLookup?: (field: BaseFieldInfo) => void
   onDeleteField?: (field: BaseFieldInfo) => void
@@ -150,9 +158,11 @@ export function BaseGrid({
   onOpenFile,
   onRevealFile,
   onSearchRelation,
+  propertyField,
+  onPropertyFieldOpen,
+  onPropertyFieldClose,
+  onFieldUpdate,
   onAddField,
-  onRenameField,
-  onEditFieldOptions,
   onEditFormula,
   onEditLookup,
   onDeleteField,
@@ -615,11 +625,6 @@ export function BaseGrid({
     ? view?.sorts.find((sort) => sort.field === fieldMenu.field.tableColumnName)
         ?.direction
     : undefined
-  const fieldHasPropertyEditor =
-    fieldMenu?.field.type === "select" ||
-    fieldMenu?.field.type === "multi-select" ||
-    fieldMenu?.field.type === "formula" ||
-    fieldMenu?.field.type === "lookup"
   const cellText = cellMenu
     ? baseRecordFieldText(cellMenu.row, cellMenu.field)
     : ""
@@ -650,6 +655,7 @@ export function BaseGrid({
           onVisibleRegionChanged={onVisibleRegionChanged}
           customRenderers={[
             RatingCell,
+            RangeCell,
             SelectCell,
             MultiSelectCell,
             DatePickerCell,
@@ -698,22 +704,13 @@ export function BaseGrid({
             if (!open) setFieldMenu(null)
           }}
           onEditProperty={
-            fieldHasPropertyEditor
+            onPropertyFieldOpen
               ? (field) => {
-                  if (
-                    field.type === "select" ||
-                    field.type === "multi-select"
-                  ) {
-                    onEditFieldOptions?.(field)
-                  } else if (field.type === "formula") {
-                    onEditFormula?.(field)
-                  } else if (field.type === "lookup") {
-                    onEditLookup?.(field)
-                  }
+                  setInspectedRowIndex(null)
+                  onPropertyFieldOpen(field)
                 }
               : undefined
           }
-          onRename={(field) => onRenameField?.(field)}
           onSort={(field, direction) =>
             updateView({
               sorts: nextBaseFieldSorts(
@@ -744,7 +741,10 @@ export function BaseGrid({
           onOpenChange={(open) => {
             if (!open) setCellMenu(null)
           }}
-          onOpenRecord={(state) => setInspectedRowIndex(state.rowIndex)}
+          onOpenRecord={(state) => {
+            onPropertyFieldClose?.()
+            setInspectedRowIndex(state.rowIndex)
+          }}
           onCopyCell={copyText}
           onCopyRecordId={copyText}
           onOpenUrl={(url) => window.open(url, "_blank", "noopener,noreferrer")}
@@ -761,7 +761,20 @@ export function BaseGrid({
           onDeleteRows={(ranges) => onRequestDeleteRows?.(ranges)}
         />
       </div>
-      {inspectedRow ? (
+      {propertyField &&
+      onPropertyFieldClose &&
+      onFieldUpdate &&
+      onDeleteField ? (
+        <BaseFieldPropertyPanel
+          field={propertyField}
+          disabled={disabled}
+          onClose={onPropertyFieldClose}
+          onUpdate={onFieldUpdate}
+          onDelete={onDeleteField}
+          onEditFormula={onEditFormula}
+          onEditLookup={onEditLookup}
+        />
+      ) : inspectedRow ? (
         <BaseRecordInspector
           row={inspectedRow}
           fields={fields}

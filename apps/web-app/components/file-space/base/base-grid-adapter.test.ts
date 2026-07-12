@@ -46,6 +46,40 @@ describe("Base Grid adapter", () => {
     })
   })
 
+  it("applies persisted number formatting and bar presentation", () => {
+    expect(
+      baseValueToGridCell(field("number", { format: "percent" }), 0.25)
+    ).toMatchObject({
+      kind: GridCellKind.Number,
+      data: 0.25,
+      displayData: "25%",
+    })
+    const bar = baseValueToGridCell(
+      field("number", {
+        format: "number",
+        showAs: "bar",
+        divideBy: 20,
+        color: "green",
+        showNumber: true,
+      }),
+      12
+    )
+    expect(bar).toMatchObject({
+      kind: GridCellKind.Custom,
+      data: {
+        kind: "range-cell",
+        value: 12,
+        max: 20,
+        color: "green",
+        label: "12",
+      },
+    })
+    if (bar.kind !== GridCellKind.Custom) {
+      throw new Error("Expected a range cell")
+    }
+    expect(gridCellToBaseValue(field("number"), bar)).toBe(12)
+  })
+
   it("reuses select options while supplying the legacy default color", () => {
     const select = field("select", {
       options: [

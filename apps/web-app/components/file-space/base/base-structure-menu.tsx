@@ -1,13 +1,11 @@
 import type { BaseFieldInfo, BaseTableInfo } from "@eidos.space/base"
 import {
   Columns3,
-  Calculator,
-  ListPlus,
   MoreHorizontal,
   Pencil,
   Plus,
+  SlidersHorizontal,
   Trash2,
-  Waypoints,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -30,10 +28,7 @@ interface BaseStructureMenuProps {
   onNewField: () => void
   onRenameTable: () => void
   onDeleteTable: () => void
-  onRenameField: (field: BaseFieldInfo) => void
-  onEditFieldOptions: (field: BaseFieldInfo) => void
-  onEditFormula: (field: BaseFieldInfo) => void
-  onEditLookup: (field: BaseFieldInfo) => void
+  onEditField: (field: BaseFieldInfo) => void
   onDeleteField: (field: BaseFieldInfo) => void
 }
 
@@ -44,10 +39,7 @@ export function BaseStructureMenu({
   onNewField,
   onRenameTable,
   onDeleteTable,
-  onRenameField,
-  onEditFieldOptions,
-  onEditFormula,
-  onEditLookup,
+  onEditField,
   onDeleteField,
 }: BaseStructureMenuProps) {
   const visibleFields = fields.filter((field) => !field.isHidden)
@@ -99,31 +91,10 @@ export function BaseStructureMenu({
                     <span className="truncate">{field.name}</span>
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent className="w-40">
-                    <DropdownMenuItem onSelect={() => onRenameField(field)}>
-                      <Pencil className="mr-2 h-3.5 w-3.5" />
-                      Rename
+                    <DropdownMenuItem onSelect={() => onEditField(field)}>
+                      <SlidersHorizontal className="mr-2 h-3.5 w-3.5" />
+                      Edit property
                     </DropdownMenuItem>
-                    {field.type === "select" ||
-                    field.type === "multi-select" ? (
-                      <DropdownMenuItem
-                        onSelect={() => onEditFieldOptions(field)}
-                      >
-                        <ListPlus className="mr-2 h-3.5 w-3.5" />
-                        Edit options
-                      </DropdownMenuItem>
-                    ) : null}
-                    {field.type === "formula" ? (
-                      <DropdownMenuItem onSelect={() => onEditFormula(field)}>
-                        <Calculator className="mr-2 h-3.5 w-3.5" />
-                        Edit formula
-                      </DropdownMenuItem>
-                    ) : null}
-                    {field.type === "lookup" ? (
-                      <DropdownMenuItem onSelect={() => onEditLookup(field)}>
-                        <Waypoints className="mr-2 h-3.5 w-3.5" />
-                        Edit lookup
-                      </DropdownMenuItem>
-                    ) : null}
                     <DropdownMenuItem
                       disabled={!canDelete}
                       className="text-destructive focus:text-destructive"
