@@ -37,14 +37,15 @@ Space 可见的 `assets/` 目录、拖放到单元格、重排或移除附件、
 
 relation 字段现在沿用原表格交互：单元格显示关联记录标题，打开可搜索、多选的 Grid
 overlay，并且只保存稳定 row IDs。formula 字段实时计算，按配置的 display type 只读
-呈现，并通过带字段插入快捷项的锚定字段控制创建或修改；两个流程都不打开居中弹窗。
+呈现；新建和编辑共用同一个锚定 CodeMirror composer，恢复 SQL/field completion、可搜索
+reference browser、即时依赖/错误反馈和保存前的真实 Base row sample preview。两个流程都
+不打开居中弹窗。
 
 lookup/rollup 字段延续同一套表头驱动流程：用户在锚定字段面板中选择已有 relation、
 target field 和 aggregation。派生值在 Grid 中保持只读，会随着 relation/target 修改刷新，
 也可以继续供 formula 使用，不引入单独的配置页面。
 
-Base 仍处于 delivery closure，而不是产品验收。更丰富的 formula completion/preview、
-Gallery/Kanban layouts、无障碍表格语义和完整原生
+Base 仍处于 delivery closure，而不是产品验收。Gallery/Kanban layouts、无障碍表格语义和完整原生
 create/edit/restart/version/restore 验收仍未完成。Base 日常编辑和配置优先使用单元格
 内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留给破坏性确认或必须中断
 当前工作流的决策。新增交互应先参考并复用原表格已经验证过的编辑方式，不应仅为了

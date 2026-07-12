@@ -46,7 +46,11 @@ parses SQLite expressions, resolves raw columns or `prop("Field name")`, orders
 formula dependencies, rejects cycles, and makes calculated values available to
 normal paging, filtering, sorting, edits, and Graft row diffs. Field creation
 and formula editing remain in anchored table controls rather than centered
-dialogs.
+dialogs. Both creation and editing now share the existing CodeMirror SQL
+completion infrastructure. Drafts are compiled locally and then previewed
+against up to three real Base rows through a read-only Desktop runtime call;
+invalid expressions and circular dependencies are shown before Save/Create is
+enabled, and previewing never changes field metadata or row values.
 
 Lookup and rollup fields are also live, readonly query projections. They derive
 values through a relation field and support first value, all values, count,
@@ -69,7 +73,7 @@ an entire selection in the renderer. The runtime path is covered with a
 import boundary for advanced field metadata, views, references, materialized
 derived values, and historical system columns. The legacy migration package
 uses this boundary to produce validated multi-table `main.base` exports. CSV
-import and richer formula completion/preview remain.
+import remains.
 Desktop Settings now
 provides preview, progress, validation issues, export, and open-new-Space UX for
 these legacy exports. Batched imports reuse prepared statements and migration

@@ -46,18 +46,20 @@ the workflow.
 Relation fields now follow the original table interaction: cells display linked
 record titles and open a searchable, multi-select Grid overlay that stores only
 stable row IDs. Formula fields calculate live, render readonly using their
-configured display type, and are created or edited from anchored field controls
-with field insertion shortcuts. Neither workflow opens a centered modal.
+configured display type, and are created or edited from the same anchored
+CodeMirror composer. It restores SQL/field completion, a searchable reference
+browser, immediate dependency/error feedback, and sample results from real Base
+rows before saving. Neither workflow opens a centered modal.
 
 Lookup/rollup fields extend that same header-driven flow: users choose an
 existing relation, target field, and aggregation from an anchored field panel.
 Derived values stay readonly in the Grid, refresh with relation/target edits,
 and can feed formulas without introducing a separate configuration screen.
 
-Base is still in delivery closure, not product acceptance. Richer formula
-completion and preview, Gallery/Kanban layouts, accessible table semantics, and
-a complete native create/edit/restart/version/restore run remain. Routine Base
-configuration uses inline controls, header menus, and anchored popovers. Modal dialogs are
+Base is still in delivery closure, not product acceptance. Gallery/Kanban
+layouts, accessible table semantics, and a complete native
+create/edit/restart/version/restore run remain. Routine Base configuration uses
+inline controls, header menus, and anchored popovers. Modal dialogs are
 reserved for destructive confirmation or other decisions that must interrupt
 the workflow. New interactions should first adapt the proven editing patterns
 from the original Eidos table; implementation convenience is not a reason to

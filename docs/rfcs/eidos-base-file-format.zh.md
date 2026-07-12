@@ -33,7 +33,10 @@ relation 字段现在以 JSON array 保存稳定的目标 row IDs，并分批补
 formula 字段不再是容易过期的 materialized text，而是实时、只读的 query projection：
 独立 package 会解析 SQLite expression，解析 raw column 或 `prop("字段名")`，排序公式
 依赖、拒绝循环，并让计算值参与正常的分页、筛选、排序、编辑刷新和 Graft row diff。
-字段创建和公式编辑继续使用锚定的表格控制，不打开居中弹窗。
+字段创建和公式编辑继续使用锚定的表格控制，不打开居中弹窗。新建与编辑现在共用原有
+CodeMirror SQL completion 基础设施；草稿先在 renderer 中编译，再通过只读 Desktop
+runtime 调用对最多三条真实 Base rows 做预览。非法表达式和循环依赖会在 Save/Create
+可用前显示，预览不会修改 field metadata 或 row values。
 
 lookup/rollup 字段同样是实时、只读的 query projection。它们通过 relation 字段派生值，
 支持 first value、all values、count、sum、average、minimum 和 maximum，不会创建容易过期的
@@ -49,7 +52,7 @@ columns；legacy migration package 通过该边界生成经过校验的 multi-ta
 Desktop Settings 已提供这些 legacy exports 的 preview、progress、validation issues、
 export 和 open-new-Space UX。批量导入会复用 prepared statement，迁移读取使用 rowid
 cursor；一个包含 1,110,847 行的真实 Space 约 15.1 秒完成导出并通过全部 Base/count 校验。
-CSV import 以及更丰富的 formula completion/preview 仍待实现。
+CSV import 仍待实现。
 
 ## 摘要
 
