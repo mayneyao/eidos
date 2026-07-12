@@ -218,9 +218,13 @@ export class ImportParser implements ImportParserService {
       return false
     }
 
-    // Not relative, not absolute, not Node builtin
+    const metadata = this.urlResolver.getPackageMetadata(importPath)
+
+    // Path aliases such as @/ and ~/ are resolved by the host project. Sending
+    // them to esm.sh breaks both type resolution and runtime imports.
     return (
-      !this.isRelativeImport(importPath) &&
+      !metadata.isRelative &&
+      !metadata.isLocalPathMapping &&
       !this.patterns.absolute.test(importPath) &&
       !this.isNodeBuiltin(importPath)
     )

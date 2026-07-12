@@ -471,25 +471,20 @@ export function createHash(algorithm: string): Hash;`,
     return false
   }
 
-  /**
-   * Prefetch types for multiple packages (simulated for demo)
-   */
+  /** Prefetch types for multiple packages with bounded concurrency. */
   async prefetchTypes(packageUrls: string[]): Promise<void> {
-    debug.log("Simulating type prefetching for demo purposes")
-    debug.log("Packages that would be fetched:", packageUrls)
+    const queue = [...new Set(packageUrls)]
+    const workerCount = Math.min(4, queue.length)
 
-    // In a real implementation, this would fetch from esm.sh
-    // For demo purposes, we just simulate the process
-    const simulatedResults = packageUrls.map((url) => ({
-      url,
-      status: "simulated",
-      message: "Would fetch type definitions from esm.sh",
-    }))
+    const worker = async () => {
+      while (queue.length > 0) {
+        const packageUrl = queue.shift()
+        if (!packageUrl) continue
+        await this.fetchTypes(packageUrl)
+      }
+    }
 
-    debug.log("Simulated type prefetching completed:", simulatedResults)
-
-    // Simulate async operation
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    await Promise.all(Array.from({ length: workerCount }, () => worker()))
   }
 
   /**
