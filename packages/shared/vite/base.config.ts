@@ -45,7 +45,11 @@ const workspacePackageWildcard = (
 export const sharedAlias = [
   // Local workspace packages - exact matches (higher priority)
   workspacePackage("@eidos.space/core", "index.ts"),
+  workspacePackage("@eidos.space/base"),
+  workspacePackage("@eidos.space/electron-ipc"),
   workspacePackage("@eidos.space/file-space"),
+  workspacePackage("@eidos.space/graft-client"),
+  workspacePackage("@eidos.space/legacy-space-migration"),
   workspacePackage("@eidos.space/markdown-editor"),
   workspacePackage("@eidos.space/react"),
   workspacePackage("@eidos.space/v3"),
@@ -73,7 +77,11 @@ export const sharedAlias = [
 
   // Wildcard matches (lower priority)
   workspacePackageWildcard("@eidos.space/core"),
+  workspacePackageWildcard("@eidos.space/base"),
+  workspacePackageWildcard("@eidos.space/electron-ipc"),
   workspacePackageWildcard("@eidos.space/file-space"),
+  workspacePackageWildcard("@eidos.space/graft-client"),
+  workspacePackageWildcard("@eidos.space/legacy-space-migration"),
   workspacePackageWildcard("@eidos.space/markdown-editor"),
   workspacePackageWildcard("@eidos.space/react"),
   workspacePackageWildcard("@eidos.space/v3"),

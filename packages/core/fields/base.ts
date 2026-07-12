@@ -1,6 +1,5 @@
 import type { IField } from "../types/IField"
 
-import { getFieldInstance } from "."
 import type { CompareOperator, FieldType } from "./const"
 
 // cellData, Property, RawData, row context, field context
@@ -69,8 +68,7 @@ export abstract class BaseField<
   }
 
   get entityFieldInstance(): BaseField<any, any, any, any, any> | null {
-    const field = getFieldInstance(this.column)
-    return field
+    return this
   }
 
   get displayType() {
