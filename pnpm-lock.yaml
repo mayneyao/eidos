@@ -1193,9 +1193,15 @@ importers:
 
   packages/file-space:
     devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
       '@types/node':
         specifier: ^20.4.1
         version: 20.19.1
+      better-sqlite3:
+        specifier: ^12.0.0
+        version: 12.8.0
       tsdown:
         specifier: ^0.12.9
         version: 0.12.9(@typescript/native-preview@7.0.0-dev.20260407.1)(oxc-resolver@11.3.0)(typescript@5.9.3)

@@ -80,12 +80,14 @@ describe("file Space settings", () => {
       fileCount: 12,
       contentFileCount: 9,
       skippedContentFileCount: 1,
+      persistent: true,
     })
     rebuildIndexMock.mockResolvedValue({
       indexedAt: new Date("2026-07-11T11:00:00Z").getTime(),
       fileCount: 14,
       contentFileCount: 11,
       skippedContentFileCount: 0,
+      persistent: true,
     })
     container = document.createElement("div")
     document.body.appendChild(container)
@@ -121,7 +123,7 @@ describe("file Space settings", () => {
     })
 
     expect(container.textContent).toContain("9 text files")
-    expect(container.textContent).toContain("12 files discovered")
+    expect(container.textContent).toContain("12 files · stored on disk")
     expect(container.textContent).toContain(
       "1 large or unsupported files skipped"
     )
@@ -135,7 +137,7 @@ describe("file Space settings", () => {
 
     expect(rebuildIndexMock).toHaveBeenCalledTimes(1)
     expect(container.textContent).toContain("11 text files")
-    expect(container.textContent).toContain("14 files discovered")
+    expect(container.textContent).toContain("14 files · stored on disk")
   })
 
   it("opens version history from the versioning settings", async () => {

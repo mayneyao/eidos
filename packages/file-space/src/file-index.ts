@@ -6,6 +6,12 @@ import {
   type FileSpaceMarkdownMetadata,
   type FileSpaceTag,
 } from "./markdown-metadata"
+import {
+  FILE_SPACE_INDEX_FORMAT_VERSION,
+  type FileSpaceIndexRecord,
+  type FileSpaceIndexSnapshot,
+  type FileSpaceIndexStorage,
+} from "./index-storage"
 import type { SpaceFiles, SpaceFileEntry, SpaceTextFile } from "./space-files"
 
 const DEFAULT_TEXT_EXTENSIONS = new Set([
@@ -36,6 +42,7 @@ export interface FileSpaceIndexOptions {
   maxIndexableFileBytes?: number
   maxIndexedContentBytes?: number
   textExtensions?: Iterable<string>
+  storage?: FileSpaceIndexStorage
 }
 
 export interface FileSpaceSearchOptions {
@@ -67,6 +74,7 @@ export interface FileSpaceIndexStatus {
   fileCount: number
   contentFileCount: number
   skippedContentFileCount: number
+  persistent: boolean
 }
 
 export interface FileSpaceLinkResolution {
@@ -320,8 +328,11 @@ export class FileSpaceIndex {
   private readonly maxIndexableFileBytes: number
   private readonly maxIndexedContentBytes: number
   private readonly textExtensions: Set<string>
+  private readonly optionsKey: string
+  private storage: FileSpaceIndexStorage | undefined
   private entries = new Map<string, IndexedFile>()
   private directories = new Set<string>([""])
+  private storageHydrated = false
   private dirty = true
   private invalidationVersion = 0
   private refreshPromise: Promise<FileSpaceIndexStatus> | null = null
@@ -330,6 +341,7 @@ export class FileSpaceIndex {
     fileCount: 0,
     contentFileCount: 0,
     skippedContentFileCount: 0,
+    persistent: false,
   }
 
   constructor(
@@ -349,6 +361,12 @@ export class FileSpaceIndex {
         (extension) => extension.replace(/^\./, "").toLowerCase()
       )
     )
+    this.optionsKey = JSON.stringify({
+      maxIndexableFileBytes: this.maxIndexableFileBytes,
+      maxIndexedContentBytes: this.maxIndexedContentBytes,
+      textExtensions: [...this.textExtensions].sort(),
+    })
+    this.storage = options.storage
   }
 
   invalidate(): void {
@@ -369,12 +387,42 @@ export class FileSpaceIndex {
     return { ...this.status }
   }
 
+  async rebuild(): Promise<FileSpaceIndexStatus> {
+    if (this.refreshPromise) await this.refreshPromise
+    this.entries.clear()
+    this.directories = new Set([""])
+    this.status = {
+      indexedAt: 0,
+      fileCount: 0,
+      contentFileCount: 0,
+      skippedContentFileCount: 0,
+      persistent: this.storage !== undefined,
+    }
+    this.runStorage((storage) => storage.clear())
+    this.invalidate()
+    do {
+      await this.refresh()
+    } while (this.dirty)
+    return { ...this.status }
+  }
+
+  close(): void {
+    const storage = this.storage
+    this.storage = undefined
+    try {
+      storage?.close()
+    } catch {
+      // The index is disposable; closing it must not prevent Space shutdown.
+    }
+  }
+
   updateTextFile(file: SpaceTextFile): boolean {
     if (!this.canUpdateIncrementally()) {
       this.invalidate()
       return false
     }
     this.upsertTextFile(file)
+    this.persistEntry(file.path)
     return true
   }
 
@@ -394,6 +442,7 @@ export class FileSpaceIndex {
       }
     }
     this.recalculateStatus()
+    this.runStorage((storage) => storage.removePath(relativePath))
     return true
   }
 
@@ -435,6 +484,7 @@ export class FileSpaceIndex {
     }
     for (const directory of movedDirectories) this.directories.add(directory)
     this.recalculateStatus()
+    this.persistSnapshot()
     return true
   }
 
@@ -481,12 +531,14 @@ export class FileSpaceIndex {
           return
         }
         this.upsertTextFile(file)
+        this.persistEntry(file.path)
       } catch {
         this.invalidate()
       }
       return
     }
     this.upsertEntry(entry)
+    this.persistEntry(entry.path)
   }
 
   async search(
@@ -851,6 +903,36 @@ export class FileSpaceIndex {
     while (this.dirty || this.refreshPromise) await this.refresh()
   }
 
+  private hydrateStorage(): void {
+    if (this.storageHydrated) return
+    this.storageHydrated = true
+    const snapshot = this.readStorageSnapshot()
+    if (!snapshot || snapshot.optionsKey !== this.optionsKey) {
+      if (snapshot) this.runStorage((storage) => storage.clear())
+      return
+    }
+    this.entries = new Map(
+      snapshot.entries.map((entry) => [
+        entry.path,
+        {
+          ...entry,
+          normalizedContent:
+            entry.content === undefined ? undefined : normalize(entry.content),
+        },
+      ])
+    )
+    this.directories = new Set(["", ...snapshot.directories])
+    this.status = {
+      indexedAt: snapshot.indexedAt,
+      fileCount: this.entries.size,
+      contentFileCount: [...this.entries.values()].filter(
+        (entry) => entry.content !== undefined
+      ).length,
+      skippedContentFileCount: 0,
+      persistent: this.storage !== undefined,
+    }
+  }
+
   private canUpdateIncrementally(): boolean {
     return !this.dirty && !this.refreshPromise && this.status.indexedAt > 0
   }
@@ -911,10 +993,73 @@ export class FileSpaceIndex {
       fileCount: this.entries.size,
       contentFileCount,
       skippedContentFileCount,
+      persistent: this.storage !== undefined,
+    }
+  }
+
+  private toStorageRecord(entry: IndexedFile): FileSpaceIndexRecord {
+    return {
+      path: entry.path,
+      name: entry.name,
+      size: entry.size,
+      mtimeMs: entry.mtimeMs,
+      content: entry.content,
+      metadata: entry.metadata,
+    }
+  }
+
+  private createSnapshot(): FileSpaceIndexSnapshot {
+    return {
+      formatVersion: FILE_SPACE_INDEX_FORMAT_VERSION,
+      optionsKey: this.optionsKey,
+      indexedAt: this.status.indexedAt,
+      directories: [...this.directories].sort(),
+      entries: [...this.entries.values()]
+        .sort((left, right) => left.path.localeCompare(right.path))
+        .map((entry) => this.toStorageRecord(entry)),
+    }
+  }
+
+  private persistEntry(relativePath: string): void {
+    const entry = this.entries.get(relativePath)
+    if (!entry) return
+    this.runStorage((storage) => storage.upsert(this.toStorageRecord(entry)))
+  }
+
+  private persistSnapshot(): void {
+    this.runStorage((storage) => storage.replace(this.createSnapshot()))
+  }
+
+  private readStorageSnapshot(): FileSpaceIndexSnapshot | null {
+    const storage = this.storage
+    if (!storage) return null
+    try {
+      return storage.load()
+    } catch {
+      return null
+    }
+  }
+
+  private runStorage(
+    operation: (storage: FileSpaceIndexStorage) => void
+  ): void {
+    const storage = this.storage
+    if (!storage) return
+    try {
+      operation(storage)
+    } catch {
+      try {
+        storage.close()
+      } catch {
+        // Ignore disposal errors for a derived cache.
+      }
+      this.storage = undefined
+      this.status = { ...this.status, persistent: false }
     }
   }
 
   private async buildIndex(): Promise<FileSpaceIndexStatus> {
+    this.hydrateStorage()
     const buildVersion = this.invalidationVersion
     const listedFiles: SpaceFileEntry[] = []
     const nextDirectories = new Set<string>([""])
@@ -938,35 +1083,48 @@ export class FileSpaceIndex {
     let contentFileCount = 0
     let skippedContentFileCount = 0
     for (const entry of listedFiles) {
-      const indexed: IndexedFile = {
+      let indexed: IndexedFile = {
         path: entry.path,
         name: entry.name,
         size: entry.size,
         mtimeMs: entry.mtimeMs,
       }
       const isTextFile = this.textExtensions.has(extensionOf(entry.name))
+      const cached = this.entries.get(entry.path)
+      const cacheMatches =
+        cached?.name === entry.name &&
+        cached.size === entry.size &&
+        cached.mtimeMs === entry.mtimeMs
       if (
         entry.kind === "file" &&
         isTextFile &&
         entry.size <= this.maxIndexableFileBytes &&
         entry.size <= remainingContentBytes
       ) {
-        try {
-          const file = await this.files.readText(entry.path)
-          indexed.content = file.content
-          indexed.normalizedContent = normalize(file.content)
-          if (["md", "markdown"].includes(extensionOf(file.path))) {
-            indexed.metadata = parseMarkdownMetadata(file.path, file.content)
-          }
-          indexed.size = file.size
-          indexed.mtimeMs = file.mtimeMs
-          remainingContentBytes -= file.size
+        if (cacheMatches && cached.content !== undefined) {
+          indexed = cached
+          remainingContentBytes -= indexed.size
           contentFileCount += 1
-        } catch {
-          skippedContentFileCount += 1
+        } else {
+          try {
+            const file = await this.files.readText(entry.path)
+            indexed.content = file.content
+            indexed.normalizedContent = normalize(file.content)
+            if (["md", "markdown"].includes(extensionOf(file.path))) {
+              indexed.metadata = parseMarkdownMetadata(file.path, file.content)
+            }
+            indexed.size = file.size
+            indexed.mtimeMs = file.mtimeMs
+            remainingContentBytes -= file.size
+            contentFileCount += 1
+          } catch {
+            skippedContentFileCount += 1
+          }
         }
       } else if (isTextFile) {
         skippedContentFileCount += 1
+      } else if (cacheMatches) {
+        indexed = cached
       }
       nextEntries.set(entry.path, indexed)
     }
@@ -978,8 +1136,10 @@ export class FileSpaceIndex {
       fileCount: nextEntries.size,
       contentFileCount,
       skippedContentFileCount,
+      persistent: this.storage !== undefined,
     }
     this.dirty = this.invalidationVersion !== buildVersion
+    if (!this.dirty) this.persistSnapshot()
     return { ...this.status }
   }
 }

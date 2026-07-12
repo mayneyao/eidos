@@ -20,6 +20,11 @@
       "types": "./dist/names.d.ts",
       "import": "./dist/names.js",
       "default": "./dist/names.js"
+    },
+    "./better-sqlite3": {
+      "types": "./dist/better-sqlite3.d.ts",
+      "import": "./dist/better-sqlite3.js",
+      "default": "./dist/better-sqlite3.js"
     }
   },
   "files": [
@@ -30,6 +35,7 @@
   "scripts": {
     "build": "tsdown",
     "test": "vitest run --config vitest.config.ts",
+    "test:sqlite": "cross-env ELECTRON_RUN_AS_NODE=1 electron ../../node_modules/vitest/vitest.mjs run --config vitest.sqlite.config.ts",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit",
     "typecheck:tsgo": "tsgo --noEmit"
@@ -42,9 +48,18 @@
   ],
   "author": "mayneyao",
   "license": "MIT",
-  "dependencies": {},
+  "peerDependencies": {
+    "better-sqlite3": ">=11.0.0"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.4.1",
+    "better-sqlite3": "^12.0.0",
     "tsdown": "^0.12.9",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"

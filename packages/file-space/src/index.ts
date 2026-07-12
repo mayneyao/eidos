@@ -24,6 +24,12 @@ export {
   type FileSpaceSearchResult,
 } from "./file-index"
 export {
+  FILE_SPACE_INDEX_FORMAT_VERSION,
+  type FileSpaceIndexRecord,
+  type FileSpaceIndexSnapshot,
+  type FileSpaceIndexStorage,
+} from "./index-storage"
+export {
   markdownHeadingSlug,
   parseMarkdownMetadata,
   type FileSpaceMarkdownHeading,

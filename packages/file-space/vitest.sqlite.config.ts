@@ -4,7 +4,6 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
-    include: ["src/**/*.test.ts"],
-    exclude: ["src/better-sqlite3.test.ts"],
+    include: ["src/better-sqlite3.test.ts"],
   },
 })

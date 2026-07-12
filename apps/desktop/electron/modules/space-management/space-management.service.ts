@@ -37,6 +37,7 @@ import {
   type SpaceFileEntry,
   type SpaceTextFile,
 } from "@eidos.space/file-space"
+import { openFileSpaceIndexStorage } from "@eidos.space/file-space/better-sqlite3"
 import type { SpaceMode } from "@eidos.space/space-manager"
 import fs from "fs"
 import path from "path"
@@ -178,6 +179,7 @@ export class SpaceManagementService extends IpcServiceBase {
       this._stopFileWatcher()
     }
     this.fileSpaces.delete(spaceId)
+    this.fileSpaceIndexes.get(spaceId)?.close()
     this.fileSpaceIndexes.delete(spaceId)
     if (!removingCurrent) return { success: true }
 
@@ -760,9 +762,7 @@ export class SpaceManagementService extends IpcServiceBase {
 
   async rebuildFileIndex(spaceId: string): Promise<FileSpaceIndexStatus> {
     this._ensureFileWatcher(spaceId)
-    const index = this._getFileIndex(spaceId)
-    index.invalidate()
-    return index.refresh()
+    return this._getFileIndex(spaceId).rebuild()
   }
 
   async getFileBacklinks(
@@ -815,6 +815,7 @@ export class SpaceManagementService extends IpcServiceBase {
     }
     const files = new SpaceFiles(space.path)
     this.fileSpaces.set(spaceId, files)
+    this.fileSpaceIndexes.get(spaceId)?.close()
     this.fileSpaceIndexes.delete(spaceId)
     return files
   }
@@ -855,7 +856,17 @@ export class SpaceManagementService extends IpcServiceBase {
   private _getFileIndex(spaceId: string): FileSpaceIndex {
     const existing = this.fileSpaceIndexes.get(spaceId)
     if (existing) return existing
-    const index = new FileSpaceIndex(this._getFileSpace(spaceId))
+    const files = this._getFileSpace(spaceId)
+    let storage: ReturnType<typeof openFileSpaceIndexStorage> | undefined
+    try {
+      storage = openFileSpaceIndexStorage(files.root)
+    } catch (error) {
+      console.warn(
+        `Unable to open the persistent file index for Space ${spaceId}:`,
+        error
+      )
+    }
+    const index = new FileSpaceIndex(files, { storage })
     this.fileSpaceIndexes.set(spaceId, index)
     return index
   }

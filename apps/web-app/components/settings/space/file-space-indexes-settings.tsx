@@ -111,11 +111,17 @@ export function FileSpaceIndexesSettings() {
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {t(
-                      "space.settings.fileSpace.indexes.filesDiscovered",
-                      "{{count}} files discovered",
-                      { count: status?.fileCount ?? 0 }
-                    )}
+                    {status?.persistent
+                      ? t(
+                          "space.settings.fileSpace.indexes.persistedFiles",
+                          "{{count}} files · stored on disk",
+                          { count: status.fileCount }
+                        )
+                      : t(
+                          "space.settings.fileSpace.indexes.filesDiscovered",
+                          "{{count}} files discovered",
+                          { count: status?.fileCount ?? 0 }
+                        )}
                   </div>
                 </>
               )}
