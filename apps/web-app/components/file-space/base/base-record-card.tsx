@@ -1,0 +1,195 @@
+import type { BaseFieldInfo, BaseRow, BaseViewInfo } from "@eidos.space/base"
+import { decodeBaseFilePaths } from "@eidos.space/base"
+import { Check, Eye, FileText, Minus, Paperclip } from "lucide-react"
+import { useTheme } from "@/components/theme-provider"
+
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+
+import { baseOptionColor, baseSelectOptions } from "./base-field-properties"
+import { baseRecordFieldText, baseRecordTitle } from "./base-record-format"
+import { orderedBaseFields } from "./base-view-layout"
+
+function multiSelectIds(value: BaseRow[string]): string[] {
+  if (typeof value !== "string" || value.length === 0) return []
+  if (value.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (candidate): candidate is string => typeof candidate === "string"
+        )
+      }
+    } catch {
+      // Fall through to the v1 comma-separated representation.
+    }
+  }
+  return value.split(",").filter(Boolean)
+}
+
+function isEmptyValue(value: BaseRow[string]): boolean {
+  return value === null || value === undefined || value === ""
+}
+
+function CardFieldValue({
+  field,
+  row,
+}: {
+  field: BaseFieldInfo
+  row: BaseRow
+}) {
+  const { resolvedTheme } = useTheme()
+  const theme = resolvedTheme === "dark" ? "dark" : "light"
+  const value = row[field.tableColumnName]
+
+  if (field.type === "checkbox") {
+    const checked = value === true || value === 1 || value === "1"
+    return checked ? (
+      <Check className="h-3.5 w-3.5 text-foreground" />
+    ) : (
+      <Minus className="h-3.5 w-3.5 text-muted-foreground" />
+    )
+  }
+  if (field.type === "select") {
+    const option = baseSelectOptions(field).find(
+      (candidate) => candidate.id === value
+    )
+    if (!option) return <span className="text-muted-foreground">Empty</span>
+    return (
+      <span
+        className="max-w-full truncate rounded px-1.5 py-0.5 text-[11px] text-foreground"
+        style={{ backgroundColor: baseOptionColor(option.color, theme) }}
+      >
+        {option.name}
+      </span>
+    )
+  }
+  if (field.type === "multi-select") {
+    const optionById = new Map(
+      baseSelectOptions(field).map((option) => [option.id, option])
+    )
+    const values = multiSelectIds(value)
+    if (values.length === 0) {
+      return <span className="text-muted-foreground">Empty</span>
+    }
+    return (
+      <span className="flex min-w-0 flex-wrap gap-1">
+        {values.slice(0, 3).map((id) => {
+          const option = optionById.get(id)
+          return (
+            <span
+              key={id}
+              className="max-w-28 truncate rounded px-1.5 py-0.5 text-[11px] text-foreground"
+              style={{
+                backgroundColor: baseOptionColor(
+                  option?.color ?? "default",
+                  theme
+                ),
+              }}
+            >
+              {option?.name ?? id}
+            </span>
+          )
+        })}
+        {values.length > 3 ? (
+          <span className="text-[11px] text-muted-foreground">
+            +{values.length - 3}
+          </span>
+        ) : null}
+      </span>
+    )
+  }
+  if (field.type === "file") {
+    const paths = decodeBaseFilePaths(value)
+    return paths.length > 0 ? (
+      <span className="flex min-w-0 items-center gap-1 text-xs">
+        <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
+        <span className="truncate">{paths.at(0)?.split("/").at(-1)}</span>
+        {paths.length > 1 ? (
+          <span className="shrink-0 text-muted-foreground">
+            +{paths.length - 1}
+          </span>
+        ) : null}
+      </span>
+    ) : (
+      <span className="text-muted-foreground">Empty</span>
+    )
+  }
+
+  const text = baseRecordFieldText(row, field)
+  return (
+    <span
+      className={cn(
+        "line-clamp-2 break-words text-xs leading-4",
+        text === "Empty" && "text-muted-foreground"
+      )}
+    >
+      {text}
+    </span>
+  )
+}
+
+export function BaseRecordCard({
+  row,
+  fields,
+  view,
+  compact = false,
+  onOpen,
+}: {
+  row: BaseRow
+  fields: BaseFieldInfo[]
+  view: BaseViewInfo
+  compact?: boolean
+  onOpen: (row: BaseRow) => void
+}) {
+  const hideEmptyFields = view.properties?.hideEmptyFields !== false
+  const visibleFields = orderedBaseFields(fields, view)
+    .filter(
+      (field) =>
+        field.tableColumnName !== "title" &&
+        field.valueKind !== "system" &&
+        (!hideEmptyFields || !isEmptyValue(row[field.tableColumnName]))
+    )
+    .slice(0, compact ? 4 : 6)
+  const title = baseRecordTitle(row)
+
+  return (
+    <article className="group/card relative overflow-hidden rounded-lg border bg-card text-card-foreground shadow-xs transition-shadow hover:shadow-sm">
+      <div className={cn("grid gap-3", compact ? "p-3" : "p-4")}>
+        <div className="flex min-w-0 items-start gap-2">
+          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <h3 className="min-w-0 flex-1 break-words text-sm font-medium leading-5">
+            {title}
+          </h3>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="-mr-1 -mt-1 h-7 w-7 shrink-0 opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100"
+            aria-label={`Open ${title}`}
+            onClick={() => onOpen(row)}
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+        {visibleFields.length > 0 ? (
+          <div className="grid gap-2">
+            {visibleFields.map((field) => (
+              <div
+                key={field.tableColumnName}
+                className="grid min-w-0 grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-2 text-xs"
+              >
+                <span className="truncate text-[11px] text-muted-foreground">
+                  {field.name}
+                </span>
+                <span className="min-w-0">
+                  <CardFieldValue field={field} row={row} />
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </article>
+  )
+}

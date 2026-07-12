@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
-import type { BaseViewInfo } from "@eidos.space/base"
+import type {
+  BaseFieldInfo,
+  BaseViewInfo,
+  UpdateBaseViewInput,
+} from "@eidos.space/base"
 import {
   ArrowDown,
   ArrowLeft,
@@ -7,8 +11,10 @@ import {
   Check,
   ChevronDown,
   Copy,
+  LayoutGrid,
   MoreHorizontal,
   Plus,
+  SquareKanban,
   Table2,
   Trash2,
 } from "lucide-react"
@@ -21,11 +27,47 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 
 type Panel = "list" | "create" | "manage" | "delete"
+export type BaseBuiltInViewType = "grid" | "gallery" | "kanban"
+
+const VIEW_TYPES: Array<{
+  type: BaseBuiltInViewType
+  label: string
+  description: string
+}> = [
+  { type: "grid", label: "Grid", description: "Rows and columns" },
+  { type: "gallery", label: "Gallery", description: "Responsive cards" },
+  { type: "kanban", label: "Kanban", description: "Grouped by Select" },
+]
+
+function isBuiltInViewType(type: string): type is BaseBuiltInViewType {
+  return type === "grid" || type === "gallery" || type === "kanban"
+}
+
+function ViewTypeIcon({
+  type,
+  className,
+}: {
+  type: string
+  className?: string
+}) {
+  if (type === "gallery") return <LayoutGrid className={className} />
+  if (type === "kanban") return <SquareKanban className={className} />
+  return <Table2 className={className} />
+}
 
 export function BaseViewSelector({
   views,
+  fields,
   activeView,
   disabled,
   onSelect,
@@ -34,21 +76,25 @@ export function BaseViewSelector({
   onDuplicate,
   onDelete,
   onReorder,
+  onUpdate,
 }: {
   views: BaseViewInfo[]
+  fields: BaseFieldInfo[]
   activeView?: BaseViewInfo
   disabled?: boolean
   onSelect: (viewId: string) => void
-  onCreate: (name: string) => Promise<void>
+  onCreate: (name: string, type: BaseBuiltInViewType) => Promise<void>
   onRename: (viewId: string, name: string) => Promise<void>
   onDuplicate: (viewId: string) => Promise<void>
   onDelete: (viewId: string) => Promise<void>
   onReorder: (viewIds: string[]) => Promise<void>
+  onUpdate: (viewId: string, changes: UpdateBaseViewInput) => Promise<void>
 }) {
   const [open, setOpen] = useState(false)
   const [panel, setPanel] = useState<Panel>("list")
   const [managedViewId, setManagedViewId] = useState<string | null>(null)
   const [name, setName] = useState("")
+  const [createType, setCreateType] = useState<BaseBuiltInViewType>("grid")
   const [busy, setBusy] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const managedView = useMemo(
@@ -56,6 +102,7 @@ export function BaseViewSelector({
     [managedViewId, views]
   )
   const gridViewCount = views.filter((view) => view.type === "grid").length
+  const selectFields = fields.filter((field) => field.type === "select")
 
   useEffect(() => {
     if (managedView) setName(managedView.name)
@@ -65,6 +112,7 @@ export function BaseViewSelector({
     setPanel("list")
     setManagedViewId(null)
     setName("")
+    setCreateType("grid")
     setLocalError(null)
   }
   const run = async (operation: () => Promise<void>, after?: () => void) => {
@@ -91,7 +139,7 @@ export function BaseViewSelector({
     const nextName = name.trim()
     if (!nextName) return
     void run(
-      () => onCreate(nextName),
+      () => onCreate(nextName, createType),
       () => {
         setOpen(false)
         reset()
@@ -112,6 +160,14 @@ export function BaseViewSelector({
     ;[next[index], next[target]] = [next[target], next[index]]
     void run(() => onReorder(next))
   }
+  const updateProperties = (changes: Record<string, unknown>) => {
+    if (!managedView) return
+    void run(() =>
+      onUpdate(managedView.id, {
+        properties: { ...(managedView.properties ?? {}), ...changes },
+      })
+    )
+  }
 
   return (
     <Popover
@@ -129,7 +185,10 @@ export function BaseViewSelector({
           className="h-7 max-w-44 gap-1.5 px-2 text-xs"
           disabled={disabled}
         >
-          <Table2 className="h-3.5 w-3.5 shrink-0" />
+          <ViewTypeIcon
+            type={activeView?.type ?? "grid"}
+            className="h-3.5 w-3.5 shrink-0"
+          />
           <span className="truncate">{activeView?.name ?? "Views"}</span>
           <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
         </Button>
@@ -142,7 +201,7 @@ export function BaseViewSelector({
             </div>
             <div className="max-h-64 space-y-0.5 overflow-y-auto">
               {views.map((view) => {
-                const supported = view.type === "grid"
+                const supported = isBuiltInViewType(view.type)
                 return (
                   <div
                     key={view.id}
@@ -160,7 +219,10 @@ export function BaseViewSelector({
                         setOpen(false)
                       }}
                     >
-                      <Table2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <ViewTypeIcon
+                        type={view.type}
+                        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                      />
                       <span className="min-w-0 flex-1 truncate">
                         {view.name}
                       </span>
@@ -192,6 +254,7 @@ export function BaseViewSelector({
                 className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs hover:bg-accent"
                 onClick={() => {
                   setName(`Grid ${views.length + 1}`)
+                  setCreateType("grid")
                   setPanel("create")
                 }}
               >
@@ -225,6 +288,41 @@ export function BaseViewSelector({
                 if (event.key === "Enter") create()
               }}
             />
+            <div className="mt-3 grid gap-1.5">
+              <p className="text-xs font-medium">Layout</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {VIEW_TYPES.map((candidate) => {
+                  const unavailable =
+                    candidate.type === "kanban" && selectFields.length === 0
+                  return (
+                    <button
+                      key={candidate.type}
+                      type="button"
+                      className={cn(
+                        "grid min-h-16 place-items-center content-center gap-1 rounded-md border px-1.5 text-center outline-hidden hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-45",
+                        createType === candidate.type &&
+                          "border-foreground/30 bg-accent"
+                      )}
+                      disabled={unavailable}
+                      title={
+                        unavailable
+                          ? "Add a Select field before creating a Kanban view"
+                          : candidate.description
+                      }
+                      onClick={() => {
+                        setCreateType(candidate.type)
+                        if (/^(Grid|Gallery|Kanban) \d+$/.test(name)) {
+                          setName(`${candidate.label} ${views.length + 1}`)
+                        }
+                      }}
+                    >
+                      <ViewTypeIcon type={candidate.type} className="h-4 w-4" />
+                      <span className="text-[11px]">{candidate.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
             <div className="mt-3 flex justify-end gap-1.5">
               <Button
                 type="button"
@@ -290,6 +388,81 @@ export function BaseViewSelector({
             <p className="mt-1.5 text-[11px] capitalize text-muted-foreground">
               {managedView.type} layout
             </p>
+            {managedView.type === "kanban" ? (
+              <div className="mt-3 grid gap-1.5 border-t pt-3">
+                <p className="text-xs font-medium">Group by</p>
+                <Select
+                  value={
+                    typeof managedView.properties?.groupByField === "string"
+                      ? managedView.properties.groupByField
+                      : undefined
+                  }
+                  disabled={busy || selectFields.length === 0}
+                  onValueChange={(groupByField) =>
+                    updateProperties({ groupByField })
+                  }
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Choose a Select field" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectFields.map((field) => (
+                      <SelectItem
+                        key={field.tableColumnName}
+                        value={field.tableColumnName}
+                      >
+                        {field.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectFields.length === 0 ? (
+                  <p className="text-[11px] leading-4 text-muted-foreground">
+                    Add a Select field before configuring this Kanban.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            {managedView.type === "gallery" || managedView.type === "kanban" ? (
+              <div className="mt-3 grid gap-1.5 border-t pt-3">
+                <p className="text-xs font-medium">Card size</p>
+                <div className="grid grid-cols-3 rounded-md border p-0.5">
+                  {(["small", "medium", "large"] as const).map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      className={cn(
+                        "h-7 rounded-[3px] text-[11px] capitalize hover:text-foreground",
+                        (managedView.properties?.cardSize ?? "medium") === size
+                          ? "bg-accent text-accent-foreground"
+                          : "text-muted-foreground"
+                      )}
+                      disabled={busy}
+                      onClick={() => updateProperties({ cardSize: size })}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {managedView.type === "gallery" ? (
+              <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
+                <div>
+                  <p className="text-xs font-medium">Hide empty fields</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    Keep cards focused on populated properties.
+                  </p>
+                </div>
+                <Switch
+                  checked={managedView.properties?.hideEmptyFields !== false}
+                  disabled={busy}
+                  onCheckedChange={(hideEmptyFields) =>
+                    updateProperties({ hideEmptyFields })
+                  }
+                />
+              </div>
+            ) : null}
             <div className="mt-3 grid grid-cols-2 gap-1.5">
               <Button
                 type="button"

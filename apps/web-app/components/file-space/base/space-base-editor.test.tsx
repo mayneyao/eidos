@@ -458,7 +458,7 @@ vi.mock("./base-view-selector", () => ({
     onReorder,
   }: {
     activeView?: (typeof snapshot)["tables"][number]["views"][number]
-    onCreate: (name: string) => void
+    onCreate: (name: string, type: "grid" | "gallery" | "kanban") => void
     onRename: (viewId: string, name: string) => void
     onDuplicate: (viewId: string) => void
     onDelete: (viewId: string) => void
@@ -466,8 +466,14 @@ vi.mock("./base-view-selector", () => ({
   }) => (
     <div data-testid="base-view-selector">
       <span>{activeView?.name ?? "Views"}</span>
-      <button type="button" onClick={() => onCreate("By priority")}>
+      <button type="button" onClick={() => onCreate("By priority", "grid")}>
         Create view
+      </button>
+      <button type="button" onClick={() => onCreate("Cards", "gallery")}>
+        Create gallery view
+      </button>
+      <button type="button" onClick={() => onCreate("Board", "kanban")}>
+        Create kanban view
       </button>
       <button
         type="button"
@@ -492,6 +498,14 @@ vi.mock("./base-view-selector", () => ({
       </button>
     </div>
   ),
+}))
+
+vi.mock("./base-gallery-view", () => ({
+  BaseGalleryView: () => <div data-testid="base-gallery-view">Gallery</div>,
+}))
+
+vi.mock("./base-kanban-view", () => ({
+  BaseKanbanView: () => <div data-testid="base-kanban-view">Kanban</div>,
 }))
 
 const snapshot: BaseSnapshot = {
@@ -798,6 +812,38 @@ describe("SpaceBaseEditor", () => {
       "projects/tasks.base",
       "tasks",
       { name: "By priority", type: "grid" }
+    )
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Create gallery view")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(createViewMock).toHaveBeenLastCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      {
+        name: "Cards",
+        type: "gallery",
+        properties: { cardSize: "medium", hideEmptyFields: true },
+      }
+    )
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Create kanban view")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(createViewMock).toHaveBeenLastCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      {
+        name: "Board",
+        type: "kanban",
+        properties: { cardSize: "medium", groupByField: "status" },
+      }
     )
     expect(updateViewMock).toHaveBeenCalledWith(
       "projects/tasks.base",

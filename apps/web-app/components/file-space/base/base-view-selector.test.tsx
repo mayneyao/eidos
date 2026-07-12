@@ -1,6 +1,6 @@
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type { BaseViewInfo } from "@eidos.space/base"
+import type { BaseFieldInfo, BaseViewInfo } from "@eidos.space/base"
 
 import { BaseViewSelector } from "./base-view-selector"
 
@@ -41,6 +41,24 @@ const views: BaseViewInfo[] = [
   },
 ]
 
+const fields: BaseFieldInfo[] = [
+  {
+    name: "Status",
+    type: "select",
+    tableName: "tb_tasks",
+    tableColumnName: "status",
+    property: {
+      options: [{ id: "todo", name: "Todo", color: "blue" }],
+    },
+    storageCodec: "scalar",
+    valueKind: "source",
+    isHidden: false,
+    isDerived: false,
+    sourceTableColumnName: null,
+    dependsOn: null,
+  },
+]
+
 function exactButton(label: string) {
   return Array.from(document.body.querySelectorAll("button"))
     .filter((button) => button.textContent?.trim() === label)
@@ -65,6 +83,7 @@ describe("BaseViewSelector", () => {
   const onDuplicate = vi.fn()
   const onDelete = vi.fn()
   const onReorder = vi.fn()
+  const onUpdate = vi.fn()
 
   beforeEach(() => {
     for (const mock of [
@@ -74,6 +93,7 @@ describe("BaseViewSelector", () => {
       onDuplicate,
       onDelete,
       onReorder,
+      onUpdate,
     ]) {
       mock.mockReset()
       mock.mockResolvedValue(undefined)
@@ -85,6 +105,7 @@ describe("BaseViewSelector", () => {
       root.render(
         <BaseViewSelector
           views={views}
+          fields={fields}
           activeView={views[0]}
           onSelect={onSelect}
           onCreate={onCreate}
@@ -92,6 +113,7 @@ describe("BaseViewSelector", () => {
           onDuplicate={onDuplicate}
           onDelete={onDelete}
           onReorder={onReorder}
+          onUpdate={onUpdate}
         />
       )
     })
@@ -102,7 +124,7 @@ describe("BaseViewSelector", () => {
     container.remove()
   })
 
-  it("switches and creates Grid views inside an anchored popover", async () => {
+  it("switches and creates typed views inside an anchored popover", async () => {
     await act(async () => exactButton("All tasks")?.click())
     await act(async () => exactButton("By priority")?.click())
     expect(onSelect).toHaveBeenCalledWith("view_priority")
@@ -116,7 +138,18 @@ describe("BaseViewSelector", () => {
       if (input) setInput(input, "This week")
     })
     await act(async () => exactButton("Create")?.click())
-    expect(onCreate).toHaveBeenCalledWith("This week")
+    expect(onCreate).toHaveBeenCalledWith("This week", "grid")
+
+    await act(async () => exactButton("All tasks")?.click())
+    await act(async () => exactButton("New view")?.click())
+    await act(async () => exactButton("Gallery")?.click())
+    const galleryInput =
+      document.body.querySelector<HTMLInputElement>("#base-view-name")
+    await act(async () => {
+      if (galleryInput) setInput(galleryInput, "Task cards")
+    })
+    await act(async () => exactButton("Create")?.click())
+    expect(onCreate).toHaveBeenLastCalledWith("Task cards", "gallery")
   })
 
   it("renames, duplicates, and reorders views without a centered dialog", async () => {

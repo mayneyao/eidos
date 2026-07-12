@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
   BaseFieldInfo,
+  BaseFilterGroup,
   BaseFormulaPreviewInput,
   BaseRow,
   BaseRowMutationResult,
@@ -46,7 +47,10 @@ import {
 } from "@/components/ui/alert-dialog"
 
 import { BaseGrid } from "./base-grid"
+import { BaseGalleryView } from "./base-gallery-view"
 import { BaseCsvImportPopover } from "./base-csv-import-popover"
+import { BaseFieldPropertyPanel } from "./base-field-property-panel"
+import { BaseKanbanView } from "./base-kanban-view"
 import { baseOpenErrorPresentation } from "./base-open-error"
 import { BaseFormulaEditor } from "./base-formula-editor"
 import { BaseLookupEditor } from "./base-lookup-editor"
@@ -55,7 +59,10 @@ import { BaseRenameDialog } from "./base-rename-dialog"
 import { BaseStructureDialog } from "./base-structure-dialog"
 import { BaseStructureMenu } from "./base-structure-menu"
 import { BaseViewMenu } from "./base-view-menu"
-import { BaseViewSelector } from "./base-view-selector"
+import {
+  BaseViewSelector,
+  type BaseBuiltInViewType,
+} from "./base-view-selector"
 
 interface SpaceBaseEditorProps {
   filePath: string
@@ -65,7 +72,34 @@ const BASE_ATTACHMENT_DIRECTORY = "assets"
 
 type RenameTarget = { kind: "table"; tableId: string; name: string }
 
-type DeleteTarget = RenameTarget
+type DeleteTarget =
+  | RenameTarget
+  | {
+      kind: "field"
+      tableId: string
+      columnName: string
+      name: string
+    }
+
+const SUPPORTED_BASE_VIEW_TYPES = new Set(["grid", "gallery", "kanban"])
+
+function combineBaseFilters(
+  current: BaseFilterGroup | null | undefined,
+  groupField: string,
+  value: string | null
+): BaseFilterGroup {
+  const groupRule = {
+    type: "rule" as const,
+    field: groupField,
+    operator: value === null ? ("is-empty" as const) : ("equals" as const),
+    ...(value === null ? {} : { value }),
+  }
+  return {
+    type: "group",
+    conjunction: "and",
+    children: current ? [current, groupRule] : [groupRule],
+  }
+}
 
 export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
@@ -183,8 +217,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     const selectedId = activeViewIds[activeTable.table.id]
     return (
       activeTable.views.find(
-        (view) => view.id === selectedId && view.type === "grid"
-      ) ?? activeTable.views.find((view) => view.type === "grid")
+        (view) =>
+          view.id === selectedId && SUPPORTED_BASE_VIEW_TYPES.has(view.type)
+      ) ??
+      activeTable.views.find((view) => SUPPORTED_BASE_VIEW_TYPES.has(view.type))
     )
   }, [activeTable, activeViewIds])
   const activeQuery = useMemo<BaseRowQuery>(
@@ -202,6 +238,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   useEffect(() => {
     setSearch("")
     setVisibleRowCount(null)
+    setSelectedRowRanges([])
     setFieldPropertyColumn(null)
   }, [activeTableId, activeView?.id, filePath])
 
@@ -362,6 +399,28 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     [activeQuery, activeTableId, filePath, getTablePage]
   )
 
+  const loadKanbanGroupPage = useCallback(
+    (
+      field: BaseFieldInfo,
+      value: string | null,
+      offset: number,
+      limit: number
+    ) => {
+      if (!activeTableId) {
+        return Promise.reject(new Error("No active Base table"))
+      }
+      return getTablePage(filePath, activeTableId, offset, limit, {
+        ...activeQuery,
+        filter: combineBaseFilters(
+          activeQuery.filter,
+          field.tableColumnName,
+          value
+        ),
+      })
+    },
+    [activeQuery, activeTableId, filePath, getTablePage]
+  )
+
   const searchRelationRecords = useCallback(
     async (
       field: BaseFieldInfo,
@@ -408,17 +467,45 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       () => insertRow(filePath, tableId, { title: "Untitled" }),
       (result) => {
         updateTableRowCount(tableId, result.rowCount)
-        if (hasActiveQuery) setGridReloadToken((current) => current + 1)
+        if (hasActiveQuery || activeView?.type !== "grid") {
+          setGridReloadToken((current) => current + 1)
+        }
       }
     )
   }, [
     activeTable,
+    activeView?.type,
     enqueueMutation,
     filePath,
     hasActiveQuery,
     insertRow,
     updateTableRowCount,
   ])
+
+  const createRowInGroup = useCallback(
+    (
+      field: BaseFieldInfo,
+      value: string | null,
+      title: string
+    ): Promise<BaseRowMutationResult> => {
+      if (!activeTable) {
+        return Promise.reject(new Error("No active Base table"))
+      }
+      const tableId = activeTable.table.id
+      return enqueueMutation(
+        () =>
+          insertRow(filePath, tableId, {
+            title,
+            [field.tableColumnName]: value,
+          }),
+        (result) => {
+          updateTableRowCount(tableId, result.rowCount)
+          setGridReloadToken((current) => current + 1)
+        }
+      )
+    },
+    [activeTable, enqueueMutation, filePath, insertRow, updateTableRowCount]
+  )
 
   const saveCell = useCallback(
     (
@@ -446,12 +533,15 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           }),
         (result) => {
           updateTableRowCount(tableId, result.rowCount)
-          if (hasActiveQuery) setGridReloadToken((current) => current + 1)
+          if (hasActiveQuery || activeView?.type !== "grid") {
+            setGridReloadToken((current) => current + 1)
+          }
         }
       )
     },
     [
       activeTable,
+      activeView?.type,
       enqueueMutation,
       filePath,
       hasActiveQuery,
@@ -683,12 +773,27 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   )
 
   const createViewInBase = useCallback(
-    (name: string): Promise<void> => {
+    (name: string, type: BaseBuiltInViewType): Promise<void> => {
       if (!activeTable) return Promise.resolve()
       const tableId = activeTable.table.id
       const existingIds = new Set(activeTable.views.map((view) => view.id))
+      const firstSelectField = activeTable.fields.find(
+        (field) => field.type === "select"
+      )
+      const properties =
+        type === "kanban"
+          ? {
+              cardSize: "medium",
+              ...(firstSelectField
+                ? { groupByField: firstSelectField.tableColumnName }
+                : {}),
+            }
+          : type === "gallery"
+            ? { cardSize: "medium", hideEmptyFields: true }
+            : undefined
+      const input = properties ? { name, type, properties } : { name, type }
       return enqueueMutation(
-        () => createView(filePath, tableId, { name, type: "grid" }),
+        () => createView(filePath, tableId, input),
         (next) => {
           applySnapshot(next)
           const created = next.tables
@@ -710,6 +815,18 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     (viewId: string, name: string): Promise<void> =>
       enqueueMutation(
         () => updateView(filePath, viewId, { name }),
+        applySnapshot
+      ).then(() => undefined),
+    [applySnapshot, enqueueMutation, filePath, updateView]
+  )
+
+  const updateViewInBase = useCallback(
+    (
+      viewId: string,
+      changes: Parameters<typeof updateView>[2]
+    ): Promise<void> =>
+      enqueueMutation(
+        () => updateView(filePath, viewId, changes),
         applySnapshot
       ).then(() => undefined),
     [applySnapshot, enqueueMutation, filePath, updateView]
@@ -791,6 +908,26 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       gridError instanceof Error ? gridError.message : "Unable to update Base"
     )
   }, [])
+
+  const fieldPropertySidePanel =
+    fieldPropertyTarget && activeTable ? (
+      <BaseFieldPropertyPanel
+        field={fieldPropertyTarget}
+        disabled={pendingMutations > 0}
+        onClose={() => setFieldPropertyColumn(null)}
+        onUpdate={updateFieldInBase}
+        onDelete={(field) =>
+          setDeleteTarget({
+            kind: "field",
+            tableId: activeTable.table.id,
+            columnName: field.tableColumnName,
+            name: field.name,
+          })
+        }
+        onEditFormula={setFormulaTarget}
+        onEditLookup={setLookupTarget}
+      />
+    ) : undefined
 
   if (loading && !snapshot) {
     return (
@@ -891,6 +1028,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             <>
               <BaseViewSelector
                 views={activeTable.views}
+                fields={activeTable.fields}
                 activeView={activeView}
                 disabled={pendingMutations > 0}
                 onSelect={selectActiveView}
@@ -899,6 +1037,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
                 onDuplicate={duplicateViewInBase}
                 onDelete={deleteViewInBase}
                 onReorder={reorderViewsInBase}
+                onUpdate={updateViewInBase}
               />
               <BaseQueryToolbar
                 fields={activeTable.fields}
@@ -1017,46 +1156,75 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         </div>
       ) : (
         <div className="relative min-h-0 flex-1">
-          <BaseGrid
-            key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
-            table={activeTable}
-            view={activeView}
-            disabled={pendingMutations > 0}
-            reloadToken={gridReloadToken}
-            loadPage={loadActiveTablePage}
-            onAddRow={createRow}
-            onCellEdit={saveCell}
-            onSelectedRowsChange={setSelectedRowRanges}
-            onRowCountChange={setVisibleRowCount}
-            onImportFiles={importBaseFiles}
-            onImportDroppedFiles={importDroppedBaseFiles}
-            onOpenFile={openBaseFileReference}
-            onRevealFile={(path) => reveal(path).then(() => undefined)}
-            onSearchRelation={searchRelationRecords}
-            propertyField={fieldPropertyTarget}
-            onPropertyFieldOpen={(field) =>
-              setFieldPropertyColumn(field.tableColumnName)
-            }
-            onPropertyFieldClose={() => setFieldPropertyColumn(null)}
-            onFieldUpdate={updateFieldInBase}
-            onAddField={openFieldCreator}
-            onEditFormula={setFormulaTarget}
-            onEditLookup={setLookupTarget}
-            onDeleteField={(field) =>
-              setDeleteTarget({
-                kind: "field",
-                tableId: activeTable.table.id,
-                columnName: field.tableColumnName,
-                name: field.name,
-              })
-            }
-            onRequestDeleteRows={(ranges) => {
-              setSelectedRowRanges(ranges)
-              setDeleteRowsDialogOpen(true)
-            }}
-            onViewUpdate={updateActiveView}
-            onError={handleGridError}
-          />
+          {activeView?.type === "gallery" ? (
+            <BaseGalleryView
+              key={`${activeTable.table.id}:${activeView.id}`}
+              table={activeTable}
+              view={activeView}
+              reloadToken={gridReloadToken}
+              loadPage={loadActiveTablePage}
+              onOpenFile={openBaseFileReference}
+              onRevealFile={(path) => reveal(path).then(() => undefined)}
+              onError={handleGridError}
+              sidePanel={fieldPropertySidePanel}
+            />
+          ) : activeView?.type === "kanban" ? (
+            <BaseKanbanView
+              key={`${activeTable.table.id}:${activeView.id}`}
+              table={activeTable}
+              view={activeView}
+              disabled={pendingMutations > 0}
+              reloadToken={gridReloadToken}
+              loadGroupPage={loadKanbanGroupPage}
+              onCellEdit={saveCell}
+              onAddRow={createRowInGroup}
+              onOpenFile={openBaseFileReference}
+              onRevealFile={(path) => reveal(path).then(() => undefined)}
+              onError={handleGridError}
+              sidePanel={fieldPropertySidePanel}
+            />
+          ) : (
+            <BaseGrid
+              key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
+              table={activeTable}
+              view={activeView}
+              disabled={pendingMutations > 0}
+              reloadToken={gridReloadToken}
+              loadPage={loadActiveTablePage}
+              onAddRow={createRow}
+              onCellEdit={saveCell}
+              onSelectedRowsChange={setSelectedRowRanges}
+              onRowCountChange={setVisibleRowCount}
+              onImportFiles={importBaseFiles}
+              onImportDroppedFiles={importDroppedBaseFiles}
+              onOpenFile={openBaseFileReference}
+              onRevealFile={(path) => reveal(path).then(() => undefined)}
+              onSearchRelation={searchRelationRecords}
+              propertyField={fieldPropertyTarget}
+              onPropertyFieldOpen={(field) =>
+                setFieldPropertyColumn(field.tableColumnName)
+              }
+              onPropertyFieldClose={() => setFieldPropertyColumn(null)}
+              onFieldUpdate={updateFieldInBase}
+              onAddField={openFieldCreator}
+              onEditFormula={setFormulaTarget}
+              onEditLookup={setLookupTarget}
+              onDeleteField={(field) =>
+                setDeleteTarget({
+                  kind: "field",
+                  tableId: activeTable.table.id,
+                  columnName: field.tableColumnName,
+                  name: field.name,
+                })
+              }
+              onRequestDeleteRows={(ranges) => {
+                setSelectedRowRanges(ranges)
+                setDeleteRowsDialogOpen(true)
+              }}
+              onViewUpdate={updateActiveView}
+              onError={handleGridError}
+            />
+          )}
           {activeTable.rowCount === 0 ||
           (hasActiveQuery && visibleRowCount === 0) ? (
             <div className="pointer-events-none absolute inset-x-0 top-16 flex justify-center px-6">
