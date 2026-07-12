@@ -12,6 +12,8 @@ import type {
   BaseRowRange,
   BaseRowsDeleteResult,
   BaseSnapshot,
+  BaseFormulaPreview,
+  BaseFormulaPreviewInput,
   CreateBaseFieldInput,
   CreateBaseOptions,
   CreateBaseTableInput,
@@ -443,6 +445,22 @@ export class SpaceManagementService extends IpcServiceBase {
           options.limit,
           options.query
         )
+      } finally {
+        base.close()
+      }
+    })
+  }
+
+  async previewBaseFormula(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    input: BaseFormulaPreviewInput
+  ): Promise<BaseFormulaPreview> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        return base.previewFormula(tableId, input)
       } finally {
         base.close()
       }

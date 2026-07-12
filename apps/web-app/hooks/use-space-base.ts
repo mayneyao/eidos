@@ -7,6 +7,8 @@ import type {
   BaseRowRange,
   BaseRowsDeleteResult,
   BaseSnapshot,
+  BaseFormulaPreview,
+  BaseFormulaPreviewInput,
   CreateBaseFieldInput,
   CreateBaseOptions,
   CreateBaseTableInput,
@@ -69,6 +71,21 @@ export function useSpaceBase(spaceId: string | undefined) {
         relativePath,
         tableId,
         field
+      ),
+    [requireSpaceId]
+  )
+
+  const previewFormula = useCallback(
+    (
+      relativePath: string,
+      tableId: string,
+      input: BaseFormulaPreviewInput
+    ): Promise<BaseFormulaPreview> =>
+      requireBaseApi().previewBaseFormula(
+        requireSpaceId(),
+        relativePath,
+        tableId,
+        input
       ),
     [requireSpaceId]
   )
@@ -273,6 +290,7 @@ export function useSpaceBase(spaceId: string | undefined) {
     updateTable,
     deleteTable,
     addField,
+    previewFormula,
     updateField,
     deleteField,
     createView,
