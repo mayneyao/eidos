@@ -8,7 +8,7 @@
 - `eidos-space-base-storage.zh.md`
 - `eidos-base-file-format.zh.md`
 
-## 实施状态（2026-07-11）
+## 实施状态（2026-07-12）
 
 已经实现：
 
@@ -17,13 +17,19 @@
 - file watcher 和 renderer refresh events，
 - 独立的 Lexical Markdown editor package，
 - 基础 CommonMark/GFM 编辑、附件、wiki links 和 source preservation，
+- 符合 Markdown 语义的 list/Enter/Backspace/Tab 行为、Markdown 与图片
+  paste/drop、自动链接、浮动行内格式工具栏和 block 选择，
 - 可重建的内存 search/link/tag/backlink index，
 - indexed quick open、编辑器 wiki-link completion、outline 和 backlinks UI。
+
+独立编辑器当前有 54 个 package acceptance tests；Desktop host integration
+tests 也覆盖了 runtime loading、保存行为和冲突处理路径。
 
 本切片剩余：
 
 - 面向大型 Space 的 `.eidos/indexes/**` 持久派生索引，
-- IME、keyboard、clipboard 和长文档的 desktop acceptance coverage。
+- IME、系统 clipboard/图片粘贴和超长文档的原生 Desktop acceptance，
+- list 容器内部更细粒度的框选，以及 fenced code 展示细节完善。
 
 ## 摘要
 

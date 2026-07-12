@@ -8,7 +8,7 @@ Related:
 - `eidos-space-base-storage.md`
 - `eidos-base-file-format.md`
 
-## Implementation Status (2026-07-11)
+## Implementation Status (2026-07-12)
 
 Implemented:
 
@@ -17,13 +17,21 @@ Implemented:
 - file watching and renderer refresh events,
 - a standalone Lexical Markdown editor package,
 - basic CommonMark/GFM editing, attachments, wiki links, and source preservation,
+- Markdown-aware list/Enter/Backspace/Tab behavior, Markdown and image
+  paste/drop, automatic links, floating inline formatting, and block selection,
 - an in-memory rebuildable search/link/tag/backlink index,
 - indexed quick open, editor wiki-link completion, outline, and backlinks UI.
+
+The standalone editor currently has 54 package acceptance tests. Desktop host
+integration tests also cover runtime loading, save behavior, and conflict paths.
 
 Remaining for this slice:
 
 - persistent derived indexes under `.eidos/indexes/**` for large Spaces,
-- desktop acceptance coverage for IME, keyboard, clipboard, and long documents.
+- native Desktop acceptance for IME, OS clipboard/image paste, and very long
+  documents,
+- finer-grained marquee selection inside list containers and additional fenced
+  code presentation polish.
 
 ## Summary
 
