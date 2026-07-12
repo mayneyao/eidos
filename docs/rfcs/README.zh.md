@@ -2,21 +2,21 @@
 
 状态：草案集合，实施中
 日期：2026-07-08
-实施快照：2026-07-12
+实施快照：2026-07-13
 
 本目录包含 Eidos 转向 file-based 存储模型的一组草案 RFC。
 
 ## 实施状态
 
-| RFC               | 状态             | 当前实现边界                                                                                                                                       |
-| ----------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Space/Base 存储   | 实施中           | file-based 垂直切片、独立 Base runtime、Base-aware diff、真实 legacy export 和原生 remote 验收已跑通；仍需文件化扩展与剩余 Base 细化。             |
-| Markdown runtime  | Desktop 验收通过 | 真实文件树、直接编辑、安全保存、watcher、持久派生索引、quick open、wiki-link completion、outline、backlinks、附件、IME、图片粘贴和长文档均已跑通。 |
-| Graft 版本管理    | Desktop 验收通过 | 原生 Desktop 已验收持久 fetch/pull/push、分叉文本 diff、path-first resolution、双 parent continuation、clean reconciliation 和最终 push。          |
-| 产品 UX           | 实施中           | Files/Version、Diff/History、上下文 Settings、紧凑同步控件、冲突操作、正式 Base grid 和 Legacy Migration Settings 已通过原生验收。                 |
-| Base 格式/runtime | 垂直切片         | 独立 package 和分页 Grid 已支持 primitive 编辑、table/field 生命周期、choice options、view layout、批量删除与流式导入。                            |
-| 文件化扩展        | 未开始           | RFC 仍是目标设计。                                                                                                                                 |
-| Legacy migration  | 真实导出通过     | 独立 planning、原子 export、Desktop Settings、schema recovery 和 111 万行真实 Space 验收已完成；实时派生字段重算仍待实现。                         |
+| RFC               | 状态             | 当前实现边界                                                                                                                                          |
+| ----------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Space/Base 存储   | 实施中           | file-based 垂直切片、独立 Base runtime、Base-aware diff、真实 legacy export 和原生 remote 验收已跑通；仍需文件化扩展与剩余 Base 细化。                |
+| Markdown runtime  | Desktop 验收通过 | 真实文件树、直接编辑、安全保存、watcher、持久派生索引、quick open、wiki-link completion、outline、backlinks、附件、IME、图片粘贴和长文档均已跑通。    |
+| Graft 版本管理    | Desktop 验收通过 | 原生 Desktop 已验收持久 fetch/pull/push、分叉文本 diff、path-first resolution、双 parent continuation、clean reconciliation 和最终 push。             |
+| 产品 UX           | 实施中           | Files/Version、Diff/History、上下文 Settings、迁移流程与 Base 的持久化 Grid/Gallery/Kanban views 已接入；仍需完整 table-view 对齐和原生生命周期验收。 |
+| Base 格式/runtime | 交付收尾中       | 独立 package 已支持结构化查询、多 layout views、file/relation/live formula/lookup、table/field 生命周期、批量删除与流式导入。                         |
+| 文件化扩展        | 未开始           | RFC 仍是目标设计。                                                                                                                                    |
+| Legacy migration  | 真实导出通过     | 独立 planning、原子 export、Desktop Settings、schema recovery 和 111 万行真实 Space 验收已完成；实时派生字段重算仍待实现。                            |
 
 实施顺序已经从 Base-first 调整，前四个 milestones 现已完成：
 

@@ -10,7 +10,7 @@
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-graft-space-versioning.zh.md`
 
-## 实施状态（2026-07-12）
+## 实施状态（2026-07-13）
 
 已经实现的 UX 包括：打开文件夹作为 Space、基于 Pierre Trees 的文件树、Files/Version
 sidebar modes、独立 Notion 风格 Markdown editor、VS Code 风格 staged Changes、
@@ -51,8 +51,14 @@ Multi-select options 支持逐项新增、重命名、配色、拖拽排序和�
 maximum、color 与 label 配置会直接作用到 Grid。删除 option 会在同一 Base transaction 中
 清理已有 cell 引用。旧的逗号文本 Options 弹窗和字段 Rename 弹窗路径已经移除。
 
-Base 仍处于 delivery closure，而不是产品验收。下一优先级是 Gallery/Kanban layouts，之后是
-无障碍表格语义和完整原生 create/edit/restart/version/restore 验收。Base 日常编辑和配置优先使用单元格
+Gallery 和 Kanban 现在已经接入与 Grid 相同的持久化 view lifecycle。Gallery 使用服务端分页数据、
+响应式 card size、可选的空字段隐藏和共享 record inspector；Kanban 按 Select 字段分组，每组独立
+分页，跨列拖动会持久化为字段修改，也可以直接在目标分组内新增记录。两个 layout 都复用当前 view
+的搜索、筛选、排序、字段显隐和 Property workspace。
+
+这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。Card cover、更丰富的 card actions、
+更多 Kanban 分组语义、键盘/无障碍语义，以及完整原生 create/edit/restart/version/restore 验收仍待完成。
+Base 日常编辑和配置优先使用单元格
 内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留给破坏性确认或必须中断
 当前工作流的决策。新增交互应先参考并复用原表格已经验证过的编辑方式，不应仅为了
 实现方便把字段配置、记录编辑或 view 管理改成弹窗流程。

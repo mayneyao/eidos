@@ -10,7 +10,7 @@ Related:
 - `eidos-space-markdown-runtime.md`
 - `eidos-graft-space-versioning.md`
 
-## Implementation Status (2026-07-12)
+## Implementation Status (2026-07-13)
 
 Implemented UX includes opening folders as Spaces, a Pierre Trees-based file
 tree, Files/Version sidebar modes, a standalone Notion-style Markdown editor,
@@ -65,9 +65,17 @@ label settings drive the live Grid. Removing an option cleans stored cell
 references in the same Base transaction. The comma-text Options dialog and
 field Rename dialog path have been removed.
 
-Base is still in delivery closure, not product acceptance. Gallery/Kanban
-layouts are the next priority, followed by accessible table semantics and a complete native
-create/edit/restart/version/restore run remain. Routine Base configuration uses
+Gallery and Kanban now participate in the same persisted view lifecycle as
+Grid. Gallery uses paged server data, responsive card sizing, optional empty
+field suppression, and the shared record inspector. Kanban groups by a Select
+field, pages each group independently, persists cross-column moves as field
+edits, and creates records directly in the target group. Both layouts reuse the
+active view's search, filters, sorts, field visibility, and Property workspace.
+
+This is the first working delivery slice, not yet full parity with the original
+table views. Card covers, richer per-card actions, additional Kanban grouping
+semantics, keyboard/accessibility semantics, and a complete native
+create/edit/restart/version/restore acceptance run remain. Routine Base configuration uses
 inline controls, header menus, and anchored popovers. Modal dialogs are
 reserved for destructive confirmation or other decisions that must interrupt
 the workflow. New interactions should first adapt the proven editing patterns
