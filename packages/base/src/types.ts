@@ -325,6 +325,7 @@ export interface CreateBaseReferenceInput {
 
 export interface UpdateBaseFieldInput {
   name?: string
+  type?: BaseFieldType
   property?: Record<string, unknown> | null
 }
 

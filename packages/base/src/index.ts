@@ -1,6 +1,7 @@
 export * from "./connection"
 export * from "./constants"
 export * from "./errors"
+export * from "./field-conversion"
 export * from "./file-values"
 export * from "./formula"
 export * from "./identifiers"

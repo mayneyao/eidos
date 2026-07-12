@@ -1,4 +1,8 @@
-import type { BaseConnection, BaseSqlParams } from "./connection"
+import type {
+  BaseConnection,
+  BaseSqlParams,
+  BaseSqlPrimitive,
+} from "./connection"
 import {
   BASE_COLUMNS_TABLE,
   BASE_META_TABLE,
@@ -7,6 +11,10 @@ import {
   BASE_VIEWS_TABLE,
 } from "./constants"
 import { BaseError } from "./errors"
+import {
+  isMutableBaseFieldType,
+  planBaseFieldConversion,
+} from "./field-conversion"
 import { decodeBaseFilePaths, encodeBaseFilePaths } from "./file-values"
 import { compileBaseFormula, compileBaseFormulaFields } from "./formula"
 import { decodeBaseRelationIds, encodeBaseRelationIds } from "./relation-values"
@@ -1228,6 +1236,87 @@ export class BaseRuntime {
     const name = changes.name === undefined ? field.name : changes.name.trim()
     if (!name) {
       throw new BaseError("invalid-identifier", "Base field name is required")
+    }
+    const targetType = changes.type ?? field.type
+    if (targetType !== field.type) {
+      if (
+        field.valueKind !== "source" ||
+        !isMutableBaseFieldType(field.type) ||
+        !isMutableBaseFieldType(targetType)
+      ) {
+        throw new BaseError(
+          "invalid-schema",
+          `Base field “${field.name}” cannot change from ${field.type} to ${targetType}`
+        )
+      }
+      const quotedTable = quoteIdentifier(table.rawTableName)
+      const quotedColumn = quoteIdentifier(field.tableColumnName)
+      const rows = this.connection.query<{
+        id: string
+        value: BaseSqlPrimitive
+      }>(
+        `SELECT CAST(_id AS TEXT) AS id, ${quotedColumn} AS value
+           FROM ${quotedTable}`
+      )
+      const plan = planBaseFieldConversion(field, rows, targetType)
+      const property =
+        changes.property === undefined ? plan.property : changes.property
+      const currentSqlType = sqlTypeForField(field.type)
+      const targetSqlType = sqlTypeForField(targetType)
+      this.connection.transaction(() => {
+        let targetColumn = quotedColumn
+        let backupColumn: string | null = null
+        if (currentSqlType !== targetSqlType) {
+          const suffix = createBaseId("migration")
+          const nextName = `${field.tableColumnName}_${suffix}_next`
+          const backupName = `${field.tableColumnName}_${suffix}_old`
+          targetColumn = quoteIdentifier(nextName)
+          backupColumn = quoteIdentifier(backupName)
+          this.connection.exec(
+            `ALTER TABLE ${quotedTable} ADD COLUMN ${targetColumn} ${targetSqlType}`
+          )
+        }
+        const statement = `UPDATE ${quotedTable}
+                              SET ${targetColumn} = ?
+                            WHERE _id = ?`
+        const parameterSets = plan.values.map(
+          ({ value, id }) => [value, id] as const
+        )
+        if (this.connection.runMany) {
+          this.connection.runMany(statement, parameterSets)
+        } else {
+          for (const parameters of parameterSets) {
+            this.connection.run(statement, parameters)
+          }
+        }
+        if (backupColumn) {
+          this.connection.exec(`
+            ALTER TABLE ${quotedTable}
+              RENAME COLUMN ${quotedColumn} TO ${backupColumn};
+            ALTER TABLE ${quotedTable}
+              RENAME COLUMN ${targetColumn} TO ${quotedColumn};
+            ALTER TABLE ${quotedTable} DROP COLUMN ${backupColumn};
+          `)
+        }
+        this.connection.run(
+          `UPDATE ${BASE_COLUMNS_TABLE}
+              SET name = ?, type = ?, property = ?, storage_codec = ?,
+                  value_kind = 'source', is_derived = 0,
+                  source_table_column_name = NULL, depends_on = NULL,
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE table_name = ? AND table_column_name = ?`,
+          [
+            name,
+            targetType,
+            property === null ? null : JSON.stringify(property),
+            plan.storageCodec,
+            table.rawTableName,
+            field.tableColumnName,
+          ]
+        )
+        setBaseMetadata(this.connection, {})
+      })
+      return this.getField(tableId, field.tableColumnName)
     }
     let property =
       changes.property === undefined ? field.property : changes.property

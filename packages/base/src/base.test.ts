@@ -643,6 +643,81 @@ describe("Eidos Base files", () => {
     base.close()
   })
 
+  it("converts mutable field types and values transactionally", () => {
+    const filePath = path.join(root, "field-conversion.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: {
+        id: "tasks",
+        name: "Tasks",
+        fields: [
+          { name: "Score", columnName: "score", type: "text" },
+          { name: "Status", columnName: "status", type: "text" },
+          { name: "Files", columnName: "files", type: "file" },
+          {
+            name: "Summary",
+            columnName: "summary",
+            type: "formula",
+            property: { formula: "title", displayType: "text" },
+          },
+        ],
+      },
+    })
+    base.insertRow("tasks", {
+      title: "First",
+      score: "12.5",
+      status: "Doing",
+      files: '["assets/spec.pdf","assets/cover.png"]',
+    })
+    base.insertRow("tasks", {
+      title: "Second",
+      score: "invalid",
+      status: "Done",
+      files: null,
+    })
+
+    expect(
+      base.updateField("tasks", "score", { type: "number" })
+    ).toMatchObject({
+      type: "number",
+      storageCodec: "scalar",
+      property: { format: "number", showAs: "number" },
+    })
+    expect(base.listRows("tasks").map((row) => row.score)).toEqual([12.5, null])
+
+    const status = base.updateField("tasks", "status", { type: "select" })
+    const options = status.property?.options as Array<{
+      id: string
+      name: string
+    }>
+    expect(options.map((option) => option.name)).toEqual(["Doing", "Done"])
+    expect(base.listRows("tasks").map((row) => row.status)).toEqual(
+      options.map((option) => option.id)
+    )
+    expect(
+      base.updateField("tasks", "status", { type: "multi-select" })
+    ).toMatchObject({ type: "multi-select", storageCodec: "csv_ids" })
+
+    expect(base.updateField("tasks", "files", { type: "text" })).toMatchObject({
+      type: "text",
+      storageCodec: "scalar",
+    })
+    expect(base.listRows("tasks").map((row) => row.files)).toEqual([
+      "assets/spec.pdf, assets/cover.png",
+      null,
+    ])
+
+    expectBaseError(
+      () => base.updateField("tasks", "summary", { type: "text" }),
+      "invalid-schema"
+    )
+    expect(
+      base
+        .listFields("tasks")
+        .find((field) => field.tableColumnName === "summary")?.type
+    ).toBe("formula")
+    base.close()
+  })
+
   it("renames and deletes Base tables and fields transactionally", () => {
     const filePath = path.join(root, "structure.base")
     const base = createBaseFile(filePath, {
