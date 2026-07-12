@@ -28,6 +28,7 @@ import type {
   BaseFieldInfo,
   BaseFieldType,
   BaseMetadata,
+  BaseLookupAggregate,
   BaseRow,
   BaseRowPage,
   BaseRowQuery,
@@ -220,13 +221,121 @@ export class BaseRuntime {
 
   private rowSourceSql(tableId: string, fields: BaseFieldInfo[]): string {
     const table = this.getTable(tableId)
+    let alias = "base_rows"
     let source = `(SELECT rowid AS "__base_rowid", *
-                     FROM ${quoteIdentifier(table.rawTableName)}) AS "base_rows"`
+                     FROM ${quoteIdentifier(table.rawTableName)}) AS ${quoteIdentifier(alias)}`
+    fields
+      .filter(
+        (field) =>
+          field.type === "lookup" &&
+          field.valueKind === "derived" &&
+          field.isDerived
+      )
+      .forEach((field, index) => {
+        const expression = this.lookupExpression(tableId, field, fields, alias)
+        const nextAlias = `lookup_layer_${index + 1}`
+        source = `(SELECT ${quoteIdentifier(alias)}.*, (${expression}) AS ${quoteIdentifier(field.tableColumnName)}
+                     FROM ${source}) AS ${quoteIdentifier(nextAlias)}`
+        alias = nextAlias
+      })
     compileBaseFormulaFields(fields).forEach((formula, index) => {
+      const nextAlias = `formula_layer_${index + 1}`
       source = `(SELECT *, (${formula.expression}) AS ${quoteIdentifier(formula.field.tableColumnName)}
-                   FROM ${source}) AS ${quoteIdentifier(`formula_layer_${index + 1}`)}`
+                   FROM ${source}) AS ${quoteIdentifier(nextAlias)}`
+      alias = nextAlias
     })
     return source
+  }
+
+  private lookupExpression(
+    tableId: string,
+    field: BaseFieldInfo,
+    fields: BaseFieldInfo[],
+    sourceAlias: string
+  ): string {
+    const relationColumn = field.property?.relationField
+    const targetColumn = field.property?.targetField
+    const aggregate = field.property?.aggregate
+    const aggregates = new Set<BaseLookupAggregate>([
+      "first",
+      "values",
+      "count",
+      "sum",
+      "average",
+      "min",
+      "max",
+    ])
+    if (
+      typeof relationColumn !== "string" ||
+      typeof targetColumn !== "string" ||
+      typeof aggregate !== "string" ||
+      !aggregates.has(aggregate as BaseLookupAggregate)
+    ) {
+      throw new BaseError(
+        "invalid-schema",
+        `Lookup field “${field.name}” has incomplete settings`
+      )
+    }
+    const relation = fields.find(
+      (candidate) => candidate.tableColumnName === relationColumn
+    )
+    if (!relation || relation.type !== "link") {
+      throw new BaseError(
+        "field-not-found",
+        `Lookup relation field not found: ${relationColumn}`
+      )
+    }
+    const target = this.relationTarget(relation)
+    if (!target) {
+      throw new BaseError(
+        "invalid-schema",
+        `Relation field “${relation.name}” has no target table`
+      )
+    }
+    const targetTable = this.getTable(target.tableId)
+    const targetField = this.getField(target.tableId, targetColumn)
+    if (targetField.isDerived) {
+      throw new BaseError(
+        "invalid-schema",
+        "A Base lookup target must be stored on the related table"
+      )
+    }
+    if (this.getTable(tableId).rawTableName !== field.tableName) {
+      throw new BaseError(
+        "invalid-schema",
+        "Lookup field belongs to another table"
+      )
+    }
+    const outerRelation = `${quoteIdentifier(sourceAlias)}.${quoteIdentifier(relationColumn)}`
+    const targetAlias = quoteIdentifier("lookup_target")
+    const targetValue = `${targetAlias}.${quoteIdentifier(targetColumn)}`
+    const membership = `(CASE
+      WHEN json_valid(${outerRelation})
+      THEN EXISTS (
+        SELECT 1 FROM json_each(${outerRelation})
+         WHERE CAST(value AS TEXT) = CAST(${targetAlias}._id AS TEXT)
+      )
+      ELSE instr(
+        ',' || COALESCE(CAST(${outerRelation} AS TEXT), '') || ',',
+        ',' || CAST(${targetAlias}._id AS TEXT) || ','
+      ) > 0
+    END)`
+    const from = `${quoteIdentifier(targetTable.rawTableName)} AS ${targetAlias}`
+    if (aggregate === "first") {
+      return `SELECT ${targetValue} FROM ${from}
+               WHERE ${membership} ORDER BY ${targetAlias}.rowid LIMIT 1`
+    }
+    if (aggregate === "values") {
+      return `SELECT group_concat(CAST(${targetValue} AS TEXT), ', ')
+                FROM ${from} WHERE ${membership}`
+    }
+    if (aggregate === "count") {
+      return `SELECT COUNT(*) FROM ${from} WHERE ${membership}`
+    }
+    const functionName =
+      aggregate === "average" ? "AVG" : aggregate.toUpperCase()
+    return `SELECT ${functionName}(CAST(${targetValue} AS REAL))
+              FROM ${from} WHERE ${membership}`
   }
 
   private getComputedRow(
@@ -769,9 +878,26 @@ export class BaseRuntime {
         ...fields.slice(0, -1),
         { ...draft, property, dependsOn },
       ])
+    } else if (field.type === "lookup") {
+      const draft: BaseFieldInfo = {
+        name: field.name,
+        type: "lookup",
+        tableName: table.rawTableName,
+        tableColumnName: columnName,
+        property: field.property,
+        storageCodec: "scalar",
+        valueKind: "derived",
+        isHidden: false,
+        isDerived: true,
+        sourceTableColumnName: null,
+        dependsOn: [field.property.relationField],
+      }
+      const fields = [...this.listFields(tableId), draft]
+      this.lookupExpression(tableId, draft, fields, "lookup_source")
+      dependsOn = [field.property.relationField]
     }
     this.connection.transaction(() => {
-      if (field.type !== "formula") {
+      if (field.type !== "formula" && field.type !== "lookup") {
         this.connection.exec(
           `ALTER TABLE ${quotedTable} ADD COLUMN ${quotedColumn} ${sqlTypeForField(field.type)} NULL`
         )
@@ -787,15 +913,15 @@ export class BaseRuntime {
           table.rawTableName,
           columnName,
           property ? JSON.stringify(property) : null,
-          field.type === "formula"
+          field.type === "formula" || field.type === "lookup"
             ? "scalar"
             : (field.storageCodec ?? defaultStorageCodec(field.type)),
           field.type === "link"
             ? "relation"
-            : field.type === "formula"
+            : field.type === "formula" || field.type === "lookup"
               ? "derived"
               : "source",
-          field.type === "formula" ? 1 : 0,
+          field.type === "formula" || field.type === "lookup" ? 1 : 0,
           dependsOn ? JSON.stringify(dependsOn) : null,
         ]
       )
@@ -960,6 +1086,25 @@ export class BaseRuntime {
             : candidate
         )
       )
+    } else if (field.type === "lookup" && changes.property !== undefined) {
+      const relationField = property?.relationField
+      if (typeof relationField !== "string") {
+        throw new BaseError(
+          "invalid-schema",
+          `Lookup field “${field.name}” requires a relation field`
+        )
+      }
+      const draft: BaseFieldInfo = {
+        ...field,
+        name,
+        property,
+        dependsOn: [relationField],
+      }
+      const fields = this.listFields(tableId).map((candidate) =>
+        candidate.tableColumnName === field.tableColumnName ? draft : candidate
+      )
+      this.lookupExpression(tableId, draft, fields, "lookup_source")
+      dependsOn = [relationField]
     }
     this.connection.transaction(() => {
       this.connection.run(
@@ -1002,6 +1147,43 @@ export class BaseRuntime {
         `Base field “${field.name}” is used by ${dependentFormulas.length} formula field${dependentFormulas.length === 1 ? "" : "s"}`
       )
     }
+    const dependentLookups = this.listFields(tableId).filter(
+      (candidate) =>
+        candidate.type === "lookup" &&
+        candidate.tableColumnName !== field.tableColumnName &&
+        Array.isArray(candidate.dependsOn) &&
+        candidate.dependsOn.includes(field.tableColumnName)
+    )
+    if (dependentLookups.length > 0) {
+      throw new BaseError(
+        "lookup-in-use",
+        `Base field “${field.name}” is used by ${dependentLookups.length} lookup field${dependentLookups.length === 1 ? "" : "s"}`
+      )
+    }
+    const targetLookups = this.listTables().flatMap((sourceTable) => {
+      const sourceFields = this.listFields(sourceTable.id)
+      return sourceFields.filter((candidate) => {
+        if (
+          candidate.type !== "lookup" ||
+          candidate.property?.targetField !== columnName
+        ) {
+          return false
+        }
+        const relationColumn = candidate.property?.relationField
+        const relation = sourceFields.find(
+          (sourceField) => sourceField.tableColumnName === relationColumn
+        )
+        return relation
+          ? this.relationTarget(relation)?.tableId === tableId
+          : false
+      })
+    })
+    if (targetLookups.length > 0) {
+      throw new BaseError(
+        "lookup-in-use",
+        `Base field “${field.name}” is used as a lookup target`
+      )
+    }
     const inboundRelations = this.listTables().flatMap((sourceTable) =>
       this.listFields(sourceTable.id).filter((candidate) => {
         const target = this.relationTarget(candidate)
@@ -1029,7 +1211,12 @@ export class BaseRuntime {
           field.tableColumnName,
         ]
       )
-      if (!(field.type === "formula" && field.valueKind === "derived")) {
+      if (
+        !(
+          (field.type === "formula" || field.type === "lookup") &&
+          field.valueKind === "derived"
+        )
+      ) {
         this.connection.exec(
           `ALTER TABLE ${quoteIdentifier(table.rawTableName)}
             DROP COLUMN ${quoteIdentifier(field.tableColumnName)}`

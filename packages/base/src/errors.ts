@@ -9,6 +9,7 @@ export type BaseErrorCode =
   | "protected-view"
   | "relation-in-use"
   | "formula-in-use"
+  | "lookup-in-use"
   | "table-not-found"
   | "row-not-found"
   | "field-not-found"

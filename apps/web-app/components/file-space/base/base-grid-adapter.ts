@@ -129,7 +129,7 @@ export function baseValueToGridCell(
   readonly = false,
   row?: BaseRow
 ): GridCell {
-  if (field.type === "formula") {
+  if (field.type === "formula" || field.type === "lookup") {
     const displayType = field.property?.displayType
     const supported = new Set([
       "text",

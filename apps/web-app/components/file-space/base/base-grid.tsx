@@ -22,7 +22,14 @@ import DataEditor, {
   type Item,
   type Rectangle,
 } from "@glideapps/glide-data-grid"
-import { Calculator, ListRestart, Pencil, Plus, Trash2 } from "lucide-react"
+import {
+  Calculator,
+  ListRestart,
+  Pencil,
+  Plus,
+  Trash2,
+  Waypoints,
+} from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 
 import { useCurrentTheme } from "@/apps/web-app/hooks/use-current-theme"
@@ -84,6 +91,7 @@ interface BaseGridProps {
   onRenameField?: (field: BaseFieldInfo) => void
   onEditFieldOptions?: (field: BaseFieldInfo) => void
   onEditFormula?: (field: BaseFieldInfo) => void
+  onEditLookup?: (field: BaseFieldInfo) => void
   onDeleteField?: (field: BaseFieldInfo) => void
   onViewUpdate?: (changes: UpdateBaseViewInput) => Promise<void> | void
   onError?: (error: unknown) => void
@@ -162,6 +170,7 @@ export function BaseGrid({
   onRenameField,
   onEditFieldOptions,
   onEditFormula,
+  onEditLookup,
   onDeleteField,
   onViewUpdate,
   onError,
@@ -684,6 +693,19 @@ export function BaseGrid({
                 >
                   <Calculator className="h-3.5 w-3.5" />
                   Edit formula
+                </button>
+              ) : null}
+              {fieldMenu.field.type === "lookup" ? (
+                <button
+                  type="button"
+                  className="flex h-7 w-full items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-accent"
+                  onClick={() => {
+                    onEditLookup?.(fieldMenu.field)
+                    setFieldMenu(null)
+                  }}
+                >
+                  <Waypoints className="h-3.5 w-3.5" />
+                  Edit lookup
                 </button>
               ) : null}
               <div className="my-1 h-px bg-border" />

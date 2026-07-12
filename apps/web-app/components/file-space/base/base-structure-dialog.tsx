@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type FormEvent } from "react"
 import type {
   BaseFieldInfo,
   BaseFormulaDisplayType,
+  BaseLookupAggregate,
   CreateBaseFieldInput,
   CreateBaseTableInput,
   BaseTableInfo,
@@ -36,6 +37,20 @@ const FIELD_TYPES: Array<{ value: FieldType; label: string }> = [
   { value: "rating", label: "Rating" },
   { value: "link", label: "Relation" },
   { value: "formula", label: "Formula" },
+  { value: "lookup", label: "Lookup / rollup" },
+]
+
+const LOOKUP_AGGREGATES: Array<{
+  value: BaseLookupAggregate
+  label: string
+}> = [
+  { value: "first", label: "First value" },
+  { value: "values", label: "All values" },
+  { value: "count", label: "Count" },
+  { value: "sum", label: "Sum" },
+  { value: "average", label: "Average" },
+  { value: "min", label: "Minimum" },
+  { value: "max", label: "Maximum" },
 ]
 
 const FORMULA_DISPLAY_TYPES: Array<{
@@ -79,6 +94,7 @@ export function BaseStructureDialog({
   onCreateField,
   tables = EMPTY_TABLES,
   fields = [],
+  tableFields = {},
   activeTableId,
 }: {
   mode: "table" | "field"
@@ -88,6 +104,7 @@ export function BaseStructureDialog({
   onCreateField: (field: CreateBaseFieldInput) => Promise<void> | void
   tables?: BaseTableInfo[]
   fields?: BaseFieldInfo[]
+  tableFields?: Record<string, BaseFieldInfo[]>
   activeTableId?: string | null
 }) {
   const [name, setName] = useState("")
@@ -99,6 +116,10 @@ export function BaseStructureDialog({
     useState<BaseFormulaDisplayType>("text")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [lookupRelationField, setLookupRelationField] = useState("")
+  const [lookupTargetField, setLookupTargetField] = useState("")
+  const [lookupAggregate, setLookupAggregate] =
+    useState<BaseLookupAggregate>("first")
   const nameId = useId()
   const optionsId = useId()
 
@@ -111,6 +132,9 @@ export function BaseStructureDialog({
     setFormulaDisplayType("text")
     setSubmitting(false)
     setError(null)
+    setLookupRelationField("")
+    setLookupTargetField("")
+    setLookupAggregate("first")
     setTargetTableId(
       tables.find((table) => table.id !== activeTableId)?.id ??
         tables[0]?.id ??
@@ -119,6 +143,27 @@ export function BaseStructureDialog({
   }, [activeTableId, mode, open, tables])
 
   const hasOptions = fieldType === "select" || fieldType === "multi-select"
+  const relationFields = fields.filter((field) => field.type === "link")
+  const selectedRelation =
+    relationFields.find(
+      (field) => field.tableColumnName === lookupRelationField
+    ) ?? relationFields[0]
+  const lookupTargetTableId =
+    typeof selectedRelation?.property?.targetTableId === "string"
+      ? selectedRelation.property.targetTableId
+      : tables.find(
+          (table) =>
+            table.rawTableName === selectedRelation?.property?.linkTableName
+        )?.id
+  const lookupTargetFields = (
+    lookupTargetTableId ? (tableFields[lookupTargetTableId] ?? []) : []
+  ).filter((field) => !field.isHidden && !field.isDerived)
+  const selectedLookupTarget =
+    lookupTargetFields.find(
+      (field) => field.tableColumnName === lookupTargetField
+    ) ??
+    lookupTargetFields.find((field) => field.tableColumnName === "title") ??
+    lookupTargetFields[0]
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     const trimmedName = name.trim()
@@ -147,6 +192,26 @@ export function BaseStructureDialog({
         property: {
           formula: formula.trim(),
           displayType: formulaDisplayType,
+        },
+      })
+    } else if (fieldType === "lookup") {
+      if (!selectedRelation || !selectedLookupTarget) return
+      const numeric = new Set<BaseLookupAggregate>([
+        "count",
+        "sum",
+        "average",
+        "min",
+        "max",
+      ]).has(lookupAggregate)
+      creation = onCreateField({
+        name: trimmedName,
+        columnName: columnNameFor(trimmedName),
+        type: "lookup",
+        property: {
+          relationField: selectedRelation.tableColumnName,
+          targetField: selectedLookupTarget.tableColumnName,
+          aggregate: lookupAggregate,
+          displayType: numeric ? "number" : "text",
         },
       })
     } else {
@@ -345,6 +410,83 @@ export function BaseStructureDialog({
                 </p>
               </div>
             ) : null}
+            {mode === "field" && fieldType === "lookup" ? (
+              <div className="grid gap-3">
+                <label className="grid gap-1.5 text-xs font-medium">
+                  Relation
+                  <Select
+                    value={selectedRelation?.tableColumnName ?? ""}
+                    onValueChange={(value) => {
+                      setLookupRelationField(value)
+                      setLookupTargetField("")
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a relation" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {relationFields.map((field) => (
+                        <SelectItem
+                          key={field.tableColumnName}
+                          value={field.tableColumnName}
+                        >
+                          {field.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <label className="grid gap-1.5 text-xs font-medium">
+                  Target field
+                  <Select
+                    value={selectedLookupTarget?.tableColumnName ?? ""}
+                    onValueChange={setLookupTargetField}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a target field" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {lookupTargetFields.map((field) => (
+                        <SelectItem
+                          key={field.tableColumnName}
+                          value={field.tableColumnName}
+                        >
+                          {field.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <label className="grid gap-1.5 text-xs font-medium">
+                  Calculate
+                  <Select
+                    value={lookupAggregate}
+                    onValueChange={(value) =>
+                      setLookupAggregate(value as BaseLookupAggregate)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LOOKUP_AGGREGATES.map((aggregate) => (
+                        <SelectItem
+                          key={aggregate.value}
+                          value={aggregate.value}
+                        >
+                          {aggregate.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                {relationFields.length === 0 ? (
+                  <p className="text-[11px] leading-4 text-muted-foreground">
+                    Add a relation field before creating a lookup.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             {error ? (
               <p className="text-xs text-destructive" role="alert">
                 {error}
@@ -366,7 +508,12 @@ export function BaseStructureDialog({
                 !name.trim() ||
                 submitting ||
                 (mode === "field" && fieldType === "link" && !targetTableId) ||
-                (mode === "field" && fieldType === "formula" && !formula.trim())
+                (mode === "field" &&
+                  fieldType === "formula" &&
+                  !formula.trim()) ||
+                (mode === "field" &&
+                  fieldType === "lookup" &&
+                  (!selectedRelation || !selectedLookupTarget))
               }
             >
               {submitting ? "Creating…" : "Create"}

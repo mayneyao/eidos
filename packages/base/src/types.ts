@@ -175,10 +175,35 @@ export interface CreateBaseFormulaFieldInput {
   storageCodec?: "scalar"
 }
 
+export type BaseLookupAggregate =
+  | "first"
+  | "values"
+  | "count"
+  | "sum"
+  | "average"
+  | "min"
+  | "max"
+
+export interface BaseLookupProperty extends Record<string, unknown> {
+  relationField: string
+  targetField: string
+  aggregate: BaseLookupAggregate
+  displayType: BaseFormulaDisplayType
+}
+
+export interface CreateBaseLookupFieldInput {
+  name: string
+  columnName: string
+  type: "lookup"
+  property: BaseLookupProperty
+  storageCodec?: "scalar"
+}
+
 export type CreateBaseFieldInput =
   | CreateBaseSourceFieldInput
   | CreateBaseRelationFieldInput
   | CreateBaseFormulaFieldInput
+  | CreateBaseLookupFieldInput
 
 export interface BaseRelationValue {
   id: string

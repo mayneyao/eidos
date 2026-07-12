@@ -361,6 +361,140 @@ describe("Eidos Base files", () => {
     base.close()
   })
 
+  it("derives lookup and rollup values through relations without materializing them", () => {
+    const filePath = path.join(root, "lookups.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: { id: "projects", name: "Projects" },
+    })
+    base.createTable({
+      id: "people",
+      name: "People",
+      fields: [{ name: "Rate", columnName: "rate", type: "number" }],
+    })
+    const ada = base.insertRow("people", {
+      title: "Ada Lovelace",
+      rate: 100,
+    })
+    const grace = base.insertRow("people", {
+      title: "Grace Hopper",
+      rate: 150,
+    })
+    base.addField("projects", {
+      name: "Owners",
+      columnName: "owners",
+      type: "link",
+      property: {
+        targetTableId: "people",
+        targetField: "title",
+        multiple: true,
+      },
+    })
+    base.addField("projects", {
+      name: "Owner names",
+      columnName: "owner_names",
+      type: "lookup",
+      property: {
+        relationField: "owners",
+        targetField: "title",
+        aggregate: "values",
+        displayType: "text",
+      },
+    })
+    base.addField("projects", {
+      name: "Owner count",
+      columnName: "owner_count",
+      type: "lookup",
+      property: {
+        relationField: "owners",
+        targetField: "title",
+        aggregate: "count",
+        displayType: "number",
+      },
+    })
+    base.addField("projects", {
+      name: "Owner rate",
+      columnName: "owner_rate",
+      type: "lookup",
+      property: {
+        relationField: "owners",
+        targetField: "rate",
+        aggregate: "sum",
+        displayType: "number",
+      },
+    })
+    base.addField("projects", {
+      name: "Budget",
+      columnName: "budget",
+      type: "formula",
+      property: { formula: "owner_rate * 2", displayType: "number" },
+    })
+
+    const project = base.insertRow("projects", {
+      title: "Compiler",
+      owners: JSON.stringify([ada._id, grace._id]),
+    })
+    expect(project).toMatchObject({
+      owner_names: "Ada Lovelace, Grace Hopper",
+      owner_count: 2,
+      owner_rate: 250,
+      budget: 500,
+    })
+    expect(
+      base.getRowPage("projects", 0, 20, {
+        filter: {
+          type: "group",
+          conjunction: "and",
+          children: [
+            {
+              type: "rule",
+              field: "owner_count",
+              operator: "greater-than",
+              value: 1,
+            },
+          ],
+        },
+      }).total
+    ).toBe(1)
+
+    expect(
+      base.updateRow("projects", String(project._id), {
+        owners: JSON.stringify([grace._id]),
+      })
+    ).toMatchObject({
+      owner_names: "Grace Hopper",
+      owner_count: 1,
+      owner_rate: 150,
+      budget: 300,
+    })
+    expect(
+      base.updateField("projects", "owner_rate", {
+        property: {
+          relationField: "owners",
+          targetField: "rate",
+          aggregate: "average",
+          displayType: "number",
+        },
+      })
+    ).toMatchObject({ dependsOn: ["owners"] })
+    expect(base.listRows("projects")[0]).toMatchObject({
+      owner_rate: 150,
+      budget: 300,
+    })
+
+    expectBaseError(
+      () => base.deleteField("projects", "owners"),
+      "lookup-in-use"
+    )
+    expectBaseError(() => base.deleteField("people", "rate"), "lookup-in-use")
+    expect(base.deleteField("projects", "budget")).toBe(true)
+    expect(base.deleteField("projects", "owner_rate")).toBe(true)
+    expect(base.deleteField("projects", "owner_count")).toBe(true)
+    expect(base.deleteField("projects", "owner_names")).toBe(true)
+    expect(base.deleteField("projects", "owners")).toBe(true)
+    expect(base.deleteTable("people")).toBe(true)
+    base.close()
+  })
+
   it("persists the complete Grid view lifecycle independently per view", () => {
     const filePath = path.join(root, "views.base")
     const base = createBaseFile(filePath, {

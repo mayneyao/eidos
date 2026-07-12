@@ -223,4 +223,93 @@ describe("BaseStructureDialog", () => {
       property: { formula: "price * quantity", displayType: "text" },
     })
   })
+
+  it("creates a lookup through an existing relation", async () => {
+    const onCreateField = vi.fn()
+    const titleField = {
+      name: "title",
+      type: "title" as const,
+      tableName: "tb_people",
+      tableColumnName: "title",
+      property: null,
+      storageCodec: "scalar" as const,
+      valueKind: "system" as const,
+      isHidden: false,
+      isDerived: false,
+      sourceTableColumnName: null,
+      dependsOn: null,
+    }
+    const relationField = {
+      ...titleField,
+      name: "Owners",
+      type: "link" as const,
+      tableName: "tb_projects",
+      tableColumnName: "owners",
+      property: {
+        targetTableId: "people",
+        targetField: "title",
+        multiple: true,
+      },
+      storageCodec: "relation" as const,
+      valueKind: "relation" as const,
+    }
+    act(() =>
+      root.render(
+        <BaseStructureDialog
+          mode="field"
+          open
+          onOpenChange={vi.fn()}
+          onCreateTable={vi.fn()}
+          onCreateField={onCreateField}
+          fields={[relationField]}
+          tables={[
+            {
+              id: "people",
+              name: "People",
+              rawTableName: "tb_people",
+              position: 1,
+              icon: null,
+              description: null,
+              createdAt: "2026-07-12",
+              updatedAt: "2026-07-12",
+            },
+          ]}
+          tableFields={{ people: [titleField] }}
+        />
+      )
+    )
+    const name = document.body.querySelector<HTMLInputElement>(
+      'input[placeholder="Status"]'
+    )
+    await act(async () => {
+      if (name) setInput(name, "Owner name")
+      document.body
+        .querySelector<HTMLButtonElement>('[role="combobox"]')
+        ?.click()
+    })
+    const lookup = [...document.body.querySelectorAll('[role="option"]')].find(
+      (option) => option.textContent?.includes("Lookup / rollup")
+    ) as HTMLElement | undefined
+    await act(async () => lookup?.click())
+    expect(document.body.textContent).toContain("Target field")
+    await act(async () => {
+      document.body
+        .querySelector("form")
+        ?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true })
+        )
+      await Promise.resolve()
+    })
+    expect(onCreateField).toHaveBeenCalledWith({
+      name: "Owner name",
+      columnName: "owner_name",
+      type: "lookup",
+      property: {
+        relationField: "owners",
+        targetField: "title",
+        aggregate: "first",
+        displayType: "text",
+      },
+    })
+  })
 })

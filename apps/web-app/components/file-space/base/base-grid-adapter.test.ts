@@ -178,6 +178,25 @@ describe("Base Grid adapter", () => {
     expect(visibleBaseFields([formula])).toEqual([formula])
   })
 
+  it("renders lookup rollups as readonly derived cells", () => {
+    const lookup = {
+      ...field("lookup", {
+        relationField: "owners",
+        targetField: "title",
+        aggregate: "count",
+        displayType: "number",
+      }),
+      tableColumnName: "owner_count",
+      valueKind: "derived" as const,
+      isDerived: true,
+    }
+    expect(baseValueToGridCell(lookup, 2)).toMatchObject({
+      kind: GridCellKind.Number,
+      data: 2,
+      readonly: true,
+    })
+  })
+
   it("applies per-view field visibility without changing Base schema", () => {
     expect(
       visibleBaseFields([field("text"), field("number")], ["number"]).map(

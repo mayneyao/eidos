@@ -130,6 +130,26 @@ try {
     type: "formula",
     property: { formula: "priority * 10", displayType: "number" },
   })
+  base.addField("tasks", {
+    name: "Owner count",
+    columnName: "owner_count",
+    type: "lookup",
+    property: {
+      relationField: "owners",
+      targetField: "title",
+      aggregate: "count",
+      displayType: "number",
+    },
+  })
+  base.addField("tasks", {
+    name: "Capacity",
+    columnName: "capacity",
+    type: "formula",
+    property: {
+      formula: "owner_count * priority",
+      displayType: "number",
+    },
+  })
   const first = base.insertRow("tasks", {
     title: "Prove Base diff",
     done: false,
@@ -142,6 +162,8 @@ try {
   assert.equal(first.attachment, '["assets/spec.pdf"]')
   assert.equal(first.owners, JSON.stringify([ada._id]))
   assert.equal(first.score, 20)
+  assert.equal(first.owner_count, 1)
+  assert.equal(first.capacity, 2)
   assert.equal(
     first.owners__display,
     JSON.stringify([{ id: ada._id, title: "Ada Lovelace" }])
@@ -235,6 +257,8 @@ try {
     owners: JSON.stringify([ada._id, grace._id]),
   })
   assert.equal(linked.score, 40)
+  assert.equal(linked.owner_count, 2)
+  assert.equal(linked.capacity, 8)
   assert.equal(
     linked.owners__display,
     JSON.stringify([

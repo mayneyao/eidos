@@ -307,7 +307,7 @@ function compileSorts(
     seen.add(sort.field)
     const column = quoteIdentifier(field.tableColumnName)
     const displayType =
-      field.type === "formula" &&
+      (field.type === "formula" || field.type === "lookup") &&
       typeof field.property?.displayType === "string"
         ? field.property.displayType
         : field.type

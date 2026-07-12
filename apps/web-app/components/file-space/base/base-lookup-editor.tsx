@@ -1,0 +1,228 @@
+import { useEffect, useState, type FormEvent } from "react"
+import type {
+  BaseFieldInfo,
+  BaseLookupAggregate,
+  BaseTableSnapshot,
+} from "@eidos.space/base"
+
+import { Button } from "@/components/ui/button"
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
+const AGGREGATES: Array<{ value: BaseLookupAggregate; label: string }> = [
+  { value: "first", label: "First value" },
+  { value: "values", label: "All values" },
+  { value: "count", label: "Count" },
+  { value: "sum", label: "Sum" },
+  { value: "average", label: "Average" },
+  { value: "min", label: "Minimum" },
+  { value: "max", label: "Maximum" },
+]
+
+export function BaseLookupEditor({
+  field,
+  fields,
+  tables,
+  open,
+  onOpenChange,
+  onSave,
+}: {
+  field: BaseFieldInfo | null
+  fields: BaseFieldInfo[]
+  tables: BaseTableSnapshot[]
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSave: (property: Record<string, unknown>) => Promise<void> | void
+}) {
+  const [relationField, setRelationField] = useState("")
+  const [targetField, setTargetField] = useState("")
+  const [aggregate, setAggregate] = useState<BaseLookupAggregate>("first")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    setRelationField(
+      typeof field?.property?.relationField === "string"
+        ? field.property.relationField
+        : ""
+    )
+    setTargetField(
+      typeof field?.property?.targetField === "string"
+        ? field.property.targetField
+        : ""
+    )
+    setAggregate(
+      AGGREGATES.some((item) => item.value === field?.property?.aggregate)
+        ? (field?.property?.aggregate as BaseLookupAggregate)
+        : "first"
+    )
+    setSaving(false)
+    setError(null)
+  }, [field, open])
+
+  const relations = fields.filter((candidate) => candidate.type === "link")
+  const selectedRelation =
+    relations.find(
+      (candidate) => candidate.tableColumnName === relationField
+    ) ?? relations[0]
+  const targetTableId =
+    typeof selectedRelation?.property?.targetTableId === "string"
+      ? selectedRelation.property.targetTableId
+      : tables.find(
+          (table) =>
+            table.table.rawTableName ===
+            selectedRelation?.property?.linkTableName
+        )?.table.id
+  const targets =
+    tables
+      .find((table) => table.table.id === targetTableId)
+      ?.fields.filter(
+        (candidate) => !candidate.isHidden && !candidate.isDerived
+      ) ?? []
+  const selectedTarget =
+    targets.find((candidate) => candidate.tableColumnName === targetField) ??
+    targets.find((candidate) => candidate.tableColumnName === "title") ??
+    targets[0]
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!selectedRelation || !selectedTarget) return
+    const numeric = new Set<BaseLookupAggregate>([
+      "count",
+      "sum",
+      "average",
+      "min",
+      "max",
+    ]).has(aggregate)
+    setSaving(true)
+    setError(null)
+    try {
+      await onSave({
+        relationField: selectedRelation.tableColumnName,
+        targetField: selectedTarget.tableColumnName,
+        aggregate,
+        displayType: numeric ? "number" : "text",
+      })
+      onOpenChange(false)
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error ? saveError.message : "Unable to save lookup"
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverAnchor asChild>
+        <span className="pointer-events-none absolute right-2 top-10 h-px w-px" />
+      </PopoverAnchor>
+      <PopoverContent align="end" side="bottom" className="w-80 p-0">
+        <div className="border-b px-4 py-3">
+          <h2 className="text-sm font-semibold">Edit lookup</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Derive {field?.name ?? "a value"} through an existing relation.
+          </p>
+        </div>
+        <form onSubmit={(event) => void submit(event)}>
+          <div className="grid gap-3 px-4 py-3">
+            <label className="grid gap-1.5 text-xs font-medium">
+              Relation
+              <Select
+                value={selectedRelation?.tableColumnName ?? ""}
+                onValueChange={(value) => {
+                  setRelationField(value)
+                  setTargetField("")
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a relation" />
+                </SelectTrigger>
+                <SelectContent>
+                  {relations.map((relation) => (
+                    <SelectItem
+                      key={relation.tableColumnName}
+                      value={relation.tableColumnName}
+                    >
+                      {relation.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="grid gap-1.5 text-xs font-medium">
+              Target field
+              <Select
+                value={selectedTarget?.tableColumnName ?? ""}
+                onValueChange={setTargetField}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a target field" />
+                </SelectTrigger>
+                <SelectContent>
+                  {targets.map((target) => (
+                    <SelectItem
+                      key={target.tableColumnName}
+                      value={target.tableColumnName}
+                    >
+                      {target.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="grid gap-1.5 text-xs font-medium">
+              Calculate
+              <Select
+                value={aggregate}
+                onValueChange={(value) =>
+                  setAggregate(value as BaseLookupAggregate)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {AGGREGATES.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            {error ? (
+              <p className="text-xs text-destructive" role="alert">
+                {error}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex items-center justify-end gap-2 border-t px-4 py-2.5">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={saving}
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={saving || !selectedRelation || !selectedTarget}
+            >
+              {saving ? "Saving…" : "Save lookup"}
+            </Button>
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
+  )
+}

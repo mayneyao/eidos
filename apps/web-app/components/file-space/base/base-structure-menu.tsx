@@ -7,6 +7,7 @@ import {
   Pencil,
   Plus,
   Trash2,
+  Waypoints,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -32,6 +33,7 @@ interface BaseStructureMenuProps {
   onRenameField: (field: BaseFieldInfo) => void
   onEditFieldOptions: (field: BaseFieldInfo) => void
   onEditFormula: (field: BaseFieldInfo) => void
+  onEditLookup: (field: BaseFieldInfo) => void
   onDeleteField: (field: BaseFieldInfo) => void
 }
 
@@ -45,6 +47,7 @@ export function BaseStructureMenu({
   onRenameField,
   onEditFieldOptions,
   onEditFormula,
+  onEditLookup,
   onDeleteField,
 }: BaseStructureMenuProps) {
   const visibleFields = fields.filter((field) => !field.isHidden)
@@ -113,6 +116,12 @@ export function BaseStructureMenu({
                       <DropdownMenuItem onSelect={() => onEditFormula(field)}>
                         <Calculator className="mr-2 h-3.5 w-3.5" />
                         Edit formula
+                      </DropdownMenuItem>
+                    ) : null}
+                    {field.type === "lookup" ? (
+                      <DropdownMenuItem onSelect={() => onEditLookup(field)}>
+                        <Waypoints className="mr-2 h-3.5 w-3.5" />
+                        Edit lookup
                       </DropdownMenuItem>
                     ) : null}
                     <DropdownMenuItem

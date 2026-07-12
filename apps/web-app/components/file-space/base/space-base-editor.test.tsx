@@ -202,6 +202,31 @@ vi.mock("./base-formula-editor", () => ({
     ) : null,
 }))
 
+vi.mock("./base-lookup-editor", () => ({
+  BaseLookupEditor: ({
+    open,
+    onSave,
+  }: {
+    open: boolean
+    onSave: (property: Record<string, unknown>) => void
+  }) =>
+    open ? (
+      <button
+        type="button"
+        onClick={() =>
+          onSave({
+            relationField: "owners",
+            targetField: "title",
+            aggregate: "count",
+            displayType: "number",
+          })
+        }
+      >
+        Confirm lookup
+      </button>
+    ) : null,
+}))
+
 vi.mock("./base-rename-dialog", () => ({
   BaseRenameDialog: ({
     name,
@@ -255,6 +280,7 @@ vi.mock("./base-grid", () => ({
     onRevealFile,
     onSearchRelation,
     onEditFormula,
+    onEditLookup,
   }: {
     table: (typeof snapshot)["tables"][number]
     onCellEdit: (
@@ -274,6 +300,9 @@ vi.mock("./base-grid", () => ({
       query: string
     ) => Promise<Array<{ id: string; title: string }>>
     onEditFormula?: (
+      field: (typeof snapshot)["tables"][number]["fields"][number]
+    ) => void
+    onEditLookup?: (
       field: (typeof snapshot)["tables"][number]["fields"][number]
     ) => void
   }) => {
@@ -368,6 +397,27 @@ vi.mock("./base-grid", () => ({
           }
         >
           Edit formula
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onEditLookup?.({
+              ...title!,
+              name: "Owner count",
+              type: "lookup",
+              tableColumnName: "owner_count",
+              valueKind: "derived",
+              isDerived: true,
+              property: {
+                relationField: "owners",
+                targetField: "title",
+                aggregate: "count",
+                displayType: "number",
+              },
+            })
+          }
+        >
+          Edit lookup
         </button>
       </div>
     )
@@ -823,6 +873,34 @@ describe("SpaceBaseEditor", () => {
       "total",
       {
         property: { formula: "price * quantity", displayType: "number" },
+      }
+    )
+  })
+
+  it("updates lookup metadata and reloads derived rows", async () => {
+    await renderEditor()
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit lookup")
+        ?.click()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Confirm lookup")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(updateFieldMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      "owner_count",
+      {
+        property: {
+          relationField: "owners",
+          targetField: "title",
+          aggregate: "count",
+          displayType: "number",
+        },
       }
     )
   })
