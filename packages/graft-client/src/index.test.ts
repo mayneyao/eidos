@@ -83,6 +83,100 @@ describe("GraftClient", () => {
     )
   })
 
+  it("maps remote configuration and preserves local URLs with spaces", async () => {
+    const { client, execute } = createClient()
+
+    await client.runJson("/space", ["remote", "list", "--json"])
+    await client.runJson("/space", [
+      "remote",
+      "add",
+      "--json",
+      "origin",
+      "fs:///tmp/Eidos Remote",
+    ])
+    await client.runJson("/space", [
+      "remote",
+      "set-url",
+      "--json",
+      "origin",
+      "graft+https://example.test/spaces/demo",
+    ])
+    await client.runJson("/space", ["remote", "remove", "--json", "origin"])
+
+    expect(execute).toHaveBeenNthCalledWith(
+      1,
+      "/space",
+      "json_remotes",
+      undefined
+    )
+    expect(execute).toHaveBeenNthCalledWith(
+      2,
+      "/space",
+      "json_remote_add",
+      "origin fs:///tmp/Eidos Remote"
+    )
+    expect(execute).toHaveBeenNthCalledWith(
+      3,
+      "/space",
+      "json_remote_set_url",
+      "origin graft+https://example.test/spaces/demo"
+    )
+    expect(execute).toHaveBeenNthCalledWith(
+      4,
+      "/space",
+      "json_remote_remove",
+      "origin"
+    )
+  })
+
+  it("maps persistent fetch, pull, push, upstream, and conflict commands", async () => {
+    const { client, execute } = createClient()
+
+    await client.runJson("/space", ["fetch", "--json", "origin", "main"])
+    await client.runJson("/space", ["pull", "--json", "origin", "main"])
+    await client.runJson("/space", ["push", "--json", "origin", "main"])
+    await client.runJson("/space", [
+      "branch-upstream",
+      "--json",
+      "main",
+      "origin/main",
+    ])
+    await client.runJson("/space", ["conflicts", "--json"])
+    await client.runJson("/space", [
+      "resolve",
+      "--json",
+      "--theirs",
+      "notes/a b.md",
+    ])
+
+    expect(execute.mock.calls).toEqual([
+      ["/space", "json_fetch", "origin main"],
+      ["/space", "json_pull", "origin main"],
+      ["/space", "json_push", "origin main"],
+      ["/space", "json_branch_upstream", "main origin/main"],
+      ["/space", "json_conflicts", undefined],
+      ["/space", "json_resolve_conflict", "--theirs notes/a b.md"],
+    ])
+  })
+
+  it("rejects ambiguous remote names and unsupported sync flags", async () => {
+    const { client, execute } = createClient()
+
+    await expect(
+      client.runJson("/space", [
+        "remote",
+        "add",
+        "--json",
+        "bad name",
+        "memory",
+      ])
+    ).rejects.toThrow("one non-empty word")
+    await expect(
+      client.runJson("/space", ["pull", "--json", "--force"])
+    ).rejects.toThrow("Unsupported Graft pull flag")
+    expect(execute).not.toHaveBeenCalled()
+  })
+
   it("rejects CLI-only commands instead of silently spawning a process", async () => {
     const { client, execute } = createClient()
 
