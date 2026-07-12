@@ -151,7 +151,7 @@ describe("compiler", () => {
       const result = await compileCode("")
 
       expect(result.error).toBeNull()
-      expect(result.code).toBeTruthy()
+      expect(result.code).toBe("")
     })
 
     it("should handle regular JavaScript without JSX", async () => {

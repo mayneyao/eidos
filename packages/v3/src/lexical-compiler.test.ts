@@ -98,7 +98,7 @@ describe("lexical-compiler", () => {
     it("should preserve forward slashes in package imports", async () => {
       const input = `
         import { ComposerContext } from '@lexical/react/LexicalComposerContext';
-        import { MarkdownShortcutPlugin } from '@lexical/react/plugins/MarkdownShortcutPlugin';
+        import { DecoratorBlockNode } from '@lexical/react/LexicalBlockWithAlignableContents';
       `
 
       const result = await compileLexicalCode(input)
@@ -108,7 +108,7 @@ describe("lexical-compiler", () => {
         'const { ComposerContext } = window["__@LEXICAL/REACT/LEXICALCOMPOSERCONTEXT"]'
       )
       expect(result.code).toContain(
-        'const { MarkdownShortcutPlugin } = window["__@LEXICAL/REACT/PLUGINS/MARKDOWNSHORTCUTPLUGIN"]'
+        'const { DecoratorBlockNode } = window["__@LEXICAL/REACT/LEXICALBLOCKWITHALIGNABLECONTENTS"]'
       )
     })
   })

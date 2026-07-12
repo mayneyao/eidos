@@ -101,11 +101,17 @@ export function getCompileMethod(script: { type: string }) {
 export function getCompileMethodByScriptType(
   scriptType: "script" | "block" | string
 ) {
-  // New architecture types
-  if (scriptType === "script") {
-    return scriptCodeCompile
-  }
-  if (scriptType === "block") {
-    return blockCodeCompile
+  switch (scriptType) {
+    case "script":
+      return scriptCodeCompile
+    case "block":
+    case "m_block":
+      return blockCodeCompile
+    case "py_script":
+      return pythonCodeCompile
+    case "doc_plugin":
+      return lexicalCodeCompile
+    default:
+      return undefined
   }
 }
