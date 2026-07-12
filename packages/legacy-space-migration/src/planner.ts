@@ -96,6 +96,7 @@ function allocateFieldColumns(table: LegacyTable) {
       return {
         sourceColumnName: field.columnName,
         targetColumnName: field.columnName,
+        sourceReadable: field.isReadable,
       }
     }
     const normalized = field.columnName
@@ -123,6 +124,7 @@ function allocateFieldColumns(table: LegacyTable) {
     return {
       sourceColumnName: field.columnName,
       targetColumnName,
+      sourceReadable: field.isReadable,
     }
   })
 }

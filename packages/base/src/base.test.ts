@@ -9,6 +9,7 @@ import {
   inspectBaseFile,
   openBaseFile,
 } from "./better-sqlite3"
+import type { BetterSqlite3BaseConnection } from "./better-sqlite3"
 import {
   BASE_COLUMNS_TABLE,
   BASE_FORMAT,
@@ -301,6 +302,14 @@ describe("Eidos Base files", () => {
       type: "title",
       property: { migrated: true },
     })
+    base.importField("tasks", {
+      name: "Legacy row ID",
+      columnName: "_id",
+      type: "row-id",
+      valueKind: "system",
+      isHidden: true,
+      property: { migrated: true },
+    })
     base.createView("tasks", {
       id: "legacy_grid",
       name: "All tasks",
@@ -334,18 +343,31 @@ describe("Eidos Base files", () => {
       computed_label: "SHIP MIGRATION",
       _created_time: "2025-01-02 03:04:05",
     })
+    const connection = base.connection as BetterSqlite3BaseConnection
+    const prepare = vi.spyOn(connection.database, "prepare")
     expect(
       base.insertImportedRows("tasks", [
         { _id: "legacy-row-2", title: "Second" },
         { _id: "legacy-row-3", title: "Third" },
       ])
     ).toHaveLength(2)
+    expect(
+      prepare.mock.calls.filter(([sql]) =>
+        String(sql).startsWith('INSERT INTO "tb_tasks"')
+      )
+    ).toHaveLength(1)
+    prepare.mockRestore()
     expect(base.countRows("tasks")).toBe(3)
     expect(base.listFields("tasks")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           tableColumnName: "title",
           property: { migrated: true },
+        }),
+        expect.objectContaining({
+          tableColumnName: "_id",
+          property: { migrated: true },
+          valueKind: "system",
         }),
         expect.objectContaining({
           tableColumnName: "computed_label",

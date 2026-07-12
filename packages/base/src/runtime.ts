@@ -110,6 +110,16 @@ const SYSTEM_FIELDS: Array<{
   },
 ]
 
+const SYSTEM_FIELD_COLUMNS = new Set(
+  SYSTEM_FIELDS.map((field) => field.columnName)
+)
+
+function assertKnownFieldColumnName(columnName: string): string {
+  return SYSTEM_FIELD_COLUMNS.has(columnName)
+    ? columnName
+    : assertBaseColumnName(columnName)
+}
+
 function tableInfoFromRow(row: RegistryRow): BaseTableInfo {
   return {
     id: row.id,
@@ -736,7 +746,7 @@ export class BaseRuntime {
   }
 
   private getField(tableId: string, columnName: string): BaseFieldInfo {
-    const safeColumnName = assertBaseColumnName(columnName)
+    const safeColumnName = assertKnownFieldColumnName(columnName)
     const field = this.listFields(tableId).find(
       (candidate) => candidate.tableColumnName === safeColumnName
     )
@@ -841,6 +851,10 @@ export class BaseRuntime {
       _id: row._id ?? createBaseId("row"),
     }))
     this.connection.transaction(() => {
+      const batches = new Map<
+        string,
+        { columns: string[]; parameterSets: BaseSqlParams[] }
+      >()
       for (const record of records) {
         const columns = Object.keys(record)
         for (const column of columns) {
@@ -851,12 +865,27 @@ export class BaseRuntime {
             )
           }
         }
-        this.connection.run(
-          `INSERT INTO ${quoteIdentifier(table.rawTableName)}
-            (${columns.map(quoteIdentifier).join(", ")})
-           VALUES (${columns.map(() => "?").join(", ")})`,
+        const signature = columns.join("\u0000")
+        const batch = batches.get(signature) ?? {
+          columns,
+          parameterSets: [],
+        }
+        batch.parameterSets.push(
           columns.map((column) => sqliteParameter(record[column]))
         )
+        batches.set(signature, batch)
+      }
+      for (const batch of batches.values()) {
+        const sql = `INSERT INTO ${quoteIdentifier(table.rawTableName)}
+            (${batch.columns.map(quoteIdentifier).join(", ")})
+           VALUES (${batch.columns.map(() => "?").join(", ")})`
+        if (this.connection.runMany) {
+          this.connection.runMany(sql, batch.parameterSets)
+        } else {
+          for (const params of batch.parameterSets) {
+            this.connection.run(sql, params)
+          }
+        }
       }
     })
     setBaseMetadata(this.connection, {})

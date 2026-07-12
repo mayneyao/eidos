@@ -231,6 +231,8 @@ function readFields(
       ),
       createdAt: stringValue(value.created_at),
       updatedAt: stringValue(value.updated_at),
+      isGenerated: false,
+      isReadable: true,
     })
     result.set(tableName, fields)
   }
@@ -366,6 +368,8 @@ function readTables(
         property: null,
         createdAt: null,
         updatedAt: null,
+        isGenerated: column.hidden !== 0,
+        isReadable: true,
       })
       issues.push({
         severity: "warning",
@@ -373,6 +377,27 @@ function readTables(
         message: `Physical column ${rawTableName}.${column.name} has no field metadata and will be recovered as ${numeric ? "number" : "text"}`,
         sourceId: node.id,
       })
+    }
+    const physicalColumnsByName = new Map(
+      physicalColumns.map((column) => [column.name, column])
+    )
+    for (const field of fields) {
+      const physicalColumn = physicalColumnsByName.get(field.columnName)
+      field.isGenerated = (physicalColumn?.hidden ?? 0) !== 0
+      if (!field.isGenerated) continue
+      try {
+        database.prepare(
+          `SELECT "${field.columnName.replace(/"/g, '""')}" FROM "${rawTableName.replace(/"/g, '""')}" LIMIT 0`
+        )
+      } catch (error) {
+        field.isReadable = false
+        issues.push({
+          severity: "warning",
+          code: "generated-column-unreadable",
+          message: `Generated column ${rawTableName}.${field.columnName} cannot be evaluated by the standalone migration runtime and will be imported without a materialized value: ${error instanceof Error ? error.message : String(error)}`,
+          sourceId: node.id,
+        })
+      }
     }
     tables.push({
       id: node.id,

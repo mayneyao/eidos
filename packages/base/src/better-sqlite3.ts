@@ -33,6 +33,11 @@ export class BetterSqlite3BaseConnection implements BaseConnection {
     return this.database.prepare(sql).run(...params)
   }
 
+  runMany(sql: string, parameterSets: readonly BaseSqlParams[]): void {
+    const statement = this.database.prepare(sql)
+    for (const params of parameterSets) statement.run(...params)
+  }
+
   transaction<T>(operation: () => T): T {
     return this.database.transaction(operation)()
   }

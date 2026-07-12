@@ -334,12 +334,16 @@ describe("legacy Space migration planning", () => {
     const fixture = createLegacyFixture()
     roots.push(fixture.sourceRoot)
     const database = new Database(fixture.databasePath)
+    database.function("legacy_percentage", { deterministic: true }, (value) =>
+      Number.parseFloat(String(value))
+    )
     database.exec(`
       ALTER TABLE tb_tasks ADD COLUMN "文本" TEXT;
       ALTER TABLE tb_tasks ADD COLUMN phys_attack TEXT;
       ALTER TABLE tb_tasks ADD COLUMN "⚔️phys_attack" TEXT;
       ALTER TABLE tb_tasks ADD COLUMN "_original_title" TEXT;
       ALTER TABLE tb_tasks ADD COLUMN mystery TEXT;
+      ALTER TABLE tb_tasks ADD COLUMN broken_formula GENERATED ALWAYS AS (legacy_percentage(title));
     `)
     const insertField = database.prepare(
       `INSERT INTO eidos__columns
@@ -351,6 +355,12 @@ describe("legacy Space migration planning", () => {
     insertField.run("⚔️ Physical", "number", "⚔️phys_attack", null)
     insertField.run("Original title", "text", "_original_title", null)
     insertField.run("Mystery", "currency", "mystery", '{"unit":"USD"}')
+    insertField.run(
+      "Broken formula",
+      "formula",
+      "broken_formula",
+      '{"formula":"legacy_percentage(title)"}'
+    )
     database
       .prepare(
         `UPDATE tb_tasks
@@ -419,6 +429,10 @@ describe("legacy Space migration planning", () => {
           severity: "warning",
           code: "unsupported-field-type",
         }),
+        expect.objectContaining({
+          severity: "warning",
+          code: "generated-column-unreadable",
+        }),
       ])
     )
     expect(fieldMap.get("文本")).toMatch(/^field_[a-f0-9]{8}$/)
@@ -440,6 +454,7 @@ describe("legacy Space migration planning", () => {
     expect(row[fieldMap.get("文本")!]).toBe("中文值")
     expect(row[fieldMap.get("⚔️phys_attack")!]).toBe(20)
     expect(row.original_title).toBe("Legacy")
+    expect(row.broken_formula).toBeNull()
     expect(
       base
         .listFields("tasks")

@@ -11,6 +11,7 @@ export interface BaseConnection {
   query<T extends object>(sql: string, params?: BaseSqlParams): T[]
   get<T extends object>(sql: string, params?: BaseSqlParams): T | undefined
   run(sql: string, params?: BaseSqlParams): BaseRunResult
+  runMany?(sql: string, parameterSets: readonly BaseSqlParams[]): void
   transaction<T>(operation: () => T): T
   close?(): void
 }

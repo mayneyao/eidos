@@ -40,6 +40,8 @@ export interface LegacyField {
   property: Record<string, unknown> | null
   createdAt: string | null
   updatedAt: string | null
+  isGenerated: boolean
+  isReadable: boolean
 }
 
 export interface LegacyView {
@@ -130,6 +132,7 @@ export interface PlannedDocument {
 export interface PlannedField {
   sourceColumnName: string
   targetColumnName: string
+  sourceReadable: boolean
 }
 
 export interface PlannedTable {

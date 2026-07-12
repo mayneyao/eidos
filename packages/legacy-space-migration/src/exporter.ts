@@ -514,16 +514,92 @@ function assertSourceUnchanged(
   }
 }
 
-function tableRows(
+function* tableRowBatches(
   database: Database.Database,
   rawTableName: string,
-  offset: number,
-  limit: number
-): BaseRow[] {
+  batchSize: number,
+  unreadableColumns: ReadonlySet<string>
+): Generator<BaseRow[]> {
   const quoted = `"${rawTableName.replace(/"/g, '""')}"`
-  return database
-    .prepare(`SELECT * FROM ${quoted} ORDER BY rowid LIMIT ? OFFSET ?`)
-    .all(limit, offset) as BaseRow[]
+  const physicalColumnRows = database
+    .prepare(`PRAGMA table_xinfo(${quoted})`)
+    .all() as Array<{ name: string; hidden: number }>
+  const physicalColumns = new Set(
+    physicalColumnRows.map((column) => column.name.toLowerCase())
+  )
+  const selectedColumnNames = physicalColumnRows
+    .filter(
+      (column) => column.hidden === 0 || !unreadableColumns.has(column.name)
+    )
+    .map((column) => column.name)
+  const selectedColumnsSql = selectedColumnNames
+    .map((columnName) => `"${columnName.replace(/"/g, '""')}"`)
+    .join(", ")
+  const withoutRowId = (
+    database.prepare("PRAGMA table_list").all() as Array<{
+      name: string
+      wr: number
+    }>
+  ).some((table) => table.name === rawTableName && table.wr === 1)
+  if (withoutRowId) {
+    const statement = database
+      .prepare(`SELECT ${selectedColumnsSql} FROM ${quoted} LIMIT ? OFFSET ?`)
+      .raw(true)
+    for (let offset = 0; ; offset += batchSize) {
+      const values = statement.all(batchSize, offset) as Array<
+        Array<BaseRow[string]>
+      >
+      if (values.length === 0) return
+      yield values.map((record) =>
+        Object.fromEntries(
+          selectedColumnNames.map((columnName, index) => [
+            columnName,
+            record[index],
+          ])
+        )
+      ) as BaseRow[]
+    }
+  }
+  const rowIdIdentifier = ["rowid", "_rowid_", "oid"].find(
+    (candidate) => !physicalColumns.has(candidate)
+  )
+  if (!rowIdIdentifier) {
+    throw new Error(
+      `Legacy table ${rawTableName} shadows every SQLite rowid alias`
+    )
+  }
+  const firstStatement = database
+    .prepare(
+      `SELECT ${rowIdIdentifier}, ${selectedColumnsSql} FROM ${quoted} ORDER BY ${rowIdIdentifier} LIMIT ?`
+    )
+    .raw(true)
+  const nextStatement = database
+    .prepare(
+      `SELECT ${rowIdIdentifier}, ${selectedColumnsSql} FROM ${quoted} WHERE ${rowIdIdentifier} > ? ORDER BY ${rowIdIdentifier} LIMIT ?`
+    )
+    .raw(true)
+  let afterRowId: number | bigint | null = null
+  while (true) {
+    const values = (
+      afterRowId === null
+        ? firstStatement.all(batchSize)
+        : nextStatement.all(afterRowId, batchSize)
+    ) as Array<Array<BaseRow[string] | bigint>>
+    if (values.length === 0) return
+    yield values.map((record) =>
+      Object.fromEntries(
+        selectedColumnNames.map((columnName, index) => [
+          columnName,
+          record[index + 1],
+        ])
+      )
+    ) as BaseRow[]
+    const rowId = values[values.length - 1][0]
+    if (typeof rowId !== "number" && typeof rowId !== "bigint") {
+      throw new Error(`Legacy table ${rawTableName} returned an invalid rowid`)
+    }
+    afterRowId = rowId
+  }
 }
 
 function buildAssetSourcePath(sourceRoot: string, asset: LegacyAsset): string {
@@ -730,13 +806,16 @@ export async function exportLegacySpace(
         2_000,
         Math.max(1, Math.trunc(options.rowBatchSize ?? 500))
       )
-      for (let offset = 0; offset < sourceTable.rowCount; offset += batchSize) {
-        const rows = tableRows(
-          sourceDatabase,
-          sourceTable.rawTableName,
-          offset,
-          batchSize
+      for (const rows of tableRowBatches(
+        sourceDatabase,
+        sourceTable.rawTableName,
+        batchSize,
+        new Set(
+          plannedTable.fields
+            .filter((field) => !field.sourceReadable)
+            .map((field) => field.sourceColumnName)
         )
+      )) {
         const rewrittenRows = rows.map((row) => {
           const rewritten = Object.fromEntries(
             Object.entries(row).map(([columnName, value]) => [
