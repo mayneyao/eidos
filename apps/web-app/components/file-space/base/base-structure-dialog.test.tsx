@@ -23,6 +23,7 @@ describe("BaseStructureDialog", () => {
   let root: Root
 
   beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn()
     container = document.createElement("div")
     document.body.append(container)
     root = createRoot(container)
@@ -94,6 +95,80 @@ describe("BaseStructureDialog", () => {
       name: "Project owner",
       columnName: "project_owner",
       type: "text",
+    })
+  })
+
+  it("creates a relation to another Base table without opening a modal", async () => {
+    const onCreateField = vi.fn()
+    act(() =>
+      root.render(
+        <BaseStructureDialog
+          mode="field"
+          open
+          onOpenChange={vi.fn()}
+          onCreateTable={vi.fn()}
+          onCreateField={onCreateField}
+          activeTableId="projects"
+          tables={[
+            {
+              id: "projects",
+              name: "Projects",
+              rawTableName: "tb_projects",
+              position: 1,
+              icon: null,
+              description: null,
+              createdAt: "2026-07-12",
+              updatedAt: "2026-07-12",
+            },
+            {
+              id: "people",
+              name: "People",
+              rawTableName: "tb_people",
+              position: 2,
+              icon: null,
+              description: null,
+              createdAt: "2026-07-12",
+              updatedAt: "2026-07-12",
+            },
+          ]}
+        />
+      )
+    )
+
+    expect(document.body.querySelector('[aria-modal="true"]')).toBeNull()
+    const name = document.body.querySelector<HTMLInputElement>(
+      'input[placeholder="Status"]'
+    )
+    await act(async () => {
+      if (name) setInput(name, "Owners")
+      document.body
+        .querySelector<HTMLButtonElement>('[role="combobox"]')
+        ?.click()
+    })
+    const relation = [
+      ...document.body.querySelectorAll('[role="option"]'),
+    ].find((option) => option.textContent?.includes("Relation")) as
+      | HTMLElement
+      | undefined
+    await act(async () => relation?.click())
+
+    expect(document.body.textContent).toContain("Related table")
+    const form = document.body.querySelector("form")
+    await act(async () => {
+      form?.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true })
+      )
+    })
+
+    expect(onCreateField).toHaveBeenCalledWith({
+      name: "Owners",
+      columnName: "owners",
+      type: "link",
+      property: {
+        targetTableId: "people",
+        targetField: "title",
+        multiple: true,
+      },
     })
   })
 })

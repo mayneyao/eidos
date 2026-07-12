@@ -5,6 +5,7 @@ import type {
   BaseRowMutationResult,
   BaseRowPage,
   BaseRowRange,
+  BaseRelationValue,
   BaseSqlPrimitive,
   BaseTableSnapshot,
   BaseViewInfo,
@@ -46,6 +47,10 @@ import {
   BaseFileCellRenderer,
   type BaseFileCell,
 } from "./base-file-cell"
+import {
+  BaseRelationCellRenderer,
+  type BaseRelationCell,
+} from "./base-relation-cell"
 import { encodeBaseFilePaths } from "@eidos.space/base"
 
 import "@glideapps/glide-data-grid/dist/index.css"
@@ -71,6 +76,10 @@ interface BaseGridProps {
   onImportDroppedFiles?: (files: File[]) => Promise<string[]>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => Promise<void> | void
+  onSearchRelation?: (
+    field: BaseFieldInfo,
+    query: string
+  ) => Promise<BaseRelationValue[]>
   onAddField?: () => void
   onRenameField?: (field: BaseFieldInfo) => void
   onEditFieldOptions?: (field: BaseFieldInfo) => void
@@ -140,6 +149,7 @@ export function BaseGrid({
   onImportDroppedFiles,
   onOpenFile,
   onRevealFile,
+  onSearchRelation,
   onAddField,
   onRenameField,
   onEditFieldOptions,
@@ -277,7 +287,8 @@ export function BaseGrid({
       const cell = baseValueToGridCell(
         field,
         row[field.tableColumnName],
-        disabled
+        disabled,
+        row
       )
       if (
         cell.kind === GridCellKind.Custom &&
@@ -293,9 +304,31 @@ export function BaseGrid({
           },
         } as BaseFileCell
       }
+      if (
+        cell.kind === GridCellKind.Custom &&
+        (cell.data as { kind?: unknown }).kind === "base-relation-cell"
+      ) {
+        return {
+          ...cell,
+          data: {
+            ...cell.data,
+            onSearch: onSearchRelation
+              ? (query: string) => onSearchRelation(field, query)
+              : undefined,
+          },
+        } as BaseRelationCell
+      }
       return cell
     },
-    [cacheRevision, disabled, fields, onImportFiles, onOpenFile, onRevealFile]
+    [
+      cacheRevision,
+      disabled,
+      fields,
+      onImportFiles,
+      onOpenFile,
+      onRevealFile,
+      onSearchRelation,
+    ]
   )
 
   const requestVisiblePages = useCallback(
@@ -538,6 +571,7 @@ export function BaseGrid({
           MultiSelectCell,
           DatePickerCell,
           BaseFileCellRenderer,
+          BaseRelationCellRenderer,
         ]}
         onDragOverCell={onDragOverCell}
         onDragLeave={() => setFileDropHighlights([])}

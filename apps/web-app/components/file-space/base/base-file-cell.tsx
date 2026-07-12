@@ -4,7 +4,7 @@ import {
   GridCellKind,
   type CustomCell,
   type CustomRenderer,
-  type ProvideEditorCallback,
+  type ProvideEditorComponent,
 } from "@glideapps/glide-data-grid"
 import {
   ExternalLink,
@@ -152,9 +152,10 @@ function BaseFileCard({
   )
 }
 
-export const BaseFileCellEditor: ReturnType<
-  ProvideEditorCallback<BaseFileCell>
-> = ({ value: cell, onChange }) => {
+export const BaseFileCellEditor: ProvideEditorComponent<BaseFileCell> = ({
+  value: cell,
+  onChange,
+}) => {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const items = cell.data.paths.map((path, index) => ({

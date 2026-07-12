@@ -222,6 +222,25 @@ function compileRule(
       const expression = `(${expressions.join(" OR ")})`
       return rule.operator === "is-none-of" ? `NOT (${expression})` : expression
     }
+    if (
+      field.storageCodec === "relation" ||
+      field.storageCodec === "json_array"
+    ) {
+      const expressions = values.map((entry) => {
+        params.push(sqlValue(entry), `%,${escapeLike(String(entry))},%`)
+        return `(CASE
+          WHEN json_valid(${column})
+          THEN EXISTS (
+            SELECT 1 FROM json_each(${column})
+             WHERE CAST(value AS TEXT) = CAST(? AS TEXT)
+          )
+          ELSE (',' || COALESCE(CAST(${column} AS TEXT), '') || ',')
+               LIKE ? ESCAPE '\\'
+        END)`
+      })
+      const expression = `(${expressions.join(" OR ")})`
+      return rule.operator === "is-none-of" ? `NOT (${expression})` : expression
+    }
     params.push(...values.map(sqlValue))
     const expression = `${column} IN (${values.map(() => "?").join(", ")})`
     return rule.operator === "is-none-of"

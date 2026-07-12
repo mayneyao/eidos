@@ -111,6 +111,19 @@ try {
       ],
     },
   })
+  base.createTable({ id: "people", name: "People" })
+  const ada = base.insertRow("people", { title: "Ada Lovelace" })
+  const grace = base.insertRow("people", { title: "Grace Hopper" })
+  base.addField("tasks", {
+    name: "Owners",
+    columnName: "owners",
+    type: "link",
+    property: {
+      targetTableId: "people",
+      targetField: "title",
+      multiple: true,
+    },
+  })
   const first = base.insertRow("tasks", {
     title: "Prove Base diff",
     done: false,
@@ -118,8 +131,14 @@ try {
     status: "doing",
     labels: "bug,ux",
     attachment: "assets/spec.pdf",
+    owners: String(ada._id),
   })
   assert.equal(first.attachment, '["assets/spec.pdf"]')
+  assert.equal(first.owners, JSON.stringify([ada._id]))
+  assert.equal(
+    first.owners__display,
+    JSON.stringify([{ id: ada._id, title: "Ada Lovelace" }])
+  )
   const queryOnly = base.insertRow("tasks", {
     title: "Query-only row",
     done: false,
@@ -203,7 +222,17 @@ try {
   runGraft(root, ["commit", "--message", "Initial Base", "--json"])
 
   const updated = openBaseFile(basePath)
-  updated.updateRow("tasks", String(first._id), { done: true })
+  const linked = updated.updateRow("tasks", String(first._id), {
+    done: true,
+    owners: JSON.stringify([ada._id, grace._id]),
+  })
+  assert.equal(
+    linked.owners__display,
+    JSON.stringify([
+      { id: ada._id, title: "Ada Lovelace" },
+      { id: grace._id, title: "Grace Hopper" },
+    ])
+  )
   updated.insertRow("tasks", { title: "Render row changes", done: false })
   updated.close()
 

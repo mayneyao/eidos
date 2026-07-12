@@ -194,6 +194,74 @@ describe("Eidos Base files", () => {
     expectBaseError(() => openBaseFile(sqlitePath), "not-base")
   })
 
+  it("creates portable relations and hydrates linked record titles", () => {
+    const filePath = path.join(root, "relations.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: { id: "projects", name: "Projects" },
+    })
+    base.createTable({ id: "people", name: "People" })
+    const ada = base.insertRow("people", { title: "Ada Lovelace" })
+    const grace = base.insertRow("people", { title: "Grace Hopper" })
+
+    expect(
+      base.addField("projects", {
+        name: "Owners",
+        columnName: "owners",
+        type: "link",
+        property: {
+          targetTableId: "people",
+          targetField: "title",
+          multiple: true,
+        },
+      })
+    ).toMatchObject({
+      type: "link",
+      storageCodec: "relation",
+      valueKind: "relation",
+    })
+    base.importField("projects", {
+      name: "Legacy owner",
+      columnName: "legacy_owner",
+      type: "link",
+      property: {
+        linkTableName: "tb_people",
+        linkColumnName: "title",
+      },
+      storageCodec: "relation",
+      valueKind: "relation",
+    })
+
+    const project = base.insertRow("projects", {
+      title: "Compiler",
+      owners: `${ada._id},${grace._id}`,
+    })
+    expect(project.owners).toBe(JSON.stringify([ada._id, grace._id]))
+    expect(JSON.parse(String(project.owners__display))).toEqual([
+      { id: ada._id, title: "Ada Lovelace" },
+      { id: grace._id, title: "Grace Hopper" },
+    ])
+    expect(
+      base.updateRow("projects", String(project._id), {
+        legacy_owner: String(ada._id),
+      }).legacy_owner__display
+    ).toBe(JSON.stringify([{ id: ada._id, title: "Ada Lovelace" }]))
+
+    const updated = base.updateRow("projects", String(project._id), {
+      owners: JSON.stringify([grace._id]),
+    })
+    expect(updated.owners).toBe(JSON.stringify([grace._id]))
+    expect(JSON.parse(String(updated.owners__display))).toEqual([
+      { id: grace._id, title: "Grace Hopper" },
+    ])
+
+    base.deleteRow("people", String(grace._id))
+    expect(
+      JSON.parse(String(base.listRows("projects")[0].owners__display))
+    ).toEqual([{ id: grace._id, title: "Missing record" }])
+    expectBaseError(() => base.deleteTable("people"), "relation-in-use")
+    base.close()
+  })
+
   it("persists the complete Grid view lifecycle independently per view", () => {
     const filePath = path.join(root, "views.base")
     const base = createBaseFile(filePath, {

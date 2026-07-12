@@ -1,9 +1,16 @@
 import type {
   BaseFieldInfo,
+  BaseRow,
   BaseRowValue,
   BaseSqlPrimitive,
 } from "@eidos.space/base"
-import { decodeBaseFilePaths, encodeBaseFilePaths } from "@eidos.space/base"
+import {
+  decodeBaseFilePaths,
+  decodeBaseRelationDisplay,
+  decodeBaseRelationIds,
+  encodeBaseFilePaths,
+  encodeBaseRelationIds,
+} from "@eidos.space/base"
 import {
   GridCellKind,
   type EditableGridCell,
@@ -12,6 +19,7 @@ import {
 } from "@glideapps/glide-data-grid"
 
 import { baseFileDisplayData, type BaseFileCell } from "./base-file-cell"
+import type { BaseRelationCell } from "./base-relation-cell"
 
 interface BaseSelectOption {
   id: string
@@ -54,7 +62,10 @@ export function visibleBaseFields(
     (field) =>
       !field.isHidden &&
       !hidden.has(field.tableColumnName) &&
-      (field.tableColumnName === "title" || field.valueKind === "source")
+      (field.tableColumnName === "title" ||
+        field.valueKind === "source" ||
+        field.valueKind === "relation" ||
+        field.valueKind === "derived")
   )
 }
 
@@ -115,8 +126,27 @@ function multiSelectValues(value: BaseRowValue | undefined): string[] {
 export function baseValueToGridCell(
   field: BaseFieldInfo,
   value: BaseRowValue | undefined,
-  readonly = false
+  readonly = false,
+  row?: BaseRow
 ): GridCell {
+  if (field.type === "link") {
+    const ids = decodeBaseRelationIds(value)
+    const display = decodeBaseRelationDisplay(
+      row?.[`${field.tableColumnName}__display`]
+    )
+    const titleById = new Map(display.map((entry) => [entry.id, entry.title]))
+    return {
+      kind: GridCellKind.Custom,
+      allowOverlay: true,
+      readonly,
+      copyData: encodeBaseRelationIds(ids) ?? "",
+      data: {
+        kind: "base-relation-cell",
+        values: ids.map((id) => ({ id, title: titleById.get(id) ?? id })),
+        multiple: field.property?.multiple !== false,
+      },
+    } satisfies BaseRelationCell
+  }
   if (field.type === "file") {
     const paths = decodeBaseFilePaths(value)
     return {
@@ -254,6 +284,22 @@ export function gridCellToBaseValue(
           )
         : []
       return encodeBaseFilePaths(paths)
+    }
+    if (data.kind === "base-relation-cell") {
+      const values = Array.isArray(data.values)
+        ? data.values.flatMap((entry) => {
+            if (
+              typeof entry === "object" &&
+              entry !== null &&
+              "id" in entry &&
+              typeof entry.id === "string"
+            ) {
+              return [entry.id]
+            }
+            return []
+          })
+        : []
+      return encodeBaseRelationIds(values)
     }
     if (data.kind === "rating-cell") {
       return typeof data.rating === "number" ? data.rating : null

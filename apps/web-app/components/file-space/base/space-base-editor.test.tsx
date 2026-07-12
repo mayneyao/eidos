@@ -233,6 +233,7 @@ vi.mock("./base-grid", () => ({
     onImportDroppedFiles,
     onOpenFile,
     onRevealFile,
+    onSearchRelation,
   }: {
     table: (typeof snapshot)["tables"][number]
     onCellEdit: (
@@ -247,6 +248,10 @@ vi.mock("./base-grid", () => ({
     onImportDroppedFiles?: (files: File[]) => Promise<string[]>
     onOpenFile?: (path: string) => void
     onRevealFile?: (path: string) => Promise<void> | void
+    onSearchRelation?: (
+      field: (typeof snapshot)["tables"][number]["fields"][number],
+      query: string
+    ) => Promise<Array<{ id: string; title: string }>>
   }) => {
     const row = { _id: "row_1", title: "Write RFC", status: "todo" }
     const title = table.fields.find(
@@ -300,6 +305,29 @@ vi.mock("./base-grid", () => ({
           onClick={() => void onRevealFile?.("assets/report.pdf")}
         >
           Reveal attachment
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void onSearchRelation?.(
+              {
+                ...title!,
+                name: "Owners",
+                type: "link",
+                tableColumnName: "owners",
+                storageCodec: "relation",
+                valueKind: "relation",
+                property: {
+                  targetTableId: "people",
+                  targetField: "title",
+                  multiple: true,
+                },
+              },
+              "Ada"
+            )
+          }
+        >
+          Search relation
         </button>
       </div>
     )
@@ -709,6 +737,31 @@ describe("SpaceBaseEditor", () => {
       await Promise.resolve()
     })
     expect(revealFileMock).toHaveBeenCalledWith("assets/report.pdf")
+  })
+
+  it("searches relation candidates through the target Base table", async () => {
+    getTablePageMock.mockResolvedValueOnce({
+      tableId: "people",
+      offset: 0,
+      limit: 50,
+      total: 1,
+      rows: [{ _id: "row_ada", title: "Ada Lovelace" }],
+    })
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Search relation")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(getTablePageMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "people",
+      0,
+      50,
+      { search: "Ada" }
+    )
   })
 
   it("renames and deletes tables and fields through the structure menu", async () => {

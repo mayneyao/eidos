@@ -2,7 +2,7 @@
 
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { GridCellKind } from "@glideapps/glide-data-grid"
+import { GridCellKind, type Theme } from "@glideapps/glide-data-grid"
 
 import {
   BaseFileCellEditor,
@@ -76,6 +76,10 @@ describe("Base file cell", () => {
           value={cell}
           onChange={onChange}
           onFinishedEditing={vi.fn()}
+          isHighlighted={false}
+          target={{ x: 0, y: 0, width: 240, height: 36 }}
+          forceEditMode={false}
+          theme={{} as Theme}
         />
       )
     })

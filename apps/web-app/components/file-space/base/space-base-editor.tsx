@@ -5,6 +5,7 @@ import type {
   BaseRowMutationResult,
   BaseRowQuery,
   BaseRowRange,
+  BaseRelationValue,
   BaseRowsDeleteResult,
   BaseSnapshot,
   BaseSqlPrimitive,
@@ -346,6 +347,45 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       return getTablePage(filePath, activeTableId, offset, limit, activeQuery)
     },
     [activeQuery, activeTableId, filePath, getTablePage]
+  )
+
+  const searchRelationRecords = useCallback(
+    async (
+      field: BaseFieldInfo,
+      query: string
+    ): Promise<BaseRelationValue[]> => {
+      const targetTableId =
+        field.property?.targetTableId ??
+        snapshot?.tables.find(
+          (candidate) =>
+            candidate.table.rawTableName === field.property?.linkTableName
+        )?.table.id
+      const targetField =
+        field.property?.targetField ?? field.property?.linkColumnName
+      if (
+        typeof targetTableId !== "string" ||
+        typeof targetField !== "string"
+      ) {
+        throw new Error(`Relation field “${field.name}” has no target table`)
+      }
+      const page = await getTablePage(filePath, targetTableId, 0, 50, {
+        ...(query.trim() ? { search: query.trim() } : {}),
+      })
+      return page.rows.flatMap((row) => {
+        if (typeof row._id !== "string") return []
+        const title = row[targetField]
+        return [
+          {
+            id: row._id,
+            title:
+              title === null || title === undefined || title === ""
+                ? "Untitled"
+                : String(title),
+          },
+        ]
+      })
+    },
+    [filePath, getTablePage, snapshot?.tables]
   )
 
   const createRow = useCallback((): Promise<BaseRowMutationResult> => {
@@ -769,7 +809,11 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               />
               <BaseViewMenu
                 fields={activeTable.fields.filter(
-                  (field) => !field.isHidden && field.valueKind === "source"
+                  (field) =>
+                    !field.isHidden &&
+                    (field.valueKind === "source" ||
+                      field.valueKind === "relation" ||
+                      field.valueKind === "derived")
                 )}
                 hiddenFields={activeView?.hiddenFields ?? []}
                 disabled={pendingMutations > 0}
@@ -883,6 +927,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             onImportDroppedFiles={importDroppedBaseFiles}
             onOpenFile={openBaseFileReference}
             onRevealFile={(path) => reveal(path).then(() => undefined)}
+            onSearchRelation={searchRelationRecords}
             onAddField={() => setStructureDialog("field")}
             onRenameField={(field) =>
               setRenameTarget({
@@ -970,6 +1015,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         }}
         onCreateTable={createTableInBase}
         onCreateField={createFieldInBase}
+        tables={snapshot.tables.map((candidate) => candidate.table)}
+        activeTableId={activeTable?.table.id}
       />
 
       <BaseRenameDialog

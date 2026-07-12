@@ -8,6 +8,7 @@ import {
 } from "./constants"
 import { BaseError } from "./errors"
 import { decodeBaseFilePaths, encodeBaseFilePaths } from "./file-values"
+import { decodeBaseRelationIds, encodeBaseRelationIds } from "./relation-values"
 import {
   assertBaseColumnName,
   assertBaseTableId,
@@ -173,8 +174,14 @@ function writableFieldValue(
   field: BaseFieldInfo | undefined,
   value: BaseRow[string]
 ): BaseRow[string] {
-  if (field?.type !== "file" || value === null) return value
-  return encodeBaseFilePaths(decodeBaseFilePaths(value))
+  if (value === null) return value
+  if (field?.type === "file") {
+    return encodeBaseFilePaths(decodeBaseFilePaths(value))
+  }
+  if (field?.type === "link") {
+    return encodeBaseRelationIds(decodeBaseRelationIds(value))
+  }
+  return value
 }
 
 export class BaseRuntime {
@@ -185,6 +192,29 @@ export class BaseRuntime {
 
   close(): void {
     if (this.closeConnection) this.connection.close?.()
+  }
+
+  private relationTarget(
+    field: BaseFieldInfo
+  ): { tableId: string; columnName: string } | null {
+    if (field.type !== "link") return null
+    const targetTableId = field.property?.targetTableId
+    const targetField = field.property?.targetField
+    if (typeof targetTableId === "string" && typeof targetField === "string") {
+      return { tableId: targetTableId, columnName: targetField }
+    }
+    const legacyTableName = field.property?.linkTableName
+    const legacyColumnName = field.property?.linkColumnName
+    if (
+      typeof legacyTableName !== "string" ||
+      typeof legacyColumnName !== "string"
+    ) {
+      return null
+    }
+    const table = this.listTables().find(
+      (candidate) => candidate.rawTableName === legacyTableName
+    )
+    return table ? { tableId: table.id, columnName: legacyColumnName } : null
   }
 
   info(): BaseMetadata {
@@ -320,6 +350,19 @@ export class BaseRuntime {
 
   deleteTable(tableId: string): boolean {
     const table = this.getTable(tableId)
+    const inboundRelations = this.listTables().flatMap((sourceTable) =>
+      sourceTable.id === tableId
+        ? []
+        : this.listFields(sourceTable.id).filter(
+            (field) => this.relationTarget(field)?.tableId === tableId
+          )
+    )
+    if (inboundRelations.length > 0) {
+      throw new BaseError(
+        "relation-in-use",
+        `Base table “${table.name}” is used by ${inboundRelations.length} relation field${inboundRelations.length === 1 ? "" : "s"}`
+      )
+    }
     return this.connection.transaction(() => {
       this.connection.run(
         `DELETE FROM ${BASE_REFERENCES_TABLE}
@@ -659,6 +702,19 @@ export class BaseRuntime {
     const columnName = assertBaseColumnName(field.columnName)
     const quotedTable = quoteIdentifier(table.rawTableName)
     const quotedColumn = quoteIdentifier(columnName)
+    if (field.type === "link") {
+      const targetTable = this.getTable(field.property.targetTableId)
+      const targetField = this.getField(
+        targetTable.id,
+        field.property.targetField
+      )
+      if (targetField.valueKind === "relation") {
+        throw new BaseError(
+          "invalid-schema",
+          "A Base relation cannot display another relation field"
+        )
+      }
+    }
     this.connection.transaction(() => {
       this.connection.exec(
         `ALTER TABLE ${quotedTable} ADD COLUMN ${quotedColumn} ${sqlTypeForField(field.type)} NULL`
@@ -667,7 +723,7 @@ export class BaseRuntime {
         `INSERT INTO ${BASE_COLUMNS_TABLE}
           (name, type, table_name, table_column_name, property,
            storage_codec, value_kind, is_hidden, is_derived)
-         VALUES (?, ?, ?, ?, ?, ?, 'source', 0, 0)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0)`,
         [
           field.name,
           field.type,
@@ -675,6 +731,7 @@ export class BaseRuntime {
           columnName,
           field.property ? JSON.stringify(field.property) : null,
           field.storageCodec ?? defaultStorageCodec(field.type),
+          field.type === "link" ? "relation" : "source",
         ]
       )
       setBaseMetadata(this.connection, {})
@@ -845,6 +902,18 @@ export class BaseRuntime {
         `Base system field cannot be deleted: ${field.name}`
       )
     }
+    const inboundRelations = this.listTables().flatMap((sourceTable) =>
+      this.listFields(sourceTable.id).filter((candidate) => {
+        const target = this.relationTarget(candidate)
+        return target?.tableId === tableId && target.columnName === columnName
+      })
+    )
+    if (inboundRelations.length > 0) {
+      throw new BaseError(
+        "relation-in-use",
+        `Base field “${field.name}” is used as a relation display field`
+      )
+    }
     return this.connection.transaction(() => {
       this.connection.run(
         `DELETE FROM ${BASE_REFERENCES_TABLE}
@@ -936,12 +1005,69 @@ export class BaseRuntime {
     query: BaseRowQuery = {}
   ): BaseRow[] {
     const table = this.getTable(tableId)
-    const compiled = compileBaseRowQuery(this.listFields(tableId), query)
-    return this.connection.query<BaseRow>(
+    const fields = this.listFields(tableId)
+    const compiled = compileBaseRowQuery(fields, query)
+    const rows = this.connection.query<BaseRow>(
       `SELECT * FROM ${quoteIdentifier(table.rawTableName)}
         ${compiled.whereSql} ${compiled.orderSql} LIMIT ? OFFSET ?`,
       [...compiled.params, Math.max(0, limit), Math.max(0, offset)]
     )
+    return this.hydrateRelationRows(rows, fields)
+  }
+
+  private hydrateRelationRows(
+    rows: BaseRow[],
+    fields: BaseFieldInfo[]
+  ): BaseRow[] {
+    if (rows.length === 0) return rows
+    const relationFields = fields.filter(
+      (field) => field.type === "link" && field.valueKind === "relation"
+    )
+    if (relationFields.length === 0) return rows
+
+    const hydrated = rows.map((row) => ({ ...row }))
+    for (const field of relationFields) {
+      const target = this.relationTarget(field)
+      if (!target) continue
+      const targetTable = this.getTable(target.tableId)
+      this.getField(target.tableId, target.columnName)
+      const ids = Array.from(
+        new Set(
+          hydrated.flatMap((row) =>
+            decodeBaseRelationIds(row[field.tableColumnName])
+          )
+        )
+      )
+      const titles = new Map<string, string>()
+      for (let start = 0; start < ids.length; start += 400) {
+        const batch = ids.slice(start, start + 400)
+        if (batch.length === 0) continue
+        const records = this.connection.query<{
+          _id: BaseSqlParams[number]
+          display_value: BaseSqlParams[number]
+        }>(
+          `SELECT _id, ${quoteIdentifier(target.columnName)} AS display_value
+             FROM ${quoteIdentifier(targetTable.rawTableName)}
+            WHERE _id IN (${batch.map(() => "?").join(", ")})`,
+          batch
+        )
+        for (const record of records) {
+          titles.set(
+            String(record._id),
+            record.display_value === null
+              ? "Untitled"
+              : String(record.display_value)
+          )
+        }
+      }
+      for (const row of hydrated) {
+        const values = decodeBaseRelationIds(row[field.tableColumnName]).map(
+          (id) => ({ id, title: titles.get(id) ?? "Missing record" })
+        )
+        row[`${field.tableColumnName}__display`] = JSON.stringify(values)
+      }
+    }
+    return hydrated
   }
 
   countRows(tableId: string, query: BaseRowQuery = {}): number {
@@ -984,7 +1110,9 @@ export class BaseRuntime {
       ...fields
         .filter(
           (field) =>
-            field.tableColumnName === "title" || field.valueKind === "source"
+            field.tableColumnName === "title" ||
+            field.valueKind === "source" ||
+            field.valueKind === "relation"
         )
         .map((field) => field.tableColumnName),
     ])
@@ -1013,10 +1141,11 @@ export class BaseRuntime {
       columns.map((column) => sqliteParameter(record[column]))
     )
     setBaseMetadata(this.connection, {})
-    return this.connection.get<BaseRow>(
+    const inserted = this.connection.get<BaseRow>(
       `SELECT * FROM ${quoteIdentifier(table.rawTableName)} WHERE _id = ?`,
       [sqliteParameter(record._id)]
     )!
+    return this.hydrateRelationRows([inserted], fields)[0]
   }
 
   insertImportedRow(tableId: string, row: BaseRow): BaseRow {
@@ -1095,7 +1224,9 @@ export class BaseRuntime {
       fields
         .filter(
           (field) =>
-            field.tableColumnName === "title" || field.valueKind === "source"
+            field.tableColumnName === "title" ||
+            field.valueKind === "source" ||
+            field.valueKind === "relation"
         )
         .map((field) => field.tableColumnName)
     )
@@ -1132,7 +1263,7 @@ export class BaseRuntime {
       [rowId]
     )
     if (!row) throw new BaseError("row-not-found", `Row not found: ${rowId}`)
-    return row
+    return this.hydrateRelationRows([row], fields)[0]
   }
 
   deleteRow(tableId: string, rowId: string): boolean {

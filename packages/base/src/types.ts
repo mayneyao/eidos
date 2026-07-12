@@ -120,7 +120,7 @@ export interface UpdateBaseTableInput {
   description?: string | null
 }
 
-export interface CreateBaseFieldInput {
+export interface CreateBaseSourceFieldInput {
   name: string
   columnName: string
   type: Exclude<
@@ -137,6 +137,29 @@ export interface CreateBaseFieldInput {
   >
   property?: Record<string, unknown>
   storageCodec?: BaseStorageCodec
+}
+
+export interface BaseRelationProperty extends Record<string, unknown> {
+  targetTableId: string
+  targetField: string
+  multiple: boolean
+}
+
+export interface CreateBaseRelationFieldInput {
+  name: string
+  columnName: string
+  type: "link"
+  property: BaseRelationProperty
+  storageCodec?: "relation"
+}
+
+export type CreateBaseFieldInput =
+  | CreateBaseSourceFieldInput
+  | CreateBaseRelationFieldInput
+
+export interface BaseRelationValue {
+  id: string
+  title: string
 }
 
 export interface ImportBaseFieldInput {

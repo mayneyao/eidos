@@ -178,4 +178,34 @@ describe("Base row query", () => {
     expect(compiled.whereSql).toContain("',' || COALESCE")
     expect(compiled.params).toEqual(["%,bug,%", "%,ux,%"])
   })
+
+  it("matches relation IDs as exact JSON array members", () => {
+    const relation = {
+      ...field("owners", "link", "relation"),
+      valueKind: "relation" as const,
+    }
+    const compiled = compileBaseRowQuery([relation], {
+      filter: {
+        type: "group",
+        conjunction: "and",
+        children: [
+          {
+            type: "rule",
+            field: "owners",
+            operator: "is-any-of",
+            value: ["row_ada", "row_grace"],
+          },
+        ],
+      },
+    })
+
+    expect(compiled.whereSql).toContain("json_each")
+    expect(compiled.whereSql).toContain("CAST(value AS TEXT)")
+    expect(compiled.params).toEqual([
+      "row_ada",
+      "%,row\\_ada,%",
+      "row_grace",
+      "%,row\\_grace,%",
+    ])
+  })
 })

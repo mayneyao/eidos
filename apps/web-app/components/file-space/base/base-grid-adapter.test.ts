@@ -120,6 +120,46 @@ describe("Base Grid adapter", () => {
     ).toBe('["assets/cover.png","assets/report, final.pdf"]')
   })
 
+  it("maps relation IDs to hydrated record titles and back", () => {
+    const relation = {
+      ...field("link", {
+        targetTableId: "people",
+        targetField: "title",
+        multiple: true,
+      }),
+      tableColumnName: "owners",
+      storageCodec: "relation" as const,
+      valueKind: "relation" as const,
+    }
+    expect(
+      baseValueToGridCell(relation, '["row_ada"]', false, {
+        owners: '["row_ada"]',
+        owners__display: '[{"id":"row_ada","title":"Ada Lovelace"}]',
+      })
+    ).toMatchObject({
+      kind: GridCellKind.Custom,
+      data: {
+        kind: "base-relation-cell",
+        values: [{ id: "row_ada", title: "Ada Lovelace" }],
+      },
+    })
+    expect(
+      gridCellToBaseValue(relation, {
+        kind: GridCellKind.Custom,
+        allowOverlay: true,
+        copyData: "",
+        data: {
+          kind: "base-relation-cell",
+          values: [
+            { id: "row_ada", title: "Ada Lovelace" },
+            { id: "row_grace", title: "Grace Hopper" },
+          ],
+          multiple: true,
+        },
+      })
+    ).toBe('["row_ada","row_grace"]')
+  })
+
   it("applies per-view field visibility without changing Base schema", () => {
     expect(
       visibleBaseFields([field("text"), field("number")], ["number"]).map(

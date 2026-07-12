@@ -444,4 +444,68 @@ describe("BaseGrid", () => {
       '["assets/existing.pdf","assets/dropped.png"]'
     )
   })
+
+  it("hydrates relation cells and delegates target record search", async () => {
+    const relationField = {
+      ...table.fields[1],
+      name: "Owners",
+      type: "link" as const,
+      tableColumnName: "owners",
+      storageCodec: "relation" as const,
+      valueKind: "relation" as const,
+      property: {
+        targetTableId: "people",
+        targetField: "title",
+        multiple: true,
+      },
+    }
+    const relationTable: BaseTableSnapshot = {
+      ...table,
+      fields: [table.fields[0], relationField],
+      rowCount: 1,
+    }
+    const row = {
+      ...rowAt(0),
+      owners: '["row_ada"]',
+      owners__display: '[{"id":"row_ada","title":"Ada Lovelace"}]',
+    }
+    const onSearchRelation = vi
+      .fn()
+      .mockResolvedValue([{ id: "row_grace", title: "Grace Hopper" }])
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={relationTable}
+          loadPage={vi.fn().mockResolvedValue({
+            tableId: "tasks",
+            offset: 0,
+            limit: 100,
+            total: 1,
+            rows: [row],
+          })}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+          onSearchRelation={onSearchRelation}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const cell = mocks.props?.getCellContent([1, 0])
+    expect(cell).toMatchObject({
+      kind: GridCellKind.Custom,
+      data: {
+        kind: "base-relation-cell",
+        values: [{ id: "row_ada", title: "Ada Lovelace" }],
+      },
+    })
+    if (
+      cell?.kind === GridCellKind.Custom &&
+      "onSearch" in cell.data &&
+      typeof cell.data.onSearch === "function"
+    ) {
+      await cell.data.onSearch("Grace")
+    }
+    expect(onSearchRelation).toHaveBeenCalledWith(relationField, "Grace")
+  })
 })

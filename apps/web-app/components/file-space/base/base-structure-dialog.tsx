@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type FormEvent } from "react"
 import type {
   CreateBaseFieldInput,
   CreateBaseTableInput,
+  BaseTableInfo,
 } from "@eidos.space/base"
 
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,8 @@ import {
 
 type FieldType = CreateBaseFieldInput["type"]
 
+const EMPTY_TABLES: BaseTableInfo[] = []
+
 const FIELD_TYPES: Array<{ value: FieldType; label: string }> = [
   { value: "text", label: "Text" },
   { value: "number", label: "Number" },
@@ -28,6 +31,7 @@ const FIELD_TYPES: Array<{ value: FieldType; label: string }> = [
   { value: "url", label: "URL" },
   { value: "file", label: "File" },
   { value: "rating", label: "Rating" },
+  { value: "link", label: "Relation" },
 ]
 
 function columnNameFor(label: string): string {
@@ -57,16 +61,21 @@ export function BaseStructureDialog({
   onOpenChange,
   onCreateTable,
   onCreateField,
+  tables = EMPTY_TABLES,
+  activeTableId,
 }: {
   mode: "table" | "field"
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreateTable: (table: CreateBaseTableInput) => Promise<void> | void
   onCreateField: (field: CreateBaseFieldInput) => Promise<void> | void
+  tables?: BaseTableInfo[]
+  activeTableId?: string | null
 }) {
   const [name, setName] = useState("")
   const [fieldType, setFieldType] = useState<FieldType>("text")
   const [options, setOptions] = useState("")
+  const [targetTableId, setTargetTableId] = useState("")
   const nameId = useId()
   const optionsId = useId()
 
@@ -75,7 +84,12 @@ export function BaseStructureDialog({
     setName("")
     setFieldType("text")
     setOptions("")
-  }, [mode, open])
+    setTargetTableId(
+      tables.find((table) => table.id !== activeTableId)?.id ??
+        tables[0]?.id ??
+        ""
+    )
+  }, [activeTableId, mode, open, tables])
 
   const hasOptions = fieldType === "select" || fieldType === "multi-select"
   const submit = (event: FormEvent) => {
@@ -85,6 +99,18 @@ export function BaseStructureDialog({
     let creation: Promise<void> | void
     if (mode === "table") {
       creation = onCreateTable({ name: trimmedName })
+    } else if (fieldType === "link") {
+      if (!targetTableId) return
+      creation = onCreateField({
+        name: trimmedName,
+        columnName: columnNameFor(trimmedName),
+        type: "link",
+        property: {
+          targetTableId,
+          targetField: "title",
+          multiple: true,
+        },
+      })
     } else {
       const optionNames = options
         .split(",")
@@ -182,6 +208,27 @@ export function BaseStructureDialog({
                 </span>
               </label>
             ) : null}
+            {mode === "field" && fieldType === "link" ? (
+              <label className="grid gap-1.5 text-xs font-medium">
+                Related table
+                <Select value={targetTableId} onValueChange={setTargetTableId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a table" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tables.map((table) => (
+                      <SelectItem key={table.id} value={table.id}>
+                        {table.name}
+                        {table.id === activeTableId ? " (this table)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="font-normal leading-4 text-muted-foreground">
+                  Stores stable record IDs and displays the related title.
+                </span>
+              </label>
+            ) : null}
           </div>
           <div className="flex items-center justify-end gap-2 border-t px-4 py-2.5">
             <Button
@@ -191,7 +238,13 @@ export function BaseStructureDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!name.trim()}>
+            <Button
+              type="submit"
+              disabled={
+                !name.trim() ||
+                (mode === "field" && fieldType === "link" && !targetTableId)
+              }
+            >
               Create
             </Button>
           </div>
