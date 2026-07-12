@@ -203,10 +203,14 @@ Interaction rules:
 - adding and configuring fields happens from the grid header or adjacent
   controls,
 - table/view configuration uses anchored menus and progressive disclosure,
-- routine editing must not open centered modal dialogs,
+- the existing Eidos table is the interaction baseline; preserve inline cell
+  editing, header actions, keyboard movement, clipboard, and range selection
+  before introducing a new interaction,
+- centered modal dialogs are considered an undesirable default and must not be
+  used for routine editing,
 - destructive deletion may require confirmation,
-- keyboard, clipboard, range selection, and undo/redo should match the existing
-  Eidos table unless the Base file model requires an explicit difference.
+- undo/redo should match the existing Eidos table unless the Base file model
+  requires an explicit difference.
 
 Base internals should not appear as separate Space files.
 

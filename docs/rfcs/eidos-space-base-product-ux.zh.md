@@ -183,6 +183,15 @@ tasks.base
 - properties/settings，
 - open file location。
 
+交互规则：
+
+- 现有 Eidos 表格是交互基线；引入新交互前，优先保留内联 cell editing、header actions、
+  keyboard movement、clipboard 和 range selection，
+- field 的新增和配置从 grid header 或相邻 controls 完成，
+- table/view 配置使用 anchored menus 和 progressive disclosure，
+- 居中弹窗默认被视为不良交互，不得用于日常编辑，
+- 只有破坏性删除等必要场景可以要求确认。
+
 Base 内部对象不应该作为单独 Space 文件出现。
 
 ## Markdown 编辑器
