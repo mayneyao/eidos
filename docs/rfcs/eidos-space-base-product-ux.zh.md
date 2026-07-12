@@ -19,9 +19,16 @@ open 和紧凑的 Outline/Backlinks sections 已经接入，并且没有增加�
 当前 Space switcher 保持在侧边栏底部。
 
 `.base` route 现已使用 production Grid 交互层，支持按可见区域分页加载、optimistic
-cell edit、持久化 column layout 和基于 compact ranges 的批量删行。working Changes
-与 History 也已提供 Base-aware table/row inspector。紧凑 structure menu 按需提供
-table/field rename/delete 与 select/multi-select options 编辑。
+cell edit、copy/paste、undo/redo、持久化 column layout、基于 compact ranges 的批量
+删行、就地搜索以及持久化的多字段筛选和排序。筛选/排序分页与批量删行使用同一个
+结构化查询模型，因此删除的始终是 Grid 当前展示并选中的记录。Base 创建支持命名、
+模板和原子发布。working Changes 与 History 也已提供 Base-aware table/row inspector。
+
+Base 仍处于 delivery closure，而不是产品验收。高级嵌套筛选编辑、完整的
+file/relation/formula 字段、多视图、无障碍表格语义和完整原生
+create/edit/restart/version/restore 验收仍未完成。Base 日常编辑和配置优先使用单元格
+内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留给破坏性确认或必须中断
+当前工作流的决策。
 
 file Space Settings 已拆分为 General、Files/Obsidian、Versioning 和派生 Indexes；
 legacy Space Settings 也已提供 server-owned migration preview、progress、validation、

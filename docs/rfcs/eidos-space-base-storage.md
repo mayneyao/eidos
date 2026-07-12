@@ -556,12 +556,9 @@ It proves:
 - `.eidos/sessions/**` never appears in status.
 
 The compact Base editing surface has now been replaced with an adapter over the
-existing production Grid interaction layer. Basic multi-table/field authoring,
-keyboard workflows, selection, paste/fill behavior, and persisted column
-layout are implemented without moving file-format responsibilities back into
-`@eidos.space/core`.
-
-The next step is to replace the 200-row snapshot with a paged Base data source,
-then complete table/field rename and delete workflows and richer field
-properties. After that interaction layer is stable, implement the previewable
-legacy Space export to Markdown and Base files before remote sync.
+existing production Grid interaction layer. Multi-table/field authoring,
+visible-region paging, keyboard workflows, selection, copy/paste, undo/redo,
+persisted column layout, structured search/filter/sort, and query-correct batch
+deletion are implemented without moving file-format responsibilities back into
+`@eidos.space/core`. The remaining gate is richer field/view parity and the
+complete native create/edit/restart/version/restore acceptance lifecycle.

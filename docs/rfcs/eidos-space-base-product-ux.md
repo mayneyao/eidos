@@ -21,17 +21,20 @@ current Space switcher remains at the bottom of the sidebar.
 
 The `.base` route now uses the production Grid foundation with paged
 visible-region loading, optimistic cell edits, persisted column layout,
-copy/paste, undo/redo, field visibility, header actions, and compact range-based
-batch row deletion. Base creation is named, template-aware, and publishes the
-SQLite file atomically. Working Changes and History provide a Base-aware
-table/row inspector.
+copy/paste, undo/redo, field visibility, header actions, compact range-based
+batch row deletion, inline search, and persisted multi-field filters and sorts.
+Filtered/sorted paging and range deletion use the same structured query model,
+so a selection always mutates the rows shown in the Grid. Base creation is
+named, template-aware, and publishes the SQLite file atomically. Working
+Changes and History provide a Base-aware table/row inspector.
 
-Base is still in delivery closure, not product acceptance. Search, sort,
-filter, richer file/relation/formula fields, multi-view behavior, accessible
-table semantics, and a complete native create/edit/restart/version/restore run
-remain. Routine Base configuration uses inline controls, header menus, and
-anchored popovers. Modal dialogs are reserved for destructive confirmation or
-other decisions that must interrupt the workflow.
+Base is still in delivery closure, not product acceptance. Advanced nested
+filter authoring, richer file/relation/formula fields, multi-view behavior,
+accessible table semantics, and a complete native
+create/edit/restart/version/restore run remain. Routine Base configuration uses
+inline controls, header menus, and anchored popovers. Modal dialogs are
+reserved for destructive confirmation or other decisions that must interrupt
+the workflow.
 
 File-Space Settings separates General, Files/Obsidian, Versioning, and derived
 Indexes controls. Legacy-Space Settings also provides server-owned migration
