@@ -74,6 +74,9 @@ importers:
       '@eidos.space/graft-client':
         specifier: workspace:*
         version: link:../../packages/graft-client
+      '@eidos.space/legacy-space-migration':
+        specifier: workspace:*
+        version: link:../../packages/legacy-space-migration
       '@eidos.space/proxy':
         specifier: workspace:*
         version: link:../../packages/proxy
@@ -347,6 +350,9 @@ importers:
       '@eidos.space/file-space':
         specifier: workspace:*
         version: link:../../packages/file-space
+      '@eidos.space/legacy-space-migration':
+        specifier: workspace:*
+        version: link:../../packages/legacy-space-migration
       '@eidos.space/markdown-editor':
         specifier: workspace:*
         version: link:../../packages/markdown-editor

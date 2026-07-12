@@ -53,6 +53,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@eidos.space/core": "workspace:*",
     "@eidos.space/file-space": "workspace:*",
+    "@eidos.space/legacy-space-migration": "workspace:*",
     "@eidos.space/markdown-editor": "workspace:*",
     "@emoji-mart/data": "^1.1.2",
     "@emoji-mart/react": "^1.1.1",

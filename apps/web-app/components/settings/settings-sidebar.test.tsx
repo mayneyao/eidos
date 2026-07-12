@@ -12,6 +12,9 @@ import { SettingsSidebar } from "./settings-sidebar"
 
 const navigateMock = vi.hoisted(() => vi.fn())
 const routeState = vi.hoisted(() => ({ pathname: "/settings/general" }))
+const currentSpaceState = vi.hoisted(() => ({
+  mode: "file" as "file" | "legacy",
+}))
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -29,6 +32,7 @@ vi.mock("react-i18next", () => ({
         "space.settings.document": "Document",
         "space.settings.general": "Space general",
         "space.settings.mounts": "Mounts",
+        "space.settings.migration.title": "Migration",
         "space.settings.relay": "Relay",
         "space.settings.theme": "Theme",
         "space.settings.title": "Space settings",
@@ -46,7 +50,7 @@ vi.mock("@/apps/web-app/hooks/use-current-space", () => ({
     currentSpace: {
       id: "file-space",
       name: "File Space",
-      mode: "file",
+      mode: currentSpaceState.mode,
       path: "/tmp/file-space",
     },
   }),
@@ -70,6 +74,7 @@ describe("SettingsSidebar", () => {
   beforeEach(() => {
     navigateMock.mockClear()
     routeState.pathname = "/settings/general"
+    currentSpaceState.mode = "file"
     useTabStore.setState({
       tabs: [
         {
@@ -137,6 +142,7 @@ describe("SettingsSidebar", () => {
     expect(container.textContent).toContain("Versioning")
     expect(container.textContent).toContain("Indexes")
     expect(container.textContent).not.toContain("Document")
+    expect(container.textContent).not.toContain("Migration")
     expect(
       container.querySelector<HTMLButtonElement>("button[aria-current='page']")
         ?.textContent
@@ -148,6 +154,24 @@ describe("SettingsSidebar", () => {
         ?.click()
     })
     expect(navigateMock).toHaveBeenCalledWith("/settings/ai", {
+      replace: true,
+    })
+  })
+
+  it("shows migration only for legacy database Spaces", async () => {
+    currentSpaceState.mode = "legacy"
+    await renderSidebar()
+
+    expect(container.textContent).toContain("Migration")
+    expect(container.textContent).not.toContain("Files & Obsidian")
+    expect(container.textContent).not.toContain("Versioning")
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent?.includes("Migration"))
+        ?.click()
+    })
+    expect(navigateMock).toHaveBeenCalledWith("/settings/space-migration", {
       replace: true,
     })
   })

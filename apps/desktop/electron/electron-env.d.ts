@@ -197,6 +197,9 @@ interface Window {
     spaceMgmt: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./modules/space-management/space-management.service").SpaceManagementService
     >
+    spaceMigration: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./modules/space-migration/space-migration.service").SpaceMigrationService
+    >
     spaceVersioning: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./modules/space-versioning/space-versioning.service").SpaceVersioningService
     >

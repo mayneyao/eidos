@@ -6,6 +6,7 @@ import {
   FileText,
   Files,
   Folder,
+  FolderOutput,
   GitBranch,
   Network,
   Info,
@@ -111,6 +112,14 @@ export function SettingsSidebar({
       icon: DatabaseZap,
       category: "space",
       availability: "file",
+    },
+    {
+      id: "space-migration",
+      title: t("space.settings.migration.title", "Migration"),
+      icon: FolderOutput,
+      category: "space",
+      availability: "database",
+      disabled: !isDesktopMode,
     },
     {
       id: "space-extensions",

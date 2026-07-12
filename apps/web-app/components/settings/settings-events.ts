@@ -4,6 +4,7 @@ export type SettingsSection =
   | "space-files"
   | "space-versioning"
   | "space-indexes"
+  | "space-migration"
   | "space-document"
   | "space-mounts"
   | "space-extensions"

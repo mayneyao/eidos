@@ -16,6 +16,7 @@ import { ExtensionSettings } from "./space/extension-settings"
 import { FileSpaceFilesSettings } from "./space/file-space-files-settings"
 import { FileSpaceIndexesSettings } from "./space/file-space-indexes-settings"
 import { FileSpaceVersioningSettings } from "./space/file-space-versioning-settings"
+import { LegacySpaceMigrationSettings } from "./space/legacy-space-migration-settings"
 import { GlobalSecretsSettings } from "./global/global-secrets-settings"
 
 import { GeneralSettings } from "./space/general-settings"
@@ -61,6 +62,8 @@ export function SettingsContent() {
         return t("space.settings.fileSpace.versioning.title", "Versioning")
       case "space-indexes":
         return t("space.settings.fileSpace.indexes.title", "Indexes")
+      case "space-migration":
+        return t("space.settings.migration.title", "Migration")
       case "space-document":
         return t("space.settings.document")
       case "space-mounts":
@@ -106,6 +109,8 @@ export function SettingsContent() {
         return <FileSpaceVersioningSettings />
       case "space-indexes":
         return <FileSpaceIndexesSettings />
+      case "space-migration":
+        return <LegacySpaceMigrationSettings />
       case "space-document":
         return <DocumentSettings />
       case "space-mounts":

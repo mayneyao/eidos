@@ -17,6 +17,7 @@ import { TerminalModule } from "./modules/terminal/terminal.module"
 import { ContextMenuModule } from "./modules/context-menu/context-menu.module"
 import { SpaceManagementModule } from "./modules/space-management/space-management.module"
 import { SpaceVersioningModule } from "./modules/space-versioning/space-versioning.module"
+import { SpaceMigrationModule } from "./modules/space-migration/space-migration.module"
 import { DataSpaceModule } from "./modules/data-space"
 import { WindowModule } from "./modules/window"
 import { BrowserModule } from "./modules/browser"
@@ -60,6 +61,7 @@ import { AgentChannelModule } from "./modules/agent-channel/agent-channel.module
     TerminalModule,
     ContextMenuModule,
     SpaceManagementModule,
+    SpaceMigrationModule,
     SpaceVersioningModule,
     DataSpaceModule,
     WindowModule,

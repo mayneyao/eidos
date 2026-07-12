@@ -325,6 +325,7 @@ function main() {
     license: createPreloadApiByNamespace("license"),
     space: createPreloadApiByNamespace("space"),
     spaceMgmt: createPreloadApiByNamespace("space-mgmt"),
+    spaceMigration: createPreloadApiByNamespace("space-migration"),
     spaceVersioning: createPreloadApiByNamespace("space-versioning"),
 
     // AI helper functions
