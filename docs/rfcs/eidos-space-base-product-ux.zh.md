@@ -57,20 +57,23 @@ Gallery 和 Kanban 现在已经接入与 Grid 相同的持久化 view lifecycle�
 的搜索、筛选、排序、字段显隐和 Property workspace。
 Gallery 可以选择 File 字段作为封面，并切换适应/裁切；文件二进制只通过 Space file boundary
 读取，并转换为临时 object URL。Gallery 与 Kanban 的 card 共用悬浮菜单和原生右键菜单，可以
-打开 record details，并按稳定 row ID 进行确认删除。
+打开 record details，并按稳定 row ID 进行确认删除。同一个右侧 record inspector 现在可以在
+Grid、Gallery 和 Kanban 中编辑：primitive source fields 会就地自动保存，Formula/Lookup 等派生值
+保持只读，保存成功后会更新当前 layout，并且不会关闭 inspector。
 
 与原表格 view 的当前能力对齐情况如下：
 
-| 能力                                       | Base 状态              | 剩余边界                                                            |
-| ------------------------------------------ | ---------------------- | ------------------------------------------------------------------- |
-| 持久化 view lifecycle 与独立 query/layout  | 已工作                 | 仍需原生重启验收                                                    |
-| Gallery 字段显隐、空字段隐藏、card size    | 已工作                 | 仍缺搜索结果定位/滚动                                               |
-| Gallery cover                              | File 字段已工作        | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
-| Card actions                               | Inspector 与删除已工作 | file-based Base 的 full-page row document 模型尚未定义              |
-| Kanban Select 分组、计数、折叠、新增、拖动 | 已工作                 | 仍缺键盘拖动语义和超多列虚拟化                                      |
+| 能力                                       | Base 状态                     | 剩余边界                                                               |
+| ------------------------------------------ | ----------------------------- | ---------------------------------------------------------------------- |
+| 持久化 view lifecycle 与独立 query/layout  | 已工作                        | 仍需原生重启验收                                                       |
+| Gallery 字段显隐、空字段隐藏、card size    | 已工作                        | 仍缺搜索结果定位/滚动                                                  |
+| Gallery cover                              | File 字段已工作               | 旧 document-content 与 extension-block cover 不应耦合进独立 package    |
+| Card actions                               | 可编辑 Inspector 与删除已工作 | File/Relation inspector editing 与 full-page row document 模型仍待定义 |
+| Kanban Select 分组、计数、折叠、新增、拖动 | 已工作                        | 仍缺键盘拖动语义和超多列虚拟化                                         |
 
 这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。搜索定位、更多可移植 cover source、
-更丰富的 record editing、键盘/无障碍语义，以及完整原生 create/edit/restart/version/restore 验收仍待完成。
+专用 File/Relation inspector editing、键盘拖动语义，以及完整原生 create/edit/restart/version/restore
+验收仍待完成。
 Base 日常编辑和配置优先使用单元格
 内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留给破坏性确认或必须中断
 当前工作流的决策。新增交互应先参考并复用原表格已经验证过的编辑方式，不应仅为了

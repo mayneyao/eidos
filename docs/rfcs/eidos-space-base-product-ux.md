@@ -74,21 +74,24 @@ active view's search, filters, sorts, field visibility, and Property workspace.
 Gallery can use a File field as a fitted or cropped card cover; the binary is
 read through the Space file boundary and exposed only as a temporary object
 URL. Gallery and Kanban cards share hover and native context actions for opening
-record details and confirmed deletion by stable row ID.
+record details and confirmed deletion by stable row ID. The same right-side
+record inspector is now editable across Grid, Gallery, and Kanban: primitive
+source fields autosave inline, derived Formula/Lookup values remain readonly,
+and successful edits update the active layout without closing the inspector.
 
 Current parity with the original table views is explicit:
 
-| Capability                                                | Base status                  | Remaining boundary                                                                                           |
-| --------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Persisted view lifecycle and per-view query/layout        | Working                      | Native restart acceptance remains                                                                            |
-| Gallery field visibility, empty-field hiding, card sizing | Working                      | Search-result focus/scroll remains                                                                           |
-| Gallery cover                                             | File field working           | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
-| Card actions                                              | Inspector and delete working | A full-page row-document model is not yet defined for file-based Base                                        |
-| Kanban Select grouping, counts, collapse, add, drag move  | Working                      | Keyboard drag semantics and very large-column virtualization remain                                          |
+| Capability                                                | Base status                           | Remaining boundary                                                                                           |
+| --------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Persisted view lifecycle and per-view query/layout        | Working                               | Native restart acceptance remains                                                                            |
+| Gallery field visibility, empty-field hiding, card sizing | Working                               | Search-result focus/scroll remains                                                                           |
+| Gallery cover                                             | File field working                    | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
+| Card actions                                              | Editable inspector and delete working | File/Relation inspector editing and a full-page row-document model remain                                    |
+| Kanban Select grouping, counts, collapse, add, drag move  | Working                               | Keyboard drag semantics and very large-column virtualization remain                                          |
 
 This is the first working delivery slice, not yet full parity with the original
-table views. Search navigation, additional portable cover sources, richer
-record editing, keyboard/accessibility semantics, and a complete native
+table views. Search navigation, additional portable cover sources, specialized
+File/Relation inspector editing, keyboard drag semantics, and a complete native
 create/edit/restart/version/restore acceptance run remain. Routine Base configuration uses
 inline controls, header menus, and anchored popovers. Modal dialogs are
 reserved for destructive confirmation or other decisions that must interrupt
