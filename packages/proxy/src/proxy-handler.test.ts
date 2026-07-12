@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
+import { proxy } from "hono/proxy"
 import { ProxyHandler } from "./proxy-handler"
 import type { Context } from "hono"
 import type { BlankEnv } from "hono/types"
@@ -24,6 +25,9 @@ const createMockContext = (
     method,
     header: (name: string) => headers[name.toLowerCase()],
     arrayBuffer: async () => new ArrayBuffer(0),
+    raw: {
+      headers: new Headers(headers),
+    },
   }
 
   return {
@@ -41,6 +45,7 @@ describe("ProxyHandler", () => {
   let proxyHandler: ProxyHandler
 
   beforeEach(() => {
+    vi.clearAllMocks()
     proxyHandler = new ProxyHandler()
   })
 
@@ -129,7 +134,7 @@ describe("ProxyHandler", () => {
   })
 
   describe("Request Handling", () => {
-    it("should return 400 for missing URL parameter", async () => {
+    it("should proxy the root path without requiring a legacy URL parameter", async () => {
       const context = createMockContext("http://proxy.eidos.localhost:13127/")
       const url = new URL(context.req.url)
       const response = await proxyHandler.handleProxyRequest(
@@ -138,18 +143,18 @@ describe("ProxyHandler", () => {
         context
       )
 
-      expect(response.status).toBe(400)
-      const text = await response.text()
-      expect(text).toBe("Missing target URL parameter")
+      expect(response.status).toBe(200)
+      expect(proxy).toHaveBeenCalledWith(
+        "https://example.com/",
+        expect.any(Object)
+      )
     })
 
-    it("should return 400 for invalid target URL", async () => {
-      const context = createMockContext(
-        "http://proxy.eidos.localhost:13127/?url=javascript:alert(1)"
-      )
+    it("should return 400 for an invalid target host", async () => {
+      const context = createMockContext("http://proxy.eidos.localhost:13127/")
       const url = new URL(context.req.url)
       const response = await proxyHandler.handleProxyRequest(
-        "example.com",
+        "localhost",
         url,
         context
       )
