@@ -48,15 +48,29 @@ function filterableFields(fields: BaseFieldInfo[]) {
   return fields.filter(
     (field) =>
       !field.isHidden &&
-      (field.valueKind === "source" || field.tableColumnName === "title")
+      (field.tableColumnName === "title" ||
+        field.valueKind === "source" ||
+        field.valueKind === "materialized" ||
+        field.valueKind === "derived")
   )
 }
 
+function fieldDisplayType(field: BaseFieldInfo) {
+  if (
+    (field.type === "formula" || field.type === "lookup") &&
+    typeof field.property?.displayType === "string"
+  ) {
+    return field.property.displayType
+  }
+  return field.type
+}
+
 function operatorsForField(field: BaseFieldInfo): BaseFilterOperator[] {
-  if (field.type === "checkbox") {
+  const displayType = fieldDisplayType(field)
+  if (displayType === "checkbox") {
     return ["equals", "not-equals", "is-empty", "is-not-empty"]
   }
-  if (field.type === "number" || field.type === "rating") {
+  if (displayType === "number" || displayType === "rating") {
     return [
       "equals",
       "not-equals",
@@ -68,7 +82,7 @@ function operatorsForField(field: BaseFieldInfo): BaseFilterOperator[] {
       "is-not-empty",
     ]
   }
-  if (field.type === "date") {
+  if (displayType === "date" || displayType === "datetime") {
     return [
       "equals",
       "not-equals",
@@ -122,7 +136,7 @@ function defaultRule(field: BaseFieldInfo): BaseFilterRule {
     type: "rule",
     field: field.tableColumnName,
     operator: operatorsForField(field)[0] ?? "equals",
-    value: field.type === "checkbox" ? true : "",
+    value: fieldDisplayType(field) === "checkbox" ? true : "",
   }
 }
 
@@ -136,6 +150,7 @@ function FilterValueEditor({
   onChange: (value: BaseFilterValue | BaseFilterValue[]) => void
 }) {
   if (emptyOperators.has(rule.operator)) return null
+  const displayType = fieldDisplayType(field)
   const options = fieldOptions(field)
   if (
     field.type === "multi-select" &&
@@ -187,7 +202,7 @@ function FilterValueEditor({
       </Select>
     )
   }
-  if (field.type === "checkbox") {
+  if (displayType === "checkbox") {
     return (
       <Select
         value={String(rule.value ?? true)}
@@ -207,9 +222,9 @@ function FilterValueEditor({
     <Input
       className="h-7 min-w-0 text-xs"
       type={
-        field.type === "number" || field.type === "rating"
+        displayType === "number" || displayType === "rating"
           ? "number"
-          : field.type === "date"
+          : displayType === "date" || displayType === "datetime"
             ? "date"
             : "text"
       }
@@ -219,7 +234,7 @@ function FilterValueEditor({
       placeholder="Value"
       onChange={(event) =>
         onChange(
-          field.type === "number" || field.type === "rating"
+          displayType === "number" || displayType === "rating"
             ? event.target.value === ""
               ? ""
               : Number(event.target.value)
@@ -230,17 +245,285 @@ function FilterValueEditor({
   )
 }
 
+const MAX_FILTER_GROUP_DEPTH = 2
+
+function countFilterRules(group: BaseFilterGroup): number {
+  return group.children.reduce(
+    (count, child) =>
+      count + (child.type === "rule" ? 1 : countFilterRules(child)),
+    0
+  )
+}
+
+function BaseFilterRuleEditor({
+  fields,
+  rule,
+  onChange,
+  onRemove,
+}: {
+  fields: BaseFieldInfo[]
+  rule: BaseFilterRule
+  onChange: (rule: BaseFilterRule) => void
+  onRemove: () => void
+}) {
+  const field =
+    fields.find((candidate) => candidate.tableColumnName === rule.field) ??
+    fields[0]
+  if (!field) return null
+  return (
+    <div className="grid grid-cols-[110px_150px_minmax(120px,1fr)_28px] items-start gap-1.5">
+      <Select
+        value={field.tableColumnName}
+        onValueChange={(columnName) => {
+          const nextField = fields.find(
+            (candidate) => candidate.tableColumnName === columnName
+          )
+          if (nextField) onChange(defaultRule(nextField))
+        }}
+      >
+        <SelectTrigger className="h-7 min-w-0 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {fields.map((candidate) => (
+            <SelectItem
+              key={candidate.tableColumnName}
+              value={candidate.tableColumnName}
+            >
+              {candidate.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select
+        value={rule.operator}
+        onValueChange={(operator: BaseFilterOperator) =>
+          onChange({
+            ...rule,
+            operator,
+            ...(emptyOperators.has(operator)
+              ? { value: undefined }
+              : rule.value === undefined
+                ? {
+                    value: fieldDisplayType(field) === "checkbox" ? true : "",
+                  }
+                : {}),
+          })
+        }
+      >
+        <SelectTrigger className="h-7 min-w-0 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {operatorsForField(field).map((operator) => (
+            <SelectItem key={operator} value={operator}>
+              {operatorLabels[operator]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <FilterValueEditor
+        field={field}
+        rule={rule}
+        onChange={(value) => onChange({ ...rule, value })}
+      />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 text-muted-foreground"
+        aria-label="Remove filter"
+        onClick={onRemove}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  )
+}
+
+function BaseFilterAddMenu({
+  canAddGroup,
+  onAddRule,
+  onAddGroup,
+}: {
+  canAddGroup: boolean
+  onAddRule: () => void
+  onAddGroup: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1 px-2 text-xs"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add filter
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-40 p-1">
+        <button
+          type="button"
+          className="flex h-7 w-full items-center rounded-sm px-2 text-left text-xs hover:bg-accent"
+          onClick={() => {
+            onAddRule()
+            setOpen(false)
+          }}
+        >
+          Add condition
+        </button>
+        {canAddGroup ? (
+          <button
+            type="button"
+            className="flex h-7 w-full items-center rounded-sm px-2 text-left text-xs hover:bg-accent"
+            onClick={() => {
+              onAddGroup()
+              setOpen(false)
+            }}
+          >
+            Add group
+          </button>
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function BaseFilterGroupEditor({
+  fields,
+  group,
+  depth,
+  onChange,
+}: {
+  fields: BaseFieldInfo[]
+  group: BaseFilterGroup
+  depth: number
+  onChange: (group: BaseFilterGroup) => void
+}) {
+  const updateChild = (
+    index: number,
+    child: BaseFilterRule | BaseFilterGroup
+  ) => {
+    onChange({
+      ...group,
+      children: group.children.map((candidate, childIndex) =>
+        childIndex === index ? child : candidate
+      ),
+    })
+  }
+  const removeChild = (index: number) => {
+    onChange({
+      ...group,
+      children: group.children.filter((_, childIndex) => childIndex !== index),
+    })
+  }
+  const firstField = fields[0]
+  return (
+    <div
+      className={cn(
+        "space-y-2",
+        depth > 0 && "rounded-md border bg-muted/20 p-2"
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">
+          {depth === 0 ? "Show rows where" : "Group where"}
+        </span>
+        <Select
+          value={group.conjunction}
+          onValueChange={(conjunction: "and" | "or") =>
+            onChange({ ...group, conjunction })
+          }
+        >
+          <SelectTrigger className="h-7 w-28 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="and">All match</SelectItem>
+            <SelectItem value="or">Any match</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        {group.children.length === 0 ? (
+          <p className="py-2 text-xs text-muted-foreground">
+            No conditions in this group.
+          </p>
+        ) : null}
+        {group.children.map((child, index) =>
+          child.type === "rule" ? (
+            <BaseFilterRuleEditor
+              key={`rule-${index}-${child.field}`}
+              fields={fields}
+              rule={child}
+              onChange={(next) => updateChild(index, next)}
+              onRemove={() => removeChild(index)}
+            />
+          ) : (
+            <div
+              key={`group-${index}`}
+              className="grid grid-cols-[minmax(0,1fr)_28px] items-start gap-1.5 pl-3"
+            >
+              <BaseFilterGroupEditor
+                fields={fields}
+                group={child}
+                depth={depth + 1}
+                onChange={(next) => updateChild(index, next)}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground"
+                aria-label="Remove filter group"
+                onClick={() => removeChild(index)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )
+        )}
+      </div>
+      <BaseFilterAddMenu
+        canAddGroup={depth < MAX_FILTER_GROUP_DEPTH}
+        onAddRule={() => {
+          if (!firstField) return
+          onChange({
+            ...group,
+            children: [...group.children, defaultRule(firstField)],
+          })
+        }}
+        onAddGroup={() => {
+          if (!firstField) return
+          onChange({
+            ...group,
+            children: [
+              ...group.children,
+              {
+                type: "group",
+                conjunction: "and",
+                children: [defaultRule(firstField)],
+              },
+            ],
+          })
+        }}
+      />
+    </div>
+  )
+}
+
 function BaseFilterPopover({
   fields,
   value,
   disabled,
-  focusSearchToken = 0,
   onChange,
 }: {
   fields: BaseFieldInfo[]
   value: BaseFilterGroup | null
   disabled?: boolean
-  focusSearchToken?: number
   onChange: (filter: BaseFilterGroup | null) => Promise<void> | void
 }) {
   const availableFields = useMemo(() => filterableFields(fields), [fields])
@@ -253,17 +536,6 @@ function BaseFilterPopover({
       setDraft(value ?? { type: "group", conjunction: "and", children: [] })
     }
   }, [open, value])
-  const rules = draft.children.flatMap((child, childIndex) =>
-    child.type === "rule" ? [{ rule: child, childIndex }] : []
-  )
-  const updateRule = (index: number, next: BaseFilterRule) => {
-    setDraft((current) => ({
-      ...current,
-      children: current.children.map((child, childIndex) =>
-        childIndex === index ? next : child
-      ),
-    }))
-  }
   const apply = async () => {
     await onChange(draft.children.length > 0 ? draft : null)
     setOpen(false)
@@ -280,149 +552,24 @@ function BaseFilterPopover({
         >
           <Filter className="h-3.5 w-3.5" />
           Filter
-          {value?.children.length ? (
+          {value && countFilterRules(value) > 0 ? (
             <span className="text-[10px] text-muted-foreground">
-              {value.children.length}
+              {countFilterRules(value)}
             </span>
           ) : null}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[520px] p-3">
-        <div className="flex items-center justify-between">
-          <div className="text-xs font-medium">Show rows where</div>
-          <Select
-            value={draft.conjunction}
-            onValueChange={(conjunction: "and" | "or") =>
-              setDraft((current) => ({ ...current, conjunction }))
-            }
-          >
-            <SelectTrigger className="h-7 w-28 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="and">All match</SelectItem>
-              <SelectItem value="or">Any match</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="mt-2 space-y-2">
-          {rules.length === 0 ? (
-            <p className="py-3 text-center text-xs text-muted-foreground">
-              No filters. Add a condition to narrow this view.
-            </p>
-          ) : null}
-          {rules.map(({ rule, childIndex }, index) => {
-            const field =
-              availableFields.find(
-                (candidate) => candidate.tableColumnName === rule.field
-              ) ?? availableFields[0]
-            if (!field) return null
-            return (
-              <div
-                key={`${rule.field}-${index}`}
-                className="grid grid-cols-[110px_150px_1fr_28px] items-start gap-1.5"
-              >
-                <Select
-                  value={field.tableColumnName}
-                  onValueChange={(columnName) => {
-                    const nextField = availableFields.find(
-                      (candidate) => candidate.tableColumnName === columnName
-                    )
-                    if (nextField)
-                      updateRule(childIndex, defaultRule(nextField))
-                  }}
-                >
-                  <SelectTrigger className="h-7 min-w-0 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableFields.map((candidate) => (
-                      <SelectItem
-                        key={candidate.tableColumnName}
-                        value={candidate.tableColumnName}
-                      >
-                        {candidate.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={rule.operator}
-                  onValueChange={(operator: BaseFilterOperator) =>
-                    updateRule(childIndex, {
-                      ...rule,
-                      operator,
-                      ...(emptyOperators.has(operator)
-                        ? { value: undefined }
-                        : rule.value === undefined
-                          ? { value: field.type === "checkbox" ? true : "" }
-                          : {}),
-                    })
-                  }
-                >
-                  <SelectTrigger className="h-7 min-w-0 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {operatorsForField(field).map((operator) => (
-                      <SelectItem key={operator} value={operator}>
-                        {operatorLabels[operator]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FilterValueEditor
-                  field={field}
-                  rule={rule}
-                  onChange={(nextValue) =>
-                    updateRule(childIndex, { ...rule, value: nextValue })
-                  }
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground"
-                  aria-label="Remove filter"
-                  onClick={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      children: current.children.filter(
-                        (_, candidateIndex) => candidateIndex !== childIndex
-                      ),
-                    }))
-                  }
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            )
-          })}
-        </div>
-        <div className="mt-3 flex items-center justify-between border-t pt-3">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1 px-2 text-xs"
-            disabled={rules.length >= availableFields.length}
-            onClick={() => {
-              const used = new Set(rules.map(({ rule }) => rule.field))
-              const field =
-                availableFields.find(
-                  (candidate) => !used.has(candidate.tableColumnName)
-                ) ?? availableFields[0]
-              if (field) {
-                setDraft((current) => ({
-                  ...current,
-                  children: [...current.children, defaultRule(field)],
-                }))
-              }
-            }}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add condition
-          </Button>
+      <PopoverContent
+        align="end"
+        className="max-h-[min(640px,calc(100vh-32px))] w-[680px] max-w-[calc(100vw-32px)] overflow-y-auto p-3"
+      >
+        <BaseFilterGroupEditor
+          fields={availableFields}
+          group={draft}
+          depth={0}
+          onChange={setDraft}
+        />
+        <div className="mt-3 flex justify-end border-t pt-3">
           <div className="flex gap-1.5">
             {value ? (
               <Button

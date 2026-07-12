@@ -35,6 +35,19 @@ const fields: BaseFieldInfo[] = [
     sourceTableColumnName: null,
     dependsOn: null,
   },
+  {
+    name: "Total",
+    type: "formula",
+    tableName: "tb_tasks",
+    tableColumnName: "total",
+    property: { formula: "priority * 2", displayType: "number" },
+    storageCodec: "scalar",
+    valueKind: "derived",
+    isHidden: false,
+    isDerived: true,
+    sourceTableColumnName: null,
+    dependsOn: ["priority"],
+  },
 ]
 
 function button(label: string) {
@@ -51,6 +64,10 @@ describe("BaseQueryToolbar", () => {
   const onSortsChange = vi.fn()
 
   beforeEach(() => {
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    })
     onSearchChange.mockReset()
     onFilterChange.mockReset()
     onSortsChange.mockReset()
@@ -97,6 +114,7 @@ describe("BaseQueryToolbar", () => {
 
   it("builds filter state in an anchored popover", async () => {
     await act(async () => button("Filter")?.click())
+    await act(async () => button("Add filter")?.click())
     await act(async () => button("Add condition")?.click())
     await act(async () => button("Apply")?.click())
     expect(onFilterChange).toHaveBeenCalledWith({
@@ -111,6 +129,45 @@ describe("BaseQueryToolbar", () => {
         },
       ],
     })
+  })
+
+  it("builds nested groups like the original table filter", async () => {
+    await act(async () => button("Filter")?.click())
+    await act(async () => button("Add filter")?.click())
+    await act(async () => button("Add group")?.click())
+    await act(async () => button("Apply")?.click())
+    expect(onFilterChange).toHaveBeenCalledWith({
+      type: "group",
+      conjunction: "and",
+      children: [
+        {
+          type: "group",
+          conjunction: "and",
+          children: [
+            {
+              type: "rule",
+              field: "title",
+              operator: "equals",
+              value: "",
+            },
+          ],
+        },
+      ],
+    })
+  })
+
+  it("offers derived formula and lookup-style fields to the filter UI", async () => {
+    await act(async () => button("Filter")?.click())
+    await act(async () => button("Add filter")?.click())
+    await act(async () => button("Add condition")?.click())
+    const fieldSelect =
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[1]
+    await act(async () => fieldSelect?.click())
+    expect(
+      Array.from(document.body.querySelectorAll('[role="option"]')).some(
+        (option) => option.textContent?.trim() === "Total"
+      )
+    ).toBe(true)
   })
 
   it("builds multi-field sort state in an anchored popover", async () => {
