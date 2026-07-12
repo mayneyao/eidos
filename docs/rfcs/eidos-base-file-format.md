@@ -22,9 +22,13 @@ field visibility, header actions, and the existing date/rating cells without
 coupling the Base runtime to `@eidos.space/core`. Desktop initializes a hidden
 temporary Base and atomically renames it into place, so interrupted creation
 cannot publish a zero-byte canonical `.base`. Users can create, rename, and
-delete tables and fields, edit select/multi-select choices, and persist grid
-order/width/visibility state inside `eidos__views` in the Base file. Structural
-deletes also clean dependent references and view layout metadata transactionally.
+delete tables and fields. A non-modal field Property workspace supports source
+field type conversion, per-item select/multi-select choice editing, and Number
+presentation. Type conversion transactionally rebuilds the SQLite column when
+needed and migrates values, while deleting a choice also cleans stored cell
+references. Grid order/width/visibility state persists inside `eidos__views` in
+the Base file. Structural deletes also clean dependent references and view layout
+metadata transactionally.
 The view runtime and Desktop UI now cover creation, rename, duplication,
 ordering, deletion protection, switching, and per-view query/layout state for
 multiple Grid views. Gallery and Kanban metadata remain portable but their live

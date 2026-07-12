@@ -15,8 +15,10 @@ SQLite connection boundary 隔离实现；`better-sqlite3` adapter 位于独立�
 desktop file Space 已经可以创建和打开 `.base`。初始 HTML table 已替换为 production
 Glide DataEditor 上的 Base adapter，恢复 keyboard navigation、rectangular selection、
 copy/paste、fill handle、column reorder/resize，并支持创建 table/field 与持久化 Grid
-order/width。table/field 现已支持 create、rename、delete，select/multi-select choices
-可以继续编辑；结构删除会在事务中清理依赖 references 与 view layout metadata。Graft
+order/width。table/field 现已支持 create、rename、delete；非模态字段 Property workspace
+支持 source field 类型转换、逐项编辑 select/multi-select choices 和 Number 展示配置。
+类型转换会在事务中重建必要的 SQLite column 并迁移 values，删除 choice 也会同步清理已有
+cell 引用；结构删除会清理依赖 references 与 view layout metadata。Graft
 row diff 也已贯通 working Changes 和历史 inspector。
 
 view runtime 与 Desktop UI 现已支持多个 Grid views 的创建、重命名、复制、排序、

@@ -45,8 +45,14 @@ lookup/rollup 字段延续同一套表头驱动流程：用户在锚定字段面
 target field 和 aggregation。派生值在 Grid 中保持只读，会随着 relation/target 修改刷新，
 也可以继续供 formula 使用，不引入单独的配置页面。
 
-Base 仍处于 delivery closure，而不是产品验收。Gallery/Kanban layouts、无障碍表格语义和完整原生
-create/edit/restart/version/restore 验收仍未完成。Base 日常编辑和配置优先使用单元格
+字段配置现在统一进入 Grid 右侧的非模态 Property workspace。所有列头和 table structure
+菜单都可以打开它；名称就地保存，基础 source field 可以显式确认后安全转换类型，Select/
+Multi-select options 支持逐项新增、重命名、配色、拖拽排序和删除，Number 的 format、bar、
+maximum、color 与 label 配置会直接作用到 Grid。删除 option 会在同一 Base transaction 中
+清理已有 cell 引用。旧的逗号文本 Options 弹窗和字段 Rename 弹窗路径已经移除。
+
+Base 仍处于 delivery closure，而不是产品验收。下一优先级是 Gallery/Kanban layouts，之后是
+无障碍表格语义和完整原生 create/edit/restart/version/restore 验收。Base 日常编辑和配置优先使用单元格
 内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留给破坏性确认或必须中断
 当前工作流的决策。新增交互应先参考并复用原表格已经验证过的编辑方式，不应仅为了
 实现方便把字段配置、记录编辑或 view 管理改成弹窗流程。

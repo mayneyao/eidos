@@ -56,8 +56,17 @@ existing relation, target field, and aggregation from an anchored field panel.
 Derived values stay readonly in the Grid, refresh with relation/target edits,
 and can feed formulas without introducing a separate configuration screen.
 
+Field configuration now converges on a non-modal Property workspace at the
+right edge of the Grid. Every column header and table-structure menu can open
+it; names save inline, mutable source fields require explicit confirmation
+before safe type conversion, Select/Multi-select options support per-item add,
+rename, color, drag reorder, and delete, and Number format/bar/maximum/color/
+label settings drive the live Grid. Removing an option cleans stored cell
+references in the same Base transaction. The comma-text Options dialog and
+field Rename dialog path have been removed.
+
 Base is still in delivery closure, not product acceptance. Gallery/Kanban
-layouts, accessible table semantics, and a complete native
+layouts are the next priority, followed by accessible table semantics and a complete native
 create/edit/restart/version/restore run remain. Routine Base configuration uses
 inline controls, header menus, and anchored popovers. Modal dialogs are
 reserved for destructive confirmation or other decisions that must interrupt
