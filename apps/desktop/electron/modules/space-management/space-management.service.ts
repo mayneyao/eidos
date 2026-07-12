@@ -51,6 +51,7 @@ import { getConfigManager } from "../config/config-manager"
 import { PORT } from "../../main"
 import { BrowserService } from "../browser/browser.service"
 import { withFileSpaceOperationLock } from "./file-space-operation-lock"
+import { createBaseFileAtomically } from "./atomic-base-file"
 
 /**
  * Space Management Service - Provides space management via IPC
@@ -398,17 +399,14 @@ export class SpaceManagementService extends IpcServiceBase {
   ): Promise<BaseSnapshot> {
     return withFileSpaceOperationLock(spaceId, async () => {
       const files = this._getFileSpace(spaceId)
-      await files.createBinary(relativePath, new Uint8Array())
-      const systemPath = await files.getSystemPath(relativePath)
-      try {
-        const base = createBaseDatabase(systemPath, options)
-        base.close()
-        this._invalidateFileIndex(spaceId)
-        return await this._getBaseSnapshot(spaceId, relativePath)
-      } catch (error) {
-        await files.remove(relativePath).catch(() => undefined)
-        throw error
-      }
+      await createBaseFileAtomically(
+        files,
+        relativePath,
+        options,
+        createBaseDatabase
+      )
+      this._invalidateFileIndex(spaceId)
+      return await this._getBaseSnapshot(spaceId, relativePath)
     })
   }
 
