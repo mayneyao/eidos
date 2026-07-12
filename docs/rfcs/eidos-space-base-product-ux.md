@@ -47,7 +47,9 @@ accessible table semantics, and a complete native
 create/edit/restart/version/restore run remain. Routine Base configuration uses
 inline controls, header menus, and anchored popovers. Modal dialogs are
 reserved for destructive confirmation or other decisions that must interrupt
-the workflow.
+the workflow. New interactions should first adapt the proven editing patterns
+from the original Eidos table; implementation convenience is not a reason to
+move field configuration, record editing, or view management into a modal.
 
 File-Space Settings separates General, Files/Obsidian, Versioning, and derived
 Indexes controls. Legacy-Space Settings also provides server-owned migration

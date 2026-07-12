@@ -38,7 +38,8 @@ Base 仍处于 delivery closure，而不是产品验收。高级嵌套筛选编�
 relation/formula 字段、Gallery/Kanban layouts、无障碍表格语义和完整原生
 create/edit/restart/version/restore 验收仍未完成。Base 日常编辑和配置优先使用单元格
 内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留给破坏性确认或必须中断
-当前工作流的决策。
+当前工作流的决策。新增交互应先参考并复用原表格已经验证过的编辑方式，不应仅为了
+实现方便把字段配置、记录编辑或 view 管理改成弹窗流程。
 
 file Space Settings 已拆分为 General、Files/Obsidian、Versioning 和派生 Indexes；
 legacy Space Settings 也已提供 server-owned migration preview、progress、validation、
