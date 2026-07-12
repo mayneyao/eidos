@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import type {
   BaseFieldInfo,
   BaseRow,
@@ -10,6 +17,7 @@ import type {
   BaseViewInfo,
 } from "@eidos.space/base"
 import type { SpaceBinaryFile } from "@eidos.space/file-space"
+import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual"
 import { ChevronLeft, ChevronRight, LoaderCircle, Plus } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 
@@ -35,6 +43,7 @@ import { BaseRecordInspector } from "./base-record-inspector"
 import { orderedBaseFields } from "./base-view-layout"
 
 const KANBAN_PAGE_SIZE = 50
+const KANBAN_COLUMN_GAP = 12
 const EMPTY_GROUP_VALUE = "__eidos_empty_group__"
 
 interface BaseKanbanGroup {
@@ -98,6 +107,8 @@ function BaseKanbanColumn({
   moveGroups,
   onMove,
   focusedRowId,
+  collapsed,
+  onCollapsedChange,
 }: {
   group: BaseKanbanGroup
   table: BaseTableSnapshot
@@ -113,15 +124,12 @@ function BaseKanbanColumn({
   moveGroups: BaseKanbanGroup[]
   onMove: (row: BaseRow, targetGroupKey: string) => void
   focusedRowId?: string
+  collapsed: boolean
+  onCollapsedChange: (collapsed: boolean) => void
 }) {
-  const [collapsed, setCollapsed] = useState(false)
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState("")
   const [creating, setCreating] = useState(false)
-
-  useEffect(() => {
-    if (focusedRowId) setCollapsed(false)
-  }, [focusedRowId])
 
   const create = async () => {
     const next = title.trim()
@@ -166,7 +174,7 @@ function BaseKanbanColumn({
               type="button"
               className="flex flex-1 items-center text-[11px] font-medium [writing-mode:vertical-rl]"
               aria-label={`Expand ${group.name}`}
-              onClick={() => setCollapsed(false)}
+              onClick={() => onCollapsedChange(false)}
             >
               {group.name} · {group.total}
             </button>
@@ -184,7 +192,7 @@ function BaseKanbanColumn({
                 size="icon"
                 className="h-6 w-6"
                 aria-label={`Collapse ${group.name}`}
-                onClick={() => setCollapsed(true)}
+                onClick={() => onCollapsedChange(true)}
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
@@ -382,13 +390,88 @@ export function BaseKanbanView({
   const optionSignature = options
     .map((option) => `${option.id}:${option.name}:${option.color}`)
     .join("|")
-  const [groups, setGroups] = useState<BaseKanbanGroup[]>([])
+  const [groups, setGroups] = useState<BaseKanbanGroup[]>(() =>
+    groupField ? groupSpecs(options) : []
+  )
+  const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<Set<string>>(
+    new Set()
+  )
+  const [dragging, setDragging] = useState(false)
+  const [moveAnnouncement, setMoveAnnouncement] = useState("")
   const [inspectedRow, setInspectedRow] = useState<BaseRow | null>(null)
   const [deleteRow, setDeleteRow] = useState<BaseRow | null>(null)
   const fields = orderedBaseFields(table.fields, view)
   const groupCountSignature = groups
     .map((group) => `${group.key}:${group.total}:${group.loading ? 1 : 0}`)
     .join("|")
+  const collapsedGroupSignature = [...collapsedGroupKeys].sort().join("|")
+  const columnWidth = cardWidth(view)
+  const columnVirtualizer = useVirtualizer({
+    count: groups.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: (index) =>
+      collapsedGroupKeys.has(groups[index]?.key ?? "") ? 48 : columnWidth,
+    getItemKey: (index) => groups[index]?.key ?? index,
+    gap: KANBAN_COLUMN_GAP,
+    horizontal: true,
+    initialRect: { width: 1024, height: 640 },
+    overscan: 2,
+    rangeExtractor: dragging
+      ? () => groups.map((_, index) => index)
+      : defaultRangeExtractor,
+  })
+  const virtualColumns = columnVirtualizer.getVirtualItems()
+  const estimatedColumnStarts = groups.reduce<number[]>((starts, group) => {
+    const previousStart = starts.at(-1) ?? 0
+    const previousGroup = groups[starts.length - 1]
+    const previousWidth = previousGroup
+      ? collapsedGroupKeys.has(previousGroup.key)
+        ? 48
+        : columnWidth
+      : 0
+    starts.push(
+      starts.length === 0
+        ? 0
+        : previousStart + previousWidth + KANBAN_COLUMN_GAP
+    )
+    return starts
+  }, [])
+  const renderedColumns =
+    virtualColumns.length > 0
+      ? virtualColumns
+      : groups.slice(0, 4).map((group, index) => ({
+          index,
+          key: group.key,
+          size: collapsedGroupKeys.has(group.key) ? 48 : columnWidth,
+          start: estimatedColumnStarts[index] ?? 0,
+        }))
+  const estimatedTotalWidth = groups.reduce(
+    (width, group, index) =>
+      width +
+      (collapsedGroupKeys.has(group.key) ? 48 : columnWidth) +
+      (index === groups.length - 1 ? 0 : KANBAN_COLUMN_GAP),
+    0
+  )
+  const virtualColumnSignature = renderedColumns
+    .map((column) => column.index)
+    .join("|")
+
+  useEffect(() => {
+    columnVirtualizer.measure()
+  }, [collapsedGroupSignature, columnVirtualizer, columnWidth, groups.length])
+
+  const setGroupCollapsed = useCallback(
+    (groupKey: string, collapsed: boolean) => {
+      setCollapsedGroupKeys((current) => {
+        const hasKey = current.has(groupKey)
+        if (hasKey === collapsed) return current
+        const next = new Set(current)
+        collapsed ? next.add(groupKey) : next.delete(groupKey)
+        return next
+      })
+    },
+    []
+  )
 
   useEffect(() => {
     generationRef.current += 1
@@ -507,6 +590,15 @@ export function BaseKanbanView({
     focusedGroup && focusedGroupIndex >= 0
       ? focusedGroup.rows[focusedGroupIndex]
       : undefined
+  const focusedGroupPosition = focusedGroup
+    ? groups.findIndex((group) => group.key === focusedGroup?.key)
+    : -1
+
+  useEffect(() => {
+    if (!focusedGroup || focusedGroupPosition < 0) return
+    setGroupCollapsed(focusedGroup.key, false)
+    columnVirtualizer.scrollToIndex(focusedGroupPosition, { align: "auto" })
+  }, [columnVirtualizer, focusedGroup, focusedGroupPosition, setGroupCollapsed])
 
   useEffect(() => {
     if (!focusedGroup || focusedGroupIndex < 0) return
@@ -529,10 +621,10 @@ export function BaseKanbanView({
       ) ?? []
     ).find((element) => element.dataset.baseRowId === rowId)
     target?.scrollIntoView({ block: "nearest", inline: "nearest" })
-  }, [focusedGroup, focusedGroupIndex])
+  }, [focusedGroup, focusedGroupIndex, virtualColumnSignature])
 
   const moveRecord = (rowId: string, targetKey: string) => {
-    if (!groupField || disabled) return
+    if (!groupField || disabled) return false
     const source = groups.find((group) =>
       group.rows.some((row) => String(row._id) === rowId)
     )
@@ -540,7 +632,7 @@ export function BaseKanbanView({
     const row = source?.rows.find(
       (candidate) => String(candidate._id) === rowId
     )
-    if (!source || !target || !row || source.key === target.key) return
+    if (!source || !target || !row || source.key === target.key) return false
 
     const previous = groups
     const optimistic = {
@@ -568,6 +660,8 @@ export function BaseKanbanView({
         return group
       })
     )
+    const title = String(row.title ?? "Untitled")
+    setMoveAnnouncement(`${title} moved from ${source.name} to ${target.name}.`)
     void onCellEdit(row, groupField, target.value)
       .then((result) => {
         setGroups((current) =>
@@ -585,13 +679,23 @@ export function BaseKanbanView({
       })
       .catch((error) => {
         setGroups(previous)
+        setMoveAnnouncement(
+          `${title} could not be moved to ${target.name}. The change was reverted.`
+        )
         onError?.(error)
       })
+    return true
   }
 
   const dragEnd = (event: DragEndEvent) => {
-    if (!event.over) return
-    moveRecord(String(event.active.id), String(event.over.id))
+    setDragging(false)
+    if (!event.over) {
+      setMoveAnnouncement("Record move cancelled.")
+      return
+    }
+    if (!moveRecord(String(event.active.id), String(event.over.id))) {
+      setMoveAnnouncement("Record was not moved.")
+    }
   }
 
   const createInGroup = async (group: BaseKanbanGroup, title: string) => {
@@ -659,35 +763,77 @@ export function BaseKanbanView({
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden">
+      <span
+        className="sr-only"
+        role="status"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
+        {moveAnnouncement}
+      </span>
       <div
         ref={scrollContainerRef}
         className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden p-3"
       >
         <KanbanProvider
           onDragEnd={dragEnd}
-          className="!flex h-full min-w-max items-stretch gap-3"
+          onDragStart={() => setDragging(true)}
+          onDragCancel={() => {
+            setDragging(false)
+            setMoveAnnouncement("Record move cancelled.")
+          }}
+          className="relative !block h-full"
         >
-          {groups.map((group) => (
-            <BaseKanbanColumn
-              key={group.key}
-              group={group}
-              table={table}
-              view={view}
-              disabled={disabled}
-              width={cardWidth(view)}
-              color={baseOptionColor(group.color, theme)}
-              readBinary={readBinary}
-              onOpen={setInspectedRow}
-              onDelete={onDeleteRow ? setDeleteRow : undefined}
-              moveGroups={groups}
-              onMove={(row, targetGroupKey) =>
-                moveRecord(String(row._id), targetGroupKey)
-              }
-              focusedRowId={focusedRow ? String(focusedRow._id) : undefined}
-              onLoadMore={(candidate) => void loadMore(candidate)}
-              onCreate={createInGroup}
-            />
-          ))}
+          <div
+            className="relative h-full"
+            style={{
+              width:
+                virtualColumns.length > 0
+                  ? columnVirtualizer.getTotalSize()
+                  : estimatedTotalWidth,
+            }}
+          >
+            {renderedColumns.map((virtualColumn) => {
+              const group = groups[virtualColumn.index]
+              if (!group) return null
+              return (
+                <div
+                  key={group.key}
+                  className="absolute inset-y-0 left-0"
+                  data-index={virtualColumn.index}
+                  style={{
+                    width: virtualColumn.size,
+                    transform: `translateX(${virtualColumn.start}px)`,
+                  }}
+                >
+                  <BaseKanbanColumn
+                    group={group}
+                    table={table}
+                    view={view}
+                    disabled={disabled}
+                    width={columnWidth}
+                    color={baseOptionColor(group.color, theme)}
+                    readBinary={readBinary}
+                    onOpen={setInspectedRow}
+                    onDelete={onDeleteRow ? setDeleteRow : undefined}
+                    moveGroups={groups}
+                    onMove={(row, targetGroupKey) =>
+                      moveRecord(String(row._id), targetGroupKey)
+                    }
+                    focusedRowId={
+                      focusedRow ? String(focusedRow._id) : undefined
+                    }
+                    collapsed={collapsedGroupKeys.has(group.key)}
+                    onCollapsedChange={(collapsed) =>
+                      setGroupCollapsed(group.key, collapsed)
+                    }
+                    onLoadMore={(candidate) => void loadMore(candidate)}
+                    onCreate={createInGroup}
+                  />
+                </div>
+              )
+            })}
+          </div>
         </KanbanProvider>
       </div>
       {sidePanel ??

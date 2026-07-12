@@ -163,6 +163,20 @@ describe("BaseKanbanView", () => {
       configurable: true,
       value: scrollIntoView,
     })
+    Object.defineProperty(HTMLElement.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        bottom: 640,
+        height: 640,
+        left: 0,
+        right: 1024,
+        top: 0,
+        width: 1024,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }),
+    })
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -222,6 +236,9 @@ describe("BaseKanbanView", () => {
       row,
       expect.objectContaining({ tableColumnName: "status" }),
       "done"
+    )
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      "Write RFC moved from Todo to Done."
     )
 
     await act(async () => {
@@ -345,5 +362,46 @@ describe("BaseKanbanView", () => {
         ?.getAttribute("aria-current")
     ).toBe("true")
     expect(scrollIntoView).toHaveBeenCalled()
+  })
+
+  it("only mounts the horizontal window for a large set of columns", async () => {
+    const manyOptions = Array.from({ length: 20 }, (_, index) => ({
+      id: `status_${index}`,
+      name: `Status ${index}`,
+      color: "blue",
+    }))
+    const manyColumnTable: BaseTableSnapshot = {
+      ...table,
+      fields: table.fields.map((field) =>
+        field.tableColumnName === "status"
+          ? { ...field, property: { options: manyOptions } }
+          : field
+      ),
+    }
+    const loadGroupPage = vi.fn(async (_field, _value, offset, limit) => ({
+      tableId: "tasks",
+      offset,
+      limit,
+      total: 0,
+      rows: [],
+    }))
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={manyColumnTable}
+          view={view}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(loadGroupPage).toHaveBeenCalledTimes(21)
+    const renderedColumns = container.querySelectorAll('[role="region"]')
+    expect(renderedColumns.length).toBeGreaterThan(0)
+    expect(renderedColumns.length).toBeLessThan(21)
   })
 })

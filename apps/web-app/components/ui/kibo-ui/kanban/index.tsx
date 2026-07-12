@@ -7,7 +7,9 @@ import {
   rectIntersection,
   useDraggable,
   useDroppable,
+  type DragCancelEvent,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core"
 
 import { cn } from "@/lib/utils"
@@ -144,12 +146,16 @@ export const KanbanHeader = (props: KanbanHeaderProps) =>
 export type KanbanProviderProps = {
   children: ReactNode
   onDragEnd: (event: DragEndEvent) => void
+  onDragStart?: (event: DragStartEvent) => void
+  onDragCancel?: (event: DragCancelEvent) => void
   className?: string
 }
 
 export const KanbanProvider = ({
   children,
   onDragEnd,
+  onDragStart,
+  onDragCancel,
   className,
 }: KanbanProviderProps) => {
   const [activeNode, setActiveNode] = useState<React.ReactNode | null>(null)
@@ -173,6 +179,10 @@ export const KanbanProvider = ({
         setLastMovedId(event.active.id.toString())
         onDragEnd(event)
       }}
+      onDragCancel={(event) => {
+        setActiveNode(null)
+        onDragCancel?.(event)
+      }}
       onDragStart={(event) => {
         const draggedElement = document.querySelector(
           `[data-draggable-id="${event.active.id}"]`
@@ -180,6 +190,7 @@ export const KanbanProvider = ({
         if (draggedElement) {
           setActiveNode(draggedElement.innerHTML)
         }
+        onDragStart?.(event)
       }}
     >
       <KanbanContext.Provider value={{ lastMovedId }}>
