@@ -25,7 +25,8 @@ table/field rename/delete 与 select/multi-select options 编辑。
 
 file Space Settings 已拆分为 General、Files/Obsidian、Versioning 和派生 Indexes；
 legacy Space Settings 也已提供 server-owned migration preview、progress、validation、
-reveal 和 open-new-Space actions。Space sync 与 conflict resolution UX 仍待实现。
+reveal 和 open-new-Space actions。原生 Space sync 与 path-first 文本 conflict
+resolution 已通过双 Space Desktop 验收；仍需更细的 Base row-level conflict 展示。
 
 ## 摘要
 

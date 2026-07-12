@@ -10,10 +10,10 @@ This directory contains draft RFCs for moving Eidos toward a file-based storage 
 
 | RFC                   | Status                | Current implementation boundary                                                                                                                                                              |
 | --------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Space/Base storage    | In progress           | The file-based slice, standalone Base runtime, Base-aware diffs, validated legacy export, and isolated remote acceptance work. Native remote dogfooding and file-based extensions remain.    |
+| Space/Base storage    | In progress           | The file-based slice, standalone Base runtime, Base-aware diffs, validated legacy export, and native remote acceptance work. File-based extensions and remaining Base refinements remain.    |
 | Markdown runtime      | Desktop accepted      | Real file tree, direct editing, safe saves, watcher, persistent derived index, quick open, wiki-link completion, outline, backlinks, attachments, IME, image paste, and long documents work. |
-| Graft versioning      | Remote vertical slice | Local workflows pass native Desktop acceptance; persistent remote config/fetch/pull/push, path-first conflicts, two-parent continuation, and isolated two-Space acceptance now work.         |
-| Product UX            | In progress           | Files/Version, Diff/History, contextual Settings, compact sync controls, conflict actions, the production Base grid, and legacy Migration Settings work. Native sync dogfooding remains.     |
+| Graft versioning      | Desktop accepted      | Native Desktop acceptance covers persistent fetch/pull/push, diverged text diff, path-first resolution, two-parent continuation, clean reconciliation, and final push.                       |
+| Product UX            | In progress           | Files/Version, Diff/History, contextual Settings, compact sync controls, conflict actions, the production Base grid, and legacy Migration Settings pass native acceptance.                   |
 | Base format/runtime   | Vertical slice        | The standalone package and paged Grid support primitive editing, table/field lifecycle, choice options, view layout, batch deletion, and streamed imports.                                   |
 | File-based extensions | Not started           | The RFC remains the target design.                                                                                                                                                           |
 | Legacy migration      | Real exports accepted | Standalone planning, atomic export, Desktop Settings, schema recovery, and 1.1M-row real-Space acceptance are complete; live derived recomputation remains.                                  |
@@ -26,8 +26,8 @@ four milestones are now complete:
 3. build the standalone Base package and vertical slice,
 4. implement and accept legacy migration exports.
 
-The next order is native remote/conflict dogfooding, followed by file-based
-extensions and the remaining Base/product refinements.
+The next order is file-based extensions, followed by richer Base conflict and
+remaining product refinements.
 
 Recommended reading order:
 

@@ -1,6 +1,6 @@
 # RFC：Eidos Space 的 Graft 版本管理
 
-状态：草案，remote 垂直切片可用
+状态：草案，原生 Desktop 链路验收通过
 日期：2026-07-08
 负责人：Eidos
 相关文档：
@@ -35,8 +35,14 @@ path 展示，点击打开 HEAD 到 merge-head 的 Diff tab，并可选择 ours�
 隔离的双 Space `fs://` 验收现已覆盖 initial push、clone、remote push、diverged
 pull、conflict list、文本内容 diff、resolution、双 parent merge continuation 和
 最终 push。Graft v0.5.4 同时修复普通 `graft clone <remote>`，默认以当前目录作为
-worktree。剩余验收是原生 Desktop 视觉 dogfooding，以及更细的 Base row-level
-conflict 展示。
+worktree。
+
+原生 Desktop dogfooding 也已通过真实 Files/Version UI 重复完整分叉链路：fetch
+展示 ahead/behind，pull 产生 conflict，点击 path 打开双栏 Diff tab，Accept theirs
+把 resolution 放入 Staged，Create version 保留双 parent，Push 后回到 clean 且
+up-to-date。已有但没有 Eidos markers 的 `.graftignore` 保持用户所有，打开或 merge
+remote repository 不再产生无关本地修改。剩余工作是更细的 Base row-level conflict
+展示。
 
 以下产品决策取代本文较早的开放问题：
 

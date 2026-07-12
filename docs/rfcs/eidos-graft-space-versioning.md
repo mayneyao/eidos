@@ -1,6 +1,6 @@
 # RFC: Graft Versioning for Eidos Spaces
 
-Status: Draft, remote vertical slice usable
+Status: Draft, native Desktop workflow accepted
 Date: 2026-07-08
 Owner: Eidos
 Related:
@@ -35,12 +35,18 @@ open HEAD-to-merge-head Diff tabs, and offer ours, theirs, or current-file
 resolution. Creating the next version after resolution uses `merge-continue`
 and preserves both parents.
 
-An isolated two-Space `fs://` acceptance now covers initial push, clone, remote
+An isolated two-Space `fs://` acceptance covers initial push, clone, remote
 push, diverged pull, conflict listing, text content diff, resolution,
 two-parent merge continuation, and final push. Graft v0.5.4 also fixes plain
-`graft clone <remote>` so it uses the current directory as the worktree. The
-remaining acceptance work is native Desktop visual dogfooding and richer
-row-level Base conflict presentation.
+`graft clone <remote>` so it uses the current directory as the worktree.
+
+Native Desktop dogfooding now repeats the diverged workflow through the actual
+Files/Version UI: fetch exposes ahead/behind state, pull creates a conflict,
+clicking the path opens the side-by-side Diff tab, accepting theirs stages the
+resolution, Create version preserves both parents, and Push returns to a clean
+up-to-date status. Existing unmarked `.graftignore` files remain user-owned, so
+opening or merging a remote repository no longer creates an unrelated local
+change. Richer row-level Base conflict presentation remains.
 
 Confirmed product decisions that supersede earlier open questions:
 

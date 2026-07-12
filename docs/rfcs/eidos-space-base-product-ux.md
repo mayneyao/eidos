@@ -28,8 +28,9 @@ requested.
 
 File-Space Settings separates General, Files/Obsidian, Versioning, and derived
 Indexes controls. Legacy-Space Settings also provides server-owned migration
-preview, progress, validation, reveal, and open-new-Space actions. Space sync
-and conflict resolution UX remain.
+preview, progress, validation, reveal, and open-new-Space actions. Native Space
+sync and path-first text conflict resolution now pass a two-Space Desktop
+acceptance flow. Richer Base row-level conflict presentation remains.
 
 ## Summary
 

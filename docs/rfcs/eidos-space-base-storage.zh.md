@@ -13,12 +13,12 @@ Markdown 派生索引、Space-root 本地 Graft 版本管理和独立 `.base` �
 runtime 已经可以规划并原子生成经过校验的 Markdown + `main.base` + assets Space，
 Desktop Settings 也已接入 legacy Space 的 plan/export/validation flow。只读审计覆盖的
 29 个仍存在源数据库的注册旧 Space 已全部可以规划，小型、中型和 111 万行真实导出均通过
-端到端校验。持久 Graft remote sync/conflict 垂直切片也已通过隔离双 Space 验收；
-仍需原生 Desktop dogfooding 和文件化扩展。
+端到端校验。持久 Graft remote sync/conflict 也已通过隔离与原生 Desktop 双 Space
+验收；仍需文件化扩展。
 
 因此本文的 phase 顺序只描述能力依赖，不再代表当前执行顺序。已经完成的顺序是 Markdown
-Space、本地 Graft、独立 Base runtime、migration 和 remote Graft 垂直切片。下一步是
-原生 remote dogfooding 与文件化扩展。
+Space、本地 Graft、独立 Base runtime、migration 和原生 remote Graft 验收。下一步是
+文件化扩展。
 
 ## 摘要
 
