@@ -14,7 +14,7 @@ const GRAFT_REPO =
 const GRAFT_VERSION = normalizeTag(
   process.env.GRAFT_RELEASE_VERSION ||
     process.env.GRAFT_SQLITE_EXTENSION_VERSION ||
-    "v0.5.3"
+    "v0.5.4"
 )
 
 const platformInfoByKey = {
@@ -245,14 +245,14 @@ async function downloadAndInstallGraftAsset({
 
     const sourcePath = findSource(extractDir)
     if (!sourcePath) {
-      throw new Error(`Expected file not found in ${assetName} after extraction`)
+      throw new Error(
+        `Expected file not found in ${assetName} after extraction`
+      )
     }
 
     console.log(`${logName}: Source file: ${sourcePath}`)
     installFileAtomically(sourcePath, finalDestPath, installMode)
-    console.log(
-      `${logName}: Installed ${GRAFT_VERSION} to ${finalDestPath}`
-    )
+    console.log(`${logName}: Installed ${GRAFT_VERSION} to ${finalDestPath}`)
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true })
   }
