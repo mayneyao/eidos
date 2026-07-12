@@ -668,7 +668,7 @@ export class SpaceVersioningCoordinator {
         return disabledSpaceVersionStatus(spaceId)
       }
       return this.withRepositoryOperationLock(spacePath, async () => {
-        await ensureEidosGraftIgnore(spacePath)
+        await ensureEidosGraftIgnore(spacePath, { appendToExisting: false })
         return this.readStatus(spaceId, spacePath)
       })
     })
@@ -916,7 +916,7 @@ export class SpaceVersioningCoordinator {
       const spacePath = await this.resolveFileSpace(spaceId)
       await this.requireRepository(spacePath)
       return this.withRepositoryOperationLock(spacePath, async () => {
-        await ensureEidosGraftIgnore(spacePath)
+        await ensureEidosGraftIgnore(spacePath, { appendToExisting: false })
         const before = await this.readStatus(spaceId, spacePath)
         if (before.hasConflicts) {
           throw new Error("Resolve version conflicts before committing")
@@ -1490,7 +1490,7 @@ export class SpaceVersioningCoordinator {
         })
 
         try {
-          await ensureEidosGraftIgnore(spacePath)
+          await ensureEidosGraftIgnore(spacePath, { appendToExisting: false })
           const status = await this.readStatus(spaceId, spacePath)
           if (status.currentHead !== before.currentHead) {
             throw new Error(

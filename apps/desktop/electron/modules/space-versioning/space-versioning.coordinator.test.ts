@@ -1664,7 +1664,17 @@ describe("SpaceVersioningCoordinator.restoreVersion", () => {
       if (args[0] === "restore") {
         // A historical tree can replace an older .graftignore. Eidos must
         // repair its managed block before reading the final status.
-        await fs.writeFile(ignorePath, "user-rule/\n", "utf8")
+        await fs.writeFile(
+          ignorePath,
+          [
+            "user-rule/",
+            "# >>> Eidos managed versioning ignores",
+            "obsolete-eidos-rule/",
+            "# <<< Eidos managed versioning ignores",
+            "",
+          ].join("\n"),
+          "utf8"
+        )
         return {
           operation: "restore",
           current_head: "head-2",
@@ -2107,10 +2117,20 @@ describe("SpaceVersioningCoordinator.commit", () => {
     ])
   })
 
-  it("repairs managed ignores before committing while preserving user rules", async () => {
+  it("refreshes owned managed ignores before committing while preserving user rules", async () => {
     const root = await createSpace()
     const ignorePath = path.join(root, ".graftignore")
-    await fs.writeFile(ignorePath, "user-rule/\n", "utf8")
+    await fs.writeFile(
+      ignorePath,
+      [
+        "user-rule/",
+        "# >>> Eidos managed versioning ignores",
+        "obsolete-eidos-rule/",
+        "# <<< Eidos managed versioning ignores",
+        "",
+      ].join("\n"),
+      "utf8"
+    )
     const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
       if (args[0] === "status") {
         const ignore = await fs.readFile(ignorePath, "utf8")

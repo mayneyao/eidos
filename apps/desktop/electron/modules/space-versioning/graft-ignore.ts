@@ -27,6 +27,10 @@ export interface EidosGraftIgnoreUpdate {
   rollback: () => Promise<void>
 }
 
+export interface EnsureEidosGraftIgnoreOptions {
+  appendToExisting?: boolean
+}
+
 function managedBlock(eol: string): string {
   return [
     EIDOS_GRAFT_IGNORE_START,
@@ -121,7 +125,8 @@ async function writeIgnoreAtomically(
 }
 
 export async function ensureEidosGraftIgnore(
-  spacePath: string
+  spacePath: string,
+  options: EnsureEidosGraftIgnoreOptions = {}
 ): Promise<EidosGraftIgnoreUpdate> {
   const ignorePath = path.join(spacePath, ".graftignore")
   let existing = ""
@@ -140,6 +145,15 @@ export async function ensureEidosGraftIgnore(
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
       throw error
     }
+  }
+
+  if (
+    existed &&
+    options.appendToExisting === false &&
+    (markerLineIndex(existing, EIDOS_GRAFT_IGNORE_START) === -1 ||
+      markerLineIndex(existing, EIDOS_GRAFT_IGNORE_END) === -1)
+  ) {
+    return { changed: false, rollback: async () => undefined }
   }
 
   const next = mergeEidosGraftIgnore(existing)
