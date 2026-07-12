@@ -7,6 +7,7 @@ import {
   BASE_VIEWS_TABLE,
 } from "./constants"
 import { BaseError } from "./errors"
+import { prepareBaseCsvImport } from "./csv"
 import { decodeBaseFilePaths, encodeBaseFilePaths } from "./file-values"
 import { compileBaseFormula, compileBaseFormulaFields } from "./formula"
 import { decodeBaseRelationIds, encodeBaseRelationIds } from "./relation-values"
@@ -29,6 +30,8 @@ import type {
   BaseFieldType,
   BaseFormulaPreview,
   BaseFormulaPreviewInput,
+  BaseCsvImportOptions,
+  BaseCsvImportResult,
   BaseMetadata,
   BaseLookupAggregate,
   BaseRow,
@@ -545,6 +548,36 @@ export class BaseRuntime {
       }
     })
     return this.getTable(tableId)
+  }
+
+  importCsv(
+    file: { name: string; content: string },
+    options: BaseCsvImportOptions = {}
+  ): BaseCsvImportResult {
+    const { plan, rows } = prepareBaseCsvImport(file, options)
+    return this.connection.transaction(() => {
+      const table = this.createTable({
+        name: plan.tableName,
+        fields: plan.columns.flatMap((column) =>
+          column.type === "title"
+            ? []
+            : [
+                {
+                  name: column.name,
+                  columnName: column.columnName,
+                  type: column.type,
+                },
+              ]
+        ),
+      })
+      this.updateField(table.id, "title", { name: plan.columns[0].name })
+      if (rows.length > 0) this.insertImportedRows(table.id, rows)
+      return {
+        table,
+        importedRowCount: rows.length,
+        skippedRowCount: plan.skippedRowCount,
+      }
+    })
   }
 
   updateTable(tableId: string, changes: UpdateBaseTableInput): BaseTableInfo {

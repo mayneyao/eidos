@@ -1051,6 +1051,9 @@ importers:
 
   packages/base:
     dependencies:
+      csv-parse:
+        specifier: ^5.6.0
+        version: 5.6.0
       pgsql-ast-parser:
         specifier: ^11.2.0
         version: 11.2.0

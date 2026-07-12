@@ -114,6 +114,55 @@ export interface CreateBaseTableInput {
   createDefaultView?: boolean
 }
 
+export type BaseCsvFieldType =
+  | "text"
+  | "number"
+  | "checkbox"
+  | "date"
+  | "datetime"
+  | "url"
+
+export interface BaseCsvImportColumn {
+  sourceIndex: number
+  sourceName: string
+  name: string
+  columnName: string
+  type: "title" | BaseCsvFieldType
+}
+
+export interface BaseCsvImportIssue {
+  code: "malformed-row" | "inconsistent-column-count"
+  count: number
+  message: string
+}
+
+export interface BaseCsvImportPlan {
+  fileName: string
+  tableName: string
+  rowCount: number
+  skippedRowCount: number
+  columns: BaseCsvImportColumn[]
+  sampleRows: string[][]
+  issues: BaseCsvImportIssue[]
+}
+
+export interface BaseCsvColumnOverride {
+  sourceIndex: number
+  name?: string
+  type?: BaseCsvFieldType
+}
+
+export interface BaseCsvImportOptions {
+  tableName?: string
+  columns?: BaseCsvColumnOverride[]
+}
+
+export interface BaseCsvImportResult {
+  table: BaseTableInfo
+  importedRowCount: number
+  skippedRowCount: number
+}
+
 export interface UpdateBaseTableInput {
   name?: string
   icon?: string | null
