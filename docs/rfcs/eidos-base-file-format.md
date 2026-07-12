@@ -72,13 +72,23 @@ an entire selection in the renderer. The runtime path is covered with a
 10,000-row fixture. The public runtime now also exposes a migration-oriented
 import boundary for advanced field metadata, views, references, materialized
 derived values, and historical system columns. The legacy migration package
-uses this boundary to produce validated multi-table `main.base` exports. CSV
-import remains.
+uses this boundary to produce validated multi-table `main.base` exports.
 Desktop Settings now
 provides preview, progress, validation issues, export, and open-new-Space UX for
 these legacy exports. Batched imports reuse prepared statements and migration
 reads use a rowid cursor; a real 1,110,847-row export completed in about 15.1
 seconds and passed all Base/count validation.
+
+CSV import is now implemented through the standalone Base package's dedicated
+Node/Desktop entry rather than the browser-safe root entry. The Desktop native
+picker returns an expiring token instead of exposing the source path to the
+renderer. An anchored mapping panel previews sample rows, inferred field types,
+duplicate/blank header normalization, and malformed-row issues. Import creates
+a new table, maps the first column to its title field, allows conservative type
+overrides, batches prepared inserts, and commits table metadata and rows in one
+transaction. The current parser still holds the selected CSV in memory; a
+streaming parser and progress reporting remain hardening work for exceptionally
+large CSV files.
 
 ## Summary
 

@@ -52,7 +52,13 @@ columns；legacy migration package 通过该边界生成经过校验的 multi-ta
 Desktop Settings 已提供这些 legacy exports 的 preview、progress、validation issues、
 export 和 open-new-Space UX。批量导入会复用 prepared statement，迁移读取使用 rowid
 cursor；一个包含 1,110,847 行的真实 Space 约 15.1 秒完成导出并通过全部 Base/count 校验。
-CSV import 仍待实现。
+
+CSV import 已通过独立 Base package 的 Node/Desktop 子入口实现，不会进入 browser-safe
+根入口。Desktop 原生文件选择器只向 renderer 返回有时效的 token，不暴露源文件路径；
+锚定 mapping panel 会展示 sample rows、推断字段类型、重复/空 header 归一化结果和异常行
+提示。导入会创建新 table，将第一列映射为 title field，允许保守的类型覆盖，使用 prepared
+statement 批量写入，并在同一事务中提交 table metadata 与 rows。当前 parser 仍会把选中的
+CSV 保存在内存中；面向超大 CSV 的 streaming parser 和进度反馈仍属于后续 hardening。
 
 ## 摘要
 
