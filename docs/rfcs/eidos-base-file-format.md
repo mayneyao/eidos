@@ -39,7 +39,9 @@ derived values, and historical system columns. The legacy migration package
 uses this boundary to produce validated multi-table `main.base` exports. CSV
 import and richer live formula/lookup semantics remain. Desktop Settings now
 provides preview, progress, validation issues, export, and open-new-Space UX for
-these legacy exports.
+these legacy exports. Batched imports reuse prepared statements and migration
+reads use a rowid cursor; a real 1,110,847-row export completed in about 15.1
+seconds and passed all Base/count validation.
 
 ## Summary
 

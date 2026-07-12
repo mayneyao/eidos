@@ -8,22 +8,26 @@ This directory contains draft RFCs for moving Eidos toward a file-based storage 
 
 ## Implementation Status
 
-| RFC                   | Status                | Current implementation boundary                                                                                                                                        |
-| --------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Space/Base storage    | In progress           | The core file-based vertical slice, standalone Base runtime, and Base-aware diffs work. Migration, remote sync, and file-based extensions remain.                      |
-| Markdown runtime      | Usable vertical slice | Real file tree, direct editing, safe saves, watcher, indexed quick open, wiki-link completion, outline, backlinks, and attachments exist. Persistent indexes remain.   |
-| Graft versioning      | Local workflow usable | Changes, staging, commit, diff, history, restore, and Base table/row inspection work. Remote sync and conflicts remain.                                                |
-| Product UX            | In progress           | Files/Version, Diff/History, contextual Settings, and the paged production Base grid work. Sync and Migration UX remain.                                               |
-| Base format/runtime   | Vertical slice        | The standalone package and paged Grid support primitive editing, table/field lifecycle, choice options, view layout, and batch deletion; CSV and richer fields remain. |
-| File-based extensions | Not started           | The RFC remains the target design.                                                                                                                                     |
-| Legacy migration      | Not started           | Implementation waits for the Base runtime and export format.                                                                                                           |
+| RFC                   | Status                | Current implementation boundary                                                                                                                                      |
+| --------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Space/Base storage    | In progress           | The core file-based vertical slice, standalone Base runtime, Base-aware diffs, and validated legacy export work. Remote sync and file-based extensions remain.       |
+| Markdown runtime      | Usable vertical slice | Real file tree, direct editing, safe saves, watcher, indexed quick open, wiki-link completion, outline, backlinks, and attachments exist. Persistent indexes remain. |
+| Graft versioning      | Local workflow usable | Changes, staging, commit, diff, history, restore, and Base table/row inspection work. Remote sync and conflicts remain.                                              |
+| Product UX            | In progress           | Files/Version, Diff/History, contextual Settings, the paged production Base grid, and legacy Migration Settings work. Sync/conflict UX remains.                      |
+| Base format/runtime   | Vertical slice        | The standalone package and paged Grid support primitive editing, table/field lifecycle, choice options, view layout, batch deletion, and streamed imports.           |
+| File-based extensions | Not started           | The RFC remains the target design.                                                                                                                                   |
+| Legacy migration      | Real exports accepted | Standalone planning, atomic export, Desktop Settings, schema recovery, and 1.1M-row real-Space acceptance are complete; live derived recomputation remains.          |
 
-The implementation order has intentionally changed from Base-first to:
+The implementation order has intentionally changed from Base-first. The first
+four milestones are now complete:
 
 1. finish the Markdown file-based Space vertical slice,
 2. stabilize local Graft versioning,
 3. build the standalone Base package and vertical slice,
-4. add legacy migration, file-based extensions, remote sync, and conflicts.
+4. implement and accept legacy migration exports.
+
+The next order is Markdown desktop acceptance and persistent indexes, then
+remote sync/conflicts, followed by file-based extensions.
 
 Recommended reading order:
 

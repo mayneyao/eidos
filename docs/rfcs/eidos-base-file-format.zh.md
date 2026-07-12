@@ -25,7 +25,9 @@ Base snapshot 现在只携带 row count，Grid 按可见区域请求并缓存 10
 导入高级 field metadata、views、references、materialized derived values 和历史 system
 columns；legacy migration package 通过该边界生成经过校验的 multi-table `main.base`。
 Desktop Settings 已提供这些 legacy exports 的 preview、progress、validation issues、
-export 和 open-new-Space UX。CSV import 和更丰富的实时 formula/lookup 语义仍待实现。
+export 和 open-new-Space UX。批量导入会复用 prepared statement，迁移读取使用 rowid
+cursor；一个包含 1,110,847 行的真实 Space 约 15.1 秒完成导出并通过全部 Base/count 校验。
+CSV import 和更丰富的实时 formula/lookup 语义仍待实现。
 
 ## 摘要
 

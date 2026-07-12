@@ -15,8 +15,10 @@ for the selected SQLite path, then displays table and row operations without
 polluting normal status refreshes. The standalone legacy export runtime can now
 plan and atomically produce validated Markdown + `main.base` + asset Spaces;
 Desktop Settings now exposes that plan/export/validation flow for legacy
-Spaces. Representative real-Space migration acceptance is still pending.
-Remote sync and file-based extensions are not implemented.
+Spaces. Read-only audits can plan every one of the 29 registered legacy Spaces
+whose source database still exists, and representative small, medium, and
+1.1-million-row exports pass end-to-end validation. Remote sync and file-based
+extensions are not implemented.
 
 The phase order in this document is therefore descriptive rather than the
 current execution order. The active order is Markdown Space, local Graft,

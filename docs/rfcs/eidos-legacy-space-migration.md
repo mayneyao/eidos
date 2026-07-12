@@ -1,6 +1,6 @@
 # RFC: Migration From Legacy Eidos Spaces to Space/Base
 
-Status: Draft, export vertical slice implemented
+Status: Draft, real-Space export acceptance passed
 Date: 2026-07-08
 Owner: Eidos
 Related:
@@ -33,10 +33,31 @@ counts and blocking issues, follow export progress, reveal the result, or
 register and open the new file Space. The renderer only receives a plan token;
 it cannot alter the server-side mapping before execution.
 
-The remaining v1 work is acceptance against representative real legacy Spaces,
-richer formula/lookup recomputation semantics, and optional Graft
-initialization. Silent and in-place migration are still not planned for the
-first release.
+Real legacy schemas are recovered without weakening Base identifier rules.
+Unicode, emoji-prefixed, and private underscore field columns receive stable
+ASCII target columns while their source names remain in field and mapping
+metadata. Missing document rows become explicit placeholder Markdown files.
+References to deleted tables are retained in the plan/report and skipped rather
+than violating Base foreign keys. Unsupported field types retain their source
+type metadata and current values as text. Virtual generated columns that depend
+on unavailable legacy SQLite UDFs retain formula metadata but have no fabricated
+materialized value.
+
+The read-only audit covered 42 registered legacy entries: all 29 entries whose
+source database still exists now produce non-blocking plans; the other 13 point
+to missing source paths. Three representative exports passed every document,
+Base, row, field, view, reference, and asset validation:
+
+| Acceptance shape | Documents | Tables | Rows      | Assets | Export time |
+| ---------------- | --------- | ------ | --------- | ------ | ----------- |
+| Small            | 20        | 2      | 124       | 0      | 0.04 s      |
+| Medium           | 1,791     | 35     | 14,244    | 308    | 1.43 s      |
+| Large            | 29        | 18     | 1,110,847 | 9      | 15.08 s     |
+
+The large export used rowid cursor reads and prepared batch inserts, sustaining
+about 73,700 rows/second on the acceptance machine. Remaining v1 enhancements
+are richer live formula/lookup recomputation and optional Graft initialization.
+Silent and in-place migration are still not planned for the first release.
 
 ## Summary
 

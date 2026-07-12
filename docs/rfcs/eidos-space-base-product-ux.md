@@ -27,7 +27,9 @@ rename and delete actions plus select/multi-select option editing only when
 requested.
 
 File-Space Settings separates General, Files/Obsidian, Versioning, and derived
-Indexes controls. Space sync, conflict resolution, and migration UX remain.
+Indexes controls. Legacy-Space Settings also provides server-owned migration
+preview, progress, validation, reveal, and open-new-Space actions. Space sync
+and conflict resolution UX remain.
 
 ## Summary
 

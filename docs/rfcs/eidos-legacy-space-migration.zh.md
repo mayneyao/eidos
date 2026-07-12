@@ -1,6 +1,6 @@
 # RFC：从 Legacy Eidos Space 迁移到 Space/Base
 
-状态：草案，导出垂直切片已实现
+状态：草案，真实 Space 导出验收通过
 日期：2026-07-08
 负责人：Eidos
 相关文档：
@@ -29,9 +29,26 @@ Desktop Settings 现在为 legacy Space 提供独立 Migration section，展示�
 在文件管理器中显示结果，或者注册并打开新的 file Space。Renderer 只持有 plan token，
 执行前不能篡改 server-side mapping。
 
-v1 剩余工作是使用有代表性的真实 legacy Spaces 做 acceptance、补齐更丰富的
-formula/lookup recomputation semantics，以及可选的 Graft 初始化。第一版仍不规划 silent
-migration 或 in-place migration。
+真实 legacy schema 的恢复不会放宽 Base identifier 规则。中文、emoji 前缀和私有下划线
+field column 会得到稳定的 ASCII target column，原列名保留在 field 与 mapping metadata。
+缺少正文 row 的 tree document 会生成明确的 Markdown 占位文件。指向已删除 table 的
+reference 会保留在 plan/report 中并跳过安装，避免破坏 Base foreign key。未知 field type
+保留 source type metadata，并按 text 保存当前值。依赖旧 SQLite UDF 的 virtual generated
+column 会保留 formula metadata，但不会伪造 materialized value。
+
+只读审计覆盖 42 个注册 legacy entries：29 个仍存在 source database 的 Space 全部可以生成
+无阻塞 plan；另外 13 个注册项的 source path 已不存在。三个有代表性的真实导出全部通过
+document、Base、row、field、view、reference 和 asset 校验：
+
+| 验收规模 | Documents | Tables | Rows      | Assets | Export time |
+| -------- | --------- | ------ | --------- | ------ | ----------- |
+| 小型     | 20        | 2      | 124       | 0      | 0.04 s      |
+| 中型     | 1,791     | 35     | 14,244    | 308    | 1.43 s      |
+| 大型     | 29        | 18     | 1,110,847 | 9      | 15.08 s     |
+
+大型导出使用 rowid cursor 读取和 prepared batch insert，在验收机器上约为每秒 73,700 行。
+v1 剩余增强是更丰富的实时 formula/lookup recomputation，以及可选的 Graft 初始化。第一版
+仍不规划 silent migration 或 in-place migration。
 
 ## 摘要
 

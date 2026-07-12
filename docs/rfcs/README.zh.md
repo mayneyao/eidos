@@ -8,22 +8,25 @@
 
 ## 实施状态
 
-| RFC               | 状态         | 当前实现边界                                                                                                                           |
-| ----------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Space/Base 存储   | 实施中       | file-based 核心垂直切片、独立 Base runtime 和 Base-aware diff 已跑通；migration、remote sync 和文件化扩展仍待实现。                    |
-| Markdown runtime  | 垂直切片可用 | 已有真实文件树、直接编辑、安全保存、watcher、indexed quick open、wiki-link completion、outline、backlinks 和附件；持久索引仍待实现。   |
-| Graft 版本管理    | 本地链路可用 | Changes、staging、commit、diff、history、restore 和 Base table/row inspection 已跑通；remote sync 和 conflicts 仍待实现。              |
-| 产品 UX           | 实施中       | Files/Version、Diff/History、上下文 Settings 和分页正式 Base grid 已可用；Sync 和 Migration UX 仍待实现。                              |
-| Base 格式/runtime | 垂直切片     | 独立 package 和分页 Grid 已支持 primitive 编辑、table/field 生命周期、choice options、view layout 与批量删除；CSV 和丰富字段仍待实现。 |
-| 文件化扩展        | 未开始       | RFC 仍是目标设计。                                                                                                                     |
-| Legacy migration  | 未开始       | 等待 Base runtime 和导出格式稳定。                                                                                                     |
+| RFC               | 状态         | 当前实现边界                                                                                                                          |
+| ----------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Space/Base 存储   | 实施中       | file-based 核心垂直切片、独立 Base runtime、Base-aware diff 和经过真实验收的 legacy export 已跑通；remote sync 和文件化扩展仍待实现。 |
+| Markdown runtime  | 垂直切片可用 | 已有真实文件树、直接编辑、安全保存、watcher、indexed quick open、wiki-link completion、outline、backlinks 和附件；持久索引仍待实现。  |
+| Graft 版本管理    | 本地链路可用 | Changes、staging、commit、diff、history、restore 和 Base table/row inspection 已跑通；remote sync 和 conflicts 仍待实现。             |
+| 产品 UX           | 实施中       | Files/Version、Diff/History、上下文 Settings、分页正式 Base grid 和 Legacy Migration Settings 已可用；Sync/conflict UX 仍待实现。     |
+| Base 格式/runtime | 垂直切片     | 独立 package 和分页 Grid 已支持 primitive 编辑、table/field 生命周期、choice options、view layout、批量删除与流式导入。               |
+| 文件化扩展        | 未开始       | RFC 仍是目标设计。                                                                                                                    |
+| Legacy migration  | 真实导出通过 | 独立 planning、原子 export、Desktop Settings、schema recovery 和 111 万行真实 Space 验收已完成；实时派生字段重算仍待实现。            |
 
-实施顺序已经从 Base-first 调整为：
+实施顺序已经从 Base-first 调整，前四个 milestones 现已完成：
 
 1. 完成 Markdown file-based Space 垂直切片，
 2. 稳定本地 Graft 版本管理，
 3. 构建独立 Base package 和垂直切片，
-4. 再实现 legacy migration、文件化扩展、remote sync 和 conflicts。
+4. 实现并验收 legacy migration exports。
+
+下一顺序是 Markdown desktop acceptance 与持久索引，然后是 remote sync/conflicts，最后是
+文件化扩展。
 
 推荐阅读顺序：
 

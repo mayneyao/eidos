@@ -24,7 +24,8 @@ cell edit、持久化 column layout 和基于 compact ranges 的批量删行。w
 table/field rename/delete 与 select/multi-select options 编辑。
 
 file Space Settings 已拆分为 General、Files/Obsidian、Versioning 和派生 Indexes；
-Space sync、conflict resolution 和 migration UX 仍待实现。
+legacy Space Settings 也已提供 server-owned migration preview、progress、validation、
+reveal 和 open-new-Space actions。Space sync 与 conflict resolution UX 仍待实现。
 
 ## 摘要
 
