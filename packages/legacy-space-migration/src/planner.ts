@@ -2,6 +2,7 @@ import type {
   LegacyAsset,
   LegacySpaceMigrationPlan,
   LegacySpaceSnapshot,
+  LegacyTable,
   LegacyTreeNode,
   MigrationIssue,
   MigrationMapping,
@@ -60,6 +61,71 @@ const SUPPORTED_FIELD_TYPES = new Set([
 
 const SAFE_TABLE_ID = /^[A-Za-z0-9_]+$/
 const SAFE_FIELD_COLUMN = /^[A-Za-z_][A-Za-z0-9_]*$/
+const SYSTEM_FIELD_COLUMNS = new Set([
+  "_id",
+  "title",
+  "_created_time",
+  "_last_edited_time",
+  "_created_by",
+  "_last_edited_by",
+])
+
+function stableHash(value: string): string {
+  let hash = 0x811c9dc5
+  for (const character of value) {
+    hash ^= character.codePointAt(0) ?? 0
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0")
+}
+
+function isSafeFieldColumn(value: string): boolean {
+  return (
+    SYSTEM_FIELD_COLUMNS.has(value) ||
+    (SAFE_FIELD_COLUMN.test(value) && !value.startsWith("_"))
+  )
+}
+
+function allocateFieldColumns(table: LegacyTable) {
+  const allocated = new Set([
+    ...SYSTEM_FIELD_COLUMNS,
+    ...table.fields.map((field) => field.columnName).filter(isSafeFieldColumn),
+  ])
+  return table.fields.map((field) => {
+    if (isSafeFieldColumn(field.columnName)) {
+      return {
+        sourceColumnName: field.columnName,
+        targetColumnName: field.columnName,
+      }
+    }
+    const normalized = field.columnName
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^A-Za-z0-9_]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .toLowerCase()
+    const stem = normalized
+      ? /^[0-9]/.test(normalized)
+        ? `field_${normalized}`
+        : normalized
+      : `field_${stableHash(field.columnName)}`
+    let targetColumnName = stem
+    if (allocated.has(targetColumnName)) {
+      targetColumnName = `${stem}_${stableHash(field.columnName)}`
+    }
+    let counter = 2
+    const baseCandidate = targetColumnName
+    while (allocated.has(targetColumnName)) {
+      targetColumnName = `${baseCandidate}_${counter}`
+      counter += 1
+    }
+    allocated.add(targetColumnName)
+    return {
+      sourceColumnName: field.columnName,
+      targetColumnName,
+    }
+  })
+}
 
 function normalizeRelativeDirectory(value: string, fallback: string): string {
   const segments = value
@@ -287,9 +353,9 @@ export function planLegacySpaceMigration(
       )
       if (!source) {
         issues.push({
-          severity: "error",
+          severity: "warning",
           code: "document-body-missing",
-          message: `Document body is missing for ${node.name}`,
+          message: `Document body is missing for ${node.name}; an explanatory placeholder will be exported`,
           sourceId: node.id,
         })
       } else if (source.markdown === null) {
@@ -309,6 +375,7 @@ export function planLegacySpaceMigration(
           source?.markdown !== null && source?.markdown !== undefined,
         hasLexicalState:
           source?.lexicalState !== null && source?.lexicalState !== undefined,
+        sourceMissing: source === undefined,
         createdAt: source?.createdAt ?? node.createdAt,
         updatedAt: source?.updatedAt ?? node.updatedAt,
       }
@@ -347,6 +414,7 @@ export function planLegacySpaceMigration(
       targetPath,
       hasMarkdown: document.markdown !== null,
       hasLexicalState: document.lexicalState !== null,
+      sourceMissing: false,
       createdAt: document.createdAt,
       updatedAt: document.updatedAt,
     })
@@ -373,6 +441,29 @@ export function planLegacySpaceMigration(
     }
   }
 
+  const sourceTablesByRawName = new Map(
+    snapshot.tables.map((table) => [table.rawTableName, table])
+  )
+  const invalidReferenceParticipant = (
+    reference: LegacyTable["references"][number]
+  ) => {
+    const participants = [
+      [reference.selfTableName, reference.selfColumnName],
+      [reference.refTableName, reference.refColumnName],
+      [reference.linkTableName, reference.linkColumnName],
+    ] as const
+    return participants.find(([tableName, columnName]) => {
+      const participantTable = sourceTablesByRawName.get(tableName)
+      return (
+        !participantTable ||
+        (!SYSTEM_FIELD_COLUMNS.has(columnName) &&
+          !participantTable.fields.some(
+            (field) => field.columnName === columnName
+          ))
+      )
+    })
+  }
+
   const tables: PlannedTable[] = [...snapshot.tables]
     .sort((left, right) => {
       const leftPosition = left.position ?? Number.MAX_SAFE_INTEGER
@@ -388,28 +479,31 @@ export function planLegacySpaceMigration(
           sourceId: table.id,
         })
       }
-      for (const field of table.fields) {
-        if (
-          !SAFE_FIELD_COLUMN.test(field.columnName) ||
-          (field.columnName.startsWith("_") &&
-            field.columnName !== "_id" &&
-            field.columnName !== "_created_time" &&
-            field.columnName !== "_last_edited_time" &&
-            field.columnName !== "_created_by" &&
-            field.columnName !== "_last_edited_by")
-        ) {
+      const plannedFields = allocateFieldColumns(table)
+      const references = table.references.filter(
+        (reference) => !invalidReferenceParticipant(reference)
+      )
+      for (const [index, field] of table.fields.entries()) {
+        const plannedField = plannedFields[index]
+        if (field.columnName !== plannedField.targetColumnName) {
           issues.push({
-            severity: "error",
-            code: "field-column-invalid",
-            message: `Field ${table.name}.${field.name} has a column name that cannot be preserved in Base: ${field.columnName}`,
+            severity: "warning",
+            code: "field-column-remapped",
+            message: `Field ${table.name}.${field.name} will use Base column ${plannedField.targetColumnName}; its source column was ${field.columnName}`,
             sourceId: table.id,
           })
         }
+        mappings.push({
+          kind: "field",
+          sourceId: `${table.id}:${field.columnName}`,
+          sourcePath: `${table.rawTableName}.${field.columnName}`,
+          targetPath: `${basePath}#${table.id}.${plannedField.targetColumnName}`,
+        })
         if (!SUPPORTED_FIELD_TYPES.has(field.type)) {
           issues.push({
             severity: "warning",
             code: "unsupported-field-type",
-            message: `Field ${table.name}.${field.name} uses unsupported type ${field.type}`,
+            message: `Field ${table.name}.${field.name} uses unsupported type ${field.type}; current values will be imported as text and the source type will be retained in migration metadata`,
             sourceId: table.id,
           })
         }
@@ -430,36 +524,20 @@ export function planLegacySpaceMigration(
         rowCount: table.rowCount,
         fieldCount: table.fields.length,
         viewCount: table.views.length,
-        referenceCount: table.references.length,
+        referenceCount: references.length,
+        fields: plannedFields,
+        references,
       }
     })
 
-  const sourceTablesByRawName = new Map(
-    snapshot.tables.map((table) => [table.rawTableName, table])
-  )
   for (const table of snapshot.tables) {
     for (const reference of table.references) {
-      const participants = [
-        [reference.selfTableName, reference.selfColumnName],
-        [reference.refTableName, reference.refColumnName],
-        [reference.linkTableName, reference.linkColumnName],
-      ] as const
-      const invalidParticipant = participants.find(
-        ([tableName, columnName]) => {
-          const participantTable = sourceTablesByRawName.get(tableName)
-          return (
-            !participantTable ||
-            !participantTable.fields.some(
-              (field) => field.columnName === columnName
-            )
-          )
-        }
-      )
+      const invalidParticipant = invalidReferenceParticipant(reference)
       if (invalidParticipant) {
         issues.push({
-          severity: "error",
-          code: "reference-invalid",
-          message: `Reference ${reference.selfTableName}.${reference.selfColumnName} points to missing field ${invalidParticipant[0]}.${invalidParticipant[1]}`,
+          severity: "warning",
+          code: "dangling-reference-skipped",
+          message: `Reference ${reference.selfTableName}.${reference.selfColumnName} points to missing field ${invalidParticipant[0]}.${invalidParticipant[1]} and will be preserved in the migration plan but not installed into Base`,
           sourceId: table.id,
         })
       }
@@ -471,6 +549,11 @@ export function planLegacySpaceMigration(
     (issue) => issue.severity === "warning"
   ).length
   const errorCount = issues.filter((issue) => issue.severity === "error").length
+  const skippedReferences = snapshot.tables.flatMap((table) =>
+    table.references.filter((reference) =>
+      Boolean(invalidReferenceParticipant(reference))
+    )
+  )
 
   return {
     format: "eidos-legacy-space-migration-plan",
@@ -482,6 +565,7 @@ export function planLegacySpaceMigration(
     basePath,
     documents,
     tables,
+    skippedReferences,
     assets,
     mappings,
     issues,
@@ -495,6 +579,7 @@ export function planLegacySpaceMigration(
         (count, table) => count + table.referenceCount,
         0
       ),
+      skippedReferenceCount: skippedReferences.length,
       assetCount: assets.length,
       missingAssetCount: assets.filter((asset) => !asset.exists).length,
       warningCount,

@@ -322,12 +322,148 @@ describe("legacy Space migration planning", () => {
       missingAssetCount: 1,
       errorCount: 0,
     })
-    expect(plan.mappings).toHaveLength(7)
+    expect(plan.mappings).toHaveLength(10)
     expect(
       planLegacySpaceMigration(snapshot, {
         targetRoot: "/tmp/exported-space",
       })
     ).toEqual(plan)
+  })
+
+  it("remaps legacy field identifiers, system references, and missing bodies without data loss", async () => {
+    const fixture = createLegacyFixture()
+    roots.push(fixture.sourceRoot)
+    const database = new Database(fixture.databasePath)
+    database.exec(`
+      ALTER TABLE tb_tasks ADD COLUMN "文本" TEXT;
+      ALTER TABLE tb_tasks ADD COLUMN phys_attack TEXT;
+      ALTER TABLE tb_tasks ADD COLUMN "⚔️phys_attack" TEXT;
+      ALTER TABLE tb_tasks ADD COLUMN "_original_title" TEXT;
+      ALTER TABLE tb_tasks ADD COLUMN mystery TEXT;
+    `)
+    const insertField = database.prepare(
+      `INSERT INTO eidos__columns
+        (name, type, table_name, table_column_name, property)
+       VALUES (?, ?, 'tb_tasks', ?, ?)`
+    )
+    insertField.run("文本", "text", "文本", "{}")
+    insertField.run("Physical", "number", "phys_attack", null)
+    insertField.run("⚔️ Physical", "number", "⚔️phys_attack", null)
+    insertField.run("Original title", "text", "_original_title", null)
+    insertField.run("Mystery", "currency", "mystery", '{"unit":"USD"}')
+    database
+      .prepare(
+        `UPDATE tb_tasks
+            SET "文本" = ?, phys_attack = ?, "⚔️phys_attack" = ?, "_original_title" = ?, mystery = ?
+          WHERE _id = ?`
+      )
+      .run("中文值", 10, 20, "Legacy", "12.50", "row-1")
+    database
+      .prepare(
+        `UPDATE eidos__views
+            SET query = ?, properties = ?, order_map = ?, hidden_fields = ?
+          WHERE id = 'view-tasks'`
+      )
+      .run(
+        `SELECT "文本", ⚔️phys_attack FROM tb_tasks WHERE title <> '文本'`,
+        JSON.stringify({ fieldWidthMap: { 文本: 180 } }),
+        JSON.stringify({ title: 0, 文本: 1, "⚔️phys_attack": 2 }),
+        JSON.stringify(["文本"])
+      )
+    database
+      .prepare(
+        `INSERT INTO eidos__references
+          (self_table_name, self_table_column_name,
+           ref_table_name, ref_table_column_name,
+           link_table_name, link_table_column_name)
+         VALUES ('tb_tasks', 'attachment', 'tb_tasks', 'title', 'tb_tasks', 'status')`
+      )
+      .run()
+    database
+      .prepare(
+        `INSERT INTO eidos__tree
+          (id, name, type, parent_id, position, icon, is_deleted, created_at, updated_at)
+         VALUES ('missing-doc', 'Missing body', 'doc', null, 20, null, 0, null, null)`
+      )
+      .run()
+    database.close()
+
+    const targetParent = mkdtempSync(path.join(tmpdir(), "eidos-remap-target-"))
+    roots.push(targetParent)
+    const targetRoot = path.join(targetParent, "export")
+    const plan = planLegacySpaceMigration(
+      inspectLegacySpace(fixture.sourceRoot),
+      { targetRoot }
+    )
+    const plannedTable = plan.tables.find((table) => table.id === "tasks")!
+    const fieldMap = new Map(
+      plannedTable.fields.map((field) => [
+        field.sourceColumnName,
+        field.targetColumnName,
+      ])
+    )
+
+    expect(plan.summary.errorCount).toBe(0)
+    expect(plan.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "warning",
+          code: "field-column-remapped",
+        }),
+        expect.objectContaining({
+          severity: "warning",
+          code: "document-body-missing",
+          sourceId: "missing-doc",
+        }),
+        expect.objectContaining({
+          severity: "warning",
+          code: "unsupported-field-type",
+        }),
+      ])
+    )
+    expect(fieldMap.get("文本")).toMatch(/^field_[a-f0-9]{8}$/)
+    expect(fieldMap.get("⚔️phys_attack")).toMatch(/^phys_attack_[a-f0-9]{8}$/)
+    expect(fieldMap.get("_original_title")).toBe("original_title")
+
+    const result = await exportLegacySpace(plan, {
+      migrationId: "remap-export",
+    })
+    expect(result.exportedReferenceCount).toBe(1)
+    expect(
+      readFileSync(path.join(targetRoot, "notes", "Missing body.md"), "utf8")
+    ).toContain("no document body was present")
+
+    const base = openBaseFile(path.join(targetRoot, "main.base"), {
+      readonly: true,
+    })
+    const row = base.listRows("tasks")[0]
+    expect(row[fieldMap.get("文本")!]).toBe("中文值")
+    expect(row[fieldMap.get("⚔️phys_attack")!]).toBe(20)
+    expect(row.original_title).toBe("Legacy")
+    expect(
+      base
+        .listFields("tasks")
+        .find((field) => field.tableColumnName === "original_title")
+    ).toMatchObject({ sourceTableColumnName: "_original_title" })
+    expect(
+      base
+        .listFields("tasks")
+        .find((field) => field.tableColumnName === "mystery")
+    ).toMatchObject({
+      type: "text",
+      property: {
+        unit: "USD",
+        eidosMigration: { sourceFieldType: "currency" },
+      },
+    })
+    expect(base.listViews("tasks")[0]).toMatchObject({
+      query: expect.stringContaining(fieldMap.get("文本")!),
+      properties: { fieldWidthMap: { [fieldMap.get("文本")!]: 180 } },
+      orderMap: expect.objectContaining({ [fieldMap.get("文本")!]: 1 }),
+      hiddenFields: [fieldMap.get("文本")!],
+    })
+    expect(base.listViews("tasks")[0].query).toContain("'文本'")
+    base.close()
   })
 
   it("reports an invalid legacy schema instead of guessing", () => {

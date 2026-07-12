@@ -122,8 +122,14 @@ export interface PlannedDocument {
   targetPath: string
   hasMarkdown: boolean
   hasLexicalState: boolean
+  sourceMissing: boolean
   createdAt: string | null
   updatedAt: string | null
+}
+
+export interface PlannedField {
+  sourceColumnName: string
+  targetColumnName: string
 }
 
 export interface PlannedTable {
@@ -134,6 +140,8 @@ export interface PlannedTable {
   fieldCount: number
   viewCount: number
   referenceCount: number
+  fields: PlannedField[]
+  references: LegacyReference[]
 }
 
 export interface PlannedAsset {
@@ -147,7 +155,7 @@ export interface PlannedAsset {
 }
 
 export interface MigrationMapping {
-  kind: "document" | "table" | "asset"
+  kind: "document" | "table" | "field" | "asset"
   sourceId: string
   sourcePath?: string
   targetPath: string
@@ -160,6 +168,7 @@ export interface MigrationPlanSummary {
   fieldCount: number
   viewCount: number
   referenceCount: number
+  skippedReferenceCount: number
   assetCount: number
   missingAssetCount: number
   warningCount: number
@@ -176,6 +185,7 @@ export interface LegacySpaceMigrationPlan {
   basePath: string
   documents: PlannedDocument[]
   tables: PlannedTable[]
+  skippedReferences: LegacyReference[]
   assets: PlannedAsset[]
   mappings: MigrationMapping[]
   issues: MigrationIssue[]
@@ -237,6 +247,7 @@ export interface LegacySpaceMigrationResult {
   exportedFieldCount: number
   exportedViewCount: number
   exportedReferenceCount: number
+  skippedReferenceCount: number
   copiedAssetCount: number
   recoveredLexicalDocumentCount: number
   validation: MigrationExportValidation

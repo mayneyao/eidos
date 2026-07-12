@@ -36,6 +36,7 @@ import type {
   LegacySpaceSnapshot,
   MigrationExportProgress,
   MigrationIssue,
+  PlannedTable,
 } from "./types"
 
 const BASE_FIELD_TYPES = new Set<BaseFieldType>([
@@ -58,6 +59,14 @@ const BASE_FIELD_TYPES = new Set<BaseFieldType>([
   "last-edited-time",
   "last-edited-by",
   "row-id",
+])
+const BASE_SYSTEM_COLUMNS = new Set([
+  "_id",
+  "title",
+  "_created_time",
+  "_last_edited_time",
+  "_created_by",
+  "_last_edited_by",
 ])
 
 function emitProgress(
@@ -147,6 +156,111 @@ function rewriteMarkdownAssets(
   )
 }
 
+function fieldColumnMap(table: PlannedTable): Map<string, string> {
+  return new Map(
+    table.fields.map((field) => [
+      field.sourceColumnName,
+      field.targetColumnName,
+    ])
+  )
+}
+
+function rewriteExpressionIdentifiers(
+  value: string,
+  fieldMap: Map<string, string>
+): string {
+  const remapped = [...fieldMap].filter(([source, target]) => source !== target)
+  if (remapped.length === 0) return value
+  let result = ""
+  for (let index = 0; index < value.length; ) {
+    const character = value[index]
+    if (character === "'") {
+      const start = index
+      index += 1
+      while (index < value.length) {
+        if (value[index] !== "'") {
+          index += 1
+          continue
+        }
+        index += 1
+        if (value[index] === "'") index += 1
+        else break
+      }
+      result += value.slice(start, index)
+      continue
+    }
+    if (character === '"' || character === "`" || character === "[") {
+      const closing = character === "[" ? "]" : character
+      const start = index
+      index += 1
+      let identifier = ""
+      while (index < value.length) {
+        if (
+          closing !== "]" &&
+          value[index] === closing &&
+          value[index + 1] === closing
+        ) {
+          identifier += closing
+          index += 2
+          continue
+        }
+        if (value[index] === closing) break
+        identifier += value[index]
+        index += 1
+      }
+      if (index >= value.length) {
+        result += value.slice(start)
+        break
+      }
+      index += 1
+      const target = fieldMap.get(identifier)
+      if (!target) {
+        result += value.slice(start, index)
+      } else if (character === "[") {
+        result += `[${target}]`
+      } else {
+        result += `${character}${target.split(closing).join(closing + closing)}${closing}`
+      }
+      continue
+    }
+    const match = remapped.find(([source]) => {
+      if (!value.startsWith(source, index)) return false
+      const previous = index === 0 ? "" : value[index - 1]
+      const next = value[index + source.length] ?? ""
+      return !/[A-Za-z0-9_]/.test(previous) && !/[A-Za-z0-9_]/.test(next)
+    })
+    if (match) {
+      result += match[1]
+      index += match[0].length
+      continue
+    }
+    result += character
+    index += 1
+  }
+  return result
+}
+
+function remapFieldMetadata(
+  value: unknown,
+  fieldMap: Map<string, string>
+): unknown {
+  if (typeof value === "string") {
+    return rewriteExpressionIdentifiers(fieldMap.get(value) ?? value, fieldMap)
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => remapFieldMetadata(item, fieldMap))
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [
+        fieldMap.get(key) ?? key,
+        remapFieldMetadata(child, fieldMap),
+      ])
+    )
+  }
+  return value
+}
+
 function mergeDocumentProperties(
   markdown: string,
   properties: Record<string, unknown>
@@ -223,7 +337,7 @@ function storageCodecForField(field: LegacyField): BaseStorageCodec {
 }
 
 function valueKindForField(field: LegacyField): BaseValueKind {
-  if (field.type === "row-id" || field.columnName.startsWith("_")) {
+  if (field.type === "row-id" || BASE_SYSTEM_COLUMNS.has(field.columnName)) {
     return "system"
   }
   if (field.type === "link") return "relation"
@@ -233,13 +347,27 @@ function valueKindForField(field: LegacyField): BaseValueKind {
   return "source"
 }
 
-function assertFieldType(field: LegacyField): BaseFieldType {
-  if (!BASE_FIELD_TYPES.has(field.type as BaseFieldType)) {
-    throw new Error(
-      `Unsupported legacy field type ${field.type} for ${field.tableName}.${field.columnName}`
-    )
+function baseFieldTypeForLegacyField(field: LegacyField): BaseFieldType {
+  return BASE_FIELD_TYPES.has(field.type as BaseFieldType)
+    ? (field.type as BaseFieldType)
+    : "text"
+}
+
+function importedFieldProperty(
+  field: LegacyField,
+  fieldMap: Map<string, string>
+): Record<string, unknown> | null {
+  const property = remapFieldMetadata(field.property, fieldMap) as Record<
+    string,
+    unknown
+  > | null
+  if (BASE_FIELD_TYPES.has(field.type as BaseFieldType)) return property
+  return {
+    ...(property ?? {}),
+    eidosMigration: {
+      sourceFieldType: field.type,
+    },
   }
-  return field.type as BaseFieldType
 }
 
 function isInside(parent: string, candidate: string): boolean {
@@ -346,6 +474,7 @@ function serializeReport(result: LegacySpaceMigrationResult): string {
 - Fields: ${result.exportedFieldCount}
 - Views: ${result.exportedViewCount}
 - References: ${result.exportedReferenceCount}
+- Dangling references skipped: ${result.skippedReferenceCount}
 - Assets copied: ${result.copiedAssetCount}
 - Lexical recovery files: ${result.recoveredLexicalDocumentCount}
 - Warnings: ${warnings.length}
@@ -459,15 +588,12 @@ export async function exportLegacySpace(
   try {
     for (const [index, document] of plan.documents.entries()) {
       const sourceDocument = snapshotDocuments.get(document.id)
-      if (!sourceDocument) {
-        throw new Error(
-          `Legacy document disappeared after planning: ${document.id}`
-        )
-      }
       const outputPath = resolveOutputPath(stagingRoot, document.targetPath)
       await mkdir(path.dirname(outputPath), { recursive: true })
-      let markdown = sourceDocument.markdown
-      if (markdown === null) {
+      let markdown = sourceDocument?.markdown ?? null
+      if (!sourceDocument) {
+        markdown = `<!-- Eidos migration: this document existed in the legacy tree, but no document body was present in eidos__docs. Source node: ${document.id}. -->\n`
+      } else if (markdown === null) {
         const recoveryName = `${sanitizePathSegment(document.id)}.lexical.json`
         markdown = `<!-- Eidos migration: Markdown was unavailable. The original Lexical state is preserved in .eidos/migration/${migrationId}/recovery/${recoveryName}. -->\n`
         const recoveryPath = resolveOutputPath(
@@ -484,7 +610,7 @@ export async function exportLegacySpace(
       }
       const mergedProperties = mergeDocumentProperties(
         markdown,
-        sourceDocument.properties
+        sourceDocument?.properties ?? {}
       )
       markdown = mergedProperties.markdown
       if (mergedProperties.recovery) {
@@ -544,19 +670,31 @@ export async function exportLegacySpace(
         icon: sourceTable.icon ?? undefined,
         createDefaultView: false,
       })
+      const columnMap = fieldColumnMap(plannedTable)
       for (const field of sourceTable.fields) {
-        const type = assertFieldType(field)
+        const type = baseFieldTypeForLegacyField(field)
+        const targetColumnName = columnMap.get(field.columnName)
+        if (!targetColumnName) {
+          throw new Error(
+            `Migration plan is missing field mapping for ${sourceTable.rawTableName}.${field.columnName}`
+          )
+        }
         baseRuntime.importField(sourceTable.id, {
           name: field.name,
-          columnName: field.columnName,
+          columnName: targetColumnName,
           type,
-          property: field.property,
+          property: importedFieldProperty(field, columnMap),
           storageCodec: storageCodecForField(field),
           valueKind: valueKindForField(field),
           isHidden:
-            field.columnName === "_id" || field.columnName.startsWith("_"),
+            field.columnName.startsWith("_") ||
+            targetColumnName.startsWith("_"),
           isDerived: field.type === "formula" || field.type === "lookup",
-          dependsOn: field.property?.dependsOn,
+          sourceTableColumnName:
+            targetColumnName === field.columnName
+              ? undefined
+              : field.columnName,
+          dependsOn: remapFieldMetadata(field.property?.dependsOn, columnMap),
         })
         exportedFieldCount += 1
       }
@@ -565,11 +703,20 @@ export async function exportLegacySpace(
           id: view.id,
           name: view.name,
           type: view.type,
-          query: view.query,
-          properties: view.properties,
-          filter: view.filter,
-          orderMap: view.orderMap,
-          hiddenFields: view.hiddenFields,
+          query: rewriteExpressionIdentifiers(view.query, columnMap),
+          properties: remapFieldMetadata(view.properties, columnMap) as Record<
+            string,
+            unknown
+          > | null,
+          filter: remapFieldMetadata(view.filter, columnMap),
+          orderMap: remapFieldMetadata(view.orderMap, columnMap) as Record<
+            string,
+            number
+          > | null,
+          hiddenFields: remapFieldMetadata(
+            view.hiddenFields,
+            columnMap
+          ) as string[],
           position: view.position,
         })
         exportedViewCount += 1
@@ -577,7 +724,7 @@ export async function exportLegacySpace(
       const fileColumns = new Set(
         sourceTable.fields
           .filter((field) => field.type === "file")
-          .map((field) => field.columnName)
+          .map((field) => columnMap.get(field.columnName) ?? field.columnName)
       )
       const batchSize = Math.min(
         2_000,
@@ -591,7 +738,12 @@ export async function exportLegacySpace(
           batchSize
         )
         const rewrittenRows = rows.map((row) => {
-          const rewritten = { ...row }
+          const rewritten = Object.fromEntries(
+            Object.entries(row).map(([columnName, value]) => [
+              columnMap.get(columnName) ?? columnName,
+              value,
+            ])
+          ) as BaseRow
           for (const columnName of fileColumns) {
             rewritten[columnName] = rewriteFileValue(
               rewritten[columnName],
@@ -611,15 +763,28 @@ export async function exportLegacySpace(
         currentPath: `${plan.basePath}#${sourceTable.id}`,
       })
     }
-    for (const sourceTable of snapshot.tables) {
-      for (const reference of sourceTable.references) {
+    for (const selfPlan of plan.tables) {
+      for (const reference of selfPlan.references) {
+        const refTableId = sourceTableId(reference.refTableName)
+        const linkTableId = sourceTableId(reference.linkTableName)
+        const refPlan = plan.tables.find((table) => table.id === refTableId)
+        const linkPlan = plan.tables.find((table) => table.id === linkTableId)
+        if (!refPlan || !linkPlan) {
+          throw new Error("Migration plan is missing a referenced Base table")
+        }
         baseRuntime.createReference({
-          selfTableId: sourceTableId(reference.selfTableName),
-          selfColumnName: reference.selfColumnName,
-          refTableId: sourceTableId(reference.refTableName),
-          refColumnName: reference.refColumnName,
-          linkTableId: sourceTableId(reference.linkTableName),
-          linkColumnName: reference.linkColumnName,
+          selfTableId: selfPlan.id,
+          selfColumnName:
+            fieldColumnMap(selfPlan).get(reference.selfColumnName) ??
+            reference.selfColumnName,
+          refTableId,
+          refColumnName:
+            fieldColumnMap(refPlan).get(reference.refColumnName) ??
+            reference.refColumnName,
+          linkTableId,
+          linkColumnName:
+            fieldColumnMap(linkPlan).get(reference.linkColumnName) ??
+            reference.linkColumnName,
         })
       }
     }
@@ -656,7 +821,9 @@ export async function exportLegacySpace(
       0
     )
     const expectedFields = snapshot.tables.flatMap((table) =>
-      table.fields.map((field) => `${table.id}.${field.columnName}`)
+      (
+        plan.tables.find((planned) => planned.id === table.id)?.fields ?? []
+      ).map((field) => `${table.id}.${field.targetColumnName}`)
     )
     const outputFields = new Set(
       outputTables.flatMap((table) =>
@@ -737,6 +904,7 @@ export async function exportLegacySpace(
       exportedFieldCount,
       exportedViewCount,
       exportedReferenceCount: actualReferenceCount,
+      skippedReferenceCount: plan.summary.skippedReferenceCount,
       copiedAssetCount,
       recoveredLexicalDocumentCount,
       validation,
