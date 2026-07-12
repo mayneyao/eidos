@@ -18,6 +18,7 @@
     "package:dev": "cross-env BUILD_MODE=1 electron-builder --publish never --config electron/electron-builder.dev.json",
     "build:cli": "node scripts/build-cli-local.cjs",
     "smoke:base-versioning": "pnpm --filter @eidos.space/base build && cross-env ELECTRON_RUN_AS_NODE=1 SQLITE_USE_URI=1 electron scripts/base-versioning-smoke.mjs",
+    "smoke:graft-remote": "cross-env ELECTRON_RUN_AS_NODE=1 SQLITE_USE_URI=1 electron scripts/graft-versioning-smoke.cjs remote-conflict",
     "audit:legacy-migration": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/legacy-migration-audit.mjs",
     "smoke:legacy-migration": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/legacy-migration-smoke.mjs",
     "typecheck": "tsc --noEmit",

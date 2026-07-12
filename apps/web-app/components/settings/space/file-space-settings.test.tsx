@@ -15,6 +15,9 @@ const getIndexStatusMock = vi.hoisted(() => vi.fn())
 const rebuildIndexMock = vi.hoisted(() => vi.fn())
 const navigateMock = vi.hoisted(() => vi.fn())
 const refreshVersioningMock = vi.hoisted(() => vi.fn())
+const getRemotesMock = vi.hoisted(() => vi.fn(async () => []))
+const configureRemoteMock = vi.hoisted(() => vi.fn(async () => undefined))
+const removeRemoteMock = vi.hoisted(() => vi.fn(async () => undefined))
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -55,12 +58,19 @@ vi.mock("@/apps/web-app/hooks/use-router-adapter", () => ({
 
 vi.mock("@/apps/web-app/hooks/use-space-versioning", () => ({
   useSpaceVersioning: () => ({
-    status: { enabled: true },
+    status: {
+      enabled: true,
+      head: { id: "head-2" },
+      remoteNames: [],
+    },
     statusLoading: false,
     operation: null,
     error: null,
     available: true,
     enable: vi.fn(),
+    getRemotes: getRemotesMock,
+    configureRemote: configureRemoteMock,
+    removeRemote: removeRemoteMock,
     refresh: refreshVersioningMock,
   }),
 }))
@@ -75,6 +85,9 @@ describe("file Space settings", () => {
     rebuildIndexMock.mockReset()
     navigateMock.mockReset()
     refreshVersioningMock.mockReset()
+    getRemotesMock.mockClear()
+    configureRemoteMock.mockClear()
+    removeRemoteMock.mockClear()
     getIndexStatusMock.mockResolvedValue({
       indexedAt: new Date("2026-07-11T10:00:00Z").getTime(),
       fileCount: 12,
@@ -151,6 +164,37 @@ describe("file Space settings", () => {
 
     expect(navigateMock).toHaveBeenCalledWith("/version/history", {
       target: "_blank",
+    })
+  })
+
+  it("configures a Graft remote from versioning settings", async () => {
+    await act(async () => {
+      root.render(<FileSpaceVersioningSettings />)
+      await Promise.resolve()
+    })
+
+    const input = container.querySelector<HTMLInputElement>(
+      "#file-space-graft-remote"
+    )
+    await act(async () => {
+      if (input) {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )?.set
+        setter?.call(input, "fs:///tmp/eidos-remote")
+        input.dispatchEvent(new Event("input", { bubbles: true }))
+      }
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent?.includes("Connect"))
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(configureRemoteMock).toHaveBeenCalledWith({
+      url: "fs:///tmp/eidos-remote",
     })
   })
 })

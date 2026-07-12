@@ -51,6 +51,9 @@ function findGraftLibrary() {
 }
 
 function findGraftCli() {
+  if (process.env.GRAFT_CLI_PATH) {
+    return process.env.GRAFT_CLI_PATH
+  }
   const fileName = process.platform === "win32" ? "graft.exe" : "graft"
   const cliPath = path.join(__dirname, "..", "dist-cli", fileName)
   if (!fs.existsSync(cliPath)) {
@@ -227,7 +230,9 @@ function runPersistentFileSpacePragmaSmoke() {
     fs.writeFileSync(path.join(root, notePath), "second\n")
     const dirty = runGraftPragmaJson(db, "graft_json_status")
     if (!dirty.has_unstaged_changes) {
-      throw new Error(`Persistent status missed the edit: ${JSON.stringify(dirty)}`)
+      throw new Error(
+        `Persistent status missed the edit: ${JSON.stringify(dirty)}`
+      )
     }
     runGraftPragmaJson(db, "graft_json_add", '-- "notes"')
     const second = runGraftPragmaJson(
@@ -246,7 +251,9 @@ function runPersistentFileSpacePragmaSmoke() {
       firstPage.has_more !== true ||
       !firstPage.next_cursor
     ) {
-      throw new Error(`Invalid first history page: ${JSON.stringify(firstPage)}`)
+      throw new Error(
+        `Invalid first history page: ${JSON.stringify(firstPage)}`
+      )
     }
     const secondPage = runGraftPragmaJson(
       db,
@@ -257,7 +264,9 @@ function runPersistentFileSpacePragmaSmoke() {
       secondPage.commits?.[0]?.id !== first.current_head ||
       secondPage.has_more !== false
     ) {
-      throw new Error(`Invalid second history page: ${JSON.stringify(secondPage)}`)
+      throw new Error(
+        `Invalid second history page: ${JSON.stringify(secondPage)}`
+      )
     }
 
     const startedAt = performance.now()
@@ -1416,17 +1425,193 @@ function runAmbiguousPathSafetySmoke() {
   }
 }
 
+function runPersistentRemoteConflictSmoke() {
+  const cliPath = findGraftCli()
+  const registrationDb = new Database(":memory:")
+  try {
+    registrationDb.loadExtension(findGraftLibrary())
+  } finally {
+    registrationDb.close()
+  }
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "eidos-graft-remote-conflict-smoke-")
+  )
+  const remoteRoot = path.join(root, "remote")
+  const firstRoot = path.join(root, "first")
+  const secondRoot = path.join(root, "second")
+  const notePath = "note.md"
+  const remoteUri = `fs://${remoteRoot}`
+  let firstDb
+  let secondDb
+
+  console.log("Persistent remote conflict smoke root:", root)
+
+  try {
+    fs.mkdirSync(firstRoot, { recursive: true })
+    fs.mkdirSync(secondRoot, { recursive: true })
+    fs.writeFileSync(path.join(firstRoot, notePath), "initial\n")
+    fs.writeFileSync(
+      path.join(firstRoot, ".graftignore"),
+      ".graft-clone.sqlite\ncontrol.sqlite\n"
+    )
+    runGraftJson(cliPath, firstRoot, ["init", "--json"])
+
+    firstDb = new Database(
+      graftDbUri(path.join(firstRoot, ".graft", "control.sqlite"))
+    )
+    runGraftPragmaJson(firstDb, "graft_json_remote_add", `origin ${remoteUri}`)
+    runGraftPragmaJson(
+      firstDb,
+      "graft_json_config_set",
+      "files.inline_text_threshold -- 4 B"
+    )
+    runGraftPragmaJson(firstDb, "graft_json_add", "--all")
+    runGraftPragmaJson(firstDb, "graft_json_commit", "Initial remote version")
+    runGraftPragmaJson(
+      firstDb,
+      "graft_json_branch_upstream",
+      "main origin/main"
+    )
+    const initialPush = runGraftPragmaJson(
+      firstDb,
+      "graft_json_push",
+      "origin main"
+    )
+    if (initialPush.operation !== "push") {
+      throw new Error(`Initial push failed: ${JSON.stringify(initialPush)}`)
+    }
+    closeDatabase(firstDb)
+    firstDb = undefined
+
+    const cloned = runGraftJson(cliPath, secondRoot, [
+      "clone",
+      remoteUri,
+      "main",
+      "--json",
+    ])
+    if (!cloned.current_head) {
+      throw new Error(
+        `Clone did not check out a version: ${JSON.stringify(cloned)}`
+      )
+    }
+
+    firstDb = new Database(
+      graftDbUri(path.join(firstRoot, ".graft", "control.sqlite"))
+    )
+    secondDb = new Database(
+      graftDbUri(path.join(secondRoot, ".graft", "control.sqlite"))
+    )
+    runGraftPragmaJson(
+      secondDb,
+      "graft_json_config_set",
+      "files.inline_text_threshold -- 4 B"
+    )
+
+    fs.writeFileSync(path.join(firstRoot, notePath), "remote edit\n")
+    runGraftPragmaJson(firstDb, "graft_json_add", `-- ${notePath}`)
+    runGraftPragmaJson(firstDb, "graft_json_commit", "Remote edit")
+    runGraftPragmaJson(firstDb, "graft_json_push", "origin main")
+
+    fs.writeFileSync(path.join(secondRoot, notePath), "local edit\n")
+    runGraftPragmaJson(secondDb, "graft_json_add", `-- ${notePath}`)
+    runGraftPragmaJson(secondDb, "graft_json_commit", "Local edit")
+    const pull = runGraftPragmaJson(secondDb, "graft_json_pull", "origin main")
+    const conflicted = runGraftPragmaJson(secondDb, "graft_json_status")
+    if (
+      pull.operation !== "pull" ||
+      !conflicted.has_conflicts ||
+      !conflicted.merge_head
+    ) {
+      throw new Error(
+        `Diverged pull did not create a conflict: ${JSON.stringify({ pull, conflicted })}`
+      )
+    }
+
+    const conflicts = runGraftPragmaJson(secondDb, "graft_json_conflicts")
+    if (
+      conflicts.paths?.length !== 1 ||
+      conflicts.paths[0]?.path !== notePath ||
+      conflicts.paths[0]?.status !== "unresolved"
+    ) {
+      throw new Error(`Invalid conflict list: ${JSON.stringify(conflicts)}`)
+    }
+    const diff = runGraftPragmaJson(
+      secondDb,
+      "graft_json_diff",
+      `--content --max-content-bytes 1048576 ${conflicted.current_head} ${conflicted.merge_head} -- ${notePath}`
+    )
+    if (
+      diff.content?.before?.content !== "local edit\n" ||
+      diff.content?.after?.content !== "remote edit\n"
+    ) {
+      throw new Error(
+        `Conflict diff returned wrong sides: ${JSON.stringify(diff)}`
+      )
+    }
+
+    const resolved = runGraftPragmaJson(
+      secondDb,
+      "graft_json_resolve_conflict",
+      `--theirs --path ${notePath}`
+    )
+    if (
+      resolved.remaining_conflicts !== 0 ||
+      fs.readFileSync(path.join(secondRoot, notePath), "utf8") !==
+        "remote edit\n"
+    ) {
+      throw new Error(`Conflict resolution failed: ${JSON.stringify(resolved)}`)
+    }
+    const merged = runGraftPragmaJson(
+      secondDb,
+      "graft_json_merge_continue",
+      "Merge remote versions"
+    )
+    if (merged.commit?.parents?.length !== 2) {
+      throw new Error(
+        `Merge commit lost its parents: ${JSON.stringify(merged)}`
+      )
+    }
+    const finalPush = runGraftPragmaJson(
+      secondDb,
+      "graft_json_push",
+      "origin main"
+    )
+    if (finalPush.operation !== "push") {
+      throw new Error(`Merged push failed: ${JSON.stringify(finalPush)}`)
+    }
+    console.log(
+      "Persistent remote conflict smoke passed:",
+      JSON.stringify({
+        pulledCommits: pull.commits,
+        conflictPath: conflicts.paths[0].path,
+        resolution: resolved.resolution,
+        mergeParents: merged.commit.parents.length,
+        pushedCommits: finalPush.commits,
+      })
+    )
+  } finally {
+    closeDatabase(secondDb)
+    closeDatabase(firstDb)
+    removeTempRoot(root)
+  }
+}
+
 try {
-  runSqliteExtensionSmoke()
-  runPersistentFileSpacePragmaSmoke()
-  runFileSpaceCliSmoke()
-  runRestoreConflictSmoke()
-  runWholeSpaceRestoreSmoke()
-  runWholeSpaceTopologyRestoreSmoke()
-  runWholeSpaceRestoreUntrackedCollisionSmoke()
-  runWholeSpaceRestoreSymlinkSafetySmoke()
-  runWholeSpaceRestoreAncestorSafetySmoke()
-  runAmbiguousPathSafetySmoke()
+  if (process.argv[2] === "remote-conflict") {
+    runPersistentRemoteConflictSmoke()
+  } else {
+    runSqliteExtensionSmoke()
+    runPersistentFileSpacePragmaSmoke()
+    runFileSpaceCliSmoke()
+    runRestoreConflictSmoke()
+    runWholeSpaceRestoreSmoke()
+    runWholeSpaceTopologyRestoreSmoke()
+    runWholeSpaceRestoreUntrackedCollisionSmoke()
+    runWholeSpaceRestoreSymlinkSafetySmoke()
+    runWholeSpaceRestoreAncestorSafetySmoke()
+    runAmbiguousPathSafetySmoke()
+    runPersistentRemoteConflictSmoke()
+  }
   process.exit(0)
 } catch (error) {
   console.error(error)
