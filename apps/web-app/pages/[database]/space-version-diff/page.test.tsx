@@ -167,6 +167,81 @@ describe("SpaceVersionDiffPage", () => {
     expect(diff?.dataset.style).toBe("split")
   })
 
+  it("loads an explicit ours-to-theirs conflict diff", async () => {
+    mocks.status = {
+      enabled: true,
+      clean: false,
+      hasConflicts: true,
+      branch: "main",
+      head: { id: "head-2" },
+      changes: [
+        {
+          path: "notes/conflict.md",
+          status: "conflicted",
+          conflicted: true,
+        },
+      ],
+    }
+    mocks.getDiff
+      .mockResolvedValueOnce({
+        paths: [
+          {
+            path: "notes/conflict.md",
+            change: "modified",
+            kind: "text_file",
+            storage: "inline",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        paths: [],
+        content: {
+          path: "notes/conflict.md",
+          change: "modified",
+          kind: "text_file",
+          storage: "inline",
+          before: {
+            state: "utf8",
+            content: "ours\n",
+            size: 5,
+            contentHash: "ours",
+          },
+          after: {
+            state: "utf8",
+            content: "theirs\n",
+            size: 7,
+            contentHash: "theirs",
+          },
+        },
+      })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter
+          initialEntries={[
+            "/version/diff?path=notes%2Fconflict.md&from=head-2&to=remote-2",
+          ]}
+        >
+          <SpaceVersionDiffPage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+
+    expect(mocks.getDiff).toHaveBeenNthCalledWith(1, {
+      from: "head-2",
+      to: "remote-2",
+      path: "notes/conflict.md",
+    })
+    expect(mocks.getDiff).toHaveBeenNthCalledWith(2, {
+      from: "head-2",
+      to: "remote-2",
+      path: "notes/conflict.md",
+      includeContent: true,
+    })
+    expect(container.textContent).toContain("head-2 → remote-")
+  })
+
   it("shows an empty-tree diff for an untracked file before the first version", async () => {
     mocks.status = {
       enabled: true,

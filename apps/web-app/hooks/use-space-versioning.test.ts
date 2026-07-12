@@ -308,6 +308,8 @@ function versionStatus(
     enabled: true,
     currentHead: "commit-3",
     currentBranch: "main",
+    mergeHead: null as string | null,
+    hasConflicts: false,
     paths,
     remoteNames: [] as string[],
     upstream: null,
@@ -384,6 +386,26 @@ function createBridge() {
         remoteNames: ["origin"],
       },
     })),
+    getConflicts: vi.fn(async (_spaceId: string) => ({
+      currentHead: "commit-3",
+      currentBranch: "main",
+      mergeHead: "remote-3",
+      paths: [] as unknown[],
+    })),
+    resolveConflict: vi.fn(
+      async (
+        _spaceId: string,
+        request: {
+          path: string
+          resolution: "ours" | "theirs" | "manual"
+        }
+      ) => ({
+        path: request.path,
+        resolution: request.resolution,
+        remainingConflicts: 0,
+        status: versionStatus(),
+      })
+    ),
     commit: vi.fn(async (_spaceId: string, _options: { message: string }) => ({
       commit: commit("commit-4", "commit-3"),
     })),
@@ -653,6 +675,71 @@ describe("useSpaceVersioning history coordination", () => {
       bridge.pullRemote.mock.invocationCallOrder[0]
     )
     expect(hookResults.get("source")?.status?.remoteNames).toEqual(["origin"])
+    unregister()
+  })
+
+  it("loads and resolves conflict paths through the shared mutation gate", async () => {
+    const bridge = createBridge()
+    bridge.getStatus.mockResolvedValue({
+      ...versionStatus([
+        {
+          path: "notes/conflict.md",
+          state: "conflicted",
+          conflicted: true,
+        },
+      ]),
+      mergeHead: "remote-3",
+      hasConflicts: true,
+    })
+    bridge.getConflicts.mockResolvedValue({
+      currentHead: "commit-3",
+      currentBranch: "main",
+      mergeHead: "remote-3",
+      paths: [
+        {
+          path: "notes/conflict.md",
+          kind: "text_file",
+          storage: "inline",
+          status: "unresolved",
+          total: 1,
+          unresolved: 1,
+          resolved: 0,
+        },
+      ],
+    })
+    installBridge(bridge)
+    const flush = vi.fn(async () => true)
+    const unregister = registerPendingWriteFlusher(
+      "resolve-conflict-test",
+      flush,
+      {
+        spaceId: "space-a",
+        filePath: "notes/conflict.md",
+      }
+    )
+
+    await act(async () => {
+      root.render(
+        createElement(VersioningProbe, {
+          name: "source",
+          loadHistory: false,
+        })
+      )
+      await flushEffects()
+    })
+    expect(hookResults.get("source")?.conflicts?.paths).toHaveLength(1)
+
+    const request = {
+      path: "notes/conflict.md",
+      resolution: "ours" as const,
+      expectedHead: "commit-3",
+    }
+    await act(async () => {
+      await hookResults.get("source")?.resolveConflict(request)
+      await flushEffects()
+    })
+    expect(flush).toHaveBeenCalledOnce()
+    expect(bridge.resolveConflict).toHaveBeenCalledWith("space-a", request)
     unregister()
   })
 

@@ -9,7 +9,14 @@ import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-spac
 import { VersionPanel } from "./version-panel"
 
 const mocks = vi.hoisted(() => ({
-  changes: [{ path: "open.md", status: "modified", unstaged: true }],
+  changes: [{ path: "open.md", status: "modified", unstaged: true }] as Array<{
+    path: string
+    status: string
+    unstaged?: boolean
+    staged?: boolean
+    conflicted?: boolean
+  }>,
+  mergeHead: null as string | null,
   discardPath: vi.fn(async (request: { path: string }) => ({
     path: request.path,
     effect: "restored",
@@ -18,6 +25,14 @@ const mocks = vi.hoisted(() => ({
   setActiveTab: vi.fn(),
   updateTab: vi.fn(),
   navigate: vi.fn(),
+  resolveConflict: vi.fn(
+    async (request: { path: string; resolution: string }) => ({
+      path: request.path,
+      resolution: request.resolution,
+      remainingConflicts: 0,
+      status: { hasConflicts: false },
+    })
+  ),
 }))
 
 vi.mock("@/apps/web-app/hooks/use-router-adapter", () => ({
@@ -38,8 +53,13 @@ vi.mock("@/apps/web-app/hooks/use-space-versioning", () => ({
       clean: false,
       hasConflicts: false,
       branch: "main",
+      mergeHead: mocks.mergeHead,
       head: { id: "head-2" },
       changes: mocks.changes,
+      remoteNames: [],
+      upstream: null,
+      ahead: 0,
+      behind: 0,
     },
     history: [],
     statusLoading: false,
@@ -52,6 +72,10 @@ vi.mock("@/apps/web-app/hooks/use-space-versioning", () => ({
     stagePath: vi.fn(),
     unstagePath: vi.fn(),
     discardPath: mocks.discardPath,
+    fetchRemote: vi.fn(),
+    pullRemote: vi.fn(),
+    pushRemote: vi.fn(),
+    resolveConflict: mocks.resolveConflict,
     refresh: vi.fn(),
   }),
 }))
@@ -83,11 +107,13 @@ describe("VersionPanel changed-file diff", () => {
 
   beforeEach(() => {
     mocks.changes = [{ path: "open.md", status: "modified", unstaged: true }]
+    mocks.mergeHead = null
     mocks.openTab.mockReset()
     mocks.discardPath.mockClear()
     mocks.setActiveTab.mockReset()
     mocks.updateTab.mockReset()
     mocks.navigate.mockReset()
+    mocks.resolveConflict.mockClear()
     container = document.createElement("div")
     document.body.append(container)
     root = createRoot(container)
@@ -196,6 +222,54 @@ describe("VersionPanel changed-file diff", () => {
       path: "notes",
       expectedHead: "head-2",
       confirmed: true,
+    })
+  })
+
+  it("opens ours-to-theirs diff and resolves a conflicted file", async () => {
+    mocks.changes = [
+      {
+        path: "conflict.md",
+        status: "conflicted",
+        unstaged: true,
+        conflicted: true,
+      },
+    ]
+    mocks.mergeHead = "remote-2"
+
+    await act(async () => {
+      root.render(<VersionPanel spaceId="space-a" />)
+    })
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[title="conflict.md"]')
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(mocks.openTab).toHaveBeenCalledWith(
+      "/version/diff?path=conflict.md&from=head-2&to=remote-2",
+      "conflict.md (Diff)"
+    )
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Resolve conflict in conflict.md"]'
+        )
+        ?.click()
+      await Promise.resolve()
+    })
+    const acceptTheirs = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Accept theirs"
+    )
+    await act(async () => {
+      acceptTheirs?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mocks.resolveConflict).toHaveBeenCalledWith({
+      path: "conflict.md",
+      resolution: "theirs",
+      expectedHead: "head-2",
     })
   })
 })

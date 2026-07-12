@@ -115,6 +115,7 @@ const status: SpaceVersionStatus = {
   clean: true,
   hasConflicts: false,
   branch: "main",
+  mergeHead: null,
   remoteNames: [],
   upstream: null,
   ahead: 0,

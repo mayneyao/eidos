@@ -10,6 +10,7 @@ import {
   FileText,
   Folder,
   FolderOpen,
+  GitMerge,
   LoaderCircle,
   Minus,
   Plus,
@@ -38,6 +39,7 @@ interface VersionChangeTreeProps {
   onStagePath?: (path: string) => void
   onUnstagePath?: (path: string) => void
   onDiscardPath?: (path: string) => void
+  onResolveConflict?: (path: string) => void
 }
 
 const CODE_EXTENSIONS = new Set([
@@ -92,6 +94,7 @@ function ChangeTreeRow({
   onStagePath,
   onUnstagePath,
   onDiscardPath,
+  onResolveConflict,
 }: {
   node: ChangeTreeNode
   mode: "staged" | "unstaged" | "mixed"
@@ -106,6 +109,7 @@ function ChangeTreeRow({
   onStagePath?: (path: string) => void
   onUnstagePath?: (path: string) => void
   onDiscardPath?: (path: string) => void
+  onResolveConflict?: (path: string) => void
 }) {
   const isExpanded = node.directory && expanded.has(node.path)
   const fileUnavailable = !node.directory && node.status === "deleted"
@@ -263,54 +267,65 @@ function ChangeTreeRow({
             >
               <ExternalLink className="h-3 w-3" />
             </button>
-            <button
-              type="button"
-              className="flex h-5 w-5 items-center justify-center rounded-[3px] text-sidebar-foreground/60 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:opacity-40"
-              aria-label={
-                shouldUnstage
-                  ? `Exclude ${node.path} from the next version`
-                  : `Include ${node.path} in the next version`
-              }
-              title={
-                shouldUnstage
-                  ? "Exclude from next version"
-                  : node.change?.staged
-                    ? "Update included content"
-                    : "Include in next version"
-              }
-              disabled={
-                actionsDisabled ||
-                busyPath === node.path ||
-                node.change?.conflicted === true
-              }
-              onClick={() =>
-                shouldUnstage
-                  ? onUnstagePath?.(node.path)
-                  : onStagePath?.(node.path)
-              }
-            >
-              {busyPath === node.path ? (
-                <LoaderCircle className="h-3 w-3 animate-spin" />
-              ) : shouldUnstage ? (
-                <Minus className="h-3 w-3" />
-              ) : (
-                <Plus className="h-3 w-3" />
-              )}
-            </button>
-            <button
-              type="button"
-              className="flex h-5 w-5 items-center justify-center rounded-[3px] text-sidebar-foreground/60 outline-hidden hover:bg-destructive/10 hover:text-destructive focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:opacity-40"
-              aria-label={`Discard changes to ${node.path}`}
-              title="Discard changes…"
-              disabled={
-                actionsDisabled ||
-                busyPath === node.path ||
-                node.change?.conflicted === true
-              }
-              onClick={() => onDiscardPath?.(node.path)}
-            >
-              <Undo2 className="h-3 w-3" />
-            </button>
+            {node.change?.conflicted ? (
+              <button
+                type="button"
+                className="flex h-5 w-5 items-center justify-center rounded-[3px] text-amber-600 outline-hidden hover:bg-amber-500/10 focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:opacity-40 dark:text-amber-400"
+                aria-label={`Resolve conflict in ${node.path}`}
+                title="Resolve conflict…"
+                disabled={actionsDisabled || busyPath === node.path}
+                onClick={() => onResolveConflict?.(node.path)}
+              >
+                {busyPath === node.path ? (
+                  <LoaderCircle className="h-3 w-3 animate-spin" />
+                ) : (
+                  <GitMerge className="h-3 w-3" />
+                )}
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="flex h-5 w-5 items-center justify-center rounded-[3px] text-sidebar-foreground/60 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:opacity-40"
+                  aria-label={
+                    shouldUnstage
+                      ? `Exclude ${node.path} from the next version`
+                      : `Include ${node.path} in the next version`
+                  }
+                  title={
+                    shouldUnstage
+                      ? "Exclude from next version"
+                      : node.change?.staged
+                        ? "Update included content"
+                        : "Include in next version"
+                  }
+                  disabled={actionsDisabled || busyPath === node.path}
+                  onClick={() =>
+                    shouldUnstage
+                      ? onUnstagePath?.(node.path)
+                      : onStagePath?.(node.path)
+                  }
+                >
+                  {busyPath === node.path ? (
+                    <LoaderCircle className="h-3 w-3 animate-spin" />
+                  ) : shouldUnstage ? (
+                    <Minus className="h-3 w-3" />
+                  ) : (
+                    <Plus className="h-3 w-3" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="flex h-5 w-5 items-center justify-center rounded-[3px] text-sidebar-foreground/60 outline-hidden hover:bg-destructive/10 hover:text-destructive focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:opacity-40"
+                  aria-label={`Discard changes to ${node.path}`}
+                  title="Discard changes…"
+                  disabled={actionsDisabled || busyPath === node.path}
+                  onClick={() => onDiscardPath?.(node.path)}
+                >
+                  <Undo2 className="h-3 w-3" />
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -332,6 +347,7 @@ function ChangeTreeRow({
               onStagePath={onStagePath}
               onUnstagePath={onUnstagePath}
               onDiscardPath={onDiscardPath}
+              onResolveConflict={onResolveConflict}
             />
           ))}
         </ul>
@@ -352,6 +368,7 @@ export function VersionChangeTree({
   onStagePath,
   onUnstagePath,
   onDiscardPath,
+  onResolveConflict,
 }: VersionChangeTreeProps) {
   const tree = useMemo(() => buildChangeTree(changes), [changes])
   const directoryPaths = useMemo(() => collectDirectoryPaths(tree), [tree])
@@ -392,6 +409,7 @@ export function VersionChangeTree({
           onStagePath={onStagePath}
           onUnstagePath={onUnstagePath}
           onDiscardPath={onDiscardPath}
+          onResolveConflict={onResolveConflict}
         />
       ))}
     </ul>

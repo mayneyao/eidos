@@ -143,10 +143,13 @@ function DiffEmptyState({
 
 export function SpaceVersionDiffPage() {
   const location = useLocation()
-  const repositoryPath = useMemo(
-    () => new URLSearchParams(location.search).get("path")?.trim() ?? "",
+  const searchParams = useMemo(
+    () => new URLSearchParams(location.search),
     [location.search]
   )
+  const repositoryPath = searchParams.get("path") ?? ""
+  const requestedFrom = searchParams.get("from")
+  const requestedTo = searchParams.get("to")
   const filename = filenameOf(repositoryPath)
   useTabTitle(repositoryPath ? `${filename} (Diff)` : "File Diff")
 
@@ -169,6 +172,7 @@ export function SpaceVersionDiffPage() {
   const [style, setStyle] = useState<DiffStyle>("split")
   const requestRef = useRef(0)
   const baseline = status?.head?.id ?? null
+  const diffFrom = requestedFrom ?? baseline
   const changeSignature = useMemo(
     () =>
       status?.changes
@@ -191,7 +195,7 @@ export function SpaceVersionDiffPage() {
 
     setLoading(true)
     try {
-      if (!baseline) {
+      if (!diffFrom) {
         const pendingChange = status?.changes.find(
           (entry) => entry.path === repositoryPath
         )
@@ -269,7 +273,8 @@ export function SpaceVersionDiffPage() {
       }
 
       const nextMetadata = await getDiff({
-        from: baseline,
+        from: diffFrom,
+        ...(requestedTo ? { to: requestedTo } : {}),
         path: repositoryPath,
       })
       if (requestId !== requestRef.current) return
@@ -280,7 +285,8 @@ export function SpaceVersionDiffPage() {
       setChange(nextChange)
       if (nextChange?.kind === "text_file") {
         const contentDiff = await getDiff({
-          from: baseline,
+          from: diffFrom,
+          ...(requestedTo ? { to: requestedTo } : {}),
           path: repositoryPath,
           includeContent: true,
         })
@@ -288,7 +294,8 @@ export function SpaceVersionDiffPage() {
         setContent(contentDiff.content)
       } else if (nextChange?.kind === "sqlite_database") {
         const rowDiff = await getDiff({
-          from: baseline,
+          from: diffFrom,
+          ...(requestedTo ? { to: requestedTo } : {}),
           path: repositoryPath,
           includeRows: true,
         })
@@ -309,11 +316,12 @@ export function SpaceVersionDiffPage() {
       if (requestId === requestRef.current) setLoading(false)
     }
   }, [
-    baseline,
     changeSignature,
+    diffFrom,
     getDiff,
     readText,
     repositoryPath,
+    requestedTo,
     status?.branch,
     status?.changes,
   ])
@@ -340,8 +348,10 @@ export function SpaceVersionDiffPage() {
             {repositoryPath || "No file selected"}
           </p>
           <p className="text-[10px] text-muted-foreground">
-            {baseline
-              ? `Current version ${shortCommitId(baseline)} → working file`
+            {diffFrom
+              ? requestedTo
+                ? `${shortCommitId(diffFrom)} → ${shortCommitId(requestedTo)}`
+                : `Current version ${shortCommitId(diffFrom)} → working file`
               : "Empty Space → working file"}
           </p>
         </div>

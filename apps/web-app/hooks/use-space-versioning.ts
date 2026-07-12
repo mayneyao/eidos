@@ -34,6 +34,7 @@ export interface SpaceVersionStatus {
   clean: boolean
   hasConflicts: boolean
   branch: string | null
+  mergeHead: string | null
   head: SpaceVersionCommit | null
   changes: SpaceVersionChange[]
   remoteNames: string[]
@@ -80,6 +81,38 @@ export interface SpaceVersionSyncResult {
   branch: string | null
   commits: number
   forced: boolean
+  status: SpaceVersionStatus
+}
+
+export interface SpaceVersionConflictPath {
+  path: string
+  kind: SpaceVersionPathKind
+  storage: SpaceVersionPathStorage
+  status: "unresolved" | "resolved"
+  total: number
+  unresolved: number
+  resolved: number
+}
+
+export interface SpaceVersionConflictList {
+  currentHead: string | null
+  currentBranch: string | null
+  mergeHead: string | null
+  paths: SpaceVersionConflictPath[]
+}
+
+export type SpaceVersionConflictResolution = "ours" | "theirs" | "manual"
+
+export interface SpaceVersionResolveConflictRequest {
+  path: string
+  resolution: SpaceVersionConflictResolution
+  expectedHead: string | null
+}
+
+export interface SpaceVersionResolveConflictResult {
+  path: string
+  resolution: SpaceVersionConflictResolution
+  remainingConflicts: number
   status: SpaceVersionStatus
 }
 
@@ -272,6 +305,7 @@ export type SpaceVersioningOperation =
   | "fetching"
   | "pulling"
   | "pushing"
+  | "resolving"
   | null
 
 export function isDestructiveSpaceVersioningOperation(
@@ -280,7 +314,8 @@ export function isDestructiveSpaceVersioningOperation(
   return (
     operation === "restoring" ||
     operation === "discarding" ||
-    operation === "pulling"
+    operation === "pulling" ||
+    operation === "resolving"
   )
 }
 
@@ -307,6 +342,11 @@ interface SpaceVersioningBridge {
   pushRemote: (
     spaceId: string,
     options?: SpaceVersionSyncRequest
+  ) => Promise<unknown>
+  getConflicts: (spaceId: string) => Promise<unknown>
+  resolveConflict: (
+    spaceId: string,
+    options: SpaceVersionResolveConflictRequest
   ) => Promise<unknown>
   commit: (spaceId: string, options: { message: string }) => Promise<unknown>
   getHistory: (
@@ -678,6 +718,7 @@ export function normalizeSpaceVersionStatus(
       clean: true,
       hasConflicts: false,
       branch: null,
+      mergeHead: null,
       head: null,
       changes: [],
       remoteNames: [],
@@ -752,6 +793,9 @@ export function normalizeSpaceVersionStatus(
           "head_name",
         ])
       ) ?? (isRecord(headValue) ? asString(headValue.branch) : null),
+    mergeHead: asString(
+      firstValue(payload, ["mergeHead", "merge_head", "mergeTarget"])
+    ),
     head:
       normalizeSpaceVersionCommit(headValue, headId ?? "") ??
       (headId
@@ -1100,6 +1144,74 @@ export function normalizeSpaceVersionSyncResult(
   }
 }
 
+function normalizeConflictPath(
+  value: unknown
+): SpaceVersionConflictPath | null {
+  if (!isRecord(value)) return null
+  const path = normalizePath(value.path)
+  const status = asString(value.status)
+  if (!path || (status !== "unresolved" && status !== "resolved")) return null
+  return {
+    path,
+    kind: normalizePathKind(value.kind),
+    storage: normalizePathStorage(value.storage),
+    status,
+    total: asNonNegativeInteger(value.total) ?? 0,
+    unresolved: asNonNegativeInteger(value.unresolved) ?? 0,
+    resolved: asNonNegativeInteger(value.resolved) ?? 0,
+  }
+}
+
+export function normalizeSpaceVersionConflicts(
+  value: unknown
+): SpaceVersionConflictList {
+  const payload = unwrapPayload(value)
+  if (!isRecord(payload)) {
+    return {
+      currentHead: null,
+      currentBranch: null,
+      mergeHead: null,
+      paths: [],
+    }
+  }
+  return {
+    currentHead: asString(payload.currentHead),
+    currentBranch: asString(payload.currentBranch),
+    mergeHead: asString(payload.mergeHead),
+    paths: Array.isArray(payload.paths)
+      ? payload.paths
+          .map(normalizeConflictPath)
+          .filter((entry): entry is SpaceVersionConflictPath => entry !== null)
+      : [],
+  }
+}
+
+export function normalizeSpaceVersionResolveConflictResult(
+  value: unknown
+): SpaceVersionResolveConflictResult {
+  const payload = unwrapPayload(value)
+  if (!isRecord(payload)) {
+    throw new Error("Desktop returned an invalid conflict resolution result")
+  }
+  const path = normalizePath(payload.path)
+  const resolution = asString(payload.resolution)
+  if (
+    !path ||
+    (resolution !== "ours" &&
+      resolution !== "theirs" &&
+      resolution !== "manual") ||
+    payload.status === undefined
+  ) {
+    throw new Error("Desktop returned an incomplete conflict resolution result")
+  }
+  return {
+    path,
+    resolution,
+    remainingConflicts: asNonNegativeInteger(payload.remainingConflicts) ?? 0,
+    status: normalizeSpaceVersionStatus(payload.status),
+  }
+}
+
 export function normalizeSpaceVersionStagePathResult(
   value: unknown
 ): SpaceVersionStagePathResult {
@@ -1282,6 +1394,9 @@ export function useSpaceVersioning(
   const { loadHistory = false, historyLimit = 250 } = options
   const [status, setStatus] = useState<SpaceVersionStatus | null>(null)
   const [history, setHistory] = useState<SpaceVersionCommit[]>([])
+  const [conflicts, setConflicts] = useState<SpaceVersionConflictList | null>(
+    null
+  )
   const [historyNextCursor, setHistoryNextCursor] = useState<string | null>(
     null
   )
@@ -1289,6 +1404,7 @@ export function useSpaceVersioning(
   const [statusLoading, setStatusLoading] = useState(true)
   const [historyLoading, setHistoryLoading] = useState(loadHistory)
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false)
+  const [conflictsLoading, setConflictsLoading] = useState(false)
   const [operation, setOperation] = useState<SpaceVersioningOperation>(null)
   const [error, setError] = useState<Error | null>(null)
   const mountedRef = useRef(true)
@@ -1296,6 +1412,7 @@ export function useSpaceVersioning(
   const historyRequestRef = useRef(0)
   const historyGenerationRef = useRef(0)
   const historyLoadMoreRequestRef = useRef(0)
+  const conflictsRequestRef = useRef(0)
   const historyLoadMoreInFlightRef = useRef(false)
   const historyLoadedRef = useRef(loadHistory)
   const historySnapshotRef = useRef<HistorySnapshot>({
@@ -1324,6 +1441,7 @@ export function useSpaceVersioning(
     historyRequestRef.current += 1
     historyGenerationRef.current += 1
     historyLoadMoreRequestRef.current += 1
+    conflictsRequestRef.current += 1
     historyLoadMoreInFlightRef.current = false
     historyLoadedRef.current = loadHistory
     historySnapshotRef.current = {
@@ -1333,12 +1451,14 @@ export function useSpaceVersioning(
     }
     setStatus(null)
     setHistory([])
+    setConflicts(null)
     setHistoryNextCursor(null)
     setHistoryHasMore(false)
     setError(null)
     setStatusLoading(true)
     setHistoryLoading(loadHistory)
     setHistoryLoadingMore(false)
+    setConflictsLoading(false)
     setOperation(
       spaceId ? (activeSpaceVersioningOperations.get(spaceId) ?? null) : null
     )
@@ -1499,8 +1619,42 @@ export function useSpaceVersioning(
     }
   }, [applyHistorySnapshot, historyLimit, spaceId])
 
+  const refreshConflicts = useCallback(async () => {
+    const requestId = ++conflictsRequestRef.current
+    if (!spaceId) {
+      setConflicts(null)
+      setConflictsLoading(false)
+      return null
+    }
+    setConflictsLoading(true)
+    try {
+      const raw = await requireSpaceVersioningBridge().getConflicts(spaceId)
+      const nextConflicts = normalizeSpaceVersionConflicts(raw)
+      if (mountedRef.current && requestId === conflictsRequestRef.current) {
+        setConflicts(nextConflicts)
+      }
+      return nextConflicts
+    } catch (requestError) {
+      if (mountedRef.current && requestId === conflictsRequestRef.current) {
+        setError(errorFrom(requestError))
+      }
+      return null
+    } finally {
+      if (mountedRef.current && requestId === conflictsRequestRef.current) {
+        setConflictsLoading(false)
+      }
+    }
+  }, [spaceId])
+
   const refresh = useCallback(async () => {
     const nextStatus = await refreshStatus()
+    if (nextStatus?.hasConflicts) {
+      await refreshConflicts()
+    } else if (mountedRef.current) {
+      conflictsRequestRef.current += 1
+      setConflicts(null)
+      setConflictsLoading(false)
+    }
     const shouldLoadHistory = loadHistory || historyLoadedRef.current
     if (shouldLoadHistory && nextStatus?.enabled) {
       await refreshHistory()
@@ -1515,7 +1669,13 @@ export function useSpaceVersioning(
       setHistoryLoading(false)
       setHistoryLoadingMore(false)
     }
-  }, [applyHistorySnapshot, loadHistory, refreshHistory, refreshStatus])
+  }, [
+    applyHistorySnapshot,
+    loadHistory,
+    refreshConflicts,
+    refreshHistory,
+    refreshStatus,
+  ])
 
   const reconcileAfterPossibleMutation = useCallback(
     async (activeSpaceId: string) => {
@@ -1573,7 +1733,8 @@ export function useSpaceVersioning(
         nextOperation === "configuring-remote" ||
         nextOperation === "fetching" ||
         nextOperation === "pulling" ||
-        nextOperation === "pushing"
+        nextOperation === "pushing" ||
+        nextOperation === "resolving"
       ) {
         setOperation(nextOperation)
       }
@@ -1816,6 +1977,61 @@ export function useSpaceVersioning(
   const pushRemote = useCallback(
     (request: SpaceVersionSyncRequest = {}) => syncRemote("push", request),
     [syncRemote]
+  )
+
+  const resolveConflict = useCallback(
+    async (request: SpaceVersionResolveConflictRequest) => {
+      setError(null)
+      let activeSpaceId: string | undefined
+      let finishOperation: (() => void) | undefined
+      let bridgeInvoked = false
+      try {
+        activeSpaceId = requireSpaceId()
+        finishOperation = beginSpaceVersioningOperation(
+          activeSpaceId,
+          "resolving"
+        )
+        setOperation("resolving")
+        if (
+          !(await flushPendingFileWrites({
+            spaceId: activeSpaceId,
+            path: request.path,
+          }))
+        ) {
+          throw new Error(
+            "Eidos could not save pending edits before resolving this conflict."
+          )
+        }
+        const bridge = requireSpaceVersioningBridge()
+        bridgeInvoked = true
+        const raw = await bridge.resolveConflict(activeSpaceId, request)
+        const result = normalizeSpaceVersionResolveConflictResult(raw)
+        statusRequestRef.current += 1
+        if (mountedRef.current) {
+          setStatus(result.status)
+          setStatusLoading(false)
+        }
+        await reconcileAfterPossibleMutation(activeSpaceId)
+        return result
+      } catch (requestError) {
+        const nextError = errorFrom(requestError)
+        if (activeSpaceId && bridgeInvoked) {
+          await reconcileAfterPossibleMutation(activeSpaceId)
+        }
+        if (mountedRef.current) setError(nextError)
+        throw nextError
+      } finally {
+        finishOperation?.()
+        if (mountedRef.current) {
+          setOperation(
+            activeSpaceId
+              ? (activeSpaceVersioningOperations.get(activeSpaceId) ?? null)
+              : null
+          )
+        }
+      }
+    },
+    [reconcileAfterPossibleMutation, requireSpaceId]
   )
 
   const commit = useCallback(
@@ -2146,11 +2362,13 @@ export function useSpaceVersioning(
   return {
     status,
     history,
+    conflicts,
     historyNextCursor,
     historyHasMore,
     statusLoading,
     historyLoading,
     historyLoadingMore,
+    conflictsLoading,
     operation,
     error,
     available: getSpaceVersioningBridge() !== null,
@@ -2161,6 +2379,7 @@ export function useSpaceVersioning(
     fetchRemote,
     pullRemote,
     pushRemote,
+    resolveConflict,
     commit,
     getCommit,
     getDiff,
@@ -2172,6 +2391,7 @@ export function useSpaceVersioning(
     refresh,
     refreshStatus,
     refreshHistory,
+    refreshConflicts,
     loadMoreHistory,
   }
 }
