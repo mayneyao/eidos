@@ -66,22 +66,26 @@ Grid、Gallery 和 Kanban 中编辑：primitive source fields 会就地自动保
 同时向前或向后循环。Grid 会滚动并高亮目标行；Gallery 和 Kanban 会滚动到目标 card，并在目标尚未
 加载时自动补齐所需分页。
 
+Kanban 现在会对大量 option 形成的列做横向虚拟化，常规浏览只挂载可见列和 overscan；开始拖动时
+会临时挂载所有 drop target，避免虚拟化让合法目标不可达。直接拖动的成功、取消和保存失败回滚会
+通过 assertive live region 播报；键盘 Move-to 仍作为等价的非指针操作路径保留。
+
 真实文件 Base versioning smoke 现在会创建 Grid、Gallery 和 Kanban metadata，关闭并重开文件，
 编辑行，验证 Graft row diff，恢复初始 revision，再次重开并校验 records、派生值和三种 view
 layout；恢复后的仓库状态为 clean。原生 UI 重启验收与这条自动化生命周期证据分开记录。
 
 与原表格 view 的当前能力对齐情况如下：
 
-| 能力                                       | Base 状态                       | 剩余边界                                                            |
-| ------------------------------------------ | ------------------------------- | ------------------------------------------------------------------- |
-| 持久化 view lifecycle 与独立 query/layout  | 自动重开/恢复已验收             | 仍需原生 UI 重启验收                                                |
-| Gallery 字段显隐、空字段隐藏、card size    | 已工作，包含结果导航            | v1 暂无已知缺口                                                     |
-| Gallery cover                              | File 字段已工作                 | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
-| Card actions                               | 可编辑 Inspector 与删除已工作   | file-based Base 的 full-page row document 模型尚未定义              |
-| Kanban Select 分组、计数、折叠、新增、拖动 | 已工作，并提供键盘 Move-to 兜底 | 仍缺直接拖动播报和超多列虚拟化                                      |
+| 能力                                       | Base 状态                     | 剩余边界                                                            |
+| ------------------------------------------ | ----------------------------- | ------------------------------------------------------------------- |
+| 持久化 view lifecycle 与独立 query/layout  | 自动重开/恢复已验收           | 仍需原生 UI 重启验收                                                |
+| Gallery 字段显隐、空字段隐藏、card size    | 已工作，包含结果导航          | v1 暂无已知缺口                                                     |
+| Gallery cover                              | File 字段已工作               | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
+| Card actions                               | 可编辑 Inspector 与删除已工作 | file-based Base 的 full-page row document 模型尚未定义              |
+| Kanban Select 分组、计数、折叠、新增、拖动 | 已支持虚拟化和无障碍移动      | v1 暂无已知缺口                                                     |
 
-这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。更多可移植 cover source、直接拖动
-播报、超多列虚拟化，以及原生 UI 生命周期验收仍待完成。
+这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。更多可移植 cover source 和原生 UI
+生命周期验收仍待完成。
 Base 日常编辑和配置优先使用单元格
 内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留给破坏性确认或必须中断
 当前工作流的决策。新增交互应先参考并复用原表格已经验证过的编辑方式，不应仅为了

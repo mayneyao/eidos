@@ -87,6 +87,13 @@ Shift+Enter cycle forward and backward while the input keeps focus. Grid scrolls
 to and highlights the target row; Gallery and Kanban scroll to the target card
 and automatically fetch the required page before revealing it.
 
+Kanban now horizontally virtualizes large option sets, mounting only the visible
+columns plus overscan during normal navigation. An active drag temporarily
+mounts every drop target so virtualization does not make valid destinations
+unreachable. Direct moves announce success, cancellation, and failed-save
+rollback through an assertive live region; the keyboard Move-to action remains
+available as an equivalent non-pointer path.
+
 The real-file Base versioning smoke now creates Grid, Gallery, and Kanban
 metadata, closes and reopens the file, edits rows, verifies Graft row diffs,
 restores the original revision, and reopens again to verify records, derived
@@ -95,17 +102,17 @@ UI restart acceptance remains separate from this automated lifecycle evidence.
 
 Current parity with the original table views is explicit:
 
-| Capability                                                | Base status                            | Remaining boundary                                                                                           |
-| --------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Persisted view lifecycle and per-view query/layout        | Automated reopen/restore accepted      | Native UI restart acceptance remains                                                                         |
-| Gallery field visibility, empty-field hiding, card sizing | Working with result navigation         | No known v1 gap                                                                                              |
-| Gallery cover                                             | File field working                     | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
-| Card actions                                              | Editable inspector and delete working  | A full-page row-document model is not yet defined for file-based Base                                        |
-| Kanban Select grouping, counts, collapse, add, drag move  | Working with keyboard Move-to fallback | Direct drag announcements and very large-column virtualization remain                                        |
+| Capability                                                | Base status                               | Remaining boundary                                                                                           |
+| --------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Persisted view lifecycle and per-view query/layout        | Automated reopen/restore accepted         | Native UI restart acceptance remains                                                                         |
+| Gallery field visibility, empty-field hiding, card sizing | Working with result navigation            | No known v1 gap                                                                                              |
+| Gallery cover                                             | File field working                        | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
+| Card actions                                              | Editable inspector and delete working     | A full-page row-document model is not yet defined for file-based Base                                        |
+| Kanban Select grouping, counts, collapse, add, drag move  | Working with virtualized accessible moves | No known v1 gap                                                                                              |
 
 This is the first working delivery slice, not yet full parity with the original
-table views. Additional portable cover sources, direct drag announcements, very
-large-column virtualization, and native UI lifecycle acceptance remain. Routine
+table views. Additional portable cover sources and native UI lifecycle
+acceptance remain. Routine
 Base configuration uses inline controls, header menus, and anchored popovers.
 Modal dialogs are
 reserved for destructive confirmation or other decisions that must interrupt
