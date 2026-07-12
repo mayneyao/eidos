@@ -26,7 +26,10 @@ import {
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { toSpaceFileUrl } from "@/apps/web-app/components/file-space/file-path"
+import {
+  isSameOrDescendant,
+  toSpaceFileUrl,
+} from "@/apps/web-app/components/file-space/file-path"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useSpaceBase } from "@/apps/web-app/hooks/use-space-base"
 import {
@@ -200,7 +203,11 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     currentSpace?.id,
     useCallback(
       (event) => {
-        if (event.path === filePath && !mutatingRef.current) void load()
+        const affectsOpenBase =
+          event.path === filePath ||
+          (event.eventType === "rescan" &&
+            isSameOrDescendant(filePath, event.path))
+        if (affectsOpenBase && !mutatingRef.current) void load()
       },
       [filePath, load]
     )

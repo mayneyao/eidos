@@ -5,6 +5,7 @@ import { useLocation } from "react-router-dom"
 
 import {
   headingFromSpaceUrl,
+  isSameOrDescendant,
   parentSpacePath,
   toSpaceAssetUrl,
 } from "@/apps/web-app/components/file-space/file-path"
@@ -209,7 +210,7 @@ function SpaceTextEditor({
       (event) => {
         const isDirectoryRescan =
           event.eventType === "rescan" &&
-          event.path === parentSpacePath(filePath)
+          isSameOrDescendant(filePath, event.path)
         if (event.path !== filePath && !isDirectoryRescan) {
           return
         }

@@ -1,6 +1,7 @@
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
 
 import { IpcInjectable, Inject } from "../../common/di"
+import { MainWindowProvider } from "../space-management/main-window.provider"
 import { SpaceVersioningCoordinator } from "./space-versioning.coordinator"
 import type {
   SpaceVersionCommit,
@@ -33,11 +34,25 @@ import type {
   SpaceVersionUnstagePathResult,
 } from "./types"
 
+function notifySpaceFilesChanged(
+  windowProvider: MainWindowProvider,
+  spaceId: string,
+  path = ""
+): void {
+  windowProvider.getWindow()?.webContents.send("space-files:changed", {
+    spaceId,
+    eventType: "rescan",
+    path,
+  })
+}
+
 @IpcInjectable("space-versioning")
 export class SpaceVersioningService extends IpcServiceBase {
   constructor(
     @Inject(SpaceVersioningCoordinator)
-    private readonly coordinator: SpaceVersioningCoordinator
+    private readonly coordinator: SpaceVersioningCoordinator,
+    @Inject(MainWindowProvider)
+    private readonly windowProvider: MainWindowProvider
   ) {
     super()
   }
@@ -75,11 +90,13 @@ export class SpaceVersioningService extends IpcServiceBase {
     return this.coordinator.fetchRemote(spaceId, options)
   }
 
-  pullRemote(
+  async pullRemote(
     spaceId: string,
     options: SpaceVersionSyncOptions = {}
   ): Promise<SpaceVersionSyncResult> {
-    return this.coordinator.pullRemote(spaceId, options)
+    const result = await this.coordinator.pullRemote(spaceId, options)
+    notifySpaceFilesChanged(this.windowProvider, spaceId)
+    return result
   }
 
   pushRemote(
@@ -93,11 +110,13 @@ export class SpaceVersioningService extends IpcServiceBase {
     return this.coordinator.getConflicts(spaceId)
   }
 
-  resolveConflict(
+  async resolveConflict(
     spaceId: string,
     options: SpaceVersionResolveConflictOptions
   ): Promise<SpaceVersionResolveConflictResult> {
-    return this.coordinator.resolveConflict(spaceId, options)
+    const result = await this.coordinator.resolveConflict(spaceId, options)
+    notifySpaceFilesChanged(this.windowProvider, spaceId, options.path)
+    return result
   }
 
   commit(
@@ -139,24 +158,30 @@ export class SpaceVersioningService extends IpcServiceBase {
     return this.coordinator.unstagePath(spaceId, options)
   }
 
-  discardPath(
+  async discardPath(
     spaceId: string,
     options: SpaceVersionDiscardPathOptions
   ): Promise<SpaceVersionDiscardPathResult> {
-    return this.coordinator.discardPath(spaceId, options)
+    const result = await this.coordinator.discardPath(spaceId, options)
+    notifySpaceFilesChanged(this.windowProvider, spaceId, result.path)
+    return result
   }
 
-  restorePath(
+  async restorePath(
     spaceId: string,
     options: SpaceVersionRestorePathOptions
   ): Promise<SpaceVersionRestorePathResult> {
-    return this.coordinator.restorePath(spaceId, options)
+    const result = await this.coordinator.restorePath(spaceId, options)
+    notifySpaceFilesChanged(this.windowProvider, spaceId, result.path)
+    return result
   }
 
-  restoreVersion(
+  async restoreVersion(
     spaceId: string,
     options: SpaceVersionRestoreOptions
   ): Promise<SpaceVersionRestoreResult> {
-    return this.coordinator.restoreVersion(spaceId, options)
+    const result = await this.coordinator.restoreVersion(spaceId, options)
+    notifySpaceFilesChanged(this.windowProvider, spaceId)
+    return result
   }
 }
