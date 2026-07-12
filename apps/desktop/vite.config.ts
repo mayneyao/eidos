@@ -11,6 +11,8 @@ import {
 } from "../../packages/shared/vite/base.config"
 import { createHtmlPlugin } from "../../packages/shared/vite/plugins"
 
+import { desktopDevLaunchArgs } from "./dev-launch"
+
 // import { visualizer } from "rollup-plugin-visualizer"
 
 const externalNodeModules = [
@@ -75,6 +77,9 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
           "electron/modules/data-space/worker/worker.ts",
           "electron/modules/data-space/worker/sync-worker.ts",
         ],
+        onstart: async ({ startup }) => {
+          await startup(desktopDevLaunchArgs())
+        },
         vite: {
           assetsInclude: ["**/*.node"],
           resolve: {

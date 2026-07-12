@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "pnpm run --filter web-app dev",
     "dev:desktop": "pnpm run --filter eidos dev",
+    "dev:desktop:qa": "pnpm run --filter eidos dev:qa",
     "dev:web": "pnpm run --filter web-app dev",
     "dev:docs": "pnpm run --filter docs dev",
     "build": "pnpm run --filter web-app build",

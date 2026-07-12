@@ -12,6 +12,7 @@
     "prebuild": "pnpm --filter @eidos.space/base build && pnpm --filter @eidos.space/file-space build && pnpm --filter @eidos.space/legacy-space-migration build && pnpm --filter @eidos.space/electron-ipc build && pnpm --filter @eidos.space/rawdata build && pnpm --filter @eidos.space/client build && pnpm --filter @eidos.space/graft-client build && pnpm --filter @eidos.space/ext-server run build:assets && node scripts/build-cli-local.cjs",
     "predev": "pnpm --filter @eidos.space/base build && pnpm --filter @eidos.space/file-space build && pnpm --filter @eidos.space/legacy-space-migration build && pnpm --filter @eidos.space/electron-ipc build && pnpm --filter @eidos.space/rawdata build && pnpm --filter @eidos.space/client build && pnpm --filter @eidos.space/graft-client build && pnpm --filter @eidos.space/ext-server run build:assets",
     "dev": "cross-env EIDOS_SERVICE_MODE=desktop vite --mode desktop",
+    "dev:qa": "cross-env EIDOS_SERVICE_MODE=desktop EIDOS_DESKTOP_REMOTE_DEBUGGING_PORT=9222 vite --mode desktop",
     "build": "shx rm -rf dist-electron && cross-env NODE_OPTIONS=--max-old-space-size=8192 EIDOS_SERVICE_MODE=desktop vite build --mode desktop",
     "package": "cross-env BUILD_MODE=1 electron-builder --publish never --config electron/electron-builder.json",
     "package:dev": "cross-env BUILD_MODE=1 electron-builder --publish never --config electron/electron-builder.dev.json",
