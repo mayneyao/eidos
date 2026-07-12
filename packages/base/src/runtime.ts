@@ -7,6 +7,7 @@ import {
   BASE_VIEWS_TABLE,
 } from "./constants"
 import { BaseError } from "./errors"
+import { decodeBaseFilePaths, encodeBaseFilePaths } from "./file-values"
 import {
   assertBaseColumnName,
   assertBaseTableId,
@@ -158,6 +159,7 @@ function sqlTypeForField(type: BaseFieldType): string {
 
 function defaultStorageCodec(type: BaseFieldType): BaseStorageCodec {
   if (type === "multi-select") return "csv_ids"
+  if (type === "file") return "json_array"
   if (type === "link") return "relation"
   if (type === "formula" || type === "lookup") return "materialized_text"
   return "scalar"
@@ -165,6 +167,14 @@ function defaultStorageCodec(type: BaseFieldType): BaseStorageCodec {
 
 function sqliteParameter(value: BaseRow[string]): BaseSqlParams[number] {
   return typeof value === "boolean" ? (value ? 1 : 0) : value
+}
+
+function writableFieldValue(
+  field: BaseFieldInfo | undefined,
+  value: BaseRow[string]
+): BaseRow[string] {
+  if (field?.type !== "file" || value === null) return value
+  return encodeBaseFilePaths(decodeBaseFilePaths(value))
 }
 
 export class BaseRuntime {
@@ -965,9 +975,13 @@ export class BaseRuntime {
 
   insertRow(tableId: string, row: BaseRow): BaseRow {
     const table = this.getTable(tableId)
+    const fields = this.listFields(tableId)
+    const fieldsByColumn = new Map(
+      fields.map((field) => [field.tableColumnName, field])
+    )
     const allowedColumns = new Set([
       "_id",
-      ...this.listFields(tableId)
+      ...fields
         .filter(
           (field) =>
             field.tableColumnName === "title" || field.valueKind === "source"
@@ -975,7 +989,12 @@ export class BaseRuntime {
         .map((field) => field.tableColumnName),
     ])
     const record: BaseRow = {
-      ...row,
+      ...Object.fromEntries(
+        Object.entries(row).map(([column, value]) => [
+          column,
+          writableFieldValue(fieldsByColumn.get(column), value),
+        ])
+      ),
       _id: row._id ?? createBaseId("row"),
     }
     const columns = Object.keys(record)
@@ -1068,8 +1087,12 @@ export class BaseRuntime {
 
   updateRow(tableId: string, rowId: string, changes: BaseRow): BaseRow {
     const table = this.getTable(tableId)
+    const fields = this.listFields(tableId)
+    const fieldsByColumn = new Map(
+      fields.map((field) => [field.tableColumnName, field])
+    )
     const allowedColumns = new Set(
-      this.listFields(tableId)
+      fields
         .filter(
           (field) =>
             field.tableColumnName === "title" || field.valueKind === "source"
@@ -1093,7 +1116,14 @@ export class BaseRuntime {
         `UPDATE ${quoteIdentifier(table.rawTableName)}
             SET ${assignments}, _last_edited_time = CURRENT_TIMESTAMP
           WHERE _id = ?`,
-        [...columns.map((column) => sqliteParameter(changes[column])), rowId]
+        [
+          ...columns.map((column) =>
+            sqliteParameter(
+              writableFieldValue(fieldsByColumn.get(column), changes[column])
+            )
+          ),
+          rowId,
+        ]
       )
       setBaseMetadata(this.connection, {})
     }

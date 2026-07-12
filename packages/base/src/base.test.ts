@@ -104,6 +104,7 @@ describe("Eidos Base files", () => {
         expect.objectContaining({
           tableColumnName: "attachment",
           type: "file",
+          storageCodec: "json_array",
         }),
       ])
     )
@@ -127,7 +128,7 @@ describe("Eidos Base files", () => {
     expect(inserted).toMatchObject({
       title: "Ship Base v1",
       status: "todo",
-      attachment: "assets/spec.pdf",
+      attachment: '["assets/spec.pdf"]',
     })
     expect(typeof inserted._id).toBe("string")
 

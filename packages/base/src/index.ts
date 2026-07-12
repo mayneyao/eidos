@@ -1,6 +1,7 @@
 export * from "./connection"
 export * from "./constants"
 export * from "./errors"
+export * from "./file-values"
 export * from "./identifiers"
 export * from "./migrations"
 export * from "./query"

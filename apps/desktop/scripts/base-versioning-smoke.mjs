@@ -107,6 +107,7 @@ try {
             ],
           },
         },
+        { name: "Attachment", columnName: "attachment", type: "file" },
       ],
     },
   })
@@ -116,7 +117,9 @@ try {
     priority: 2,
     status: "doing",
     labels: "bug,ux",
+    attachment: "assets/spec.pdf",
   })
+  assert.equal(first.attachment, '["assets/spec.pdf"]')
   const queryOnly = base.insertRow("tasks", {
     title: "Query-only row",
     done: false,
