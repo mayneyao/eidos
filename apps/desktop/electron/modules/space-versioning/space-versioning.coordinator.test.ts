@@ -45,12 +45,18 @@ function statusPayload(
   }
 }
 
-function createCoordinator(root: string, runJson: ReturnType<typeof vi.fn>) {
+function createCoordinator(
+  root: string,
+  runJson: ReturnType<typeof vi.fn>,
+  registryOverrides: Record<string, unknown> = {}
+) {
   const registry = {
     getSpace: (spaceId: string) =>
       spaceId === "space-a"
         ? { id: spaceId, mode: "file", path: root }
         : undefined,
+    setSpaceSync: vi.fn(),
+    ...registryOverrides,
   }
   return new SpaceVersioningCoordinator(
     registry as unknown as SpaceRegistry,
@@ -118,6 +124,189 @@ describe("SpaceVersioningCoordinator.getStatus", () => {
     expect(await fs.readFile(ignorePath, "utf8")).toContain(
       ".eidos/raw.sqlite3"
     )
+  })
+})
+
+describe("SpaceVersioningCoordinator remotes", () => {
+  it("configures origin and records its upstream on the current branch", async () => {
+    const root = await createSpace()
+    const setSpaceSync = vi.fn()
+    let configured = false
+    const runJson = vi.fn(async (_root: string, args: string[]) => {
+      if (args[0] === "status") {
+        return statusPayload([], {
+          remotes: configured ? [{ name: "origin" }] : [],
+          upstream_status: configured
+            ? {
+                remote: "origin",
+                branch: "main",
+                ahead: 1,
+                behind: 0,
+                state: "ahead",
+              }
+            : null,
+        })
+      }
+      if (args[0] === "remote" && args[1] === "list") {
+        return {
+          current_head: "head-2",
+          current_branch: "main",
+          remotes: [],
+        }
+      }
+      if (args[0] === "remote" && args[1] === "add") {
+        configured = true
+        return {
+          operation: "remote_add",
+          remote: { name: "origin", url: "fs:///tmp/Eidos Remote" },
+        }
+      }
+      if (args[0] === "branch-upstream") {
+        return { operation: "branch_upstream" }
+      }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson, { setSpaceSync })
+
+    const result = await coordinator.configureRemote("space-a", {
+      url: "fs:///tmp/Eidos Remote",
+    })
+
+    expect(result.remote).toEqual({
+      name: "origin",
+      url: "fs:///tmp/Eidos Remote",
+    })
+    expect(result.status.upstream).toMatchObject({
+      remote: "origin",
+      branch: "main",
+      state: "ahead",
+    })
+    expect(runJson).toHaveBeenCalledWith(await fs.realpath(root), [
+      "branch-upstream",
+      "--json",
+      "main",
+      "origin/main",
+    ])
+    expect(setSpaceSync).toHaveBeenCalledWith("space-a", {
+      enabled: true,
+      remote: "fs:///tmp/Eidos Remote",
+      provider: "graft",
+    })
+  })
+
+  it("restores an existing remote URL when upstream configuration fails", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn(async (_root: string, args: string[]) => {
+      if (args[0] === "status") return statusPayload()
+      if (args[0] === "remote" && args[1] === "list") {
+        return {
+          current_head: "head-2",
+          current_branch: "main",
+          remotes: [{ name: "origin", url: "fs:///tmp/old" }],
+        }
+      }
+      if (args[0] === "remote" && args[1] === "set-url") {
+        return {
+          operation: "remote_set_url",
+          remote: { name: "origin", url: args[4] },
+        }
+      }
+      if (args[0] === "branch-upstream") {
+        throw new Error("invalid upstream")
+      }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    await expect(
+      coordinator.configureRemote("space-a", {
+        url: "fs:///tmp/new",
+      })
+    ).rejects.toThrow("invalid upstream")
+
+    expect(runJson).toHaveBeenLastCalledWith(await fs.realpath(root), [
+      "remote",
+      "set-url",
+      "--json",
+      "origin",
+      "fs:///tmp/old",
+    ])
+  })
+
+  it("pushes through the persistent runner and reconciles status", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn(async (_root: string, args: string[]) => {
+      if (args[0] === "status") {
+        return statusPayload([], {
+          remotes: [{ name: "origin" }],
+          upstream_status: {
+            remote: "origin",
+            branch: "main",
+            ahead: 2,
+            behind: 0,
+            state: "ahead",
+          },
+        })
+      }
+      if (args[0] === "push") {
+        return {
+          operation: "push",
+          current_head: "head-2",
+          current_branch: "main",
+          remote: "origin",
+          branches: [{ remote_branch: "main" }],
+          commits: 2,
+          forced: false,
+        }
+      }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    const result = await coordinator.pushRemote("space-a", {
+      expectedHead: "head-2",
+    })
+
+    expect(result).toMatchObject({
+      operation: "push",
+      remote: "origin",
+      branch: "main",
+      commits: 2,
+      forced: false,
+      status: { currentHead: "head-2" },
+    })
+    expect(runJson).toHaveBeenCalledWith(
+      await fs.realpath(root),
+      ["push", "--json", "origin"],
+      { timeoutMs: 120_000 }
+    )
+  })
+
+  it("blocks pull before invoking Graft when local changes are present", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn(async () =>
+      statusPayload(
+        [
+          {
+            path: "note.md",
+            kind: "text_file",
+            storage: "inline",
+            index_status: "none",
+            worktree_status: "modified",
+          },
+        ],
+        {
+          remotes: [{ name: "origin" }],
+          counts: { unstaged: 1, staged: 0, conflicted: 0 },
+        }
+      )
+    )
+    const coordinator = createCoordinator(root, runJson)
+
+    await expect(
+      coordinator.pullRemote("space-a", { expectedHead: "head-2" })
+    ).rejects.toThrow("Commit or discard local changes")
+    expect(runJson).toHaveBeenCalledTimes(1)
   })
 })
 

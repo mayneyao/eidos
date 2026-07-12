@@ -10,6 +10,11 @@ import type {
   SpaceVersionPathStorage,
   SpaceVersionStatus,
   SpaceVersionStatusCounts,
+  SpaceVersionRemote,
+  SpaceVersionRemoteListResult,
+  SpaceVersionSyncResult,
+  SpaceVersionUpstreamState,
+  SpaceVersionUpstreamStatus,
   SpaceVersionSqliteFileDiff,
   SpaceVersionSqliteLimitation,
   SpaceVersionSqliteOpaqueChange,
@@ -70,6 +75,36 @@ function nonNegativeInteger(value: unknown): number | null {
 
 function safeInteger(value: unknown): number | null {
   return typeof value === "number" && Number.isSafeInteger(value) ? value : null
+}
+
+function upstreamState(value: unknown): SpaceVersionUpstreamState {
+  switch (value) {
+    case "up_to_date":
+    case "ahead":
+    case "behind":
+    case "diverged":
+      return value
+    default:
+      return "unknown"
+  }
+}
+
+function upstreamStatus(value: unknown): SpaceVersionUpstreamStatus | null {
+  if (!isObject(value)) return null
+  const remote = stringValue(value.remote)
+  const branch = stringValue(value.branch)
+  if (!remote || !branch) return null
+  return {
+    remote,
+    branch,
+    ahead: nonNegativeInteger(value.ahead) ?? 0,
+    behind: nonNegativeInteger(value.behind) ?? 0,
+    state: upstreamState(value.state),
+  }
+}
+
+function remoteName(value: unknown): string | null {
+  return isObject(value) ? stringValue(value.name) : null
 }
 
 function sqliteValue(value: unknown): SpaceVersionSqliteValue {
@@ -502,6 +537,68 @@ export function parseGraftStatus(
     hasConflicts,
     counts,
     paths,
+    remoteNames: objectArray(raw.remotes)
+      .map(remoteName)
+      .filter((name): name is string => name !== null),
+    upstream: upstreamStatus(raw.upstream_status),
+    ahead: nonNegativeInteger(raw.ahead) ?? 0,
+    behind: nonNegativeInteger(raw.behind) ?? 0,
+  }
+}
+
+function remoteInfo(value: unknown): SpaceVersionRemote {
+  if (!isObject(value)) {
+    throw new Error("Graft returned invalid remote information")
+  }
+  const name = stringValue(value.name)
+  const url = stringValue(value.url)
+  if (!name || !url) {
+    throw new Error("Graft remote name or URL is missing")
+  }
+  return { name, url }
+}
+
+export function parseGraftRemotes(raw: unknown): SpaceVersionRemoteListResult {
+  if (!isObject(raw)) {
+    throw new Error("Graft returned an invalid remote list")
+  }
+  return {
+    currentHead: headFromPayload(raw),
+    currentBranch: branchFromPayload(raw),
+    remotes: Array.isArray(raw.remotes) ? raw.remotes.map(remoteInfo) : [],
+  }
+}
+
+export function parseGraftRemoteMutation(raw: unknown): SpaceVersionRemote {
+  if (!isObject(raw)) {
+    throw new Error("Graft returned an invalid remote update")
+  }
+  return remoteInfo(raw.remote)
+}
+
+export function parseGraftSyncResult(
+  raw: unknown,
+  operation: SpaceVersionSyncResult["operation"]
+): Omit<SpaceVersionSyncResult, "status"> {
+  if (!isObject(raw) || raw.operation !== operation) {
+    throw new Error(`Graft returned an invalid ${operation} result`)
+  }
+  const remote = stringValue(raw.remote)
+  if (!remote) {
+    throw new Error(`Graft ${operation} result is missing its remote`)
+  }
+  const branches = objectArray(raw.branches)
+  const branch =
+    stringValue(raw.remote_branch) ??
+    stringValue(branches[0]?.remote_branch) ??
+    stringValue(branches[0]?.branch) ??
+    branchFromPayload(raw)
+  return {
+    operation,
+    remote,
+    branch,
+    commits: nonNegativeInteger(raw.commits) ?? 0,
+    forced: operation === "push" && raw.forced === true,
   }
 }
 

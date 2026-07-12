@@ -6,12 +6,17 @@ import type {
   SpaceVersionCommit,
   SpaceVersionCommitOptions,
   SpaceVersionCommitResult,
+  SpaceVersionConfigureRemoteOptions,
+  SpaceVersionConfigureRemoteResult,
   SpaceVersionDiscardPathOptions,
   SpaceVersionDiscardPathResult,
   SpaceVersionDiff,
   SpaceVersionDiffOptions,
   SpaceVersionHistoryOptions,
   SpaceVersionHistoryResult,
+  SpaceVersionRemoteListResult,
+  SpaceVersionRemoveRemoteOptions,
+  SpaceVersionRemoveRemoteResult,
   SpaceVersionRestoreOptions,
   SpaceVersionRestorePathOptions,
   SpaceVersionRestorePathResult,
@@ -19,6 +24,8 @@ import type {
   SpaceVersionStagePathOptions,
   SpaceVersionStagePathResult,
   SpaceVersionStatus,
+  SpaceVersionSyncOptions,
+  SpaceVersionSyncResult,
   SpaceVersionUnstagePathOptions,
   SpaceVersionUnstagePathResult,
 } from "./types"
@@ -38,6 +45,45 @@ export class SpaceVersioningService extends IpcServiceBase {
 
   enable(spaceId: string): Promise<SpaceVersionStatus> {
     return this.coordinator.enable(spaceId)
+  }
+
+  getRemotes(spaceId: string): Promise<SpaceVersionRemoteListResult> {
+    return this.coordinator.getRemotes(spaceId)
+  }
+
+  configureRemote(
+    spaceId: string,
+    options: SpaceVersionConfigureRemoteOptions
+  ): Promise<SpaceVersionConfigureRemoteResult> {
+    return this.coordinator.configureRemote(spaceId, options)
+  }
+
+  removeRemote(
+    spaceId: string,
+    options: SpaceVersionRemoveRemoteOptions = {}
+  ): Promise<SpaceVersionRemoveRemoteResult> {
+    return this.coordinator.removeRemote(spaceId, options)
+  }
+
+  fetchRemote(
+    spaceId: string,
+    options: SpaceVersionSyncOptions = {}
+  ): Promise<SpaceVersionSyncResult> {
+    return this.coordinator.fetchRemote(spaceId, options)
+  }
+
+  pullRemote(
+    spaceId: string,
+    options: SpaceVersionSyncOptions = {}
+  ): Promise<SpaceVersionSyncResult> {
+    return this.coordinator.pullRemote(spaceId, options)
+  }
+
+  pushRemote(
+    spaceId: string,
+    options: SpaceVersionSyncOptions = {}
+  ): Promise<SpaceVersionSyncResult> {
+    return this.coordinator.pushRemote(spaceId, options)
   }
 
   commit(

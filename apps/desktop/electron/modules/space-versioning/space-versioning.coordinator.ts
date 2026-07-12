@@ -13,10 +13,13 @@ import {
   parseGraftCommitResult,
   parseGraftDiff,
   parseGraftLog,
+  parseGraftRemoteMutation,
+  parseGraftRemotes,
   parseGraftRestorePaths,
   parseGraftRestoreSource,
   parseGraftRestoreVersionSource,
   parseGraftStatus,
+  parseGraftSyncResult,
 } from "./graft-parsers"
 import type {
   SpaceVersionCommit,
@@ -34,9 +37,16 @@ import type {
   SpaceVersionRestorePathOptions,
   SpaceVersionRestorePathResult,
   SpaceVersionPathStatus,
+  SpaceVersionConfigureRemoteOptions,
+  SpaceVersionConfigureRemoteResult,
+  SpaceVersionRemoteListResult,
+  SpaceVersionRemoveRemoteOptions,
+  SpaceVersionRemoveRemoteResult,
   SpaceVersionStagePathOptions,
   SpaceVersionStagePathResult,
   SpaceVersionStatus,
+  SpaceVersionSyncOptions,
+  SpaceVersionSyncResult,
   SpaceVersionUnstagePathResult,
 } from "./types"
 
@@ -49,6 +59,8 @@ const TEXT_DIFF_MAX_BUFFER_BYTES = 3 * TEXT_DIFF_MAX_CONTENT_BYTES + 1024 * 1024
 const SQLITE_DIFF_MAX_BUFFER_BYTES = 16 * 1024 * 1024
 const MAX_MESSAGE_LENGTH = 4_096
 const MAX_REVISION_LENGTH = 512
+const MAX_REMOTE_NAME_LENGTH = 128
+const MAX_REMOTE_URL_LENGTH = 4_096
 const REPOSITORY_LOCK_DIRECTORY = ".eidos-operation.lock"
 const REPOSITORY_LOCK_OWNER_FILE = "owner.json"
 const REPOSITORY_LOCK_RETRY_MS = 75
@@ -179,6 +191,114 @@ function normalizeExpectedHead(value: unknown): string | null {
   return value === null
     ? null
     : normalizeRevision(value, "Expected current version")
+}
+
+function normalizeRemoteWord(
+  value: unknown,
+  label: string,
+  fallback?: string
+): string {
+  const candidate = value === undefined ? fallback : value
+  if (
+    typeof candidate !== "string" ||
+    !candidate ||
+    candidate.length > MAX_REVISION_LENGTH ||
+    candidate.startsWith("-") ||
+    candidate.includes("\0") ||
+    /\s/.test(candidate)
+  ) {
+    throw new Error(`${label} must be one non-empty name without whitespace`)
+  }
+  return candidate
+}
+
+function normalizeRemoteName(value: unknown): string {
+  const name = normalizeRemoteWord(value, "Remote name", "origin")
+  if (name.length > MAX_REMOTE_NAME_LENGTH || name.includes("/")) {
+    throw new Error(
+      `Remote name cannot exceed ${MAX_REMOTE_NAME_LENGTH} characters or contain a slash`
+    )
+  }
+  return name
+}
+
+function normalizeRemoteUrl(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new Error("Remote URL is required")
+  }
+  const url = value.trim()
+  if (
+    !url ||
+    url.length > MAX_REMOTE_URL_LENGTH ||
+    url.includes("\0") ||
+    /[\r\n]/.test(url)
+  ) {
+    throw new Error("Remote URL is invalid")
+  }
+  if (
+    url !== "memory" &&
+    ![
+      "fs://",
+      "s3://",
+      "s3_compatible://",
+      "graft+https://",
+      "graft+http://",
+    ].some((prefix) => url.startsWith(prefix))
+  ) {
+    throw new Error(
+      "Remote URL must use memory, fs://, s3://, s3_compatible://, graft+https://, or graft+http://"
+    )
+  }
+  return url
+}
+
+function normalizeConfigureRemoteOptions(
+  value: unknown
+): SpaceVersionConfigureRemoteOptions & { name: string; url: string } {
+  if (!isObject(value)) {
+    throw new Error("Remote options must be an object")
+  }
+  return {
+    name: normalizeRemoteName(value.name),
+    url: normalizeRemoteUrl(value.url),
+    branch:
+      value.branch === undefined
+        ? undefined
+        : normalizeRemoteWord(value.branch, "Remote branch"),
+  }
+}
+
+function normalizeRemoveRemoteOptions(
+  value: unknown
+): Required<SpaceVersionRemoveRemoteOptions> {
+  if (value !== undefined && !isObject(value)) {
+    throw new Error("Remote options must be an object")
+  }
+  return { name: normalizeRemoteName(isObject(value) ? value.name : undefined) }
+}
+
+interface NormalizedSyncOptions {
+  remote: string
+  branch?: string
+  expectedHead?: string | null
+}
+
+function normalizeSyncOptions(value: unknown): NormalizedSyncOptions {
+  if (value !== undefined && !isObject(value)) {
+    throw new Error("Sync options must be an object")
+  }
+  const options = isObject(value) ? value : {}
+  return {
+    remote: normalizeRemoteName(options.remote),
+    branch:
+      options.branch === undefined
+        ? undefined
+        : normalizeRemoteWord(options.branch, "Remote branch"),
+    expectedHead:
+      options.expectedHead === undefined
+        ? undefined
+        : normalizeExpectedHead(options.expectedHead),
+  }
 }
 
 function normalizeHistoryOptions(
@@ -551,6 +671,145 @@ export class SpaceVersioningCoordinator {
         return this.readStatus(spaceId, spacePath)
       })
     })
+  }
+
+  async getRemotes(
+    spaceIdValue: unknown
+  ): Promise<SpaceVersionRemoteListResult> {
+    const spaceId = requireSpaceId(spaceIdValue)
+    return this.withSpaceLock(spaceId, async () => {
+      const spacePath = await this.resolveFileSpace(spaceId)
+      await this.requireRepository(spacePath)
+      return this.withRepositoryOperationLock(spacePath, async () =>
+        parseGraftRemotes(
+          await this.runner.runJson(spacePath, ["remote", "list", "--json"])
+        )
+      )
+    })
+  }
+
+  async configureRemote(
+    spaceIdValue: unknown,
+    optionsValue: unknown
+  ): Promise<SpaceVersionConfigureRemoteResult> {
+    const spaceId = requireSpaceId(spaceIdValue)
+    const options = normalizeConfigureRemoteOptions(optionsValue)
+    return this.withSpaceLock(spaceId, async () => {
+      const spacePath = await this.resolveFileSpace(spaceId)
+      await this.requireRepository(spacePath)
+      return this.withRepositoryOperationLock(spacePath, async () => {
+        const status = await this.readStatus(spaceId, spacePath)
+        const localBranch = status.currentBranch
+        if (!localBranch) {
+          throw new Error(
+            "Create the first version before configuring a remote Space"
+          )
+        }
+        const remoteBranch = options.branch ?? localBranch
+        const remotes = parseGraftRemotes(
+          await this.runner.runJson(spacePath, ["remote", "list", "--json"])
+        )
+        const previous = remotes.remotes.find(
+          (remote) => remote.name === options.name
+        )
+        const operation = previous ? "set-url" : "add"
+        const remote = parseGraftRemoteMutation(
+          await this.runner.runJson(spacePath, [
+            "remote",
+            operation,
+            "--json",
+            options.name,
+            options.url,
+          ])
+        )
+
+        try {
+          await this.runner.runJson(spacePath, [
+            "branch-upstream",
+            "--json",
+            localBranch,
+            `${options.name}/${remoteBranch}`,
+          ])
+        } catch (error) {
+          try {
+            await this.runner.runJson(
+              spacePath,
+              previous
+                ? ["remote", "set-url", "--json", previous.name, previous.url]
+                : ["remote", "remove", "--json", options.name]
+            )
+          } catch (rollbackError) {
+            throw new Error(
+              `${errorMessage(error)} (also failed to restore the previous remote configuration: ${errorMessage(rollbackError)})`
+            )
+          }
+          throw error
+        }
+
+        this.registry.setSpaceSync(spaceId, {
+          enabled: true,
+          remote: remote.url,
+          provider: "graft",
+        })
+        return {
+          remote,
+          status: await this.readStatus(spaceId, spacePath),
+        }
+      })
+    })
+  }
+
+  async removeRemote(
+    spaceIdValue: unknown,
+    optionsValue: unknown = {}
+  ): Promise<SpaceVersionRemoveRemoteResult> {
+    const spaceId = requireSpaceId(spaceIdValue)
+    const options = normalizeRemoveRemoteOptions(optionsValue)
+    return this.withSpaceLock(spaceId, async () => {
+      const spacePath = await this.resolveFileSpace(spaceId)
+      await this.requireRepository(spacePath)
+      return this.withRepositoryOperationLock(spacePath, async () => {
+        await this.runner.runJson(spacePath, [
+          "remote",
+          "remove",
+          "--json",
+          options.name,
+        ])
+        const remotes = parseGraftRemotes(
+          await this.runner.runJson(spacePath, ["remote", "list", "--json"])
+        ).remotes
+        this.registry.setSpaceSync(spaceId, {
+          enabled: remotes.length > 0,
+          remote: remotes[0]?.url ?? "",
+          provider: "graft",
+        })
+        return {
+          name: options.name,
+          status: await this.readStatus(spaceId, spacePath),
+        }
+      })
+    })
+  }
+
+  async fetchRemote(
+    spaceIdValue: unknown,
+    optionsValue: unknown = {}
+  ): Promise<SpaceVersionSyncResult> {
+    return this.syncRemote("fetch", spaceIdValue, optionsValue)
+  }
+
+  async pullRemote(
+    spaceIdValue: unknown,
+    optionsValue: unknown = {}
+  ): Promise<SpaceVersionSyncResult> {
+    return this.syncRemote("pull", spaceIdValue, optionsValue)
+  }
+
+  async pushRemote(
+    spaceIdValue: unknown,
+    optionsValue: unknown = {}
+  ): Promise<SpaceVersionSyncResult> {
+    return this.syncRemote("push", spaceIdValue, optionsValue)
   }
 
   async commit(
@@ -1211,6 +1470,59 @@ export class SpaceVersioningCoordinator {
     if (!(await this.hasRepository(spacePath))) {
       throw new Error("Version history is not enabled for this Space")
     }
+  }
+
+  private async syncRemote(
+    operation: SpaceVersionSyncResult["operation"],
+    spaceIdValue: unknown,
+    optionsValue: unknown
+  ): Promise<SpaceVersionSyncResult> {
+    const spaceId = requireSpaceId(spaceIdValue)
+    const options = normalizeSyncOptions(optionsValue)
+    return this.withSpaceLock(spaceId, async () => {
+      const spacePath = await this.resolveFileSpace(spaceId)
+      await this.requireRepository(spacePath)
+      return this.withRepositoryOperationLock(spacePath, async () => {
+        const before = await this.readStatus(spaceId, spacePath)
+        if (
+          options.expectedHead !== undefined &&
+          before.currentHead !== options.expectedHead
+        ) {
+          throw new Error(
+            "The Space history changed. Refresh Version before synchronizing."
+          )
+        }
+        if (!before.remoteNames?.includes(options.remote)) {
+          throw new Error(`Remote '${options.remote}' is not configured`)
+        }
+        if (operation === "pull" && before.dirty) {
+          throw new Error(
+            "Commit or discard local changes before pulling remote versions"
+          )
+        }
+        if (operation !== "fetch" && before.hasConflicts) {
+          throw new Error("Resolve version conflicts before synchronizing")
+        }
+        if (operation === "push" && !before.currentHead) {
+          throw new Error("Create the first version before pushing")
+        }
+
+        const raw = await this.runner.runJson(
+          spacePath,
+          [
+            operation,
+            "--json",
+            options.remote,
+            ...(options.branch ? [options.branch] : []),
+          ],
+          { timeoutMs: MUTATION_TIMEOUT_MS }
+        )
+        return {
+          ...parseGraftSyncResult(raw, operation),
+          status: await this.readStatus(spaceId, spacePath),
+        }
+      })
+    })
   }
 
   private async readStatus(

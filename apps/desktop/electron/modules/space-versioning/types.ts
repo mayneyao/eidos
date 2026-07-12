@@ -37,6 +37,21 @@ export interface SpaceVersionStatusCounts {
   conflicted: number
 }
 
+export type SpaceVersionUpstreamState =
+  | "up_to_date"
+  | "ahead"
+  | "behind"
+  | "diverged"
+  | "unknown"
+
+export interface SpaceVersionUpstreamStatus {
+  remote: string
+  branch: string
+  ahead: number
+  behind: number
+  state: SpaceVersionUpstreamState
+}
+
 export interface SpaceVersionStatus {
   spaceId: string
   enabled: boolean
@@ -49,6 +64,56 @@ export interface SpaceVersionStatus {
   hasConflicts: boolean
   counts: SpaceVersionStatusCounts
   paths: SpaceVersionPathStatus[]
+  remoteNames?: string[]
+  upstream?: SpaceVersionUpstreamStatus | null
+  ahead?: number
+  behind?: number
+}
+
+export interface SpaceVersionRemote {
+  name: string
+  url: string
+}
+
+export interface SpaceVersionRemoteListResult {
+  currentHead: string | null
+  currentBranch: string | null
+  remotes: SpaceVersionRemote[]
+}
+
+export interface SpaceVersionConfigureRemoteOptions {
+  name?: string
+  url: string
+  branch?: string
+}
+
+export interface SpaceVersionConfigureRemoteResult {
+  remote: SpaceVersionRemote
+  status: SpaceVersionStatus
+}
+
+export interface SpaceVersionRemoveRemoteOptions {
+  name?: string
+}
+
+export interface SpaceVersionRemoveRemoteResult {
+  name: string
+  status: SpaceVersionStatus
+}
+
+export interface SpaceVersionSyncOptions {
+  remote?: string
+  branch?: string
+  expectedHead?: string | null
+}
+
+export interface SpaceVersionSyncResult {
+  operation: "fetch" | "pull" | "push"
+  remote: string
+  branch: string | null
+  commits: number
+  forced: boolean
+  status: SpaceVersionStatus
 }
 
 export type SpaceVersionChangeKind =

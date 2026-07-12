@@ -7,10 +7,13 @@ import {
   parseGraftCommitResult,
   parseGraftDiff,
   parseGraftLog,
+  parseGraftRemoteMutation,
+  parseGraftRemotes,
   parseGraftRestorePaths,
   parseGraftRestoreSource,
   parseGraftRestoreVersionSource,
   parseGraftStatus,
+  parseGraftSyncResult,
 } from "./graft-parsers"
 
 describe("Graft v0.5 JSON parsers", () => {
@@ -176,6 +179,94 @@ describe("Graft v0.5 JSON parsers", () => {
       state: "conflicted",
       staged: false,
       conflicted: true,
+    })
+  })
+
+  it("preserves remote and upstream state from repository status", () => {
+    const status = parseGraftStatus(
+      {
+        current_head: "head-2",
+        current_branch: "main",
+        remotes: [
+          { name: "origin", config: { type: "fs", root: "/tmp/remote" } },
+        ],
+        upstream_status: {
+          remote: "origin",
+          branch: "main",
+          local: "head-2",
+          remote_target: "head-1",
+          ahead: 1,
+          behind: 0,
+          state: "ahead",
+        },
+        ahead: 1,
+        behind: 0,
+      },
+      "notes"
+    )
+
+    expect(status).toMatchObject({
+      remoteNames: ["origin"],
+      ahead: 1,
+      behind: 0,
+      upstream: {
+        remote: "origin",
+        branch: "main",
+        ahead: 1,
+        behind: 0,
+        state: "ahead",
+      },
+    })
+  })
+
+  it("parses remote lists, mutations, and sync summaries", () => {
+    expect(
+      parseGraftRemotes({
+        current_head: "head-1",
+        current_branch: "main",
+        remotes: [
+          {
+            name: "origin",
+            url: "fs:///tmp/Eidos Remote",
+            config: { type: "fs", root: "/tmp/Eidos Remote" },
+          },
+        ],
+      })
+    ).toEqual({
+      currentHead: "head-1",
+      currentBranch: "main",
+      remotes: [{ name: "origin", url: "fs:///tmp/Eidos Remote" }],
+    })
+    expect(
+      parseGraftRemoteMutation({
+        operation: "remote_add",
+        remote: { name: "origin", url: "memory" },
+      })
+    ).toEqual({ name: "origin", url: "memory" })
+    expect(
+      parseGraftSyncResult(
+        {
+          operation: "push",
+          remote: "origin",
+          current_branch: "main",
+          commits: 2,
+          forced: false,
+          branches: [
+            {
+              remote_branch: "main",
+              local_branch: "main",
+              commits: 2,
+            },
+          ],
+        },
+        "push"
+      )
+    ).toEqual({
+      operation: "push",
+      remote: "origin",
+      branch: "main",
+      commits: 2,
+      forced: false,
     })
   })
 
