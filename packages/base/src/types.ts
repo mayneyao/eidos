@@ -175,6 +175,30 @@ export interface CreateBaseFormulaFieldInput {
   storageCodec?: "scalar"
 }
 
+export interface BaseFormulaPreviewInput {
+  name: string
+  columnName: string
+  formula: string
+  displayType: BaseFormulaDisplayType
+}
+
+export interface BaseFormulaPreviewDependency {
+  name: string
+  columnName: string
+}
+
+export interface BaseFormulaPreviewSample {
+  rowId: string
+  title: string | null
+  value: BaseRowValue
+}
+
+export interface BaseFormulaPreview {
+  expression: string
+  dependencies: BaseFormulaPreviewDependency[]
+  samples: BaseFormulaPreviewSample[]
+}
+
 export type BaseLookupAggregate =
   | "first"
   | "values"

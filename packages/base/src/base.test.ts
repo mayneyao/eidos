@@ -308,6 +308,54 @@ describe("Eidos Base files", () => {
     })
     expect(first).toMatchObject({ total: 100, with_tax: 120 })
     expect(second).toMatchObject({ total: 25, with_tax: 30 })
+    const preview = base.previewFormula("orders", {
+      name: "Total",
+      columnName: "total",
+      formula: "unit_price * quantity * 3",
+      displayType: "number",
+    })
+    expect(preview.expression).toContain("unit_price * quantity")
+    expect(preview).toMatchObject({
+      dependencies: [
+        { name: "Unit price", columnName: "unit_price" },
+        { name: "Quantity", columnName: "quantity" },
+      ],
+      samples: [
+        { rowId: String(first._id), title: "Keyboard", value: 300 },
+        { rowId: String(second._id), title: "Mouse", value: 75 },
+      ],
+    })
+    expect(
+      base.previewFormula("orders", {
+        name: "Quantity plus one",
+        columnName: "quantity_plus_one",
+        formula: "quantity + 1",
+        displayType: "number",
+      }).samples
+    ).toEqual([
+      { rowId: String(first._id), title: "Keyboard", value: 3 },
+      { rowId: String(second._id), title: "Mouse", value: 2 },
+    ])
+    expect(
+      base
+        .listFields("orders")
+        .find((field) => field.tableColumnName === "total")?.property?.formula
+    ).toBe('prop("Unit price") * quantity')
+    expect(
+      base
+        .listFields("orders")
+        .some((field) => field.tableColumnName === "quantity_plus_one")
+    ).toBe(false)
+    expectBaseError(
+      () =>
+        base.previewFormula("orders", {
+          name: "Total",
+          columnName: "total",
+          formula: "with_tax",
+          displayType: "number",
+        }),
+      "invalid-schema"
+    )
     expect(
       base
         .getRowPage("orders", 0, 20, {

@@ -27,6 +27,8 @@ import {
 import type {
   BaseFieldInfo,
   BaseFieldType,
+  BaseFormulaPreview,
+  BaseFormulaPreviewInput,
   BaseMetadata,
   BaseLookupAggregate,
   BaseRow,
@@ -349,6 +351,95 @@ export class BaseRuntime {
     )
     if (row) delete row.__base_rowid
     return row
+  }
+
+  previewFormula(
+    tableId: string,
+    input: BaseFormulaPreviewInput
+  ): BaseFormulaPreview {
+    const table = this.getTable(tableId)
+    const columnName = assertBaseColumnName(input.columnName)
+    const fields = this.listFields(tableId)
+    const existing = fields.find(
+      (field) => field.tableColumnName === columnName
+    )
+    if (existing && existing.type !== "formula") {
+      throw new BaseError(
+        "invalid-schema",
+        `Base field “${existing.name}” is not a formula`
+      )
+    }
+    const draft: BaseFieldInfo = existing
+      ? {
+          ...existing,
+          name: input.name.trim() || existing.name,
+          property: {
+            formula: input.formula,
+            displayType: input.displayType,
+          },
+          dependsOn: null,
+        }
+      : {
+          name: input.name.trim() || columnName,
+          type: "formula",
+          tableName: table.rawTableName,
+          tableColumnName: columnName,
+          property: {
+            formula: input.formula,
+            displayType: input.displayType,
+          },
+          storageCodec: "scalar",
+          valueKind: "derived",
+          isHidden: false,
+          isDerived: true,
+          sourceTableColumnName: null,
+          dependsOn: null,
+        }
+    const draftFields = existing
+      ? fields.map((field) =>
+          field.tableColumnName === columnName ? draft : field
+        )
+      : [...fields, draft]
+    const compiled = compileBaseFormula(draft, draftFields)
+    const resolvedDraft: BaseFieldInfo = {
+      ...draft,
+      property: {
+        ...draft.property,
+        expression: compiled.expression,
+      },
+      dependsOn: compiled.dependencies,
+    }
+    const previewFields = draftFields.map((field) =>
+      field.tableColumnName === columnName ? resolvedDraft : field
+    )
+    compileBaseFormulaFields(previewFields)
+    const samples = this.connection.query<{
+      row_id: BaseRow[string]
+      title: BaseRow[string]
+      value: BaseRow[string]
+    }>(
+      `SELECT _id AS row_id, title, ${quoteIdentifier(columnName)} AS value
+         FROM ${this.rowSourceSql(tableId, previewFields)}
+        ORDER BY "__base_rowid" ASC
+        LIMIT 3`
+    )
+    return {
+      expression: compiled.expression,
+      dependencies: compiled.dependencies.map((dependency) => {
+        const field = previewFields.find(
+          (candidate) => candidate.tableColumnName === dependency
+        )
+        return {
+          name: field?.name ?? dependency,
+          columnName: dependency,
+        }
+      }),
+      samples: samples.map((sample) => ({
+        rowId: String(sample.row_id),
+        title: sample.title === null ? null : String(sample.title),
+        value: sample.value,
+      })),
+    }
   }
 
   info(): BaseMetadata {
