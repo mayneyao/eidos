@@ -82,21 +82,27 @@ File fields support Space import, drop, remove, open, and reveal actions;
 Relation fields reuse the target-table search boundary and persist stable row
 IDs for single or multiple selection.
 
+The real-file Base versioning smoke now creates Grid, Gallery, and Kanban
+metadata, closes and reopens the file, edits rows, verifies Graft row diffs,
+restores the original revision, and reopens again to verify records, derived
+values, and all three view layouts. The restored repository is clean. Native
+UI restart acceptance remains separate from this automated lifecycle evidence.
+
 Current parity with the original table views is explicit:
 
-| Capability                                                | Base status                           | Remaining boundary                                                                                           |
-| --------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Persisted view lifecycle and per-view query/layout        | Working                               | Native restart acceptance remains                                                                            |
-| Gallery field visibility, empty-field hiding, card sizing | Working                               | Search-result focus/scroll remains                                                                           |
-| Gallery cover                                             | File field working                    | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
-| Card actions                                              | Editable inspector and delete working | A full-page row-document model is not yet defined for file-based Base                                        |
-| Kanban Select grouping, counts, collapse, add, drag move  | Working                               | Keyboard drag semantics and very large-column virtualization remain                                          |
+| Capability                                                | Base status                            | Remaining boundary                                                                                           |
+| --------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Persisted view lifecycle and per-view query/layout        | Automated reopen/restore accepted      | Native UI restart acceptance remains                                                                         |
+| Gallery field visibility, empty-field hiding, card sizing | Working                                | Search-result focus/scroll remains                                                                           |
+| Gallery cover                                             | File field working                     | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
+| Card actions                                              | Editable inspector and delete working  | A full-page row-document model is not yet defined for file-based Base                                        |
+| Kanban Select grouping, counts, collapse, add, drag move  | Working with keyboard Move-to fallback | Direct drag announcements and very large-column virtualization remain                                        |
 
 This is the first working delivery slice, not yet full parity with the original
-table views. Search navigation, additional portable cover sources, keyboard
-drag semantics, and a complete native
-create/edit/restart/version/restore acceptance run remain. Routine Base configuration uses
-inline controls, header menus, and anchored popovers. Modal dialogs are
+table views. Search navigation, additional portable cover sources, direct drag
+announcements, very large-column virtualization, and native UI lifecycle
+acceptance remain. Routine Base configuration uses inline controls, header
+menus, and anchored popovers. Modal dialogs are
 reserved for destructive confirmation or other decisions that must interrupt
 the workflow. New interactions should first adapt the proven editing patterns
 from the original Eidos table; implementation convenience is not a reason to
