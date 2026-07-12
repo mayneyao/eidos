@@ -1,6 +1,6 @@
 # RFC：从 Legacy Eidos Space 迁移到 Space/Base
 
-状态：草案，尚未开始实施
+状态：草案，导出垂直切片已实现
 日期：2026-07-08
 负责人：Eidos
 相关文档：
@@ -10,10 +10,23 @@
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-graft-space-versioning.zh.md`
 
-## 实施状态（2026-07-11）
+## 实施状态（2026-07-12）
 
-尚未开始实施。export-mode migration 仍是第一目标，但会等待独立 Base 格式和校验
-APIs 稳定后再开始。第一版不规划 silent migration 或 in-place migration。
+独立的 `@eidos.space/legacy-space-migration` package 已经实现 export-mode 垂直切片，
+并且不依赖 Eidos core。纯 planning API 会生成确定性的 Markdown、Base、asset 映射和
+明确的 errors/warnings；可选的 `better-sqlite3` 入口以 readonly/query-only 模式打开
+legacy database，对 database、WAL 和 asset inventory 建立 fingerprint，并拒绝执行
+已经过期的 plan。
+
+Exporter 会先在同级 staging directory 中写入 Markdown（包括当前文档 properties）、
+一个 `main.base`、可见 assets、Lexical/property recovery sidecars、`report.md` 和
+`mapping.json`。它通过 Base 的公开 import boundary 保留 field/view/reference metadata
+与历史 row values，改写文件引用，校验 document/table/row/field/view/reference/asset
+数量，全部通过后才原子安装到空 target。实现不会覆盖非空 target，并拒绝 asset symlink。
+
+v1 剩余工作是 Desktop Settings 中的 preview/export flow、使用有代表性的真实 legacy
+Spaces 做 acceptance、补齐更丰富的 formula/lookup recomputation semantics，以及可选的
+Graft 初始化。第一版仍不规划 silent migration 或 in-place migration。
 
 ## 摘要
 

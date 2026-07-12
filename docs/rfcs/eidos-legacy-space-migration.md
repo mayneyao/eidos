@@ -1,6 +1,6 @@
 # RFC: Migration From Legacy Eidos Spaces to Space/Base
 
-Status: Draft, implementation not started
+Status: Draft, export vertical slice implemented
 Date: 2026-07-08
 Owner: Eidos
 Related:
@@ -10,12 +10,27 @@ Related:
 - `eidos-space-markdown-runtime.md`
 - `eidos-graft-space-versioning.md`
 
-## Implementation Status (2026-07-11)
+## Implementation Status (2026-07-12)
 
-Implementation has not started. Export-mode migration remains the first target,
-but work is intentionally deferred until the standalone Base format and its
-validation APIs are stable. Silent or in-place migration is not planned for the
-first release.
+The standalone `@eidos.space/legacy-space-migration` package now implements the
+export-mode vertical slice without depending on Eidos core. A pure planning API
+produces deterministic Markdown, Base, and asset mappings plus explicit errors
+and warnings. Its optional `better-sqlite3` entry opens the legacy database in
+read-only/query-only mode, fingerprints the database, WAL, and asset inventory,
+and refuses to export a stale plan.
+
+The exporter writes Markdown (including current document properties), one
+`main.base`, visible assets, Lexical/property recovery sidecars, `report.md`, and
+`mapping.json` into a sibling staging directory. It preserves Base field/view/
+reference metadata and historical row values through the public Base import
+boundary, rewrites file references, validates document/table/row/field/view/
+reference/asset counts, and only then atomically installs an empty target. It
+never overwrites a non-empty target and rejects asset symlinks.
+
+The remaining v1 work is the Desktop Settings preview/export flow, acceptance
+against representative real legacy Spaces, richer formula/lookup recomputation
+semantics, and optional Graft initialization. Silent and in-place migration are
+still not planned for the first release.
 
 ## Summary
 

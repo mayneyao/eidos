@@ -33,8 +33,11 @@ Base snapshots now carry row counts instead of capped row arrays. The Grid
 requests 100-row pages around the visible region, caches loaded pages, and
 passes compact row ranges to transactional batch deletion without materializing
 an entire selection in the renderer. The runtime path is covered with a
-10,000-row fixture. CSV import, richer field semantics, and export from legacy
-Spaces remain.
+10,000-row fixture. The public runtime now also exposes a migration-oriented
+import boundary for advanced field metadata, views, references, materialized
+derived values, and historical system columns. The legacy migration package
+uses this boundary to produce validated multi-table `main.base` exports. CSV
+import, richer live formula/lookup semantics, and Desktop migration UX remain.
 
 ## Summary
 

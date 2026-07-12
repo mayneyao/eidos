@@ -12,7 +12,9 @@ Space-root local Graft versioning, and the standalone `.base` format/runtime
 foundation are implemented. Base-aware Graft diff expansion is also implemented
 for working changes and historical versions: Eidos requests row details only
 for the selected SQLite path, then displays table and row operations without
-polluting normal status refreshes. Legacy migration, remote sync, and file-based
+polluting normal status refreshes. The standalone legacy export runtime can now
+plan and atomically produce validated Markdown + `main.base` + asset Spaces;
+the Desktop migration flow is still pending. Remote sync and file-based
 extensions are not implemented.
 
 The phase order in this document is therefore descriptive rather than the
