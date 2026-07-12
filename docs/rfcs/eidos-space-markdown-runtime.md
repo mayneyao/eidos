@@ -19,15 +19,20 @@ Implemented:
 - basic CommonMark/GFM editing, attachments, wiki links, and source preservation,
 - Markdown-aware list/Enter/Backspace/Tab behavior, Markdown and image
   paste/drop, automatic links, floating inline formatting, and block selection,
-- an in-memory rebuildable search/link/tag/backlink index,
+- a rebuildable search/link/tag/backlink index persisted at
+  `.eidos/indexes/markdown.sqlite3`,
 - indexed quick open, editor wiki-link completion, outline, and backlinks UI.
 
 The standalone editor currently has 54 package acceptance tests. Desktop host
 integration tests also cover runtime loading, save behavior, and conflict paths.
 
+The Desktop index scans filesystem metadata on startup so files remain
+authoritative, but reuses unchanged content and parsed Markdown metadata from
+the disposable SQLite cache. Watcher changes update it incrementally; explicit
+Rebuild and corrupt-schema recovery recreate it entirely from Space files.
+
 Remaining for this slice:
 
-- persistent derived indexes under `.eidos/indexes/**` for large Spaces,
 - native Desktop acceptance for IME, OS clipboard/image paste, and very long
   documents,
 - finer-grained marquee selection inside list containers and additional fenced

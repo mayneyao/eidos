@@ -11,7 +11,7 @@ inside the folder.
 - safe Space-relative file reads and writes,
 - file and directory creation, move, and removal,
 - coalesced filesystem change notifications and stable read snapshots,
-- rebuildable in-memory file and content indexes,
+- rebuildable file and content indexes with optional disposable persistence,
 - filename and full-text search,
 - Markdown link/alias resolution and backlinks.
 
@@ -22,7 +22,7 @@ This package does not own:
 - Space registration or recent-Space configuration,
 - Electron IPC or file pickers,
 - React components,
-- SQLite or `@eidos.space/core`,
+- a required database implementation or `@eidos.space/core`,
 - sync and version history,
 - canonical Markdown content outside the original files.
 
@@ -40,6 +40,22 @@ const index = new FileSpaceIndex(files)
 await files.createText("notes/idea.md", "# Idea")
 const results = await index.search("idea")
 ```
+
+Desktop hosts can persist the derived index without coupling the core runtime
+to SQLite. The optional adapter stores it at `.eidos/indexes/markdown.sqlite3`:
+
+```ts
+import { openFileSpaceIndexStorage } from "@eidos.space/file-space/better-sqlite3"
+
+const index = new FileSpaceIndex(files, {
+  storage: openFileSpaceIndexStorage(files.root),
+})
+```
+
+The adapter uses `better-sqlite3` as an optional peer dependency. It reuses
+unchanged content after restart, writes watcher updates incrementally, and
+recovers a damaged index by rebuilding from the Space. Deleting `.eidos/indexes`
+never deletes or changes canonical Space files.
 
 Tag filters use Markdown frontmatter and inline tags:
 

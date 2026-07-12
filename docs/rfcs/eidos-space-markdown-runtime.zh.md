@@ -19,15 +19,19 @@
 - 基础 CommonMark/GFM 编辑、附件、wiki links 和 source preservation，
 - 符合 Markdown 语义的 list/Enter/Backspace/Tab 行为、Markdown 与图片
   paste/drop、自动链接、浮动行内格式工具栏和 block 选择，
-- 可重建的内存 search/link/tag/backlink index，
+- 持久化在 `.eidos/indexes/markdown.sqlite3` 的可重建
+  search/link/tag/backlink index，
 - indexed quick open、编辑器 wiki-link completion、outline 和 backlinks UI。
 
 独立编辑器当前有 54 个 package acceptance tests；Desktop host integration
 tests 也覆盖了 runtime loading、保存行为和冲突处理路径。
 
+Desktop 启动时仍会扫描文件系统元数据以保证文件具有最终权威；未变化的正文和
+Markdown 解析结果直接复用可删除的 SQLite cache。Watcher 变化会增量更新，显式
+Rebuild 和损坏 schema 恢复都会完全从 Space 文件重建索引。
+
 本切片剩余：
 
-- 面向大型 Space 的 `.eidos/indexes/**` 持久派生索引，
 - IME、系统 clipboard/图片粘贴和超长文档的原生 Desktop acceptance，
 - list 容器内部更细粒度的框选，以及 fenced code 展示细节完善。
 
