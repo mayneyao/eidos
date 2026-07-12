@@ -34,6 +34,16 @@ function placeCaret(node: Node, offset: number) {
   document.dispatchEvent(new Event("selectionchange"))
 }
 
+function selectText(node: Node, start: number, end: number) {
+  const selection = window.getSelection()
+  const range = document.createRange()
+  range.setStart(node, start)
+  range.setEnd(node, end)
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+  document.dispatchEvent(new Event("selectionchange"))
+}
+
 function pressKey(editor: HTMLElement, key: string) {
   editor.dispatchEvent(
     new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key })
@@ -363,6 +373,52 @@ describe("MarkdownEditor", () => {
     expect(first.classList.contains("eidos-md-block-selected")).toBe(true)
   })
 
+  it("deletes selected blocks and restores an editable caret", async () => {
+    const container = render(
+      <MarkdownEditor defaultValue={"First block\n\nSecond block"} />
+    )
+    await settle()
+
+    const root = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const editor = lexicalEditorFor(root)
+    const first = container.querySelector<HTMLElement>("p")!
+    first.getBoundingClientRect = () =>
+      ({
+        bottom: 30,
+        height: 30,
+        left: 30,
+        right: 330,
+        top: 0,
+        width: 300,
+        x: 30,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect
+
+    act(() =>
+      first.dispatchEvent(
+        new MouseEvent("mousemove", { bubbles: true, clientY: 10 })
+      )
+    )
+    await settle()
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Select and drag block"]'
+        )
+        ?.click()
+    )
+    act(() => pressKey(root, "Backspace"))
+    await settle()
+
+    expect(
+      Array.from(container.querySelectorAll("p"), (item) => item.textContent)
+    ).toEqual(["Second block"])
+    editor.getEditorState().read(() => {
+      expect($isRangeSelection($getSelection())).toBe(true)
+    })
+  })
+
   it("lets the rich-text handler process Backspace at a text caret", async () => {
     const container = render(<MarkdownEditor defaultValue="Draft" />)
     await settle()
@@ -404,6 +460,181 @@ describe("MarkdownEditor", () => {
     unregister()
 
     expect(reachedRichTextPipeline).toBe(true)
+  })
+
+  it("formats a text selection from the standalone floating toolbar", async () => {
+    const ref = createRef<MarkdownEditorHandle>()
+    const container = render(
+      <MarkdownEditor ref={ref} defaultValue="Format me" />
+    )
+    await settle()
+
+    const root = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const text = lastTextNode(root)
+    act(() => {
+      root.focus()
+      selectText(text, 0, text.data.length)
+    })
+    await settle()
+
+    const toolbar = container.querySelector('[role="toolbar"]')
+    expect(toolbar?.getAttribute("aria-label")).toBe("Text formatting")
+    act(() =>
+      toolbar?.querySelector<HTMLButtonElement>('[aria-label="Bold"]')?.click()
+    )
+    await settle()
+
+    expect(ref.current?.getMarkdown().markdown).toContain("**Format me**")
+  })
+
+  it("creates a Markdown link from the floating toolbar", async () => {
+    const ref = createRef<MarkdownEditorHandle>()
+    const container = render(
+      <MarkdownEditor ref={ref} defaultValue="Link me" />
+    )
+    await settle()
+
+    const root = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const text = lastTextNode(root)
+    act(() => {
+      root.focus()
+      selectText(text, 0, text.data.length)
+    })
+    await settle()
+    act(() =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Link"]')?.click()
+    )
+    await settle()
+
+    const input = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Link URL"]'
+    )!
+    act(() => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(input, "https://eidos.space")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    act(() =>
+      input
+        .closest("form")
+        ?.dispatchEvent(
+          new SubmitEvent("submit", { bubbles: true, cancelable: true })
+        )
+    )
+    await settle()
+
+    expect(ref.current?.getMarkdown().markdown).toContain(
+      "[Link me](https://eidos.space)"
+    )
+  })
+
+  it("turns newly typed URLs into editable Markdown links", async () => {
+    const ref = createRef<MarkdownEditorHandle>()
+    const container = render(<MarkdownEditor ref={ref} defaultValue="Visit" />)
+    await settle()
+
+    const root = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const editor = lexicalEditorFor(root)
+    act(() => {
+      editor.update(
+        () => {
+          const text = $getRoot().getFirstDescendant()
+          if (!$isTextNode(text)) throw new Error("Expected text node")
+          text.setTextContent("Visit https://eidos.space ")
+        },
+        { discrete: true }
+      )
+    })
+    await settle()
+
+    expect(container.querySelector("a")?.getAttribute("href")).toBe(
+      "https://eidos.space"
+    )
+    const markdown = ref.current?.getMarkdown().markdown ?? ""
+    expect(markdown).toContain("https://eidos.space")
+    expect(markdown).not.toContain("https\\://")
+  })
+
+  it("selects blocks with a blank-area marquee", async () => {
+    const container = render(
+      <MarkdownEditor defaultValue={"First block\n\nSecond block"} />
+    )
+    await settle()
+
+    const root = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const surface = container.querySelector<HTMLElement>(
+      ".eidos-md-editor-surface"
+    )!
+    const [first, second] = Array.from(
+      container.querySelectorAll<HTMLElement>("p")
+    )
+    surface.getBoundingClientRect = () =>
+      ({
+        bottom: 200,
+        height: 200,
+        left: 0,
+        right: 400,
+        top: 0,
+        width: 400,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect
+    first.getBoundingClientRect = () =>
+      ({
+        bottom: 40,
+        height: 30,
+        left: 40,
+        right: 340,
+        top: 10,
+        width: 300,
+        x: 40,
+        y: 10,
+        toJSON: () => ({}),
+      }) as DOMRect
+    second.getBoundingClientRect = () =>
+      ({
+        bottom: 90,
+        height: 30,
+        left: 40,
+        right: 340,
+        top: 60,
+        width: 300,
+        x: 40,
+        y: 60,
+        toJSON: () => ({}),
+      }) as DOMRect
+
+    act(() => {
+      root.dispatchEvent(
+        new MouseEvent("mousedown", {
+          bubbles: true,
+          button: 0,
+          clientX: 10,
+          clientY: 5,
+        })
+      )
+      window.dispatchEvent(
+        new MouseEvent("mousemove", {
+          bubbles: true,
+          clientX: 360,
+          clientY: 45,
+        })
+      )
+    })
+    await settle()
+
+    expect(container.querySelector(".eidos-md-block-marquee")).not.toBeNull()
+    expect(first.classList.contains("eidos-md-block-selected")).toBe(true)
+    expect(second.classList.contains("eidos-md-block-selected")).toBe(false)
+
+    act(() =>
+      window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }))
+    )
+    await settle()
+    expect(container.querySelector(".eidos-md-block-marquee")).toBeNull()
   })
 
   it("inserts a paragraph when Enter follows a block selection", async () => {

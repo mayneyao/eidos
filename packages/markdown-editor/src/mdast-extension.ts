@@ -1,4 +1,5 @@
 import { configExtension, HorizontalRuleExtension } from "@lexical/extension"
+import { $isAutoLinkNode, AutoLinkNode } from "@lexical/link"
 import {
   MdastCommonMarkExtension,
   MdastExtension,
@@ -9,7 +10,7 @@ import {
   type MdastExportHandler,
   type MdastImportHandler,
 } from "@lexical/mdast"
-import type { Image, ImageReference } from "mdast"
+import type { Image, ImageReference, Link } from "mdast"
 import {
   defineExtension,
   type EditorThemeClasses,
@@ -68,6 +69,16 @@ const $exportImage: MdastExportHandler<MarkdownImageNode> = (node) =>
       }
     : null
 
+const $exportAutoLink: MdastExportHandler<AutoLinkNode> = (node, context) =>
+  $isAutoLinkNode(node)
+    ? ({
+        children: context.exportInline(node),
+        title: node.getTitle() ?? null,
+        type: "link",
+        url: node.getURL(),
+      } satisfies Link)
+    : null
+
 const $exportWikiLink: MdastExportHandler<WikiLinkNode> = (node) => {
   if (!$isWikiLinkNode(node)) return null
   const payload: WikiLinkPayload = {
@@ -87,6 +98,7 @@ export const EIDOS_MDAST_SYNTAX_EXTENSION = /* @__PURE__ */ defineExtension({
   dependencies: [
     /* @__PURE__ */ configExtension(MdastImportExtension, {
       exportRules: [
+        { $export: $exportAutoLink, type: "autolink" },
         { $export: $exportImage, type: "markdown-image" },
         { $export: $exportWikiLink, type: "wiki-link" },
       ],
@@ -97,7 +109,7 @@ export const EIDOS_MDAST_SYNTAX_EXTENSION = /* @__PURE__ */ defineExtension({
     }),
   ],
   name: "@eidos.space/markdown-editor/MdastSyntax",
-  nodes: [MarkdownImageNode, WikiLinkNode],
+  nodes: [AutoLinkNode, MarkdownImageNode, WikiLinkNode],
 })
 
 /** Shared parser/serializer graph used by every editor created by the package. */

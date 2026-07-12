@@ -8,6 +8,7 @@ import React, {
   useState,
 } from "react"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
+import { AutoLinkPlugin } from "@lexical/react/LexicalAutoLinkPlugin"
 import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin"
 import { ClickableLinkPlugin } from "@lexical/react/LexicalClickableLinkPlugin"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
@@ -21,6 +22,7 @@ import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin"
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin"
+import { autoLinkEmailMatcher, autoLinkUrlMatcher } from "@lexical/link"
 import type { EditorState, EditorThemeClasses, LexicalEditor } from "lexical"
 
 import { BlockCommandMenuPlugin } from "./block-menu"
@@ -29,6 +31,7 @@ import {
   DraggableBlockPlugin,
 } from "./block-controls-plugin"
 import { splitMarkdownDocument, type MarkdownFrontmatter } from "./document"
+import { FloatingFormatToolbarPlugin } from "./floating-format-toolbar"
 import { createMarkdownExtension } from "./mdast-extension"
 import {
   $importMarkdown,
@@ -106,6 +109,7 @@ export interface MarkdownEditorProps {
   uploadImages?: MarkdownImageUploader
   onImageUploadError?: (error: Error) => void
   enableBlockControls?: boolean
+  enableFloatingToolbar?: boolean
   /** Host-provided Space document suggestions for the `[[…` typeahead. */
   wikiLinkSuggestions?: MarkdownWikiLinkSuggestionProvider
 }
@@ -222,6 +226,7 @@ export const MarkdownEditor = forwardRef<
     uploadImages,
     onImageUploadError,
     enableBlockControls = true,
+    enableFloatingToolbar = true,
     wikiLinkSuggestions,
   },
   ref
@@ -444,6 +449,9 @@ export const MarkdownEditor = forwardRef<
             ) : (
               <>
                 <HistoryPlugin />
+                <AutoLinkPlugin
+                  matchers={[autoLinkUrlMatcher, autoLinkEmailMatcher]}
+                />
                 <CheckListPlugin />
                 <TabIndentationPlugin />
                 <ListKeyboardPlugin />
@@ -454,6 +462,9 @@ export const MarkdownEditor = forwardRef<
                   />
                 ) : null}
                 <BlockCommandMenuPlugin />
+                {enableFloatingToolbar ? (
+                  <FloatingFormatToolbarPlugin surfaceRef={surfaceRef} />
+                ) : null}
                 {uploadImages ? (
                   <ImageUploadPlugin
                     uploadImages={uploadImages}
@@ -462,7 +473,7 @@ export const MarkdownEditor = forwardRef<
                 ) : null}
                 {enableBlockControls ? (
                   <>
-                    <BlockSelectionPlugin />
+                    <BlockSelectionPlugin surfaceRef={surfaceRef} />
                     <DraggableBlockPlugin surfaceRef={surfaceRef} />
                   </>
                 ) : null}

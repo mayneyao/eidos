@@ -66,6 +66,93 @@
     color-mix(in srgb, var(--eidos-md-focus) 28%, transparent);
 }
 
+.eidos-md-block-marquee {
+  background: color-mix(in srgb, var(--eidos-md-focus) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--eidos-md-focus) 62%, transparent);
+  border-radius: 3px;
+  pointer-events: none;
+  position: absolute;
+  z-index: 4;
+}
+
+.eidos-md-format-toolbar {
+  align-items: center;
+  background: color-mix(in srgb, var(--background, #fff) 94%, transparent);
+  border: 1px solid var(--eidos-md-border);
+  border-radius: 7px;
+  box-shadow:
+    0 8px 24px rgb(0 0 0 / 11%),
+    0 1px 3px rgb(0 0 0 / 8%);
+  display: flex;
+  min-height: 36px;
+  padding: 3px;
+  position: absolute;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+.eidos-md-format-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--eidos-md-foreground);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: var(--eidos-md-font);
+  font-size: 13px;
+  height: 28px;
+  justify-content: center;
+  min-width: 28px;
+  padding: 0 6px;
+}
+
+.eidos-md-format-button:hover,
+.eidos-md-format-button[aria-pressed="true"] {
+  background: var(--eidos-md-selection);
+}
+
+.eidos-md-format-button:focus-visible {
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--eidos-md-focus) 48%, transparent);
+  outline: none;
+}
+
+.eidos-md-format-strike {
+  text-decoration: line-through;
+}
+
+.eidos-md-link-form {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}
+
+.eidos-md-link-form input {
+  background: transparent;
+  border: 0;
+  color: var(--eidos-md-foreground);
+  font: inherit;
+  height: 28px;
+  min-width: 210px;
+  outline: none;
+  padding: 0 7px;
+}
+
+.eidos-md-link-form input[aria-invalid="true"] {
+  color: var(--destructive, #c33);
+}
+
+.eidos-md-link-form button {
+  background: var(--eidos-md-selection);
+  border: 0;
+  border-radius: 4px;
+  color: var(--eidos-md-foreground);
+  cursor: pointer;
+  height: 28px;
+  padding: 0 9px;
+}
+
 .eidos-md-content {
   caret-color: currentColor;
   min-height: 12rem;

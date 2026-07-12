@@ -39,11 +39,22 @@ import {
 const BLOCK_DRAG_DATA = "application/x-eidos-markdown-block"
 const SELECTED_BLOCK_CLASS = "eidos-md-block-selected"
 
+interface MarqueeBox {
+  height: number
+  left: number
+  top: number
+  width: number
+}
+
 function topLevelNode(node: LexicalNode): LexicalNode {
   return node.getTopLevelElementOrThrow()
 }
 
 function selectBlocks(keys: readonly NodeKey[]) {
+  if (keys.length === 0) {
+    $setSelection(null)
+    return
+  }
   const selection = $createNodeSelection()
   for (const key of keys) selection.add(key)
   $setSelection(selection)
@@ -77,9 +88,14 @@ function nodeForBlockElement(
   return node
 }
 
-export function BlockSelectionPlugin() {
+export function BlockSelectionPlugin({
+  surfaceRef,
+}: {
+  surfaceRef: RefObject<HTMLDivElement | null>
+}) {
   const [editor] = useLexicalComposerContext()
   const selectedKeysRef = useRef<Set<NodeKey>>(new Set())
+  const [marquee, setMarquee] = useState<MarqueeBox | null>(null)
 
   const paintSelection = useCallback(() => {
     const nextKeys = new Set<NodeKey>()
@@ -101,14 +117,20 @@ export function BlockSelectionPlugin() {
     selectedKeysRef.current = nextKeys
   }, [editor])
 
-  const deleteSelectedBlocks = useCallback((event: KeyboardEvent | null) => {
-    const selection = $getSelection()
-    if (!$isNodeSelection(selection)) return false
-    event?.preventDefault()
-    for (const node of selection.getNodes()) topLevelNode(node).remove()
-    if ($getRoot().isEmpty()) $getRoot().append($createParagraphNode())
-    return true
-  }, [])
+  const deleteSelectedBlocks = useCallback(
+    (event: KeyboardEvent | null) => {
+      const selection = $getSelection()
+      if (!$isNodeSelection(selection)) return false
+      event?.preventDefault()
+      for (const node of selection.getNodes()) topLevelNode(node).remove()
+      const root = $getRoot()
+      if (root.isEmpty()) root.append($createParagraphNode())
+      root.selectStart()
+      queueMicrotask(() => editor.focus())
+      return true
+    },
+    [editor]
+  )
 
   useEffect(
     () =>
@@ -212,6 +234,73 @@ export function BlockSelectionPlugin() {
     [deleteSelectedBlocks, editor, paintSelection]
   )
 
+  useEffect(() => {
+    const root = editor.getRootElement()
+    const surface = surfaceRef.current
+    if (!root || !surface) return
+    let start: { clientX: number; clientY: number } | null = null
+
+    const onMouseDown = (event: MouseEvent) => {
+      if (event.button !== 0) return
+      const target = event.target
+      if (!(target instanceof Element)) return
+      if (target.closest(".eidos-md-format-toolbar, .eidos-md-block-handle")) {
+        return
+      }
+      if (target !== root && target !== surface) return
+
+      start = { clientX: event.clientX, clientY: event.clientY }
+      root.style.userSelect = "none"
+      editor.update(() => selectBlocks([]))
+      event.preventDefault()
+    }
+
+    const onMouseMove = (event: MouseEvent) => {
+      if (!start) return
+      const left = Math.min(start.clientX, event.clientX)
+      const top = Math.min(start.clientY, event.clientY)
+      const right = Math.max(start.clientX, event.clientX)
+      const bottom = Math.max(start.clientY, event.clientY)
+      const surfaceRect = surface.getBoundingClientRect()
+      setMarquee({
+        height: bottom - top,
+        left: left - surfaceRect.left,
+        top: top - surfaceRect.top,
+        width: right - left,
+      })
+
+      const keys = Array.from(root.children).flatMap((element) => {
+        const rect = element.getBoundingClientRect()
+        const intersects =
+          left <= rect.right &&
+          right >= rect.left &&
+          top <= rect.bottom &&
+          bottom >= rect.top
+        if (!intersects) return []
+        const node = nodeForBlockElement(editor, element as HTMLElement)
+        return node ? [node.getKey()] : []
+      })
+      editor.update(() => selectBlocks(keys))
+    }
+
+    const stopMarquee = () => {
+      if (!start) return
+      start = null
+      root.style.userSelect = ""
+      setMarquee(null)
+    }
+
+    surface.addEventListener("mousedown", onMouseDown)
+    window.addEventListener("mousemove", onMouseMove)
+    window.addEventListener("mouseup", stopMarquee)
+    return () => {
+      root.style.userSelect = ""
+      surface.removeEventListener("mousedown", onMouseDown)
+      window.removeEventListener("mousemove", onMouseMove)
+      window.removeEventListener("mouseup", stopMarquee)
+    }
+  }, [editor, surfaceRef])
+
   useEffect(
     () => () => {
       for (const key of selectedKeysRef.current) {
@@ -221,7 +310,13 @@ export function BlockSelectionPlugin() {
     [editor]
   )
 
-  return null
+  return marquee ? (
+    <div
+      aria-hidden="true"
+      className="eidos-md-block-marquee"
+      style={marquee}
+    />
+  ) : null
 }
 
 export function DraggableBlockPlugin({
