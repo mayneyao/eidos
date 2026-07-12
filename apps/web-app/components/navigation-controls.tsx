@@ -14,7 +14,15 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-// Navigation API types are provided by TypeScript 2.9+
+interface AppNavigation {
+  canGoBack: boolean
+  canGoForward: boolean
+  addEventListener: (type: "currententrychange", listener: () => void) => void
+  removeEventListener: (
+    type: "currententrychange",
+    listener: () => void
+  ) => void
+}
 
 export function NavigationControls() {
   const { t } = useTranslation()
@@ -23,7 +31,8 @@ export function NavigationControls() {
   const [canGoForward, setCanGoForward] = useState(false)
 
   useEffect(() => {
-    const navigation = window.navigation
+    const navigation = (window as Window & { navigation?: AppNavigation })
+      .navigation
     if (navigation) {
       const updateNavState = () => {
         setCanGoBack(navigation.canGoBack)

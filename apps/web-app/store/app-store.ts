@@ -1,7 +1,7 @@
 // need persist, store user config in localstorage, make app response faster
 
 import { create } from "zustand"
-import { persist } from "zustand/middleware"
+import { createJSONStorage, persist } from "zustand/middleware"
 
 interface AppState {
   isSidebarOpen: boolean
@@ -40,7 +40,7 @@ export const useAppStoreBase = create<AppState>()(
     }),
     {
       name: "app-storage",
-      getStorage: () => localStorage,
+      storage: createJSONStorage(() => localStorage),
     }
   )
 )

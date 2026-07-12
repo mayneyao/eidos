@@ -425,8 +425,13 @@ export const SpaceFilesTree = forwardRef<
     }
     const treePath = toTreePath(entry)
     const item = model.getItem(treePath)
-    if (!item || item.isSelected()) return
-    item.select()
+    if (!item) return
+    if (!item.isSelected() || model.getSelectedPaths().length !== 1) {
+      for (const selectedPath of model.getSelectedPaths()) {
+        if (selectedPath !== treePath) model.getItem(selectedPath)?.deselect()
+      }
+      if (!item.isSelected()) item.select()
+    }
     model.scrollToPath(treePath, { offset: "nearest", focus: false })
   }, [model, props.selectedPath, treePathSignature])
 

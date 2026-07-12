@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { persist } from "zustand/middleware"
+import { createJSONStorage, persist } from "zustand/middleware"
 
 import { uuidv7 } from "@/lib/utils"
 // Define BackupServerFormValues locally since we're moving away from the old structure
@@ -62,7 +62,7 @@ export const useConfigStore = create<ConfigState>()(
     }),
     {
       name: "settings-config",
-      getStorage: () => localStorage,
+      storage: createJSONStorage(() => localStorage),
     }
   )
 )

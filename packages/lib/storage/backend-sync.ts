@@ -94,7 +94,9 @@ export function createBackendSyncStorage<T>(
           // Return in zustand persist format
           return JSON.stringify({
             state: mergedState,
-            version: backendVersion,
+            // This is Zustand's persisted-state schema version, not the
+            // backend configuration's optimistic-concurrency version.
+            version: 0,
           })
         } else if (localData && localVersion > backendVersion) {
           // Local version is strictly newer, use local
@@ -114,7 +116,7 @@ export function createBackendSyncStorage<T>(
           }
           return JSON.stringify({
             state: mergedState,
-            version: backendVersion,
+            version: 0,
           })
         }
 

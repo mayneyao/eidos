@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { persist } from "zustand/middleware"
+import { createJSONStorage, persist } from "zustand/middleware"
 
 interface DevToolsState {
   enabled: boolean
@@ -16,7 +16,7 @@ export const useDevToolsStore = create<DevToolsState>()(
     }),
     {
       name: "eidos-devtools-enabled",
-      getStorage: () => localStorage,
+      storage: createJSONStorage(() => localStorage),
     }
   )
 )

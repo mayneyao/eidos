@@ -197,10 +197,13 @@ export function SpaceVersionDiffPage() {
 
     setLoading(true)
     try {
-      if (!diffFrom) {
-        const pendingChange = status?.changes.find(
-          (entry) => entry.path === repositoryPath
-        )
+      const pendingChange = !requestedFrom
+        ? status?.changes.find((entry) => entry.path === repositoryPath)
+        : undefined
+      // Like Git, Graft's HEAD-to-worktree diff does not include untracked
+      // paths. Build that preview from the working file instead so opening an
+      // untracked change never produces a misleading "No differences" tab.
+      if (!diffFrom || pendingChange?.status === "untracked") {
         if (!pendingChange) return
         const extension = filenameOf(repositoryPath)
           .split(".")
@@ -252,7 +255,7 @@ export function SpaceVersionDiffPage() {
             capabilities: [],
             limitations: [],
             message:
-              "Create the first version of this Space to inspect Base table changes.",
+              "Include this Base in the next version to make table-level history available.",
             tables: [],
             opaqueChanges: [],
           }

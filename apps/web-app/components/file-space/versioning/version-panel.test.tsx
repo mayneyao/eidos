@@ -223,6 +223,7 @@ describe("VersionPanel changed-file diff", () => {
       expectedHead: "head-2",
       confirmed: true,
     })
+    expect(document.body.querySelector('[role="alertdialog"]')).toBeNull()
   })
 
   it("opens ours-to-theirs diff and a dedicated conflict review tab", async () => {

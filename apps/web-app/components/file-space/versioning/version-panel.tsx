@@ -682,47 +682,49 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
         ) : null}
       </section>
 
-      <AlertDialog
-        open={discardTarget !== null}
-        onOpenChange={(open) => {
-          if (!open && !busyPath) setDiscardTarget(null)
-        }}
-      >
-        <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-base">
-              {discardTargetIsDirectory
-                ? "Discard changes in this folder?"
-                : "Discard changes to this file?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription className="leading-5">
-              <code className="break-all font-mono text-foreground">
-                {discardTarget}
-              </code>{" "}
-              {discardTargetIsDirectory
-                ? "and every changed file inside it will be restored to the current version. Untracked files will be deleted from the Space. Included and working changes in this folder will both be discarded."
-                : "will be restored to the current version. If it is untracked, the file will be deleted from the Space. Included and working changes for this path will both be discarded."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busyPath !== null}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={busyPath !== null}
-              onClick={(event) => void confirmDiscard(event)}
-            >
-              {busyPath ? (
-                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Undo2 className="h-3.5 w-3.5" />
-              )}
-              {busyPath ? "Discarding…" : "Discard changes"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {discardTarget !== null ? (
+        <AlertDialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !busyPath) setDiscardTarget(null)
+          }}
+        >
+          <AlertDialogContent className="max-w-md">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-base">
+                {discardTargetIsDirectory
+                  ? "Discard changes in this folder?"
+                  : "Discard changes to this file?"}
+              </AlertDialogTitle>
+              <AlertDialogDescription className="leading-5">
+                <code className="break-all font-mono text-foreground">
+                  {discardTarget}
+                </code>{" "}
+                {discardTargetIsDirectory
+                  ? "and every changed file inside it will be restored to the current version. Untracked files will be deleted from the Space. Included and working changes in this folder will both be discarded."
+                  : "will be restored to the current version. If it is untracked, the file will be deleted from the Space. Included and working changes for this path will both be discarded."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={busyPath !== null}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={busyPath !== null}
+                onClick={(event) => void confirmDiscard(event)}
+              >
+                {busyPath ? (
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Undo2 className="h-3.5 w-3.5" />
+                )}
+                {busyPath ? "Discarding…" : "Discard changes"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
     </>
   )
 }

@@ -281,6 +281,43 @@ describe("SpaceVersionDiffPage", () => {
     expect(container.textContent).toContain("Empty Space → working file")
   })
 
+  it("shows working content for an untracked file when the Space already has history", async () => {
+    mocks.status = {
+      enabled: true,
+      clean: false,
+      hasConflicts: false,
+      branch: "main",
+      head: { id: "head-2" },
+      changes: [{ path: "draft.md", status: "untracked", unstaged: true }],
+    }
+    mocks.readText.mockResolvedValue({
+      path: "draft.md",
+      content: "# New draft\n",
+      size: 12,
+      mtimeMs: 1,
+    })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/version/diff?path=draft.md"]}>
+          <SpaceVersionDiffPage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+
+    expect(mocks.getDiff).not.toHaveBeenCalled()
+    expect(mocks.readText).toHaveBeenCalledWith("draft.md")
+    const diff = container.querySelector<HTMLElement>(
+      '[data-testid="diff-view"]'
+    )
+    expect(diff?.dataset.old).toBe("")
+    expect(diff?.dataset.new).toBe("# New draft\n")
+    expect(container.textContent).toContain(
+      "Current version head-2 → working file"
+    )
+  })
+
   it("loads table and row changes for a modified Base file", async () => {
     mocks.status = {
       enabled: true,

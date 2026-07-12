@@ -1,7 +1,7 @@
 import { create } from "zustand"
 
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
-import { persist } from "zustand/middleware"
+import { createJSONStorage, persist } from "zustand/middleware"
 
 export interface IHoverTarget extends ITreeNode {
   index: number
@@ -74,7 +74,7 @@ export const usePersistFolderStore = create<{
     }),
     {
       name: "folder-persist",
-      getStorage: () => localStorage,
+      storage: createJSONStorage(() => localStorage),
     }
   )
 )
