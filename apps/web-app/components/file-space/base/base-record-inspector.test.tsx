@@ -1,0 +1,125 @@
+// @vitest-environment jsdom
+
+import { act } from "react"
+import { createRoot, type Root } from "react-dom/client"
+import type { BaseFieldInfo } from "@eidos.space/base"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import { BaseRecordInspector } from "./base-record-inspector"
+
+;(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true
+
+const fields: BaseFieldInfo[] = [
+  {
+    name: "Title",
+    type: "title",
+    tableName: "tb_tasks",
+    tableColumnName: "title",
+    property: null,
+    storageCodec: "scalar",
+    valueKind: "system",
+    isHidden: false,
+    isDerived: false,
+    sourceTableColumnName: null,
+    dependsOn: null,
+  },
+  {
+    name: "Done",
+    type: "checkbox",
+    tableName: "tb_tasks",
+    tableColumnName: "done",
+    property: null,
+    storageCodec: "scalar",
+    valueKind: "source",
+    isHidden: false,
+    isDerived: false,
+    sourceTableColumnName: null,
+    dependsOn: null,
+  },
+  {
+    name: "Formula",
+    type: "formula",
+    tableName: "tb_tasks",
+    tableColumnName: "formula",
+    property: { expression: "1 + 1" },
+    storageCodec: "scalar",
+    valueKind: "derived",
+    isHidden: false,
+    isDerived: true,
+    sourceTableColumnName: null,
+    dependsOn: null,
+  },
+]
+
+describe("BaseRecordInspector", () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it("autosaves editable fields and keeps derived values readonly", async () => {
+    const row = {
+      _id: "row_1",
+      title: "Write RFC",
+      done: 0,
+      formula: 2,
+    }
+    const onCellEdit = vi.fn(async (current, field, value) => ({
+      tableId: "tasks",
+      row: { ...current, [field.tableColumnName]: value },
+      rowCount: 1,
+    }))
+    await act(async () => {
+      root.render(
+        <BaseRecordInspector
+          row={row}
+          fields={fields}
+          onClose={vi.fn()}
+          onCopyRecordId={vi.fn()}
+          onCellEdit={onCellEdit}
+        />
+      )
+    })
+
+    const title = container.querySelector<HTMLTextAreaElement>("textarea")
+    await act(async () => {
+      if (!title) return
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )?.set
+      setter?.call(title, "Ship Base")
+      title.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () => {
+      title?.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+      await Promise.resolve()
+    })
+    expect(onCellEdit).toHaveBeenCalledWith(row, fields[0], "Ship Base")
+    expect(container.textContent).toContain("Ship Base")
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[role="switch"]')?.click()
+      await Promise.resolve()
+    })
+    expect(onCellEdit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ title: "Ship Base" }),
+      fields[1],
+      1
+    )
+    expect(container.textContent).toContain("Formula")
+    expect(container.textContent).toContain("2")
+    expect(container.querySelectorAll("textarea")).toHaveLength(1)
+  })
+})

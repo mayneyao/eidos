@@ -535,6 +535,26 @@ export function BaseKanbanView({
     void navigator.clipboard.writeText(id).catch((error) => onError?.(error))
   }
 
+  const editInspectedRecord = async (
+    row: BaseRow,
+    field: BaseFieldInfo,
+    value: BaseSqlPrimitive
+  ) => {
+    const result = await onCellEdit(row, field, value)
+    setGroups((current) =>
+      current.map((group) => ({
+        ...group,
+        rows: group.rows.map((candidate) =>
+          String(candidate._id) === String(result.row._id)
+            ? result.row
+            : candidate
+        ),
+      }))
+    )
+    setInspectedRow(result.row)
+    return result
+  }
+
   if (!groupField) {
     return (
       <div className="flex h-full items-center justify-center px-8 text-center">
@@ -581,6 +601,9 @@ export function BaseKanbanView({
             fields={fields}
             onClose={() => setInspectedRow(null)}
             onCopyRecordId={copyRecordId}
+            onCellEdit={editInspectedRecord}
+            disabled={disabled}
+            onError={onError}
             onOpenFile={onOpenFile}
             onRevealFile={
               onRevealFile

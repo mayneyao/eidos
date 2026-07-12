@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import type {
+  BaseFieldInfo,
   BaseRow,
+  BaseRowMutationResult,
   BaseRowPage,
+  BaseSqlPrimitive,
   BaseTableSnapshot,
   BaseViewInfo,
 } from "@eidos.space/base"
@@ -30,6 +33,7 @@ export function BaseGalleryView({
   reloadToken = 0,
   loadPage,
   readBinary,
+  onCellEdit,
   onDeleteRow,
   onOpenFile,
   onRevealFile,
@@ -41,6 +45,11 @@ export function BaseGalleryView({
   reloadToken?: number
   loadPage: (offset: number, limit: number) => Promise<BaseRowPage>
   readBinary?: (path: string) => Promise<SpaceBinaryFile>
+  onCellEdit?: (
+    row: BaseRow,
+    field: BaseFieldInfo,
+    value: BaseSqlPrimitive
+  ) => Promise<BaseRowMutationResult>
   onDeleteRow?: (row: BaseRow) => Promise<void>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => Promise<void> | void
@@ -92,6 +101,24 @@ export function BaseGalleryView({
       return
     }
     void navigator.clipboard.writeText(id).catch((error) => onError?.(error))
+  }
+
+  const editRecord = async (
+    row: BaseRow,
+    field: BaseFieldInfo,
+    value: BaseSqlPrimitive
+  ) => {
+    if (!onCellEdit) throw new Error("Record editing is unavailable")
+    const result = await onCellEdit(row, field, value)
+    setRows((current) =>
+      current.map((candidate) =>
+        String(candidate._id) === String(result.row._id)
+          ? result.row
+          : candidate
+      )
+    )
+    setInspectedRow(result.row)
+    return result
   }
 
   return (
@@ -153,6 +180,8 @@ export function BaseGalleryView({
             fields={fields}
             onClose={() => setInspectedRow(null)}
             onCopyRecordId={copyRecordId}
+            onCellEdit={onCellEdit ? editRecord : undefined}
+            onError={onError}
             onOpenFile={onOpenFile}
             onRevealFile={
               onRevealFile

@@ -262,7 +262,10 @@ export function BaseRecordCard({
   )
 
   const card = (
-    <article className="group/card relative overflow-hidden rounded-lg border bg-card text-card-foreground shadow-xs transition-shadow hover:shadow-sm">
+    <article
+      className="group/card relative overflow-hidden rounded-lg border bg-card text-card-foreground shadow-xs transition-shadow hover:shadow-sm"
+      aria-label={title}
+    >
       {coverField ? (
         <BaseRecordCover
           row={row}

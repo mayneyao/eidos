@@ -535,7 +535,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           }),
         (result) => {
           updateTableRowCount(tableId, result.rowCount)
-          if (hasActiveQuery || activeView?.type !== "grid") {
+          if (hasActiveQuery) {
             setGridReloadToken((current) => current + 1)
           }
         }
@@ -543,7 +543,6 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     },
     [
       activeTable,
-      activeView?.type,
       enqueueMutation,
       filePath,
       hasActiveQuery,
@@ -1183,6 +1182,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               reloadToken={gridReloadToken}
               loadPage={loadActiveTablePage}
               readBinary={readBinary}
+              onCellEdit={saveCell}
               onDeleteRow={deleteSingleRow}
               onOpenFile={openBaseFileReference}
               onRevealFile={(path) => reveal(path).then(() => undefined)}

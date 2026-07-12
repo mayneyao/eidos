@@ -400,6 +400,32 @@ export function BaseGrid({
     [disabled, fields, onCellEdit, onError]
   )
 
+  const editInspectedRecord = useCallback(
+    async (row: BaseRow, field: BaseFieldInfo, value: BaseSqlPrimitive) => {
+      if (inspectedRowIndex === null) {
+        throw new Error("No inspected Base row")
+      }
+      const previous = rowsRef.current.get(inspectedRowIndex) ?? row
+      rowsRef.current.set(inspectedRowIndex, {
+        ...previous,
+        [field.tableColumnName]: value,
+      })
+      setCacheRevision((current) => current + 1)
+      try {
+        const result = await onCellEdit(previous, field, value)
+        rowsRef.current.set(inspectedRowIndex, result.row)
+        setRowCount(result.rowCount)
+        setCacheRevision((current) => current + 1)
+        return result
+      } catch (error) {
+        rowsRef.current.set(inspectedRowIndex, previous)
+        setCacheRevision((current) => current + 1)
+        throw error
+      }
+    },
+    [inspectedRowIndex, onCellEdit]
+  )
+
   const appendRow = useCallback(async () => {
     try {
       const result = await onAddRow()
@@ -780,6 +806,9 @@ export function BaseGrid({
           fields={fields}
           onClose={() => setInspectedRowIndex(null)}
           onCopyRecordId={copyText}
+          onCellEdit={editInspectedRecord}
+          disabled={disabled}
+          onError={onError}
           onOpenFile={onOpenFile}
           onRevealFile={
             onRevealFile
