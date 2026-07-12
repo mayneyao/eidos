@@ -48,6 +48,13 @@ normal paging, filtering, sorting, edits, and Graft row diffs. Field creation
 and formula editing remain in anchored table controls rather than centered
 dialogs.
 
+Lookup and rollup fields are also live, readonly query projections. They derive
+values through a relation field and support first value, all values, count,
+sum, average, minimum, and maximum aggregation without adding stale physical
+columns. Lookup results use the same paging/filtering/sorting source as stored
+fields, can feed formula fields, and protect their relation and target fields
+from invalid deletion. Creation and editing reuse anchored field controls.
+
 Graft row diffs are preserved through the Desktop boundary and shown as compact
 table/column/row changes in both the working Changes tab and historical version
 inspector. Pure `updated_at` metadata noise and internal audit columns are
@@ -62,7 +69,7 @@ an entire selection in the renderer. The runtime path is covered with a
 import boundary for advanced field metadata, views, references, materialized
 derived values, and historical system columns. The legacy migration package
 uses this boundary to produce validated multi-table `main.base` exports. CSV
-import, lookup/rollup fields, and richer formula completion/preview remain.
+import and richer formula completion/preview remain.
 Desktop Settings now
 provides preview, progress, validation issues, export, and open-new-Space UX for
 these legacy exports. Batched imports reuse prepared statements and migration
@@ -425,7 +432,12 @@ splitting unless it is explicitly encoded.
 
 ### Lookup
 
-Lookup fields depend on link fields and target fields.
+Lookup fields depend on link fields and target fields. New Base lookup fields
+are metadata-backed, readonly query projections rather than materialized user
+columns. The runtime resolves relation IDs against the target table and
+supports first value, all values, count, sum, average, minimum, and maximum
+aggregation. Lookup values participate in the same paging, filtering, and
+sorting query as stored fields, and formulas may depend on them.
 
 Base v1 should keep `eidos__references` to model these dependencies:
 

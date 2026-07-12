@@ -47,9 +47,13 @@ stable row IDs. Formula fields calculate live, render readonly using their
 configured display type, and are created or edited from anchored field controls
 with field insertion shortcuts. Neither workflow opens a centered modal.
 
+Lookup/rollup fields extend that same header-driven flow: users choose an
+existing relation, target field, and aggregation from an anchored field panel.
+Derived values stay readonly in the Grid, refresh with relation/target edits,
+and can feed formulas without introducing a separate configuration screen.
+
 Base is still in delivery closure, not product acceptance. Advanced nested
-filter authoring, lookup/rollup fields, richer formula completion and preview,
-Gallery/Kanban layouts,
+filter authoring, richer formula completion and preview, Gallery/Kanban layouts,
 accessible table semantics, and a complete native
 create/edit/restart/version/restore run remain. Routine Base configuration uses
 inline controls, header menus, and anchored popovers. Modal dialogs are

@@ -35,6 +35,12 @@ formula 字段不再是容易过期的 materialized text，而是实时、只读
 依赖、拒绝循环，并让计算值参与正常的分页、筛选、排序、编辑刷新和 Graft row diff。
 字段创建和公式编辑继续使用锚定的表格控制，不打开居中弹窗。
 
+lookup/rollup 字段同样是实时、只读的 query projection。它们通过 relation 字段派生值，
+支持 first value、all values、count、sum、average、minimum 和 maximum，不会创建容易过期的
+物理列。lookup 结果和 stored fields 使用同一套分页、筛选、排序 source，也可以继续作为
+formula 的依赖；runtime 会阻止删除其 relation field 或 target field。创建和修改继续复用
+锚定字段控制。
+
 Base snapshot 现在只携带 row count，Grid 按可见区域请求并缓存 100-row pages；批量删行
 使用 compact row ranges 在 runtime 内事务执行，不需要在 renderer 物化整表选择，并已用
 10,000-row fixture 验证。公开 runtime 也已增加 migration-oriented import boundary，支持
@@ -43,7 +49,7 @@ columns；legacy migration package 通过该边界生成经过校验的 multi-ta
 Desktop Settings 已提供这些 legacy exports 的 preview、progress、validation issues、
 export 和 open-new-Space UX。批量导入会复用 prepared statement，迁移读取使用 rowid
 cursor；一个包含 1,110,847 行的真实 Space 约 15.1 秒完成导出并通过全部 Base/count 校验。
-CSV import、lookup/rollup 字段以及更丰富的 formula completion/preview 仍待实现。
+CSV import 以及更丰富的 formula completion/preview 仍待实现。
 
 ## 摘要
 
@@ -397,7 +403,11 @@ Base v1 规则：
 
 ### Lookup 字段
 
-Lookup fields 依赖 link fields 和 target fields。
+Lookup fields 依赖 link fields 和 target fields。新建 Base lookup 是
+metadata-backed、只读的 query projection，而不是物化 user column。runtime 通过
+relation IDs 查询目标 table，并支持 first value、all values、count、sum、average、
+minimum 和 maximum。lookup values 必须与 stored fields 参与同一套分页、筛选和排序
+查询，formula 也可以依赖 lookup。
 
 Base v1 应该保留 `eidos__references` 来建模这些依赖：
 
