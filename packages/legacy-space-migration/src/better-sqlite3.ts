@@ -1,5 +1,6 @@
-import { existsSync, readdirSync, statSync } from "node:fs"
+import { existsSync, lstatSync, readdirSync, statSync } from "node:fs"
 import path from "node:path"
+import { createHash } from "node:crypto"
 import Database from "better-sqlite3"
 
 import type {
@@ -17,6 +18,12 @@ import type {
 interface SqliteObjectRow {
   name: string
   type: string
+}
+
+interface SqliteColumnRow {
+  name: string
+  type: string
+  hidden: number
 }
 
 type DatabaseRow = Record<string, unknown>
@@ -82,6 +89,39 @@ function listFilesRecursively(root: string, relative = ""): string[] {
   return result
 }
 
+function fingerprintAssets(sourceRoot: string): string {
+  const filesRoot = path.join(sourceRoot, ".eidos", "files")
+  const hash = createHash("sha256")
+  for (const relativePath of listFilesRecursively(filesRoot).sort()) {
+    const stats = statSync(path.join(filesRoot, ...relativePath.split("/")))
+    hash.update(relativePath)
+    hash.update("\0")
+    hash.update(String(stats.size))
+    hash.update("\0")
+    hash.update(String(stats.mtimeMs))
+    hash.update("\0")
+  }
+  return hash.digest("hex")
+}
+
+function inspectAssetPath(
+  filesRoot: string,
+  relativePath: string
+): { exists: boolean; safe: boolean } {
+  let currentPath = filesRoot
+  for (const segment of relativePath.split("/")) {
+    currentPath = path.join(currentPath, segment)
+    if (!existsSync(currentPath)) return { exists: false, safe: true }
+    if (lstatSync(currentPath).isSymbolicLink()) {
+      return { exists: true, safe: false }
+    }
+  }
+  return {
+    exists: existsSync(currentPath) && lstatSync(currentPath).isFile(),
+    safe: true,
+  }
+}
+
 function readNodes(database: Database.Database): LegacyTreeNode[] {
   return database
     .prepare("SELECT * FROM eidos__tree ORDER BY position, rowid")
@@ -104,14 +144,47 @@ function readNodes(database: Database.Database): LegacyTreeNode[] {
 
 function readDocuments(
   database: Database.Database,
+  tableNames: Set<string>,
   issues: MigrationIssue[]
 ): LegacyDocument[] {
+  const propertyTypes = new Map<string, string>()
+  if (tableNames.has("eidos__columns")) {
+    for (const row of database
+      .prepare(
+        "SELECT table_column_name, type FROM eidos__columns WHERE table_name = 'eidos__docs'"
+      )
+      .all() as Array<{ table_column_name: string; type: string }>) {
+      propertyTypes.set(row.table_column_name, row.type)
+    }
+  }
+  const reserved = new Set([
+    "id",
+    "content",
+    "markdown",
+    "is_day_page",
+    "meta",
+    "created_at",
+    "updated_at",
+  ])
   return database
     .prepare("SELECT * FROM eidos__docs ORDER BY rowid")
     .all()
     .map((row) => {
       const value = row as DatabaseRow
       const id = String(value.id)
+      const properties = Object.fromEntries(
+        Object.entries(value)
+          .filter(
+            ([key, propertyValue]) =>
+              !reserved.has(key) && propertyValue !== undefined
+          )
+          .map(([key, propertyValue]) => [
+            key,
+            propertyTypes.get(key) === "checkbox"
+              ? booleanValue(propertyValue)
+              : propertyValue,
+          ])
+      )
       return {
         id,
         markdown: stringValue(value.markdown),
@@ -123,6 +196,7 @@ function readDocuments(
           issues,
           `eidos__docs.${id}.meta`
         ),
+        properties,
         createdAt: stringValue(value.created_at),
         updatedAt: stringValue(value.updated_at),
       }
@@ -267,12 +341,45 @@ function readTables(
           .get() as { count: number | bigint }
       ).count
     )
+    const fields = [...(fieldsByTable.get(rawTableName) ?? [])]
+    const fieldNames = new Set(fields.map((field) => field.columnName))
+    const systemColumns = new Set([
+      "_id",
+      "title",
+      "_created_time",
+      "_last_edited_time",
+      "_created_by",
+      "_last_edited_by",
+    ])
+    const physicalColumns = database
+      .prepare(`PRAGMA table_xinfo("${rawTableName.replace(/"/g, '""')}")`)
+      .all() as SqliteColumnRow[]
+    for (const column of physicalColumns) {
+      if (fieldNames.has(column.name) || systemColumns.has(column.name))
+        continue
+      const numeric = /INT|REAL|FLOA|DOUB|NUM|DEC/i.test(column.type)
+      fields.push({
+        name: column.name,
+        type: numeric ? "number" : "text",
+        tableName: rawTableName,
+        columnName: column.name,
+        property: null,
+        createdAt: null,
+        updatedAt: null,
+      })
+      issues.push({
+        severity: "warning",
+        code: "field-metadata-missing",
+        message: `Physical column ${rawTableName}.${column.name} has no field metadata and will be recovered as ${numeric ? "number" : "text"}`,
+        sourceId: node.id,
+      })
+    }
     tables.push({
       id: node.id,
       name: node.name,
       rawTableName,
       rowCount,
-      fields: fieldsByTable.get(rawTableName) ?? [],
+      fields,
       views: viewsByTable.get(node.id) ?? [],
       references: references.filter(
         (reference) => reference.selfTableName === rawTableName
@@ -311,6 +418,16 @@ function readAssets(
         continue
       }
       const physicalPath = path.join(filesRoot, ...relativePath.split("/"))
+      const pathInspection = inspectAssetPath(filesRoot, relativePath)
+      if (!pathInspection.safe) {
+        issues.push({
+          severity: "error",
+          code: "asset-symlink-unsupported",
+          message: `Asset path traverses a symbolic link and cannot be exported safely: ${relativePath}`,
+          sourceId: id,
+          sourcePath: relativePath,
+        })
+      }
       assets.set(relativePath.toLocaleLowerCase("en-US"), {
         id,
         name,
@@ -319,7 +436,10 @@ function readAssets(
         size: numberValue(value.size),
         mime: stringValue(value.mime),
         registered: true,
-        exists: existsSync(physicalPath) && statSync(physicalPath).isFile(),
+        exists:
+          pathInspection.safe &&
+          pathInspection.exists &&
+          statSync(physicalPath).isFile(),
       })
     }
   }
@@ -356,6 +476,16 @@ export function inspectLegacySpace(
   if (!existsSync(databasePath)) {
     throw new Error(`Legacy Space database not found: ${databasePath}`)
   }
+  const databaseStat = statSync(databasePath)
+  const walPath = `${databasePath}-wal`
+  const walStat = existsSync(walPath) ? statSync(walPath) : null
+  const sourceFingerprint = {
+    databaseSize: databaseStat.size,
+    databaseMtimeMs: databaseStat.mtimeMs,
+    walSize: walStat?.size ?? null,
+    walMtimeMs: walStat?.mtimeMs ?? null,
+    assetsDigest: fingerprintAssets(resolvedRoot),
+  }
   const database = new Database(databasePath, {
     fileMustExist: true,
     readonly: true,
@@ -382,6 +512,7 @@ export function inspectLegacySpace(
       return {
         sourceRoot: resolvedRoot,
         databasePath,
+        sourceFingerprint,
         nodes: [],
         documents: [],
         tables: [],
@@ -390,7 +521,7 @@ export function inspectLegacySpace(
       }
     }
     const nodes = readNodes(database)
-    const documents = readDocuments(database, issues)
+    const documents = readDocuments(database, tableNames, issues)
     const fieldsByTable = readFields(database, tableNames, issues)
     const viewsByTable = readViews(database, tableNames, issues)
     const references = readReferences(database, tableNames)
@@ -407,6 +538,7 @@ export function inspectLegacySpace(
     return {
       sourceRoot: resolvedRoot,
       databasePath,
+      sourceFingerprint,
       nodes,
       documents,
       tables,
@@ -417,3 +549,5 @@ export function inspectLegacySpace(
     database.close()
   }
 }
+
+export { exportLegacySpace } from "./exporter"

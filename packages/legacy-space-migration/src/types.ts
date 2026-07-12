@@ -27,6 +27,7 @@ export interface LegacyDocument {
   lexicalState: string | null
   isDayPage: boolean
   metadata: Record<string, unknown> | null
+  properties: Record<string, unknown>
   createdAt: string | null
   updatedAt: string | null
 }
@@ -99,6 +100,7 @@ export interface MigrationIssue {
 export interface LegacySpaceSnapshot {
   sourceRoot: string
   databasePath: string
+  sourceFingerprint: LegacySourceFingerprint
   nodes: LegacyTreeNode[]
   documents: LegacyDocument[]
   tables: LegacyTable[]
@@ -106,13 +108,20 @@ export interface LegacySpaceSnapshot {
   issues: MigrationIssue[]
 }
 
+export interface LegacySourceFingerprint {
+  databaseSize: number
+  databaseMtimeMs: number
+  walSize: number | null
+  walMtimeMs: number | null
+  assetsDigest: string
+}
+
 export interface PlannedDocument {
   id: string
   sourceName: string
   targetPath: string
-  markdown: string | null
-  lexicalState: string | null
-  metadata: Record<string, unknown> | null
+  hasMarkdown: boolean
+  hasLexicalState: boolean
   createdAt: string | null
   updatedAt: string | null
 }
@@ -162,6 +171,7 @@ export interface LegacySpaceMigrationPlan {
   formatVersion: 1
   sourceRoot: string
   sourceDatabasePath: string
+  sourceFingerprint: LegacySourceFingerprint
   targetRoot: string
   basePath: string
   documents: PlannedDocument[]
@@ -177,4 +187,58 @@ export interface PlanLegacySpaceMigrationOptions {
   basePath?: string
   documentsDirectory?: string
   assetsDirectory?: string
+}
+
+export type MigrationExportPhase =
+  | "preparing"
+  | "documents"
+  | "tables"
+  | "assets"
+  | "validating"
+  | "reporting"
+  | "finalizing"
+
+export interface MigrationExportProgress {
+  phase: MigrationExportPhase
+  completed: number
+  total: number
+  currentPath?: string
+}
+
+export interface ExportLegacySpaceOptions {
+  migrationId?: string
+  rowBatchSize?: number
+  onProgress?: (progress: MigrationExportProgress) => void
+}
+
+export interface MigrationExportValidation {
+  baseValid: boolean
+  documentCountMatches: boolean
+  tableCountMatches: boolean
+  rowCountMatches: boolean
+  fieldCountMatches: boolean
+  viewCountMatches: boolean
+  referenceCountMatches: boolean
+  assetCountMatches: boolean
+  copiedAssetsExist: boolean
+}
+
+export interface LegacySpaceMigrationResult {
+  status: "completed"
+  migrationId: string
+  sourceRoot: string
+  sourceDatabasePath: string
+  targetRoot: string
+  reportPath: string
+  mappingPath: string
+  exportedDocumentCount: number
+  exportedTableCount: number
+  exportedRowCount: number
+  exportedFieldCount: number
+  exportedViewCount: number
+  exportedReferenceCount: number
+  copiedAssetCount: number
+  recoveredLexicalDocumentCount: number
+  validation: MigrationExportValidation
+  issues: MigrationIssue[]
 }

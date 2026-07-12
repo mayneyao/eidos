@@ -37,6 +37,7 @@ const WINDOWS_RESERVED_NAMES = new Set([
 ])
 
 const SUPPORTED_FIELD_TYPES = new Set([
+  "row-id",
   "title",
   "text",
   "number",
@@ -56,6 +57,9 @@ const SUPPORTED_FIELD_TYPES = new Set([
   "last-edited-time",
   "last-edited-by",
 ])
+
+const SAFE_TABLE_ID = /^[A-Za-z0-9_]+$/
+const SAFE_FIELD_COLUMN = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 function normalizeRelativeDirectory(value: string, fallback: string): string {
   const segments = value
@@ -301,9 +305,10 @@ export function planLegacySpaceMigration(
         id: node.id,
         sourceName: node.name,
         targetPath,
-        markdown: source?.markdown ?? null,
-        lexicalState: source?.lexicalState ?? null,
-        metadata: source?.metadata ?? null,
+        hasMarkdown:
+          source?.markdown !== null && source?.markdown !== undefined,
+        hasLexicalState:
+          source?.lexicalState !== null && source?.lexicalState !== undefined,
         createdAt: source?.createdAt ?? node.createdAt,
         updatedAt: source?.updatedAt ?? node.updatedAt,
       }
@@ -340,9 +345,8 @@ export function planLegacySpaceMigration(
       id: document.id,
       sourceName: document.id,
       targetPath,
-      markdown: document.markdown,
-      lexicalState: document.lexicalState,
-      metadata: document.metadata,
+      hasMarkdown: document.markdown !== null,
+      hasLexicalState: document.lexicalState !== null,
       createdAt: document.createdAt,
       updatedAt: document.updatedAt,
     })
@@ -376,12 +380,44 @@ export function planLegacySpaceMigration(
       return leftPosition - rightPosition || left.id.localeCompare(right.id)
     })
     .map((table) => {
+      if (!SAFE_TABLE_ID.test(table.id)) {
+        issues.push({
+          severity: "error",
+          code: "table-id-invalid",
+          message: `Table ${table.name} has an ID that cannot be preserved in Base: ${table.id}`,
+          sourceId: table.id,
+        })
+      }
       for (const field of table.fields) {
+        if (
+          !SAFE_FIELD_COLUMN.test(field.columnName) ||
+          (field.columnName.startsWith("_") &&
+            field.columnName !== "_id" &&
+            field.columnName !== "_created_time" &&
+            field.columnName !== "_last_edited_time" &&
+            field.columnName !== "_created_by" &&
+            field.columnName !== "_last_edited_by")
+        ) {
+          issues.push({
+            severity: "error",
+            code: "field-column-invalid",
+            message: `Field ${table.name}.${field.name} has a column name that cannot be preserved in Base: ${field.columnName}`,
+            sourceId: table.id,
+          })
+        }
         if (!SUPPORTED_FIELD_TYPES.has(field.type)) {
           issues.push({
             severity: "warning",
             code: "unsupported-field-type",
             message: `Field ${table.name}.${field.name} uses unsupported type ${field.type}`,
+            sourceId: table.id,
+          })
+        }
+        if (field.type === "formula" || field.type === "lookup") {
+          issues.push({
+            severity: "warning",
+            code: "derived-field-materialized",
+            message: `Field ${table.name}.${field.name} will preserve current values and metadata but needs Base recomputation support`,
             sourceId: table.id,
           })
         }
@@ -398,6 +434,38 @@ export function planLegacySpaceMigration(
       }
     })
 
+  const sourceTablesByRawName = new Map(
+    snapshot.tables.map((table) => [table.rawTableName, table])
+  )
+  for (const table of snapshot.tables) {
+    for (const reference of table.references) {
+      const participants = [
+        [reference.selfTableName, reference.selfColumnName],
+        [reference.refTableName, reference.refColumnName],
+        [reference.linkTableName, reference.linkColumnName],
+      ] as const
+      const invalidParticipant = participants.find(
+        ([tableName, columnName]) => {
+          const participantTable = sourceTablesByRawName.get(tableName)
+          return (
+            !participantTable ||
+            !participantTable.fields.some(
+              (field) => field.columnName === columnName
+            )
+          )
+        }
+      )
+      if (invalidParticipant) {
+        issues.push({
+          severity: "error",
+          code: "reference-invalid",
+          message: `Reference ${reference.selfTableName}.${reference.selfColumnName} points to missing field ${invalidParticipant[0]}.${invalidParticipant[1]}`,
+          sourceId: table.id,
+        })
+      }
+    }
+  }
+
   const assets = planAssets(snapshot.assets, assetsDirectory, issues, mappings)
   const warningCount = issues.filter(
     (issue) => issue.severity === "warning"
@@ -409,6 +477,7 @@ export function planLegacySpaceMigration(
     formatVersion: 1,
     sourceRoot: snapshot.sourceRoot,
     sourceDatabasePath: snapshot.databasePath,
+    sourceFingerprint: snapshot.sourceFingerprint,
     targetRoot: options.targetRoot,
     basePath,
     documents,

@@ -37,6 +37,10 @@
   ],
   "author": "mayneyao",
   "license": "AGPL-3.0",
+  "dependencies": {
+    "@eidos.space/base": "workspace:*",
+    "yaml": "^2.8.1"
+  },
   "peerDependencies": {
     "better-sqlite3": ">=11.0.0"
   },

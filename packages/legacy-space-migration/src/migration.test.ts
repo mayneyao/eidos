@@ -1,9 +1,18 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import Database from "better-sqlite3"
+import { openBaseFile } from "@eidos.space/base/better-sqlite3"
 
-import { inspectLegacySpace } from "./better-sqlite3"
+import { exportLegacySpace, inspectLegacySpace } from "./better-sqlite3"
 import { planLegacySpaceMigration, sanitizePathSegment } from "./planner"
 
 function createLegacyFixture() {
@@ -32,7 +41,9 @@ function createLegacyFixture() {
       is_day_page BOOLEAN DEFAULT 0,
       meta TEXT,
       created_at TEXT,
-      updated_at TEXT
+      updated_at TEXT,
+      priority TEXT,
+      archived BOOLEAN
     );
     CREATE TABLE eidos__columns (
       name TEXT,
@@ -94,7 +105,15 @@ function createLegacyFixture() {
         (id, content, markdown, is_day_page, meta, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
-    .run("doc-a", '{"root":{}}', "# Plan\n", 0, "{}", null, null)
+    .run(
+      "doc-a",
+      '{"root":{}}',
+      "---\nowner: Alice\npriority: stale\n---\n# Plan\n\n![Logo](files/logo.png)\n",
+      0,
+      "{}",
+      null,
+      null
+    )
   database
     .prepare(
       `INSERT INTO eidos__docs
@@ -109,6 +128,23 @@ function createLegacyFixture() {
        VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
     .run("orphan", '{"root":{}}', "Recovered", 0, "{}", null, null)
+  database
+    .prepare("UPDATE eidos__docs SET priority = ?, archived = ? WHERE id = ?")
+    .run("high", 1, "doc-a")
+  database
+    .prepare(
+      `INSERT INTO eidos__columns
+        (name, type, table_name, table_column_name, property)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .run("priority", "text", "eidos__docs", "priority", null)
+  database
+    .prepare(
+      `INSERT INTO eidos__columns
+        (name, type, table_name, table_column_name, property)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .run("archived", "checkbox", "eidos__docs", "archived", null)
   database
     .prepare(
       `INSERT INTO eidos__columns
@@ -185,6 +221,11 @@ describe("legacy Space migration planning", () => {
 
     expect(snapshot.nodes).toHaveLength(6)
     expect(snapshot.documents).toHaveLength(3)
+    expect(
+      snapshot.documents.find((document) => document.id === "doc-a")
+    ).toMatchObject({
+      properties: { priority: "high", archived: true },
+    })
     expect(snapshot.tables).toEqual([
       expect.objectContaining({
         id: "tasks",
@@ -242,6 +283,8 @@ describe("legacy Space migration planning", () => {
         targetPath: "notes/_Orphans/orphan.md",
       }),
     ])
+    expect(plan.documents[0]).not.toHaveProperty("markdown")
+    expect(plan.documents[0]).not.toHaveProperty("lexicalState")
     expect(plan.tables).toEqual([
       expect.objectContaining({
         id: "tasks",
@@ -305,6 +348,211 @@ describe("legacy Space migration planning", () => {
       "legacy-schema-missing",
       "legacy-schema-missing",
     ])
+  })
+
+  it("exports Markdown, Base rows, assets, recovery data, and reports atomically", async () => {
+    const fixture = createLegacyFixture()
+    roots.push(fixture.sourceRoot)
+    const targetParent = mkdtempSync(
+      path.join(tmpdir(), "eidos-export-target-")
+    )
+    roots.push(targetParent)
+    const targetRoot = path.join(targetParent, "Migrated Space")
+    const snapshot = inspectLegacySpace(fixture.sourceRoot)
+    const plan = planLegacySpaceMigration(snapshot, { targetRoot })
+    const phases: string[] = []
+
+    const result = await exportLegacySpace(plan, {
+      migrationId: "fixture-export",
+      rowBatchSize: 1,
+      onProgress: (progress) => {
+        phases.push(progress.phase)
+        if (progress.phase === "reporting") {
+          throw new Error("observer failure")
+        }
+      },
+    })
+
+    expect(result).toMatchObject({
+      status: "completed",
+      migrationId: "fixture-export",
+      exportedDocumentCount: 3,
+      exportedTableCount: 1,
+      exportedRowCount: 1,
+      exportedFieldCount: 3,
+      exportedViewCount: 1,
+      exportedReferenceCount: 0,
+      copiedAssetCount: 2,
+      recoveredLexicalDocumentCount: 1,
+      validation: {
+        baseValid: true,
+        documentCountMatches: true,
+        tableCountMatches: true,
+        rowCountMatches: true,
+        fieldCountMatches: true,
+        viewCountMatches: true,
+        referenceCountMatches: true,
+        assetCountMatches: true,
+        copiedAssetsExist: true,
+      },
+    })
+    expect(phases).toEqual(
+      expect.arrayContaining([
+        "preparing",
+        "documents",
+        "tables",
+        "assets",
+        "validating",
+        "reporting",
+        "finalizing",
+      ])
+    )
+    const exportedPlan = readFileSync(
+      path.join(targetRoot, "notes", "Projects", "Plan.md"),
+      "utf8"
+    )
+    expect(exportedPlan).toContain("owner: Alice")
+    expect(exportedPlan).toContain("priority: high")
+    expect(exportedPlan).toContain("archived: true")
+    expect(exportedPlan).toContain("![Logo](assets/logo.png)")
+    expect(
+      readFileSync(
+        path.join(targetRoot, "notes", "Projects", "plan--docb.md"),
+        "utf8"
+      )
+    ).toContain("fixture-export/recovery/doc-b.lexical.json")
+    expect(
+      readFileSync(
+        path.join(
+          targetRoot,
+          ".eidos",
+          "migration",
+          "fixture-export",
+          "recovery",
+          "doc-b.lexical.json"
+        ),
+        "utf8"
+      )
+    ).toBe('{"root":{}}')
+    expect(
+      readFileSync(path.join(targetRoot, "assets", "logo.png"), "utf8")
+    ).toBe("logo")
+    expect(
+      readFileSync(
+        path.join(targetRoot, "assets", "nested", "unregistered.txt"),
+        "utf8"
+      )
+    ).toBe("hello")
+    expect(existsSync(result.reportPath)).toBe(true)
+    expect(readFileSync(result.reportPath, "utf8")).toContain(
+      "Status: completed"
+    )
+    expect(JSON.parse(readFileSync(result.mappingPath, "utf8"))).toMatchObject({
+      plan: { format: "eidos-legacy-space-migration-plan" },
+      result: { status: "completed" },
+    })
+
+    const base = openBaseFile(path.join(targetRoot, "main.base"), {
+      readonly: true,
+    })
+    expect(base.listTables()).toMatchObject([{ id: "tasks", name: "Tasks" }])
+    expect(base.listRows("tasks")).toEqual([
+      expect.objectContaining({
+        _id: "row-1",
+        title: "Ship",
+        attachment: "assets/logo.png",
+        status: "todo",
+      }),
+    ])
+    expect(base.listViews("tasks")).toEqual([
+      expect.objectContaining({ id: "view-tasks", name: "Grid" }),
+    ])
+    base.close()
+  })
+
+  it("never overwrites a non-empty target", async () => {
+    const fixture = createLegacyFixture()
+    roots.push(fixture.sourceRoot)
+    const targetRoot = mkdtempSync(
+      path.join(tmpdir(), "eidos-non-empty-target-")
+    )
+    roots.push(targetRoot)
+    writeFileSync(path.join(targetRoot, "keep.txt"), "keep")
+    const plan = planLegacySpaceMigration(
+      inspectLegacySpace(fixture.sourceRoot),
+      {
+        targetRoot,
+      }
+    )
+
+    await expect(exportLegacySpace(plan)).rejects.toThrow(
+      "Migration target must be empty"
+    )
+    expect(readFileSync(path.join(targetRoot, "keep.txt"), "utf8")).toBe("keep")
+  })
+
+  it("requires a new plan when the legacy database changes", async () => {
+    const fixture = createLegacyFixture()
+    roots.push(fixture.sourceRoot)
+    const targetParent = mkdtempSync(path.join(tmpdir(), "eidos-stale-target-"))
+    roots.push(targetParent)
+    const plan = planLegacySpaceMigration(
+      inspectLegacySpace(fixture.sourceRoot),
+      {
+        targetRoot: path.join(targetParent, "export"),
+      }
+    )
+    const database = new Database(fixture.databasePath)
+    database
+      .prepare(
+        `INSERT INTO eidos__tree
+          (id, name, type, parent_id, position, icon, is_deleted, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run("late-doc", "Late", "doc", null, 99, null, 0, null, null)
+    database.close()
+
+    await expect(exportLegacySpace(plan)).rejects.toThrow(
+      "Legacy Space changed after the migration plan was created"
+    )
+  })
+
+  it("blocks registered assets that traverse symbolic links", () => {
+    const fixture = createLegacyFixture()
+    roots.push(fixture.sourceRoot)
+    const externalRoot = mkdtempSync(
+      path.join(tmpdir(), "eidos-external-asset-")
+    )
+    roots.push(externalRoot)
+    const externalFile = path.join(externalRoot, "secret.txt")
+    writeFileSync(externalFile, "outside")
+    symlinkSync(
+      externalFile,
+      path.join(fixture.sourceRoot, ".eidos", "files", "linked.txt")
+    )
+    const database = new Database(fixture.databasePath)
+    database
+      .prepare(
+        "INSERT INTO eidos__files (id, name, path, size, mime) VALUES (?, ?, ?, ?, ?)"
+      )
+      .run("linked", "linked.txt", "files/linked.txt", 7, "text/plain")
+    database.close()
+
+    const plan = planLegacySpaceMigration(
+      inspectLegacySpace(fixture.sourceRoot),
+      {
+        targetRoot: "/tmp/exported-space",
+      }
+    )
+
+    expect(plan.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          code: "asset-symlink-unsupported",
+        }),
+      ])
+    )
   })
 
   it("sanitizes portable path segments", () => {
