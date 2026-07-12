@@ -62,6 +62,10 @@ Grid、Gallery 和 Kanban 中编辑：primitive source fields 会就地自动保
 保持只读，保存成功后会更新当前 layout，并且不会关闭 inspector。File 字段支持从 Space 导入、
 拖放、移除、打开和定位；Relation 字段复用目标表搜索边界，并按稳定 row ID 保存单选或多选结果。
 
+就地 row search 现在会显示过滤后记录的位置与总数；Enter 和 Shift+Enter 可以在保持输入框焦点的
+同时向前或向后循环。Grid 会滚动并高亮目标行；Gallery 和 Kanban 会滚动到目标 card，并在目标尚未
+加载时自动补齐所需分页。
+
 真实文件 Base versioning smoke 现在会创建 Grid、Gallery 和 Kanban metadata，关闭并重开文件，
 编辑行，验证 Graft row diff，恢复初始 revision，再次重开并校验 records、派生值和三种 view
 layout；恢复后的仓库状态为 clean。原生 UI 重启验收与这条自动化生命周期证据分开记录。
@@ -71,13 +75,13 @@ layout；恢复后的仓库状态为 clean。原生 UI 重启验收与这条自�
 | 能力                                       | Base 状态                       | 剩余边界                                                            |
 | ------------------------------------------ | ------------------------------- | ------------------------------------------------------------------- |
 | 持久化 view lifecycle 与独立 query/layout  | 自动重开/恢复已验收             | 仍需原生 UI 重启验收                                                |
-| Gallery 字段显隐、空字段隐藏、card size    | 已工作                          | 仍缺搜索结果定位/滚动                                               |
+| Gallery 字段显隐、空字段隐藏、card size    | 已工作，包含结果导航            | v1 暂无已知缺口                                                     |
 | Gallery cover                              | File 字段已工作                 | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
 | Card actions                               | 可编辑 Inspector 与删除已工作   | file-based Base 的 full-page row document 模型尚未定义              |
 | Kanban Select 分组、计数、折叠、新增、拖动 | 已工作，并提供键盘 Move-to 兜底 | 仍缺直接拖动播报和超多列虚拟化                                      |
 
-这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。搜索定位、更多可移植 cover source、
-直接拖动播报、超多列虚拟化，以及原生 UI 生命周期验收仍待完成。
+这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。更多可移植 cover source、直接拖动
+播报、超多列虚拟化，以及原生 UI 生命周期验收仍待完成。
 Base 日常编辑和配置优先使用单元格
 内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留给破坏性确认或必须中断
 当前工作流的决策。新增交互应先参考并复用原表格已经验证过的编辑方式，不应仅为了

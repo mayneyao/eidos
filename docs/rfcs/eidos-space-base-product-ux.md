@@ -82,6 +82,11 @@ File fields support Space import, drop, remove, open, and reveal actions;
 Relation fields reuse the target-table search boundary and persist stable row
 IDs for single or multiple selection.
 
+Inline row search now reports the filtered record position and count. Enter and
+Shift+Enter cycle forward and backward while the input keeps focus. Grid scrolls
+to and highlights the target row; Gallery and Kanban scroll to the target card
+and automatically fetch the required page before revealing it.
+
 The real-file Base versioning smoke now creates Grid, Gallery, and Kanban
 metadata, closes and reopens the file, edits rows, verifies Graft row diffs,
 restores the original revision, and reopens again to verify records, derived
@@ -93,16 +98,16 @@ Current parity with the original table views is explicit:
 | Capability                                                | Base status                            | Remaining boundary                                                                                           |
 | --------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | Persisted view lifecycle and per-view query/layout        | Automated reopen/restore accepted      | Native UI restart acceptance remains                                                                         |
-| Gallery field visibility, empty-field hiding, card sizing | Working                                | Search-result focus/scroll remains                                                                           |
+| Gallery field visibility, empty-field hiding, card sizing | Working with result navigation         | No known v1 gap                                                                                              |
 | Gallery cover                                             | File field working                     | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
 | Card actions                                              | Editable inspector and delete working  | A full-page row-document model is not yet defined for file-based Base                                        |
 | Kanban Select grouping, counts, collapse, add, drag move  | Working with keyboard Move-to fallback | Direct drag announcements and very large-column virtualization remain                                        |
 
 This is the first working delivery slice, not yet full parity with the original
-table views. Search navigation, additional portable cover sources, direct drag
-announcements, very large-column virtualization, and native UI lifecycle
-acceptance remain. Routine Base configuration uses inline controls, header
-menus, and anchored popovers. Modal dialogs are
+table views. Additional portable cover sources, direct drag announcements, very
+large-column virtualization, and native UI lifecycle acceptance remain. Routine
+Base configuration uses inline controls, header menus, and anchored popovers.
+Modal dialogs are
 reserved for destructive confirmation or other decisions that must interrupt
 the workflow. New interactions should first adapt the proven editing patterns
 from the original Eidos table; implementation convenience is not a reason to
