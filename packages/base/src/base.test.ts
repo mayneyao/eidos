@@ -696,6 +696,13 @@ describe("Eidos Base files", () => {
     expect(
       base.updateField("tasks", "status", { type: "multi-select" })
     ).toMatchObject({ type: "multi-select", storageCodec: "csv_ids" })
+    base.updateField("tasks", "status", {
+      property: { options: [options[1]] },
+    })
+    expect(base.listRows("tasks").map((row) => row.status)).toEqual([
+      null,
+      options[1].id,
+    ])
 
     expect(base.updateField("tasks", "files", { type: "text" })).toMatchObject({
       type: "text",

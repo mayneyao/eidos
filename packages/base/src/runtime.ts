@@ -12,6 +12,8 @@ import {
 } from "./constants"
 import { BaseError } from "./errors"
 import {
+  decodeBaseMultiSelectIds,
+  encodeBaseMultiSelectIds,
   isMutableBaseFieldType,
   planBaseFieldConversion,
 } from "./field-conversion"
@@ -1321,6 +1323,29 @@ export class BaseRuntime {
     let property =
       changes.property === undefined ? field.property : changes.property
     let dependsOn = field.dependsOn
+    const removedOptionIds =
+      (field.type === "select" || field.type === "multi-select") &&
+      changes.property !== undefined
+        ? (() => {
+            const optionIds = (candidate: Record<string, unknown> | null) =>
+              new Set(
+                Array.isArray(candidate?.options)
+                  ? candidate.options.flatMap((option) =>
+                      typeof option === "object" &&
+                      option !== null &&
+                      "id" in option &&
+                      typeof option.id === "string"
+                        ? [option.id]
+                        : []
+                    )
+                  : []
+              )
+            const nextIds = optionIds(property)
+            return [...optionIds(field.property)].filter(
+              (id) => !nextIds.has(id)
+            )
+          })()
+        : []
     if (field.type === "formula" && changes.property !== undefined) {
       const formulaProperty = { ...(property ?? {}) }
       delete formulaProperty.expression
@@ -1364,6 +1389,47 @@ export class BaseRuntime {
       dependsOn = [relationField]
     }
     this.connection.transaction(() => {
+      if (removedOptionIds.length > 0 && field.type === "select") {
+        for (const optionId of removedOptionIds) {
+          this.connection.run(
+            `UPDATE ${quoteIdentifier(table.rawTableName)}
+                SET ${quoteIdentifier(field.tableColumnName)} = NULL
+              WHERE ${quoteIdentifier(field.tableColumnName)} = ?`,
+            [optionId]
+          )
+        }
+      } else if (removedOptionIds.length > 0 && field.type === "multi-select") {
+        const removed = new Set(removedOptionIds)
+        const rows = this.connection.query<{
+          id: string
+          value: BaseSqlPrimitive
+        }>(
+          `SELECT CAST(_id AS TEXT) AS id,
+                  ${quoteIdentifier(field.tableColumnName)} AS value
+             FROM ${quoteIdentifier(table.rawTableName)}`
+        )
+        const statement = `UPDATE ${quoteIdentifier(table.rawTableName)}
+                              SET ${quoteIdentifier(field.tableColumnName)} = ?
+                            WHERE _id = ?`
+        const parameterSets = rows.map(
+          (row) =>
+            [
+              encodeBaseMultiSelectIds(
+                decodeBaseMultiSelectIds(row.value).filter(
+                  (id) => !removed.has(id)
+                )
+              ),
+              row.id,
+            ] as const
+        )
+        if (this.connection.runMany) {
+          this.connection.runMany(statement, parameterSets)
+        } else {
+          for (const parameters of parameterSets) {
+            this.connection.run(statement, parameters)
+          }
+        }
+      }
       this.connection.run(
         `UPDATE ${BASE_COLUMNS_TABLE}
             SET name = ?, property = ?, depends_on = ?,

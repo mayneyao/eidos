@@ -82,7 +82,7 @@ function selectOptions(field: BaseFieldInfo): BaseSelectOption[] {
   })
 }
 
-function multiSelectIds(value: BaseSqlPrimitive): string[] {
+export function decodeBaseMultiSelectIds(value: BaseSqlPrimitive): string[] {
   if (typeof value !== "string" || value.length === 0) return []
   if (value.startsWith("[")) {
     try {
@@ -99,6 +99,10 @@ function multiSelectIds(value: BaseSqlPrimitive): string[] {
   return value.split(",").filter(Boolean)
 }
 
+export function encodeBaseMultiSelectIds(ids: string[]): string | null {
+  return ids.length > 0 ? ids.join(",") : null
+}
+
 function displayValues(
   field: BaseFieldInfo,
   value: BaseSqlPrimitive
@@ -112,7 +116,7 @@ function displayValues(
     return [nameById.get(id) ?? id].filter(Boolean)
   }
   if (field.type === "multi-select") {
-    return multiSelectIds(value)
+    return decodeBaseMultiSelectIds(value)
       .map((id) => nameById.get(id) ?? id)
       .filter(Boolean)
   }
@@ -210,7 +214,7 @@ function convertedValue(
       const id = optionIdByName.get(name)
       return id ? [id] : []
     })
-    return ids.length > 0 ? ids.join(",") : null
+    return encodeBaseMultiSelectIds(ids)
   }
   return values.length > 0 ? values.join(", ") : null
 }
