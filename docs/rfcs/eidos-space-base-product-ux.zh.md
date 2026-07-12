@@ -76,13 +76,14 @@ layout；恢复后的仓库状态为 clean。原生 UI 重启验收与这条自�
 
 与原表格 view 的当前能力对齐情况如下：
 
-| 能力                                       | Base 状态                     | 剩余边界                                                            |
-| ------------------------------------------ | ----------------------------- | ------------------------------------------------------------------- |
-| 持久化 view lifecycle 与独立 query/layout  | 自动重开/恢复已验收           | 仍需原生 UI 重启验收                                                |
-| Gallery 字段显隐、空字段隐藏、card size    | 已工作，包含结果导航          | v1 暂无已知缺口                                                     |
-| Gallery cover                              | File 字段已工作               | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
-| Card actions                               | 可编辑 Inspector 与删除已工作 | file-based Base 的 full-page row document 模型尚未定义              |
-| Kanban Select 分组、计数、折叠、新增、拖动 | 已支持虚拟化和无障碍移动      | v1 暂无已知缺口                                                     |
+| 能力                                       | Base 状态                      | 剩余边界                                                            |
+| ------------------------------------------ | ------------------------------ | ------------------------------------------------------------------- |
+| 持久化 view lifecycle 与独立 query/layout  | 自动重开/恢复已验收            | 仍需原生 UI 重启验收                                                |
+| Gallery 字段显隐、空字段隐藏、card size    | 已工作，包含结果导航           | v1 暂无已知缺口                                                     |
+| Gallery cover                              | File 字段已工作                | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
+| Card actions                               | 可编辑 Inspector 与删除已工作  | file-based Base 的 full-page row document 模型尚未定义              |
+| Kanban Select 分组、计数、折叠、新增、拖动 | 已支持虚拟化和无障碍移动       | v1 暂无已知缺口                                                     |
+| Base merge conflict 审阅                   | 已支持结构化 row/schema/opaque | 仍需双 Space 原生 UI 的 row-conflict 验收                           |
 
 这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。更多可移植 cover source 和原生 UI
 生命周期验收仍待完成。
@@ -94,7 +95,10 @@ Base 日常编辑和配置优先使用单元格
 file Space Settings 已拆分为 General、Files/Obsidian、Versioning 和派生 Indexes；
 legacy Space Settings 也已提供 server-owned migration preview、progress、validation、
 reveal 和 open-new-Space actions。原生 Space sync 与 path-first 文本 conflict
-resolution 已通过双 Space Desktop 验收；仍需更细的 Base row-level conflict 展示。
+resolution 已通过双 Space Desktop 验收。Base conflict 现在会打开独立的非模态审阅 tab：
+Graft 的 row/schema/opaque artifact 会保持结构化，row 值按 Base/current/incoming 字段对比，
+每个受支持的 row 可以独立选择保留 current 或接受 incoming；schema 和 opaque conflict 会明确
+降级为文件级选择。仍需双 Space 原生 UI 的 row-conflict 验收。
 
 ## 摘要
 

@@ -109,6 +109,7 @@ Current parity with the original table views is explicit:
 | Gallery cover                                             | File field working                        | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
 | Card actions                                              | Editable inspector and delete working     | A full-page row-document model is not yet defined for file-based Base                                        |
 | Kanban Select grouping, counts, collapse, add, drag move  | Working with virtualized accessible moves | No known v1 gap                                                                                              |
+| Base merge conflict review                                | Structured row/schema/opaque review works | Native two-Space row-conflict UI acceptance remains                                                          |
 
 This is the first working delivery slice, not yet full parity with the original
 table views. Additional portable cover sources and native UI lifecycle
@@ -124,7 +125,12 @@ File-Space Settings separates General, Files/Obsidian, Versioning, and derived
 Indexes controls. Legacy-Space Settings also provides server-owned migration
 preview, progress, validation, reveal, and open-new-Space actions. Native Space
 sync and path-first text conflict resolution now pass a two-Space Desktop
-acceptance flow. Richer Base row-level conflict presentation remains.
+acceptance flow. Base conflicts now open in a dedicated, non-modal review tab:
+Graft row/schema/opaque artifacts remain structured, row values are compared as
+Base/current/incoming fields, and each supported row can independently keep the
+current value or accept the incoming value. Schema and opaque conflicts fall
+back explicitly to a file-level choice. Native two-Space row-conflict UI
+acceptance remains.
 
 ## Summary
 
