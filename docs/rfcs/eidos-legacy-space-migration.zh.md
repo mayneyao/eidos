@@ -24,9 +24,14 @@ Exporter 会先在同级 staging directory 中写入 Markdown（包括当前文�
 与历史 row values，改写文件引用，校验 document/table/row/field/view/reference/asset
 数量，全部通过后才原子安装到空 target。实现不会覆盖非空 target，并拒绝 asset symlink。
 
-v1 剩余工作是 Desktop Settings 中的 preview/export flow、使用有代表性的真实 legacy
-Spaces 做 acceptance、补齐更丰富的 formula/lookup recomputation semantics，以及可选的
-Graft 初始化。第一版仍不规划 silent migration 或 in-place migration。
+Desktop Settings 现在为 legacy Space 提供独立 Migration section，展示同一个由 server
+持有的 plan。用户可以选择空 target、检查数量与 blocking issues、查看 export progress、
+在文件管理器中显示结果，或者注册并打开新的 file Space。Renderer 只持有 plan token，
+执行前不能篡改 server-side mapping。
+
+v1 剩余工作是使用有代表性的真实 legacy Spaces 做 acceptance、补齐更丰富的
+formula/lookup recomputation semantics，以及可选的 Graft 初始化。第一版仍不规划 silent
+migration 或 in-place migration。
 
 ## 摘要
 

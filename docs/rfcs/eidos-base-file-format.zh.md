@@ -24,7 +24,8 @@ Base snapshot 现在只携带 row count，Grid 按可见区域请求并缓存 10
 10,000-row fixture 验证。公开 runtime 也已增加 migration-oriented import boundary，支持
 导入高级 field metadata、views、references、materialized derived values 和历史 system
 columns；legacy migration package 通过该边界生成经过校验的 multi-table `main.base`。
-CSV import、更丰富的实时 formula/lookup 语义和 Desktop migration UX 仍待实现。
+Desktop Settings 已提供这些 legacy exports 的 preview、progress、validation issues、
+export 和 open-new-Space UX。CSV import 和更丰富的实时 formula/lookup 语义仍待实现。
 
 ## 摘要
 

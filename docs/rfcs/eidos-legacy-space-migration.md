@@ -27,10 +27,16 @@ boundary, rewrites file references, validates document/table/row/field/view/
 reference/asset counts, and only then atomically installs an empty target. It
 never overwrites a non-empty target and rejects asset symlinks.
 
-The remaining v1 work is the Desktop Settings preview/export flow, acceptance
-against representative real legacy Spaces, richer formula/lookup recomputation
-semantics, and optional Graft initialization. Silent and in-place migration are
-still not planned for the first release.
+Desktop Settings now exposes the same server-owned plan as a dedicated
+Migration section for legacy Spaces. Users choose an empty target, inspect
+counts and blocking issues, follow export progress, reveal the result, or
+register and open the new file Space. The renderer only receives a plan token;
+it cannot alter the server-side mapping before execution.
+
+The remaining v1 work is acceptance against representative real legacy Spaces,
+richer formula/lookup recomputation semantics, and optional Graft
+initialization. Silent and in-place migration are still not planned for the
+first release.
 
 ## Summary
 

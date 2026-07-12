@@ -37,7 +37,9 @@ an entire selection in the renderer. The runtime path is covered with a
 import boundary for advanced field metadata, views, references, materialized
 derived values, and historical system columns. The legacy migration package
 uses this boundary to produce validated multi-table `main.base` exports. CSV
-import, richer live formula/lookup semantics, and Desktop migration UX remain.
+import and richer live formula/lookup semantics remain. Desktop Settings now
+provides preview, progress, validation issues, export, and open-new-Space UX for
+these legacy exports.
 
 ## Summary
 
