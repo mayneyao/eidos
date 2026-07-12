@@ -97,29 +97,34 @@ available as an equivalent non-pointer path.
 The real-file Base versioning smoke now creates Grid, Gallery, and Kanban
 metadata, closes and reopens the file, edits rows, verifies Graft row diffs,
 restores the original revision, and reopens again to verify records, derived
-values, and all three view layouts. The restored repository is clean. Native
-UI restart acceptance remains separate from this automated lifecycle evidence.
+values, and all three view layouts. The restored repository is clean.
+
+Native Desktop acceptance now covers the same lifecycle through the product UI:
+create a named Task tracker Base, edit primitive and Select cells, stage only
+that file, create a version, fully restart Electron, reopen and verify the row,
+make a dirty edit, and restore the file from History without moving HEAD. The
+open Base refreshes immediately after Graft replaces the file and the worktree
+returns to clean when restoring the current version.
 
 Current parity with the original table views is explicit:
 
-| Capability                                                | Base status                               | Remaining boundary                                                                                           |
-| --------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Persisted view lifecycle and per-view query/layout        | Automated reopen/restore accepted         | Native UI restart acceptance remains                                                                         |
-| Gallery field visibility, empty-field hiding, card sizing | Working with result navigation            | No known v1 gap                                                                                              |
-| Gallery cover                                             | File field working                        | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
-| Card actions                                              | Editable inspector and delete working     | A full-page row-document model is not yet defined for file-based Base                                        |
-| Kanban Select grouping, counts, collapse, add, drag move  | Working with virtualized accessible moves | No known v1 gap                                                                                              |
-| Base merge conflict review                                | Structured row/schema/opaque review works | Native two-Space row-conflict UI acceptance remains                                                          |
+| Capability                                                | Base status                                   | Remaining boundary                                                                                           |
+| --------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Persisted view lifecycle and per-view query/layout        | Automated and native restart/restore accepted | No known v1 gap                                                                                              |
+| Gallery field visibility, empty-field hiding, card sizing | Working with result navigation                | No known v1 gap                                                                                              |
+| Gallery cover                                             | File field working                            | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
+| Card actions                                              | Editable inspector and delete working         | A full-page row-document model is not yet defined for file-based Base                                        |
+| Kanban Select grouping, counts, collapse, add, drag move  | Working with virtualized accessible moves     | No known v1 gap                                                                                              |
+| Base merge conflict review                                | Structured row/schema/opaque review works     | Native two-Space row-conflict UI acceptance remains                                                          |
 
 This is the first working delivery slice, not yet full parity with the original
-table views. Additional portable cover sources and native UI lifecycle
-acceptance remain. Routine
-Base configuration uses inline controls, header menus, and anchored popovers.
-Modal dialogs are
-reserved for destructive confirmation or other decisions that must interrupt
-the workflow. New interactions should first adapt the proven editing patterns
-from the original Eidos table; implementation convenience is not a reason to
-move field configuration, record editing, or view management into a modal.
+table views. Additional portable cover sources remain. Routine Base
+configuration uses inline controls, header menus, and anchored popovers. Modal
+dialogs are reserved for destructive confirmation or other decisions that must
+interrupt the workflow. New interactions should first adapt the proven editing
+patterns from the original Eidos table; implementation convenience is not a
+reason to move field configuration, record editing, or view management into a
+modal.
 
 File-Space Settings separates General, Files/Obsidian, Versioning, and derived
 Indexes controls. Legacy-Space Settings also provides server-owned migration

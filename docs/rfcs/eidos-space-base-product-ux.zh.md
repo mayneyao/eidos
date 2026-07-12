@@ -72,25 +72,28 @@ Kanban 现在会对大量 option 形成的列做横向虚拟化，常规浏览�
 
 真实文件 Base versioning smoke 现在会创建 Grid、Gallery 和 Kanban metadata，关闭并重开文件，
 编辑行，验证 Graft row diff，恢复初始 revision，再次重开并校验 records、派生值和三种 view
-layout；恢复后的仓库状态为 clean。原生 UI 重启验收与这条自动化生命周期证据分开记录。
+layout；恢复后的仓库状态为 clean。
+
+原生 Desktop 也已经通过同一条产品链路验收：从 UI 新建命名的 Task tracker Base，编辑基础字段
+和 Select cell，只 stage 该文件并创建版本，完整重启 Electron 后重开并校验记录，再制造 dirty edit，
+最后从 History 恢复文件且不移动 HEAD。Graft 替换文件后，已打开的 Base 会立即刷新；恢复当前
+版本时 worktree 会重新变为 clean。
 
 与原表格 view 的当前能力对齐情况如下：
 
 | 能力                                       | Base 状态                      | 剩余边界                                                            |
 | ------------------------------------------ | ------------------------------ | ------------------------------------------------------------------- |
-| 持久化 view lifecycle 与独立 query/layout  | 自动重开/恢复已验收            | 仍需原生 UI 重启验收                                                |
+| 持久化 view lifecycle 与独立 query/layout  | 自动与原生重启/恢复均已验收    | v1 暂无已知缺口                                                     |
 | Gallery 字段显隐、空字段隐藏、card size    | 已工作，包含结果导航           | v1 暂无已知缺口                                                     |
 | Gallery cover                              | File 字段已工作                | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
 | Card actions                               | 可编辑 Inspector 与删除已工作  | file-based Base 的 full-page row document 模型尚未定义              |
 | Kanban Select 分组、计数、折叠、新增、拖动 | 已支持虚拟化和无障碍移动       | v1 暂无已知缺口                                                     |
 | Base merge conflict 审阅                   | 已支持结构化 row/schema/opaque | 仍需双 Space 原生 UI 的 row-conflict 验收                           |
 
-这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。更多可移植 cover source 和原生 UI
-生命周期验收仍待完成。
-Base 日常编辑和配置优先使用单元格
-内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留给破坏性确认或必须中断
-当前工作流的决策。新增交互应先参考并复用原表格已经验证过的编辑方式，不应仅为了
-实现方便把字段配置、记录编辑或 view 管理改成弹窗流程。
+这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。更多可移植 cover source 仍待完成。
+Base 日常编辑和配置优先使用单元格内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留
+给破坏性确认或必须中断当前工作流的决策。新增交互应先参考并复用原表格已经验证过的编辑方式，
+不应仅为了实现方便把字段配置、记录编辑或 view 管理改成弹窗流程。
 
 file Space Settings 已拆分为 General、Files/Obsidian、Versioning 和派生 Indexes；
 legacy Space Settings 也已提供 server-owned migration preview、progress、validation、
