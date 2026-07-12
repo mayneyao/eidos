@@ -15,6 +15,7 @@ import {
   BASE_FORMAT,
   BASE_META_TABLE,
   BASE_SCHEMA_VERSION,
+  BASE_VIEWS_TABLE,
 } from "./constants"
 import { BaseError } from "./errors"
 
@@ -135,6 +136,16 @@ describe("Eidos Base files", () => {
     expect(
       base.updateRow("tasks", String(inserted._id), { status: "done" })
     ).toMatchObject({ status: "done" })
+    base.connection.run(
+      `UPDATE ${BASE_META_TABLE} SET value = ? WHERE key = 'updated_at'`,
+      ["2000-01-01T00:00:00.000Z"]
+    )
+    const metadataBeforeMissingUpdate = base.info().updatedAt
+    expectBaseError(
+      () => base.updateRow("tasks", "missing-row", { status: "todo" }),
+      "row-not-found"
+    )
+    expect(base.info().updatedAt).toBe(metadataBeforeMissingUpdate)
     expect(base.listRows("tasks")).toHaveLength(1)
     expect(base.deleteRow("tasks", String(inserted._id))).toBe(true)
     expect(base.listRows("tasks")).toEqual([])
@@ -192,6 +203,62 @@ describe("Eidos Base files", () => {
       metadata: null,
     })
     expectBaseError(() => openBaseFile(sqlitePath), "not-base")
+  })
+
+  it("rejects malformed field, view, and formula metadata before opening", () => {
+    const filePath = path.join(root, "untrusted.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: {
+        id: "tasks",
+        name: "Tasks",
+        fields: [
+          { name: "Estimate", columnName: "estimate", type: "number" },
+          {
+            name: "Computed",
+            columnName: "computed",
+            type: "formula",
+            property: {
+              formula: "estimate * 2",
+              displayType: "number",
+            },
+          },
+        ],
+      },
+    })
+    base.close()
+
+    const sqlite = new Database(filePath)
+    sqlite
+      .prepare(
+        `UPDATE ${BASE_COLUMNS_TABLE} SET type = 'unknown-type'
+          WHERE table_column_name = 'estimate'`
+      )
+      .run()
+    sqlite
+      .prepare(
+        `UPDATE ${BASE_COLUMNS_TABLE} SET property = ?
+          WHERE table_column_name = 'computed'`
+      )
+      .run(
+        JSON.stringify({
+          formula: "randomblob(1000000000)",
+          displayType: "number",
+          expression: "estimate * 2",
+        })
+      )
+    sqlite.prepare(`UPDATE ${BASE_VIEWS_TABLE} SET hidden_fields = '{}'`).run()
+    sqlite.close()
+
+    const inspection = inspectBaseFile(filePath)
+    expect(inspection.valid).toBe(false)
+    expect(inspection.errors.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining([
+        "invalid-field-type",
+        "invalid-formula-definition",
+        "invalid-view-hidden-fields",
+      ])
+    )
+    expectBaseError(() => openBaseFile(filePath), "not-base")
   })
 
   it("creates portable relations and hydrates linked record titles", () => {

@@ -15,6 +15,63 @@ export interface CompiledBaseFormula {
   dependencies: string[]
 }
 
+const ALLOWED_FORMULA_FUNCTIONS = new Set([
+  "abs",
+  "coalesce",
+  "date",
+  "datetime",
+  "ifnull",
+  "iif",
+  "julianday",
+  "length",
+  "lower",
+  "ltrim",
+  "max",
+  "min",
+  "nullif",
+  "replace",
+  "round",
+  "rtrim",
+  "strftime",
+  "substr",
+  "substring",
+  "time",
+  "trim",
+  "typeof",
+  "unicode",
+  "unixepoch",
+  "upper",
+])
+
+function assertFormulaAst(statement: SelectFromStatement): void {
+  let nodeCount = 0
+  let selectCount = 0
+  let maximumDepth = 0
+  const visit = (value: unknown, depth: number): void => {
+    if (value === null || typeof value !== "object") return
+    maximumDepth = Math.max(maximumDepth, depth)
+    if (Array.isArray(value)) {
+      for (const entry of value) visit(entry, depth + 1)
+      return
+    }
+    nodeCount += 1
+    if ((value as { type?: unknown }).type === "select") selectCount += 1
+    for (const child of Object.values(value as Record<string, unknown>)) {
+      visit(child, depth + 1)
+    }
+  }
+  visit(statement, 0)
+  if (selectCount !== 1) {
+    throw new BaseError(
+      "invalid-schema",
+      "Base formulas cannot contain nested queries"
+    )
+  }
+  if (nodeCount > 1_000 || maximumDepth > 50) {
+    throw new BaseError("invalid-schema", "Base formula is too complex")
+  }
+}
+
 function formulaText(field: BaseFieldInfo): string {
   const value = field.property?.formula
   if (typeof value !== "string" || value.trim().length === 0) {
@@ -67,21 +124,6 @@ export function compileBaseFormula(
   field: BaseFieldInfo,
   fields: BaseFieldInfo[]
 ): CompiledBaseFormula {
-  const storedExpression = field.property?.expression
-  const storedDependencies = field.dependsOn
-  if (
-    typeof storedExpression === "string" &&
-    storedExpression.length > 0 &&
-    Array.isArray(storedDependencies) &&
-    storedDependencies.every((dependency) => typeof dependency === "string")
-  ) {
-    assertFormulaText(storedExpression)
-    return {
-      field,
-      expression: storedExpression,
-      dependencies: storedDependencies,
-    }
-  }
   const formula = formulaText(field)
   assertFormulaText(formula)
   const resolveField = fieldResolver(fields)
@@ -105,6 +147,7 @@ export function compileBaseFormula(
       "A Base formula must be one expression without a FROM clause"
     )
   }
+  assertFormulaAst(statement)
 
   const resolveReference = (name: string) => {
     const dependency = resolveField(name)
@@ -130,6 +173,15 @@ export function compileBaseFormula(
           )
         }
         return resolveReference(argument.name)
+      }
+      if (expression?.type === "call") {
+        const functionName = expression.function.name.toLowerCase()
+        if (!ALLOWED_FORMULA_FUNCTIONS.has(functionName)) {
+          throw new BaseError(
+            "invalid-schema",
+            `Unsupported Base formula function: ${functionName}`
+          )
+        }
       }
       return map.super().expr(expression)
     },

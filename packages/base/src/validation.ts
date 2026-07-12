@@ -12,11 +12,16 @@ import {
   BASE_REFERENCES_TABLE,
 } from "./constants"
 import { quoteIdentifier } from "./identifiers"
+import { compileBaseFormulaFields } from "./formula"
 import type {
+  BaseFieldInfo,
+  BaseFieldType,
   BaseMetadata,
+  BaseStorageCodec,
   BaseTableInfo,
   BaseValidationIssue,
   BaseValidationResult,
+  BaseValueKind,
 } from "./types"
 
 interface MetaRow {
@@ -33,6 +38,149 @@ interface RegistryRow {
   description: string | null
   created_at: string
   updated_at: string
+}
+
+interface FieldValidationRow {
+  name: string
+  type: string
+  table_name: string
+  table_column_name: string
+  property: string | null
+  storage_codec: string
+  value_kind: string
+  is_hidden: number
+  is_derived: number
+  source_table_column_name: string | null
+  depends_on: string | null
+}
+
+interface ViewValidationRow {
+  id: string
+  name: string
+  type: string
+  table_id: string
+  properties: string | null
+  filter: string | null
+  order_map: string | null
+  hidden_fields: string | null
+}
+
+const FIELD_TYPES = new Set<BaseFieldType>([
+  "title",
+  "text",
+  "number",
+  "checkbox",
+  "date",
+  "datetime",
+  "file",
+  "multi-select",
+  "rating",
+  "select",
+  "url",
+  "formula",
+  "link",
+  "lookup",
+  "created-time",
+  "created-by",
+  "last-edited-time",
+  "last-edited-by",
+  "row-id",
+])
+const STORAGE_CODECS = new Set<BaseStorageCodec>([
+  "scalar",
+  "csv_ids",
+  "json_array",
+  "relation",
+  "materialized_text",
+])
+const VALUE_KINDS = new Set<BaseValueKind>([
+  "source",
+  "relation",
+  "derived",
+  "materialized",
+  "system",
+])
+const FORMULA_DISPLAY_TYPES = new Set([
+  "text",
+  "number",
+  "checkbox",
+  "date",
+  "datetime",
+  "url",
+])
+const LOOKUP_AGGREGATES = new Set([
+  "first",
+  "values",
+  "count",
+  "sum",
+  "average",
+  "min",
+  "max",
+])
+const MAX_REGISTRY_ROWS = 10_000
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function parseMetadataJson(
+  value: string | null,
+  label: string,
+  errors: BaseValidationIssue[],
+  table?: string
+): { valid: boolean; value: unknown } {
+  if (value === null) return { valid: true, value: null }
+  try {
+    return { valid: true, value: JSON.parse(value) as unknown }
+  } catch {
+    errors.push({
+      code: "invalid-metadata-json",
+      message: `${label} must contain valid JSON`,
+      table,
+    })
+    return { valid: false, value: null }
+  }
+}
+
+function validateFormulaProperty(
+  field: FieldValidationRow,
+  property: unknown,
+  errors: BaseValidationIssue[]
+): void {
+  if (field.type !== "formula" || field.value_kind !== "derived") return
+  if (
+    !isRecord(property) ||
+    typeof property.formula !== "string" ||
+    property.formula.trim().length === 0 ||
+    !FORMULA_DISPLAY_TYPES.has(String(property.displayType))
+  ) {
+    errors.push({
+      code: "invalid-formula-property",
+      message: `Formula field ${field.table_name}.${field.table_column_name} has invalid formula metadata`,
+      table: field.table_name,
+    })
+  }
+}
+
+function validateLookupProperty(
+  field: FieldValidationRow,
+  property: unknown,
+  errors: BaseValidationIssue[]
+): void {
+  if (field.type !== "lookup" || field.value_kind !== "derived") return
+  if (
+    !isRecord(property) ||
+    typeof property.relationField !== "string" ||
+    typeof property.targetField !== "string" ||
+    !LOOKUP_AGGREGATES.has(String(property.aggregate)) ||
+    !FORMULA_DISPLAY_TYPES.has(String(property.displayType))
+  ) {
+    errors.push({
+      code: "invalid-lookup-property",
+      message: `Lookup field ${field.table_name}.${field.table_column_name} has invalid lookup metadata`,
+      table: field.table_name,
+    })
+  }
 }
 
 const REQUIRED_COLUMNS: Record<string, string[]> = {
@@ -174,8 +322,21 @@ export function validateBase(connection: BaseConnection): BaseValidationResult {
     return { valid: false, metadata: null, tables: [], errors, warnings }
   }
 
+  const metadataCount =
+    connection.get<{ count: number }>(
+      `SELECT COUNT(*) AS count FROM ${BASE_META_TABLE}`
+    )?.count ?? 0
+  if (metadataCount > MAX_REGISTRY_ROWS) {
+    errors.push({
+      code: "metadata-limit-exceeded",
+      message: `Base contains too many metadata entries (${metadataCount})`,
+      table: BASE_META_TABLE,
+    })
+  }
   const metadataValues = metadataFromRows(
-    connection.query<MetaRow>(`SELECT key, value FROM ${BASE_META_TABLE}`)
+    connection.query<MetaRow>(
+      `SELECT key, value FROM ${BASE_META_TABLE} LIMIT ${MAX_REGISTRY_ROWS + 1}`
+    )
   )
   for (const key of BASE_REQUIRED_META_KEYS) {
     if (!metadataValues[key]) {
@@ -211,6 +372,7 @@ export function validateBase(connection: BaseConnection): BaseValidationResult {
     })
   }
 
+  const tableColumns = new Map<string, Set<string>>()
   for (const [tableName, requiredColumns] of Object.entries(REQUIRED_COLUMNS)) {
     if (!sqliteTables.has(tableName)) continue
     const actualColumns = new Set(
@@ -220,6 +382,7 @@ export function validateBase(connection: BaseConnection): BaseValidationResult {
         )
         .map((column) => column.name)
     )
+    tableColumns.set(tableName, actualColumns)
     for (const columnName of requiredColumns) {
       if (actualColumns.has(columnName)) continue
       const isMigratable =
@@ -249,16 +412,35 @@ export function validateBase(connection: BaseConnection): BaseValidationResult {
     }
   }
 
-  const tables = sqliteTables.has(BASE_TABLES_TABLE)
-    ? connection
-        .query<RegistryRow>(
-          `SELECT id, name, raw_table_name, position, icon, description,
+  const tableRegistryReady = REQUIRED_COLUMNS[BASE_TABLES_TABLE].every(
+    (column) => tableColumns.get(BASE_TABLES_TABLE)?.has(column)
+  )
+  const tableCount =
+    sqliteTables.has(BASE_TABLES_TABLE) && tableRegistryReady
+      ? (connection.get<{ count: number }>(
+          `SELECT COUNT(*) AS count FROM ${BASE_TABLES_TABLE}`
+        )?.count ?? 0)
+      : 0
+  if (tableCount > MAX_REGISTRY_ROWS) {
+    errors.push({
+      code: "metadata-limit-exceeded",
+      message: `Base contains too many table definitions (${tableCount})`,
+      table: BASE_TABLES_TABLE,
+    })
+  }
+  const tables =
+    sqliteTables.has(BASE_TABLES_TABLE) &&
+    tableRegistryReady &&
+    tableCount <= MAX_REGISTRY_ROWS
+      ? connection
+          .query<RegistryRow>(
+            `SELECT id, name, raw_table_name, position, icon, description,
                   created_at, updated_at
              FROM ${BASE_TABLES_TABLE}
             ORDER BY position, created_at, id`
-        )
-        .map(mapTable)
-    : []
+          )
+          .map(mapTable)
+      : []
 
   for (const table of tables) {
     if (table.rawTableName !== `tb_${table.id}`) {
@@ -283,6 +465,7 @@ export function validateBase(connection: BaseConnection): BaseValidationResult {
         )
         .map((column) => column.name)
     )
+    tableColumns.set(table.rawTableName, actualColumns)
     for (const columnName of REQUIRED_USER_COLUMNS) {
       if (!actualColumns.has(columnName)) {
         errors.push({
@@ -311,6 +494,300 @@ export function validateBase(connection: BaseConnection): BaseValidationResult {
           table: field.table_name,
         })
       }
+    }
+  }
+
+  const fieldMetadataReady = REQUIRED_COLUMNS[BASE_COLUMNS_TABLE].every(
+    (column) => tableColumns.get(BASE_COLUMNS_TABLE)?.has(column)
+  )
+  if (sqliteTables.has(BASE_COLUMNS_TABLE) && fieldMetadataReady) {
+    const fieldCount =
+      connection.get<{ count: number }>(
+        `SELECT COUNT(*) AS count FROM ${BASE_COLUMNS_TABLE}`
+      )?.count ?? 0
+    if (fieldCount > MAX_REGISTRY_ROWS) {
+      errors.push({
+        code: "metadata-limit-exceeded",
+        message: `Base contains too many field definitions (${fieldCount})`,
+        table: BASE_COLUMNS_TABLE,
+      })
+    } else {
+      const fields = connection.query<FieldValidationRow>(
+        `SELECT name, type, table_name, table_column_name, property,
+                storage_codec, value_kind, is_hidden, is_derived,
+                source_table_column_name, depends_on
+           FROM ${BASE_COLUMNS_TABLE}`
+      )
+      const formulaFields = new Map<string, BaseFieldInfo[]>()
+      const registeredTables = new Map(
+        tables.map((table) => [table.rawTableName, table])
+      )
+      for (const field of fields) {
+        const fieldLabel = `${field.table_name}.${field.table_column_name}`
+        const registeredTable = registeredTables.get(field.table_name)
+        const typeValid = FIELD_TYPES.has(field.type as BaseFieldType)
+        const codecValid = STORAGE_CODECS.has(
+          field.storage_codec as BaseStorageCodec
+        )
+        const valueKindValid = VALUE_KINDS.has(
+          field.value_kind as BaseValueKind
+        )
+        if (!field.name.trim() || !field.table_column_name.trim()) {
+          errors.push({
+            code: "invalid-field-identifier",
+            message: `Field ${fieldLabel} requires a name and column name`,
+            table: field.table_name,
+          })
+        }
+        if (!typeValid) {
+          errors.push({
+            code: "invalid-field-type",
+            message: `Field ${fieldLabel} has unsupported type: ${field.type}`,
+            table: field.table_name,
+          })
+        }
+        if (!codecValid) {
+          errors.push({
+            code: "invalid-storage-codec",
+            message: `Field ${fieldLabel} has unsupported storage codec: ${field.storage_codec}`,
+            table: field.table_name,
+          })
+        }
+        if (!valueKindValid) {
+          errors.push({
+            code: "invalid-value-kind",
+            message: `Field ${fieldLabel} has unsupported value kind: ${field.value_kind}`,
+            table: field.table_name,
+          })
+        }
+        if (
+          ![0, 1].includes(field.is_hidden) ||
+          ![0, 1].includes(field.is_derived)
+        ) {
+          errors.push({
+            code: "invalid-field-flag",
+            message: `Field ${fieldLabel} has invalid boolean flags`,
+            table: field.table_name,
+          })
+        }
+        if (
+          registeredTable &&
+          tableColumns.has(registeredTable.rawTableName) &&
+          field.value_kind !== "derived" &&
+          !tableColumns
+            .get(registeredTable.rawTableName)
+            ?.has(field.table_column_name)
+        ) {
+          errors.push({
+            code: "missing-field-column",
+            message: `Stored field column is missing: ${fieldLabel}`,
+            table: field.table_name,
+          })
+        }
+
+        const parsedProperty = parseMetadataJson(
+          field.property,
+          `Field property ${fieldLabel}`,
+          errors,
+          field.table_name
+        )
+        if (
+          parsedProperty.valid &&
+          parsedProperty.value !== null &&
+          !isRecord(parsedProperty.value)
+        ) {
+          errors.push({
+            code: "invalid-field-property",
+            message: `Field property ${fieldLabel} must be a JSON object`,
+            table: field.table_name,
+          })
+        }
+        validateFormulaProperty(field, parsedProperty.value, errors)
+        validateLookupProperty(field, parsedProperty.value, errors)
+
+        const parsedDependencies = parseMetadataJson(
+          field.depends_on,
+          `Field dependencies ${fieldLabel}`,
+          errors,
+          field.table_name
+        )
+        if (
+          parsedDependencies.valid &&
+          parsedDependencies.value !== null &&
+          (!Array.isArray(parsedDependencies.value) ||
+            !parsedDependencies.value.every(
+              (dependency) => typeof dependency === "string"
+            ))
+        ) {
+          errors.push({
+            code: "invalid-field-dependencies",
+            message: `Field dependencies ${fieldLabel} must be an array of column names`,
+            table: field.table_name,
+          })
+        }
+
+        if (
+          registeredTable &&
+          typeValid &&
+          codecValid &&
+          valueKindValid &&
+          parsedProperty.valid &&
+          parsedDependencies.valid
+        ) {
+          const tableFields = formulaFields.get(field.table_name) ?? []
+          tableFields.push({
+            name: field.name,
+            type: field.type as BaseFieldType,
+            tableName: field.table_name,
+            tableColumnName: field.table_column_name,
+            property: isRecord(parsedProperty.value)
+              ? parsedProperty.value
+              : null,
+            storageCodec: field.storage_codec as BaseStorageCodec,
+            valueKind: field.value_kind as BaseValueKind,
+            isHidden: field.is_hidden === 1,
+            isDerived: field.is_derived === 1,
+            sourceTableColumnName: field.source_table_column_name,
+            dependsOn: parsedDependencies.value,
+          })
+          formulaFields.set(field.table_name, tableFields)
+        }
+      }
+      for (const [tableName, tableFields] of formulaFields) {
+        try {
+          compileBaseFormulaFields(tableFields)
+        } catch (error) {
+          errors.push({
+            code: "invalid-formula-definition",
+            message:
+              error instanceof Error
+                ? error.message
+                : `Unable to validate formulas in ${tableName}`,
+            table: tableName,
+          })
+        }
+      }
+    }
+  }
+
+  const viewMetadataReady = REQUIRED_COLUMNS[BASE_VIEWS_TABLE].every((column) =>
+    tableColumns.get(BASE_VIEWS_TABLE)?.has(column)
+  )
+  if (sqliteTables.has(BASE_VIEWS_TABLE) && viewMetadataReady) {
+    const viewCount =
+      connection.get<{ count: number }>(
+        `SELECT COUNT(*) AS count FROM ${BASE_VIEWS_TABLE}`
+      )?.count ?? 0
+    if (viewCount > MAX_REGISTRY_ROWS) {
+      errors.push({
+        code: "metadata-limit-exceeded",
+        message: `Base contains too many view definitions (${viewCount})`,
+        table: BASE_VIEWS_TABLE,
+      })
+    } else {
+      const tableIds = new Set(tables.map((table) => table.id))
+      for (const view of connection.query<ViewValidationRow>(
+        `SELECT id, name, type, table_id, properties, filter, order_map,
+                hidden_fields FROM ${BASE_VIEWS_TABLE}`
+      )) {
+        if (!view.id.trim() || !view.name.trim() || !view.type.trim()) {
+          errors.push({
+            code: "invalid-view-identifier",
+            message: `Base view ${view.id || "<missing>"} requires an id, name, and type`,
+            table: BASE_VIEWS_TABLE,
+          })
+        }
+        if (!tableIds.has(view.table_id)) {
+          errors.push({
+            code: "orphan-view-metadata",
+            message: `Base view ${view.id} references an unknown table: ${view.table_id}`,
+            table: BASE_VIEWS_TABLE,
+          })
+        }
+        const properties = parseMetadataJson(
+          view.properties,
+          `View properties ${view.id}`,
+          errors,
+          BASE_VIEWS_TABLE
+        )
+        if (
+          properties.valid &&
+          properties.value !== null &&
+          !isRecord(properties.value)
+        ) {
+          errors.push({
+            code: "invalid-view-properties",
+            message: `View properties ${view.id} must be a JSON object`,
+            table: BASE_VIEWS_TABLE,
+          })
+        }
+        const filter = parseMetadataJson(
+          view.filter,
+          `View filter ${view.id}`,
+          errors,
+          BASE_VIEWS_TABLE
+        )
+        if (filter.valid && filter.value !== null && !isRecord(filter.value)) {
+          errors.push({
+            code: "invalid-view-filter",
+            message: `View filter ${view.id} must be a JSON object`,
+            table: BASE_VIEWS_TABLE,
+          })
+        }
+        const orderMap = parseMetadataJson(
+          view.order_map,
+          `View order map ${view.id}`,
+          errors,
+          BASE_VIEWS_TABLE
+        )
+        if (
+          orderMap.valid &&
+          orderMap.value !== null &&
+          (!isRecord(orderMap.value) ||
+            !Object.values(orderMap.value).every(
+              (position) =>
+                typeof position === "number" && Number.isFinite(position)
+            ))
+        ) {
+          errors.push({
+            code: "invalid-view-order-map",
+            message: `View order map ${view.id} must map fields to finite numbers`,
+            table: BASE_VIEWS_TABLE,
+          })
+        }
+        const hiddenFields = parseMetadataJson(
+          view.hidden_fields,
+          `View hidden fields ${view.id}`,
+          errors,
+          BASE_VIEWS_TABLE
+        )
+        if (
+          hiddenFields.valid &&
+          hiddenFields.value !== null &&
+          (!Array.isArray(hiddenFields.value) ||
+            !hiddenFields.value.every((field) => typeof field === "string"))
+        ) {
+          errors.push({
+            code: "invalid-view-hidden-fields",
+            message: `View hidden fields ${view.id} must be an array of column names`,
+            table: BASE_VIEWS_TABLE,
+          })
+        }
+      }
+    }
+  }
+
+  if (sqliteTables.has(BASE_REFERENCES_TABLE)) {
+    const referenceCount =
+      connection.get<{ count: number }>(
+        `SELECT COUNT(*) AS count FROM ${BASE_REFERENCES_TABLE}`
+      )?.count ?? 0
+    if (referenceCount > MAX_REGISTRY_ROWS) {
+      errors.push({
+        code: "metadata-limit-exceeded",
+        message: `Base contains too many reference definitions (${referenceCount})`,
+        table: BASE_REFERENCES_TABLE,
+      })
     }
   }
 

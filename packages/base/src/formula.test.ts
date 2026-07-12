@@ -72,4 +72,33 @@ describe("Base formula compiler", () => {
       ])
     ).toThrow(/statements or comments/)
   })
+
+  it("recompiles cached expressions and rejects unbounded SQL features", () => {
+    const title = field("Title", "title", "title")
+    const safe = {
+      ...formula("Safe", "safe", "upper(title)"),
+      property: {
+        formula: "upper(title)",
+        displayType: "text",
+        expression: "randomblob(1000000000)",
+      },
+      dependsOn: ["missing"],
+    }
+    expect(compileBaseFormula(safe, [title, safe])).toMatchObject({
+      expression: expect.stringMatching(/upper/i),
+      dependencies: ["title"],
+    })
+
+    expect(() =>
+      compileBaseFormula(formula("Unsafe", "unsafe", "randomblob(100)"), [
+        title,
+      ])
+    ).toThrow(/Unsupported Base formula function/)
+    expect(() =>
+      compileBaseFormula(
+        formula("Nested", "nested", "(SELECT title FROM tb_tasks)"),
+        [title]
+      )
+    ).toThrow(/nested queries/)
+  })
 })

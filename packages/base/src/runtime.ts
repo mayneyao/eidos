@@ -1852,27 +1852,35 @@ export class BaseRuntime {
         )
       }
     }
-    if (columns.length > 0) {
-      const assignments = columns
-        .map((column) => `${quoteIdentifier(column)} = ?`)
-        .join(", ")
-      this.connection.run(
-        `UPDATE ${quoteIdentifier(table.rawTableName)}
-            SET ${assignments}, _last_edited_time = CURRENT_TIMESTAMP
-          WHERE _id = ?`,
-        [
-          ...columns.map((column) =>
-            sqliteParameter(
-              writableFieldValue(fieldsByColumn.get(column), changes[column])
-            )
-          ),
-          rowId,
-        ]
-      )
-      setBaseMetadata(this.connection, {})
-    }
-    const row = this.getComputedRow(tableId, rowId, fields)
-    if (!row) throw new BaseError("row-not-found", `Row not found: ${rowId}`)
+    const row = this.connection.transaction(() => {
+      if (columns.length > 0) {
+        const assignments = columns
+          .map((column) => `${quoteIdentifier(column)} = ?`)
+          .join(", ")
+        const result = this.connection.run(
+          `UPDATE ${quoteIdentifier(table.rawTableName)}
+              SET ${assignments}, _last_edited_time = CURRENT_TIMESTAMP
+            WHERE _id = ?`,
+          [
+            ...columns.map((column) =>
+              sqliteParameter(
+                writableFieldValue(fieldsByColumn.get(column), changes[column])
+              )
+            ),
+            rowId,
+          ]
+        )
+        if (result.changes === 0) {
+          throw new BaseError("row-not-found", `Row not found: ${rowId}`)
+        }
+        setBaseMetadata(this.connection, {})
+      }
+      const updated = this.getComputedRow(tableId, rowId, fields)
+      if (!updated) {
+        throw new BaseError("row-not-found", `Row not found: ${rowId}`)
+      }
+      return updated
+    })
     return this.hydrateRelationRows([row], fields)[0]
   }
 
