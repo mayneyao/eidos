@@ -23,17 +23,19 @@
   search/link/tag/backlink index，
 - indexed quick open、编辑器 wiki-link completion、outline 和 backlinks UI。
 
-独立编辑器当前有 55 个 package acceptance tests；Desktop host integration
+独立编辑器当前有 57 个 package acceptance tests；Desktop host integration
 tests 也覆盖了 runtime loading、保存行为和冲突处理路径。
 
 Desktop 启动时仍会扫描文件系统元数据以保证文件具有最终权威；未变化的正文和
 Markdown 解析结果直接复用可删除的 SQLite cache。Watcher 变化会增量更新，显式
 Rebuild 和损坏 schema 恢复都会完全从 Space 文件重建索引。
 
+带语言标记的 fenced code 使用 Lexical 0.47 Prism extension 提供语法高亮、行号和
+紧凑语言标签；未标记语言的 fence 会保持 unset，确保高亮不会改变 Markdown 语义。
+
 本切片剩余：
 
-- IME、系统 clipboard/图片粘贴和超长文档的原生 Desktop acceptance，
-- fenced code 展示细节完善。
+- IME、系统 clipboard/图片粘贴和超长文档的原生 Desktop acceptance。
 
 ## 摘要
 

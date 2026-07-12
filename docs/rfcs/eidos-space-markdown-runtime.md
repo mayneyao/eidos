@@ -23,7 +23,7 @@ Implemented:
   `.eidos/indexes/markdown.sqlite3`,
 - indexed quick open, editor wiki-link completion, outline, and backlinks UI.
 
-The standalone editor currently has 55 package acceptance tests. Desktop host
+The standalone editor currently has 57 package acceptance tests. Desktop host
 integration tests also cover runtime loading, save behavior, and conflict paths.
 
 The Desktop index scans filesystem metadata on startup so files remain
@@ -31,11 +31,14 @@ authoritative, but reuses unchanged content and parsed Markdown metadata from
 the disposable SQLite cache. Watcher changes update it incrementally; explicit
 Rebuild and corrupt-schema recovery recreate it entirely from Space files.
 
+Labeled fenced code blocks use the Lexical 0.47 Prism extension for syntax
+highlighting, line gutters, and a compact language label. Unlabeled fences keep
+their language unset so highlighting never changes Markdown semantics.
+
 Remaining for this slice:
 
 - native Desktop acceptance for IME, OS clipboard/image paste, and very long
-  documents,
-- additional fenced code presentation polish.
+  documents.
 
 ## Summary
 

@@ -31,8 +31,9 @@ Space-style `[[wiki links]]` / `![[image embeds]]`. Its editing surface includes
 Markdown-aware Enter/Backspace and list indentation, Markdown and image
 paste/drop, automatic URL and email links, a floating text/link toolbar, and
 gutter, keyboard, and marquee block selection, including individual list items.
-A host can resolve Space assets and links without coupling the package to Eidos
-routes:
+Labeled fenced code blocks have syntax highlighting, line gutters, and language
+labels without assigning a language to unlabeled fences. A host can resolve
+Space assets and links without coupling the package to Eidos routes:
 
 ```tsx
 <MarkdownEditor
