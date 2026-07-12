@@ -95,6 +95,8 @@ function BaseKanbanColumn({
   onCreate,
   readBinary,
   onDelete,
+  moveGroups,
+  onMove,
 }: {
   group: BaseKanbanGroup
   table: BaseTableSnapshot
@@ -107,6 +109,8 @@ function BaseKanbanColumn({
   onCreate: (group: BaseKanbanGroup, title: string) => Promise<void>
   readBinary?: (path: string) => Promise<SpaceBinaryFile>
   onDelete?: (row: BaseRow) => void
+  moveGroups: BaseKanbanGroup[]
+  onMove: (row: BaseRow, targetGroupKey: string) => void
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -213,6 +217,12 @@ function BaseKanbanColumn({
                     readBinary={readBinary}
                     onOpen={onOpen}
                     onDelete={onDelete}
+                    moveOptions={moveGroups.map((candidate) => ({
+                      id: candidate.key,
+                      label: candidate.name,
+                      disabled: candidate.key === group.key,
+                    }))}
+                    onMove={onMove}
                   />
                 </KanbanCard>
               ))
@@ -458,10 +468,8 @@ export function BaseKanbanView({
     }
   }
 
-  const dragEnd = (event: DragEndEvent) => {
-    if (!groupField || disabled || !event.over) return
-    const rowId = String(event.active.id)
-    const targetKey = String(event.over.id)
+  const moveRecord = (rowId: string, targetKey: string) => {
+    if (!groupField || disabled) return
     const source = groups.find((group) =>
       group.rows.some((row) => String(row._id) === rowId)
     )
@@ -516,6 +524,11 @@ export function BaseKanbanView({
         setGroups(previous)
         onError?.(error)
       })
+  }
+
+  const dragEnd = (event: DragEndEvent) => {
+    if (!event.over) return
+    moveRecord(String(event.active.id), String(event.over.id))
   }
 
   const createInGroup = async (group: BaseKanbanGroup, title: string) => {
@@ -600,6 +613,10 @@ export function BaseKanbanView({
               readBinary={readBinary}
               onOpen={setInspectedRow}
               onDelete={onDeleteRow ? setDeleteRow : undefined}
+              moveGroups={groups}
+              onMove={(row, targetGroupKey) =>
+                moveRecord(String(row._id), targetGroupKey)
+              }
               onLoadMore={(candidate) => void loadMore(candidate)}
               onCreate={createInGroup}
             />

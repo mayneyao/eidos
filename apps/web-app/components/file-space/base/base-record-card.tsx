@@ -8,6 +8,7 @@ import {
   FileText,
   Minus,
   MoreHorizontal,
+  MoveRight,
   Paperclip,
   Trash2,
 } from "lucide-react"
@@ -19,12 +20,20 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
   NativeContextMenu,
   NativeContextMenuContent,
   NativeContextMenuItem,
+  NativeContextMenuSeparator,
+  NativeContextMenuSub,
+  NativeContextMenuSubContent,
+  NativeContextMenuSubTrigger,
   NativeContextMenuTrigger,
 } from "@/components/ui/native-context-menu"
 
@@ -234,6 +243,8 @@ export function BaseRecordCard({
   readBinary,
   onOpen,
   onDelete,
+  moveOptions,
+  onMove,
   role,
 }: {
   row: BaseRow
@@ -243,6 +254,8 @@ export function BaseRecordCard({
   readBinary?: (path: string) => Promise<SpaceBinaryFile>
   onOpen: (row: BaseRow) => void
   onDelete?: (row: BaseRow) => void
+  moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
+  onMove?: (row: BaseRow, targetId: string) => void
   role?: AriaRole
 }) {
   const hideEmptyFields = view.properties?.hideEmptyFields !== false
@@ -295,7 +308,7 @@ export function BaseRecordCard({
             >
               <Eye className="h-3.5 w-3.5" />
             </Button>
-            {onDelete ? (
+            {onDelete || (onMove && moveOptions?.length) ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -313,13 +326,39 @@ export function BaseRecordCard({
                     <Eye className="mr-2 h-3.5 w-3.5" />
                     Open details
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onSelect={() => onDelete(row)}
-                  >
-                    <Trash2 className="mr-2 h-3.5 w-3.5" />
-                    Delete record
-                  </DropdownMenuItem>
+                  {onMove && moveOptions?.length ? (
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <MoveRight className="mr-2 h-3.5 w-3.5" />
+                        Move to
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="w-44">
+                        {moveOptions.map((option) => (
+                          <DropdownMenuItem
+                            key={option.id}
+                            disabled={option.disabled}
+                            onSelect={() => onMove(row, option.id)}
+                          >
+                            {option.label}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  ) : null}
+                  {onDelete ? (
+                    <>
+                      {onMove && moveOptions?.length ? (
+                        <DropdownMenuSeparator />
+                      ) : null}
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onSelect={() => onDelete(row)}
+                      >
+                        <Trash2 className="mr-2 h-3.5 w-3.5" />
+                        Delete record
+                      </DropdownMenuItem>
+                    </>
+                  ) : null}
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}
@@ -346,7 +385,7 @@ export function BaseRecordCard({
     </article>
   )
 
-  if (!onDelete) return card
+  if (!onDelete && !(onMove && moveOptions?.length)) return card
   return (
     <NativeContextMenu>
       <NativeContextMenuTrigger asChild>{card}</NativeContextMenuTrigger>
@@ -354,9 +393,32 @@ export function BaseRecordCard({
         <NativeContextMenuItem onClick={() => onOpen(row)}>
           Open details
         </NativeContextMenuItem>
-        <NativeContextMenuItem onClick={() => onDelete(row)}>
-          Delete record
-        </NativeContextMenuItem>
+        {onMove && moveOptions?.length ? (
+          <NativeContextMenuSub>
+            <NativeContextMenuSubTrigger>Move to</NativeContextMenuSubTrigger>
+            <NativeContextMenuSubContent>
+              {moveOptions.map((option) => (
+                <NativeContextMenuItem
+                  key={option.id}
+                  disabled={option.disabled}
+                  onClick={() => onMove(row, option.id)}
+                >
+                  {option.label}
+                </NativeContextMenuItem>
+              ))}
+            </NativeContextMenuSubContent>
+          </NativeContextMenuSub>
+        ) : null}
+        {onDelete ? (
+          <>
+            {onMove && moveOptions?.length ? (
+              <NativeContextMenuSeparator />
+            ) : null}
+            <NativeContextMenuItem onClick={() => onDelete(row)}>
+              Delete record
+            </NativeContextMenuItem>
+          </>
+        ) : null}
       </NativeContextMenuContent>
     </NativeContextMenu>
   )

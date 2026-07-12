@@ -53,10 +53,25 @@ vi.mock("./base-record-card", () => ({
   BaseRecordCard: ({
     row,
     onOpen,
+    moveOptions,
+    onMove,
   }: {
-    row: { title?: string }
-    onOpen: (row: { title?: string }) => void
-  }) => <button onClick={() => onOpen(row)}>{row.title}</button>,
+    row: { _id?: string; title?: string }
+    onOpen: (row: { _id?: string; title?: string }) => void
+    moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
+    onMove?: (row: { _id?: string; title?: string }, targetId: string) => void
+  }) => (
+    <div>
+      <button onClick={() => onOpen(row)}>{row.title}</button>
+      {moveOptions
+        ?.filter((option) => !option.disabled)
+        .map((option) => (
+          <button key={option.id} onClick={() => onMove?.(row, option.id)}>
+            Move {row.title} to {option.label}
+          </button>
+        ))}
+    </div>
+  ),
 }))
 
 vi.mock("./base-record-inspector", () => ({
@@ -196,6 +211,18 @@ describe("BaseKanbanView", () => {
       row,
       expect.objectContaining({ tableColumnName: "status" }),
       "done"
+    )
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Move Write RFC to Todo")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(onCellEdit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ _id: "row_1", status: "done" }),
+      expect.objectContaining({ tableColumnName: "status" }),
+      "todo"
     )
   })
 
