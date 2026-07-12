@@ -1,12 +1,14 @@
 import { parse } from "csv-parse/sync"
 
 import { BaseError } from "./errors"
+import type { BaseRuntime } from "./runtime"
 import type {
   BaseCsvFieldType,
   BaseCsvImportColumn,
   BaseCsvImportIssue,
   BaseCsvImportOptions,
   BaseCsvImportPlan,
+  BaseCsvImportResult,
   BaseRow,
 } from "./types"
 
@@ -222,6 +224,37 @@ export function prepareBaseCsvImport(
     plan,
     rows: parsed.rows.map((row, rowIndex) => rowToBaseRow(row, rowIndex, plan)),
   }
+}
+
+export function importBaseCsv(
+  base: BaseRuntime,
+  file: { name: string; content: string },
+  options: BaseCsvImportOptions = {}
+): BaseCsvImportResult {
+  const { plan, rows } = prepareBaseCsvImport(file, options)
+  return base.connection.transaction(() => {
+    const table = base.createTable({
+      name: plan.tableName,
+      fields: plan.columns.flatMap((column) =>
+        column.type === "title"
+          ? []
+          : [
+              {
+                name: column.name,
+                columnName: column.columnName,
+                type: column.type,
+              },
+            ]
+      ),
+    })
+    base.updateField(table.id, "title", { name: plan.columns[0].name })
+    if (rows.length > 0) base.insertImportedRows(table.id, rows)
+    return {
+      table,
+      importedRowCount: rows.length,
+      skippedRowCount: plan.skippedRowCount,
+    }
+  })
 }
 
 function buildImportPlan(

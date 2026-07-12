@@ -4,7 +4,7 @@ import path from "node:path"
 
 import { createBaseFile } from "./better-sqlite3"
 import { BaseError } from "./errors"
-import { parseBaseCsvRows, planBaseCsvImport } from "./csv"
+import { importBaseCsv, parseBaseCsvRows, planBaseCsvImport } from "./csv"
 
 describe("Base CSV import", () => {
   let root: string
@@ -87,7 +87,7 @@ describe("Base CSV import", () => {
     const base = createBaseFile(path.join(root, "main.base"), {
       title: "CSV target",
     })
-    const result = base.importCsv({
+    const result = importBaseCsv(base, {
       name: "inventory.csv",
       content: "Item,Quantity,Available\nPortable stand,3,true\nDesk,1,false",
     })
@@ -135,7 +135,7 @@ describe("Base CSV import", () => {
     }
 
     expect(() =>
-      base.importCsv({ name: "people.csv", content: "Name\nAda" })
+      importBaseCsv(base, { name: "people.csv", content: "Name\nAda" })
     ).toThrow("simulated write failure")
     expect(base.listTables()).toEqual([])
 

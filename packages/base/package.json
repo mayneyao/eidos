@@ -16,6 +16,11 @@
       "types": "./dist/better-sqlite3.d.mts",
       "import": "./dist/better-sqlite3.mjs",
       "default": "./dist/better-sqlite3.mjs"
+    },
+    "./csv": {
+      "types": "./dist/csv.d.mts",
+      "import": "./dist/csv.mjs",
+      "default": "./dist/csv.mjs"
     }
   },
   "files": [

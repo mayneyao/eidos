@@ -25,7 +25,7 @@ import type {
   UpdateBaseTableInput,
   UpdateBaseViewInput,
 } from "@eidos.space/base"
-import { planBaseCsvImport } from "@eidos.space/base"
+import { importBaseCsv, planBaseCsvImport } from "@eidos.space/base/csv"
 import {
   createBaseFile as createBaseDatabase,
   openBaseFile,
@@ -495,7 +495,11 @@ export class SpaceManagementService extends IpcServiceBase {
       const base = await this._openBase(spaceId, relativePath, true)
       let result: BaseCsvImportResult
       try {
-        result = base.importCsv({ name: source.fileName, content }, options)
+        result = importBaseCsv(
+          base,
+          { name: source.fileName, content },
+          options
+        )
       } finally {
         base.close()
       }
