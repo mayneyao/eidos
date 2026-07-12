@@ -55,9 +55,22 @@ Gallery 和 Kanban 现在已经接入与 Grid 相同的持久化 view lifecycle�
 响应式 card size、可选的空字段隐藏和共享 record inspector；Kanban 按 Select 字段分组，每组独立
 分页，跨列拖动会持久化为字段修改，也可以直接在目标分组内新增记录。两个 layout 都复用当前 view
 的搜索、筛选、排序、字段显隐和 Property workspace。
+Gallery 可以选择 File 字段作为封面，并切换适应/裁切；文件二进制只通过 Space file boundary
+读取，并转换为临时 object URL。Gallery 与 Kanban 的 card 共用悬浮菜单和原生右键菜单，可以
+打开 record details，并按稳定 row ID 进行确认删除。
 
-这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。Card cover、更丰富的 card actions、
-更多 Kanban 分组语义、键盘/无障碍语义，以及完整原生 create/edit/restart/version/restore 验收仍待完成。
+与原表格 view 的当前能力对齐情况如下：
+
+| 能力                                       | Base 状态              | 剩余边界                                                            |
+| ------------------------------------------ | ---------------------- | ------------------------------------------------------------------- |
+| 持久化 view lifecycle 与独立 query/layout  | 已工作                 | 仍需原生重启验收                                                    |
+| Gallery 字段显隐、空字段隐藏、card size    | 已工作                 | 仍缺搜索结果定位/滚动                                               |
+| Gallery cover                              | File 字段已工作        | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
+| Card actions                               | Inspector 与删除已工作 | file-based Base 的 full-page row document 模型尚未定义              |
+| Kanban Select 分组、计数、折叠、新增、拖动 | 已工作                 | 仍缺键盘拖动语义和超多列虚拟化                                      |
+
+这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。搜索定位、更多可移植 cover source、
+更丰富的 record editing、键盘/无障碍语义，以及完整原生 create/edit/restart/version/restore 验收仍待完成。
 Base 日常编辑和配置优先使用单元格
 内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留给破坏性确认或必须中断
 当前工作流的决策。新增交互应先参考并复用原表格已经验证过的编辑方式，不应仅为了
