@@ -22,10 +22,35 @@ function scalarText(value: BaseRowValue | undefined): string {
   return String(value)
 }
 
-export function visibleBaseFields(fields: BaseFieldInfo[]): BaseFieldInfo[] {
+function dateValue(value: BaseRowValue | undefined): Date | undefined {
+  if (typeof value !== "string" || value.length === 0) return undefined
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  const parsed = dateOnly
+    ? new Date(
+        Number(dateOnly[1]),
+        Number(dateOnly[2]) - 1,
+        Number(dateOnly[3])
+      )
+    : new Date(value)
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed
+}
+
+function localDateString(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+export function visibleBaseFields(
+  fields: BaseFieldInfo[],
+  hiddenFields: readonly string[] = []
+): BaseFieldInfo[] {
+  const hidden = new Set(hiddenFields)
   return fields.filter(
     (field) =>
       !field.isHidden &&
+      !hidden.has(field.tableColumnName) &&
       (field.tableColumnName === "title" || field.valueKind === "source")
   )
 }
@@ -36,7 +61,7 @@ export function baseGridColumn(field: BaseFieldInfo): GridColumn {
     title: field.name,
     width: field.type === "title" ? 280 : 180,
     icon: field.type,
-    hasMenu: false,
+    hasMenu: true,
   }
 }
 
@@ -127,7 +152,37 @@ export function baseValueToGridCell(
       data: value === true || value === 1 || value === "1",
     }
   }
-  if (field.type === "number" || field.type === "rating") {
+  if (field.type === "rating") {
+    const rating = typeof value === "number" ? value : Number(value)
+    const normalized = Number.isFinite(rating) ? rating : 0
+    return {
+      kind: GridCellKind.Custom,
+      allowOverlay: true,
+      readonly,
+      copyData: String(normalized),
+      data: { kind: "rating-cell", rating: normalized },
+    }
+  }
+  if (field.type === "date" || field.type === "datetime") {
+    const date = dateValue(value)
+    return {
+      kind: GridCellKind.Custom,
+      allowOverlay: true,
+      readonly,
+      copyData: typeof value === "string" ? value : "",
+      data: {
+        kind: "date-picker-cell",
+        date,
+        displayDate: date
+          ? field.type === "date"
+            ? date.toLocaleDateString()
+            : date.toLocaleString()
+          : "",
+        format: field.type === "date" ? "date" : "datetime-local",
+      },
+    }
+  }
+  if (field.type === "number") {
     const number = typeof value === "number" ? value : Number(value)
     const data = Number.isFinite(number) ? number : undefined
     return {
@@ -174,6 +229,17 @@ export function gridCellToBaseValue(
           )
         : []
       return values.length > 0 ? values.join(",") : null
+    }
+    if (data.kind === "rating-cell") {
+      return typeof data.rating === "number" ? data.rating : null
+    }
+    if (data.kind === "date-picker-cell") {
+      if (!(data.date instanceof Date) || Number.isNaN(data.date.getTime())) {
+        return null
+      }
+      return field.type === "date"
+        ? localDateString(data.date)
+        : data.date.toISOString()
     }
     return null
   }

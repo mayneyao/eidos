@@ -17,16 +17,23 @@ import DataEditor, {
   type EditableGridCell,
   type GridColumn,
   type GridSelection,
+  type HeaderClickedEventArgs,
   type Item,
   type Rectangle,
 } from "@glideapps/glide-data-grid"
+import { ListRestart, Pencil, Plus, Trash2 } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 
 import { useCurrentTheme } from "@/apps/web-app/hooks/use-current-theme"
 import MultiSelectCell from "@/components/table/views/grid/cells/multi-select-cell"
 import SelectCell from "@/components/table/views/grid/cells/select-cell"
+import DatePickerCell from "@/components/table/views/grid/cells/date-picker-cell"
+import RatingCell from "@/components/table/views/grid/cells/rating-cell"
 import { defaultConfig } from "@/components/table/views/grid/grid-default-config"
+import { useUndoRedo } from "@/components/table/views/grid/hooks/use-undo-redo"
 import { useDynamicTheme } from "@/components/table/views/grid/theme"
+import { Button } from "@/components/ui/button"
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 
 import {
   baseGridColumn,
@@ -53,6 +60,10 @@ interface BaseGridProps {
     value: BaseSqlPrimitive
   ) => Promise<BaseRowMutationResult>
   onSelectedRowsChange?: (ranges: BaseRowRange[]) => void
+  onAddField?: () => void
+  onRenameField?: (field: BaseFieldInfo) => void
+  onEditFieldOptions?: (field: BaseFieldInfo) => void
+  onDeleteField?: (field: BaseFieldInfo) => void
   onViewUpdate?: (changes: UpdateBaseViewInput) => Promise<void> | void
   onError?: (error: unknown) => void
 }
@@ -113,6 +124,10 @@ export function BaseGrid({
   onAddRow,
   onCellEdit,
   onSelectedRowsChange,
+  onAddField,
+  onRenameField,
+  onEditFieldOptions,
+  onDeleteField,
   onViewUpdate,
   onError,
 }: BaseGridProps) {
@@ -120,6 +135,7 @@ export function BaseGrid({
   const { css: spaceThemeCss } = useCurrentTheme()
   const theme = useDynamicTheme(resolvedTheme, spaceThemeCss)
   const gridRef = useRef<DataEditorRef>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const widthSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rowsRef = useRef(new Map<number, BaseRow>())
   const loadedPagesRef = useRef(new Set<number>())
@@ -127,17 +143,23 @@ export function BaseGrid({
   const generationRef = useRef(0)
   const [cacheRevision, setCacheRevision] = useState(0)
   const [rowCount, setRowCount] = useState(table.rowCount)
+  const [fieldMenu, setFieldMenu] = useState<{
+    field: BaseFieldInfo
+    bounds: Rectangle
+  } | null>(null)
   const availableFields = useMemo(
     () =>
-      visibleBaseFields(table.fields).sort((left, right) => {
-        const leftOrder = view?.orderMap?.[left.tableColumnName]
-        const rightOrder = view?.orderMap?.[right.tableColumnName]
-        return (
-          (leftOrder ?? Number.MAX_SAFE_INTEGER) -
-          (rightOrder ?? Number.MAX_SAFE_INTEGER)
-        )
-      }),
-    [table.fields, view?.orderMap]
+      visibleBaseFields(table.fields, view?.hiddenFields).sort(
+        (left, right) => {
+          const leftOrder = view?.orderMap?.[left.tableColumnName]
+          const rightOrder = view?.orderMap?.[right.tableColumnName]
+          return (
+            (leftOrder ?? Number.MAX_SAFE_INTEGER) -
+            (rightOrder ?? Number.MAX_SAFE_INTEGER)
+          )
+        }
+      ),
+    [table.fields, view?.hiddenFields, view?.orderMap]
   )
   const [fields, setFields] = useState(availableFields)
   const [widths, setWidths] = useState<Record<string, number>>(() =>
@@ -289,16 +311,6 @@ export function BaseGrid({
     [disabled, fields, onCellEdit, onError]
   )
 
-  const onCellsEdited = useCallback<
-    NonNullable<DataEditorProps["onCellsEdited"]>
-  >(
-    (edits) => {
-      edits.forEach((edit) => commitCell(edit.location, edit.value))
-      return true
-    },
-    [commitCell]
-  )
-
   const appendRow = useCallback(async () => {
     try {
       const result = await onAddRow()
@@ -313,11 +325,38 @@ export function BaseGrid({
     }
   }, [onAddRow, onError])
 
-  const onGridSelectionChange = useCallback(
+  const handleGridSelectionChange = useCallback(
     (selection: GridSelection) => {
       onSelectedRowsChange?.(rowSelectionRanges(selection))
     },
     [onSelectedRowsChange]
+  )
+
+  const isGridActive = useCallback(
+    () => containerRef.current?.contains(document.activeElement) === true,
+    []
+  )
+
+  const history = useUndoRedo(
+    gridRef,
+    getCellContent,
+    commitCell,
+    handleGridSelectionChange,
+    isGridActive
+  )
+
+  useEffect(() => {
+    history.reset()
+  }, [history.reset, reloadToken, table.table.id])
+
+  const onCellsEdited = useCallback<
+    NonNullable<DataEditorProps["onCellsEdited"]>
+  >(
+    (edits) => {
+      edits.forEach((edit) => history.onCellEdited(edit.location, edit.value))
+      return true
+    },
+    [history.onCellEdited]
   )
 
   const onColumnResize = useCallback(
@@ -364,8 +403,21 @@ export function BaseGrid({
     [onViewUpdate, view]
   )
 
+  const onHeaderClicked = useCallback(
+    (columnIndex: number, event: HeaderClickedEventArgs) => {
+      const field = fields[columnIndex]
+      if (!field) return
+      event.preventDefault()
+      setFieldMenu({ field, bounds: event.bounds })
+    },
+    [fields]
+  )
+
   return (
-    <div className="h-full min-h-0 w-full overflow-hidden">
+    <div
+      ref={containerRef}
+      className="relative h-full min-h-0 w-full overflow-hidden"
+    >
       <DataEditor
         {...defaultConfig}
         ref={gridRef}
@@ -374,15 +426,116 @@ export function BaseGrid({
         rows={rowCount}
         getCellContent={getCellContent}
         onVisibleRegionChanged={onVisibleRegionChanged}
-        customRenderers={[SelectCell, MultiSelectCell]}
+        customRenderers={[
+          RatingCell,
+          SelectCell,
+          MultiSelectCell,
+          DatePickerCell,
+        ]}
         fillHandle={!disabled}
-        onCellEdited={disabled ? undefined : commitCell}
+        gridSelection={history.gridSelection ?? undefined}
+        onCellEdited={disabled ? undefined : history.onCellEdited}
         onCellsEdited={disabled ? undefined : onCellsEdited}
-        onGridSelectionChange={onGridSelectionChange}
+        onGridSelectionChange={history.onGridSelectionChange}
+        onHeaderClicked={onHeaderClicked}
+        onHeaderContextMenu={onHeaderClicked}
         onColumnResize={onColumnResize}
         onColumnMoved={onColumnMoved}
         onRowAppended={disabled ? undefined : appendRow}
+        rightElement={
+          !disabled && onAddField ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-9 w-full justify-start rounded-none px-2 text-muted-foreground"
+              aria-label="Add field"
+              title="New field"
+              onClick={onAddField}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          ) : undefined
+        }
+        rightElementProps={{ fill: true }}
       />
+      <Popover
+        open={fieldMenu !== null}
+        onOpenChange={(open) => {
+          if (!open) setFieldMenu(null)
+        }}
+      >
+        <PopoverAnchor asChild>
+          <span
+            className="pointer-events-none fixed h-px w-px"
+            style={
+              fieldMenu
+                ? {
+                    left: fieldMenu.bounds.x,
+                    top: fieldMenu.bounds.y + fieldMenu.bounds.height,
+                  }
+                : undefined
+            }
+          />
+        </PopoverAnchor>
+        <PopoverContent
+          align="start"
+          side="bottom"
+          sideOffset={2}
+          className="w-52 p-1"
+        >
+          {fieldMenu ? (
+            <>
+              <div className="px-2 py-1.5">
+                <p className="truncate text-xs font-medium">
+                  {fieldMenu.field.name}
+                </p>
+                <p className="text-[11px] capitalize text-muted-foreground">
+                  {fieldMenu.field.type.replace("-", " ")}
+                </p>
+              </div>
+              <div className="my-1 h-px bg-border" />
+              <button
+                type="button"
+                className="flex h-7 w-full items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-accent"
+                onClick={() => {
+                  onRenameField?.(fieldMenu.field)
+                  setFieldMenu(null)
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Rename field
+              </button>
+              {fieldMenu.field.type === "select" ||
+              fieldMenu.field.type === "multi-select" ? (
+                <button
+                  type="button"
+                  className="flex h-7 w-full items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-accent"
+                  onClick={() => {
+                    onEditFieldOptions?.(fieldMenu.field)
+                    setFieldMenu(null)
+                  }}
+                >
+                  <ListRestart className="h-3.5 w-3.5" />
+                  Edit options
+                </button>
+              ) : null}
+              <div className="my-1 h-px bg-border" />
+              <button
+                type="button"
+                className="flex h-7 w-full items-center gap-2 rounded-sm px-2 text-left text-xs text-destructive hover:bg-accent hover:text-destructive disabled:opacity-45"
+                disabled={fieldMenu.field.tableColumnName === "title"}
+                onClick={() => {
+                  onDeleteField?.(fieldMenu.field)
+                  setFieldMenu(null)
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete field
+              </button>
+            </>
+          ) : null}
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }

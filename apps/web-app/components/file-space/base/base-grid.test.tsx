@@ -226,6 +226,36 @@ describe("BaseGrid", () => {
     })
   })
 
+  it("opens routine field actions from the column header", async () => {
+    const onRenameField = vi.fn()
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={table}
+          loadPage={createLoadPage()}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+          onRenameField={onRenameField}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(mocks.props?.columns[0]?.hasMenu).toBe(true)
+    act(() => {
+      mocks.props?.onHeaderClicked?.(0, {
+        bounds: { x: 40, y: 20, width: 180, height: 36 },
+        preventDefault: vi.fn(),
+      } as never)
+    })
+    const rename = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.includes("Rename field")
+    )
+    expect(rename).toBeTruthy()
+    act(() => rename?.click())
+    expect(onRenameField).toHaveBeenCalledWith(table.fields[0])
+  })
+
   it("hydrates and persists Base view column layout", async () => {
     vi.useFakeTimers()
     const onViewUpdate = vi.fn()

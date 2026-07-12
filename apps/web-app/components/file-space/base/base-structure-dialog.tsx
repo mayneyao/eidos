@@ -5,14 +5,7 @@ import type {
 } from "@eidos.space/base"
 
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -122,20 +115,23 @@ export function BaseStructureDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm gap-0 p-0">
-        <DialogHeader className="border-b px-5 py-4">
-          <DialogTitle className="text-base">
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverAnchor asChild>
+        <span className="pointer-events-none absolute right-2 top-10 h-px w-px" />
+      </PopoverAnchor>
+      <PopoverContent align="end" side="bottom" className="w-80 p-0">
+        <div className="border-b px-4 py-3">
+          <h2 className="text-sm font-semibold">
             {mode === "table" ? "New table" : "New field"}
-          </DialogTitle>
-          <DialogDescription className="text-xs leading-5">
+          </h2>
+          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
             {mode === "table"
               ? "Add another structured table to this Base file."
               : "Add a field to the active table."}
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
         <form onSubmit={submit}>
-          <div className="grid gap-4 px-5 py-4">
+          <div className="grid gap-4 px-4 py-3">
             <label
               className="grid gap-1.5 text-xs font-medium"
               htmlFor={nameId}
@@ -187,7 +183,7 @@ export function BaseStructureDialog({
               </label>
             ) : null}
           </div>
-          <DialogFooter className="border-t px-5 py-3">
+          <div className="flex items-center justify-end gap-2 border-t px-4 py-2.5">
             <Button
               type="button"
               variant="ghost"
@@ -198,9 +194,9 @@ export function BaseStructureDialog({
             <Button type="submit" disabled={!name.trim()}>
               Create
             </Button>
-          </DialogFooter>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </PopoverContent>
+    </Popover>
   )
 }

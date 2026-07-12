@@ -8,6 +8,7 @@ import {
   baseSelectOptions,
   baseValueToGridCell,
   gridCellToBaseValue,
+  visibleBaseFields,
 } from "./base-grid-adapter"
 
 function field(
@@ -79,5 +80,24 @@ describe("Base Grid adapter", () => {
         displayData: "",
       })
     ).toBeNull()
+  })
+
+  it("reuses the rich date and rating cells from the existing table", () => {
+    expect(baseValueToGridCell(field("rating"), 4)).toMatchObject({
+      kind: GridCellKind.Custom,
+      data: { kind: "rating-cell", rating: 4 },
+    })
+    expect(baseValueToGridCell(field("date"), "2026-07-12")).toMatchObject({
+      kind: GridCellKind.Custom,
+      data: { kind: "date-picker-cell", format: "date" },
+    })
+  })
+
+  it("applies per-view field visibility without changing Base schema", () => {
+    expect(
+      visibleBaseFields([field("text"), field("number")], ["number"]).map(
+        (candidate) => candidate.tableColumnName
+      )
+    ).toEqual(["text"])
   })
 })

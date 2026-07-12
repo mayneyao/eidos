@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { CreateBaseOptions } from "@eidos.space/base"
 import type { SpaceFileEntry } from "@eidos.space/file-space"
 import {
   ChevronDown,
@@ -57,6 +58,7 @@ import {
 } from "./file-navigation"
 import { flushPendingFileWrites } from "./pending-writes"
 import { SpaceFilesTree, type SpaceFilesTreeHandle } from "./trees-file-tree"
+import { BaseCreatePopover } from "./base/base-create-dialog"
 
 interface FileSpaceTreeProps {
   spaceId: string
@@ -106,6 +108,9 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const [readError, setReadError] = useState<string | null>(null)
   const [operationError, setOperationError] = useState<string | null>(null)
   const [filesExpanded, setFilesExpanded] = useState(true)
+  const [baseDialogOpen, setBaseDialogOpen] = useState(false)
+  const [baseInitialName, setBaseInitialName] = useState("Untitled.base")
+  const [baseParentPath, setBaseParentPath] = useState("")
   const treeRef = useRef<SpaceFilesTreeHandle>(null)
   const viewSettings = useFileSpaceSettings((state) => state.bySpace[spaceId])
   const showHiddenFiles = viewSettings?.showHiddenFiles ?? false
@@ -262,45 +267,63 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
     ]
   )
 
-  const createBaseAtRoot = useCallback(async () => {
-    if (blockMutationDuringRestore()) return
-    setOperationError(null)
-    const entries = entriesByDirectory.has("")
-      ? (entriesByDirectory.get("") ?? [])
-      : await loadDirectory("")
-    const name = uniqueSpaceEntryName(
-      entries.map((entry) => entry.name),
-      "Untitled",
-      ".base"
-    )
-    try {
-      if (!(await flushCurrentSpaceFile(spaceId, selectedPath))) {
-        throw new Error(
-          "Eidos could not save the current file. Resolve the error before opening another file."
+  const openBaseDialog = useCallback(
+    async (parentPath = "") => {
+      if (blockMutationDuringRestore()) return
+      setOperationError(null)
+      const entries = entriesByDirectory.has(parentPath)
+        ? (entriesByDirectory.get(parentPath) ?? [])
+        : await loadDirectory(parentPath)
+      setBaseInitialName(
+        uniqueSpaceEntryName(
+          entries.map((entry) => entry.name),
+          "Untitled",
+          ".base"
         )
-      }
-      await createBase(name, {
-        title: name.slice(0, -".base".length),
-        defaultTable: { name: "Table" },
-      })
-      await loadDirectory("")
-      navigate(toSpaceFileUrl(name))
-    } catch (operationFailure) {
-      setOperationError(
-        operationFailure instanceof Error
-          ? operationFailure.message
-          : "Unable to create Base"
       )
-    }
-  }, [
-    blockMutationDuringRestore,
-    createBase,
-    entriesByDirectory,
-    loadDirectory,
-    navigate,
-    selectedPath,
-    spaceId,
-  ])
+      setBaseParentPath(parentPath)
+      setBaseDialogOpen(true)
+    },
+    [blockMutationDuringRestore, entriesByDirectory, loadDirectory]
+  )
+
+  const createBaseAtPath = useCallback(
+    async (name: string, options: CreateBaseOptions) => {
+      if (blockMutationDuringRestore()) return
+      setOperationError(null)
+      try {
+        if (!(await flushCurrentSpaceFile(spaceId, selectedPath))) {
+          throw new Error(
+            "Eidos could not save the current file. Resolve the error before opening another file."
+          )
+        }
+        const destinationPath = joinSpacePath(baseParentPath, name)
+        await createBase(destinationPath, options)
+        setFilesExpanded(true)
+        if (baseParentPath) {
+          setExpanded((current) => new Set(current).add(baseParentPath))
+        }
+        await loadDirectory(baseParentPath)
+        navigate(toSpaceFileUrl(destinationPath))
+      } catch (operationFailure) {
+        const message =
+          operationFailure instanceof Error
+            ? operationFailure.message
+            : "Unable to create Base"
+        setOperationError(message)
+        throw operationFailure
+      }
+    },
+    [
+      blockMutationDuringRestore,
+      baseParentPath,
+      createBase,
+      loadDirectory,
+      navigate,
+      selectedPath,
+      spaceId,
+    ]
+  )
 
   const importInto = useCallback(
     async (directory: string) => {
@@ -498,7 +521,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   )
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="relative flex h-full min-h-0 flex-col">
       <div className="group/explorer flex h-[30px] items-center border-b border-sidebar-border/50 px-1">
         <button
           type="button"
@@ -514,6 +537,18 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
           Files
         </button>
         <div className="pointer-events-none ml-auto flex shrink-0 items-center gap-px opacity-0 transition-opacity group-focus-within/explorer:pointer-events-auto group-focus-within/explorer:opacity-100 group-hover/explorer:pointer-events-auto group-hover/explorer:opacity-100">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-[22px] w-[22px] rounded-[3px] text-sidebar-foreground/80"
+            title="New Base"
+            aria-label="New Base"
+            disabled={restoringVersion}
+            onClick={() => void openBaseDialog("")}
+          >
+            <Table2 className="h-3.5 w-3.5" />
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -584,7 +619,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 disabled={restoringVersion}
-                onSelect={() => void createBaseAtRoot()}
+                onSelect={() => void openBaseDialog("")}
               >
                 <Table2 />
                 New Base
@@ -639,13 +674,23 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
       ) : (entriesByDirectory.get("")?.length ?? 0) === 0 ? (
         <div className="px-5 py-3 text-xs leading-relaxed text-muted-foreground">
           <p>This Space has no files yet.</p>
-          <button
-            type="button"
-            className="mt-1 text-sidebar-foreground underline decoration-border underline-offset-2 hover:decoration-sidebar-foreground"
-            onClick={() => void startCreate("", "create-file")}
-          >
-            Create a note
-          </button>
+          <div className="mt-1 flex items-center gap-2">
+            <button
+              type="button"
+              className="text-sidebar-foreground underline decoration-border underline-offset-2 hover:decoration-sidebar-foreground"
+              onClick={() => void startCreate("", "create-file")}
+            >
+              Create a note
+            </button>
+            <span aria-hidden="true">·</span>
+            <button
+              type="button"
+              className="text-sidebar-foreground underline decoration-border underline-offset-2 hover:decoration-sidebar-foreground"
+              onClick={() => void openBaseDialog("")}
+            >
+              Create a Base
+            </button>
+          </div>
         </div>
       ) : (
         <div className="min-h-0 flex-1">
@@ -663,7 +708,10 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
                 destinationParent
               )
             }
-            onCreate={(parentPath, type) => void startCreate(parentPath, type)}
+            onCreate={(parentPath, type) => {
+              if (type === "create-base") void openBaseDialog(parentPath)
+              else void startCreate(parentPath, type)
+            }}
             onDelete={(entry) => void deleteEntry(entry)}
             onExpandedPathsChange={setExpanded}
             onExpand={(path) => {
@@ -683,6 +731,16 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
           />
         </div>
       )}
+
+      <BaseCreatePopover
+        open={baseDialogOpen}
+        initialName={baseInitialName}
+        existingNames={(entriesByDirectory.get(baseParentPath) ?? []).map(
+          (entry) => entry.name
+        )}
+        onOpenChange={setBaseDialogOpen}
+        onCreate={createBaseAtPath}
+      />
     </div>
   )
 }

@@ -132,7 +132,8 @@ export function useUndoRedo(
   gridRef: React.RefObject<DataEditorRef>,
   getCellContent: (cell: Item) => GridCell,
   onCellEdited: (cell: Item, newValue: EditableGridCell) => void,
-  onGridSelectionChange?: (newVal: GridSelection) => void
+  onGridSelectionChange?: (newVal: GridSelection) => void,
+  isActive?: () => boolean
 ) {
   const [state, dispatch] = useReducer(reducer, initialState)
 
@@ -239,7 +240,9 @@ export function useUndoRedo(
   // Attach the keyboard shortcuts. CMD+Z and CMD+SHIFT+Z on mac, CTRL+Z and CTRL+Y on windows.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (isActive && !isActive()) return
       if (e.key === "z" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
         if (e.shiftKey) {
           redo()
         } else {
@@ -248,6 +251,7 @@ export function useUndoRedo(
       }
 
       if (e.key === "y" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
         redo()
       }
     }
@@ -255,7 +259,7 @@ export function useUndoRedo(
     return () => {
       window.removeEventListener("keydown", onKeyDown)
     }
-  }, [undo, redo])
+  }, [isActive, redo, undo])
 
   return useMemo(() => {
     return {

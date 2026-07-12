@@ -195,6 +195,7 @@ vi.mock("./base-rename-dialog", () => ({
 
 vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
   useSpaceFileChanges: () => undefined,
+  useSpaceFiles: () => ({ reveal: vi.fn() }),
 }))
 
 vi.mock("./base-grid", () => ({

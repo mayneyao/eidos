@@ -10,6 +10,8 @@ import type {
 } from "@eidos.space/base"
 import {
   AlertTriangle,
+  Check,
+  FolderOpen,
   LoaderCircle,
   Plus,
   RefreshCw,
@@ -20,7 +22,10 @@ import {
 import { cn } from "@/lib/utils"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useSpaceBase } from "@/apps/web-app/hooks/use-space-base"
-import { useSpaceFileChanges } from "@/apps/web-app/hooks/use-space-files"
+import {
+  useSpaceFileChanges,
+  useSpaceFiles,
+} from "@/apps/web-app/hooks/use-space-files"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -34,10 +39,12 @@ import {
 } from "@/components/ui/alert-dialog"
 
 import { BaseGrid } from "./base-grid"
+import { baseOpenErrorPresentation } from "./base-open-error"
 import { BaseFieldOptionsDialog } from "./base-field-options-dialog"
 import { BaseRenameDialog } from "./base-rename-dialog"
 import { BaseStructureDialog } from "./base-structure-dialog"
 import { BaseStructureMenu } from "./base-structure-menu"
+import { BaseViewMenu } from "./base-view-menu"
 
 interface SpaceBaseEditorProps {
   filePath: string
@@ -56,6 +63,7 @@ type DeleteTarget = RenameTarget
 
 export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const { currentSpace } = useCurrentSpace()
+  const { reveal } = useSpaceFiles(currentSpace?.id)
   const {
     getSnapshot,
     getTablePage,
@@ -74,6 +82,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [pendingMutations, setPendingMutations] = useState(0)
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
   const mutatingRef = useRef(false)
   const pendingMutationCountRef = useRef(0)
   const mutationQueueRef = useRef<Promise<void>>(Promise.resolve())
@@ -158,6 +167,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           (result) => {
             onSuccess?.(result)
             setError(null)
+            setLastSavedAt(Date.now())
             return result
           },
           (mutationError) => {
@@ -400,21 +410,35 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   }
 
   if (!snapshot) {
+    const presentation = baseOpenErrorPresentation(error)
     return (
       <div className="flex h-full flex-col items-center justify-center px-8 text-center">
         <AlertTriangle className="mb-3 h-5 w-5 text-destructive" />
-        <p className="max-w-md text-sm text-foreground">
-          {error ?? "This file is not a valid Eidos Base."}
+        <h2 className="text-sm font-medium text-foreground">
+          {presentation.title}
+        </h2>
+        <p className="mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">
+          {presentation.description}
         </p>
-        <Button variant="outline" size="sm" className="mt-4" onClick={load}>
-          Try again
-        </Button>
+        <div className="mt-4 flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void reveal(filePath)}
+          >
+            <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
+            Show in file manager
+          </Button>
+          <Button variant="outline" size="sm" onClick={load}>
+            Try again
+          </Button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div className="relative flex h-full min-h-0 flex-col bg-background">
       <div className="flex h-10 shrink-0 items-end border-b bg-muted/15 px-2">
         <div className="flex min-w-0 flex-1 items-end gap-px overflow-x-auto">
           {snapshot.tables.map(({ table }) => (
@@ -446,7 +470,15 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         </div>
         <div className="flex h-9 shrink-0 items-center gap-1 pl-2">
           {pendingMutations > 0 ? (
-            <LoaderCircle className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              Saving…
+            </span>
+          ) : lastSavedAt ? (
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Check className="h-3.5 w-3.5" />
+              Saved
+            </span>
           ) : null}
           {selectedRowCount > 0 ? (
             <Button
@@ -461,43 +493,58 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             </Button>
           ) : null}
           {activeTable ? (
-            <BaseStructureMenu
-              table={activeTable.table}
-              fields={activeTable.fields}
-              disabled={pendingMutations > 0}
-              onNewField={() => setStructureDialog("field")}
-              onRenameTable={() =>
-                setRenameTarget({
-                  kind: "table",
-                  tableId: activeTable.table.id,
-                  name: activeTable.table.name,
-                })
-              }
-              onDeleteTable={() =>
-                setDeleteTarget({
-                  kind: "table",
-                  tableId: activeTable.table.id,
-                  name: activeTable.table.name,
-                })
-              }
-              onRenameField={(field) =>
-                setRenameTarget({
-                  kind: "field",
-                  tableId: activeTable.table.id,
-                  columnName: field.tableColumnName,
-                  name: field.name,
-                })
-              }
-              onEditFieldOptions={setFieldOptionsTarget}
-              onDeleteField={(field) =>
-                setDeleteTarget({
-                  kind: "field",
-                  tableId: activeTable.table.id,
-                  columnName: field.tableColumnName,
-                  name: field.name,
-                })
-              }
-            />
+            <>
+              <BaseViewMenu
+                fields={activeTable.fields.filter(
+                  (field) => !field.isHidden && field.valueKind === "source"
+                )}
+                hiddenFields={
+                  activeTable.views.find((view) => view.type === "grid")
+                    ?.hiddenFields ?? []
+                }
+                disabled={pendingMutations > 0}
+                onHiddenFieldsChange={(hiddenFields) =>
+                  void updateActiveView({ hiddenFields })
+                }
+              />
+              <BaseStructureMenu
+                table={activeTable.table}
+                fields={activeTable.fields}
+                disabled={pendingMutations > 0}
+                onNewField={() => setStructureDialog("field")}
+                onRenameTable={() =>
+                  setRenameTarget({
+                    kind: "table",
+                    tableId: activeTable.table.id,
+                    name: activeTable.table.name,
+                  })
+                }
+                onDeleteTable={() =>
+                  setDeleteTarget({
+                    kind: "table",
+                    tableId: activeTable.table.id,
+                    name: activeTable.table.name,
+                  })
+                }
+                onRenameField={(field) =>
+                  setRenameTarget({
+                    kind: "field",
+                    tableId: activeTable.table.id,
+                    columnName: field.tableColumnName,
+                    name: field.name,
+                  })
+                }
+                onEditFieldOptions={setFieldOptionsTarget}
+                onDeleteField={(field) =>
+                  setDeleteTarget({
+                    kind: "field",
+                    tableId: activeTable.table.id,
+                    columnName: field.tableColumnName,
+                    name: field.name,
+                  })
+                }
+              />
+            </>
           ) : null}
           <Button
             type="button"
@@ -534,11 +581,24 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       ) : null}
 
       {!activeTable ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center px-8 text-center text-sm text-muted-foreground">
-          This Base has no tables yet.
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-8 text-center">
+          <Table2 className="mb-3 h-5 w-5 text-muted-foreground" />
+          <h2 className="text-sm font-medium">Create the first table</h2>
+          <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
+            Tables keep related records and fields together inside this Base.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            className="mt-4"
+            onClick={() => setStructureDialog("table")}
+          >
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            New table
+          </Button>
         </div>
       ) : (
-        <div className="min-h-0 flex-1">
+        <div className="relative min-h-0 flex-1">
           <BaseGrid
             key={activeTable.table.id}
             table={activeTable}
@@ -548,9 +608,58 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             onAddRow={createRow}
             onCellEdit={saveCell}
             onSelectedRowsChange={setSelectedRowRanges}
+            onAddField={() => setStructureDialog("field")}
+            onRenameField={(field) =>
+              setRenameTarget({
+                kind: "field",
+                tableId: activeTable.table.id,
+                columnName: field.tableColumnName,
+                name: field.name,
+              })
+            }
+            onEditFieldOptions={setFieldOptionsTarget}
+            onDeleteField={(field) =>
+              setDeleteTarget({
+                kind: "field",
+                tableId: activeTable.table.id,
+                columnName: field.tableColumnName,
+                name: field.name,
+              })
+            }
             onViewUpdate={updateActiveView}
             onError={handleGridError}
           />
+          {activeTable.rowCount === 0 ? (
+            <div className="pointer-events-none absolute inset-x-0 top-16 flex justify-center px-6">
+              <div className="pointer-events-auto border bg-background/95 px-5 py-4 text-center shadow-sm backdrop-blur-sm">
+                <h2 className="text-sm font-medium">
+                  Start building {activeTable.table.name}
+                </h2>
+                <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
+                  Add a row to enter data, or define fields before you begin.
+                  Changes are saved directly to this Base file.
+                </p>
+                <div className="mt-3 flex items-center justify-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void createRow().catch(() => undefined)}
+                  >
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                    Add first row
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setStructureDialog("field")}
+                  >
+                    Add field
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
 

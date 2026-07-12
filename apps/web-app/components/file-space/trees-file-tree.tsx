@@ -18,6 +18,7 @@ import {
   FolderOpen,
   FolderPlus,
   PencilLine,
+  Table2,
   Trash2,
   Upload,
 } from "lucide-react"
@@ -39,7 +40,7 @@ interface SpaceFilesTreeProps {
   disabled?: boolean
   onCreate: (
     parentPath: string,
-    type: "create-file" | "create-directory"
+    type: "create-file" | "create-directory" | "create-base"
   ) => void
   onDelete: (entry: SpaceFileEntry) => void
   onExpandedPathsChange: (paths: Set<string>) => void
@@ -116,6 +117,16 @@ function SpaceTreeContextMenu({
     >
       {item.kind === "directory" ? (
         <>
+          <button
+            type="button"
+            role="menuitem"
+            className={itemClassName}
+            disabled={disabled}
+            onClick={() => run(() => onCreate(entry.path, "create-base"))}
+          >
+            <Table2 className="h-3.5 w-3.5" />
+            New Base
+          </button>
           <button
             type="button"
             role="menuitem"
