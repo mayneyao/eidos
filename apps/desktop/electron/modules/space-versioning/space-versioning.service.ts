@@ -8,6 +8,7 @@ import type {
   SpaceVersionCommitResult,
   SpaceVersionConfigureRemoteOptions,
   SpaceVersionConfigureRemoteResult,
+  SpaceVersionConflictList,
   SpaceVersionDiscardPathOptions,
   SpaceVersionDiscardPathResult,
   SpaceVersionDiff,
@@ -17,6 +18,8 @@ import type {
   SpaceVersionRemoteListResult,
   SpaceVersionRemoveRemoteOptions,
   SpaceVersionRemoveRemoteResult,
+  SpaceVersionResolveConflictOptions,
+  SpaceVersionResolveConflictResult,
   SpaceVersionRestoreOptions,
   SpaceVersionRestorePathOptions,
   SpaceVersionRestorePathResult,
@@ -84,6 +87,17 @@ export class SpaceVersioningService extends IpcServiceBase {
     options: SpaceVersionSyncOptions = {}
   ): Promise<SpaceVersionSyncResult> {
     return this.coordinator.pushRemote(spaceId, options)
+  }
+
+  getConflicts(spaceId: string): Promise<SpaceVersionConflictList> {
+    return this.coordinator.getConflicts(spaceId)
+  }
+
+  resolveConflict(
+    spaceId: string,
+    options: SpaceVersionResolveConflictOptions
+  ): Promise<SpaceVersionResolveConflictResult> {
+    return this.coordinator.resolveConflict(spaceId, options)
   }
 
   commit(

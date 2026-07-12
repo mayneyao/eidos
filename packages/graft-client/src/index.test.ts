@@ -81,6 +81,17 @@ describe("GraftClient", () => {
       "json_commit",
       'Write "quoted" docs'
     )
+
+    await client.runJson("/space", [
+      "merge-continue",
+      "--json",
+      "Merge remote versions",
+    ])
+    expect(execute).toHaveBeenLastCalledWith(
+      "/space",
+      "json_merge_continue",
+      "Merge remote versions"
+    )
   })
 
   it("maps remote configuration and preserves local URLs with spaces", async () => {

@@ -310,6 +310,101 @@ describe("SpaceVersioningCoordinator remotes", () => {
   })
 })
 
+describe("SpaceVersioningCoordinator conflicts", () => {
+  it("lists visible conflict paths and resolves a spaced path safely", async () => {
+    const root = await createSpace()
+    let resolved = false
+    const runJson = vi.fn(async (_root: string, args: string[]) => {
+      if (args[0] === "conflicts") {
+        return {
+          current_head: "head-2",
+          current_branch: "main",
+          merge_head: "remote-2",
+          paths: [
+            {
+              path: "notes/a b.md",
+              kind: "text_file",
+              storage: "inline",
+              status: "unresolved",
+              total: 1,
+              unresolved: 1,
+              resolved: 0,
+            },
+            {
+              path: ".eidos/secrets/token",
+              kind: "text_file",
+              storage: "inline",
+              status: "unresolved",
+              total: 1,
+              unresolved: 1,
+              resolved: 0,
+            },
+          ],
+        }
+      }
+      if (args[0] === "status") {
+        return statusPayload(
+          [
+            {
+              path: "notes/a b.md",
+              kind: "text_file",
+              storage: "inline",
+              index_status: resolved ? "modified" : "unmerged",
+              worktree_status: resolved ? "none" : "unmerged",
+              conflicted: !resolved,
+            },
+          ],
+          {
+            merge_head: "remote-2",
+            has_conflicts: !resolved,
+            counts: {
+              unstaged: 0,
+              staged: resolved ? 1 : 0,
+              conflicted: resolved ? 0 : 1,
+            },
+          }
+        )
+      }
+      if (args[0] === "resolve") {
+        resolved = true
+        return {
+          operation: "resolve_conflict",
+          current_head: "head-2",
+          current_branch: "main",
+          path: "notes/a b.md",
+          resolution: "theirs",
+          remaining_conflicts: 0,
+        }
+      }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    const conflicts = await coordinator.getConflicts("space-a")
+    expect(conflicts).toMatchObject({
+      mergeHead: "remote-2",
+      paths: [{ path: "notes/a b.md", status: "unresolved" }],
+    })
+
+    const result = await coordinator.resolveConflict("space-a", {
+      path: "notes/a b.md",
+      resolution: "theirs",
+      expectedHead: "head-2",
+    })
+    expect(result).toMatchObject({
+      path: "notes/a b.md",
+      resolution: "theirs",
+      remainingConflicts: 0,
+      status: { hasConflicts: false, hasStagedChanges: true },
+    })
+    expect(runJson).toHaveBeenCalledWith(
+      await fs.realpath(root),
+      ["resolve", "--json", "--theirs", "--path", "notes/a b.md"],
+      { timeoutMs: 120_000 }
+    )
+  })
+})
+
 describe("SpaceVersioningCoordinator.getHistory", () => {
   it("requests one bounded Graft page instead of slicing a full log", async () => {
     const root = await createSpace()
@@ -1903,6 +1998,58 @@ describe("SpaceVersioningCoordinator.restoreVersion", () => {
 })
 
 describe("SpaceVersioningCoordinator.commit", () => {
+  it("continues a resolved remote merge instead of creating a single-parent commit", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      if (args[0] === "status") {
+        return statusPayload(
+          [
+            {
+              path: "note.md",
+              kind: "text_file",
+              storage: "inline",
+              index_status: "modified",
+              worktree_status: "none",
+            },
+          ],
+          { merge_head: "remote-2" }
+        )
+      }
+      if (args[0] === "merge-continue") {
+        return {
+          current_head: "merge-3",
+          current_branch: "main",
+          commit: {
+            id: "merge-3",
+            message: "Merge remote versions",
+            parents: ["head-2", "remote-2"],
+          },
+          paths: [
+            {
+              path: "note.md",
+              change: "modified",
+              kind: "text_file",
+              storage: "inline",
+            },
+          ],
+        }
+      }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    const result = await coordinator.commit("space-a", {
+      message: "Merge remote versions",
+    })
+
+    expect(result.commit.parents).toEqual(["head-2", "remote-2"])
+    expect(runJson).toHaveBeenCalledWith(
+      await fs.realpath(root),
+      ["merge-continue", "--json", "Merge remote versions"],
+      { timeoutMs: 120_000 }
+    )
+  })
+
   it("commits an existing staged subset without staging other working changes", async () => {
     const root = await createSpace()
     const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {

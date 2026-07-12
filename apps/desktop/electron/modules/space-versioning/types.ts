@@ -57,6 +57,7 @@ export interface SpaceVersionStatus {
   enabled: boolean
   currentHead: string | null
   currentBranch: string | null
+  mergeHead: string | null
   repositoryFormatVersion: number | null
   dirty: boolean
   hasUnstagedChanges: boolean
@@ -113,6 +114,38 @@ export interface SpaceVersionSyncResult {
   branch: string | null
   commits: number
   forced: boolean
+  status: SpaceVersionStatus
+}
+
+export interface SpaceVersionConflictPath {
+  path: string
+  kind: SpaceVersionPathKind
+  storage: SpaceVersionPathStorage
+  status: "unresolved" | "resolved"
+  total: number
+  unresolved: number
+  resolved: number
+}
+
+export interface SpaceVersionConflictList {
+  currentHead: string | null
+  currentBranch: string | null
+  mergeHead: string | null
+  paths: SpaceVersionConflictPath[]
+}
+
+export type SpaceVersionConflictResolution = "ours" | "theirs" | "manual"
+
+export interface SpaceVersionResolveConflictOptions {
+  path: string
+  resolution: SpaceVersionConflictResolution
+  expectedHead: string | null
+}
+
+export interface SpaceVersionResolveConflictResult {
+  path: string
+  resolution: SpaceVersionConflictResolution
+  remainingConflicts: number
   status: SpaceVersionStatus
 }
 

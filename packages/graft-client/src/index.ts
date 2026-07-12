@@ -20,6 +20,7 @@ const JSON_COMMAND_PRAGMAS = {
   diff: "json_diff",
   fetch: "json_fetch",
   log: "json_log",
+  "merge-continue": "json_merge_continue",
   pull: "json_pull",
   push: "json_push",
   resolve: "json_resolve_conflict",
@@ -174,6 +175,11 @@ function commandArgument(
       if (!message) throw new Error("Graft commit requires a message")
       return message
     }
+    case "merge-continue":
+      if (commandArgs.length !== 1 || !commandArgs[0]) {
+        throw new Error("Graft merge-continue requires a message")
+      }
+      return commandArgs[0]
     case "show": {
       const target = commandArgs.find((argument) => argument !== "--")
       if (!target) throw new Error("Graft show requires a revision")

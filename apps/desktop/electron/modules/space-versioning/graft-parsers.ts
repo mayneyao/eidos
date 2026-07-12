@@ -2,6 +2,9 @@ import type {
   SpaceVersionChangeKind,
   SpaceVersionCommit,
   SpaceVersionCommitResult,
+  SpaceVersionConflictList,
+  SpaceVersionConflictPath,
+  SpaceVersionConflictResolution,
   SpaceVersionDiff,
   SpaceVersionPathChange,
   SpaceVersionPathKind,
@@ -12,6 +15,7 @@ import type {
   SpaceVersionStatusCounts,
   SpaceVersionRemote,
   SpaceVersionRemoteListResult,
+  SpaceVersionResolveConflictResult,
   SpaceVersionSyncResult,
   SpaceVersionUpstreamState,
   SpaceVersionUpstreamStatus,
@@ -489,6 +493,7 @@ export function disabledSpaceVersionStatus(
     enabled: false,
     currentHead: null,
     currentBranch: null,
+    mergeHead: null,
     repositoryFormatVersion: null,
     dirty: false,
     hasUnstagedChanges: false,
@@ -527,6 +532,7 @@ export function parseGraftStatus(
     enabled: true,
     currentHead: headFromPayload(raw),
     currentBranch: branchFromPayload(raw),
+    mergeHead: stringValue(raw.merge_head),
     repositoryFormatVersion: nonNegativeInteger(raw.repository_format_version),
     dirty:
       typeof raw.work_in_progress === "boolean"
@@ -599,6 +605,61 @@ export function parseGraftSyncResult(
     branch,
     commits: nonNegativeInteger(raw.commits) ?? 0,
     forced: operation === "push" && raw.forced === true,
+  }
+}
+
+function conflictPath(value: unknown): SpaceVersionConflictPath {
+  if (!isObject(value)) {
+    throw new Error("Graft returned invalid conflict path information")
+  }
+  const conflictPath = stringValue(value.path)
+  const status = stringValue(value.status)
+  if (!conflictPath || (status !== "unresolved" && status !== "resolved")) {
+    throw new Error("Graft conflict path metadata is invalid")
+  }
+  return {
+    path: conflictPath,
+    kind: pathKind(value.kind),
+    storage: pathStorage(value.storage),
+    status,
+    total: nonNegativeInteger(value.total) ?? 0,
+    unresolved: nonNegativeInteger(value.unresolved) ?? 0,
+    resolved: nonNegativeInteger(value.resolved) ?? 0,
+  }
+}
+
+export function parseGraftConflicts(raw: unknown): SpaceVersionConflictList {
+  if (!isObject(raw)) {
+    throw new Error("Graft returned an invalid conflict list")
+  }
+  return {
+    currentHead: headFromPayload(raw),
+    currentBranch: branchFromPayload(raw),
+    mergeHead: stringValue(raw.merge_head),
+    paths: Array.isArray(raw.paths) ? raw.paths.map(conflictPath) : [],
+  }
+}
+
+export function parseGraftResolveConflict(
+  raw: unknown
+): Omit<SpaceVersionResolveConflictResult, "status"> {
+  if (!isObject(raw) || raw.operation !== "resolve_conflict") {
+    throw new Error("Graft returned an invalid conflict resolution result")
+  }
+  const resolvedPath = stringValue(raw.path)
+  const resolution = stringValue(raw.resolution)
+  if (
+    !resolvedPath ||
+    (resolution !== "ours" &&
+      resolution !== "theirs" &&
+      resolution !== "manual")
+  ) {
+    throw new Error("Graft conflict resolution metadata is invalid")
+  }
+  return {
+    path: resolvedPath,
+    resolution: resolution as SpaceVersionConflictResolution,
+    remainingConflicts: nonNegativeInteger(raw.remaining_conflicts) ?? 0,
   }
 }
 

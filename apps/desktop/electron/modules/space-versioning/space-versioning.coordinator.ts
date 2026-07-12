@@ -11,6 +11,7 @@ import {
   disabledSpaceVersionStatus,
   parseGraftCommit,
   parseGraftCommitResult,
+  parseGraftConflicts,
   parseGraftDiff,
   parseGraftLog,
   parseGraftRemoteMutation,
@@ -18,6 +19,7 @@ import {
   parseGraftRestorePaths,
   parseGraftRestoreSource,
   parseGraftRestoreVersionSource,
+  parseGraftResolveConflict,
   parseGraftStatus,
   parseGraftSyncResult,
 } from "./graft-parsers"
@@ -25,6 +27,7 @@ import type {
   SpaceVersionCommit,
   SpaceVersionCommitOptions,
   SpaceVersionCommitResult,
+  SpaceVersionConflictList,
   SpaceVersionDiscardPathOptions,
   SpaceVersionDiscardPathResult,
   SpaceVersionDiff,
@@ -42,6 +45,8 @@ import type {
   SpaceVersionRemoteListResult,
   SpaceVersionRemoveRemoteOptions,
   SpaceVersionRemoveRemoteResult,
+  SpaceVersionResolveConflictOptions,
+  SpaceVersionResolveConflictResult,
   SpaceVersionStagePathOptions,
   SpaceVersionStagePathResult,
   SpaceVersionStatus,
@@ -298,6 +303,30 @@ function normalizeSyncOptions(value: unknown): NormalizedSyncOptions {
       options.expectedHead === undefined
         ? undefined
         : normalizeExpectedHead(options.expectedHead),
+  }
+}
+
+function normalizeResolveConflictOptions(
+  value: unknown
+): SpaceVersionResolveConflictOptions {
+  if (!isObject(value)) {
+    throw new Error("Conflict resolution options must be an object")
+  }
+  const repositoryPath = normalizeRepositoryPath(value.path, "Conflict path")
+  if (!repositoryPath || isPrivateVersionPath(repositoryPath)) {
+    throw new Error("Conflict path is invalid")
+  }
+  if (
+    value.resolution !== "ours" &&
+    value.resolution !== "theirs" &&
+    value.resolution !== "manual"
+  ) {
+    throw new Error("Conflict resolution must be ours, theirs, or manual")
+  }
+  return {
+    path: repositoryPath,
+    resolution: value.resolution,
+    expectedHead: normalizeExpectedHead(value.expectedHead),
   }
 }
 
@@ -812,6 +841,71 @@ export class SpaceVersioningCoordinator {
     return this.syncRemote("push", spaceIdValue, optionsValue)
   }
 
+  async getConflicts(spaceIdValue: unknown): Promise<SpaceVersionConflictList> {
+    const spaceId = requireSpaceId(spaceIdValue)
+    return this.withSpaceLock(spaceId, async () => {
+      const spacePath = await this.resolveFileSpace(spaceId)
+      await this.requireRepository(spacePath)
+      return this.withRepositoryOperationLock(spacePath, async () => {
+        const conflicts = parseGraftConflicts(
+          await this.runner.runJson(spacePath, ["conflicts", "--json"])
+        )
+        return {
+          ...conflicts,
+          paths: conflicts.paths.filter(
+            (entry) => !isPrivateVersionPath(entry.path)
+          ),
+        }
+      })
+    })
+  }
+
+  async resolveConflict(
+    spaceIdValue: unknown,
+    optionsValue: unknown
+  ): Promise<SpaceVersionResolveConflictResult> {
+    const spaceId = requireSpaceId(spaceIdValue)
+    const options = normalizeResolveConflictOptions(optionsValue)
+    return this.withSpaceLock(spaceId, async () => {
+      const spacePath = await this.resolveFileSpace(spaceId)
+      await this.requireRepository(spacePath)
+      return this.withRepositoryOperationLock(spacePath, async () => {
+        const before = await this.readStatus(spaceId, spacePath)
+        if (before.currentHead !== options.expectedHead) {
+          throw new Error(
+            "The Space history changed. Refresh conflicts before resolving this path."
+          )
+        }
+        const conflict = before.paths.find(
+          (entry) => entry.path === options.path && entry.conflicted
+        )
+        if (!conflict) {
+          throw new Error("This path no longer has an unresolved conflict")
+        }
+        const result = parseGraftResolveConflict(
+          await this.runner.runJson(
+            spacePath,
+            [
+              "resolve",
+              "--json",
+              `--${options.resolution}`,
+              "--path",
+              options.path,
+            ],
+            { timeoutMs: MUTATION_TIMEOUT_MS }
+          )
+        )
+        const status = await this.readStatus(spaceId, spacePath)
+        if (status.currentHead !== before.currentHead) {
+          throw new Error(
+            "The current version changed while the conflict was being resolved"
+          )
+        }
+        return { ...result, status }
+      })
+    })
+  }
+
   async commit(
     spaceIdValue: unknown,
     optionsValue: unknown
@@ -834,7 +928,9 @@ export class SpaceVersioningCoordinator {
 
         const raw = await this.runner.runJson(
           spacePath,
-          ["commit", "--json", "-m", options.message],
+          before.mergeHead
+            ? ["merge-continue", "--json", options.message]
+            : ["commit", "--json", "-m", options.message],
           { timeoutMs: MUTATION_TIMEOUT_MS }
         )
         return parseGraftCommitResult(raw)

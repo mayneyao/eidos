@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest"
 import {
   parseGraftCommit,
   parseGraftCommitResult,
+  parseGraftConflicts,
   parseGraftDiff,
   parseGraftLog,
   parseGraftRemoteMutation,
@@ -12,6 +13,7 @@ import {
   parseGraftRestorePaths,
   parseGraftRestoreSource,
   parseGraftRestoreVersionSource,
+  parseGraftResolveConflict,
   parseGraftStatus,
   parseGraftSyncResult,
 } from "./graft-parsers"
@@ -138,6 +140,7 @@ describe("Graft v0.5 JSON parsers", () => {
     )
 
     expect(status).toMatchObject({
+      mergeHead: "9e4a5ff1451e70a",
       dirty: true,
       hasUnstagedChanges: false,
       hasStagedChanges: false,
@@ -267,6 +270,54 @@ describe("Graft v0.5 JSON parsers", () => {
       branch: "main",
       commits: 2,
       forced: false,
+    })
+  })
+
+  it("parses conflict paths and file-level resolution results", () => {
+    expect(
+      parseGraftConflicts({
+        current_head: "head-2",
+        current_branch: "main",
+        merge_head: "remote-2",
+        paths: [
+          {
+            path: "notes/a b.md",
+            kind: "text_file",
+            storage: "inline",
+            status: "unresolved",
+            total: 1,
+            unresolved: 1,
+            resolved: 0,
+          },
+        ],
+      })
+    ).toEqual({
+      currentHead: "head-2",
+      currentBranch: "main",
+      mergeHead: "remote-2",
+      paths: [
+        {
+          path: "notes/a b.md",
+          kind: "text_file",
+          storage: "inline",
+          status: "unresolved",
+          total: 1,
+          unresolved: 1,
+          resolved: 0,
+        },
+      ],
+    })
+    expect(
+      parseGraftResolveConflict({
+        operation: "resolve_conflict",
+        path: "notes/a b.md",
+        resolution: "theirs",
+        remaining_conflicts: 0,
+      })
+    ).toEqual({
+      path: "notes/a b.md",
+      resolution: "theirs",
+      remainingConflicts: 0,
     })
   })
 
