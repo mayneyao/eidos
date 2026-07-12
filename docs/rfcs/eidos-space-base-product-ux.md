@@ -22,11 +22,13 @@ current Space switcher remains at the bottom of the sidebar.
 The `.base` route now uses the production Grid foundation with paged
 visible-region loading, optimistic cell edits, persisted column layout,
 copy/paste, undo/redo, field visibility, header actions, compact range-based
-batch row deletion, inline search, and persisted multi-field filters and sorts.
-Filtered/sorted paging and range deletion use the same structured query model,
-so a selection always mutates the rows shown in the Grid. Base creation is
-named, template-aware, and publishes the SQLite file atomically. Working
-Changes and History provide a Base-aware table/row inspector.
+batch row deletion, inline search, and persisted nested filters and multi-field
+sorts. Filter groups reuse the original table's anchored AND/OR authoring model,
+including derived Formula/Lookup fields. Filtered/sorted paging and range
+deletion use the same structured query model, so a selection always mutates the
+rows shown in the Grid. Base creation is named, template-aware, and publishes
+the SQLite file atomically. Working Changes and History provide a Base-aware
+table/row inspector.
 
 Tables now support multiple independent Grid views. The compact anchored view
 switcher creates, renames, duplicates, reorders, and deletes views without
@@ -52,11 +54,10 @@ existing relation, target field, and aggregation from an anchored field panel.
 Derived values stay readonly in the Grid, refresh with relation/target edits,
 and can feed formulas without introducing a separate configuration screen.
 
-Base is still in delivery closure, not product acceptance. Advanced nested
-filter authoring, richer formula completion and preview, Gallery/Kanban layouts,
-accessible table semantics, and a complete native
-create/edit/restart/version/restore run remain. Routine Base configuration uses
-inline controls, header menus, and anchored popovers. Modal dialogs are
+Base is still in delivery closure, not product acceptance. Richer formula
+completion and preview, Gallery/Kanban layouts, accessible table semantics, and
+a complete native create/edit/restart/version/restore run remain. Routine Base
+configuration uses inline controls, header menus, and anchored popovers. Modal dialogs are
 reserved for destructive confirmation or other decisions that must interrupt
 the workflow. New interactions should first adapt the proven editing patterns
 from the original Eidos table; implementation convenience is not a reason to

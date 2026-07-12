@@ -20,7 +20,8 @@ open 和紧凑的 Outline/Backlinks sections 已经接入，并且没有增加�
 
 `.base` route 现已使用 production Grid 交互层，支持按可见区域分页加载、optimistic
 cell edit、copy/paste、undo/redo、持久化 column layout、基于 compact ranges 的批量
-删行、就地搜索以及持久化的多字段筛选和排序。筛选/排序分页与批量删行使用同一个
+删行、就地搜索以及持久化的嵌套筛选和多字段排序。Filter groups 复用原表格锚定式的
+AND/OR 编辑模型，并支持派生 Formula/Lookup 字段。筛选/排序分页与批量删行使用同一个
 结构化查询模型，因此删除的始终是 Grid 当前展示并选中的记录。Base 创建支持命名、
 模板和原子发布。working Changes 与 History 也已提供 Base-aware table/row inspector。
 
@@ -42,8 +43,8 @@ lookup/rollup 字段延续同一套表头驱动流程：用户在锚定字段面
 target field 和 aggregation。派生值在 Grid 中保持只读，会随着 relation/target 修改刷新，
 也可以继续供 formula 使用，不引入单独的配置页面。
 
-Base 仍处于 delivery closure，而不是产品验收。高级嵌套筛选编辑、更丰富的 formula
-completion/preview、Gallery/Kanban layouts、无障碍表格语义和完整原生
+Base 仍处于 delivery closure，而不是产品验收。更丰富的 formula completion/preview、
+Gallery/Kanban layouts、无障碍表格语义和完整原生
 create/edit/restart/version/restore 验收仍未完成。Base 日常编辑和配置优先使用单元格
 内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留给破坏性确认或必须中断
 当前工作流的决策。新增交互应先参考并复用原表格已经验证过的编辑方式，不应仅为了
