@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react"
 import type { BaseFieldInfo, BaseRow, BaseViewInfo } from "@eidos.space/base"
 import { decodeBaseFilePaths } from "@eidos.space/base"
+import type { SpaceBinaryFile } from "@eidos.space/file-space"
 import { Check, Eye, FileText, Minus, Paperclip } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 
@@ -29,6 +31,81 @@ function multiSelectIds(value: BaseRow[string]): string[] {
 
 function isEmptyValue(value: BaseRow[string]): boolean {
   return value === null || value === undefined || value === ""
+}
+
+function imageMimeType(path: string): string {
+  const extension = path.split("?")[0]?.split(".").at(-1)?.toLowerCase()
+  if (extension === "png") return "image/png"
+  if (extension === "gif") return "image/gif"
+  if (extension === "webp") return "image/webp"
+  if (extension === "svg") return "image/svg+xml"
+  if (extension === "avif") return "image/avif"
+  return "image/jpeg"
+}
+
+function BaseRecordCover({
+  row,
+  field,
+  compact,
+  fitContent,
+  readBinary,
+}: {
+  row: BaseRow
+  field: BaseFieldInfo
+  compact: boolean
+  fitContent: boolean
+  readBinary?: (path: string) => Promise<SpaceBinaryFile>
+}) {
+  const path = decodeBaseFilePaths(row[field.tableColumnName]).at(0)
+  const [source, setSource] = useState<string | null>(null)
+
+  useEffect(() => {
+    let objectUrl: string | null = null
+    let active = true
+    setSource(null)
+    if (!path) return
+    if (/^https?:/i.test(path)) {
+      setSource(path)
+      return
+    }
+    if (!readBinary) return
+    void readBinary(path)
+      .then((file) => {
+        if (!active) return
+        const content = new Uint8Array(file.content)
+        objectUrl = URL.createObjectURL(
+          new Blob([content.buffer], { type: imageMimeType(path) })
+        )
+        setSource(objectUrl)
+      })
+      .catch(() => {
+        if (active) setSource(null)
+      })
+    return () => {
+      active = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [path, readBinary])
+
+  return (
+    <div
+      className={cn(
+        "overflow-hidden border-b bg-gradient-to-br from-muted/40 to-muted",
+        compact ? "h-28" : "h-36"
+      )}
+    >
+      {source ? (
+        <img
+          src={source}
+          alt=""
+          className={cn(
+            "h-full w-full",
+            fitContent ? "object-contain" : "object-cover"
+          )}
+        />
+      ) : null}
+    </div>
+  )
 }
 
 function CardFieldValue({
@@ -134,12 +211,14 @@ export function BaseRecordCard({
   fields,
   view,
   compact = false,
+  readBinary,
   onOpen,
 }: {
   row: BaseRow
   fields: BaseFieldInfo[]
   view: BaseViewInfo
   compact?: boolean
+  readBinary?: (path: string) => Promise<SpaceBinaryFile>
   onOpen: (row: BaseRow) => void
 }) {
   const hideEmptyFields = view.properties?.hideEmptyFields !== false
@@ -152,9 +231,25 @@ export function BaseRecordCard({
     )
     .slice(0, compact ? 4 : 6)
   const title = baseRecordTitle(row)
+  const coverFieldName =
+    typeof view.properties?.coverPreview === "string"
+      ? view.properties.coverPreview
+      : null
+  const coverField = fields.find(
+    (field) => field.tableColumnName === coverFieldName && field.type === "file"
+  )
 
   return (
     <article className="group/card relative overflow-hidden rounded-lg border bg-card text-card-foreground shadow-xs transition-shadow hover:shadow-sm">
+      {coverField ? (
+        <BaseRecordCover
+          row={row}
+          field={coverField}
+          compact={compact}
+          fitContent={view.properties?.fitContent !== false}
+          readBinary={readBinary}
+        />
+      ) : null}
       <div className={cn("grid gap-3", compact ? "p-3" : "p-4")}>
         <div className="flex min-w-0 items-start gap-2">
           <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />

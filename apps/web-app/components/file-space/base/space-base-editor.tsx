@@ -109,6 +109,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     list: listFiles,
     createDirectory,
     createBinary,
+    readBinary,
     importFiles,
   } = useSpaceFiles(currentSpace?.id)
   const {
@@ -1163,6 +1164,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               view={activeView}
               reloadToken={gridReloadToken}
               loadPage={loadActiveTablePage}
+              readBinary={readBinary}
               onOpenFile={openBaseFileReference}
               onRevealFile={(path) => reveal(path).then(() => undefined)}
               onError={handleGridError}
@@ -1178,6 +1180,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               loadGroupPage={loadKanbanGroupPage}
               onCellEdit={saveCell}
               onAddRow={createRowInGroup}
+              readBinary={readBinary}
               onOpenFile={openBaseFileReference}
               onRevealFile={(path) => reveal(path).then(() => undefined)}
               onError={handleGridError}

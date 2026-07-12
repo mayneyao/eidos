@@ -8,6 +8,7 @@ import type {
   BaseTableSnapshot,
   BaseViewInfo,
 } from "@eidos.space/base"
+import type { SpaceBinaryFile } from "@eidos.space/file-space"
 import { ChevronLeft, ChevronRight, LoaderCircle, Plus } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 
@@ -90,6 +91,7 @@ function BaseKanbanColumn({
   onOpen,
   onLoadMore,
   onCreate,
+  readBinary,
 }: {
   group: BaseKanbanGroup
   table: BaseTableSnapshot
@@ -100,6 +102,7 @@ function BaseKanbanColumn({
   onOpen: (row: BaseRow) => void
   onLoadMore: (group: BaseKanbanGroup) => void
   onCreate: (group: BaseKanbanGroup, title: string) => Promise<void>
+  readBinary?: (path: string) => Promise<SpaceBinaryFile>
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -201,6 +204,7 @@ function BaseKanbanColumn({
                     fields={table.fields}
                     view={view}
                     compact
+                    readBinary={readBinary}
                     onOpen={onOpen}
                   />
                 </KanbanCard>
@@ -291,6 +295,7 @@ export function BaseKanbanView({
   loadGroupPage,
   onCellEdit,
   onAddRow,
+  readBinary,
   onOpenFile,
   onRevealFile,
   onError,
@@ -316,6 +321,7 @@ export function BaseKanbanView({
     value: string | null,
     title: string
   ) => Promise<BaseRowMutationResult>
+  readBinary?: (path: string) => Promise<SpaceBinaryFile>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => Promise<void> | void
   onError?: (error: unknown) => void
@@ -552,6 +558,7 @@ export function BaseKanbanView({
               disabled={disabled}
               width={cardWidth(view)}
               color={baseOptionColor(group.color, theme)}
+              readBinary={readBinary}
               onOpen={setInspectedRow}
               onLoadMore={(candidate) => void loadMore(candidate)}
               onCreate={createInGroup}

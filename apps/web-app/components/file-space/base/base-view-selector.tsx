@@ -103,6 +103,7 @@ export function BaseViewSelector({
   )
   const gridViewCount = views.filter((view) => view.type === "grid").length
   const selectFields = fields.filter((field) => field.type === "select")
+  const fileFields = fields.filter((field) => field.type === "file")
 
   useEffect(() => {
     if (managedView) setName(managedView.name)
@@ -420,6 +421,59 @@ export function BaseViewSelector({
                   <p className="text-[11px] leading-4 text-muted-foreground">
                     Add a Select field before configuring this Kanban.
                   </p>
+                ) : null}
+              </div>
+            ) : null}
+            {managedView.type === "gallery" ? (
+              <div className="mt-3 grid gap-3 border-t pt-3">
+                <div className="grid gap-1.5">
+                  <p className="text-xs font-medium">Card cover</p>
+                  <Select
+                    value={
+                      typeof managedView.properties?.coverPreview === "string"
+                        ? managedView.properties.coverPreview
+                        : "__none__"
+                    }
+                    disabled={busy}
+                    onValueChange={(coverPreview) =>
+                      updateProperties({
+                        coverPreview:
+                          coverPreview === "__none__" ? null : coverPreview,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="No cover" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">No cover</SelectItem>
+                      {fileFields.map((field) => (
+                        <SelectItem
+                          key={field.tableColumnName}
+                          value={field.tableColumnName}
+                        >
+                          {field.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {fileFields.length === 0 ? (
+                    <p className="text-[11px] leading-4 text-muted-foreground">
+                      Add a File field to use record images as card covers.
+                    </p>
+                  ) : null}
+                </div>
+                {managedView.properties?.coverPreview ? (
+                  <label className="flex items-center justify-between gap-3 text-xs">
+                    <span>Fit image</span>
+                    <Switch
+                      checked={managedView.properties?.fitContent !== false}
+                      disabled={busy}
+                      onCheckedChange={(fitContent) =>
+                        updateProperties({ fitContent })
+                      }
+                    />
+                  </label>
                 ) : null}
               </div>
             ) : null}

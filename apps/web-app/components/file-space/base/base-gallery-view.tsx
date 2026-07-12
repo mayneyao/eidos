@@ -5,6 +5,7 @@ import type {
   BaseTableSnapshot,
   BaseViewInfo,
 } from "@eidos.space/base"
+import type { SpaceBinaryFile } from "@eidos.space/file-space"
 import { LoaderCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -27,6 +28,7 @@ export function BaseGalleryView({
   view,
   reloadToken = 0,
   loadPage,
+  readBinary,
   onOpenFile,
   onRevealFile,
   onError,
@@ -36,6 +38,7 @@ export function BaseGalleryView({
   view: BaseViewInfo
   reloadToken?: number
   loadPage: (offset: number, limit: number) => Promise<BaseRowPage>
+  readBinary?: (path: string) => Promise<SpaceBinaryFile>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => Promise<void> | void
   onError?: (error: unknown) => void
@@ -114,6 +117,7 @@ export function BaseGalleryView({
                 row={row}
                 fields={table.fields}
                 view={view}
+                readBinary={readBinary}
                 onOpen={setInspectedRow}
               />
             ))}

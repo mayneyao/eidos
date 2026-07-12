@@ -8,6 +8,10 @@ import { BaseViewSelector } from "./base-view-selector"
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
 
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = vi.fn()
+}
+
 const views: BaseViewInfo[] = [
   {
     id: "view_all",
@@ -57,7 +61,28 @@ const fields: BaseFieldInfo[] = [
     sourceTableColumnName: null,
     dependsOn: null,
   },
+  {
+    name: "Cover",
+    type: "file",
+    tableName: "tb_tasks",
+    tableColumnName: "cover",
+    property: null,
+    storageCodec: "json_array",
+    valueKind: "source",
+    isHidden: false,
+    isDerived: false,
+    sourceTableColumnName: null,
+    dependsOn: null,
+  },
 ]
+
+const galleryView: BaseViewInfo = {
+  ...views[0],
+  id: "view_gallery",
+  name: "Task cards",
+  type: "gallery",
+  properties: { cardSize: "medium", hideEmptyFields: true },
+}
 
 function exactButton(label: string) {
   return Array.from(document.body.querySelectorAll("button"))
@@ -192,5 +217,47 @@ describe("BaseViewSelector", () => {
     expect(document.body.querySelector('[role="alertdialog"]')).toBeNull()
     await act(async () => exactButton("Delete")?.click())
     expect(onDelete).toHaveBeenCalledWith("view_priority")
+  })
+
+  it("configures a File field as the Gallery cover", async () => {
+    await act(async () => {
+      root.render(
+        <BaseViewSelector
+          views={[galleryView]}
+          fields={fields}
+          activeView={galleryView}
+          onSelect={onSelect}
+          onCreate={onCreate}
+          onRename={onRename}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onReorder={onReorder}
+          onUpdate={onUpdate}
+        />
+      )
+    })
+    await act(async () => exactButton("Task cards")?.click())
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Manage Task cards view"]'
+        )
+        ?.click()
+    )
+    await act(async () => exactButton("No cover")?.click())
+    await act(async () => {
+      const option = Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="option"]')
+      ).find((candidate) => candidate.textContent?.trim() === "Cover")
+      option?.click()
+    })
+
+    expect(onUpdate).toHaveBeenCalledWith("view_gallery", {
+      properties: {
+        cardSize: "medium",
+        hideEmptyFields: true,
+        coverPreview: "cover",
+      },
+    })
   })
 })
