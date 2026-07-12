@@ -17,6 +17,7 @@ import type {
   BaseStorageCodec,
   BaseValueKind,
 } from "@eidos.space/base"
+import { normalizeBaseFilter } from "@eidos.space/base"
 import {
   createBaseFile,
   inspectBaseFile,
@@ -784,7 +785,9 @@ export async function exportLegacySpace(
             string,
             unknown
           > | null,
-          filter: remapFieldMetadata(view.filter, columnMap),
+          filter: normalizeBaseFilter(
+            remapFieldMetadata(view.filter, columnMap)
+          ),
           orderMap: remapFieldMetadata(view.orderMap, columnMap) as Record<
             string,
             number

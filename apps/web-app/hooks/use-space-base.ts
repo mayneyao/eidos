@@ -3,6 +3,7 @@ import type {
   BaseRow,
   BaseRowMutationResult,
   BaseRowPage,
+  BaseRowQuery,
   BaseRowRange,
   BaseRowsDeleteResult,
   BaseSnapshot,
@@ -44,13 +45,14 @@ export function useSpaceBase(spaceId: string | undefined) {
       relativePath: string,
       tableId: string,
       offset: number,
-      limit: number
+      limit: number,
+      query: BaseRowQuery = {}
     ): Promise<BaseRowPage> =>
       requireBaseApi().getBaseTablePage(
         requireSpaceId(),
         relativePath,
         tableId,
-        { offset, limit }
+        { offset, limit, query }
       ),
     [requireSpaceId]
   )
@@ -198,13 +200,15 @@ export function useSpaceBase(spaceId: string | undefined) {
     (
       relativePath: string,
       tableId: string,
-      ranges: BaseRowRange[]
+      ranges: BaseRowRange[],
+      query: BaseRowQuery = {}
     ): Promise<BaseRowsDeleteResult> =>
       requireBaseApi().deleteBaseRowRanges(
         requireSpaceId(),
         relativePath,
         tableId,
-        ranges
+        ranges,
+        query
       ),
     [requireSpaceId]
   )

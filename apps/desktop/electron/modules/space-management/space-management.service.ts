@@ -7,6 +7,8 @@ import type {
   BaseRow,
   BaseRowMutationResult,
   BaseRowPage,
+  BaseRowPageOptions,
+  BaseRowQuery,
   BaseRowRange,
   BaseRowsDeleteResult,
   BaseSnapshot,
@@ -423,7 +425,7 @@ export class SpaceManagementService extends IpcServiceBase {
     spaceId: string,
     relativePath: string,
     tableId: string,
-    options: { offset: number; limit: number }
+    options: BaseRowPageOptions
   ): Promise<BaseRowPage> {
     if (!Number.isSafeInteger(options.offset) || options.offset < 0) {
       throw new Error("Base row page offset must be a non-negative integer")
@@ -434,7 +436,12 @@ export class SpaceManagementService extends IpcServiceBase {
     return withFileSpaceOperationLock(spaceId, async () => {
       const base = await this._openBase(spaceId, relativePath, true)
       try {
-        return base.getRowPage(tableId, options.offset, options.limit)
+        return base.getRowPage(
+          tableId,
+          options.offset,
+          options.limit,
+          options.query
+        )
       } finally {
         base.close()
       }
@@ -631,14 +638,15 @@ export class SpaceManagementService extends IpcServiceBase {
     spaceId: string,
     relativePath: string,
     tableId: string,
-    ranges: BaseRowRange[]
+    ranges: BaseRowRange[],
+    query: BaseRowQuery = {}
   ): Promise<BaseRowsDeleteResult> {
     return withFileSpaceOperationLock(spaceId, async () => {
       const base = await this._openBase(spaceId, relativePath, true)
       try {
         return {
           tableId,
-          deletedCount: base.deleteRowRanges(tableId, ranges),
+          deletedCount: base.deleteRowRanges(tableId, ranges, query),
           rowCount: base.countRows(tableId),
         }
       } finally {

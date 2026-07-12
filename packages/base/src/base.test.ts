@@ -474,6 +474,98 @@ describe("Eidos Base files", () => {
     })
   })
 
+  it("queries and deletes the visible rows using persisted search, filter, and sort semantics", () => {
+    const filePath = path.join(root, "query.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: {
+        id: "tasks",
+        name: "Tasks",
+        fields: [
+          { name: "Priority", columnName: "priority", type: "number" },
+          { name: "Status", columnName: "status", type: "select" },
+          {
+            name: "Labels",
+            columnName: "labels",
+            type: "multi-select",
+            storageCodec: "csv_ids",
+          },
+        ],
+      },
+    })
+    base.insertRow("tasks", {
+      title: "Write release notes",
+      priority: 2,
+      status: "doing",
+      labels: "docs,urgent",
+    })
+    base.insertRow("tasks", {
+      title: "Fix desktop build",
+      priority: 3,
+      status: "doing",
+      labels: "bug,urgent",
+    })
+    base.insertRow("tasks", {
+      title: "Archive draft",
+      priority: 1,
+      status: "done",
+      labels: "docs",
+    })
+
+    const filter = {
+      type: "group" as const,
+      conjunction: "and" as const,
+      children: [
+        {
+          type: "rule" as const,
+          field: "status",
+          operator: "equals" as const,
+          value: "doing",
+        },
+        {
+          type: "rule" as const,
+          field: "labels",
+          operator: "contains" as const,
+          value: "urgent",
+        },
+      ],
+    }
+    const query = {
+      search: "i",
+      filter,
+      sorts: [{ field: "priority", direction: "desc" as const }],
+    }
+    expect(base.getRowPage("tasks", 0, 100, query)).toMatchObject({
+      total: 2,
+      rows: [
+        { title: "Fix desktop build", priority: 3 },
+        { title: "Write release notes", priority: 2 },
+      ],
+    })
+
+    const view = base.listViews("tasks")[0]
+    base.updateView(view.id, { filter, sorts: query.sorts })
+    expect(base.listViews("tasks")[0]).toMatchObject({
+      filter,
+      sorts: query.sorts,
+    })
+
+    expect(
+      base.deleteRowRanges("tasks", [{ startIndex: 0, endIndex: 1 }], query)
+    ).toBe(1)
+    expect(base.listRows("tasks", 100, 0).map((row) => row.title)).toEqual([
+      "Write release notes",
+      "Archive draft",
+    ])
+    base.close()
+
+    const reopened = openBaseFile(filePath)
+    expect(reopened.listViews("tasks")[0]).toMatchObject({
+      filter,
+      sorts: query.sorts,
+    })
+    reopened.close()
+  })
+
   it("pages large tables and deletes selected rows without a snapshot cap", () => {
     const filePath = path.join(root, "large.base")
     createBaseFile(filePath, {

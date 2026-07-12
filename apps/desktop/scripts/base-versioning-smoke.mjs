@@ -82,14 +82,106 @@ try {
     defaultTable: {
       id: "tasks",
       name: "Tasks",
-      fields: [{ name: "Done", columnName: "done", type: "checkbox" }],
+      fields: [
+        { name: "Done", columnName: "done", type: "checkbox" },
+        { name: "Priority", columnName: "priority", type: "number" },
+        {
+          name: "Status",
+          columnName: "status",
+          type: "select",
+          property: {
+            options: [
+              { id: "todo", name: "Todo" },
+              { id: "doing", name: "Doing" },
+            ],
+          },
+        },
+        {
+          name: "Labels",
+          columnName: "labels",
+          type: "multi-select",
+          property: {
+            options: [
+              { id: "bug", name: "Bug" },
+              { id: "ux", name: "UX" },
+            ],
+          },
+        },
+      ],
     },
   })
   const first = base.insertRow("tasks", {
     title: "Prove Base diff",
     done: false,
+    priority: 2,
+    status: "doing",
+    labels: "bug,ux",
   })
+  const queryOnly = base.insertRow("tasks", {
+    title: "Query-only row",
+    done: false,
+    priority: 3,
+    status: "doing",
+    labels: "ux",
+  })
+  base.insertRow("tasks", {
+    title: "Low priority row",
+    done: false,
+    priority: 1,
+    status: "todo",
+    labels: null,
+  })
+  const query = {
+    filter: {
+      type: "group",
+      conjunction: "and",
+      children: [
+        {
+          type: "rule",
+          field: "priority",
+          operator: "greater-than-or-equal",
+          value: 2,
+        },
+        {
+          type: "rule",
+          field: "labels",
+          operator: "is-any-of",
+          value: ["ux"],
+        },
+      ],
+    },
+    sorts: [
+      { field: "priority", direction: "desc" },
+      { field: "title", direction: "asc" },
+    ],
+  }
+  assert.deepEqual(
+    base.getRowPage("tasks", 0, 100, query).rows.map((row) => row.title),
+    ["Query-only row", "Prove Base diff"]
+  )
+  const gridView = base.listViews("tasks")[0]
+  assert.ok(gridView, "Base should create a default Grid view")
+  base.updateView(gridView.id, {
+    filter: query.filter,
+    sorts: query.sorts,
+  })
+  assert.equal(
+    base.deleteRowRanges("tasks", [{ startIndex: 0, endIndex: 1 }], query),
+    1
+  )
+  assert.equal(
+    base
+      .listRows("tasks")
+      .some((row) => String(row._id) === String(queryOnly._id)),
+    false
+  )
   base.close()
+
+  const persisted = openBaseFile(basePath)
+  const persistedView = persisted.listViews("tasks")[0]
+  assert.deepEqual(persistedView?.filter, query.filter)
+  assert.deepEqual(persistedView?.sorts, query.sorts)
+  persisted.close()
 
   runGraft(root, ["init", "--json"])
   runGraft(root, ["add", relativeBasePath, "--json"])

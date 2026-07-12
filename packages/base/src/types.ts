@@ -79,7 +79,8 @@ export interface BaseViewInfo {
   tableId: string
   query: string
   properties: Record<string, unknown> | null
-  filter: unknown
+  filter: BaseFilterGroup | null
+  sorts: BaseSort[]
   orderMap: Record<string, number> | null
   hiddenFields: string[]
   position: number | null
@@ -89,6 +90,8 @@ export interface BaseViewInfo {
 
 export interface UpdateBaseViewInput {
   properties?: Record<string, unknown> | null
+  filter?: BaseFilterGroup | null
+  sorts?: BaseSort[]
   orderMap?: Record<string, number> | null
   hiddenFields?: string[]
 }
@@ -153,7 +156,8 @@ export interface CreateBaseViewInput {
   type: string
   query: string
   properties?: Record<string, unknown> | null
-  filter?: unknown
+  filter?: BaseFilterGroup | null
+  sorts?: BaseSort[]
   orderMap?: Record<string, number> | null
   hiddenFields?: string[]
   position?: number | null
@@ -175,6 +179,56 @@ export interface UpdateBaseFieldInput {
 
 export type BaseRowValue = BaseSqlPrimitive | boolean
 export type BaseRow = Record<string, BaseRowValue>
+
+export type BaseSortDirection = "asc" | "desc"
+
+export interface BaseSort {
+  field: string
+  direction: BaseSortDirection
+}
+
+export type BaseFilterOperator =
+  | "equals"
+  | "not-equals"
+  | "contains"
+  | "not-contains"
+  | "starts-with"
+  | "ends-with"
+  | "greater-than"
+  | "greater-than-or-equal"
+  | "less-than"
+  | "less-than-or-equal"
+  | "is-empty"
+  | "is-not-empty"
+  | "is-any-of"
+  | "is-none-of"
+
+export type BaseFilterValue = string | number | boolean | null
+
+export interface BaseFilterRule {
+  type: "rule"
+  field: string
+  operator: BaseFilterOperator
+  value?: BaseFilterValue | BaseFilterValue[]
+}
+
+export interface BaseFilterGroup {
+  type: "group"
+  conjunction: "and" | "or"
+  children: Array<BaseFilterRule | BaseFilterGroup>
+}
+
+export interface BaseRowQuery {
+  search?: string
+  filter?: BaseFilterGroup | null
+  sorts?: BaseSort[]
+}
+
+export interface BaseRowPageOptions {
+  offset: number
+  limit: number
+  query?: BaseRowQuery
+}
 
 export interface BaseValidationIssue {
   code: string

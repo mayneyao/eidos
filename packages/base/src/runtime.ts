@@ -15,12 +15,19 @@ import {
   rawTableNameForId,
 } from "./identifiers"
 import { setBaseMetadata } from "./schema"
+import {
+  compileBaseRowQuery,
+  normalizeBaseFilter,
+  normalizeBaseSorts,
+  removeBaseFilterField,
+} from "./query"
 import type {
   BaseFieldInfo,
   BaseFieldType,
   BaseMetadata,
   BaseRow,
   BaseRowPage,
+  BaseRowQuery,
   BaseRowRange,
   BaseStorageCodec,
   BaseTableInfo,
@@ -384,23 +391,28 @@ export class BaseRuntime {
           ORDER BY position, created_at, id`,
         [tableId]
       )
-      .map((view) => ({
-        id: view.id,
-        name: view.name,
-        type: view.type,
-        tableId: view.table_id,
-        query: view.query,
-        properties: parseJson(view.properties) as Record<
+      .map((view) => {
+        const properties = parseJson(view.properties) as Record<
           string,
           unknown
-        > | null,
-        filter: parseJson(view.filter),
-        orderMap: parseJson(view.order_map) as Record<string, number> | null,
-        hiddenFields: (parseJson(view.hidden_fields) as string[] | null) ?? [],
-        position: view.position,
-        createdAt: view.created_at,
-        updatedAt: view.updated_at,
-      }))
+        > | null
+        return {
+          id: view.id,
+          name: view.name,
+          type: view.type,
+          tableId: view.table_id,
+          query: view.query,
+          properties,
+          filter: normalizeBaseFilter(parseJson(view.filter)),
+          sorts: normalizeBaseSorts(properties?.sorts),
+          orderMap: parseJson(view.order_map) as Record<string, number> | null,
+          hiddenFields:
+            (parseJson(view.hidden_fields) as string[] | null) ?? [],
+          position: view.position,
+          createdAt: view.created_at,
+          updatedAt: view.updated_at,
+        }
+      })
   }
 
   updateView(viewId: string, changes: UpdateBaseViewInput): BaseViewInfo {
@@ -414,16 +426,30 @@ export class BaseRuntime {
     if (!existing) {
       throw new BaseError("view-not-found", `Base view not found: ${viewId}`)
     }
+    const currentProperties = parseJson(existing.properties) as Record<
+      string,
+      unknown
+    > | null
+    const requestedProperties =
+      changes.properties === undefined ? currentProperties : changes.properties
+    const properties =
+      changes.sorts === undefined
+        ? requestedProperties
+        : {
+            ...(requestedProperties ?? {}),
+            sorts: normalizeBaseSorts(changes.sorts),
+          }
     this.connection.run(
       `UPDATE ${BASE_VIEWS_TABLE}
-          SET properties = ?, order_map = ?, hidden_fields = ?,
+          SET properties = ?, filter = ?, order_map = ?, hidden_fields = ?,
               updated_at = CURRENT_TIMESTAMP
         WHERE id = ?`,
       [
+        JSON.stringify(properties),
         JSON.stringify(
-          changes.properties === undefined
-            ? parseJson(existing.properties)
-            : changes.properties
+          changes.filter === undefined
+            ? normalizeBaseFilter(parseJson(existing.filter))
+            : normalizeBaseFilter(changes.filter)
         ),
         JSON.stringify(
           changes.orderMap === undefined
@@ -470,10 +496,17 @@ export class BaseRuntime {
         input.type,
         tableId,
         input.query,
-        input.properties === undefined
+        input.properties === undefined && input.sorts === undefined
           ? null
-          : JSON.stringify(input.properties),
-        input.filter === undefined ? null : JSON.stringify(input.filter),
+          : JSON.stringify({
+              ...(input.properties ?? {}),
+              ...(input.sorts === undefined
+                ? {}
+                : { sorts: normalizeBaseSorts(input.sorts) }),
+            }),
+        input.filter === undefined
+          ? null
+          : JSON.stringify(normalizeBaseFilter(input.filter)),
         input.orderMap === undefined ? null : JSON.stringify(input.orderMap),
         JSON.stringify(input.hiddenFields ?? []),
         position,
@@ -713,6 +746,9 @@ export class BaseRuntime {
             .map(([columnName], index) => [columnName, index])
         )
         const properties = { ...(view.properties ?? {}) }
+        properties.sorts = view.sorts.filter(
+          (sort) => sort.field !== field.tableColumnName
+        )
         const fieldWidthMap = properties.fieldWidthMap
         if (
           typeof fieldWidthMap === "object" &&
@@ -725,11 +761,14 @@ export class BaseRuntime {
         }
         this.connection.run(
           `UPDATE ${BASE_VIEWS_TABLE}
-              SET properties = ?, order_map = ?, hidden_fields = ?,
+              SET properties = ?, filter = ?, order_map = ?, hidden_fields = ?,
                   updated_at = CURRENT_TIMESTAMP
             WHERE id = ?`,
           [
             JSON.stringify(properties),
+            JSON.stringify(
+              removeBaseFilterField(view.filter, field.tableColumnName)
+            ),
             JSON.stringify(orderMap),
             JSON.stringify(
               view.hiddenFields.filter(
@@ -759,33 +798,47 @@ export class BaseRuntime {
     return field
   }
 
-  listRows(tableId: string, limit = 200, offset = 0): BaseRow[] {
+  listRows(
+    tableId: string,
+    limit = 200,
+    offset = 0,
+    query: BaseRowQuery = {}
+  ): BaseRow[] {
     const table = this.getTable(tableId)
+    const compiled = compileBaseRowQuery(this.listFields(tableId), query)
     return this.connection.query<BaseRow>(
       `SELECT * FROM ${quoteIdentifier(table.rawTableName)}
-        ORDER BY rowid LIMIT ? OFFSET ?`,
-      [Math.max(0, limit), Math.max(0, offset)]
+        ${compiled.whereSql} ${compiled.orderSql} LIMIT ? OFFSET ?`,
+      [...compiled.params, Math.max(0, limit), Math.max(0, offset)]
     )
   }
 
-  countRows(tableId: string): number {
+  countRows(tableId: string, query: BaseRowQuery = {}): number {
     const table = this.getTable(tableId)
+    const compiled = compileBaseRowQuery(this.listFields(tableId), query)
     return (
       this.connection.get<{ count: number }>(
-        `SELECT COUNT(*) AS count FROM ${quoteIdentifier(table.rawTableName)}`
+        `SELECT COUNT(*) AS count FROM ${quoteIdentifier(table.rawTableName)}
+          ${compiled.whereSql}`,
+        compiled.params
       )?.count ?? 0
     )
   }
 
-  getRowPage(tableId: string, offset = 0, limit = 100): BaseRowPage {
+  getRowPage(
+    tableId: string,
+    offset = 0,
+    limit = 100,
+    query: BaseRowQuery = {}
+  ): BaseRowPage {
     const safeOffset = Math.max(0, Math.trunc(offset))
     const safeLimit = Math.min(500, Math.max(1, Math.trunc(limit)))
     return {
       tableId,
       offset: safeOffset,
       limit: safeLimit,
-      total: this.countRows(tableId),
-      rows: this.listRows(tableId, safeLimit, safeOffset),
+      total: this.countRows(tableId, query),
+      rows: this.listRows(tableId, safeLimit, safeOffset, query),
     }
   }
 
@@ -944,8 +997,13 @@ export class BaseRuntime {
     )
   }
 
-  deleteRowRanges(tableId: string, ranges: BaseRowRange[]): number {
+  deleteRowRanges(
+    tableId: string,
+    ranges: BaseRowRange[],
+    query: BaseRowQuery = {}
+  ): number {
     const table = this.getTable(tableId)
+    const compiled = compileBaseRowQuery(this.listFields(tableId), query)
     const normalized = this.normalizeRowRanges(ranges)
     if (normalized.length === 0) return 0
     return this.connection.transaction(() => {
@@ -955,9 +1013,9 @@ export class BaseRuntime {
           `DELETE FROM ${quoteIdentifier(table.rawTableName)}
             WHERE rowid IN (
               SELECT rowid FROM ${quoteIdentifier(table.rawTableName)}
-              ORDER BY rowid LIMIT ? OFFSET ?
+              ${compiled.whereSql} ${compiled.orderSql} LIMIT ? OFFSET ?
             )`,
-          [endIndex - startIndex, startIndex]
+          [...compiled.params, endIndex - startIndex, startIndex]
         )
         deletedCount += result.changes
       }
