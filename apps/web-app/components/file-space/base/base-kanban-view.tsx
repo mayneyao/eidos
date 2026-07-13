@@ -48,7 +48,7 @@ import { BaseRecordDeleteDialog } from "./base-record-delete-dialog"
 import { BaseRecordInspector } from "./base-record-inspector"
 import {
   mergeRowWindowPage,
-  requestForRowWindow,
+  requestForPrefetchedRowWindow,
   rowFromWindow,
   type BaseRowWindowRequest,
 } from "./base-row-window"
@@ -59,6 +59,8 @@ import type { BaseCoverLease } from "./use-base-cover-reader"
 const KANBAN_PAGE_SIZE = 50
 const KANBAN_MAX_WINDOW_ROWS = 250
 const KANBAN_COLUMN_GAP = 12
+const KANBAN_COLUMN_CACHE_MARGIN = 2
+const KANBAN_PREFETCH_ROWS = Math.floor(KANBAN_PAGE_SIZE / 2)
 const EMPTY_GROUP_VALUE = "__eidos_empty_group__"
 
 interface BaseKanbanGroup {
@@ -408,6 +410,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                         </KanbanCard>
                       ) : (
                         <div
+                          data-base-kanban-placeholder
                           className="flex h-9 items-center justify-center text-muted-foreground"
                           role={group.loadFailure !== null ? "alert" : "status"}
                           aria-label={
@@ -621,20 +624,25 @@ export function BaseKanbanView({
     () => createBaseRecordCardLayout(table.fields, view, true),
     [table.fields, view]
   )
-  const groupedRowCount = useMemo(
-    () => groups.reduce((count, group) => count + group.total, 0),
-    [groups]
-  )
-  const boardBusy = useMemo(
-    () =>
-      (!countsLoaded && !countsFailure) ||
-      groups.some((group) => group.loading || group.loadingMore),
-    [countsFailure, countsLoaded, groups]
-  )
-  const hasUsableBoard = useMemo(
-    () => groups.some((group) => group.loaded),
-    [groups]
-  )
+  const { boardBusy, cachedGroupWindowCount, groupedRowCount, hasUsableBoard } =
+    useMemo(() => {
+      let cachedGroupWindowCount = 0
+      let groupedRowCount = 0
+      let hasBusyGroup = false
+      let hasUsableBoard = false
+      for (const group of groups) {
+        groupedRowCount += group.total
+        if (group.rows.length > 0) cachedGroupWindowCount += 1
+        if (group.loading || group.loadingMore) hasBusyGroup = true
+        if (group.loaded) hasUsableBoard = true
+      }
+      return {
+        boardBusy: (!countsLoaded && !countsFailure) || hasBusyGroup,
+        cachedGroupWindowCount,
+        groupedRowCount,
+        hasUsableBoard,
+      }
+    }, [countsFailure, countsLoaded, groups])
   const collapsedGroupSignature = useMemo(
     () => [...collapsedGroupKeys].sort().join("|"),
     [collapsedGroupKeys]
@@ -687,6 +695,9 @@ export function BaseKanbanView({
   const virtualColumnSignature = renderedColumns
     .map((column) => column.index)
     .join("|")
+  const firstRenderedColumnIndex = renderedColumns[0]?.index ?? 0
+  const lastRenderedColumnIndex =
+    renderedColumns.at(-1)?.index ?? firstRenderedColumnIndex
   const visibleGroupLoadSignature = renderedColumns
     .map((column) => {
       const group = groups[column.index]
@@ -931,7 +942,7 @@ export function BaseKanbanView({
   const requestGroupRange = useCallback(
     (group: BaseKanbanGroup, visibleStart: number, visibleEnd: number) => {
       if (group.loading || group.loadingMore) return
-      const request = requestForRowWindow(
+      const request = requestForPrefetchedRowWindow(
         {
           rows: group.rows,
           startOffset: group.startOffset,
@@ -939,7 +950,8 @@ export function BaseKanbanView({
         },
         visibleStart,
         visibleEnd,
-        KANBAN_PAGE_SIZE
+        KANBAN_PAGE_SIZE,
+        KANBAN_PREFETCH_ROWS
       )
       if (request) {
         void loadGroupWindow(
@@ -950,6 +962,48 @@ export function BaseKanbanView({
     },
     [loadGroupWindow]
   )
+
+  useEffect(() => {
+    if (!countsLoaded || dragging || groups.length === 0) return
+    const keepStart = Math.max(
+      0,
+      firstRenderedColumnIndex - KANBAN_COLUMN_CACHE_MARGIN
+    )
+    const keepEnd = Math.min(
+      groups.length - 1,
+      lastRenderedColumnIndex + KANBAN_COLUMN_CACHE_MARGIN
+    )
+
+    setGroups((current) => {
+      let changed = false
+      const next = current.map((group, index) => {
+        if (
+          (index >= keepStart && index <= keepEnd) ||
+          group.rows.length === 0 ||
+          group.loading ||
+          group.loadingMore
+        ) {
+          return group
+        }
+        changed = true
+        return {
+          ...group,
+          rows: [],
+          startOffset: 0,
+          loaded: false,
+          loadFailure: null,
+          needsReload: false,
+        }
+      })
+      return changed ? next : current
+    })
+  }, [
+    countsLoaded,
+    dragging,
+    firstRenderedColumnIndex,
+    groups,
+    lastRenderedColumnIndex,
+  ])
 
   const retryGroup = useCallback(
     (group: BaseKanbanGroup) => {
@@ -1310,6 +1364,7 @@ export function BaseKanbanView({
         <div
           ref={scrollContainerRef}
           data-base-kanban-scroll
+          data-base-cached-group-windows={cachedGroupWindowCount}
           aria-busy={boardBusy}
           className="h-full min-w-0 overflow-x-auto overflow-y-hidden p-3"
         >

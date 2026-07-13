@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   mergeRowWindowPage,
+  requestForPrefetchedRowWindow,
   requestForRowWindow,
   rowFromWindow,
   type BaseRowWindow,
@@ -72,6 +73,28 @@ describe("Base row window", () => {
       offset: 100,
     })
     expect(requestForRowWindow(window, 800, 820, 100)).toEqual({
+      mode: "replace",
+      offset: 800,
+    })
+  })
+
+  it("prefetches adjacent pages without redirecting a distant jump", () => {
+    const window = mergeRowWindowPage(
+      { rows: [], startOffset: 0, total: 1_000 },
+      page(200, 100),
+      "replace",
+      300
+    )
+
+    expect(requestForPrefetchedRowWindow(window, 270, 290, 100, 25)).toEqual({
+      mode: "append",
+      offset: 300,
+    })
+    expect(requestForPrefetchedRowWindow(window, 210, 230, 100, 25)).toEqual({
+      mode: "prepend",
+      offset: 100,
+    })
+    expect(requestForPrefetchedRowWindow(window, 800, 820, 100, 25)).toEqual({
       mode: "replace",
       offset: 800,
     })

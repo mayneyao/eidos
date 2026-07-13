@@ -327,6 +327,7 @@ describe("BaseKanbanView", () => {
         />
       )
       await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
     expect(loadGroupCounts).toHaveBeenCalledTimes(1)
@@ -1030,6 +1031,97 @@ describe("BaseKanbanView", () => {
     ).toBe("0")
   })
 
+  it("prefetches a group page before visible cards reach the loaded edge", async () => {
+    let resolveNextPage: ((page: BaseRowPage) => void) | undefined
+    const loadGroupPage = vi.fn(
+      (_field, value: string | null, offset: number, limit: number) => {
+        if (value === "todo" && offset === 50) {
+          return new Promise<BaseRowPage>((resolve) => {
+            resolveNextPage = resolve
+          })
+        }
+        return Promise.resolve({
+          tableId: "tasks",
+          offset,
+          limit,
+          total: value === "todo" ? 500 : 0,
+          rows:
+            value === "todo"
+              ? Array.from({ length: 50 }, (_, index) => ({
+                  _id: `row_${offset + index}`,
+                  title: `Task ${offset + index}`,
+                  status: "todo",
+                }))
+              : [],
+        })
+      }
+    )
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 500 }])}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    loadGroupPage.mockClear()
+
+    const scroller = container.querySelector<HTMLElement>(
+      '[data-base-kanban-column-scroll="base-kanban:todo"]'
+    )
+    for (
+      let scrollTop = 500;
+      scrollTop <= 20_000 && loadGroupPage.mock.calls.length === 0;
+      scrollTop += 500
+    ) {
+      await act(async () => {
+        if (!scroller) return
+        scroller.scrollTop = scrollTop
+        scroller.dispatchEvent(new Event("scroll"))
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    }
+
+    expect(loadGroupPage).toHaveBeenCalledWith(
+      expect.objectContaining({ tableColumnName: "status" }),
+      "todo",
+      50,
+      50,
+      500
+    )
+    expect(
+      container.querySelectorAll("[data-base-kanban-placeholder]")
+    ).toHaveLength(0)
+    expect(
+      container
+        .querySelector('[data-base-kanban-column-scroll="base-kanban:todo"]')
+        ?.getAttribute("data-base-window-start")
+    ).toBe("0")
+
+    await act(async () => {
+      resolveNextPage?.({
+        tableId: "tasks",
+        offset: 50,
+        limit: 50,
+        total: 500,
+        rows: Array.from({ length: 50 }, (_, index) => ({
+          _id: `row_${50 + index}`,
+          title: `Task ${50 + index}`,
+          status: "todo",
+        })),
+      })
+      await Promise.resolve()
+    })
+  })
+
   it("does not rerender unaffected columns when one group loads another page", async () => {
     const todoRows = Array.from({ length: 50 }, (_, index) => ({
       _id: `todo_${index}`,
@@ -1203,14 +1295,27 @@ describe("BaseKanbanView", () => {
           : field
       ),
     }
-    const loadGroupPage = vi.fn(async (_field, _value, offset, limit) => ({
-      tableId: "tasks",
-      offset,
-      limit,
-      total: 0,
-      rows: [],
-    }))
-    const loadGroupCounts = vi.fn(async () => [])
+    const loadGroupPage = vi.fn(
+      async (_field, value: string | null, offset, limit) => ({
+        tableId: "tasks",
+        offset,
+        limit,
+        total: value === null ? 0 : 1,
+        rows:
+          value === null
+            ? []
+            : [
+                {
+                  _id: `row_${value}`,
+                  title: `Task ${value}`,
+                  status: value,
+                },
+              ],
+      })
+    )
+    const loadGroupCounts = vi.fn(async () =>
+      manyOptions.map((option) => ({ value: option.id, total: 1 }))
+    )
 
     await act(async () => {
       root.render(
@@ -1232,6 +1337,37 @@ describe("BaseKanbanView", () => {
     const renderedColumns = container.querySelectorAll('[role="region"]')
     expect(renderedColumns.length).toBeGreaterThan(0)
     expect(renderedColumns.length).toBeLessThanOrEqual(8)
+    expect(
+      Number(
+        container
+          .querySelector("[data-base-kanban-scroll]")
+          ?.getAttribute("data-base-cached-group-windows")
+      )
+    ).toBeLessThanOrEqual(10)
+
+    await act(async () => {
+      const scroller = container.querySelector<HTMLElement>(
+        "[data-base-kanban-scroll]"
+      )
+      if (!scroller) return
+      scroller.scrollLeft = 4_000
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(loadGroupPage.mock.calls.length).toBeGreaterThan(
+      renderedColumns.length
+    )
+    expect(
+      Number(
+        container
+          .querySelector("[data-base-kanban-scroll]")
+          ?.getAttribute("data-base-cached-group-windows")
+      )
+    ).toBeLessThanOrEqual(12)
+    const renderedColumnsAfterScroll =
+      container.querySelectorAll('[role="region"]').length
 
     await act(async () => {
       kanbanMocks.onDragStart?.({ active: { id: "row_1" } })
@@ -1239,7 +1375,7 @@ describe("BaseKanbanView", () => {
     })
 
     expect(container.querySelectorAll('[role="region"]')).toHaveLength(
-      renderedColumns.length
+      renderedColumnsAfterScroll
     )
   })
 

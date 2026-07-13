@@ -182,6 +182,7 @@ describe("BaseGalleryView", () => {
         <BaseGalleryView table={table} view={view} loadPage={loadPage} />
       )
       await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
     expect(loadPage).toHaveBeenCalledWith(0, 100)
@@ -528,6 +529,79 @@ describe("BaseGalleryView", () => {
         .querySelector("[data-base-gallery-scroll]")
         ?.getAttribute("data-base-window-start")
     ).toBe("0")
+  })
+
+  it("prefetches the next page before visible cards reach the loaded edge", async () => {
+    let resolveNextPage: ((page: BaseRowPage) => void) | undefined
+    const loadPage = vi.fn((offset: number, limit: number) => {
+      if (offset === 100) {
+        return new Promise<BaseRowPage>((resolve) => {
+          resolveNextPage = resolve
+        })
+      }
+      return Promise.resolve({
+        tableId: "tasks",
+        offset,
+        limit,
+        total: 1_000,
+        rows: Array.from({ length: 100 }, (_, index) => ({
+          _id: `row_${offset + index}`,
+          title: `Task ${offset + index}`,
+          status: "todo",
+        })),
+      })
+    })
+
+    await act(async () => {
+      root.render(
+        <BaseGalleryView table={table} view={view} loadPage={loadPage} />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    loadPage.mockClear()
+
+    const scroller = container.querySelector<HTMLElement>(
+      "[data-base-gallery-scroll]"
+    )
+    for (
+      let scrollTop = 500;
+      scrollTop <= 20_000 && loadPage.mock.calls.length === 0;
+      scrollTop += 500
+    ) {
+      await act(async () => {
+        if (!scroller) return
+        scroller.scrollTop = scrollTop
+        scroller.dispatchEvent(new Event("scroll"))
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    }
+
+    expect(loadPage).toHaveBeenCalledWith(100, 100, 1_000)
+    expect(
+      container.querySelectorAll("[data-base-gallery-placeholder]")
+    ).toHaveLength(0)
+    expect(
+      container
+        .querySelector("[data-base-gallery-scroll]")
+        ?.getAttribute("data-base-window-start")
+    ).toBe("0")
+
+    await act(async () => {
+      resolveNextPage?.({
+        tableId: "tasks",
+        offset: 100,
+        limit: 100,
+        total: 1_000,
+        rows: Array.from({ length: 100 }, (_, index) => ({
+          _id: `row_${100 + index}`,
+          title: `Task ${100 + index}`,
+          status: "todo",
+        })),
+      })
+      await Promise.resolve()
+    })
   })
 
   it("stops automatic retries after the first page fails and recovers in place", async () => {

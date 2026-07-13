@@ -133,3 +133,28 @@ export function requestForRowWindow(
   }
   return null
 }
+
+export function requestForPrefetchedRowWindow(
+  window: BaseRowWindow,
+  visibleStart: number,
+  visibleEnd: number,
+  pageSize: number,
+  prefetchRows: number
+): BaseRowWindowRequest | null {
+  const visibleRequest = requestForRowWindow(
+    window,
+    visibleStart,
+    visibleEnd,
+    pageSize
+  )
+  if (visibleRequest) return visibleRequest
+
+  const margin = Math.max(0, Math.trunc(prefetchRows))
+  if (margin === 0) return null
+  return requestForRowWindow(
+    window,
+    Math.max(0, visibleStart - margin),
+    Math.min(window.total, visibleEnd + margin),
+    pageSize
+  )
+}

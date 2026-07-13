@@ -31,7 +31,7 @@ import { BaseRecordDeleteDialog } from "./base-record-delete-dialog"
 import { BaseRecordInspector } from "./base-record-inspector"
 import {
   mergeRowWindowPage,
-  requestForRowWindow,
+  requestForPrefetchedRowWindow,
   rowFromWindow,
   type BaseRowWindowMergeMode,
 } from "./base-row-window"
@@ -43,6 +43,7 @@ const GALLERY_MAX_WINDOW_ROWS = 500
 const GALLERY_GAP = 12
 const GALLERY_HORIZONTAL_PADDING = 32
 const GALLERY_OVERSCAN_ROWS = 2
+const GALLERY_PREFETCH_ROWS = Math.floor(GALLERY_PAGE_SIZE / 2)
 
 function galleryCardWidth(view: BaseViewInfo): number {
   const size = view.properties?.cardSize
@@ -242,11 +243,12 @@ export function BaseGalleryView({
     const first = virtualRows.at(0)
     const last = virtualRows.at(-1)
     if (!first || !last || loading || loadingMore) return
-    const request = requestForRowWindow(
+    const request = requestForPrefetchedRowWindow(
       rowWindow,
       first.index * columnCount,
       Math.min(total, (last.index + 1) * columnCount),
-      GALLERY_PAGE_SIZE
+      GALLERY_PAGE_SIZE,
+      GALLERY_PREFETCH_ROWS
     )
     if (
       !request ||
@@ -432,6 +434,7 @@ export function BaseGalleryView({
                       ) : (
                         <div
                           key={`gallery-placeholder-${absoluteIndex}`}
+                          data-base-gallery-placeholder
                           className="min-h-24 rounded-lg border bg-muted/20"
                           aria-hidden="true"
                         />
