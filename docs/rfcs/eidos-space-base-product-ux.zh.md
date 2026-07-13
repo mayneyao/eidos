@@ -41,6 +41,10 @@ Cmd+P 继续使用 Space 统一 Quick Open，不引入 Base 专用弹层。当�
 Base 路径过滤并直接切换；普通文件结果仍在同一面板中。底部 sheets 同时支持
 Ctrl+PageUp/PageDown 循环切换，保留高频键盘路径而不改变全局搜索的心智模型。
 
+Desktop 全局快捷键现在会在监听器挂载到已聚焦主窗口时立即注册，因此 Cmd+P 和其余
+shell shortcuts 首次启动即可使用，不再要求先失焦再重新聚焦。初始聚焦、后台启动、
+renderer 分发以及 blur 后重新注册均已有 lifecycle tests 覆盖。
+
 Base row mutation 现在会返回提交后的 metadata revision。Renderer 用 revision 识别延迟到达的
 本地 file-watcher echo，不再把自己的 cell edit 当作外部文件替换并 reload 整个 Grid；普通
 row/cell 保存也不会把所有 layout 暂时设为 disabled。外部修改仍会按新 revision 刷新。

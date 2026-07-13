@@ -52,6 +52,12 @@ identifiers, and the Base path. The bottom sheet bar also supports cycling with
 Ctrl+PageUp/PageDown, adding a fast workbook path without changing the global
 search mental model.
 
+Desktop global shortcuts are registered immediately when their listeners are
+attached to an already focused main window. Cmd+P and the rest of the shell
+shortcut set therefore work on first launch without requiring a blur/refocus
+cycle; focused-start, background-start, renderer dispatch, and re-registration
+after blur are covered by lifecycle tests.
+
 Base row mutations now return the committed metadata revision. The renderer
 uses it to recognize the delayed file-watcher echo of its own cell edit instead
 of treating that echo as an external replacement and reloading the entire Grid.
