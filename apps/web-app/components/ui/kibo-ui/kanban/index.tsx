@@ -44,7 +44,7 @@ export const KanbanBoard = ({
   return (
     <div
       className={cn(
-        "flex h-full min-h-40 flex-col gap-3 rounded-xl p-2 text-xs transition-all",
+        "flex h-full min-h-40 flex-col gap-3 rounded-xl p-2 text-xs transition-[box-shadow,background-color] motion-reduce:transition-none",
         isOver && "ring-1 ring-primary/30",
         className
       )}
@@ -77,7 +77,7 @@ export const KanbanCard = ({
 }: KanbanCardProps) => {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id,
-    data: { index, parent },
+    data: { index, name, parent },
   })
   const { lastMovedId } = React.useContext(KanbanContext)
   const isRecentlyMoved = lastMovedId === id
@@ -85,14 +85,10 @@ export const KanbanCard = ({
   return (
     <div
       className={cn(
-        "rounded-xl overflow-hidden",
-        "bg-white dark:bg-gray-900",
-        "border border-gray-200 dark:border-gray-800",
-        "shadow-xs hover:shadow-sm",
-        "transition-all duration-200 ease-out",
-        "cursor-pointer",
-        isDragging && "opacity-50 rotate-2 scale-105 shadow-lg",
-        isRecentlyMoved && "ring-1 ring-primary/20",
+        "cursor-grab overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-xs",
+        "transition-[box-shadow,opacity] duration-150 ease-out hover:shadow-sm active:cursor-grabbing motion-reduce:transition-none",
+        isDragging && "opacity-45",
+        isRecentlyMoved && "ring-1 ring-ring/30",
         className
       )}
       data-draggable-id={id}
@@ -158,7 +154,7 @@ export const KanbanProvider = ({
   onDragCancel,
   className,
 }: KanbanProviderProps) => {
-  const [activeNode, setActiveNode] = useState<React.ReactNode | null>(null)
+  const [activeLabel, setActiveLabel] = useState<string | null>(null)
   const [lastMovedId, setLastMovedId] = useState<string | null>(null)
 
   // Clear the highlight effect after a delay
@@ -175,21 +171,19 @@ export const KanbanProvider = ({
     <DndContext
       collisionDetection={rectIntersection}
       onDragEnd={(event) => {
-        setActiveNode(null)
+        setActiveLabel(null)
         setLastMovedId(event.active.id.toString())
         onDragEnd(event)
       }}
       onDragCancel={(event) => {
-        setActiveNode(null)
+        setActiveLabel(null)
         onDragCancel?.(event)
       }}
       onDragStart={(event) => {
-        const draggedElement = document.querySelector(
-          `[data-draggable-id="${event.active.id}"]`
+        const label = event.active.data.current?.name
+        setActiveLabel(
+          typeof label === "string" ? label : event.active.id.toString()
         )
-        if (draggedElement) {
-          setActiveNode(draggedElement.innerHTML)
-        }
         onDragStart?.(event)
       }}
     >
@@ -204,9 +198,12 @@ export const KanbanProvider = ({
         </div>
       </KanbanContext.Provider>
       <DragOverlay dropAnimation={null}>
-        {activeNode ? (
-          <div className="rounded-xl overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-lg cursor-grabbing rotate-2 scale-105">
-            <div dangerouslySetInnerHTML={{ __html: activeNode as string }} />
+        {activeLabel ? (
+          <div
+            className="max-w-80 cursor-grabbing overflow-hidden rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-card-foreground shadow-lg"
+            aria-hidden="true"
+          >
+            <span className="block truncate">{activeLabel}</span>
           </div>
         ) : null}
       </DragOverlay>
