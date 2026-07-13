@@ -44,6 +44,7 @@ import {
   type ListSpaceFilesOptions,
   type SpaceBinaryFile,
   type SpaceFileEntry,
+  type SpaceFilePreview,
   type SpaceTextFile,
 } from "@eidos.space/file-space"
 import { openFileSpaceIndexStorage } from "@eidos.space/file-space/better-sqlite3"
@@ -382,6 +383,13 @@ export class SpaceManagementService extends IpcServiceBase {
     relativePath: string
   ): Promise<SpaceBinaryFile> {
     return this._getFileSpace(spaceId).readBinary(relativePath)
+  }
+
+  async readFilePreview(
+    spaceId: string,
+    relativePath: string
+  ): Promise<SpaceFilePreview> {
+    return this._getFileSpace(spaceId).readPreview(relativePath)
   }
 
   async getRelativeFilePath(

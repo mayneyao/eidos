@@ -11,6 +11,7 @@ import type {
   SpaceBinaryFile,
   SpaceFileChange,
   SpaceFileEntry,
+  SpaceFilePreview,
   SpaceTextFile,
 } from "@eidos.space/file-space"
 
@@ -53,6 +54,12 @@ export function useSpaceFiles(spaceId: string | undefined) {
   const readBinary = useCallback(
     (relativePath: string): Promise<SpaceBinaryFile> =>
       requireDesktopSpaceApi().readBinaryFile(requireSpaceId(), relativePath),
+    [requireSpaceId]
+  )
+
+  const readPreview = useCallback(
+    (relativePath: string): Promise<SpaceFilePreview> =>
+      requireDesktopSpaceApi().readFilePreview(requireSpaceId(), relativePath),
     [requireSpaceId]
   )
 
@@ -193,6 +200,7 @@ export function useSpaceFiles(spaceId: string | undefined) {
     list,
     readText,
     readBinary,
+    readPreview,
     writeText,
     createText,
     createBinary,

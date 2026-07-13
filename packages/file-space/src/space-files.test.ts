@@ -128,6 +128,70 @@ describe("SpaceFiles", () => {
     expect(await readFile(filename)).toEqual(original)
   })
 
+  it("classifies UTF-8 files without known extensions as text previews", async () => {
+    await writeFile(path.join(root, "Dockerfile"), "FROM node:22\n# 你好\n")
+
+    await expect(files.readPreview("Dockerfile")).resolves.toMatchObject({
+      kind: "text",
+      path: "Dockerfile",
+      content: "FROM node:22\n# 你好\n",
+      encoding: "utf-8",
+      previewBytes: 22,
+      truncated: false,
+    })
+  })
+
+  it("recognizes BOM-marked UTF-16 text previews", async () => {
+    const content = Buffer.concat([
+      Buffer.from([0xff, 0xfe]),
+      Buffer.from("hello\n", "utf16le"),
+    ])
+    await writeFile(path.join(root, "legacy.cfg"), content)
+
+    await expect(files.readPreview("legacy.cfg")).resolves.toMatchObject({
+      kind: "text",
+      content: "hello\n",
+      encoding: "utf-16le",
+    })
+  })
+
+  it("classifies invalid UTF-8 and NUL-heavy files as binary", async () => {
+    await writeFile(
+      path.join(root, "archive.unknown"),
+      Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0xff, 0x10])
+    )
+    await writeFile(
+      path.join(root, "database.unknown"),
+      Buffer.from("SQLite format 3\u0000more bytes", "utf8")
+    )
+
+    await expect(files.readPreview("archive.unknown")).resolves.toMatchObject({
+      kind: "binary",
+      path: "archive.unknown",
+    })
+    await expect(files.readPreview("database.unknown")).resolves.toMatchObject({
+      kind: "binary",
+      path: "database.unknown",
+    })
+  })
+
+  it("bounds large text previews and reports truncation", async () => {
+    const content = "a".repeat(512 * 1024 + 32)
+    await writeFile(path.join(root, "large.trace"), content)
+
+    const preview = await files.readPreview("large.trace")
+
+    expect(preview).toMatchObject({
+      kind: "text",
+      truncated: true,
+      previewBytes: 512 * 1024,
+      size: content.length,
+    })
+    expect(preview.kind === "text" ? preview.content.length : 0).toBe(
+      512 * 1024
+    )
+  })
+
   it.skipIf(process.platform === "win32")(
     "does not replace a read-only text file",
     async () => {

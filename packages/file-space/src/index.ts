@@ -1,13 +1,16 @@
 export {
   SpaceFiles,
   SpaceFilesError,
+  SPACE_FILE_PREVIEW_MAX_BYTES,
   type ListSpaceFilesOptions,
   type SpaceBinaryFile,
   type SpaceFileChange,
   type SpaceFileEntry,
   type SpaceFileEntryKind,
+  type SpaceFilePreview,
   type SpaceFileWatcher,
   type SpaceFilesErrorCode,
+  type SpaceTextPreviewEncoding,
   type SpaceTextFile,
   type WatchSpaceFilesOptions,
 } from "./space-files"

@@ -52,6 +52,26 @@ export interface SpaceBinaryFile {
   mtimeMs: number
 }
 
+export type SpaceTextPreviewEncoding = "utf-8" | "utf-16le" | "utf-16be"
+
+export type SpaceFilePreview =
+  | {
+      kind: "text"
+      path: string
+      content: string
+      encoding: SpaceTextPreviewEncoding
+      previewBytes: number
+      truncated: boolean
+      size: number
+      mtimeMs: number
+    }
+  | {
+      kind: "binary"
+      path: string
+      size: number
+      mtimeMs: number
+    }
+
 export interface SpaceFileChange {
   eventType: "rename" | "change" | "rescan"
   path: string
@@ -100,6 +120,7 @@ const PRIVATE_ROOTS = new Set([".eidos", ".graft"])
 const DEFAULT_WATCH_DEBOUNCE_MS = 60
 const STABLE_READ_ATTEMPTS = 3
 const STABLE_READ_RETRY_MS = 8
+export const SPACE_FILE_PREVIEW_MAX_BYTES = 512 * 1024
 const STRICT_UTF8_DECODER = new TextDecoder("utf-8", { fatal: true })
 const execFileAsync = promisify(execFile)
 
@@ -283,6 +304,55 @@ function decodeUtf8(content: Buffer, relativePath: string): string {
   }
 }
 
+function containsBinaryControlCharacters(content: string): boolean {
+  let suspiciousCharacters = 0
+  for (let index = 0; index < content.length; index += 1) {
+    const code = content.charCodeAt(index)
+    if (code === 0) return true
+    if (
+      (code < 32 &&
+        code !== 9 &&
+        code !== 10 &&
+        code !== 12 &&
+        code !== 13 &&
+        code !== 27) ||
+      code === 127
+    ) {
+      suspiciousCharacters += 1
+    }
+  }
+  return (
+    suspiciousCharacters > 0 &&
+    (content.length < 32 ||
+      suspiciousCharacters >= 8 ||
+      suspiciousCharacters / content.length > 0.01)
+  )
+}
+
+function decodeTextPreview(
+  content: Buffer,
+  truncated: boolean
+): { content: string; encoding: SpaceTextPreviewEncoding } | null {
+  let encoding: SpaceTextPreviewEncoding = "utf-8"
+  if (content[0] === 0xff && content[1] === 0xfe) {
+    encoding = "utf-16le"
+  } else if (content[0] === 0xfe && content[1] === 0xff) {
+    encoding = "utf-16be"
+  }
+
+  try {
+    const decoded = new TextDecoder(encoding, { fatal: true }).decode(content, {
+      // A bounded prefix can end halfway through a multi-byte character. Keep
+      // that incomplete tail buffered instead of misclassifying the file.
+      stream: truncated,
+    })
+    if (containsBinaryControlCharacters(decoded)) return null
+    return { content: decoded, encoding }
+  } catch {
+    return null
+  }
+}
+
 export class SpaceFiles {
   readonly root: string
 
@@ -382,6 +452,29 @@ export class SpaceFiles {
       content: new Uint8Array(content),
       size: fileStats.size,
       mtimeMs: fileStats.mtimeMs,
+    }
+  }
+
+  async readPreview(relativePath: string): Promise<SpaceFilePreview> {
+    const {
+      filename,
+      content,
+      stats: fileStats,
+    } = await this.readStableFile(relativePath, SPACE_FILE_PREVIEW_MAX_BYTES)
+    const truncated = fileStats.size > content.byteLength
+    const text = decodeTextPreview(content, truncated)
+    const file = {
+      path: this.toRelative(filename),
+      size: fileStats.size,
+      mtimeMs: fileStats.mtimeMs,
+    }
+    if (!text) return { kind: "binary", ...file }
+    return {
+      kind: "text",
+      ...file,
+      ...text,
+      previewBytes: content.byteLength,
+      truncated,
     }
   }
 
@@ -690,7 +783,10 @@ export class SpaceFiles {
     }
   }
 
-  private async readStableFile(relativePath: string): Promise<{
+  private async readStableFile(
+    relativePath: string,
+    maxBytes?: number
+  ): Promise<{
     filename: string
     content: Buffer
     stats: Stats
@@ -708,7 +804,19 @@ export class SpaceFiles {
             relativePath
           )
         }
-        const content = await readFile(filename)
+        let content: Buffer
+        if (maxBytes === undefined || before.size <= maxBytes) {
+          content = await readFile(filename)
+        } else {
+          const handle = await open(filename, "r")
+          try {
+            const prefix = Buffer.allocUnsafe(maxBytes)
+            const { bytesRead } = await handle.read(prefix, 0, maxBytes, 0)
+            content = prefix.subarray(0, bytesRead)
+          } finally {
+            await handle.close()
+          }
+        }
         const after = await stat(filename)
         if (sameFileSnapshot(before, after)) {
           return { filename, content, stats: after }
