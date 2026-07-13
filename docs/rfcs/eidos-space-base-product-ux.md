@@ -187,7 +187,12 @@ virtual window and registers the newly visible drop targets instead of mounting
 the complete Select option set at drag start. Direct moves announce success,
 cancellation, and failed-save rollback through an assertive live region; the
 keyboard Move-to action remains available for every option as an equivalent
-non-pointer path.
+non-pointer path. The drag overlay reads the stable record title carried by the
+draggable metadata instead of serializing and reinserting the complete card
+DOM, so starting a drag has constant preview complexity even when a card has a
+cover and many visible fields. The preview uses theme tokens and reduced-motion
+safe opacity feedback rather than hard-coded light/dark colors or decorative
+rotation and scaling.
 Kanban startup now uses one grouped-count query for all columns and loads the
 first record page only for uncollapsed columns in the horizontal window. Each
 column also uses dynamic-height vertical virtualization and automatic paging,
@@ -254,7 +259,10 @@ failures, and an inline Retry resumes the correct request mode and current
 cursor. One unavailable page therefore cannot create a request storm or force
 the user to reload the complete Base. These recoverable errors stay within the
 affected Gallery or Kanban column; they do not also create a stale global Base
-alert after the inline retry has succeeded.
+alert after the inline retry has succeeded. Kanban grouped-count failures use
+the same boundary: a failed first count leaves the board idle with an inline
+Retry, while a failed count refresh keeps the mounted columns interactive and
+offers a compact retry bar instead of replacing the board or leaving it busy.
 
 CSV selection, analysis, and writing now follow the same anchored, non-modal
 workflow. The mapping panel opens as soon as the native picker returns;

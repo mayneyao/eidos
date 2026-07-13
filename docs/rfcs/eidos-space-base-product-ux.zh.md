@@ -133,7 +133,10 @@ record details，并按稳定 row ID 进行确认删除。同一个右侧 record
 Kanban 现在会对大量 option 形成的列做横向虚拟化，浏览和拖动期间都只挂载可见列与 overscan；
 靠近边缘滚动时，虚拟窗口会前移并注册新出现的 drop targets，不再在 drag start 瞬间挂载完整的
 Select option 集合。直接拖动的成功、取消和保存失败回滚会通过 assertive live region 播报；
-键盘 Move-to 仍可访问全部 options，作为等价的非指针操作路径保留。
+键盘 Move-to 仍可访问全部 options，作为等价的非指针操作路径保留。拖拽浮层直接读取 draggable
+metadata 中稳定的 record title，不再序列化并重新插入整张 card DOM，因此即使 card 带封面和多个
+可见字段，开始拖拽的预览复杂度仍为常数级。浮层统一使用主题 token 和兼容 reduced-motion 的
+opacity 反馈，不再硬编码明暗色或加入装饰性的旋转、缩放。
 Kanban 启动时使用一次 grouped-count query 获取所有列计数，只为横向窗口内、未折叠的列加载首批
 records；每列内部再按动态高度做纵向虚拟滚动并自动分页。大量 Select options 不再等价于同等数量
 的文件打开与首屏查询，大分组也不会把所有已加载 cards 同时挂载到 DOM。
@@ -174,7 +177,9 @@ Card 渲染元数据现在按 view 计算一次，而不是让每个可见 recor
 不会因为 loading 状态再次变化而连续重发相同请求；已经加载的 cards 会继续挂载，首屏/刷新失败和
 下一页失败保持区分，原位 Retry 会按正确请求模式和当前游标恢复。因此单页暂时不可用不会形成
 请求风暴，也不再要求用户重新加载整个 Base。可恢复错误只留在受影响的 Gallery 或 Kanban 列内，
-不会在原位重试成功后仍残留一条全局 Base 错误提示。
+不会在原位重试成功后仍残留一条全局 Base 错误提示。Kanban grouped-count 失败遵循相同边界：首次
+count 失败会结束 busy 状态并在板内提供 Retry；刷新 count 失败则保持已挂载列可交互，通过紧凑
+retry bar 恢复，而不是替换整个板或永久停在 loading。
 
 CSV 导入的文件选择、分析和写入现在也保持锚定式、非模态工作流。原生 picker 返回后 mapping
 panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以原位取消。取消会终止隔离 worker、
