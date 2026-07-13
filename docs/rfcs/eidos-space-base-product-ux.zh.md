@@ -160,6 +160,14 @@ loading 状态变化只重渲染该列，不会重算其他可见列。共享 re
 边界，因此 Gallery 自动加载和 Kanban 局部更新不会重复执行未变化 card 的字段格式化、菜单构造和
 cover 子树渲染；row 或 view 真正变化时仍会正常更新。
 
+Card 渲染元数据现在按 view 计算一次，而不是让每个可见 record 重复计算。字段顺序、封面字段、字段
+数量限制和 Select/Multi-select option 索引会被 Gallery 或 Kanban 的可见窗口共享。未打开的操作菜单
+不会预先展开全部 Move-to options；Desktop 原生子菜单会一次批量注册完整 option 集合，不再为每个
+option 挂载一个隐藏 React 节点和 effect。Inspector 修改非分组字段时只替换记录所在 group，未受影响
+列和 card 的 memo 边界会保持原引用；可见列加载与横向 fallback geometry 也只依赖 option/window
+signature，不再随 rows 数组变化重复执行。回归测试会用 200 个移动目标验证原生菜单 DOM 保持常数级，
+并验证一列中的 card 修改不会触发另一列 card 渲染。
+
 自动分页现在也有明确且可恢复的失败状态。Gallery 或 Kanban 请求失败后会关闭虚拟尾部触发器，
 不会因为 loading 状态再次变化而连续重发相同请求；已经加载的 cards 会继续挂载，首屏/刷新失败和
 下一页失败保持区分，原位 Retry 会按正确请求模式和当前游标恢复。因此单页暂时不可用不会形成
