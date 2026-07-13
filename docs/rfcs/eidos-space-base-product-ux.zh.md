@@ -107,6 +107,9 @@ offset，不再从第一页逐页追赶，也不再显示手动 Load more。Rend
 每个 Kanban 分组最多保留 250 条 rows；超过边界时从窗口另一侧淘汰，因此访问过的数据和 DOM 都不会
 随浏览深度无界增长。动态测量仍允许封面和字段数量改变 card 高度，搜索定位可以直接加载目标窗口并
 滚动到对应 record。
+只有 Gallery 首屏或查询刷新会重新统计筛选后的总数；后续虚拟窗口请求会携带经过校验的已知 total，
+因此滚动不会为每一页重复完整 `COUNT(*)`。Kanban 同样把 grouped-count query 的各分组 total 复用于
+可见列分页。显式刷新、搜索、筛选、排序以及过期空尾页仍会重新校准权威总数。
 Gallery 可以选择 File 字段作为封面，并切换适应/裁切；文件二进制只通过 Space file boundary
 读取，并转换为临时 object URL。Gallery 与 Kanban 共用 view 级封面资源读取器；多个 card 引用同一文件，
 或虚拟滚动让 card 卸载后再次挂载时，会同时复用正在进行或近期完成的二进制读取和已创建的 Blob URL，

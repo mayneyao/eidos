@@ -58,7 +58,10 @@ Base snapshot 现在只携带 row count，Grid 按可见区域请求并缓存 10
 使用 compact row ranges 在 runtime 内事务执行，不需要在 renderer 物化整表选择，并已用
 10,000-row fixture 验证。Gallery 和 Kanban 复用同一个 random-access page boundary，维护有界的
 双向 row window：相邻浏览扩展窗口，远距离虚拟滚动直接替换到目标 offset；如果并发变化导致尾页为空，
-会收敛 total 而不是形成重复请求循环。公开 runtime 也已增加 migration-oriented import boundary，支持
+会收敛 total 而不是形成重复请求循环。`BaseRowPageOptions.totalHint` 允许相同 query 的后续分页复用
+已经确定的 total；Desktop boundary 会先校验 hint，runtime 再用它跳过重复 `COUNT(*)`。首屏和 query
+刷新不传 hint，Gallery 因而每个 query generation 只统计一次，Kanban 则复用 grouped-count query 的
+分组 totals。公开 runtime 也已增加 migration-oriented import boundary，支持
 导入高级 field metadata、views、references、materialized derived values 和历史 system
 columns；legacy migration package 通过该边界生成经过校验的 multi-table `main.base`。
 runtime 还提供按字段聚合的 grouped-count query；Kanban 用一次只读查询获取当前 filter/search

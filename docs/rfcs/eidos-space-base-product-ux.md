@@ -145,6 +145,12 @@ rows per Kanban column, trimming the opposite side of the active window instead
 of accumulating every visited page. Dynamic measurement supports variable cover
 and field heights, and result navigation can jump directly to the target page
 before revealing the record. The manual Load more control is no longer needed.
+Only the first Gallery page or a query refresh recomputes the filtered total.
+Later virtual-window requests send the previously observed total as a validated
+hint, so scrolling does not repeat a full `COUNT(*)`. Kanban reuses the totals
+from its grouped-count query for every visible-column page for the same reason;
+an explicit reload, search, filter, sort, or stale empty tail still re-establishes
+the authoritative extent.
 Gallery can use a File field as a fitted or cropped card cover; the binary is
 read through the Space file boundary and exposed only as a temporary object
 URL. Gallery and Kanban share a view-scoped cover source reader, so cards that

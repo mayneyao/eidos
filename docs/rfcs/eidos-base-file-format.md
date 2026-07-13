@@ -89,6 +89,11 @@ an entire selection in the renderer. The runtime path is covered with a
 to maintain bounded bidirectional row windows: adjacent navigation extends the
 window, distant virtual-scroll jumps replace it at the requested offset, and an
 empty stale tail response clamps the total instead of creating a retry loop.
+`BaseRowPageOptions.totalHint` lets a caller reuse a total already established
+for the identical query. The Desktop boundary validates the hint before the
+runtime substitutes it for a repeated `COUNT(*)`; the first page and every
+query refresh omit it. Gallery therefore counts once per query generation, and
+Kanban page reads reuse the totals from its grouped-count query.
 The public runtime now also exposes a migration-oriented
 import boundary for advanced field metadata, views, references, materialized
 derived values, and historical system columns. The legacy migration package
