@@ -168,6 +168,31 @@ export interface BaseGridRowEdit {
   changes: BaseRow
 }
 
+interface BaseGridPendingRowEdit {
+  rowIndex: number
+  previous: BaseRow
+  changes: BaseRow
+  fields: Map<string, BaseFieldInfo>
+  revision: number
+}
+
+interface BaseGridMutation {
+  rowEdits: BaseGridPendingRowEdit[]
+  editedCellCount: number
+}
+
+interface BaseGridFailedMutation extends BaseGridMutation {
+  message: string
+}
+
+function gridMutationErrorMessage(error: unknown): string {
+  const message =
+    error instanceof Error && error.message
+      ? error.message
+      : "Unable to save the Grid change"
+  return /[.!?]$/.test(message) ? message : `${message}.`
+}
+
 function sameFields(left: BaseFieldInfo[], right: BaseFieldInfo[]): boolean {
   return (
     left.length === right.length &&
@@ -319,6 +344,23 @@ export function BaseGrid({
   >({})
   const [columnStatRevision, setColumnStatRevision] = useState(0)
   const columnStatGenerationRef = useRef(0)
+  const mutationInFlightRef = useRef(false)
+  const queuedMutationsRef = useRef<BaseGridMutation[]>([])
+  const runGridMutationRef = useRef<
+    (mutation: BaseGridMutation) => Promise<void>
+  >(async () => undefined)
+  const [mutationInFlight, setMutationInFlight] = useState(false)
+  const failedMutationRef = useRef<BaseGridFailedMutation | null>(null)
+  const [failedMutation, setFailedMutation] =
+    useState<BaseGridFailedMutation | null>(null)
+  const updateFailedMutation = useCallback(
+    (next: BaseGridFailedMutation | null) => {
+      failedMutationRef.current = next
+      setFailedMutation(next)
+    },
+    []
+  )
+  const gridWriteLocked = disabled || failedMutation !== null
   const freezeColumns = baseViewFreezeColumns(view, fields.length)
   const inspectedRow =
     inspectedRowIndex === null
@@ -363,6 +405,10 @@ export function BaseGrid({
     rowMutationRevisionRef.current.clear()
     loadedPagesRef.current.clear()
     loadingPagesRef.current.clear()
+    mutationInFlightRef.current = false
+    queuedMutationsRef.current = []
+    setMutationInFlight(false)
+    updateFailedMutation(null)
     setRowCount(table.rowCount)
     onRowCountChange?.(null)
     setCacheRevision((current) => current + 1)
@@ -379,6 +425,7 @@ export function BaseGrid({
     reloadToken,
     table.rowCount,
     table.table.id,
+    updateFailedMutation,
   ])
 
   useEffect(() => {
@@ -512,7 +559,7 @@ export function BaseGrid({
       const cell = baseValueToGridCell(
         field,
         row[field.tableColumnName],
-        disabled,
+        gridWriteLocked,
         row
       )
       if (
@@ -547,8 +594,8 @@ export function BaseGrid({
     },
     [
       cacheRevision,
-      disabled,
       fields,
+      gridWriteLocked,
       onImportFiles,
       onOpenFile,
       onRevealFile,
@@ -598,19 +645,173 @@ export function BaseGrid({
     })
   }, [columns.length, requestVisiblePages, rowCount, searchResultIndex])
 
+  const persistRowEdits = useCallback(
+    async (
+      rowEdits: BaseGridPendingRowEdit[],
+      editedCellCount: number
+    ): Promise<BaseRowsMutationResult> => {
+      if (onRowsEdit && editedCellCount > 1) {
+        return onRowsEdit(
+          rowEdits.map(({ previous, changes }) => ({
+            row: previous,
+            changes,
+          }))
+        )
+      }
+
+      let nextRowCount = rowCount
+      const rows: BaseRow[] = []
+      for (const edit of rowEdits) {
+        let latest = edit.previous
+        for (const [column, value] of Object.entries(edit.changes)) {
+          const field = edit.fields.get(column)
+          if (!field) continue
+          const result = await onCellEdit(
+            latest,
+            field,
+            value as BaseSqlPrimitive
+          )
+          latest = result.row
+          nextRowCount = result.rowCount
+        }
+        rows.push(latest)
+      }
+      return { tableId: table.table.id, rows, rowCount: nextRowCount }
+    },
+    [onCellEdit, onRowsEdit, rowCount, table.table.id]
+  )
+
+  const mergeGridMutations = useCallback(
+    (mutations: BaseGridMutation[]): BaseGridMutation => {
+      const merged = new Map<number, BaseGridPendingRowEdit>()
+      for (const mutation of mutations) {
+        for (const edit of mutation.rowEdits) {
+          const current = merged.get(edit.rowIndex)
+          if (!current) {
+            merged.set(edit.rowIndex, {
+              ...edit,
+              fields: new Map(edit.fields),
+            })
+            continue
+          }
+          for (const [column, field] of edit.fields) {
+            current.fields.set(column, field)
+          }
+        }
+      }
+
+      const rowEdits = [...merged.values()].flatMap((edit) => {
+        const current = rowsRef.current.get(edit.rowIndex)
+        if (!current) return []
+        const changes = Object.fromEntries(
+          [...edit.fields.keys()].flatMap((column) =>
+            Object.is(edit.previous[column], current[column])
+              ? []
+              : [[column, current[column]]]
+          )
+        )
+        if (Object.keys(changes).length === 0) return []
+        return [
+          {
+            ...edit,
+            changes,
+            revision:
+              rowMutationRevisionRef.current.get(edit.rowIndex) ??
+              edit.revision,
+          },
+        ]
+      })
+      return {
+        rowEdits,
+        editedCellCount: rowEdits.reduce(
+          (count, edit) => count + Object.keys(edit.changes).length,
+          0
+        ),
+      }
+    },
+    []
+  )
+
+  const runGridMutation = useCallback(
+    async (mutation: BaseGridMutation): Promise<void> => {
+      if (mutationInFlightRef.current) {
+        queuedMutationsRef.current.push(mutation)
+        return
+      }
+      const generation = generationRef.current
+      mutationInFlightRef.current = true
+      setMutationInFlight(true)
+      try {
+        const result = await persistRowEdits(
+          mutation.rowEdits,
+          mutation.editedCellCount
+        )
+        if (generation !== generationRef.current) return
+        const rowsById = new Map(
+          result.rows.map((row) => [String(row._id), row])
+        )
+        let changed = false
+        for (const edit of mutation.rowEdits) {
+          const current = rowsRef.current.get(edit.rowIndex)
+          const persisted = rowsById.get(String(edit.previous._id))
+          if (
+            persisted &&
+            current &&
+            String(current._id) === String(edit.previous._id) &&
+            rowMutationRevisionRef.current.get(edit.rowIndex) === edit.revision
+          ) {
+            rowsRef.current.set(edit.rowIndex, persisted)
+            changed = true
+          }
+        }
+        setRowCount(result.rowCount)
+        updateFailedMutation(null)
+        if (changed) setCacheRevision((revision) => revision + 1)
+        refreshColumnStats()
+      } catch (error) {
+        if (generation !== generationRef.current) return
+        const queued = queuedMutationsRef.current.splice(0)
+        const failed = mergeGridMutations([mutation, ...queued])
+        if (failed.rowEdits.length > 0) {
+          updateFailedMutation({
+            ...failed,
+            message: gridMutationErrorMessage(error),
+          })
+        }
+      } finally {
+        if (generation === generationRef.current) {
+          mutationInFlightRef.current = false
+          setMutationInFlight(false)
+          if (!failedMutationRef.current) {
+            const next = queuedMutationsRef.current.shift()
+            if (next) void runGridMutationRef.current(next)
+          }
+        }
+      }
+    },
+    [
+      mergeGridMutations,
+      persistRowEdits,
+      refreshColumnStats,
+      updateFailedMutation,
+    ]
+  )
+  runGridMutationRef.current = runGridMutation
+
+  const enqueueGridMutation = useCallback((mutation: BaseGridMutation) => {
+    if (mutationInFlightRef.current) {
+      queuedMutationsRef.current.push(mutation)
+      return
+    }
+    void runGridMutationRef.current(mutation)
+  }, [])
+
   const commitCells = useCallback(
     (edits: readonly UndoRedoEdit[]) => {
-      if (disabled) return
-      const grouped = new Map<
-        number,
-        {
-          rowIndex: number
-          previous: BaseRow
-          changes: BaseRow
-          fields: Map<string, BaseFieldInfo>
-          revision: number
-        }
-      >()
+      if (disabled || failedMutationRef.current) {
+        return
+      }
+      const grouped = new Map<number, BaseGridPendingRowEdit>()
       for (const {
         cell: [columnIndex, rowIndex],
         newValue,
@@ -654,88 +855,9 @@ export function BaseGrid({
         (count, edit) => count + Object.keys(edit.changes).length,
         0
       )
-      const persist = async (): Promise<BaseRowsMutationResult> => {
-        if (onRowsEdit && editedCellCount > 1) {
-          return onRowsEdit(
-            rowEdits.map(({ previous, changes }) => ({
-              row: previous,
-              changes,
-            }))
-          )
-        }
-
-        let nextRowCount = rowCount
-        const rows: BaseRow[] = []
-        for (const edit of rowEdits) {
-          let latest = edit.previous
-          for (const [column, value] of Object.entries(edit.changes)) {
-            const field = edit.fields.get(column)
-            if (!field) continue
-            const result = await onCellEdit(
-              latest,
-              field,
-              value as BaseSqlPrimitive
-            )
-            latest = result.row
-            nextRowCount = result.rowCount
-          }
-          rows.push(latest)
-        }
-        return { tableId: table.table.id, rows, rowCount: nextRowCount }
-      }
-      const generation = generationRef.current
-      void persist()
-        .then((result) => {
-          if (generation !== generationRef.current) return
-          const rowsById = new Map(
-            result.rows.map((row) => [String(row._id), row])
-          )
-          let changed = false
-          for (const edit of rowEdits) {
-            const current = rowsRef.current.get(edit.rowIndex)
-            const persisted = rowsById.get(String(edit.previous._id))
-            if (
-              persisted &&
-              current &&
-              String(current._id) === String(edit.previous._id) &&
-              rowMutationRevisionRef.current.get(edit.rowIndex) ===
-                edit.revision
-            ) {
-              rowsRef.current.set(edit.rowIndex, persisted)
-              changed = true
-            }
-          }
-          setRowCount(result.rowCount)
-          if (changed) setCacheRevision((revision) => revision + 1)
-          refreshColumnStats()
-        })
-        .catch((error) => {
-          if (generation === generationRef.current) {
-            let changed = false
-            for (const edit of rowEdits) {
-              if (
-                rowMutationRevisionRef.current.get(edit.rowIndex) ===
-                edit.revision
-              ) {
-                rowsRef.current.set(edit.rowIndex, edit.previous)
-                changed = true
-              }
-            }
-            if (changed) setCacheRevision((revision) => revision + 1)
-          }
-          onError?.(error)
-        })
+      enqueueGridMutation({ rowEdits, editedCellCount })
     },
-    [
-      disabled,
-      fields,
-      onCellEdit,
-      onError,
-      onRowsEdit,
-      rowCount,
-      refreshColumnStats,
-      table.table.id,
-    ]
+    [disabled, enqueueGridMutation, fields]
   )
 
   const commitCell = useCallback(
@@ -811,6 +933,30 @@ export function BaseGrid({
     isGridActive,
     commitCells
   )
+
+  const retryFailedMutation = useCallback(() => {
+    const failed = failedMutationRef.current
+    if (!failed || mutationInFlightRef.current) return
+    void runGridMutation({
+      rowEdits: failed.rowEdits,
+      editedCellCount: failed.editedCellCount,
+    })
+  }, [runGridMutation])
+
+  const discardFailedMutation = useCallback(() => {
+    const failed = failedMutationRef.current
+    if (!failed || mutationInFlightRef.current) return
+    let changed = false
+    for (const edit of failed.rowEdits) {
+      if (rowMutationRevisionRef.current.get(edit.rowIndex) === edit.revision) {
+        rowsRef.current.set(edit.rowIndex, edit.previous)
+        changed = true
+      }
+    }
+    updateFailedMutation(null)
+    history.reset()
+    if (changed) setCacheRevision((revision) => revision + 1)
+  }, [history.reset, updateFailedMutation])
 
   const [fileDropHighlights, setFileDropHighlights] = useState<
     NonNullable<DataEditorProps["highlightRegions"]>
@@ -1101,19 +1247,19 @@ export function BaseGrid({
           onDragLeave={() => setFileDropHighlights([])}
           onDrop={onDrop}
           highlightRegions={[...searchHighlightRegions, ...fileDropHighlights]}
-          fillHandle={!disabled}
+          fillHandle={!gridWriteLocked}
           gridSelection={history.gridSelection ?? undefined}
-          onCellEdited={disabled ? undefined : history.onCellEdited}
-          onCellsEdited={disabled ? undefined : onCellsEdited}
+          onCellEdited={gridWriteLocked ? undefined : history.onCellEdited}
+          onCellsEdited={gridWriteLocked ? undefined : onCellsEdited}
           onGridSelectionChange={history.onGridSelectionChange}
           onHeaderClicked={onHeaderClicked}
           onHeaderContextMenu={onHeaderClicked}
           onCellContextMenu={onCellContextMenu}
           onColumnResize={onColumnResize}
           onColumnMoved={onColumnMoved}
-          onRowAppended={disabled ? undefined : appendRow}
+          onRowAppended={gridWriteLocked ? undefined : appendRow}
           rightElement={
-            !disabled && onAddField ? (
+            !gridWriteLocked && onAddField ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -1128,13 +1274,60 @@ export function BaseGrid({
           }
           rightElementProps={{ fill: true }}
         />
+        {failedMutation ? (
+          <div
+            className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center"
+            role="alert"
+            data-base-grid-write-recovery
+          >
+            <div className="pointer-events-auto flex max-w-xl items-start gap-3 border bg-background/95 px-3 py-2 text-xs shadow-md backdrop-blur-sm">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-destructive">
+                  {failedMutation.editedCellCount === 1
+                    ? "Could not save this Grid change"
+                    : `Could not save ${failedMutation.editedCellCount} Grid changes`}
+                </p>
+                <p className="mt-0.5 break-words leading-4 text-muted-foreground">
+                  {failedMutation.message}{" "}
+                  {failedMutation.editedCellCount === 1
+                    ? "Your change is preserved in the grid."
+                    : `${failedMutation.editedCellCount} changes are preserved in the grid.`}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  disabled={mutationInFlight}
+                  onClick={retryFailedMutation}
+                >
+                  {mutationInFlight ? "Retrying…" : "Retry"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs text-muted-foreground"
+                  disabled={mutationInFlight}
+                  onClick={discardFailedMutation}
+                >
+                  {failedMutation.editedCellCount === 1
+                    ? "Discard change"
+                    : "Discard changes"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
         <BaseFieldMenu
           state={fieldMenu}
           open={fieldMenu !== null}
           sortDirection={fieldSortDirection}
           frozen={fieldMenu !== null && fieldMenu.fieldIndex < freezeColumns}
-          canUpdateView={!disabled && Boolean(view && onViewUpdate)}
-          canEditStructure={!disabled}
+          canUpdateView={!gridWriteLocked && Boolean(view && onViewUpdate)}
+          canEditStructure={!gridWriteLocked}
           statType={fieldStatType}
           onOpenChange={(open) => {
             if (!open) setFieldMenu(null)
@@ -1172,7 +1365,7 @@ export function BaseGrid({
           state={columnStatMenu}
           open={columnStatMenu !== null}
           value={columnStatMenuValue}
-          disabled={disabled || !view || !onViewUpdate}
+          disabled={gridWriteLocked || !view || !onViewUpdate}
           onOpenChange={(open) => {
             if (!open) setColumnStatMenu(null)
           }}
@@ -1191,7 +1384,7 @@ export function BaseGrid({
           selectionCount={cellMenu ? rowRangeCount(cellMenu.rowRanges) : 0}
           cellText={cellIsEmpty ? "" : cellText}
           filePaths={cellFilePaths}
-          canDelete={!disabled && Boolean(onRequestDeleteRows)}
+          canDelete={!gridWriteLocked && Boolean(onRequestDeleteRows)}
           onOpenChange={(open) => {
             if (!open) setCellMenu(null)
           }}
@@ -1221,7 +1414,7 @@ export function BaseGrid({
       onDeleteField ? (
         <BaseFieldPropertyPanel
           field={propertyField}
-          disabled={disabled}
+          disabled={gridWriteLocked}
           onClose={onPropertyFieldClose}
           onUpdate={onFieldUpdate}
           onDelete={onDeleteField}
@@ -1235,7 +1428,7 @@ export function BaseGrid({
           onClose={() => setInspectedRowIndex(null)}
           onCopyRecordId={copyText}
           onCellEdit={editInspectedRecord}
-          disabled={disabled}
+          disabled={gridWriteLocked}
           onError={onError}
           onImportFiles={onImportFiles}
           onImportDroppedFiles={onImportDroppedFiles}

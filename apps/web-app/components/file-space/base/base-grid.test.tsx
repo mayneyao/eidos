@@ -4,6 +4,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type {
   BaseRowMutationResult,
+  BaseRowsMutationResult,
   BaseTableSnapshot,
 } from "@eidos.space/base"
 import {
@@ -270,6 +271,127 @@ describe("BaseGrid", () => {
     expect(mocks.props?.getCellContent([1, 0])).toMatchObject({ data: true })
   })
 
+  it("keeps a failed cell edit visible and retries it from the Grid", async () => {
+    const error = new Error("Base file is read-only")
+    const onCellEdit = createCellEdit()
+    onCellEdit.mockRejectedValueOnce(error)
+    const onError = vi.fn()
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={table}
+          loadPage={createLoadPage()}
+          onAddRow={vi.fn()}
+          onCellEdit={onCellEdit}
+          onError={onError}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      mocks.props?.onCellEdited?.([0, 0], {
+        kind: GridCellKind.Text,
+        allowOverlay: true,
+        data: "Write implementation",
+        displayData: "Write implementation",
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "Write implementation",
+    })
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Base file is read-only"
+    )
+    expect(container.textContent).toContain(
+      "Your change is preserved in the grid."
+    )
+    expect(mocks.props?.onCellEdited).toBeUndefined()
+    expect(onError).not.toHaveBeenCalled()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Retry")
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onCellEdit).toHaveBeenCalledTimes(2)
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "Write implementation",
+    })
+  })
+
+  it("keeps a failed pasted range visible until it is discarded", async () => {
+    const onRowsEdit = vi
+      .fn<(edits: BaseGridRowEdit[]) => Promise<BaseRowsMutationResult>>()
+      .mockRejectedValueOnce(new Error("Batch write failed"))
+    const onError = vi.fn()
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={table}
+          loadPage={createLoadPage()}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+          onRowsEdit={onRowsEdit}
+          onError={onError}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      mocks.props?.onCellsEdited?.([
+        {
+          location: [0, 0],
+          value: {
+            kind: GridCellKind.Text,
+            allowOverlay: true,
+            data: "Write implementation",
+            displayData: "Write implementation",
+          },
+        },
+        {
+          location: [1, 0],
+          value: {
+            kind: GridCellKind.Boolean,
+            allowOverlay: false,
+            data: true,
+          },
+        },
+      ])
+      await Promise.resolve()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "Write implementation",
+    })
+    expect(mocks.props?.getCellContent([1, 0])).toMatchObject({ data: true })
+    expect(container.textContent).toContain("2 changes are preserved")
+    expect(onError).not.toHaveBeenCalled()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Discard changes")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "Write RFC",
+    })
+    expect(mocks.props?.getCellContent([1, 0])).toMatchObject({ data: false })
+  })
+
   it("undoes a pasted range through one batch mutation", async () => {
     const onRowsEdit = vi.fn(async (edits: BaseGridRowEdit[]) => ({
       tableId: "tasks",
@@ -404,6 +526,78 @@ describe("BaseGrid", () => {
       })
       await Promise.resolve()
     })
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "Write implementation",
+    })
+    expect(mocks.props?.getCellContent([1, 0])).toMatchObject({ data: true })
+  })
+
+  it("merges queued optimistic edits into recovery when the first save fails", async () => {
+    let rejectTitle: ((error: Error) => void) | undefined
+    const onCellEdit = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectTitle = reject
+          })
+      )
+      .mockImplementation(async (row, field, value) => ({
+        tableId: "tasks",
+        row: { ...row, [field.tableColumnName]: value },
+        rowCount: table.rowCount,
+      }))
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={table}
+          loadPage={createLoadPage()}
+          onAddRow={vi.fn()}
+          onCellEdit={onCellEdit}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    act(() => {
+      mocks.props?.onCellEdited?.([0, 0], {
+        kind: GridCellKind.Text,
+        allowOverlay: true,
+        data: "Write implementation",
+        displayData: "Write implementation",
+      })
+      mocks.props?.onCellEdited?.([1, 0], {
+        kind: GridCellKind.Boolean,
+        allowOverlay: false,
+        data: true,
+      })
+    })
+
+    await act(async () => {
+      rejectTitle?.(new Error("First save failed"))
+      await Promise.resolve()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(onCellEdit).toHaveBeenCalledOnce()
+    expect(container.textContent).toContain("2 changes are preserved")
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "Write implementation",
+    })
+    expect(mocks.props?.getCellContent([1, 0])).toMatchObject({ data: true })
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Retry")
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(onCellEdit).toHaveBeenCalledTimes(3)
+    expect(container.querySelector('[role="alert"]')).toBeNull()
     expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
       data: "Write implementation",
     })

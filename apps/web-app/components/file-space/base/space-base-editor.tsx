@@ -799,9 +799,9 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     ]
   )
 
-  const saveCell = useCallback(
+  const saveGridCell = useCallback(
     (row: BaseRow, field: BaseFieldInfo, value: BaseSqlPrimitive) =>
-      saveCellWithErrorMode(row, field, value, "global"),
+      saveCellWithErrorMode(row, field, value, "local"),
     [saveCellWithErrorMode]
   )
 
@@ -835,7 +835,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             setGridReloadToken((current) => current + 1)
           }
         },
-        { blocking: false }
+        { blocking: false, errorMode: "local" }
       )
     },
     [
@@ -1551,7 +1551,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               loadPage={loadActiveTablePage}
               loadColumnStats={loadActiveColumnStats}
               onAddRow={createRow}
-              onCellEdit={saveCell}
+              onCellEdit={saveGridCell}
               onInspectorCellEdit={saveInspectorCell}
               onRowsEdit={saveRows}
               onSelectedRowsChange={setSelectedRowRanges}

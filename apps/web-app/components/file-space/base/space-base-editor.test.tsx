@@ -1155,7 +1155,7 @@ describe("SpaceBaseEditor", () => {
     })
   })
 
-  it("keeps a failed save visible after restoring persisted rows", async () => {
+  it("leaves a failed Grid save to the anchored Grid recovery surface", async () => {
     updateRowMock.mockRejectedValueOnce(new Error("Base file is read-only"))
     await renderEditor()
 
@@ -1168,16 +1168,27 @@ describe("SpaceBaseEditor", () => {
     })
 
     expect(getSnapshotMock).toHaveBeenCalledTimes(2)
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      "Base file is read-only"
-    )
+    expect(
+      container.querySelector('[aria-label="Dismiss Base error"]')
+    ).toBeNull()
+  })
 
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>('[aria-label="Dismiss Base error"]')
+  it("leaves a failed pasted range to the anchored Grid recovery surface", async () => {
+    updateRowsMock.mockRejectedValueOnce(new Error("Batch write failed"))
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Paste row")
         ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
     })
-    expect(container.querySelector('[role="alert"]')).toBeNull()
+
+    expect(getSnapshotMock).toHaveBeenCalledTimes(2)
+    expect(
+      container.querySelector('[aria-label="Dismiss Base error"]')
+    ).toBeNull()
   })
 
   it("leaves Inspector save recovery inside the record workspace", async () => {
