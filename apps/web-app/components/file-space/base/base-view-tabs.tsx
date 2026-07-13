@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ComponentProps,
-} from "react"
+import type { ComponentProps } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -16,6 +9,7 @@ import {
   BaseViewTypeIcon,
   isBaseBuiltInViewType,
 } from "./base-view-selector"
+import { useBaseTabStrip } from "./use-base-tab-strip"
 
 type BaseViewTabsProps = ComponentProps<typeof BaseViewSelector>
 
@@ -24,64 +18,20 @@ export function BaseViewTabs(props: BaseViewTabsProps) {
   const supportedViews = views.filter((view) =>
     isBaseBuiltInViewType(view.type)
   )
-  const viewportRef = useRef<HTMLDivElement>(null)
-  const activeTabRef = useRef<HTMLButtonElement>(null)
-  const [canScrollBackward, setCanScrollBackward] = useState(false)
-  const [canScrollForward, setCanScrollForward] = useState(false)
-
-  const updateScrollState = useCallback(() => {
-    const viewport = viewportRef.current
-    if (!viewport) return
-    const maximumScrollLeft = Math.max(
-      0,
-      viewport.scrollWidth - viewport.clientWidth
-    )
-    setCanScrollBackward(viewport.scrollLeft > 1)
-    setCanScrollForward(viewport.scrollLeft < maximumScrollLeft - 1)
-  }, [])
-
-  useLayoutEffect(() => {
-    const viewport = viewportRef.current
-    if (!viewport) return
-    updateScrollState()
-    const resizeObserver =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(updateScrollState)
-    resizeObserver?.observe(viewport)
-    window.addEventListener("resize", updateScrollState)
-    return () => {
-      resizeObserver?.disconnect()
-      window.removeEventListener("resize", updateScrollState)
-    }
-  }, [supportedViews.length, updateScrollState])
-
-  useEffect(() => {
-    const activeTab = activeTabRef.current
-    if (typeof activeTab?.scrollIntoView === "function") {
-      activeTab.scrollIntoView({ block: "nearest", inline: "nearest" })
-    }
-    updateScrollState()
-  }, [activeView?.id, updateScrollState])
-
-  const scrollViews = (direction: -1 | 1) => {
-    const viewport = viewportRef.current
-    if (!viewport) return
-    const distance = Math.max(120, Math.round(viewport.clientWidth * 0.7))
-    const left = direction * distance
-    const reducedMotion =
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    if (typeof viewport.scrollBy === "function") {
-      viewport.scrollBy({
-        behavior: reducedMotion ? "auto" : "smooth",
-        left,
-      })
-    } else {
-      viewport.scrollLeft += left
-      updateScrollState()
-    }
-  }
+  const {
+    activeTabRef,
+    canScrollBackward,
+    canScrollForward,
+    navigateTabs,
+    scrollTabs,
+    tabStopId,
+    updateScrollState,
+    viewportRef,
+  } = useBaseTabStrip({
+    items: supportedViews,
+    activeId: activeView?.id,
+    onSelect,
+  })
 
   return (
     <div className="flex min-w-0 flex-1 items-end">
@@ -93,7 +43,7 @@ export function BaseViewTabs(props: BaseViewTabsProps) {
           className="mb-1 h-7 w-6 shrink-0 text-muted-foreground"
           aria-label="Scroll Base views backward"
           disabled={disabled}
-          onClick={() => scrollViews(-1)}
+          onClick={() => scrollTabs(-1)}
         >
           <ChevronLeft className="h-3.5 w-3.5" />
         </Button>
@@ -102,18 +52,22 @@ export function BaseViewTabs(props: BaseViewTabsProps) {
         ref={viewportRef}
         role="tablist"
         aria-label="Base views"
+        aria-orientation="horizontal"
         className="flex min-w-0 items-end overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onScroll={updateScrollState}
       >
-        {supportedViews.map((view) => (
+        {supportedViews.map((view, index) => (
           <button
             ref={view.id === activeView?.id ? activeTabRef : undefined}
             key={view.id}
             type="button"
             role="tab"
+            data-base-view-id={view.id}
             aria-selected={view.id === activeView?.id}
+            tabIndex={view.id === tabStopId ? 0 : -1}
             disabled={disabled}
             onClick={() => onSelect(view.id)}
+            onKeyDown={(event) => navigateTabs(event, index)}
             className={cn(
               "relative flex h-9 max-w-48 shrink-0 items-center gap-1.5 px-3 text-[13px] text-muted-foreground outline-hidden hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50",
               view.id === activeView?.id && "text-foreground"
@@ -138,7 +92,7 @@ export function BaseViewTabs(props: BaseViewTabsProps) {
           className="mb-1 h-7 w-6 shrink-0 text-muted-foreground"
           aria-label="Scroll Base views forward"
           disabled={disabled}
-          onClick={() => scrollViews(1)}
+          onClick={() => scrollTabs(1)}
         >
           <ChevronRight className="h-3.5 w-3.5" />
         </Button>
