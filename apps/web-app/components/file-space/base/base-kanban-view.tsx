@@ -446,6 +446,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                 value={title}
                 className="h-7 text-xs"
                 placeholder="Record title"
+                aria-label={`Record title in ${group.name}`}
                 disabled={creating}
                 onChange={(event) => setTitle(event.target.value)}
                 onKeyDown={(event) => {
@@ -588,6 +589,8 @@ export function BaseKanbanView({
   const groupsRef = useRef(groups)
   groupsRef.current = groups
   const [countsLoaded, setCountsLoaded] = useState(false)
+  const [countsFailure, setCountsFailure] = useState(false)
+  const [countsRetryToken, setCountsRetryToken] = useState(0)
   const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<Set<string>>(
     new Set()
   )
@@ -609,9 +612,13 @@ export function BaseKanbanView({
   )
   const boardBusy = useMemo(
     () =>
-      !countsLoaded ||
+      (!countsLoaded && !countsFailure) ||
       groups.some((group) => group.loading || group.loadingMore),
-    [countsLoaded, groups]
+    [countsFailure, countsLoaded, groups]
+  )
+  const hasUsableBoard = useMemo(
+    () => groups.some((group) => group.loaded),
+    [groups]
   )
   const collapsedGroupSignature = useMemo(
     () => [...collapsedGroupKeys].sort().join("|"),
@@ -701,6 +708,7 @@ export function BaseKanbanView({
     if (!groupField) {
       setGroups([])
       setCountsLoaded(false)
+      setCountsFailure(false)
       return
     }
     const specs = groupSpecs(options)
@@ -719,6 +727,7 @@ export function BaseKanbanView({
       })
     })
     setCountsLoaded(false)
+    setCountsFailure(false)
     void loadGroupCounts(groupField)
       .then((counts) => {
         if (generation !== generationRef.current) return
@@ -757,10 +766,12 @@ export function BaseKanbanView({
           })
         })
         setCountsLoaded(true)
+        setCountsFailure(false)
       })
-      .catch((error) => {
+      .catch(() => {
         if (generation !== generationRef.current) return
-        onError?.(error)
+        setCountsLoaded(false)
+        setCountsFailure(true)
       })
     return () => {
       generationRef.current += 1
@@ -768,8 +779,8 @@ export function BaseKanbanView({
   }, [
     groupField,
     loadGroupCounts,
-    onError,
     optionSignature,
+    countsRetryToken,
     reloadToken,
     table.table.id,
     view.id,
@@ -1263,77 +1274,115 @@ export function BaseKanbanView({
       >
         {moveAnnouncement}
       </span>
-      <div
-        ref={scrollContainerRef}
-        data-base-kanban-scroll
-        aria-busy={boardBusy}
-        className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden p-3"
-      >
-        <KanbanProvider
-          onDragEnd={dragEnd}
-          onDragStart={() => setDragging(true)}
-          onDragCancel={() => {
-            setDragging(false)
-            setMoveAnnouncement("Record move cancelled.")
-          }}
-          className="relative !block h-full"
-        >
+      <div className="relative min-w-0 flex-1">
+        {countsFailure && hasUsableBoard ? (
           <div
-            className="relative h-full"
-            style={{
-              width:
-                virtualColumns.length > 0
-                  ? columnVirtualizer.getTotalSize()
-                  : estimatedTotalWidth,
-            }}
+            className="absolute inset-x-3 top-3 z-20 flex h-8 items-center justify-center gap-2 border bg-background px-3 text-[11px] text-muted-foreground shadow-sm"
+            role="alert"
           >
-            {renderedColumns.map((virtualColumn) => {
-              const group = groups[virtualColumn.index]
-              if (!group) return null
-              return (
-                <div
-                  key={group.key}
-                  className="absolute inset-y-0 left-0"
-                  data-index={virtualColumn.index}
-                  style={{
-                    width: virtualColumn.size,
-                    transform: `translateX(${virtualColumn.start}px)`,
-                  }}
-                >
-                  <BaseKanbanColumn
-                    group={group}
-                    table={table}
-                    view={view}
-                    cardLayout={cardLayout}
-                    disabled={disabled}
-                    width={columnWidth}
-                    color={baseOptionColor(group.color, theme)}
-                    acquireCover={acquireCover}
-                    onOpen={setInspectedRow}
-                    onDelete={onDeleteRow ? setDeleteRow : undefined}
-                    moveOptions={moveOptions}
-                    onMove={moveRecord}
-                    focusedRowId={
-                      focusedGroup?.key === group.key && focusedRow
-                        ? String(focusedRow._id)
-                        : undefined
-                    }
-                    focusedRowIndex={
-                      focusedGroup?.key === group.key && focusedGroupIndex >= 0
-                        ? focusedGroupIndex
-                        : undefined
-                    }
-                    collapsed={collapsedGroupKeys.has(group.key)}
-                    onCollapsedChange={setGroupCollapsed}
-                    onRequestRange={requestGroupRange}
-                    onRetry={retryGroup}
-                    onCreate={createInGroup}
-                  />
-                </div>
-              )
-            })}
+            <span>Could not refresh Kanban records.</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[11px]"
+              onClick={() => setCountsRetryToken((current) => current + 1)}
+            >
+              Retry
+            </Button>
           </div>
-        </KanbanProvider>
+        ) : null}
+        <div
+          ref={scrollContainerRef}
+          data-base-kanban-scroll
+          aria-busy={boardBusy}
+          className="h-full min-w-0 overflow-x-auto overflow-y-hidden p-3"
+        >
+          {countsFailure && !hasUsableBoard ? (
+            <div
+              className="flex h-full min-h-40 flex-col items-center justify-center gap-2 text-xs text-muted-foreground"
+              role="alert"
+            >
+              <span>Could not load Kanban records.</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2.5 text-xs"
+                onClick={() => setCountsRetryToken((current) => current + 1)}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : (
+            <KanbanProvider
+              onDragEnd={dragEnd}
+              onDragStart={() => setDragging(true)}
+              onDragCancel={() => {
+                setDragging(false)
+                setMoveAnnouncement("Record move cancelled.")
+              }}
+              className="relative !block h-full"
+            >
+              <div
+                className="relative h-full"
+                style={{
+                  width:
+                    virtualColumns.length > 0
+                      ? columnVirtualizer.getTotalSize()
+                      : estimatedTotalWidth,
+                }}
+              >
+                {renderedColumns.map((virtualColumn) => {
+                  const group = groups[virtualColumn.index]
+                  if (!group) return null
+                  return (
+                    <div
+                      key={group.key}
+                      className="absolute inset-y-0 left-0"
+                      data-index={virtualColumn.index}
+                      style={{
+                        width: virtualColumn.size,
+                        transform: `translateX(${virtualColumn.start}px)`,
+                      }}
+                    >
+                      <BaseKanbanColumn
+                        group={group}
+                        table={table}
+                        view={view}
+                        cardLayout={cardLayout}
+                        disabled={disabled}
+                        width={columnWidth}
+                        color={baseOptionColor(group.color, theme)}
+                        acquireCover={acquireCover}
+                        onOpen={setInspectedRow}
+                        onDelete={onDeleteRow ? setDeleteRow : undefined}
+                        moveOptions={moveOptions}
+                        onMove={moveRecord}
+                        focusedRowId={
+                          focusedGroup?.key === group.key && focusedRow
+                            ? String(focusedRow._id)
+                            : undefined
+                        }
+                        focusedRowIndex={
+                          focusedGroup?.key === group.key &&
+                          focusedGroupIndex >= 0
+                            ? focusedGroupIndex
+                            : undefined
+                        }
+                        collapsed={collapsedGroupKeys.has(group.key)}
+                        onCollapsedChange={setGroupCollapsed}
+                        onRequestRange={requestGroupRange}
+                        onRetry={retryGroup}
+                        onCreate={createInGroup}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </KanbanProvider>
+          )}
+        </div>
       </div>
       {sidePanel ??
         (inspectedRow ? (

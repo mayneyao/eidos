@@ -369,6 +369,57 @@ describe("BaseKanbanView", () => {
     )
   })
 
+  it("recovers an initial grouped-count failure inside the board", async () => {
+    const row = { _id: "row_1", title: "Recovered record", status: "todo" }
+    const onError = vi.fn()
+    const loadGroupCounts = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("counts failed"))
+      .mockResolvedValueOnce([{ value: "todo", total: 1 }])
+    const loadGroupPage = vi.fn(async (_field, value, offset, limit) => ({
+      tableId: "tasks",
+      offset,
+      limit,
+      total: value === "todo" ? 1 : 0,
+      rows: value === "todo" ? [row] : [],
+    }))
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={loadGroupCounts}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+          onError={onError}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(loadGroupCounts).toHaveBeenCalledTimes(1)
+    expect(onError).not.toHaveBeenCalled()
+    expect(container.textContent).toContain("Could not load Kanban records")
+    expect(
+      container
+        .querySelector("[data-base-kanban-scroll]")
+        ?.getAttribute("aria-busy")
+    ).toBe("false")
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Retry")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(loadGroupCounts).toHaveBeenCalledTimes(2)
+    expect(container.textContent).toContain("Recovered record")
+  })
+
   it("creates a record directly in its target group", async () => {
     const onAddRow = vi.fn(async (_field, value, title) => ({
       tableId: "tasks",
@@ -405,6 +456,7 @@ describe("BaseKanbanView", () => {
         ?.click()
     })
     const input = todoColumn?.querySelector<HTMLInputElement>("input")
+    expect(input?.getAttribute("aria-label")).toBe("Record title in Todo")
     await act(async () => {
       if (!input) return
       const setter = Object.getOwnPropertyDescriptor(
@@ -594,6 +646,82 @@ describe("BaseKanbanView", () => {
         .querySelector("[data-base-kanban-scroll]")
         ?.getAttribute("aria-busy")
     ).toBe("false")
+  })
+
+  it("keeps the mounted board available when grouped-count refresh fails", async () => {
+    const row = { _id: "row_1", title: "Stable record", status: "todo" }
+    const onError = vi.fn()
+    const loadGroupCounts = vi
+      .fn()
+      .mockResolvedValueOnce([{ value: "todo", total: 1 }])
+      .mockRejectedValueOnce(new Error("refresh failed"))
+      .mockResolvedValueOnce([{ value: "todo", total: 1 }])
+    const loadGroupPage = vi.fn(async (_field, value, offset, limit) => ({
+      tableId: "tasks",
+      offset,
+      limit,
+      total: value === "todo" ? 1 : 0,
+      rows: value === "todo" ? [row] : [],
+    }))
+    const onCellEdit = vi.fn()
+    const onAddRow = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          reloadToken={0}
+          loadGroupCounts={loadGroupCounts}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={onCellEdit}
+          onAddRow={onAddRow}
+          onError={onError}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(container.textContent).toContain("Stable record")
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          reloadToken={1}
+          loadGroupCounts={loadGroupCounts}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={onCellEdit}
+          onAddRow={onAddRow}
+          onError={onError}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).toContain("Stable record")
+    expect(container.textContent).toContain("Could not refresh Kanban records")
+    expect(onError).not.toHaveBeenCalled()
+    expect(
+      container
+        .querySelector("[data-base-kanban-scroll]")
+        ?.getAttribute("aria-busy")
+    ).toBe("false")
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Retry")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(loadGroupCounts).toHaveBeenCalledTimes(3)
+    expect(container.textContent).toContain("Stable record")
+    expect(container.textContent).not.toContain(
+      "Could not refresh Kanban records"
+    )
   })
 
   it("moves an inspected record when its group field changes", async () => {
