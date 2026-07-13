@@ -141,6 +141,10 @@ record details，并按稳定 row ID 进行确认删除。同一个右侧 record
 和 Kanban 中编辑：primitive source fields 会就地自动保存，Formula/Lookup 等派生值保持只读，保存
 成功后会更新当前 layout，并且不会关闭 inspector。File 字段支持从 Space 导入、拖放、移除、打开和
 定位；Relation 字段复用目标表搜索边界，并按稳定 row ID 保存单选或多选结果。
+完整 card 表面也可以直接打开 inspector，不再要求用户先发现 hover icon。Gallery card 会进入键盘
+焦点顺序，并支持 Enter 或 Space；虚拟 row wrapper 会从 accessibility tree 中移除，使 records 保持
+正确的 list 语义。Button 和 menu action 仍独立处理事件，pointer 移动超过 6px 则抑制 card 打开，
+因此 Kanban drag 不会意外弹出 record details。
 
 就地 row search 现在会显示过滤后记录的位置与总数；Enter 和 Shift+Enter 可以在保持输入框焦点的
 同时向前或向后循环。Grid 会滚动并高亮目标行；Gallery 和 Kanban 会滚动到目标 card，并在目标尚未

@@ -203,6 +203,12 @@ confirmed deletion by stable row ID. The same right-side record inspector is
 now editable across Grid, Gallery, and Kanban: primitive source fields autosave
 inline, derived Formula/Lookup values remain readonly, and successful edits
 update the active layout without closing the inspector.
+The complete card surface also opens the inspector without requiring discovery
+of a hover-only icon. Gallery cards are keyboard-focusable and open with Enter
+or Space, while their virtual row wrappers are removed from the accessibility
+tree so the records retain valid list semantics. Buttons and menu actions keep
+their independent behavior, and a six-pixel pointer movement suppresses the
+surface action so a Kanban drag cannot accidentally open record details.
 File fields support Space import, drop, remove, open, and reveal actions;
 Relation fields reuse the target-table search boundary and persist stable row
 IDs for single or multiple selection.
