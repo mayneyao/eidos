@@ -367,8 +367,8 @@ duplicate edits while saving, reports one local failure, preserves name/type
 drafts for retry, and lets optimistic property controls restore their persisted
 state without adding a global error. Escape is a real cancellation for field
 names, option names, and numeric display inputs; the blur caused by leaving the
-input cannot persist the canceled value. Direct grid and toolbar mutations
-without a local recovery surface continue to use the global Base alert.
+input cannot persist the canceled value. Toolbar mutations without a local
+recovery surface continue to use the global Base alert.
 
 Formula and Lookup editors use the same recoverable transaction boundary. An
 open editor session is keyed by the stable field identity, so the parent
@@ -392,8 +392,17 @@ disabled, the board exposes `aria-busy`, and a synchronous guard rejects events
 that arrive before React can repaint the disabled state. Success is announced
 only after persistence; failure restores one authoritative copy of the row and
 unlocks the board. This prevents a failed first move and queued second move from
-leaving the same row in two columns. Direct Grid cell writes remain global
-because the Grid does not yet provide an equivalent anchored recovery surface.
+leaving the same row in two columns.
+
+Direct and pasted Grid writes now own an anchored recovery surface as well.
+Optimistic values remain visible when persistence fails, the parent recovery
+reload does not add a second global alert, and the Grid offers Retry or Discard
+without opening a modal. Rapid edits continue to appear immediately while their
+writes are serialized. If an earlier write fails, later queued edits are merged
+into the same recoverable transaction instead of being sent against a missing
+base state. The Grid pauses new writes until the user retries the preserved
+transaction or discards it back to the persisted row; discarding also resets
+the local undo history so an abandoned draft cannot be replayed accidentally.
 
 Base secondary workspaces now adapt to the space available inside the active
 editor rather than to the application window. Grid, Gallery, and Kanban keep

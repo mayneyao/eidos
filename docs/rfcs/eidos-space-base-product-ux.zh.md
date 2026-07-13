@@ -231,8 +231,8 @@ transaction 边界：保存期间不能关闭或重复提交，失败后保留�
 仍会加载持久化快照，但不会再追加第二条全局 Base alert。Formula 与 Lookup 编辑器也使用同一规则，
 并按稳定的 field identity 维持一次打开会话；恢复快照即使重新分配 field 对象，也不能覆盖仍打开的
 公式、relation/target/aggregation 草稿或局部错误。保存会同步拦截重复快捷键和提交，锁定所有可编辑
-控件与退出动作，只有成功才关闭，失败则原位保留可重试状态。没有自身恢复界面的 Grid 和 toolbar
-mutation 才继续使用全局 Base alert。
+控件与退出动作，只有成功才关闭，失败则原位保留可重试状态。只有没有自身恢复界面的 toolbar
+mutation 继续使用全局 Base alert。
 
 Record Inspector 自动保存与 Kanban 行内新建也遵循同一套局部恢复边界。Inspector 写入失败后即使父层
 重新加载持久化 Base 快照，仍会保留并显示当前 optimistic 字段值；在用户解决冲突前锁定其他字段编辑，
@@ -242,7 +242,12 @@ Record Inspector 自动保存与 Kanban 行内新建也遵循同一套局部恢�
 移动：一笔 optimistic move 持久化期间，drag 与 Move-to 入口都会禁用，board 暴露 `aria-busy`，并用
 同步 guard 拦截 React 来不及重绘 disabled 状态前到达的事件。只有持久化成功后才播报完成；失败会恢复
 唯一一份权威 row 并解锁 board，避免第一笔 move 失败、第二笔 move 已排队时同一 row 同时残留在两列。
-Grid cell 目前没有等价的锚定式恢复界面，因此其直接写入仍使用全局错误。
+
+Grid 的单格写入和批量粘贴现在也拥有锚定式恢复界面。持久化失败后 optimistic 值会继续显示，父层恢复
+快照不会再追加第二条全局错误，Grid 会原位提供 Retry 与 Discard，不引入 modal。连续快速编辑仍立即
+显示，但写入会按顺序执行；如果较早的写入失败，尚未发送的后续编辑会合并进同一个可恢复 transaction，
+不会基于缺失的前置状态继续落盘。用户 Retry 保留的整组修改或 Discard 回持久化 row 之前，Grid 会暂停
+新的写入；Discard 同时重置局部 undo history，避免已经放弃的草稿又被意外重放。
 
 Base 的次级工作区现在根据 active editor 的实际可用空间响应，而不是使用整个应用窗口宽度。Grid、
 Gallery 和 Kanban 在主 view 至少还能保留 440px 时，将 320px Record Inspector 或 Field Property
