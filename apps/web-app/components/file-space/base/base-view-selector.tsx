@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useState } from "react"
 import type {
   BaseFieldInfo,
   BaseViewInfo,
@@ -114,6 +114,8 @@ export function BaseViewSelector({
   const [createType, setCreateType] = useState<BaseBuiltInViewType>("grid")
   const [busy, setBusy] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const fitImageId = useId()
+  const hideEmptyFieldsId = useId()
   const managedView = useMemo(
     () => views.find((view) => view.id === managedViewId),
     [managedViewId, views]
@@ -142,6 +144,7 @@ export function BaseViewSelector({
     setPanel("create")
   }
   const run = async (operation: () => Promise<void>, after?: () => void) => {
+    setLocalError(null)
     setBusy(true)
     try {
       await operation()
@@ -339,7 +342,11 @@ export function BaseViewSelector({
             />
             <div className="mt-3 grid gap-1.5">
               <p className="text-xs font-medium">Layout</p>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div
+                className="grid grid-cols-3 gap-1.5"
+                role="group"
+                aria-label="View layout"
+              >
                 {VIEW_TYPES.map((candidate) => {
                   const unavailable =
                     candidate.type === "kanban" && selectFields.length === 0
@@ -455,7 +462,10 @@ export function BaseViewSelector({
                     updateProperties({ groupByField })
                   }
                 >
-                  <SelectTrigger className="h-8 text-xs">
+                  <SelectTrigger
+                    className="h-8 text-xs"
+                    aria-label="Kanban group field"
+                  >
                     <SelectValue placeholder="Choose a Select field" />
                   </SelectTrigger>
                   <SelectContent>
@@ -494,7 +504,10 @@ export function BaseViewSelector({
                       })
                     }
                   >
-                    <SelectTrigger className="h-8 text-xs">
+                    <SelectTrigger
+                      className="h-8 text-xs"
+                      aria-label="Gallery card cover"
+                    >
                       <SelectValue placeholder="No cover" />
                     </SelectTrigger>
                     <SelectContent>
@@ -516,9 +529,14 @@ export function BaseViewSelector({
                   ) : null}
                 </div>
                 {managedView.properties?.coverPreview ? (
-                  <label className="flex items-center justify-between gap-3 text-xs">
+                  <label
+                    className="flex items-center justify-between gap-3 text-xs"
+                    htmlFor={fitImageId}
+                  >
                     <span>Fit image</span>
                     <Switch
+                      id={fitImageId}
+                      aria-label="Fit image"
                       checked={managedView.properties?.fitContent !== false}
                       disabled={busy}
                       onCheckedChange={(fitContent) =>
@@ -532,7 +550,11 @@ export function BaseViewSelector({
             {managedView.type === "gallery" || managedView.type === "kanban" ? (
               <div className="mt-3 grid gap-1.5 border-t pt-3">
                 <p className="text-xs font-medium">Card size</p>
-                <div className="grid grid-cols-3 rounded-md border p-0.5">
+                <div
+                  className="grid grid-cols-3 rounded-md border p-0.5"
+                  role="group"
+                  aria-label="Card size"
+                >
                   {(["small", "medium", "large"] as const).map((size) => (
                     <button
                       key={size}
@@ -544,6 +566,9 @@ export function BaseViewSelector({
                           : "text-muted-foreground"
                       )}
                       disabled={busy}
+                      aria-pressed={
+                        (managedView.properties?.cardSize ?? "medium") === size
+                      }
                       onClick={() => updateProperties({ cardSize: size })}
                     >
                       {size}
@@ -554,13 +579,15 @@ export function BaseViewSelector({
             ) : null}
             {managedView.type === "gallery" ? (
               <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
-                <div>
+                <label htmlFor={hideEmptyFieldsId}>
                   <p className="text-xs font-medium">Hide empty fields</p>
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
                     Keep cards focused on populated properties.
                   </p>
-                </div>
+                </label>
                 <Switch
+                  id={hideEmptyFieldsId}
+                  aria-label="Hide empty fields"
                   checked={managedView.properties?.hideEmptyFields !== false}
                   disabled={busy}
                   onCheckedChange={(hideEmptyFields) =>
@@ -674,7 +701,10 @@ export function BaseViewSelector({
         ) : null}
 
         {localError ? (
-          <p className="mx-2 mb-1 mt-2 text-xs text-destructive">
+          <p
+            className="mx-2 mb-1 mt-2 break-words text-xs text-destructive"
+            role="alert"
+          >
             {localError}
           </p>
         ) : null}

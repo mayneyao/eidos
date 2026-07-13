@@ -460,9 +460,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     <T,>(
       operation: () => Promise<T>,
       onSuccess?: (result: T) => void,
-      options: { blocking?: boolean } = {}
+      options: { blocking?: boolean; errorMode?: "global" | "local" } = {}
     ): Promise<T> => {
       const blocking = options.blocking !== false
+      const errorMode = options.errorMode ?? "global"
       pendingMutationCountRef.current += 1
       mutatingRef.current = true
       setPendingMutations((current) => current + 1)
@@ -482,12 +483,14 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             return result
           },
           async (mutationError) => {
-            setError(
-              mutationError instanceof Error
-                ? mutationError.message
-                : "Unable to update Base"
-            )
-            await load({ preserveError: true })
+            if (errorMode === "global") {
+              setError(
+                mutationError instanceof Error
+                  ? mutationError.message
+                  : "Unable to update Base"
+              )
+            }
+            await load({ preserveError: errorMode === "global" })
             throw mutationError
           }
         )
@@ -892,7 +895,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             (candidate) => !existingIds.has(candidate.table.id)
           )
           if (created) setActiveTableId(created.table.id)
-        }
+        },
+        { errorMode: "local" }
       ).then(() => undefined)
     },
     [applySnapshot, createTable, enqueueMutation, filePath, snapshot?.tables]
@@ -927,7 +931,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           placement
             ? addField(filePath, activeTable.table.id, field, placement)
             : addField(filePath, activeTable.table.id, field),
-        applySnapshot
+        applySnapshot,
+        { errorMode: "local" }
       ).then(() => {
         setFieldInsertIndex(null)
       })
@@ -953,7 +958,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       if (!renameTarget) return Promise.resolve()
       return enqueueMutation(
         () => updateTable(filePath, renameTarget.tableId, { name }),
-        applySnapshot
+        applySnapshot,
+        { errorMode: "local" }
       ).then(() => undefined)
     },
     [applySnapshot, enqueueMutation, filePath, renameTarget, updateTable]
@@ -1114,7 +1120,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               [tableId]: created.id,
             }))
           }
-        }
+        },
+        { errorMode: "local" }
       ).then(() => undefined)
     },
     [activeTable, applySnapshot, createView, enqueueMutation, filePath]
@@ -1124,7 +1131,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     (viewId: string, name: string): Promise<void> =>
       enqueueMutation(
         () => updateView(filePath, viewId, { name }),
-        applySnapshot
+        applySnapshot,
+        { errorMode: "local" }
       ).then(() => undefined),
     [applySnapshot, enqueueMutation, filePath, updateView]
   )
@@ -1136,7 +1144,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     ): Promise<void> =>
       enqueueMutation(
         () => updateView(filePath, viewId, changes),
-        applySnapshot
+        applySnapshot,
+        { errorMode: "local" }
       ).then(() => undefined),
     [applySnapshot, enqueueMutation, filePath, updateView]
   )
@@ -1159,7 +1168,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               [tableId]: created.id,
             }))
           }
-        }
+        },
+        { errorMode: "local" }
       ).then(() => undefined)
     },
     [activeTable, applySnapshot, duplicateView, enqueueMutation, filePath]
@@ -1184,7 +1194,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             else delete updated[tableId]
             return updated
           })
-        }
+        },
+        { errorMode: "local" }
       ).then(() => undefined)
     },
     [activeTable, applySnapshot, deleteView, enqueueMutation, filePath]
@@ -1195,7 +1206,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       if (!activeTable) return Promise.resolve()
       return enqueueMutation(
         () => reorderViews(filePath, activeTable.table.id, viewIds),
-        applySnapshot
+        applySnapshot,
+        { errorMode: "local" }
       ).then(() => undefined)
     },
     [activeTable, applySnapshot, enqueueMutation, filePath, reorderViews]
@@ -1241,7 +1253,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   if (loading && !snapshot) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+        <LoaderCircle className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />
         Opening Base…
       </div>
     )
@@ -1413,7 +1425,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             onClick={() => void load()}
           >
             <RefreshCw
-              className={cn("h-3.5 w-3.5", loading && "animate-spin")}
+              className={cn(
+                "h-3.5 w-3.5 motion-reduce:animate-none",
+                loading && "animate-spin"
+              )}
             />
           </Button>
         </div>
@@ -1627,7 +1642,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         status={
           pendingMutations > 0 ? (
             <span className="flex items-center gap-1">
-              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
               Saving…
             </span>
           ) : lastSavedAt ? (

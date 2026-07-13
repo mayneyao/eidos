@@ -323,7 +323,7 @@ export function BaseFormulaComposer({
           aria-live="polite"
         >
           {status === "checking" ? (
-            <LoaderCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" />
+            <LoaderCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
           ) : status === "valid" ? (
             <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
           ) : status === "error" ? (

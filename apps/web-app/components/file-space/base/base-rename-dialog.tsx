@@ -1,4 +1,5 @@
-import { useEffect, useId, useState, type FormEvent } from "react"
+import { useEffect, useId, useRef, useState, type FormEvent } from "react"
+import { LoaderCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
@@ -20,18 +21,42 @@ export function BaseRenameDialog({
   onRename,
 }: BaseRenameDialogProps) {
   const [nextName, setNextName] = useState(name)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const generationRef = useRef(0)
   const nameId = useId()
+  const descriptionId = useId()
+  const errorId = useId()
 
   useEffect(() => {
-    if (open) setNextName(name)
+    generationRef.current += 1
+    if (!open) return
+    setNextName(name)
+    setSubmitting(false)
+    setError(null)
   }, [name, open])
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
     const trimmed = nextName.trim()
-    if (!trimmed || trimmed === name) return
-    void Promise.resolve(onRename(trimmed)).catch(() => undefined)
-    onOpenChange(false)
+    if (submitting || !trimmed || trimmed === name) return
+    const generation = ++generationRef.current
+    setSubmitting(true)
+    setError(null)
+    try {
+      await onRename(trimmed)
+      if (generation !== generationRef.current) return
+      onOpenChange(false)
+    } catch (renameError) {
+      if (generation !== generationRef.current) return
+      setError(
+        renameError instanceof Error
+          ? renameError.message
+          : `Unable to rename ${kind}`
+      )
+    } finally {
+      if (generation === generationRef.current) setSubmitting(false)
+    }
   }
 
   return (
@@ -42,7 +67,10 @@ export function BaseRenameDialog({
       <PopoverContent align="end" side="bottom" className="w-80 p-0">
         <div className="border-b px-4 py-3">
           <h2 className="text-sm font-semibold">Rename {kind}</h2>
-          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+          <p
+            id={descriptionId}
+            className="mt-0.5 text-xs leading-5 text-muted-foreground"
+          >
             This changes the display name inside the Base file.
           </p>
         </div>
@@ -57,24 +85,51 @@ export function BaseRenameDialog({
                 id={nameId}
                 value={nextName}
                 autoFocus
+                disabled={submitting}
+                aria-describedby={
+                  error ? `${descriptionId} ${errorId}` : descriptionId
+                }
+                aria-invalid={error ? "true" : undefined}
                 onFocus={(event) => event.currentTarget.select()}
-                onChange={(event) => setNextName(event.target.value)}
+                onChange={(event) => {
+                  setNextName(event.target.value)
+                  setError(null)
+                }}
               />
             </label>
+            {error ? (
+              <p
+                id={errorId}
+                className="mt-2 break-words text-xs text-destructive"
+                role="alert"
+              >
+                {error}
+              </p>
+            ) : null}
           </div>
           <div className="flex items-center justify-end gap-2 border-t px-4 py-2.5">
             <Button
               type="button"
               variant="ghost"
+              disabled={submitting}
               onClick={() => onOpenChange(false)}
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              disabled={!nextName.trim() || nextName.trim() === name}
+              disabled={
+                submitting || !nextName.trim() || nextName.trim() === name
+              }
             >
-              Rename
+              {submitting ? (
+                <>
+                  <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+                  Renaming…
+                </>
+              ) : (
+                "Rename"
+              )}
             </Button>
           </div>
         </form>

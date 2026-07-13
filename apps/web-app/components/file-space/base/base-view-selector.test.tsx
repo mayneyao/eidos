@@ -307,5 +307,63 @@ describe("BaseViewSelector", () => {
         coverPreview: "cover",
       },
     })
+    expect(
+      document.body.querySelector(
+        '[role="switch"][aria-label="Hide empty fields"]'
+      )
+    ).not.toBeNull()
+    expect(
+      document.body.querySelector('[role="group"][aria-label="Card size"]')
+    ).not.toBeNull()
+    expect(
+      document.body
+        .querySelector<HTMLButtonElement>(
+          '[role="group"][aria-label="Card size"] button[aria-pressed="true"]'
+        )
+        ?.textContent?.trim()
+    ).toBe("medium")
+  })
+
+  it("announces a failed view update and keeps its settings available", async () => {
+    onUpdate.mockRejectedValueOnce(new Error("Base file is read-only"))
+    await act(async () => {
+      root.render(
+        <BaseViewSelector
+          views={[galleryView]}
+          fields={fields}
+          activeView={galleryView}
+          onSelect={onSelect}
+          onCreate={onCreate}
+          onRename={onRename}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onReorder={onReorder}
+          onUpdate={onUpdate}
+        />
+      )
+    })
+    await act(async () => exactButton("Task cards")?.click())
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Manage Task cards view"]'
+        )
+        ?.click()
+    )
+    await act(async () => {
+      exactButton("small")?.click()
+      await Promise.resolve()
+    })
+
+    expect(onUpdate).toHaveBeenCalledWith("view_gallery", {
+      properties: {
+        cardSize: "small",
+        hideEmptyFields: true,
+      },
+    })
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
+      "Base file is read-only"
+    )
+    expect(document.body.textContent).toContain("Hide empty fields")
   })
 })

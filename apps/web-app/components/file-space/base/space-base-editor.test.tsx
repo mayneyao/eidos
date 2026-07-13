@@ -518,6 +518,7 @@ vi.mock("./base-view-selector", () => ({
     onDuplicate,
     onDelete,
     onReorder,
+    onUpdate,
   }: {
     activeView?: (typeof snapshot)["tables"][number]["views"][number]
     onCreate: (name: string, type: "grid" | "gallery" | "kanban") => void
@@ -525,6 +526,7 @@ vi.mock("./base-view-selector", () => ({
     onDuplicate: (viewId: string) => void
     onDelete: (viewId: string) => void
     onReorder: (viewIds: string[]) => void
+    onUpdate: (viewId: string, changes: { name: string }) => Promise<void>
   }) => (
     <div data-testid="base-view-selector">
       <span>{activeView?.name ?? "Views"}</span>
@@ -557,6 +559,18 @@ vi.mock("./base-view-selector", () => ({
       </button>
       <button type="button" onClick={() => onReorder(["view_tasks"])}>
         Reorder views
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          if (activeView) {
+            void onUpdate(activeView.id, { name: "Unavailable" }).catch(
+              () => undefined
+            )
+          }
+        }}
+      >
+        Update view
       </button>
     </div>
   ),
@@ -1137,6 +1151,22 @@ describe("SpaceBaseEditor", () => {
         .querySelector<HTMLButtonElement>('[aria-label="Dismiss Base error"]')
         ?.click()
     })
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+  })
+
+  it("leaves view mutation errors to the anchored view workspace", async () => {
+    updateViewMock.mockRejectedValueOnce(new Error("View update failed"))
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Update view")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(getSnapshotMock).toHaveBeenCalledTimes(2)
     expect(container.querySelector('[role="alert"]')).toBeNull()
   })
 

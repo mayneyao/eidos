@@ -119,7 +119,7 @@ export function BaseFieldPropertyPanel({
           </p>
         </div>
         {disabled ? (
-          <LoaderCircle className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+          <LoaderCircle className="h-3.5 w-3.5 animate-spin text-muted-foreground motion-reduce:animate-none" />
         ) : null}
         <Button
           type="button"

@@ -180,7 +180,7 @@ export function BaseRecordRelationEditor({
           ))}
           {loading ? (
             <div className="flex items-center justify-center gap-1.5 px-2 py-5 text-xs text-muted-foreground">
-              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
               Loading…
             </div>
           ) : !loading && available.length === 0 ? (

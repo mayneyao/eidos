@@ -143,7 +143,7 @@ export function BaseRecordFileEditor({
         onClick={() => void chooseFiles()}
       >
         {importing ? (
-          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+          <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
         ) : (
           <Plus className="h-3.5 w-3.5" />
         )}

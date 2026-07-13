@@ -396,7 +396,7 @@ export function BaseCsvImportPopover({
           onClick={() => void chooseFile()}
         >
           {selecting ? (
-            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
           ) : (
             <FileUp className="h-3.5 w-3.5" />
           )}
@@ -525,7 +525,7 @@ export function BaseCsvImportPopover({
                     )}
                   >
                     {validating ? (
-                      <LoaderCircle className="h-3 w-3 animate-spin" />
+                      <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
                     ) : displayedError ? (
                       <AlertTriangle className="h-3 w-3" />
                     ) : null}
@@ -637,7 +637,7 @@ export function BaseCsvImportPopover({
                     }
                   >
                     {importing ? (
-                      <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
                     ) : null}
                     {importing
                       ? `Importing ${percent}%`
