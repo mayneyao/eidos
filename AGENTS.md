@@ -125,6 +125,12 @@ hardened runtime, notarization, and the `afterSign` hook. Reserve
 `pnpm pkg:desktop` and the release builder configuration for actual release
 work; do not pay the signing cost during normal implementation checks.
 
+Desktop development/builds and Node tests share one linked `better-sqlite3`
+native binary. Stop any running `pnpm dev:desktop` process before `pnpm test`,
+and run Desktop builds and tests sequentially rather than in parallel. A live
+Electron process can keep the Electron binary mapped and cause the Node runtime
+switch in `pretest` to exit with code 137.
+
 ### CLI Development
 
 ```bash

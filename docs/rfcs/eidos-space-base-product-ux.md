@@ -70,6 +70,13 @@ Base view workbar consume the same workbar token; the Space footer and Base
 sheet bar consume the same statusbar token. Components no longer hard-code
 different heights for horizontal boundaries shared across sidebar and content.
 
+The Base workbar now adapts to its editor container instead of the full window.
+At narrower widths, action labels collapse to accessible icon controls and the
+inline search field contracts without removing Search, Filter, Sort, Fields,
+Import, row creation, or refresh. The view strip hides its native scrollbar,
+reveals directional controls only when views overflow, and scrolls the active
+view back into sight. The 40px shell boundary remains unchanged at every width.
+
 File fields now use a Base-specific multi-attachment cell adapted from the
 existing table interaction. Users can import files into the visible Space
 `assets/` folder, drop files onto a cell, reorder or remove attachments, open

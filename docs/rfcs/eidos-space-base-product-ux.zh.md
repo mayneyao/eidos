@@ -53,6 +53,11 @@ Desktop shell 现在使用共享语义高度：titlebar 38px、surface workbar 4
 40px。Files/Version 分区栏与 Base view workbar 使用同一 workbar token，Space footer 与 Base
 sheet bar 使用同一 statusbar token，跨 sidebar 和内容区共享的水平边界不再由组件各自写死。
 
+Base workbar 现在按 editor 容器而不是整个窗口自适应。内容区变窄时，action labels 会收敛为
+带完整可访问名称的图标控件，inline search 也会缩短，但 Search、Filter、Sort、Fields、
+Import、新建记录和刷新能力都不会消失。View strip 隐藏原生滚动条，只在实际溢出时显示方向
+按钮，并自动把 active view 滚回可视区域；所有宽度仍保持同一条 40px shell 边界。
+
 file 字段现在使用从原表格交互适配出的 Base 专用多附件 cell。用户可以把文件导入
 Space 可见的 `assets/` 目录、拖放到单元格、重排或移除附件、在 Eidos 中打开，或在
 文件管理器中定位。日常附件编辑保持在 Grid overlay 内，只有必要的原生文件选择器会
