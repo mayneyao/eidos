@@ -11,6 +11,7 @@ import { SpaceRegistry } from "./space-registry"
 import { MainWindowProvider } from "./main-window.provider"
 import { SpaceResourceLifecycle } from "./space-resource-lifecycle"
 import { BaseCsvWorkerRunner } from "./base-csv-worker-runner"
+import { BaseQueryWorkerRunner } from "./base-query-worker-runner"
 
 /**
  * Space Management Module
@@ -30,6 +31,7 @@ import { BaseCsvWorkerRunner } from "./base-csv-worker-runner"
     MainWindowProvider,
     SpaceResourceLifecycle,
     BaseCsvWorkerRunner,
+    BaseQueryWorkerRunner,
   ],
   exports: [
     SpaceManagementService,
@@ -37,6 +39,7 @@ import { BaseCsvWorkerRunner } from "./base-csv-worker-runner"
     MainWindowProvider,
     SpaceResourceLifecycle,
     BaseCsvWorkerRunner,
+    BaseQueryWorkerRunner,
   ],
 })
 export class SpaceManagementModule {}

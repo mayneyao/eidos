@@ -71,6 +71,7 @@ import {
   type BaseCsvWorkerOperation,
 } from "./base-csv-worker-runner"
 import type { BaseCsvFileFingerprint } from "./base-csv-worker-protocol"
+import { BaseQueryWorkerRunner } from "./base-query-worker-runner"
 
 export type BaseCsvOperationStatus =
   | "running"
@@ -134,7 +135,9 @@ export class SpaceManagementService extends IpcServiceBase {
     @Inject(SpaceResourceLifecycle)
     private resourceLifecycle: SpaceResourceLifecycle,
     @Inject(BaseCsvWorkerRunner)
-    private baseCsvWorker: BaseCsvWorkerRunner
+    private baseCsvWorker: BaseCsvWorkerRunner,
+    @Inject(BaseQueryWorkerRunner)
+    private baseQueryWorker: BaseQueryWorkerRunner
   ) {
     super()
   }
@@ -638,18 +641,9 @@ export class SpaceManagementService extends IpcServiceBase {
       throw new Error("Base row page total hint must be a non-negative integer")
     }
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
-      try {
-        return base.getRowPage(
-          tableId,
-          options.offset,
-          options.limit,
-          options.query,
-          options.totalHint
-        )
-      } finally {
-        base.close()
-      }
+      const files = this._getFileSpace(spaceId)
+      const systemPath = await files.getSystemPath(relativePath)
+      return this.baseQueryWorker.page(files.root, systemPath, tableId, options)
     })
   }
 
@@ -661,12 +655,15 @@ export class SpaceManagementService extends IpcServiceBase {
     query: BaseRowQuery = {}
   ): Promise<BaseRowGroupCount[]> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
-      try {
-        return base.countRowsByField(tableId, columnName, query)
-      } finally {
-        base.close()
-      }
+      const files = this._getFileSpace(spaceId)
+      const systemPath = await files.getSystemPath(relativePath)
+      return this.baseQueryWorker.groupCounts(
+        files.root,
+        systemPath,
+        tableId,
+        columnName,
+        query
+      )
     })
   }
 

@@ -22,6 +22,7 @@
     "native:node": "node ../../scripts/use-better-sqlite3-runtime.cjs node",
     "smoke:base-versioning": "pnpm --filter @eidos.space/base build && cross-env ELECTRON_RUN_AS_NODE=1 SQLITE_USE_URI=1 electron scripts/base-versioning-smoke.mjs",
     "smoke:base-csv": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/base-csv-worker-smoke.mjs",
+    "smoke:base-query": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/base-query-worker-smoke.mjs",
     "smoke:graft-remote": "cross-env ELECTRON_RUN_AS_NODE=1 SQLITE_USE_URI=1 electron scripts/graft-versioning-smoke.cjs remote-conflict",
     "smoke:graft-worker": "cross-env ELECTRON_RUN_AS_NODE=1 SQLITE_USE_URI=1 electron scripts/graft-worker-smoke.mjs",
     "audit:legacy-migration": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/legacy-migration-audit.mjs",
