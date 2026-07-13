@@ -42,6 +42,7 @@ import { BaseRecordCard } from "./base-record-card"
 import { BaseRecordDeleteDialog } from "./base-record-delete-dialog"
 import { BaseRecordInspector } from "./base-record-inspector"
 import { orderedBaseFields } from "./base-view-layout"
+import { useBaseCoverReader } from "./use-base-cover-reader"
 import { useBaseVirtualLoadMore } from "./use-base-virtual-load-more"
 
 const KANBAN_PAGE_SIZE = 50
@@ -474,6 +475,7 @@ export function BaseKanbanView({
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
 }) {
+  const coverReader = useBaseCoverReader(readBinary)
   const { resolvedTheme } = useTheme()
   const theme = resolvedTheme === "dark" ? "dark" : "light"
   const generationRef = useRef(0)
@@ -1110,7 +1112,7 @@ export function BaseKanbanView({
                     disabled={disabled}
                     width={columnWidth}
                     color={baseOptionColor(group.color, theme)}
-                    readBinary={readBinary}
+                    readBinary={coverReader}
                     onOpen={setInspectedRow}
                     onDelete={onDeleteRow ? setDeleteRow : undefined}
                     moveGroups={groups}

@@ -127,6 +127,8 @@ function BaseRecordCover({
         <img
           src={source}
           alt=""
+          decoding="async"
+          loading="lazy"
           className={cn(
             "h-full w-full",
             fitContent ? "object-contain" : "object-cover"

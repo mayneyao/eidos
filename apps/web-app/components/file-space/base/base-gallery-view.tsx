@@ -17,6 +17,7 @@ import { BaseRecordCard } from "./base-record-card"
 import { BaseRecordDeleteDialog } from "./base-record-delete-dialog"
 import { BaseRecordInspector } from "./base-record-inspector"
 import { orderedBaseFields } from "./base-view-layout"
+import { useBaseCoverReader } from "./use-base-cover-reader"
 import { useBaseVirtualLoadMore } from "./use-base-virtual-load-more"
 
 const GALLERY_PAGE_SIZE = 100
@@ -87,6 +88,7 @@ export function BaseGalleryView({
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
 }) {
+  const coverReader = useBaseCoverReader(readBinary)
   const generationRef = useRef(0)
   const requestRef = useRef<{ generation: number; offset: number } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -318,7 +320,7 @@ export function BaseGalleryView({
                       row={row}
                       fields={table.fields}
                       view={view}
-                      readBinary={readBinary}
+                      readBinary={coverReader}
                       role="listitem"
                       focused={
                         focusedRow !== undefined &&

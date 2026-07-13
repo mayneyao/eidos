@@ -85,9 +85,15 @@ const view: BaseViewInfo = {
 describe("BaseGalleryView", () => {
   let container: HTMLDivElement
   let root: Root
+  let originalCreateObjectUrl: typeof URL.createObjectURL
+  let originalRevokeObjectUrl: typeof URL.revokeObjectURL
   const scrollIntoView = vi.fn()
 
   beforeEach(() => {
+    originalCreateObjectUrl = URL.createObjectURL
+    originalRevokeObjectUrl = URL.revokeObjectURL
+    URL.createObjectURL = vi.fn(() => "blob:base-cover")
+    URL.revokeObjectURL = vi.fn()
     scrollIntoView.mockReset()
     Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
       configurable: true,
@@ -124,6 +130,8 @@ describe("BaseGalleryView", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    URL.createObjectURL = originalCreateObjectUrl
+    URL.revokeObjectURL = originalRevokeObjectUrl
     vi.unstubAllGlobals()
   })
 
@@ -211,6 +219,82 @@ describe("BaseGalleryView", () => {
         .querySelector('[data-base-row-id="row_3"]')
         ?.getAttribute("aria-current")
     ).toBe("true")
+  })
+
+  it("deduplicates repeated cover reads across virtual cards", async () => {
+    const coverTable: BaseTableSnapshot = {
+      ...table,
+      fields: [
+        ...table.fields,
+        {
+          name: "Cover",
+          type: "file",
+          tableName: "tb_tasks",
+          tableColumnName: "cover",
+          property: null,
+          storageCodec: "json_array",
+          valueKind: "source",
+          isHidden: false,
+          isDerived: false,
+          sourceTableColumnName: null,
+          dependsOn: null,
+        },
+      ],
+      rowCount: 2,
+    }
+    const coverView: BaseViewInfo = {
+      ...view,
+      properties: {
+        ...view.properties,
+        coverPreview: "cover",
+      },
+    }
+    const readBinary = vi.fn(async (path: string) => ({
+      path,
+      content: new Uint8Array([1, 2, 3]),
+      size: 3,
+      mtimeMs: 1,
+    }))
+
+    await act(async () => {
+      root.render(
+        <BaseGalleryView
+          table={coverTable}
+          view={coverView}
+          loadPage={vi.fn(async (offset, limit) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: 2,
+            rows: [
+              {
+                _id: "row_1",
+                title: "First",
+                cover: '["assets/shared.png"]',
+              },
+              {
+                _id: "row_2",
+                title: "Second",
+                cover: '["assets/shared.png"]',
+              },
+            ],
+          }))}
+          readBinary={readBinary}
+        />
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(readBinary).toHaveBeenCalledTimes(1)
+    expect(readBinary).toHaveBeenCalledWith("assets/shared.png")
+    expect(
+      container.querySelectorAll('img[src="blob:base-cover"]')
+    ).toHaveLength(2)
+    expect(container.querySelector("img")?.getAttribute("loading")).toBe("lazy")
+    expect(container.querySelector("img")?.getAttribute("decoding")).toBe(
+      "async"
+    )
   })
 
   it("keeps a large gallery DOM bounded and loads the next page on scroll", async () => {
