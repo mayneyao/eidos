@@ -136,10 +136,9 @@ export function BaseGalleryView({
         })
         setTotal(page.total)
         onRowCountChange?.(page.total)
-      } catch (error) {
+      } catch {
         if (generation === generationRef.current) {
           setFailedRequest({ offset, append })
-          onError?.(error)
         }
       } finally {
         if (generation === generationRef.current) {
@@ -148,7 +147,7 @@ export function BaseGalleryView({
         }
       }
     },
-    [loadPage, onError, onRowCountChange]
+    [loadPage, onRowCountChange]
   )
 
   useEffect(() => {

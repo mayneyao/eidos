@@ -94,6 +94,8 @@ describe("Base navigation hierarchy", () => {
     const onSelectView = vi.fn()
     const onSelectTable = vi.fn()
     const onCreateTable = vi.fn()
+    const onRenameTable = vi.fn()
+    const onDeleteTable = vi.fn()
     await act(async () => {
       root.render(
         <div>
@@ -114,6 +116,8 @@ describe("Base navigation hierarchy", () => {
             activeTableId="tasks"
             onSelect={onSelectTable}
             onCreate={onCreateTable}
+            onRename={onRenameTable}
+            onDelete={onDeleteTable}
           />
         </div>
       )
@@ -155,6 +159,49 @@ describe("Base navigation hierarchy", () => {
     expect(onSelectView).toHaveBeenCalledWith("board")
     expect(onSelectTable).toHaveBeenCalledWith("projects")
     expect(onCreateTable).toHaveBeenCalledOnce()
+
+    const projectsTab = sheetTabs?.querySelector<HTMLElement>(
+      '[data-base-table-id="projects"]'
+    )
+    await act(async () => {
+      projectsTab?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          button: 2,
+          clientX: 40,
+          clientY: 40,
+        })
+      )
+      await Promise.resolve()
+    })
+    await act(async () => {
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      )
+        .find((item) => item.textContent?.includes("Rename table"))
+        ?.click()
+    })
+    expect(onRenameTable).toHaveBeenCalledWith(tables[1])
+
+    await act(async () => {
+      projectsTab?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          button: 2,
+          clientX: 40,
+          clientY: 40,
+        })
+      )
+      await Promise.resolve()
+    })
+    await act(async () => {
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      )
+        .find((item) => item.textContent?.includes("Delete table"))
+        ?.click()
+    })
+    expect(onDeleteTable).toHaveBeenCalledWith(tables[1])
   })
 
   it("reveals directional controls when the view strip overflows", async () => {

@@ -780,7 +780,7 @@ export function BaseKanbanView({
               : candidate
           )
         )
-      } catch (error) {
+      } catch {
         if (generation !== generationRef.current) return
         loadedGroupGenerationsRef.current.set(group.key, generation)
         setGroups((current) =>
@@ -795,14 +795,13 @@ export function BaseKanbanView({
               : candidate
           )
         )
-        onError?.(error)
       } finally {
         if (loadingInitialGroupsRef.current.get(group.key) === generation) {
           loadingInitialGroupsRef.current.delete(group.key)
         }
       }
     },
-    [groupField, loadGroupPage, onError]
+    [groupField, loadGroupPage]
   )
 
   useEffect(() => {
@@ -876,7 +875,7 @@ export function BaseKanbanView({
               : candidate
           )
         )
-      } catch (error) {
+      } catch {
         if (generation !== generationRef.current) return
         setGroups((current) =>
           current.map((candidate) =>
@@ -889,14 +888,13 @@ export function BaseKanbanView({
               : candidate
           )
         )
-        onError?.(error)
       } finally {
         if (loadingMoreGroupsRef.current.get(group.key) === generation) {
           loadingMoreGroupsRef.current.delete(group.key)
         }
       }
     },
-    [groupField, loadGroupPage, onError]
+    [groupField, loadGroupPage]
   )
 
   const retryGroup = useCallback(

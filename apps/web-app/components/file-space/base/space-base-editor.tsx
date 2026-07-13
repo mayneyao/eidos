@@ -1582,6 +1582,20 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         disabled={loading || blockingMutations > 0}
         onSelect={setActiveTableId}
         onCreate={() => setStructureDialog("table")}
+        onRename={(table) =>
+          setRenameTarget({
+            kind: "table",
+            tableId: table.id,
+            name: table.name,
+          })
+        }
+        onDelete={(table) =>
+          setDeleteTarget({
+            kind: "table",
+            tableId: table.id,
+            name: table.name,
+          })
+        }
         status={
           pendingMutations > 0 ? (
             <span className="flex items-center gap-1">

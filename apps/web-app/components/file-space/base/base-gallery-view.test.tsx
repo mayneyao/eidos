@@ -494,6 +494,7 @@ describe("BaseGalleryView", () => {
   })
 
   it("stops automatic retries after the first page fails and recovers in place", async () => {
+    const onError = vi.fn()
     const loadPage = vi
       .fn<(offset: number, limit: number) => Promise<BaseRowPage>>()
       .mockRejectedValueOnce(new Error("offline"))
@@ -507,13 +508,19 @@ describe("BaseGalleryView", () => {
 
     await act(async () => {
       root.render(
-        <BaseGalleryView table={table} view={view} loadPage={loadPage} />
+        <BaseGalleryView
+          table={table}
+          view={view}
+          loadPage={loadPage}
+          onError={onError}
+        />
       )
       await Promise.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
     expect(loadPage).toHaveBeenCalledTimes(1)
+    expect(onError).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Could not load gallery records")
 
     await act(async () => {
@@ -529,6 +536,7 @@ describe("BaseGalleryView", () => {
   })
 
   it("does not retry a failed infinite page until the user requests it", async () => {
+    const onError = vi.fn()
     const firstPage = Array.from({ length: 100 }, (_, index) => ({
       _id: `row_${index}`,
       title: `Task ${index}`,
@@ -554,7 +562,12 @@ describe("BaseGalleryView", () => {
 
     await act(async () => {
       root.render(
-        <BaseGalleryView table={table} view={view} loadPage={loadPage} />
+        <BaseGalleryView
+          table={table}
+          view={view}
+          loadPage={loadPage}
+          onError={onError}
+        />
       )
       await Promise.resolve()
     })
@@ -571,6 +584,7 @@ describe("BaseGalleryView", () => {
     })
 
     expect(loadPage).toHaveBeenCalledTimes(2)
+    expect(onError).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Could not load more records")
 
     await act(async () => {

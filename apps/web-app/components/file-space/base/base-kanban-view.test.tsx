@@ -967,6 +967,7 @@ describe("BaseKanbanView", () => {
   })
 
   it("stops failed group paging until the user retries", async () => {
+    const onError = vi.fn()
     const firstPage = Array.from({ length: 50 }, (_, index) => ({
       _id: `todo_${index}`,
       title: `Todo ${index}`,
@@ -1002,6 +1003,7 @@ describe("BaseKanbanView", () => {
           loadGroupPage={loadGroupPage}
           onCellEdit={vi.fn()}
           onAddRow={vi.fn()}
+          onError={onError}
         />
       )
       await Promise.resolve()
@@ -1019,6 +1021,7 @@ describe("BaseKanbanView", () => {
     })
 
     expect(todoRequests).toBe(2)
+    expect(onError).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Retry loading records")
 
     await act(async () => {
@@ -1038,6 +1041,7 @@ describe("BaseKanbanView", () => {
   })
 
   it("recovers an initial group failure without reloading the board", async () => {
+    const onError = vi.fn()
     let todoRequests = 0
     const loadGroupPage = vi.fn(
       async (_field, value: string | null, offset: number, limit: number) => {
@@ -1065,6 +1069,7 @@ describe("BaseKanbanView", () => {
           loadGroupPage={loadGroupPage}
           onCellEdit={vi.fn()}
           onAddRow={vi.fn()}
+          onError={onError}
         />
       )
       await Promise.resolve()
@@ -1072,6 +1077,7 @@ describe("BaseKanbanView", () => {
     })
 
     expect(todoRequests).toBe(1)
+    expect(onError).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Could not load records")
 
     await act(async () => {
