@@ -55,6 +55,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { toast } from "@/components/ui/use-toast"
 import { useAIConfigStore } from "@/components/settings/stores"
+import { SettingsRowSurface } from "@/components/settings/settings-surface"
 import { isDesktopMode } from "@/lib/env"
 
 import { AIProviderForm } from "./ai/ai-provider-form"
@@ -546,9 +547,9 @@ export function GlobalAISettings() {
 
       <hr className="border-border" />
 
-      <div className="py-6">
+      <SettingsRowSurface className="py-4">
         <AITaskConfigForm onDirtyChange={setIsFormDirty} />
-      </div>
+      </SettingsRowSurface>
 
       {/* Agent Section */}
       <div className="py-4 flex items-center gap-2">
@@ -558,9 +559,9 @@ export function GlobalAISettings() {
 
       <hr className="border-border" />
 
-      <div className="py-6">
-        <div className="space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+      <SettingsRowSurface>
+        <div className="divide-y divide-border/70">
+          <div className="flex flex-col gap-4 py-4 lg:flex-row lg:items-start">
             <div className="space-y-0.5 flex-1 min-w-0">
               <label className="text-sm font-medium">
                 {t("settings.ai.agentNotificationSound")}
@@ -581,7 +582,7 @@ export function GlobalAISettings() {
               />
             </div>
           </div>
-          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+          <div className="flex flex-col gap-4 py-4 lg:flex-row lg:items-start">
             <div className="space-y-0.5 flex-1 min-w-0">
               <label className="text-sm font-medium">
                 {t("settings.ai.agentPermissionBypass")}
@@ -603,7 +604,7 @@ export function GlobalAISettings() {
             </div>
           </div>
         </div>
-      </div>
+      </SettingsRowSurface>
 
       {/* Tool API Keys Section */}
       <div className="py-4 flex items-center gap-2">
@@ -613,9 +614,9 @@ export function GlobalAISettings() {
 
       <hr className="border-border" />
 
-      <div className="py-6">
-        <div className="space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+      <SettingsRowSurface>
+        <div className="divide-y divide-border/70">
+          <div className="flex flex-col gap-4 py-4 lg:flex-row lg:items-start">
             <div className="space-y-0.5 flex-1 min-w-0">
               <label className="text-sm font-medium">Exa API Key</label>
               <p className="text-sm text-muted-foreground">
@@ -648,7 +649,7 @@ export function GlobalAISettings() {
             </div>
           </div>
         </div>
-      </div>
+      </SettingsRowSurface>
 
       {/* Channels Section */}
       <div className="py-4 flex items-center gap-2">
@@ -658,17 +659,17 @@ export function GlobalAISettings() {
 
       <hr className="border-border" />
 
-      {!isDesktopMode && (
-        <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-md flex gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
-          <p className="text-sm text-amber-800 dark:text-amber-200">
-            {t("settings.account.desktopOnly")}
-          </p>
-        </div>
-      )}
-
       <div className="py-6">
         <div className="space-y-6">
+          {!isDesktopMode && (
+            <div className="flex gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/30">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" />
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                {t("settings.account.desktopOnly")}
+              </p>
+            </div>
+          )}
+
           <p className="text-sm text-muted-foreground">
             {t("settings.ai.channelsDescription")}
           </p>

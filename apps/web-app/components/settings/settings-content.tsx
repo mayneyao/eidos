@@ -25,6 +25,7 @@ import { MountSettings } from "./space/mount-settings"
 import { TabsSettings } from "./space/tab-settings"
 import { RelaySettings } from "./space/relay-settings"
 import { ThemeSettings } from "./space/theme-settings"
+import { SETTINGS_CONTENT_BODY_CLASS_NAME } from "./settings-surface"
 
 const FILE_SPACE_SECTIONS = new Set<SettingsSection>([
   "space-general",
@@ -224,7 +225,7 @@ export function SettingsContent() {
           </h1>
           <div
             data-settings-content-body="true"
-            className="[&>div>div:has(>h3)]:pb-2 [&>div>div:has(>h3)]:pt-5 [&>div>div:has(>h3):first-child]:pt-0 [&>div>div:has(>h3)_h3]:text-[15px] [&>div>div:has(>h3)_h3]:font-medium [&>div>hr]:hidden [&>div>hr+div]:mb-7 [&>div>hr+div]:rounded-xl [&>div>hr+div]:border [&>div>hr+div]:border-border/80 [&>div>hr+div]:bg-card/30 [&>div>hr+div]:px-5 [&>div>hr+div]:!py-4 [&>div[data-settings-row-groups]>hr+div]:!py-0"
+            className={SETTINGS_CONTENT_BODY_CLASS_NAME}
           >
             {renderContent()}
           </div>
