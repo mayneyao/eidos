@@ -118,12 +118,17 @@ offset，不再从第一页逐页追赶，也不再显示手动 Load more。Rend
 只有 Gallery 首屏或查询刷新会重新统计筛选后的总数；后续虚拟窗口请求会携带经过校验的已知 total，
 因此滚动不会为每一页重复完整 `COUNT(*)`。Kanban 同样把 grouped-count query 的各分组 total 复用于
 可见列分页。显式刷新、搜索、筛选、排序以及过期空尾页仍会重新校准权威总数。
-自然 row 顺序下连续向前的 page 还会携带 opaque row cursor。Gallery 和每个 Kanban 分组会把 cursor
-与有界 row window 一起保存，query worker 因而能把下一页转换成
-`WHERE __base_rowid > ? ORDER BY __base_rowid LIMIT ?`，不再从深层 `OFFSET` 开始重复扫描。cursor
-可以和搜索、筛选条件共同使用；显式排序、远距离滚动条跳转和向前回看仍有意回退到 offset paging，
-以保持排序与随机定位正确。分页失败重试也会保留完全相同的 cursor。在本地 100 万行 SQLite
-基线上，200 次带筛选的深分页读取使用 `OFFSET` 约 1.62 秒，使用 row cursor 快路径低于 0.01 秒。
+自然 row 顺序和基于存储字段显式排序的连续向前 page 都会携带 opaque cursor。Gallery 和每个 Kanban
+分组会把 cursor 与有界 row window 一起保存。自然顺序下一页会转换成
+`WHERE __base_rowid > ? ORDER BY __base_rowid LIMIT ?`；排序 cursor 则绑定标准化后的搜索、筛选与排序
+query，并记录上一页最后一行的排序值和 rowid。Runtime 不会把所有边界拼成一个大型 `OR`，而是按
+“完全相同 tuple 后的 rowid、最后一个排序字段边界、逐级向前的字段边界”生成互斥且有序的短范围查询，
+让可丢弃 view index 可以直接 seek，同时保持 SQLite 的 NULL、`COLLATE NOCASE`、混合升降序和 rowid
+tie-break 语义。派生字段排序、超过 8 个排序字段、远距离滚动条跳转和向前回看仍回退到 offset paging，
+以保持正确性并限制 cursor 大小；分页失败重试会保留完全相同的 cursor。在本地 100 万行 SQLite
+基线上，200 次带筛选的自然顺序深分页读取使用 `OFFSET` 约 1.62 秒，使用 rowid cursor 低于 0.01 秒。
+复合索引排序的 200 次深分页使用 `OFFSET` 约 0.78 秒；直接拼接的 `OR` cursor 反而退化到 1.58 秒，
+按顺序执行的范围分支约为 0.02 秒。
 这些分页和分组计数请求由当前 Space 持有的持久 worker 执行。重复虚拟滚动会复用已经校验的 Base
 runtime，不再让 Electron 主线程承担同步打开和校验；8 文件 LRU 上限避免文件描述符无界增长。
 文件 fingerprint 会在原地写入或原子替换后强制重开，打包后的 worker smoke 已覆盖深分页、分组总数
