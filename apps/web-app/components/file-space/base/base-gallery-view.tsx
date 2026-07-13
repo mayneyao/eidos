@@ -144,7 +144,7 @@ export function BaseGalleryView({
   useEffect(() => {
     generationRef.current += 1
     requestRef.current = null
-    setRows([])
+    setLoadingMore(false)
     setTotal(table.rowCount)
     setInspectedRow(null)
     onRowCountChange?.(null)
@@ -152,14 +152,7 @@ export function BaseGalleryView({
     return () => {
       generationRef.current += 1
     }
-  }, [
-    onRowCountChange,
-    reloadToken,
-    requestPage,
-    table.rowCount,
-    table.table.id,
-    view.id,
-  ])
+  }, [onRowCountChange, reloadToken, requestPage, table.table.id, view.id])
 
   useEffect(() => {
     const container = scrollContainerRef.current
@@ -276,14 +269,30 @@ export function BaseGalleryView({
     return result
   }
 
+  const deleteRecord = async (row: BaseRow) => {
+    if (!onDeleteRow) return
+    await onDeleteRow(row)
+    const rowId = String(row._id)
+    setRows((current) =>
+      current.filter((candidate) => String(candidate._id) !== rowId)
+    )
+    const nextTotal = Math.max(0, total - 1)
+    setTotal(nextTotal)
+    onRowCountChange?.(nextTotal)
+    setInspectedRow((current) =>
+      current && String(current._id) === rowId ? null : current
+    )
+  }
+
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden">
       <div
         ref={scrollContainerRef}
         data-base-gallery-scroll
+        aria-busy={loading || loadingMore}
         className="min-w-0 flex-1 overflow-y-auto p-4"
       >
-        {loading ? (
+        {loading && rows.length === 0 ? (
           <div className="flex h-40 items-center justify-center gap-2 text-xs text-muted-foreground">
             <LoaderCircle className="h-4 w-4 animate-spin" />
             Loading gallery…
@@ -375,7 +384,7 @@ export function BaseGalleryView({
           onOpenChange={(open) => {
             if (!open) setDeleteRow(null)
           }}
-          onDelete={onDeleteRow}
+          onDelete={deleteRecord}
           onError={onError}
         />
       ) : null}

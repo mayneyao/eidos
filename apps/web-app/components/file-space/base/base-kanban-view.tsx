@@ -1047,6 +1047,31 @@ export function BaseKanbanView({
     return result
   }
 
+  const deleteRecord = async (row: BaseRow) => {
+    if (!onDeleteRow) return
+    await onDeleteRow(row)
+    const rowId = String(row._id)
+    setGroups((current) =>
+      current.map((group) => {
+        const containsRow = group.rows.some(
+          (candidate) => String(candidate._id) === rowId
+        )
+        if (!containsRow) return group
+        return {
+          ...group,
+          rows: group.rows.filter(
+            (candidate) => String(candidate._id) !== rowId
+          ),
+          total: Math.max(0, group.total - 1),
+          nextOffset: Math.max(0, group.nextOffset - 1),
+        }
+      })
+    )
+    setInspectedRow((current) =>
+      current && String(current._id) === rowId ? null : current
+    )
+  }
+
   if (!groupField) {
     return (
       <div className="flex h-full items-center justify-center px-8 text-center">
@@ -1172,7 +1197,7 @@ export function BaseKanbanView({
           onOpenChange={(open) => {
             if (!open) setDeleteRow(null)
           }}
-          onDelete={onDeleteRow}
+          onDelete={deleteRecord}
           onError={onError}
         />
       ) : null}

@@ -2,7 +2,11 @@
 
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type { BaseTableSnapshot, BaseViewInfo } from "@eidos.space/base"
+import type {
+  BaseRowPage,
+  BaseTableSnapshot,
+  BaseViewInfo,
+} from "@eidos.space/base"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BaseGalleryView } from "./base-gallery-view"
@@ -15,6 +19,26 @@ vi.mock("./base-record-inspector", () => ({
   BaseRecordInspector: ({ row }: { row: { title?: string } }) => (
     <aside data-testid="record-inspector">{row.title}</aside>
   ),
+}))
+
+vi.mock("./base-record-delete-dialog", () => ({
+  BaseRecordDeleteDialog: ({
+    row,
+    onDelete,
+    onOpenChange,
+  }: {
+    row: { _id?: string; title?: string } | null
+    onDelete: (row: { _id?: string; title?: string }) => Promise<void>
+    onOpenChange: (open: boolean) => void
+  }) =>
+    row ? (
+      <button
+        type="button"
+        onClick={() => void onDelete(row).then(() => onOpenChange(false))}
+      >
+        Confirm delete {row.title}
+      </button>
+    ) : null,
 }))
 
 ;(
@@ -296,6 +320,135 @@ describe("BaseGalleryView", () => {
     expect(container.querySelector("img")?.getAttribute("decoding")).toBe(
       "async"
     )
+  })
+
+  it("deletes a loaded card without resetting or reloading the gallery", async () => {
+    const rows = [
+      { _id: "row_1", title: "First", status: "todo" },
+      { _id: "row_2", title: "Second", status: "todo" },
+    ]
+    const loadPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: "tasks",
+      offset,
+      limit,
+      total: rows.length,
+      rows,
+    }))
+    const onDeleteRow = vi.fn(async () => undefined)
+    const onRowCountChange = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <BaseGalleryView
+          table={{ ...table, rowCount: rows.length }}
+          view={view}
+          loadPage={loadPage}
+          onDeleteRow={onDeleteRow}
+          onRowCountChange={onRowCountChange}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="More actions for First"]'
+        )
+        ?.dispatchEvent(
+          new MouseEvent("pointerdown", { bubbles: true, button: 0 })
+        )
+    })
+    await act(async () => {
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      )
+        .find((item) => item.textContent?.includes("Delete record"))
+        ?.click()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Confirm delete First")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(onDeleteRow).toHaveBeenCalledWith(rows[0])
+    expect(container.textContent).not.toContain("First")
+    expect(container.textContent).toContain("Second")
+    expect(loadPage).toHaveBeenCalledTimes(1)
+    expect(onRowCountChange).toHaveBeenLastCalledWith(1)
+  })
+
+  it("keeps the virtual window mounted while a page refresh is pending", async () => {
+    let resolveRefresh: ((page: BaseRowPage) => void) | undefined
+    const loadPage = vi
+      .fn<(offset: number, limit: number) => Promise<BaseRowPage>>()
+      .mockResolvedValueOnce({
+        tableId: "tasks",
+        offset: 0,
+        limit: 100,
+        total: 1,
+        rows: [{ _id: "row_1", title: "Before refresh", status: "todo" }],
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise<BaseRowPage>((resolve) => {
+            resolveRefresh = resolve
+          })
+      )
+
+    await act(async () => {
+      root.render(
+        <BaseGalleryView
+          table={{ ...table, rowCount: 1 }}
+          view={view}
+          reloadToken={0}
+          loadPage={loadPage}
+        />
+      )
+      await Promise.resolve()
+    })
+    expect(container.textContent).toContain("Before refresh")
+
+    await act(async () => {
+      root.render(
+        <BaseGalleryView
+          table={{ ...table, rowCount: 1 }}
+          view={view}
+          reloadToken={1}
+          loadPage={loadPage}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).toContain("Before refresh")
+    expect(container.textContent).not.toContain("Loading gallery")
+    expect(
+      container
+        .querySelector("[data-base-gallery-scroll]")
+        ?.getAttribute("aria-busy")
+    ).toBe("true")
+
+    await act(async () => {
+      resolveRefresh?.({
+        tableId: "tasks",
+        offset: 0,
+        limit: 100,
+        total: 1,
+        rows: [{ _id: "row_2", title: "After refresh", status: "todo" }],
+      })
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).not.toContain("Before refresh")
+    expect(container.textContent).toContain("After refresh")
+    expect(
+      container
+        .querySelector("[data-base-gallery-scroll]")
+        ?.getAttribute("aria-busy")
+    ).toBe("false")
   })
 
   it("keeps a large gallery DOM bounded and loads the next page on scroll", async () => {

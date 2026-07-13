@@ -53,12 +53,14 @@ vi.mock("./base-record-card", () => ({
   BaseRecordCard: ({
     row,
     onOpen,
+    onDelete,
     moveOptions,
     onMove,
     focused,
   }: {
     row: { _id?: string; title?: string }
     onOpen: (row: { _id?: string; title?: string }) => void
+    onDelete?: (row: { _id?: string; title?: string }) => void
     moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
     onMove?: (row: { _id?: string; title?: string }, targetId: string) => void
     focused?: boolean
@@ -68,6 +70,11 @@ vi.mock("./base-record-card", () => ({
       aria-current={focused ? "true" : undefined}
     >
       <button onClick={() => onOpen(row)}>{row.title}</button>
+      {onDelete ? (
+        <button type="button" onClick={() => onDelete(row)}>
+          Delete {row.title}
+        </button>
+      ) : null}
       {moveOptions
         ?.filter((option) => !option.disabled)
         .map((option) => (
@@ -77,6 +84,26 @@ vi.mock("./base-record-card", () => ({
         ))}
     </div>
   ),
+}))
+
+vi.mock("./base-record-delete-dialog", () => ({
+  BaseRecordDeleteDialog: ({
+    row,
+    onDelete,
+    onOpenChange,
+  }: {
+    row: { _id?: string; title?: string } | null
+    onDelete: (row: { _id?: string; title?: string }) => Promise<void>
+    onOpenChange: (open: boolean) => void
+  }) =>
+    row ? (
+      <button
+        type="button"
+        onClick={() => void onDelete(row).then(() => onOpenChange(false))}
+      >
+        Confirm delete {row.title}
+      </button>
+    ) : null,
 }))
 
 vi.mock("./base-record-inspector", () => ({
@@ -366,6 +393,57 @@ describe("BaseKanbanView", () => {
       "Draft release"
     )
     expect(todoColumn?.textContent).toContain("Draft release")
+  })
+
+  it("deletes a loaded card without requerying the board", async () => {
+    const row = { _id: "row_1", title: "Write RFC", status: "todo" }
+    const loadGroupCounts = vi.fn(async () => [{ value: "todo", total: 1 }])
+    const loadGroupPage = vi.fn(async (_field, value, offset, limit) => ({
+      tableId: "tasks",
+      offset,
+      limit,
+      total: value === "todo" ? 1 : 0,
+      rows: value === "todo" ? [row] : [],
+    }))
+    const onDeleteRow = vi.fn(async () => undefined)
+    const onRowCountChange = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={loadGroupCounts}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+          onDeleteRow={onDeleteRow}
+          onRowCountChange={onRowCountChange}
+        />
+      )
+      await Promise.resolve()
+    })
+    const pageCalls = loadGroupPage.mock.calls.length
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Delete Write RFC")
+        ?.click()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Confirm delete Write RFC")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(onDeleteRow).toHaveBeenCalledWith(row)
+    expect(
+      container.querySelector('[role="region"][aria-label="Todo, 0 records"]')
+    ).not.toBeNull()
+    expect(loadGroupCounts).toHaveBeenCalledTimes(1)
+    expect(loadGroupPage).toHaveBeenCalledTimes(pageCalls)
+    expect(onRowCountChange).toHaveBeenLastCalledWith(0)
   })
 
   it("moves an inspected record when its group field changes", async () => {

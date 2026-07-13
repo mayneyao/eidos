@@ -836,11 +836,20 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         () => deleteRows(filePath, tableId, [String(row._id)]),
         (result) => {
           updateTableRowCount(tableId, result.rowCount)
-          setGridReloadToken((current) => current + 1)
+          if (activeView?.type === "grid") {
+            setGridReloadToken((current) => current + 1)
+          }
         }
       ).then(() => undefined)
     },
-    [activeTable, deleteRows, enqueueMutation, filePath, updateTableRowCount]
+    [
+      activeTable,
+      activeView?.type,
+      deleteRows,
+      enqueueMutation,
+      filePath,
+      updateTableRowCount,
+    ]
   )
 
   const createTableInBase = useCallback(

@@ -565,10 +565,15 @@ vi.mock("./base-view-selector", () => ({
 vi.mock("./base-gallery-view", () => ({
   BaseGalleryView: ({
     onDeleteRow,
+    reloadToken,
   }: {
     onDeleteRow?: (row: { _id: string; title: string }) => Promise<void>
+    reloadToken?: number
   }) => (
-    <div data-testid="base-gallery-view">
+    <div
+      data-testid="base-gallery-view"
+      data-reload-token={String(reloadToken ?? 0)}
+    >
       Gallery
       <button
         type="button"
@@ -1591,6 +1596,9 @@ describe("SpaceBaseEditor", () => {
       })),
     })
     await renderEditor()
+    const gallery = () =>
+      container.querySelector<HTMLElement>('[data-testid="base-gallery-view"]')
+    expect(gallery()?.dataset.reloadToken).toBe("1")
 
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
@@ -1604,5 +1612,6 @@ describe("SpaceBaseEditor", () => {
       "tasks",
       ["row_1"]
     )
+    expect(gallery()?.dataset.reloadToken).toBe("1")
   })
 })
