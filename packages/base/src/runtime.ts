@@ -80,6 +80,31 @@ interface RegistryRow {
   updated_at: string
 }
 
+const BASE_ROWID_CURSOR_PREFIX = "rowid:"
+
+function decodeBaseRowCursor(cursor: string): number {
+  const rowId = cursor.startsWith(BASE_ROWID_CURSOR_PREFIX)
+    ? cursor.slice(BASE_ROWID_CURSOR_PREFIX.length)
+    : ""
+  const parsed = /^-?\d{1,16}$/.test(rowId) ? Number(rowId) : Number.NaN
+  if (!Number.isSafeInteger(parsed)) {
+    throw new BaseError("invalid-query", "Invalid Base row page cursor")
+  }
+  return parsed
+}
+
+function encodeBaseRowCursor(rowId: unknown): string | undefined {
+  const parsed =
+    typeof rowId === "number"
+      ? rowId
+      : typeof rowId === "string" && /^-?\d{1,16}$/.test(rowId)
+        ? Number(rowId)
+        : Number.NaN
+  return Number.isSafeInteger(parsed)
+    ? `${BASE_ROWID_CURSOR_PREFIX}${String(parsed)}`
+    : undefined
+}
+
 const BASE_VIEW_QUERY_INDEX_PREFIX = "eidos__view_query_"
 const BASE_NOCASE_SORT_TYPES = new Set([
   "title",
@@ -1832,15 +1857,45 @@ export class BaseRuntime {
     offset = 0,
     query: BaseRowQuery = {}
   ): BaseRow[] {
+    return this.listRowPage(tableId, limit, offset, query).rows
+  }
+
+  private listRowPage(
+    tableId: string,
+    limit: number,
+    offset: number,
+    query: BaseRowQuery,
+    cursor?: string
+  ): { rows: BaseRow[]; nextCursor?: string } {
     const fields = this.listFields(tableId)
     const compiled = compileBaseRowQuery(fields, query)
+    const cursorEligible = normalizeBaseSorts(query.sorts).length === 0
+    const decodedCursor = cursor ? decodeBaseRowCursor(cursor) : undefined
+    const afterRowId =
+      decodedCursor !== undefined && cursorEligible ? decodedCursor : undefined
+    const hasCursor = afterRowId !== undefined
+    const cursorWhere = hasCursor
+      ? `${compiled.whereSql}${compiled.whereSql ? " AND" : "WHERE"} "__base_rowid" > ?`
+      : compiled.whereSql
+    const params = [
+      ...compiled.params,
+      ...(hasCursor ? [afterRowId] : []),
+      Math.max(0, limit),
+      ...(hasCursor ? [] : [Math.max(0, offset)]),
+    ]
     const rows = this.connection.query<BaseRow>(
       `SELECT * FROM ${this.rowSourceSql(tableId, fields)}
-        ${compiled.whereSql} ${compiled.orderSql} LIMIT ? OFFSET ?`,
-      [...compiled.params, Math.max(0, limit), Math.max(0, offset)]
+        ${cursorWhere} ${compiled.orderSql} LIMIT ?${hasCursor ? "" : " OFFSET ?"}`,
+      params
     )
+    const nextCursor = cursorEligible
+      ? encodeBaseRowCursor(rows.at(-1)?.__base_rowid)
+      : undefined
     rows.forEach((row) => delete row.__base_rowid)
-    return this.hydrateRelationRows(rows, fields)
+    return {
+      rows: this.hydrateRelationRows(rows, fields),
+      ...(nextCursor ? { nextCursor } : {}),
+    }
   }
 
   private hydrateRelationRows(
@@ -1982,7 +2037,8 @@ export class BaseRuntime {
     offset = 0,
     limit = 100,
     query: BaseRowQuery = {},
-    totalHint?: number
+    totalHint?: number,
+    cursor?: string
   ): BaseRowPage {
     const safeOffset = Math.max(0, Math.trunc(offset))
     const safeLimit = Math.min(500, Math.max(1, Math.trunc(limit)))
@@ -1992,12 +2048,14 @@ export class BaseRuntime {
       totalHint >= 0
         ? totalHint
         : null
+    const page = this.listRowPage(tableId, safeLimit, safeOffset, query, cursor)
     return {
       tableId,
       offset: safeOffset,
       limit: safeLimit,
       total: safeTotalHint ?? this.countRows(tableId, query),
-      rows: this.listRows(tableId, safeLimit, safeOffset, query),
+      rows: page.rows,
+      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
     }
   }
 

@@ -76,6 +76,7 @@ interface BaseKanbanGroup {
   loading: boolean
   loadingMore: boolean
   needsReload: boolean
+  nextCursor?: string
 }
 
 interface BaseKanbanMoveOption {
@@ -635,7 +636,8 @@ export function BaseKanbanView({
     value: string | null,
     offset: number,
     limit: number,
-    totalHint: number
+    totalHint: number,
+    cursor?: string
   ) => Promise<BaseRowPage>
   onCellEdit: (
     row: BaseRow,
@@ -941,13 +943,27 @@ export function BaseKanbanView({
         )
       )
       try {
-        const page = await loadGroupPage(
-          groupField,
-          group.value,
-          request.offset,
-          KANBAN_PAGE_SIZE,
-          group.total
-        )
+        const cursor =
+          request.mode === "append" &&
+          request.offset === group.startOffset + group.rows.length
+            ? group.nextCursor
+            : undefined
+        const page = cursor
+          ? await loadGroupPage(
+              groupField,
+              group.value,
+              request.offset,
+              KANBAN_PAGE_SIZE,
+              group.total,
+              cursor
+            )
+          : await loadGroupPage(
+              groupField,
+              group.value,
+              request.offset,
+              KANBAN_PAGE_SIZE,
+              group.total
+            )
         if (generation !== generationRef.current) return
         loadedGroupGenerationsRef.current.set(group.key, generation)
         setGroups((current) =>
@@ -1077,6 +1093,7 @@ export function BaseKanbanView({
           ...group,
           rows: [],
           startOffset: 0,
+          nextCursor: undefined,
           loaded: false,
           loadFailure: null,
           needsReload: false,

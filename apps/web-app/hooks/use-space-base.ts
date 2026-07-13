@@ -108,13 +108,20 @@ export function useSpaceBase(spaceId: string | undefined) {
       offset: number,
       limit: number,
       query: BaseRowQuery = {},
-      totalHint?: number
+      totalHint?: number,
+      cursor?: string
     ): Promise<BaseRowPage> =>
       requireBaseApi().getBaseTablePage(
         requireSpaceId(),
         relativePath,
         tableId,
-        { offset, limit, query, totalHint }
+        {
+          offset,
+          limit,
+          query,
+          totalHint,
+          ...(cursor ? { cursor } : {}),
+        }
       ),
     [requireSpaceId]
   )

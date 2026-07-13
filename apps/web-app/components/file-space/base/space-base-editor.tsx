@@ -584,7 +584,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   }, [])
 
   const loadActiveTablePage = useCallback(
-    (offset: number, limit: number, totalHint?: number) => {
+    (offset: number, limit: number, totalHint?: number, cursor?: string) => {
       if (!activeTableId) {
         return Promise.reject(new Error("No active Base table"))
       }
@@ -594,7 +594,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         offset,
         limit,
         activeQuery,
-        totalHint
+        totalHint,
+        cursor
       )
     },
     [activeQuery, activeTableId, filePath, getTablePage]
@@ -616,7 +617,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       value: string | null,
       offset: number,
       limit: number,
-      totalHint: number
+      totalHint: number,
+      cursor?: string
     ) => {
       if (!activeTableId) {
         return Promise.reject(new Error("No active Base table"))
@@ -634,7 +636,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             value
           ),
         },
-        totalHint
+        totalHint,
+        cursor
       )
     },
     [activeQuery, activeTableId, filePath, getTablePage]

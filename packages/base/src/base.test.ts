@@ -1289,6 +1289,44 @@ describe("Eidos Base files", () => {
     expect(hintedPage.rows).toHaveLength(50)
     expect(countQueryCalls()).toHaveLength(1)
 
+    const firstCursorPage = base.getRowPage("records", 0, 50, {}, 10_000)
+    expect(firstCursorPage.nextCursor).toBe("rowid:50")
+    const query = vi.spyOn(base.connection, "query")
+    const nextCursorPage = base.getRowPage(
+      "records",
+      50,
+      50,
+      {},
+      10_000,
+      firstCursorPage.nextCursor
+    )
+    expect(nextCursorPage.rows[0]).toMatchObject({
+      _id: "row_50",
+      title: "Row 50",
+    })
+    expect(nextCursorPage.nextCursor).toBe("rowid:100")
+    const cursorQuery = query.mock.calls.find(([sql]) =>
+      sql.includes('"__base_rowid" > ?')
+    )
+    expect(cursorQuery?.[0]).not.toContain("OFFSET")
+    expect(cursorQuery?.[1]).toEqual([50, 50])
+
+    const sortedPage = base.getRowPage(
+      "records",
+      50,
+      50,
+      { sorts: [{ field: "title", direction: "asc" }] },
+      10_000,
+      firstCursorPage.nextCursor
+    )
+    expect(sortedPage.nextCursor).toBeUndefined()
+    expect(sortedPage.rows).toHaveLength(50)
+
+    expectBaseError(
+      () => base.getRowPage("records", 50, 50, {}, 10_000, "invalid"),
+      "invalid-query"
+    )
+
     expect(
       base.deleteRowRanges("records", [
         { startIndex: 1, endIndex: 3 },

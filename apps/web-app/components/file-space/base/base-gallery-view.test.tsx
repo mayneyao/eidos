@@ -550,6 +550,7 @@ describe("BaseGalleryView", () => {
         offset,
         limit,
         total: 1_000,
+        nextCursor: `rowid:${offset + 100}`,
         rows: Array.from({ length: 100 }, (_, index) => ({
           _id: `row_${offset + index}`,
           title: `Task ${offset + index}`,
@@ -584,7 +585,7 @@ describe("BaseGalleryView", () => {
       })
     }
 
-    expect(loadPage).toHaveBeenCalledWith(100, 100, 1_000)
+    expect(loadPage).toHaveBeenCalledWith(100, 100, 1_000, "rowid:100")
     expect(
       container.querySelectorAll("[data-base-gallery-placeholder]")
     ).toHaveLength(0)
@@ -605,6 +606,7 @@ describe("BaseGalleryView", () => {
         offset: 100,
         limit: 100,
         total: 1_000,
+        nextCursor: "rowid:200",
         rows: Array.from({ length: 100 }, (_, index) => ({
           _id: `row_${100 + index}`,
           title: `Task ${100 + index}`,

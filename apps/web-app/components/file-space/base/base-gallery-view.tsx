@@ -33,6 +33,7 @@ import {
   mergeRowWindowPage,
   requestForPrefetchedRowWindow,
   rowFromWindow,
+  type BaseRowWindow,
   type BaseRowWindowMergeMode,
 } from "./base-row-window"
 import { orderedBaseFields } from "./base-view-layout"
@@ -82,7 +83,8 @@ export function BaseGalleryView({
   loadPage: (
     offset: number,
     limit: number,
-    totalHint?: number
+    totalHint?: number,
+    cursor?: string
   ) => Promise<BaseRowPage>
   readBinary?: (path: string) => Promise<SpaceBinaryFile>
   onCellEdit?: (
@@ -109,7 +111,7 @@ export function BaseGalleryView({
   const requestRef = useRef<{ generation: number; offset: number } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(1024)
-  const [rowWindow, setRowWindow] = useState({
+  const [rowWindow, setRowWindow] = useState<BaseRowWindow>({
     rows: [] as BaseRow[],
     startOffset: 0,
     total: table.rowCount,
@@ -120,6 +122,7 @@ export function BaseGalleryView({
     offset: number
     mode: BaseRowWindowMergeMode
     totalHint?: number
+    cursor?: string
   } | null>(null)
   const [inspectedRow, setInspectedRow] = useState<BaseRow | null>(null)
   const [deleteRow, setDeleteRow] = useState<BaseRow | null>(null)
@@ -137,7 +140,8 @@ export function BaseGalleryView({
     async (
       offset: number,
       mode: BaseRowWindowMergeMode,
-      totalHint?: number
+      totalHint?: number,
+      cursor?: string
     ) => {
       const generation = generationRef.current
       if (
@@ -150,8 +154,9 @@ export function BaseGalleryView({
       setFailedRequest(null)
       mode === "replace" ? setLoading(true) : setLoadingMore(true)
       try {
-        const page =
-          totalHint === undefined
+        const page = cursor
+          ? await loadPage(offset, GALLERY_PAGE_SIZE, totalHint, cursor)
+          : totalHint === undefined
             ? await loadPage(offset, GALLERY_PAGE_SIZE)
             : await loadPage(offset, GALLERY_PAGE_SIZE, totalHint)
         if (generation !== generationRef.current) return
@@ -165,7 +170,7 @@ export function BaseGalleryView({
         )
       } catch {
         if (generation === generationRef.current) {
-          setFailedRequest({ offset, mode, totalHint })
+          setFailedRequest({ offset, mode, totalHint, cursor })
         }
       } finally {
         if (generation === generationRef.current) {
@@ -258,7 +263,12 @@ export function BaseGalleryView({
     ) {
       return
     }
-    void requestPage(request.offset, request.mode, rowWindow.total)
+    const cursor =
+      request.mode === "append" &&
+      request.offset === rowWindow.startOffset + rowWindow.rows.length
+        ? rowWindow.nextCursor
+        : undefined
+    void requestPage(request.offset, request.mode, rowWindow.total, cursor)
   }, [
     columnCount,
     failedRequest,
@@ -378,7 +388,8 @@ export function BaseGalleryView({
                 void requestPage(
                   failedRequest.offset,
                   failedRequest.mode,
-                  failedRequest.totalHint
+                  failedRequest.totalHint,
+                  failedRequest.cursor
                 )
               }
             >
@@ -480,7 +491,8 @@ export function BaseGalleryView({
                   void requestPage(
                     failedRequest.offset,
                     failedRequest.mode,
-                    failedRequest.totalHint
+                    failedRequest.totalHint,
+                    failedRequest.cursor
                   )
                 }
               >

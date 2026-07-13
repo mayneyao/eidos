@@ -117,4 +117,28 @@ describe("Base row window", () => {
     expect(exhausted.total).toBe(100)
     expect(requestForRowWindow(exhausted, 99, 100, 100)).toBeNull()
   })
+
+  it("advances a contiguous cursor and clears it when paging backward", () => {
+    const first = mergeRowWindowPage(
+      { rows: [], startOffset: 0, total: 1_000 },
+      { ...page(0, 100), nextCursor: "rowid:100" },
+      "replace",
+      300
+    )
+    const next = mergeRowWindowPage(
+      first,
+      { ...page(100, 100), nextCursor: "rowid:200" },
+      "append",
+      300
+    )
+    expect(next.nextCursor).toBe("rowid:200")
+
+    const previous = mergeRowWindowPage(
+      next,
+      { ...page(0, 100), nextCursor: "rowid:100" },
+      "prepend",
+      300
+    )
+    expect(previous.nextCursor).toBeUndefined()
+  })
 })

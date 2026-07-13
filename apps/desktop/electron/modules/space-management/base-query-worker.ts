@@ -26,12 +26,19 @@ function run(request: BaseQueryWorkerRequest): BaseQueryWorkerResponse {
   try {
     const base = cache.get(request.filePath)
     if (request.operation === "page") {
-      const { offset, limit, query, totalHint } = request.options
+      const { offset, limit, query, totalHint, cursor } = request.options
       return {
         id: request.id,
         ok: true,
         operation: "page",
-        page: base.getRowPage(request.tableId, offset, limit, query, totalHint),
+        page: base.getRowPage(
+          request.tableId,
+          offset,
+          limit,
+          query,
+          totalHint,
+          cursor
+        ),
       }
     }
     if (request.operation === "column-stats") {

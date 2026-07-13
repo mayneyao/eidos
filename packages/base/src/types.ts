@@ -385,6 +385,11 @@ export interface BaseRowPageOptions {
    * reuse it instead of repeating an expensive COUNT query.
    */
   totalHint?: number
+  /**
+   * Opaque cursor returned by the previous contiguous page. The runtime uses
+   * it as a paging fast path when the query keeps the natural row order.
+   */
+  cursor?: string
 }
 
 export interface BaseValidationIssue {
@@ -414,6 +419,8 @@ export interface BaseRowPage {
   limit: number
   total: number
   rows: BaseRow[]
+  /** Opaque cursor for the next contiguous page, when cursor paging is safe. */
+  nextCursor?: string
 }
 
 export interface BaseRowGroupCount {

@@ -642,6 +642,12 @@ export class SpaceManagementService extends IpcServiceBase {
     ) {
       throw new Error("Base row page total hint must be a non-negative integer")
     }
+    if (
+      options.cursor !== undefined &&
+      (typeof options.cursor !== "string" || options.cursor.length > 64)
+    ) {
+      throw new Error("Base row page cursor must be a short string")
+    }
     return withFileSpaceOperationLock(spaceId, async () => {
       const files = this._getFileSpace(spaceId)
       const systemPath = await files.getSystemPath(relativePath)

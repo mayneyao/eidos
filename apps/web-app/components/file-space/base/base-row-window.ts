@@ -6,6 +6,7 @@ export interface BaseRowWindow {
   rows: BaseRow[]
   startOffset: number
   total: number
+  nextCursor?: string
 }
 
 export interface BaseRowWindowRequest {
@@ -47,6 +48,7 @@ export function mergeRowWindowPage(
       rows: uniqueRows(page.rows).slice(0, limit),
       startOffset: page.offset,
       total,
+      nextCursor: page.nextCursor,
     }
   }
 
@@ -57,6 +59,7 @@ export function mergeRowWindowPage(
         rows: uniqueRows(page.rows).slice(0, limit),
         startOffset: page.offset,
         total,
+        nextCursor: undefined,
       }
     }
     const overlap = Math.max(0, pageEnd - current.startOffset)
@@ -67,6 +70,7 @@ export function mergeRowWindowPage(
       ]).slice(0, limit),
       startOffset: page.offset,
       total,
+      nextCursor: undefined,
     }
   }
 
@@ -79,6 +83,7 @@ export function mergeRowWindowPage(
         page.offset + page.rows.length - limit
       ),
       total,
+      nextCursor: page.nextCursor,
     }
   }
   const overlap = Math.max(0, currentEnd - page.offset)
@@ -91,6 +96,7 @@ export function mergeRowWindowPage(
     rows: merged.slice(overflow),
     startOffset: current.startOffset + overflow,
     total,
+    nextCursor: page.nextCursor,
   }
 }
 

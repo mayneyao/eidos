@@ -1243,6 +1243,7 @@ describe("BaseKanbanView", () => {
           offset,
           limit,
           total: value === "todo" ? 500 : 0,
+          ...(value === "todo" ? { nextCursor: `rowid:${offset + 50}` } : {}),
           rows:
             value === "todo"
               ? Array.from({ length: 50 }, (_, index) => ({
@@ -1293,7 +1294,8 @@ describe("BaseKanbanView", () => {
       "todo",
       50,
       50,
-      500
+      500,
+      "rowid:50"
     )
     expect(
       container.querySelectorAll("[data-base-kanban-placeholder]")
@@ -1310,6 +1312,7 @@ describe("BaseKanbanView", () => {
         offset: 50,
         limit: 50,
         total: 500,
+        nextCursor: "rowid:100",
         rows: Array.from({ length: 50 }, (_, index) => ({
           _id: `row_${50 + index}`,
           title: `Task ${50 + index}`,
