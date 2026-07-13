@@ -379,7 +379,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
           {collapsed ? (
             <button
               type="button"
-              className="flex flex-1 items-center text-[11px] font-medium [writing-mode:vertical-rl]"
+              className="flex min-h-7 flex-1 items-center rounded-sm text-[11px] font-medium outline-hidden [writing-mode:vertical-rl] focus-visible:ring-1 focus-visible:ring-ring"
               aria-label={`Expand ${group.name}`}
               onClick={() => onCollapsedChange(group.key, false)}
             >
@@ -450,6 +450,8 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
             ) : (
               <div
                 className="relative w-full"
+                role="list"
+                aria-label={`${group.name} records`}
                 style={{ height: cardVirtualizer.getTotalSize() }}
               >
                 {virtualItems.map((virtualItem) => {
@@ -460,6 +462,9 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                       ref={cardVirtualizer.measureElement}
                       className="absolute left-0 top-0 w-full [contain:layout_style]"
                       data-index={virtualItem.index}
+                      role={row ? "listitem" : "presentation"}
+                      aria-posinset={row ? virtualItem.index + 1 : undefined}
+                      aria-setsize={row ? group.total : undefined}
                       style={{
                         transform: `translate3d(0, ${virtualItem.start}px, 0)`,
                       }}

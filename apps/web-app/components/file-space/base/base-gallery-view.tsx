@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -114,6 +115,15 @@ export function BaseGalleryView({
   const scopeRef = useRef("")
   const requestRef = useRef<{ generation: number; offset: number } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const previousColumnCountRef = useRef<number | null>(null)
+  const previousLayoutFieldsRef = useRef<BaseFieldInfo[] | null>(null)
+  const previousViewPropertiesRef = useRef<BaseViewInfo["properties"]>(null)
+  const visibleAnchorIndexRef = useRef(0)
+  const skipAnchorCaptureRef = useRef(false)
+  const relayoutFrameRef = useRef<number | null>(null)
+  const relayoutGenerationRef = useRef(0)
+  const relayoutCleanupRef = useRef<(() => void) | null>(null)
+  const suppressRelayoutScrollAdjustmentRef = useRef(() => false)
   const [containerWidth, setContainerWidth] = useState(1024)
   const [rowWindow, setRowWindow] = useState<BaseRowWindow>({
     rows: [] as BaseRow[],
@@ -245,6 +255,102 @@ export function BaseGalleryView({
   })
   const virtualRows = rowVirtualizer.getVirtualItems()
 
+  useLayoutEffect(() => {
+    const previousColumnCount = previousColumnCountRef.current
+    const layoutChanged =
+      previousColumnCount === null ||
+      previousColumnCount !== columnCount ||
+      previousLayoutFieldsRef.current !== table.fields ||
+      previousViewPropertiesRef.current !== view.properties
+    previousColumnCountRef.current = columnCount
+    previousLayoutFieldsRef.current = table.fields
+    previousViewPropertiesRef.current = view.properties
+    if (!layoutChanged) return
+    const columnCountChanged =
+      previousColumnCount !== null && previousColumnCount !== columnCount
+    const targetWindow = scrollContainerRef.current?.ownerDocument.defaultView
+    const suppressAdjustment = suppressRelayoutScrollAdjustmentRef.current
+    if (!columnCountChanged) {
+      rowVirtualizer.measure()
+      return
+    }
+    relayoutCleanupRef.current?.()
+    const generation = relayoutGenerationRef.current + 1
+    relayoutGenerationRef.current = generation
+    rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange =
+      suppressAdjustment
+    skipAnchorCaptureRef.current = true
+    const targetRowIndex = Math.floor(
+      visibleAnchorIndexRef.current / columnCount
+    )
+    rowVirtualizer.measure()
+    if (!targetWindow) {
+      rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined
+      return
+    }
+    relayoutCleanupRef.current = () => {
+      relayoutGenerationRef.current += 1
+      if (relayoutFrameRef.current !== null) {
+        targetWindow.cancelAnimationFrame(relayoutFrameRef.current)
+      }
+      if (
+        rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange ===
+        suppressAdjustment
+      ) {
+        rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined
+      }
+      relayoutFrameRef.current = null
+    }
+    queueMicrotask(() => {
+      if (relayoutGenerationRef.current !== generation) return
+      const offsetInfo = rowVirtualizer.getOffsetForIndex(
+        targetRowIndex,
+        "start"
+      )
+      if (offsetInfo) {
+        rowVirtualizer.scrollToOffset(offsetInfo[0], { align: "start" })
+      }
+      relayoutFrameRef.current = targetWindow.requestAnimationFrame(() => {
+        const measuredOffsetInfo = rowVirtualizer.getOffsetForIndex(
+          targetRowIndex,
+          "start"
+        )
+        if (measuredOffsetInfo) {
+          rowVirtualizer.scrollToOffset(measuredOffsetInfo[0], {
+            align: "start",
+          })
+        }
+        relayoutFrameRef.current = targetWindow.requestAnimationFrame(() => {
+          if (
+            rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange ===
+            suppressAdjustment
+          ) {
+            rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange =
+              undefined
+          }
+          relayoutFrameRef.current = null
+          relayoutCleanupRef.current = null
+        })
+      })
+    })
+  }, [columnCount, rowVirtualizer, table.fields, view.properties])
+
+  useEffect(() => () => relayoutCleanupRef.current?.(), [])
+
+  useLayoutEffect(() => {
+    if (skipAnchorCaptureRef.current) {
+      skipAnchorCaptureRef.current = false
+      return
+    }
+    const scrollOffset = scrollContainerRef.current?.scrollTop ?? 0
+    const firstVisibleRow = virtualRows.find(
+      (virtualRow) => virtualRow.end > scrollOffset
+    )
+    if (firstVisibleRow) {
+      visibleAnchorIndexRef.current = firstVisibleRow.index * columnCount
+    }
+  }, [columnCount, virtualRows])
+
   useEffect(() => {
     const first = virtualRows.at(0)
     const last = virtualRows.at(-1)
@@ -279,10 +385,6 @@ export function BaseGalleryView({
     total,
     virtualRows,
   ])
-
-  useEffect(() => {
-    rowVirtualizer.measure()
-  }, [columnCount, rowVirtualizer, table.fields, view.properties])
 
   const focusedRow =
     searchResultIndex !== null

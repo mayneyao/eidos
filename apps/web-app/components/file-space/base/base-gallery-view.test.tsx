@@ -112,6 +112,7 @@ describe("BaseGalleryView", () => {
   let originalCreateObjectUrl: typeof URL.createObjectURL
   let originalRevokeObjectUrl: typeof URL.revokeObjectURL
   const scrollIntoView = vi.fn()
+  const scrollTo = vi.fn()
 
   beforeEach(() => {
     originalCreateObjectUrl = URL.createObjectURL
@@ -119,6 +120,7 @@ describe("BaseGalleryView", () => {
     URL.createObjectURL = vi.fn(() => "blob:base-cover")
     URL.revokeObjectURL = vi.fn()
     scrollIntoView.mockReset()
+    scrollTo.mockReset()
     Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
       configurable: true,
       get: () => 1024,
@@ -130,6 +132,7 @@ describe("BaseGalleryView", () => {
     Object.defineProperty(HTMLElement.prototype, "scrollTo", {
       configurable: true,
       value(this: HTMLElement, options: ScrollToOptions) {
+        scrollTo(options)
         this.scrollTop = typeof options.top === "number" ? options.top : 0
         queueMicrotask(() => this.dispatchEvent(new Event("scroll")))
       },
@@ -550,6 +553,96 @@ describe("BaseGalleryView", () => {
         .querySelector("[data-base-gallery-scroll]")
         ?.getAttribute("data-base-window-start")
     ).toBe("0")
+  })
+
+  it("keeps the visible record anchored when responsive columns change", async () => {
+    const visibleRowPositions = (scrollTop: number) => {
+      const wrappers = Array.from(
+        container.querySelectorAll<HTMLElement>('[role="list"] > [data-index]')
+      )
+        .map((wrapper) => ({
+          wrapper,
+          start:
+            Number(
+              wrapper.style.transform.match(
+                /translate3d\(0(?:px)?,\s*([\d.]+)px/
+              )?.[1]
+            ) || 0,
+        }))
+        .sort((left, right) => left.start - right.start)
+      const visible =
+        wrappers.find(
+          (candidate, index) =>
+            candidate.start <= scrollTop &&
+            (wrappers[index + 1]?.start ?? Number.POSITIVE_INFINITY) > scrollTop
+        ) ?? wrappers.at(0)
+      return Array.from(
+        visible?.wrapper.querySelectorAll<HTMLElement>("[aria-posinset]") ?? []
+      ).map((card) => Number(card.getAttribute("aria-posinset")))
+    }
+    const rows = Array.from({ length: 100 }, (_, index) => ({
+      _id: `row_${index}`,
+      title: `Task ${index}`,
+      status: "todo",
+    }))
+    const loadPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: "tasks",
+      offset,
+      limit,
+      total: rows.length,
+      rows: rows.slice(offset, offset + limit),
+    }))
+    const smallView: BaseViewInfo = {
+      ...view,
+      properties: { ...view.properties, cardSize: "small" },
+    }
+
+    await act(async () => {
+      root.render(
+        <BaseGalleryView
+          table={{ ...table, rowCount: rows.length }}
+          view={smallView}
+          loadPage={loadPage}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const scroller = container.querySelector<HTMLElement>(
+      "[data-base-gallery-scroll]"
+    )
+    expect(scroller).not.toBeNull()
+    if (!scroller) return
+
+    await act(async () => {
+      scroller.scrollTop = 3_200
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+    })
+    const previousScrollTop = scroller.scrollTop
+    const previousPositions = visibleRowPositions(previousScrollTop)
+    expect(previousPositions.length).toBeGreaterThan(0)
+    const anchorPosition = previousPositions[0]
+    scrollTo.mockClear()
+
+    await act(async () => {
+      root.render(
+        <BaseGalleryView
+          table={{ ...table, rowCount: rows.length }}
+          view={{
+            ...smallView,
+            properties: { ...smallView.properties, cardSize: "large" },
+          }}
+          loadPage={loadPage}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 40))
+    })
+
+    expect(scrollTo).toHaveBeenCalled()
+    expect(scroller.scrollTop).not.toBe(previousScrollTop)
+    expect(visibleRowPositions(scroller.scrollTop)).toContain(anchorPosition)
   })
 
   it("keeps a distant virtual row wrapper mounted when its page arrives", async () => {

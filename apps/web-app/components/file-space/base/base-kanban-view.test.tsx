@@ -359,6 +359,21 @@ describe("BaseKanbanView", () => {
     expect(
       container.querySelector('[role="region"][aria-label="Todo, 1 records"]')
     ).not.toBeNull()
+    expect(
+      container.querySelector('[role="list"][aria-label="Todo records"]')
+    ).not.toBeNull()
+    expect(
+      container
+        .querySelector('[data-base-row-id="row_1"]')
+        ?.closest('[role="listitem"]')
+        ?.getAttribute("aria-posinset")
+    ).toBe("1")
+    expect(
+      container
+        .querySelector('[data-base-row-id="row_1"]')
+        ?.closest('[role="listitem"]')
+        ?.getAttribute("aria-setsize")
+    ).toBe("1")
 
     await act(async () => {
       kanbanMocks.onDragEnd?.({
