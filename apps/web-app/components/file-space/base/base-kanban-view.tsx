@@ -40,6 +40,10 @@ import {
   type BaseSelectOption,
 } from "./base-field-properties"
 import { BaseRecordCard } from "./base-record-card"
+import {
+  createBaseRecordCardLayout,
+  type BaseRecordCardLayout,
+} from "./base-record-card-layout"
 import { BaseRecordDeleteDialog } from "./base-record-delete-dialog"
 import { BaseRecordInspector } from "./base-record-inspector"
 import {
@@ -120,24 +124,35 @@ function cardWidth(view: BaseViewInfo): number {
   return 288
 }
 
-function estimatedKanbanCardHeight(
-  table: BaseTableSnapshot,
-  view: BaseViewInfo
-): number {
-  const hasCover = typeof view.properties?.coverPreview === "string"
-  const visibleFieldCount = orderedBaseFields(table.fields, view)
-    .filter(
-      (field) =>
-        field.tableColumnName !== "title" && field.valueKind !== "system"
+function estimatedKanbanCardHeight(layout: BaseRecordCardLayout): number {
+  const visibleFieldCount = Math.min(layout.fields.length, layout.fieldLimit)
+  return 64 + (layout.coverField ? 112 : 0) + visibleFieldCount * 32
+}
+
+function replaceLoadedRow(
+  groups: BaseKanbanGroup[],
+  rowId: string,
+  nextRow: BaseRow
+): BaseKanbanGroup[] {
+  let changed = false
+  const nextGroups = groups.map((group) => {
+    const rowIndex = group.rows.findIndex(
+      (candidate) => String(candidate._id) === rowId
     )
-    .slice(0, 4).length
-  return 64 + (hasCover ? 112 : 0) + visibleFieldCount * 32
+    if (rowIndex < 0) return group
+    const rows = [...group.rows]
+    rows[rowIndex] = nextRow
+    changed = true
+    return { ...group, rows }
+  })
+  return changed ? nextGroups : groups
 }
 
 const BaseKanbanColumn = memo(function BaseKanbanColumn({
   group,
   table,
   view,
+  cardLayout,
   disabled,
   width,
   color,
@@ -157,6 +172,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   group: BaseKanbanGroup
   table: BaseTableSnapshot
   view: BaseViewInfo
+  cardLayout: BaseRecordCardLayout
   disabled: boolean
   width: number
   color: string
@@ -189,7 +205,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   const cardVirtualizer = useVirtualizer({
     count: group.total,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => estimatedKanbanCardHeight(table, view),
+    estimateSize: () => estimatedKanbanCardHeight(cardLayout),
     getItemKey: (index) =>
       String(rowFromWindow(groupWindow, index)?._id ?? `${group.key}:${index}`),
     gap: 8,
@@ -372,6 +388,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                             row={row}
                             fields={table.fields}
                             view={view}
+                            layout={cardLayout}
                             compact
                             acquireCover={acquireCover}
                             focused={focusedRowId === String(row._id)}
@@ -558,9 +575,13 @@ export function BaseKanbanView({
     () => (groupField ? baseSelectOptions(groupField) : []),
     [groupField]
   )
-  const optionSignature = options
-    .map((option) => `${option.id}:${option.name}:${option.color}`)
-    .join("|")
+  const optionSignature = useMemo(
+    () =>
+      options
+        .map((option) => `${option.id}:${option.name}:${option.color}`)
+        .join("|"),
+    [options]
+  )
   const [groups, setGroups] = useState<BaseKanbanGroup[]>(() =>
     groupField ? groupSpecs(options) : []
   )
@@ -574,14 +595,28 @@ export function BaseKanbanView({
   const [moveAnnouncement, setMoveAnnouncement] = useState("")
   const [inspectedRow, setInspectedRow] = useState<BaseRow | null>(null)
   const [deleteRow, setDeleteRow] = useState<BaseRow | null>(null)
-  const fields = orderedBaseFields(table.fields, view)
-  const groupedRowCount = groups.reduce(
-    (count, group) => count + group.total,
-    0
+  const fields = useMemo(
+    () => orderedBaseFields(table.fields, view),
+    [table.fields, view]
   )
-  const boardBusy =
-    !countsLoaded || groups.some((group) => group.loading || group.loadingMore)
-  const collapsedGroupSignature = [...collapsedGroupKeys].sort().join("|")
+  const cardLayout = useMemo(
+    () => createBaseRecordCardLayout(table.fields, view, true),
+    [table.fields, view]
+  )
+  const groupedRowCount = useMemo(
+    () => groups.reduce((count, group) => count + group.total, 0),
+    [groups]
+  )
+  const boardBusy = useMemo(
+    () =>
+      !countsLoaded ||
+      groups.some((group) => group.loading || group.loadingMore),
+    [countsLoaded, groups]
+  )
+  const collapsedGroupSignature = useMemo(
+    () => [...collapsedGroupKeys].sort().join("|"),
+    [collapsedGroupKeys]
+  )
   const columnWidth = cardWidth(view)
   const moveOptions = useMemo<BaseKanbanMoveOption[]>(
     () => [
@@ -594,32 +629,30 @@ export function BaseKanbanView({
     [options]
   )
   const columnVirtualizer = useVirtualizer({
-    count: groups.length,
+    count: moveOptions.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: (index) =>
-      collapsedGroupKeys.has(groups[index]?.key ?? "") ? 48 : columnWidth,
-    getItemKey: (index) => groups[index]?.key ?? index,
+      collapsedGroupKeys.has(moveOptions[index]?.id ?? "") ? 48 : columnWidth,
+    getItemKey: (index) => moveOptions[index]?.id ?? index,
     gap: KANBAN_COLUMN_GAP,
     horizontal: true,
     initialRect: { width: 1024, height: 640 },
     overscan: 2,
   })
   const virtualColumns = columnVirtualizer.getVirtualItems()
-  const estimatedColumnStarts = groups.reduce<number[]>((starts, group) => {
-    const previousStart = starts.at(-1) ?? 0
-    const previousGroup = groups[starts.length - 1]
-    const previousWidth = previousGroup
-      ? collapsedGroupKeys.has(previousGroup.key)
-        ? 48
-        : columnWidth
-      : 0
-    starts.push(
-      starts.length === 0
-        ? 0
-        : previousStart + previousWidth + KANBAN_COLUMN_GAP
-    )
-    return starts
-  }, [])
+  const { estimatedColumnStarts, estimatedTotalWidth } = useMemo(() => {
+    const starts: number[] = []
+    let totalWidth = 0
+    moveOptions.forEach((option, index) => {
+      starts.push(totalWidth)
+      totalWidth += collapsedGroupKeys.has(option.id) ? 48 : columnWidth
+      if (index < moveOptions.length - 1) totalWidth += KANBAN_COLUMN_GAP
+    })
+    return {
+      estimatedColumnStarts: starts,
+      estimatedTotalWidth: totalWidth,
+    }
+  }, [collapsedGroupKeys, columnWidth, moveOptions])
   const renderedColumns =
     virtualColumns.length > 0
       ? virtualColumns
@@ -629,15 +662,16 @@ export function BaseKanbanView({
           size: collapsedGroupKeys.has(group.key) ? 48 : columnWidth,
           start: estimatedColumnStarts[index] ?? 0,
         }))
-  const estimatedTotalWidth = groups.reduce(
-    (width, group, index) =>
-      width +
-      (collapsedGroupKeys.has(group.key) ? 48 : columnWidth) +
-      (index === groups.length - 1 ? 0 : KANBAN_COLUMN_GAP),
-    0
-  )
   const virtualColumnSignature = renderedColumns
     .map((column) => column.index)
+    .join("|")
+  const visibleGroupLoadSignature = renderedColumns
+    .map((column) => {
+      const group = groups[column.index]
+      return group
+        ? `${group.key}:${group.loaded ? 1 : 0}:${group.loading ? 1 : 0}`
+        : "missing"
+    })
     .join("|")
 
   useEffect(() => {
@@ -850,9 +884,10 @@ export function BaseKanbanView({
   )
 
   useEffect(() => {
-    if (dragging) return
+    if (!countsLoaded || dragging) return
+    const currentGroups = groupsRef.current
     for (const column of renderedColumns) {
-      const group = groups[column.index]
+      const group = currentGroups[column.index]
       if (group && !collapsedGroupKeys.has(group.key)) {
         void loadInitialGroup(group)
       }
@@ -860,10 +895,11 @@ export function BaseKanbanView({
   }, [
     collapsedGroupKeys,
     collapsedGroupSignature,
+    countsLoaded,
     dragging,
-    groups,
     loadInitialGroup,
     virtualColumnSignature,
+    visibleGroupLoadSignature,
   ])
 
   const requestGroupRange = useCallback(
@@ -1124,12 +1160,7 @@ export function BaseKanbanView({
     const rowId = String(result.row._id)
     setGroups((current) => {
       if (field.tableColumnName !== groupField.tableColumnName) {
-        return current.map((group) => ({
-          ...group,
-          rows: group.rows.map((candidate) =>
-            String(candidate._id) === rowId ? result.row : candidate
-          ),
-        }))
+        return replaceLoadedRow(current, rowId, result.row)
       }
 
       const source = current.find((group) =>
@@ -1146,12 +1177,7 @@ export function BaseKanbanView({
           )
       )
       if (!source || !target || source.key === target.key) {
-        return current.map((group) => ({
-          ...group,
-          rows: group.rows.map((candidate) =>
-            String(candidate._id) === rowId ? result.row : candidate
-          ),
-        }))
+        return replaceLoadedRow(current, rowId, result.row)
       }
       return current.map((group) => {
         if (group.key === source.key) {
@@ -1278,6 +1304,7 @@ export function BaseKanbanView({
                     group={group}
                     table={table}
                     view={view}
+                    cardLayout={cardLayout}
                     disabled={disabled}
                     width={columnWidth}
                     color={baseOptionColor(group.color, theme)}

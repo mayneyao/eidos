@@ -71,9 +71,11 @@ const view: BaseViewInfo = {
 describe("BaseRecordCard", () => {
   let container: HTMLDivElement
   let root: Root
+  let originalEidosDescriptor: PropertyDescriptor | undefined
 
   beforeEach(() => {
     themeMocks.useTheme.mockClear()
+    originalEidosDescriptor = Object.getOwnPropertyDescriptor(window, "eidos")
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -82,6 +84,11 @@ describe("BaseRecordCard", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    if (originalEidosDescriptor) {
+      Object.defineProperty(window, "eidos", originalEidosDescriptor)
+    } else {
+      Reflect.deleteProperty(window, "eidos")
+    }
   })
 
   it("leases a local File field as the card cover and releases it", async () => {
@@ -248,5 +255,77 @@ describe("BaseRecordCard", () => {
       )
     })
     expect(themeMocks.useTheme).toHaveBeenCalledTimes(2)
+  })
+
+  it("registers a large native move submenu without mounting every item", async () => {
+    const showNativeMenu = vi.fn(
+      async (_menu: unknown[], _position?: unknown) => undefined
+    )
+    let nativeClickHandler:
+      | ((event: unknown, itemId: string) => void)
+      | undefined
+    Object.defineProperty(window, "eidos", {
+      configurable: true,
+      value: {
+        showNativeMenu,
+        on: vi.fn(
+          (
+            channel: string,
+            handler: (event: unknown, itemId: string) => void
+          ) => {
+            if (channel === "native-menu-click") nativeClickHandler = handler
+          }
+        ),
+      },
+    })
+    const row = { _id: "row_1", title: "Write RFC", cover: null }
+    const onMove = vi.fn()
+    const moveOptions = Array.from({ length: 200 }, (_, index) => ({
+      id: `status_${index}`,
+      label: `Status ${index}`,
+    }))
+
+    await act(async () => {
+      root.render(
+        <BaseRecordCard
+          row={row}
+          fields={fields}
+          view={{ ...view, properties: null }}
+          moveOptions={moveOptions}
+          onMove={onMove}
+          onOpen={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(container.querySelectorAll("*").length).toBeLessThan(100)
+    await act(async () => {
+      container
+        .querySelector<HTMLElement>('[data-base-row-id="row_1"]')
+        ?.dispatchEvent(
+          new MouseEvent("contextmenu", {
+            bubbles: true,
+            clientX: 24,
+            clientY: 36,
+          })
+        )
+      await Promise.resolve()
+    })
+
+    const menu = showNativeMenu.mock.calls[0]?.[0] as Array<{
+      type: string
+      label?: string
+      submenu?: Array<{ id?: string; label: string }>
+    }>
+    const moveSubmenu = menu.find(
+      (item) => item.type === "submenu" && item.label === "Move to"
+    )
+    expect(moveSubmenu?.submenu).toHaveLength(200)
+    const targetItem = moveSubmenu?.submenu?.[143]
+    expect(targetItem?.label).toBe("Status 143")
+
+    act(() => nativeClickHandler?.({}, targetItem?.id ?? ""))
+    expect(onMove).toHaveBeenCalledWith(row, "status_143")
   })
 })

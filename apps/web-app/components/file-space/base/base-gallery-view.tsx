@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import type {
   BaseFieldInfo,
   BaseRow,
@@ -16,6 +23,10 @@ import { LoaderCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 import { BaseRecordCard } from "./base-record-card"
+import {
+  createBaseRecordCardLayout,
+  type BaseRecordCardLayout,
+} from "./base-record-card-layout"
 import { BaseRecordDeleteDialog } from "./base-record-delete-dialog"
 import { BaseRecordInspector } from "./base-record-inspector"
 import {
@@ -40,18 +51,9 @@ function galleryCardWidth(view: BaseViewInfo): number {
   return 280
 }
 
-function estimatedGalleryCardHeight(
-  table: BaseTableSnapshot,
-  view: BaseViewInfo
-): number {
-  const hasCover = typeof view.properties?.coverPreview === "string"
-  const visibleFieldCount = orderedBaseFields(table.fields, view)
-    .filter(
-      (field) =>
-        field.tableColumnName !== "title" && field.valueKind !== "system"
-    )
-    .slice(0, 6).length
-  return 72 + (hasCover ? 144 : 0) + visibleFieldCount * 32
+function estimatedGalleryCardHeight(layout: BaseRecordCardLayout): number {
+  const visibleFieldCount = Math.min(layout.fields.length, layout.fieldLimit)
+  return 72 + (layout.coverField ? 144 : 0) + visibleFieldCount * 32
 }
 
 export function BaseGalleryView({
@@ -120,7 +122,14 @@ export function BaseGalleryView({
   } | null>(null)
   const [inspectedRow, setInspectedRow] = useState<BaseRow | null>(null)
   const [deleteRow, setDeleteRow] = useState<BaseRow | null>(null)
-  const fields = orderedBaseFields(table.fields, view)
+  const fields = useMemo(
+    () => orderedBaseFields(table.fields, view),
+    [table.fields, view]
+  )
+  const cardLayout = useMemo(
+    () => createBaseRecordCardLayout(table.fields, view),
+    [table.fields, view]
+  )
   const { rows, total } = rowWindow
 
   const requestPage = useCallback(
@@ -217,7 +226,7 @@ export function BaseGalleryView({
   const rowVirtualizer = useVirtualizer({
     count: virtualRowCount,
     getScrollElement: () => scrollContainerRef.current,
-    estimateSize: () => estimatedGalleryCardHeight(table, view),
+    estimateSize: () => estimatedGalleryCardHeight(cardLayout),
     getItemKey: (index) =>
       String(
         rowFromWindow(rowWindow, index * columnCount)?._id ??
@@ -404,6 +413,7 @@ export function BaseGalleryView({
                           row={row}
                           fields={table.fields}
                           view={view}
+                          layout={cardLayout}
                           acquireCover={acquireCover}
                           role="listitem"
                           focused={

@@ -824,8 +824,9 @@ const useSubmenuCollector = (onItemsChange?: () => void) => {
     })
   }, [])
 
-  const registerItem = React.useCallback(
+  const upsertItem = React.useCallback(
     (id: string, item: NativeMenuItem, onClick?: () => void) => {
+      removeById(id)
       const dedupeKey = getDedupeKey(item)
       if (dedupeKey) {
         const existingId = labelIndexRef.current.get(dedupeKey)
@@ -835,7 +836,6 @@ const useSubmenuCollector = (onItemsChange?: () => void) => {
         labelIndexRef.current.set(dedupeKey, id)
       }
 
-      removeById(id)
       itemsRef.current.set(id, item)
       if (onClick) {
         clickHandlersRef.current.set(id, onClick)
@@ -843,14 +843,43 @@ const useSubmenuCollector = (onItemsChange?: () => void) => {
       if (!orderRef.current.includes(id)) {
         orderRef.current.push(id)
       }
+    },
+    [getDedupeKey, removeById]
+  )
+
+  const registerItem = React.useCallback(
+    (id: string, item: NativeMenuItem, onClick?: () => void) => {
+      upsertItem(id, item, onClick)
       onItemsChange?.()
     },
-    [getDedupeKey, onItemsChange, removeById]
+    [onItemsChange, upsertItem]
+  )
+
+  const registerItems = React.useCallback(
+    (
+      items: Array<{
+        id: string
+        item: NativeMenuItem
+        onClick?: () => void
+      }>
+    ) => {
+      items.forEach(({ id, item, onClick }) => upsertItem(id, item, onClick))
+      onItemsChange?.()
+    },
+    [onItemsChange, upsertItem]
   )
 
   const unregisterItem = React.useCallback(
     (id: string) => {
       removeById(id)
+      onItemsChange?.()
+    },
+    [onItemsChange, removeById]
+  )
+
+  const unregisterItems = React.useCallback(
+    (ids: string[]) => {
+      ids.forEach(removeById)
       onItemsChange?.()
     },
     [onItemsChange, removeById]
@@ -874,7 +903,14 @@ const useSubmenuCollector = (onItemsChange?: () => void) => {
     return clickHandlersRef.current
   }, [])
 
-  return { registerItem, unregisterItem, getItems, getClickHandlers }
+  return {
+    registerItem,
+    registerItems,
+    unregisterItem,
+    unregisterItems,
+    getItems,
+    getClickHandlers,
+  }
 }
 
 // Context for submenu items
@@ -911,13 +947,9 @@ const NativeContextMenuSub = React.forwardRef<
   const checkAndRegister = React.useCallback(() => {
     if (!useNative) return
     const submenuCollector = submenuCollectorRef.current
-    if (
-      parentContext &&
-      triggerInfoRef.current &&
-      submenuCollector &&
-      submenuCollector.getItems().length > 0
-    ) {
-      const submenuItems = submenuCollector.getItems()
+    if (!parentContext || !triggerInfoRef.current || !submenuCollector) return
+    const submenuItems = submenuCollector.getItems()
+    if (submenuItems.length > 0) {
       const triggerItem = {
         type: "text" as const,
         label: triggerInfoRef.current.label,
@@ -936,8 +968,10 @@ const NativeContextMenuSub = React.forwardRef<
           ;(parentContext as any).registerClickHandler(id, handler)
         }
       })
+    } else {
+      parentContext.unregisterItem(itemId)
     }
-  }, [parentContext, itemId])
+  }, [itemId, parentContext, useNative])
 
   const submenuCollector = useSubmenuCollector(checkAndRegister)
   submenuCollectorRef.current = submenuCollector
@@ -1021,6 +1055,59 @@ const NativeContextMenuSubContent = React.forwardRef<
 })
 NativeContextMenuSubContent.displayName = "NativeContextMenuSubContent"
 
+interface NativeContextMenuSubItemsProps {
+  items: Array<{ id: string; label: string; disabled?: boolean }>
+  onSelect: (id: string) => void
+}
+
+const NativeContextMenuSubItems = React.memo(
+  function NativeContextMenuSubItems({
+    items,
+    onSelect,
+  }: NativeContextMenuSubItemsProps) {
+    const { useNative } = React.useContext(NativeMenuModeContext)
+    const submenuContext = React.useContext(NativeSubmenuContext)
+    const itemIdPrefix = React.useId()
+    const nativeItems = React.useMemo(
+      () =>
+        items.map((item, index) => {
+          const nativeId = `${itemIdPrefix}-${index}`
+          return {
+            id: nativeId,
+            item: {
+              type: "text" as const,
+              label: item.label,
+              id: nativeId,
+              enabled: !item.disabled,
+            },
+            onClick: () => onSelect(item.id),
+          }
+        }),
+      [itemIdPrefix, items, onSelect]
+    )
+
+    React.useEffect(() => {
+      if (!useNative || !submenuContext || nativeItems.length === 0) return
+      submenuContext.registerItems(nativeItems)
+      return () => {
+        submenuContext.unregisterItems(nativeItems.map((item) => item.id))
+      }
+    }, [nativeItems, submenuContext, useNative])
+
+    if (useNative) return null
+    return items.map((item) => (
+      <RadixContextMenuItem
+        key={item.id}
+        disabled={item.disabled}
+        onSelect={() => onSelect(item.id)}
+      >
+        {item.label}
+      </RadixContextMenuItem>
+    ))
+  }
+)
+NativeContextMenuSubItems.displayName = "NativeContextMenuSubItems"
+
 const NativeContextMenuSubTrigger = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
@@ -1090,6 +1177,7 @@ export {
   NativeContextMenuPortal,
   NativeContextMenuSub,
   NativeContextMenuSubContent,
+  NativeContextMenuSubItems,
   NativeContextMenuSubTrigger,
   NativeContextMenuRadioGroup,
 }

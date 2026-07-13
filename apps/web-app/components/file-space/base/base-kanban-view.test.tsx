@@ -128,10 +128,15 @@ vi.mock("./base-record-inspector", () => ({
     fields,
     onCellEdit,
   }: {
-    row: { _id?: string; title?: string; status?: string }
+    row: { _id?: string; title?: string; status?: string; priority?: string }
     fields: Array<{ tableColumnName: string }>
     onCellEdit: (
-      row: { _id?: string; title?: string; status?: string },
+      row: {
+        _id?: string
+        title?: string
+        status?: string
+        priority?: string
+      },
       field: { tableColumnName: string },
       value: string
     ) => Promise<unknown>
@@ -147,6 +152,17 @@ vi.mock("./base-record-inspector", () => ({
         }}
       >
         Set status to Done
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          const priority = fields.find(
+            (field) => field.tableColumnName === "priority"
+          )
+          if (priority) void onCellEdit(row, priority, "high")
+        }}
+      >
+        Set priority to High
       </button>
     </aside>
   ),
@@ -949,6 +965,98 @@ describe("BaseKanbanView", () => {
       50,
       50,
       51
+    )
+    expect(recordCardMocks.renders.get("done_0")).toBe(doneRendersBefore)
+  })
+
+  it("does not rerender unaffected columns when an inspected field changes", async () => {
+    const priorityField = {
+      name: "Priority",
+      type: "select" as const,
+      tableName: "tb_tasks",
+      tableColumnName: "priority",
+      property: {
+        options: [
+          { id: "low", name: "Low", color: "gray" },
+          { id: "high", name: "High", color: "red" },
+        ],
+      },
+      storageCodec: "scalar" as const,
+      valueKind: "source" as const,
+      isHidden: false,
+      isDerived: false,
+      sourceTableColumnName: null,
+      dependsOn: null,
+    }
+    const tableWithPriority: BaseTableSnapshot = {
+      ...table,
+      fields: [...table.fields, priorityField],
+    }
+    const todoRow = {
+      _id: "todo_0",
+      title: "Todo 0",
+      status: "todo",
+      priority: "low",
+    }
+    const doneRow = {
+      _id: "done_0",
+      title: "Done 0",
+      status: "done",
+      priority: "low",
+    }
+    const onCellEdit = vi.fn(async (candidate, field, value) => ({
+      tableId: "tasks",
+      row: { ...candidate, [field.tableColumnName]: value },
+      rowCount: 2,
+    }))
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={tableWithPriority}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [
+            { value: "todo", total: 1 },
+            { value: "done", total: 1 },
+          ])}
+          loadGroupPage={vi.fn(async (_field, value, offset, limit) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: value === "todo" || value === "done" ? 1 : 0,
+            rows:
+              value === "todo" ? [todoRow] : value === "done" ? [doneRow] : [],
+          }))}
+          onCellEdit={onCellEdit}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Todo 0")
+        ?.click()
+    })
+    const doneRendersBefore = recordCardMocks.renders.get("done_0")
+    const todoRendersBefore = recordCardMocks.renders.get("todo_0") ?? 0
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Set priority to High")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(onCellEdit).toHaveBeenCalledWith(
+      todoRow,
+      expect.objectContaining({ tableColumnName: "priority" }),
+      "high"
+    )
+    expect(recordCardMocks.renders.get("todo_0")).toBeGreaterThan(
+      todoRendersBefore
     )
     expect(recordCardMocks.renders.get("done_0")).toBe(doneRendersBefore)
   })

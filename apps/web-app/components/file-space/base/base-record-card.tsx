@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, type AriaRole } from "react"
+import { memo, useCallback, useEffect, useState, type AriaRole } from "react"
 import type { BaseFieldInfo, BaseRow, BaseViewInfo } from "@eidos.space/base"
 import { decodeBaseFilePaths } from "@eidos.space/base"
 import {
@@ -32,13 +32,18 @@ import {
   NativeContextMenuSeparator,
   NativeContextMenuSub,
   NativeContextMenuSubContent,
+  NativeContextMenuSubItems,
   NativeContextMenuSubTrigger,
   NativeContextMenuTrigger,
 } from "@/components/ui/native-context-menu"
 
-import { baseOptionColor, baseSelectOptions } from "./base-field-properties"
+import { baseOptionColor } from "./base-field-properties"
+import {
+  createBaseRecordCardLayout,
+  type BaseRecordCardFieldLayout,
+  type BaseRecordCardLayout,
+} from "./base-record-card-layout"
 import { baseRecordFieldText, baseRecordTitle } from "./base-record-format"
-import { orderedBaseFields } from "./base-view-layout"
 import type { BaseCoverLease } from "./use-base-cover-reader"
 
 function multiSelectIds(value: BaseRow[string]): string[] {
@@ -130,12 +135,13 @@ function BaseRecordCover({
 }
 
 function CardFieldValue({
-  field,
+  layout,
   row,
 }: {
-  field: BaseFieldInfo
+  layout: BaseRecordCardFieldLayout
   row: BaseRow
 }) {
+  const { field, optionById } = layout
   const { resolvedTheme } = useTheme()
   const theme = resolvedTheme === "dark" ? "dark" : "light"
   const value = row[field.tableColumnName]
@@ -149,9 +155,7 @@ function CardFieldValue({
     )
   }
   if (field.type === "select") {
-    const option = baseSelectOptions(field).find(
-      (candidate) => candidate.id === value
-    )
+    const option = optionById?.get(String(value))
     if (!option) return <span className="text-muted-foreground">Empty</span>
     return (
       <span
@@ -163,9 +167,6 @@ function CardFieldValue({
     )
   }
   if (field.type === "multi-select") {
-    const optionById = new Map(
-      baseSelectOptions(field).map((option) => [option.id, option])
-    )
     const values = multiSelectIds(value)
     if (values.length === 0) {
       return <span className="text-muted-foreground">Empty</span>
@@ -173,7 +174,7 @@ function CardFieldValue({
     return (
       <span className="flex min-w-0 flex-wrap gap-1">
         {values.slice(0, 3).map((id) => {
-          const option = optionById.get(id)
+          const option = optionById?.get(id)
           return (
             <span
               key={id}
@@ -227,10 +228,31 @@ function CardFieldValue({
   )
 }
 
+const DropdownMoveItems = memo(function DropdownMoveItems({
+  row,
+  moveOptions,
+  onMove,
+}: {
+  row: BaseRow
+  moveOptions: Array<{ id: string; label: string; disabled?: boolean }>
+  onMove: (row: BaseRow, targetId: string) => void
+}) {
+  return moveOptions.map((option) => (
+    <DropdownMenuItem
+      key={option.id}
+      disabled={option.disabled}
+      onSelect={() => onMove(row, option.id)}
+    >
+      {option.label}
+    </DropdownMenuItem>
+  ))
+})
+
 export const BaseRecordCard = memo(function BaseRecordCard({
   row,
   fields,
   view,
+  layout: providedLayout,
   compact = false,
   acquireCover,
   onOpen,
@@ -243,6 +265,7 @@ export const BaseRecordCard = memo(function BaseRecordCard({
   row: BaseRow
   fields: BaseFieldInfo[]
   view: BaseViewInfo
+  layout?: BaseRecordCardLayout
   compact?: boolean
   acquireCover?: (path: string) => Promise<BaseCoverLease>
   onOpen: (row: BaseRow) => void
@@ -252,22 +275,18 @@ export const BaseRecordCard = memo(function BaseRecordCard({
   role?: AriaRole
   focused?: boolean
 }) {
-  const hideEmptyFields = view.properties?.hideEmptyFields !== false
-  const visibleFields = orderedBaseFields(fields, view)
+  const layout =
+    providedLayout ?? createBaseRecordCardLayout(fields, view, compact)
+  const visibleFields = layout.fields
     .filter(
-      (field) =>
-        field.tableColumnName !== "title" &&
-        field.valueKind !== "system" &&
-        (!hideEmptyFields || !isEmptyValue(row[field.tableColumnName]))
+      ({ field }) =>
+        !layout.hideEmptyFields || !isEmptyValue(row[field.tableColumnName])
     )
-    .slice(0, compact ? 4 : 6)
+    .slice(0, layout.fieldLimit)
   const title = baseRecordTitle(row)
-  const coverFieldName =
-    typeof view.properties?.coverPreview === "string"
-      ? view.properties.coverPreview
-      : null
-  const coverField = fields.find(
-    (field) => field.tableColumnName === coverFieldName && field.type === "file"
+  const moveFromNativeMenu = useCallback(
+    (targetId: string) => onMove?.(row, targetId),
+    [onMove, row]
   )
 
   const card = (
@@ -283,12 +302,12 @@ export const BaseRecordCard = memo(function BaseRecordCard({
       tabIndex={-1}
       role={role}
     >
-      {coverField ? (
+      {layout.coverField ? (
         <BaseRecordCover
           row={row}
-          field={coverField}
+          field={layout.coverField}
           compact={compact}
-          fitContent={view.properties?.fitContent !== false}
+          fitContent={layout.fitContent}
           acquireCover={acquireCover}
         />
       ) : null}
@@ -334,15 +353,11 @@ export const BaseRecordCard = memo(function BaseRecordCard({
                         Move to
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent className="w-44">
-                        {moveOptions.map((option) => (
-                          <DropdownMenuItem
-                            key={option.id}
-                            disabled={option.disabled}
-                            onSelect={() => onMove(row, option.id)}
-                          >
-                            {option.label}
-                          </DropdownMenuItem>
-                        ))}
+                        <DropdownMoveItems
+                          row={row}
+                          moveOptions={moveOptions}
+                          onMove={onMove}
+                        />
                       </DropdownMenuSubContent>
                     </DropdownMenuSub>
                   ) : null}
@@ -367,16 +382,16 @@ export const BaseRecordCard = memo(function BaseRecordCard({
         </div>
         {visibleFields.length > 0 ? (
           <div className="grid gap-2">
-            {visibleFields.map((field) => (
+            {visibleFields.map((fieldLayout) => (
               <div
-                key={field.tableColumnName}
+                key={fieldLayout.field.tableColumnName}
                 className="grid min-w-0 grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-2 text-xs"
               >
                 <span className="truncate text-[11px] text-muted-foreground">
-                  {field.name}
+                  {fieldLayout.field.name}
                 </span>
                 <span className="min-w-0">
-                  <CardFieldValue field={field} row={row} />
+                  <CardFieldValue layout={fieldLayout} row={row} />
                 </span>
               </div>
             ))}
@@ -398,15 +413,10 @@ export const BaseRecordCard = memo(function BaseRecordCard({
           <NativeContextMenuSub>
             <NativeContextMenuSubTrigger>Move to</NativeContextMenuSubTrigger>
             <NativeContextMenuSubContent>
-              {moveOptions.map((option) => (
-                <NativeContextMenuItem
-                  key={option.id}
-                  disabled={option.disabled}
-                  onClick={() => onMove(row, option.id)}
-                >
-                  {option.label}
-                </NativeContextMenuItem>
-              ))}
+              <NativeContextMenuSubItems
+                items={moveOptions}
+                onSelect={moveFromNativeMenu}
+              />
             </NativeContextMenuSubContent>
           </NativeContextMenuSub>
         ) : null}
