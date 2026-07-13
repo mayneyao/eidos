@@ -29,6 +29,12 @@
 独立编辑器当前有 57 个 package acceptance tests；Desktop host integration
 tests 也覆盖了 runtime loading、保存行为和冲突处理路径。
 
+外部编辑现在具备不丢数据的恢复路径。dirty Markdown 文档在磁盘上发生变化后，
+autosave 会继续暂停；用户可以先把 Eidos 草稿保存为同目录下自动避让重名的副本，
+再重载磁盘版本。副本写入失败时，当前草稿保持可编辑并显示 inline retry error；
+副本已经写入但原文件重载失败时，Eidos 会明确显示恢复路径，后续只重试 reload，
+不会重复创建副本。显式丢弃仍是次级操作，并保留确认步骤。
+
 Desktop 启动时仍会扫描文件系统元数据以保证文件具有最终权威；未变化的正文和
 Markdown 解析结果直接复用可删除的 SQLite cache。Watcher 变化会增量更新，显式
 Rebuild 和损坏 schema 恢复都会完全从 Space 文件重建索引。

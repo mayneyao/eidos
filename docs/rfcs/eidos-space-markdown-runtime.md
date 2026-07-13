@@ -29,6 +29,14 @@ Implemented:
 The standalone editor currently has 57 package acceptance tests. Desktop host
 integration tests also cover runtime loading, save behavior, and conflict paths.
 
+External edits now have a non-destructive recovery path. When a dirty Markdown
+document changes on disk, autosave remains paused and the user can preserve the
+Eidos draft as a uniquely named sibling file before reloading the disk version.
+Copy failures keep the current draft open with an inline retry error; if the
+copy succeeds but the original cannot reload, Eidos reports the recovery path
+and retries only the reload instead of creating duplicate copies. Explicit
+discard remains a secondary, confirmed action.
+
 The Desktop index scans filesystem metadata on startup so files remain
 authoritative, but reuses unchanged content and parsed Markdown metadata from
 the disposable SQLite cache. Watcher changes update it incrementally; explicit
