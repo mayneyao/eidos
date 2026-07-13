@@ -18,11 +18,17 @@ import { Button } from "@/components/ui/button"
 import { BaseRecordCard } from "./base-record-card"
 import { BaseRecordDeleteDialog } from "./base-record-delete-dialog"
 import { BaseRecordInspector } from "./base-record-inspector"
+import {
+  mergeRowWindowPage,
+  requestForRowWindow,
+  rowFromWindow,
+  type BaseRowWindowMergeMode,
+} from "./base-row-window"
 import { orderedBaseFields } from "./base-view-layout"
 import { useBaseCoverReader } from "./use-base-cover-reader"
-import { useBaseVirtualLoadMore } from "./use-base-virtual-load-more"
 
 const GALLERY_PAGE_SIZE = 100
+const GALLERY_MAX_WINDOW_ROWS = 500
 const GALLERY_GAP = 12
 const GALLERY_HORIZONTAL_PADDING = 32
 const GALLERY_OVERSCAN_ROWS = 2
@@ -92,23 +98,28 @@ export function BaseGalleryView({
 }) {
   const acquireCover = useBaseCoverReader(readBinary)
   const generationRef = useRef(0)
+  const scopeRef = useRef("")
   const requestRef = useRef<{ generation: number; offset: number } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(1024)
-  const [rows, setRows] = useState<BaseRow[]>([])
-  const [total, setTotal] = useState(table.rowCount)
+  const [rowWindow, setRowWindow] = useState({
+    rows: [] as BaseRow[],
+    startOffset: 0,
+    total: table.rowCount,
+  })
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [failedRequest, setFailedRequest] = useState<{
     offset: number
-    append: boolean
+    mode: BaseRowWindowMergeMode
   } | null>(null)
   const [inspectedRow, setInspectedRow] = useState<BaseRow | null>(null)
   const [deleteRow, setDeleteRow] = useState<BaseRow | null>(null)
   const fields = orderedBaseFields(table.fields, view)
+  const { rows, total } = rowWindow
 
   const requestPage = useCallback(
-    async (offset: number, append: boolean) => {
+    async (offset: number, mode: BaseRowWindowMergeMode) => {
       const generation = generationRef.current
       if (
         requestRef.current?.generation === generation &&
@@ -118,32 +129,26 @@ export function BaseGalleryView({
       }
       requestRef.current = { generation, offset }
       setFailedRequest(null)
-      append ? setLoadingMore(true) : setLoading(true)
+      mode === "replace" ? setLoading(true) : setLoadingMore(true)
       try {
         const page = await loadPage(offset, GALLERY_PAGE_SIZE)
         if (generation !== generationRef.current) return
-        setRows((current) => {
-          if (!append) return page.rows
-          const existingIds = new Set(
-            current.map((row) => String(row._id ?? ""))
-          )
-          return [
-            ...current,
-            ...page.rows.filter(
-              (row) => !existingIds.has(String(row._id ?? ""))
-            ),
-          ]
-        })
-        setTotal(page.total)
-        onRowCountChange?.(page.total)
+        setRowWindow((current) =>
+          mergeRowWindowPage(current, page, mode, GALLERY_MAX_WINDOW_ROWS)
+        )
+        onRowCountChange?.(
+          page.rows.length === 0 && page.offset > 0
+            ? Math.min(page.total, page.offset)
+            : page.total
+        )
       } catch {
         if (generation === generationRef.current) {
-          setFailedRequest({ offset, append })
+          setFailedRequest({ offset, mode })
         }
       } finally {
         if (generation === generationRef.current) {
           if (requestRef.current?.offset === offset) requestRef.current = null
-          append ? setLoadingMore(false) : setLoading(false)
+          mode === "replace" ? setLoading(false) : setLoadingMore(false)
         }
       }
     },
@@ -155,10 +160,17 @@ export function BaseGalleryView({
     requestRef.current = null
     setLoadingMore(false)
     setFailedRequest(null)
-    setTotal(table.rowCount)
+    const scope = `${table.table.id}:${view.id}`
+    const preserveWindow = scopeRef.current === scope
+    scopeRef.current = scope
+    setRowWindow((current) =>
+      preserveWindow
+        ? current
+        : { rows: [], startOffset: 0, total: table.rowCount }
+    )
     setInspectedRow(null)
     onRowCountChange?.(null)
-    void requestPage(0, false)
+    void requestPage(0, "replace")
     return () => {
       generationRef.current += 1
     }
@@ -189,49 +201,63 @@ export function BaseGalleryView({
     1,
     Math.floor((availableWidth + GALLERY_GAP) / (targetCardWidth + GALLERY_GAP))
   )
-  const virtualRowCount = Math.ceil(rows.length / columnCount)
+  const virtualRowCount = Math.ceil(total / columnCount)
   const rowVirtualizer = useVirtualizer({
     count: virtualRowCount,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => estimatedGalleryCardHeight(table, view),
     getItemKey: (index) =>
-      String(rows[index * columnCount]?._id ?? `gallery-row-${index}`),
+      String(
+        rowFromWindow(rowWindow, index * columnCount)?._id ??
+          `gallery-row-${index}`
+      ),
     gap: GALLERY_GAP,
     initialRect: { width: 1024, height: 640 },
     overscan: GALLERY_OVERSCAN_ROWS,
   })
   const virtualRows = rowVirtualizer.getVirtualItems()
-  const lastVirtualRowIndex = virtualRows.at(-1)?.index ?? -1
-  const loadNextPage = useCallback(() => {
-    void requestPage(rows.length, true)
-  }, [requestPage, rows.length])
 
-  useBaseVirtualLoadMore({
-    enabled:
-      failedRequest === null && !loading && !loadingMore && rows.length < total,
-    lastVirtualIndex: lastVirtualRowIndex,
-    loadBoundary: Math.max(0, virtualRowCount - GALLERY_OVERSCAN_ROWS),
-    onLoadMore: loadNextPage,
-  })
+  useEffect(() => {
+    const first = virtualRows.at(0)
+    const last = virtualRows.at(-1)
+    if (!first || !last || loading || loadingMore) return
+    const request = requestForRowWindow(
+      rowWindow,
+      first.index * columnCount,
+      Math.min(total, (last.index + 1) * columnCount),
+      GALLERY_PAGE_SIZE
+    )
+    if (
+      !request ||
+      (failedRequest?.offset === request.offset &&
+        failedRequest.mode === request.mode)
+    ) {
+      return
+    }
+    void requestPage(request.offset, request.mode)
+  }, [
+    columnCount,
+    failedRequest,
+    loading,
+    loadingMore,
+    requestPage,
+    rowWindow,
+    total,
+    virtualRows,
+  ])
 
   useEffect(() => {
     rowVirtualizer.measure()
   }, [columnCount, rowVirtualizer, table.fields, view.properties])
 
   const focusedRow =
-    searchResultIndex !== null ? rows[searchResultIndex] : undefined
+    searchResultIndex !== null
+      ? rowFromWindow(rowWindow, searchResultIndex)
+      : undefined
 
   useEffect(() => {
     if (searchResultIndex === null || searchResultIndex < 0) return
     if (searchResultIndex >= total) return
-    if (searchResultIndex >= rows.length) {
-      if (!loading && !loadingMore && rows.length < total) {
-        void requestPage(rows.length, true)
-      }
-      return
-    }
-    const row = rows[searchResultIndex]
-    if (!row) return
     let active = true
     queueMicrotask(() => {
       if (!active) return
@@ -247,9 +273,7 @@ export function BaseGalleryView({
     columnCount,
     loading,
     loadingMore,
-    requestPage,
     rowVirtualizer,
-    rows,
     searchResultIndex,
     total,
   ])
@@ -269,13 +293,14 @@ export function BaseGalleryView({
   ) => {
     if (!onCellEdit) throw new Error("Record editing is unavailable")
     const result = await onCellEdit(row, field, value)
-    setRows((current) =>
-      current.map((candidate) =>
+    setRowWindow((current) => ({
+      ...current,
+      rows: current.rows.map((candidate) =>
         String(candidate._id) === String(result.row._id)
           ? result.row
           : candidate
-      )
-    )
+      ),
+    }))
     setInspectedRow(result.row)
     return result
   }
@@ -284,11 +309,12 @@ export function BaseGalleryView({
     if (!onDeleteRow) return
     await onDeleteRow(row)
     const rowId = String(row._id)
-    setRows((current) =>
-      current.filter((candidate) => String(candidate._id) !== rowId)
-    )
+    setRowWindow((current) => ({
+      ...current,
+      rows: current.rows.filter((candidate) => String(candidate._id) !== rowId),
+      total: Math.max(0, current.total - 1),
+    }))
     const nextTotal = Math.max(0, total - 1)
-    setTotal(nextTotal)
     onRowCountChange?.(nextTotal)
     setInspectedRow((current) =>
       current && String(current._id) === rowId ? null : current
@@ -300,8 +326,10 @@ export function BaseGalleryView({
       <div
         ref={scrollContainerRef}
         data-base-gallery-scroll
+        data-base-window-size={rows.length}
+        data-base-window-start={rowWindow.startOffset}
         aria-busy={loading || loadingMore}
-        className="min-w-0 flex-1 overflow-y-auto p-4"
+        className="relative min-w-0 flex-1 overflow-y-auto p-4"
       >
         {loading && rows.length === 0 ? (
           <div className="flex h-40 items-center justify-center gap-2 text-xs text-muted-foreground">
@@ -317,13 +345,13 @@ export function BaseGalleryView({
               size="sm"
               className="h-7 px-2.5 text-xs"
               onClick={() =>
-                void requestPage(failedRequest.offset, failedRequest.append)
+                void requestPage(failedRequest.offset, failedRequest.mode)
               }
             >
               Retry
             </Button>
           </div>
-        ) : rows.length === 0 ? (
+        ) : total === 0 ? (
           <div className="flex h-40 items-center justify-center text-xs text-muted-foreground">
             No records in this view.
           </div>
@@ -349,22 +377,35 @@ export function BaseGalleryView({
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
-                  {rows.slice(start, start + columnCount).map((row) => (
-                    <BaseRecordCard
-                      key={String(row._id)}
-                      row={row}
-                      fields={table.fields}
-                      view={view}
-                      acquireCover={acquireCover}
-                      role="listitem"
-                      focused={
-                        focusedRow !== undefined &&
-                        String(focusedRow._id) === String(row._id)
-                      }
-                      onOpen={setInspectedRow}
-                      onDelete={onDeleteRow ? setDeleteRow : undefined}
-                    />
-                  ))}
+                  {Array.from(
+                    { length: Math.min(columnCount, total - start) },
+                    (_, columnIndex) => {
+                      const absoluteIndex = start + columnIndex
+                      const row = rowFromWindow(rowWindow, absoluteIndex)
+                      return row ? (
+                        <BaseRecordCard
+                          key={String(row._id)}
+                          row={row}
+                          fields={table.fields}
+                          view={view}
+                          acquireCover={acquireCover}
+                          role="listitem"
+                          focused={
+                            focusedRow !== undefined &&
+                            String(focusedRow._id) === String(row._id)
+                          }
+                          onOpen={setInspectedRow}
+                          onDelete={onDeleteRow ? setDeleteRow : undefined}
+                        />
+                      ) : (
+                        <div
+                          key={`gallery-placeholder-${absoluteIndex}`}
+                          className="min-h-24 rounded-lg border bg-muted/20"
+                          aria-hidden="true"
+                        />
+                      )
+                    }
+                  )}
                 </div>
               )
             })}
@@ -381,7 +422,7 @@ export function BaseGalleryView({
         ) : failedRequest !== null && rows.length > 0 ? (
           <div className="flex h-10 items-center justify-center gap-2 text-[11px] text-muted-foreground">
             <span>
-              {failedRequest.append
+              {failedRequest.mode !== "replace"
                 ? "Could not load more records."
                 : "Could not refresh records."}
             </span>
@@ -391,10 +432,7 @@ export function BaseGalleryView({
               size="sm"
               className="h-7 px-2 text-[11px]"
               onClick={() =>
-                void requestPage(
-                  failedRequest.append ? rows.length : failedRequest.offset,
-                  failedRequest.append
-                )
+                void requestPage(failedRequest.offset, failedRequest.mode)
               }
             >
               Retry

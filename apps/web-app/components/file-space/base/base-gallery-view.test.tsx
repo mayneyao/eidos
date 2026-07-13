@@ -151,9 +151,10 @@ describe("BaseGalleryView", () => {
     root = createRoot(container)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     act(() => root.unmount())
     container.remove()
+    await new Promise((resolve) => setTimeout(resolve, 200))
     URL.createObjectURL = originalCreateObjectUrl
     URL.revokeObjectURL = originalRevokeObjectUrl
     vi.unstubAllGlobals()
@@ -451,7 +452,7 @@ describe("BaseGalleryView", () => {
     ).toBe("false")
   })
 
-  it("keeps a large gallery DOM bounded and loads the next page on scroll", async () => {
+  it("keeps a large gallery bounded and loads the target window on scroll", async () => {
     const loadPage = vi.fn(async (offset: number, limit: number) => ({
       tableId: "tasks",
       offset,
@@ -487,10 +488,40 @@ describe("BaseGalleryView", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(loadPage).toHaveBeenCalledWith(100, 100)
+    expect(loadPage).toHaveBeenCalledWith(900, 100)
+    expect(
+      container
+        .querySelector("[data-base-gallery-scroll]")
+        ?.getAttribute("data-base-window-start")
+    ).toBe("900")
+    expect(
+      Number(
+        container
+          .querySelector("[data-base-gallery-scroll]")
+          ?.getAttribute("data-base-window-size")
+      )
+    ).toBeLessThanOrEqual(500)
     expect(container.querySelectorAll('[role="listitem"]').length).toBeLessThan(
       100
     )
+
+    await act(async () => {
+      const scroller = container.querySelector<HTMLElement>(
+        "[data-base-gallery-scroll]"
+      )
+      if (!scroller) return
+      scroller.scrollTop = 0
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(loadPage).toHaveBeenLastCalledWith(0, 100)
+    expect(
+      container
+        .querySelector("[data-base-gallery-scroll]")
+        ?.getAttribute("data-base-window-start")
+    ).toBe("0")
   })
 
   it("stops automatic retries after the first page fails and recovers in place", async () => {

@@ -784,7 +784,7 @@ describe("BaseKanbanView", () => {
     ).toBe("true")
   })
 
-  it("virtualizes cards inside a large group and loads more on scroll", async () => {
+  it("virtualizes cards and loads the target group window on scroll", async () => {
     const loadGroupPage = vi.fn(
       async (_field, value: string | null, offset: number, limit: number) => ({
         tableId: "tasks",
@@ -838,12 +838,47 @@ describe("BaseKanbanView", () => {
     expect(loadGroupPage).toHaveBeenCalledWith(
       expect.objectContaining({ tableColumnName: "status" }),
       "todo",
-      50,
+      450,
       50
     )
     expect(
+      todoColumn
+        ?.querySelector("[data-base-kanban-column-scroll]")
+        ?.getAttribute("data-base-window-start")
+    ).toBe("450")
+    expect(
+      Number(
+        todoColumn
+          ?.querySelector("[data-base-kanban-column-scroll]")
+          ?.getAttribute("data-base-window-size")
+      )
+    ).toBeLessThanOrEqual(250)
+    expect(
       todoColumn?.querySelectorAll("[data-base-row-id]").length
     ).toBeLessThan(50)
+
+    await act(async () => {
+      const scroller = todoColumn?.querySelector<HTMLElement>(
+        '[data-base-kanban-column-scroll="base-kanban:todo"]'
+      )
+      if (!scroller) return
+      scroller.scrollTop = 0
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(loadGroupPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tableColumnName: "status" }),
+      "todo",
+      0,
+      50
+    )
+    expect(
+      todoColumn
+        ?.querySelector("[data-base-kanban-column-scroll]")
+        ?.getAttribute("data-base-window-start")
+    ).toBe("0")
   })
 
   it("does not rerender unaffected columns when one group loads another page", async () => {

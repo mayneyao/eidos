@@ -42,12 +42,18 @@ import {
 import { BaseRecordCard } from "./base-record-card"
 import { BaseRecordDeleteDialog } from "./base-record-delete-dialog"
 import { BaseRecordInspector } from "./base-record-inspector"
+import {
+  mergeRowWindowPage,
+  requestForRowWindow,
+  rowFromWindow,
+  type BaseRowWindowRequest,
+} from "./base-row-window"
 import { orderedBaseFields } from "./base-view-layout"
 import { useBaseCoverReader } from "./use-base-cover-reader"
 import type { BaseCoverLease } from "./use-base-cover-reader"
-import { useBaseVirtualLoadMore } from "./use-base-virtual-load-more"
 
 const KANBAN_PAGE_SIZE = 50
+const KANBAN_MAX_WINDOW_ROWS = 250
 const KANBAN_COLUMN_GAP = 12
 const EMPTY_GROUP_VALUE = "__eidos_empty_group__"
 
@@ -57,12 +63,13 @@ interface BaseKanbanGroup {
   name: string
   color: string
   rows: BaseRow[]
+  startOffset: number
   total: number
-  nextOffset: number
   loaded: boolean
-  loadFailure: "initial" | "more" | null
+  loadFailure: BaseRowWindowRequest | null
   loading: boolean
   loadingMore: boolean
+  needsReload: boolean
 }
 
 interface BaseKanbanMoveOption {
@@ -82,12 +89,13 @@ function groupSpecs(options: BaseSelectOption[]): BaseKanbanGroup[] {
       name: option.name,
       color: option.color,
       rows: [],
+      startOffset: 0,
       total: 0,
-      nextOffset: 0,
       loaded: false,
       loadFailure: null,
       loading: false,
       loadingMore: false,
+      needsReload: false,
     })),
     {
       key: groupKey(null),
@@ -95,12 +103,13 @@ function groupSpecs(options: BaseSelectOption[]): BaseKanbanGroup[] {
       name: "No status",
       color: "gray",
       rows: [],
+      startOffset: 0,
       total: 0,
-      nextOffset: 0,
       loaded: false,
       loadFailure: null,
       loading: false,
       loadingMore: false,
+      needsReload: false,
     },
   ]
 }
@@ -133,7 +142,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   width,
   color,
   onOpen,
-  onLoadMore,
+  onRequestRange,
   onRetry,
   onCreate,
   acquireCover,
@@ -152,7 +161,11 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   width: number
   color: string
   onOpen: (row: BaseRow) => void
-  onLoadMore: (group: BaseKanbanGroup) => void
+  onRequestRange: (
+    group: BaseKanbanGroup,
+    visibleStart: number,
+    visibleEnd: number
+  ) => void
   onRetry: (group: BaseKanbanGroup) => void
   onCreate: (group: BaseKanbanGroup, title: string) => Promise<void>
   acquireCover?: (path: string) => Promise<BaseCoverLease>
@@ -168,24 +181,22 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   const [title, setTitle] = useState("")
   const [creating, setCreating] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const hasMore = group.rows.length < group.total
-  const virtualItemCount = group.rows.length + (hasMore ? 1 : 0)
+  const groupWindow = {
+    rows: group.rows,
+    startOffset: group.startOffset,
+    total: group.total,
+  }
   const cardVirtualizer = useVirtualizer({
-    count: virtualItemCount,
+    count: group.total,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (index) =>
-      index < group.rows.length ? estimatedKanbanCardHeight(table, view) : 36,
+    estimateSize: () => estimatedKanbanCardHeight(table, view),
     getItemKey: (index) =>
-      index < group.rows.length
-        ? String(group.rows[index]?._id ?? `${group.key}:${index}`)
-        : `${group.key}:load-more`,
+      String(rowFromWindow(groupWindow, index)?._id ?? `${group.key}:${index}`),
     gap: 8,
     initialRect: { width, height: 560 },
     overscan: 3,
   })
   const virtualItems = cardVirtualizer.getVirtualItems()
-  const lastVirtualIndex = virtualItems.at(-1)?.index ?? -1
-  const loadMore = useCallback(() => onLoadMore(group), [group, onLoadMore])
   const cardMoveOptions = useMemo(
     () =>
       moveOptions.map((option) => ({
@@ -200,23 +211,18 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
     [onMove]
   )
 
-  useBaseVirtualLoadMore({
-    enabled:
-      group.loaded &&
-      group.loadFailure === null &&
-      hasMore &&
-      !group.loading &&
-      !group.loadingMore,
-    lastVirtualIndex,
-    loadBoundary: group.rows.length,
-    onLoadMore: loadMore,
-  })
+  useEffect(() => {
+    const first = virtualItems.at(0)
+    const last = virtualItems.at(-1)
+    if (!first || !last || !group.loaded) return
+    onRequestRange(group, first.index, last.index + 1)
+  }, [group, onRequestRange, virtualItems])
 
   useEffect(() => {
     if (
       focusedRowIndex === undefined ||
       focusedRowIndex < 0 ||
-      focusedRowIndex >= group.rows.length
+      focusedRowIndex >= group.total
     ) {
       return
     }
@@ -229,7 +235,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
     return () => {
       active = false
     }
-  }, [cardVirtualizer, focusedRowIndex, group.rows.length])
+  }, [cardVirtualizer, focusedRowIndex, group.total])
 
   useEffect(() => {
     cardVirtualizer.measure()
@@ -311,13 +317,16 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
           <div
             ref={scrollRef}
             data-base-kanban-column-scroll={group.key}
+            data-base-window-size={group.rows.length}
+            data-base-window-start={group.startOffset}
             className="relative min-h-16 min-w-0 flex-1 overflow-y-auto pr-0.5"
           >
             {(group.loading || !group.loaded) && group.rows.length === 0 ? (
               <div className="flex h-20 items-center justify-center">
                 <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
-            ) : group.loadFailure === "initial" && group.rows.length === 0 ? (
+            ) : group.loadFailure?.mode === "replace" &&
+              group.rows.length === 0 ? (
               <div className="flex h-20 flex-col items-center justify-center gap-1 text-[11px] text-destructive">
                 <span>Could not load records</span>
                 <Button
@@ -340,7 +349,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                 style={{ height: cardVirtualizer.getTotalSize() }}
               >
                 {virtualItems.map((virtualItem) => {
-                  const row = group.rows[virtualItem.index]
+                  const row = rowFromWindow(groupWindow, virtualItem.index)
                   return (
                     <div
                       key={virtualItem.key}
@@ -378,7 +387,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                           role="status"
                           aria-label={`Loading more ${group.name} records`}
                         >
-                          {group.loadFailure === "more" ? (
+                          {group.loadFailure !== null ? (
                             <Button
                               type="button"
                               variant="ghost"
@@ -399,7 +408,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
               </div>
             )}
           </div>
-          {group.loadFailure === "initial" && group.rows.length > 0 ? (
+          {group.loadFailure?.mode === "replace" && group.rows.length > 0 ? (
             <div className="flex h-8 shrink-0 items-center justify-center gap-1 text-[11px] text-destructive">
               <span>Could not refresh records.</span>
               <Button
@@ -737,22 +746,38 @@ export function BaseKanbanView({
     onRowCountChange?.(groupedRowCount)
   }, [countsLoaded, groupedRowCount, onRowCountChange])
 
-  const loadInitialGroup = useCallback(
-    async (group: BaseKanbanGroup, retry = false) => {
+  const loadGroupWindow = useCallback(
+    async (
+      group: BaseKanbanGroup,
+      request: BaseRowWindowRequest,
+      retry = false
+    ) => {
       if (
         !groupField ||
-        (group.loaded && !retry) ||
         group.loading ||
-        loadingInitialGroupsRef.current.has(group.key)
+        group.loadingMore ||
+        (!retry &&
+          group.loadFailure?.offset === request.offset &&
+          group.loadFailure.mode === request.mode)
       ) {
         return
       }
       const generation = generationRef.current
-      loadingInitialGroupsRef.current.set(group.key, generation)
+      const requestMap =
+        request.mode === "replace"
+          ? loadingInitialGroupsRef.current
+          : loadingMoreGroupsRef.current
+      if (requestMap.has(group.key)) return
+      requestMap.set(group.key, generation)
       setGroups((current) =>
         current.map((candidate) =>
           candidate.key === group.key
-            ? { ...candidate, loadFailure: null, loading: true }
+            ? {
+                ...candidate,
+                loadFailure: null,
+                loading: request.mode === "replace",
+                loadingMore: request.mode !== "replace",
+              }
             : candidate
         )
       )
@@ -760,25 +785,34 @@ export function BaseKanbanView({
         const page = await loadGroupPage(
           groupField,
           group.value,
-          0,
+          request.offset,
           KANBAN_PAGE_SIZE
         )
         if (generation !== generationRef.current) return
         loadedGroupGenerationsRef.current.set(group.key, generation)
         setGroups((current) =>
-          current.map((candidate) =>
-            candidate.key === group.key
-              ? {
-                  ...candidate,
-                  rows: page.rows,
-                  total: page.total,
-                  nextOffset: page.offset + page.rows.length,
-                  loaded: true,
-                  loadFailure: null,
-                  loading: false,
-                }
-              : candidate
-          )
+          current.map((candidate) => {
+            if (candidate.key !== group.key) return candidate
+            const merged = mergeRowWindowPage(
+              {
+                rows: candidate.rows,
+                startOffset: candidate.startOffset,
+                total: candidate.total,
+              },
+              page,
+              request.mode,
+              KANBAN_MAX_WINDOW_ROWS
+            )
+            return {
+              ...candidate,
+              ...merged,
+              loaded: true,
+              loadFailure: null,
+              loading: false,
+              loadingMore: false,
+              needsReload: false,
+            }
+          })
         )
       } catch {
         if (generation !== generationRef.current) return
@@ -789,19 +823,28 @@ export function BaseKanbanView({
               ? {
                   ...candidate,
                   loaded: true,
-                  loadFailure: "initial",
+                  loadFailure: request,
                   loading: false,
+                  loadingMore: false,
                 }
               : candidate
           )
         )
       } finally {
-        if (loadingInitialGroupsRef.current.get(group.key) === generation) {
-          loadingInitialGroupsRef.current.delete(group.key)
+        if (requestMap.get(group.key) === generation) {
+          requestMap.delete(group.key)
         }
       }
     },
     [groupField, loadGroupPage]
+  )
+
+  const loadInitialGroup = useCallback(
+    (group: BaseKanbanGroup) => {
+      if (group.loaded) return Promise.resolve()
+      return loadGroupWindow(group, { mode: "replace", offset: 0 })
+    },
+    [loadGroupWindow]
   )
 
   useEffect(() => {
@@ -821,91 +864,36 @@ export function BaseKanbanView({
     virtualColumnSignature,
   ])
 
-  const loadMore = useCallback(
-    async (group: BaseKanbanGroup, retry = false) => {
-      if (
-        !groupField ||
-        !group.loaded ||
-        (group.loadFailure !== null && !retry) ||
-        group.loadingMore ||
-        loadingMoreGroupsRef.current.has(group.key) ||
-        group.rows.length >= group.total
-      ) {
-        return
-      }
-      const generation = generationRef.current
-      loadingMoreGroupsRef.current.set(group.key, generation)
-      setGroups((current) =>
-        current.map((candidate) =>
-          candidate.key === group.key
-            ? { ...candidate, loadFailure: null, loadingMore: true }
-            : candidate
-        )
+  const requestGroupRange = useCallback(
+    (group: BaseKanbanGroup, visibleStart: number, visibleEnd: number) => {
+      if (group.loading || group.loadingMore) return
+      const request = requestForRowWindow(
+        {
+          rows: group.rows,
+          startOffset: group.startOffset,
+          total: group.total,
+        },
+        visibleStart,
+        visibleEnd,
+        KANBAN_PAGE_SIZE
       )
-      try {
-        const page = await loadGroupPage(
-          groupField,
-          group.value,
-          group.nextOffset,
-          KANBAN_PAGE_SIZE
+      if (request) {
+        void loadGroupWindow(
+          group,
+          group.needsReload ? { mode: "replace", offset: 0 } : request
         )
-        if (generation !== generationRef.current) return
-        setGroups((current) =>
-          current.map((candidate) =>
-            candidate.key === group.key
-              ? {
-                  ...candidate,
-                  rows: [
-                    ...candidate.rows,
-                    ...page.rows.filter(
-                      (row) =>
-                        !candidate.rows.some(
-                          (existing) => String(existing._id) === String(row._id)
-                        )
-                    ),
-                  ],
-                  total: page.total,
-                  nextOffset: Math.max(
-                    candidate.nextOffset,
-                    page.offset + page.rows.length
-                  ),
-                  loadFailure: null,
-                  loadingMore: false,
-                }
-              : candidate
-          )
-        )
-      } catch {
-        if (generation !== generationRef.current) return
-        setGroups((current) =>
-          current.map((candidate) =>
-            candidate.key === group.key
-              ? {
-                  ...candidate,
-                  loadFailure: "more",
-                  loadingMore: false,
-                }
-              : candidate
-          )
-        )
-      } finally {
-        if (loadingMoreGroupsRef.current.get(group.key) === generation) {
-          loadingMoreGroupsRef.current.delete(group.key)
-        }
       }
     },
-    [groupField, loadGroupPage]
+    [loadGroupWindow]
   )
 
   const retryGroup = useCallback(
     (group: BaseKanbanGroup) => {
-      if (group.loadFailure === "initial") {
-        void loadInitialGroup(group, true)
-      } else {
-        void loadMore(group, true)
+      if (group.loadFailure) {
+        void loadGroupWindow(group, group.loadFailure, true)
       }
     },
-    [loadInitialGroup, loadMore]
+    [loadGroupWindow]
   )
 
   let focusedGroup: BaseKanbanGroup | undefined
@@ -923,7 +911,14 @@ export function BaseKanbanView({
   }
   const focusedRow =
     focusedGroup && focusedGroupIndex >= 0
-      ? focusedGroup.rows[focusedGroupIndex]
+      ? rowFromWindow(
+          {
+            rows: focusedGroup.rows,
+            startOffset: focusedGroup.startOffset,
+            total: focusedGroup.total,
+          },
+          focusedGroupIndex
+        )
       : undefined
   const focusedGroupPosition = focusedGroup
     ? groups.findIndex((group) => group.key === focusedGroup?.key)
@@ -942,20 +937,6 @@ export function BaseKanbanView({
       active = false
     }
   }, [columnVirtualizer, focusedGroup, focusedGroupPosition, setGroupCollapsed])
-
-  useEffect(() => {
-    if (!focusedGroup || focusedGroupIndex < 0) return
-    if (focusedGroupIndex >= focusedGroup.rows.length) {
-      if (
-        !focusedGroup.loading &&
-        !focusedGroup.loadingMore &&
-        focusedGroup.rows.length < focusedGroup.total
-      ) {
-        void loadMore(focusedGroup)
-      }
-      return
-    }
-  }, [focusedGroup, focusedGroupIndex, loadMore, virtualColumnSignature])
 
   const moveRecord = useCallback(
     (rowId: string, targetKey: string) => {
@@ -983,15 +964,25 @@ export function BaseKanbanView({
                 (candidate) => String(candidate._id) !== rowId
               ),
               total: Math.max(0, group.total - 1),
-              nextOffset: Math.max(0, group.nextOffset - 1),
             }
           }
           if (group.key === target.key) {
+            const retainedRows =
+              group.startOffset === 0
+                ? group.rows.filter(
+                    (candidate) => String(candidate._id) !== rowId
+                  )
+                : []
             return {
               ...group,
-              rows: [optimistic, ...group.rows],
+              rows: [optimistic, ...retainedRows].slice(
+                0,
+                KANBAN_MAX_WINDOW_ROWS
+              ),
+              startOffset: 0,
               total: group.total + 1,
-              nextOffset: 0,
+              loaded: true,
+              needsReload: true,
             }
           }
           return group
@@ -1036,7 +1027,6 @@ export function BaseKanbanView({
                   ...group,
                   rows,
                   total: group.total + 1,
-                  nextOffset: group.nextOffset + 1,
                 }
               }
               if (group.key === target.key) {
@@ -1051,7 +1041,9 @@ export function BaseKanbanView({
                   total: containedOptimisticRow
                     ? Math.max(0, group.total - 1)
                     : group.total,
-                  nextOffset: 0,
+                  startOffset: 0,
+                  loaded: true,
+                  needsReload: true,
                 }
               }
               return group
@@ -1086,12 +1078,21 @@ export function BaseKanbanView({
         setGroups((current) =>
           current.map((candidate) =>
             candidate.key === group.key
-              ? {
-                  ...candidate,
-                  rows: [result.row, ...candidate.rows],
-                  total: candidate.total + 1,
-                  nextOffset: 0,
-                }
+              ? (() => {
+                  const retainedRows =
+                    candidate.startOffset === 0 ? candidate.rows : []
+                  return {
+                    ...candidate,
+                    rows: [result.row, ...retainedRows].slice(
+                      0,
+                      KANBAN_MAX_WINDOW_ROWS
+                    ),
+                    startOffset: 0,
+                    total: candidate.total + 1,
+                    loaded: true,
+                    needsReload: true,
+                  }
+                })()
               : candidate
           )
         )
@@ -1158,20 +1159,25 @@ export function BaseKanbanView({
               (candidate) => String(candidate._id) !== rowId
             ),
             total: Math.max(0, group.total - 1),
-            nextOffset: Math.max(0, group.nextOffset - 1),
           }
         }
         if (group.key === target.key) {
+          const retainedRows =
+            group.startOffset === 0
+              ? group.rows.filter(
+                  (candidate) => String(candidate._id) !== rowId
+                )
+              : []
           return {
             ...group,
-            rows: [
-              result.row,
-              ...group.rows.filter(
-                (candidate) => String(candidate._id) !== rowId
-              ),
-            ],
+            rows: [result.row, ...retainedRows].slice(
+              0,
+              KANBAN_MAX_WINDOW_ROWS
+            ),
+            startOffset: 0,
             total: group.total + 1,
-            nextOffset: 0,
+            loaded: true,
+            needsReload: true,
           }
         }
         return group
@@ -1197,7 +1203,6 @@ export function BaseKanbanView({
             (candidate) => String(candidate._id) !== rowId
           ),
           total: Math.max(0, group.total - 1),
-          nextOffset: Math.max(0, group.nextOffset - 1),
         }
       })
     )
@@ -1291,7 +1296,7 @@ export function BaseKanbanView({
                     }
                     collapsed={collapsedGroupKeys.has(group.key)}
                     onCollapsedChange={setGroupCollapsed}
-                    onLoadMore={loadMore}
+                    onRequestRange={requestGroupRange}
                     onRetry={retryGroup}
                     onCreate={createInGroup}
                   />
