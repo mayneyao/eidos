@@ -149,4 +149,50 @@ describe("Base navigation hierarchy", () => {
     expect(onSelectTable).toHaveBeenCalledWith("projects")
     expect(onCreateTable).toHaveBeenCalledOnce()
   })
+
+  it("reveals directional controls when the view strip overflows", async () => {
+    await act(async () => {
+      root.render(
+        <BaseViewTabs
+          views={views}
+          fields={[]}
+          activeView={views[0]}
+          onSelect={vi.fn()}
+          onCreate={vi.fn()}
+          onRename={vi.fn()}
+          onDuplicate={vi.fn()}
+          onDelete={vi.fn()}
+          onReorder={vi.fn()}
+          onUpdate={vi.fn()}
+        />
+      )
+    })
+
+    const viewTabs = container.querySelector<HTMLElement>(
+      '[role="tablist"][aria-label="Base views"]'
+    )
+    expect(viewTabs).not.toBeNull()
+    Object.defineProperties(viewTabs as HTMLElement, {
+      clientWidth: { configurable: true, value: 180 },
+      scrollLeft: { configurable: true, value: 0, writable: true },
+      scrollWidth: { configurable: true, value: 600 },
+    })
+
+    act(() => window.dispatchEvent(new Event("resize")))
+
+    const forward = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Scroll Base views forward"]'
+    )
+    expect(forward).not.toBeNull()
+    expect(
+      container.querySelector('[aria-label="Scroll Base views backward"]')
+    ).toBeNull()
+
+    act(() => forward?.click())
+
+    expect(viewTabs?.scrollLeft).toBeGreaterThan(0)
+    expect(
+      container.querySelector('[aria-label="Scroll Base views backward"]')
+    ).not.toBeNull()
+  })
 })

@@ -47,6 +47,36 @@
   .eidos-shell-statusbar {
     height: var(--eidos-shell-statusbar-height);
   }
+
+  .base-workbar {
+    container-name: base-workbar;
+    container-type: inline-size;
+  }
+
+  .base-workbar-search {
+    width: 18rem;
+  }
+
+  @container base-workbar (max-width: 1080px) {
+    .base-workbar-action {
+      min-width: 1.75rem;
+      padding-inline: 0.375rem !important;
+    }
+
+    .base-workbar-action-label {
+      display: none;
+    }
+
+    .base-workbar-search {
+      width: 14rem;
+    }
+  }
+
+  @container base-workbar (max-width: 720px) {
+    .base-workbar-search {
+      width: clamp(7rem, calc(100cqw - 18rem), 10rem);
+    }
+  }
 }
 
 @theme inline {

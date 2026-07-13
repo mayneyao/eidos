@@ -556,11 +556,13 @@ function BaseFilterPopover({
           type="button"
           variant={value?.children.length ? "secondary" : "ghost"}
           size="sm"
-          className="h-7 gap-1 px-2 text-xs"
+          className="base-workbar-action h-7 gap-1 px-2 text-xs"
+          aria-label="Filter Base rows"
+          title="Filter"
           disabled={disabled || availableFields.length === 0}
         >
           <Filter className="h-3.5 w-3.5" />
-          Filter
+          <span className="base-workbar-action-label">Filter</span>
           {value && countFilterRules(value) > 0 ? (
             <span className="text-[10px] text-muted-foreground">
               {countFilterRules(value)}
@@ -637,11 +639,13 @@ function BaseSortPopover({
           type="button"
           variant={value.length ? "secondary" : "ghost"}
           size="sm"
-          className="h-7 gap-1 px-2 text-xs"
+          className="base-workbar-action h-7 gap-1 px-2 text-xs"
+          aria-label="Sort Base rows"
+          title="Sort"
           disabled={disabled || availableFields.length === 0}
         >
           <ArrowUpDown className="h-3.5 w-3.5" />
-          Sort
+          <span className="base-workbar-action-label">Sort</span>
           {value.length ? (
             <span className="text-[10px] text-muted-foreground">
               {value.length}
@@ -834,9 +838,9 @@ export function BaseQueryToolbar({
         ? "No results"
         : `${(searchResultIndex ?? 0) + 1} of ${searchResultCount}`
   return (
-    <div className="flex min-w-0 items-center gap-0.5">
+    <div className="flex min-w-0 shrink-0 items-center gap-0.5">
       {showSearch ? (
-        <div className="flex h-7 w-72 items-center rounded-md border bg-background pl-2 pr-1 shadow-xs">
+        <div className="base-workbar-search flex h-7 items-center rounded-md border bg-background pl-2 pr-1 shadow-xs">
           <Search className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <input
             ref={inputRef}
@@ -909,12 +913,14 @@ export function BaseQueryToolbar({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 gap-1 px-2 text-xs"
+          className="base-workbar-action h-7 gap-1 px-2 text-xs"
+          aria-label="Search Base rows"
+          title="Search"
           disabled={disabled}
           onClick={() => setShowSearch(true)}
         >
           <Search className="h-3.5 w-3.5" />
-          Search
+          <span className="base-workbar-action-label">Search</span>
         </Button>
       )}
       <BaseFilterPopover

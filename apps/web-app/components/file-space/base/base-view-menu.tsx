@@ -38,11 +38,13 @@ export function BaseViewMenu({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 gap-1 px-2 text-xs"
+          className="base-workbar-action h-7 gap-1 px-2 text-xs"
+          aria-label="Choose visible Base fields"
+          title="Fields"
           disabled={disabled}
         >
           <Columns3 className="h-3.5 w-3.5" />
-          Fields
+          <span className="base-workbar-action-label">Fields</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

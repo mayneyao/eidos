@@ -1178,7 +1178,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     >
       <div
         data-base-workbar
-        className="eidos-shell-workbar flex shrink-0 items-end border-b bg-muted/15 px-2"
+        className="base-workbar eidos-shell-workbar flex shrink-0 items-end border-b bg-muted/15 px-2"
       >
         {activeTable ? (
           <BaseViewTabs
@@ -1197,17 +1197,21 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         ) : (
           <div className="min-w-0 flex-1" />
         )}
-        <div className="flex h-9 min-w-0 max-w-[75%] items-center gap-1 overflow-x-auto pl-2">
+        <div className="base-workbar-actions flex h-9 min-w-0 shrink-0 items-center gap-1 pl-2">
           {selectedRowCount > 0 ? (
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 gap-1 px-2 text-xs text-destructive hover:text-destructive"
+              className="base-workbar-action h-7 gap-1 px-2 text-xs text-destructive hover:text-destructive"
+              aria-label={`Delete ${selectedRowCount} selected rows`}
+              title={`Delete ${selectedRowCount} selected rows`}
               onClick={() => setDeleteRowsDialogOpen(true)}
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Delete {selectedRowCount}
+              <span className="base-workbar-action-label">
+                Delete {selectedRowCount}
+              </span>
             </Button>
           ) : null}
           {activeTable ? (
@@ -1285,12 +1289,14 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 gap-1 px-2 text-xs"
+            className="base-workbar-action h-7 gap-1 px-2 text-xs"
+            aria-label="Create Base row"
+            title="New row"
             disabled={!activeTable}
             onClick={() => void createRow().catch(() => undefined)}
           >
             <Plus className="h-3.5 w-3.5" />
-            New row
+            <span className="base-workbar-action-label">New row</span>
           </Button>
           <Button
             type="button"

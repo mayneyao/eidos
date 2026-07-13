@@ -389,7 +389,9 @@ export function BaseCsvImportPopover({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 gap-1.5 px-2 text-xs"
+          className="base-workbar-action h-7 gap-1.5 px-2 text-xs"
+          aria-label="Import CSV into Base"
+          title="Import CSV"
           disabled={disabled || selecting}
           onClick={() => void chooseFile()}
         >
@@ -398,7 +400,7 @@ export function BaseCsvImportPopover({
           ) : (
             <FileUp className="h-3.5 w-3.5" />
           )}
-          Import CSV
+          <span className="base-workbar-action-label">Import CSV</span>
         </Button>
       </PopoverAnchor>
       <PopoverContent
