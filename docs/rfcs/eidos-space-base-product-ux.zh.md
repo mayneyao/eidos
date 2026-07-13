@@ -70,6 +70,11 @@ Kanban 现在会对大量 option 形成的列做横向虚拟化，常规浏览�
 会临时挂载所有 drop target，避免虚拟化让合法目标不可达。直接拖动的成功、取消和保存失败回滚会
 通过 assertive live region 播报；键盘 Move-to 仍作为等价的非指针操作路径保留。
 
+CSV 导入的文件选择、分析和写入现在也保持锚定式、非模态工作流。原生 picker 返回后 mapping
+panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以原位取消。取消会终止隔离 worker、
+等待 SQLite transaction 回滚，再解除当前 Base 的 mutation lock，因此重试不会和仍在退出的
+worker 竞争，也不会留下部分 table 或 rows。
+
 真实文件 Base versioning smoke 现在会创建 Grid、Gallery 和 Kanban metadata，关闭并重开文件，
 编辑行，验证 Graft row diff，恢复初始 revision，再次重开并校验 records、派生值和三种 view
 layout；恢复后的仓库状态为 clean。

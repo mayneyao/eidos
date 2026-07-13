@@ -94,6 +94,13 @@ unreachable. Direct moves announce success, cancellation, and failed-save
 rollback through an assertive live region; the keyboard Move-to action remains
 available as an equivalent non-pointer path.
 
+CSV selection, analysis, and writing now follow the same anchored, non-modal
+workflow. The mapping panel opens as soon as the native picker returns;
+analysis and import expose real byte/row progress and can be canceled in place.
+Cancellation terminates the isolated worker, waits for SQLite transaction
+rollback, and only then releases the current Base mutation lock, so retrying
+cannot race a worker that is still exiting or leave partial tables or rows.
+
 The real-file Base versioning smoke now creates Grid, Gallery, and Kanban
 metadata, closes and reopens the file, edits rows, verifies Graft row diffs,
 restores the original revision, and reopens again to verify records, derived

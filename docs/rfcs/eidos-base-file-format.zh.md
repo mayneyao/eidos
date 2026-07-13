@@ -5,7 +5,7 @@
 负责人：Eidos
 相关文档：`eidos-space-base-storage.zh.md`
 
-## 实施状态（2026-07-12）
+## 实施状态（2026-07-13）
 
 独立的 `@eidos.space/base` package 已经可以创建、打开、校验并迁移真实 `.base`
 SQLite 文件，而且不依赖 Eidos core 或 `@libsql/client`。当前实现包含 v1 metadata、
@@ -61,8 +61,11 @@ CSV import 已通过独立 Base package 的 Node/Desktop 子入口实现，不�
 提示。plan 与 import 现在都在 worker thread 中使用 streaming parser，并对文件、行数、列数、
 record 和 cell 大小设置边界。导入前后都会核对源文件 fingerprint，避免选择后被替换的文件
 静默进入 Base。导入会创建新 table，将第一列映射为 title field，允许保守的类型覆盖，使用
-prepared statement 批量写入，并在同一事务中提交 table metadata 与 rows。剩余工作是大文件
-导入的进度和取消 UX；CSV 已不再被完整缓存在 Electron main process。
+prepared statement 批量写入，并在同一事务中提交 table metadata 与 rows。大文件导入现在也有
+完整的进度和取消 UX：文件选择立即返回有时效的 token，分析和写入分别作为可观测 worker
+operation 运行，锚定 mapping panel 会显示真实 bytes/rows 进度。取消会等待 worker 终止和
+SQLite transaction 回滚后才释放 Space operation lock，因此不会留下半张 table 或部分 rows；
+100,000-row cancellation smoke 已覆盖该不变量。CSV 不会被完整缓存在 Electron main process。
 
 打开 Base 现在会把 metadata 视为不可信文件边界：runtime 在暴露数据前校验 registry 数量、
 枚举值、JSON shape、物理存储列、view references 以及 formula/lookup definitions。公式始终从

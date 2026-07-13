@@ -5,7 +5,7 @@ Date: 2026-07-08
 Owner: Eidos
 Related: `eidos-space-base-storage.md`
 
-## Implementation Status (2026-07-12)
+## Implementation Status (2026-07-13)
 
 The standalone `@eidos.space/base` package now creates, opens, validates, and
 migrates real `.base` SQLite files without depending on Eidos core or
@@ -93,9 +93,14 @@ column, record, and cell sizes. The source fingerprint is checked before and
 after import so replacing the selected file cannot silently import different
 content. Import creates a new table, maps the first column to its title field,
 allows conservative type overrides, batches prepared inserts, and commits table
-metadata and rows in one transaction. Progress reporting and cancellation are
-the remaining large-import UX work; the selected CSV is no longer buffered in
-Electron's main process.
+metadata and rows in one transaction. Large imports now have complete progress
+and cancellation UX: file selection returns an expiring token immediately,
+analysis and writing run as separately observable worker operations, and the
+anchored mapping panel reports real byte/row progress. Cancellation waits for
+worker termination and SQLite transaction rollback before releasing the Space
+operation lock, so it cannot leave a partial table or rows; a 100,000-row
+cancellation smoke covers this invariant. The selected CSV is never buffered
+in Electron's main process.
 
 Opening a Base now treats metadata as an untrusted file boundary. Validation
 checks registry sizes, enum values, JSON shapes, stored-column existence, view
