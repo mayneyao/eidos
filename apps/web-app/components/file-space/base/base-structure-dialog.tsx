@@ -22,8 +22,13 @@ import {
 } from "@/components/ui/select"
 
 import { BaseFormulaComposer } from "./base-formula-composer"
+import {
+  DEFAULT_BASE_NUMBER_PROPERTY,
+  type BaseNumberProperty,
+  type BaseSelectOption,
+} from "./base-field-properties"
+import { BaseNumberPropertiesEditor } from "./base-number-properties-editor"
 import { BaseOptionsEditor } from "./base-select-options-editor"
-import type { BaseSelectOption } from "./base-field-properties"
 
 type FieldType = CreateBaseFieldInput["type"]
 
@@ -97,6 +102,11 @@ export function BaseStructureDialog({
   const [name, setName] = useState("")
   const [fieldType, setFieldType] = useState<FieldType>("text")
   const [options, setOptions] = useState<BaseSelectOption[]>([])
+  const [numberProperty, setNumberProperty] = useState<BaseNumberProperty>(
+    () => ({
+      ...DEFAULT_BASE_NUMBER_PROPERTY,
+    })
+  )
   const [targetTableId, setTargetTableId] = useState("")
   const [formula, setFormula] = useState("")
   const [formulaDisplayType, setFormulaDisplayType] =
@@ -115,6 +125,7 @@ export function BaseStructureDialog({
     setName("")
     setFieldType("text")
     setOptions([])
+    setNumberProperty({ ...DEFAULT_BASE_NUMBER_PROPERTY })
     setFormula("")
     setFormulaDisplayType("text")
     setFormulaValid(false)
@@ -216,7 +227,9 @@ export function BaseStructureDialog({
                 ? { storageCodec: "csv_ids" as const }
                 : {}),
             }
-          : {}),
+          : fieldType === "number"
+            ? { property: numberProperty }
+            : {}),
       })
     }
     setSubmitting(true)
@@ -299,6 +312,14 @@ export function BaseStructureDialog({
                 options={options}
                 disabled={submitting}
                 onChange={setOptions}
+                className="border-t-0 pt-0"
+              />
+            ) : null}
+            {mode === "field" && fieldType === "number" ? (
+              <BaseNumberPropertiesEditor
+                property={numberProperty}
+                disabled={submitting}
+                onChange={setNumberProperty}
                 className="border-t-0 pt-0"
               />
             ) : null}

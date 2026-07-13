@@ -58,6 +58,14 @@ describe("BaseStructureDialog", () => {
   let root: Root
 
   beforeEach(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
     Element.prototype.scrollIntoView = vi.fn()
     container = document.createElement("div")
     document.body.append(container)
@@ -67,6 +75,7 @@ describe("BaseStructureDialog", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    vi.unstubAllGlobals()
   })
 
   it("creates a table from a compact named form", async () => {
@@ -229,6 +238,80 @@ describe("BaseStructureDialog", () => {
             color: "gray",
           },
         ],
+      },
+    })
+  })
+
+  it("creates Number display settings with the same editor used by field properties", async () => {
+    const onCreateField = vi.fn()
+    act(() =>
+      root.render(
+        <BaseStructureDialog
+          mode="field"
+          open
+          onOpenChange={vi.fn()}
+          onCreateTable={vi.fn()}
+          onCreateField={onCreateField}
+        />
+      )
+    )
+
+    const name = document.body.querySelector<HTMLInputElement>(
+      'input[placeholder="Status"]'
+    )
+    await act(async () => {
+      if (name) setInput(name, "Progress")
+      document.body
+        .querySelector<HTMLButtonElement>('[role="combobox"]')
+        ?.click()
+    })
+    const numberOption = [
+      ...document.body.querySelectorAll<HTMLElement>('[role="option"]'),
+    ].find((option) => option.textContent === "Number")
+    await act(async () => numberOption?.click())
+
+    expect(document.body.textContent).toContain("Number display")
+    await act(async () => {
+      ;[...document.body.querySelectorAll<HTMLButtonElement>("button")]
+        .find((button) => button.textContent === "bar")
+        ?.click()
+      await Promise.resolve()
+    })
+    const maximum = document.body.querySelector<HTMLInputElement>(
+      'input[inputmode="decimal"]'
+    )
+    await act(async () => {
+      if (maximum) {
+        maximum.focus()
+        setInput(maximum, "250")
+      }
+    })
+    await act(async () => {
+      maximum?.blur()
+      document.body
+        .querySelector<HTMLButtonElement>('button[role="switch"]')
+        ?.click()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      document.body
+        .querySelector("form")
+        ?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true })
+        )
+      await Promise.resolve()
+    })
+
+    expect(onCreateField).toHaveBeenCalledWith({
+      name: "Progress",
+      columnName: "progress",
+      type: "number",
+      property: {
+        format: "number",
+        showAs: "bar",
+        color: "purple",
+        divideBy: 250,
+        showNumber: false,
       },
     })
   })

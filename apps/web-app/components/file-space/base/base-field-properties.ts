@@ -6,12 +6,20 @@ export interface BaseSelectOption {
   color: string
 }
 
-export interface BaseNumberProperty {
+export interface BaseNumberProperty extends Record<string, unknown> {
   format: "number" | "percent" | "currency"
   showAs: "number" | "bar"
   color: string
   divideBy: number
   showNumber: boolean
+}
+
+export const DEFAULT_BASE_NUMBER_PROPERTY: BaseNumberProperty = {
+  format: "number",
+  showAs: "number",
+  color: "purple",
+  divideBy: 100,
+  showNumber: true,
 }
 
 export const BASE_OPTION_COLORS = [
@@ -62,11 +70,14 @@ export function baseNumberProperty(field: BaseFieldInfo): BaseNumberProperty {
   return {
     format: format === "percent" || format === "currency" ? format : "number",
     showAs: showAs === "bar" ? "bar" : "number",
-    color: typeof property?.color === "string" ? property.color : "purple",
+    color:
+      typeof property?.color === "string"
+        ? property.color
+        : DEFAULT_BASE_NUMBER_PROPERTY.color,
     divideBy:
       typeof property?.divideBy === "number" && property.divideBy > 0
         ? property.divideBy
-        : 100,
+        : DEFAULT_BASE_NUMBER_PROPERTY.divideBy,
     showNumber: property?.showNumber !== false,
   }
 }

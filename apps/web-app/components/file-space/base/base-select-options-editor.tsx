@@ -180,10 +180,13 @@ export function BaseOptionsEditor({
   useEffect(() => setOptions(sourceOptions), [sourceOptions])
 
   const commit = (next: BaseSelectOption[]) => {
+    const previous = options
     setOptions(next)
     void Promise.resolve()
       .then(() => onChange(next))
-      .catch(() => undefined)
+      .catch(() =>
+        setOptions((current) => (current === next ? previous : current))
+      )
   }
 
   const addOption = () => {

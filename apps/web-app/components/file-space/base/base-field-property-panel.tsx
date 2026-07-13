@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react"
+import { useEffect, useId, useMemo, useState } from "react"
 import type {
   BaseFieldInfo,
   MutableBaseFieldType,
@@ -14,7 +14,6 @@ import {
   X,
 } from "lucide-react"
 
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -25,13 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 
-import {
-  BASE_OPTION_COLORS,
-  baseNumberProperty,
-  type BaseNumberProperty,
-} from "./base-field-properties"
+import { baseNumberProperty } from "./base-field-properties"
+import { BaseNumberPropertiesEditor } from "./base-number-properties-editor"
 import { BaseSelectOptionsEditor } from "./base-select-options-editor"
 
 const TYPE_LABELS: Record<MutableBaseFieldType, string> = {
@@ -45,135 +40,6 @@ const TYPE_LABELS: Record<MutableBaseFieldType, string> = {
   rating: "Rating",
   select: "Select",
   url: "URL",
-}
-
-function NumberProperties({
-  field,
-  disabled,
-  onChange,
-}: {
-  field: BaseFieldInfo
-  disabled: boolean
-  onChange: (property: Record<string, unknown>) => Promise<void> | void
-}) {
-  const property = baseNumberProperty(field)
-  const divideById = useId()
-  const [divideBy, setDivideBy] = useState(String(property.divideBy))
-
-  useEffect(() => setDivideBy(String(property.divideBy)), [property.divideBy])
-
-  const update = (changes: Partial<BaseNumberProperty>) =>
-    onChange({ ...property, ...changes })
-
-  const commitDivideBy = () => {
-    const value = Number(divideBy)
-    if (Number.isFinite(value) && value > 0 && value !== property.divideBy) {
-      void update({ divideBy: value })
-    } else {
-      setDivideBy(String(property.divideBy))
-    }
-  }
-
-  return (
-    <section className="grid gap-3 border-t pt-3">
-      <h3 className="text-xs font-medium">Number display</h3>
-      <label className="grid gap-1.5 text-xs">
-        <span className="font-medium">Format</span>
-        <Select
-          value={property.format}
-          disabled={disabled}
-          onValueChange={(format) =>
-            void update({ format: format as BaseNumberProperty["format"] })
-          }
-        >
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="number">Number</SelectItem>
-            <SelectItem value="percent">Percent</SelectItem>
-            <SelectItem value="currency">Currency</SelectItem>
-          </SelectContent>
-        </Select>
-      </label>
-      <div className="grid gap-1.5">
-        <span className="text-xs font-medium">Show as</span>
-        <div className="grid grid-cols-2 rounded-md border p-0.5">
-          {(["number", "bar"] as const).map((showAs) => (
-            <button
-              key={showAs}
-              type="button"
-              className={cn(
-                "h-7 rounded-[3px] text-xs capitalize focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                property.showAs === showAs
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-              disabled={disabled}
-              onClick={() => void update({ showAs })}
-            >
-              {showAs}
-            </button>
-          ))}
-        </div>
-      </div>
-      {property.showAs === "bar" ? (
-        <>
-          <label className="grid gap-1.5 text-xs" htmlFor={divideById}>
-            <span className="font-medium">Bar maximum</span>
-            <Input
-              id={divideById}
-              value={divideBy}
-              disabled={disabled}
-              inputMode="decimal"
-              className="h-8 text-xs"
-              onChange={(event) => setDivideBy(event.target.value)}
-              onBlur={commitDivideBy}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") event.currentTarget.blur()
-                if (event.key === "Escape") {
-                  setDivideBy(String(property.divideBy))
-                  event.currentTarget.blur()
-                }
-              }}
-            />
-          </label>
-          <label className="grid gap-1.5 text-xs">
-            <span className="font-medium">Bar color</span>
-            <Select
-              value={property.color}
-              disabled={disabled}
-              onValueChange={(color) => void update({ color })}
-            >
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {BASE_OPTION_COLORS.map((color) => (
-                  <SelectItem key={color.name} value={color.name}>
-                    <span className="capitalize">{color.name}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium">Show number</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                Keep the value visible beside the bar.
-              </p>
-            </div>
-            <Switch
-              checked={property.showNumber}
-              disabled={disabled}
-              onCheckedChange={(showNumber) => void update({ showNumber })}
-            />
-          </div>
-        </>
-      ) : null}
-    </section>
-  )
 }
 
 export function BaseFieldPropertyPanel({
@@ -202,6 +68,7 @@ export function BaseFieldPropertyPanel({
   )
   const [applyingType, setApplyingType] = useState(false)
   const nameId = useId()
+  const numberProperty = useMemo(() => baseNumberProperty(field), [field])
   const mutable =
     field.valueKind === "source" &&
     MUTABLE_BASE_FIELD_TYPES.some((type) => type === field.type)
@@ -224,7 +91,7 @@ export function BaseFieldPropertyPanel({
   }
 
   const saveProperty = (property: Record<string, unknown>) =>
-    update({ property }).catch(() => undefined)
+    update({ property })
 
   const applyType = async () => {
     if (!pendingType || pendingType === field.type) return
@@ -358,8 +225,8 @@ export function BaseFieldPropertyPanel({
             />
           ) : null}
           {field.type === "number" ? (
-            <NumberProperties
-              field={field}
+            <BaseNumberPropertiesEditor
+              property={numberProperty}
               disabled={disabled}
               onChange={saveProperty}
             />

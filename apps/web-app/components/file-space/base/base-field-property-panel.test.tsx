@@ -161,6 +161,37 @@ describe("BaseFieldPropertyPanel", () => {
     expect(done?.value).toBe("Done")
   })
 
+  it("restores Select options when the Base mutation fails", async () => {
+    const onUpdate = vi.fn(() => Promise.reject(new Error("write failed")))
+    await act(async () => {
+      root.render(
+        <BaseFieldPropertyPanel
+          field={field("select", {
+            options: [{ id: "done", name: "Done", color: "green" }],
+          })}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="Delete Done"]')
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onUpdate).toHaveBeenCalledTimes(1)
+    expect(
+      container.querySelector('input[aria-label="Done option name"]')
+    ).toBeTruthy()
+  })
+
   it("requires an explicit apply step before converting stored values", async () => {
     const onUpdate = vi.fn(() => Promise.resolve())
     await act(async () => {
@@ -237,6 +268,33 @@ describe("BaseFieldPropertyPanel", () => {
         showNumber: true,
       },
     })
+  })
+
+  it("restores Number display settings when the Base mutation fails", async () => {
+    const onUpdate = vi.fn(() => Promise.reject(new Error("write failed")))
+    await act(async () => {
+      root.render(
+        <BaseFieldPropertyPanel
+          field={field("number")}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "bar")
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onUpdate).toHaveBeenCalledTimes(1)
+    expect(container.textContent).not.toContain("Bar maximum")
   })
 
   it("shows immutable system field types without an empty selector", async () => {
