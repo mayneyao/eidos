@@ -299,8 +299,12 @@ duplicate submission while a write is pending, close only after success, and
 expose the failure as an assistive-technology alert. The parent editor still
 reloads a recovery snapshot after a rejected mutation, but it no longer adds a
 second global error banner for an operation whose panel already provides the
-retry path. Direct grid and toolbar mutations without a local recovery surface
-continue to use the global Base alert.
+retry path. Filter and Sort Apply/Clear actions follow the same transaction
+boundary: their anchored workspace cannot be dismissed or submitted twice
+while persistence is pending, and a rejected write preserves the exact draft
+despite the parent recovery snapshot so the user can retry in place. Direct
+grid and toolbar mutations without a local recovery surface continue to use the
+global Base alert.
 
 View configuration controls also expose explicit names and state for switch,
 select, layout, and card-size groups. Base progress indicators respect reduced
