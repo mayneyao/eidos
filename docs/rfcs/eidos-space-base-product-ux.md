@@ -279,6 +279,19 @@ first record page only for uncollapsed columns in the horizontal window. Each
 column also uses dynamic-height vertical virtualization and automatic paging,
 so a large Select option set no longer causes one file open and first-page query
 per option, and a large group no longer mounts every loaded card.
+Gallery and Kanban vertical virtualization now share a bounded scroll geometry
+for million-record data sets. Real Electron/Chromium measurement showed that a
+CSS layout dimension is clamped at 16,777,215 pixels, so the implementation no
+longer exposes the complete logical height as one spacer. It caps the physical
+scroll surface at 12,000,000 pixels, maps that scrollbar range onto the complete
+logical record range, and rebases mounted items while preserving their measured
+local spacing. TanStack's internal virtualizer is independently capped at a
+20,000-item window that advances in 5,000-item chunks; this prevents its
+measurement cache from scaling to the complete record count while paging,
+search focus, ARIA positions, and rendered item indexes remain global. Million-
+record regressions reach the final Gallery page at offset 999,900 and the final
+Kanban group page at offset 999,950 from the real physical scroll endpoint, and
+assert both the 12,000,000-pixel surface and 20,000-measurement bounds.
 Each mounted virtual column remains one named record list whose items expose
 their absolute position and the group's complete server total. Collapsed-column
 expand controls retain a visible keyboard focus ring, so virtualization and the
