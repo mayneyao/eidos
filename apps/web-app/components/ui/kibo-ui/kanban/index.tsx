@@ -4,9 +4,13 @@ import React, { useState, type ReactNode } from "react"
 import {
   DndContext,
   DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
   rectIntersection,
   useDraggable,
   useDroppable,
+  useSensor,
+  useSensors,
   type DragCancelEvent,
   type DragEndEvent,
   type DragStartEvent,
@@ -65,6 +69,19 @@ export type KanbanCardProps = {
   parent: string
   children?: ReactNode
   className?: string
+  disabled?: boolean
+}
+
+const INTERACTIVE_DRAG_TARGET =
+  'button, a, input, select, textarea, [role="button"], [role="menuitem"], [contenteditable="true"]'
+
+function isNestedInteractiveTarget(
+  target: EventTarget | null,
+  currentTarget: HTMLElement
+): boolean {
+  if (!(target instanceof Element)) return false
+  const interactive = target.closest(INTERACTIVE_DRAG_TARGET)
+  return interactive !== null && interactive !== currentTarget
 }
 
 export const KanbanCard = ({
@@ -74,10 +91,12 @@ export const KanbanCard = ({
   parent,
   children,
   className,
+  disabled = false,
 }: KanbanCardProps) => {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id,
     data: { index, name, parent },
+    disabled,
   })
   const { lastMovedId } = React.useContext(KanbanContext)
   const isRecentlyMoved = lastMovedId === id
@@ -85,13 +104,26 @@ export const KanbanCard = ({
   return (
     <div
       className={cn(
-        "cursor-grab overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-xs",
-        "transition-[box-shadow,opacity] duration-150 ease-out hover:shadow-sm active:cursor-grabbing motion-reduce:transition-none",
+        "overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-xs",
+        "transition-[box-shadow,opacity] duration-150 ease-out hover:shadow-sm motion-reduce:transition-none",
+        disabled
+          ? "cursor-default opacity-60"
+          : "cursor-grab active:cursor-grabbing",
         isDragging && "opacity-45",
         isRecentlyMoved && "ring-1 ring-ring/30",
         className
       )}
       data-draggable-id={id}
+      onPointerDownCapture={(event) => {
+        if (isNestedInteractiveTarget(event.target, event.currentTarget)) {
+          event.stopPropagation()
+        }
+      }}
+      onKeyDownCapture={(event) => {
+        if (isNestedInteractiveTarget(event.target, event.currentTarget)) {
+          event.stopPropagation()
+        }
+      }}
       {...listeners}
       {...attributes}
       ref={setNodeRef}
@@ -156,6 +188,10 @@ export const KanbanProvider = ({
 }: KanbanProviderProps) => {
   const [activeLabel, setActiveLabel] = useState<string | null>(null)
   const [lastMovedId, setLastMovedId] = useState<string | null>(null)
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor)
+  )
 
   // Clear the highlight effect after a delay
   React.useEffect(() => {
@@ -170,9 +206,16 @@ export const KanbanProvider = ({
   return (
     <DndContext
       collisionDetection={rectIntersection}
+      sensors={sensors}
       onDragEnd={(event) => {
         setActiveLabel(null)
-        setLastMovedId(event.active.id.toString())
+        const sourceParent = event.active.data.current?.parent
+        const targetParent = event.over?.id.toString()
+        setLastMovedId(
+          targetParent !== undefined && targetParent !== sourceParent
+            ? event.active.id.toString()
+            : null
+        )
         onDragEnd(event)
       }}
       onDragCancel={(event) => {

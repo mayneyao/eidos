@@ -1300,6 +1300,9 @@ describe("BaseKanbanView", () => {
     expect(todoRequests).toBe(2)
     expect(onError).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Retry loading records")
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Retry loading records"
+    )
 
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
@@ -1357,6 +1360,9 @@ describe("BaseKanbanView", () => {
     expect(todoRequests).toBe(1)
     expect(onError).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Could not load records")
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Could not load records"
+    )
 
     await act(async () => {
       Array.from(container.querySelectorAll("button"))

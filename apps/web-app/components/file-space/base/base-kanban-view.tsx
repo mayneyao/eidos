@@ -292,7 +292,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
           )}
         >
           <span
-            className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/5"
+            className="h-2.5 w-2.5 shrink-0 rounded-full border border-foreground/10"
             style={{ backgroundColor: color }}
           />
           {collapsed ? (
@@ -338,12 +338,19 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
             className="relative min-h-16 min-w-0 flex-1 overflow-y-auto pr-0.5"
           >
             {(group.loading || !group.loaded) && group.rows.length === 0 ? (
-              <div className="flex h-20 items-center justify-center">
-                <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
+              <div
+                className="flex h-20 items-center justify-center"
+                role="status"
+                aria-label={`Loading ${group.name} records`}
+              >
+                <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground motion-reduce:animate-none" />
               </div>
             ) : group.loadFailure?.mode === "replace" &&
               group.rows.length === 0 ? (
-              <div className="flex h-20 flex-col items-center justify-center gap-1 text-[11px] text-destructive">
+              <div
+                className="flex h-20 flex-col items-center justify-center gap-1 text-[11px] text-destructive"
+                role="alert"
+              >
                 <span>Could not load records</span>
                 <Button
                   type="button"
@@ -382,6 +389,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                           name={String(row.title ?? "Untitled")}
                           index={virtualItem.index}
                           parent={group.key}
+                          disabled={disabled}
                           className="rounded-lg border-0 bg-transparent shadow-none"
                         >
                           <BaseRecordCard
@@ -401,8 +409,12 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                       ) : (
                         <div
                           className="flex h-9 items-center justify-center text-muted-foreground"
-                          role="status"
-                          aria-label={`Loading more ${group.name} records`}
+                          role={group.loadFailure !== null ? "alert" : "status"}
+                          aria-label={
+                            group.loadFailure !== null
+                              ? `Could not load more ${group.name} records`
+                              : `Loading more ${group.name} records`
+                          }
                         >
                           {group.loadFailure !== null ? (
                             <Button
@@ -415,7 +427,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                               Retry loading records
                             </Button>
                           ) : group.loadingMore ? (
-                            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                            <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
                           ) : null}
                         </div>
                       )}
@@ -426,7 +438,10 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
             )}
           </div>
           {group.loadFailure?.mode === "replace" && group.rows.length > 0 ? (
-            <div className="flex h-8 shrink-0 items-center justify-center gap-1 text-[11px] text-destructive">
+            <div
+              className="flex h-8 shrink-0 items-center justify-center gap-1 text-[11px] text-destructive"
+              role="alert"
+            >
               <span>Could not refresh records.</span>
               <Button
                 type="button"

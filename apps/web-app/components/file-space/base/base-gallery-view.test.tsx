@@ -565,6 +565,9 @@ describe("BaseGalleryView", () => {
     expect(loadPage).toHaveBeenCalledTimes(1)
     expect(onError).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Could not load gallery records")
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Could not load gallery records"
+    )
 
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
@@ -629,6 +632,9 @@ describe("BaseGalleryView", () => {
     expect(loadPage).toHaveBeenCalledTimes(2)
     expect(onError).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Could not load more records")
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Could not load more records"
+    )
 
     await act(async () => {
       Array.from(container.querySelectorAll("button"))

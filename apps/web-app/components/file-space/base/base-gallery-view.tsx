@@ -353,12 +353,18 @@ export function BaseGalleryView({
         className="relative min-w-0 flex-1 overflow-y-auto p-4"
       >
         {loading && rows.length === 0 ? (
-          <div className="flex h-40 items-center justify-center gap-2 text-xs text-muted-foreground">
-            <LoaderCircle className="h-4 w-4 animate-spin" />
+          <div
+            className="flex h-40 items-center justify-center gap-2 text-xs text-muted-foreground"
+            role="status"
+          >
+            <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
             Loading gallery…
           </div>
         ) : failedRequest !== null && rows.length === 0 ? (
-          <div className="flex h-40 flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
+          <div
+            className="flex h-40 flex-col items-center justify-center gap-2 text-xs text-muted-foreground"
+            role="alert"
+          >
             <span>Could not load gallery records.</span>
             <Button
               type="button"
@@ -442,11 +448,14 @@ export function BaseGalleryView({
             className="flex h-10 items-center justify-center gap-1.5 text-[11px] text-muted-foreground"
             role="status"
           >
-            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
             Loading more records…
           </div>
         ) : failedRequest !== null && rows.length > 0 ? (
-          <div className="flex h-10 items-center justify-center gap-2 text-[11px] text-muted-foreground">
+          <div
+            className="flex h-10 items-center justify-center gap-2 text-[11px] text-muted-foreground"
+            role="alert"
+          >
             <span>
               {failedRequest.mode !== "replace"
                 ? "Could not load more records."
