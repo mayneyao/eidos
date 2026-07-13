@@ -25,6 +25,9 @@ mutation 被拒绝时，UI 会恢复到最后持久化状态。
 类型转换会在事务中重建必要的 SQLite column 并迁移 values，删除 choice 也会同步清理已有
 cell 引用；结构删除会清理依赖 references 与 view layout metadata。Graft
 row diff 也已贯通 working Changes 和历史 inspector。
+字段创建现在与 legacy table Property editor 共享同一个通用 field-type picker：用 Basic/
+Advanced 分类、稳定图标、简短说明、关键词搜索和受控键盘选择替代无结构的 type 下拉框。
+过滤时 active command item 会重置到可见匹配项，因此 Enter 不会误选已经隐藏的旧类型。
 
 view runtime 与 Desktop UI 现已支持多个 Grid views 的创建、重命名、复制、排序、
 删除保护、切换，以及各自独立的 query/layout state。Gallery 和 Kanban metadata 会

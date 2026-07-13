@@ -53,6 +53,8 @@ maximum、color 与 label 配置会直接作用到 Grid。删除 option 会在�
 拖拽排序；Number 创建与后续编辑也复用同一套 display controls。连续 Number 修改会基于最新
 本地状态合并，option/Number mutation 被拒绝时会恢复最后持久化的展示。旧的逗号文本 Options
 弹窗和字段 Rename 弹窗路径已经移除。
+字段类型入口已经替换为共享的 Basic/Advanced 分类 picker，包含图标、说明、关键词搜索和确定性的
+键盘选择；Base 不再把不同能力的字段压进一个无差别下拉列表。
 
 Gallery 和 Kanban 现在已经接入与 Grid 相同的持久化 view lifecycle。Gallery 使用服务端分页数据、
 响应式 card size、可选的空字段隐藏和共享 record inspector；Kanban 按 Select 字段分组，每组独立

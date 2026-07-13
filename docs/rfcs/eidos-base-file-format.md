@@ -31,11 +31,16 @@ commas. Creating Number fields also reuses the Property workspace's display
 editor, including format, bar maximum/color, and label visibility. Consecutive
 display edits merge against the latest local property snapshot, while rejected
 option or Number mutations restore the last persisted UI state. Type conversion
-transactionally rebuilds the SQLite column when
-needed and migrates values, while deleting a choice also cleans stored cell
+transactionally rebuilds the SQLite column when needed and migrates values,
+while deleting a choice also cleans stored cell
 references. Grid order/width/visibility state persists inside `eidos__views` in
 the Base file. Structural deletes also clean dependent references and view layout
 metadata transactionally.
+Field creation now uses the same generic field-type picker as the legacy table
+Property editor: Basic/Advanced grouping, stable icons, concise descriptions,
+keyword search, and controlled keyboard selection replace the unstructured type
+dropdown. Filtering resets the active command item to a visible match, so Enter
+cannot select a stale hidden type.
 The view runtime and Desktop UI now cover creation, rename, duplication,
 ordering, deletion protection, switching, and per-view query/layout state for
 multiple Grid views. Gallery and Kanban are also live, portable renderers backed

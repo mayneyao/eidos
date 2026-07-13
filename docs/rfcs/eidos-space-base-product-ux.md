@@ -68,6 +68,9 @@ drag reorder. Number creation and later editing likewise reuse the same display
 controls. Rapid Number changes merge locally instead of overwriting one another,
 and rejected option/Number mutations restore the last persisted presentation.
 The comma-text Options dialog and field Rename dialog path have been removed.
+The field type control is now a shared, searchable Basic/Advanced picker with
+icons, descriptions, keyword matching, and deterministic keyboard selection;
+Base no longer presents field capabilities as an undifferentiated dropdown.
 
 Gallery and Kanban now participate in the same persisted view lifecycle as
 Grid. Gallery uses paged server data, responsive card sizing, optional empty
