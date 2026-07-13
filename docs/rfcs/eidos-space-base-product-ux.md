@@ -329,6 +329,15 @@ keeps the same boundary for Gallery paging: unchanged records do not repeat fiel
 formatting, menu construction, or cover-subtree rendering; real row or view
 changes still render normally.
 
+The Base editor host now preserves those render boundaries during ordinary row
+saves. Updating an existing record treats an unchanged row count as a no-op, so
+the active table, view, and field references remain stable instead of rebuilding
+an equivalent snapshot. File reveal, field-property, field-delete, and row-range
+actions also keep stable callback identities, and the Grid, Gallery, and Kanban
+roots are memoized. Host integration coverage asserts that each expensive view
+renders once while an existing-row save starts and completes; save status and
+last-saved bookkeeping therefore stay outside the heavy view trees.
+
 Card render metadata is now computed once per view rather than once per visible
 record. Ordered fields, cover selection, field limits, and Select/Multi-select
 option indexes are shared by the Gallery or Kanban window. Closed action menus
