@@ -40,7 +40,10 @@ Base navigation now follows a workbook hierarchy instead of mixing tables and
 views in one toolbar. The active table's views occupy the top tab strip, while
 tables switch as Excel-style sheets in a persistent bottom bar; view creation
 and management remain anchored to the view strip, and save state moves into the
-sheet bar. Grid also reuses the legacy table's measured scrollbar compensation:
+sheet bar. Each sheet also exposes Rename and Delete from its native right-click
+menu, reusing the anchored rename surface and destructive confirmation already
+owned by the workbook instead of introducing another dialog path. Grid also
+reuses the legacy table's measured scrollbar compensation:
 when columns fit, the sticky trailing row no longer reserves an empty horizontal
 scrollbar band; when columns overflow, the native scrollbar keeps its full
 height.
@@ -217,7 +220,9 @@ loading-state changes repeatedly issue the same request. Already loaded cards
 remain mounted, initial/refresh failures are kept distinct from next-page
 failures, and an inline Retry resumes the correct request mode and current
 cursor. One unavailable page therefore cannot create a request storm or force
-the user to reload the complete Base.
+the user to reload the complete Base. These recoverable errors stay within the
+affected Gallery or Kanban column; they do not also create a stale global Base
+alert after the inline retry has succeeded.
 
 CSV selection, analysis, and writing now follow the same anchored, non-modal
 workflow. The mapping panel opens as soon as the native picker returns;

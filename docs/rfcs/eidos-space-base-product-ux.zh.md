@@ -32,7 +32,9 @@ AND/OR 编辑模型，并支持派生 Formula/Lookup 字段。筛选/排序分�
 
 Base 导航现在按 workbook 层级组织，不再把 table 和 view 混在同一工具栏：当前 table 的
 views 占据顶部 tab strip，tables 则作为 Excel 风格 sheets 常驻底部切换；view 新建与管理
-仍锚定在顶部，保存状态移入底部 sheet bar。Grid 同时复用了 legacy table 的实测 scrollbar
+仍锚定在顶部，保存状态移入底部 sheet bar。每个 sheet 的原生右键菜单也可以直接 Rename/Delete，
+继续复用 workbook 已有的锚定重命名界面和破坏性确认，不新增另一套弹窗路径。Grid 同时复用了
+legacy table 的实测 scrollbar
 补偿：列宽未溢出时，sticky trailing row 不再为不存在的横向滚动条保留空白带；列宽溢出时
 则完整保留原生横向滚动条高度。
 
@@ -151,7 +153,8 @@ cover 子树渲染；row 或 view 真正变化时仍会正常更新。
 自动分页现在也有明确且可恢复的失败状态。Gallery 或 Kanban 请求失败后会关闭虚拟尾部触发器，
 不会因为 loading 状态再次变化而连续重发相同请求；已经加载的 cards 会继续挂载，首屏/刷新失败和
 下一页失败保持区分，原位 Retry 会按正确请求模式和当前游标恢复。因此单页暂时不可用不会形成
-请求风暴，也不再要求用户重新加载整个 Base。
+请求风暴，也不再要求用户重新加载整个 Base。可恢复错误只留在受影响的 Gallery 或 Kanban 列内，
+不会在原位重试成功后仍残留一条全局 Base 错误提示。
 
 CSV 导入的文件选择、分析和写入现在也保持锚定式、非模态工作流。原生 picker 返回后 mapping
 panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以原位取消。取消会终止隔离 worker、
