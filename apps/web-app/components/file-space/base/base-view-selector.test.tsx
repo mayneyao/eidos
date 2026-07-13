@@ -177,6 +177,36 @@ describe("BaseViewSelector", () => {
     expect(onCreate).toHaveBeenLastCalledWith("Task cards", "gallery")
   })
 
+  it("opens the create workspace directly from a view-tab add trigger", async () => {
+    await act(async () => {
+      root.render(
+        <BaseViewSelector
+          views={views}
+          fields={fields}
+          activeView={views[0]}
+          triggerMode="create"
+          onSelect={onSelect}
+          onCreate={onCreate}
+          onRename={onRename}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onReorder={onReorder}
+          onUpdate={onUpdate}
+        />
+      )
+    })
+
+    await act(async () => {
+      document
+        .querySelector<HTMLButtonElement>('[aria-label="Add Base view"]')
+        ?.click()
+    })
+
+    expect(
+      document.body.querySelector<HTMLInputElement>("#base-view-name")?.value
+    ).toBe("Grid 3")
+  })
+
   it("renames, duplicates, and reorders views without a centered dialog", async () => {
     await act(async () => exactButton("All tasks")?.click())
     await act(async () =>

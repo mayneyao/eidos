@@ -59,13 +59,12 @@ import { BaseFormulaEditor } from "./base-formula-editor"
 import { BaseLookupEditor } from "./base-lookup-editor"
 import { BaseQueryToolbar } from "./base-query-toolbar"
 import { BaseRenameDialog } from "./base-rename-dialog"
+import { BaseSheetTabs } from "./base-sheet-tabs"
 import { BaseStructureDialog } from "./base-structure-dialog"
 import { BaseStructureMenu } from "./base-structure-menu"
 import { BaseViewMenu } from "./base-view-menu"
-import {
-  BaseViewSelector,
-  type BaseBuiltInViewType,
-} from "./base-view-selector"
+import { type BaseBuiltInViewType } from "./base-view-selector"
+import { BaseViewTabs } from "./base-view-tabs"
 
 interface SpaceBaseEditorProps {
   filePath: string
@@ -1046,46 +1045,24 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       className="relative flex h-full min-h-0 flex-col bg-background"
     >
       <div className="flex h-10 shrink-0 items-end border-b bg-muted/15 px-2">
-        <div className="flex min-w-0 flex-1 items-end gap-px overflow-x-auto">
-          {snapshot.tables.map(({ table }) => (
-            <button
-              key={table.id}
-              type="button"
-              onClick={() => setActiveTableId(table.id)}
-              className={cn(
-                "relative flex h-9 max-w-56 shrink-0 items-center gap-1.5 px-3 text-[13px] text-muted-foreground outline-hidden hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
-                activeTableId === table.id && "text-foreground"
-              )}
-            >
-              <Table2 className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">{table.name}</span>
-              {activeTableId === table.id ? (
-                <span className="absolute inset-x-2 bottom-0 h-0.5 bg-foreground/75" />
-              ) : null}
-            </button>
-          ))}
-          <button
-            type="button"
-            className="flex h-9 w-8 shrink-0 items-center justify-center text-muted-foreground outline-hidden hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
-            aria-label="Add Base table"
-            title="New table"
-            onClick={() => setStructureDialog("table")}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <div className="flex h-9 shrink-0 items-center gap-1 pl-2">
-          {pendingMutations > 0 ? (
-            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-              Saving…
-            </span>
-          ) : lastSavedAt ? (
-            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Check className="h-3.5 w-3.5" />
-              Saved
-            </span>
-          ) : null}
+        {activeTable ? (
+          <BaseViewTabs
+            views={activeTable.views}
+            fields={activeTable.fields}
+            activeView={activeView}
+            disabled={pendingMutations > 0}
+            onSelect={selectActiveView}
+            onCreate={createViewInBase}
+            onRename={renameViewInBase}
+            onDuplicate={duplicateViewInBase}
+            onDelete={deleteViewInBase}
+            onReorder={reorderViewsInBase}
+            onUpdate={updateViewInBase}
+          />
+        ) : (
+          <div className="min-w-0 flex-1" />
+        )}
+        <div className="flex h-9 min-w-0 max-w-[75%] items-center gap-1 overflow-x-auto pl-2">
           {selectedRowCount > 0 ? (
             <Button
               type="button"
@@ -1100,19 +1077,6 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           ) : null}
           {activeTable ? (
             <>
-              <BaseViewSelector
-                views={activeTable.views}
-                fields={activeTable.fields}
-                activeView={activeView}
-                disabled={pendingMutations > 0}
-                onSelect={selectActiveView}
-                onCreate={createViewInBase}
-                onRename={renameViewInBase}
-                onDuplicate={duplicateViewInBase}
-                onDelete={deleteViewInBase}
-                onReorder={reorderViewsInBase}
-                onUpdate={updateViewInBase}
-              />
               <BaseQueryToolbar
                 fields={activeTable.fields}
                 filter={activeView?.filter ?? null}
@@ -1377,6 +1341,27 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           ) : null}
         </div>
       )}
+
+      <BaseSheetTabs
+        tables={snapshot.tables.map((candidate) => candidate.table)}
+        activeTableId={activeTableId}
+        disabled={loading || pendingMutations > 0}
+        onSelect={setActiveTableId}
+        onCreate={() => setStructureDialog("table")}
+        status={
+          pendingMutations > 0 ? (
+            <span className="flex items-center gap-1">
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              Saving…
+            </span>
+          ) : lastSavedAt ? (
+            <span className="flex items-center gap-1">
+              <Check className="h-3.5 w-3.5" />
+              Saved
+            </span>
+          ) : undefined
+        }
+      />
 
       <BaseStructureDialog
         mode={structureDialog ?? "table"}

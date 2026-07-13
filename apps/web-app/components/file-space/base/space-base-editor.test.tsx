@@ -461,6 +461,9 @@ vi.mock("./base-grid", () => ({
 }))
 
 vi.mock("./base-view-selector", () => ({
+  isBaseBuiltInViewType: (type: string) =>
+    type === "grid" || type === "gallery" || type === "kanban",
+  BaseViewTypeIcon: ({ type }: { type: string }) => <span>{type}</span>,
   BaseViewSelector: ({
     activeView,
     onCreate,
@@ -734,6 +737,18 @@ describe("SpaceBaseEditor", () => {
     await renderEditor()
 
     expect(getSnapshotMock).toHaveBeenCalledWith("projects/tasks.base")
+    expect(
+      container.querySelector('[role="tablist"][aria-label="Base views"]')
+        ?.textContent
+    ).toContain("Grid")
+    expect(
+      container.querySelector('[role="tablist"][aria-label="Base views"]')
+        ?.textContent
+    ).not.toContain("Tasks")
+    expect(
+      container.querySelector('[role="tablist"][aria-label="Base tables"]')
+        ?.textContent
+    ).toContain("Tasks")
     expect(container.textContent).toContain("Tasks")
     expect(container.textContent).toContain("Status")
     expect(container.textContent).not.toContain("_id")

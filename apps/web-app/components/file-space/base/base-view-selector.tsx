@@ -49,11 +49,13 @@ const VIEW_TYPES: Array<{
   { type: "kanban", label: "Kanban", description: "Grouped by Select" },
 ]
 
-function isBuiltInViewType(type: string): type is BaseBuiltInViewType {
+export function isBaseBuiltInViewType(
+  type: string
+): type is BaseBuiltInViewType {
   return type === "grid" || type === "gallery" || type === "kanban"
 }
 
-function ViewTypeIcon({
+export function BaseViewTypeIcon({
   type,
   className,
 }: {
@@ -77,6 +79,7 @@ export function BaseViewSelector({
   onDelete,
   onReorder,
   onUpdate,
+  triggerMode = "current",
 }: {
   views: BaseViewInfo[]
   fields: BaseFieldInfo[]
@@ -89,6 +92,7 @@ export function BaseViewSelector({
   onDelete: (viewId: string) => Promise<void>
   onReorder: (viewIds: string[]) => Promise<void>
   onUpdate: (viewId: string, changes: UpdateBaseViewInput) => Promise<void>
+  triggerMode?: "current" | "create" | "manage"
 }) {
   const [open, setOpen] = useState(false)
   const [panel, setPanel] = useState<Panel>("list")
@@ -115,6 +119,12 @@ export function BaseViewSelector({
     setName("")
     setCreateType("grid")
     setLocalError(null)
+  }
+  const prepareCreate = () => {
+    setName(`Grid ${views.length + 1}`)
+    setCreateType("grid")
+    setLocalError(null)
+    setPanel("create")
   }
   const run = async (operation: () => Promise<void>, after?: () => void) => {
     setBusy(true)
@@ -176,25 +186,49 @@ export function BaseViewSelector({
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen)
         if (!nextOpen) reset()
+        else if (triggerMode === "create") prepareCreate()
       }}
     >
       <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 max-w-44 gap-1.5 px-2 text-xs"
-          disabled={disabled}
-        >
-          <ViewTypeIcon
-            type={activeView?.type ?? "grid"}
-            className="h-3.5 w-3.5 shrink-0"
-          />
-          <span className="truncate">{activeView?.name ?? "Views"}</span>
-          <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
-        </Button>
+        {triggerMode === "current" ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 max-w-44 gap-1.5 px-2 text-xs"
+            disabled={disabled}
+          >
+            <BaseViewTypeIcon
+              type={activeView?.type ?? "grid"}
+              className="h-3.5 w-3.5 shrink-0"
+            />
+            <span className="truncate">{activeView?.name ?? "Views"}</span>
+            <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-8 shrink-0 rounded-none text-muted-foreground hover:text-foreground"
+            aria-label={
+              triggerMode === "create" ? "Add Base view" : "Manage Base views"
+            }
+            title={triggerMode === "create" ? "New view" : "Manage views"}
+            disabled={disabled}
+          >
+            {triggerMode === "create" ? (
+              <Plus className="h-3.5 w-3.5" />
+            ) : (
+              <MoreHorizontal className="h-3.5 w-3.5" />
+            )}
+          </Button>
+        )}
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 p-1.5">
+      <PopoverContent
+        align={triggerMode === "current" ? "end" : "start"}
+        className="w-72 p-1.5"
+      >
         {panel === "list" ? (
           <>
             <div className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -202,7 +236,7 @@ export function BaseViewSelector({
             </div>
             <div className="max-h-64 space-y-0.5 overflow-y-auto">
               {views.map((view) => {
-                const supported = isBuiltInViewType(view.type)
+                const supported = isBaseBuiltInViewType(view.type)
                 return (
                   <div
                     key={view.id}
@@ -220,7 +254,7 @@ export function BaseViewSelector({
                         setOpen(false)
                       }}
                     >
-                      <ViewTypeIcon
+                      <BaseViewTypeIcon
                         type={view.type}
                         className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
                       />
@@ -317,7 +351,10 @@ export function BaseViewSelector({
                         }
                       }}
                     >
-                      <ViewTypeIcon type={candidate.type} className="h-4 w-4" />
+                      <BaseViewTypeIcon
+                        type={candidate.type}
+                        className="h-4 w-4"
+                      />
                       <span className="text-[11px]">{candidate.label}</span>
                     </button>
                   )
