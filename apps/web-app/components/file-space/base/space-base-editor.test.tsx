@@ -581,7 +581,39 @@ vi.mock("./base-gallery-view", () => ({
 }))
 
 vi.mock("./base-kanban-view", () => ({
-  BaseKanbanView: () => <div data-testid="base-kanban-view">Kanban</div>,
+  BaseKanbanView: ({
+    table,
+    onAddRow,
+    reloadToken,
+  }: {
+    table: (typeof snapshot)["tables"][number]
+    onAddRow: (
+      field: (typeof snapshot)["tables"][number]["fields"][number],
+      value: string,
+      title: string
+    ) => Promise<unknown>
+    reloadToken?: number
+  }) => {
+    const status = table.fields.find(
+      (field) => field.tableColumnName === "status"
+    )
+    return (
+      <div
+        data-testid="base-kanban-view"
+        data-reload-token={String(reloadToken ?? 0)}
+      >
+        Kanban
+        <button
+          type="button"
+          onClick={() => {
+            if (status) void onAddRow(status, "todo", "Draft release")
+          }}
+        >
+          Add Kanban row
+        </button>
+      </div>
+    )
+  },
 }))
 
 const snapshot: BaseSnapshot = {
@@ -998,6 +1030,45 @@ describe("SpaceBaseEditor", () => {
 
     expect(getSnapshotMock).toHaveBeenCalledTimes(3)
     expect(grid()?.dataset.reloadToken).toBe("2")
+  })
+
+  it("keeps Kanban mounted when adding a row without an active query", async () => {
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      tables: snapshot.tables.map((table) => ({
+        ...table,
+        views: table.views.map((view) => ({
+          ...view,
+          name: "Board",
+          type: "kanban" as const,
+          properties: { cardSize: "medium", groupByField: "status" },
+        })),
+      })),
+    })
+    insertRowMock.mockResolvedValueOnce({
+      tableId: "tasks",
+      row: { _id: "row_2", title: "Draft release", status: "todo" },
+      rowCount: 2,
+      revision: "2026-07-13T02:00:00.000Z",
+    })
+    await renderEditor()
+    const kanban = () =>
+      container.querySelector<HTMLElement>('[data-testid="base-kanban-view"]')
+    expect(kanban()?.dataset.reloadToken).toBe("1")
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Add Kanban row")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(insertRowMock).toHaveBeenCalledWith("projects/tasks.base", "tasks", {
+      title: "Draft release",
+      status: "todo",
+    })
+    expect(kanban()?.dataset.reloadToken).toBe("1")
   })
 
   it("does not make the whole Grid read-only while an optimistic cell save is pending", async () => {

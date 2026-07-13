@@ -705,12 +705,21 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           }),
         (result) => {
           updateTableRowCount(tableId, result.rowCount)
-          setGridReloadToken((current) => current + 1)
+          if (hasActiveQuery) {
+            setGridReloadToken((current) => current + 1)
+          }
         },
         { blocking: false }
       )
     },
-    [activeTable, enqueueMutation, filePath, insertRow, updateTableRowCount]
+    [
+      activeTable,
+      enqueueMutation,
+      filePath,
+      hasActiveQuery,
+      insertRow,
+      updateTableRowCount,
+    ]
   )
 
   const saveCell = useCallback(

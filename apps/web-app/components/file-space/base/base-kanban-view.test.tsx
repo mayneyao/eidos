@@ -80,7 +80,33 @@ vi.mock("./base-record-card", () => ({
 }))
 
 vi.mock("./base-record-inspector", () => ({
-  BaseRecordInspector: () => <aside data-testid="record-inspector" />,
+  BaseRecordInspector: ({
+    row,
+    fields,
+    onCellEdit,
+  }: {
+    row: { _id?: string; title?: string; status?: string }
+    fields: Array<{ tableColumnName: string }>
+    onCellEdit: (
+      row: { _id?: string; title?: string; status?: string },
+      field: { tableColumnName: string },
+      value: string
+    ) => Promise<unknown>
+  }) => (
+    <aside data-testid="record-inspector">
+      <button
+        type="button"
+        onClick={() => {
+          const status = fields.find(
+            (field) => field.tableColumnName === "status"
+          )
+          if (status) void onCellEdit(row, status, "done")
+        }}
+      >
+        Set status to Done
+      </button>
+    </aside>
+  ),
 }))
 
 ;(
@@ -205,9 +231,10 @@ describe("BaseKanbanView", () => {
     root = createRoot(container)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     act(() => root.unmount())
     container.remove()
+    await new Promise((resolve) => setTimeout(resolve, 200))
     vi.unstubAllGlobals()
   })
 
@@ -339,6 +366,159 @@ describe("BaseKanbanView", () => {
       "Draft release"
     )
     expect(todoColumn?.textContent).toContain("Draft release")
+  })
+
+  it("moves an inspected record when its group field changes", async () => {
+    const row = { _id: "row_1", title: "Write RFC", status: "todo" }
+    const onCellEdit = vi.fn(async (candidate, field, value) => ({
+      tableId: "tasks",
+      row: { ...candidate, [field.tableColumnName]: value },
+      rowCount: 1,
+    }))
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 1 }])}
+          loadGroupPage={vi.fn(async (_field, value, offset, limit) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: value === "todo" ? 1 : 0,
+            rows: value === "todo" ? [row] : [],
+          }))}
+          onCellEdit={onCellEdit}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Write RFC")
+        ?.click()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Set status to Done")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(onCellEdit).toHaveBeenCalledWith(
+      row,
+      expect.objectContaining({ tableColumnName: "status" }),
+      "done"
+    )
+    expect(
+      container.querySelector('[role="region"][aria-label="Todo, 0 records"]')
+    ).not.toBeNull()
+    expect(
+      container.querySelector('[role="region"][aria-label="Done, 1 records"]')
+        ?.textContent
+    ).toContain("Write RFC")
+  })
+
+  it("keeps the server page cursor contiguous after moving a loaded row", async () => {
+    const initialRows = Array.from({ length: 50 }, (_, index) => ({
+      _id: `row_${index}`,
+      title: `Task ${index}`,
+      status: "todo",
+    }))
+    const initialDoneRows = Array.from({ length: 50 }, (_, index) => ({
+      _id: `done_${index}`,
+      title: `Done ${index}`,
+      status: "done",
+    }))
+    const loadGroupPage = vi.fn(
+      async (_field, value: string | null, offset: number, limit: number) => ({
+        tableId: "tasks",
+        offset,
+        limit,
+        total:
+          value === "todo"
+            ? offset === 0
+              ? 51
+              : 50
+            : value === "done"
+              ? 51
+              : 0,
+        rows:
+          value === "todo"
+            ? offset === 0
+              ? initialRows
+              : [{ _id: "row_50", title: "Task 50", status: "todo" }]
+            : value === "done" && offset === 0
+              ? initialDoneRows
+              : [],
+      })
+    )
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [
+            { value: "todo", total: 51 },
+            { value: "done", total: 51 },
+          ])}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn(async (candidate, field, value) => ({
+            tableId: "tasks",
+            row: { ...candidate, [field.tableColumnName]: value },
+            rowCount: 51,
+          }))}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    loadGroupPage.mockClear()
+    await act(async () => {
+      kanbanMocks.onDragEnd?.({
+        active: { id: "row_0" },
+        over: { id: "base-kanban:done" },
+      })
+      await Promise.resolve()
+    })
+    await act(async () => {
+      const scroller = container.querySelector<HTMLElement>(
+        '[data-base-kanban-column-scroll="base-kanban:todo"]'
+      )
+      if (!scroller) return
+      scroller.scrollTop = 100_000
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    await act(async () => {
+      const scroller = container.querySelector<HTMLElement>(
+        '[data-base-kanban-column-scroll="base-kanban:done"]'
+      )
+      if (!scroller) return
+      scroller.scrollTop = 100_000
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(loadGroupPage).toHaveBeenCalledWith(
+      expect.objectContaining({ tableColumnName: "status" }),
+      "todo",
+      49,
+      50
+    )
+    expect(loadGroupPage).toHaveBeenCalledWith(
+      expect.objectContaining({ tableColumnName: "status" }),
+      "done",
+      0,
+      50
+    )
   })
 
   it("loads the target group page and reveals a search result", async () => {

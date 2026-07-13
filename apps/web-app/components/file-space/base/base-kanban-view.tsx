@@ -55,6 +55,7 @@ interface BaseKanbanGroup {
   color: string
   rows: BaseRow[]
   total: number
+  nextOffset: number
   loaded: boolean
   loadFailed: boolean
   loading: boolean
@@ -74,6 +75,7 @@ function groupSpecs(options: BaseSelectOption[]): BaseKanbanGroup[] {
       color: option.color,
       rows: [],
       total: 0,
+      nextOffset: 0,
       loaded: false,
       loadFailed: false,
       loading: false,
@@ -86,6 +88,7 @@ function groupSpecs(options: BaseSelectOption[]): BaseKanbanGroup[] {
       color: "gray",
       rows: [],
       total: 0,
+      nextOffset: 0,
       loaded: false,
       loadFailed: false,
       loading: false,
@@ -662,6 +665,7 @@ export function BaseKanbanView({
                   ...candidate,
                   rows: page.rows,
                   total: page.total,
+                  nextOffset: page.offset + page.rows.length,
                   loaded: true,
                   loadFailed: false,
                   loading: false,
@@ -733,7 +737,7 @@ export function BaseKanbanView({
         const page = await loadGroupPage(
           groupField,
           group.value,
-          group.rows.length,
+          group.nextOffset,
           KANBAN_PAGE_SIZE
         )
         if (generation !== generationRef.current) return
@@ -752,6 +756,10 @@ export function BaseKanbanView({
                     ),
                   ],
                   total: page.total,
+                  nextOffset: Math.max(
+                    candidate.nextOffset,
+                    page.offset + page.rows.length
+                  ),
                   loadingMore: false,
                 }
               : candidate
@@ -834,7 +842,6 @@ export function BaseKanbanView({
     )
     if (!source || !target || !row || source.key === target.key) return false
 
-    const previous = groups
     const optimistic = {
       ...row,
       [groupField.tableColumnName]: target.value,
@@ -848,6 +855,7 @@ export function BaseKanbanView({
               (candidate) => String(candidate._id) !== rowId
             ),
             total: Math.max(0, group.total - 1),
+            nextOffset: Math.max(0, group.nextOffset - 1),
           }
         }
         if (group.key === target.key) {
@@ -855,6 +863,7 @@ export function BaseKanbanView({
             ...group,
             rows: [optimistic, ...group.rows],
             total: group.total + 1,
+            nextOffset: 0,
           }
         }
         return group
@@ -878,7 +887,44 @@ export function BaseKanbanView({
         )
       })
       .catch((error) => {
-        setGroups(previous)
+        const sourceIndex = source.rows.findIndex(
+          (candidate) => String(candidate._id) === rowId
+        )
+        setGroups((current) =>
+          current.map((group) => {
+            if (group.key === source.key) {
+              if (
+                group.rows.some((candidate) => String(candidate._id) === rowId)
+              ) {
+                return group
+              }
+              const rows = [...group.rows]
+              rows.splice(Math.min(sourceIndex, rows.length), 0, row)
+              return {
+                ...group,
+                rows,
+                total: group.total + 1,
+                nextOffset: group.nextOffset + 1,
+              }
+            }
+            if (group.key === target.key) {
+              const containedOptimisticRow = group.rows.some(
+                (candidate) => String(candidate._id) === rowId
+              )
+              return {
+                ...group,
+                rows: group.rows.filter(
+                  (candidate) => String(candidate._id) !== rowId
+                ),
+                total: containedOptimisticRow
+                  ? Math.max(0, group.total - 1)
+                  : group.total,
+                nextOffset: 0,
+              }
+            }
+            return group
+          })
+        )
         setMoveAnnouncement(
           `${title} could not be moved to ${target.name}. The change was reverted.`
         )
@@ -909,6 +955,7 @@ export function BaseKanbanView({
                 ...candidate,
                 rows: [result.row, ...candidate.rows],
                 total: candidate.total + 1,
+                nextOffset: 0,
               }
             : candidate
         )
@@ -932,17 +979,67 @@ export function BaseKanbanView({
     field: BaseFieldInfo,
     value: BaseSqlPrimitive
   ) => {
+    if (!groupField) throw new Error("Kanban group field is unavailable")
     const result = await onCellEdit(row, field, value)
-    setGroups((current) =>
-      current.map((group) => ({
-        ...group,
-        rows: group.rows.map((candidate) =>
-          String(candidate._id) === String(result.row._id)
-            ? result.row
-            : candidate
-        ),
-      }))
-    )
+    const rowId = String(result.row._id)
+    setGroups((current) => {
+      if (field.tableColumnName !== groupField.tableColumnName) {
+        return current.map((group) => ({
+          ...group,
+          rows: group.rows.map((candidate) =>
+            String(candidate._id) === rowId ? result.row : candidate
+          ),
+        }))
+      }
+
+      const source = current.find((group) =>
+        group.rows.some((candidate) => String(candidate._id) === rowId)
+      )
+      const nextGroupValue = result.row[groupField.tableColumnName]
+      const target = current.find(
+        (group) =>
+          group.key ===
+          groupKey(
+            nextGroupValue === null || nextGroupValue === undefined
+              ? null
+              : String(nextGroupValue)
+          )
+      )
+      if (!source || !target || source.key === target.key) {
+        return current.map((group) => ({
+          ...group,
+          rows: group.rows.map((candidate) =>
+            String(candidate._id) === rowId ? result.row : candidate
+          ),
+        }))
+      }
+      return current.map((group) => {
+        if (group.key === source.key) {
+          return {
+            ...group,
+            rows: group.rows.filter(
+              (candidate) => String(candidate._id) !== rowId
+            ),
+            total: Math.max(0, group.total - 1),
+            nextOffset: Math.max(0, group.nextOffset - 1),
+          }
+        }
+        if (group.key === target.key) {
+          return {
+            ...group,
+            rows: [
+              result.row,
+              ...group.rows.filter(
+                (candidate) => String(candidate._id) !== rowId
+              ),
+            ],
+            total: group.total + 1,
+            nextOffset: 0,
+          }
+        }
+        return group
+      })
+    })
     setInspectedRow(result.row)
     return result
   }
