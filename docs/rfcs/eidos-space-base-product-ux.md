@@ -233,14 +233,18 @@ real row or view changes still render normally.
 Card render metadata is now computed once per view rather than once per visible
 record. Ordered fields, cover selection, field limits, and Select/Multi-select
 option indexes are shared by the Gallery or Kanban window. Closed action menus
-do not eagerly expand every Move-to option, while the Desktop native submenu
-registers a complete option set in one batch without mounting one hidden React
-node and effect per option. A non-group inspector edit replaces only the group
-that owns the row, preserving every unaffected column and card memo boundary;
-visible-column loading and horizontal fallback geometry likewise depend on the
-option/window signature instead of row-array churn. Regression coverage keeps
-a 200-target native submenu at constant DOM size and asserts that editing a
-card in one column does not render a card in another column.
+do not eagerly expand every Move-to option. The Desktop native submenu retains
+one shared batch descriptor and one click dispatcher per mounted card, then
+materializes its Electron menu items only when that card's context menu opens;
+it does not mount or retain one React node, effect, item object, and closure per
+option. Theme state is also consumed once per card rather than once per visible
+field. A non-group inspector edit replaces only the group that owns the row,
+preserving every unaffected column and card memo boundary; visible-column
+loading and horizontal fallback geometry likewise depend on the option/window
+signature instead of row-array churn. Regression coverage proves that a
+200-target native submenu reads zero option labels before opening, remains at
+constant DOM size, and still dispatches the selected target; it also asserts
+that editing a card in one column does not render a card in another column.
 
 Automatic paging now has an explicit recoverable failure state. A failed
 Gallery or Kanban request disables the virtual-tail trigger instead of letting
