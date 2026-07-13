@@ -9,6 +9,7 @@ inside the folder.
 ## Responsibilities
 
 - safe Space-relative file reads and writes,
+- bounded text/binary inspection for unknown-file previews,
 - file and directory creation, move, and removal,
 - coalesced filesystem change notifications and stable read snapshots,
 - rebuildable file and content indexes with optional disposable persistence,
@@ -39,7 +40,14 @@ const index = new FileSpaceIndex(files)
 
 await files.createText("notes/idea.md", "# Idea")
 const results = await index.search("idea")
+
+const preview = await files.readPreview("Dockerfile")
+if (preview.kind === "text") console.log(preview.content)
 ```
+
+`readPreview` reads at most 512 KiB, recognizes UTF-8 and BOM-marked UTF-16,
+and reports larger text files as truncated. It is intended for safe, read-only
+fallback previews; editable text flows should continue to use `readText`.
 
 Desktop hosts can persist the derived index without coupling the core runtime
 to SQLite. The optional adapter stores it at `.eidos/indexes/markdown.sqlite3`:

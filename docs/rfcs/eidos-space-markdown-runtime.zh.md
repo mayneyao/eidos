@@ -8,7 +8,7 @@
 - `eidos-space-base-storage.zh.md`
 - `eidos-base-file-format.zh.md`
 
-## 实施状态（2026-07-12）
+## 实施状态（2026-07-13）
 
 已经实现：
 
@@ -22,6 +22,9 @@
 - 持久化在 `.eidos/indexes/markdown.sqlite3` 的可重建
   search/link/tag/backlink index，
 - indexed quick open、编辑器 wiki-link completion、outline 和 backlinks UI。
+- 内置 Base、Markdown、图片、音频、视频和 PDF opener，并为没有专用 opener
+  的文件提供有上限的只读文本兜底预览；binary 文件不会把内容 bytes 发送到
+  renderer。
 
 独立编辑器当前有 57 个 package acceptance tests；Desktop host integration
 tests 也覆盖了 runtime loading、保存行为和冲突处理路径。
@@ -29,6 +32,11 @@ tests 也覆盖了 runtime loading、保存行为和冲突处理路径。
 Desktop 启动时仍会扫描文件系统元数据以保证文件具有最终权威；未变化的正文和
 Markdown 解析结果直接复用可删除的 SQLite cache。Watcher 变化会增量更新，显式
 Rebuild 和损坏 schema 恢复都会完全从 Space 文件重建索引。
+
+未知文件的兜底检查最多读取 512 KiB，接受严格 UTF-8 和带 BOM 的 UTF-16，
+拒绝包含 NUL、大量控制字符或非法编码的内容；更大的文本预览会明确标记为
+truncated。专用 opener 始终优先，watcher 刷新兜底预览时也不会用 loading state
+替换整个文档区域。
 
 带语言标记的 fenced code 使用 Lexical 0.47 Prism extension 提供语法高亮、行号和
 紧凑语言标签；未标记语言的 fence 会保持 unset，确保高亮不会改变 Markdown 语义。

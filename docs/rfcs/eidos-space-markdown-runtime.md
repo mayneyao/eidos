@@ -8,7 +8,7 @@ Related:
 - `eidos-space-base-storage.md`
 - `eidos-base-file-format.md`
 
-## Implementation Status (2026-07-12)
+## Implementation Status (2026-07-13)
 
 Implemented:
 
@@ -22,6 +22,9 @@ Implemented:
 - a rebuildable search/link/tag/backlink index persisted at
   `.eidos/indexes/markdown.sqlite3`,
 - indexed quick open, editor wiki-link completion, outline, and backlinks UI.
+- built-in Base, Markdown, image, audio, video, and PDF openers, plus a bounded
+  read-only text fallback for files without a dedicated opener; binary files
+  are detected without sending their bytes to the renderer.
 
 The standalone editor currently has 57 package acceptance tests. Desktop host
 integration tests also cover runtime loading, save behavior, and conflict paths.
@@ -30,6 +33,12 @@ The Desktop index scans filesystem metadata on startup so files remain
 authoritative, but reuses unchanged content and parsed Markdown metadata from
 the disposable SQLite cache. Watcher changes update it incrementally; explicit
 Rebuild and corrupt-schema recovery recreate it entirely from Space files.
+
+Unknown-file fallback inspection reads at most 512 KiB. It accepts strict
+UTF-8 and BOM-marked UTF-16, rejects NUL/control-heavy or invalid text, and
+marks larger text previews as truncated. Dedicated openers always take
+priority, and watcher refreshes update the fallback preview without replacing
+the whole document surface with a loading state.
 
 Labeled fenced code blocks use the Lexical 0.47 Prism extension for syntax
 highlighting, line gutters, and a compact language label. Unlabeled fences keep
