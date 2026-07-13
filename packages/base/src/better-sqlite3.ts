@@ -121,7 +121,9 @@ export function openBaseFile(
         result.errors.map((issue) => issue.message).join("; ")
       )
     }
-    return new BaseRuntime(connection, true)
+    const runtime = new BaseRuntime(connection, true)
+    if (options.migrate && !options.readonly) runtime.optimizeViewQueries()
+    return runtime
   } catch (error) {
     connection.close()
     throw error

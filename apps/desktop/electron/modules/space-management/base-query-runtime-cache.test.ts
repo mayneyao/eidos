@@ -48,6 +48,23 @@ describe("BaseQueryRuntimeCache", () => {
     expect(open).toHaveBeenCalledTimes(2)
   })
 
+  it("stores the fingerprint produced by opening and optimizing a Base", () => {
+    const opened = runtime()
+    const open = vi.fn(() => opened)
+    let version = 1
+    const readFingerprint = vi.fn(() => fingerprint(version))
+    open.mockImplementation(() => {
+      version = 2
+      return opened
+    })
+    const cache = new BaseQueryRuntimeCache(2, open, readFingerprint)
+
+    expect(cache.get("/space/tasks.base")).toBe(opened)
+    expect(cache.get("/space/tasks.base")).toBe(opened)
+    expect(open).toHaveBeenCalledOnce()
+    expect(readFingerprint).toHaveBeenCalledTimes(3)
+  })
+
   it("evicts the least recently used runtime and closes all resources", () => {
     const runtimes = [runtime(), runtime(), runtime()]
     const open = vi.fn(() => runtimes[open.mock.calls.length - 1])

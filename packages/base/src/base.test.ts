@@ -1309,6 +1309,121 @@ describe("Eidos Base files", () => {
     base.close()
   })
 
+  it("maintains query indexes for Gallery sorts and Kanban groups", () => {
+    const filePath = path.join(root, "indexed-views.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: {
+        id: "records",
+        name: "Records",
+        fields: [
+          {
+            name: "Status",
+            columnName: "status",
+            type: "select",
+            property: {
+              options: [
+                { id: "todo", name: "Todo" },
+                { id: "done", name: "Done" },
+              ],
+            },
+          },
+          { name: "Points", columnName: "points", type: "number" },
+        ],
+      },
+    })
+    const gallery = base.createView("records", {
+      id: "view_gallery",
+      name: "Gallery",
+      type: "gallery",
+      sorts: [{ field: "points", direction: "desc" }],
+    })
+    const kanban = base.createView("records", {
+      id: "view_kanban",
+      name: "Kanban",
+      type: "kanban",
+      properties: { groupByField: "status" },
+    })
+    const indexes = () =>
+      base.connection.query<{ name: string; sql: string }>(
+        `SELECT name, sql FROM sqlite_master
+          WHERE type = 'index' AND name GLOB 'eidos__view_query_*'
+          ORDER BY name`
+      )
+
+    expect(indexes()).toEqual([
+      {
+        name: "eidos__view_query_view_gallery",
+        sql: 'CREATE INDEX "eidos__view_query_view_gallery" ON "tb_records" ("points" DESC)',
+      },
+      {
+        name: "eidos__view_query_view_kanban",
+        sql: 'CREATE INDEX "eidos__view_query_view_kanban" ON "tb_records" ("status")',
+      },
+    ])
+    const galleryPlan = base.connection
+      .query<{ detail: string }>(
+        `EXPLAIN QUERY PLAN
+         SELECT * FROM (
+           SELECT rowid AS "__base_rowid", * FROM "tb_records"
+         ) AS "base_rows"
+         ORDER BY "points" DESC, "__base_rowid" ASC
+         LIMIT ? OFFSET ?`,
+        [100, 10_000]
+      )
+      .map((step) => step.detail)
+      .join("\n")
+    expect(galleryPlan).toContain("eidos__view_query_view_gallery")
+    base.updateView(kanban.id, {
+      sorts: [{ field: "points", direction: "asc" }],
+    })
+    expect(
+      indexes().find((index) => index.name.endsWith("view_kanban"))?.sql
+    ).toContain('("status", "points" ASC)')
+
+    base.updateView(gallery.id, {
+      sorts: [{ field: "title", direction: "asc" }],
+    })
+    expect(
+      indexes().find((index) => index.name.endsWith("view_gallery"))?.sql
+    ).toContain('("title" COLLATE NOCASE ASC)')
+
+    base.updateView(gallery.id, {
+      sorts: [{ field: "points", direction: "desc" }],
+    })
+    expect(base.deleteField("records", "points")).toBe(true)
+    expect(indexes().map((index) => index.name)).toEqual([
+      "eidos__view_query_view_kanban",
+    ])
+    base.updateView(gallery.id, {
+      sorts: [{ field: "title", direction: "asc" }],
+    })
+    expect(base.deleteView(kanban.id)).toBe(true)
+    expect(indexes().map((index) => index.name)).toEqual([
+      "eidos__view_query_view_gallery",
+    ])
+    base.close()
+
+    const sqlite = new Database(filePath)
+    sqlite.exec('DROP INDEX "eidos__view_query_view_gallery"')
+    sqlite.close()
+    const unoptimized = openBaseFile(filePath)
+    expect(
+      unoptimized.connection.get(
+        `SELECT 1 FROM sqlite_master
+          WHERE type = 'index' AND name = 'eidos__view_query_view_gallery'`
+      )
+    ).toBeUndefined()
+    unoptimized.close()
+    const optimized = openBaseFile(filePath, { migrate: true })
+    expect(
+      optimized.connection.get(
+        `SELECT 1 FROM sqlite_master
+          WHERE type = 'index' AND name = 'eidos__view_query_view_gallery'`
+      )
+    ).toBeDefined()
+    optimized.close()
+  })
+
   it("calculates filtered column stats in one query and rejects invalid combinations", () => {
     const filePath = path.join(root, "stats.base")
     const base = createBaseFile(filePath, {

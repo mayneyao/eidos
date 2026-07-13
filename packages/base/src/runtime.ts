@@ -80,6 +80,33 @@ interface RegistryRow {
   updated_at: string
 }
 
+const BASE_VIEW_QUERY_INDEX_PREFIX = "eidos__view_query_"
+const BASE_NOCASE_SORT_TYPES = new Set([
+  "title",
+  "text",
+  "url",
+  "select",
+  "multi-select",
+  "file",
+])
+
+function baseViewQueryIndexName(viewId: string): string {
+  return `${BASE_VIEW_QUERY_INDEX_PREFIX}${viewId}`
+}
+
+function baseFieldUsesNoCaseSort(field: BaseFieldInfo): boolean {
+  const displayType =
+    (field.type === "formula" || field.type === "lookup") &&
+    typeof field.property?.displayType === "string"
+      ? field.property.displayType
+      : field.type
+  return BASE_NOCASE_SORT_TYPES.has(displayType)
+}
+
+function normalizedSql(sql: string): string {
+  return sql.replace(/\s+/g, " ").trim()
+}
+
 interface FieldRow {
   name: string
   type: BaseFieldType
@@ -267,6 +294,97 @@ export class BaseRuntime {
       alias = nextAlias
     })
     return source
+  }
+
+  private viewQueryIndexSql(view: BaseViewInfo): string | null {
+    if (view.type !== "gallery" && view.type !== "kanban") return null
+    const table = this.getTable(view.tableId)
+    const fields = this.listFields(view.tableId)
+    const fieldsByColumn = new Map(
+      fields.map((field) => [field.tableColumnName, field])
+    )
+    const columns: string[] = []
+    const seen = new Set<string>()
+    const groupByField =
+      view.type === "kanban" &&
+      typeof view.properties?.groupByField === "string"
+        ? fieldsByColumn.get(view.properties.groupByField)
+        : undefined
+
+    if (groupByField && !groupByField.isDerived) {
+      columns.push(quoteIdentifier(groupByField.tableColumnName))
+      seen.add(groupByField.tableColumnName)
+    }
+
+    for (const sort of view.sorts) {
+      if (seen.has(sort.field)) continue
+      const field = fieldsByColumn.get(sort.field)
+      if (!field || field.isDerived) break
+      columns.push(
+        `${quoteIdentifier(field.tableColumnName)}${
+          baseFieldUsesNoCaseSort(field) ? " COLLATE NOCASE" : ""
+        } ${sort.direction === "desc" ? "DESC" : "ASC"}`
+      )
+      seen.add(field.tableColumnName)
+    }
+
+    if (columns.length === 0) return null
+    return `CREATE INDEX ${quoteIdentifier(
+      baseViewQueryIndexName(view.id)
+    )} ON ${quoteIdentifier(table.rawTableName)} (${columns.join(", ")})`
+  }
+
+  private syncViewQueryIndex(view: BaseViewInfo): void {
+    const indexName = baseViewQueryIndexName(view.id)
+    const expectedSql = this.viewQueryIndexSql(view)
+    const existing = this.connection.get<{ sql: string | null }>(
+      `SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?`,
+      [indexName]
+    )
+    if (
+      expectedSql &&
+      existing?.sql &&
+      normalizedSql(existing.sql) === normalizedSql(expectedSql)
+    ) {
+      return
+    }
+    if (existing) {
+      this.connection.exec(`DROP INDEX ${quoteIdentifier(indexName)}`)
+    }
+    if (expectedSql) this.connection.exec(expectedSql)
+  }
+
+  private dropViewQueryIndexes(tableId: string): void {
+    const table = this.getTable(tableId)
+    const indexes = this.connection.query<{ name: string }>(
+      `SELECT name FROM sqlite_master
+        WHERE type = 'index' AND tbl_name = ? AND name GLOB ?`,
+      [table.rawTableName, `${BASE_VIEW_QUERY_INDEX_PREFIX}*`]
+    )
+    for (const index of indexes) {
+      this.connection.exec(`DROP INDEX ${quoteIdentifier(index.name)}`)
+    }
+  }
+
+  optimizeViewQueries(tableId?: string): void {
+    const tables = tableId ? [this.getTable(tableId)] : this.listTables()
+    for (const table of tables) {
+      const views = this.listViews(table.id)
+      const expectedNames = new Set(
+        views.map((view) => baseViewQueryIndexName(view.id))
+      )
+      const indexes = this.connection.query<{ name: string }>(
+        `SELECT name FROM sqlite_master
+          WHERE type = 'index' AND tbl_name = ? AND name GLOB ?`,
+        [table.rawTableName, `${BASE_VIEW_QUERY_INDEX_PREFIX}*`]
+      )
+      for (const index of indexes) {
+        if (!expectedNames.has(index.name)) {
+          this.connection.exec(`DROP INDEX ${quoteIdentifier(index.name)}`)
+        }
+      }
+      for (const view of views) this.syncViewQueryIndex(view)
+    }
   }
 
   private lookupExpression(
@@ -752,35 +870,44 @@ export class BaseRuntime {
             ...(requestedProperties ?? {}),
             sorts: normalizeBaseSorts(changes.sorts),
           }
-    this.connection.run(
-      `UPDATE ${BASE_VIEWS_TABLE}
-          SET name = ?, position = ?, properties = ?, filter = ?,
-              order_map = ?, hidden_fields = ?,
-              updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?`,
-      [
-        name,
-        changes.position === undefined ? existing.position : changes.position,
-        JSON.stringify(properties),
-        JSON.stringify(
-          changes.filter === undefined
-            ? normalizeBaseFilter(parseJson(existing.filter))
-            : normalizeBaseFilter(changes.filter)
-        ),
-        JSON.stringify(
-          changes.orderMap === undefined
-            ? parseJson(existing.order_map)
-            : changes.orderMap
-        ),
-        JSON.stringify(
-          changes.hiddenFields === undefined
-            ? parseJson(existing.hidden_fields)
-            : changes.hiddenFields
-        ),
-        viewId,
-      ]
-    )
-    setBaseMetadata(this.connection, {})
+    this.connection.transaction(() => {
+      this.connection.run(
+        `UPDATE ${BASE_VIEWS_TABLE}
+            SET name = ?, position = ?, properties = ?, filter = ?,
+                order_map = ?, hidden_fields = ?,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?`,
+        [
+          name,
+          changes.position === undefined ? existing.position : changes.position,
+          JSON.stringify(properties),
+          JSON.stringify(
+            changes.filter === undefined
+              ? normalizeBaseFilter(parseJson(existing.filter))
+              : normalizeBaseFilter(changes.filter)
+          ),
+          JSON.stringify(
+            changes.orderMap === undefined
+              ? parseJson(existing.order_map)
+              : changes.orderMap
+          ),
+          JSON.stringify(
+            changes.hiddenFields === undefined
+              ? parseJson(existing.hidden_fields)
+              : changes.hiddenFields
+          ),
+          viewId,
+        ]
+      )
+      const updated = this.listViews(existing.table_id).find(
+        (view) => view.id === viewId
+      )
+      if (!updated) {
+        throw new BaseError("view-not-found", `Base view not found: ${viewId}`)
+      }
+      this.syncViewQueryIndex(updated)
+      setBaseMetadata(this.connection, {})
+    })
     const updated = this.listViews(existing.table_id).find(
       (view) => view.id === viewId
     )
@@ -819,34 +946,44 @@ export class BaseRuntime {
         [tableId]
       )?.position ??
       1
-    this.connection.run(
-      `INSERT INTO ${BASE_VIEWS_TABLE}
-        (id, name, type, table_id, query, properties, filter,
-         order_map, hidden_fields, position)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        viewId,
-        name,
-        type,
-        tableId,
-        input.query ?? `SELECT * FROM ${quoteIdentifier(table.rawTableName)}`,
-        input.properties === undefined && input.sorts === undefined
-          ? null
-          : JSON.stringify({
-              ...(input.properties ?? {}),
-              ...(input.sorts === undefined
-                ? {}
-                : { sorts: normalizeBaseSorts(input.sorts) }),
-            }),
-        input.filter === undefined
-          ? null
-          : JSON.stringify(normalizeBaseFilter(input.filter)),
-        input.orderMap === undefined ? null : JSON.stringify(input.orderMap),
-        JSON.stringify(input.hiddenFields ?? []),
-        position,
-      ]
-    )
-    setBaseMetadata(this.connection, {})
+    this.connection.transaction(() => {
+      this.connection.run(
+        `INSERT INTO ${BASE_VIEWS_TABLE}
+          (id, name, type, table_id, query, properties, filter,
+           order_map, hidden_fields, position)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          viewId,
+          name,
+          type,
+          tableId,
+          input.query ?? `SELECT * FROM ${quoteIdentifier(table.rawTableName)}`,
+          input.properties === undefined && input.sorts === undefined
+            ? null
+            : JSON.stringify({
+                ...(input.properties ?? {}),
+                ...(input.sorts === undefined
+                  ? {}
+                  : { sorts: normalizeBaseSorts(input.sorts) }),
+              }),
+          input.filter === undefined
+            ? null
+            : JSON.stringify(normalizeBaseFilter(input.filter)),
+          input.orderMap === undefined ? null : JSON.stringify(input.orderMap),
+          JSON.stringify(input.hiddenFields ?? []),
+          position,
+        ]
+      )
+      const created = this.listViews(tableId).find((view) => view.id === viewId)
+      if (!created) {
+        throw new BaseError(
+          "view-not-found",
+          `Unable to create Base view: ${viewId}`
+        )
+      }
+      this.syncViewQueryIndex(created)
+      setBaseMetadata(this.connection, {})
+    })
     const created = this.listViews(tableId).find((view) => view.id === viewId)
     if (!created) {
       throw new BaseError(
@@ -906,6 +1043,9 @@ export class BaseRuntime {
       )
     }
     return this.connection.transaction(() => {
+      this.connection.exec(
+        `DROP INDEX IF EXISTS ${quoteIdentifier(baseViewQueryIndexName(viewId))}`
+      )
       const result = this.connection.run(
         `DELETE FROM ${BASE_VIEWS_TABLE} WHERE id = ?`,
         [viewId]
@@ -1310,6 +1450,7 @@ export class BaseRuntime {
       const currentSqlType = sqlTypeForField(field.type)
       const targetSqlType = sqlTypeForField(targetType)
       this.connection.transaction(() => {
+        this.dropViewQueryIndexes(tableId)
         let targetColumn = quotedColumn
         let backupColumn: string | null = null
         if (currentSqlType !== targetSqlType) {
@@ -1372,6 +1513,7 @@ export class BaseRuntime {
           dependsOn: null,
         }
         this.removeUnsupportedColumnStats(tableId, convertedField)
+        this.optimizeViewQueries(tableId)
         setBaseMetadata(this.connection, {})
       })
       return this.getField(tableId, field.tableColumnName)
@@ -1582,6 +1724,7 @@ export class BaseRuntime {
       )
     }
     return this.connection.transaction(() => {
+      this.dropViewQueryIndexes(tableId)
       this.connection.run(
         `DELETE FROM ${BASE_REFERENCES_TABLE}
           WHERE (self_table_name = ? AND self_table_column_name = ?)
@@ -1663,6 +1806,7 @@ export class BaseRuntime {
           ]
         )
       }
+      this.optimizeViewQueries(tableId)
       setBaseMetadata(this.connection, {})
       return true
     })

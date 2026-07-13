@@ -22,3 +22,9 @@ base.close()
 
 Files remain valid SQLite databases and can be inspected with ordinary SQLite
 tools.
+
+Gallery sort prefixes and Kanban group/sort prefixes use ordinary disposable
+SQLite indexes maintained by the view lifecycle. Opening with
+`openBaseFile(path, { migrate: true })` repairs missing query indexes; callers
+using another connection adapter can invoke `base.optimizeViewQueries()`
+explicitly. Indexes accelerate paging but are not Base metadata or user data.

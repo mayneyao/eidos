@@ -77,7 +77,17 @@ export class BaseQueryRuntimeCache {
     }
 
     const runtime = this.openRuntime(canonicalPath)
-    this.entries.set(canonicalPath, { fingerprint, runtime })
+    let openedFingerprint: BaseQueryFileFingerprint
+    try {
+      openedFingerprint = this.fingerprint(canonicalPath)
+    } catch (error) {
+      runtime.close()
+      throw error
+    }
+    this.entries.set(canonicalPath, {
+      fingerprint: openedFingerprint,
+      runtime,
+    })
     this.evictOverflow()
     return runtime
   }
