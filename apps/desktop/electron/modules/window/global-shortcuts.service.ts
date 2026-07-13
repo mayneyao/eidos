@@ -202,6 +202,7 @@ export class GlobalShortcutsService {
     // Check initial focus state
     if (win.isFocused()) {
       this.isWindowFocused = true
+      this.registerShortcuts()
     }
   }
 
