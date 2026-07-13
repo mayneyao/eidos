@@ -514,6 +514,117 @@ describe("BaseGrid", () => {
     expect(onViewUpdate).toHaveBeenLastCalledWith({
       properties: { freezeColumns: 2 },
     })
+
+    openDoneMenu()
+    clickMenuItem("Calculate")
+    clickMenuItem("Checked")
+    expect(onViewUpdate).toHaveBeenLastCalledWith({
+      properties: { columnStats: { done: { type: "checked" } } },
+    })
+  })
+
+  it("loads configured column stats into the trailing row and refreshes after edits", async () => {
+    const view = {
+      ...table.views[0],
+      properties: {
+        columnStats: {
+          title: { type: "count-values" },
+          done: { type: "percent-checked" },
+        },
+      },
+    }
+    const loadColumnStats = vi.fn().mockResolvedValue([
+      { columnName: "title", type: "count-values", value: 250 },
+      { columnName: "done", type: "percent-checked", value: 40 },
+    ])
+    const onCellEdit = createCellEdit()
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={table}
+          view={view}
+          loadPage={createLoadPage()}
+          loadColumnStats={loadColumnStats}
+          onAddRow={vi.fn()}
+          onCellEdit={onCellEdit}
+        />
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(loadColumnStats).toHaveBeenCalledWith([
+      { columnName: "title", type: "count-values" },
+      { columnName: "done", type: "percent-checked" },
+    ])
+    expect(mocks.props?.columns[0].trailingRowOptions?.hint).toBe(
+      "Count values: 250"
+    )
+    expect(mocks.props?.columns[1].trailingRowOptions?.hint).toBe(
+      "Checked: 40%"
+    )
+
+    await act(async () => {
+      mocks.props?.onCellEdited?.([1, 0], {
+        kind: GridCellKind.Boolean,
+        allowOverlay: false,
+        data: true,
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(onCellEdit).toHaveBeenCalledOnce()
+    expect(loadColumnStats).toHaveBeenCalledTimes(2)
+  })
+
+  it("reports a column stat failure once and retries on an explicit reload", async () => {
+    const view = {
+      ...table.views[0],
+      properties: { columnStats: { done: { type: "checked" } } },
+    }
+    const error = new Error("stats unavailable")
+    const loadColumnStats = vi
+      .fn()
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce([
+        { columnName: "done", type: "checked", value: 100 },
+      ])
+    const onError = vi.fn()
+    const render = async (reloadToken: number) => {
+      await act(async () => {
+        root.render(
+          <BaseGrid
+            table={table}
+            view={view}
+            reloadToken={reloadToken}
+            loadPage={createLoadPage()}
+            loadColumnStats={loadColumnStats}
+            onAddRow={vi.fn()}
+            onCellEdit={createCellEdit()}
+            onError={onError}
+          />
+        )
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+    }
+
+    await render(0)
+    expect(loadColumnStats).toHaveBeenCalledTimes(1)
+    expect(onError).toHaveBeenCalledOnce()
+    expect(onError).toHaveBeenCalledWith(error)
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(loadColumnStats).toHaveBeenCalledTimes(1)
+
+    await render(1)
+    expect(loadColumnStats).toHaveBeenCalledTimes(2)
+    expect(mocks.props?.columns[1].trailingRowOptions?.hint).toBe(
+      "Checked: 100"
+    )
   })
 
   it("opens record details and deletes the right-clicked record", async () => {

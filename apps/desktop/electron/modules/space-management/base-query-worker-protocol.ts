@@ -1,4 +1,6 @@
 import type {
+  BaseColumnStatConfig,
+  BaseColumnStatResult,
   BaseRowGroupCount,
   BaseRowPage,
   BaseRowPageOptions,
@@ -22,9 +24,16 @@ export interface BaseGroupCountsWorkerRequest extends BaseQueryWorkerRequestBase
   query: BaseRowQuery
 }
 
+export interface BaseColumnStatsWorkerRequest extends BaseQueryWorkerRequestBase {
+  operation: "column-stats"
+  configs: BaseColumnStatConfig[]
+  query: BaseRowQuery
+}
+
 export type BaseQueryWorkerRequest =
   | BasePageWorkerRequest
   | BaseGroupCountsWorkerRequest
+  | BaseColumnStatsWorkerRequest
 
 export type BaseQueryWorkerSuccess =
   | {
@@ -38,6 +47,12 @@ export type BaseQueryWorkerSuccess =
       ok: true
       operation: "group-counts"
       counts: BaseRowGroupCount[]
+    }
+  | {
+      id: string
+      ok: true
+      operation: "column-stats"
+      stats: BaseColumnStatResult[]
     }
 
 export interface BaseQueryWorkerFailure {

@@ -4,6 +4,7 @@ export type BaseErrorCode =
   | "unsupported-format"
   | "invalid-schema"
   | "invalid-identifier"
+  | "invalid-query"
   | "invalid-range"
   | "invalid-csv"
   | "protected-field"

@@ -34,6 +34,18 @@ function run(request: BaseQueryWorkerRequest): BaseQueryWorkerResponse {
         page: base.getRowPage(request.tableId, offset, limit, query, totalHint),
       }
     }
+    if (request.operation === "column-stats") {
+      return {
+        id: request.id,
+        ok: true,
+        operation: "column-stats",
+        stats: base.calculateColumnStats(
+          request.tableId,
+          request.configs,
+          request.query
+        ),
+      }
+    }
     return {
       id: request.id,
       ok: true,

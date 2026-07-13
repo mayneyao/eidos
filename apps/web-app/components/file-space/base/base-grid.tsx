@@ -7,6 +7,9 @@ import {
   useState,
 } from "react"
 import type {
+  BaseColumnStatConfig,
+  BaseColumnStatResult,
+  BaseColumnStatType,
   BaseFieldInfo,
   BaseRow,
   BaseRowMutationResult,
@@ -19,6 +22,10 @@ import type {
   BaseViewInfo,
   UpdateBaseFieldInput,
   UpdateBaseViewInput,
+} from "@eidos.space/base"
+import {
+  baseColumnStatLabel,
+  baseColumnStatTypesForField,
 } from "@eidos.space/base"
 import DataEditor, {
   GridCellKind,
@@ -70,6 +77,7 @@ import { decodeBaseFilePaths, encodeBaseFilePaths } from "@eidos.space/base"
 
 import {
   BaseCellMenu,
+  BaseColumnStatMenu,
   BaseFieldMenu,
   type BaseCellMenuState,
   type BaseFieldMenuState,
@@ -113,6 +121,9 @@ interface BaseGridProps {
   disabled?: boolean
   reloadToken?: number
   loadPage: (offset: number, limit: number) => Promise<BaseRowPage>
+  loadColumnStats?: (
+    configs: BaseColumnStatConfig[]
+  ) => Promise<BaseColumnStatResult[]>
   onAddRow: () => Promise<BaseRowMutationResult>
   onCellEdit: (
     row: BaseRow,
@@ -181,12 +192,68 @@ function viewWidths(view: BaseViewInfo | undefined): Record<string, number> {
   )
 }
 
+function viewColumnStats(
+  view: BaseViewInfo | undefined,
+  fields: BaseFieldInfo[]
+): BaseColumnStatConfig[] {
+  const value = view?.properties?.columnStats
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return []
+  }
+  const record = value as Record<string, unknown>
+  return fields.flatMap((field) => {
+    const config = record[field.tableColumnName]
+    if (
+      typeof config !== "object" ||
+      config === null ||
+      typeof (config as { type?: unknown }).type !== "string"
+    ) {
+      return []
+    }
+    const type = (config as { type: BaseColumnStatType }).type
+    return baseColumnStatTypesForField(field).includes(type)
+      ? [{ columnName: field.tableColumnName, type }]
+      : []
+  })
+}
+
+function columnStatHint(
+  result: BaseColumnStatResult,
+  field: BaseFieldInfo
+): string {
+  const compactLabels: Partial<Record<BaseColumnStatType, string>> = {
+    "percent-empty": "Empty",
+    "percent-not-empty": "Not empty",
+    "percent-checked": "Checked",
+    "percent-unchecked": "Unchecked",
+  }
+  const label = compactLabels[result.type] ?? baseColumnStatLabel(result.type)
+  if (result.value === null) return `${label}: —`
+  if (typeof result.value === "string") return `${label}: ${result.value}`
+  const isPercent = result.type.startsWith("percent-")
+  const maximumFractionDigits =
+    result.type === "average" || result.type === "range" || isPercent ? 2 : 12
+  const value = new Intl.NumberFormat(undefined, {
+    maximumFractionDigits,
+  }).format(result.value)
+  if (isPercent) return `${label}: ${value}%`
+  if (result.type === "range") return `${label}: ${value} days`
+  if (
+    (result.type === "min" || result.type === "max") &&
+    (field.type === "date" || field.type === "datetime")
+  ) {
+    return `${label}: ${value}`
+  }
+  return `${label}: ${value}`
+}
+
 export function BaseGrid({
   table,
   view,
   disabled = false,
   reloadToken = 0,
   loadPage,
+  loadColumnStats,
   onAddRow,
   onCellEdit,
   onRowsEdit,
@@ -226,6 +293,8 @@ export function BaseGrid({
   const [cacheRevision, setCacheRevision] = useState(0)
   const [rowCount, setRowCount] = useState(table.rowCount)
   const [fieldMenu, setFieldMenu] = useState<BaseFieldMenuState | null>(null)
+  const [columnStatMenu, setColumnStatMenu] =
+    useState<BaseFieldMenuState | null>(null)
   const [cellMenu, setCellMenu] = useState<BaseCellMenuState | null>(null)
   const [inspectedRowIndex, setInspectedRowIndex] = useState<number | null>(
     null
@@ -239,6 +308,11 @@ export function BaseGrid({
     viewWidths(view)
   )
   const [hasHorizontalScroll, setHasHorizontalScroll] = useState(false)
+  const [columnStatResults, setColumnStatResults] = useState<
+    Record<string, BaseColumnStatResult>
+  >({})
+  const [columnStatRevision, setColumnStatRevision] = useState(0)
+  const columnStatGenerationRef = useRef(0)
   const freezeColumns = baseViewFreezeColumns(view, fields.length)
   const inspectedRow =
     inspectedRowIndex === null
@@ -288,6 +362,7 @@ export function BaseGrid({
     setCacheRevision((current) => current + 1)
     onSelectedRowsChange?.([])
     setFieldMenu(null)
+    setColumnStatMenu(null)
     setCellMenu(null)
     setInspectedRowIndex(null)
     void loadPageIndex(0)
@@ -313,8 +388,47 @@ export function BaseGrid({
   useEffect(
     () => () => {
       generationRef.current += 1
+      columnStatGenerationRef.current += 1
       if (widthSaveTimerRef.current) clearTimeout(widthSaveTimerRef.current)
     },
+    []
+  )
+
+  const columnStatConfigs = useMemo(
+    () => viewColumnStats(view, fields),
+    [fields, view?.properties]
+  )
+  const columnStatConfigKey = JSON.stringify(columnStatConfigs)
+
+  useEffect(() => {
+    const generation = ++columnStatGenerationRef.current
+    if (!loadColumnStats || columnStatConfigs.length === 0) {
+      setColumnStatResults({})
+      return
+    }
+    void loadColumnStats(columnStatConfigs)
+      .then((results) => {
+        if (generation !== columnStatGenerationRef.current) return
+        setColumnStatResults(
+          Object.fromEntries(
+            results.map((result) => [result.columnName, result])
+          )
+        )
+      })
+      .catch((error) => {
+        if (generation === columnStatGenerationRef.current) onError?.(error)
+      })
+  }, [
+    columnStatConfigKey,
+    columnStatRevision,
+    loadColumnStats,
+    onError,
+    reloadToken,
+    table.table.id,
+  ])
+
+  const refreshColumnStats = useCallback(
+    () => setColumnStatRevision((current) => current + 1),
     []
   )
 
@@ -322,14 +436,25 @@ export function BaseGrid({
     () =>
       fields.map((field) => {
         const column = baseGridColumn(field)
+        const stat = columnStatResults[field.tableColumnName]
+        const configured = columnStatConfigs.find(
+          (config) => config.columnName === field.tableColumnName
+        )
         return {
           ...column,
           width:
             widths[field.tableColumnName] ??
             ("width" in column ? column.width : 180),
+          ...(stat && configured?.type === stat.type
+            ? {
+                trailingRowOptions: {
+                  hint: columnStatHint(stat, field),
+                },
+              }
+            : {}),
         }
       }),
-    [fields, widths]
+    [columnStatConfigs, columnStatResults, fields, widths]
   )
   const gridConfig = useMemo(
     () => ({
@@ -576,6 +701,7 @@ export function BaseGrid({
           }
           setRowCount(result.rowCount)
           if (changed) setCacheRevision((revision) => revision + 1)
+          refreshColumnStats()
         })
         .catch((error) => {
           if (generation === generationRef.current) {
@@ -601,6 +727,7 @@ export function BaseGrid({
       onError,
       onRowsEdit,
       rowCount,
+      refreshColumnStats,
       table.table.id,
     ]
   )
@@ -628,6 +755,7 @@ export function BaseGrid({
         rowsRef.current.set(inspectedRowIndex, result.row)
         setRowCount(result.rowCount)
         setCacheRevision((current) => current + 1)
+        refreshColumnStats()
         return result
       } catch (error) {
         rowsRef.current.set(inspectedRowIndex, previous)
@@ -635,7 +763,7 @@ export function BaseGrid({
         throw error
       }
     },
-    [inspectedRowIndex, onCellEdit]
+    [inspectedRowIndex, onCellEdit, refreshColumnStats]
   )
 
   const appendRow = useCallback(async () => {
@@ -645,12 +773,13 @@ export function BaseGrid({
       rowsRef.current.set(index, result.row)
       setRowCount(result.rowCount)
       setCacheRevision((current) => current + 1)
+      refreshColumnStats()
       return "bottom" as const
     } catch (error) {
       onError?.(error)
       return undefined
     }
-  }, [onAddRow, onError])
+  }, [onAddRow, onError, refreshColumnStats])
 
   const handleGridSelectionChange = useCallback(
     (selection: GridSelection) => {
@@ -825,6 +954,7 @@ export function BaseGrid({
       if (!field) return
       event.preventDefault()
       setCellMenu(null)
+      setColumnStatMenu(null)
       setFieldMenu({ field, fieldIndex: columnIndex, bounds: event.bounds })
     },
     [fields]
@@ -839,6 +969,7 @@ export function BaseGrid({
       if (!field || !row) return
       event.preventDefault()
       setFieldMenu(null)
+      setColumnStatMenu(null)
       setCellMenu({
         bounds: event.bounds,
         field,
@@ -872,6 +1003,25 @@ export function BaseGrid({
     [onError, onViewUpdate]
   )
 
+  const updateColumnStat = useCallback(
+    (field: BaseFieldInfo, type: BaseColumnStatType | null) => {
+      const stored = view?.properties?.columnStats
+      const current =
+        typeof stored === "object" && stored !== null && !Array.isArray(stored)
+          ? { ...(stored as Record<string, unknown>) }
+          : {}
+      if (type) current[field.tableColumnName] = { type }
+      else delete current[field.tableColumnName]
+      updateView({
+        properties: {
+          ...(view?.properties ?? {}),
+          columnStats: current,
+        },
+      })
+    },
+    [updateView, view?.properties]
+  )
+
   const copyText = useCallback(
     (value: string) => {
       if (!value) return
@@ -889,6 +1039,16 @@ export function BaseGrid({
   const fieldSortDirection = fieldMenu
     ? view?.sorts.find((sort) => sort.field === fieldMenu.field.tableColumnName)
         ?.direction
+    : undefined
+  const fieldStatType = fieldMenu
+    ? columnStatConfigs.find(
+        (config) => config.columnName === fieldMenu.field.tableColumnName
+      )?.type
+    : undefined
+  const columnStatMenuValue = columnStatMenu
+    ? columnStatConfigs.find(
+        (config) => config.columnName === columnStatMenu.field.tableColumnName
+      )?.type
     : undefined
   const cellText = cellMenu
     ? baseRecordFieldText(cellMenu.row, cellMenu.field)
@@ -965,6 +1125,7 @@ export function BaseGrid({
           frozen={fieldMenu !== null && fieldMenu.fieldIndex < freezeColumns}
           canUpdateView={!disabled && Boolean(view && onViewUpdate)}
           canEditStructure={!disabled}
+          statType={fieldStatType}
           onOpenChange={(open) => {
             if (!open) setFieldMenu(null)
           }}
@@ -994,7 +1155,25 @@ export function BaseGrid({
               },
             })
           }
+          onCalculate={setColumnStatMenu}
           onDelete={(field) => onDeleteField?.(field)}
+        />
+        <BaseColumnStatMenu
+          state={columnStatMenu}
+          open={columnStatMenu !== null}
+          value={columnStatMenuValue}
+          disabled={disabled || !view || !onViewUpdate}
+          onOpenChange={(open) => {
+            if (!open) setColumnStatMenu(null)
+          }}
+          onBack={() => {
+            const state = columnStatMenu
+            setColumnStatMenu(null)
+            if (state) setFieldMenu(state)
+          }}
+          onChange={(type) => {
+            if (columnStatMenu) updateColumnStat(columnStatMenu.field, type)
+          }}
         />
         <BaseCellMenu
           state={cellMenu}

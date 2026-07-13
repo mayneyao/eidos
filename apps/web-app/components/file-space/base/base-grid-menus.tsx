@@ -1,9 +1,14 @@
 import type { ButtonHTMLAttributes, KeyboardEvent } from "react"
 import type {
+  BaseColumnStatType,
   BaseFieldInfo,
   BaseRow,
   BaseRowRange,
   BaseSortDirection,
+} from "@eidos.space/base"
+import {
+  baseColumnStatLabel,
+  baseColumnStatTypesForField,
 } from "@eidos.space/base"
 import type { Rectangle } from "@glideapps/glide-data-grid"
 import {
@@ -11,6 +16,9 @@ import {
   ArrowLeftToLine,
   ArrowRightToLine,
   ArrowUp,
+  Calculator,
+  Check,
+  ChevronLeft,
   Copy,
   ExternalLink,
   FileSearch,
@@ -50,7 +58,7 @@ function menuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
   event.preventDefault()
   const items = Array.from(
     event.currentTarget.querySelectorAll<HTMLElement>(
-      '[role="menuitem"]:not(:disabled)'
+      '[role="menuitem"]:not(:disabled), [role="menuitemradio"]:not(:disabled)'
     )
   )
   if (items.length === 0) return
@@ -96,6 +104,8 @@ export function BaseFieldMenu({
   canEditStructure,
   onOpenChange,
   onEditProperty,
+  statType,
+  onCalculate,
   onSort,
   onInsert,
   onToggleFreeze,
@@ -109,6 +119,8 @@ export function BaseFieldMenu({
   canEditStructure: boolean
   onOpenChange: (open: boolean) => void
   onEditProperty?: (field: BaseFieldInfo) => void
+  statType?: BaseColumnStatType
+  onCalculate?: (state: BaseFieldMenuState) => void
   onSort: (field: BaseFieldInfo, direction: BaseSortDirection | null) => void
   onInsert: (index: number) => void
   onToggleFreeze: (fieldIndex: number, frozen: boolean) => void
@@ -223,6 +235,18 @@ export function BaseFieldMenu({
               )}
               {frozen ? "Unfreeze columns" : "Freeze to this field"}
             </MenuItem>
+            {onCalculate ? (
+              <MenuItem
+                disabled={!canUpdateView}
+                onClick={() => run(() => onCalculate(state))}
+              >
+                <Calculator className="h-3.5 w-3.5" />
+                <span className="min-w-0 flex-1 truncate">
+                  Calculate
+                  {statType ? ` · ${baseColumnStatLabel(statType)}` : ""}
+                </span>
+              </MenuItem>
+            ) : null}
             <div className="my-1 h-px bg-border" role="separator" />
             <MenuItem
               destructive
@@ -234,6 +258,114 @@ export function BaseFieldMenu({
               <Trash2 className="h-3.5 w-3.5" />
               Delete field
             </MenuItem>
+          </>
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+export function BaseColumnStatMenu({
+  state,
+  open,
+  value,
+  disabled,
+  onOpenChange,
+  onBack,
+  onChange,
+}: {
+  state: BaseFieldMenuState | null
+  open: boolean
+  value?: BaseColumnStatType
+  disabled: boolean
+  onOpenChange: (open: boolean) => void
+  onBack: () => void
+  onChange: (value: BaseColumnStatType | null) => void
+}) {
+  const options = state ? baseColumnStatTypesForField(state.field) : []
+  const choose = (next: BaseColumnStatType | null) => {
+    onOpenChange(false)
+    onChange(next)
+  }
+
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverAnchor asChild>
+        <span
+          className="pointer-events-none fixed h-px w-px"
+          style={
+            state
+              ? {
+                  left: state.bounds.x,
+                  top: state.bounds.y + state.bounds.height,
+                }
+              : undefined
+          }
+        />
+      </PopoverAnchor>
+      <PopoverContent
+        align="start"
+        side="bottom"
+        sideOffset={2}
+        className="w-56 p-1"
+        role="menu"
+        aria-label={state ? `Calculate ${state.field.name}` : "Calculate"}
+        onKeyDown={menuKeyDown}
+      >
+        {state ? (
+          <>
+            <button
+              type="button"
+              className="mb-1 flex h-7 w-full items-center gap-2 rounded-[3px] px-2 text-left text-xs font-medium outline-hidden hover:bg-accent focus-visible:bg-accent"
+              onClick={onBack}
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              <span className="min-w-0 flex-1 truncate">
+                {state.field.name}
+              </span>
+            </button>
+            <div className="h-px bg-border" role="separator" />
+            <div className="max-h-72 overflow-y-auto py-1">
+              <MenuItem
+                role="menuitemradio"
+                aria-checked={value === undefined}
+                disabled={disabled}
+                onClick={() => choose(null)}
+              >
+                <span className="w-3.5 text-center text-muted-foreground">
+                  —
+                </span>
+                None
+                {value === undefined ? (
+                  <Check className="ml-auto h-3.5 w-3.5" />
+                ) : null}
+              </MenuItem>
+              {options.map((type) => (
+                <MenuItem
+                  key={type}
+                  role="menuitemradio"
+                  aria-checked={value === type}
+                  disabled={disabled}
+                  onClick={() => choose(type)}
+                >
+                  <span className="w-3.5 text-center text-[11px] text-muted-foreground">
+                    {type.startsWith("percent-")
+                      ? "%"
+                      : type === "sum"
+                        ? "Σ"
+                        : type === "average"
+                          ? "μ"
+                          : type === "range"
+                            ? "↔"
+                            : "#"}
+                  </span>
+                  {baseColumnStatLabel(type)}
+                  {value === type ? (
+                    <Check className="ml-auto h-3.5 w-3.5" />
+                  ) : null}
+                </MenuItem>
+              ))}
+            </div>
           </>
         ) : null}
       </PopoverContent>

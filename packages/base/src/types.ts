@@ -421,6 +421,33 @@ export interface BaseRowGroupCount {
   total: number
 }
 
+export type BaseColumnStatType =
+  | "count-all"
+  | "count-values"
+  | "count-unique"
+  | "count-empty"
+  | "count-not-empty"
+  | "checked"
+  | "unchecked"
+  | "percent-empty"
+  | "percent-not-empty"
+  | "percent-checked"
+  | "percent-unchecked"
+  | "sum"
+  | "average"
+  | "min"
+  | "max"
+  | "range"
+
+export interface BaseColumnStatConfig {
+  columnName: string
+  type: BaseColumnStatType
+}
+
+export interface BaseColumnStatResult extends BaseColumnStatConfig {
+  value: string | number | null
+}
+
 export interface BaseRowMutationResult {
   tableId: string
   row: BaseRow

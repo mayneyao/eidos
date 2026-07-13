@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
+  BaseColumnStatConfig,
   BaseFieldInfo,
   BaseFilterGroup,
   BaseFormulaPreviewInput,
@@ -157,6 +158,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     cancelCsvOperation,
     getTablePage,
     getTableGroupCounts,
+    getTableColumnStats,
     createTable,
     updateTable,
     deleteTable,
@@ -593,6 +595,16 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       )
     },
     [activeQuery, activeTableId, filePath, getTablePage]
+  )
+
+  const loadActiveColumnStats = useCallback(
+    (configs: BaseColumnStatConfig[]) => {
+      if (!activeTableId) {
+        return Promise.reject(new Error("No active Base table"))
+      }
+      return getTableColumnStats(filePath, activeTableId, configs, activeQuery)
+    },
+    [activeQuery, activeTableId, filePath, getTableColumnStats]
   )
 
   const loadKanbanGroupPage = useCallback(
@@ -1497,6 +1509,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               disabled={blockingMutations > 0}
               reloadToken={gridReloadToken}
               loadPage={loadActiveTablePage}
+              loadColumnStats={loadActiveColumnStats}
               onAddRow={createRow}
               onCellEdit={saveCell}
               onRowsEdit={saveRows}

@@ -4,6 +4,8 @@
 
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import type {
+  BaseColumnStatConfig,
+  BaseColumnStatResult,
   BaseRow,
   BaseRowGroupCount,
   BaseRowMutationResult,
@@ -662,6 +664,26 @@ export class SpaceManagementService extends IpcServiceBase {
         systemPath,
         tableId,
         columnName,
+        query
+      )
+    })
+  }
+
+  async getBaseTableColumnStats(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    configs: BaseColumnStatConfig[],
+    query: BaseRowQuery = {}
+  ): Promise<BaseColumnStatResult[]> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const files = this._getFileSpace(spaceId)
+      const systemPath = await files.getSystemPath(relativePath)
+      return this.baseQueryWorker.columnStats(
+        files.root,
+        systemPath,
+        tableId,
+        configs,
         query
       )
     })

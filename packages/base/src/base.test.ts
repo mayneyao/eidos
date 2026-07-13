@@ -821,6 +821,28 @@ describe("Eidos Base files", () => {
       null,
     ])
 
+    const conversionView = base.listViews("tasks")[0]
+    base.updateView(conversionView.id, {
+      properties: { columnStats: { score: { type: "sum" } } },
+    })
+    base.updateField("tasks", "score", { type: "text" })
+    expect(base.listViews("tasks")[0].properties).toMatchObject({
+      columnStats: {},
+    })
+
+    base.updateField("tasks", "summary", {
+      property: { formula: "title", displayType: "number" },
+    })
+    base.updateView(conversionView.id, {
+      properties: { columnStats: { summary: { type: "sum" } } },
+    })
+    base.updateField("tasks", "summary", {
+      property: { formula: "title", displayType: "text" },
+    })
+    expect(base.listViews("tasks")[0].properties).toMatchObject({
+      columnStats: {},
+    })
+
     expectBaseError(
       () => base.updateField("tasks", "summary", { type: "text" }),
       "invalid-schema"
@@ -869,7 +891,13 @@ describe("Eidos Base files", () => {
 
     const view = base.listViews("tasks")[0]
     base.updateView(view.id, {
-      properties: { fieldWidthMap: { title: 240, status: 160 } },
+      properties: {
+        fieldWidthMap: { title: 240, status: 160 },
+        columnStats: {
+          title: { type: "count-values" },
+          status: { type: "count-values" },
+        },
+      },
       orderMap: { title: 0, status: 1, notes: 2 },
       hiddenFields: ["status"],
     })
@@ -880,7 +908,10 @@ describe("Eidos Base files", () => {
       ])
     )
     expect(base.listViews("tasks")[0]).toMatchObject({
-      properties: { fieldWidthMap: { title: 240 } },
+      properties: {
+        fieldWidthMap: { title: 240 },
+        columnStats: { title: { type: "count-values" } },
+      },
       orderMap: { title: 0, notes: 1 },
       hiddenFields: [],
     })
@@ -1275,6 +1306,104 @@ describe("Eidos Base files", () => {
       base.deleteRows("records", ["row_3", "row_3", "row_9010", "missing"])
     ).toEqual(["row_3", "row_9010"])
     expect(base.countRows("records")).toBe(5_986)
+    base.close()
+  })
+
+  it("calculates filtered column stats in one query and rejects invalid combinations", () => {
+    const filePath = path.join(root, "stats.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: {
+        id: "tasks",
+        name: "Tasks",
+        fields: [
+          { name: "Points", columnName: "points", type: "number" },
+          { name: "Done", columnName: "done", type: "checkbox" },
+          { name: "Due", columnName: "due", type: "date" },
+          { name: "Status", columnName: "status", type: "select" },
+          {
+            name: "Labels",
+            columnName: "labels",
+            type: "multi-select",
+            storageCodec: "csv_ids",
+          },
+          { name: "Files", columnName: "files", type: "file" },
+        ],
+      },
+    })
+    base.insertRow("tasks", {
+      title: "Ship Base",
+      points: 3,
+      done: 1,
+      due: "2026-07-10",
+      status: "active",
+      labels: "docs,urgent",
+      files: '["assets/spec.md","assets/cover.png"]',
+    })
+    base.insertRow("tasks", {
+      title: "Write docs",
+      points: 5,
+      done: 0,
+      due: "2026-07-14",
+      status: "active",
+      labels: "docs",
+      files: "[]",
+    })
+    base.insertRow("tasks", {
+      title: "Archive draft",
+      points: null,
+      done: 0,
+      due: null,
+      status: "archived",
+    })
+
+    const get = vi.spyOn(base.connection, "get")
+    expect(
+      base.calculateColumnStats(
+        "tasks",
+        [
+          { columnName: "points", type: "sum" },
+          { columnName: "points", type: "average" },
+          { columnName: "done", type: "percent-checked" },
+          { columnName: "due", type: "range" },
+          { columnName: "title", type: "count-values" },
+          { columnName: "labels", type: "count-values" },
+          { columnName: "files", type: "count-empty" },
+        ],
+        {
+          filter: {
+            type: "group",
+            conjunction: "and",
+            children: [
+              {
+                type: "rule",
+                field: "status",
+                operator: "equals",
+                value: "active",
+              },
+            ],
+          },
+        }
+      )
+    ).toEqual([
+      { columnName: "points", type: "sum", value: 8 },
+      { columnName: "points", type: "average", value: 4 },
+      { columnName: "done", type: "percent-checked", value: 50 },
+      { columnName: "due", type: "range", value: 4 },
+      { columnName: "title", type: "count-values", value: 2 },
+      { columnName: "labels", type: "count-values", value: 3 },
+      { columnName: "files", type: "count-empty", value: 1 },
+    ])
+    expect(
+      get.mock.calls.filter(([sql]) => sql.includes("__base_stat_0"))
+    ).toHaveLength(1)
+
+    expectBaseError(
+      () =>
+        base.calculateColumnStats("tasks", [
+          { columnName: "title", type: "sum" },
+        ]),
+      "invalid-query"
+    )
     base.close()
   })
 })

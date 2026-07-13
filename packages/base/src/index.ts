@@ -1,4 +1,8 @@
 export * from "./connection"
+export {
+  baseColumnStatLabel,
+  baseColumnStatTypesForField,
+} from "./column-stats"
 export * from "./constants"
 export * from "./errors"
 export * from "./field-conversion"

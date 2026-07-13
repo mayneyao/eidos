@@ -35,6 +35,8 @@ import {
   removeBaseFilterField,
 } from "./query"
 import type {
+  BaseColumnStatConfig,
+  BaseColumnStatResult,
   BaseFieldInfo,
   BaseFieldPlacement,
   BaseFieldType,
@@ -60,6 +62,11 @@ import type {
   UpdateBaseTableInput,
   UpdateBaseViewInput,
 } from "./types"
+import {
+  baseColumnStatTypesForField,
+  compileBaseColumnStatExpression,
+  normalizeBaseColumnStatConfigs,
+} from "./column-stats"
 import { validateBase } from "./validation"
 
 interface RegistryRow {
@@ -1230,6 +1237,41 @@ export class BaseRuntime {
     setBaseMetadata(this.connection, {})
   }
 
+  private removeUnsupportedColumnStats(
+    tableId: string,
+    field: BaseFieldInfo
+  ): void {
+    for (const view of this.listViews(tableId)) {
+      const properties = { ...(view.properties ?? {}) }
+      const columnStats = properties.columnStats
+      if (
+        typeof columnStats !== "object" ||
+        columnStats === null ||
+        Array.isArray(columnStats)
+      ) {
+        continue
+      }
+      const nextStats: Record<string, unknown> = { ...columnStats }
+      const config = nextStats[field.tableColumnName]
+      if (config === undefined) continue
+      const type =
+        typeof config === "object" &&
+        config !== null &&
+        typeof (config as { type?: unknown }).type === "string"
+          ? (config as { type: BaseColumnStatConfig["type"] }).type
+          : null
+      if (type && baseColumnStatTypesForField(field).includes(type)) continue
+      delete nextStats[field.tableColumnName]
+      properties.columnStats = nextStats
+      this.connection.run(
+        `UPDATE ${BASE_VIEWS_TABLE}
+            SET properties = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?`,
+        [JSON.stringify(properties), view.id]
+      )
+    }
+  }
+
   updateField(
     tableId: string,
     columnName: string,
@@ -1318,6 +1360,18 @@ export class BaseRuntime {
             field.tableColumnName,
           ]
         )
+        const convertedField: BaseFieldInfo = {
+          ...field,
+          name,
+          type: targetType,
+          property,
+          storageCodec: plan.storageCodec,
+          valueKind: "source",
+          isDerived: false,
+          sourceTableColumnName: null,
+          dependsOn: null,
+        }
+        this.removeUnsupportedColumnStats(tableId, convertedField)
         setBaseMetadata(this.connection, {})
       })
       return this.getField(tableId, field.tableColumnName)
@@ -1445,6 +1499,12 @@ export class BaseRuntime {
           field.tableColumnName,
         ]
       )
+      this.removeUnsupportedColumnStats(tableId, {
+        ...field,
+        name,
+        property,
+        dependsOn,
+      })
       setBaseMetadata(this.connection, {})
     })
     return this.getField(tableId, field.tableColumnName)
@@ -1572,6 +1632,16 @@ export class BaseRuntime {
           const nextWidths: Record<string, unknown> = { ...fieldWidthMap }
           delete nextWidths[field.tableColumnName]
           properties.fieldWidthMap = nextWidths
+        }
+        const columnStats = properties.columnStats
+        if (
+          typeof columnStats === "object" &&
+          columnStats !== null &&
+          !Array.isArray(columnStats)
+        ) {
+          const nextStats: Record<string, unknown> = { ...columnStats }
+          delete nextStats[field.tableColumnName]
+          properties.columnStats = nextStats
         }
         this.connection.run(
           `UPDATE ${BASE_VIEWS_TABLE}
@@ -1717,6 +1787,50 @@ export class BaseRuntime {
         value: group.value,
         total: Number(group.total),
       }))
+  }
+
+  calculateColumnStats(
+    tableId: string,
+    configs: BaseColumnStatConfig[],
+    query: BaseRowQuery = {}
+  ): BaseColumnStatResult[] {
+    const fields = this.listFields(tableId)
+    const normalized = normalizeBaseColumnStatConfigs(configs, fields)
+    if (normalized.length === 0) return []
+    const byColumn = new Map(
+      fields.map((field) => [field.tableColumnName, field])
+    )
+    const compiled = compileBaseRowQuery(fields, query)
+    const aliases = normalized.map((_, index) => `__base_stat_${index}`)
+    const select = normalized.map((config, index) => {
+      const field = byColumn.get(config.columnName)
+      if (!field) {
+        throw new BaseError(
+          "field-not-found",
+          `Base field not found: ${config.columnName}`
+        )
+      }
+      return `${compileBaseColumnStatExpression(field, config.type)} AS ${quoteIdentifier(aliases[index])}`
+    })
+    const result = this.connection.get<Record<string, BaseSqlPrimitive>>(
+      `SELECT ${select.join(", ")}
+         FROM ${this.rowSourceSql(tableId, fields)}
+         ${compiled.whereSql}`,
+      compiled.params
+    )
+    return normalized.map((config, index) => {
+      const value = result?.[aliases[index]] ?? null
+      if (value instanceof Uint8Array) {
+        throw new BaseError(
+          "invalid-query",
+          `Column stat returned binary data for ${config.columnName}`
+        )
+      }
+      return {
+        ...config,
+        value: typeof value === "bigint" ? Number(value) : value,
+      }
+    })
   }
 
   getRowPage(

@@ -1,5 +1,7 @@
 import { useCallback } from "react"
 import type {
+  BaseColumnStatConfig,
+  BaseColumnStatResult,
   BaseRow,
   BaseRowGroupCount,
   BaseRowMutationResult,
@@ -129,6 +131,23 @@ export function useSpaceBase(spaceId: string | undefined) {
         relativePath,
         tableId,
         columnName,
+        query
+      ),
+    [requireSpaceId]
+  )
+
+  const getTableColumnStats = useCallback(
+    (
+      relativePath: string,
+      tableId: string,
+      configs: BaseColumnStatConfig[],
+      query: BaseRowQuery = {}
+    ): Promise<BaseColumnStatResult[]> =>
+      requireBaseApi().getBaseTableColumnStats(
+        requireSpaceId(),
+        relativePath,
+        tableId,
+        configs,
         query
       ),
     [requireSpaceId]
@@ -383,6 +402,7 @@ export function useSpaceBase(spaceId: string | undefined) {
     getSnapshot,
     getTablePage,
     getTableGroupCounts,
+    getTableColumnStats,
     createTable,
     updateTable,
     deleteTable,

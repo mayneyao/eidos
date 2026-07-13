@@ -62,6 +62,11 @@ function createTasks(filePath, count, titlePrefix) {
             ],
           },
         },
+        {
+          name: "Points",
+          columnName: "points",
+          type: "number",
+        },
       ],
     },
   })
@@ -70,6 +75,7 @@ function createTasks(filePath, count, titlePrefix) {
       base.insertRow("tasks", {
         title: `${titlePrefix} ${index + 1}`,
         status: index % 2 === 0 ? "todo" : "done",
+        points: index + 1,
       })
     }
   })
@@ -105,6 +111,34 @@ try {
     ]
   )
 
+  const stats = await request({
+    operation: "column-stats",
+    filePath: basePath,
+    tableId: "tasks",
+    configs: [
+      { columnName: "points", type: "sum" },
+      { columnName: "points", type: "average" },
+    ],
+    query: {
+      filter: {
+        type: "group",
+        conjunction: "and",
+        children: [
+          {
+            type: "rule",
+            field: "status",
+            operator: "equals",
+            value: "todo",
+          },
+        ],
+      },
+    },
+  })
+  assert.deepEqual(stats.stats, [
+    { columnName: "points", type: "sum", value: 1_000_000 },
+    { columnName: "points", type: "average", value: 1_000 },
+  ])
+
   createTasks(replacementPath, 1, "Replacement")
   await rename(replacementPath, basePath)
   const replacedPage = await request({
@@ -123,6 +157,7 @@ try {
         (total, group) => total + group.total,
         0
       ),
+      filteredSum: stats.stats[0].value,
       replacementInvalidation: replacedPage.page.rows[0].title,
     })
   )

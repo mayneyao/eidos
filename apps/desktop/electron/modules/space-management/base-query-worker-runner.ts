@@ -1,4 +1,6 @@
 import type {
+  BaseColumnStatConfig,
+  BaseColumnStatResult,
   BaseRowGroupCount,
   BaseRowPage,
   BaseRowPageOptions,
@@ -32,6 +34,7 @@ interface BaseQueryWorkerHandle {
 type BaseQueryRequestInput =
   | Omit<Extract<BaseQueryWorkerRequest, { operation: "page" }>, "id">
   | Omit<Extract<BaseQueryWorkerRequest, { operation: "group-counts" }>, "id">
+  | Omit<Extract<BaseQueryWorkerRequest, { operation: "column-stats" }>, "id">
 
 @Injectable()
 export class BaseQueryWorkerRunner {
@@ -86,6 +89,27 @@ export class BaseQueryWorkerRunner {
       throw new Error("Base query worker returned an unexpected response")
     }
     return response.counts
+  }
+
+  async columnStats(
+    spacePath: string,
+    filePath: string,
+    tableId: string,
+    configs: BaseColumnStatConfig[],
+    query: BaseRowQuery
+  ): Promise<BaseColumnStatResult[]> {
+    const response = await this.run(spacePath, {
+      operation: "column-stats",
+      filePath,
+      tableId,
+      configs,
+      query,
+    })
+    if (!response.ok) throw this.error(response.name, response.message)
+    if (response.operation !== "column-stats") {
+      throw new Error("Base query worker returned an unexpected response")
+    }
+    return response.stats
   }
 
   async close(spacePath?: string): Promise<void> {

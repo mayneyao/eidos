@@ -104,6 +104,29 @@ describe("BaseQueryWorkerRunner", () => {
     })
 
     await expect(countsPromise).resolves.toEqual([{ value: "todo", total: 1 }])
+
+    const statsPromise = runner.columnStats(
+      "/space",
+      "/space/tasks.base",
+      "tasks",
+      [{ columnName: "points", type: "sum" }],
+      { search: "release" }
+    )
+    const statsRequest = worker.postMessage.mock.calls[2][0]
+    expect(statsRequest).toMatchObject({
+      operation: "column-stats",
+      configs: [{ columnName: "points", type: "sum" }],
+      query: { search: "release" },
+    })
+    worker.emit("message", {
+      id: statsRequest.id,
+      ok: true,
+      operation: "column-stats",
+      stats: [{ columnName: "points", type: "sum", value: 8 }],
+    })
+    await expect(statsPromise).resolves.toEqual([
+      { columnName: "points", type: "sum", value: 8 },
+    ])
     expect(harness.workers).toHaveLength(1)
   })
 
