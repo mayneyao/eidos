@@ -141,6 +141,12 @@ row ID 去重。Inspector 修改分组字段也复用同一套跨列迁移。没
 的同名列请求。row count 通知只依赖分组 totals，不再因为 rows 数组或 loading 状态变化而让父编辑器
 重渲染，避免大分组分页期间的额外工作。
 
+Kanban 的渲染边界现在也与分页边界一致：group state 更新保留未受影响列的对象引用，列组件使用稳定的
+move/collapse/load/create callbacks 和只随 Select options 变化的移动目标列表。单列首屏、自动分页或
+loading 状态变化只重渲染该列，不会重算其他可见列。共享 record card 同样使用稳定 props 的 memo
+边界，因此 Gallery 自动加载和 Kanban 局部更新不会重复执行未变化 card 的字段格式化、菜单构造和
+cover 子树渲染；row 或 view 真正变化时仍会正常更新。
+
 CSV 导入的文件选择、分析和写入现在也保持锚定式、非模态工作流。原生 picker 返回后 mapping
 panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以原位取消。取消会终止隔离 worker、
 等待 SQLite transaction 回滚，再解除当前 Base 的 mutation lock，因此重试不会和仍在退出的

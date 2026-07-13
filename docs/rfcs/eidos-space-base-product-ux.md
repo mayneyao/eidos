@@ -200,6 +200,16 @@ a newer column request. Row-count notifications depend on grouped totals rather
 than row-array or loading-state changes, avoiding parent editor rerenders while
 large columns page through cards.
 
+Kanban rendering now follows the same boundary as paging. Group updates retain
+the object identity of unaffected columns, while column components receive
+stable move, collapse, load, and create callbacks plus a move-target list that
+changes only with Select options. Loading an initial page, an automatic next
+page, or a loading flag in one group therefore rerenders only that column, not
+every visible column. The shared record card also has a stable-props memo
+boundary, so Gallery paging and local Kanban updates do not repeat field
+formatting, menu construction, or cover-subtree rendering for unchanged cards;
+real row or view changes still render normally.
+
 CSV selection, analysis, and writing now follow the same anchored, non-modal
 workflow. The mapping panel opens as soon as the native picker returns;
 analysis and import expose real byte/row progress and can be canceled in place.
