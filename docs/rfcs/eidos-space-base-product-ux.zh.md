@@ -146,7 +146,10 @@ Base 日常编辑和配置优先使用单元格内编辑、表头菜单、锚定
 
 file Space Settings 已拆分为 General、Files/Obsidian、Versioning 和派生 Indexes；
 legacy Space Settings 也已提供 server-owned migration preview、progress、validation、
-reveal 和 open-new-Space actions。原生 Space sync 与 path-first 文本 conflict
+reveal 和 open-new-Space actions。Settings 布局现在使用显式的 surface ownership：
+简单设置行共享一层 Codex 风格分组边框，Account、provider、channel 等已有 Card/List
+结构的富内容模块则保留自身容器，不再被通用 Card 二次包裹。这样会消除嵌套边框，
+同时保持全局与 Space settings 的 section 节奏一致。原生 Space sync 与 path-first 文本 conflict
 resolution 已通过双 Space Desktop 验收。Base conflict 现在会打开独立的非模态审阅 tab：
 Graft 的 row/schema/opaque artifact 会保持结构化，row 值按 Base/current/incoming 字段对比，
 每个受支持的 row 可以独立选择保留 current 或接受 incoming；schema 和 opaque conflict 会明确

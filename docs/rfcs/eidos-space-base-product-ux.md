@@ -198,6 +198,11 @@ modal.
 File-Space Settings separates General, Files/Obsidian, Versioning, and derived
 Indexes controls. Legacy-Space Settings also provides server-owned migration
 preview, progress, validation, reveal, and open-new-Space actions. Native Space
+Settings layout now uses explicit surface ownership: simple setting rows share
+one Codex-style bordered group, while Account, provider, channel, and other
+rich modules retain their own cards without a generic card being injected
+around them. This prevents nested borders while keeping section rhythm
+consistent across both global and Space settings. Native Space
 sync and path-first text conflict resolution now pass a two-Space Desktop
 acceptance flow. Base conflicts now open in a dedicated, non-modal review tab:
 Graft row/schema/opaque artifacts remain structured, row values are compared as
