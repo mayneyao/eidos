@@ -24,6 +24,7 @@ import {
   RefreshCw,
   Table2,
   Trash2,
+  X,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -218,20 +219,23 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     })
   }, [])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      applySnapshot(await getSnapshot(filePath))
-      setGridReloadToken((current) => current + 1)
-      setError(null)
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError.message : "Unable to open Base"
-      )
-    } finally {
-      setLoading(false)
-    }
-  }, [applySnapshot, filePath, getSnapshot])
+  const load = useCallback(
+    async (options: { preserveError?: boolean } = {}) => {
+      setLoading(true)
+      try {
+        applySnapshot(await getSnapshot(filePath))
+        setGridReloadToken((current) => current + 1)
+        if (!options.preserveError) setError(null)
+      } catch (loadError) {
+        setError(
+          loadError instanceof Error ? loadError.message : "Unable to open Base"
+        )
+      } finally {
+        setLoading(false)
+      }
+    },
+    [applySnapshot, filePath, getSnapshot]
+  )
 
   const refreshFromFileChange = useCallback(async () => {
     try {
@@ -474,13 +478,13 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             setLastSavedAt(Date.now())
             return result
           },
-          (mutationError) => {
+          async (mutationError) => {
             setError(
               mutationError instanceof Error
                 ? mutationError.message
                 : "Unable to update Base"
             )
-            void load()
+            await load({ preserveError: true })
             throw mutationError
           }
         )
@@ -1202,7 +1206,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
             Show in file manager
           </Button>
-          <Button variant="outline" size="sm" onClick={load}>
+          <Button variant="outline" size="sm" onClick={() => void load()}>
             Try again
           </Button>
         </div>
@@ -1355,8 +1359,22 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       </div>
 
       {error ? (
-        <div className="shrink-0 border-b border-destructive/20 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">
-          {error}
+        <div
+          className="flex shrink-0 items-start gap-2 border-b border-destructive/20 bg-destructive/5 px-3 py-1.5 text-xs text-destructive"
+          role="alert"
+        >
+          <span className="min-w-0 flex-1 break-words py-0.5">{error}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 shrink-0 text-destructive hover:text-destructive"
+            aria-label="Dismiss Base error"
+            title="Dismiss"
+            onClick={() => setError(null)}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
         </div>
       ) : null}
 

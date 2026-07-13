@@ -299,7 +299,7 @@ vi.mock("./base-grid", () => ({
       row: { _id: string; title: string; status: string },
       field: (typeof snapshot)["tables"][number]["fields"][number],
       value: string
-    ) => void
+    ) => Promise<unknown>
     onRowsEdit?: (
       edits: Array<{
         row: { _id: string; title: string; status: string }
@@ -360,7 +360,11 @@ vi.mock("./base-grid", () => ({
         <button
           type="button"
           onClick={() => {
-            if (row && title) onCellEdit(row, title, "Write implementation")
+            if (row && title) {
+              void onCellEdit(row, title, "Write implementation").catch(
+                () => undefined
+              )
+            }
           }}
         >
           Edit title
@@ -1033,6 +1037,31 @@ describe("SpaceBaseEditor", () => {
       await Promise.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
+  })
+
+  it("keeps a failed save visible after restoring persisted rows", async () => {
+    updateRowMock.mockRejectedValueOnce(new Error("Base file is read-only"))
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit title")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(getSnapshotMock).toHaveBeenCalledTimes(2)
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Base file is read-only"
+    )
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Dismiss Base error"]')
+        ?.click()
+    })
+    expect(container.querySelector('[role="alert"]')).toBeNull()
   })
 
   it("adds tables and fields through the Base structure API", async () => {
