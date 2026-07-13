@@ -211,6 +211,15 @@ Record Inspector 自动保存与 Kanban 行内新建也遵循同一套局部恢�
 全局 Base alert。Card 移动失败仍只回滚受影响的列并在局部播报恢复。Grid cell 目前没有等价的锚定式
 恢复界面，因此其直接写入仍使用全局错误。
 
+Base 的次级工作区现在根据 active editor 的实际可用空间响应，而不是使用整个应用窗口宽度。Grid、
+Gallery 和 Kanban 在主 view 至少还能保留 440px 时，将 320px Record Inspector 或 Field Property
+panel 保持在 flex 布局中；低于由此得到的 760px 内容断点后，同一个 panel 会成为不透明的右侧覆盖层，
+不再挤压或重新测量表格/card viewport。Panel 保留关闭动作和完整内容，也可以收缩到 editor 全宽，
+无需引入 modal。Formula composer 使用独立容器断点：600px 以上保持 editor 与 reference browser 双栏，
+以下重排为单栏并限制 reference list 高度；低于 420px 时 display selector 使用全宽。Formula popover
+同时受当前可用 viewport 高度约束并在内部滚动，因此 Desktop 窗口缩小时，editor、preview、references
+和保存动作仍然可达。
+
 CSV 导入的文件选择、分析和写入现在也保持锚定式、非模态工作流。原生 picker 返回后 mapping
 panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以原位取消。取消会终止隔离 worker、
 等待 SQLite transaction 回滚，再解除当前 Base 的 mutation lock，因此重试不会和仍在退出的

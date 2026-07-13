@@ -339,6 +339,20 @@ alert. Failed card moves continue to roll back only the affected columns and
 announce the local revert. Direct Grid cell writes remain global because the
 Grid does not yet provide an equivalent anchored recovery surface.
 
+Base secondary workspaces now adapt to the space available inside the active
+editor rather than to the application window. Grid, Gallery, and Kanban keep
+the 320px Record Inspector or Field Property panel in the flex layout while at
+least 440px remains for the primary view; below the resulting 760px
+content-driven boundary, the same panel becomes an opaque right-side overlay
+instead of compressing or remeasuring the table/card viewport. The panel keeps
+its close action and complete content, and can shrink to the full editor width
+without introducing a modal. Formula composition uses its own container
+boundary: the editor and reference browser remain side by side above 600px,
+then stack into one column with a bounded reference list. Below 420px the
+display selector becomes full width. Formula popovers are constrained to the
+available viewport height and scroll internally, so the editor, preview,
+references, and save actions remain reachable in a resized Desktop window.
+
 View configuration controls also expose explicit names and state for switch,
 select, layout, and card-size groups. Base progress indicators respect reduced
 motion preferences without removing their textual status, so pending work stays
