@@ -36,6 +36,15 @@ opening a centered dialog; each view owns its query, field visibility, column
 order, and width state. Imported non-Grid view metadata remains visible but is
 not presented as a working layout until that renderer exists.
 
+Base navigation now follows a workbook hierarchy instead of mixing tables and
+views in one toolbar. The active table's views occupy the top tab strip, while
+tables switch as Excel-style sheets in a persistent bottom bar; view creation
+and management remain anchored to the view strip, and save state moves into the
+sheet bar. Grid also reuses the legacy table's measured scrollbar compensation:
+when columns fit, the sticky trailing row no longer reserves an empty horizontal
+scrollbar band; when columns overflow, the native scrollbar keeps its full
+height.
+
 File fields now use a Base-specific multi-attachment cell adapted from the
 existing table interaction. Users can import files into the visible Space
 `assets/` folder, drop files onto a cell, reorder or remove attachments, open

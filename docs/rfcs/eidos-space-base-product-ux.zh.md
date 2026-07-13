@@ -30,6 +30,12 @@ AND/OR 编辑模型，并支持派生 Formula/Lookup 字段。筛选/排序分�
 显隐、列顺序和列宽。迁移导入的非 Grid view metadata 会继续保留并显示类型，但在
 相应 renderer 完成前不会伪装成可工作的布局。
 
+Base 导航现在按 workbook 层级组织，不再把 table 和 view 混在同一工具栏：当前 table 的
+views 占据顶部 tab strip，tables 则作为 Excel 风格 sheets 常驻底部切换；view 新建与管理
+仍锚定在顶部，保存状态移入底部 sheet bar。Grid 同时复用了 legacy table 的实测 scrollbar
+补偿：列宽未溢出时，sticky trailing row 不再为不存在的横向滚动条保留空白带；列宽溢出时
+则完整保留原生横向滚动条高度。
+
 file 字段现在使用从原表格交互适配出的 Base 专用多附件 cell。用户可以把文件导入
 Space 可见的 `assets/` 目录、拖放到单元格、重排或移除附件、在 Eidos 中打开，或在
 文件管理器中定位。日常附件编辑保持在 Grid overlay 内，只有必要的原生文件选择器会
