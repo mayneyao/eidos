@@ -192,7 +192,11 @@ draggable metadata instead of serializing and reinserting the complete card
 DOM, so starting a drag has constant preview complexity even when a card has a
 cover and many visible fields. The preview uses theme tokens and reduced-motion
 safe opacity feedback rather than hard-coded light/dark colors or decorative
-rotation and scaling.
+rotation and scaling. Pointer dragging now requires six pixels of deliberate
+movement, while pointer and keyboard events from buttons, links, and inputs
+inside a card remain owned by those controls. Blocking Base mutations disable
+the draggable card itself, and cancelled or same-column drops no longer show a
+successful-move highlight.
 Kanban startup now uses one grouped-count query for all columns and loads the
 first record page only for uncollapsed columns in the horizontal window. Each
 column also uses dynamic-height vertical virtualization and automatic paging,
@@ -263,6 +267,9 @@ alert after the inline retry has succeeded. Kanban grouped-count failures use
 the same boundary: a failed first count leaves the board idle with an inline
 Retry, while a failed count refresh keeps the mounted columns interactive and
 offers a compact retry bar instead of replacing the board or leaving it busy.
+Initial, refresh, and automatic-page failures are exposed as local alert live
+regions, while progress remains a status region. Recovery is therefore visible
+to assistive technology without duplicating the error in the global Base alert.
 
 CSV selection, analysis, and writing now follow the same anchored, non-modal
 workflow. The mapping panel opens as soon as the native picker returns;
