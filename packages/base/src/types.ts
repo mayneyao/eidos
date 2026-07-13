@@ -419,6 +419,19 @@ export interface BaseRowMutationResult {
   revision?: string
 }
 
+export interface BaseRowUpdate {
+  rowId: string
+  changes: BaseRow
+}
+
+export interface BaseRowsMutationResult {
+  tableId: string
+  rows: BaseRow[]
+  rowCount: number
+  /** Base metadata revision after the committed mutation. */
+  revision?: string
+}
+
 export interface BaseRowRange {
   startIndex: number
   endIndex: number

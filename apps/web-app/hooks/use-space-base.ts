@@ -2,9 +2,11 @@ import { useCallback } from "react"
 import type {
   BaseRow,
   BaseRowMutationResult,
+  BaseRowsMutationResult,
   BaseRowPage,
   BaseRowQuery,
   BaseRowRange,
+  BaseRowUpdate,
   BaseRowsDeleteResult,
   BaseSnapshot,
   BaseCsvImportOptions,
@@ -305,6 +307,21 @@ export function useSpaceBase(spaceId: string | undefined) {
     [requireSpaceId]
   )
 
+  const updateRows = useCallback(
+    (
+      relativePath: string,
+      tableId: string,
+      updates: BaseRowUpdate[]
+    ): Promise<BaseRowsMutationResult> =>
+      requireBaseApi().updateBaseRows(
+        requireSpaceId(),
+        relativePath,
+        tableId,
+        updates
+      ),
+    [requireSpaceId]
+  )
+
   const deleteRows = useCallback(
     (
       relativePath: string,
@@ -360,6 +377,7 @@ export function useSpaceBase(spaceId: string | undefined) {
     reorderViews,
     insertRow,
     updateRow,
+    updateRows,
     deleteRows,
     deleteRowRanges,
   }

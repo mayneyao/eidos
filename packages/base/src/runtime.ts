@@ -46,6 +46,7 @@ import type {
   BaseRowPage,
   BaseRowQuery,
   BaseRowRange,
+  BaseRowUpdate,
   BaseStorageCodec,
   BaseTableInfo,
   BaseViewInfo,
@@ -1828,6 +1829,10 @@ export class BaseRuntime {
   }
 
   updateRow(tableId: string, rowId: string, changes: BaseRow): BaseRow {
+    return this.updateRows(tableId, [{ rowId, changes }])[0]
+  }
+
+  updateRows(tableId: string, updates: BaseRowUpdate[]): BaseRow[] {
     const table = this.getTable(tableId)
     const fields = this.listFields(tableId)
     const fieldsByColumn = new Map(
@@ -1843,45 +1848,60 @@ export class BaseRuntime {
         )
         .map((field) => field.tableColumnName)
     )
-    const columns = Object.keys(changes).filter((column) => column !== "_id")
-    for (const column of columns) {
-      if (!allowedColumns.has(column)) {
-        throw new BaseError(
-          "field-not-found",
-          `Base field not found: ${column}`
-        )
+    const prepared = updates.map(({ rowId, changes }) => {
+      const columns = Object.keys(changes).filter((column) => column !== "_id")
+      for (const column of columns) {
+        if (!allowedColumns.has(column)) {
+          throw new BaseError(
+            "field-not-found",
+            `Base field not found: ${column}`
+          )
+        }
       }
-    }
-    const row = this.connection.transaction(() => {
-      if (columns.length > 0) {
-        const assignments = columns
-          .map((column) => `${quoteIdentifier(column)} = ?`)
-          .join(", ")
-        const result = this.connection.run(
-          `UPDATE ${quoteIdentifier(table.rawTableName)}
-              SET ${assignments}, _last_edited_time = CURRENT_TIMESTAMP
-            WHERE _id = ?`,
-          [
-            ...columns.map((column) =>
-              sqliteParameter(
-                writableFieldValue(fieldsByColumn.get(column), changes[column])
-              )
-            ),
-            rowId,
-          ]
-        )
-        if (result.changes === 0) {
+      return { rowId, changes, columns }
+    })
+    if (prepared.length === 0) return []
+
+    const rows = this.connection.transaction(() => {
+      let mutated = false
+      for (const { rowId, changes, columns } of prepared) {
+        if (columns.length > 0) {
+          const assignments = columns
+            .map((column) => `${quoteIdentifier(column)} = ?`)
+            .join(", ")
+          const result = this.connection.run(
+            `UPDATE ${quoteIdentifier(table.rawTableName)}
+                SET ${assignments}, _last_edited_time = CURRENT_TIMESTAMP
+              WHERE _id = ?`,
+            [
+              ...columns.map((column) =>
+                sqliteParameter(
+                  writableFieldValue(
+                    fieldsByColumn.get(column),
+                    changes[column]
+                  )
+                )
+              ),
+              rowId,
+            ]
+          )
+          if (result.changes === 0) {
+            throw new BaseError("row-not-found", `Row not found: ${rowId}`)
+          }
+          mutated = true
+        }
+      }
+      if (mutated) setBaseMetadata(this.connection, {})
+
+      return prepared.map(({ rowId }) => {
+        const updated = this.getComputedRow(tableId, rowId, fields)
+        if (!updated) {
           throw new BaseError("row-not-found", `Row not found: ${rowId}`)
         }
-        setBaseMetadata(this.connection, {})
-      }
-      const updated = this.getComputedRow(tableId, rowId, fields)
-      if (!updated) {
-        throw new BaseError("row-not-found", `Row not found: ${rowId}`)
-      }
-      return updated
+        return updated
+      })
     })
-    return this.hydrateRelationRows([row], fields)[0]
+    return this.hydrateRelationRows(rows, fields)
   }
 
   deleteRow(tableId: string, rowId: string): boolean {

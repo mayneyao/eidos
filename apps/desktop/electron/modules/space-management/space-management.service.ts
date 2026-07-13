@@ -6,10 +6,12 @@ import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import type {
   BaseRow,
   BaseRowMutationResult,
+  BaseRowsMutationResult,
   BaseRowPage,
   BaseRowPageOptions,
   BaseRowQuery,
   BaseRowRange,
+  BaseRowUpdate,
   BaseRowsDeleteResult,
   BaseSnapshot,
   BaseCsvImportOptions,
@@ -892,6 +894,28 @@ export class SpaceManagementService extends IpcServiceBase {
         return {
           tableId,
           row: updated,
+          rowCount: base.countRows(tableId),
+          revision: base.info().updatedAt,
+        }
+      } finally {
+        base.close()
+      }
+    })
+  }
+
+  async updateBaseRows(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    updates: BaseRowUpdate[]
+  ): Promise<BaseRowsMutationResult> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        const rows = base.updateRows(tableId, updates)
+        return {
+          tableId,
+          rows,
           rowCount: base.countRows(tableId),
           revision: base.info().updatedAt,
         }

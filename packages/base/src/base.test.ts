@@ -136,6 +136,46 @@ describe("Eidos Base files", () => {
     expect(
       base.updateRow("tasks", String(inserted._id), { status: "done" })
     ).toMatchObject({ status: "done" })
+
+    const second = base.insertRow("tasks", {
+      title: "Document release",
+      status: "todo",
+    })
+    expect(
+      base.updateRows("tasks", [
+        {
+          rowId: String(inserted._id),
+          changes: { title: "Ship Base", status: "todo" },
+        },
+        {
+          rowId: String(second._id),
+          changes: { title: "Publish docs", status: "done" },
+        },
+      ])
+    ).toMatchObject([
+      { title: "Ship Base", status: "todo" },
+      { title: "Publish docs", status: "done" },
+    ])
+
+    expectBaseError(
+      () =>
+        base.updateRows("tasks", [
+          {
+            rowId: String(inserted._id),
+            changes: { title: "Must roll back" },
+          },
+          { rowId: "missing-row", changes: { title: "Missing" } },
+        ]),
+      "row-not-found"
+    )
+    expect(base.listRows("tasks")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          _id: inserted._id,
+          title: "Ship Base",
+        }),
+      ])
+    )
     base.connection.run(
       `UPDATE ${BASE_META_TABLE} SET value = ? WHERE key = 'updated_at'`,
       ["2000-01-01T00:00:00.000Z"]
@@ -146,8 +186,9 @@ describe("Eidos Base files", () => {
       "row-not-found"
     )
     expect(base.info().updatedAt).toBe(metadataBeforeMissingUpdate)
-    expect(base.listRows("tasks")).toHaveLength(1)
+    expect(base.listRows("tasks")).toHaveLength(2)
     expect(base.deleteRow("tasks", String(inserted._id))).toBe(true)
+    expect(base.deleteRow("tasks", String(second._id))).toBe(true)
     expect(base.listRows("tasks")).toEqual([])
     base.close()
 
