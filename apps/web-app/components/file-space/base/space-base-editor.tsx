@@ -26,6 +26,7 @@ import {
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { useOptionalTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
 import {
   isSameOrDescendant,
   toSpaceFileUrl,
@@ -38,6 +39,7 @@ import {
 } from "@/apps/web-app/hooks/use-space-files"
 import { Button } from "@/components/ui/button"
 import { useTabStore } from "@/apps/web-app/store/tabs"
+import { useQuickOpenStore } from "@/apps/web-app/store/quick-open-store"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -128,6 +130,13 @@ function combineBaseFilters(
 
 export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
+  const tabContext = useOptionalTabContext()
+  const registerQuickOpenSection = useQuickOpenStore(
+    (state) => state.registerSection
+  )
+  const unregisterQuickOpenSection = useQuickOpenStore(
+    (state) => state.unregisterSection
+  )
   const { currentSpace } = useCurrentSpace()
   const {
     reveal,
@@ -266,6 +275,71 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       snapshot?.tables.find(({ table }) => table.id === activeTableId) ?? null,
     [activeTableId, snapshot?.tables]
   )
+
+  useEffect(() => {
+    if (!tabContext?.tabId || !snapshot) return
+    const tabId = tabContext.tabId
+    const baseName = filePath.split("/").at(-1) ?? filePath
+    registerQuickOpenSection(tabId, {
+      id: "base-tables",
+      heading: `Tables in ${baseName}`,
+      inputHint: baseName,
+      priority: 100,
+      items: snapshot.tables.map((candidate) => ({
+        id: candidate.table.id,
+        kind: "base-table" as const,
+        label: candidate.table.name,
+        detail: `${candidate.rowCount.toLocaleString()} ${
+          candidate.rowCount === 1 ? "row" : "rows"
+        }`,
+        keywords: [filePath, candidate.table.rawTableName],
+        current: candidate.table.id === activeTableId,
+        onSelect: () => setActiveTableId(candidate.table.id),
+      })),
+    })
+    return () => unregisterQuickOpenSection(tabId, "base-tables")
+  }, [
+    activeTableId,
+    filePath,
+    registerQuickOpenSection,
+    snapshot,
+    tabContext?.tabId,
+    unregisterQuickOpenSection,
+  ])
+
+  useEffect(() => {
+    const host = editorRef.current
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        !event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        event.shiftKey ||
+        (event.key !== "PageUp" && event.key !== "PageDown") ||
+        !snapshot ||
+        snapshot.tables.length < 2 ||
+        !host?.contains(event.target as Node)
+      ) {
+        return
+      }
+
+      event.preventDefault()
+      const direction = event.key === "PageDown" ? 1 : -1
+      setActiveTableId((current) => {
+        const currentIndex = Math.max(
+          0,
+          snapshot.tables.findIndex(({ table }) => table.id === current)
+        )
+        const nextIndex =
+          (currentIndex + direction + snapshot.tables.length) %
+          snapshot.tables.length
+        return snapshot.tables[nextIndex].table.id
+      })
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [snapshot])
   const fieldPropertyTarget = useMemo(
     () =>
       activeTable?.fields.find(

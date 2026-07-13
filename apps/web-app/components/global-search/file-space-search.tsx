@@ -1,6 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { FileSpaceSearchResult } from "@eidos.space/file-space"
-import { File, FileCode2, FileImage, FileText, Search } from "lucide-react"
+import {
+  Check,
+  File,
+  FileCode2,
+  FileImage,
+  FileText,
+  Search,
+  Table2,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -15,6 +23,11 @@ import {
   useSpaceFiles,
 } from "@/apps/web-app/hooks/use-space-files"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useTabStore } from "@/apps/web-app/store/tabs"
+import {
+  filterQuickOpenSections,
+  useQuickOpenStore,
+} from "@/apps/web-app/store/quick-open-store"
 import {
   Command,
   CommandEmpty,
@@ -83,12 +96,34 @@ export function FileSpaceSearch() {
   const { search } = useSpaceFiles(currentSpace?.id)
   const { location, navigate } = useRouterAdapter()
   const { isGlobalSearchOpen, setGlobalSearchOpen } = useAppRuntimeStore()
+  const activeTabId = useTabStore((state) => {
+    const panel = state.panels.find(
+      (candidate) => candidate.id === state.activePanelId
+    )
+    return panel?.activeTabId ?? null
+  })
+  const contextualSectionsById = useQuickOpenStore((state) =>
+    activeTabId ? state.sectionsByTab[activeTabId] : undefined
+  )
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<FileSpaceSearchResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [revision, setRevision] = useState(0)
   const searchVersion = useRef(0)
+  const contextualSections = useMemo(
+    () =>
+      filterQuickOpenSections(
+        Object.values(contextualSectionsById ?? {}),
+        query
+      ),
+    [contextualSectionsById, query]
+  )
+  const contextualBaseName = contextualSectionsById
+    ? Object.values(contextualSectionsById).find((section) =>
+        section.items.some((item) => item.kind === "base-table")
+      )?.inputHint
+    : undefined
 
   useSpaceFileChanges(
     currentSpace?.id,
@@ -168,6 +203,25 @@ export function FileSpaceSearch() {
     ]
   )
 
+  const openContextItem = useCallback(
+    async (onSelect: () => void | Promise<void>) => {
+      try {
+        await onSelect()
+        setError(null)
+        setGlobalSearchOpen(false)
+      } catch (selectionError) {
+        setError(
+          selectionError instanceof Error
+            ? selectionError.message
+            : "Unable to open this item"
+        )
+      }
+    },
+    [setGlobalSearchOpen]
+  )
+
+  const hasContextResults = contextualSections.length > 0
+
   return (
     <Dialog open={isGlobalSearchOpen} onOpenChange={setGlobalSearchOpen}>
       <DialogContent
@@ -182,26 +236,59 @@ export function FileSpaceSearch() {
       >
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search files in this Space…"
+            placeholder={
+              contextualBaseName
+                ? `Search files or switch tables in ${contextualBaseName}…`
+                : "Search files in this Space…"
+            }
             value={query}
             onValueChange={setQuery}
             autoFocus
           />
           <CommandList className="max-h-[min(60vh,32rem)]">
-            {isLoading && results.length === 0 ? (
+            {contextualSections.map((section) => (
+              <CommandGroup key={section.id} heading={section.heading}>
+                {section.items.map((item) => (
+                  <CommandItem
+                    key={`${section.id}:${item.id}`}
+                    value={`context:${section.id}:${item.label}:${item.detail ?? ""}`}
+                    disabled={item.disabled}
+                    className="py-2.5"
+                    onSelect={() => void openContextItem(item.onSelect)}
+                  >
+                    <Table2 className="h-4 w-4 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate font-medium">
+                      {item.label}
+                    </span>
+                    {item.detail ? (
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {item.detail}
+                      </span>
+                    ) : null}
+                    {item.current ? (
+                      <Check
+                        className="h-4 w-4 shrink-0 text-foreground"
+                        aria-label="Current table"
+                      />
+                    ) : null}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
+            {isLoading && results.length === 0 && !hasContextResults ? (
               <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
                 <Search className="h-4 w-4 animate-pulse" />
                 {query ? "Searching…" : "Indexing Space…"}
               </div>
-            ) : error ? (
+            ) : error && !hasContextResults ? (
               <CommandEmpty>{error}</CommandEmpty>
-            ) : results.length === 0 ? (
+            ) : results.length === 0 && !hasContextResults ? (
               <CommandEmpty>
                 {query
                   ? "No files found for “" + query + "”"
                   : "This Space is empty"}
               </CommandEmpty>
-            ) : (
+            ) : results.length > 0 ? (
               <CommandGroup heading={query ? "Files" : "Recent files"}>
                 {results.map((result) => {
                   const Icon = resultIcon(result.path)
@@ -230,7 +317,15 @@ export function FileSpaceSearch() {
                   )
                 })}
               </CommandGroup>
-            )}
+            ) : null}
+            {error && hasContextResults ? (
+              <div
+                role="alert"
+                className="border-t px-4 py-2 text-xs text-destructive"
+              >
+                {error}
+              </div>
+            ) : null}
           </CommandList>
         </Command>
       </DialogContent>

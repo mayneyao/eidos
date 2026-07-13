@@ -1,6 +1,8 @@
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 
+import { useQuickOpenStore } from "@/apps/web-app/store/quick-open-store"
+
 import { FileSpaceSearch } from "./file-space-search"
 
 ;(
@@ -53,6 +55,19 @@ vi.mock("@/apps/web-app/store/runtime-store", () => ({
   },
 }))
 
+vi.mock("@/apps/web-app/store/tabs", () => ({
+  useTabStore: (
+    selector: (state: {
+      activePanelId: string
+      panels: Array<{ id: string; activeTabId: string }>
+    }) => unknown
+  ) =>
+    selector({
+      activePanelId: "panel-a",
+      panels: [{ id: "panel-a", activeTabId: "tab-a" }],
+    }),
+}))
+
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({ open, children }: React.PropsWithChildren<{ open: boolean }>) =>
     open ? <div>{children}</div> : null,
@@ -66,18 +81,27 @@ vi.mock("@/components/ui/command", () => ({
   CommandEmpty: ({ children }: React.PropsWithChildren) => (
     <div>{children}</div>
   ),
-  CommandGroup: ({ children }: React.PropsWithChildren) => (
-    <div>{children}</div>
+  CommandGroup: ({
+    children,
+    heading,
+  }: React.PropsWithChildren<{ heading?: React.ReactNode }>) => (
+    <div>
+      {heading ? <div>{heading}</div> : null}
+      {children}
+    </div>
   ),
   CommandInput: ({
+    placeholder,
     value,
     onValueChange,
   }: {
+    placeholder?: string
     value: string
     onValueChange: (value: string) => void
   }) => (
     <input
       aria-label="Space search"
+      placeholder={placeholder}
       value={value}
       onChange={(event) => onValueChange(event.target.value)}
     />
@@ -119,6 +143,7 @@ describe("FileSpaceSearch", () => {
     navigateAfterFlushMock.mockResolvedValue(true)
     navigateMock.mockReset()
     setGlobalSearchOpenMock.mockReset()
+    useQuickOpenStore.setState({ sectionsByTab: {} })
     container = document.createElement("div")
     document.body.append(container)
     root = createRoot(container)
@@ -167,5 +192,45 @@ describe("FileSpaceSearch", () => {
       "Eidos could not save the current file before opening this result."
     )
     expect(setGlobalSearchOpenMock).not.toHaveBeenCalledWith(false)
+  })
+
+  it("adds active Base tables as a contextual group without changing file search", async () => {
+    const switchTable = vi.fn()
+    useQuickOpenStore.getState().registerSection("tab-a", {
+      id: "base-tables",
+      heading: "Tables in tasks.base",
+      inputHint: "tasks.base",
+      priority: 100,
+      items: [
+        {
+          id: "people",
+          kind: "base-table",
+          label: "People",
+          detail: "4 rows",
+          onSelect: switchTable,
+        },
+      ],
+    })
+
+    act(() => root.render(<FileSpaceSearch />))
+    await settle(10)
+
+    expect(container.textContent).toContain("Tables in tasks.base")
+    expect(container.textContent).toContain("People")
+    expect(container.textContent).toContain("project.md")
+    expect(
+      container.querySelector<HTMLInputElement>('[aria-label="Space search"]')
+        ?.placeholder
+    ).toBe("Search files or switch tables in tasks.base…")
+
+    const tableResult = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("People")
+    )
+    act(() => tableResult?.click())
+    await settle()
+
+    expect(switchTable).toHaveBeenCalledOnce()
+    expect(navigateAfterFlushMock).not.toHaveBeenCalled()
+    expect(setGlobalSearchOpenMock).toHaveBeenCalledWith(false)
   })
 })

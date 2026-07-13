@@ -2,6 +2,9 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type { BaseSnapshot } from "@eidos.space/base"
 
+import { TabProvider } from "@/apps/web-app/components/tab-manager/tab-context"
+import { useQuickOpenStore } from "@/apps/web-app/store/quick-open-store"
+
 import { SpaceBaseEditor } from "./space-base-editor"
 
 ;(
@@ -676,6 +679,7 @@ describe("SpaceBaseEditor", () => {
     updateRowMock.mockReset()
     deleteRowsMock.mockReset()
     deleteRowRangesMock.mockReset()
+    useQuickOpenStore.setState({ sectionsByTab: {} })
     spaceFileChanges.handler = undefined
     getSnapshotMock.mockResolvedValue(snapshot)
     getTablePageMock.mockResolvedValue({
@@ -750,7 +754,18 @@ describe("SpaceBaseEditor", () => {
 
   async function renderEditor() {
     await act(async () => {
-      root.render(<SpaceBaseEditor filePath="projects/tasks.base" />)
+      root.render(
+        <TabProvider
+          value={{
+            tabId: "tab-base",
+            containerRef: null,
+            isActive: true,
+            isFocused: true,
+          }}
+        >
+          <SpaceBaseEditor filePath="projects/tasks.base" />
+        </TabProvider>
+      )
       await Promise.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
@@ -807,6 +822,66 @@ describe("SpaceBaseEditor", () => {
       "row_1",
       { title: "Write implementation" }
     )
+  })
+
+  it("registers table switching for Quick Open and Ctrl+PageDown", async () => {
+    const peopleTable = {
+      ...snapshot.tables[0],
+      table: {
+        ...snapshot.tables[0].table,
+        id: "people",
+        name: "People",
+        rawTableName: "tb_people",
+        position: 2,
+      },
+      fields: snapshot.tables[0].fields.map((field) => ({
+        ...field,
+        tableName: "tb_people",
+      })),
+      views: snapshot.tables[0].views.map((view) => ({
+        ...view,
+        id: "view_people",
+        tableId: "people",
+        query: "SELECT * FROM tb_people",
+      })),
+      rowCount: 4,
+    }
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      tables: [...snapshot.tables, peopleTable],
+    })
+    await renderEditor()
+
+    const section =
+      useQuickOpenStore.getState().sectionsByTab["tab-base"]["base-tables"]
+    expect(section.heading).toBe("Tables in tasks.base")
+    expect(section.items.map(({ label, detail }) => [label, detail])).toEqual([
+      ["Tasks", "1 row"],
+      ["People", "4 rows"],
+    ])
+
+    const workbar = container.querySelector("[data-base-workbar]")
+    act(() => {
+      workbar?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "PageDown",
+          ctrlKey: true,
+          bubbles: true,
+        })
+      )
+    })
+    expect(
+      container.querySelector(
+        '[aria-label="Base tables"] [role="tab"][aria-selected="true"]'
+      )?.textContent
+    ).toContain("People")
+
+    await act(async () => section.items[0].onSelect())
+    expect(
+      container.querySelector(
+        '[aria-label="Base tables"] [role="tab"][aria-selected="true"]'
+      )?.textContent
+    ).toContain("Tasks")
   })
 
   it("keeps the Grid mounted when its own delayed file-change echo arrives", async () => {

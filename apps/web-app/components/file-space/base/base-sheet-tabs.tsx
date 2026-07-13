@@ -27,6 +27,7 @@ export function BaseSheetTabs({
       <div
         role="tablist"
         aria-label="Base tables"
+        aria-keyshortcuts="Control+PageUp Control+PageDown"
         className="flex min-w-0 flex-1 items-stretch overflow-x-auto"
       >
         {tables.map((table) => (
