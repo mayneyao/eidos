@@ -112,10 +112,18 @@ cd apps/desktop && node scripts/download-libsimple.cjs
 
 # Development
 pnpm dev:desktop      # Start desktop app in development mode
-pnpm build:desktop    # Build desktop app
+pnpm build:desktop:dev # Preferred local Desktop build/package verification; skips signing
+pnpm build:desktop    # Compile Desktop assets only; not the default packaging check
 pnpm pkg:desktop      # Package desktop app for distribution
 pnpm pkg:desktop:dev  # Package desktop app (dev mode)
 ```
+
+For routine Desktop delivery validation, use `pnpm build:desktop:dev`. It builds
+the current Desktop assets and packages them with
+`apps/desktop/electron/electron-builder.dev.json`, which disables signing,
+hardened runtime, notarization, and the `afterSign` hook. Reserve
+`pnpm pkg:desktop` and the release builder configuration for actual release
+work; do not pay the signing cost during normal implementation checks.
 
 ### CLI Development
 

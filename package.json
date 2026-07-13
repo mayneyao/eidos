@@ -13,6 +13,7 @@
     "dev:docs": "pnpm run --filter docs dev",
     "build": "pnpm run --filter web-app build",
     "build:desktop": "pnpm run --filter eidos build",
+    "build:desktop:dev": "pnpm run --filter eidos build && pnpm run --filter eidos package:dev",
     "build:web": "pnpm run --filter web-app build",
     "build:docs": "pnpm run --filter docs build",
     "deploy:docs": "pnpm run --filter docs deploy",
