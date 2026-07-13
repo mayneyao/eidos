@@ -59,6 +59,8 @@ Base snapshot 现在只携带 row count，Grid 按可见区域请求并缓存 10
 10,000-row fixture 验证。公开 runtime 也已增加 migration-oriented import boundary，支持
 导入高级 field metadata、views、references、materialized derived values 和历史 system
 columns；legacy migration package 通过该边界生成经过校验的 multi-table `main.base`。
+runtime 还提供按字段聚合的 grouped-count query；Kanban 用一次只读查询获取当前 filter/search
+下的所有分组计数，再仅为可见列请求 row pages，避免按 option 重复打开 Base 文件。
 Desktop Settings 已提供这些 legacy exports 的 preview、progress、validation issues、
 export 和 open-new-Space UX。批量导入会复用 prepared statement，迁移读取使用 rowid
 cursor；一个包含 1,110,847 行的真实 Space 约 15.1 秒完成导出并通过全部 Base/count 校验。

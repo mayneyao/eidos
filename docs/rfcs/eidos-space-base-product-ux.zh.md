@@ -99,6 +99,9 @@ Gallery 和 Kanban 现在已经接入与 Grid 相同的持久化 view lifecycle�
 响应式 card size、可选的空字段隐藏和共享 record inspector；Kanban 按 Select 字段分组，每组独立
 分页，跨列拖动会持久化为字段修改，也可以直接在目标分组内新增记录。两个 layout 都复用当前 view
 的搜索、筛选、排序、字段显隐和 Property workspace。
+Gallery 会按当前宽度把 cards 编排成虚拟 rows，只挂载可见区域与 overscan；滚动接近已加载尾部时
+自动请求下一批 100 条记录，不再显示手动 Load more。动态测量允许封面和字段数量改变 card 高度，
+搜索定位仍会逐页加载并滚动到目标 record，因此已加载数据和 DOM 数量不再同步线性增长。
 Gallery 可以选择 File 字段作为封面，并切换适应/裁切；文件二进制只通过 Space file boundary
 读取，并转换为临时 object URL。Gallery 与 Kanban 的 card 共用悬浮菜单和原生右键菜单，可以
 打开 record details，并按稳定 row ID 进行确认删除。同一个右侧 record inspector 现在可以在
@@ -113,6 +116,9 @@ Grid、Gallery 和 Kanban 中编辑：primitive source fields 会就地自动保
 Kanban 现在会对大量 option 形成的列做横向虚拟化，常规浏览只挂载可见列和 overscan；开始拖动时
 会临时挂载所有 drop target，避免虚拟化让合法目标不可达。直接拖动的成功、取消和保存失败回滚会
 通过 assertive live region 播报；键盘 Move-to 仍作为等价的非指针操作路径保留。
+Kanban 启动时使用一次 grouped-count query 获取所有列计数，只为横向窗口内、未折叠的列加载首批
+records；每列内部再按动态高度做纵向虚拟滚动并自动分页。大量 Select options 不再等价于同等数量
+的文件打开与首屏查询，大分组也不会把所有已加载 cards 同时挂载到 DOM。
 
 CSV 导入的文件选择、分析和写入现在也保持锚定式、非模态工作流。原生 picker 返回后 mapping
 panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以原位取消。取消会终止隔离 worker、
@@ -130,14 +136,14 @@ layout；恢复后的仓库状态为 clean。
 
 与原表格 view 的当前能力对齐情况如下：
 
-| 能力                                       | Base 状态                     | 剩余边界                                                            |
-| ------------------------------------------ | ----------------------------- | ------------------------------------------------------------------- |
-| 持久化 view lifecycle 与独立 query/layout  | 自动与原生重启/恢复均已验收   | v1 暂无已知缺口                                                     |
-| Gallery 字段显隐、空字段隐藏、card size    | 已工作，包含结果导航          | v1 暂无已知缺口                                                     |
-| Gallery cover                              | File 字段已工作               | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
-| Card actions                               | 可编辑 Inspector 与删除已工作 | file-based Base 的 full-page row document 模型尚未定义              |
-| Kanban Select 分组、计数、折叠、新增、拖动 | 已支持虚拟化和无障碍移动      | v1 暂无已知缺口                                                     |
-| Base merge conflict 审阅                   | 原生 row 审阅已验收           | schema/opaque conflict 按设计使用明确的 whole-file fallback         |
+| 能力                                       | Base 状态                                  | 剩余边界                                                            |
+| ------------------------------------------ | ------------------------------------------ | ------------------------------------------------------------------- |
+| 持久化 view lifecycle 与独立 query/layout  | 自动与原生重启/恢复均已验收                | v1 暂无已知缺口                                                     |
+| Gallery 字段显隐、空字段隐藏、card size    | 二维虚拟无限滚动与结果导航已工作           | v1 暂无已知缺口                                                     |
+| Gallery cover                              | File 字段已工作                            | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
+| Card actions                               | 可编辑 Inspector 与删除已工作              | file-based Base 的 full-page row document 模型尚未定义              |
+| Kanban Select 分组、计数、折叠、新增、拖动 | 横纵虚拟化、可见列懒加载和无障碍移动已工作 | v1 暂无已知缺口                                                     |
+| Base merge conflict 审阅                   | 原生 row 审阅已验收                        | schema/opaque conflict 按设计使用明确的 whole-file fallback         |
 
 这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。更多可移植 cover source 仍待完成。
 Base 日常编辑和配置优先使用单元格内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留

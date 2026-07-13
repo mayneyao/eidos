@@ -89,6 +89,10 @@ an entire selection in the renderer. The runtime path is covered with a
 import boundary for advanced field metadata, views, references, materialized
 derived values, and historical system columns. The legacy migration package
 uses this boundary to produce validated multi-table `main.base` exports.
+The runtime also exposes a grouped-count query by field. Kanban uses one
+readonly query to obtain all group totals under the active filter/search, then
+requests row pages only for visible columns instead of reopening the Base once
+per option.
 Desktop Settings now
 provides preview, progress, validation issues, export, and open-new-Space UX for
 these legacy exports. Batched imports reuse prepared statements and migration

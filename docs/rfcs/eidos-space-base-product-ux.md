@@ -133,6 +133,11 @@ field suppression, and the shared record inspector. Kanban groups by a Select
 field, pages each group independently, persists cross-column moves as field
 edits, and creates records directly in the target group. Both layouts reuse the
 active view's search, filters, sorts, field visibility, and Property workspace.
+Gallery arranges cards into responsive virtual rows and mounts only the visible
+window plus overscan. Approaching the loaded boundary automatically fetches the
+next 100 records, replacing the manual Load more control. Dynamic measurement
+supports variable cover and field heights, while result navigation continues
+to fetch intervening pages and scroll to the target record.
 Gallery can use a File field as a fitted or cropped card cover; the binary is
 read through the Space file boundary and exposed only as a temporary object
 URL. Gallery and Kanban cards share hover and native context actions for opening
@@ -155,6 +160,11 @@ mounts every drop target so virtualization does not make valid destinations
 unreachable. Direct moves announce success, cancellation, and failed-save
 rollback through an assertive live region; the keyboard Move-to action remains
 available as an equivalent non-pointer path.
+Kanban startup now uses one grouped-count query for all columns and loads the
+first record page only for uncollapsed columns in the horizontal window. Each
+column also uses dynamic-height vertical virtualization and automatic paging,
+so a large Select option set no longer causes one file open and first-page query
+per option, and a large group no longer mounts every loaded card.
 
 CSV selection, analysis, and writing now follow the same anchored, non-modal
 workflow. The mapping panel opens as soon as the native picker returns;
@@ -177,14 +187,14 @@ returns to clean when restoring the current version.
 
 Current parity with the original table views is explicit:
 
-| Capability                                                | Base status                                   | Remaining boundary                                                                                           |
-| --------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Persisted view lifecycle and per-view query/layout        | Automated and native restart/restore accepted | No known v1 gap                                                                                              |
-| Gallery field visibility, empty-field hiding, card sizing | Working with result navigation                | No known v1 gap                                                                                              |
-| Gallery cover                                             | File field working                            | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
-| Card actions                                              | Editable inspector and delete working         | A full-page row-document model is not yet defined for file-based Base                                        |
-| Kanban Select grouping, counts, collapse, add, drag move  | Working with virtualized accessible moves     | No known v1 gap                                                                                              |
-| Base merge conflict review                                | Native row review accepted                    | Schema/opaque conflicts intentionally use the explicit whole-file fallback                                   |
+| Capability                                                | Base status                                                                             | Remaining boundary                                                                                           |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Persisted view lifecycle and per-view query/layout        | Automated and native restart/restore accepted                                           | No known v1 gap                                                                                              |
+| Gallery field visibility, empty-field hiding, card sizing | Working with virtual infinite scroll and result navigation                              | No known v1 gap                                                                                              |
+| Gallery cover                                             | File field working                                                                      | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
+| Card actions                                              | Editable inspector and delete working                                                   | A full-page row-document model is not yet defined for file-based Base                                        |
+| Kanban Select grouping, counts, collapse, add, drag move  | Working with two-axis virtualization, visible-column lazy loading, and accessible moves | No known v1 gap                                                                                              |
+| Base merge conflict review                                | Native row review accepted                                                              | Schema/opaque conflicts intentionally use the explicit whole-file fallback                                   |
 
 This is the first working delivery slice, not yet full parity with the original
 table views. Additional portable cover sources remain. Routine Base
