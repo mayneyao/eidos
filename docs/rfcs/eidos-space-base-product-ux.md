@@ -213,12 +213,14 @@ translated wrapper; the record card itself remains keyed by stable row ID so
 drag and local component state cannot leak between records. Regression coverage
 asserts DOM-node identity across placeholder hydration for both Gallery and
 Kanban.
-Gallery can use a File field as a fitted or cropped card cover; the binary is
-read through the Space file boundary and exposed only as a temporary object
-URL. Gallery and Kanban share a view-scoped cover source reader, so cards that
-refer to the same file and cards remounted by virtual scrolling reuse both the
-in-flight or recent binary read and the resulting Blob URL instead of repeating
-Space IPC, disk I/O, Blob allocation, and image source decoding. Reference-counted
+Gallery can use either a File or URL field as a fitted or cropped card cover.
+File binaries are read through the Space file boundary and exposed only as a
+temporary object URL, while HTTP(S) URL fields are rendered directly without a
+binary read. Gallery and Kanban share a view-scoped cover source reader, so
+cards that refer to the same file and cards remounted by virtual scrolling
+reuse both the in-flight or recent binary read and the resulting Blob URL
+instead of repeating Space IPC, disk I/O, Blob allocation, and image source
+decoding. Reference-counted
 leases keep a source valid while any visible card uses it; inactive sources are
 then governed by a 64-entry/64-MiB LRU bound and 60-second expiry. Disposal and
 eviction revoke the shared URL, while failed reads are never cached. Cover images
@@ -449,13 +451,15 @@ Current parity with the original table views is explicit:
 | Persisted view lifecycle and per-view query/layout        | Automated and native restart/restore accepted                                           | No known v1 gap                                                                                              |
 | Grid column calculations                                  | View-owned, worker-backed aggregates in the existing trailing row                       | No known v1 gap                                                                                              |
 | Gallery field visibility, empty-field hiding, card sizing | Working with virtual infinite scroll and result navigation                              | No known v1 gap                                                                                              |
-| Gallery cover                                             | File field working                                                                      | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
+| Gallery cover                                             | File and URL fields working                                                             | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
 | Card actions                                              | Editable inspector and delete working                                                   | A full-page row-document model is not yet defined for file-based Base                                        |
 | Kanban Select grouping, counts, collapse, add, drag move  | Working with two-axis virtualization, visible-column lazy loading, and accessible moves | No known v1 gap                                                                                              |
 | Base merge conflict review                                | Native row review accepted                                                              | Schema/opaque conflicts intentionally use the explicit whole-file fallback                                   |
 
 This is the first working delivery slice, not yet full parity with the original
-table views. Additional portable cover sources remain. Routine Base
+table views. Portable File and URL covers satisfy the v1 Base boundary; legacy
+document-content and extension-block covers remain intentionally outside the
+standalone package. Routine Base
 configuration uses inline controls, header menus, and anchored popovers. Modal
 dialogs are reserved for destructive confirmation or other decisions that must
 interrupt the workflow. New interactions should first adapt the proven editing
