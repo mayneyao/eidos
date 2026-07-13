@@ -269,6 +269,10 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   const creatingRef = useRef(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const getVirtualCardKey = useCallback(
+    (index: number) => `${group.key}:${index}`,
+    [group.key]
+  )
   const groupWindow = {
     rows: group.rows,
     startOffset: group.startOffset,
@@ -278,8 +282,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
     count: group.total,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => estimatedKanbanCardHeight(cardLayout),
-    getItemKey: (index) =>
-      String(rowFromWindow(groupWindow, index)?._id ?? `${group.key}:${index}`),
+    getItemKey: getVirtualCardKey,
     gap: 8,
     initialRect: { width, height: 560 },
     overscan: 3,
@@ -463,6 +466,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                     >
                       {row ? (
                         <BaseKanbanCardItem
+                          key={String(row._id)}
                           row={row}
                           index={virtualItem.index}
                           groupKey={group.key}

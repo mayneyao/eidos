@@ -1229,6 +1229,99 @@ describe("BaseKanbanView", () => {
     ).toBe("0")
   })
 
+  it("keeps a distant virtual card wrapper mounted when its page arrives", async () => {
+    let resolveTargetPage: ((page: BaseRowPage) => void) | undefined
+    const loadGroupPage = vi.fn(
+      (_field, value: string | null, offset: number, limit: number) => {
+        if (value !== "todo") {
+          return Promise.resolve({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: 0,
+            rows: [],
+          })
+        }
+        if (offset === 0) {
+          return Promise.resolve({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: 100_000,
+            rows: Array.from({ length: 50 }, (_, index) => ({
+              _id: `row_${index}`,
+              title: `Task ${index}`,
+              status: "todo",
+            })),
+          })
+        }
+        return new Promise<BaseRowPage>((resolve) => {
+          resolveTargetPage = resolve
+        })
+      }
+    )
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [
+            { value: "todo", total: 100_000 },
+          ])}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      const scroller = container.querySelector<HTMLElement>(
+        '[data-base-kanban-column-scroll="base-kanban:todo"]'
+      )
+      if (!scroller) return
+      scroller.scrollTop = 100_000_000
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const targetCall = loadGroupPage.mock.calls.find(
+      ([, value, offset]) => value === "todo" && offset > 0
+    )
+    const targetOffset = targetCall?.[2]
+    expect(targetOffset).toBeTypeOf("number")
+    expect(resolveTargetPage).toBeTypeOf("function")
+    const placeholder = container.querySelector<HTMLElement>(
+      "[data-base-kanban-placeholder]"
+    )
+    const wrapper = placeholder?.closest<HTMLElement>("[data-index]")
+    const virtualIndex = wrapper?.dataset.index
+    expect(wrapper).not.toBeNull()
+    expect(virtualIndex).toBeTruthy()
+
+    await act(async () => {
+      resolveTargetPage?.({
+        tableId: "tasks",
+        offset: targetOffset ?? 0,
+        limit: 50,
+        total: 100_000,
+        rows: Array.from({ length: 50 }, (_, index) => ({
+          _id: `row_${(targetOffset ?? 0) + index}`,
+          title: `Task ${(targetOffset ?? 0) + index}`,
+          status: "todo",
+        })),
+      })
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector(`[data-index="${virtualIndex}"]`)).toBe(
+      wrapper
+    )
+  })
+
   it("prefetches a group page before visible cards reach the loaded edge", async () => {
     let resolveNextPage: ((page: BaseRowPage) => void) | undefined
     const loadGroupPage = vi.fn(

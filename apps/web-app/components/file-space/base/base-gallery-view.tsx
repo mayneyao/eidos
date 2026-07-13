@@ -46,6 +46,10 @@ const GALLERY_HORIZONTAL_PADDING = 32
 const GALLERY_OVERSCAN_ROWS = 2
 const GALLERY_PREFETCH_ROWS = Math.floor(GALLERY_PAGE_SIZE / 2)
 
+function galleryVirtualRowKey(index: number): string {
+  return `gallery-row:${index}`
+}
+
 function galleryCardWidth(view: BaseViewInfo): number {
   const size = view.properties?.cardSize
   if (size === "small") return 220
@@ -233,11 +237,7 @@ export function BaseGalleryView({
     count: virtualRowCount,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => estimatedGalleryCardHeight(cardLayout),
-    getItemKey: (index) =>
-      String(
-        rowFromWindow(rowWindow, index * columnCount)?._id ??
-          `gallery-row-${index}`
-      ),
+    getItemKey: galleryVirtualRowKey,
     gap: GALLERY_GAP,
     initialRect: { width: 1024, height: 640 },
     overscan: GALLERY_OVERSCAN_ROWS,

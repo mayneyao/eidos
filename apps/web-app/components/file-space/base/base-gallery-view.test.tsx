@@ -537,6 +537,77 @@ describe("BaseGalleryView", () => {
     ).toBe("0")
   })
 
+  it("keeps a distant virtual row wrapper mounted when its page arrives", async () => {
+    let resolveTargetPage: ((page: BaseRowPage) => void) | undefined
+    const loadPage = vi.fn((offset: number, limit: number) => {
+      if (offset === 0) {
+        return Promise.resolve({
+          tableId: "tasks",
+          offset,
+          limit,
+          total: 100_000,
+          rows: Array.from({ length: 100 }, (_, index) => ({
+            _id: `row_${index}`,
+            title: `Task ${index}`,
+            status: "todo",
+          })),
+        })
+      }
+      return new Promise<BaseRowPage>((resolve) => {
+        resolveTargetPage = resolve
+      })
+    })
+
+    await act(async () => {
+      root.render(
+        <BaseGalleryView table={table} view={view} loadPage={loadPage} />
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      const scroller = container.querySelector<HTMLElement>(
+        "[data-base-gallery-scroll]"
+      )
+      if (!scroller) return
+      scroller.scrollTop = 100_000_000
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const targetCall = loadPage.mock.calls.find(([offset]) => offset > 0)
+    const targetOffset = targetCall?.[0]
+    expect(targetOffset).toBeTypeOf("number")
+    expect(resolveTargetPage).toBeTypeOf("function")
+    const placeholder = container.querySelector<HTMLElement>(
+      "[data-base-gallery-placeholder]"
+    )
+    const wrapper = placeholder?.closest<HTMLElement>("[data-index]")
+    const virtualIndex = wrapper?.dataset.index
+    expect(wrapper).not.toBeNull()
+    expect(virtualIndex).toBeTruthy()
+
+    await act(async () => {
+      resolveTargetPage?.({
+        tableId: "tasks",
+        offset: targetOffset ?? 0,
+        limit: 100,
+        total: 100_000,
+        rows: Array.from({ length: 100 }, (_, index) => ({
+          _id: `row_${(targetOffset ?? 0) + index}`,
+          title: `Task ${(targetOffset ?? 0) + index}`,
+          status: "todo",
+        })),
+      })
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector(`[data-index="${virtualIndex}"]`)).toBe(
+      wrapper
+    )
+  })
+
   it("prefetches the next page before visible cards reach the loaded edge", async () => {
     let resolveNextPage: ((page: BaseRowPage) => void) | undefined
     const loadPage = vi.fn((offset: number, limit: number) => {
