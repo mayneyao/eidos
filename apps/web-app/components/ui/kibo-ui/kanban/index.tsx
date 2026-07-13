@@ -1,6 +1,13 @@
 "use client"
 
-import React, { useState, type ReactNode } from "react"
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react"
 import {
   DndContext,
   DragOverlay,
@@ -72,6 +79,35 @@ export type KanbanCardProps = {
   disabled?: boolean
 }
 
+interface KanbanFeedbackStore {
+  getLastMovedId: () => string | null
+  setLastMovedId: (id: string | null) => void
+  subscribe: (listener: () => void) => () => void
+}
+
+function createKanbanFeedbackStore(): KanbanFeedbackStore {
+  let lastMovedId: string | null = null
+  const listeners = new Set<() => void>()
+
+  return {
+    getLastMovedId: () => lastMovedId,
+    setLastMovedId: (id) => {
+      if (lastMovedId === id) return
+      lastMovedId = id
+      listeners.forEach((listener) => listener())
+    },
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+  }
+}
+
+const fallbackKanbanFeedbackStore = createKanbanFeedbackStore()
+const KanbanFeedbackContext = React.createContext<KanbanFeedbackStore>(
+  fallbackKanbanFeedbackStore
+)
+
 const INTERACTIVE_DRAG_TARGET =
   'button, a, input, select, textarea, [role="button"], [role="menuitem"], [contenteditable="true"]'
 
@@ -98,8 +134,20 @@ export const KanbanCard = ({
     data: { index, name, parent },
     disabled,
   })
-  const { lastMovedId } = React.useContext(KanbanContext)
-  const isRecentlyMoved = lastMovedId === id
+  const feedbackStore = React.useContext(KanbanFeedbackContext)
+  const subscribe = useCallback(
+    (listener: () => void) => feedbackStore.subscribe(listener),
+    [feedbackStore]
+  )
+  const getSnapshot = useCallback(
+    () => feedbackStore.getLastMovedId() === id,
+    [feedbackStore, id]
+  )
+  const isRecentlyMoved = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    () => false
+  )
 
   return (
     <div
@@ -187,21 +235,40 @@ export const KanbanProvider = ({
   className,
 }: KanbanProviderProps) => {
   const [activeLabel, setActiveLabel] = useState<string | null>(null)
-  const [lastMovedId, setLastMovedId] = useState<string | null>(null)
+  const feedbackStoreRef = useRef<KanbanFeedbackStore | null>(null)
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  if (!feedbackStoreRef.current) {
+    feedbackStoreRef.current = createKanbanFeedbackStore()
+  }
+  const feedbackStore = feedbackStoreRef.current
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor)
   )
 
-  // Clear the highlight effect after a delay
-  React.useEffect(() => {
-    if (lastMovedId) {
-      const timer = setTimeout(() => {
-        setLastMovedId(null)
-      }, 1000)
-      return () => clearTimeout(timer)
-    }
-  }, [lastMovedId])
+  useEffect(
+    () => () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current)
+    },
+    []
+  )
+
+  const showMovedFeedback = useCallback(
+    (id: string | null) => {
+      if (feedbackTimerRef.current) {
+        clearTimeout(feedbackTimerRef.current)
+        feedbackTimerRef.current = null
+      }
+      feedbackStore.setLastMovedId(id)
+      if (id) {
+        feedbackTimerRef.current = setTimeout(() => {
+          feedbackStore.setLastMovedId(null)
+          feedbackTimerRef.current = null
+        }, 1000)
+      }
+    },
+    [feedbackStore]
+  )
 
   return (
     <DndContext
@@ -211,7 +278,7 @@ export const KanbanProvider = ({
         setActiveLabel(null)
         const sourceParent = event.active.data.current?.parent
         const targetParent = event.over?.id.toString()
-        setLastMovedId(
+        showMovedFeedback(
           targetParent !== undefined && targetParent !== sourceParent
             ? event.active.id.toString()
             : null
@@ -230,7 +297,7 @@ export const KanbanProvider = ({
         onDragStart?.(event)
       }}
     >
-      <KanbanContext.Provider value={{ lastMovedId }}>
+      <KanbanFeedbackContext.Provider value={feedbackStore}>
         <div
           className={cn(
             "grid w-full auto-cols-fr grid-flow-col gap-4",
@@ -239,7 +306,7 @@ export const KanbanProvider = ({
         >
           {children}
         </div>
-      </KanbanContext.Provider>
+      </KanbanFeedbackContext.Provider>
       <DragOverlay dropAnimation={null}>
         {activeLabel ? (
           <div
@@ -253,8 +320,3 @@ export const KanbanProvider = ({
     </DndContext>
   )
 }
-
-// Add context for tracking last moved card
-const KanbanContext = React.createContext<{ lastMovedId: string | null }>({
-  lastMovedId: null,
-})

@@ -24,6 +24,7 @@ interface DragEndTestEvent extends DragStartTestEvent {
 }
 
 const dndMocks = vi.hoisted(() => ({
+  draggableRenders: new Map<string, number>(),
   onDragStart: undefined as ((event: DragStartTestEvent) => void) | undefined,
   onDragEnd: undefined as ((event: DragEndTestEvent) => void) | undefined,
   pointerDown: vi.fn(),
@@ -61,15 +62,21 @@ vi.mock("@dnd-kit/core", () => ({
     options,
   }),
   useSensors: (...sensors: unknown[]) => sensors,
-  useDraggable: () => ({
-    attributes: {},
-    isDragging: false,
-    listeners: {
-      onKeyDown: dndMocks.keyDown,
-      onPointerDown: dndMocks.pointerDown,
-    },
-    setNodeRef: vi.fn(),
-  }),
+  useDraggable: ({ id }: { id: string }) => {
+    dndMocks.draggableRenders.set(
+      id,
+      (dndMocks.draggableRenders.get(id) ?? 0) + 1
+    )
+    return {
+      attributes: {},
+      isDragging: false,
+      listeners: {
+        onKeyDown: dndMocks.keyDown,
+        onPointerDown: dndMocks.pointerDown,
+      },
+      setNodeRef: vi.fn(),
+    }
+  },
   useDroppable: () => ({ isOver: false, setNodeRef: vi.fn() }),
 }))
 
@@ -82,6 +89,7 @@ describe("KanbanProvider", () => {
   let root: Root
 
   beforeEach(() => {
+    dndMocks.draggableRenders.clear()
     dndMocks.keyDown.mockReset()
     dndMocks.onDragEnd = undefined
     dndMocks.onDragStart = undefined
@@ -222,5 +230,40 @@ describe("KanbanProvider", () => {
     expect(
       container.querySelector('[data-draggable-id="row_1"]')?.className
     ).toContain("ring-1")
+  })
+
+  it("updates drag feedback without rerendering unrelated cards", () => {
+    act(() => {
+      root.render(
+        <KanbanProvider onDragEnd={vi.fn()}>
+          <KanbanCard id="row_1" index={0} name="First" parent="todo" />
+          <KanbanCard id="row_2" index={1} name="Second" parent="todo" />
+        </KanbanProvider>
+      )
+    })
+
+    expect(dndMocks.draggableRenders.get("row_1")).toBe(1)
+    expect(dndMocks.draggableRenders.get("row_2")).toBe(1)
+
+    const event: DragEndTestEvent = {
+      active: {
+        id: "row_1",
+        data: { current: { index: 0, name: "First", parent: "todo" } },
+      },
+      over: { id: "done" },
+    }
+    act(() => {
+      dndMocks.onDragStart?.(event)
+    })
+
+    expect(dndMocks.draggableRenders.get("row_1")).toBe(1)
+    expect(dndMocks.draggableRenders.get("row_2")).toBe(1)
+
+    act(() => {
+      dndMocks.onDragEnd?.(event)
+    })
+
+    expect(dndMocks.draggableRenders.get("row_1")).toBe(2)
+    expect(dndMocks.draggableRenders.get("row_2")).toBe(1)
   })
 })

@@ -39,7 +39,7 @@ import { orderedBaseFields } from "./base-view-layout"
 import { useBaseCoverReader } from "./use-base-cover-reader"
 
 const GALLERY_PAGE_SIZE = 100
-const GALLERY_MAX_WINDOW_ROWS = 500
+const GALLERY_MAX_WINDOW_ROWS = 300
 const GALLERY_GAP = 12
 const GALLERY_HORIZONTAL_PADDING = 32
 const GALLERY_OVERSCAN_ROWS = 2
@@ -448,37 +448,43 @@ export function BaseGalleryView({
         )}
         {loadingMore ? (
           <div
-            className="flex h-10 items-center justify-center gap-1.5 text-[11px] text-muted-foreground"
+            data-base-gallery-progress
+            className="pointer-events-none sticky inset-x-0 bottom-2 z-10 flex h-0 items-center justify-center text-[11px] text-muted-foreground"
             role="status"
           >
-            <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
-            Loading more records…
+            <span className="flex h-7 items-center gap-1.5 rounded-full border bg-background/95 px-3 shadow-sm backdrop-blur-sm">
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+              Loading more records…
+            </span>
           </div>
         ) : failedRequest !== null && rows.length > 0 ? (
           <div
-            className="flex h-10 items-center justify-center gap-2 text-[11px] text-muted-foreground"
+            data-base-gallery-progress
+            className="sticky inset-x-0 bottom-2 z-10 flex h-0 items-center justify-center text-[11px] text-muted-foreground"
             role="alert"
           >
-            <span>
-              {failedRequest.mode !== "replace"
-                ? "Could not load more records."
-                : "Could not refresh records."}
+            <span className="flex h-8 items-center gap-2 rounded-full border bg-background/95 pl-3 pr-1 shadow-sm backdrop-blur-sm">
+              <span>
+                {failedRequest.mode !== "replace"
+                  ? "Could not load more records."
+                  : "Could not refresh records."}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 rounded-full px-2 text-[11px]"
+                onClick={() =>
+                  void requestPage(
+                    failedRequest.offset,
+                    failedRequest.mode,
+                    failedRequest.totalHint
+                  )
+                }
+              >
+                Retry
+              </Button>
             </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-[11px]"
-              onClick={() =>
-                void requestPage(
-                  failedRequest.offset,
-                  failedRequest.mode,
-                  failedRequest.totalHint
-                )
-              }
-            >
-              Retry
-            </Button>
           </div>
         ) : null}
       </div>

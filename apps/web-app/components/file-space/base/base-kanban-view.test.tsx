@@ -1001,7 +1001,7 @@ describe("BaseKanbanView", () => {
           ?.querySelector("[data-base-kanban-column-scroll]")
           ?.getAttribute("data-base-window-size")
       )
-    ).toBeLessThanOrEqual(250)
+    ).toBeLessThanOrEqual(150)
     expect(
       todoColumn?.querySelectorAll("[data-base-row-id]").length
     ).toBeLessThan(50)
@@ -1120,6 +1120,101 @@ describe("BaseKanbanView", () => {
       })
       await Promise.resolve()
     })
+  })
+
+  it("keeps mounted cards isolated when their group appends a page", async () => {
+    let resolveNextPage: ((page: BaseRowPage) => void) | undefined
+    const loadGroupPage = vi.fn(
+      (_field, value: string | null, offset: number, limit: number) => {
+        if (value === "todo" && offset === 50) {
+          return new Promise<BaseRowPage>((resolve) => {
+            resolveNextPage = resolve
+          })
+        }
+        return Promise.resolve({
+          tableId: "tasks",
+          offset,
+          limit,
+          total: value === "todo" ? 500 : 0,
+          rows:
+            value === "todo"
+              ? Array.from({ length: 50 }, (_, index) => ({
+                  _id: `row_${offset + index}`,
+                  title: `Task ${offset + index}`,
+                  status: "todo",
+                }))
+              : [],
+        })
+      }
+    )
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 500 }])}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const scroller = container.querySelector<HTMLElement>(
+      '[data-base-kanban-column-scroll="base-kanban:todo"]'
+    )
+    const hasRequestedNextPage = () =>
+      loadGroupPage.mock.calls.some(
+        (call) => call[1] === "todo" && call[2] === 50
+      )
+    for (
+      let scrollTop = 500;
+      scrollTop <= 20_000 && !hasRequestedNextPage();
+      scrollTop += 500
+    ) {
+      await act(async () => {
+        if (!scroller) return
+        scroller.scrollTop = scrollTop
+        scroller.dispatchEvent(new Event("scroll"))
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    }
+
+    expect(loadGroupPage).toHaveBeenCalledWith(
+      expect.objectContaining({ tableColumnName: "status" }),
+      "todo",
+      50,
+      50,
+      500
+    )
+    const mountedRowId = scroller
+      ?.querySelector<HTMLElement>("[data-base-row-id]")
+      ?.getAttribute("data-base-row-id")
+    expect(mountedRowId).toBeTruthy()
+    const rendersWhilePending = recordCardMocks.renders.get(mountedRowId ?? "")
+
+    await act(async () => {
+      resolveNextPage?.({
+        tableId: "tasks",
+        offset: 50,
+        limit: 50,
+        total: 500,
+        rows: Array.from({ length: 50 }, (_, index) => ({
+          _id: `row_${50 + index}`,
+          title: `Task ${50 + index}`,
+          status: "todo",
+        })),
+      })
+      await Promise.resolve()
+    })
+
+    expect(recordCardMocks.renders.get(mountedRowId ?? "")).toBe(
+      rendersWhilePending
+    )
   })
 
   it("does not rerender unaffected columns when one group loads another page", async () => {

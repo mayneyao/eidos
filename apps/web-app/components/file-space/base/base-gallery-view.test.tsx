@@ -507,7 +507,7 @@ describe("BaseGalleryView", () => {
           .querySelector("[data-base-gallery-scroll]")
           ?.getAttribute("data-base-window-size")
       )
-    ).toBeLessThanOrEqual(500)
+    ).toBeLessThanOrEqual(300)
     expect(container.querySelectorAll('[role="listitem"]').length).toBeLessThan(
       100
     )
@@ -584,6 +584,11 @@ describe("BaseGalleryView", () => {
     ).toHaveLength(0)
     expect(
       container
+        .querySelector("[data-base-gallery-progress]")
+        ?.classList.contains("h-0")
+    ).toBe(true)
+    expect(
+      container
         .querySelector("[data-base-gallery-scroll]")
         ?.getAttribute("data-base-window-start")
     ).toBe("0")
@@ -602,6 +607,8 @@ describe("BaseGalleryView", () => {
       })
       await Promise.resolve()
     })
+
+    expect(container.querySelector("[data-base-gallery-progress]")).toBeNull()
   })
 
   it("stops automatic retries after the first page fails and recovers in place", async () => {

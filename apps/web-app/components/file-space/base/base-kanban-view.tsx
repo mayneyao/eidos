@@ -57,7 +57,7 @@ import { useBaseCoverReader } from "./use-base-cover-reader"
 import type { BaseCoverLease } from "./use-base-cover-reader"
 
 const KANBAN_PAGE_SIZE = 50
-const KANBAN_MAX_WINDOW_ROWS = 250
+const KANBAN_MAX_WINDOW_ROWS = 150
 const KANBAN_COLUMN_GAP = 12
 const KANBAN_COLUMN_CACHE_MARGIN = 2
 const KANBAN_PREFETCH_ROWS = Math.floor(KANBAN_PAGE_SIZE / 2)
@@ -149,6 +149,65 @@ function replaceLoadedRow(
   })
   return changed ? nextGroups : groups
 }
+
+const BaseKanbanCardItem = memo(function BaseKanbanCardItem({
+  row,
+  index,
+  groupKey,
+  disabled,
+  table,
+  view,
+  cardLayout,
+  acquireCover,
+  focused,
+  onOpen,
+  onDelete,
+  moveOptions,
+  onMove,
+}: {
+  row: BaseRow
+  index: number
+  groupKey: string
+  disabled: boolean
+  table: BaseTableSnapshot
+  view: BaseViewInfo
+  cardLayout: BaseRecordCardLayout
+  acquireCover?: (path: string) => Promise<BaseCoverLease>
+  focused: boolean
+  onOpen: (row: BaseRow) => void
+  onDelete?: (row: BaseRow) => void
+  moveOptions: Array<{
+    id: string
+    label: string
+    disabled?: boolean
+  }>
+  onMove: (row: BaseRow, targetGroupKey: string) => void
+}) {
+  return (
+    <KanbanCard
+      id={String(row._id)}
+      name={String(row.title ?? "Untitled")}
+      index={index}
+      parent={groupKey}
+      disabled={disabled}
+      className="rounded-lg border-0 bg-transparent shadow-none"
+    >
+      <BaseRecordCard
+        row={row}
+        fields={table.fields}
+        view={view}
+        layout={cardLayout}
+        compact
+        acquireCover={acquireCover}
+        focused={focused}
+        onOpen={onOpen}
+        onDelete={onDelete}
+        moveOptions={moveOptions}
+        onMove={onMove}
+      />
+    </KanbanCard>
+  )
+})
 
 const BaseKanbanColumn = memo(function BaseKanbanColumn({
   group,
@@ -386,28 +445,21 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                       }}
                     >
                       {row ? (
-                        <KanbanCard
-                          id={String(row._id)}
-                          name={String(row.title ?? "Untitled")}
+                        <BaseKanbanCardItem
+                          row={row}
                           index={virtualItem.index}
-                          parent={group.key}
+                          groupKey={group.key}
                           disabled={disabled}
-                          className="rounded-lg border-0 bg-transparent shadow-none"
-                        >
-                          <BaseRecordCard
-                            row={row}
-                            fields={table.fields}
-                            view={view}
-                            layout={cardLayout}
-                            compact
-                            acquireCover={acquireCover}
-                            focused={focusedRowId === String(row._id)}
-                            onOpen={onOpen}
-                            onDelete={onDelete}
-                            moveOptions={cardMoveOptions}
-                            onMove={moveCard}
-                          />
-                        </KanbanCard>
+                          table={table}
+                          view={view}
+                          cardLayout={cardLayout}
+                          acquireCover={acquireCover}
+                          focused={focusedRowId === String(row._id)}
+                          onOpen={onOpen}
+                          onDelete={onDelete}
+                          moveOptions={cardMoveOptions}
+                          onMove={moveCard}
+                        />
                       ) : (
                         <div
                           data-base-kanban-placeholder
