@@ -155,6 +155,11 @@ rows per Kanban column, trimming the opposite side of the active window instead
 of accumulating every visited page. Dynamic measurement supports variable cover
 and field heights, and result navigation can jump directly to the target page
 before revealing the record. The manual Load more control is no longer needed.
+Adjacent pages are prefetched when the virtual range comes within half a page of
+the loaded window. The visible range is checked first, so a distant scrollbar
+jump still replaces the window at its actual target instead of walking through
+or prefetching intermediate pages. In ordinary scrolling, the next page is
+therefore requested before an unloaded placeholder enters the viewport.
 Only the first Gallery page or a query refresh recomputes the filtered total.
 Later virtual-window requests send the previously observed total as a validated
 hint, so scrolling does not repeat a full `COUNT(*)`. Kanban reuses the totals
@@ -212,6 +217,13 @@ first record page only for uncollapsed columns in the horizontal window. Each
 column also uses dynamic-height vertical virtualization and automatic paging,
 so a large Select option set no longer causes one file open and first-page query
 per option, and a large group no longer mounts every loaded card.
+Horizontal virtualization also bounds retained row data, not only mounted DOM.
+When navigation leaves a column window, Kanban keeps the rendered columns plus
+two neighboring columns on each side and releases older row windows. Returning
+to an evicted column reloads its first page from the already-known group total.
+Eviction pauses during drag so the source row remains available while edge
+scrolling across columns. This prevents memory from growing with every visited
+Select option while preserving a small back-navigation cache.
 Kanban mutations keep paging state local to the affected columns. Moving a
 loaded record decrements the source's consumed server cursor, while the target
 column safely rescans from its first page because the moved record's server sort
