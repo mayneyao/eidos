@@ -103,11 +103,14 @@ Gallery 会按当前宽度把 cards 编排成虚拟 rows，只挂载可见区域
 自动请求下一批 100 条记录，不再显示手动 Load more。动态测量允许封面和字段数量改变 card 高度，
 搜索定位仍会逐页加载并滚动到目标 record，因此已加载数据和 DOM 数量不再同步线性增长。
 Gallery 可以选择 File 字段作为封面，并切换适应/裁切；文件二进制只通过 Space file boundary
-读取，并转换为临时 object URL。Gallery 与 Kanban 的 card 共用悬浮菜单和原生右键菜单，可以
-打开 record details，并按稳定 row ID 进行确认删除。同一个右侧 record inspector 现在可以在
-Grid、Gallery 和 Kanban 中编辑：primitive source fields 会就地自动保存，Formula/Lookup 等派生值
-保持只读，保存成功后会更新当前 layout，并且不会关闭 inspector。File 字段支持从 Space 导入、
-拖放、移除、打开和定位；Relation 字段复用目标表搜索边界，并按稳定 row ID 保存单选或多选结果。
+读取，并转换为临时 object URL。Gallery 与 Kanban 共用 view 级封面读取器；多个 card 引用同一文件，
+或虚拟滚动让 card 卸载后再次挂载时，会复用正在进行或近期完成的二进制读取，不再重复触发 Space IPC
+和磁盘 I/O。缓存同时受 64 个封面条目和 64 MiB 上限约束，60 秒后过期，失败读取不会进入缓存；封面图片
+使用 lazy asynchronous decoding。Gallery 与 Kanban 的 card 共用悬浮菜单和原生右键菜单，可以打开
+record details，并按稳定 row ID 进行确认删除。同一个右侧 record inspector 现在可以在 Grid、Gallery
+和 Kanban 中编辑：primitive source fields 会就地自动保存，Formula/Lookup 等派生值保持只读，保存
+成功后会更新当前 layout，并且不会关闭 inspector。File 字段支持从 Space 导入、拖放、移除、打开和
+定位；Relation 字段复用目标表搜索边界，并按稳定 row ID 保存单选或多选结果。
 
 就地 row search 现在会显示过滤后记录的位置与总数；Enter 和 Shift+Enter 可以在保持输入框焦点的
 同时向前或向后循环。Grid 会滚动并高亮目标行；Gallery 和 Kanban 会滚动到目标 card，并在目标尚未
