@@ -140,11 +140,14 @@ supports variable cover and field heights, while result navigation continues
 to fetch intervening pages and scroll to the target record.
 Gallery can use a File field as a fitted or cropped card cover; the binary is
 read through the Space file boundary and exposed only as a temporary object
-URL. Gallery and Kanban share a view-scoped cover reader, so cards that refer to
-the same file and cards remounted by virtual scrolling reuse one in-flight or
-recent binary read instead of repeating Space IPC and disk I/O. The cache is
-bounded by both entry count and 64 MiB, expires after 60 seconds, and never keeps
-failed reads; cover images use lazy asynchronous decoding. Gallery and Kanban
+URL. Gallery and Kanban share a view-scoped cover source reader, so cards that
+refer to the same file and cards remounted by virtual scrolling reuse both the
+in-flight or recent binary read and the resulting Blob URL instead of repeating
+Space IPC, disk I/O, Blob allocation, and image source decoding. Reference-counted
+leases keep a source valid while any visible card uses it; inactive sources are
+then governed by a 64-entry/64-MiB LRU bound and 60-second expiry. Disposal and
+eviction revoke the shared URL, while failed reads are never cached. Cover images
+also use lazy asynchronous decoding. Gallery and Kanban
 cards share hover and native context actions for opening record details and
 confirmed deletion by stable row ID. The same right-side record inspector is
 now editable across Grid, Gallery, and Kanban: primitive source fields autosave
