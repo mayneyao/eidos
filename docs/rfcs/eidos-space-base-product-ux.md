@@ -355,8 +355,14 @@ adopts the latest persisted row. Kanban keeps the failed title and creation
 form in the target column, rejects duplicate clicks synchronously, and exposes
 an inline Retry through the same Add action without creating a global Base
 alert. Failed card moves continue to roll back only the affected columns and
-announce the local revert. Direct Grid cell writes remain global because the
-Grid does not yet provide an equivalent anchored recovery surface.
+announce the local revert. Card moves are now serialized at the board boundary:
+while one optimistic move is being persisted, drag and Move-to actions are
+disabled, the board exposes `aria-busy`, and a synchronous guard rejects events
+that arrive before React can repaint the disabled state. Success is announced
+only after persistence; failure restores one authoritative copy of the row and
+unlocks the board. This prevents a failed first move and queued second move from
+leaving the same row in two columns. Direct Grid cell writes remain global
+because the Grid does not yet provide an equivalent anchored recovery surface.
 
 Base secondary workspaces now adapt to the space available inside the active
 editor rather than to the application window. Grid, Gallery, and Kanban keep

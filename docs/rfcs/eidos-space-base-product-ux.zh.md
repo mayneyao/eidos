@@ -220,8 +220,11 @@ Record Inspector 自动保存与 Kanban 行内新建也遵循同一套局部恢�
 重新加载持久化 Base 快照，仍会保留并显示当前 optimistic 字段值；在用户解决冲突前锁定其他字段编辑，
 并提供明确的 Retry 与 Discard change。Retry 会重新提交保留值，Discard 则采用最新持久化 row。Kanban
 会在目标列保留失败的新建表单与 title，同步拦截连续点击，并通过同一个 Add 动作原位重试，不再生成
-全局 Base alert。Card 移动失败仍只回滚受影响的列并在局部播报恢复。Grid cell 目前没有等价的锚定式
-恢复界面，因此其直接写入仍使用全局错误。
+全局 Base alert。Card 移动失败仍只回滚受影响的列并在局部播报恢复。Board 边界现在会串行化 card
+移动：一笔 optimistic move 持久化期间，drag 与 Move-to 入口都会禁用，board 暴露 `aria-busy`，并用
+同步 guard 拦截 React 来不及重绘 disabled 状态前到达的事件。只有持久化成功后才播报完成；失败会恢复
+唯一一份权威 row 并解锁 board，避免第一笔 move 失败、第二笔 move 已排队时同一 row 同时残留在两列。
+Grid cell 目前没有等价的锚定式恢复界面，因此其直接写入仍使用全局错误。
 
 Base 的次级工作区现在根据 active editor 的实际可用空间响应，而不是使用整个应用窗口宽度。Grid、
 Gallery 和 Kanban 在主 view 至少还能保留 440px 时，将 320px Record Inspector 或 Field Property
