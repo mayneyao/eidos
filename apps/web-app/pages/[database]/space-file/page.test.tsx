@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
     | null,
   readText: vi.fn(),
   readPreview: vi.fn(),
+  createText: vi.fn(),
+  list: vi.fn(),
   fetch: vi.fn(async () => ({ ok: true, status: 200 })),
   registerPendingWriteFlusher: vi.fn(
     (_id: string, _flusher: () => Promise<boolean>) => vi.fn()
@@ -69,6 +71,8 @@ vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
     mocks.fileChangeHandler = handler
   },
   useSpaceFiles: () => ({
+    createText: mocks.createText,
+    list: mocks.list,
     readText: mocks.readText,
     readPreview: mocks.readPreview,
     writeText: mocks.writeText,
@@ -115,6 +119,9 @@ describe("SpaceFilePage editor selection", () => {
   let root: Root
 
   beforeEach(() => {
+    mocks.createText.mockReset()
+    mocks.list.mockReset()
+    mocks.list.mockResolvedValue([])
     mocks.readText.mockReset()
     mocks.readPreview.mockReset()
     mocks.fetch.mockClear()
@@ -593,5 +600,201 @@ describe("SpaceFilePage editor selection", () => {
       "This file changed outside Eidos while you were editing."
     )
     expect(mocks.writeText).not.toHaveBeenCalled()
+  })
+
+  it("preserves a conflicted Markdown draft as a sibling file before reloading", async () => {
+    mocks.readText.mockResolvedValue({
+      path: "notes/today.md",
+      content: "initial",
+      size: 7,
+      mtimeMs: 1,
+    })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/space-file#notes%2Ftoday.md"]}>
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="edit-latest"]')
+        ?.click()
+    })
+    mocks.readText.mockResolvedValue({
+      path: "notes/today.md",
+      content: "outside",
+      size: 7,
+      mtimeMs: 2,
+    })
+    mocks.list.mockResolvedValue([
+      {
+        kind: "file",
+        name: "today (Eidos conflict copy).md",
+        path: "notes/today (Eidos conflict copy).md",
+      },
+    ])
+    mocks.createText.mockResolvedValue({
+      path: "notes/today (Eidos conflict copy) 2.md",
+      content: "latest",
+      size: 6,
+      mtimeMs: 3,
+    })
+
+    await act(async () => {
+      mocks.fileChangeHandler?.({
+        eventType: "change",
+        path: "notes/today.md",
+      })
+      await flushEffects()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Save draft & reload")
+        ?.click()
+      await flushEffects()
+    })
+
+    expect(mocks.list).toHaveBeenCalledWith("notes")
+    expect(mocks.createText).toHaveBeenCalledWith(
+      "notes/today (Eidos conflict copy) 2.md",
+      "latest"
+    )
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-testid="lexical-markdown-editor"]'
+      )?.dataset.value
+    ).toBe("outside")
+    expect(container.textContent).toContain(
+      "Your Eidos draft was preserved as notes/today (Eidos conflict copy) 2.md."
+    )
+  })
+
+  it("keeps the conflicted draft available when preserving a copy fails", async () => {
+    mocks.readText.mockResolvedValue({
+      path: "notes/today.md",
+      content: "initial",
+      size: 7,
+      mtimeMs: 1,
+    })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/space-file#notes%2Ftoday.md"]}>
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="edit-latest"]')
+        ?.click()
+    })
+    mocks.readText.mockResolvedValue({
+      path: "notes/today.md",
+      content: "outside",
+      size: 7,
+      mtimeMs: 2,
+    })
+    mocks.createText.mockRejectedValue(new Error("Permission denied"))
+
+    await act(async () => {
+      mocks.fileChangeHandler?.({
+        eventType: "change",
+        path: "notes/today.md",
+      })
+      await flushEffects()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Save draft & reload")
+        ?.click()
+      await flushEffects()
+    })
+
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-testid="lexical-markdown-editor"]'
+      )?.dataset.value
+    ).toBe("latest")
+    expect(container.textContent).toContain(
+      "Could not preserve your draft: Permission denied"
+    )
+    expect(container.textContent).toContain("Save draft & reload")
+  })
+
+  it("keeps a successful recovery path visible when the original cannot reload", async () => {
+    mocks.readText.mockResolvedValue({
+      path: "notes/today.md",
+      content: "initial",
+      size: 7,
+      mtimeMs: 1,
+    })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/space-file#notes%2Ftoday.md"]}>
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="edit-latest"]')
+        ?.click()
+    })
+    mocks.readText.mockResolvedValueOnce({
+      path: "notes/today.md",
+      content: "outside",
+      size: 7,
+      mtimeMs: 2,
+    })
+    mocks.readText.mockRejectedValue(new Error("Original is unavailable"))
+    mocks.createText.mockResolvedValue({
+      path: "notes/today (Eidos conflict copy).md",
+      content: "latest",
+      size: 6,
+      mtimeMs: 3,
+    })
+
+    await act(async () => {
+      mocks.fileChangeHandler?.({
+        eventType: "change",
+        path: "notes/today.md",
+      })
+      await flushEffects()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Save draft & reload")
+        ?.click()
+      await flushEffects()
+    })
+
+    expect(mocks.createText).toHaveBeenCalledTimes(1)
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-testid="lexical-markdown-editor"]'
+      )?.dataset.value
+    ).toBe("latest")
+    expect(container.textContent).toContain(
+      "Your Eidos draft was preserved as notes/today (Eidos conflict copy).md."
+    )
+    expect(container.textContent).toContain(
+      "The original file could not be reloaded; your current draft remains open."
+    )
+    expect(container.textContent).toContain("Retry reload")
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Retry reload")
+        ?.click()
+      await flushEffects()
+    })
+    expect(mocks.createText).toHaveBeenCalledTimes(1)
   })
 })

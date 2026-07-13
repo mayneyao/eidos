@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react"
 import Editor from "@monaco-editor/react"
+import { uniqueSpaceEntryName } from "@eidos.space/file-space/names"
 import { AlertTriangle, FileQuestion, RefreshCw } from "lucide-react"
 import { useLocation } from "react-router-dom"
 
 import {
   headingFromSpaceUrl,
   isSameOrDescendant,
+  joinSpacePath,
+  parentSpacePath,
   toSpaceAssetUrl,
 } from "@/apps/web-app/components/file-space/file-path"
 import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-space/pending-writes"
@@ -83,6 +86,20 @@ function filenameOf(filePath: string): string {
   return filePath.split("/").pop() || filePath
 }
 
+function conflictCopyName(
+  filePath: string,
+  existingNames: Iterable<string>
+): string {
+  const filename = filenameOf(filePath)
+  const extensionIndex = filename.lastIndexOf(".")
+  const extension = extensionIndex > 0 ? filename.slice(extensionIndex) : ""
+  const stem = extension ? filename.slice(0, extensionIndex) : filename
+  return uniqueSpaceEntryName(
+    existingNames,
+    `${stem} (Eidos conflict copy)${extension}`
+  )
+}
+
 function editorLanguage(extension: string): string {
   const languages: Record<string, string> = {
     js: "javascript",
@@ -143,7 +160,9 @@ function SpaceTextEditor({
   heading?: string
 }) {
   const { currentSpace } = useCurrentSpace()
-  const { readText, writeText } = useSpaceFiles(currentSpace?.id)
+  const { createText, list, readText, writeText } = useSpaceFiles(
+    currentSpace?.id
+  )
   const versioningOperation = useActiveSpaceVersioningOperation(
     currentSpace?.id
   )
@@ -158,10 +177,18 @@ function SpaceTextEditor({
   const [error, setError] = useState<string | null>(null)
   const [unavailable, setUnavailable] = useState(false)
   const [externalChange, setExternalChange] = useState(false)
+  const [recoveringConflict, setRecoveringConflict] = useState(false)
+  const [conflictRecoveryError, setConflictRecoveryError] = useState<
+    string | null
+  >(null)
+  const [recoveredDraftPath, setRecoveredDraftPath] = useState<string | null>(
+    null
+  )
   const editorContentRef = useRef("")
   const savedContentRef = useRef("")
   const mtimeMsRef = useRef<number | undefined>()
   const externalChangeRef = useRef(false)
+  const recoveringConflictRef = useRef(false)
   const pendingWriteContentRef = useRef<string | null>(null)
   const requestedWriteContentRef = useRef<string | null>(null)
   const savePromiseRef = useRef<Promise<boolean> | null>(null)
@@ -174,27 +201,34 @@ function SpaceTextEditor({
     setExternalChange(changed)
   }, [])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const file = await readText(filePath)
-      editorContentRef.current = file.content
-      savedContentRef.current = file.content
-      setContent(file.content)
-      setSavedContent(file.content)
-      mtimeMsRef.current = file.mtimeMs
-      setUnavailable(false)
-      updateExternalChange(false)
-      setError(null)
-    } catch (loadError) {
-      const message =
-        loadError instanceof Error ? loadError.message : "Unable to open file"
-      setError(message)
-      if (!savedContentRef.current) setUnavailable(true)
-    } finally {
-      setLoading(false)
-    }
-  }, [filePath, readText, updateExternalChange])
+  const load = useCallback(
+    async (preserveEditorOnError = false) => {
+      setLoading(true)
+      try {
+        const file = await readText(filePath)
+        editorContentRef.current = file.content
+        savedContentRef.current = file.content
+        setContent(file.content)
+        setSavedContent(file.content)
+        mtimeMsRef.current = file.mtimeMs
+        setUnavailable(false)
+        updateExternalChange(false)
+        setError(null)
+        return true
+      } catch (loadError) {
+        const message =
+          loadError instanceof Error ? loadError.message : "Unable to open file"
+        setError(message)
+        if (!preserveEditorOnError && !savedContentRef.current) {
+          setUnavailable(true)
+        }
+        return false
+      } finally {
+        setLoading(false)
+      }
+    },
+    [filePath, readText, updateExternalChange]
+  )
 
   useEffect(() => {
     void load()
@@ -353,6 +387,37 @@ function SpaceTextEditor({
     saving,
   ])
 
+  const saveConflictDraftAndReload = useCallback(async () => {
+    if (recoveringConflictRef.current) return
+    recoveringConflictRef.current = true
+    setRecoveringConflict(true)
+    setConflictRecoveryError(null)
+    const draft = editorContentRef.current
+    try {
+      const directory = parentSpacePath(filePath)
+      const entries = await list(directory)
+      const copyPath = joinSpacePath(
+        directory,
+        conflictCopyName(
+          filePath,
+          entries.map((entry) => entry.name)
+        )
+      )
+      await createText(copyPath, draft)
+      setRecoveredDraftPath(copyPath)
+      await load(true)
+    } catch (recoveryError) {
+      setConflictRecoveryError(
+        recoveryError instanceof Error
+          ? recoveryError.message
+          : "Unable to preserve the Eidos draft"
+      )
+    } finally {
+      recoveringConflictRef.current = false
+      setRecoveringConflict(false)
+    }
+  }, [createText, filePath, list, load])
+
   if (loading) return <FileState loading message="Opening file…" />
   if (unavailable) {
     return <FileState message={error || "This file is no longer available"} />
@@ -361,29 +426,80 @@ function SpaceTextEditor({
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       {externalChange ? (
-        <div className="flex items-center justify-between gap-3 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4" />
-            This file changed outside Eidos while you were editing.
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 font-medium">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>
+                This file changed outside Eidos while you were editing.
+              </span>
+            </div>
+            {conflictRecoveryError ? (
+              <p
+                className="mt-1 break-words ps-6 text-destructive"
+                role="alert"
+              >
+                Could not preserve your draft: {conflictRecoveryError}
+              </p>
+            ) : (
+              <p className="mt-1 ps-6 text-amber-800/80 dark:text-amber-200/80">
+                Save your Eidos draft as a sibling file before reloading the
+                disk version.
+              </p>
+            )}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7"
-            onClick={() => {
-              if (
-                editorContentRef.current !== savedContentRef.current &&
-                !window.confirm(
-                  "Reload from disk and discard your unsaved Eidos edits?"
-                )
-              ) {
-                return
-              }
-              void load()
-            }}
-          >
-            Reload from disk
-          </Button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7"
+              disabled={recoveringConflict}
+              onClick={() => {
+                if (recoveredDraftPath) {
+                  void load(true)
+                  return
+                }
+                void saveConflictDraftAndReload()
+              }}
+            >
+              {recoveringConflict
+                ? "Saving copy…"
+                : recoveredDraftPath
+                  ? "Retry reload"
+                  : "Save draft & reload"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7"
+              disabled={recoveringConflict}
+              onClick={() => {
+                if (
+                  editorContentRef.current !== savedContentRef.current &&
+                  !window.confirm(
+                    "Reload from disk and discard your unsaved Eidos edits?"
+                  )
+                ) {
+                  return
+                }
+                void load()
+              }}
+            >
+              Discard & reload
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {recoveredDraftPath ? (
+        <div
+          className="border-b border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-200"
+          role="status"
+        >
+          Your Eidos draft was preserved as{" "}
+          <span className="break-all font-medium">{recoveredDraftPath}</span>.
+          {externalChange
+            ? " The original file could not be reloaded; your current draft remains open."
+            : " The disk version is now open."}
         </div>
       ) : null}
       {error ? (
@@ -403,6 +519,7 @@ function SpaceTextEditor({
             }}
             onChange={(nextContent) => {
               if (destructiveVersionMutation) return
+              setRecoveredDraftPath(null)
               editorContentRef.current = nextContent
               setContent(nextContent)
             }}
@@ -439,6 +556,7 @@ function SpaceTextEditor({
             onChange={(value) => {
               if (destructiveVersionMutation) return
               const nextContent = value ?? ""
+              setRecoveredDraftPath(null)
               editorContentRef.current = nextContent
               setContent(nextContent)
             }}
