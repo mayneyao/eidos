@@ -644,9 +644,9 @@ export class SpaceManagementService extends IpcServiceBase {
     }
     if (
       options.cursor !== undefined &&
-      (typeof options.cursor !== "string" || options.cursor.length > 64)
+      (typeof options.cursor !== "string" || options.cursor.length > 4_096)
     ) {
-      throw new Error("Base row page cursor must be a short string")
+      throw new Error("Base row page cursor is invalid")
     }
     return withFileSpaceOperationLock(spaceId, async () => {
       const files = this._getFileSpace(spaceId)

@@ -1249,15 +1249,23 @@ describe("Eidos Base files", () => {
   it("pages large tables and deletes selected rows without a snapshot cap", () => {
     const filePath = path.join(root, "large.base")
     createBaseFile(filePath, {
-      defaultTable: { id: "records", name: "Records" },
+      defaultTable: {
+        id: "records",
+        name: "Records",
+        fields: [{ name: "Priority", columnName: "priority", type: "number" }],
+      },
     }).close()
     const sqlite = new Database(filePath)
     const insert = sqlite.prepare(
-      "INSERT INTO tb_records (_id, title) VALUES (?, ?)"
+      "INSERT INTO tb_records (_id, title, priority) VALUES (?, ?, ?)"
     )
     sqlite.transaction(() => {
       for (let index = 0; index < 10_000; index += 1) {
-        insert.run(`row_${index}`, `Row ${index}`)
+        insert.run(
+          `row_${index}`,
+          `Row ${index}`,
+          index % 11 === 0 ? null : index % 7
+        )
       }
     })()
     sqlite.close()
@@ -1311,16 +1319,57 @@ describe("Eidos Base files", () => {
     expect(cursorQuery?.[0]).not.toContain("OFFSET")
     expect(cursorQuery?.[1]).toEqual([50, 50])
 
-    const sortedPage = base.getRowPage(
+    const sortedQuery = {
+      sorts: [
+        { field: "priority", direction: "desc" as const },
+        { field: "title", direction: "asc" as const },
+      ],
+    }
+    const expectedSortedRows = base.listRows("records", 10_000, 0, sortedQuery)
+    const firstSortedPage = base.getRowPage(
       "records",
-      50,
-      50,
-      { sorts: [{ field: "title", direction: "asc" }] },
-      10_000,
-      firstCursorPage.nextCursor
+      0,
+      500,
+      sortedQuery,
+      10_000
     )
-    expect(sortedPage.nextCursor).toBeUndefined()
-    expect(sortedPage.rows).toHaveLength(50)
+    expect(firstSortedPage.nextCursor).toMatch(/^sort:/)
+    const firstSortedCursor = firstSortedPage.nextCursor
+    const sortedCursorQueryStart = query.mock.calls.length
+    const cursorSortedRows = [...firstSortedPage.rows]
+    let sortedCursor = firstSortedCursor
+    for (let offset = 500; offset < 10_000; offset += 500) {
+      const page = base.getRowPage(
+        "records",
+        offset,
+        500,
+        sortedQuery,
+        10_000,
+        sortedCursor
+      )
+      cursorSortedRows.push(...page.rows)
+      sortedCursor = page.nextCursor
+    }
+    expect(cursorSortedRows).toEqual(expectedSortedRows)
+    expect(sortedCursor).toMatch(/^sort:/)
+    expect(
+      query.mock.calls
+        .slice(sortedCursorQueryStart)
+        .filter(([sql]) => sql.includes("SELECT * FROM"))
+        .every(([sql]) => !sql.includes("OFFSET"))
+    ).toBe(true)
+    expectBaseError(
+      () =>
+        base.getRowPage(
+          "records",
+          50,
+          50,
+          { sorts: [{ field: "title", direction: "asc" }] },
+          10_000,
+          firstSortedCursor
+        ),
+      "invalid-query"
+    )
 
     expectBaseError(
       () => base.getRowPage("records", 50, 50, {}, 10_000, "invalid"),

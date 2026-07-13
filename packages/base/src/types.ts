@@ -387,7 +387,7 @@ export interface BaseRowPageOptions {
   totalHint?: number
   /**
    * Opaque cursor returned by the previous contiguous page. The runtime uses
-   * it as a paging fast path when the query keeps the natural row order.
+   * it as a paging fast path for natural and indexed explicit sort orders.
    */
   cursor?: string
 }

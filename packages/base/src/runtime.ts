@@ -10,6 +10,17 @@ import {
   BASE_TABLES_TABLE,
   BASE_VIEWS_TABLE,
 } from "./constants"
+import {
+  BASE_SORTED_CURSOR_MAX_FIELDS,
+  appendBaseCursorWhere,
+  baseCursorQuerySignature,
+  baseCursorSorts,
+  baseSortedCursorBranches,
+  decodeBaseRowCursor,
+  decodeBaseSortedCursor,
+  encodeBaseRowCursor,
+  encodeBaseSortedCursor,
+} from "./cursor-paging"
 import { BaseError } from "./errors"
 import {
   decodeBaseMultiSelectIds,
@@ -31,6 +42,7 @@ import { setBaseMetadata } from "./schema"
 import {
   compileBaseRowQuery,
   normalizeBaseFilter,
+  normalizeBaseRowQuery,
   normalizeBaseSorts,
   removeBaseFilterField,
 } from "./query"
@@ -78,31 +90,6 @@ interface RegistryRow {
   description: string | null
   created_at: string
   updated_at: string
-}
-
-const BASE_ROWID_CURSOR_PREFIX = "rowid:"
-
-function decodeBaseRowCursor(cursor: string): number {
-  const rowId = cursor.startsWith(BASE_ROWID_CURSOR_PREFIX)
-    ? cursor.slice(BASE_ROWID_CURSOR_PREFIX.length)
-    : ""
-  const parsed = /^-?\d{1,16}$/.test(rowId) ? Number(rowId) : Number.NaN
-  if (!Number.isSafeInteger(parsed)) {
-    throw new BaseError("invalid-query", "Invalid Base row page cursor")
-  }
-  return parsed
-}
-
-function encodeBaseRowCursor(rowId: unknown): string | undefined {
-  const parsed =
-    typeof rowId === "number"
-      ? rowId
-      : typeof rowId === "string" && /^-?\d{1,16}$/.test(rowId)
-        ? Number(rowId)
-        : Number.NaN
-  return Number.isSafeInteger(parsed)
-    ? `${BASE_ROWID_CURSOR_PREFIX}${String(parsed)}`
-    : undefined
 }
 
 const BASE_VIEW_QUERY_INDEX_PREFIX = "eidos__view_query_"
@@ -1868,29 +1855,68 @@ export class BaseRuntime {
     cursor?: string
   ): { rows: BaseRow[]; nextCursor?: string } {
     const fields = this.listFields(tableId)
-    const compiled = compileBaseRowQuery(fields, query)
-    const cursorEligible = normalizeBaseSorts(query.sorts).length === 0
-    const decodedCursor = cursor ? decodeBaseRowCursor(cursor) : undefined
-    const afterRowId =
-      decodedCursor !== undefined && cursorEligible ? decodedCursor : undefined
-    const hasCursor = afterRowId !== undefined
-    const cursorWhere = hasCursor
-      ? `${compiled.whereSql}${compiled.whereSql ? " AND" : "WHERE"} "__base_rowid" > ?`
-      : compiled.whereSql
-    const params = [
-      ...compiled.params,
-      ...(hasCursor ? [afterRowId] : []),
-      Math.max(0, limit),
-      ...(hasCursor ? [] : [Math.max(0, offset)]),
-    ]
-    const rows = this.connection.query<BaseRow>(
-      `SELECT * FROM ${this.rowSourceSql(tableId, fields)}
-        ${cursorWhere} ${compiled.orderSql} LIMIT ?${hasCursor ? "" : " OFFSET ?"}`,
-      params
-    )
-    const nextCursor = cursorEligible
-      ? encodeBaseRowCursor(rows.at(-1)?.__base_rowid)
-      : undefined
+    const normalizedQuery = normalizeBaseRowQuery(query)
+    const compiled = compileBaseRowQuery(fields, normalizedQuery)
+    const sorts = baseCursorSorts(fields, normalizedQuery)
+    const sortedCursorEligible =
+      sorts.length > 0 &&
+      sorts.length <= BASE_SORTED_CURSOR_MAX_FIELDS &&
+      sorts.every((sort) => !sort.field.isDerived)
+    const safeLimit = Math.max(0, limit)
+    const rowSource = this.rowSourceSql(tableId, fields)
+    let rows: BaseRow[]
+
+    if (cursor && sorts.length === 0) {
+      const afterRowId = decodeBaseRowCursor(cursor)
+      const cursorWhere = appendBaseCursorWhere(
+        compiled.whereSql,
+        '"__base_rowid" > ?'
+      )
+      rows = this.connection.query<BaseRow>(
+        `SELECT * FROM ${rowSource}
+          ${cursorWhere} ${compiled.orderSql} LIMIT ?`,
+        [...compiled.params, afterRowId, safeLimit]
+      )
+    } else if (cursor && sortedCursorEligible) {
+      const querySignature = baseCursorQuerySignature(normalizedQuery)
+      const decodedCursor = decodeBaseSortedCursor(
+        cursor,
+        querySignature,
+        sorts.length
+      )
+      rows = []
+      for (const branch of baseSortedCursorBranches(sorts, decodedCursor)) {
+        const remaining = safeLimit - rows.length
+        if (remaining <= 0) break
+        const cursorWhere = appendBaseCursorWhere(compiled.whereSql, branch.sql)
+        rows.push(
+          ...this.connection.query<BaseRow>(
+            `SELECT * FROM ${rowSource}
+              ${cursorWhere} ${compiled.orderSql} LIMIT ?`,
+            [...compiled.params, ...branch.params, remaining]
+          )
+        )
+      }
+    } else if (cursor) {
+      throw new BaseError("invalid-query", "Invalid Base row page cursor")
+    } else {
+      rows = this.connection.query<BaseRow>(
+        `SELECT * FROM ${rowSource}
+          ${compiled.whereSql} ${compiled.orderSql} LIMIT ? OFFSET ?`,
+        [...compiled.params, safeLimit, Math.max(0, offset)]
+      )
+    }
+
+    const nextCursor =
+      sorts.length === 0
+        ? encodeBaseRowCursor(rows.at(-1)?.__base_rowid)
+        : sortedCursorEligible
+          ? encodeBaseSortedCursor(
+              rows.at(-1),
+              sorts,
+              baseCursorQuerySignature(normalizedQuery)
+            )
+          : undefined
     rows.forEach((row) => delete row.__base_rowid)
     return {
       rows: this.hydrateRelationRows(rows, fields),
