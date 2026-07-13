@@ -467,7 +467,7 @@ describe("BaseGalleryView", () => {
       tableId: "tasks",
       offset,
       limit,
-      total: 1_000,
+      total: 100_000,
       rows: Array.from({ length: 100 }, (_, index) => ({
         _id: `row_${offset + index}`,
         title: `Task ${offset + index}`,
@@ -492,18 +492,18 @@ describe("BaseGalleryView", () => {
         "[data-base-gallery-scroll]"
       )
       if (!scroller) return
-      scroller.scrollTop = 100_000
+      scroller.scrollTop = 100_000_000
       scroller.dispatchEvent(new Event("scroll"))
       await Promise.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(loadPage).toHaveBeenCalledWith(900, 100, 1_000)
+    expect(loadPage).toHaveBeenCalledWith(99_900, 100, 100_000)
     expect(
       container
         .querySelector("[data-base-gallery-scroll]")
         ?.getAttribute("data-base-window-start")
-    ).toBe("900")
+    ).toBe("99900")
     expect(
       Number(
         container
@@ -526,7 +526,7 @@ describe("BaseGalleryView", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(loadPage).toHaveBeenLastCalledWith(0, 100, 1_000)
+    expect(loadPage).toHaveBeenLastCalledWith(0, 100, 100_000)
     expect(
       container
         .querySelector("[data-base-gallery-scroll]")

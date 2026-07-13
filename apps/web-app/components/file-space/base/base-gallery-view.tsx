@@ -236,6 +236,7 @@ export function BaseGalleryView({
     gap: GALLERY_GAP,
     initialRect: { width: 1024, height: 640 },
     overscan: GALLERY_OVERSCAN_ROWS,
+    useAnimationFrameWithResizeObserver: true,
   })
   const virtualRows = rowVirtualizer.getVirtualItems()
 
@@ -403,11 +404,11 @@ export function BaseGalleryView({
                 <div
                   key={virtualRow.key}
                   ref={rowVirtualizer.measureElement}
-                  className="absolute left-0 top-0 grid w-full items-start gap-3"
+                  className="absolute left-0 top-0 grid w-full items-start gap-3 [contain:layout_style]"
                   data-index={virtualRow.index}
                   style={{
                     gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
-                    transform: `translateY(${virtualRow.start}px)`,
+                    transform: `translate3d(0, ${virtualRow.start}px, 0)`,
                   }}
                 >
                   {Array.from(

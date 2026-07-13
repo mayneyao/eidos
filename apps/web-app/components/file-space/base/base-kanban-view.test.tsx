@@ -1023,7 +1023,7 @@ describe("BaseKanbanView", () => {
         tableId: "tasks",
         offset,
         limit,
-        total: value === "todo" ? 500 : 0,
+        total: value === "todo" ? 100_000 : 0,
         rows:
           value === "todo"
             ? Array.from({ length: 50 }, (_, index) => ({
@@ -1040,7 +1040,9 @@ describe("BaseKanbanView", () => {
         <BaseKanbanView
           table={table}
           view={view}
-          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 500 }])}
+          loadGroupCounts={vi.fn(async () => [
+            { value: "todo", total: 100_000 },
+          ])}
           loadGroupPage={loadGroupPage}
           onCellEdit={vi.fn()}
           onAddRow={vi.fn()}
@@ -1062,7 +1064,7 @@ describe("BaseKanbanView", () => {
         '[data-base-kanban-column-scroll="base-kanban:todo"]'
       )
       if (!scroller) return
-      scroller.scrollTop = 100_000
+      scroller.scrollTop = 100_000_000
       scroller.dispatchEvent(new Event("scroll"))
       await Promise.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -1071,15 +1073,15 @@ describe("BaseKanbanView", () => {
     expect(loadGroupPage).toHaveBeenCalledWith(
       expect.objectContaining({ tableColumnName: "status" }),
       "todo",
-      450,
+      99_950,
       50,
-      500
+      100_000
     )
     expect(
       todoColumn
         ?.querySelector("[data-base-kanban-column-scroll]")
         ?.getAttribute("data-base-window-start")
-    ).toBe("450")
+    ).toBe("99950")
     expect(
       Number(
         todoColumn
@@ -1107,7 +1109,7 @@ describe("BaseKanbanView", () => {
       "todo",
       0,
       50,
-      500
+      100_000
     )
     expect(
       todoColumn
@@ -1462,7 +1464,7 @@ describe("BaseKanbanView", () => {
   })
 
   it("only mounts the horizontal window for a large set of columns", async () => {
-    const manyOptions = Array.from({ length: 20 }, (_, index) => ({
+    const manyOptions = Array.from({ length: 200 }, (_, index) => ({
       id: `status_${index}`,
       name: `Status ${index}`,
       color: "blue",

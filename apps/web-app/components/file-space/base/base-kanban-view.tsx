@@ -282,6 +282,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
     gap: 8,
     initialRect: { width, height: 560 },
     overscan: 3,
+    useAnimationFrameWithResizeObserver: true,
   })
   const virtualItems = cardVirtualizer.getVirtualItems()
   const cardMoveOptions = useMemo(
@@ -453,10 +454,10 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                     <div
                       key={virtualItem.key}
                       ref={cardVirtualizer.measureElement}
-                      className="absolute left-0 top-0 w-full"
+                      className="absolute left-0 top-0 w-full [contain:layout_style]"
                       data-index={virtualItem.index}
                       style={{
-                        transform: `translateY(${virtualItem.start}px)`,
+                        transform: `translate3d(0, ${virtualItem.start}px, 0)`,
                       }}
                     >
                       {row ? (
@@ -751,6 +752,7 @@ export function BaseKanbanView({
     horizontal: true,
     initialRect: { width: 1024, height: 640 },
     overscan: 2,
+    useAnimationFrameWithResizeObserver: true,
   })
   const virtualColumns = columnVirtualizer.getVirtualItems()
   const { estimatedColumnStarts, estimatedTotalWidth } = useMemo(() => {
@@ -1486,11 +1488,11 @@ export function BaseKanbanView({
                   return (
                     <div
                       key={group.key}
-                      className="absolute inset-y-0 left-0"
+                      className="absolute inset-y-0 left-0 [contain:layout_style]"
                       data-index={virtualColumn.index}
                       style={{
                         width: virtualColumn.size,
-                        transform: `translateX(${virtualColumn.start}px)`,
+                        transform: `translate3d(${virtualColumn.start}px, 0, 0)`,
                       }}
                     >
                       <BaseKanbanColumn
