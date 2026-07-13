@@ -109,10 +109,12 @@ Gallery 和 Kanban 现在已经接入与 Grid 相同的持久化 view lifecycle�
 的搜索、筛选、排序、字段显隐和 Property workspace。
 Gallery 会按当前宽度把 cards 编排成虚拟 rows，只挂载可见区域与 overscan；虚拟总高度来自服务端
 总记录数，而不是已经加载的行数。相邻滚动会请求前后 100-row page，远距离拖动滚动条会直接请求目标
-offset，不再从第一页逐页追赶，也不再显示手动 Load more。Renderer 最多保留 500 条 Gallery rows，
-每个 Kanban 分组最多保留 250 条 rows；超过边界时从窗口另一侧淘汰，因此访问过的数据和 DOM 都不会
+offset，不再从第一页逐页追赶，也不再显示手动 Load more。Renderer 最多保留 300 条 Gallery rows，
+每个 Kanban 分组最多保留 150 条 rows；超过边界时从窗口另一侧淘汰，因此访问过的数据和 DOM 都不会
 随浏览深度无界增长。动态测量仍允许封面和字段数量改变 card 高度，搜索定位可以直接加载目标窗口并
 滚动到对应 record。
+自动分页的进度与重试控件会通过零高度 sticky 层浮在 Gallery viewport 上，不会因为请求开始或结束而
+改变虚拟滚动高度、推动可见 cards。
 只有 Gallery 首屏或查询刷新会重新统计筛选后的总数；后续虚拟窗口请求会携带经过校验的已知 total，
 因此滚动不会为每一页重复完整 `COUNT(*)`。Kanban 同样把 grouped-count query 的各分组 total 复用于
 可见列分页。显式刷新、搜索、筛选、排序以及过期空尾页仍会重新校准权威总数。
@@ -145,6 +147,8 @@ metadata 中稳定的 record title，不再序列化并重新插入整张 card D
 opacity 反馈，不再硬编码明暗色或加入装饰性的旋转、缩放。Pointer drag 需要明确移动 6px 才会
 激活；card 内 button、link 和 input 的 pointer/keyboard 事件仍由控件自身处理。Base blocking
 mutation 会直接禁用 card 拖拽，取消或落回原列也不再显示成功移动的高亮。
+移动反馈改为稳定的 selector store：开始拖拽不会再向所有已挂载 cards 广播 context 更新，跨列移动完成
+时也只重渲染高亮状态真正变化的 card。
 Kanban 启动时使用一次 grouped-count query 获取所有列计数，只为横向窗口内、未折叠的列加载首批
 records；每列内部再按动态高度做纵向虚拟滚动并自动分页。大量 Select options 不再等价于同等数量
 的文件打开与首屏查询，大分组也不会把所有已加载 cards 同时挂载到 DOM。
@@ -167,8 +171,9 @@ row ID 去重。Inspector 修改分组字段也复用同一套跨列迁移。没
 
 Kanban 的渲染边界现在也与分页边界一致：group state 更新保留未受影响列的对象引用，列组件使用稳定的
 move/collapse/load/create callbacks 和只随 Select options 变化的移动目标列表。单列首屏、自动分页或
-loading 状态变化只重渲染该列，不会重算其他可见列。共享 record card 同样使用稳定 props 的 memo
-边界，因此 Gallery 自动加载和 Kanban 局部更新不会重复执行未变化 card 的字段格式化、菜单构造和
+loading 状态变化只重渲染该列，不会重算其他可见列。每个已挂载 Kanban draggable/card pair 也有独立的
+稳定 props memo 边界，因此同列 loading、record creation 输入和 page append 不会重渲染保留中的
+cards。共享 record card 为 Gallery 分页保留相同边界：未变化记录不会重复执行字段格式化、菜单构造和
 cover 子树渲染；row 或 view 真正变化时仍会正常更新。
 
 Card 渲染元数据现在按 view 计算一次，而不是让每个可见 record 重复计算。字段顺序、封面字段、字段

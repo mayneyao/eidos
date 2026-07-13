@@ -150,7 +150,7 @@ Gallery arranges cards into responsive virtual rows and mounts only the visible
 window plus overscan. Its virtual extent is driven by the server total rather
 than the number of records already fetched, so an adjacent scroll fetches the
 next or previous 100-row page while a distant scrollbar jump requests the
-target offset directly. The renderer retains at most 500 Gallery rows and 250
+target offset directly. The renderer retains at most 300 Gallery rows and 150
 rows per Kanban column, trimming the opposite side of the active window instead
 of accumulating every visited page. Dynamic measurement supports variable cover
 and field heights, and result navigation can jump directly to the target page
@@ -160,6 +160,9 @@ the loaded window. The visible range is checked first, so a distant scrollbar
 jump still replaces the window at its actual target instead of walking through
 or prefetching intermediate pages. In ordinary scrolling, the next page is
 therefore requested before an unloaded placeholder enters the viewport.
+Automatic-page progress and retry controls float over the Gallery viewport in a
+zero-height sticky layer, so beginning or completing a request does not change
+the virtual scroll extent or shift the visible cards.
 Only the first Gallery page or a query refresh recomputes the filtered total.
 Later virtual-window requests send the previously observed total as a validated
 hint, so scrolling does not repeat a full `COUNT(*)`. Kanban reuses the totals
@@ -212,6 +215,9 @@ movement, while pointer and keyboard events from buttons, links, and inputs
 inside a card remain owned by those controls. Blocking Base mutations disable
 the draggable card itself, and cancelled or same-column drops no longer show a
 successful-move highlight.
+Moved-card feedback uses a stable selector store: starting a drag does not
+broadcast a context update to every mounted card, and completing a cross-column
+move rerenders only the card whose highlight changed.
 Kanban startup now uses one grouped-count query for all columns and loads the
 first record page only for uncollapsed columns in the horizontal window. Each
 column also uses dynamic-height vertical virtualization and automatic paging,
@@ -256,10 +262,12 @@ the object identity of unaffected columns, while column components receive
 stable move, collapse, load, and create callbacks plus a move-target list that
 changes only with Select options. Loading an initial page, an automatic next
 page, or a loading flag in one group therefore rerenders only that column, not
-every visible column. The shared record card also has a stable-props memo
-boundary, so Gallery paging and local Kanban updates do not repeat field
-formatting, menu construction, or cover-subtree rendering for unchanged cards;
-real row or view changes still render normally.
+every visible column. Each mounted Kanban draggable/card pair also has its own
+stable-props memo boundary, so loading state, record creation input, and a page
+append in that column do not rerender retained cards. The shared record card
+keeps the same boundary for Gallery paging: unchanged records do not repeat field
+formatting, menu construction, or cover-subtree rendering; real row or view
+changes still render normally.
 
 Card render metadata is now computed once per view rather than once per visible
 record. Ordered fields, cover selection, field limits, and Select/Multi-select
