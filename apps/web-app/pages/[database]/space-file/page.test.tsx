@@ -255,6 +255,42 @@ describe("SpaceFilePage editor selection", () => {
     expect(container.querySelector('[data-testid="monaco-editor"]')).toBeNull()
   })
 
+  it("retries an unknown file preview without reopening the tab", async () => {
+    mocks.readPreview
+      .mockRejectedValueOnce(new Error("File is temporarily unavailable"))
+      .mockResolvedValueOnce({
+        kind: "text",
+        path: "service.blorp",
+        content: "ready\n",
+        encoding: "utf-8",
+        previewBytes: 6,
+        truncated: false,
+        size: 6,
+        mtimeMs: 2,
+      })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/space-file#service.blorp"]}>
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+
+    expect(container.textContent).toContain("File is temporarily unavailable")
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Try again")
+        ?.click()
+      await flushEffects()
+    })
+
+    expect(mocks.readPreview).toHaveBeenCalledTimes(2)
+    expect(container.textContent).toContain("ready")
+    expect(container.textContent).not.toContain("temporarily unavailable")
+  })
+
   it("refreshes an unknown text preview after the file changes", async () => {
     mocks.readPreview
       .mockResolvedValueOnce({

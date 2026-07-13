@@ -192,6 +192,21 @@ describe("SpaceFiles", () => {
     )
   })
 
+  it("does not classify UTF-8 text as binary when the preview splits a character", async () => {
+    const prefix = "a".repeat(512 * 1024 - 1)
+    await writeFile(path.join(root, "unicode.trace"), `${prefix}你tail`)
+
+    const preview = await files.readPreview("unicode.trace")
+
+    expect(preview).toMatchObject({
+      kind: "text",
+      encoding: "utf-8",
+      truncated: true,
+      previewBytes: 512 * 1024,
+    })
+    expect(preview.kind === "text" ? preview.content : "").toBe(prefix)
+  })
+
   it.skipIf(process.platform === "win32")(
     "does not replace a read-only text file",
     async () => {

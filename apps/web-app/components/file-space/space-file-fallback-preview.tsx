@@ -8,6 +8,7 @@ import {
   useSpaceFileChanges,
   useSpaceFiles,
 } from "@/apps/web-app/hooks/use-space-files"
+import { Button } from "@/components/ui/button"
 
 function formatFileSize(size: number): string {
   if (size < 1024) return `${size} B`
@@ -30,10 +31,12 @@ function PreviewState({
   kind,
   message,
   detail,
+  onRetry,
 }: {
   kind: "loading" | "binary" | "error"
   message: string
   detail?: string
+  onRetry?: () => void
 }) {
   const Icon =
     kind === "loading"
@@ -51,9 +54,20 @@ function PreviewState({
               : "mt-0.5 h-4 w-4"
           }
         />
-        <div className="space-y-1 text-sm">
-          <p className="text-foreground/80">{message}</p>
+        <div className="min-w-0 space-y-1 text-sm">
+          <p className="break-words text-foreground/80">{message}</p>
           {detail ? <p className="text-xs">{detail}</p> : null}
+          {onRetry ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2 h-7"
+              onClick={onRetry}
+            >
+              Try again
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>
@@ -86,6 +100,11 @@ export function SpaceFileFallbackPreview({ filePath }: { filePath: string }) {
     }
   }, [filePath, readPreview])
 
+  const retry = useCallback(() => {
+    setLoading(true)
+    void load()
+  }, [load])
+
   useEffect(() => {
     setLoading(true)
     void load()
@@ -113,7 +132,9 @@ export function SpaceFileFallbackPreview({ filePath }: { filePath: string }) {
   if (loading) {
     return <PreviewState kind="loading" message="Checking file contents…" />
   }
-  if (error) return <PreviewState kind="error" message={error} />
+  if (error) {
+    return <PreviewState kind="error" message={error} onRetry={retry} />
+  }
   if (!preview) {
     return <PreviewState kind="error" message="Unable to preview file" />
   }
