@@ -99,21 +99,27 @@ function BaseRecordCover({
   fitContent: boolean
   acquireCover?: BaseCoverAcquire
 }) {
-  const path = decodeBaseFilePaths(row[field.tableColumnName]).at(0)
+  const value = row[field.tableColumnName]
+  const reference =
+    field.type === "url"
+      ? typeof value === "string" && /^https?:\/\//i.test(value.trim())
+        ? value.trim()
+        : undefined
+      : decodeBaseFilePaths(value).at(0)
   const [source, setSource] = useState<string | null>(null)
 
   useEffect(() => {
     let lease: BaseCoverLease | null = null
     let active = true
     setSource(null)
-    if (!path) return
-    if (/^https?:/i.test(path)) {
-      setSource(path)
+    if (!reference) return
+    if (/^https?:\/\//i.test(reference)) {
+      setSource(reference)
       return
     }
     if (!acquireCover) return
     const controller = new AbortController()
-    void acquireCover(path, controller.signal)
+    void acquireCover(reference, controller.signal)
       .then((nextLease) => {
         if (!active) {
           nextLease.release()
@@ -130,7 +136,7 @@ function BaseRecordCover({
       controller.abort()
       lease?.release()
     }
-  }, [acquireCover, path])
+  }, [acquireCover, reference])
 
   return (
     <div
@@ -145,6 +151,7 @@ function BaseRecordCover({
           alt=""
           decoding="async"
           loading="lazy"
+          onError={() => setSource(null)}
           className={cn(
             "h-full w-full",
             fitContent ? "object-contain" : "object-cover"
@@ -281,6 +288,8 @@ export const BaseRecordCard = memo(function BaseRecordCard({
   moveOptions,
   onMove,
   role,
+  positionInSet,
+  setSize,
   focused = false,
 }: {
   row: BaseRow
@@ -294,6 +303,8 @@ export const BaseRecordCard = memo(function BaseRecordCard({
   moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
   onMove?: (row: BaseRow, targetId: string) => void
   role?: AriaRole
+  positionInSet?: number
+  setSize?: number
   focused?: boolean
 }) {
   const layout =
@@ -364,6 +375,8 @@ export const BaseRecordCard = memo(function BaseRecordCard({
       aria-label={title}
       aria-description={role === "listitem" ? "Open record details" : undefined}
       aria-current={focused ? "true" : undefined}
+      aria-posinset={role === "listitem" ? positionInSet : undefined}
+      aria-setsize={role === "listitem" ? setSize : undefined}
       data-base-row-id={String(row._id)}
       tabIndex={role === "listitem" ? 0 : -1}
       role={role}

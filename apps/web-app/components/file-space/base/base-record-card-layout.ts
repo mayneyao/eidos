@@ -19,6 +19,10 @@ export interface BaseRecordCardLayout {
   hideEmptyFields: boolean
 }
 
+export function isBaseRecordCoverField(field: BaseFieldInfo): boolean {
+  return field.type === "file" || field.type === "url"
+}
+
 export function createBaseRecordCardLayout(
   fields: BaseFieldInfo[],
   view: BaseViewInfo,
@@ -50,7 +54,8 @@ export function createBaseRecordCardLayout(
     coverField:
       fields.find(
         (field) =>
-          field.tableColumnName === coverFieldName && field.type === "file"
+          field.tableColumnName === coverFieldName &&
+          isBaseRecordCoverField(field)
       ) ?? null,
     fieldLimit: compact ? 4 : 6,
     fitContent: view.properties?.fitContent !== false,

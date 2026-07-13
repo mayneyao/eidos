@@ -437,6 +437,8 @@ export function BaseGalleryView({
                           layout={cardLayout}
                           acquireCover={acquireCover}
                           role="listitem"
+                          positionInSet={absoluteIndex + 1}
+                          setSize={total}
                           focused={
                             focusedRow !== undefined &&
                             String(focusedRow._id) === String(row._id)

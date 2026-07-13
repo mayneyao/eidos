@@ -48,6 +48,14 @@ const fields: BaseFieldInfo[] = [
   },
 ]
 
+const urlField: BaseFieldInfo = {
+  ...fields[1],
+  name: "Image URL",
+  type: "url",
+  tableColumnName: "image_url",
+  storageCodec: "scalar",
+}
+
 const view: BaseViewInfo = {
   id: "view_gallery",
   name: "Gallery",
@@ -138,6 +146,35 @@ describe("BaseRecordCard", () => {
       )
     })
     expect(release).toHaveBeenCalledTimes(1)
+  })
+
+  it("uses a URL field as a portable card cover without a binary read", async () => {
+    const acquireCover = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <BaseRecordCard
+          row={{
+            _id: "row_1",
+            title: "Write RFC",
+            image_url: "https://images.example.test/cover.png",
+          }}
+          fields={[fields[0], urlField]}
+          view={{
+            ...view,
+            properties: { ...view.properties, coverPreview: "image_url" },
+          }}
+          acquireCover={acquireCover}
+          onOpen={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+      "https://images.example.test/cover.png"
+    )
+    expect(acquireCover).not.toHaveBeenCalled()
   })
 
   it("cancels a queued local cover when the virtual card unmounts", async () => {

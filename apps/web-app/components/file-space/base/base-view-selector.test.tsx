@@ -76,6 +76,14 @@ const fields: BaseFieldInfo[] = [
   },
 ]
 
+const urlField: BaseFieldInfo = {
+  ...fields[1],
+  name: "Image URL",
+  type: "url",
+  tableColumnName: "image_url",
+  storageCodec: "scalar",
+}
+
 const galleryView: BaseViewInfo = {
   ...views[0],
   id: "view_gallery",
@@ -322,6 +330,48 @@ describe("BaseViewSelector", () => {
         )
         ?.textContent?.trim()
     ).toBe("medium")
+  })
+
+  it("configures a URL field as a portable Gallery cover", async () => {
+    await act(async () => {
+      root.render(
+        <BaseViewSelector
+          views={[galleryView]}
+          fields={[...fields, urlField]}
+          activeView={galleryView}
+          onSelect={onSelect}
+          onCreate={onCreate}
+          onRename={onRename}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onReorder={onReorder}
+          onUpdate={onUpdate}
+        />
+      )
+    })
+    await act(async () => exactButton("Task cards")?.click())
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Manage Task cards view"]'
+        )
+        ?.click()
+    )
+    await act(async () => exactButton("No cover")?.click())
+    await act(async () => {
+      const option = Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="option"]')
+      ).find((candidate) => candidate.textContent?.trim() === "Image URL")
+      option?.click()
+    })
+
+    expect(onUpdate).toHaveBeenCalledWith("view_gallery", {
+      properties: {
+        cardSize: "medium",
+        hideEmptyFields: true,
+        coverPreview: "image_url",
+      },
+    })
   })
 
   it("announces a failed view update and keeps its settings available", async () => {

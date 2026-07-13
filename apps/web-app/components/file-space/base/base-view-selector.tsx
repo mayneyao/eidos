@@ -36,6 +36,8 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 
+import { isBaseRecordCoverField } from "./base-record-card-layout"
+
 type Panel = "list" | "create" | "manage" | "delete"
 export type BaseBuiltInViewType = "grid" | "gallery" | "kanban"
 
@@ -122,7 +124,7 @@ export function BaseViewSelector({
   )
   const gridViewCount = views.filter((view) => view.type === "grid").length
   const selectFields = fields.filter((field) => field.type === "select")
-  const fileFields = fields.filter((field) => field.type === "file")
+  const coverFields = fields.filter(isBaseRecordCoverField)
 
   useEffect(() => {
     if (managedView) setName(managedView.name)
@@ -512,7 +514,7 @@ export function BaseViewSelector({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">No cover</SelectItem>
-                      {fileFields.map((field) => (
+                      {coverFields.map((field) => (
                         <SelectItem
                           key={field.tableColumnName}
                           value={field.tableColumnName}
@@ -522,9 +524,10 @@ export function BaseViewSelector({
                       ))}
                     </SelectContent>
                   </Select>
-                  {fileFields.length === 0 ? (
+                  {coverFields.length === 0 ? (
                     <p className="text-[11px] leading-4 text-muted-foreground">
-                      Add a File field to use record images as card covers.
+                      Add a File or URL field to use record images as card
+                      covers.
                     </p>
                   ) : null}
                 </div>

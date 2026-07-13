@@ -197,6 +197,21 @@ describe("BaseGalleryView", () => {
     ).not.toBeNull()
     expect(container.querySelectorAll('[role="listitem"]')).toHaveLength(3)
     expect(
+      container
+        .querySelector('[data-base-row-id="row_1"]')
+        ?.getAttribute("aria-posinset")
+    ).toBe("1")
+    expect(
+      container
+        .querySelector('[data-base-row-id="row_1"]')
+        ?.getAttribute("aria-setsize")
+    ).toBe("3")
+    expect(
+      container
+        .querySelector('[data-base-row-id="row_3"]')
+        ?.getAttribute("aria-posinset")
+    ).toBe("3")
+    expect(
       Array.from(container.querySelectorAll("button")).some((button) =>
         button.textContent?.includes("Load more")
       )
