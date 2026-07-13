@@ -36,7 +36,9 @@ Rebuild 和损坏 schema 恢复都会完全从 Space 文件重建索引。
 未知文件的兜底检查最多读取 512 KiB，接受严格 UTF-8 和带 BOM 的 UTF-16，
 拒绝包含 NUL、大量控制字符或非法编码的内容；更大的文本预览会明确标记为
 truncated。专用 opener 始终优先，watcher 刷新兜底预览时也不会用 loading state
-替换整个文档区域。
+替换整个文档区域。检查失败后可以直接在当前 tab 重试，无需重新打开文件。Runtime
+测试同时锁定 512 KiB 边界落在 UTF-8 多字节字符内部的情况，避免把合法文本误判为
+binary。
 
 带语言标记的 fenced code 使用 Lexical 0.47 Prism extension 提供语法高亮、行号和
 紧凑语言标签；未标记语言的 fence 会保持 unset，确保高亮不会改变 Markdown 语义。

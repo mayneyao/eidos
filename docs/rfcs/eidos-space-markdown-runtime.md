@@ -38,7 +38,10 @@ Unknown-file fallback inspection reads at most 512 KiB. It accepts strict
 UTF-8 and BOM-marked UTF-16, rejects NUL/control-heavy or invalid text, and
 marks larger text previews as truncated. Dedicated openers always take
 priority, and watcher refreshes update the fallback preview without replacing
-the whole document surface with a loading state.
+the whole document surface with a loading state. A failed inspection can be
+retried in place without reopening the tab. Runtime coverage also fixes the
+512 KiB boundary case where a preview ends inside a multi-byte UTF-8 character,
+so valid text is not misclassified as binary.
 
 Labeled fenced code blocks use the Lexical 0.47 Prism extension for syntax
 highlighting, line gutters, and a compact language label. Unlabeled fences keep

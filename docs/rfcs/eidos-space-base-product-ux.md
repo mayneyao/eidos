@@ -73,6 +73,11 @@ Component coverage asserts one batch call for a pasted range and one batch call
 for its undo; the real SQLite runtime test asserts rollback after a later row
 fails.
 
+Failed optimistic saves now reload the persisted rows before the mutation queue
+continues, while preserving the original failure in a dismissible accessible
+alert. The recovery reload therefore cannot silently clear the error or leave a
+later queued edit running against a state that was already rolled back.
+
 The Desktop shell now uses shared semantic heights: a 38px titlebar, 40px
 surface workbar, and 40px bottom statusbar. Files/Version section bars and the
 Base view workbar consume the same workbar token; the Space footer and Base

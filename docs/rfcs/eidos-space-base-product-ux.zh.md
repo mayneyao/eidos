@@ -56,6 +56,10 @@ mutation revision 还会阻止旧响应覆盖较新的 optimistic 值。组件�
 undo 各只触发一次 batch call，真实 SQLite runtime 测试会断言后续 row 失败时前面修改也会
 回滚。
 
+Optimistic 保存失败后会先重新加载持久化 rows，再继续 mutation queue；原始错误会保留在
+可关闭且可访问的 alert 中。恢复 reload 因此不会静默清除错误，也不会让后续排队编辑继续
+运行在已经回滚的状态上。
+
 Desktop shell 现在使用共享语义高度：titlebar 38px、surface workbar 40px、bottom statusbar
 40px。Files/Version 分区栏与 Base view workbar 使用同一 workbar token，Space footer 与 Base
 sheet bar 使用同一 statusbar token，跨 sidebar 和内容区共享的水平边界不再由组件各自写死。
