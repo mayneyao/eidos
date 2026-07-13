@@ -130,6 +130,11 @@ row ID 去重。Inspector 修改分组字段也复用同一套跨列迁移。没
 记录只更新当前已挂载 board，不再让所有列重新挂载；存在 query 状态时仍会重新加载，以校准成员关系
 和排序。
 
+删除已经加载的 Gallery 或 Kanban card 也会在当前 view 内协调。文件 mutation 成功后才移除 card，
+同时原位回退可见计数与已经消费的分页游标；父层不再让整个 card view 失效。Gallery 在显式刷新分页
+期间还会继续挂载当前虚拟窗口，并在新首屏返回后原子替换。这样普通记录 mutation 不会出现空白 loading
+帧、整批 card 重挂载或封面租约重复申请，同时筛选和排序刷新仍会最终收敛到服务端顺序。
+
 CSV 导入的文件选择、分析和写入现在也保持锚定式、非模态工作流。原生 picker 返回后 mapping
 panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以原位取消。取消会终止隔离 worker、
 等待 SQLite transaction 回滚，再解除当前 Base 的 mutation lock，因此重试不会和仍在退出的

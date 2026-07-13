@@ -182,6 +182,15 @@ record without active search, filters, or sorts updates the mounted board in
 place instead of remounting every column; query-aware views still reload to
 reconcile membership and ordering.
 
+Deleting a loaded Gallery or Kanban card is also coordinated inside the active
+view. The card is removed only after the file mutation succeeds, the visible
+count and consumed page cursor are reduced locally, and the parent editor does
+not invalidate the complete card view. Gallery additionally keeps its current
+virtual window mounted while an explicit page refresh is pending and swaps in
+the refreshed page atomically. This avoids a blank loading frame, repeated card
+mounts, and repeated cover leases during ordinary record mutations while still
+letting filtered or sorted refreshes converge on server order.
+
 CSV selection, analysis, and writing now follow the same anchored, non-modal
 workflow. The mapping panel opens as soon as the native picker returns;
 analysis and import expose real byte/row progress and can be canceled in place.
