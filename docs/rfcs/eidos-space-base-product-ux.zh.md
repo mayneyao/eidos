@@ -49,7 +49,8 @@ target field 和 aggregation。派生值在 Grid 中保持只读，会随着 rel
 菜单都可以打开它；名称就地保存，基础 source field 可以显式确认后安全转换类型，Select/
 Multi-select options 支持逐项新增、重命名、配色、拖拽排序和删除，Number 的 format、bar、
 maximum、color 与 label 配置会直接作用到 Grid。删除 option 会在同一 Base transaction 中
-清理已有 cell 引用。旧的逗号文本 Options 弹窗和字段 Rename 弹窗路径已经移除。
+清理已有 cell 引用。字段创建与后续 Property 编辑复用同一套 option rows，包含去重、配色和
+拖拽排序；旧的逗号文本 Options 弹窗和字段 Rename 弹窗路径已经移除。
 
 Gallery 和 Kanban 现在已经接入与 Grid 相同的持久化 view lifecycle。Gallery 使用服务端分页数据、
 响应式 card size、可选的空字段隐藏和共享 record inspector；Kanban 按 Select 字段分组，每组独立

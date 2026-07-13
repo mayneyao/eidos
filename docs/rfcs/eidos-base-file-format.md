@@ -24,7 +24,10 @@ temporary Base and atomically renames it into place, so interrupted creation
 cannot publish a zero-byte canonical `.base`. Users can create, rename, and
 delete tables and fields. A non-modal field Property workspace supports source
 field type conversion, per-item select/multi-select choice editing, and Number
-presentation. Type conversion transactionally rebuilds the SQLite column when
+presentation. Creating Select/Multi-select fields reuses the same per-item
+option editor instead of generating choices from comma text; option IDs are
+stable from creation and names remain independent metadata that may contain
+commas. Type conversion transactionally rebuilds the SQLite column when
 needed and migrates values, while deleting a choice also cleans stored cell
 references. Grid order/width/visibility state persists inside `eidos__views` in
 the Base file. Structural deletes also clean dependent references and view layout

@@ -17,6 +17,8 @@ Glide DataEditor 上的 Base adapter，恢复 keyboard navigation、rectangular 
 copy/paste、fill handle、column reorder/resize，并支持创建 table/field 与持久化 Grid
 order/width。table/field 现已支持 create、rename、delete；非模态字段 Property workspace
 支持 source field 类型转换、逐项编辑 select/multi-select choices 和 Number 展示配置。
+新建 Select/Multi-select 字段也复用同一个逐项 option editor，不再通过逗号文本生成 choices；
+option IDs 在创建时即稳定，名称保持可包含逗号的独立 metadata。
 类型转换会在事务中重建必要的 SQLite column 并迁移 values，删除 choice 也会同步清理已有
 cell 引用；结构删除会清理依赖 references 与 view layout metadata。Graft
 row diff 也已贯通 working Changes 和历史 inspector。
