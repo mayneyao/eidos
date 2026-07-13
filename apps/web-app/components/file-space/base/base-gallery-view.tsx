@@ -19,7 +19,6 @@ import type {
   BaseViewInfo,
 } from "@eidos.space/base"
 import type { SpaceBinaryFile } from "@eidos.space/file-space"
-import { useVirtualizer } from "@tanstack/react-virtual"
 import { LoaderCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -38,6 +37,7 @@ import {
   type BaseRowWindow,
   type BaseRowWindowMergeMode,
 } from "./base-row-window"
+import { useBaseBoundedVirtualizer } from "./base-virtual-scroll"
 import { orderedBaseFields } from "./base-view-layout"
 import { useBaseCoverReader } from "./use-base-cover-reader"
 
@@ -244,17 +244,26 @@ export const BaseGalleryView = memo(function BaseGalleryView({
     Math.floor((availableWidth + GALLERY_GAP) / (targetCardWidth + GALLERY_GAP))
   )
   const virtualRowCount = Math.ceil(total / columnCount)
-  const rowVirtualizer = useVirtualizer({
+  const {
+    virtualizer: rowVirtualizer,
+    virtualItems: virtualRows,
+    logicalSize: logicalVirtualSize,
+    physicalSize: physicalVirtualSize,
+    localScrollOffset,
+    measurementCount,
+    globalIndex: globalVirtualRowIndex,
+    itemOffset: virtualRowOffset,
+    scrollToIndex: scrollToVirtualRowIndex,
+  } = useBaseBoundedVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: virtualRowCount,
     getScrollElement: () => scrollContainerRef.current,
-    estimateSize: () => estimatedGalleryCardHeight(cardLayout),
+    estimatedItemSize: estimatedGalleryCardHeight(cardLayout),
     getItemKey: galleryVirtualRowKey,
     gap: GALLERY_GAP,
     initialRect: { width: 1024, height: 640 },
     overscan: GALLERY_OVERSCAN_ROWS,
     useAnimationFrameWithResizeObserver: true,
   })
-  const virtualRows = rowVirtualizer.getVirtualItems()
 
   useLayoutEffect(() => {
     const previousColumnCount = previousColumnCountRef.current
@@ -304,23 +313,9 @@ export const BaseGalleryView = memo(function BaseGalleryView({
     }
     queueMicrotask(() => {
       if (relayoutGenerationRef.current !== generation) return
-      const offsetInfo = rowVirtualizer.getOffsetForIndex(
-        targetRowIndex,
-        "start"
-      )
-      if (offsetInfo) {
-        rowVirtualizer.scrollToOffset(offsetInfo[0], { align: "start" })
-      }
+      scrollToVirtualRowIndex(targetRowIndex, { align: "start" })
       relayoutFrameRef.current = targetWindow.requestAnimationFrame(() => {
-        const measuredOffsetInfo = rowVirtualizer.getOffsetForIndex(
-          targetRowIndex,
-          "start"
-        )
-        if (measuredOffsetInfo) {
-          rowVirtualizer.scrollToOffset(measuredOffsetInfo[0], {
-            align: "start",
-          })
-        }
+        scrollToVirtualRowIndex(targetRowIndex, { align: "start" })
         relayoutFrameRef.current = targetWindow.requestAnimationFrame(() => {
           if (
             rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange ===
@@ -334,7 +329,13 @@ export const BaseGalleryView = memo(function BaseGalleryView({
         })
       })
     })
-  }, [columnCount, rowVirtualizer, table.fields, view.properties])
+  }, [
+    columnCount,
+    rowVirtualizer,
+    scrollToVirtualRowIndex,
+    table.fields,
+    view.properties,
+  ])
 
   useEffect(() => () => relayoutCleanupRef.current?.(), [])
 
@@ -343,23 +344,25 @@ export const BaseGalleryView = memo(function BaseGalleryView({
       skipAnchorCaptureRef.current = false
       return
     }
-    const scrollOffset = scrollContainerRef.current?.scrollTop ?? 0
     const firstVisibleRow = virtualRows.find(
-      (virtualRow) => virtualRow.end > scrollOffset
+      (virtualRow) => virtualRow.end > localScrollOffset
     )
     if (firstVisibleRow) {
-      visibleAnchorIndexRef.current = firstVisibleRow.index * columnCount
+      visibleAnchorIndexRef.current =
+        globalVirtualRowIndex(firstVisibleRow.index) * columnCount
     }
-  }, [columnCount, virtualRows])
+  }, [columnCount, globalVirtualRowIndex, localScrollOffset, virtualRows])
 
   useEffect(() => {
     const first = virtualRows.at(0)
     const last = virtualRows.at(-1)
     if (!first || !last || loading || loadingMore) return
+    const firstGlobalIndex = globalVirtualRowIndex(first.index)
+    const lastGlobalIndex = globalVirtualRowIndex(last.index)
     const request = requestForPrefetchedRowWindow(
       rowWindow,
-      first.index * columnCount,
-      Math.min(total, (last.index + 1) * columnCount),
+      firstGlobalIndex * columnCount,
+      Math.min(total, (lastGlobalIndex + 1) * columnCount),
       GALLERY_PAGE_SIZE,
       GALLERY_PREFETCH_ROWS
     )
@@ -379,6 +382,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
   }, [
     columnCount,
     failedRequest,
+    globalVirtualRowIndex,
     loading,
     loadingMore,
     requestPage,
@@ -398,10 +402,9 @@ export const BaseGalleryView = memo(function BaseGalleryView({
     let active = true
     queueMicrotask(() => {
       if (!active) return
-      rowVirtualizer.scrollToIndex(
-        Math.floor(searchResultIndex / columnCount),
-        { align: "auto" }
-      )
+      scrollToVirtualRowIndex(Math.floor(searchResultIndex / columnCount), {
+        align: "auto",
+      })
     })
     return () => {
       active = false
@@ -410,8 +413,8 @@ export const BaseGalleryView = memo(function BaseGalleryView({
     columnCount,
     loading,
     loadingMore,
-    rowVirtualizer,
     searchResultIndex,
+    scrollToVirtualRowIndex,
     total,
   ])
 
@@ -508,22 +511,27 @@ export const BaseGalleryView = memo(function BaseGalleryView({
             className="relative"
             role="list"
             aria-label={`${view.name} records`}
+            data-base-logical-size={logicalVirtualSize}
+            data-base-physical-size={physicalVirtualSize}
+            data-base-measurement-count={measurementCount}
             style={{
-              height: rowVirtualizer.getTotalSize(),
+              height: physicalVirtualSize,
             }}
           >
             {virtualRows.map((virtualRow) => {
-              const start = virtualRow.index * columnCount
+              const globalRowIndex = globalVirtualRowIndex(virtualRow.index)
+              const start = globalRowIndex * columnCount
               return (
                 <div
                   key={virtualRow.key}
                   ref={rowVirtualizer.measureElement}
                   role="presentation"
                   className="absolute left-0 top-0 grid w-full items-start gap-3 [contain:layout_style]"
-                  data-index={virtualRow.index}
+                  data-index={globalRowIndex}
+                  data-base-virtual-index={virtualRow.index}
                   style={{
                     gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
-                    transform: `translate3d(0, ${virtualRow.start}px, 0)`,
+                    transform: `translate3d(0, ${virtualRowOffset(virtualRow)}px, 0)`,
                   }}
                 >
                   {Array.from(

@@ -52,6 +52,7 @@ import {
   rowFromWindow,
   type BaseRowWindowRequest,
 } from "./base-row-window"
+import { useBaseBoundedVirtualizer } from "./base-virtual-scroll"
 import { orderedBaseFields } from "./base-view-layout"
 import { useBaseCoverReader } from "./use-base-cover-reader"
 import type { BaseCoverAcquire } from "./use-base-cover-reader"
@@ -278,17 +279,25 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
     startOffset: group.startOffset,
     total: group.total,
   }
-  const cardVirtualizer = useVirtualizer({
+  const {
+    virtualizer: cardVirtualizer,
+    virtualItems,
+    logicalSize: logicalVirtualSize,
+    physicalSize: physicalVirtualSize,
+    measurementCount,
+    globalIndex: globalVirtualCardIndex,
+    itemOffset: virtualCardOffset,
+    scrollToIndex: scrollToVirtualCardIndex,
+  } = useBaseBoundedVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: group.total,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => estimatedKanbanCardHeight(cardLayout),
+    estimatedItemSize: estimatedKanbanCardHeight(cardLayout),
     getItemKey: getVirtualCardKey,
     gap: 8,
     initialRect: { width, height: 560 },
     overscan: 3,
     useAnimationFrameWithResizeObserver: true,
   })
-  const virtualItems = cardVirtualizer.getVirtualItems()
   const cardMoveOptions = useMemo(
     () =>
       moveOptions.map((option) => ({
@@ -307,8 +316,12 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
     const first = virtualItems.at(0)
     const last = virtualItems.at(-1)
     if (!first || !last || !group.loaded) return
-    onRequestRange(group, first.index, last.index + 1)
-  }, [group, onRequestRange, virtualItems])
+    onRequestRange(
+      group,
+      globalVirtualCardIndex(first.index),
+      globalVirtualCardIndex(last.index) + 1
+    )
+  }, [globalVirtualCardIndex, group, onRequestRange, virtualItems])
 
   useEffect(() => {
     if (
@@ -321,13 +334,13 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
     let active = true
     queueMicrotask(() => {
       if (active) {
-        cardVirtualizer.scrollToIndex(focusedRowIndex, { align: "auto" })
+        scrollToVirtualCardIndex(focusedRowIndex, { align: "auto" })
       }
     })
     return () => {
       active = false
     }
-  }, [cardVirtualizer, focusedRowIndex, group.total])
+  }, [focusedRowIndex, group.total, scrollToVirtualCardIndex])
 
   useEffect(() => {
     cardVirtualizer.measure()
@@ -452,28 +465,37 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                 className="relative w-full"
                 role="list"
                 aria-label={`${group.name} records`}
-                style={{ height: cardVirtualizer.getTotalSize() }}
+                data-base-logical-size={logicalVirtualSize}
+                data-base-physical-size={physicalVirtualSize}
+                data-base-measurement-count={measurementCount}
+                style={{ height: physicalVirtualSize }}
               >
                 {virtualItems.map((virtualItem) => {
-                  const row = rowFromWindow(groupWindow, virtualItem.index)
+                  const globalCardIndex = globalVirtualCardIndex(
+                    virtualItem.index
+                  )
+                  const row = rowFromWindow(groupWindow, globalCardIndex)
                   return (
                     <div
                       key={virtualItem.key}
                       ref={cardVirtualizer.measureElement}
                       className="absolute left-0 top-0 w-full [contain:layout_style]"
-                      data-index={virtualItem.index}
+                      data-index={globalCardIndex}
+                      data-base-virtual-index={virtualItem.index}
                       role={row ? "listitem" : "presentation"}
-                      aria-posinset={row ? virtualItem.index + 1 : undefined}
+                      aria-posinset={row ? globalCardIndex + 1 : undefined}
                       aria-setsize={row ? group.total : undefined}
                       style={{
-                        transform: `translate3d(0, ${virtualItem.start}px, 0)`,
+                        transform: `translate3d(0, ${virtualCardOffset(
+                          virtualItem
+                        )}px, 0)`,
                       }}
                     >
                       {row ? (
                         <BaseKanbanCardItem
                           key={String(row._id)}
                           row={row}
-                          index={virtualItem.index}
+                          index={globalCardIndex}
                           groupKey={group.key}
                           disabled={disabled}
                           table={table}

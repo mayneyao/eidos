@@ -10,6 +10,10 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BaseGalleryView } from "./base-gallery-view"
+import {
+  BASE_VIRTUAL_SCROLL_MAX_ITEMS,
+  BASE_VIRTUAL_SCROLL_MAX_SIZE,
+} from "./base-virtual-scroll"
 
 vi.mock("@/components/theme-provider", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
@@ -483,12 +487,12 @@ describe("BaseGalleryView", () => {
     ).toBe("false")
   })
 
-  it("keeps a large gallery bounded and loads the target window on scroll", async () => {
+  it("keeps a million-record gallery bounded and loads the target window on scroll", async () => {
     const loadPage = vi.fn(async (offset: number, limit: number) => ({
       tableId: "tasks",
       offset,
       limit,
-      total: 100_000,
+      total: 1_000_000,
       rows: Array.from({ length: 100 }, (_, index) => ({
         _id: `row_${offset + index}`,
         title: `Task ${offset + index}`,
@@ -507,24 +511,40 @@ describe("BaseGalleryView", () => {
       container.querySelectorAll('[role="listitem"]').length
     expect(initialMountedCards).toBeGreaterThan(0)
     expect(initialMountedCards).toBeLessThan(100)
+    const virtualList = container.querySelector<HTMLElement>(
+      '[role="list"][data-base-physical-size]'
+    )
+    expect(Number(virtualList?.dataset.baseLogicalSize)).toBeGreaterThan(
+      BASE_VIRTUAL_SCROLL_MAX_SIZE
+    )
+    expect(Number(virtualList?.dataset.basePhysicalSize)).toBe(
+      BASE_VIRTUAL_SCROLL_MAX_SIZE
+    )
+    expect(Number(virtualList?.dataset.baseMeasurementCount)).toBe(
+      BASE_VIRTUAL_SCROLL_MAX_ITEMS
+    )
 
     await act(async () => {
       const scroller = container.querySelector<HTMLElement>(
         "[data-base-gallery-scroll]"
       )
       if (!scroller) return
-      scroller.scrollTop = 100_000_000
+      const physicalSize = Number(
+        scroller.querySelector<HTMLElement>("[data-base-physical-size]")
+          ?.dataset.basePhysicalSize
+      )
+      scroller.scrollTop = Math.max(0, physicalSize - 640)
       scroller.dispatchEvent(new Event("scroll"))
       await Promise.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(loadPage).toHaveBeenCalledWith(99_900, 100, 100_000)
+    expect(loadPage).toHaveBeenCalledWith(999_900, 100, 1_000_000)
     expect(
       container
         .querySelector("[data-base-gallery-scroll]")
         ?.getAttribute("data-base-window-start")
-    ).toBe("99900")
+    ).toBe("999900")
     expect(
       Number(
         container
@@ -547,7 +567,7 @@ describe("BaseGalleryView", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(loadPage).toHaveBeenLastCalledWith(0, 100, 100_000)
+    expect(loadPage).toHaveBeenLastCalledWith(0, 100, 1_000_000)
     expect(
       container
         .querySelector("[data-base-gallery-scroll]")
@@ -637,7 +657,7 @@ describe("BaseGalleryView", () => {
         />
       )
       await Promise.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 40))
+      await new Promise((resolve) => setTimeout(resolve, 80))
     })
 
     expect(scrollTo).toHaveBeenCalled()
@@ -678,7 +698,11 @@ describe("BaseGalleryView", () => {
         "[data-base-gallery-scroll]"
       )
       if (!scroller) return
-      scroller.scrollTop = 100_000_000
+      const physicalSize = Number(
+        scroller.querySelector<HTMLElement>("[data-base-physical-size]")
+          ?.dataset.basePhysicalSize
+      )
+      scroller.scrollTop = Math.max(0, physicalSize - 640)
       scroller.dispatchEvent(new Event("scroll"))
       await Promise.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))

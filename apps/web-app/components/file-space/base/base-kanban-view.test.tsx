@@ -10,6 +10,10 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BaseKanbanView } from "./base-kanban-view"
+import {
+  BASE_VIRTUAL_SCROLL_MAX_ITEMS,
+  BASE_VIRTUAL_SCROLL_MAX_SIZE,
+} from "./base-virtual-scroll"
 
 const kanbanMocks = vi.hoisted(() => ({
   onDragEnd: undefined as ((event: unknown) => void) | undefined,
@@ -1143,13 +1147,13 @@ describe("BaseKanbanView", () => {
     ).toBe("true")
   })
 
-  it("virtualizes cards and loads the target group window on scroll", async () => {
+  it("virtualizes a million-card column and loads the target window on scroll", async () => {
     const loadGroupPage = vi.fn(
       async (_field, value: string | null, offset: number, limit: number) => ({
         tableId: "tasks",
         offset,
         limit,
-        total: value === "todo" ? 100_000 : 0,
+        total: value === "todo" ? 1_000_000 : 0,
         rows:
           value === "todo"
             ? Array.from({ length: 50 }, (_, index) => ({
@@ -1167,7 +1171,7 @@ describe("BaseKanbanView", () => {
           table={table}
           view={view}
           loadGroupCounts={vi.fn(async () => [
-            { value: "todo", total: 100_000 },
+            { value: "todo", total: 1_000_000 },
           ])}
           loadGroupPage={loadGroupPage}
           onCellEdit={vi.fn()}
@@ -1184,13 +1188,29 @@ describe("BaseKanbanView", () => {
       todoColumn?.querySelectorAll("[data-base-row-id]").length
     expect(initialMountedCards).toBeGreaterThan(0)
     expect(initialMountedCards).toBeLessThan(50)
+    const virtualList = todoColumn?.querySelector<HTMLElement>(
+      '[role="list"][data-base-physical-size]'
+    )
+    expect(Number(virtualList?.dataset.baseLogicalSize)).toBeGreaterThan(
+      BASE_VIRTUAL_SCROLL_MAX_SIZE
+    )
+    expect(Number(virtualList?.dataset.basePhysicalSize)).toBe(
+      BASE_VIRTUAL_SCROLL_MAX_SIZE
+    )
+    expect(Number(virtualList?.dataset.baseMeasurementCount)).toBe(
+      BASE_VIRTUAL_SCROLL_MAX_ITEMS
+    )
 
     await act(async () => {
       const scroller = todoColumn?.querySelector<HTMLElement>(
         '[data-base-kanban-column-scroll="base-kanban:todo"]'
       )
       if (!scroller) return
-      scroller.scrollTop = 100_000_000
+      const physicalSize = Number(
+        scroller.querySelector<HTMLElement>("[data-base-physical-size]")
+          ?.dataset.basePhysicalSize
+      )
+      scroller.scrollTop = Math.max(0, physicalSize - 640)
       scroller.dispatchEvent(new Event("scroll"))
       await Promise.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -1199,15 +1219,15 @@ describe("BaseKanbanView", () => {
     expect(loadGroupPage).toHaveBeenCalledWith(
       expect.objectContaining({ tableColumnName: "status" }),
       "todo",
-      99_950,
+      999_950,
       50,
-      100_000
+      1_000_000
     )
     expect(
       todoColumn
         ?.querySelector("[data-base-kanban-column-scroll]")
         ?.getAttribute("data-base-window-start")
-    ).toBe("99950")
+    ).toBe("999950")
     expect(
       Number(
         todoColumn
@@ -1235,7 +1255,7 @@ describe("BaseKanbanView", () => {
       "todo",
       0,
       50,
-      100_000
+      1_000_000
     )
     expect(
       todoColumn
@@ -1297,7 +1317,11 @@ describe("BaseKanbanView", () => {
         '[data-base-kanban-column-scroll="base-kanban:todo"]'
       )
       if (!scroller) return
-      scroller.scrollTop = 100_000_000
+      const physicalSize = Number(
+        scroller.querySelector<HTMLElement>("[data-base-physical-size]")
+          ?.dataset.basePhysicalSize
+      )
+      scroller.scrollTop = Math.max(0, physicalSize - 640)
       scroller.dispatchEvent(new Event("scroll"))
       await Promise.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))
