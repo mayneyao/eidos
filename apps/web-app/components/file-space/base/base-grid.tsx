@@ -10,6 +10,7 @@ import type {
   BaseFieldInfo,
   BaseRow,
   BaseRowMutationResult,
+  BaseRowsMutationResult,
   BaseRowPage,
   BaseRowRange,
   BaseRelationValue,
@@ -43,7 +44,10 @@ import {
   defaultConfig,
   getScrollbarWidth,
 } from "@/components/table/views/grid/grid-default-config"
-import { useUndoRedo } from "@/components/table/views/grid/hooks/use-undo-redo"
+import {
+  type UndoRedoEdit,
+  useUndoRedo,
+} from "@/components/table/views/grid/hooks/use-undo-redo"
 import { useDynamicTheme } from "@/components/table/views/grid/theme"
 import { Button } from "@/components/ui/button"
 
@@ -99,6 +103,7 @@ interface BaseGridProps {
     field: BaseFieldInfo,
     value: BaseSqlPrimitive
   ) => Promise<BaseRowMutationResult>
+  onRowsEdit?: (edits: BaseGridRowEdit[]) => Promise<BaseRowsMutationResult>
   onSelectedRowsChange?: (ranges: BaseRowRange[]) => void
   onRowCountChange?: (rowCount: number | null) => void
   searchResultIndex?: number | null
@@ -124,6 +129,11 @@ interface BaseGridProps {
   onRequestDeleteRows?: (ranges: BaseRowRange[]) => void
   onViewUpdate?: (changes: UpdateBaseViewInput) => Promise<void> | void
   onError?: (error: unknown) => void
+}
+
+export interface BaseGridRowEdit {
+  row: BaseRow
+  changes: BaseRow
 }
 
 function sameFields(left: BaseFieldInfo[], right: BaseFieldInfo[]): boolean {
@@ -163,6 +173,7 @@ export function BaseGrid({
   loadPage,
   onAddRow,
   onCellEdit,
+  onRowsEdit,
   onSelectedRowsChange,
   onRowCountChange,
   searchResultIndex = null,
@@ -190,6 +201,7 @@ export function BaseGrid({
   const containerRef = useRef<HTMLDivElement>(null)
   const widthSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rowsRef = useRef(new Map<number, BaseRow>())
+  const rowMutationRevisionRef = useRef(new Map<number, number>())
   const loadedPagesRef = useRef(new Set<number>())
   const loadingPagesRef = useRef(new Map<number, number>())
   const generationRef = useRef(0)
@@ -250,6 +262,7 @@ export function BaseGrid({
   useEffect(() => {
     generationRef.current += 1
     rowsRef.current.clear()
+    rowMutationRevisionRef.current.clear()
     loadedPagesRef.current.clear()
     loadingPagesRef.current.clear()
     setRowCount(table.rowCount)
@@ -436,38 +449,149 @@ export function BaseGrid({
     })
   }, [columns.length, requestVisiblePages, rowCount, searchResultIndex])
 
-  const commitCell = useCallback(
-    (location: Item, nextCell: EditableGridCell) => {
+  const commitCells = useCallback(
+    (edits: readonly UndoRedoEdit[]) => {
       if (disabled) return
-      const [columnIndex, rowIndex] = location
-      const field = fields[columnIndex]
-      const row = rowsRef.current.get(rowIndex)
-      if (!field || !row) return
-      const nextValue = gridCellToBaseValue(field, nextCell)
-      if (Object.is(row[field.tableColumnName], nextValue)) return
+      const grouped = new Map<
+        number,
+        {
+          rowIndex: number
+          previous: BaseRow
+          changes: BaseRow
+          fields: Map<string, BaseFieldInfo>
+          revision: number
+        }
+      >()
+      for (const {
+        cell: [columnIndex, rowIndex],
+        newValue,
+      } of edits) {
+        const field = fields[columnIndex]
+        const row = rowsRef.current.get(rowIndex)
+        if (!field || !row) continue
+        const nextValue = gridCellToBaseValue(field, newValue)
+        const group = grouped.get(rowIndex) ?? {
+          rowIndex,
+          previous: row,
+          changes: {},
+          fields: new Map<string, BaseFieldInfo>(),
+          revision: 0,
+        }
+        group.changes[field.tableColumnName] = nextValue
+        group.fields.set(field.tableColumnName, field)
+        grouped.set(rowIndex, group)
+      }
 
-      const previous = row
-      rowsRef.current.set(rowIndex, {
-        ...row,
-        [field.tableColumnName]: nextValue,
+      const rowEdits = [...grouped.values()].flatMap((group) => {
+        const changes = Object.fromEntries(
+          Object.entries(group.changes).filter(
+            ([column, value]) => !Object.is(group.previous[column], value)
+          )
+        )
+        if (Object.keys(changes).length === 0) return []
+        const revision =
+          (rowMutationRevisionRef.current.get(group.rowIndex) ?? 0) + 1
+        rowMutationRevisionRef.current.set(group.rowIndex, revision)
+        rowsRef.current.set(group.rowIndex, {
+          ...group.previous,
+          ...changes,
+        })
+        return [{ ...group, changes, revision }]
       })
+      if (rowEdits.length === 0) return
+
       setCacheRevision((current) => current + 1)
-      void onCellEdit(row, field, nextValue)
-        .then((result) => {
-          const current = rowsRef.current.get(rowIndex)
-          if (current && String(current._id) === String(result.row._id)) {
-            rowsRef.current.set(rowIndex, result.row)
-            setRowCount(result.rowCount)
-            setCacheRevision((revision) => revision + 1)
+      const editedCellCount = rowEdits.reduce(
+        (count, edit) => count + Object.keys(edit.changes).length,
+        0
+      )
+      const persist = async (): Promise<BaseRowsMutationResult> => {
+        if (onRowsEdit && editedCellCount > 1) {
+          return onRowsEdit(
+            rowEdits.map(({ previous, changes }) => ({
+              row: previous,
+              changes,
+            }))
+          )
+        }
+
+        let nextRowCount = rowCount
+        const rows: BaseRow[] = []
+        for (const edit of rowEdits) {
+          let latest = edit.previous
+          for (const [column, value] of Object.entries(edit.changes)) {
+            const field = edit.fields.get(column)
+            if (!field) continue
+            const result = await onCellEdit(
+              latest,
+              field,
+              value as BaseSqlPrimitive
+            )
+            latest = result.row
+            nextRowCount = result.rowCount
           }
+          rows.push(latest)
+        }
+        return { tableId: table.table.id, rows, rowCount: nextRowCount }
+      }
+      const generation = generationRef.current
+      void persist()
+        .then((result) => {
+          if (generation !== generationRef.current) return
+          const rowsById = new Map(
+            result.rows.map((row) => [String(row._id), row])
+          )
+          let changed = false
+          for (const edit of rowEdits) {
+            const current = rowsRef.current.get(edit.rowIndex)
+            const persisted = rowsById.get(String(edit.previous._id))
+            if (
+              persisted &&
+              current &&
+              String(current._id) === String(edit.previous._id) &&
+              rowMutationRevisionRef.current.get(edit.rowIndex) ===
+                edit.revision
+            ) {
+              rowsRef.current.set(edit.rowIndex, persisted)
+              changed = true
+            }
+          }
+          setRowCount(result.rowCount)
+          if (changed) setCacheRevision((revision) => revision + 1)
         })
         .catch((error) => {
-          rowsRef.current.set(rowIndex, previous)
-          setCacheRevision((revision) => revision + 1)
+          if (generation === generationRef.current) {
+            let changed = false
+            for (const edit of rowEdits) {
+              if (
+                rowMutationRevisionRef.current.get(edit.rowIndex) ===
+                edit.revision
+              ) {
+                rowsRef.current.set(edit.rowIndex, edit.previous)
+                changed = true
+              }
+            }
+            if (changed) setCacheRevision((revision) => revision + 1)
+          }
           onError?.(error)
         })
     },
-    [disabled, fields, onCellEdit, onError]
+    [
+      disabled,
+      fields,
+      onCellEdit,
+      onError,
+      onRowsEdit,
+      rowCount,
+      table.table.id,
+    ]
+  )
+
+  const commitCell = useCallback(
+    (location: Item, nextCell: EditableGridCell) => {
+      commitCells([{ cell: location, newValue: nextCell }])
+    },
+    [commitCells]
   )
 
   const editInspectedRecord = useCallback(
@@ -527,7 +651,8 @@ export function BaseGrid({
     getCellContent,
     commitCell,
     handleGridSelectionChange,
-    isGridActive
+    isGridActive,
+    commitCells
   )
 
   const [fileDropHighlights, setFileDropHighlights] = useState<
@@ -621,10 +746,15 @@ export function BaseGrid({
     NonNullable<DataEditorProps["onCellsEdited"]>
   >(
     (edits) => {
-      edits.forEach((edit) => history.onCellEdited(edit.location, edit.value))
+      history.onCellsEdited(
+        edits.map((edit) => ({
+          cell: edit.location,
+          newValue: edit.value,
+        }))
+      )
       return true
     },
-    [history.onCellEdited]
+    [history.onCellsEdited]
   )
 
   const onColumnResize = useCallback(

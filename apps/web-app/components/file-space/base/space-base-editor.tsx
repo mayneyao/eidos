@@ -5,6 +5,7 @@ import type {
   BaseFormulaPreviewInput,
   BaseRow,
   BaseRowMutationResult,
+  BaseRowsMutationResult,
   BaseRowQuery,
   BaseRowRange,
   BaseRelationValue,
@@ -168,6 +169,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     reorderViews,
     insertRow,
     updateRow,
+    updateRows,
     deleteRows,
     deleteRowRanges,
   } = useSpaceBase(currentSpace?.id)
@@ -730,6 +732,43 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       filePath,
       hasActiveQuery,
       updateRow,
+      updateTableRowCount,
+    ]
+  )
+
+  const saveRows = useCallback(
+    (
+      edits: Array<{ row: BaseRow; changes: BaseRow }>
+    ): Promise<BaseRowsMutationResult> => {
+      if (!activeTable || edits.length === 0) {
+        return Promise.reject(new Error("No Base rows to update"))
+      }
+      const tableId = activeTable.table.id
+      return enqueueMutation(
+        () =>
+          updateRows(
+            filePath,
+            tableId,
+            edits.map(({ row, changes }) => ({
+              rowId: String(row._id),
+              changes,
+            }))
+          ),
+        (result) => {
+          updateTableRowCount(tableId, result.rowCount)
+          if (hasActiveQuery) {
+            setGridReloadToken((current) => current + 1)
+          }
+        },
+        { blocking: false }
+      )
+    },
+    [
+      activeTable,
+      enqueueMutation,
+      filePath,
+      hasActiveQuery,
+      updateRows,
       updateTableRowCount,
     ]
   )
@@ -1392,6 +1431,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               loadPage={loadActiveTablePage}
               onAddRow={createRow}
               onCellEdit={saveCell}
+              onRowsEdit={saveRows}
               onSelectedRowsChange={setSelectedRowRanges}
               onRowCountChange={handleSearchResultCountChange}
               searchResultIndex={activeSearchResultIndex}

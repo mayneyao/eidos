@@ -33,6 +33,7 @@ const revealFileMock = vi.hoisted(() => vi.fn())
 const openTabMock = vi.hoisted(() => vi.fn())
 const insertRowMock = vi.hoisted(() => vi.fn())
 const updateRowMock = vi.hoisted(() => vi.fn())
+const updateRowsMock = vi.hoisted(() => vi.fn())
 const deleteRowsMock = vi.hoisted(() => vi.fn())
 const deleteRowRangesMock = vi.hoisted(() => vi.fn())
 const spaceFileChanges = vi.hoisted(() => ({
@@ -63,6 +64,7 @@ vi.mock("@/apps/web-app/hooks/use-space-base", () => ({
     reorderViews: reorderViewsMock,
     insertRow: insertRowMock,
     updateRow: updateRowMock,
+    updateRows: updateRowsMock,
     deleteRows: deleteRowsMock,
     deleteRowRanges: deleteRowRangesMock,
   }),
@@ -275,6 +277,7 @@ vi.mock("./base-grid", () => ({
   BaseGrid: ({
     table,
     onCellEdit,
+    onRowsEdit,
     onSelectedRowsChange,
     onImportFiles,
     onImportDroppedFiles,
@@ -296,6 +299,12 @@ vi.mock("./base-grid", () => ({
       row: { _id: string; title: string; status: string },
       field: (typeof snapshot)["tables"][number]["fields"][number],
       value: string
+    ) => void
+    onRowsEdit?: (
+      edits: Array<{
+        row: { _id: string; title: string; status: string }
+        changes: Record<string, string>
+      }>
     ) => void
     onSelectedRowsChange: (
       ranges: Array<{ startIndex: number; endIndex: number }>
@@ -355,6 +364,19 @@ vi.mock("./base-grid", () => ({
           }}
         >
           Edit title
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onRowsEdit?.([
+              {
+                row,
+                changes: { title: "Write implementation", status: "done" },
+              },
+            ])
+          }
+        >
+          Paste row
         </button>
         <button
           type="button"
@@ -677,6 +699,7 @@ describe("SpaceBaseEditor", () => {
     openTabMock.mockReset()
     insertRowMock.mockReset()
     updateRowMock.mockReset()
+    updateRowsMock.mockReset()
     deleteRowsMock.mockReset()
     deleteRowRangesMock.mockReset()
     useQuickOpenStore.setState({ sectionsByTab: {} })
@@ -727,6 +750,18 @@ describe("SpaceBaseEditor", () => {
         title: "Write implementation",
         status: "todo",
       },
+      rowCount: 1,
+      revision: "2026-07-13T01:00:00.000Z",
+    })
+    updateRowsMock.mockResolvedValue({
+      tableId: "tasks",
+      rows: [
+        {
+          _id: "row_1",
+          title: "Write implementation",
+          status: "done",
+        },
+      ],
       rowCount: 1,
       revision: "2026-07-13T01:00:00.000Z",
     })
@@ -821,6 +856,29 @@ describe("SpaceBaseEditor", () => {
       "tasks",
       "row_1",
       { title: "Write implementation" }
+    )
+  })
+
+  it("persists a multi-cell Grid edit as one Base batch", async () => {
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Paste row")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(updateRowsMock).toHaveBeenCalledOnce()
+    expect(updateRowsMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      [
+        {
+          rowId: "row_1",
+          changes: { title: "Write implementation", status: "done" },
+        },
+      ]
     )
   })
 

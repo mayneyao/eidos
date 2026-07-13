@@ -17,13 +17,13 @@ import {
   useState,
 } from "react"
 
-interface Edit {
+export interface UndoRedoEdit {
   cell: Item
   newValue: EditableGridCell
 }
 
 interface Batch {
-  edits: Edit[]
+  edits: UndoRedoEdit[]
   selection: GridSelection
 }
 
@@ -133,12 +133,13 @@ export function useUndoRedo(
   getCellContent: (cell: Item) => GridCell,
   onCellEdited: (cell: Item, newValue: EditableGridCell) => void,
   onGridSelectionChange?: (newVal: GridSelection) => void,
-  isActive?: () => boolean
+  isActive?: () => boolean,
+  onCellsEdited?: (edits: readonly UndoRedoEdit[]) => void
 ) {
   const [state, dispatch] = useReducer(reducer, initialState)
 
   const currentBatch = useRef<Batch | null>(null)
-  const timeout = useRef<any>(null)
+  const timeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const isApplyingUndoRef = useRef(false)
   const isApplyingRedoRef = useRef(false)
@@ -166,7 +167,7 @@ export function useUndoRedo(
         isApplyingUndoRef.current || isApplyingRedoRef.current
 
       if (!isApplyingUpdate && gridSelectionRef.current) {
-        clearTimeout(timeout.current)
+        if (timeout.current) clearTimeout(timeout.current)
         const previousValue = getCellContent(cell) as EditableGridCell
 
         if (currentBatch.current === null) {
@@ -185,6 +186,7 @@ export function useUndoRedo(
             })
             currentBatch.current = null
           }
+          timeout.current = null
         }, 0)
       }
 
@@ -192,6 +194,40 @@ export function useUndoRedo(
       onCellEdited(cell, newValue)
     },
     [onCellEdited, getCellContent]
+  )
+
+  const wrappedOnCellsEdited = useCallback(
+    (edits: readonly UndoRedoEdit[]) => {
+      if (edits.length === 0) return
+      const isApplyingUpdate =
+        isApplyingUndoRef.current || isApplyingRedoRef.current
+
+      if (!isApplyingUpdate && gridSelectionRef.current) {
+        if (timeout.current) clearTimeout(timeout.current)
+        timeout.current = null
+        if (currentBatch.current) {
+          dispatch({ type: "edit", batch: currentBatch.current })
+          currentBatch.current = null
+        }
+        dispatch({
+          type: "edit",
+          batch: {
+            edits: edits.map(({ cell }) => ({
+              cell,
+              newValue: getCellContent(cell) as EditableGridCell,
+            })),
+            selection: gridSelectionRef.current,
+          },
+        })
+      }
+
+      if (onCellsEdited) {
+        onCellsEdited(edits)
+      } else {
+        for (const edit of edits) onCellEdited(edit.cell, edit.newValue)
+      }
+    },
+    [getCellContent, onCellEdited, onCellsEdited]
   )
 
   const undo = useCallback(() => {
@@ -203,8 +239,18 @@ export function useUndoRedo(
   }, [dispatch])
 
   const reset = useCallback(() => {
+    if (timeout.current) clearTimeout(timeout.current)
+    timeout.current = null
+    currentBatch.current = null
     dispatch({ type: "reset" })
   }, [dispatch])
+
+  useEffect(
+    () => () => {
+      if (timeout.current) clearTimeout(timeout.current)
+    },
+    []
+  )
 
   // Apply a batch of edits to the grid
   useEffect(() => {
@@ -218,8 +264,14 @@ export function useUndoRedo(
       for (const edit of state.operation.edits) {
         const prevValue = getCellContent(edit.cell) as EditableGridCell
         previousState.edits.push({ cell: edit.cell, newValue: prevValue })
-        onCellEdited(edit.cell, edit.newValue)
         cells.push({ cell: edit.cell })
+      }
+      if (onCellsEdited) {
+        onCellsEdited(state.operation.edits)
+      } else {
+        for (const edit of state.operation.edits) {
+          onCellEdited(edit.cell, edit.newValue)
+        }
       }
 
       setGridSelection(state.operation.selection)
@@ -235,7 +287,14 @@ export function useUndoRedo(
         type: "operationApplied",
       })
     }
-  }, [state.operation, gridRef, onCellEdited, setGridSelection, getCellContent])
+  }, [
+    state.operation,
+    gridRef,
+    onCellEdited,
+    onCellsEdited,
+    setGridSelection,
+    getCellContent,
+  ])
 
   // Attach the keyboard shortcuts. CMD+Z and CMD+SHIFT+Z on mac, CTRL+Z and CTRL+Y on windows.
   useEffect(() => {
@@ -269,6 +328,7 @@ export function useUndoRedo(
       canUndo: state.canUndo,
       canRedo: state.canRedo,
       onCellEdited: wrappedOnCellEdited,
+      onCellsEdited: wrappedOnCellsEdited,
       onGridSelectionChange: onGridSelectionChangedEdited,
       gridSelection,
     }
@@ -277,6 +337,7 @@ export function useUndoRedo(
     redo,
     reset,
     wrappedOnCellEdited,
+    wrappedOnCellsEdited,
     state.canUndo,
     state.canRedo,
     onGridSelectionChangedEdited,

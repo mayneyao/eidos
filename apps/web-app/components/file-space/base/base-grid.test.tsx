@@ -2,7 +2,10 @@
 
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type { BaseTableSnapshot } from "@eidos.space/base"
+import type {
+  BaseRowMutationResult,
+  BaseTableSnapshot,
+} from "@eidos.space/base"
 import {
   CompactSelection,
   GridCellKind,
@@ -10,11 +13,12 @@ import {
 } from "@glideapps/glide-data-grid"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { BaseGrid } from "./base-grid"
+import { BaseGrid, type BaseGridRowEdit } from "./base-grid"
 
 const mocks = vi.hoisted(() => ({
   props: null as DataEditorProps | null,
   scrollTo: vi.fn(),
+  updateCells: vi.fn(),
 }))
 
 vi.mock("@glideapps/glide-data-grid", async (importOriginal) => {
@@ -24,8 +28,11 @@ vi.mock("@glideapps/glide-data-grid", async (importOriginal) => {
     ...actual,
     default: React.forwardRef((_props: DataEditorProps, ref) => {
       mocks.props = _props
-      React.useImperativeHandle(ref, () => ({ scrollTo: mocks.scrollTo }))
-      return <div data-testid="glide-grid" />
+      React.useImperativeHandle(ref, () => ({
+        scrollTo: mocks.scrollTo,
+        updateCells: mocks.updateCells,
+      }))
+      return <div data-testid="glide-grid" tabIndex={-1} />
     }),
   }
 })
@@ -145,6 +152,7 @@ describe("BaseGrid", () => {
   beforeEach(() => {
     mocks.props = null
     mocks.scrollTo.mockReset()
+    mocks.updateCells.mockReset()
     container = document.createElement("div")
     document.body.append(container)
     root = createRoot(container)
@@ -200,6 +208,203 @@ describe("BaseGrid", () => {
       table.fields[0],
       "Write implementation"
     )
+  })
+
+  it("persists a multi-cell paste as one row batch", async () => {
+    const onCellEdit = createCellEdit()
+    const onRowsEdit = vi.fn(async (edits: BaseGridRowEdit[]) => ({
+      tableId: "tasks",
+      rows: edits.map(({ row, changes }) => ({ ...row, ...changes })),
+      rowCount: table.rowCount,
+    }))
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={table}
+          loadPage={createLoadPage()}
+          onAddRow={vi.fn()}
+          onCellEdit={onCellEdit}
+          onRowsEdit={onRowsEdit}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      mocks.props?.onCellsEdited?.([
+        {
+          location: [0, 0],
+          value: {
+            kind: GridCellKind.Text,
+            allowOverlay: true,
+            data: "Write implementation",
+            displayData: "Write implementation",
+          },
+        },
+        {
+          location: [1, 0],
+          value: {
+            kind: GridCellKind.Boolean,
+            allowOverlay: false,
+            data: true,
+          },
+        },
+      ])
+      await Promise.resolve()
+    })
+
+    expect(onRowsEdit).toHaveBeenCalledOnce()
+    expect(onRowsEdit).toHaveBeenCalledWith([
+      {
+        row: rowAt(0),
+        changes: { title: "Write implementation", done: 1 },
+      },
+    ])
+    expect(onCellEdit).not.toHaveBeenCalled()
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "Write implementation",
+    })
+    expect(mocks.props?.getCellContent([1, 0])).toMatchObject({ data: true })
+  })
+
+  it("undoes a pasted range through one batch mutation", async () => {
+    const onRowsEdit = vi.fn(async (edits: BaseGridRowEdit[]) => ({
+      tableId: "tasks",
+      rows: edits.map(({ row, changes }) => ({ ...row, ...changes })),
+      rowCount: table.rowCount,
+    }))
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={table}
+          loadPage={createLoadPage()}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+          onRowsEdit={onRowsEdit}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: undefined,
+      })
+    })
+    await act(async () => {
+      mocks.props?.onCellsEdited?.([
+        {
+          location: [0, 0],
+          value: {
+            kind: GridCellKind.Text,
+            allowOverlay: true,
+            data: "Write implementation",
+            displayData: "Write implementation",
+          },
+        },
+        {
+          location: [1, 0],
+          value: {
+            kind: GridCellKind.Boolean,
+            allowOverlay: false,
+            data: true,
+          },
+        },
+      ])
+      await Promise.resolve()
+    })
+    onRowsEdit.mockClear()
+    container.querySelector<HTMLElement>('[data-testid="glide-grid"]')?.focus()
+
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "z", metaKey: true })
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onRowsEdit).toHaveBeenCalledOnce()
+    expect(onRowsEdit).toHaveBeenCalledWith([
+      {
+        row: {
+          ...rowAt(0),
+          title: "Write implementation",
+          done: 1,
+        },
+        changes: { title: "Write RFC", done: 0 },
+      },
+    ])
+    expect(mocks.updateCells).toHaveBeenCalledOnce()
+  })
+
+  it("does not let an older save result overwrite a newer optimistic cell", async () => {
+    let resolveTitle: ((result: BaseRowMutationResult) => void) | undefined
+    let resolveDone: ((result: BaseRowMutationResult) => void) | undefined
+    const onCellEdit = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveTitle = resolve
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveDone = resolve
+          })
+      )
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={table}
+          loadPage={createLoadPage()}
+          onAddRow={vi.fn()}
+          onCellEdit={onCellEdit}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    act(() => {
+      mocks.props?.onCellEdited?.([0, 0], {
+        kind: GridCellKind.Text,
+        allowOverlay: true,
+        data: "Write implementation",
+        displayData: "Write implementation",
+      })
+      mocks.props?.onCellEdited?.([1, 0], {
+        kind: GridCellKind.Boolean,
+        allowOverlay: false,
+        data: true,
+      })
+    })
+
+    await act(async () => {
+      resolveTitle?.({
+        tableId: "tasks",
+        row: { ...rowAt(0), title: "Write implementation" },
+        rowCount: table.rowCount,
+      })
+      await Promise.resolve()
+    })
+    expect(mocks.props?.getCellContent([1, 0])).toMatchObject({ data: true })
+
+    await act(async () => {
+      resolveDone?.({
+        tableId: "tasks",
+        row: { ...rowAt(0), title: "Write implementation", done: true },
+        rowCount: table.rowCount,
+      })
+      await Promise.resolve()
+    })
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "Write implementation",
+    })
+    expect(mocks.props?.getCellContent([1, 0])).toMatchObject({ data: true })
   })
 
   it("forwards the trailing row action", async () => {
