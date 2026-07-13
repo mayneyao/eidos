@@ -147,6 +147,10 @@ Gallery 可以选择 File 字段作为封面，并切换适应/裁切；文件�
 不再重复触发 Space IPC、磁盘 I/O、Blob 分配和图片源解码。引用计数租约会保证任一可见 card 使用期间
 资源不会被提前 revoke；没有活跃引用的资源再受 64 个条目、64 MiB LRU 上限和 60 秒过期约束。view 销毁
 或缓存淘汰会 revoke 共享 URL，失败读取不会进入缓存；封面图片使用 lazy asynchronous decoding。
+二进制读取现在统一进入最多 6 个并发任务的调度队列。每个虚拟 card 持有可取消租约：滚动导致 card
+在排队读取开始前卸载时，该请求会直接退出且不会越过 Space IPC boundary；已经开始但随后失效的读取
+完成后也只会 revoke object URL，不会写入缓存。回归基线验证了并发上限为 2 时第三个请求必须等待，
+以及已取消的排队请求不会触发任何二进制读取。
 Gallery 与 Kanban 的 card 共用悬浮菜单和原生右键菜单，可以打开
 record details，并按稳定 row ID 进行确认删除。同一个右侧 record inspector 现在可以在 Grid、Gallery
 和 Kanban 中编辑：primitive source fields 会就地自动保存，Formula/Lookup 等派生值保持只读，保存

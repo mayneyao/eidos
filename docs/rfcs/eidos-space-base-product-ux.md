@@ -215,7 +215,13 @@ Space IPC, disk I/O, Blob allocation, and image source decoding. Reference-count
 leases keep a source valid while any visible card uses it; inactive sources are
 then governed by a 64-entry/64-MiB LRU bound and 60-second expiry. Disposal and
 eviction revoke the shared URL, while failed reads are never cached. Cover images
-also use lazy asynchronous decoding. Gallery and Kanban
+also use lazy asynchronous decoding. Binary reads are now scheduled through a
+six-request concurrency bound. Every virtual card owns an abortable lease: when
+scrolling unmounts a card before its queued read starts, the request is removed
+without crossing the Space IPC boundary; if an already active read becomes
+stale, its eventual object URL is revoked instead of entering the cache. The
+regression baseline proves that a third request waits behind a two-reader limit
+and that an aborted queued request performs no binary read. Gallery and Kanban
 cards share hover and native context actions for opening record details and
 confirmed deletion by stable row ID. The same right-side record inspector is
 now editable across Grid, Gallery, and Kanban: primitive source fields autosave
