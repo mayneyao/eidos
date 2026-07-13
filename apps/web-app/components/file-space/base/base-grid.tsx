@@ -1076,7 +1076,7 @@ export function BaseGrid({
   return (
     <div
       ref={containerRef}
-      className="flex h-full min-h-0 w-full overflow-hidden"
+      className="base-detail-layout flex h-full min-h-0 w-full overflow-hidden"
     >
       <div className="relative min-w-0 flex-1 overflow-hidden">
         <DataEditor

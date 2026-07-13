@@ -185,6 +185,9 @@ describe("BaseGalleryView", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
+    expect(container.firstElementChild?.classList).toContain(
+      "base-detail-layout"
+    )
     expect(loadPage).toHaveBeenCalledWith(0, 100)
     expect(container.textContent).toContain("Write RFC")
     expect(container.textContent).toContain("Todo")

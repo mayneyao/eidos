@@ -106,7 +106,7 @@ export function BaseFormulaEditor({
       <PopoverContent
         align="end"
         side="bottom"
-        className="w-[700px] max-w-[calc(100vw-32px)] p-0"
+        className="max-h-[var(--radix-popover-content-available-height)] w-[700px] max-w-[calc(100vw-32px)] overflow-y-auto p-0"
       >
         <div className="border-b px-4 py-3">
           <h2 className="text-sm font-semibold">Edit formula</h2>

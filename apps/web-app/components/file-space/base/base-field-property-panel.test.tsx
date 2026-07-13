@@ -69,6 +69,9 @@ describe("BaseFieldPropertyPanel", () => {
       )
     })
 
+    expect(
+      container.querySelector('[data-base-detail-panel="field"]')?.classList
+    ).toContain("base-detail-panel")
     const nameInput = Array.from(container.querySelectorAll("input")).find(
       (input) => input.value === "Status"
     )

@@ -262,7 +262,8 @@ export function BaseRecordInspector({
 
   return (
     <aside
-      className="flex h-full w-80 min-w-72 shrink-0 flex-col border-l bg-background"
+      className="base-detail-panel flex h-full flex-col border-l bg-background"
+      data-base-detail-panel="record"
       aria-label={`Record details for ${title}`}
       aria-busy={savingField !== null ? "true" : undefined}
     >

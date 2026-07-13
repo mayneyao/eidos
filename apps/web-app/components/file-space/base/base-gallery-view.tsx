@@ -345,7 +345,7 @@ export function BaseGalleryView({
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full overflow-hidden">
+    <div className="base-detail-layout flex h-full min-h-0 w-full overflow-hidden">
       <div
         ref={scrollContainerRef}
         data-base-gallery-scroll

@@ -92,6 +92,9 @@ describe("BaseRecordInspector", () => {
       )
     })
 
+    expect(
+      container.querySelector('[data-base-detail-panel="record"]')?.classList
+    ).toContain("base-detail-panel")
     const title = container.querySelector<HTMLTextAreaElement>("textarea")
     await act(async () => {
       if (!title) return

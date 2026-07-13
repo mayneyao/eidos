@@ -330,6 +330,9 @@ describe("BaseKanbanView", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
+    expect(container.firstElementChild?.classList).toContain(
+      "base-detail-layout"
+    )
     expect(loadGroupCounts).toHaveBeenCalledTimes(1)
     expect(loadGroupPage.mock.calls.map((call) => call[1])).toEqual([
       "todo",

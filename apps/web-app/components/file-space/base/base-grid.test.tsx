@@ -179,6 +179,9 @@ describe("BaseGrid", () => {
       await Promise.resolve()
     })
 
+    expect(container.firstElementChild?.classList).toContain(
+      "base-detail-layout"
+    )
     expect(loadPage).toHaveBeenCalledWith(0, 100)
     expect(mocks.props?.rows).toBe(250)
     expect(mocks.props?.columns.map((column) => column.title)).toEqual([

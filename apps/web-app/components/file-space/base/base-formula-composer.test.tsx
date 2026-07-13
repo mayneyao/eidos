@@ -156,6 +156,15 @@ describe("BaseFormulaComposer", () => {
     await act(async () => {
       root.render(<Harness initialFormula="" />)
     })
+    expect(
+      document.body.querySelector(".base-formula-composer-layout")
+    ).not.toBeNull()
+    expect(
+      document.body.querySelector(".base-formula-reference-pane")
+    ).not.toBeNull()
+    expect(
+      document.body.querySelector(".base-formula-display-row")
+    ).not.toBeNull()
     const price = [...document.body.querySelectorAll("button")].find((button) =>
       button.textContent?.includes("priceUnit price")
     )

@@ -244,7 +244,7 @@ export function BaseStructureDialog({
         side="bottom"
         className={
           mode === "field" && fieldType === "formula"
-            ? "w-[700px] max-w-[calc(100vw-32px)] p-0"
+            ? "max-h-[var(--radix-popover-content-available-height)] w-[700px] max-w-[calc(100vw-32px)] overflow-y-auto p-0"
             : "w-80 p-0"
         }
       >
