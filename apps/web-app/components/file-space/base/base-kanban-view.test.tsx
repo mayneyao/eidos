@@ -53,8 +53,14 @@ vi.mock("@/components/ui/kibo-ui/kanban", () => ({
       {children}
     </section>
   ),
-  KanbanCard: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
+  KanbanCard: ({
+    children,
+    disabled,
+  }: {
+    children: React.ReactNode
+    disabled?: boolean
+  }) => (
+    <div data-kanban-card-disabled={String(Boolean(disabled))}>{children}</div>
   ),
   KanbanHeader: ({ children }: { children: React.ReactNode }) => (
     <header>{children}</header>
@@ -236,6 +242,16 @@ const view: BaseViewInfo = {
   updatedAt: "2026-07-12 00:00:00",
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((onResolve, onReject) => {
+    resolve = onResolve
+    reject = onReject
+  })
+  return { promise, reject, resolve }
+}
+
 describe("BaseKanbanView", () => {
   let container: HTMLDivElement
   let root: Root
@@ -370,6 +386,101 @@ describe("BaseKanbanView", () => {
       expect.objectContaining({ _id: "row_1", status: "done" }),
       expect.objectContaining({ tableColumnName: "status" }),
       "todo"
+    )
+  })
+
+  it("serializes card moves so a failed save cannot duplicate a record", async () => {
+    const row = { _id: "row_1", title: "Write RFC", status: "todo" }
+    const firstMove = deferred<{
+      tableId: string
+      row: typeof row
+      rowCount: number
+    }>()
+    const onCellEdit = vi.fn(() => firstMove.promise)
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 1 }])}
+          loadGroupPage={vi.fn(async (_field, value, offset, limit) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: value === "todo" ? 1 : 0,
+            rows: value === "todo" ? [row] : [],
+          }))}
+          onCellEdit={onCellEdit}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    await act(async () => {
+      kanbanMocks.onDragEnd?.({
+        active: { id: "row_1" },
+        over: { id: "base-kanban:done" },
+      })
+      await Promise.resolve()
+    })
+
+    expect(onCellEdit).toHaveBeenCalledTimes(1)
+    expect(
+      container
+        .querySelector('[data-base-row-id="row_1"]')
+        ?.parentElement?.getAttribute("data-kanban-card-disabled")
+    ).toBe("true")
+    expect(
+      container
+        .querySelector("[data-base-kanban-scroll]")
+        ?.getAttribute("aria-busy")
+    ).toBe("true")
+    expect(container.textContent).not.toContain("Move Write RFC to No status")
+
+    await act(async () => {
+      kanbanMocks.onDragEnd?.({
+        active: { id: "row_1" },
+        over: { id: "base-kanban:__eidos_empty_group__" },
+      })
+      await Promise.resolve()
+    })
+
+    expect(onCellEdit).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      "Another record move is still saving."
+    )
+
+    await act(async () => {
+      firstMove.reject(new Error("disk is read-only"))
+      await firstMove.promise.catch(() => undefined)
+      await Promise.resolve()
+    })
+
+    expect(
+      container.querySelectorAll('[data-base-row-id="row_1"]')
+    ).toHaveLength(1)
+    expect(
+      container.querySelector('[role="region"][aria-label="Todo, 1 records"]')
+        ?.textContent
+    ).toContain("Write RFC")
+    expect(
+      container.querySelector('[role="region"][aria-label="Done, 0 records"]')
+    ).not.toBeNull()
+    expect(
+      container.querySelector(
+        '[role="region"][aria-label="No status, 0 records"]'
+      )
+    ).not.toBeNull()
+    expect(
+      container
+        .querySelector('[data-base-row-id="row_1"]')
+        ?.parentElement?.getAttribute("data-kanban-card-disabled")
+    ).toBe("false")
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      "The change was reverted."
     )
   })
 

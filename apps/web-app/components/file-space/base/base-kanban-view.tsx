@@ -289,9 +289,9 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
     () =>
       moveOptions.map((option) => ({
         ...option,
-        disabled: option.id === group.key,
+        disabled: disabled || option.id === group.key,
       })),
-    [group.key, moveOptions]
+    [disabled, group.key, moveOptions]
   )
   const moveCard = useCallback(
     (row: BaseRow, targetGroupKey: string) =>
@@ -697,6 +697,8 @@ export function BaseKanbanView({
     new Set()
   )
   const [dragging, setDragging] = useState(false)
+  const [moveInFlight, setMoveInFlight] = useState(false)
+  const moveInFlightRef = useRef(false)
   const [moveAnnouncement, setMoveAnnouncement] = useState("")
   const [inspectedRow, setInspectedRow] = useState<BaseRow | null>(null)
   const [deleteRow, setDeleteRow] = useState<BaseRow | null>(null)
@@ -1144,6 +1146,10 @@ export function BaseKanbanView({
   const moveRecord = useCallback(
     (rowId: string, targetKey: string) => {
       if (!groupField || disabled) return false
+      if (moveInFlightRef.current) {
+        setMoveAnnouncement("Another record move is still saving.")
+        return true
+      }
       const currentGroups = groupsRef.current
       const source = currentGroups.find((group) =>
         group.rows.some((row) => String(row._id) === rowId)
@@ -1158,6 +1164,8 @@ export function BaseKanbanView({
         ...row,
         [groupField.tableColumnName]: target.value,
       }
+      moveInFlightRef.current = true
+      setMoveInFlight(true)
       setGroups((current) =>
         current.map((group) => {
           if (group.key === source.key) {
@@ -1192,10 +1200,9 @@ export function BaseKanbanView({
         })
       )
       const title = String(row.title ?? "Untitled")
-      setMoveAnnouncement(
-        `${title} moved from ${source.name} to ${target.name}.`
-      )
-      void onCellEdit(row, groupField, target.value)
+      setMoveAnnouncement(`${title} is moving to ${target.name}.`)
+      void Promise.resolve()
+        .then(() => onCellEdit(row, groupField, target.value))
         .then((result) => {
           setGroups((current) =>
             current.map((group) =>
@@ -1208,6 +1215,9 @@ export function BaseKanbanView({
                   }
                 : group
             )
+          )
+          setMoveAnnouncement(
+            `${title} moved from ${source.name} to ${target.name}.`
           )
         })
         .catch(() => {
@@ -1255,6 +1265,10 @@ export function BaseKanbanView({
           setMoveAnnouncement(
             `${title} could not be moved to ${target.name}. The change was reverted.`
           )
+        })
+        .finally(() => {
+          moveInFlightRef.current = false
+          setMoveInFlight(false)
         })
       return true
     },
@@ -1444,7 +1458,7 @@ export function BaseKanbanView({
           ref={scrollContainerRef}
           data-base-kanban-scroll
           data-base-cached-group-windows={cachedGroupWindowCount}
-          aria-busy={boardBusy}
+          aria-busy={boardBusy || moveInFlight}
           className="h-full min-w-0 overflow-x-auto overflow-y-hidden p-3"
         >
           {countsFailure && !hasUsableBoard ? (
@@ -1500,7 +1514,7 @@ export function BaseKanbanView({
                         table={table}
                         view={view}
                         cardLayout={cardLayout}
-                        disabled={disabled}
+                        disabled={disabled || moveInFlight}
                         width={columnWidth}
                         color={baseOptionColor(group.color, theme)}
                         acquireCover={acquireCover}
