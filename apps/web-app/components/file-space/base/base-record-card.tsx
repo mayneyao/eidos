@@ -137,13 +137,13 @@ function BaseRecordCover({
 function CardFieldValue({
   layout,
   row,
+  theme,
 }: {
   layout: BaseRecordCardFieldLayout
   row: BaseRow
+  theme: "dark" | "light"
 }) {
   const { field, optionById } = layout
-  const { resolvedTheme } = useTheme()
-  const theme = resolvedTheme === "dark" ? "dark" : "light"
   const value = row[field.tableColumnName]
 
   if (field.type === "checkbox") {
@@ -277,6 +277,8 @@ export const BaseRecordCard = memo(function BaseRecordCard({
 }) {
   const layout =
     providedLayout ?? createBaseRecordCardLayout(fields, view, compact)
+  const { resolvedTheme } = useTheme()
+  const theme = resolvedTheme === "dark" ? "dark" : "light"
   const visibleFields = layout.fields
     .filter(
       ({ field }) =>
@@ -391,7 +393,11 @@ export const BaseRecordCard = memo(function BaseRecordCard({
                   {fieldLayout.field.name}
                 </span>
                 <span className="min-w-0">
-                  <CardFieldValue layout={fieldLayout} row={row} />
+                  <CardFieldValue
+                    layout={fieldLayout}
+                    row={row}
+                    theme={theme}
+                  />
                 </span>
               </div>
             ))}

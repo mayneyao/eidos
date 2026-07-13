@@ -210,12 +210,28 @@ describe("BaseRecordCard", () => {
       sourceTableColumnName: null,
       dependsOn: null,
     }
-    const cardFields = [...fields, statusField]
+    const notesField: BaseFieldInfo = {
+      ...statusField,
+      name: "Notes",
+      type: "text",
+      tableColumnName: "notes",
+      property: null,
+    }
+    const doneField: BaseFieldInfo = {
+      ...statusField,
+      name: "Done",
+      type: "checkbox",
+      tableColumnName: "done",
+      property: null,
+    }
+    const cardFields = [...fields, statusField, notesField, doneField]
     const row = {
       _id: "row_1",
       title: "Write RFC",
       cover: null,
       status: "todo",
+      notes: "Performance baseline",
+      done: 1,
     }
     const cardView = { ...view, properties: null }
     const onOpen = vi.fn()
@@ -280,10 +296,18 @@ describe("BaseRecordCard", () => {
     })
     const row = { _id: "row_1", title: "Write RFC", cover: null }
     const onMove = vi.fn()
-    const moveOptions = Array.from({ length: 200 }, (_, index) => ({
-      id: `status_${index}`,
-      label: `Status ${index}`,
-    }))
+    let labelReads = 0
+    const moveOptions = Array.from({ length: 200 }, (_, index) => {
+      const option = { id: `status_${index}`, label: "" }
+      Object.defineProperty(option, "label", {
+        enumerable: true,
+        get: () => {
+          labelReads += 1
+          return `Status ${index}`
+        },
+      })
+      return option
+    })
 
     await act(async () => {
       root.render(
@@ -300,6 +324,7 @@ describe("BaseRecordCard", () => {
     })
 
     expect(container.querySelectorAll("*").length).toBeLessThan(100)
+    expect(labelReads).toBe(0)
     await act(async () => {
       container
         .querySelector<HTMLElement>('[data-base-row-id="row_1"]')
@@ -322,6 +347,7 @@ describe("BaseRecordCard", () => {
       (item) => item.type === "submenu" && item.label === "Move to"
     )
     expect(moveSubmenu?.submenu).toHaveLength(200)
+    expect(labelReads).toBe(200)
     const targetItem = moveSubmenu?.submenu?.[143]
     expect(targetItem?.label).toBe("Status 143")
 

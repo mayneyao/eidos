@@ -59,11 +59,13 @@ const isNativeMenuItem = (
   item: NativeMenuItem | null | undefined
 ): item is NativeMenuItem => Boolean(item)
 
+type NativeMenuItemsSource = NativeMenuItem[] | (() => NativeMenuItem[])
+
 // Hook to collect menu items using refs (avoiding state updates)
 const useMenuCollector = () => {
   const itemsRef = React.useRef<Map<string, NativeMenuItem>>(new Map())
   const submenusRef = React.useRef<
-    Map<string, { trigger: NativeMenuItem; items: NativeMenuItem[] }>
+    Map<string, { trigger: NativeMenuItem; items: NativeMenuItemsSource }>
   >(new Map())
   const orderRef = React.useRef<string[]>([])
   const labelIndexRef = React.useRef<Map<string, string>>(new Map())
@@ -131,7 +133,11 @@ const useMenuCollector = () => {
   )
 
   const registerSubmenu = React.useCallback(
-    (triggerId: string, trigger: NativeMenuItem, items: NativeMenuItem[]) => {
+    (
+      triggerId: string,
+      trigger: NativeMenuItem,
+      items: NativeMenuItemsSource
+    ) => {
       removeById(triggerId)
 
       const dedupeKey = getDedupeKey(trigger)
@@ -173,7 +179,10 @@ const useMenuCollector = () => {
           return {
             type: "submenu" as const,
             label: trigger.label,
-            submenu: submenu.items,
+            submenu:
+              typeof submenu.items === "function"
+                ? submenu.items()
+                : submenu.items,
             id,
             enabled: trigger.enabled ?? true,
             icon: trigger.icon,
@@ -203,9 +212,19 @@ const useMenuCollector = () => {
 }
 
 // Context to collect menu items
-const NativeMenuContext = React.createContext<ReturnType<
-  typeof useMenuCollector
-> | null>(null)
+type NativeMenuContextValue = ReturnType<typeof useMenuCollector> & {
+  registerClickHandler?: (id: string, handler: () => void) => void
+  unregisterClickHandler?: (id: string) => void
+  registerBatchClickHandler?: (
+    id: string,
+    handler: (itemId: string) => void
+  ) => void
+  unregisterBatchClickHandler?: (id: string) => void
+}
+
+const NativeMenuContext = React.createContext<NativeMenuContextValue | null>(
+  null
+)
 const NativeMenuModeContext = React.createContext<{ useNative: boolean }>({
   useNative: true,
 })
@@ -213,6 +232,11 @@ const NativeMenuModeContext = React.createContext<{ useNative: boolean }>({
 // Global click handler registry - singleton pattern to avoid memory leak
 // Each menu component registers its handlers here, and a single IPC listener dispatches to them
 const globalClickHandlerRegistry = new Map<string, () => void>()
+const globalBatchClickHandlerRegistry = new Map<
+  string,
+  (itemId: string) => void
+>()
+const NATIVE_MENU_BATCH_SEPARATOR = "::eidos-native-menu-batch::"
 
 // Singleton IPC listener - only initialized once
 let globalListenerInitialized = false
@@ -225,7 +249,12 @@ const initGlobalMenuClickListener = () => {
     const clickHandler = globalClickHandlerRegistry.get(itemId)
     if (clickHandler) {
       clickHandler()
+      return
     }
+    const separatorIndex = itemId.lastIndexOf(NATIVE_MENU_BATCH_SEPARATOR)
+    if (separatorIndex < 0) return
+    const batchId = itemId.slice(0, separatorIndex)
+    globalBatchClickHandlerRegistry.get(batchId)?.(itemId)
   })
 }
 
@@ -258,6 +287,7 @@ const NativeContextMenu: React.FC<NativeContextMenuProps> = ({
   const menuCollector = useMenuCollector()
   // Track registered handler IDs for cleanup
   const registeredHandlerIds = React.useRef<Set<string>>(new Set())
+  const registeredBatchHandlerIds = React.useRef<Set<string>>(new Set())
 
   const menuContextValue = React.useMemo(
     () => ({
@@ -286,10 +316,29 @@ const NativeContextMenu: React.FC<NativeContextMenuProps> = ({
           globalClickHandlerRegistry.delete(id)
         })
         registeredHandlerIds.current.clear()
+        registeredBatchHandlerIds.current.forEach((id) => {
+          globalBatchClickHandlerRegistry.delete(id)
+        })
+        registeredBatchHandlerIds.current.clear()
       },
       registerClickHandler: (id: string, handler: () => void) => {
         globalClickHandlerRegistry.set(id, handler)
         registeredHandlerIds.current.add(id)
+      },
+      unregisterClickHandler: (id: string) => {
+        globalClickHandlerRegistry.delete(id)
+        registeredHandlerIds.current.delete(id)
+      },
+      registerBatchClickHandler: (
+        id: string,
+        handler: (itemId: string) => void
+      ) => {
+        globalBatchClickHandlerRegistry.set(id, handler)
+        registeredBatchHandlerIds.current.add(id)
+      },
+      unregisterBatchClickHandler: (id: string) => {
+        globalBatchClickHandlerRegistry.delete(id)
+        registeredBatchHandlerIds.current.delete(id)
       },
     }),
     [menuCollector]
@@ -305,6 +354,10 @@ const NativeContextMenu: React.FC<NativeContextMenuProps> = ({
         globalClickHandlerRegistry.delete(id)
       })
       registeredHandlerIds.current.clear()
+      registeredBatchHandlerIds.current.forEach((id) => {
+        globalBatchClickHandlerRegistry.delete(id)
+      })
+      registeredBatchHandlerIds.current.clear()
     }
   }, [])
 
@@ -798,6 +851,18 @@ NativeContextMenuPortal.displayName = "NativeContextMenuPortal"
 const useSubmenuCollector = (onItemsChange?: () => void) => {
   const itemsRef = React.useRef<Map<string, NativeMenuItem>>(new Map())
   const clickHandlersRef = React.useRef<Map<string, () => void>>(new Map())
+  const itemBatchesRef = React.useRef<
+    Map<
+      string,
+      {
+        items: Array<{ id: string; label: string; disabled?: boolean }>
+        onSelect: (id: string) => void
+      }
+    >
+  >(new Map())
+  const batchClickHandlersRef = React.useRef<
+    Map<string, (itemId: string) => void>
+  >(new Map())
   const orderRef = React.useRef<string[]>([])
   const labelIndexRef = React.useRef<Map<string, string>>(new Map())
 
@@ -813,6 +878,8 @@ const useSubmenuCollector = (onItemsChange?: () => void) => {
   const removeById = React.useCallback((id: string) => {
     itemsRef.current.delete(id)
     clickHandlersRef.current.delete(id)
+    itemBatchesRef.current.delete(id)
+    batchClickHandlersRef.current.delete(id)
     const index = orderRef.current.indexOf(id)
     if (index > -1) {
       orderRef.current.splice(index, 1)
@@ -855,18 +922,27 @@ const useSubmenuCollector = (onItemsChange?: () => void) => {
     [onItemsChange, upsertItem]
   )
 
-  const registerItems = React.useCallback(
+  const registerItemBatch = React.useCallback(
     (
-      items: Array<{
-        id: string
-        item: NativeMenuItem
-        onClick?: () => void
-      }>
+      id: string,
+      items: Array<{ id: string; label: string; disabled?: boolean }>,
+      onSelect: (id: string) => void
     ) => {
-      items.forEach(({ id, item, onClick }) => upsertItem(id, item, onClick))
+      removeById(id)
+      itemBatchesRef.current.set(id, { items, onSelect })
+      batchClickHandlersRef.current.set(id, (itemId) => {
+        const separatorIndex = itemId.lastIndexOf(NATIVE_MENU_BATCH_SEPARATOR)
+        if (separatorIndex < 0) return
+        onSelect(
+          decodeURIComponent(
+            itemId.slice(separatorIndex + NATIVE_MENU_BATCH_SEPARATOR.length)
+          )
+        )
+      })
+      orderRef.current.push(id)
       onItemsChange?.()
     },
-    [onItemsChange, upsertItem]
+    [onItemsChange, removeById]
   )
 
   const unregisterItem = React.useCallback(
@@ -877,9 +953,9 @@ const useSubmenuCollector = (onItemsChange?: () => void) => {
     [onItemsChange, removeById]
   )
 
-  const unregisterItems = React.useCallback(
-    (ids: string[]) => {
-      ids.forEach(removeById)
+  const unregisterItemBatch = React.useCallback(
+    (id: string) => {
+      removeById(id)
       onItemsChange?.()
     },
     [onItemsChange, removeById]
@@ -887,29 +963,57 @@ const useSubmenuCollector = (onItemsChange?: () => void) => {
 
   const getItems = React.useCallback<() => NativeMenuItem[]>(() => {
     const seenIds = new Set<string>()
+    const collectedItems: NativeMenuItem[] = []
 
-    return orderRef.current
-      .map((id) => {
-        if (seenIds.has(id)) {
-          return null
-        }
-        seenIds.add(id)
-        return itemsRef.current.get(id)!
-      })
-      .filter(isNativeMenuItem)
+    orderRef.current.forEach((id) => {
+      if (seenIds.has(id)) return
+      seenIds.add(id)
+      const batch = itemBatchesRef.current.get(id)
+      if (batch) {
+        batch.items.forEach((item) => {
+          collectedItems.push({
+            type: "text",
+            label: item.label,
+            id: `${id}${NATIVE_MENU_BATCH_SEPARATOR}${encodeURIComponent(item.id)}`,
+            enabled: !item.disabled,
+          })
+        })
+        return
+      }
+      const item = itemsRef.current.get(id)
+      if (item) collectedItems.push(item)
+    })
+    return collectedItems
   }, [])
+
+  const hasItems = React.useCallback(
+    () =>
+      orderRef.current.some(
+        (id) =>
+          itemsRef.current.has(id) ||
+          (itemBatchesRef.current.get(id)?.items.length ?? 0) > 0
+      ),
+    []
+  )
 
   const getClickHandlers = React.useCallback(() => {
     return clickHandlersRef.current
   }, [])
 
+  const getBatchClickHandlers = React.useCallback(
+    () => batchClickHandlersRef.current,
+    []
+  )
+
   return {
     registerItem,
-    registerItems,
+    registerItemBatch,
     unregisterItem,
-    unregisterItems,
+    unregisterItemBatch,
     getItems,
+    hasItems,
     getClickHandlers,
+    getBatchClickHandlers,
   }
 }
 
@@ -943,13 +1047,14 @@ const NativeContextMenuSub = React.forwardRef<
   const submenuCollectorRef = React.useRef<ReturnType<
     typeof useSubmenuCollector
   > | null>(null)
+  const registeredClickHandlerIdsRef = React.useRef<Set<string>>(new Set())
+  const registeredBatchHandlerIdsRef = React.useRef<Set<string>>(new Set())
 
   const checkAndRegister = React.useCallback(() => {
     if (!useNative) return
     const submenuCollector = submenuCollectorRef.current
     if (!parentContext || !triggerInfoRef.current || !submenuCollector) return
-    const submenuItems = submenuCollector.getItems()
-    if (submenuItems.length > 0) {
+    if (submenuCollector.hasItems()) {
       const triggerItem = {
         type: "text" as const,
         label: triggerInfoRef.current.label,
@@ -957,18 +1062,45 @@ const NativeContextMenuSub = React.forwardRef<
         icon: triggerInfoRef.current.icon,
       }
 
-      // Always update the submenu registration to reflect current items
-      parentContext.registerSubmenu(itemId, triggerItem, submenuItems)
+      // Resolve the potentially large submenu only when the native menu opens.
+      parentContext.registerSubmenu(
+        itemId,
+        triggerItem,
+        submenuCollector.getItems
+      )
 
-      // Also register click handlers from submenu items to parent context
       const submenuClickHandlers = submenuCollector.getClickHandlers()
-      submenuClickHandlers.forEach((handler, id) => {
-        // Access the parent's clickHandlersRef through a custom method
-        if ((parentContext as any).registerClickHandler) {
-          ;(parentContext as any).registerClickHandler(id, handler)
+      registeredClickHandlerIdsRef.current.forEach((id) => {
+        if (!submenuClickHandlers.has(id)) {
+          parentContext.unregisterClickHandler?.(id)
+          registeredClickHandlerIdsRef.current.delete(id)
         }
       })
+      submenuClickHandlers.forEach((handler, id) => {
+        parentContext.registerClickHandler?.(id, handler)
+        registeredClickHandlerIdsRef.current.add(id)
+      })
+
+      const batchClickHandlers = submenuCollector.getBatchClickHandlers()
+      registeredBatchHandlerIdsRef.current.forEach((id) => {
+        if (!batchClickHandlers.has(id)) {
+          parentContext.unregisterBatchClickHandler?.(id)
+          registeredBatchHandlerIdsRef.current.delete(id)
+        }
+      })
+      batchClickHandlers.forEach((handler, id) => {
+        parentContext.registerBatchClickHandler?.(id, handler)
+        registeredBatchHandlerIdsRef.current.add(id)
+      })
     } else {
+      registeredClickHandlerIdsRef.current.forEach((id) =>
+        parentContext.unregisterClickHandler?.(id)
+      )
+      registeredClickHandlerIdsRef.current.clear()
+      registeredBatchHandlerIdsRef.current.forEach((id) =>
+        parentContext.unregisterBatchClickHandler?.(id)
+      )
+      registeredBatchHandlerIdsRef.current.clear()
       parentContext.unregisterItem(itemId)
     }
   }, [itemId, parentContext, useNative])
@@ -995,6 +1127,14 @@ const NativeContextMenuSub = React.forwardRef<
     if (!useNative) return
     return () => {
       if (parentContext) {
+        registeredClickHandlerIdsRef.current.forEach((id) =>
+          parentContext.unregisterClickHandler?.(id)
+        )
+        registeredClickHandlerIdsRef.current.clear()
+        registeredBatchHandlerIdsRef.current.forEach((id) =>
+          parentContext.unregisterBatchClickHandler?.(id)
+        )
+        registeredBatchHandlerIdsRef.current.clear()
         parentContext.unregisterItem(itemId)
       }
     }
@@ -1039,8 +1179,10 @@ const NativeContextMenuSubContent = React.forwardRef<
       registerSubmenu: () => {}, // Submenus don't support nested submenus
       getMenuItems: submenuContext?.getItems || (() => []),
       clearAll: () => {}, // Submenus don't need clearAll
-      registerClickHandler:
-        (parentContext as any)?.registerClickHandler || (() => {}),
+      registerClickHandler: parentContext?.registerClickHandler,
+      unregisterClickHandler: parentContext?.unregisterClickHandler,
+      registerBatchClickHandler: parentContext?.registerBatchClickHandler,
+      unregisterBatchClickHandler: parentContext?.unregisterBatchClickHandler,
     }),
     [submenuContext, parentContext]
   )
@@ -1067,32 +1209,15 @@ const NativeContextMenuSubItems = React.memo(
   }: NativeContextMenuSubItemsProps) {
     const { useNative } = React.useContext(NativeMenuModeContext)
     const submenuContext = React.useContext(NativeSubmenuContext)
-    const itemIdPrefix = React.useId()
-    const nativeItems = React.useMemo(
-      () =>
-        items.map((item, index) => {
-          const nativeId = `${itemIdPrefix}-${index}`
-          return {
-            id: nativeId,
-            item: {
-              type: "text" as const,
-              label: item.label,
-              id: nativeId,
-              enabled: !item.disabled,
-            },
-            onClick: () => onSelect(item.id),
-          }
-        }),
-      [itemIdPrefix, items, onSelect]
-    )
+    const itemBatchId = React.useId()
 
     React.useEffect(() => {
-      if (!useNative || !submenuContext || nativeItems.length === 0) return
-      submenuContext.registerItems(nativeItems)
+      if (!useNative || !submenuContext || items.length === 0) return
+      submenuContext.registerItemBatch(itemBatchId, items, onSelect)
       return () => {
-        submenuContext.unregisterItems(nativeItems.map((item) => item.id))
+        submenuContext.unregisterItemBatch(itemBatchId)
       }
-    }, [nativeItems, submenuContext, useNative])
+    }, [itemBatchId, items, onSelect, submenuContext, useNative])
 
     if (useNative) return null
     return items.map((item) => (
