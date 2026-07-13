@@ -53,7 +53,7 @@ import {
   type BaseRecordCardLayout,
 } from "./base-record-card-layout"
 import { baseRecordFieldText, baseRecordTitle } from "./base-record-format"
-import type { BaseCoverLease } from "./use-base-cover-reader"
+import type { BaseCoverAcquire, BaseCoverLease } from "./use-base-cover-reader"
 
 const CARD_INTERACTIVE_TARGET =
   'button, a, input, select, textarea, summary, [role="button"], [role="menuitem"], [contenteditable="true"]'
@@ -97,7 +97,7 @@ function BaseRecordCover({
   field: BaseFieldInfo
   compact: boolean
   fitContent: boolean
-  acquireCover?: (path: string) => Promise<BaseCoverLease>
+  acquireCover?: BaseCoverAcquire
 }) {
   const path = decodeBaseFilePaths(row[field.tableColumnName]).at(0)
   const [source, setSource] = useState<string | null>(null)
@@ -112,7 +112,8 @@ function BaseRecordCover({
       return
     }
     if (!acquireCover) return
-    void acquireCover(path)
+    const controller = new AbortController()
+    void acquireCover(path, controller.signal)
       .then((nextLease) => {
         if (!active) {
           nextLease.release()
@@ -126,6 +127,7 @@ function BaseRecordCover({
       })
     return () => {
       active = false
+      controller.abort()
       lease?.release()
     }
   }, [acquireCover, path])
@@ -286,7 +288,7 @@ export const BaseRecordCard = memo(function BaseRecordCard({
   view: BaseViewInfo
   layout?: BaseRecordCardLayout
   compact?: boolean
-  acquireCover?: (path: string) => Promise<BaseCoverLease>
+  acquireCover?: BaseCoverAcquire
   onOpen: (row: BaseRow) => void
   onDelete?: (row: BaseRow) => void
   moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>

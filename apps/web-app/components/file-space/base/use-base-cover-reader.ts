@@ -3,6 +3,7 @@ import type { SpaceBinaryFile } from "@eidos.space/file-space"
 
 const DEFAULT_MAX_CACHED_COVERS = 64
 const DEFAULT_MAX_CACHED_BYTES = 64 * 1024 * 1024
+const DEFAULT_MAX_CONCURRENT_READS = 6
 const DEFAULT_COVER_TTL_MS = 60_000
 
 type ReadBinary = (path: string) => Promise<SpaceBinaryFile>
@@ -23,14 +24,28 @@ interface CachedCover {
 
 export interface BaseCoverReaderOptions {
   maxBytes?: number
+  maxConcurrentReads?: number
   maxEntries?: number
   now?: () => number
   ttlMs?: number
 }
 
 export interface BaseCoverReader {
-  acquire: (path: string) => Promise<BaseCoverLease>
+  acquire: (path: string, signal?: AbortSignal) => Promise<BaseCoverLease>
   dispose: () => void
+}
+
+export type BaseCoverAcquire = BaseCoverReader["acquire"]
+
+interface PendingCoverRead {
+  isCurrent: () => boolean
+  path: string
+  reject: (error: unknown) => void
+  resolve: (file: SpaceBinaryFile) => void
+}
+
+function coverAbortError(): DOMException {
+  return new DOMException("Base cover read was canceled", "AbortError")
 }
 
 function imageMimeType(path: string): string {
@@ -52,11 +67,50 @@ export function createBaseCoverReader(
     1,
     options.maxEntries ?? DEFAULT_MAX_CACHED_COVERS
   )
+  const maxConcurrentReads = Math.max(
+    1,
+    Math.trunc(options.maxConcurrentReads ?? DEFAULT_MAX_CONCURRENT_READS)
+  )
   const now = options.now ?? Date.now
   const ttlMs = Math.max(0, options.ttlMs ?? DEFAULT_COVER_TTL_MS)
   const entries = new Map<string, CachedCover>()
+  const pendingReads: PendingCoverRead[] = []
+  let activeReads = 0
   let cachedBytes = 0
   let disposed = false
+
+  const drainReads = () => {
+    while (activeReads < maxConcurrentReads && pendingReads.length > 0) {
+      const task = pendingReads.shift()
+      if (!task) return
+      if (!task.isCurrent()) {
+        task.reject(coverAbortError())
+        continue
+      }
+      activeReads += 1
+      let read: Promise<SpaceBinaryFile>
+      try {
+        read = readBinary(task.path)
+      } catch (error) {
+        activeReads = Math.max(0, activeReads - 1)
+        task.reject(error)
+        continue
+      }
+      void read.then(task.resolve, task.reject).finally(() => {
+        activeReads = Math.max(0, activeReads - 1)
+        drainReads()
+      })
+    }
+  }
+
+  const readWithLimit = (
+    path: string,
+    isCurrent: () => boolean
+  ): Promise<SpaceBinaryFile> =>
+    new Promise((resolve, reject) => {
+      pendingReads.push({ isCurrent, path, reject, resolve })
+      queueMicrotask(drainReads)
+    })
 
   const remove = (path: string, entry: CachedCover) => {
     if (entries.get(path) !== entry || entry.references > 0) return false
@@ -84,35 +138,66 @@ export function createBaseCoverReader(
     }
   }
 
-  const lease = async (
+  const lease = (
     path: string,
-    entry: CachedCover
+    entry: CachedCover,
+    signal?: AbortSignal
   ): Promise<BaseCoverLease> => {
-    try {
-      const source = await entry.promise
-      let released = false
-      return {
-        source,
-        release: () => {
-          if (released) return
-          released = true
-          entry.references = Math.max(0, entry.references - 1)
-          if (disposed || (entry.settled && entry.expiresAt <= now())) {
-            remove(path, entry)
-          }
-          trim()
-        },
-      }
-    } catch (error) {
+    let released = false
+    const release = () => {
+      if (released) return
+      released = true
       entry.references = Math.max(0, entry.references - 1)
-      throw error
+      if (
+        entry.references === 0 &&
+        (!entry.settled || disposed || entry.expiresAt <= now())
+      ) {
+        remove(path, entry)
+      }
+      trim()
     }
+
+    if (signal?.aborted) {
+      release()
+      return Promise.reject(coverAbortError())
+    }
+
+    return new Promise((resolve, reject) => {
+      let completed = false
+      const finish = (operation: () => void) => {
+        if (completed) return
+        completed = true
+        signal?.removeEventListener("abort", onAbort)
+        operation()
+      }
+      const onAbort = () =>
+        finish(() => {
+          release()
+          reject(coverAbortError())
+        })
+      signal?.addEventListener("abort", onAbort, { once: true })
+      void entry.promise.then(
+        (source) =>
+          finish(() => {
+            resolve({ source, release })
+          }),
+        (error: unknown) =>
+          finish(() => {
+            release()
+            reject(error)
+          })
+      )
+    })
   }
 
-  const acquire = (path: string): Promise<BaseCoverLease> => {
+  const acquire = (
+    path: string,
+    signal?: AbortSignal
+  ): Promise<BaseCoverLease> => {
     if (disposed) {
       return Promise.reject(new Error("Base cover reader is disposed"))
     }
+    if (signal?.aborted) return Promise.reject(coverAbortError())
     const existing = entries.get(path)
     if (existing) {
       if (
@@ -122,40 +207,40 @@ export function createBaseCoverReader(
       ) {
         existing.references += 1
         touch(path, existing)
-        return lease(path, existing)
+        return lease(path, existing, signal)
       }
       remove(path, existing)
     }
 
     let entry: CachedCover
-    const promise = Promise.resolve()
-      .then(() => readBinary(path))
-      .then(
-        (file) => {
-          const content = new Uint8Array(file.content)
-          const source = URL.createObjectURL(
-            new Blob([content.buffer], { type: imageMimeType(path) })
-          )
-          if (entries.get(path) === entry) {
-            entry.settled = true
-            entry.size = Math.max(file.size, file.content.byteLength)
-            entry.source = source
-            entry.expiresAt = now() + ttlMs
-            cachedBytes += entry.size
-            touch(path, entry)
-            if (disposed && entry.references === 0) remove(path, entry)
-            trim()
-          } else {
-            URL.revokeObjectURL(source)
-          }
-          return source
-        },
-        (error: unknown) => {
-          entry.references = 0
-          remove(path, entry)
-          throw error
+    const promise = readWithLimit(
+      path,
+      () => !disposed && entries.get(path) === entry
+    ).then(
+      (file) => {
+        const content = new Uint8Array(file.content)
+        const source = URL.createObjectURL(
+          new Blob([content.buffer], { type: imageMimeType(path) })
+        )
+        if (entries.get(path) === entry) {
+          entry.settled = true
+          entry.size = Math.max(file.size, file.content.byteLength)
+          entry.source = source
+          entry.expiresAt = now() + ttlMs
+          cachedBytes += entry.size
+          touch(path, entry)
+          if (disposed && entry.references === 0) remove(path, entry)
+          trim()
+        } else {
+          URL.revokeObjectURL(source)
         }
-      )
+        return source
+      },
+      (error: unknown) => {
+        if (entries.get(path) === entry) entries.delete(path)
+        throw error
+      }
+    )
     entry = {
       expiresAt: Number.POSITIVE_INFINITY,
       promise,
@@ -166,7 +251,7 @@ export function createBaseCoverReader(
     }
     entries.set(path, entry)
     trim()
-    return lease(path, entry)
+    return lease(path, entry, signal)
   }
 
   return {

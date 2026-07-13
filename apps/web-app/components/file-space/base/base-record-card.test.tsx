@@ -115,7 +115,10 @@ describe("BaseRecordCard", () => {
       await Promise.resolve()
     })
 
-    expect(acquireCover).toHaveBeenCalledWith("assets/cover.png")
+    expect(acquireCover).toHaveBeenCalledWith(
+      "assets/cover.png",
+      expect.any(AbortSignal)
+    )
     expect(container.querySelector("img")?.getAttribute("src")).toBe(
       "blob:base-cover"
     )
@@ -135,6 +138,44 @@ describe("BaseRecordCard", () => {
       )
     })
     expect(release).toHaveBeenCalledTimes(1)
+  })
+
+  it("cancels a queued local cover when the virtual card unmounts", async () => {
+    let signal: AbortSignal | undefined
+    const acquireCover = vi.fn((_path: string, nextSignal?: AbortSignal) => {
+      signal = nextSignal
+      return new Promise<never>(() => undefined)
+    })
+
+    await act(async () => {
+      root.render(
+        <BaseRecordCard
+          row={{
+            _id: "row_1",
+            title: "Write RFC",
+            cover: JSON.stringify(["assets/queued-cover.png"]),
+          }}
+          fields={fields}
+          view={view}
+          acquireCover={acquireCover}
+          onOpen={vi.fn()}
+        />
+      )
+    })
+
+    expect(signal?.aborted).toBe(false)
+    await act(async () => {
+      root.render(
+        <BaseRecordCard
+          row={{ _id: "row_1", title: "Write RFC", cover: null }}
+          fields={fields}
+          view={view}
+          acquireCover={acquireCover}
+          onOpen={vi.fn()}
+        />
+      )
+    })
+    expect(signal?.aborted).toBe(true)
   })
 
   it("exposes record actions from the card menu", async () => {

@@ -54,7 +54,7 @@ import {
 } from "./base-row-window"
 import { orderedBaseFields } from "./base-view-layout"
 import { useBaseCoverReader } from "./use-base-cover-reader"
-import type { BaseCoverLease } from "./use-base-cover-reader"
+import type { BaseCoverAcquire } from "./use-base-cover-reader"
 
 const KANBAN_PAGE_SIZE = 50
 const KANBAN_MAX_WINDOW_ROWS = 150
@@ -181,7 +181,7 @@ const BaseKanbanCardItem = memo(function BaseKanbanCardItem({
   table: BaseTableSnapshot
   view: BaseViewInfo
   cardLayout: BaseRecordCardLayout
-  acquireCover?: (path: string) => Promise<BaseCoverLease>
+  acquireCover?: BaseCoverAcquire
   focused: boolean
   onOpen: (row: BaseRow) => void
   onDelete?: (row: BaseRow) => void
@@ -254,7 +254,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   ) => void
   onRetry: (group: BaseKanbanGroup) => void
   onCreate: (group: BaseKanbanGroup, title: string) => Promise<void>
-  acquireCover?: (path: string) => Promise<BaseCoverLease>
+  acquireCover?: BaseCoverAcquire
   onDelete?: (row: BaseRow) => void
   moveOptions: BaseKanbanMoveOption[]
   onMove: (rowId: string, targetGroupKey: string) => void

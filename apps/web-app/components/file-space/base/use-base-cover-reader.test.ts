@@ -135,6 +135,64 @@ describe("createBaseCoverReader", () => {
     expect(revokeObjectUrl).toHaveBeenCalledWith(active.source)
   })
 
+  it("bounds concurrent binary reads while queued covers wait", async () => {
+    const pending = new Map<string, (file: SpaceBinaryFile) => void>()
+    const readBinary = vi.fn(
+      (path: string) =>
+        new Promise<SpaceBinaryFile>((resolve) => {
+          pending.set(path, resolve)
+        })
+    )
+    const reader = createBaseCoverReader(readBinary, {
+      maxConcurrentReads: 2,
+    })
+    const paths = ["assets/a.png", "assets/b.png", "assets/c.png"]
+    const acquisitions = paths.map((path) => reader.acquire(path))
+
+    await Promise.resolve()
+    expect(readBinary.mock.calls.map(([path]) => path)).toEqual(
+      paths.slice(0, 2)
+    )
+
+    pending.get(paths[0])?.(binary(paths[0]))
+    const first = await acquisitions[0]
+    first.release()
+    await Promise.resolve()
+    expect(readBinary.mock.calls.map(([path]) => path)).toEqual(paths)
+
+    pending.get(paths[1])?.(binary(paths[1]))
+    pending.get(paths[2])?.(binary(paths[2]))
+    const remaining = await Promise.all(acquisitions.slice(1))
+    remaining.forEach((lease) => lease.release())
+  })
+
+  it("drops an aborted queued cover before starting its binary read", async () => {
+    let resolveActive: ((file: SpaceBinaryFile) => void) | undefined
+    const readBinary = vi.fn(
+      (path: string) =>
+        new Promise<SpaceBinaryFile>((resolve) => {
+          if (path === "assets/active.png") resolveActive = resolve
+        })
+    )
+    const reader = createBaseCoverReader(readBinary, {
+      maxConcurrentReads: 1,
+    })
+    const active = reader.acquire("assets/active.png")
+    const controller = new AbortController()
+    const queued = reader.acquire("assets/queued.png", controller.signal)
+
+    await Promise.resolve()
+    expect(readBinary).toHaveBeenCalledTimes(1)
+    controller.abort()
+    await expect(queued).rejects.toMatchObject({ name: "AbortError" })
+
+    resolveActive?.(binary("assets/active.png"))
+    const lease = await active
+    lease.release()
+    await Promise.resolve()
+    expect(readBinary).toHaveBeenCalledTimes(1)
+  })
+
   it("does not cache failed reads", async () => {
     const readBinary = vi
       .fn<() => Promise<SpaceBinaryFile>>()
