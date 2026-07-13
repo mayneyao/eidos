@@ -9,6 +9,7 @@ import {
 import type {
   BaseFieldInfo,
   BaseRow,
+  BaseRowGroupCount,
   BaseRowMutationResult,
   BaseRowPage,
   BaseRelationValue,
@@ -41,6 +42,7 @@ import { BaseRecordCard } from "./base-record-card"
 import { BaseRecordDeleteDialog } from "./base-record-delete-dialog"
 import { BaseRecordInspector } from "./base-record-inspector"
 import { orderedBaseFields } from "./base-view-layout"
+import { useBaseVirtualLoadMore } from "./use-base-virtual-load-more"
 
 const KANBAN_PAGE_SIZE = 50
 const KANBAN_COLUMN_GAP = 12
@@ -53,6 +55,8 @@ interface BaseKanbanGroup {
   color: string
   rows: BaseRow[]
   total: number
+  loaded: boolean
+  loadFailed: boolean
   loading: boolean
   loadingMore: boolean
 }
@@ -70,7 +74,9 @@ function groupSpecs(options: BaseSelectOption[]): BaseKanbanGroup[] {
       color: option.color,
       rows: [],
       total: 0,
-      loading: true,
+      loaded: false,
+      loadFailed: false,
+      loading: false,
       loadingMore: false,
     })),
     {
@@ -80,7 +86,9 @@ function groupSpecs(options: BaseSelectOption[]): BaseKanbanGroup[] {
       color: "gray",
       rows: [],
       total: 0,
-      loading: true,
+      loaded: false,
+      loadFailed: false,
+      loading: false,
       loadingMore: false,
     },
   ]
@@ -90,6 +98,20 @@ function cardWidth(view: BaseViewInfo): number {
   if (view.properties?.cardSize === "small") return 248
   if (view.properties?.cardSize === "large") return 336
   return 288
+}
+
+function estimatedKanbanCardHeight(
+  table: BaseTableSnapshot,
+  view: BaseViewInfo
+): number {
+  const hasCover = typeof view.properties?.coverPreview === "string"
+  const visibleFieldCount = orderedBaseFields(table.fields, view)
+    .filter(
+      (field) =>
+        field.tableColumnName !== "title" && field.valueKind !== "system"
+    )
+    .slice(0, 4).length
+  return 64 + (hasCover ? 112 : 0) + visibleFieldCount * 32
 }
 
 function BaseKanbanColumn({
@@ -107,6 +129,7 @@ function BaseKanbanColumn({
   moveGroups,
   onMove,
   focusedRowId,
+  focusedRowIndex,
   collapsed,
   onCollapsedChange,
 }: {
@@ -124,12 +147,62 @@ function BaseKanbanColumn({
   moveGroups: BaseKanbanGroup[]
   onMove: (row: BaseRow, targetGroupKey: string) => void
   focusedRowId?: string
+  focusedRowIndex?: number
   collapsed: boolean
   onCollapsedChange: (collapsed: boolean) => void
 }) {
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState("")
   const [creating, setCreating] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const hasMore = !group.loadFailed && group.rows.length < group.total
+  const virtualItemCount = group.rows.length + (hasMore ? 1 : 0)
+  const cardVirtualizer = useVirtualizer({
+    count: virtualItemCount,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (index) =>
+      index < group.rows.length ? estimatedKanbanCardHeight(table, view) : 36,
+    getItemKey: (index) =>
+      index < group.rows.length
+        ? String(group.rows[index]?._id ?? `${group.key}:${index}`)
+        : `${group.key}:load-more`,
+    gap: 8,
+    initialRect: { width, height: 560 },
+    overscan: 3,
+  })
+  const virtualItems = cardVirtualizer.getVirtualItems()
+  const lastVirtualIndex = virtualItems.at(-1)?.index ?? -1
+  const loadMore = useCallback(() => onLoadMore(group), [group, onLoadMore])
+
+  useBaseVirtualLoadMore({
+    enabled: group.loaded && hasMore && !group.loading && !group.loadingMore,
+    lastVirtualIndex,
+    loadBoundary: group.rows.length,
+    onLoadMore: loadMore,
+  })
+
+  useEffect(() => {
+    if (
+      focusedRowIndex === undefined ||
+      focusedRowIndex < 0 ||
+      focusedRowIndex >= group.rows.length
+    ) {
+      return
+    }
+    let active = true
+    queueMicrotask(() => {
+      if (active) {
+        cardVirtualizer.scrollToIndex(focusedRowIndex, { align: "auto" })
+      }
+    })
+    return () => {
+      active = false
+    }
+  }, [cardVirtualizer, focusedRowIndex, group.rows.length])
+
+  useEffect(() => {
+    cardVirtualizer.measure()
+  }, [cardVirtualizer, table.fields, view.properties])
 
   const create = async () => {
     const next = title.trim()
@@ -204,59 +277,81 @@ function BaseKanbanColumn({
         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
       ) : (
         <>
-          <div className="grid min-h-16 content-start gap-2 overflow-y-auto pr-0.5">
-            {group.loading ? (
+          <div
+            ref={scrollRef}
+            data-base-kanban-column-scroll={group.key}
+            className="relative min-h-16 min-w-0 flex-1 overflow-y-auto pr-0.5"
+          >
+            {group.loading || !group.loaded ? (
               <div className="flex h-20 items-center justify-center">
                 <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : group.loadFailed ? (
+              <div className="flex h-16 items-center justify-center text-[11px] text-destructive">
+                Could not load records
               </div>
             ) : group.rows.length === 0 ? (
               <div className="flex h-16 items-center justify-center text-[11px] text-muted-foreground">
                 No records
               </div>
             ) : (
-              group.rows.map((row, index) => (
-                <KanbanCard
-                  key={String(row._id)}
-                  id={String(row._id)}
-                  name={String(row.title ?? "Untitled")}
-                  index={index}
-                  parent={group.key}
-                  className="rounded-lg border-0 bg-transparent shadow-none"
-                >
-                  <BaseRecordCard
-                    row={row}
-                    fields={table.fields}
-                    view={view}
-                    compact
-                    readBinary={readBinary}
-                    focused={focusedRowId === String(row._id)}
-                    onOpen={onOpen}
-                    onDelete={onDelete}
-                    moveOptions={moveGroups.map((candidate) => ({
-                      id: candidate.key,
-                      label: candidate.name,
-                      disabled: candidate.key === group.key,
-                    }))}
-                    onMove={onMove}
-                  />
-                </KanbanCard>
-              ))
-            )}
-            {group.rows.length < group.total ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 text-[11px] text-muted-foreground"
-                disabled={group.loadingMore}
-                onClick={() => onLoadMore(group)}
+              <div
+                className="relative w-full"
+                style={{ height: cardVirtualizer.getTotalSize() }}
               >
-                {group.loadingMore ? (
-                  <LoaderCircle className="mr-1 h-3 w-3 animate-spin" />
-                ) : null}
-                Load more · {group.rows.length}/{group.total}
-              </Button>
-            ) : null}
+                {virtualItems.map((virtualItem) => {
+                  const row = group.rows[virtualItem.index]
+                  return (
+                    <div
+                      key={virtualItem.key}
+                      ref={cardVirtualizer.measureElement}
+                      className="absolute left-0 top-0 w-full"
+                      data-index={virtualItem.index}
+                      style={{
+                        transform: `translateY(${virtualItem.start}px)`,
+                      }}
+                    >
+                      {row ? (
+                        <KanbanCard
+                          id={String(row._id)}
+                          name={String(row.title ?? "Untitled")}
+                          index={virtualItem.index}
+                          parent={group.key}
+                          className="rounded-lg border-0 bg-transparent shadow-none"
+                        >
+                          <BaseRecordCard
+                            row={row}
+                            fields={table.fields}
+                            view={view}
+                            compact
+                            readBinary={readBinary}
+                            focused={focusedRowId === String(row._id)}
+                            onOpen={onOpen}
+                            onDelete={onDelete}
+                            moveOptions={moveGroups.map((candidate) => ({
+                              id: candidate.key,
+                              label: candidate.name,
+                              disabled: candidate.key === group.key,
+                            }))}
+                            onMove={onMove}
+                          />
+                        </KanbanCard>
+                      ) : (
+                        <div
+                          className="flex h-9 items-center justify-center text-muted-foreground"
+                          role="status"
+                          aria-label={`Loading more ${group.name} records`}
+                        >
+                          {group.loadingMore ? (
+                            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
           {adding ? (
             <div className="grid gap-1.5 rounded-md border bg-background p-2 shadow-sm">
@@ -306,7 +401,7 @@ function BaseKanbanColumn({
               variant="ghost"
               size="sm"
               className="h-7 justify-start gap-1.5 text-[11px] text-muted-foreground"
-              disabled={disabled}
+              disabled={disabled || !group.loaded}
               onClick={() => setAdding(true)}
             >
               <Plus className="h-3.5 w-3.5" />
@@ -325,6 +420,7 @@ export function BaseKanbanView({
   disabled = false,
   reloadToken = 0,
   searchResultIndex = null,
+  loadGroupCounts,
   loadGroupPage,
   onCellEdit,
   onAddRow,
@@ -344,6 +440,7 @@ export function BaseKanbanView({
   disabled?: boolean
   reloadToken?: number
   searchResultIndex?: number | null
+  loadGroupCounts: (field: BaseFieldInfo) => Promise<BaseRowGroupCount[]>
   loadGroupPage: (
     field: BaseFieldInfo,
     value: string | null,
@@ -377,6 +474,8 @@ export function BaseKanbanView({
   const { resolvedTheme } = useTheme()
   const theme = resolvedTheme === "dark" ? "dark" : "light"
   const generationRef = useRef(0)
+  const loadingInitialGroupsRef = useRef(new Set<string>())
+  const loadingMoreGroupsRef = useRef(new Set<string>())
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const groupFieldName = view.properties?.groupByField
   const groupField = table.fields.find(
@@ -393,6 +492,7 @@ export function BaseKanbanView({
   const [groups, setGroups] = useState<BaseKanbanGroup[]>(() =>
     groupField ? groupSpecs(options) : []
   )
+  const [countsLoaded, setCountsLoaded] = useState(false)
   const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<Set<string>>(
     new Set()
   )
@@ -475,43 +575,38 @@ export function BaseKanbanView({
 
   useEffect(() => {
     generationRef.current += 1
+    loadingInitialGroupsRef.current.clear()
+    loadingMoreGroupsRef.current.clear()
     const generation = generationRef.current
     setInspectedRow(null)
     onRowCountChange?.(null)
     if (!groupField) {
       setGroups([])
+      setCountsLoaded(false)
       return
     }
     const specs = groupSpecs(options)
     setGroups(specs)
-    void Promise.all(
-      specs.map(async (group) => ({
-        key: group.key,
-        page: await loadGroupPage(groupField, group.value, 0, KANBAN_PAGE_SIZE),
-      }))
-    )
-      .then((pages) => {
+    setCountsLoaded(false)
+    void loadGroupCounts(groupField)
+      .then((counts) => {
         if (generation !== generationRef.current) return
-        const byKey = new Map(pages.map((entry) => [entry.key, entry.page]))
-        setGroups((current) =>
-          current.map((group) => {
-            const page = byKey.get(group.key)
-            return page
-              ? {
-                  ...group,
-                  rows: page.rows,
-                  total: page.total,
-                  loading: false,
-                }
-              : { ...group, loading: false }
-          })
+        const totals = new Map(
+          counts.map((group) => [
+            groupKey(group.value === null ? null : String(group.value)),
+            group.total,
+          ])
         )
+        setGroups((current) =>
+          current.map((group) => ({
+            ...group,
+            total: totals.get(group.key) ?? 0,
+          }))
+        )
+        setCountsLoaded(true)
       })
       .catch((error) => {
         if (generation !== generationRef.current) return
-        setGroups((current) =>
-          current.map((group) => ({ ...group, loading: false }))
-        )
         onError?.(error)
       })
     return () => {
@@ -519,7 +614,7 @@ export function BaseKanbanView({
     }
   }, [
     groupField,
-    loadGroupPage,
+    loadGroupCounts,
     onError,
     optionSignature,
     reloadToken,
@@ -529,49 +624,155 @@ export function BaseKanbanView({
   ])
 
   useEffect(() => {
-    if (groups.length === 0 || groups.some((group) => group.loading)) return
+    if (!countsLoaded || groups.length === 0) return
     onRowCountChange?.(groups.reduce((count, group) => count + group.total, 0))
-  }, [groupCountSignature, groups, onRowCountChange])
+  }, [countsLoaded, groupCountSignature, groups, onRowCountChange])
 
-  const loadMore = async (group: BaseKanbanGroup) => {
-    if (!groupField || group.loadingMore) return
-    setGroups((current) =>
-      current.map((candidate) =>
-        candidate.key === group.key
-          ? { ...candidate, loadingMore: true }
-          : candidate
-      )
-    )
-    try {
-      const page = await loadGroupPage(
-        groupField,
-        group.value,
-        group.rows.length,
-        KANBAN_PAGE_SIZE
-      )
+  const loadInitialGroup = useCallback(
+    async (group: BaseKanbanGroup) => {
+      if (
+        !groupField ||
+        group.loaded ||
+        group.loading ||
+        loadingInitialGroupsRef.current.has(group.key)
+      ) {
+        return
+      }
+      const generation = generationRef.current
+      loadingInitialGroupsRef.current.add(group.key)
       setGroups((current) =>
         current.map((candidate) =>
           candidate.key === group.key
-            ? {
-                ...candidate,
-                rows: [...candidate.rows, ...page.rows],
-                total: page.total,
-                loadingMore: false,
-              }
+            ? { ...candidate, loading: true }
             : candidate
         )
       )
-    } catch (error) {
-      setGroups((current) =>
-        current.map((candidate) =>
-          candidate.key === group.key
-            ? { ...candidate, loadingMore: false }
-            : candidate
+      try {
+        const page = await loadGroupPage(
+          groupField,
+          group.value,
+          0,
+          KANBAN_PAGE_SIZE
         )
-      )
-      onError?.(error)
+        if (generation !== generationRef.current) return
+        setGroups((current) =>
+          current.map((candidate) =>
+            candidate.key === group.key
+              ? {
+                  ...candidate,
+                  rows: page.rows,
+                  total: page.total,
+                  loaded: true,
+                  loadFailed: false,
+                  loading: false,
+                }
+              : candidate
+          )
+        )
+      } catch (error) {
+        if (generation !== generationRef.current) return
+        setGroups((current) =>
+          current.map((candidate) =>
+            candidate.key === group.key
+              ? {
+                  ...candidate,
+                  loaded: true,
+                  loadFailed: true,
+                  loading: false,
+                }
+              : candidate
+          )
+        )
+        onError?.(error)
+      } finally {
+        loadingInitialGroupsRef.current.delete(group.key)
+      }
+    },
+    [groupField, loadGroupPage, onError]
+  )
+
+  useEffect(() => {
+    if (dragging) return
+    for (const column of renderedColumns) {
+      const group = groups[column.index]
+      if (group && !collapsedGroupKeys.has(group.key)) {
+        void loadInitialGroup(group)
+      }
     }
-  }
+  }, [
+    collapsedGroupKeys,
+    collapsedGroupSignature,
+    dragging,
+    groups,
+    loadInitialGroup,
+    virtualColumnSignature,
+  ])
+
+  const loadMore = useCallback(
+    async (group: BaseKanbanGroup) => {
+      if (
+        !groupField ||
+        !group.loaded ||
+        group.loadFailed ||
+        group.loadingMore ||
+        loadingMoreGroupsRef.current.has(group.key) ||
+        group.rows.length >= group.total
+      ) {
+        return
+      }
+      const generation = generationRef.current
+      loadingMoreGroupsRef.current.add(group.key)
+      setGroups((current) =>
+        current.map((candidate) =>
+          candidate.key === group.key
+            ? { ...candidate, loadingMore: true }
+            : candidate
+        )
+      )
+      try {
+        const page = await loadGroupPage(
+          groupField,
+          group.value,
+          group.rows.length,
+          KANBAN_PAGE_SIZE
+        )
+        if (generation !== generationRef.current) return
+        setGroups((current) =>
+          current.map((candidate) =>
+            candidate.key === group.key
+              ? {
+                  ...candidate,
+                  rows: [
+                    ...candidate.rows,
+                    ...page.rows.filter(
+                      (row) =>
+                        !candidate.rows.some(
+                          (existing) => String(existing._id) === String(row._id)
+                        )
+                    ),
+                  ],
+                  total: page.total,
+                  loadingMore: false,
+                }
+              : candidate
+          )
+        )
+      } catch (error) {
+        if (generation !== generationRef.current) return
+        setGroups((current) =>
+          current.map((candidate) =>
+            candidate.key === group.key
+              ? { ...candidate, loadingMore: false }
+              : candidate
+          )
+        )
+        onError?.(error)
+      } finally {
+        loadingMoreGroupsRef.current.delete(group.key)
+      }
+    },
+    [groupField, loadGroupPage, onError]
+  )
 
   let focusedGroup: BaseKanbanGroup | undefined
   let focusedGroupIndex = -1
@@ -597,7 +798,15 @@ export function BaseKanbanView({
   useEffect(() => {
     if (!focusedGroup || focusedGroupPosition < 0) return
     setGroupCollapsed(focusedGroup.key, false)
-    columnVirtualizer.scrollToIndex(focusedGroupPosition, { align: "auto" })
+    let active = true
+    queueMicrotask(() => {
+      if (active) {
+        columnVirtualizer.scrollToIndex(focusedGroupPosition, { align: "auto" })
+      }
+    })
+    return () => {
+      active = false
+    }
   }, [columnVirtualizer, focusedGroup, focusedGroupPosition, setGroupCollapsed])
 
   useEffect(() => {
@@ -612,16 +821,7 @@ export function BaseKanbanView({
       }
       return
     }
-    const row = focusedGroup.rows[focusedGroupIndex]
-    if (!row) return
-    const rowId = String(row._id)
-    const target = Array.from(
-      scrollContainerRef.current?.querySelectorAll<HTMLElement>(
-        "[data-base-row-id]"
-      ) ?? []
-    ).find((element) => element.dataset.baseRowId === rowId)
-    target?.scrollIntoView({ block: "nearest", inline: "nearest" })
-  }, [focusedGroup, focusedGroupIndex, virtualColumnSignature])
+  }, [focusedGroup, focusedGroupIndex, loadMore, virtualColumnSignature])
 
   const moveRecord = (rowId: string, targetKey: string) => {
     if (!groupField || disabled) return false
@@ -822,6 +1022,11 @@ export function BaseKanbanView({
                     }
                     focusedRowId={
                       focusedRow ? String(focusedRow._id) : undefined
+                    }
+                    focusedRowIndex={
+                      focusedGroup?.key === group.key && focusedGroupIndex >= 0
+                        ? focusedGroupIndex
+                        : undefined
                     }
                     collapsed={collapsedGroupKeys.has(group.key)}
                     onCollapsedChange={(collapsed) =>

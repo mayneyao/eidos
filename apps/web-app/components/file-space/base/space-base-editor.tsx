@@ -156,6 +156,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     getCsvOperation,
     cancelCsvOperation,
     getTablePage,
+    getTableGroupCounts,
     createTable,
     updateTable,
     deleteTable,
@@ -607,6 +608,21 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       })
     },
     [activeQuery, activeTableId, filePath, getTablePage]
+  )
+
+  const loadKanbanGroupCounts = useCallback(
+    (field: BaseFieldInfo) => {
+      if (!activeTableId) {
+        return Promise.reject(new Error("No active Base table"))
+      }
+      return getTableGroupCounts(
+        filePath,
+        activeTableId,
+        field.tableColumnName,
+        activeQuery
+      )
+    },
+    [activeQuery, activeTableId, filePath, getTableGroupCounts]
   )
 
   const searchRelationRecords = useCallback(
@@ -1425,6 +1441,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               disabled={blockingMutations > 0}
               reloadToken={gridReloadToken}
               searchResultIndex={activeSearchResultIndex}
+              loadGroupCounts={loadKanbanGroupCounts}
               loadGroupPage={loadKanbanGroupPage}
               onCellEdit={saveCell}
               onAddRow={createRowInGroup}

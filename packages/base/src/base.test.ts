@@ -1181,6 +1181,15 @@ describe("Eidos Base files", () => {
         { title: "Write release notes", priority: 2 },
       ],
     })
+    expect(base.countRowsByField("tasks", "status")).toEqual(
+      expect.arrayContaining([
+        { value: "doing", total: 2 },
+        { value: "done", total: 1 },
+      ])
+    )
+    expect(
+      base.countRowsByField("tasks", "status", { search: "release" })
+    ).toEqual([{ value: "doing", total: 1 }])
 
     const view = base.listViews("tasks")[0]
     base.updateView(view.id, { filter, sorts: query.sorts })

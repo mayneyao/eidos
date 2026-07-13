@@ -1,6 +1,7 @@
 import { useCallback } from "react"
 import type {
   BaseRow,
+  BaseRowGroupCount,
   BaseRowMutationResult,
   BaseRowsMutationResult,
   BaseRowPage,
@@ -111,6 +112,23 @@ export function useSpaceBase(spaceId: string | undefined) {
         relativePath,
         tableId,
         { offset, limit, query }
+      ),
+    [requireSpaceId]
+  )
+
+  const getTableGroupCounts = useCallback(
+    (
+      relativePath: string,
+      tableId: string,
+      columnName: string,
+      query: BaseRowQuery = {}
+    ): Promise<BaseRowGroupCount[]> =>
+      requireBaseApi().getBaseTableGroupCounts(
+        requireSpaceId(),
+        relativePath,
+        tableId,
+        columnName,
+        query
       ),
     [requireSpaceId]
   )
@@ -363,6 +381,7 @@ export function useSpaceBase(spaceId: string | undefined) {
     cancelCsvOperation,
     getSnapshot,
     getTablePage,
+    getTableGroupCounts,
     createTable,
     updateTable,
     deleteTable,

@@ -411,6 +411,11 @@ export interface BaseRowPage {
   rows: BaseRow[]
 }
 
+export interface BaseRowGroupCount {
+  value: BaseSqlPrimitive
+  total: number
+}
+
 export interface BaseRowMutationResult {
   tableId: string
   row: BaseRow

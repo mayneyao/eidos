@@ -43,6 +43,7 @@ import type {
   BaseMetadata,
   BaseLookupAggregate,
   BaseRow,
+  BaseRowGroupCount,
   BaseRowPage,
   BaseRowQuery,
   BaseRowRange,
@@ -1693,6 +1694,29 @@ export class BaseRuntime {
         compiled.params
       )?.count ?? 0
     )
+  }
+
+  countRowsByField(
+    tableId: string,
+    columnName: string,
+    query: BaseRowQuery = {}
+  ): BaseRowGroupCount[] {
+    const fields = this.listFields(tableId)
+    const field = this.getField(tableId, columnName)
+    const compiled = compileBaseRowQuery(fields, query)
+    const column = quoteIdentifier(field.tableColumnName)
+    return this.connection
+      .query<{ value: BaseSqlPrimitive; total: number }>(
+        `SELECT ${column} AS value, COUNT(*) AS total
+           FROM ${this.rowSourceSql(tableId, fields)}
+           ${compiled.whereSql}
+          GROUP BY ${column}`,
+        compiled.params
+      )
+      .map((group) => ({
+        value: group.value,
+        total: Number(group.total),
+      }))
   }
 
   getRowPage(

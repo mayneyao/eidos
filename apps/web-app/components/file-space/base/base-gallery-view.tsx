@@ -10,22 +10,39 @@ import type {
   BaseViewInfo,
 } from "@eidos.space/base"
 import type { SpaceBinaryFile } from "@eidos.space/file-space"
+import { useVirtualizer } from "@tanstack/react-virtual"
 import { LoaderCircle } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
 
 import { BaseRecordCard } from "./base-record-card"
 import { BaseRecordDeleteDialog } from "./base-record-delete-dialog"
 import { BaseRecordInspector } from "./base-record-inspector"
 import { orderedBaseFields } from "./base-view-layout"
+import { useBaseVirtualLoadMore } from "./use-base-virtual-load-more"
 
 const GALLERY_PAGE_SIZE = 100
+const GALLERY_GAP = 12
+const GALLERY_HORIZONTAL_PADDING = 32
+const GALLERY_OVERSCAN_ROWS = 2
 
 function galleryCardWidth(view: BaseViewInfo): number {
   const size = view.properties?.cardSize
   if (size === "small") return 220
   if (size === "large") return 340
   return 280
+}
+
+function estimatedGalleryCardHeight(
+  table: BaseTableSnapshot,
+  view: BaseViewInfo
+): number {
+  const hasCover = typeof view.properties?.coverPreview === "string"
+  const visibleFieldCount = orderedBaseFields(table.fields, view)
+    .filter(
+      (field) =>
+        field.tableColumnName !== "title" && field.valueKind !== "system"
+    )
+    .slice(0, 6).length
+  return 72 + (hasCover ? 144 : 0) + visibleFieldCount * 32
 }
 
 export function BaseGalleryView({
@@ -71,7 +88,9 @@ export function BaseGalleryView({
   sidePanel?: ReactNode
 }) {
   const generationRef = useRef(0)
+  const requestRef = useRef<{ generation: number; offset: number } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState(1024)
   const [rows, setRows] = useState<BaseRow[]>([])
   const [total, setTotal] = useState(table.rowCount)
   const [loading, setLoading] = useState(true)
@@ -83,17 +102,36 @@ export function BaseGalleryView({
   const requestPage = useCallback(
     async (offset: number, append: boolean) => {
       const generation = generationRef.current
+      if (
+        requestRef.current?.generation === generation &&
+        requestRef.current.offset === offset
+      ) {
+        return
+      }
+      requestRef.current = { generation, offset }
       append ? setLoadingMore(true) : setLoading(true)
       try {
         const page = await loadPage(offset, GALLERY_PAGE_SIZE)
         if (generation !== generationRef.current) return
-        setRows((current) => (append ? [...current, ...page.rows] : page.rows))
+        setRows((current) => {
+          if (!append) return page.rows
+          const existingIds = new Set(
+            current.map((row) => String(row._id ?? ""))
+          )
+          return [
+            ...current,
+            ...page.rows.filter(
+              (row) => !existingIds.has(String(row._id ?? ""))
+            ),
+          ]
+        })
         setTotal(page.total)
         onRowCountChange?.(page.total)
       } catch (error) {
         if (generation === generationRef.current) onError?.(error)
       } finally {
         if (generation === generationRef.current) {
+          if (requestRef.current?.offset === offset) requestRef.current = null
           append ? setLoadingMore(false) : setLoading(false)
         }
       }
@@ -103,14 +141,76 @@ export function BaseGalleryView({
 
   useEffect(() => {
     generationRef.current += 1
+    requestRef.current = null
     setRows([])
+    setTotal(table.rowCount)
     setInspectedRow(null)
     onRowCountChange?.(null)
     void requestPage(0, false)
     return () => {
       generationRef.current += 1
     }
-  }, [onRowCountChange, reloadToken, requestPage, table.table.id, view.id])
+  }, [
+    onRowCountChange,
+    reloadToken,
+    requestPage,
+    table.rowCount,
+    table.table.id,
+    view.id,
+  ])
+
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    const updateWidth = (width: number) => {
+      if (width > 0) setContainerWidth(width)
+    }
+    updateWidth(container.clientWidth)
+    if (typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width
+      if (typeof width === "number") updateWidth(width)
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
+
+  const targetCardWidth = galleryCardWidth(view)
+  const availableWidth = Math.max(
+    targetCardWidth,
+    containerWidth - GALLERY_HORIZONTAL_PADDING
+  )
+  const columnCount = Math.max(
+    1,
+    Math.floor((availableWidth + GALLERY_GAP) / (targetCardWidth + GALLERY_GAP))
+  )
+  const virtualRowCount = Math.ceil(rows.length / columnCount)
+  const rowVirtualizer = useVirtualizer({
+    count: virtualRowCount,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => estimatedGalleryCardHeight(table, view),
+    getItemKey: (index) =>
+      String(rows[index * columnCount]?._id ?? `gallery-row-${index}`),
+    gap: GALLERY_GAP,
+    initialRect: { width: 1024, height: 640 },
+    overscan: GALLERY_OVERSCAN_ROWS,
+  })
+  const virtualRows = rowVirtualizer.getVirtualItems()
+  const lastVirtualRowIndex = virtualRows.at(-1)?.index ?? -1
+  const loadNextPage = useCallback(() => {
+    void requestPage(rows.length, true)
+  }, [requestPage, rows.length])
+
+  useBaseVirtualLoadMore({
+    enabled: !loading && !loadingMore && rows.length < total,
+    lastVirtualIndex: lastVirtualRowIndex,
+    loadBoundary: Math.max(0, virtualRowCount - GALLERY_OVERSCAN_ROWS),
+    onLoadMore: loadNextPage,
+  })
+
+  useEffect(() => {
+    rowVirtualizer.measure()
+  }, [columnCount, rowVirtualizer, table.fields, view.properties])
 
   const focusedRow =
     searchResultIndex !== null ? rows[searchResultIndex] : undefined
@@ -126,14 +226,27 @@ export function BaseGalleryView({
     }
     const row = rows[searchResultIndex]
     if (!row) return
-    const rowId = String(row._id)
-    const target = Array.from(
-      scrollContainerRef.current?.querySelectorAll<HTMLElement>(
-        "[data-base-row-id]"
-      ) ?? []
-    ).find((element) => element.dataset.baseRowId === rowId)
-    target?.scrollIntoView({ block: "nearest", inline: "nearest" })
-  }, [loading, loadingMore, requestPage, rows, searchResultIndex, total])
+    let active = true
+    queueMicrotask(() => {
+      if (!active) return
+      rowVirtualizer.scrollToIndex(
+        Math.floor(searchResultIndex / columnCount),
+        { align: "auto" }
+      )
+    })
+    return () => {
+      active = false
+    }
+  }, [
+    columnCount,
+    loading,
+    loadingMore,
+    requestPage,
+    rowVirtualizer,
+    rows,
+    searchResultIndex,
+    total,
+  ])
 
   const copyRecordId = (id: string) => {
     if (!navigator.clipboard) {
@@ -165,6 +278,7 @@ export function BaseGalleryView({
     <div className="flex h-full min-h-0 w-full overflow-hidden">
       <div
         ref={scrollContainerRef}
+        data-base-gallery-scroll
         className="min-w-0 flex-1 overflow-y-auto p-4"
       >
         {loading ? (
@@ -178,48 +292,54 @@ export function BaseGalleryView({
           </div>
         ) : (
           <div
-            className="grid items-start gap-3"
+            className="relative"
             role="list"
             aria-label={`${view.name} records`}
             style={{
-              gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${galleryCardWidth(
-                view
-              )}px), 1fr))`,
+              height: rowVirtualizer.getTotalSize(),
             }}
           >
-            {rows.map((row) => (
-              <BaseRecordCard
-                key={String(row._id)}
-                row={row}
-                fields={table.fields}
-                view={view}
-                readBinary={readBinary}
-                role="listitem"
-                focused={
-                  focusedRow !== undefined &&
-                  String(focusedRow._id) === String(row._id)
-                }
-                onOpen={setInspectedRow}
-                onDelete={onDeleteRow ? setDeleteRow : undefined}
-              />
-            ))}
+            {virtualRows.map((virtualRow) => {
+              const start = virtualRow.index * columnCount
+              return (
+                <div
+                  key={virtualRow.key}
+                  ref={rowVirtualizer.measureElement}
+                  className="absolute left-0 top-0 grid w-full items-start gap-3"
+                  data-index={virtualRow.index}
+                  style={{
+                    gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  {rows.slice(start, start + columnCount).map((row) => (
+                    <BaseRecordCard
+                      key={String(row._id)}
+                      row={row}
+                      fields={table.fields}
+                      view={view}
+                      readBinary={readBinary}
+                      role="listitem"
+                      focused={
+                        focusedRow !== undefined &&
+                        String(focusedRow._id) === String(row._id)
+                      }
+                      onOpen={setInspectedRow}
+                      onDelete={onDeleteRow ? setDeleteRow : undefined}
+                    />
+                  ))}
+                </div>
+              )
+            })}
           </div>
         )}
-        {rows.length < total ? (
-          <div className="flex justify-center py-5">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs"
-              disabled={loadingMore}
-              onClick={() => void requestPage(rows.length, true)}
-            >
-              {loadingMore ? (
-                <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              ) : null}
-              Load more · {rows.length} of {total}
-            </Button>
+        {loadingMore ? (
+          <div
+            className="flex h-10 items-center justify-center gap-1.5 text-[11px] text-muted-foreground"
+            role="status"
+          >
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+            Loading more records…
           </div>
         ) : null}
       </div>

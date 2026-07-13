@@ -159,6 +159,29 @@ describe("BaseKanbanView", () => {
   beforeEach(() => {
     kanbanMocks.onDragEnd = undefined
     scrollIntoView.mockReset()
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+      configurable: true,
+      get: () => 1024,
+    })
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get: () => 640,
+    })
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      configurable: true,
+      value(this: HTMLElement, options: ScrollToOptions) {
+        this.scrollTop = typeof options.top === "number" ? options.top : 0
+        queueMicrotask(() => this.dispatchEvent(new Event("scroll")))
+      },
+    })
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
     Object.defineProperty(Element.prototype, "scrollIntoView", {
       configurable: true,
       value: scrollIntoView,
@@ -185,10 +208,12 @@ describe("BaseKanbanView", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    vi.unstubAllGlobals()
   })
 
   it("queries select groups and persists cross-column moves", async () => {
     const row = { _id: "row_1", title: "Write RFC", status: "todo" }
+    const loadGroupCounts = vi.fn(async () => [{ value: "todo", total: 1 }])
     const loadGroupPage = vi.fn(async (_field, value, offset, limit) => ({
       tableId: "tasks",
       offset,
@@ -207,6 +232,7 @@ describe("BaseKanbanView", () => {
         <BaseKanbanView
           table={table}
           view={view}
+          loadGroupCounts={loadGroupCounts}
           loadGroupPage={loadGroupPage}
           onCellEdit={onCellEdit}
           onAddRow={vi.fn()}
@@ -215,6 +241,7 @@ describe("BaseKanbanView", () => {
       await Promise.resolve()
     })
 
+    expect(loadGroupCounts).toHaveBeenCalledTimes(1)
     expect(loadGroupPage.mock.calls.map((call) => call[1])).toEqual([
       "todo",
       "done",
@@ -266,6 +293,7 @@ describe("BaseKanbanView", () => {
         <BaseKanbanView
           table={table}
           view={view}
+          loadGroupCounts={vi.fn(async () => [])}
           loadGroupPage={vi.fn(async (_field, _value, offset, limit) => ({
             tableId: "tasks",
             offset,
@@ -338,6 +366,7 @@ describe("BaseKanbanView", () => {
           table={table}
           view={view}
           searchResultIndex={50}
+          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 51 }])}
           loadGroupPage={loadGroupPage}
           onCellEdit={vi.fn()}
           onAddRow={vi.fn()}
@@ -361,7 +390,68 @@ describe("BaseKanbanView", () => {
         .querySelector('[data-base-row-id="row_50"]')
         ?.getAttribute("aria-current")
     ).toBe("true")
-    expect(scrollIntoView).toHaveBeenCalled()
+  })
+
+  it("virtualizes cards inside a large group and loads more on scroll", async () => {
+    const loadGroupPage = vi.fn(
+      async (_field, value: string | null, offset: number, limit: number) => ({
+        tableId: "tasks",
+        offset,
+        limit,
+        total: value === "todo" ? 500 : 0,
+        rows:
+          value === "todo"
+            ? Array.from({ length: 50 }, (_, index) => ({
+                _id: `row_${offset + index}`,
+                title: `Task ${offset + index}`,
+                status: "todo",
+              }))
+            : [],
+      })
+    )
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 500 }])}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const todoColumn = container.querySelector<HTMLElement>(
+      '[data-board-id="base-kanban:todo"]'
+    )
+    const initialMountedCards =
+      todoColumn?.querySelectorAll("[data-base-row-id]").length
+    expect(initialMountedCards).toBeGreaterThan(0)
+    expect(initialMountedCards).toBeLessThan(50)
+
+    await act(async () => {
+      const scroller = todoColumn?.querySelector<HTMLElement>(
+        '[data-base-kanban-column-scroll="base-kanban:todo"]'
+      )
+      if (!scroller) return
+      scroller.scrollTop = 100_000
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(loadGroupPage).toHaveBeenCalledWith(
+      expect.objectContaining({ tableColumnName: "status" }),
+      "todo",
+      50,
+      50
+    )
+    expect(
+      todoColumn?.querySelectorAll("[data-base-row-id]").length
+    ).toBeLessThan(50)
   })
 
   it("only mounts the horizontal window for a large set of columns", async () => {
@@ -385,12 +475,14 @@ describe("BaseKanbanView", () => {
       total: 0,
       rows: [],
     }))
+    const loadGroupCounts = vi.fn(async () => [])
 
     await act(async () => {
       root.render(
         <BaseKanbanView
           table={manyColumnTable}
           view={view}
+          loadGroupCounts={loadGroupCounts}
           loadGroupPage={loadGroupPage}
           onCellEdit={vi.fn()}
           onAddRow={vi.fn()}
@@ -399,9 +491,11 @@ describe("BaseKanbanView", () => {
       await Promise.resolve()
     })
 
-    expect(loadGroupPage).toHaveBeenCalledTimes(21)
+    expect(loadGroupCounts).toHaveBeenCalledTimes(1)
+    expect(loadGroupPage.mock.calls.length).toBeGreaterThan(0)
+    expect(loadGroupPage.mock.calls.length).toBeLessThanOrEqual(8)
     const renderedColumns = container.querySelectorAll('[role="region"]')
     expect(renderedColumns.length).toBeGreaterThan(0)
-    expect(renderedColumns.length).toBeLessThan(21)
+    expect(renderedColumns.length).toBeLessThanOrEqual(8)
   })
 })

@@ -5,6 +5,7 @@
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import type {
   BaseRow,
+  BaseRowGroupCount,
   BaseRowMutationResult,
   BaseRowsMutationResult,
   BaseRowPage,
@@ -639,6 +640,23 @@ export class SpaceManagementService extends IpcServiceBase {
           options.limit,
           options.query
         )
+      } finally {
+        base.close()
+      }
+    })
+  }
+
+  async getBaseTableGroupCounts(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    columnName: string,
+    query: BaseRowQuery = {}
+  ): Promise<BaseRowGroupCount[]> {
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const base = await this._openBase(spaceId, relativePath, true)
+      try {
+        return base.countRowsByField(tableId, columnName, query)
       } finally {
         base.close()
       }

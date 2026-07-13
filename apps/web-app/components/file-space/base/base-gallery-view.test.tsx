@@ -89,6 +89,29 @@ describe("BaseGalleryView", () => {
 
   beforeEach(() => {
     scrollIntoView.mockReset()
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+      configurable: true,
+      get: () => 1024,
+    })
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get: () => 640,
+    })
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      configurable: true,
+      value(this: HTMLElement, options: ScrollToOptions) {
+        this.scrollTop = typeof options.top === "number" ? options.top : 0
+        queueMicrotask(() => this.dispatchEvent(new Event("scroll")))
+      },
+    })
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
     Object.defineProperty(Element.prototype, "scrollIntoView", {
       configurable: true,
       value: scrollIntoView,
@@ -101,6 +124,7 @@ describe("BaseGalleryView", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    vi.unstubAllGlobals()
   })
 
   it("loads paged cards and opens the record inspector", async () => {
@@ -129,7 +153,12 @@ describe("BaseGalleryView", () => {
     expect(container.textContent).toContain("Write RFC")
     expect(container.textContent).toContain("Todo")
     expect(container.querySelector('[role="list"]')).not.toBeNull()
-    expect(container.querySelectorAll('[role="listitem"]')).toHaveLength(2)
+    expect(container.querySelectorAll('[role="listitem"]')).toHaveLength(3)
+    expect(
+      Array.from(container.querySelectorAll("button")).some((button) =>
+        button.textContent?.includes("Load more")
+      )
+    ).toBe(false)
 
     await act(async () => {
       container
@@ -140,12 +169,6 @@ describe("BaseGalleryView", () => {
       container.querySelector('[data-testid="record-inspector"]')?.textContent
     ).toBe("Write RFC")
 
-    await act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent?.includes("Load more"))
-        ?.click()
-      await Promise.resolve()
-    })
     expect(loadPage).toHaveBeenLastCalledWith(2, 100)
     expect(container.textContent).toContain("Review UX")
   })
@@ -188,6 +211,47 @@ describe("BaseGalleryView", () => {
         .querySelector('[data-base-row-id="row_3"]')
         ?.getAttribute("aria-current")
     ).toBe("true")
-    expect(scrollIntoView).toHaveBeenCalled()
+  })
+
+  it("keeps a large gallery DOM bounded and loads the next page on scroll", async () => {
+    const loadPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: "tasks",
+      offset,
+      limit,
+      total: 1_000,
+      rows: Array.from({ length: 100 }, (_, index) => ({
+        _id: `row_${offset + index}`,
+        title: `Task ${offset + index}`,
+        status: "todo",
+      })),
+    }))
+
+    await act(async () => {
+      root.render(
+        <BaseGalleryView table={table} view={view} loadPage={loadPage} />
+      )
+      await Promise.resolve()
+    })
+
+    const initialMountedCards =
+      container.querySelectorAll('[role="listitem"]').length
+    expect(initialMountedCards).toBeGreaterThan(0)
+    expect(initialMountedCards).toBeLessThan(100)
+
+    await act(async () => {
+      const scroller = container.querySelector<HTMLElement>(
+        "[data-base-gallery-scroll]"
+      )
+      if (!scroller) return
+      scroller.scrollTop = 100_000
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(loadPage).toHaveBeenCalledWith(100, 100)
+    expect(container.querySelectorAll('[role="listitem"]').length).toBeLessThan(
+      100
+    )
   })
 })
