@@ -163,11 +163,12 @@ to and highlights the target row; Gallery and Kanban scroll to the target card
 and automatically fetch the required page before revealing it.
 
 Kanban now horizontally virtualizes large option sets, mounting only the visible
-columns plus overscan during normal navigation. An active drag temporarily
-mounts every drop target so virtualization does not make valid destinations
-unreachable. Direct moves announce success, cancellation, and failed-save
-rollback through an assertive live region; the keyboard Move-to action remains
-available as an equivalent non-pointer path.
+columns plus overscan during navigation and drag. Edge scrolling advances the
+virtual window and registers the newly visible drop targets instead of mounting
+the complete Select option set at drag start. Direct moves announce success,
+cancellation, and failed-save rollback through an assertive live region; the
+keyboard Move-to action remains available for every option as an equivalent
+non-pointer path.
 Kanban startup now uses one grouped-count query for all columns and loads the
 first record page only for uncollapsed columns in the horizontal window. Each
 column also uses dynamic-height vertical virtualization and automatic paging,
@@ -209,6 +210,14 @@ every visible column. The shared record card also has a stable-props memo
 boundary, so Gallery paging and local Kanban updates do not repeat field
 formatting, menu construction, or cover-subtree rendering for unchanged cards;
 real row or view changes still render normally.
+
+Automatic paging now has an explicit recoverable failure state. A failed
+Gallery or Kanban request disables the virtual-tail trigger instead of letting
+loading-state changes repeatedly issue the same request. Already loaded cards
+remain mounted, initial/refresh failures are kept distinct from next-page
+failures, and an inline Retry resumes the correct request mode and current
+cursor. One unavailable page therefore cannot create a request storm or force
+the user to reload the complete Base.
 
 CSV selection, analysis, and writing now follow the same anchored, non-modal
 workflow. The mapping panel opens as soon as the native picker returns;

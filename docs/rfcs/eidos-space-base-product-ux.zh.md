@@ -118,9 +118,10 @@ record details，并按稳定 row ID 进行确认删除。同一个右侧 record
 同时向前或向后循环。Grid 会滚动并高亮目标行；Gallery 和 Kanban 会滚动到目标 card，并在目标尚未
 加载时自动补齐所需分页。
 
-Kanban 现在会对大量 option 形成的列做横向虚拟化，常规浏览只挂载可见列和 overscan；开始拖动时
-会临时挂载所有 drop target，避免虚拟化让合法目标不可达。直接拖动的成功、取消和保存失败回滚会
-通过 assertive live region 播报；键盘 Move-to 仍作为等价的非指针操作路径保留。
+Kanban 现在会对大量 option 形成的列做横向虚拟化，浏览和拖动期间都只挂载可见列与 overscan；
+靠近边缘滚动时，虚拟窗口会前移并注册新出现的 drop targets，不再在 drag start 瞬间挂载完整的
+Select option 集合。直接拖动的成功、取消和保存失败回滚会通过 assertive live region 播报；
+键盘 Move-to 仍可访问全部 options，作为等价的非指针操作路径保留。
 Kanban 启动时使用一次 grouped-count query 获取所有列计数，只为横向窗口内、未折叠的列加载首批
 records；每列内部再按动态高度做纵向虚拟滚动并自动分页。大量 Select options 不再等价于同等数量
 的文件打开与首屏查询，大分组也不会把所有已加载 cards 同时挂载到 DOM。
@@ -146,6 +147,11 @@ move/collapse/load/create callbacks 和只随 Select options 变化的移动目�
 loading 状态变化只重渲染该列，不会重算其他可见列。共享 record card 同样使用稳定 props 的 memo
 边界，因此 Gallery 自动加载和 Kanban 局部更新不会重复执行未变化 card 的字段格式化、菜单构造和
 cover 子树渲染；row 或 view 真正变化时仍会正常更新。
+
+自动分页现在也有明确且可恢复的失败状态。Gallery 或 Kanban 请求失败后会关闭虚拟尾部触发器，
+不会因为 loading 状态再次变化而连续重发相同请求；已经加载的 cards 会继续挂载，首屏/刷新失败和
+下一页失败保持区分，原位 Retry 会按正确请求模式和当前游标恢复。因此单页暂时不可用不会形成
+请求风暴，也不再要求用户重新加载整个 Base。
 
 CSV 导入的文件选择、分析和写入现在也保持锚定式、非模态工作流。原生 picker 返回后 mapping
 panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以原位取消。取消会终止隔离 worker、
