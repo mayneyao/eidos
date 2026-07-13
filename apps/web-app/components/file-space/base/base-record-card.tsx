@@ -1,4 +1,13 @@
-import { memo, useCallback, useEffect, useState, type AriaRole } from "react"
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type AriaRole,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react"
 import type { BaseFieldInfo, BaseRow, BaseViewInfo } from "@eidos.space/base"
 import { decodeBaseFilePaths } from "@eidos.space/base"
 import {
@@ -45,6 +54,16 @@ import {
 } from "./base-record-card-layout"
 import { baseRecordFieldText, baseRecordTitle } from "./base-record-format"
 import type { BaseCoverLease } from "./use-base-cover-reader"
+
+const CARD_INTERACTIVE_TARGET =
+  'button, a, input, select, textarea, summary, [role="button"], [role="menuitem"], [contenteditable="true"]'
+
+function isCardInteractiveTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest(CARD_INTERACTIVE_TARGET) !== null
+  )
+}
 
 function multiSelectIds(value: BaseRow[string]): string[] {
   if (typeof value !== "string" || value.length === 0) return []
@@ -286,23 +305,87 @@ export const BaseRecordCard = memo(function BaseRecordCard({
     )
     .slice(0, layout.fieldLimit)
   const title = baseRecordTitle(row)
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
+  const suppressPointerOpenRef = useRef(false)
   const moveFromNativeMenu = useCallback(
     (targetId: string) => onMove?.(row, targetId),
     [onMove, row]
+  )
+  const openFromCard = useCallback(
+    (event: ReactMouseEvent<HTMLElement>) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        isCardInteractiveTarget(event.target)
+      ) {
+        return
+      }
+      if (suppressPointerOpenRef.current) {
+        suppressPointerOpenRef.current = false
+        return
+      }
+      onOpen(row)
+    },
+    [onOpen, row]
+  )
+  const trackPointerStart = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      if (event.button !== 0 || isCardInteractiveTarget(event.target)) return
+      pointerStartRef.current = { x: event.clientX, y: event.clientY }
+      suppressPointerOpenRef.current = false
+    },
+    []
+  )
+  const trackPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      const start = pointerStartRef.current
+      if (!start) return
+      if (
+        Math.abs(event.clientX - start.x) >= 6 ||
+        Math.abs(event.clientY - start.y) >= 6
+      ) {
+        suppressPointerOpenRef.current = true
+      }
+    },
+    []
   )
 
   const card = (
     <article
       className={cn(
         "group/card relative overflow-hidden rounded-lg border bg-card text-card-foreground shadow-xs outline-hidden transition-[box-shadow,border-color] hover:shadow-sm",
+        role === "listitem" &&
+          "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring/45 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         focused &&
           "border-ring ring-2 ring-ring/45 ring-offset-2 ring-offset-background"
       )}
       aria-label={title}
+      aria-description={role === "listitem" ? "Open record details" : undefined}
       aria-current={focused ? "true" : undefined}
       data-base-row-id={String(row._id)}
-      tabIndex={-1}
+      tabIndex={role === "listitem" ? 0 : -1}
       role={role}
+      onClick={openFromCard}
+      onPointerDown={trackPointerStart}
+      onPointerMove={trackPointerMove}
+      onPointerUp={() => {
+        pointerStartRef.current = null
+      }}
+      onPointerCancel={() => {
+        pointerStartRef.current = null
+        suppressPointerOpenRef.current = false
+      }}
+      onKeyDown={(event) => {
+        if (
+          event.target !== event.currentTarget ||
+          (event.key !== "Enter" && event.key !== " ")
+        ) {
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        onOpen(row)
+      }}
     >
       {layout.coverField ? (
         <BaseRecordCover

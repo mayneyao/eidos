@@ -404,6 +404,7 @@ export function BaseGalleryView({
                 <div
                   key={virtualRow.key}
                   ref={rowVirtualizer.measureElement}
+                  role="presentation"
                   className="absolute left-0 top-0 grid w-full items-start gap-3 [contain:layout_style]"
                   data-index={virtualRow.index}
                   style={{

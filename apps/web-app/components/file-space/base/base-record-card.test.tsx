@@ -174,6 +174,100 @@ describe("BaseRecordCard", () => {
     expect(onOpen).not.toHaveBeenCalled()
   })
 
+  it("opens a Gallery record from the card surface and keyboard", () => {
+    const onOpen = vi.fn()
+    const row = { _id: "row_1", title: "Write RFC", cover: null }
+
+    act(() => {
+      root.render(
+        <BaseRecordCard
+          row={row}
+          fields={fields}
+          view={{ ...view, properties: null }}
+          role="listitem"
+          onOpen={onOpen}
+        />
+      )
+    })
+
+    const card = container.querySelector<HTMLElement>(
+      '[data-base-row-id="row_1"]'
+    )
+    expect(card?.tabIndex).toBe(0)
+
+    act(() => {
+      card
+        ?.querySelector("h3")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }))
+    })
+    expect(onOpen).toHaveBeenLastCalledWith(row)
+
+    act(() => {
+      card?.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "Enter" })
+      )
+      card?.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: " " })
+      )
+    })
+    expect(onOpen).toHaveBeenCalledTimes(3)
+  })
+
+  it("does not open a record from card actions or a drag gesture", () => {
+    const onOpen = vi.fn()
+    const row = { _id: "row_1", title: "Write RFC", cover: null }
+
+    act(() => {
+      root.render(
+        <BaseRecordCard
+          row={row}
+          fields={fields}
+          view={{ ...view, properties: null }}
+          role="listitem"
+          onOpen={onOpen}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    const card = container.querySelector<HTMLElement>(
+      '[data-base-row-id="row_1"]'
+    )
+    const more = container.querySelector<HTMLButtonElement>(
+      '[aria-label="More actions for Write RFC"]'
+    )
+    act(() => {
+      more?.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }))
+      card?.dispatchEvent(
+        new MouseEvent("pointerdown", {
+          bubbles: true,
+          button: 0,
+          clientX: 12,
+          clientY: 12,
+        })
+      )
+      card?.dispatchEvent(
+        new MouseEvent("pointermove", {
+          bubbles: true,
+          button: 0,
+          clientX: 28,
+          clientY: 12,
+        })
+      )
+      card?.dispatchEvent(
+        new MouseEvent("pointerup", {
+          bubbles: true,
+          button: 0,
+          clientX: 28,
+          clientY: 12,
+        })
+      )
+      card?.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }))
+    })
+
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
   it("marks the active search result without changing the record action", () => {
     act(() => {
       root.render(

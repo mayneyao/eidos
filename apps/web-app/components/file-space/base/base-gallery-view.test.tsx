@@ -192,6 +192,9 @@ describe("BaseGalleryView", () => {
     expect(container.textContent).toContain("Write RFC")
     expect(container.textContent).toContain("Todo")
     expect(container.querySelector('[role="list"]')).not.toBeNull()
+    expect(
+      container.querySelector('[role="list"] > [role="presentation"]')
+    ).not.toBeNull()
     expect(container.querySelectorAll('[role="listitem"]')).toHaveLength(3)
     expect(
       Array.from(container.querySelectorAll("button")).some((button) =>
@@ -201,8 +204,8 @@ describe("BaseGalleryView", () => {
 
     await act(async () => {
       container
-        .querySelector<HTMLButtonElement>('[aria-label="Open Write RFC"]')
-        ?.click()
+        .querySelector<HTMLElement>('[data-base-row-id="row_1"] h3')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }))
     })
     expect(
       container.querySelector('[data-testid="record-inspector"]')?.textContent
