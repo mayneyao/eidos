@@ -69,13 +69,17 @@ describe("BaseRecordRelationEditor", () => {
       )
     })
 
-    await act(async () => {
+    act(() => {
       container
         .querySelector<HTMLButtonElement>('[aria-label="Owners"]')
         ?.click()
-      await new Promise((resolve) => setTimeout(resolve, 5))
     })
-    expect(onSearch).toHaveBeenCalledWith(field, "")
+    await act(async () => {
+      await vi.waitFor(() => expect(onSearch).toHaveBeenCalledWith(field, ""), {
+        interval: 5,
+        timeout: 1_000,
+      })
+    })
     await act(async () => {
       Array.from(document.body.querySelectorAll("button"))
         .find((button) => button.textContent?.includes("Grace Hopper"))
