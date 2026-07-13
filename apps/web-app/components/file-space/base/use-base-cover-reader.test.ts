@@ -1,5 +1,5 @@
 import type { SpaceBinaryFile } from "@eidos.space/file-space"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { createBaseCoverReader } from "./use-base-cover-reader"
 
@@ -13,39 +13,80 @@ function binary(path: string, size = 1): SpaceBinaryFile {
 }
 
 describe("createBaseCoverReader", () => {
-  it("deduplicates in-flight and recently resolved reads", async () => {
+  let createObjectUrl: ReturnType<typeof vi.fn>
+  let revokeObjectUrl: ReturnType<typeof vi.fn>
+  let originalCreateObjectUrl: typeof URL.createObjectURL | undefined
+  let originalRevokeObjectUrl: typeof URL.revokeObjectURL | undefined
+
+  beforeEach(() => {
+    originalCreateObjectUrl = URL.createObjectURL
+    originalRevokeObjectUrl = URL.revokeObjectURL
+    let source = 0
+    createObjectUrl = vi.fn(() => `blob:base-cover-${++source}`)
+    revokeObjectUrl = vi.fn()
+    URL.createObjectURL = createObjectUrl
+    URL.revokeObjectURL = revokeObjectUrl
+  })
+
+  afterEach(() => {
+    if (originalCreateObjectUrl) {
+      URL.createObjectURL = originalCreateObjectUrl
+    } else {
+      delete (URL as { createObjectURL?: typeof URL.createObjectURL })
+        .createObjectURL
+    }
+    if (originalRevokeObjectUrl) {
+      URL.revokeObjectURL = originalRevokeObjectUrl
+    } else {
+      delete (URL as { revokeObjectURL?: typeof URL.revokeObjectURL })
+        .revokeObjectURL
+    }
+  })
+
+  it("deduplicates binary reads and object URLs across active and recent leases", async () => {
     let resolveRead: ((file: SpaceBinaryFile) => void) | undefined
     const readBinary = vi.fn(
-      (path: string) =>
+      () =>
         new Promise<SpaceBinaryFile>((resolve) => {
           resolveRead = resolve
         })
     )
     const reader = createBaseCoverReader(readBinary)
 
-    const first = reader.read("assets/cover.png")
-    const second = reader.read("assets/cover.png")
+    const first = reader.acquire("assets/cover.png")
+    const second = reader.acquire("assets/cover.png")
     await Promise.resolve()
 
     expect(readBinary).toHaveBeenCalledTimes(1)
     resolveRead?.(binary("assets/cover.png", 3))
-    await expect(first).resolves.toMatchObject({ size: 3 })
-    await expect(second).resolves.toMatchObject({ size: 3 })
-    await expect(reader.read("assets/cover.png")).resolves.toMatchObject({
-      size: 3,
-    })
+    const [firstLease, secondLease] = await Promise.all([first, second])
+    expect(firstLease.source).toBe("blob:base-cover-1")
+    expect(secondLease.source).toBe(firstLease.source)
+    expect(createObjectUrl).toHaveBeenCalledTimes(1)
+
+    firstLease.release()
+    secondLease.release()
+    const recentLease = await reader.acquire("assets/cover.png")
+    expect(recentLease.source).toBe(firstLease.source)
     expect(readBinary).toHaveBeenCalledTimes(1)
+    expect(createObjectUrl).toHaveBeenCalledTimes(1)
+    recentLease.release()
   })
 
-  it("evicts the least recently used cover when the entry limit is reached", async () => {
+  it("evicts the least recently used inactive cover at the entry limit", async () => {
     const readBinary = vi.fn(async (path: string) => binary(path))
     const reader = createBaseCoverReader(readBinary, { maxEntries: 2 })
 
-    await reader.read("assets/a.png")
-    await reader.read("assets/b.png")
-    await reader.read("assets/a.png")
-    await reader.read("assets/c.png")
-    await reader.read("assets/b.png")
+    const a = await reader.acquire("assets/a.png")
+    a.release()
+    const b = await reader.acquire("assets/b.png")
+    b.release()
+    const recentA = await reader.acquire("assets/a.png")
+    recentA.release()
+    const c = await reader.acquire("assets/c.png")
+    c.release()
+    const reloadedB = await reader.acquire("assets/b.png")
+    reloadedB.release()
 
     expect(readBinary.mock.calls.map(([path]) => path)).toEqual([
       "assets/a.png",
@@ -53,9 +94,10 @@ describe("createBaseCoverReader", () => {
       "assets/c.png",
       "assets/b.png",
     ])
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:base-cover-2")
   })
 
-  it("bounds cached bytes and refreshes expired covers", async () => {
+  it("bounds inactive bytes and refreshes expired covers", async () => {
     let currentTime = 1_000
     const readBinary = vi.fn(async (path: string) => binary(path, 3))
     const reader = createBaseCoverReader(readBinary, {
@@ -65,27 +107,47 @@ describe("createBaseCoverReader", () => {
       ttlMs: 100,
     })
 
-    await reader.read("assets/a.png")
-    await reader.read("assets/b.png")
-    await reader.read("assets/a.png")
+    const a = await reader.acquire("assets/a.png")
+    a.release()
+    const b = await reader.acquire("assets/b.png")
+    b.release()
+    const reloadedA = await reader.acquire("assets/a.png")
+    reloadedA.release()
     expect(readBinary).toHaveBeenCalledTimes(3)
 
     currentTime += 101
-    await reader.read("assets/a.png")
+    const refreshedA = await reader.acquire("assets/a.png")
+    refreshedA.release()
     expect(readBinary).toHaveBeenCalledTimes(4)
+  })
+
+  it("keeps active sources valid until their last lease is released", async () => {
+    const reader = createBaseCoverReader(async (path) => binary(path, 3), {
+      maxBytes: 1,
+      maxEntries: 1,
+    })
+    const active = await reader.acquire("assets/active.png")
+
+    reader.dispose()
+    expect(revokeObjectUrl).not.toHaveBeenCalledWith(active.source)
+
+    active.release()
+    expect(revokeObjectUrl).toHaveBeenCalledWith(active.source)
   })
 
   it("does not cache failed reads", async () => {
     const readBinary = vi
-      .fn<(path: string) => Promise<SpaceBinaryFile>>()
+      .fn<() => Promise<SpaceBinaryFile>>()
       .mockRejectedValueOnce(new Error("read failed"))
       .mockResolvedValue(binary("assets/cover.png"))
     const reader = createBaseCoverReader(readBinary)
 
-    await expect(reader.read("assets/cover.png")).rejects.toThrow("read failed")
-    await expect(reader.read("assets/cover.png")).resolves.toMatchObject({
-      path: "assets/cover.png",
-    })
+    await expect(reader.acquire("assets/cover.png")).rejects.toThrow(
+      "read failed"
+    )
+    const lease = await reader.acquire("assets/cover.png")
+    expect(lease.source).toBe("blob:base-cover-1")
+    lease.release()
     expect(readBinary).toHaveBeenCalledTimes(2)
   })
 })

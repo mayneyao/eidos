@@ -88,7 +88,7 @@ export function BaseGalleryView({
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
 }) {
-  const coverReader = useBaseCoverReader(readBinary)
+  const acquireCover = useBaseCoverReader(readBinary)
   const generationRef = useRef(0)
   const requestRef = useRef<{ generation: number; offset: number } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -320,7 +320,7 @@ export function BaseGalleryView({
                       row={row}
                       fields={table.fields}
                       view={view}
-                      readBinary={coverReader}
+                      acquireCover={acquireCover}
                       role="listitem"
                       focused={
                         focusedRow !== undefined &&

@@ -288,6 +288,7 @@ describe("BaseGalleryView", () => {
 
     expect(readBinary).toHaveBeenCalledTimes(1)
     expect(readBinary).toHaveBeenCalledWith("assets/shared.png")
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1)
     expect(
       container.querySelectorAll('img[src="blob:base-cover"]')
     ).toHaveLength(2)

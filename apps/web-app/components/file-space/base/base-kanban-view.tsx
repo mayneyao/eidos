@@ -43,6 +43,7 @@ import { BaseRecordDeleteDialog } from "./base-record-delete-dialog"
 import { BaseRecordInspector } from "./base-record-inspector"
 import { orderedBaseFields } from "./base-view-layout"
 import { useBaseCoverReader } from "./use-base-cover-reader"
+import type { BaseCoverLease } from "./use-base-cover-reader"
 import { useBaseVirtualLoadMore } from "./use-base-virtual-load-more"
 
 const KANBAN_PAGE_SIZE = 50
@@ -128,7 +129,7 @@ function BaseKanbanColumn({
   onOpen,
   onLoadMore,
   onCreate,
-  readBinary,
+  acquireCover,
   onDelete,
   moveGroups,
   onMove,
@@ -146,7 +147,7 @@ function BaseKanbanColumn({
   onOpen: (row: BaseRow) => void
   onLoadMore: (group: BaseKanbanGroup) => void
   onCreate: (group: BaseKanbanGroup, title: string) => Promise<void>
-  readBinary?: (path: string) => Promise<SpaceBinaryFile>
+  acquireCover?: (path: string) => Promise<BaseCoverLease>
   onDelete?: (row: BaseRow) => void
   moveGroups: BaseKanbanGroup[]
   onMove: (row: BaseRow, targetGroupKey: string) => void
@@ -328,7 +329,7 @@ function BaseKanbanColumn({
                             fields={table.fields}
                             view={view}
                             compact
-                            readBinary={readBinary}
+                            acquireCover={acquireCover}
                             focused={focusedRowId === String(row._id)}
                             onOpen={onOpen}
                             onDelete={onDelete}
@@ -475,7 +476,7 @@ export function BaseKanbanView({
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
 }) {
-  const coverReader = useBaseCoverReader(readBinary)
+  const acquireCover = useBaseCoverReader(readBinary)
   const { resolvedTheme } = useTheme()
   const theme = resolvedTheme === "dark" ? "dark" : "light"
   const generationRef = useRef(0)
@@ -1112,7 +1113,7 @@ export function BaseKanbanView({
                     disabled={disabled}
                     width={columnWidth}
                     color={baseOptionColor(group.color, theme)}
-                    readBinary={coverReader}
+                    acquireCover={acquireCover}
                     onOpen={setInspectedRow}
                     onDelete={onDeleteRow ? setDeleteRow : undefined}
                     moveGroups={groups}

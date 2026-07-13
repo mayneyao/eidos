@@ -1,7 +1,6 @@
 import { useEffect, useState, type AriaRole } from "react"
 import type { BaseFieldInfo, BaseRow, BaseViewInfo } from "@eidos.space/base"
 import { decodeBaseFilePaths } from "@eidos.space/base"
-import type { SpaceBinaryFile } from "@eidos.space/file-space"
 import {
   Check,
   Eye,
@@ -40,6 +39,7 @@ import {
 import { baseOptionColor, baseSelectOptions } from "./base-field-properties"
 import { baseRecordFieldText, baseRecordTitle } from "./base-record-format"
 import { orderedBaseFields } from "./base-view-layout"
+import type { BaseCoverLease } from "./use-base-cover-reader"
 
 function multiSelectIds(value: BaseRow[string]): string[] {
   if (typeof value !== "string" || value.length === 0) return []
@@ -62,34 +62,24 @@ function isEmptyValue(value: BaseRow[string]): boolean {
   return value === null || value === undefined || value === ""
 }
 
-function imageMimeType(path: string): string {
-  const extension = path.split("?")[0]?.split(".").at(-1)?.toLowerCase()
-  if (extension === "png") return "image/png"
-  if (extension === "gif") return "image/gif"
-  if (extension === "webp") return "image/webp"
-  if (extension === "svg") return "image/svg+xml"
-  if (extension === "avif") return "image/avif"
-  return "image/jpeg"
-}
-
 function BaseRecordCover({
   row,
   field,
   compact,
   fitContent,
-  readBinary,
+  acquireCover,
 }: {
   row: BaseRow
   field: BaseFieldInfo
   compact: boolean
   fitContent: boolean
-  readBinary?: (path: string) => Promise<SpaceBinaryFile>
+  acquireCover?: (path: string) => Promise<BaseCoverLease>
 }) {
   const path = decodeBaseFilePaths(row[field.tableColumnName]).at(0)
   const [source, setSource] = useState<string | null>(null)
 
   useEffect(() => {
-    let objectUrl: string | null = null
+    let lease: BaseCoverLease | null = null
     let active = true
     setSource(null)
     if (!path) return
@@ -97,24 +87,24 @@ function BaseRecordCover({
       setSource(path)
       return
     }
-    if (!readBinary) return
-    void readBinary(path)
-      .then((file) => {
-        if (!active) return
-        const content = new Uint8Array(file.content)
-        objectUrl = URL.createObjectURL(
-          new Blob([content.buffer], { type: imageMimeType(path) })
-        )
-        setSource(objectUrl)
+    if (!acquireCover) return
+    void acquireCover(path)
+      .then((nextLease) => {
+        if (!active) {
+          nextLease.release()
+          return
+        }
+        lease = nextLease
+        setSource(nextLease.source)
       })
       .catch(() => {
         if (active) setSource(null)
       })
     return () => {
       active = false
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      lease?.release()
     }
-  }, [path, readBinary])
+  }, [acquireCover, path])
 
   return (
     <div
@@ -242,7 +232,7 @@ export function BaseRecordCard({
   fields,
   view,
   compact = false,
-  readBinary,
+  acquireCover,
   onOpen,
   onDelete,
   moveOptions,
@@ -254,7 +244,7 @@ export function BaseRecordCard({
   fields: BaseFieldInfo[]
   view: BaseViewInfo
   compact?: boolean
-  readBinary?: (path: string) => Promise<SpaceBinaryFile>
+  acquireCover?: (path: string) => Promise<BaseCoverLease>
   onOpen: (row: BaseRow) => void
   onDelete?: (row: BaseRow) => void
   moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
@@ -299,7 +289,7 @@ export function BaseRecordCard({
           field={coverField}
           compact={compact}
           fitContent={view.properties?.fitContent !== false}
-          readBinary={readBinary}
+          acquireCover={acquireCover}
         />
       ) : null}
       <div className={cn("grid gap-3", compact ? "p-3" : "p-4")}>

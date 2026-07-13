@@ -67,14 +67,8 @@ const view: BaseViewInfo = {
 describe("BaseRecordCard", () => {
   let container: HTMLDivElement
   let root: Root
-  let originalCreateObjectUrl: typeof URL.createObjectURL
-  let originalRevokeObjectUrl: typeof URL.revokeObjectURL
 
   beforeEach(() => {
-    originalCreateObjectUrl = URL.createObjectURL
-    originalRevokeObjectUrl = URL.revokeObjectURL
-    URL.createObjectURL = vi.fn(() => "blob:base-cover")
-    URL.revokeObjectURL = vi.fn()
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -83,16 +77,13 @@ describe("BaseRecordCard", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
-    URL.createObjectURL = originalCreateObjectUrl
-    URL.revokeObjectURL = originalRevokeObjectUrl
   })
 
-  it("loads a local File field as the card cover", async () => {
-    const readBinary = vi.fn(async (path: string) => ({
-      path,
-      content: new Uint8Array([1, 2, 3]),
-      size: 3,
-      mtimeMs: 1,
+  it("leases a local File field as the card cover and releases it", async () => {
+    const release = vi.fn()
+    const acquireCover = vi.fn(async () => ({
+      source: "blob:base-cover",
+      release,
     }))
 
     await act(async () => {
@@ -105,20 +96,33 @@ describe("BaseRecordCard", () => {
           }}
           fields={fields}
           view={view}
-          readBinary={readBinary}
+          acquireCover={acquireCover}
           onOpen={vi.fn()}
         />
       )
       await Promise.resolve()
     })
 
-    expect(readBinary).toHaveBeenCalledWith("assets/cover.png")
+    expect(acquireCover).toHaveBeenCalledWith("assets/cover.png")
     expect(container.querySelector("img")?.getAttribute("src")).toBe(
       "blob:base-cover"
     )
     expect(container.querySelector("img")?.className).toContain(
       "object-contain"
     )
+
+    await act(async () => {
+      root.render(
+        <BaseRecordCard
+          row={{ _id: "row_1", title: "Write RFC", cover: null }}
+          fields={fields}
+          view={view}
+          acquireCover={acquireCover}
+          onOpen={vi.fn()}
+        />
+      )
+    })
+    expect(release).toHaveBeenCalledTimes(1)
   })
 
   it("exposes record actions from the card menu", async () => {

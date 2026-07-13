@@ -7,11 +7,18 @@ const DEFAULT_COVER_TTL_MS = 60_000
 
 type ReadBinary = (path: string) => Promise<SpaceBinaryFile>
 
+export interface BaseCoverLease {
+  release: () => void
+  source: string
+}
+
 interface CachedCover {
   expiresAt: number
-  promise: Promise<SpaceBinaryFile>
+  promise: Promise<string>
+  references: number
   settled: boolean
   size: number
+  source: string | null
 }
 
 export interface BaseCoverReaderOptions {
@@ -22,8 +29,18 @@ export interface BaseCoverReaderOptions {
 }
 
 export interface BaseCoverReader {
-  clear: () => void
-  read: ReadBinary
+  acquire: (path: string) => Promise<BaseCoverLease>
+  dispose: () => void
+}
+
+function imageMimeType(path: string): string {
+  const extension = path.split("?")[0]?.split(".").at(-1)?.toLowerCase()
+  if (extension === "png") return "image/png"
+  if (extension === "gif") return "image/gif"
+  if (extension === "webp") return "image/webp"
+  if (extension === "svg") return "image/svg+xml"
+  if (extension === "avif") return "image/avif"
+  return "image/jpeg"
 }
 
 export function createBaseCoverReader(
@@ -39,11 +56,13 @@ export function createBaseCoverReader(
   const ttlMs = Math.max(0, options.ttlMs ?? DEFAULT_COVER_TTL_MS)
   const entries = new Map<string, CachedCover>()
   let cachedBytes = 0
+  let disposed = false
 
   const remove = (path: string, entry: CachedCover) => {
-    if (entries.get(path) !== entry) return false
+    if (entries.get(path) !== entry || entry.references > 0) return false
     entries.delete(path)
     if (entry.settled) cachedBytes = Math.max(0, cachedBytes - entry.size)
+    if (entry.source) URL.revokeObjectURL(entry.source)
     return true
   }
 
@@ -57,7 +76,7 @@ export function createBaseCoverReader(
     while (entries.size > maxEntries || cachedBytes > maxBytes) {
       let removed = false
       for (const [path, entry] of entries) {
-        if (!entry.settled) continue
+        if (!entry.settled || entry.references > 0) continue
         removed = remove(path, entry)
         if (removed) break
       }
@@ -65,12 +84,45 @@ export function createBaseCoverReader(
     }
   }
 
-  const read: ReadBinary = (path) => {
+  const lease = async (
+    path: string,
+    entry: CachedCover
+  ): Promise<BaseCoverLease> => {
+    try {
+      const source = await entry.promise
+      let released = false
+      return {
+        source,
+        release: () => {
+          if (released) return
+          released = true
+          entry.references = Math.max(0, entry.references - 1)
+          if (disposed || (entry.settled && entry.expiresAt <= now())) {
+            remove(path, entry)
+          }
+          trim()
+        },
+      }
+    } catch (error) {
+      entry.references = Math.max(0, entry.references - 1)
+      throw error
+    }
+  }
+
+  const acquire = (path: string): Promise<BaseCoverLease> => {
+    if (disposed) {
+      return Promise.reject(new Error("Base cover reader is disposed"))
+    }
     const existing = entries.get(path)
     if (existing) {
-      if (!existing.settled || existing.expiresAt > now()) {
+      if (
+        !existing.settled ||
+        existing.references > 0 ||
+        existing.expiresAt > now()
+      ) {
+        existing.references += 1
         touch(path, existing)
-        return existing.promise
+        return lease(path, existing)
       }
       remove(path, existing)
     }
@@ -80,17 +132,26 @@ export function createBaseCoverReader(
       .then(() => readBinary(path))
       .then(
         (file) => {
+          const content = new Uint8Array(file.content)
+          const source = URL.createObjectURL(
+            new Blob([content.buffer], { type: imageMimeType(path) })
+          )
           if (entries.get(path) === entry) {
             entry.settled = true
             entry.size = Math.max(file.size, file.content.byteLength)
+            entry.source = source
             entry.expiresAt = now() + ttlMs
             cachedBytes += entry.size
             touch(path, entry)
+            if (disposed && entry.references === 0) remove(path, entry)
             trim()
+          } else {
+            URL.revokeObjectURL(source)
           }
-          return file
+          return source
         },
         (error: unknown) => {
+          entry.references = 0
           remove(path, entry)
           throw error
         }
@@ -98,26 +159,28 @@ export function createBaseCoverReader(
     entry = {
       expiresAt: Number.POSITIVE_INFINITY,
       promise,
+      references: 1,
       settled: false,
       size: 0,
+      source: null,
     }
     entries.set(path, entry)
     trim()
-    return promise
+    return lease(path, entry)
   }
 
   return {
-    clear: () => {
-      entries.clear()
-      cachedBytes = 0
+    acquire,
+    dispose: () => {
+      disposed = true
+      for (const [path, entry] of entries) remove(path, entry)
     },
-    read,
   }
 }
 
 export function useBaseCoverReader(
   readBinary?: ReadBinary
-): ReadBinary | undefined {
+): BaseCoverReader["acquire"] | undefined {
   const reader = useMemo(
     () => (readBinary ? createBaseCoverReader(readBinary) : undefined),
     [readBinary]
@@ -125,10 +188,10 @@ export function useBaseCoverReader(
 
   useEffect(
     () => () => {
-      reader?.clear()
+      reader?.dispose()
     },
     [reader]
   )
 
-  return reader?.read
+  return reader?.acquire
 }
