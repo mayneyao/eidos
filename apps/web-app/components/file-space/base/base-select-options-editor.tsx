@@ -49,7 +49,7 @@ function OptionRow({
 }: {
   option: BaseSelectOption
   disabled: boolean
-  onRename: (name: string) => void
+  onRename: (name: string) => boolean
   onColor: (color: string) => void
   onDelete: () => void
 }) {
@@ -69,8 +69,8 @@ function OptionRow({
 
   const commitName = () => {
     const next = name.trim()
-    if (next && next !== option.name) onRename(next)
-    else setName(option.name)
+    if (next && next !== option.name && onRename(next)) return
+    setName(option.name)
   }
 
   return (
@@ -153,16 +153,21 @@ function OptionRow({
   )
 }
 
-export function BaseSelectOptionsEditor({
-  field,
+function sameOptionName(left: string, right: string): boolean {
+  return left.localeCompare(right, undefined, { sensitivity: "base" }) === 0
+}
+
+export function BaseOptionsEditor({
+  options: sourceOptions,
   disabled,
   onChange,
+  className,
 }: {
-  field: BaseFieldInfo
+  options: BaseSelectOption[]
   disabled: boolean
-  onChange: (property: Record<string, unknown>) => Promise<void> | void
+  onChange: (options: BaseSelectOption[]) => Promise<void> | void
+  className?: string
 }) {
-  const sourceOptions = useMemo(() => baseSelectOptions(field), [field])
   const [options, setOptions] = useState(sourceOptions)
   const [newName, setNewName] = useState("")
   const sensors = useSensors(
@@ -177,13 +182,15 @@ export function BaseSelectOptionsEditor({
   const commit = (next: BaseSelectOption[]) => {
     setOptions(next)
     void Promise.resolve()
-      .then(() => onChange({ ...(field.property ?? {}), options: next }))
+      .then(() => onChange(next))
       .catch(() => undefined)
   }
 
   const addOption = () => {
     const name = newName.trim()
-    if (!name || options.some((option) => option.name === name)) return
+    if (!name || options.some((option) => sameOptionName(option.name, name))) {
+      return
+    }
     commit([
       ...options,
       {
@@ -195,6 +202,9 @@ export function BaseSelectOptionsEditor({
     ])
     setNewName("")
   }
+  const newNameUnavailable = options.some((option) =>
+    sameOptionName(option.name, newName.trim())
+  )
 
   const dragEnd = (event: DragEndEvent) => {
     if (!event.over || event.active.id === event.over.id) return
@@ -204,7 +214,7 @@ export function BaseSelectOptionsEditor({
   }
 
   return (
-    <section className="grid gap-2 border-t pt-3">
+    <section className={cn("grid gap-2 border-t pt-3", className)}>
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-medium">Options</h3>
         <span className="text-[11px] text-muted-foreground">
@@ -227,7 +237,16 @@ export function BaseSelectOptionsEditor({
                   key={option.id}
                   option={option}
                   disabled={disabled}
-                  onRename={(name) =>
+                  onRename={(name) => {
+                    if (
+                      options.some(
+                        (candidate) =>
+                          candidate.id !== option.id &&
+                          sameOptionName(candidate.name, name)
+                      )
+                    ) {
+                      return false
+                    }
                     commit(
                       options.map((candidate) =>
                         candidate.id === option.id
@@ -235,7 +254,8 @@ export function BaseSelectOptionsEditor({
                           : candidate
                       )
                     )
-                  }
+                    return true
+                  }}
                   onColor={(color) =>
                     commit(
                       options.map((candidate) =>
@@ -263,9 +283,13 @@ export function BaseSelectOptionsEditor({
           <Input
             value={newName}
             disabled={disabled}
-            className="h-7 flex-1 text-xs"
+            className={cn(
+              "h-7 flex-1 text-xs",
+              newNameUnavailable && "border-destructive"
+            )}
             placeholder="New option"
             aria-label="New option name"
+            aria-invalid={newNameUnavailable || undefined}
             onChange={(event) => setNewName(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -280,13 +304,42 @@ export function BaseSelectOptionsEditor({
             size="icon"
             className="h-7 w-7"
             aria-label="Add option"
-            disabled={disabled || !newName.trim()}
+            disabled={disabled || !newName.trim() || newNameUnavailable}
             onClick={addOption}
           >
             <Plus className="h-3.5 w-3.5" />
           </Button>
         </div>
+        {newNameUnavailable ? (
+          <p
+            className="border-t px-2.5 py-1.5 text-[11px] text-destructive"
+            role="status"
+          >
+            Option names must be unique.
+          </p>
+        ) : null}
       </div>
     </section>
+  )
+}
+
+export function BaseSelectOptionsEditor({
+  field,
+  disabled,
+  onChange,
+}: {
+  field: BaseFieldInfo
+  disabled: boolean
+  onChange: (property: Record<string, unknown>) => Promise<void> | void
+}) {
+  const options = useMemo(() => baseSelectOptions(field), [field])
+  return (
+    <BaseOptionsEditor
+      options={options}
+      disabled={disabled}
+      onChange={(next) =>
+        onChange({ ...(field.property ?? {}), options: next })
+      }
+    />
   )
 }

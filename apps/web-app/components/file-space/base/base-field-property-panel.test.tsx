@@ -123,6 +123,44 @@ describe("BaseFieldPropertyPanel", () => {
     })
   })
 
+  it("keeps option names unique when editing an existing Select field", async () => {
+    const onUpdate = vi.fn(() => Promise.resolve())
+    await act(async () => {
+      root.render(
+        <BaseFieldPropertyPanel
+          field={field("select", {
+            options: [
+              { id: "todo", name: "Todo", color: "blue" },
+              { id: "done", name: "Done", color: "green" },
+            ],
+          })}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+    const done = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Done option name"]'
+    )
+    await act(async () => {
+      if (done) {
+        done.focus()
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )?.set?.call(done, "todo")
+        done.dispatchEvent(new Event("input", { bubbles: true }))
+        done.blur()
+      }
+      await Promise.resolve()
+    })
+
+    expect(onUpdate).not.toHaveBeenCalled()
+    expect(done?.value).toBe("Done")
+  })
+
   it("requires an explicit apply step before converting stored values", async () => {
     const onUpdate = vi.fn(() => Promise.resolve())
     await act(async () => {

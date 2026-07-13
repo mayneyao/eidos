@@ -33,6 +33,10 @@ vi.mock("@/components/formula-editor/codemirror-editor", async () => {
   }
 })
 
+vi.mock("@/components/theme-provider", () => ({
+  useTheme: () => ({ resolvedTheme: "light" }),
+}))
+
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
@@ -126,6 +130,106 @@ describe("BaseStructureDialog", () => {
       name: "Project owner",
       columnName: "project_owner",
       type: "text",
+    })
+  })
+
+  it("creates Select options with the same item editor used by field properties", async () => {
+    const onCreateField = vi.fn()
+    act(() =>
+      root.render(
+        <BaseStructureDialog
+          mode="field"
+          open
+          onOpenChange={vi.fn()}
+          onCreateTable={vi.fn()}
+          onCreateField={onCreateField}
+        />
+      )
+    )
+
+    const name = document.body.querySelector<HTMLInputElement>(
+      'input[placeholder="Status"]'
+    )
+    await act(async () => {
+      if (name) setInput(name, "Status")
+      document.body
+        .querySelector<HTMLButtonElement>('[role="combobox"]')
+        ?.click()
+    })
+    const selectOption = [
+      ...document.body.querySelectorAll<HTMLElement>('[role="option"]'),
+    ].find((option) => option.textContent === "Select")
+    await act(async () => selectOption?.click())
+
+    expect(document.body.textContent).not.toContain(
+      "Separate option names with commas"
+    )
+    const optionName = document.body.querySelector<HTMLInputElement>(
+      'input[aria-label="New option name"]'
+    )
+    const addOption = () =>
+      document.body.querySelector<HTMLButtonElement>(
+        'button[aria-label="Add option"]'
+      )
+    await act(async () => {
+      if (optionName) setInput(optionName, "Todo")
+      addOption()?.click()
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      if (optionName) setInput(optionName, "todo")
+    })
+    expect(addOption()?.disabled).toBe(true)
+    expect(document.body.textContent).toContain("Option names must be unique")
+    expect(
+      document.body.querySelectorAll('button[aria-label^="Reorder Todo"]')
+    ).toHaveLength(1)
+
+    await act(async () => {
+      if (optionName) setInput(optionName, "Done")
+      addOption()?.click()
+      await Promise.resolve()
+      document.body
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Change Todo color"]'
+        )
+        ?.click()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      document.body
+        .querySelector<HTMLButtonElement>('button[aria-label="red"]')
+        ?.click()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      document.body
+        .querySelector("form")
+        ?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true })
+        )
+      await Promise.resolve()
+    })
+
+    expect(onCreateField).toHaveBeenCalledWith({
+      name: "Status",
+      columnName: "status",
+      type: "select",
+      property: {
+        options: [
+          {
+            id: expect.stringMatching(/^option_/),
+            name: "Todo",
+            color: "red",
+          },
+          {
+            id: expect.stringMatching(/^option_/),
+            name: "Done",
+            color: "gray",
+          },
+        ],
+      },
     })
   })
 

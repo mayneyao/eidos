@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/select"
 
 import { BaseFormulaComposer } from "./base-formula-composer"
+import { BaseOptionsEditor } from "./base-select-options-editor"
+import type { BaseSelectOption } from "./base-field-properties"
 
 type FieldType = CreateBaseFieldInput["type"]
 
@@ -67,16 +69,6 @@ function columnNameFor(label: string): string {
   return safe || `field_${Date.now().toString(36)}`
 }
 
-function optionId(name: string, index: number): string {
-  const slug = name
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-  return `option_${index + 1}${slug ? `_${slug}` : ""}`
-}
-
 export function BaseStructureDialog({
   mode,
   open,
@@ -104,7 +96,7 @@ export function BaseStructureDialog({
 }) {
   const [name, setName] = useState("")
   const [fieldType, setFieldType] = useState<FieldType>("text")
-  const [options, setOptions] = useState("")
+  const [options, setOptions] = useState<BaseSelectOption[]>([])
   const [targetTableId, setTargetTableId] = useState("")
   const [formula, setFormula] = useState("")
   const [formulaDisplayType, setFormulaDisplayType] =
@@ -117,13 +109,12 @@ export function BaseStructureDialog({
   const [lookupAggregate, setLookupAggregate] =
     useState<BaseLookupAggregate>("first")
   const nameId = useId()
-  const optionsId = useId()
 
   useEffect(() => {
     if (!open) return
     setName("")
     setFieldType("text")
-    setOptions("")
+    setOptions([])
     setFormula("")
     setFormulaDisplayType("text")
     setFormulaValid(false)
@@ -212,10 +203,6 @@ export function BaseStructureDialog({
         },
       })
     } else {
-      const optionNames = options
-        .split(",")
-        .map((option) => option.trim())
-        .filter(Boolean)
       creation = onCreateField({
         name: trimmedName,
         columnName: columnNameFor(trimmedName),
@@ -223,11 +210,7 @@ export function BaseStructureDialog({
         ...(hasOptions
           ? {
               property: {
-                options: optionNames.map((option, index) => ({
-                  id: optionId(option, index),
-                  name: option,
-                  color: "default",
-                })),
+                options,
               },
               ...(fieldType === "multi-select"
                 ? { storageCodec: "csv_ids" as const }
@@ -312,21 +295,12 @@ export function BaseStructureDialog({
               </label>
             ) : null}
             {mode === "field" && hasOptions ? (
-              <label
-                className="grid gap-1.5 text-xs font-medium"
-                htmlFor={optionsId}
-              >
-                Options
-                <Input
-                  id={optionsId}
-                  value={options}
-                  placeholder="Todo, In progress, Done"
-                  onChange={(event) => setOptions(event.target.value)}
-                />
-                <span className="font-normal leading-4 text-muted-foreground">
-                  Separate option names with commas.
-                </span>
-              </label>
+              <BaseOptionsEditor
+                options={options}
+                disabled={submitting}
+                onChange={setOptions}
+                className="border-t-0 pt-0"
+              />
             ) : null}
             {mode === "field" && fieldType === "link" ? (
               <label className="grid gap-1.5 text-xs font-medium">
