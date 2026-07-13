@@ -122,6 +122,14 @@ offset，不再从第一页逐页追赶，也不再显示手动 Load more。Rend
 runtime，不再让 Electron 主线程承担同步打开和校验；8 文件 LRU 上限避免文件描述符无界增长。
 文件 fingerprint 会在原地写入或原子替换后强制重开，打包后的 worker smoke 已覆盖深分页、分组总数
 以及替换失效。
+独立 Base runtime 还会为 Gallery 排序前缀和 Kanban 分组+排序前缀维护可丢弃的 SQLite 查询索引。
+索引跟随 view lifecycle，在被索引字段转换或删除后重建，并在旧文件以 migration 模式打开时一次性修复；
+它们只加速物理表，不进入 Base metadata 语义契约。Query worker cache 会记录 migration/索引修复后的
+fingerprint，因此补齐索引不会让下一次请求立即无意义地重开文件。在同一台机器的 10 万行交付基线上，
+远距离 Gallery 排序页从约 90 ms 降到 2 ms，Kanban 分组尾页从约 4 ms 降到 2 ms。
+虚拟 row、card 和 column 的动态测量会按 animation frame 批处理，位移 wrapper 建立 layout/style
+containment；Resize Observer 与布局失效因此被限制在已挂载 overscan 窗口内，同时保留可变高度与自动
+无限滚动。
 Gallery 可以选择 File 字段作为封面，并切换适应/裁切；文件二进制只通过 Space file boundary
 读取，并转换为临时 object URL。Gallery 与 Kanban 共用 view 级封面资源读取器；多个 card 引用同一文件，
 或虚拟滚动让 card 卸载后再次挂载时，会同时复用正在进行或近期完成的二进制读取和已创建的 Blob URL，

@@ -175,6 +175,19 @@ runtime instead of blocking Electron's main thread with open/validation work;
 the eight-file LRU bound prevents descriptor growth. A file fingerprint forces
 reopen after an in-place change or atomic replacement, and the packaged worker
 smoke covers deep paging, grouped totals, and replacement invalidation.
+The independent Base runtime also maintains disposable SQLite query indexes for
+Gallery sort prefixes and Kanban group-plus-sort prefixes. Indexes follow the
+view lifecycle, are rebuilt after an indexed field conversion or deletion, and
+are repaired once when an older file is opened for migration. They accelerate
+the physical table without becoming part of the Base metadata contract. The
+query-worker cache records the post-migration fingerprint, so creating a missing
+index does not cause an immediate redundant reopen. On a 100,000-row delivery
+fixture, a distant sorted Gallery page drops from roughly 90 ms to 2 ms and a
+distant Kanban group page from roughly 4 ms to 2 ms on the same machine.
+Virtual row, card, and column measurements are batched through animation frames;
+their translated wrappers establish layout/style containment. This keeps Resize
+Observer work and layout invalidation inside the mounted overscan window while
+preserving variable-height measurement and automatic infinite scrolling.
 Gallery can use a File field as a fitted or cropped card cover; the binary is
 read through the Space file boundary and exposed only as a temporary object
 URL. Gallery and Kanban share a view-scoped cover source reader, so cards that
