@@ -76,6 +76,16 @@ Component coverage asserts one batch call for a pasted range and one batch call
 for its undo; the real SQLite runtime test asserts rollback after a later row
 fails.
 
+Grid column calculations now use the same view-owned query as its visible
+records. A column-header `Calculate` submenu persists one compatible aggregate
+per column and renders the result in the existing trailing row, without adding
+another toolbar or modal. All configured columns are evaluated by the
+standalone Base runtime in one parameterized aggregate query on the persistent
+query worker; the Renderer never scans loaded pages or blocks on SQLite. Search,
+filter, explicit refresh, successful row mutations, field deletion, and
+incompatible field-type conversion all refresh or clean the persisted result
+deterministically.
+
 Failed optimistic saves now reload the persisted rows before the mutation queue
 continues, while preserving the original failure in a dismissible accessible
 alert. The recovery reload therefore cannot silently clear the error or leave a
@@ -295,6 +305,7 @@ Current parity with the original table views is explicit:
 | Capability                                                | Base status                                                                             | Remaining boundary                                                                                           |
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | Persisted view lifecycle and per-view query/layout        | Automated and native restart/restore accepted                                           | No known v1 gap                                                                                              |
+| Grid column calculations                                  | View-owned, worker-backed aggregates in the existing trailing row                       | No known v1 gap                                                                                              |
 | Gallery field visibility, empty-field hiding, card sizing | Working with virtual infinite scroll and result navigation                              | No known v1 gap                                                                                              |
 | Gallery cover                                             | File field working                                                                      | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
 | Card actions                                              | Editable inspector and delete working                                                   | A full-page row-document model is not yet defined for file-based Base                                        |

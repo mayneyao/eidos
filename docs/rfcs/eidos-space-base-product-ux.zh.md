@@ -58,6 +58,12 @@ mutation revision 还会阻止旧响应覆盖较新的 optimistic 值。组件�
 undo 各只触发一次 batch call，真实 SQLite runtime 测试会断言后续 row 失败时前面修改也会
 回滚。
 
+Grid 列统计现在使用和可见记录相同的 view query。列头的 `Calculate` 子菜单会为每列持久化一个
+兼容的聚合，并把结果直接显示在已有 trailing row，不增加工具栏或弹窗。当前 view 配置的所有列
+会由独立 Base runtime 在持久 query worker 中通过一次参数化聚合查询完成；Renderer 不扫描已加载
+分页，也不会同步阻塞 SQLite。搜索、筛选、显式刷新、成功 row mutation、字段删除以及不兼容的
+字段类型转换都会确定性地刷新或清理持久化统计。
+
 Optimistic 保存失败后会先重新加载持久化 rows，再继续 mutation queue；原始错误会保留在
 可关闭且可访问的 alert 中。恢复 reload 因此不会静默清除错误，也不会让后续排队编辑继续
 运行在已经回滚的状态上。
@@ -201,14 +207,15 @@ layout；恢复后的仓库状态为 clean。
 
 与原表格 view 的当前能力对齐情况如下：
 
-| 能力                                       | Base 状态                                  | 剩余边界                                                            |
-| ------------------------------------------ | ------------------------------------------ | ------------------------------------------------------------------- |
-| 持久化 view lifecycle 与独立 query/layout  | 自动与原生重启/恢复均已验收                | v1 暂无已知缺口                                                     |
-| Gallery 字段显隐、空字段隐藏、card size    | 二维虚拟无限滚动与结果导航已工作           | v1 暂无已知缺口                                                     |
-| Gallery cover                              | File 字段已工作                            | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
-| Card actions                               | 可编辑 Inspector 与删除已工作              | file-based Base 的 full-page row document 模型尚未定义              |
-| Kanban Select 分组、计数、折叠、新增、拖动 | 横纵虚拟化、可见列懒加载和无障碍移动已工作 | v1 暂无已知缺口                                                     |
-| Base merge conflict 审阅                   | 原生 row 审阅已验收                        | schema/opaque conflict 按设计使用明确的 whole-file fallback         |
+| 能力                                       | Base 状态                                   | 剩余边界                                                            |
+| ------------------------------------------ | ------------------------------------------- | ------------------------------------------------------------------- |
+| 持久化 view lifecycle 与独立 query/layout  | 自动与原生重启/恢复均已验收                 | v1 暂无已知缺口                                                     |
+| Grid 列统计                                | view 级配置、worker 聚合并复用 trailing row | v1 暂无已知缺口                                                     |
+| Gallery 字段显隐、空字段隐藏、card size    | 二维虚拟无限滚动与结果导航已工作            | v1 暂无已知缺口                                                     |
+| Gallery cover                              | File 字段已工作                             | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
+| Card actions                               | 可编辑 Inspector 与删除已工作               | file-based Base 的 full-page row document 模型尚未定义              |
+| Kanban Select 分组、计数、折叠、新增、拖动 | 横纵虚拟化、可见列懒加载和无障碍移动已工作  | v1 暂无已知缺口                                                     |
+| Base merge conflict 审阅                   | 原生 row 审阅已验收                         | schema/opaque conflict 按设计使用明确的 whole-file fallback         |
 
 这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。更多可移植 cover source 仍待完成。
 Base 日常编辑和配置优先使用单元格内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留

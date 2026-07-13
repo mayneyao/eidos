@@ -522,9 +522,13 @@ ignore:
 7. 默认扩展源码目录是否就叫 `.eidos/extensions/`，还是应该可配置？
 8. 对依赖 `eidos__docs` 的现有 Eidos spaces，精确迁移路径是什么？
 
-## 推荐下一步
+## 已证明的 Vertical Slice 与推荐下一步
 
-构建一个很小的 vertical slice：
+下面的 vertical slice 已经实现，并由可重复的真实 Base/Graft smoke test 覆盖：
+
+```bash
+pnpm --filter eidos smoke:base-versioning
+```
 
 ```txt
 sample-space/
@@ -535,13 +539,17 @@ sample-space/
   .graft/
 ```
 
-这个 slice 应该证明：
+它已经证明：
 
 - Eidos 可以打开 Space。
 - Eidos 可以编辑 `note.md`。
 - Eidos 可以打开并编辑 `tasks.base`。
 - Graft status 显示 `note.md`、`tasks.base` 和 `assets/image.png`。
-- 展开 `tasks.base` 可以看到 table-level changes。
+- 展开 `tasks.base` 可以看到 table-level 和 row-level changes。
 - `.eidos/sessions/**` 永远不会出现在 status 中。
 
-这个 slice 能在完整迁移之前验证产品模型是否真正自洽。
+紧凑的 Base 编辑面已经替换为现有 production Grid 交互层的 adapter。多 table/field
+authoring、可见区域分页、键盘操作、selection、copy/paste、undo/redo、持久化列布局、
+结构化 search/filter/sort、查询语义正确的批量删除以及列聚合都已经实现，同时没有把
+文件格式职责放回 `@eidos.space/core`。原生 create/edit/restart/version/restore 验收链路
+已经完成；剩余 gate 是最后一组高价值 field/view 对齐细化。

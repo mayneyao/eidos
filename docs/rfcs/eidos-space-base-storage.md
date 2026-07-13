@@ -560,6 +560,7 @@ The compact Base editing surface has now been replaced with an adapter over the
 existing production Grid interaction layer. Multi-table/field authoring,
 visible-region paging, keyboard workflows, selection, copy/paste, undo/redo,
 persisted column layout, structured search/filter/sort, and query-correct batch
-deletion are implemented without moving file-format responsibilities back into
-`@eidos.space/core`. The remaining gate is richer field/view parity and the
-complete native create/edit/restart/version/restore acceptance lifecycle.
+deletion and column aggregates are implemented without moving file-format
+responsibilities back into `@eidos.space/core`. The native
+create/edit/restart/version/restore acceptance lifecycle is complete; the
+remaining gate is the final set of high-value field/view parity refinements.
