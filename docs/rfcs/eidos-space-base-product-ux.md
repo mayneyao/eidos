@@ -191,6 +191,15 @@ the refreshed page atomically. This avoids a blank loading frame, repeated card
 mounts, and repeated cover leases during ordinary record mutations while still
 letting filtered or sorted refreshes converge on server order.
 
+Kanban uses the same stale-while-revalidate rule when search, filters, sorts,
+or an explicit reload changes its grouped query. Matching columns retain their
+mounted cards while grouped counts and visible first pages refresh; each page
+is swapped only after its new result arrives. In-flight guards are keyed by
+query generation, so completion of an older request cannot clear or duplicate
+a newer column request. Row-count notifications depend on grouped totals rather
+than row-array or loading-state changes, avoiding parent editor rerenders while
+large columns page through cards.
+
 CSV selection, analysis, and writing now follow the same anchored, non-modal
 workflow. The mapping panel opens as soon as the native picker returns;
 analysis and import expose real byte/row progress and can be canceled in place.

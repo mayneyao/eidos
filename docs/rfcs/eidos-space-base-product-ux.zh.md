@@ -135,6 +135,12 @@ row ID 去重。Inspector 修改分组字段也复用同一套跨列迁移。没
 期间还会继续挂载当前虚拟窗口，并在新首屏返回后原子替换。这样普通记录 mutation 不会出现空白 loading
 帧、整批 card 重挂载或封面租约重复申请，同时筛选和排序刷新仍会最终收敛到服务端顺序。
 
+当搜索、筛选、排序或显式 reload 改变分组查询时，Kanban 也遵循相同的 stale-while-revalidate
+规则。匹配的列会在 grouped counts 和可见列首屏刷新期间继续挂载现有 cards，每个分页只在新结果
+返回后替换。in-flight guard 会带上 query generation，因此旧请求结束时不能清除或重复触发新一代
+的同名列请求。row count 通知只依赖分组 totals，不再因为 rows 数组或 loading 状态变化而让父编辑器
+重渲染，避免大分组分页期间的额外工作。
+
 CSV 导入的文件选择、分析和写入现在也保持锚定式、非模态工作流。原生 picker 返回后 mapping
 panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以原位取消。取消会终止隔离 worker、
 等待 SQLite transaction 回滚，再解除当前 Base 的 mutation lock，因此重试不会和仍在退出的
