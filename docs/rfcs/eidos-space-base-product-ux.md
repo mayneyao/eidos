@@ -163,6 +163,10 @@ therefore requested before an unloaded placeholder enters the viewport.
 Automatic-page progress and retry controls float over the Gallery viewport in a
 zero-height sticky layer, so beginning or completing a request does not change
 the virtual scroll extent or shift the visible cards.
+Responsive column-count changes preserve the first visible record as the
+Gallery anchor. The renderer first restores its estimated row and then corrects
+to the measured row on the next frame, so resizing the window or opening a
+side panel does not jump to a different part of a large result set.
 Only the first Gallery page or a query refresh recomputes the filtered total.
 Later virtual-window requests send the previously observed total as a validated
 hint, so scrolling does not repeat a full `COUNT(*)`. Kanban reuses the totals
@@ -275,6 +279,10 @@ first record page only for uncollapsed columns in the horizontal window. Each
 column also uses dynamic-height vertical virtualization and automatic paging,
 so a large Select option set no longer causes one file open and first-page query
 per option, and a large group no longer mounts every loaded card.
+Each mounted virtual column remains one named record list whose items expose
+their absolute position and the group's complete server total. Collapsed-column
+expand controls retain a visible keyboard focus ring, so virtualization and the
+compact layout do not hide list context or keyboard location.
 Horizontal virtualization also bounds retained row data, not only mounted DOM.
 When navigation leaves a column window, Kanban keeps the rendered columns plus
 two neighboring columns on each side and releases older row windows. Returning
