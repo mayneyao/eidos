@@ -85,7 +85,11 @@ Base snapshots now carry row counts instead of capped row arrays. The Grid
 requests 100-row pages around the visible region, caches loaded pages, and
 passes compact row ranges to transactional batch deletion without materializing
 an entire selection in the renderer. The runtime path is covered with a
-10,000-row fixture. The public runtime now also exposes a migration-oriented
+10,000-row fixture. Gallery and Kanban use the same random-access page boundary
+to maintain bounded bidirectional row windows: adjacent navigation extends the
+window, distant virtual-scroll jumps replace it at the requested offset, and an
+empty stale tail response clamps the total instead of creating a retry loop.
+The public runtime now also exposes a migration-oriented
 import boundary for advanced field metadata, views, references, materialized
 derived values, and historical system columns. The legacy migration package
 uses this boundary to produce validated multi-table `main.base` exports.

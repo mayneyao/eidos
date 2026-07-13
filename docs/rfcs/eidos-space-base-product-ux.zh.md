@@ -101,9 +101,12 @@ Gallery 和 Kanban 现在已经接入与 Grid 相同的持久化 view lifecycle�
 响应式 card size、可选的空字段隐藏和共享 record inspector；Kanban 按 Select 字段分组，每组独立
 分页，跨列拖动会持久化为字段修改，也可以直接在目标分组内新增记录。两个 layout 都复用当前 view
 的搜索、筛选、排序、字段显隐和 Property workspace。
-Gallery 会按当前宽度把 cards 编排成虚拟 rows，只挂载可见区域与 overscan；滚动接近已加载尾部时
-自动请求下一批 100 条记录，不再显示手动 Load more。动态测量允许封面和字段数量改变 card 高度，
-搜索定位仍会逐页加载并滚动到目标 record，因此已加载数据和 DOM 数量不再同步线性增长。
+Gallery 会按当前宽度把 cards 编排成虚拟 rows，只挂载可见区域与 overscan；虚拟总高度来自服务端
+总记录数，而不是已经加载的行数。相邻滚动会请求前后 100-row page，远距离拖动滚动条会直接请求目标
+offset，不再从第一页逐页追赶，也不再显示手动 Load more。Renderer 最多保留 500 条 Gallery rows，
+每个 Kanban 分组最多保留 250 条 rows；超过边界时从窗口另一侧淘汰，因此访问过的数据和 DOM 都不会
+随浏览深度无界增长。动态测量仍允许封面和字段数量改变 card 高度，搜索定位可以直接加载目标窗口并
+滚动到对应 record。
 Gallery 可以选择 File 字段作为封面，并切换适应/裁切；文件二进制只通过 Space file boundary
 读取，并转换为临时 object URL。Gallery 与 Kanban 共用 view 级封面资源读取器；多个 card 引用同一文件，
 或虚拟滚动让 card 卸载后再次挂载时，会同时复用正在进行或近期完成的二进制读取和已创建的 Blob URL，

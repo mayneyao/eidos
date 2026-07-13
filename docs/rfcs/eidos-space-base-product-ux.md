@@ -137,10 +137,14 @@ field, pages each group independently, persists cross-column moves as field
 edits, and creates records directly in the target group. Both layouts reuse the
 active view's search, filters, sorts, field visibility, and Property workspace.
 Gallery arranges cards into responsive virtual rows and mounts only the visible
-window plus overscan. Approaching the loaded boundary automatically fetches the
-next 100 records, replacing the manual Load more control. Dynamic measurement
-supports variable cover and field heights, while result navigation continues
-to fetch intervening pages and scroll to the target record.
+window plus overscan. Its virtual extent is driven by the server total rather
+than the number of records already fetched, so an adjacent scroll fetches the
+next or previous 100-row page while a distant scrollbar jump requests the
+target offset directly. The renderer retains at most 500 Gallery rows and 250
+rows per Kanban column, trimming the opposite side of the active window instead
+of accumulating every visited page. Dynamic measurement supports variable cover
+and field heights, and result navigation can jump directly to the target page
+before revealing the record. The manual Load more control is no longer needed.
 Gallery can use a File field as a fitted or cropped card cover; the binary is
 read through the Space file boundary and exposed only as a temporary object
 URL. Gallery and Kanban share a view-scoped cover source reader, so cards that

@@ -56,7 +56,9 @@ formula 的依赖；runtime 会阻止删除其 relation field 或 target field�
 
 Base snapshot 现在只携带 row count，Grid 按可见区域请求并缓存 100-row pages；批量删行
 使用 compact row ranges 在 runtime 内事务执行，不需要在 renderer 物化整表选择，并已用
-10,000-row fixture 验证。公开 runtime 也已增加 migration-oriented import boundary，支持
+10,000-row fixture 验证。Gallery 和 Kanban 复用同一个 random-access page boundary，维护有界的
+双向 row window：相邻浏览扩展窗口，远距离虚拟滚动直接替换到目标 offset；如果并发变化导致尾页为空，
+会收敛 total 而不是形成重复请求循环。公开 runtime 也已增加 migration-oriented import boundary，支持
 导入高级 field metadata、views、references、materialized derived values 和历史 system
 columns；legacy migration package 通过该边界生成经过校验的 multi-table `main.base`。
 runtime 还提供按字段聚合的 grouped-count query；Kanban 用一次只读查询获取当前 filter/search
