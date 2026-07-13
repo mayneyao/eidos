@@ -118,6 +118,12 @@ offset，不再从第一页逐页追赶，也不再显示手动 Load more。Rend
 只有 Gallery 首屏或查询刷新会重新统计筛选后的总数；后续虚拟窗口请求会携带经过校验的已知 total，
 因此滚动不会为每一页重复完整 `COUNT(*)`。Kanban 同样把 grouped-count query 的各分组 total 复用于
 可见列分页。显式刷新、搜索、筛选、排序以及过期空尾页仍会重新校准权威总数。
+自然 row 顺序下连续向前的 page 还会携带 opaque row cursor。Gallery 和每个 Kanban 分组会把 cursor
+与有界 row window 一起保存，query worker 因而能把下一页转换成
+`WHERE __base_rowid > ? ORDER BY __base_rowid LIMIT ?`，不再从深层 `OFFSET` 开始重复扫描。cursor
+可以和搜索、筛选条件共同使用；显式排序、远距离滚动条跳转和向前回看仍有意回退到 offset paging，
+以保持排序与随机定位正确。分页失败重试也会保留完全相同的 cursor。在本地 100 万行 SQLite
+基线上，200 次带筛选的深分页读取使用 `OFFSET` 约 1.62 秒，使用 row cursor 快路径低于 0.01 秒。
 这些分页和分组计数请求由当前 Space 持有的持久 worker 执行。重复虚拟滚动会复用已经校验的 Base
 runtime，不再让 Electron 主线程承担同步打开和校验；8 文件 LRU 上限避免文件描述符无界增长。
 文件 fingerprint 会在原地写入或原子替换后强制重开，打包后的 worker smoke 已覆盖深分页、分组总数

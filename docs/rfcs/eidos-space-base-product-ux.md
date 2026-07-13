@@ -169,6 +169,16 @@ hint, so scrolling does not repeat a full `COUNT(*)`. Kanban reuses the totals
 from its grouped-count query for every visible-column page for the same reason;
 an explicit reload, search, filter, sort, or stale empty tail still re-establishes
 the authoritative extent.
+Contiguous forward pages in natural row order also carry an opaque row cursor.
+Gallery and each Kanban group retain the cursor alongside their bounded row
+window, and the query worker turns the next page into
+`WHERE __base_rowid > ? ORDER BY __base_rowid LIMIT ?` instead of rescanning a
+deep `OFFSET`. The cursor remains valid with search and filter predicates; an
+explicit sort, distant scrollbar jump, or backward page deliberately falls
+back to offset paging so ordering and random access stay correct. Failed-page
+retry preserves the exact cursor. In a local one-million-row SQLite baseline,
+200 filtered deep-page reads took about 1.62 seconds with `OFFSET` and less than
+0.01 seconds with the row cursor fast path.
 These page and grouped-count requests are executed by a persistent worker owned
 by the current Space. Repeated virtual-scroll reads reuse a validated Base
 runtime instead of blocking Electron's main thread with open/validation work;
