@@ -22,7 +22,7 @@ export function BaseSheetTabs({
   return (
     <footer
       data-base-sheet-tabs
-      className="flex h-8 shrink-0 items-stretch border-t bg-muted/20"
+      className="eidos-shell-statusbar flex shrink-0 items-stretch border-t bg-muted/20"
     >
       <div
         role="tablist"

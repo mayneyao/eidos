@@ -772,6 +772,9 @@ describe("SpaceBaseEditor", () => {
       container.querySelector('[role="tablist"][aria-label="Base tables"]')
         ?.textContent
     ).toContain("Tasks")
+    expect(container.querySelector("[data-base-workbar]")?.className).toContain(
+      "eidos-shell-workbar"
+    )
     expect(container.textContent).toContain("Tasks")
     expect(container.textContent).toContain("Status")
     expect(container.textContent).not.toContain("_id")

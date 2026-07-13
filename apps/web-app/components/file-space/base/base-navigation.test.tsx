@@ -122,6 +122,9 @@ describe("Base navigation hierarchy", () => {
     expect(viewTabs?.textContent).toContain("By status")
     expect(sheetTabs?.textContent).toContain("Tasks")
     expect(sheetTabs?.textContent).toContain("Projects")
+    expect(sheetTabs?.closest("[data-base-sheet-tabs]")?.className).toContain(
+      "eidos-shell-statusbar"
+    )
     expect(
       sheetTabs?.querySelector('[role="tab"][aria-selected="true"]')
         ?.textContent

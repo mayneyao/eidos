@@ -19,10 +19,34 @@
 @source "../../../node_modules/streamdown/dist/*.js";
 @source "../../../node_modules/@streamdown/code/dist/*.js";
 
-/* Sidebar layout variables */
+/*
+ * Desktop shell row metrics
+ *
+ * Keep these semantic: title bars host window/tab chrome, work bars host the
+ * current surface's primary navigation, and status bars close the workspace.
+ * Sidebar and editor surfaces must use the same role when their borders share
+ * a horizontal axis.
+ */
 :root {
   --sidebar-width: 20rem;
   --sidebar-width-icon: 3rem;
+  --eidos-shell-titlebar-height: 38px;
+  --eidos-shell-workbar-height: 40px;
+  --eidos-shell-statusbar-height: 40px;
+}
+
+@layer components {
+  .eidos-shell-titlebar {
+    height: var(--eidos-shell-titlebar-height);
+  }
+
+  .eidos-shell-workbar {
+    height: var(--eidos-shell-workbar-height);
+  }
+
+  .eidos-shell-statusbar {
+    height: var(--eidos-shell-statusbar-height);
+  }
 }
 
 @theme inline {

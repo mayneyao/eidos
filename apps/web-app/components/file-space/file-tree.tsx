@@ -522,7 +522,10 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
-      <div className="group/explorer flex h-[30px] items-center border-b border-sidebar-border/50 px-1">
+      <div
+        data-file-tree-workbar
+        className="eidos-shell-workbar group/explorer flex shrink-0 items-center border-b border-sidebar-border/50 px-1"
+      >
         <button
           type="button"
           className="flex h-[22px] min-w-0 flex-1 items-center gap-0.5 rounded-[3px] px-0.5 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-sidebar-foreground/75 focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-sidebar-ring"

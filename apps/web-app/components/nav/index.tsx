@@ -22,7 +22,7 @@ export const Nav = ({ children }: { children?: React.ReactNode }) => {
   return (
     <div
       className={cn(
-        "flex w-full shrink-0 border-separate items-center justify-between px-1 h-[38px] border-b border-border/60 bg-muted/60",
+        "eidos-shell-titlebar flex w-full shrink-0 border-separate items-center justify-between border-b border-border/60 bg-muted/60 px-1",
         {
           "fixed top-0 left-0 z-50": navigator.windowControlsOverlay?.visible,
           "!pl-[72px]":

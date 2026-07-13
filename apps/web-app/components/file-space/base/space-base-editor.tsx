@@ -1102,7 +1102,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       ref={editorRef}
       className="relative flex h-full min-h-0 flex-col bg-background"
     >
-      <div className="flex h-10 shrink-0 items-end border-b bg-muted/15 px-2">
+      <div
+        data-base-workbar
+        className="eidos-shell-workbar flex shrink-0 items-end border-b bg-muted/15 px-2"
+      >
         {activeTable ? (
           <BaseViewTabs
             views={activeTable.views}

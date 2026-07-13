@@ -254,6 +254,9 @@ describe("FileSpaceTree accessibility", () => {
     ]
 
     expect(host?.getAttribute("aria-label")).toBe("Files")
+    expect(
+      container.querySelector("[data-file-tree-workbar]")?.className
+    ).toContain("eidos-shell-workbar")
     expect(notes.getAttribute("aria-level")).toBe("1")
     expect(notes.getAttribute("aria-expanded")).toBe("false")
     expect(notes.getAttribute("aria-selected")).toBe("false")

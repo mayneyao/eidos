@@ -79,7 +79,7 @@ function PanelToolbar({
   onRefresh: () => void
 }) {
   return (
-    <div className="flex h-[34px] shrink-0 items-center gap-1 border-b border-sidebar-border/60 px-1.5">
+    <div className="eidos-shell-workbar flex shrink-0 items-center gap-1 border-b border-sidebar-border/60 px-1.5">
       <span className="min-w-0 flex-1 truncate px-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-sidebar-foreground/70">
         Changes
       </span>

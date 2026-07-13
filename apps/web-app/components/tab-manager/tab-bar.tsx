@@ -565,7 +565,7 @@ export function TabBar({
   return (
     <div
       className={cn(
-        "flex items-center gap-0 min-w-0 h-[38px]",
+        "eidos-shell-titlebar flex min-w-0 items-center gap-0",
         panelId
           ? "w-full shrink-0 border-b border-border/60 bg-muted/60 px-1"
           : "flex-1",

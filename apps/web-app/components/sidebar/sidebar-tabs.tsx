@@ -353,7 +353,7 @@ export const SidebarTabs = () => {
     <div
       ref={containerRef}
       className={cn(
-        "flex h-[38px] items-center px-1 transition-all duration-200",
+        "eidos-shell-titlebar flex items-center px-1 transition-all duration-200",
         {
           "pl-[76px]": isMacDesktop(),
           "pl-4": !isMacDesktop(),

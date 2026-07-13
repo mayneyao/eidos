@@ -72,7 +72,7 @@ export function FileSpaceSidebar() {
     <Sidebar>
       <SidebarHeader
         className={cn(
-          "drag-region h-[38px] shrink-0 justify-center border-b border-sidebar-border/60 bg-muted/60 px-1 py-0",
+          "eidos-shell-titlebar drag-region shrink-0 justify-center border-b border-sidebar-border/60 bg-muted/60 px-1 py-0",
           isMacDesktop() && "!pl-[72px]"
         )}
       >
@@ -119,7 +119,7 @@ export function FileSpaceSidebar() {
           <VersionPanel spaceId={currentSpace.id} />
         )}
       </SidebarContent>
-      <SidebarFooter className="shrink-0 p-1.5">
+      <SidebarFooter className="eidos-shell-statusbar shrink-0 p-1.5">
         <div className="flex min-w-0 items-center gap-1">
           <div className="min-w-0 flex-1">
             <SpaceSelect spaces={spaceList} variant="sidebar-footer" />

@@ -136,6 +136,10 @@ describe("FileSpaceSidebar layout", () => {
     expect(
       container.querySelector('[data-space-select-variant="titlebar"]')
     ).toBeNull()
+    expect(modeNavigation?.parentElement?.className).toContain(
+      "eidos-shell-titlebar"
+    )
+    expect(footerSpaceSelect?.closest(".eidos-shell-statusbar")).not.toBeNull()
     expect(modeNavigation?.parentElement?.className).toContain("!pl-[72px]")
   })
 
