@@ -513,18 +513,19 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
 
   const updateTableRowCount = useCallback(
     (tableId: string, rowCount: number) => {
-      setSnapshot((current) =>
-        current
-          ? {
-              ...current,
-              tables: current.tables.map((candidate) =>
-                candidate.table.id === tableId
-                  ? { ...candidate, rowCount }
-                  : candidate
-              ),
-            }
-          : current
-      )
+      setSnapshot((current) => {
+        if (!current) return current
+        const target = current.tables.find(
+          (candidate) => candidate.table.id === tableId
+        )
+        if (!target || target.rowCount === rowCount) return current
+        return {
+          ...current,
+          tables: current.tables.map((candidate) =>
+            candidate === target ? { ...candidate, rowCount } : candidate
+          ),
+        }
+      })
     },
     []
   )
@@ -582,6 +583,11 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       .getState()
       .openTab(toSpaceFileUrl(path), path.split("/").at(-1) ?? path)
   }, [])
+
+  const revealBaseFileReference = useCallback(
+    (path: string) => reveal(path).then(() => undefined),
+    [reveal]
+  )
 
   const loadActiveTablePage = useCallback(
     (offset: number, limit: number, totalHint?: number, cursor?: string) => {
@@ -1253,21 +1259,41 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     )
   }, [])
 
+  const openFieldProperty = useCallback((field: BaseFieldInfo) => {
+    setFieldPropertyColumn(field.tableColumnName)
+  }, [])
+
+  const closeFieldProperty = useCallback(() => {
+    setFieldPropertyColumn(null)
+  }, [])
+
+  const activeTableIdForActions = activeTable?.table.id
+  const requestFieldDelete = useCallback(
+    (field: BaseFieldInfo) => {
+      if (!activeTableIdForActions) return
+      setDeleteTarget({
+        kind: "field",
+        tableId: activeTableIdForActions,
+        columnName: field.tableColumnName,
+        name: field.name,
+      })
+    },
+    [activeTableIdForActions]
+  )
+
+  const requestRowRangeDelete = useCallback((ranges: BaseRowRange[]) => {
+    setSelectedRowRanges(ranges)
+    setDeleteRowsDialogOpen(true)
+  }, [])
+
   const fieldPropertySidePanel =
     fieldPropertyTarget && activeTable ? (
       <BaseFieldPropertyPanel
         field={fieldPropertyTarget}
         disabled={blockingMutations > 0}
-        onClose={() => setFieldPropertyColumn(null)}
+        onClose={closeFieldProperty}
         onUpdate={updateFieldInBase}
-        onDelete={(field) =>
-          setDeleteTarget({
-            kind: "field",
-            tableId: activeTable.table.id,
-            columnName: field.tableColumnName,
-            name: field.name,
-          })
-        }
+        onDelete={requestFieldDelete}
         onEditFormula={setFormulaTarget}
         onEditLookup={setLookupTarget}
       />
@@ -1404,17 +1430,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
                     name: activeTable.table.name,
                   })
                 }
-                onEditField={(field) =>
-                  setFieldPropertyColumn(field.tableColumnName)
-                }
-                onDeleteField={(field) =>
-                  setDeleteTarget({
-                    kind: "field",
-                    tableId: activeTable.table.id,
-                    columnName: field.tableColumnName,
-                    name: field.name,
-                  })
-                }
+                onEditField={openFieldProperty}
+                onDeleteField={requestFieldDelete}
               />
             </>
           ) : null}
@@ -1513,7 +1530,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               onSearchRelation={searchRelationRecords}
               onDeleteRow={deleteSingleRow}
               onOpenFile={openBaseFileReference}
-              onRevealFile={(path) => reveal(path).then(() => undefined)}
+              onRevealFile={revealBaseFileReference}
               onRowCountChange={handleSearchResultCountChange}
               onError={handleGridError}
               sidePanel={fieldPropertySidePanel}
@@ -1536,7 +1553,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               readBinary={readBinary}
               onDeleteRow={deleteSingleRow}
               onOpenFile={openBaseFileReference}
-              onRevealFile={(path) => reveal(path).then(() => undefined)}
+              onRevealFile={revealBaseFileReference}
               onRowCountChange={handleSearchResultCountChange}
               onError={handleGridError}
               sidePanel={fieldPropertySidePanel}
@@ -1560,29 +1577,17 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               onImportFiles={importBaseFiles}
               onImportDroppedFiles={importDroppedBaseFiles}
               onOpenFile={openBaseFileReference}
-              onRevealFile={(path) => reveal(path).then(() => undefined)}
+              onRevealFile={revealBaseFileReference}
               onSearchRelation={searchRelationRecords}
               propertyField={fieldPropertyTarget}
-              onPropertyFieldOpen={(field) =>
-                setFieldPropertyColumn(field.tableColumnName)
-              }
-              onPropertyFieldClose={() => setFieldPropertyColumn(null)}
+              onPropertyFieldOpen={openFieldProperty}
+              onPropertyFieldClose={closeFieldProperty}
               onFieldUpdate={updateFieldInBase}
               onAddField={openFieldCreator}
               onEditFormula={setFormulaTarget}
               onEditLookup={setLookupTarget}
-              onDeleteField={(field) =>
-                setDeleteTarget({
-                  kind: "field",
-                  tableId: activeTable.table.id,
-                  columnName: field.tableColumnName,
-                  name: field.name,
-                })
-              }
-              onRequestDeleteRows={(ranges) => {
-                setSelectedRowRanges(ranges)
-                setDeleteRowsDialogOpen(true)
-              }}
+              onDeleteField={requestFieldDelete}
+              onRequestDeleteRows={requestRowRangeDelete}
               onViewUpdate={updateActiveView}
               onError={handleGridError}
             />

@@ -613,7 +613,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   )
 })
 
-export function BaseKanbanView({
+export const BaseKanbanView = memo(function BaseKanbanView({
   table,
   view,
   disabled = false,
@@ -1610,4 +1610,4 @@ export function BaseKanbanView({
       ) : null}
     </div>
   )
-}
+})

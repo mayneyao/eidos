@@ -41,6 +41,26 @@ const spaceFileChanges = vi.hoisted(() => ({
     | ((event: { eventType: "change" | "rescan"; path: string }) => void)
     | undefined,
 }))
+const baseViewHostProps = vi.hoisted(() => ({
+  grid: [] as Array<{
+    table: object
+    onRevealFile: unknown
+    onPropertyFieldOpen: unknown
+    onPropertyFieldClose: unknown
+    onDeleteField: unknown
+    onRequestDeleteRows: unknown
+  }>,
+  gallery: [] as Array<{
+    table: object
+    onCellEdit: unknown
+    onRevealFile: unknown
+  }>,
+  kanban: [] as Array<{
+    table: object
+    onCellEdit: unknown
+    onRevealFile: unknown
+  }>,
+}))
 
 vi.mock("@/apps/web-app/hooks/use-current-space", () => ({
   useCurrentSpace: () => ({ currentSpace: { id: "space-a", mode: "file" } }),
@@ -277,261 +297,293 @@ vi.mock("@/apps/web-app/store/tabs", () => ({
   },
 }))
 
-vi.mock("./base-grid", () => ({
-  BaseGrid: ({
-    table,
-    onCellEdit,
-    onInspectorCellEdit,
-    onRowsEdit,
-    onSelectedRowsChange,
-    onImportFiles,
-    onImportDroppedFiles,
-    onOpenFile,
-    onRevealFile,
-    onSearchRelation,
-    propertyField,
-    onFieldUpdate,
-    onAddField,
-    onEditFormula,
-    onEditLookup,
-    searchResultIndex,
-    onRowCountChange,
-    disabled,
-    reloadToken,
-  }: {
-    table: (typeof snapshot)["tables"][number]
-    onCellEdit: (
-      row: { _id: string; title: string; status: string },
-      field: (typeof snapshot)["tables"][number]["fields"][number],
-      value: string
-    ) => Promise<unknown>
-    onInspectorCellEdit?: (
-      row: { _id: string; title: string; status: string },
-      field: (typeof snapshot)["tables"][number]["fields"][number],
-      value: string
-    ) => Promise<unknown>
-    onRowsEdit?: (
-      edits: Array<{
-        row: { _id: string; title: string; status: string }
-        changes: Record<string, string>
-      }>
-    ) => void
-    onSelectedRowsChange: (
-      ranges: Array<{ startIndex: number; endIndex: number }>
-    ) => void
-    onImportFiles?: () => Promise<string[]>
-    onImportDroppedFiles?: (files: File[]) => Promise<string[]>
-    onOpenFile?: (path: string) => void
-    onRevealFile?: (path: string) => Promise<void> | void
-    onSearchRelation?: (
-      field: (typeof snapshot)["tables"][number]["fields"][number],
-      query: string
-    ) => Promise<Array<{ id: string; title: string }>>
-    propertyField?: (typeof snapshot)["tables"][number]["fields"][number] | null
-    onFieldUpdate?: (
-      field: (typeof snapshot)["tables"][number]["fields"][number],
-      changes: Record<string, unknown>
-    ) => Promise<void> | void
-    onAddField?: (position?: number) => void
-    onEditFormula?: (
-      field: (typeof snapshot)["tables"][number]["fields"][number]
-    ) => void
-    onEditLookup?: (
-      field: (typeof snapshot)["tables"][number]["fields"][number]
-    ) => void
-    searchResultIndex?: number | null
-    onRowCountChange?: (rowCount: number | null) => void
-    disabled?: boolean
-    reloadToken?: number
-  }) => {
-    const row = { _id: "row_1", title: "Write RFC", status: "todo" }
-    const title = table.fields.find(
-      (field) => field.tableColumnName === "title"
-    )
-    return (
-      <div
-        data-testid="base-grid"
-        data-disabled={String(Boolean(disabled))}
-        data-reload-token={String(reloadToken ?? 0)}
-      >
-        {table.fields
-          .filter((field) => !field.isHidden)
-          .map((field) => (
-            <span key={field.tableColumnName}>{field.name}</span>
-          ))}
-        <span>{String(row?.title ?? "")}</span>
-        <span>{String(row?.status ?? "")}</span>
-        <span data-testid="base-search-result-index">
-          Search result {searchResultIndex ?? "none"}
-        </span>
-        <button type="button" onClick={() => onRowCountChange?.(3)}>
-          Report search results
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (row && title) {
-              void onCellEdit(row, title, "Write implementation").catch(
-                () => undefined
+vi.mock("./base-grid", async () => {
+  const { memo } = await vi.importActual<typeof React>("react")
+  return {
+    BaseGrid: memo(function BaseGrid({
+      table,
+      onCellEdit,
+      onInspectorCellEdit,
+      onRowsEdit,
+      onSelectedRowsChange,
+      onImportFiles,
+      onImportDroppedFiles,
+      onOpenFile,
+      onRevealFile,
+      onSearchRelation,
+      propertyField,
+      onPropertyFieldOpen,
+      onPropertyFieldClose,
+      onFieldUpdate,
+      onDeleteField,
+      onRequestDeleteRows,
+      onAddField,
+      onEditFormula,
+      onEditLookup,
+      searchResultIndex,
+      onRowCountChange,
+      disabled,
+      reloadToken,
+    }: {
+      table: (typeof snapshot)["tables"][number]
+      onCellEdit: (
+        row: { _id: string; title: string; status: string },
+        field: (typeof snapshot)["tables"][number]["fields"][number],
+        value: string
+      ) => Promise<unknown>
+      onInspectorCellEdit?: (
+        row: { _id: string; title: string; status: string },
+        field: (typeof snapshot)["tables"][number]["fields"][number],
+        value: string
+      ) => Promise<unknown>
+      onRowsEdit?: (
+        edits: Array<{
+          row: { _id: string; title: string; status: string }
+          changes: Record<string, string>
+        }>
+      ) => void
+      onSelectedRowsChange: (
+        ranges: Array<{ startIndex: number; endIndex: number }>
+      ) => void
+      onImportFiles?: () => Promise<string[]>
+      onImportDroppedFiles?: (files: File[]) => Promise<string[]>
+      onOpenFile?: (path: string) => void
+      onRevealFile?: (path: string) => Promise<void> | void
+      onSearchRelation?: (
+        field: (typeof snapshot)["tables"][number]["fields"][number],
+        query: string
+      ) => Promise<Array<{ id: string; title: string }>>
+      propertyField?:
+        | (typeof snapshot)["tables"][number]["fields"][number]
+        | null
+      onPropertyFieldOpen?: (
+        field: (typeof snapshot)["tables"][number]["fields"][number]
+      ) => void
+      onPropertyFieldClose?: () => void
+      onFieldUpdate?: (
+        field: (typeof snapshot)["tables"][number]["fields"][number],
+        changes: Record<string, unknown>
+      ) => Promise<void> | void
+      onDeleteField?: (
+        field: (typeof snapshot)["tables"][number]["fields"][number]
+      ) => void
+      onRequestDeleteRows?: (
+        ranges: Array<{ startIndex: number; endIndex: number }>
+      ) => void
+      onAddField?: (position?: number) => void
+      onEditFormula?: (
+        field: (typeof snapshot)["tables"][number]["fields"][number]
+      ) => void
+      onEditLookup?: (
+        field: (typeof snapshot)["tables"][number]["fields"][number]
+      ) => void
+      searchResultIndex?: number | null
+      onRowCountChange?: (rowCount: number | null) => void
+      disabled?: boolean
+      reloadToken?: number
+    }) {
+      baseViewHostProps.grid.push({
+        table,
+        onRevealFile,
+        onPropertyFieldOpen,
+        onPropertyFieldClose,
+        onDeleteField,
+        onRequestDeleteRows,
+      })
+      const row = { _id: "row_1", title: "Write RFC", status: "todo" }
+      const title = table.fields.find(
+        (field) => field.tableColumnName === "title"
+      )
+      return (
+        <div
+          data-testid="base-grid"
+          data-disabled={String(Boolean(disabled))}
+          data-reload-token={String(reloadToken ?? 0)}
+        >
+          {table.fields
+            .filter((field) => !field.isHidden)
+            .map((field) => (
+              <span key={field.tableColumnName}>{field.name}</span>
+            ))}
+          <span>{String(row?.title ?? "")}</span>
+          <span>{String(row?.status ?? "")}</span>
+          <span data-testid="base-search-result-index">
+            Search result {searchResultIndex ?? "none"}
+          </span>
+          <button type="button" onClick={() => onRowCountChange?.(3)}>
+            Report search results
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (row && title) {
+                void onCellEdit(row, title, "Write implementation").catch(
+                  () => undefined
+                )
+              }
+            }}
+          >
+            Edit title
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (row && title) {
+                void onInspectorCellEdit?.(
+                  row,
+                  title,
+                  "Write inspected implementation"
+                ).catch(() => undefined)
+              }
+            }}
+          >
+            Edit inspected title
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              onRowsEdit?.([
+                {
+                  row,
+                  changes: { title: "Write implementation", status: "done" },
+                },
+              ])
+            }
+          >
+            Paste row
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              onSelectedRowsChange([{ startIndex: 0, endIndex: 1 }])
+            }
+          >
+            Select row
+          </button>
+          <button type="button" onClick={() => onAddField?.(1)}>
+            Insert field at 1
+          </button>
+          {propertyField ? (
+            <>
+              <span>Properties for {propertyField.name}</span>
+              <button
+                type="button"
+                onClick={() =>
+                  void onFieldUpdate?.(propertyField, {
+                    property: {
+                      options: [{ id: "done", name: "Done", color: "default" }],
+                    },
+                  })?.catch(() => undefined)
+                }
+              >
+                Save property
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void onFieldUpdate?.(propertyField, {
+                    type: "text",
+                  })?.catch(() => undefined)
+                }
+              >
+                Convert field
+              </button>
+            </>
+          ) : null}
+          <button type="button" onClick={() => void onImportFiles?.()}>
+            Import attachments
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              void onImportDroppedFiles?.([
+                {
+                  name: "cover.png",
+                  type: "image/png",
+                  arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+                } as File,
+              ])
+            }
+          >
+            Drop attachment
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenFile?.("assets/report.pdf")}
+          >
+            Open attachment
+          </button>
+          <button
+            type="button"
+            onClick={() => void onRevealFile?.("assets/report.pdf")}
+          >
+            Reveal attachment
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              void onSearchRelation?.(
+                {
+                  ...title!,
+                  name: "Owners",
+                  type: "link",
+                  tableColumnName: "owners",
+                  storageCodec: "relation",
+                  valueKind: "relation",
+                  property: {
+                    targetTableId: "people",
+                    targetField: "title",
+                    multiple: true,
+                  },
+                },
+                "Ada"
               )
             }
-          }}
-        >
-          Edit title
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (row && title) {
-              void onInspectorCellEdit?.(
-                row,
-                title,
-                "Write inspected implementation"
-              ).catch(() => undefined)
-            }
-          }}
-        >
-          Edit inspected title
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            onRowsEdit?.([
-              {
-                row,
-                changes: { title: "Write implementation", status: "done" },
-              },
-            ])
-          }
-        >
-          Paste row
-        </button>
-        <button
-          type="button"
-          onClick={() => onSelectedRowsChange([{ startIndex: 0, endIndex: 1 }])}
-        >
-          Select row
-        </button>
-        <button type="button" onClick={() => onAddField?.(1)}>
-          Insert field at 1
-        </button>
-        {propertyField ? (
-          <>
-            <span>Properties for {propertyField.name}</span>
-            <button
-              type="button"
-              onClick={() =>
-                void onFieldUpdate?.(propertyField, {
-                  property: {
-                    options: [{ id: "done", name: "Done", color: "default" }],
-                  },
-                })?.catch(() => undefined)
-              }
-            >
-              Save property
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                void onFieldUpdate?.(propertyField, {
-                  type: "text",
-                })?.catch(() => undefined)
-              }
-            >
-              Convert field
-            </button>
-          </>
-        ) : null}
-        <button type="button" onClick={() => void onImportFiles?.()}>
-          Import attachments
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            void onImportDroppedFiles?.([
-              {
-                name: "cover.png",
-                type: "image/png",
-                arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
-              } as File,
-            ])
-          }
-        >
-          Drop attachment
-        </button>
-        <button type="button" onClick={() => onOpenFile?.("assets/report.pdf")}>
-          Open attachment
-        </button>
-        <button
-          type="button"
-          onClick={() => void onRevealFile?.("assets/report.pdf")}
-        >
-          Reveal attachment
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            void onSearchRelation?.(
-              {
+          >
+            Search relation
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              onEditFormula?.({
                 ...title!,
-                name: "Owners",
-                type: "link",
-                tableColumnName: "owners",
-                storageCodec: "relation",
-                valueKind: "relation",
+                name: "Total",
+                type: "formula",
+                tableColumnName: "total",
+                valueKind: "derived",
+                isDerived: true,
+                property: { formula: "price", displayType: "number" },
+              })
+            }
+          >
+            Edit formula
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              onEditLookup?.({
+                ...title!,
+                name: "Owner count",
+                type: "lookup",
+                tableColumnName: "owner_count",
+                valueKind: "derived",
+                isDerived: true,
                 property: {
-                  targetTableId: "people",
+                  relationField: "owners",
                   targetField: "title",
-                  multiple: true,
+                  aggregate: "count",
+                  displayType: "number",
                 },
-              },
-              "Ada"
-            )
-          }
-        >
-          Search relation
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            onEditFormula?.({
-              ...title!,
-              name: "Total",
-              type: "formula",
-              tableColumnName: "total",
-              valueKind: "derived",
-              isDerived: true,
-              property: { formula: "price", displayType: "number" },
-            })
-          }
-        >
-          Edit formula
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            onEditLookup?.({
-              ...title!,
-              name: "Owner count",
-              type: "lookup",
-              tableColumnName: "owner_count",
-              valueKind: "derived",
-              isDerived: true,
-              property: {
-                relationField: "owners",
-                targetField: "title",
-                aggregate: "count",
-                displayType: "number",
-              },
-            })
-          }
-        >
-          Edit lookup
-        </button>
-      </div>
-    )
-  },
-}))
+              })
+            }
+          >
+            Edit lookup
+          </button>
+        </div>
+      )
+    }),
+  }
+})
 
 vi.mock("./base-view-selector", () => ({
   isBaseBuiltInViewType: (type: string) =>
@@ -602,64 +654,128 @@ vi.mock("./base-view-selector", () => ({
   ),
 }))
 
-vi.mock("./base-gallery-view", () => ({
-  BaseGalleryView: ({
-    onDeleteRow,
-    reloadToken,
-  }: {
-    onDeleteRow?: (row: { _id: string; title: string }) => Promise<void>
-    reloadToken?: number
-  }) => (
-    <div
-      data-testid="base-gallery-view"
-      data-reload-token={String(reloadToken ?? 0)}
-    >
-      Gallery
-      <button
-        type="button"
-        onClick={() => void onDeleteRow?.({ _id: "row_1", title: "Write RFC" })}
-      >
-        Delete gallery row
-      </button>
-    </div>
-  ),
-}))
-
-vi.mock("./base-kanban-view", () => ({
-  BaseKanbanView: ({
-    table,
-    onAddRow,
-    reloadToken,
-  }: {
-    table: (typeof snapshot)["tables"][number]
-    onAddRow: (
-      field: (typeof snapshot)["tables"][number]["fields"][number],
-      value: string,
-      title: string
-    ) => Promise<unknown>
-    reloadToken?: number
-  }) => {
-    const status = table.fields.find(
-      (field) => field.tableColumnName === "status"
-    )
-    return (
-      <div
-        data-testid="base-kanban-view"
-        data-reload-token={String(reloadToken ?? 0)}
-      >
-        Kanban
-        <button
-          type="button"
-          onClick={() => {
-            if (status) void onAddRow(status, "todo", "Draft release")
-          }}
+vi.mock("./base-gallery-view", async () => {
+  const { memo } = await vi.importActual<typeof React>("react")
+  return {
+    BaseGalleryView: memo(function BaseGalleryView({
+      table,
+      onCellEdit,
+      onDeleteRow,
+      onRevealFile,
+      reloadToken,
+    }: {
+      table: (typeof snapshot)["tables"][number]
+      onCellEdit?: (
+        row: { _id: string; title: string; status: string },
+        field: (typeof snapshot)["tables"][number]["fields"][number],
+        value: string
+      ) => Promise<unknown>
+      onDeleteRow?: (row: { _id: string; title: string }) => Promise<void>
+      onRevealFile?: (path: string) => Promise<void> | void
+      reloadToken?: number
+    }) {
+      baseViewHostProps.gallery.push({ table, onCellEdit, onRevealFile })
+      const title = table.fields.find(
+        (field) => field.tableColumnName === "title"
+      )
+      return (
+        <div
+          data-testid="base-gallery-view"
+          data-reload-token={String(reloadToken ?? 0)}
         >
-          Add Kanban row
-        </button>
-      </div>
-    )
-  },
-}))
+          Gallery
+          <button
+            type="button"
+            onClick={() =>
+              void onDeleteRow?.({ _id: "row_1", title: "Write RFC" })
+            }
+          >
+            Delete gallery row
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (title) {
+                void onCellEdit?.(
+                  { _id: "row_1", title: "Write RFC", status: "todo" },
+                  title,
+                  "Write Gallery implementation"
+                )
+              }
+            }}
+          >
+            Edit Gallery title
+          </button>
+        </div>
+      )
+    }),
+  }
+})
+
+vi.mock("./base-kanban-view", async () => {
+  const { memo } = await vi.importActual<typeof React>("react")
+  return {
+    BaseKanbanView: memo(function BaseKanbanView({
+      table,
+      onAddRow,
+      onCellEdit,
+      onRevealFile,
+      reloadToken,
+    }: {
+      table: (typeof snapshot)["tables"][number]
+      onAddRow: (
+        field: (typeof snapshot)["tables"][number]["fields"][number],
+        value: string,
+        title: string
+      ) => Promise<unknown>
+      onCellEdit: (
+        row: { _id: string; title: string; status: string },
+        field: (typeof snapshot)["tables"][number]["fields"][number],
+        value: string
+      ) => Promise<unknown>
+      onRevealFile?: (path: string) => Promise<void> | void
+      reloadToken?: number
+    }) {
+      baseViewHostProps.kanban.push({ table, onCellEdit, onRevealFile })
+      const title = table.fields.find(
+        (field) => field.tableColumnName === "title"
+      )
+      const status = table.fields.find(
+        (field) => field.tableColumnName === "status"
+      )
+      return (
+        <div
+          data-testid="base-kanban-view"
+          data-reload-token={String(reloadToken ?? 0)}
+        >
+          Kanban
+          <button
+            type="button"
+            onClick={() => {
+              if (status) void onAddRow(status, "todo", "Draft release")
+            }}
+          >
+            Add Kanban row
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (title) {
+                void onCellEdit(
+                  { _id: "row_1", title: "Write RFC", status: "todo" },
+                  title,
+                  "Write Kanban implementation"
+                )
+              }
+            }}
+          >
+            Edit Kanban title
+          </button>
+        </div>
+      )
+    }),
+  }
+})
 
 const snapshot: BaseSnapshot = {
   path: "projects/tasks.base",
@@ -783,6 +899,9 @@ describe("SpaceBaseEditor", () => {
     updateRowsMock.mockReset()
     deleteRowsMock.mockReset()
     deleteRowRangesMock.mockReset()
+    baseViewHostProps.grid.length = 0
+    baseViewHostProps.gallery.length = 0
+    baseViewHostProps.kanban.length = 0
     useQuickOpenStore.setState({ sectionsByTab: {} })
     spaceFileChanges.handler = undefined
     getSnapshotMock.mockResolvedValue(snapshot)
@@ -938,6 +1057,99 @@ describe("SpaceBaseEditor", () => {
       "row_1",
       { title: "Write implementation" }
     )
+  })
+
+  it("keeps expensive Grid host props stable while saving an existing row", async () => {
+    await renderEditor()
+    const initialProps = baseViewHostProps.grid.at(-1)
+    expect(initialProps).toBeDefined()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit title")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const savedProps = baseViewHostProps.grid.at(-1)
+    expect(savedProps?.table).toBe(initialProps?.table)
+    expect(savedProps?.onRevealFile).toBe(initialProps?.onRevealFile)
+    expect(savedProps?.onPropertyFieldOpen).toBe(
+      initialProps?.onPropertyFieldOpen
+    )
+    expect(savedProps?.onPropertyFieldClose).toBe(
+      initialProps?.onPropertyFieldClose
+    )
+    expect(savedProps?.onDeleteField).toBe(initialProps?.onDeleteField)
+    expect(savedProps?.onRequestDeleteRows).toBe(
+      initialProps?.onRequestDeleteRows
+    )
+    expect(baseViewHostProps.grid).toHaveLength(1)
+  })
+
+  it("does not rerender the Gallery host while saving an existing row", async () => {
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      tables: snapshot.tables.map((table) => ({
+        ...table,
+        views: table.views.map((view) => ({
+          ...view,
+          name: "Cards",
+          type: "gallery" as const,
+          properties: { cardSize: "medium" },
+        })),
+      })),
+    })
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit Gallery title")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(updateRowMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      "row_1",
+      { title: "Write Gallery implementation" }
+    )
+    expect(baseViewHostProps.gallery).toHaveLength(1)
+  })
+
+  it("does not rerender the Kanban host while saving an existing row", async () => {
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      tables: snapshot.tables.map((table) => ({
+        ...table,
+        views: table.views.map((view) => ({
+          ...view,
+          name: "Board",
+          type: "kanban" as const,
+          properties: { cardSize: "medium", groupByField: "status" },
+        })),
+      })),
+    })
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit Kanban title")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(updateRowMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      "row_1",
+      { title: "Write Kanban implementation" }
+    )
+    expect(baseViewHostProps.kanban).toHaveLength(1)
   })
 
   it("persists a multi-cell Grid edit as one Base batch", async () => {

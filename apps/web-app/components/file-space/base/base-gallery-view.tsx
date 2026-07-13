@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -63,7 +64,7 @@ function estimatedGalleryCardHeight(layout: BaseRecordCardLayout): number {
   return 72 + (layout.coverField ? 144 : 0) + visibleFieldCount * 32
 }
 
-export function BaseGalleryView({
+export const BaseGalleryView = memo(function BaseGalleryView({
   table,
   view,
   reloadToken = 0,
@@ -642,4 +643,4 @@ export function BaseGalleryView({
       ) : null}
     </div>
   )
-}
+})

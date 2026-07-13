@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -277,7 +278,7 @@ function columnStatHint(
   return `${label}: ${value}`
 }
 
-export function BaseGrid({
+export const BaseGrid = memo(function BaseGrid({
   table,
   view,
   disabled = false,
@@ -1447,4 +1448,4 @@ export function BaseGrid({
       ) : null}
     </div>
   )
-}
+})
