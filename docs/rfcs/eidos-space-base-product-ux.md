@@ -151,6 +151,12 @@ hint, so scrolling does not repeat a full `COUNT(*)`. Kanban reuses the totals
 from its grouped-count query for every visible-column page for the same reason;
 an explicit reload, search, filter, sort, or stale empty tail still re-establishes
 the authoritative extent.
+These page and grouped-count requests are executed by a persistent worker owned
+by the current Space. Repeated virtual-scroll reads reuse a validated Base
+runtime instead of blocking Electron's main thread with open/validation work;
+the eight-file LRU bound prevents descriptor growth. A file fingerprint forces
+reopen after an in-place change or atomic replacement, and the packaged worker
+smoke covers deep paging, grouped totals, and replacement invalidation.
 Gallery can use a File field as a fitted or cropped card cover; the binary is
 read through the Space file boundary and exposed only as a temporary object
 URL. Gallery and Kanban share a view-scoped cover source reader, so cards that

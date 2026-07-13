@@ -61,7 +61,12 @@ Base snapshot 现在只携带 row count，Grid 按可见区域请求并缓存 10
 会收敛 total 而不是形成重复请求循环。`BaseRowPageOptions.totalHint` 允许相同 query 的后续分页复用
 已经确定的 total；Desktop boundary 会先校验 hint，runtime 再用它跳过重复 `COUNT(*)`。首屏和 query
 刷新不传 hint，Gallery 因而每个 query generation 只统计一次，Kanban 则复用 grouped-count query 的
-分组 totals。公开 runtime 也已增加 migration-oriented import boundary，支持
+分组 totals。Desktop 的分页和分组计数现在通过每个 Space 一个持久 query worker 执行，不再在
+Electron 主线程同步打开并完整校验文件。每个 worker 最多保留 8 个 LRU Base runtimes；文件未变化时
+直接复用，device/inode、大小、mtime 或 ctime 改变时会关闭旧 runtime，并重新打开和校验当前文件。
+因此 Graft 原子回退或其他文件替换会在下一页返回前失效旧连接。查询超时会终止被阻塞的 worker，
+Space lifecycle 清理则会拒绝未完成请求并关闭全部缓存连接。公开 runtime 也已增加
+migration-oriented import boundary，支持
 导入高级 field metadata、views、references、materialized derived values 和历史 system
 columns；legacy migration package 通过该边界生成经过校验的 multi-table `main.base`。
 runtime 还提供按字段聚合的 grouped-count query；Kanban 用一次只读查询获取当前 filter/search

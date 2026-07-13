@@ -110,6 +110,10 @@ offset，不再从第一页逐页追赶，也不再显示手动 Load more。Rend
 只有 Gallery 首屏或查询刷新会重新统计筛选后的总数；后续虚拟窗口请求会携带经过校验的已知 total，
 因此滚动不会为每一页重复完整 `COUNT(*)`。Kanban 同样把 grouped-count query 的各分组 total 复用于
 可见列分页。显式刷新、搜索、筛选、排序以及过期空尾页仍会重新校准权威总数。
+这些分页和分组计数请求由当前 Space 持有的持久 worker 执行。重复虚拟滚动会复用已经校验的 Base
+runtime，不再让 Electron 主线程承担同步打开和校验；8 文件 LRU 上限避免文件描述符无界增长。
+文件 fingerprint 会在原地写入或原子替换后强制重开，打包后的 worker smoke 已覆盖深分页、分组总数
+以及替换失效。
 Gallery 可以选择 File 字段作为封面，并切换适应/裁切；文件二进制只通过 Space file boundary
 读取，并转换为临时 object URL。Gallery 与 Kanban 共用 view 级封面资源读取器；多个 card 引用同一文件，
 或虚拟滚动让 card 卸载后再次挂载时，会同时复用正在进行或近期完成的二进制读取和已创建的 Blob URL，

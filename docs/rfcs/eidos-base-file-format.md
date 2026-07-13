@@ -94,6 +94,14 @@ for the identical query. The Desktop boundary validates the hint before the
 runtime substitutes it for a repeated `COUNT(*)`; the first page and every
 query refresh omit it. Gallery therefore counts once per query generation, and
 Kanban page reads reuse the totals from its grouped-count query.
+Desktop page and grouped-count reads now run through one persistent query
+worker per Space instead of synchronously opening and validating the file on
+the Electron main thread. Each worker retains at most eight LRU Base runtimes;
+unchanged files reuse their runtime, while device/inode, size, mtime, or ctime
+changes close the stale runtime and reopen and validate the current file. This
+also detects an atomic Graft restore or other file replacement before serving
+the next page. Query timeouts terminate the blocked worker, and Space lifecycle
+cleanup rejects outstanding requests and closes every cached connection.
 The public runtime now also exposes a migration-oriented
 import boundary for advanced field metadata, views, references, materialized
 derived values, and historical system columns. The legacy migration package
