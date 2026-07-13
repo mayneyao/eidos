@@ -2,7 +2,7 @@
 
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type { BaseCsvImportPlan } from "@eidos.space/base"
+import type { BaseCsvImportOptions, BaseCsvImportPlan } from "@eidos.space/base"
 
 import { BaseCsvImportPopover } from "./base-csv-import-popover"
 
@@ -59,9 +59,25 @@ describe("BaseCsvImportPopover", () => {
     const onSelect = vi.fn().mockResolvedValue({
       canceled: false,
       token: "csv-token",
-      plan,
+      fileName: plan.fileName,
     })
-    const onPreview = vi.fn().mockResolvedValue(plan)
+    const onPreview = vi.fn((_token: string, options: BaseCsvImportOptions) =>
+      Promise.resolve(
+        options.columns
+          ? {
+              ...plan,
+              columns: plan.columns.map((column) => {
+                const override = options.columns?.find(
+                  (candidate) => candidate.sourceIndex === column.sourceIndex
+                )
+                return override?.type
+                  ? { ...column, type: override.type }
+                  : column
+              }),
+            }
+          : plan
+      )
+    )
     const onImport = vi.fn().mockResolvedValue(undefined)
     await act(async () => {
       root.render(
@@ -69,6 +85,8 @@ describe("BaseCsvImportPopover", () => {
           onSelect={onSelect}
           onPreview={onPreview}
           onImport={onImport}
+          onProgress={() => Promise.resolve(null)}
+          onCancel={() => Promise.resolve(true)}
         />
       )
     })
@@ -78,6 +96,7 @@ describe("BaseCsvImportPopover", () => {
     )
     await act(async () => {
       importButton?.click()
+      await Promise.resolve()
       await Promise.resolve()
     })
 
@@ -102,13 +121,17 @@ describe("BaseCsvImportPopover", () => {
       vi.advanceTimersByTime(300)
       await Promise.resolve()
     })
-    expect(onPreview).toHaveBeenCalledWith("csv-token", {
-      tableName: "inventory",
-      columns: [
-        { sourceIndex: 0, name: "Item" },
-        { sourceIndex: 1, name: "Quantity", type: "text" },
-      ],
-    })
+    expect(onPreview).toHaveBeenCalledWith(
+      "csv-token",
+      {
+        tableName: "inventory",
+        columns: [
+          { sourceIndex: 0, name: "Item" },
+          { sourceIndex: 1, name: "Quantity", type: "text" },
+        ],
+      },
+      expect.any(String)
+    )
 
     const form = document.body.querySelector("form")
     await act(async () => {
@@ -117,19 +140,24 @@ describe("BaseCsvImportPopover", () => {
       )
       await Promise.resolve()
     })
-    expect(onImport).toHaveBeenCalledWith("csv-token", {
-      tableName: "inventory",
-      columns: [
-        { sourceIndex: 0, name: "Item" },
-        { sourceIndex: 1, name: "Quantity", type: "text" },
-      ],
-    })
+    expect(onImport).toHaveBeenCalledWith(
+      "csv-token",
+      {
+        tableName: "inventory",
+        columns: [
+          { sourceIndex: 0, name: "Item" },
+          { sourceIndex: 1, name: "Quantity", type: "text" },
+        ],
+      },
+      expect.any(String)
+    )
   })
 
   it("keeps conversion errors in the panel and blocks import", async () => {
     const onPreview = vi
       .fn()
-      .mockRejectedValue(
+      .mockResolvedValueOnce(plan)
+      .mockRejectedValueOnce(
         new Error("CSV row 2, field “Quantity” is not a number")
       )
     const onImport = vi.fn()
@@ -137,10 +165,16 @@ describe("BaseCsvImportPopover", () => {
       root.render(
         <BaseCsvImportPopover
           onSelect={() =>
-            Promise.resolve({ canceled: false, token: "csv-token", plan })
+            Promise.resolve({
+              canceled: false,
+              token: "csv-token",
+              fileName: plan.fileName,
+            })
           }
           onPreview={onPreview}
           onImport={onImport}
+          onProgress={() => Promise.resolve(null)}
+          onCancel={() => Promise.resolve(true)}
         />
       )
     })
@@ -149,6 +183,7 @@ describe("BaseCsvImportPopover", () => {
     )
     await act(async () => {
       button?.click()
+      await Promise.resolve()
       await Promise.resolve()
     })
     const type = document.body.querySelector<HTMLSelectElement>(
@@ -169,10 +204,159 @@ describe("BaseCsvImportPopover", () => {
     })
 
     expect(document.body.textContent).toContain("CSV row 2")
-    const submit = [...document.body.querySelectorAll("button")].find(
-      (candidate) => candidate.textContent?.includes("Import 2 rows")
-    )
-    expect(submit?.disabled).toBe(true)
+    expect(document.body.textContent).toContain("Retry check")
     expect(onImport).not.toHaveBeenCalled()
+  })
+
+  it("shows worker progress and cancels an in-flight import", async () => {
+    let rejectImport: ((error: Error) => void) | undefined
+    const onImport = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectImport = reject
+        })
+    )
+    const onCancel = vi.fn(async () => {
+      rejectImport?.(new Error("Base CSV operation canceled"))
+      return true
+    })
+    await act(async () => {
+      root.render(
+        <BaseCsvImportPopover
+          onSelect={() =>
+            Promise.resolve({
+              canceled: false,
+              token: "csv-token",
+              fileName: plan.fileName,
+            })
+          }
+          onPreview={() => Promise.resolve(plan)}
+          onImport={onImport}
+          onProgress={(operationId) =>
+            Promise.resolve({
+              operationId,
+              kind: "import",
+              status: "running",
+              phase: "importing",
+              processedBytes: 50,
+              totalBytes: 100,
+              processedRows: 1,
+              totalRows: 2,
+              updatedAt: 1,
+            })
+          }
+          onCancel={onCancel}
+        />
+      )
+    })
+
+    const choose = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.includes("Import CSV")
+    )
+    await act(async () => {
+      choose?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    const form = document.body.querySelector("form")
+    await act(async () => {
+      form?.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true })
+      )
+      await Promise.resolve()
+      vi.advanceTimersByTime(150)
+      await Promise.resolve()
+    })
+
+    expect(
+      document.body
+        .querySelector('[role="progressbar"]')
+        ?.getAttribute("aria-valuenow")
+    ).toBe("50")
+    const cancel = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.includes("Cancel operation")
+    )
+    await act(async () => {
+      cancel?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onCancel).toHaveBeenCalledWith(expect.any(String))
+    expect(document.body.textContent).toContain(
+      "Import canceled. No rows were added."
+    )
+  })
+
+  it("opens immediately and can cancel CSV analysis", async () => {
+    let rejectPreview: ((error: Error) => void) | undefined
+    const onPreview = vi.fn(
+      () =>
+        new Promise<BaseCsvImportPlan>((_resolve, reject) => {
+          rejectPreview = reject
+        })
+    )
+    const onCancel = vi.fn(async () => {
+      rejectPreview?.(new Error("Base CSV operation canceled"))
+      return true
+    })
+    await act(async () => {
+      root.render(
+        <BaseCsvImportPopover
+          onSelect={() =>
+            Promise.resolve({
+              canceled: false,
+              token: "csv-token",
+              fileName: plan.fileName,
+            })
+          }
+          onPreview={onPreview}
+          onImport={() => Promise.resolve()}
+          onProgress={(operationId) =>
+            Promise.resolve({
+              operationId,
+              kind: "plan",
+              status: "running",
+              phase: "analyzing",
+              processedBytes: 25,
+              totalBytes: 100,
+              processedRows: 50,
+              totalRows: null,
+              updatedAt: 1,
+            })
+          }
+          onCancel={onCancel}
+        />
+      )
+    })
+
+    const choose = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.includes("Import CSV")
+    )
+    await act(async () => {
+      choose?.click()
+      await Promise.resolve()
+      vi.advanceTimersByTime(150)
+      await Promise.resolve()
+    })
+
+    expect(document.body.textContent).toContain("Analyze CSV")
+    expect(
+      document.body
+        .querySelector('[role="progressbar"]')
+        ?.getAttribute("aria-valuenow")
+    ).toBe("25")
+    const cancel = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.includes("Cancel analysis")
+    )
+    await act(async () => {
+      cancel?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onCancel).toHaveBeenCalledWith(expect.any(String))
+    expect(document.body.textContent).toContain("CSV analysis canceled")
+    expect(document.body.textContent).toContain("Try again")
   })
 })

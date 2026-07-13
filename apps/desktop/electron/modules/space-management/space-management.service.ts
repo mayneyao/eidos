@@ -62,8 +62,31 @@ import { BrowserService } from "../browser/browser.service"
 import { withFileSpaceOperationLock } from "./file-space-operation-lock"
 import { createBaseFileAtomically } from "./atomic-base-file"
 import { SpaceResourceLifecycle } from "./space-resource-lifecycle"
-import { BaseCsvWorkerRunner } from "./base-csv-worker-runner"
+import {
+  BaseCsvWorkerRunner,
+  type BaseCsvWorkerOperation,
+} from "./base-csv-worker-runner"
 import type { BaseCsvFileFingerprint } from "./base-csv-worker-protocol"
+
+export type BaseCsvOperationStatus =
+  | "running"
+  | "canceling"
+  | "completed"
+  | "canceled"
+  | "failed"
+
+export interface BaseCsvOperationProgress {
+  operationId: string
+  kind: "plan" | "import"
+  status: BaseCsvOperationStatus
+  phase: "analyzing" | "importing" | "finalizing"
+  processedBytes: number
+  totalBytes: number
+  processedRows: number
+  totalRows: number | null
+  message?: string
+  updatedAt: number
+}
 
 /**
  * Space Management Service - Provides space management via IPC
@@ -93,6 +116,10 @@ export class SpaceManagementService extends IpcServiceBase {
       selectedAt: number
       fingerprint: BaseCsvFileFingerprint
     }
+  >()
+  private readonly baseCsvOperations = new Map<
+    string,
+    BaseCsvOperationProgress & { spaceId: string }
   >()
 
   constructor(
@@ -453,10 +480,10 @@ export class SpaceManagementService extends IpcServiceBase {
   async selectBaseCsv(
     spaceId: string
   ): Promise<
-    | { canceled: true; token: null; plan: null }
-    | { canceled: false; token: string; plan: BaseCsvImportPlan }
+    | { canceled: true; token: null; fileName: null }
+    | { canceled: false; token: string; fileName: string }
   > {
-    const files = this._getFileSpace(spaceId)
+    this._getFileSpace(spaceId)
     const options: OpenDialogOptions = {
       properties: ["openFile"],
       filters: [{ name: "CSV", extensions: ["csv"] }],
@@ -466,7 +493,7 @@ export class SpaceManagementService extends IpcServiceBase {
       ? await dialog.showOpenDialog(owner, options)
       : await dialog.showOpenDialog(options)
     if (selection.canceled || !selection.filePaths[0]) {
-      return { canceled: true, token: null, plan: null }
+      return { canceled: true, token: null, fileName: null }
     }
     const sourcePath = selection.filePaths[0]
     const fileName = path.basename(sourcePath)
@@ -475,12 +502,6 @@ export class SpaceManagementService extends IpcServiceBase {
       size: sourceStat.size,
       mtimeMs: sourceStat.mtimeMs,
     }
-    const plan = await this.baseCsvWorker.plan(
-      files.root,
-      sourcePath,
-      fileName,
-      fingerprint
-    )
     const token = globalThis.crypto.randomUUID()
     const cutoff = Date.now() - 30 * 60 * 1_000
     for (const [candidate, value] of this.baseCsvSelections) {
@@ -493,21 +514,30 @@ export class SpaceManagementService extends IpcServiceBase {
       selectedAt: Date.now(),
       fingerprint,
     })
-    return { canceled: false, token, plan }
+    return { canceled: false, token, fileName }
   }
 
   async previewBaseCsvImport(
     spaceId: string,
     token: string,
-    options: BaseCsvImportOptions = {}
+    options: BaseCsvImportOptions = {},
+    operationId?: string
   ): Promise<BaseCsvImportPlan> {
     const source = this._getBaseCsvSelection(spaceId, token)
-    return this.baseCsvWorker.plan(
-      this._getFileSpace(spaceId).root,
-      source.sourcePath,
-      source.fileName,
+    return this._runBaseCsvOperation(
+      spaceId,
+      operationId,
+      "plan",
       source.fingerprint,
-      options
+      (operation) =>
+        this.baseCsvWorker.plan(
+          this._getFileSpace(spaceId).root,
+          source.sourcePath,
+          source.fileName,
+          source.fingerprint,
+          options,
+          operation
+        )
     )
   }
 
@@ -515,27 +545,67 @@ export class SpaceManagementService extends IpcServiceBase {
     spaceId: string,
     relativePath: string,
     token: string,
-    options: BaseCsvImportOptions = {}
+    options: BaseCsvImportOptions = {},
+    operationId?: string
   ): Promise<{ result: BaseCsvImportResult; snapshot: BaseSnapshot }> {
     const source = this._getBaseCsvSelection(spaceId, token)
     return withFileSpaceOperationLock(spaceId, async () => {
-      const targetPath =
-        await this._getFileSpace(spaceId).getSystemPath(relativePath)
-      const result = await this.baseCsvWorker.import(
-        this._getFileSpace(spaceId).root,
-        source.sourcePath,
-        source.fileName,
+      return this._runBaseCsvOperation(
+        spaceId,
+        operationId,
+        "import",
         source.fingerprint,
-        targetPath,
-        options
+        async (operation) => {
+          const targetPath =
+            await this._getFileSpace(spaceId).getSystemPath(relativePath)
+          const result = await this.baseCsvWorker.import(
+            this._getFileSpace(spaceId).root,
+            source.sourcePath,
+            source.fileName,
+            source.fingerprint,
+            targetPath,
+            options,
+            operation
+          )
+          this.baseCsvSelections.delete(token)
+          this._invalidateFileIndex(spaceId)
+          return {
+            result,
+            snapshot: await this._getBaseSnapshot(spaceId, relativePath),
+          }
+        }
       )
-      this.baseCsvSelections.delete(token)
-      this._invalidateFileIndex(spaceId)
-      return {
-        result,
-        snapshot: await this._getBaseSnapshot(spaceId, relativePath),
-      }
     })
+  }
+
+  getBaseCsvOperation(
+    spaceId: string,
+    operationId: string
+  ): BaseCsvOperationProgress | null {
+    this._pruneBaseCsvOperations()
+    const operation = this.baseCsvOperations.get(operationId)
+    if (!operation || operation.spaceId !== spaceId) return null
+    const { spaceId: _spaceId, ...progress } = operation
+    return { ...progress }
+  }
+
+  cancelBaseCsvOperation(spaceId: string, operationId: string): boolean {
+    const operation = this.baseCsvOperations.get(operationId)
+    if (
+      !operation ||
+      operation.spaceId !== spaceId ||
+      operation.status !== "running"
+    ) {
+      return false
+    }
+    operation.status = "canceling"
+    operation.updatedAt = Date.now()
+    const canceled = this.baseCsvWorker.cancel(operationId)
+    if (!canceled) {
+      operation.status = "running"
+      operation.updatedAt = Date.now()
+    }
+    return canceled
   }
 
   async getBaseTablePage(
@@ -1039,6 +1109,70 @@ export class SpaceManagementService extends IpcServiceBase {
       throw new Error("The selected CSV file has expired; choose it again")
     }
     return source
+  }
+
+  private async _runBaseCsvOperation<T>(
+    spaceId: string,
+    operationId: string | undefined,
+    kind: BaseCsvOperationProgress["kind"],
+    fingerprint: BaseCsvFileFingerprint,
+    run: (operation?: BaseCsvWorkerOperation) => Promise<T>
+  ): Promise<T> {
+    if (!operationId) return run()
+    if (!/^[a-zA-Z0-9_-]{8,128}$/.test(operationId)) {
+      throw new Error("Invalid Base CSV operation ID")
+    }
+    this._pruneBaseCsvOperations()
+    const existing = this.baseCsvOperations.get(operationId)
+    if (existing && ["running", "canceling"].includes(existing.status)) {
+      throw new Error(`Base CSV operation already exists: ${operationId}`)
+    }
+    const operation: BaseCsvOperationProgress & { spaceId: string } = {
+      operationId,
+      spaceId,
+      kind,
+      status: "running",
+      phase: "analyzing",
+      processedBytes: 0,
+      totalBytes: fingerprint.size,
+      processedRows: 0,
+      totalRows: null,
+      updatedAt: Date.now(),
+    }
+    this.baseCsvOperations.set(operationId, operation)
+    try {
+      const result = await run({
+        id: operationId,
+        onProgress: (progress) => {
+          if (this.baseCsvOperations.get(operationId) !== operation) return
+          Object.assign(operation, progress, { updatedAt: Date.now() })
+        },
+      })
+      operation.status = "completed"
+      operation.processedBytes = operation.totalBytes
+      operation.updatedAt = Date.now()
+      return result
+    } catch (error) {
+      const canceled =
+        error instanceof Error && error.name === "BaseCsvCanceledError"
+      operation.status = canceled ? "canceled" : "failed"
+      operation.message =
+        error instanceof Error ? error.message : "Base CSV operation failed"
+      operation.updatedAt = Date.now()
+      throw error
+    }
+  }
+
+  private _pruneBaseCsvOperations(): void {
+    const cutoff = Date.now() - 5 * 60 * 1_000
+    for (const [operationId, operation] of this.baseCsvOperations) {
+      if (
+        !["running", "canceling"].includes(operation.status) &&
+        operation.updatedAt < cutoff
+      ) {
+        this.baseCsvOperations.delete(operationId)
+      }
+    }
   }
 
   private async _openBase(

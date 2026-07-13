@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react"
 import type {
   BaseCsvFieldType,
   BaseCsvImportOptions,
@@ -11,18 +18,30 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 
+import {
+  BaseCsvOperationProgressBar,
+  type BaseCsvOperationProgress,
+} from "./base-csv-operation-progress"
+
 type CsvSelection =
-  | { canceled: true; token: null; plan: null }
-  | { canceled: false; token: string; plan: BaseCsvImportPlan }
+  | { canceled: true; token: null; fileName: null }
+  | { canceled: false; token: string; fileName: string }
 
 interface BaseCsvImportPopoverProps {
   disabled?: boolean
   onSelect: () => Promise<CsvSelection>
   onPreview: (
     token: string,
-    options: BaseCsvImportOptions
+    options: BaseCsvImportOptions,
+    operationId: string
   ) => Promise<BaseCsvImportPlan>
-  onImport: (token: string, options: BaseCsvImportOptions) => Promise<void>
+  onImport: (
+    token: string,
+    options: BaseCsvImportOptions,
+    operationId: string
+  ) => Promise<void>
+  onProgress: (operationId: string) => Promise<BaseCsvOperationProgress | null>
+  onCancel: (operationId: string) => Promise<boolean>
 }
 
 interface CsvColumnDraft {
@@ -40,6 +59,30 @@ const FIELD_TYPES: Array<{ value: BaseCsvFieldType; label: string }> = [
   { value: "url", label: "URL" },
 ]
 
+function newOperationId(): string {
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `csv-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  )
+}
+
+function isCanceledError(error: unknown): boolean {
+  return (
+    error instanceof Error && error.message.toLowerCase().includes("cancel")
+  )
+}
+
+function progressPercent(progress: BaseCsvOperationProgress | null): number {
+  if (!progress || progress.totalBytes <= 0) return 0
+  return Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round((progress.processedBytes / progress.totalBytes) * 100)
+    )
+  )
+}
+
 function draftsFromPlan(plan: BaseCsvImportPlan): CsvColumnDraft[] {
   return plan.columns.map((column) => ({
     sourceIndex: column.sourceIndex,
@@ -53,20 +96,32 @@ export function BaseCsvImportPopover({
   onSelect,
   onPreview,
   onImport,
+  onProgress,
+  onCancel,
 }: BaseCsvImportPopoverProps) {
   const [open, setOpen] = useState(false)
   const [selecting, setSelecting] = useState(false)
   const [token, setToken] = useState<string | null>(null)
+  const [sourceFileName, setSourceFileName] = useState<string | null>(null)
   const [plan, setPlan] = useState<BaseCsvImportPlan | null>(null)
   const [tableName, setTableName] = useState("")
   const [columns, setColumns] = useState<CsvColumnDraft[]>([])
   const [validating, setValidating] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [canceling, setCanceling] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [operationId, setOperationId] = useState<string | null>(null)
+  const [progress, setProgress] = useState<BaseCsvOperationProgress | null>(
+    null
+  )
   const previewSequence = useRef(0)
+  const activeOperation = useRef<string | null>(null)
   const validatedTypes = useRef("")
+  const pausedTypes = useRef("")
   const planReady = plan !== null
   const typeSignature = columns.map((column) => column.type).join("\u0000")
+  const typesValidated = validatedTypes.current === typeSignature
   const namesValid =
     Boolean(tableName.trim()) && columns.every((column) => column.name.trim())
 
@@ -87,27 +142,92 @@ export function BaseCsvImportPopover({
     ? null
     : "Table and field names cannot be empty"
   const displayedError = namingError ?? error
+  const busy = selecting || validating || importing
+
+  const startPreview = useCallback(
+    async (
+      nextToken: string,
+      previewOptions: BaseCsvImportOptions,
+      initialize: boolean
+    ) => {
+      const previousOperation = activeOperation.current
+      if (previousOperation) void onCancel(previousOperation)
+      const sequence = ++previewSequence.current
+      const nextOperationId = newOperationId()
+      activeOperation.current = nextOperationId
+      setOperationId(nextOperationId)
+      setProgress(null)
+      setValidating(true)
+      setCanceling(false)
+      setError(null)
+      setNotice(null)
+      pausedTypes.current = ""
+      try {
+        const nextPlan = await onPreview(
+          nextToken,
+          previewOptions,
+          nextOperationId
+        )
+        if (previewSequence.current !== sequence) return
+        setPlan(nextPlan)
+        if (initialize) {
+          setTableName(nextPlan.tableName)
+          setColumns(draftsFromPlan(nextPlan))
+        }
+        validatedTypes.current = nextPlan.columns
+          .map((column) => column.type)
+          .join("\u0000")
+      } catch (previewError) {
+        if (previewSequence.current !== sequence) return
+        if (isCanceledError(previewError)) {
+          if (!initialize) {
+            pausedTypes.current =
+              previewOptions.columns
+                ?.map((column) => column.type ?? "title")
+                .join("\u0000") ?? ""
+          }
+          setNotice("CSV analysis canceled. Choose another file or try again.")
+        } else {
+          setError(
+            previewError instanceof Error
+              ? previewError.message
+              : "Unable to validate CSV"
+          )
+        }
+      } finally {
+        if (previewSequence.current === sequence) {
+          activeOperation.current = null
+          setOperationId(null)
+          setValidating(false)
+          setCanceling(false)
+        }
+      }
+    },
+    [onCancel, onPreview]
+  )
 
   const chooseFile = async () => {
-    if (disabled || selecting || importing) return
+    if (disabled || busy) return
     setSelecting(true)
     setError(null)
+    setNotice(null)
     try {
       const selection = await onSelect()
       if (selection.canceled) return
       setToken(selection.token)
-      setPlan(selection.plan)
-      setTableName(selection.plan.tableName)
-      setColumns(draftsFromPlan(selection.plan))
-      validatedTypes.current = selection.plan.columns
-        .map((column) => column.type)
-        .join("\u0000")
+      setSourceFileName(selection.fileName)
+      setPlan(null)
+      setTableName("")
+      setColumns([])
       setOpen(true)
+      void startPreview(selection.token, {}, true)
     } catch (selectionError) {
+      setToken(null)
+      setSourceFileName(null)
       setError(
         selectionError instanceof Error
           ? selectionError.message
-          : "Unable to read CSV"
+          : "Unable to select CSV"
       )
       setOpen(true)
     } finally {
@@ -116,10 +236,44 @@ export function BaseCsvImportPopover({
   }
 
   useEffect(() => {
+    if (!operationId) return
+    let disposed = false
+    let timer: number | undefined
+    const poll = async () => {
+      try {
+        const nextProgress = await onProgress(operationId)
+        if (disposed) return
+        if (nextProgress) setProgress(nextProgress)
+      } catch {
+        // The operation promise owns the user-facing error state.
+      }
+      if (!disposed) timer = window.setTimeout(() => void poll(), 120)
+    }
+    void poll()
+    return () => {
+      disposed = true
+      if (timer) window.clearTimeout(timer)
+    }
+  }, [onProgress, operationId])
+
+  useEffect(
+    () => () => {
+      if (activeOperation.current) void onCancel(activeOperation.current)
+    },
+    [onCancel]
+  )
+
+  useEffect(() => {
     if (!open || !token || !planReady) return
     if (!namesValid) {
       previewSequence.current += 1
+      if (activeOperation.current) {
+        void onCancel(activeOperation.current)
+        activeOperation.current = null
+        setOperationId(null)
+      }
       setValidating(false)
+      setCanceling(false)
       return
     }
     if (validatedTypes.current === typeSignature) {
@@ -127,59 +281,107 @@ export function BaseCsvImportPopover({
       setError(null)
       return
     }
-    const sequence = ++previewSequence.current
-    setValidating(true)
+    if (pausedTypes.current === typeSignature) {
+      setValidating(false)
+      return
+    }
     const timeout = window.setTimeout(() => {
-      void onPreview(token, optionsRef.current).then(
-        (nextPlan) => {
-          if (previewSequence.current !== sequence) return
-          validatedTypes.current = typeSignature
-          setPlan(nextPlan)
-          setError(null)
-          setValidating(false)
-        },
-        (previewError) => {
-          if (previewSequence.current !== sequence) return
-          setError(
-            previewError instanceof Error
-              ? previewError.message
-              : "Unable to validate CSV"
-          )
-          setValidating(false)
-        }
-      )
+      void startPreview(token, optionsRef.current, false)
     }, 250)
     return () => window.clearTimeout(timeout)
-  }, [namesValid, onPreview, open, planReady, token, typeSignature])
+  }, [
+    namesValid,
+    onCancel,
+    open,
+    planReady,
+    startPreview,
+    token,
+    typeSignature,
+  ])
+
+  const cancelOperation = async () => {
+    const currentOperation = activeOperation.current
+    if (!currentOperation || canceling) return
+    setCanceling(true)
+    setNotice("Canceling CSV operation…")
+    const canceled = await onCancel(currentOperation).catch(() => false)
+    if (!canceled) {
+      setCanceling(false)
+      setNotice(null)
+      setError("Unable to cancel CSV operation")
+    }
+  }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    if (!token || !plan || importing || validating || displayedError) return
+    if (
+      !token ||
+      !plan ||
+      importing ||
+      validating ||
+      !typesValidated ||
+      displayedError
+    ) {
+      return
+    }
+    const nextOperationId = newOperationId()
+    activeOperation.current = nextOperationId
+    setOperationId(nextOperationId)
+    setProgress(null)
     setImporting(true)
+    setCanceling(false)
     setError(null)
+    setNotice(null)
     try {
-      await onImport(token, options)
+      await onImport(token, options, nextOperationId)
       setOpen(false)
       setToken(null)
+      setSourceFileName(null)
       setPlan(null)
     } catch (importError) {
-      setError(
-        importError instanceof Error
-          ? importError.message
-          : "Unable to import CSV"
-      )
+      if (isCanceledError(importError)) {
+        setNotice("Import canceled. No rows were added.")
+      } else {
+        setError(
+          importError instanceof Error
+            ? importError.message
+            : "Unable to import CSV"
+        )
+      }
     } finally {
+      if (activeOperation.current === nextOperationId) {
+        activeOperation.current = null
+        setOperationId(null)
+      }
       setImporting(false)
+      setCanceling(false)
     }
   }
+
+  const percent = progressPercent(progress)
+  const operationLabel = canceling
+    ? "Canceling…"
+    : progress?.phase === "finalizing"
+      ? "Finalizing table…"
+      : progress?.phase === "importing" || importing
+        ? `Importing rows… ${percent}%`
+        : `Analyzing CSV… ${percent}%`
+  const operationDetail = progress
+    ? progress.totalRows !== null
+      ? `${progress.processedRows.toLocaleString()} of ${progress.totalRows.toLocaleString()} rows`
+      : `${progress.processedRows.toLocaleString()} rows read`
+    : sourceFileName
 
   return (
     <Popover
       open={open}
       onOpenChange={(nextOpen) => {
-        if (importing) return
+        if (validating || importing) return
         setOpen(nextOpen)
-        if (!nextOpen) setError(null)
+        if (!nextOpen) {
+          setError(null)
+          setNotice(null)
+        }
       }}
     >
       <PopoverAnchor asChild>
@@ -225,7 +427,7 @@ export function BaseCsvImportPopover({
                 variant="ghost"
                 size="sm"
                 className="h-7 shrink-0 px-2 text-xs"
-                disabled={importing}
+                disabled={busy}
                 onClick={() => void chooseFile()}
               >
                 Choose another
@@ -326,8 +528,8 @@ export function BaseCsvImportPopover({
                       <AlertTriangle className="h-3 w-3" />
                     ) : null}
                     {validating
-                      ? "Checking types…"
-                      : displayedError || "Ready to import"}
+                      ? operationLabel
+                      : displayedError || notice || "Ready to import"}
                   </span>
                 </div>
                 <div className="overflow-x-auto rounded-md border">
@@ -378,35 +580,132 @@ export function BaseCsvImportPopover({
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t px-4 py-2.5">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={importing}
-                onClick={() => setOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={
-                  importing ||
-                  validating ||
-                  Boolean(displayedError) ||
-                  !namesValid
-                }
-              >
-                {importing ? (
-                  <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+            <div className="flex min-h-14 items-center justify-between gap-4 border-t px-4 py-2.5">
+              <div className="min-w-0 flex-1">
+                {validating || importing ? (
+                  <BaseCsvOperationProgressBar
+                    label={operationLabel}
+                    detail={operationDetail}
+                    percent={percent}
+                    size="compact"
+                  />
+                ) : notice ? (
+                  <p className="text-[11px] text-muted-foreground">{notice}</p>
                 ) : null}
-                {importing
-                  ? "Importing…"
-                  : `Import ${plan.rowCount.toLocaleString()} rows`}
-              </Button>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {validating || importing ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={canceling}
+                    onClick={() => void cancelOperation()}
+                  >
+                    {canceling ? "Canceling…" : "Cancel operation"}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                )}
+                {!typesValidated && !validating && plan ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void startPreview(token, options, false)}
+                  >
+                    Retry check
+                  </Button>
+                ) : (
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={
+                      importing ||
+                      validating ||
+                      !typesValidated ||
+                      Boolean(displayedError) ||
+                      !namesValid
+                    }
+                  >
+                    {importing ? (
+                      <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : null}
+                    {importing
+                      ? `Importing ${percent}%`
+                      : `Import ${plan.rowCount.toLocaleString()} rows`}
+                  </Button>
+                )}
+              </div>
             </div>
           </form>
+        ) : token ? (
+          <div>
+            <div className="border-b px-4 py-3">
+              <h2 className="flex items-center gap-2 text-sm font-semibold">
+                <Table2 className="h-4 w-4 text-muted-foreground" />
+                Analyze CSV
+              </h2>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {sourceFileName}
+              </p>
+            </div>
+            <div className="space-y-3 px-4 py-4">
+              {validating ? (
+                <BaseCsvOperationProgressBar
+                  label={operationLabel}
+                  detail={operationDetail}
+                  percent={percent}
+                />
+              ) : (
+                <p
+                  className={cn(
+                    "text-xs text-muted-foreground",
+                    error && "text-destructive"
+                  )}
+                >
+                  {error || notice || "CSV analysis did not finish."}
+                </p>
+              )}
+              <div className="flex justify-end gap-2">
+                {validating ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={canceling}
+                    onClick={() => void cancelOperation()}
+                  >
+                    {canceling ? "Canceling…" : "Cancel analysis"}
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void chooseFile()}
+                    >
+                      Choose another
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => void startPreview(token, {}, true)}
+                    >
+                      Try again
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="px-4 py-3 text-xs text-destructive">
             {error ?? "Choose a CSV file to continue"}

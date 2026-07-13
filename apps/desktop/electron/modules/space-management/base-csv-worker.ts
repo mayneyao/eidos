@@ -21,6 +21,7 @@ import { parse } from "csv-parse"
 import type {
   BaseCsvFileFingerprint,
   BaseCsvWorkerRequest,
+  BaseCsvWorkerProgress,
   BaseCsvWorkerResponse,
 } from "./base-csv-worker-protocol"
 
@@ -31,8 +32,15 @@ const MAX_CSV_CELL_BYTES = 1024 * 1024
 const MAX_CSV_RECORD_BYTES = 8 * 1024 * 1024
 const INSERT_BATCH_SIZE = 500
 
+if (!parentPort) throw new Error("Base CSV worker requires a parent port")
 const port = parentPort
-if (!port) throw new Error("Base CSV worker requires a parent port")
+
+function reportProgress(progress: BaseCsvWorkerProgress["progress"]): void {
+  port.postMessage({
+    type: "progress",
+    progress,
+  } satisfies BaseCsvWorkerProgress)
+}
 
 function invalidCsv(message: string): Error {
   const error = new Error(message)
@@ -78,7 +86,11 @@ async function visitCsvRows(
     row: string[],
     rowNumber: number,
     header: string[]
-  ) => Promise<void> | void
+  ) => Promise<void> | void,
+  onProgress?: (progress: {
+    processedBytes: number
+    processedRows: number
+  }) => void
 ): Promise<{
   header: string[]
   rowCount: number
@@ -86,7 +98,8 @@ async function visitCsvRows(
   inconsistentRows: number
 }> {
   let malformedRows = 0
-  const parser = createReadStream(sourcePath).pipe(
+  const source = createReadStream(sourcePath)
+  const parser = source.pipe(
     parse({
       bom: true,
       columns: false,
@@ -105,6 +118,17 @@ async function visitCsvRows(
   let rowCount = 0
   let inconsistentRows = 0
   let recordNumber = 0
+  let lastProgressAt = 0
+  const emitProgress = (force = false) => {
+    if (!onProgress) return
+    const now = Date.now()
+    if (!force && now - lastProgressAt < 100) return
+    lastProgressAt = now
+    onProgress({
+      processedBytes: source.bytesRead,
+      processedRows: rowCount,
+    })
+  }
   for await (const rawRecord of parser) {
     recordNumber += 1
     const record = checkedRecord(rawRecord)
@@ -124,8 +148,10 @@ async function visitCsvRows(
       )
     }
     await visit(record, recordNumber, header)
+    emitProgress()
   }
   if (!header) throw invalidCsv("CSV file is empty")
+  emitProgress(true)
   return { header, rowCount, malformedRows, inconsistentRows }
 }
 
@@ -151,37 +177,45 @@ function issues(malformedRows: number, inconsistentRows: number) {
 async function planCsv(
   sourcePath: string,
   fileName: string,
-  options: BaseCsvImportOptions
+  options: BaseCsvImportOptions,
+  onProgress?: (progress: {
+    processedBytes: number
+    processedRows: number
+  }) => void
 ): Promise<BaseCsvImportPlan> {
   const inferenceRows: string[][] = []
   const sampleRows: string[][] = []
   let plan: BaseCsvImportPlan | null = null
 
-  const summary = await visitCsvRows(sourcePath, (row, rowNumber, header) => {
-    if (sampleRows.length < BASE_CSV_PREVIEW_ROW_COUNT) sampleRows.push(row)
-    if (inferenceRows.length < BASE_CSV_INFERENCE_ROW_COUNT) {
-      inferenceRows.push(row)
-      if (inferenceRows.length === BASE_CSV_INFERENCE_ROW_COUNT) {
-        plan = createBaseCsvImportPlan(
-          {
-            fileName,
-            header,
-            inferenceRows,
-            rowCount: 0,
-            skippedRowCount: 0,
-            sampleRows,
-            issues: [],
-          },
-          options
-        )
-        for (let index = 0; index < inferenceRows.length; index += 1) {
-          baseCsvRowToBaseRow(inferenceRows[index], index + 2, plan)
+  const summary = await visitCsvRows(
+    sourcePath,
+    (row, rowNumber, header) => {
+      if (sampleRows.length < BASE_CSV_PREVIEW_ROW_COUNT) sampleRows.push(row)
+      if (inferenceRows.length < BASE_CSV_INFERENCE_ROW_COUNT) {
+        inferenceRows.push(row)
+        if (inferenceRows.length === BASE_CSV_INFERENCE_ROW_COUNT) {
+          plan = createBaseCsvImportPlan(
+            {
+              fileName,
+              header,
+              inferenceRows,
+              rowCount: 0,
+              skippedRowCount: 0,
+              sampleRows,
+              issues: [],
+            },
+            options
+          )
+          for (let index = 0; index < inferenceRows.length; index += 1) {
+            baseCsvRowToBaseRow(inferenceRows[index], index + 2, plan)
+          }
         }
+        return
       }
-      return
-    }
-    if (plan) baseCsvRowToBaseRow(row, rowNumber, plan)
-  })
+      if (plan) baseCsvRowToBaseRow(row, rowNumber, plan)
+    },
+    onProgress
+  )
   let completedPlan = plan as BaseCsvImportPlan | null
   if (!completedPlan) {
     completedPlan = createBaseCsvImportPlan(
@@ -217,7 +251,15 @@ async function importCsv(
   const plan = await planCsv(
     request.sourcePath,
     request.fileName,
-    request.options
+    request.options,
+    ({ processedBytes, processedRows }) =>
+      reportProgress({
+        phase: "analyzing",
+        processedBytes,
+        totalBytes: request.fingerprint.size,
+        processedRows,
+        totalRows: null,
+      })
   )
   await requireUnchangedFile(request.sourcePath, request.fingerprint)
   const base = openBaseFile(request.targetPath, { migrate: true })
@@ -241,6 +283,13 @@ async function importCsv(
       base.updateField(table.id, "title", { name: plan.columns[0].name })
       let batch: BaseRow[] = []
       let importedRowCount = 0
+      reportProgress({
+        phase: "importing",
+        processedBytes: 0,
+        totalBytes: request.fingerprint.size,
+        processedRows: 0,
+        totalRows: plan.rowCount,
+      })
       const summary = await visitCsvRows(
         request.sourcePath,
         async (row, rowNumber) => {
@@ -249,7 +298,15 @@ async function importCsv(
           base.insertImportedRows(table.id, batch)
           importedRowCount += batch.length
           batch = []
-        }
+        },
+        ({ processedBytes, processedRows }) =>
+          reportProgress({
+            phase: "importing",
+            processedBytes,
+            totalBytes: request.fingerprint.size,
+            processedRows,
+            totalRows: plan.rowCount,
+          })
       )
       if (batch.length > 0) {
         base.insertImportedRows(table.id, batch)
@@ -263,6 +320,13 @@ async function importCsv(
       ) {
         throw invalidCsv("The selected CSV changed while it was being imported")
       }
+      reportProgress({
+        phase: "finalizing",
+        processedBytes: request.fingerprint.size,
+        totalBytes: request.fingerprint.size,
+        processedRows: importedRowCount,
+        totalRows: plan.rowCount,
+      })
       base.connection.exec("COMMIT")
       return {
         table,
@@ -289,7 +353,15 @@ async function run(
       const plan = await planCsv(
         request.sourcePath,
         request.fileName,
-        request.options
+        request.options,
+        ({ processedBytes, processedRows }) =>
+          reportProgress({
+            phase: "analyzing",
+            processedBytes,
+            totalBytes: request.fingerprint.size,
+            processedRows,
+            totalRows: null,
+          })
       )
       await requireUnchangedFile(request.sourcePath, request.fingerprint)
       return {

@@ -40,3 +40,18 @@ export interface BaseCsvWorkerFailure {
 }
 
 export type BaseCsvWorkerResponse = BaseCsvWorkerSuccess | BaseCsvWorkerFailure
+
+export type BaseCsvWorkerPhase = "analyzing" | "importing" | "finalizing"
+
+export interface BaseCsvWorkerProgress {
+  type: "progress"
+  progress: {
+    phase: BaseCsvWorkerPhase
+    processedBytes: number
+    totalBytes: number
+    processedRows: number
+    totalRows: number | null
+  }
+}
+
+export type BaseCsvWorkerMessage = BaseCsvWorkerResponse | BaseCsvWorkerProgress

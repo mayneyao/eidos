@@ -21,8 +21,45 @@ function runWorker(workerData) {
     { workerData }
   )
   return new Promise((resolve, reject) => {
-    worker.once("message", resolve)
+    const progress = []
+    worker.on("message", (message) => {
+      if (message.type === "progress") {
+        progress.push(message.progress)
+        return
+      }
+      resolve({ response: message, progress })
+    })
     worker.once("error", reject)
+  })
+}
+
+function cancelWorkerDuringImport(workerData) {
+  const worker = new Worker(
+    path.join(desktopRoot, "dist-electron", "base-csv-worker.js"),
+    { workerData }
+  )
+  return new Promise((resolve, reject) => {
+    let cancelRequested = false
+    worker.on("message", (message) => {
+      if (
+        !cancelRequested &&
+        message.type === "progress" &&
+        message.progress.phase === "importing"
+      ) {
+        cancelRequested = true
+        void worker.terminate()
+      } else if (!message.type) {
+        reject(new Error("Cancelable CSV worker finished before cancellation"))
+      }
+    })
+    worker.once("error", reject)
+    worker.once("exit", () => {
+      if (!cancelRequested) {
+        reject(new Error("Cancelable CSV worker exited before import started"))
+        return
+      }
+      resolve()
+    })
   })
 }
 
@@ -39,7 +76,7 @@ try {
     size: sourceStat.size,
     mtimeMs: sourceStat.mtimeMs,
   }
-  const stale = await runWorker({
+  const { response: stale } = await runWorker({
     operation: "plan",
     sourcePath,
     fileName: "inventory.csv",
@@ -50,7 +87,7 @@ try {
     throw new Error("Base CSV worker accepted a stale file fingerprint")
   }
 
-  const response = await runWorker({
+  const { response, progress } = await runWorker({
     operation: "import",
     sourcePath,
     fileName: "inventory.csv",
@@ -67,14 +104,49 @@ try {
   if (
     response.result.importedRowCount !== 2 ||
     rows.length !== 2 ||
-    rows[0].quantity !== 3
+    rows[0].quantity !== 3 ||
+    !progress.some((entry) => entry.phase === "analyzing") ||
+    !progress.some((entry) => entry.phase === "importing") ||
+    !progress.some((entry) => entry.phase === "finalizing")
   ) {
     throw new Error("Base CSV worker smoke verification failed")
+  }
+
+  const canceledSourcePath = path.join(root, "cancel.csv")
+  const canceledTargetPath = path.join(root, "cancel.base")
+  const canceledRows = Array.from(
+    { length: 100_000 },
+    (_, index) => `Task ${index + 1},${index + 1}`
+  )
+  await writeFile(
+    canceledSourcePath,
+    `Task,Priority\n${canceledRows.join("\n")}\n`
+  )
+  createBaseFile(canceledTargetPath, { title: "CSV Cancel QA" }).close()
+  const canceledStat = await stat(canceledSourcePath)
+  await cancelWorkerDuringImport({
+    operation: "import",
+    sourcePath: canceledSourcePath,
+    fileName: "cancel.csv",
+    fingerprint: {
+      size: canceledStat.size,
+      mtimeMs: canceledStat.mtimeMs,
+    },
+    targetPath: canceledTargetPath,
+    options: {},
+  })
+  const canceledBase = openBaseFile(canceledTargetPath, { readonly: true })
+  const canceledTables = canceledBase.listTables()
+  canceledBase.close()
+  if (canceledTables.length !== 0) {
+    throw new Error("Canceled CSV import left a partial table behind")
   }
   console.log(
     JSON.stringify({
       imported: response.result.importedRowCount,
       fingerprint: "enforced",
+      progress: [...new Set(progress.map((entry) => entry.phase))],
+      cancellation: "rolled-back",
       first: rows[0],
     })
   )

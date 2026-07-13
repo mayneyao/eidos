@@ -120,6 +120,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     selectCsv,
     previewCsvImport,
     importCsv,
+    getCsvOperation,
+    cancelCsvOperation,
     getTablePage,
     createTable,
     updateTable,
@@ -662,9 +664,13 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   )
 
   const importCsvIntoBase = useCallback(
-    (token: string, options: Parameters<typeof importCsv>[2]): Promise<void> =>
+    (
+      token: string,
+      options: Parameters<typeof importCsv>[2],
+      operationId: string
+    ): Promise<void> =>
       enqueueMutation(
-        () => importCsv(filePath, token, options),
+        () => importCsv(filePath, token, options, operationId),
         ({ snapshot: next, result }) => {
           applySnapshot(next)
           setActiveTableId(result.table.id)
@@ -1173,6 +1179,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             onSelect={selectCsv}
             onPreview={previewCsvImport}
             onImport={importCsvIntoBase}
+            onProgress={getCsvOperation}
+            onCancel={cancelCsvOperation}
           />
           <Button
             type="button"

@@ -55,9 +55,15 @@ export function useSpaceBase(spaceId: string | undefined) {
   const previewCsvImport = useCallback(
     (
       token: string,
-      options: BaseCsvImportOptions = {}
+      options: BaseCsvImportOptions = {},
+      operationId?: string
     ): Promise<BaseCsvImportPlan> =>
-      requireBaseApi().previewBaseCsvImport(requireSpaceId(), token, options),
+      requireBaseApi().previewBaseCsvImport(
+        requireSpaceId(),
+        token,
+        options,
+        operationId
+      ),
     [requireSpaceId]
   )
 
@@ -65,14 +71,28 @@ export function useSpaceBase(spaceId: string | undefined) {
     (
       relativePath: string,
       token: string,
-      options: BaseCsvImportOptions = {}
+      options: BaseCsvImportOptions = {},
+      operationId?: string
     ): Promise<{ result: BaseCsvImportResult; snapshot: BaseSnapshot }> =>
       requireBaseApi().importBaseCsv(
         requireSpaceId(),
         relativePath,
         token,
-        options
+        options,
+        operationId
       ),
+    [requireSpaceId]
+  )
+
+  const getCsvOperation = useCallback(
+    (operationId: string) =>
+      requireBaseApi().getBaseCsvOperation(requireSpaceId(), operationId),
+    [requireSpaceId]
+  )
+
+  const cancelCsvOperation = useCallback(
+    (operationId: string) =>
+      requireBaseApi().cancelBaseCsvOperation(requireSpaceId(), operationId),
     [requireSpaceId]
   )
 
@@ -322,6 +342,8 @@ export function useSpaceBase(spaceId: string | undefined) {
     selectCsv,
     previewCsvImport,
     importCsv,
+    getCsvOperation,
+    cancelCsvOperation,
     getSnapshot,
     getTablePage,
     createTable,
