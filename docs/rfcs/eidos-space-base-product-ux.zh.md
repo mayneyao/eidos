@@ -49,6 +49,13 @@ Base row mutation 现在会返回提交后的 metadata revision。Renderer 用 r
 本地 file-watcher echo，不再把自己的 cell edit 当作外部文件替换并 reload 整个 Grid；普通
 row/cell 保存也不会把所有 layout 暂时设为 disabled。外部修改仍会按新 revision 刷新。
 
+Grid 的 range edit 现在会保留上述 optimistic 行为，同时避免每个 cell 分别执行一次
+file open、IPC 和 transaction。Paste、fill 以及对应的 undo/redo 会先按 row 聚合，再通过
+独立 Base runtime 的同一个 transaction 提交；任意一行失败都会回滚整个 range。行级
+mutation revision 还会阻止旧响应覆盖较新的 optimistic 值。组件测试会断言整段 paste 和
+undo 各只触发一次 batch call，真实 SQLite runtime 测试会断言后续 row 失败时前面修改也会
+回滚。
+
 Desktop shell 现在使用共享语义高度：titlebar 38px、surface workbar 40px、bottom statusbar
 40px。Files/Version 分区栏与 Base view workbar 使用同一 workbar token，Space footer 与 Base
 sheet bar 使用同一 statusbar token，跨 sidebar 和内容区共享的水平边界不再由组件各自写死。

@@ -64,6 +64,15 @@ of treating that echo as an external replacement and reloading the entire Grid.
 Routine row/cell saves also no longer disable every layout while pending;
 external revisions still trigger a refresh.
 
+Grid range edits now preserve that optimistic behavior without paying one
+file-open/IPC/transaction per cell. Paste, fill, and their undo/redo operations
+are grouped by row and committed through one standalone Base runtime
+transaction. A failed row rolls back the complete range, and row-level mutation
+revisions prevent an older response from overwriting a newer optimistic value.
+Component coverage asserts one batch call for a pasted range and one batch call
+for its undo; the real SQLite runtime test asserts rollback after a later row
+fails.
+
 The Desktop shell now uses shared semantic heights: a 38px titlebar, 40px
 surface workbar, and 40px bottom statusbar. Files/Version section bars and the
 Base view workbar consume the same workbar token; the Space footer and Base
