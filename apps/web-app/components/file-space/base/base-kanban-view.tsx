@@ -19,7 +19,7 @@ import type {
   BaseViewInfo,
 } from "@eidos.space/base"
 import type { SpaceBinaryFile } from "@eidos.space/file-space"
-import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual"
+import { useVirtualizer } from "@tanstack/react-virtual"
 import { ChevronLeft, ChevronRight, LoaderCircle, Plus } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 
@@ -60,7 +60,7 @@ interface BaseKanbanGroup {
   total: number
   nextOffset: number
   loaded: boolean
-  loadFailed: boolean
+  loadFailure: "initial" | "more" | null
   loading: boolean
   loadingMore: boolean
 }
@@ -85,7 +85,7 @@ function groupSpecs(options: BaseSelectOption[]): BaseKanbanGroup[] {
       total: 0,
       nextOffset: 0,
       loaded: false,
-      loadFailed: false,
+      loadFailure: null,
       loading: false,
       loadingMore: false,
     })),
@@ -98,7 +98,7 @@ function groupSpecs(options: BaseSelectOption[]): BaseKanbanGroup[] {
       total: 0,
       nextOffset: 0,
       loaded: false,
-      loadFailed: false,
+      loadFailure: null,
       loading: false,
       loadingMore: false,
     },
@@ -134,6 +134,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   color,
   onOpen,
   onLoadMore,
+  onRetry,
   onCreate,
   acquireCover,
   onDelete,
@@ -152,6 +153,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   color: string
   onOpen: (row: BaseRow) => void
   onLoadMore: (group: BaseKanbanGroup) => void
+  onRetry: (group: BaseKanbanGroup) => void
   onCreate: (group: BaseKanbanGroup, title: string) => Promise<void>
   acquireCover?: (path: string) => Promise<BaseCoverLease>
   onDelete?: (row: BaseRow) => void
@@ -166,7 +168,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   const [title, setTitle] = useState("")
   const [creating, setCreating] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const hasMore = !group.loadFailed && group.rows.length < group.total
+  const hasMore = group.rows.length < group.total
   const virtualItemCount = group.rows.length + (hasMore ? 1 : 0)
   const cardVirtualizer = useVirtualizer({
     count: virtualItemCount,
@@ -199,7 +201,12 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   )
 
   useBaseVirtualLoadMore({
-    enabled: group.loaded && hasMore && !group.loading && !group.loadingMore,
+    enabled:
+      group.loaded &&
+      group.loadFailure === null &&
+      hasMore &&
+      !group.loading &&
+      !group.loadingMore,
     lastVirtualIndex,
     loadBoundary: group.rows.length,
     onLoadMore: loadMore,
@@ -310,9 +317,18 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
               <div className="flex h-20 items-center justify-center">
                 <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
-            ) : group.loadFailed && group.rows.length === 0 ? (
-              <div className="flex h-16 items-center justify-center text-[11px] text-destructive">
-                Could not load records
+            ) : group.loadFailure === "initial" && group.rows.length === 0 ? (
+              <div className="flex h-20 flex-col items-center justify-center gap-1 text-[11px] text-destructive">
+                <span>Could not load records</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[11px]"
+                  onClick={() => onRetry(group)}
+                >
+                  Retry
+                </Button>
               </div>
             ) : group.rows.length === 0 ? (
               <div className="flex h-16 items-center justify-center text-[11px] text-muted-foreground">
@@ -362,7 +378,17 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                           role="status"
                           aria-label={`Loading more ${group.name} records`}
                         >
-                          {group.loadingMore ? (
+                          {group.loadFailure === "more" ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-[11px]"
+                              onClick={() => onRetry(group)}
+                            >
+                              Retry loading records
+                            </Button>
+                          ) : group.loadingMore ? (
                             <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                           ) : null}
                         </div>
@@ -373,6 +399,20 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
               </div>
             )}
           </div>
+          {group.loadFailure === "initial" && group.rows.length > 0 ? (
+            <div className="flex h-8 shrink-0 items-center justify-center gap-1 text-[11px] text-destructive">
+              <span>Could not refresh records.</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[11px]"
+                onClick={() => onRetry(group)}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : null}
           {adding ? (
             <div className="grid gap-1.5 rounded-md border bg-background p-2 shadow-sm">
               <Input
@@ -553,9 +593,6 @@ export function BaseKanbanView({
     horizontal: true,
     initialRect: { width: 1024, height: 640 },
     overscan: 2,
-    rangeExtractor: dragging
-      ? () => groups.map((_, index) => index)
-      : defaultRangeExtractor,
   })
   const virtualColumns = columnVirtualizer.getVirtualItems()
   const estimatedColumnStarts = groups.reduce<number[]>((starts, group) => {
@@ -665,9 +702,9 @@ export function BaseKanbanView({
               loaded: refreshedForGeneration
                 ? (existing?.loaded ?? false)
                 : false,
-              loadFailed: refreshedForGeneration
-                ? (existing?.loadFailed ?? false)
-                : false,
+              loadFailure: refreshedForGeneration
+                ? (existing?.loadFailure ?? null)
+                : null,
               loading: refreshedForGeneration
                 ? (existing?.loading ?? false)
                 : false,
@@ -701,10 +738,10 @@ export function BaseKanbanView({
   }, [countsLoaded, groupedRowCount, onRowCountChange])
 
   const loadInitialGroup = useCallback(
-    async (group: BaseKanbanGroup) => {
+    async (group: BaseKanbanGroup, retry = false) => {
       if (
         !groupField ||
-        group.loaded ||
+        (group.loaded && !retry) ||
         group.loading ||
         loadingInitialGroupsRef.current.has(group.key)
       ) {
@@ -715,7 +752,7 @@ export function BaseKanbanView({
       setGroups((current) =>
         current.map((candidate) =>
           candidate.key === group.key
-            ? { ...candidate, loading: true }
+            ? { ...candidate, loadFailure: null, loading: true }
             : candidate
         )
       )
@@ -737,7 +774,7 @@ export function BaseKanbanView({
                   total: page.total,
                   nextOffset: page.offset + page.rows.length,
                   loaded: true,
-                  loadFailed: false,
+                  loadFailure: null,
                   loading: false,
                 }
               : candidate
@@ -752,7 +789,7 @@ export function BaseKanbanView({
               ? {
                   ...candidate,
                   loaded: true,
-                  loadFailed: true,
+                  loadFailure: "initial",
                   loading: false,
                 }
               : candidate
@@ -786,11 +823,11 @@ export function BaseKanbanView({
   ])
 
   const loadMore = useCallback(
-    async (group: BaseKanbanGroup) => {
+    async (group: BaseKanbanGroup, retry = false) => {
       if (
         !groupField ||
         !group.loaded ||
-        group.loadFailed ||
+        (group.loadFailure !== null && !retry) ||
         group.loadingMore ||
         loadingMoreGroupsRef.current.has(group.key) ||
         group.rows.length >= group.total
@@ -802,7 +839,7 @@ export function BaseKanbanView({
       setGroups((current) =>
         current.map((candidate) =>
           candidate.key === group.key
-            ? { ...candidate, loadingMore: true }
+            ? { ...candidate, loadFailure: null, loadingMore: true }
             : candidate
         )
       )
@@ -833,6 +870,7 @@ export function BaseKanbanView({
                     candidate.nextOffset,
                     page.offset + page.rows.length
                   ),
+                  loadFailure: null,
                   loadingMore: false,
                 }
               : candidate
@@ -843,7 +881,11 @@ export function BaseKanbanView({
         setGroups((current) =>
           current.map((candidate) =>
             candidate.key === group.key
-              ? { ...candidate, loadingMore: false }
+              ? {
+                  ...candidate,
+                  loadFailure: "more",
+                  loadingMore: false,
+                }
               : candidate
           )
         )
@@ -855,6 +897,17 @@ export function BaseKanbanView({
       }
     },
     [groupField, loadGroupPage, onError]
+  )
+
+  const retryGroup = useCallback(
+    (group: BaseKanbanGroup) => {
+      if (group.loadFailure === "initial") {
+        void loadInitialGroup(group, true)
+      } else {
+        void loadMore(group, true)
+      }
+    },
+    [loadInitialGroup, loadMore]
   )
 
   let focusedGroup: BaseKanbanGroup | undefined
@@ -1241,6 +1294,7 @@ export function BaseKanbanView({
                     collapsed={collapsedGroupKeys.has(group.key)}
                     onCollapsedChange={setGroupCollapsed}
                     onLoadMore={loadMore}
+                    onRetry={retryGroup}
                     onCreate={createInGroup}
                   />
                 </div>

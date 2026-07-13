@@ -492,4 +492,95 @@ describe("BaseGalleryView", () => {
       100
     )
   })
+
+  it("stops automatic retries after the first page fails and recovers in place", async () => {
+    const loadPage = vi
+      .fn<(offset: number, limit: number) => Promise<BaseRowPage>>()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({
+        tableId: "tasks",
+        offset: 0,
+        limit: 100,
+        total: 1,
+        rows: [{ _id: "row_1", title: "Recovered", status: "todo" }],
+      })
+
+    await act(async () => {
+      root.render(
+        <BaseGalleryView table={table} view={view} loadPage={loadPage} />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(loadPage).toHaveBeenCalledTimes(1)
+    expect(container.textContent).toContain("Could not load gallery records")
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Retry")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(loadPage).toHaveBeenCalledTimes(2)
+    expect(loadPage).toHaveBeenLastCalledWith(0, 100)
+    expect(container.textContent).toContain("Recovered")
+  })
+
+  it("does not retry a failed infinite page until the user requests it", async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      _id: `row_${index}`,
+      title: `Task ${index}`,
+      status: "todo",
+    }))
+    const loadPage = vi
+      .fn<(offset: number, limit: number) => Promise<BaseRowPage>>()
+      .mockResolvedValueOnce({
+        tableId: "tasks",
+        offset: 0,
+        limit: 100,
+        total: 101,
+        rows: firstPage,
+      })
+      .mockRejectedValueOnce(new Error("page failed"))
+      .mockResolvedValueOnce({
+        tableId: "tasks",
+        offset: 100,
+        limit: 100,
+        total: 101,
+        rows: [{ _id: "row_100", title: "Last task", status: "todo" }],
+      })
+
+    await act(async () => {
+      root.render(
+        <BaseGalleryView table={table} view={view} loadPage={loadPage} />
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      const scroller = container.querySelector<HTMLElement>(
+        "[data-base-gallery-scroll]"
+      )
+      if (!scroller) return
+      scroller.scrollTop = 100_000
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(loadPage).toHaveBeenCalledTimes(2)
+    expect(container.textContent).toContain("Could not load more records")
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Retry")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(loadPage).toHaveBeenCalledTimes(3)
+    expect(loadPage).toHaveBeenLastCalledWith(100, 100)
+  })
 })

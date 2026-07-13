@@ -13,6 +13,7 @@ import { BaseKanbanView } from "./base-kanban-view"
 
 const kanbanMocks = vi.hoisted(() => ({
   onDragEnd: undefined as ((event: unknown) => void) | undefined,
+  onDragStart: undefined as ((event: unknown) => void) | undefined,
 }))
 
 const recordCardMocks = vi.hoisted(() => ({
@@ -27,11 +28,14 @@ vi.mock("@/components/ui/kibo-ui/kanban", () => ({
   KanbanProvider: ({
     children,
     onDragEnd,
+    onDragStart,
   }: {
     children: React.ReactNode
     onDragEnd: (event: unknown) => void
+    onDragStart?: (event: unknown) => void
   }) => {
     kanbanMocks.onDragEnd = onDragEnd
+    kanbanMocks.onDragStart = onDragStart
     return <div data-testid="kanban-provider">{children}</div>
   },
   KanbanBoard: ({
@@ -223,6 +227,7 @@ describe("BaseKanbanView", () => {
 
   beforeEach(() => {
     kanbanMocks.onDragEnd = undefined
+    kanbanMocks.onDragStart = undefined
     recordCardMocks.renders.clear()
     scrollIntoView.mockReset()
     Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
@@ -950,5 +955,133 @@ describe("BaseKanbanView", () => {
     const renderedColumns = container.querySelectorAll('[role="region"]')
     expect(renderedColumns.length).toBeGreaterThan(0)
     expect(renderedColumns.length).toBeLessThanOrEqual(8)
+
+    await act(async () => {
+      kanbanMocks.onDragStart?.({ active: { id: "row_1" } })
+      await Promise.resolve()
+    })
+
+    expect(container.querySelectorAll('[role="region"]')).toHaveLength(
+      renderedColumns.length
+    )
+  })
+
+  it("stops failed group paging until the user retries", async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({
+      _id: `todo_${index}`,
+      title: `Todo ${index}`,
+      status: "todo",
+    }))
+    let todoRequests = 0
+    const loadGroupPage = vi.fn(
+      async (_field, value: string | null, offset: number, limit: number) => {
+        if (value !== "todo") {
+          return { tableId: "tasks", offset, limit, total: 0, rows: [] }
+        }
+        todoRequests += 1
+        if (todoRequests === 2) throw new Error("page failed")
+        return {
+          tableId: "tasks",
+          offset,
+          limit,
+          total: 51,
+          rows:
+            offset === 0
+              ? firstPage
+              : [{ _id: "todo_50", title: "Todo 50", status: "todo" }],
+        }
+      }
+    )
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 51 }])}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      const scroller = container.querySelector<HTMLElement>(
+        '[data-base-kanban-column-scroll="base-kanban:todo"]'
+      )
+      if (!scroller) return
+      scroller.scrollTop = 100_000
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(todoRequests).toBe(2)
+    expect(container.textContent).toContain("Retry loading records")
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Retry loading records")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(todoRequests).toBe(3)
+    expect(loadGroupPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tableColumnName: "status" }),
+      "todo",
+      50,
+      50
+    )
+  })
+
+  it("recovers an initial group failure without reloading the board", async () => {
+    let todoRequests = 0
+    const loadGroupPage = vi.fn(
+      async (_field, value: string | null, offset: number, limit: number) => {
+        if (value !== "todo") {
+          return { tableId: "tasks", offset, limit, total: 0, rows: [] }
+        }
+        todoRequests += 1
+        if (todoRequests === 1) throw new Error("initial page failed")
+        return {
+          tableId: "tasks",
+          offset,
+          limit,
+          total: 1,
+          rows: [{ _id: "todo_1", title: "Recovered todo", status: "todo" }],
+        }
+      }
+    )
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 1 }])}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(todoRequests).toBe(1)
+    expect(container.textContent).toContain("Could not load records")
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Retry")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(todoRequests).toBe(2)
+    expect(container.textContent).toContain("Recovered todo")
   })
 })

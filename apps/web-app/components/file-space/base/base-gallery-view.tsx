@@ -13,6 +13,8 @@ import type { SpaceBinaryFile } from "@eidos.space/file-space"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { LoaderCircle } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
+
 import { BaseRecordCard } from "./base-record-card"
 import { BaseRecordDeleteDialog } from "./base-record-delete-dialog"
 import { BaseRecordInspector } from "./base-record-inspector"
@@ -97,6 +99,10 @@ export function BaseGalleryView({
   const [total, setTotal] = useState(table.rowCount)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [failedRequest, setFailedRequest] = useState<{
+    offset: number
+    append: boolean
+  } | null>(null)
   const [inspectedRow, setInspectedRow] = useState<BaseRow | null>(null)
   const [deleteRow, setDeleteRow] = useState<BaseRow | null>(null)
   const fields = orderedBaseFields(table.fields, view)
@@ -111,6 +117,7 @@ export function BaseGalleryView({
         return
       }
       requestRef.current = { generation, offset }
+      setFailedRequest(null)
       append ? setLoadingMore(true) : setLoading(true)
       try {
         const page = await loadPage(offset, GALLERY_PAGE_SIZE)
@@ -130,7 +137,10 @@ export function BaseGalleryView({
         setTotal(page.total)
         onRowCountChange?.(page.total)
       } catch (error) {
-        if (generation === generationRef.current) onError?.(error)
+        if (generation === generationRef.current) {
+          setFailedRequest({ offset, append })
+          onError?.(error)
+        }
       } finally {
         if (generation === generationRef.current) {
           if (requestRef.current?.offset === offset) requestRef.current = null
@@ -145,6 +155,7 @@ export function BaseGalleryView({
     generationRef.current += 1
     requestRef.current = null
     setLoadingMore(false)
+    setFailedRequest(null)
     setTotal(table.rowCount)
     setInspectedRow(null)
     onRowCountChange?.(null)
@@ -197,7 +208,8 @@ export function BaseGalleryView({
   }, [requestPage, rows.length])
 
   useBaseVirtualLoadMore({
-    enabled: !loading && !loadingMore && rows.length < total,
+    enabled:
+      failedRequest === null && !loading && !loadingMore && rows.length < total,
     lastVirtualIndex: lastVirtualRowIndex,
     loadBoundary: Math.max(0, virtualRowCount - GALLERY_OVERSCAN_ROWS),
     onLoadMore: loadNextPage,
@@ -297,6 +309,21 @@ export function BaseGalleryView({
             <LoaderCircle className="h-4 w-4 animate-spin" />
             Loading gallery…
           </div>
+        ) : failedRequest !== null && rows.length === 0 ? (
+          <div className="flex h-40 flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
+            <span>Could not load gallery records.</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-xs"
+              onClick={() =>
+                void requestPage(failedRequest.offset, failedRequest.append)
+              }
+            >
+              Retry
+            </Button>
+          </div>
         ) : rows.length === 0 ? (
           <div className="flex h-40 items-center justify-center text-xs text-muted-foreground">
             No records in this view.
@@ -351,6 +378,28 @@ export function BaseGalleryView({
           >
             <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
             Loading more records…
+          </div>
+        ) : failedRequest !== null && rows.length > 0 ? (
+          <div className="flex h-10 items-center justify-center gap-2 text-[11px] text-muted-foreground">
+            <span>
+              {failedRequest.append
+                ? "Could not load more records."
+                : "Could not refresh records."}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={() =>
+                void requestPage(
+                  failedRequest.append ? rows.length : failedRequest.offset,
+                  failedRequest.append
+                )
+              }
+            >
+              Retry
+            </Button>
           </div>
         ) : null}
       </div>
