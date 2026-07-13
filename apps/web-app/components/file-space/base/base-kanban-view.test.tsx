@@ -2,7 +2,11 @@
 
 import { act, type AriaRole } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type { BaseTableSnapshot, BaseViewInfo } from "@eidos.space/base"
+import type {
+  BaseRowPage,
+  BaseTableSnapshot,
+  BaseViewInfo,
+} from "@eidos.space/base"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BaseKanbanView } from "./base-kanban-view"
@@ -444,6 +448,122 @@ describe("BaseKanbanView", () => {
     expect(loadGroupCounts).toHaveBeenCalledTimes(1)
     expect(loadGroupPage).toHaveBeenCalledTimes(pageCalls)
     expect(onRowCountChange).toHaveBeenLastCalledWith(0)
+  })
+
+  it("keeps cards mounted while grouped counts and visible pages refresh", async () => {
+    let refreshing = false
+    let resolveCounts:
+      | ((counts: Array<{ value: string | null; total: number }>) => void)
+      | undefined
+    let resolveTodoPage: ((page: BaseRowPage) => void) | undefined
+    const loadGroupCounts = vi.fn(() => {
+      if (!refreshing) {
+        return Promise.resolve([{ value: "todo", total: 1 }])
+      }
+      return new Promise<Array<{ value: string | null; total: number }>>(
+        (resolve) => {
+          resolveCounts = resolve
+        }
+      )
+    })
+    const loadGroupPage = vi.fn(
+      (_field, value: string | null, offset: number, limit: number) => {
+        if (refreshing && value === "todo") {
+          return new Promise<BaseRowPage>((resolve) => {
+            resolveTodoPage = resolve
+          })
+        }
+        return Promise.resolve({
+          tableId: "tasks",
+          offset,
+          limit,
+          total: value === "todo" ? 1 : 0,
+          rows:
+            value === "todo"
+              ? [{ _id: "row_old", title: "Before refresh", status: "todo" }]
+              : [],
+        })
+      }
+    )
+    const onRowCountChange = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          reloadToken={0}
+          loadGroupCounts={loadGroupCounts}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+          onRowCountChange={onRowCountChange}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(container.textContent).toContain("Before refresh")
+    onRowCountChange.mockClear()
+
+    refreshing = true
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          reloadToken={1}
+          loadGroupCounts={loadGroupCounts}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+          onRowCountChange={onRowCountChange}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).toContain("Before refresh")
+    expect(
+      container
+        .querySelector("[data-base-kanban-scroll]")
+        ?.getAttribute("aria-busy")
+    ).toBe("true")
+
+    await act(async () => {
+      resolveCounts?.([{ value: "todo", total: 1 }])
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(container.textContent).toContain("Before refresh")
+    expect(resolveTodoPage).toBeTypeOf("function")
+    const rowCountNotifications = onRowCountChange.mock.calls.length
+    expect(
+      container
+        .querySelector("[data-base-kanban-scroll]")
+        ?.getAttribute("aria-busy")
+    ).toBe("true")
+
+    await act(async () => {
+      resolveTodoPage?.({
+        tableId: "tasks",
+        offset: 0,
+        limit: 50,
+        total: 1,
+        rows: [{ _id: "row_new", title: "After refresh", status: "todo" }],
+      })
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(container.textContent).not.toContain("Before refresh")
+    expect(container.textContent).toContain("After refresh")
+    expect(onRowCountChange).toHaveBeenCalledTimes(rowCountNotifications)
+    expect(
+      container
+        .querySelector("[data-base-kanban-scroll]")
+        ?.getAttribute("aria-busy")
+    ).toBe("false")
   })
 
   it("moves an inspected record when its group field changes", async () => {

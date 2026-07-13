@@ -287,11 +287,11 @@ function BaseKanbanColumn({
             data-base-kanban-column-scroll={group.key}
             className="relative min-h-16 min-w-0 flex-1 overflow-y-auto pr-0.5"
           >
-            {group.loading || !group.loaded ? (
+            {(group.loading || !group.loaded) && group.rows.length === 0 ? (
               <div className="flex h-20 items-center justify-center">
                 <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
-            ) : group.loadFailed ? (
+            ) : group.loadFailed && group.rows.length === 0 ? (
               <div className="flex h-16 items-center justify-center text-[11px] text-destructive">
                 Could not load records
               </div>
@@ -480,8 +480,9 @@ export function BaseKanbanView({
   const { resolvedTheme } = useTheme()
   const theme = resolvedTheme === "dark" ? "dark" : "light"
   const generationRef = useRef(0)
-  const loadingInitialGroupsRef = useRef(new Set<string>())
-  const loadingMoreGroupsRef = useRef(new Set<string>())
+  const loadingInitialGroupsRef = useRef(new Map<string, number>())
+  const loadingMoreGroupsRef = useRef(new Map<string, number>())
+  const loadedGroupGenerationsRef = useRef(new Map<string, number>())
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const groupFieldName = view.properties?.groupByField
   const groupField = table.fields.find(
@@ -507,9 +508,12 @@ export function BaseKanbanView({
   const [inspectedRow, setInspectedRow] = useState<BaseRow | null>(null)
   const [deleteRow, setDeleteRow] = useState<BaseRow | null>(null)
   const fields = orderedBaseFields(table.fields, view)
-  const groupCountSignature = groups
-    .map((group) => `${group.key}:${group.total}:${group.loading ? 1 : 0}`)
-    .join("|")
+  const groupedRowCount = groups.reduce(
+    (count, group) => count + group.total,
+    0
+  )
+  const boardBusy =
+    !countsLoaded || groups.some((group) => group.loading || group.loadingMore)
   const collapsedGroupSignature = [...collapsedGroupKeys].sort().join("|")
   const columnWidth = cardWidth(view)
   const columnVirtualizer = useVirtualizer({
@@ -592,7 +596,20 @@ export function BaseKanbanView({
       return
     }
     const specs = groupSpecs(options)
-    setGroups(specs)
+    setGroups((current) => {
+      const currentByKey = new Map(current.map((group) => [group.key, group]))
+      return specs.map((spec) => {
+        const existing = currentByKey.get(spec.key)
+        return existing
+          ? {
+              ...existing,
+              value: spec.value,
+              name: spec.name,
+              color: spec.color,
+            }
+          : spec
+      })
+    })
     setCountsLoaded(false)
     void loadGroupCounts(groupField)
       .then((counts) => {
@@ -603,12 +620,34 @@ export function BaseKanbanView({
             group.total,
           ])
         )
-        setGroups((current) =>
-          current.map((group) => ({
-            ...group,
-            total: totals.get(group.key) ?? 0,
-          }))
-        )
+        setGroups((current) => {
+          const currentByKey = new Map(
+            current.map((group) => [group.key, group])
+          )
+          return specs.map((spec) => {
+            const existing = currentByKey.get(spec.key)
+            const refreshedForGeneration =
+              loadedGroupGenerationsRef.current.get(spec.key) === generation ||
+              loadingInitialGroupsRef.current.get(spec.key) === generation
+            return {
+              ...(existing ?? spec),
+              value: spec.value,
+              name: spec.name,
+              color: spec.color,
+              total: totals.get(spec.key) ?? 0,
+              loaded: refreshedForGeneration
+                ? (existing?.loaded ?? false)
+                : false,
+              loadFailed: refreshedForGeneration
+                ? (existing?.loadFailed ?? false)
+                : false,
+              loading: refreshedForGeneration
+                ? (existing?.loading ?? false)
+                : false,
+              loadingMore: false,
+            }
+          })
+        })
         setCountsLoaded(true)
       })
       .catch((error) => {
@@ -631,8 +670,8 @@ export function BaseKanbanView({
 
   useEffect(() => {
     if (!countsLoaded || groups.length === 0) return
-    onRowCountChange?.(groups.reduce((count, group) => count + group.total, 0))
-  }, [countsLoaded, groupCountSignature, groups, onRowCountChange])
+    onRowCountChange?.(groupedRowCount)
+  }, [countsLoaded, groupedRowCount, onRowCountChange])
 
   const loadInitialGroup = useCallback(
     async (group: BaseKanbanGroup) => {
@@ -645,7 +684,7 @@ export function BaseKanbanView({
         return
       }
       const generation = generationRef.current
-      loadingInitialGroupsRef.current.add(group.key)
+      loadingInitialGroupsRef.current.set(group.key, generation)
       setGroups((current) =>
         current.map((candidate) =>
           candidate.key === group.key
@@ -661,6 +700,7 @@ export function BaseKanbanView({
           KANBAN_PAGE_SIZE
         )
         if (generation !== generationRef.current) return
+        loadedGroupGenerationsRef.current.set(group.key, generation)
         setGroups((current) =>
           current.map((candidate) =>
             candidate.key === group.key
@@ -678,6 +718,7 @@ export function BaseKanbanView({
         )
       } catch (error) {
         if (generation !== generationRef.current) return
+        loadedGroupGenerationsRef.current.set(group.key, generation)
         setGroups((current) =>
           current.map((candidate) =>
             candidate.key === group.key
@@ -692,7 +733,9 @@ export function BaseKanbanView({
         )
         onError?.(error)
       } finally {
-        loadingInitialGroupsRef.current.delete(group.key)
+        if (loadingInitialGroupsRef.current.get(group.key) === generation) {
+          loadingInitialGroupsRef.current.delete(group.key)
+        }
       }
     },
     [groupField, loadGroupPage, onError]
@@ -728,7 +771,7 @@ export function BaseKanbanView({
         return
       }
       const generation = generationRef.current
-      loadingMoreGroupsRef.current.add(group.key)
+      loadingMoreGroupsRef.current.set(group.key, generation)
       setGroups((current) =>
         current.map((candidate) =>
           candidate.key === group.key
@@ -779,7 +822,9 @@ export function BaseKanbanView({
         )
         onError?.(error)
       } finally {
-        loadingMoreGroupsRef.current.delete(group.key)
+        if (loadingMoreGroupsRef.current.get(group.key) === generation) {
+          loadingMoreGroupsRef.current.delete(group.key)
+        }
       }
     },
     [groupField, loadGroupPage, onError]
@@ -1098,6 +1143,8 @@ export function BaseKanbanView({
       </span>
       <div
         ref={scrollContainerRef}
+        data-base-kanban-scroll
+        aria-busy={boardBusy}
         className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden p-3"
       >
         <KanbanProvider
