@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     | ((event: { eventType: string; path: string }) => void)
     | null,
   readText: vi.fn(),
+  readPreview: vi.fn(),
   fetch: vi.fn(async () => ({ ok: true, status: 200 })),
   registerPendingWriteFlusher: vi.fn(
     (_id: string, _flusher: () => Promise<boolean>) => vi.fn()
@@ -69,6 +70,7 @@ vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
   },
   useSpaceFiles: () => ({
     readText: mocks.readText,
+    readPreview: mocks.readPreview,
     writeText: mocks.writeText,
   }),
 }))
@@ -114,6 +116,7 @@ describe("SpaceFilePage editor selection", () => {
 
   beforeEach(() => {
     mocks.readText.mockReset()
+    mocks.readPreview.mockReset()
     mocks.fetch.mockClear()
     vi.stubGlobal("fetch", mocks.fetch)
     mocks.writeText.mockReset()
@@ -200,6 +203,101 @@ describe("SpaceFilePage editor selection", () => {
     expect(
       container.querySelector('[data-testid="lexical-markdown-editor"]')
     ).toBeNull()
+  })
+
+  it("previews an unknown UTF-8 file without mounting an editor", async () => {
+    mocks.readPreview.mockResolvedValue({
+      kind: "text",
+      path: "Dockerfile",
+      content: "FROM node:22\n",
+      encoding: "utf-8",
+      previewBytes: 13,
+      truncated: false,
+      size: 13,
+      mtimeMs: 1,
+    })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/space-file#Dockerfile"]}>
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+
+    expect(container.textContent).toContain("FROM node:22")
+    expect(container.querySelector('[data-testid="monaco-editor"]')).toBeNull()
+    expect(
+      container.querySelector('[data-testid="lexical-markdown-editor"]')
+    ).toBeNull()
+  })
+
+  it("identifies an unknown binary file without rendering its bytes", async () => {
+    mocks.readPreview.mockResolvedValue({
+      kind: "binary",
+      path: "archive.dat",
+      size: 2048,
+      mtimeMs: 1,
+    })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/space-file#archive.dat"]}>
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+
+    expect(container.textContent).toContain("Binary file")
+    expect(container.textContent).toContain("2 KB")
+    expect(container.querySelector('[data-testid="monaco-editor"]')).toBeNull()
+  })
+
+  it("refreshes an unknown text preview after the file changes", async () => {
+    mocks.readPreview
+      .mockResolvedValueOnce({
+        kind: "text",
+        path: "notes/example.conf",
+        content: "first",
+        encoding: "utf-8",
+        previewBytes: 5,
+        truncated: false,
+        size: 5,
+        mtimeMs: 1,
+      })
+      .mockResolvedValueOnce({
+        kind: "text",
+        path: "notes/example.conf",
+        content: "second",
+        encoding: "utf-8",
+        previewBytes: 6,
+        truncated: false,
+        size: 6,
+        mtimeMs: 2,
+      })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/space-file#notes%2Fexample.conf"]}>
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+    expect(container.textContent).toContain("first")
+
+    await act(async () => {
+      mocks.fileChangeHandler?.({
+        eventType: "change",
+        path: "notes/example.conf",
+      })
+      await flushEffects()
+    })
+
+    expect(container.textContent).toContain("second")
+    expect(container.textContent).not.toContain("first")
   })
 
   it("refreshes a nested asset preview after a whole Space rescan", async () => {

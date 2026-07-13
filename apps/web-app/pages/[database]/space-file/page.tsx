@@ -10,6 +10,7 @@ import {
 } from "@/apps/web-app/components/file-space/file-path"
 import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-space/pending-writes"
 import { SpaceBaseEditor } from "@/apps/web-app/components/file-space/base/space-base-editor"
+import { SpaceFileFallbackPreview } from "@/apps/web-app/components/file-space/space-file-fallback-preview"
 import { SpaceMarkdownEditor } from "@/apps/web-app/components/file-space/space-markdown-editor"
 import {
   isDestructiveSpaceVersioningOperation,
@@ -129,11 +130,7 @@ export function SpaceFilePage() {
       <SpaceAssetPreview filePath={filePath} mimeType={MIME_TYPES[extension]} />
     )
   }
-  return (
-    <FileState
-      message={`Eidos does not have a preview for .${extension || "unknown"} files yet.`}
-    />
-  )
+  return <SpaceFileFallbackPreview key={filePath} filePath={filePath} />
 }
 
 function SpaceTextEditor({
