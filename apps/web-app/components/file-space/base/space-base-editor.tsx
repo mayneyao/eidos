@@ -1214,11 +1214,15 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   )
 
   const updateActiveView = useCallback(
-    (changes: Parameters<typeof updateView>[2]): Promise<void> => {
+    (
+      changes: Parameters<typeof updateView>[2],
+      errorMode: "global" | "local" = "global"
+    ): Promise<void> => {
       if (!activeView) return Promise.resolve()
       return enqueueMutation(
         () => updateView(filePath, activeView.id, changes),
-        applySnapshot
+        applySnapshot,
+        { errorMode }
       ).then(() => undefined)
     },
     [activeView, applySnapshot, enqueueMutation, filePath, updateView]
@@ -1343,8 +1347,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
                 searchResultIndex={activeSearchResultIndex}
                 onSearchChange={handleSearchChange}
                 onNavigateSearch={navigateSearchResults}
-                onFilterChange={(filter) => updateActiveView({ filter })}
-                onSortsChange={(sorts) => updateActiveView({ sorts })}
+                onFilterChange={(filter) =>
+                  updateActiveView({ filter }, "local")
+                }
+                onSortsChange={(sorts) => updateActiveView({ sorts }, "local")}
               />
               <BaseViewMenu
                 fields={activeTable.fields.filter(

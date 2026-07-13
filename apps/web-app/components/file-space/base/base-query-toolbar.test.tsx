@@ -231,4 +231,69 @@ describe("BaseQueryToolbar", () => {
       { field: "title", direction: "asc" },
     ])
   })
+
+  it("keeps a failed filter draft open and retries it in place", async () => {
+    onFilterChange.mockRejectedValueOnce(new Error("Base file is read-only"))
+    await act(async () => button("Filter")?.click())
+    await act(async () => button("Add filter")?.click())
+    await act(async () => button("Add condition")?.click())
+    await act(async () => {
+      button("Apply")?.click()
+      await Promise.resolve()
+    })
+
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
+      "Base file is read-only"
+    )
+    expect(
+      document.body.querySelector('[aria-label="Remove filter"]')
+    ).not.toBeNull()
+    expect(button("Apply")).not.toBeUndefined()
+
+    await act(async () => {
+      button("Apply")?.click()
+      await Promise.resolve()
+    })
+
+    expect(onFilterChange).toHaveBeenCalledTimes(2)
+    expect(document.body.querySelector('[role="alert"]')).toBeNull()
+    expect(button("Apply")).toBeUndefined()
+  })
+
+  it("keeps the sort workspace open when clearing persisted sorts fails", async () => {
+    act(() => {
+      root.render(
+        <BaseQueryToolbar
+          fields={fields}
+          filter={null}
+          sorts={[{ field: "priority", direction: "desc" }]}
+          search=""
+          onSearchChange={onSearchChange}
+          onFilterChange={onFilterChange}
+          onSortsChange={onSortsChange}
+        />
+      )
+    })
+    onSortsChange.mockRejectedValueOnce(new Error("Unable to write Base"))
+    await act(async () =>
+      document.body
+        .querySelector<HTMLButtonElement>('[aria-label="Sort Base rows"]')
+        ?.click()
+    )
+    await act(async () => {
+      button("Clear")?.click()
+      await Promise.resolve()
+    })
+
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
+      "Unable to write Base"
+    )
+    expect(button("Clear")).not.toBeUndefined()
+    expect(
+      document.body.querySelector('[aria-label="Sort field 1"]')
+    ).not.toBeNull()
+    expect(
+      document.body.querySelector('[aria-label="Sort direction 1"]')
+    ).not.toBeNull()
+  })
 })

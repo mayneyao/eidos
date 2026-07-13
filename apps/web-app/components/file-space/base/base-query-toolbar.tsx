@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
   Filter,
+  LoaderCircle,
   Plus,
   Search,
   Trash2,
@@ -540,17 +541,47 @@ function BaseFilterPopover({
   const [draft, setDraft] = useState<BaseFilterGroup>(
     value ?? { type: "group", conjunction: "and", children: [] }
   )
+  const [pendingAction, setPendingAction] = useState<"apply" | "clear" | null>(
+    null
+  )
+  const pendingRef = useRef(false)
+  const [error, setError] = useState<string | null>(null)
   useEffect(() => {
-    if (open) {
+    if (open && !pendingRef.current) {
       setDraft(value ?? { type: "group", conjunction: "and", children: [] })
+      setError(null)
     }
   }, [open, value])
-  const apply = async () => {
-    await onChange(draft.children.length > 0 ? draft : null)
-    setOpen(false)
+  const commit = async (
+    next: BaseFilterGroup | null,
+    action: "apply" | "clear"
+  ) => {
+    if (pendingRef.current) return
+    pendingRef.current = true
+    setPendingAction(action)
+    setError(null)
+    try {
+      await onChange(next)
+      setOpen(false)
+    } catch (changeError) {
+      setError(
+        changeError instanceof Error
+          ? changeError.message
+          : "Unable to update filters"
+      )
+    } finally {
+      pendingRef.current = false
+      setPendingAction(null)
+    }
   }
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && pendingRef.current) return
+        setOpen(nextOpen)
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -573,39 +604,58 @@ function BaseFilterPopover({
       <PopoverContent
         align="end"
         className="max-h-[min(640px,calc(100vh-32px))] w-[680px] max-w-[calc(100vw-32px)] overflow-y-auto p-3"
+        aria-busy={pendingAction ? "true" : undefined}
       >
-        <BaseFilterGroupEditor
-          fields={availableFields}
-          group={draft}
-          depth={0}
-          onChange={setDraft}
-        />
-        <div className="mt-3 flex justify-end border-t pt-3">
-          <div className="flex gap-1.5">
-            {value ? (
+        <fieldset
+          disabled={Boolean(pendingAction)}
+          className="m-0 min-w-0 border-0 p-0"
+        >
+          <BaseFilterGroupEditor
+            fields={availableFields}
+            group={draft}
+            depth={0}
+            onChange={setDraft}
+          />
+          {error ? (
+            <p
+              className="mt-3 break-words border-t pt-2 text-xs text-destructive"
+              role="alert"
+            >
+              {error}
+            </p>
+          ) : null}
+          <div className="mt-3 flex justify-end border-t pt-3">
+            <div className="flex gap-1.5">
+              {value ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2 text-xs"
+                  onClick={() => void commit(null, "clear")}
+                >
+                  {pendingAction === "clear" ? (
+                    <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+                  ) : null}
+                  {pendingAction === "clear" ? "Clearing…" : "Clear"}
+                </Button>
+              ) : null}
               <Button
                 type="button"
-                variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={() => {
-                  void Promise.resolve(onChange(null))
-                  setOpen(false)
-                }}
+                className="h-7 gap-1.5 text-xs"
+                onClick={() =>
+                  void commit(draft.children.length > 0 ? draft : null, "apply")
+                }
               >
-                Clear
+                {pendingAction === "apply" ? (
+                  <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+                ) : null}
+                {pendingAction === "apply" ? "Applying…" : "Apply"}
               </Button>
-            ) : null}
-            <Button
-              type="button"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={apply}
-            >
-              Apply
-            </Button>
+            </div>
           </div>
-        </div>
+        </fieldset>
       </PopoverContent>
     </Popover>
   )
@@ -625,15 +675,44 @@ function BaseSortPopover({
   const availableFields = useMemo(() => filterableFields(fields), [fields])
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(value)
+  const [pendingAction, setPendingAction] = useState<"apply" | "clear" | null>(
+    null
+  )
+  const pendingRef = useRef(false)
+  const [error, setError] = useState<string | null>(null)
   useEffect(() => {
-    if (open) setDraft(value)
+    if (open && !pendingRef.current) {
+      setDraft(value)
+      setError(null)
+    }
   }, [open, value])
-  const apply = async () => {
-    await onChange(draft)
-    setOpen(false)
+  const commit = async (next: BaseSort[], action: "apply" | "clear") => {
+    if (pendingRef.current) return
+    pendingRef.current = true
+    setPendingAction(action)
+    setError(null)
+    try {
+      await onChange(next)
+      setOpen(false)
+    } catch (changeError) {
+      setError(
+        changeError instanceof Error
+          ? changeError.message
+          : "Unable to update sorts"
+      )
+    } finally {
+      pendingRef.current = false
+      setPendingAction(null)
+    }
   }
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && pendingRef.current) return
+        setOpen(nextOpen)
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -653,137 +732,163 @@ function BaseSortPopover({
           ) : null}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[360px] p-3">
-        <div className="text-xs font-medium">Sort this view</div>
-        <div className="mt-2 space-y-1.5">
-          {draft.length === 0 ? (
-            <p className="py-3 text-center text-xs text-muted-foreground">
-              Rows use their original order.
+      <PopoverContent
+        align="end"
+        className="w-[360px] p-3"
+        aria-busy={pendingAction ? "true" : undefined}
+      >
+        <fieldset
+          disabled={Boolean(pendingAction)}
+          className="m-0 min-w-0 border-0 p-0"
+        >
+          <div className="text-xs font-medium">Sort this view</div>
+          <div className="mt-2 space-y-1.5">
+            {draft.length === 0 ? (
+              <p className="py-3 text-center text-xs text-muted-foreground">
+                Rows use their original order.
+              </p>
+            ) : null}
+            {draft.map((sort, index) => (
+              <div
+                key={`${sort.field}-${index}`}
+                className="grid grid-cols-[1fr_118px_28px] gap-1.5"
+              >
+                <Select
+                  value={sort.field}
+                  onValueChange={(field) =>
+                    setDraft((current) =>
+                      current.map((candidate, candidateIndex) =>
+                        candidateIndex === index
+                          ? { ...candidate, field }
+                          : candidate
+                      )
+                    )
+                  }
+                >
+                  <SelectTrigger
+                    className="h-7 min-w-0 text-xs"
+                    aria-label={`Sort field ${index + 1}`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableFields.map((field) => (
+                      <SelectItem
+                        key={field.tableColumnName}
+                        value={field.tableColumnName}
+                        disabled={draft.some(
+                          (candidate, candidateIndex) =>
+                            candidateIndex !== index &&
+                            candidate.field === field.tableColumnName
+                        )}
+                      >
+                        {field.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={sort.direction}
+                  onValueChange={(direction: "asc" | "desc") =>
+                    setDraft((current) =>
+                      current.map((candidate, candidateIndex) =>
+                        candidateIndex === index
+                          ? { ...candidate, direction }
+                          : candidate
+                      )
+                    )
+                  }
+                >
+                  <SelectTrigger
+                    className="h-7 text-xs"
+                    aria-label={`Sort direction ${index + 1}`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="asc">Ascending</SelectItem>
+                    <SelectItem value="desc">Descending</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground"
+                  aria-label="Remove sort"
+                  onClick={() =>
+                    setDraft((current) =>
+                      current.filter(
+                        (_, candidateIndex) => candidateIndex !== index
+                      )
+                    )
+                  }
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          {error ? (
+            <p
+              className="mt-3 break-words border-t pt-2 text-xs text-destructive"
+              role="alert"
+            >
+              {error}
             </p>
           ) : null}
-          {draft.map((sort, index) => (
-            <div
-              key={`${sort.field}-${index}`}
-              className="grid grid-cols-[1fr_118px_28px] gap-1.5"
-            >
-              <Select
-                value={sort.field}
-                onValueChange={(field) =>
-                  setDraft((current) =>
-                    current.map((candidate, candidateIndex) =>
-                      candidateIndex === index
-                        ? { ...candidate, field }
-                        : candidate
-                    )
-                  )
-                }
-              >
-                <SelectTrigger className="h-7 min-w-0 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableFields.map((field) => (
-                    <SelectItem
-                      key={field.tableColumnName}
-                      value={field.tableColumnName}
-                      disabled={draft.some(
-                        (candidate, candidateIndex) =>
-                          candidateIndex !== index &&
-                          candidate.field === field.tableColumnName
-                      )}
-                    >
-                      {field.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={sort.direction}
-                onValueChange={(direction: "asc" | "desc") =>
-                  setDraft((current) =>
-                    current.map((candidate, candidateIndex) =>
-                      candidateIndex === index
-                        ? { ...candidate, direction }
-                        : candidate
-                    )
-                  )
-                }
-              >
-                <SelectTrigger className="h-7 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="asc">Ascending</SelectItem>
-                  <SelectItem value="desc">Descending</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground"
-                aria-label="Remove sort"
-                onClick={() =>
-                  setDraft((current) =>
-                    current.filter(
-                      (_, candidateIndex) => candidateIndex !== index
-                    )
-                  )
-                }
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 flex items-center justify-between border-t pt-3">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1 px-2 text-xs"
-            disabled={draft.length >= availableFields.length}
-            onClick={() => {
-              const used = new Set(draft.map((sort) => sort.field))
-              const field = availableFields.find(
-                (candidate) => !used.has(candidate.tableColumnName)
-              )
-              if (field) {
-                setDraft((current) => [
-                  ...current,
-                  { field: field.tableColumnName, direction: "asc" },
-                ])
-              }
-            }}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add sort
-          </Button>
-          <div className="flex gap-1.5">
-            {value.length ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={() => {
-                  void Promise.resolve(onChange([]))
-                  setOpen(false)
-                }}
-              >
-                Clear
-              </Button>
-            ) : null}
+          <div className="mt-3 flex items-center justify-between border-t pt-3">
             <Button
               type="button"
+              variant="ghost"
               size="sm"
-              className="h-7 text-xs"
-              onClick={apply}
+              className="h-7 gap-1 px-2 text-xs"
+              disabled={draft.length >= availableFields.length}
+              onClick={() => {
+                const used = new Set(draft.map((sort) => sort.field))
+                const field = availableFields.find(
+                  (candidate) => !used.has(candidate.tableColumnName)
+                )
+                if (field) {
+                  setDraft((current) => [
+                    ...current,
+                    { field: field.tableColumnName, direction: "asc" },
+                  ])
+                }
+              }}
             >
-              Apply
+              <Plus className="h-3.5 w-3.5" />
+              Add sort
             </Button>
+            <div className="flex gap-1.5">
+              {value.length ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2 text-xs"
+                  onClick={() => void commit([], "clear")}
+                >
+                  {pendingAction === "clear" ? (
+                    <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+                  ) : null}
+                  {pendingAction === "clear" ? "Clearing…" : "Clear"}
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                onClick={() => void commit(draft, "apply")}
+              >
+                {pendingAction === "apply" ? (
+                  <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+                ) : null}
+                {pendingAction === "apply" ? "Applying…" : "Apply"}
+              </Button>
+            </div>
           </div>
-        </div>
+        </fieldset>
       </PopoverContent>
     </Popover>
   )

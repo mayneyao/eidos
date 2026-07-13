@@ -1170,6 +1170,35 @@ describe("SpaceBaseEditor", () => {
     expect(container.querySelector('[role="alert"]')).toBeNull()
   })
 
+  it("keeps filter mutation errors inside the recoverable filter workspace", async () => {
+    updateViewMock.mockRejectedValueOnce(new Error("Filter update failed"))
+    await renderEditor()
+
+    const exactButton = (label: string) =>
+      Array.from(document.body.querySelectorAll("button"))
+        .filter((candidate) => candidate.textContent?.trim() === label)
+        .at(-1)
+    await act(async () => exactButton("Filter")?.click())
+    await act(async () => exactButton("Add filter")?.click())
+    await act(async () => exactButton("Add condition")?.click())
+    await act(async () => {
+      exactButton("Apply")?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(getSnapshotMock).toHaveBeenCalledTimes(2)
+    const alerts = document.body.querySelectorAll('[role="alert"]')
+    expect(alerts).toHaveLength(1)
+    expect(alerts[0]?.textContent).toContain("Filter update failed")
+    expect(
+      document.body.querySelector('[aria-label="Remove filter"]')
+    ).not.toBeNull()
+    expect(
+      container.querySelector('[aria-label="Dismiss Base error"]')
+    ).toBeNull()
+  })
+
   it("adds tables and fields through the Base structure API", async () => {
     await renderEditor()
 
