@@ -142,6 +142,52 @@ describe("BaseStructureDialog", () => {
     })
   })
 
+  it("offers categorized, searchable field types with keyboard selection", async () => {
+    act(() =>
+      root.render(
+        <BaseStructureDialog
+          mode="field"
+          open
+          onOpenChange={vi.fn()}
+          onCreateTable={vi.fn()}
+          onCreateField={vi.fn()}
+        />
+      )
+    )
+
+    const trigger = document.body.querySelector<HTMLButtonElement>(
+      'button[aria-label="Field type"]'
+    )
+    await act(async () => trigger?.click())
+
+    expect(document.body.textContent).toContain("Basic")
+    expect(document.body.textContent).toContain("Advanced")
+    expect(document.body.textContent).toContain("Free-form text content")
+    expect(document.body.textContent).toContain(
+      "Connect records in another table"
+    )
+
+    const search = document.body.querySelector<HTMLInputElement>(
+      'input[aria-label="Search field types"]'
+    )
+    await act(async () => {
+      if (search) setInput(search, "rollup")
+      await Promise.resolve()
+    })
+    expect(
+      document.body.querySelector('[data-field-type="lookup"]')
+    ).toBeTruthy()
+    expect(document.body.querySelector('[data-field-type="text"]')).toBeNull()
+
+    await act(async () => {
+      search?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+      await Promise.resolve()
+    })
+    expect(trigger?.textContent).toContain("Lookup / rollup")
+  })
+
   it("creates Select options with the same item editor used by field properties", async () => {
     const onCreateField = vi.fn()
     act(() =>
@@ -165,9 +211,9 @@ describe("BaseStructureDialog", () => {
         .querySelector<HTMLButtonElement>('[role="combobox"]')
         ?.click()
     })
-    const selectOption = [
-      ...document.body.querySelectorAll<HTMLElement>('[role="option"]'),
-    ].find((option) => option.textContent === "Select")
+    const selectOption = document.body.querySelector<HTMLElement>(
+      '[data-field-type="select"]'
+    )
     await act(async () => selectOption?.click())
 
     expect(document.body.textContent).not.toContain(
@@ -265,9 +311,9 @@ describe("BaseStructureDialog", () => {
         .querySelector<HTMLButtonElement>('[role="combobox"]')
         ?.click()
     })
-    const numberOption = [
-      ...document.body.querySelectorAll<HTMLElement>('[role="option"]'),
-    ].find((option) => option.textContent === "Number")
+    const numberOption = document.body.querySelector<HTMLElement>(
+      '[data-field-type="number"]'
+    )
     await act(async () => numberOption?.click())
 
     expect(document.body.textContent).toContain("Number display")
@@ -363,11 +409,9 @@ describe("BaseStructureDialog", () => {
         .querySelector<HTMLButtonElement>('[role="combobox"]')
         ?.click()
     })
-    const relation = [
-      ...document.body.querySelectorAll('[role="option"]'),
-    ].find((option) => option.textContent?.includes("Relation")) as
-      | HTMLElement
-      | undefined
+    const relation = document.body.querySelector<HTMLElement>(
+      '[data-field-type="link"]'
+    )
     await act(async () => relation?.click())
 
     expect(document.body.textContent).toContain("Related table")
@@ -426,11 +470,9 @@ describe("BaseStructureDialog", () => {
         .querySelector<HTMLButtonElement>('[role="combobox"]')
         ?.click()
     })
-    const formulaOption = [
-      ...document.body.querySelectorAll('[role="option"]'),
-    ].find((option) => option.textContent?.includes("Formula")) as
-      | HTMLElement
-      | undefined
+    const formulaOption = document.body.querySelector<HTMLElement>(
+      '[data-field-type="formula"]'
+    )
     await act(async () => formulaOption?.click())
     const formula = document.body.querySelector<HTMLTextAreaElement>(
       'textarea[aria-label="Formula expression"]'
@@ -517,9 +559,9 @@ describe("BaseStructureDialog", () => {
         .querySelector<HTMLButtonElement>('[role="combobox"]')
         ?.click()
     })
-    const lookup = [...document.body.querySelectorAll('[role="option"]')].find(
-      (option) => option.textContent?.includes("Lookup / rollup")
-    ) as HTMLElement | undefined
+    const lookup = document.body.querySelector<HTMLElement>(
+      '[data-field-type="lookup"]'
+    )
     await act(async () => lookup?.click())
     expect(document.body.textContent).toContain("Target field")
     await act(async () => {

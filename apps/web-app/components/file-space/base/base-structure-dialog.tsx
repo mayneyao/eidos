@@ -23,6 +23,10 @@ import {
 
 import { BaseFormulaComposer } from "./base-formula-composer"
 import {
+  BaseFieldTypePicker,
+  type BaseCreatableFieldType,
+} from "./base-field-type-picker"
+import {
   DEFAULT_BASE_NUMBER_PROPERTY,
   type BaseNumberProperty,
   type BaseSelectOption,
@@ -30,25 +34,7 @@ import {
 import { BaseNumberPropertiesEditor } from "./base-number-properties-editor"
 import { BaseOptionsEditor } from "./base-select-options-editor"
 
-type FieldType = CreateBaseFieldInput["type"]
-
 const EMPTY_TABLES: BaseTableInfo[] = []
-
-const FIELD_TYPES: Array<{ value: FieldType; label: string }> = [
-  { value: "text", label: "Text" },
-  { value: "number", label: "Number" },
-  { value: "checkbox", label: "Checkbox" },
-  { value: "select", label: "Select" },
-  { value: "multi-select", label: "Multi-select" },
-  { value: "date", label: "Date" },
-  { value: "datetime", label: "Date & time" },
-  { value: "url", label: "URL" },
-  { value: "file", label: "File" },
-  { value: "rating", label: "Rating" },
-  { value: "link", label: "Relation" },
-  { value: "formula", label: "Formula" },
-  { value: "lookup", label: "Lookup / rollup" },
-]
 
 const LOOKUP_AGGREGATES: Array<{
   value: BaseLookupAggregate
@@ -100,7 +86,7 @@ export function BaseStructureDialog({
   ) => Promise<BaseFormulaPreview>
 }) {
   const [name, setName] = useState("")
-  const [fieldType, setFieldType] = useState<FieldType>("text")
+  const [fieldType, setFieldType] = useState<BaseCreatableFieldType>("text")
   const [options, setOptions] = useState<BaseSelectOption[]>([])
   const [numberProperty, setNumberProperty] = useState<BaseNumberProperty>(
     () => ({
@@ -290,21 +276,11 @@ export function BaseStructureDialog({
             {mode === "field" ? (
               <label className="grid gap-1.5 text-xs font-medium">
                 Type
-                <Select
+                <BaseFieldTypePicker
                   value={fieldType}
-                  onValueChange={(value) => setFieldType(value as FieldType)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FIELD_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={setFieldType}
+                  disabled={submitting}
+                />
               </label>
             ) : null}
             {mode === "field" && hasOptions ? (

@@ -4,7 +4,13 @@ import { makeHeaderIcons } from "./header-icons"
 
 const icons = makeHeaderIcons(18)
 
-export const FieldIcon = ({ type }: { type: FieldType }) => {
+export const FieldIcon = ({
+  type,
+  className,
+}: {
+  type: FieldType
+  className?: string
+}) => {
   const iconSvgString = icons[type]({
     bgColor: "#aaa",
     fgColor: "currentColor",
@@ -12,6 +18,7 @@ export const FieldIcon = ({ type }: { type: FieldType }) => {
 
   return (
     <span
+      className={className}
       dangerouslySetInnerHTML={{
         __html: iconSvgString,
       }}
