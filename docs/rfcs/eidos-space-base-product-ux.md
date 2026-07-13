@@ -327,6 +327,18 @@ allocated field object. Saving synchronously rejects duplicate shortcuts and
 submits, locks dismissal and all editable controls until the write settles,
 closes only after success, and leaves one inline retry path after failure.
 
+Record Inspector autosaves and Kanban inline creation now use the same local
+recovery ownership. A rejected Inspector edit keeps its optimistic field value
+visible even when the parent reloads the persisted Base snapshot, disables
+additional field edits until the conflict is resolved, and offers explicit
+Retry and Discard change actions. Retry resubmits the preserved value; Discard
+adopts the latest persisted row. Kanban keeps the failed title and creation
+form in the target column, rejects duplicate clicks synchronously, and exposes
+an inline Retry through the same Add action without creating a global Base
+alert. Failed card moves continue to roll back only the affected columns and
+announce the local revert. Direct Grid cell writes remain global because the
+Grid does not yet provide an equivalent anchored recovery surface.
+
 View configuration controls also expose explicit names and state for switch,
 select, layout, and card-size groups. Base progress indicators respect reduced
 motion preferences without removing their textual status, so pending work stays

@@ -204,6 +204,13 @@ transaction 边界：保存期间不能关闭或重复提交，失败后保留�
 控件与退出动作，只有成功才关闭，失败则原位保留可重试状态。没有自身恢复界面的 Grid 和 toolbar
 mutation 才继续使用全局 Base alert。
 
+Record Inspector 自动保存与 Kanban 行内新建也遵循同一套局部恢复边界。Inspector 写入失败后即使父层
+重新加载持久化 Base 快照，仍会保留并显示当前 optimistic 字段值；在用户解决冲突前锁定其他字段编辑，
+并提供明确的 Retry 与 Discard change。Retry 会重新提交保留值，Discard 则采用最新持久化 row。Kanban
+会在目标列保留失败的新建表单与 title，同步拦截连续点击，并通过同一个 Add 动作原位重试，不再生成
+全局 Base alert。Card 移动失败仍只回滚受影响的列并在局部播报恢复。Grid cell 目前没有等价的锚定式
+恢复界面，因此其直接写入仍使用全局错误。
+
 CSV 导入的文件选择、分析和写入现在也保持锚定式、非模态工作流。原生 picker 返回后 mapping
 panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以原位取消。取消会终止隔离 worker、
 等待 SQLite transaction 回滚，再解除当前 Base 的 mutation lock，因此重试不会和仍在退出的
