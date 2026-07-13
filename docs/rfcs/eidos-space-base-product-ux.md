@@ -165,6 +165,14 @@ first record page only for uncollapsed columns in the horizontal window. Each
 column also uses dynamic-height vertical virtualization and automatic paging,
 so a large Select option set no longer causes one file open and first-page query
 per option, and a large group no longer mounts every loaded card.
+Kanban mutations keep paging state local to the affected columns. Moving a
+loaded record decrements the source's consumed server cursor, while the target
+column safely rescans from its first page because the moved record's server sort
+position is unknown; page results are deduplicated by stable row ID. Inspector
+edits to the grouping field use the same cross-column transition. Creating a
+record without active search, filters, or sorts updates the mounted board in
+place instead of remounting every column; query-aware views still reload to
+reconcile membership and ordering.
 
 CSV selection, analysis, and writing now follow the same anchored, non-modal
 workflow. The mapping panel opens as soon as the native picker returns;
