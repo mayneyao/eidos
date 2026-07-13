@@ -19,13 +19,16 @@ order/width。table/field 现已支持 create、rename、delete；非模态字�
 支持 source field 类型转换、逐项编辑 select/multi-select choices 和 Number 展示配置。
 新建 Select/Multi-select 字段也复用同一个逐项 option editor，不再通过逗号文本生成 choices；
 option IDs 在创建时即稳定，名称保持可包含逗号的独立 metadata。
+新建 Number 字段同样复用 Property workspace 的 display editor，可直接配置 format、bar maximum/
+color 和 label visibility。连续展示配置会基于最新本地 property snapshot 合并；option 或 Number
+mutation 被拒绝时，UI 会恢复到最后持久化状态。
 类型转换会在事务中重建必要的 SQLite column 并迁移 values，删除 choice 也会同步清理已有
 cell 引用；结构删除会清理依赖 references 与 view layout metadata。Graft
 row diff 也已贯通 working Changes 和历史 inspector。
 
 view runtime 与 Desktop UI 现已支持多个 Grid views 的创建、重命名、复制、排序、
 删除保护、切换，以及各自独立的 query/layout state。Gallery 和 Kanban metadata 会
-保持可移植，但它们的实时 renderer 不在当前 delivery slice 中。
+保持可移植；实时 renderer 也已接入同一套持久化 query/layout lifecycle。
 
 新建 file 字段使用 `json_array` storage codec，保存经过归一化的 Space 相对路径，
 而不是私有数据库 payload ID；runtime 仍可读取旧的逗号/换行值。Desktop 恢复原表格

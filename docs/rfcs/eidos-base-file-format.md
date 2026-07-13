@@ -27,15 +27,19 @@ field type conversion, per-item select/multi-select choice editing, and Number
 presentation. Creating Select/Multi-select fields reuses the same per-item
 option editor instead of generating choices from comma text; option IDs are
 stable from creation and names remain independent metadata that may contain
-commas. Type conversion transactionally rebuilds the SQLite column when
+commas. Creating Number fields also reuses the Property workspace's display
+editor, including format, bar maximum/color, and label visibility. Consecutive
+display edits merge against the latest local property snapshot, while rejected
+option or Number mutations restore the last persisted UI state. Type conversion
+transactionally rebuilds the SQLite column when
 needed and migrates values, while deleting a choice also cleans stored cell
 references. Grid order/width/visibility state persists inside `eidos__views` in
 the Base file. Structural deletes also clean dependent references and view layout
 metadata transactionally.
 The view runtime and Desktop UI now cover creation, rename, duplication,
 ordering, deletion protection, switching, and per-view query/layout state for
-multiple Grid views. Gallery and Kanban metadata remain portable but their live
-renderers are not part of this delivery slice.
+multiple Grid views. Gallery and Kanban are also live, portable renderers backed
+by the same persisted query/layout lifecycle.
 
 New file fields use the `json_array` storage codec and store normalized
 Space-relative paths rather than private database payload identifiers. The

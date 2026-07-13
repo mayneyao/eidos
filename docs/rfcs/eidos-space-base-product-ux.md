@@ -64,8 +64,10 @@ rename, color, drag reorder, and delete, and Number format/bar/maximum/color/
 label settings drive the live Grid. Removing an option cleans stored cell
 references in the same Base transaction. Field creation and later Property
 editing reuse the same option rows, including duplicate prevention, color, and
-drag reorder. The comma-text Options dialog and field Rename dialog path have
-been removed.
+drag reorder. Number creation and later editing likewise reuse the same display
+controls. Rapid Number changes merge locally instead of overwriting one another,
+and rejected option/Number mutations restore the last persisted presentation.
+The comma-text Options dialog and field Rename dialog path have been removed.
 
 Gallery and Kanban now participate in the same persisted view lifecycle as
 Grid. Gallery uses paged server data, responsive card sizing, optional empty
