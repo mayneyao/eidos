@@ -49,6 +49,18 @@ const VIEW_TYPES: Array<{
   { type: "kanban", label: "Kanban", description: "Grouped by Select" },
 ]
 
+function defaultViewName(
+  type: BaseBuiltInViewType,
+  views: BaseViewInfo[]
+): string {
+  const label = VIEW_TYPES.find((candidate) => candidate.type === type)?.label
+  const prefix = label ?? "View"
+  const names = new Set(views.map((view) => view.name.trim().toLowerCase()))
+  let suffix = views.filter((view) => view.type === type).length + 1
+  while (names.has(`${prefix} ${suffix}`.toLowerCase())) suffix += 1
+  return `${prefix} ${suffix}`
+}
+
 export function isBaseBuiltInViewType(
   type: string
 ): type is BaseBuiltInViewType {
@@ -98,6 +110,7 @@ export function BaseViewSelector({
   const [panel, setPanel] = useState<Panel>("list")
   const [managedViewId, setManagedViewId] = useState<string | null>(null)
   const [name, setName] = useState("")
+  const [isDefaultName, setIsDefaultName] = useState(false)
   const [createType, setCreateType] = useState<BaseBuiltInViewType>("grid")
   const [busy, setBusy] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
@@ -117,11 +130,13 @@ export function BaseViewSelector({
     setPanel("list")
     setManagedViewId(null)
     setName("")
+    setIsDefaultName(false)
     setCreateType("grid")
     setLocalError(null)
   }
   const prepareCreate = () => {
-    setName(`Grid ${views.length + 1}`)
+    setName(defaultViewName("grid", views))
+    setIsDefaultName(true)
     setCreateType("grid")
     setLocalError(null)
     setPanel("create")
@@ -287,11 +302,7 @@ export function BaseViewSelector({
               <button
                 type="button"
                 className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs hover:bg-accent"
-                onClick={() => {
-                  setName(`Grid ${views.length + 1}`)
-                  setCreateType("grid")
-                  setPanel("create")
-                }}
+                onClick={prepareCreate}
               >
                 <Plus className="h-3.5 w-3.5" />
                 New view
@@ -318,7 +329,10 @@ export function BaseViewSelector({
               autoFocus
               className="mt-1.5 h-8 text-xs"
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                setName(event.target.value)
+                setIsDefaultName(false)
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter") create()
               }}
@@ -339,6 +353,7 @@ export function BaseViewSelector({
                           "border-foreground/30 bg-accent"
                       )}
                       disabled={unavailable}
+                      aria-pressed={createType === candidate.type}
                       title={
                         unavailable
                           ? "Add a Select field before creating a Kanban view"
@@ -346,8 +361,8 @@ export function BaseViewSelector({
                       }
                       onClick={() => {
                         setCreateType(candidate.type)
-                        if (/^(Grid|Gallery|Kanban) \d+$/.test(name)) {
-                          setName(`${candidate.label} ${views.length + 1}`)
+                        if (isDefaultName) {
+                          setName(defaultViewName(candidate.type, views))
                         }
                       }}
                     >

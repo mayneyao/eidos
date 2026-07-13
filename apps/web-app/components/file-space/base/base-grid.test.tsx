@@ -50,7 +50,7 @@ vi.mock("@/apps/web-app/hooks/use-current-theme", () => ({
   useCurrentTheme: () => ({ css: null }),
 }))
 vi.mock("@/components/table/views/grid/theme", () => ({
-  useDynamicTheme: () => ({}),
+  useDynamicTheme: () => ({ accentColor: "hsl(220 40% 20%)" }),
 }))
 
 ;(
@@ -667,7 +667,10 @@ describe("BaseGrid", () => {
     expect(loadPage).toHaveBeenCalledWith(100, 100)
     expect(loadPage).toHaveBeenCalledWith(200, 100)
     expect(mocks.props?.highlightRegions).toMatchObject([
-      { range: { x: 0, y: 180, width: 2, height: 1 } },
+      {
+        color: "hsl(220 40% 20% / 0.14)",
+        range: { x: 0, y: 180, width: 2, height: 1 },
+      },
     ])
   })
 
@@ -762,7 +765,10 @@ describe("BaseGrid", () => {
     } as unknown as DataTransfer
     act(() => mocks.props?.onDragOverCell?.([2, 0], transfer))
     expect(mocks.props?.highlightRegions).toMatchObject([
-      { range: { x: 2, y: 0, width: 1, height: 1 } },
+      {
+        color: "hsl(220 40% 20% / 0.18)",
+        range: { x: 2, y: 0, width: 1, height: 1 },
+      },
     ])
     await act(async () => {
       mocks.props?.onDrop?.([2, 0], transfer)

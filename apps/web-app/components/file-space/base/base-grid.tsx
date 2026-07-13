@@ -91,6 +91,22 @@ import "@glideapps/glide-data-grid/dist/index.css"
 const PAGE_SIZE = 100
 const PAGE_OVERSCAN = 1
 
+function themeColorWithAlpha(color: string, alpha: number): string {
+  const normalized = color.trim()
+  if (!normalized) return "transparent"
+  if (
+    (normalized.startsWith("hsl(") || normalized.startsWith("rgb(")) &&
+    normalized.endsWith(")")
+  ) {
+    const openParen = normalized.indexOf("(")
+    const body = normalized.slice(openParen + 1, -1)
+    if (!body.includes("/")) {
+      return `${normalized.slice(0, openParen + 1)}${body} / ${alpha})`
+    }
+  }
+  return `color-mix(in srgb, ${normalized} ${Math.round(alpha * 100)}%, transparent)`
+}
+
 interface BaseGridProps {
   table: BaseTableSnapshot
   view?: BaseViewInfo
@@ -197,6 +213,8 @@ export function BaseGrid({
   const { resolvedTheme } = useTheme()
   const { css: spaceThemeCss } = useCurrentTheme()
   const theme = useDynamicTheme(resolvedTheme, spaceThemeCss)
+  const searchHighlightColor = themeColorWithAlpha(theme.accentColor, 0.14)
+  const fileDropHighlightColor = themeColorWithAlpha(theme.accentColor, 0.18)
   const gridRef = useRef<DataEditorRef>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const widthSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -667,7 +685,7 @@ export function BaseGrid({
       searchResultIndex < rowCount
         ? [
             {
-              color: "rgba(245, 194, 66, 0.24)",
+              color: searchHighlightColor,
               range: {
                 x: 0,
                 y: searchResultIndex,
@@ -677,7 +695,7 @@ export function BaseGrid({
             },
           ]
         : [],
-    [columns.length, rowCount, searchResultIndex]
+    [columns.length, rowCount, searchHighlightColor, searchResultIndex]
   )
   const onDragOverCell = useCallback<
     NonNullable<DataEditorProps["onDragOverCell"]>
@@ -691,7 +709,7 @@ export function BaseGrid({
         field?.type === "file" && hasFiles
           ? [
               {
-                color: "#44BB0022",
+                color: fileDropHighlightColor,
                 range: {
                   x: location[0],
                   y: location[1],
@@ -703,7 +721,7 @@ export function BaseGrid({
           : []
       )
     },
-    [fields]
+    [fields, fileDropHighlightColor]
   )
   const onDrop = useCallback<NonNullable<DataEditorProps["onDrop"]>>(
     (location, transfer) => {

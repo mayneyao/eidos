@@ -207,6 +207,24 @@ describe("BaseViewSelector", () => {
     ).toBe("Grid 3")
   })
 
+  it("uses layout-specific defaults without overwriting a name the user typed", async () => {
+    await act(async () => exactButton("All tasks")?.click())
+    await act(async () => exactButton("New view")?.click())
+
+    const input =
+      document.body.querySelector<HTMLInputElement>("#base-view-name")
+    expect(input?.value).toBe("Grid 3")
+
+    await act(async () => exactButton("Gallery")?.click())
+    expect(input?.value).toBe("Gallery 1")
+
+    await act(async () => {
+      if (input) setInput(input, "Grid 99")
+    })
+    await act(async () => exactButton("Kanban")?.click())
+    expect(input?.value).toBe("Grid 99")
+  })
+
   it("renames, duplicates, and reorders views without a centered dialog", async () => {
     await act(async () => exactButton("All tasks")?.click())
     await act(async () =>
