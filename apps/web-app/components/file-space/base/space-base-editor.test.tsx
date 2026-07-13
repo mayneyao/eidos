@@ -172,7 +172,7 @@ vi.mock("./base-formula-editor", () => ({
       formula: string
       displayType: "number"
     }) => void
-    onSave: (property: Record<string, unknown>) => void
+    onSave: (property: Record<string, unknown>) => Promise<void> | void
   }) =>
     open ? (
       <>
@@ -192,7 +192,9 @@ vi.mock("./base-formula-editor", () => ({
         <button
           type="button"
           onClick={() =>
-            onSave({ formula: "price * quantity", displayType: "number" })
+            void Promise.resolve(
+              onSave({ formula: "price * quantity", displayType: "number" })
+            ).catch(() => undefined)
           }
         >
           Confirm formula
@@ -207,18 +209,20 @@ vi.mock("./base-lookup-editor", () => ({
     onSave,
   }: {
     open: boolean
-    onSave: (property: Record<string, unknown>) => void
+    onSave: (property: Record<string, unknown>) => Promise<void> | void
   }) =>
     open ? (
       <button
         type="button"
         onClick={() =>
-          onSave({
-            relationField: "owners",
-            targetField: "title",
-            aggregate: "count",
-            displayType: "number",
-          })
+          void Promise.resolve(
+            onSave({
+              relationField: "owners",
+              targetField: "title",
+              aggregate: "count",
+              displayType: "number",
+            })
+          ).catch(() => undefined)
         }
       >
         Confirm lookup
@@ -1213,6 +1217,54 @@ describe("SpaceBaseEditor", () => {
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
         .find((button) => button.textContent === "Save property")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(getSnapshotMock).toHaveBeenCalledTimes(2)
+    expect(updateFieldMock).toHaveBeenCalledTimes(1)
+    expect(
+      container.querySelector('[aria-label="Dismiss Base error"]')
+    ).toBeNull()
+  })
+
+  it("leaves formula save errors inside the anchored formula editor", async () => {
+    updateFieldMock.mockRejectedValueOnce(new Error("Formula update failed"))
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit formula")
+        ?.click()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Confirm formula")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(getSnapshotMock).toHaveBeenCalledTimes(2)
+    expect(updateFieldMock).toHaveBeenCalledTimes(1)
+    expect(
+      container.querySelector('[aria-label="Dismiss Base error"]')
+    ).toBeNull()
+  })
+
+  it("leaves lookup save errors inside the anchored lookup editor", async () => {
+    updateFieldMock.mockRejectedValueOnce(new Error("Lookup update failed"))
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit lookup")
+        ?.click()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Confirm lookup")
         ?.click()
       await Promise.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))

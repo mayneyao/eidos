@@ -1027,7 +1027,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         (next) => {
           applySnapshot(next)
           setGridReloadToken((current) => current + 1)
-        }
+        },
+        { errorMode: "local" }
       ).then(() => undefined)
     },
     [
@@ -1064,7 +1065,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         (next) => {
           applySnapshot(next)
           setGridReloadToken((current) => current + 1)
-        }
+        },
+        { errorMode: "local" }
       ).then(() => undefined)
     },
     [

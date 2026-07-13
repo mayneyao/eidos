@@ -181,6 +181,7 @@ export interface BaseFormulaComposerProps {
   onValidityChange?: (valid: boolean) => void
   onEscape?: () => void
   onSaveShortcut?: () => void
+  disabled?: boolean
 }
 
 export function BaseFormulaComposer({
@@ -197,6 +198,7 @@ export function BaseFormulaComposer({
   onValidityChange,
   onEscape,
   onSaveShortcut,
+  disabled = false,
 }: BaseFormulaComposerProps) {
   const internalEditorRef = useRef<CodeMirrorFormulaEditorRef>(null)
   const editorRef = externalEditorRef ?? internalEditorRef
@@ -295,12 +297,16 @@ export function BaseFormulaComposer({
   ])
 
   const insertCompletion = (label: string, type: string) => {
+    if (disabled) return
     editorRef.current?.insertText(type === "function" ? `${label}()` : label)
     setSelectedReference(label)
   }
 
   return (
-    <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_220px]">
+    <div
+      className="grid min-h-0 grid-cols-[minmax(0,1fr)_220px]"
+      aria-busy={disabled}
+    >
       <div className="min-w-0 border-r">
         <div className="p-3">
           <CodeMirrorFormulaEditor
@@ -312,6 +318,7 @@ export function BaseFormulaComposer({
             onSave={() => saveShortcutRef.current?.()}
             height="126px"
             placeholder='Use columns such as quantity, or prop("Display name")'
+            disabled={disabled}
           />
         </div>
 
@@ -393,6 +400,7 @@ export function BaseFormulaComposer({
           </div>
           <Select
             value={displayType}
+            disabled={disabled}
             onValueChange={(value) =>
               onDisplayTypeChange(value as BaseFormulaDisplayType)
             }
@@ -419,6 +427,7 @@ export function BaseFormulaComposer({
             value={referenceQuery}
             placeholder="Filter references"
             className="h-7 text-xs"
+            disabled={disabled}
             onChange={(event) => setReferenceQuery(event.target.value)}
           />
         </div>
@@ -427,6 +436,7 @@ export function BaseFormulaComposer({
             <button
               key={`${completion.type}-${completion.label}`}
               type="button"
+              disabled={disabled}
               className={cn(
                 "flex w-full items-start gap-2 px-2.5 py-1.5 text-left hover:bg-accent",
                 selectedReference === completion.label && "bg-accent"

@@ -28,14 +28,28 @@ export function BaseFormulaEditor({
   onSave: (property: Record<string, unknown>) => Promise<void> | void
 }) {
   const editorRef = useRef<CodeMirrorFormulaEditorRef>(null)
+  const initializedSessionRef = useRef<string | null>(null)
+  const savingRef = useRef(false)
   const [formula, setFormula] = useState("")
   const [displayType, setDisplayType] = useState<BaseFormulaDisplayType>("text")
   const [formulaValid, setFormulaValid] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const sessionKey = field
+    ? `${field.tableName}:${field.tableColumnName}`
+    : null
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      initializedSessionRef.current = null
+      savingRef.current = false
+      setSaving(false)
+      return
+    }
+    if (!field || !sessionKey || initializedSessionRef.current === sessionKey) {
+      return
+    }
+    initializedSessionRef.current = sessionKey
     setFormula(
       typeof field?.property?.formula === "string" ? field.property.formula : ""
     )
@@ -49,24 +63,34 @@ export function BaseFormulaEditor({
     setSaving(false)
     setError(null)
     window.setTimeout(() => editorRef.current?.focus(), 0)
-  }, [field, open])
+  }, [field, open, sessionKey])
+
+  const requestOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && savingRef.current) return
+    onOpenChange(nextOpen)
+  }
 
   const save = async () => {
-    if (!field || !formulaValid || !formula.trim() || saving) return
+    if (!field || !formulaValid || !formula.trim() || savingRef.current) {
+      return
+    }
+    savingRef.current = true
     setSaving(true)
     setError(null)
     try {
       await onSave({ formula: formula.trim(), displayType })
-      onOpenChange(false)
     } catch (saveError) {
       setError(
         saveError instanceof Error
           ? saveError.message
           : "Unable to save formula"
       )
+      return
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
+    onOpenChange(false)
   }
 
   const submit = (event: FormEvent) => {
@@ -75,7 +99,7 @@ export function BaseFormulaEditor({
   }
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover open={open} onOpenChange={requestOpenChange}>
       <PopoverAnchor asChild>
         <span className="pointer-events-none absolute right-2 top-10 h-px w-px" />
       </PopoverAnchor>
@@ -107,8 +131,9 @@ export function BaseFormulaEditor({
             onDisplayTypeChange={setDisplayType}
             onPreview={onPreview}
             onValidityChange={setFormulaValid}
-            onEscape={() => onOpenChange(false)}
+            onEscape={() => requestOpenChange(false)}
             onSaveShortcut={() => void save()}
+            disabled={saving}
           />
           {error ? (
             <p
@@ -123,7 +148,7 @@ export function BaseFormulaEditor({
               type="button"
               variant="ghost"
               disabled={saving}
-              onClick={() => onOpenChange(false)}
+              onClick={() => requestOpenChange(false)}
             >
               Cancel
             </Button>

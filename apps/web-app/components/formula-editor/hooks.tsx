@@ -31,7 +31,8 @@ export interface UseEditorProps {
     onArrowDown?: () => void,
     onEnter?: () => void,
     placeholder?: string,
-    disableAutocompletion?: boolean
+    disableAutocompletion?: boolean,
+    disabled?: boolean
   ) => EditorView
   language?: string
   theme?: "light" | "dark"
@@ -43,6 +44,7 @@ export interface UseEditorProps {
   onAiComplete?: (prompt: string) => void
   placeholder?: string
   disableAutocompletion?: boolean
+  disabled?: boolean
 }
 
 /**
@@ -69,6 +71,7 @@ export function useEditor({
   onAiComplete,
   placeholder,
   disableAutocompletion,
+  disabled = false,
 }: UseEditorProps) {
   // Track completion state
   const [isCompletionActive, setIsCompletionActive] = useState(false)
@@ -104,7 +107,8 @@ export function useEditor({
         placeholder,
         // Disable autocompletion if explicitly requested or if in AI prompt mode
         disableAutocompletion ||
-          (Boolean(onAiComplete) && value.trim().startsWith("//"))
+          (Boolean(onAiComplete) && value.trim().startsWith("//")),
+        disabled
       )
       editorViewRef.current = view
       initializedRef.current = true
@@ -233,7 +237,8 @@ export function useEditor({
             onEnter,
             placeholder,
             // Disable autocompletion if explicitly requested or if in AI prompt mode
-            disableAutocompletion || newAiPromptMode
+            disableAutocompletion || newAiPromptMode,
+            disabled
           )
 
           // Restore cursor position

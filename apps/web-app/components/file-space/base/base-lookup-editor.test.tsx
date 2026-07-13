@@ -69,6 +69,12 @@ const people: BaseTableSnapshot = {
   rowCount: 0,
 }
 
+function submitLookup() {
+  document.body
+    .querySelector("form")
+    ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+}
+
 describe("BaseLookupEditor", () => {
   let container: HTMLDivElement
   let root: Root
@@ -100,11 +106,7 @@ describe("BaseLookupEditor", () => {
     })
     expect(document.body.querySelector('[aria-modal="true"]')).toBeNull()
     await act(async () => {
-      document.body
-        .querySelector("form")
-        ?.dispatchEvent(
-          new Event("submit", { bubbles: true, cancelable: true })
-        )
+      submitLookup()
       await Promise.resolve()
     })
     expect(onSave).toHaveBeenCalledWith({
@@ -113,5 +115,97 @@ describe("BaseLookupEditor", () => {
       aggregate: "count",
       displayType: "number",
     })
+  })
+
+  it("keeps its session state and error when recovery replaces the field", async () => {
+    const onSave = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Lookup file is read-only"))
+      .mockResolvedValueOnce(undefined)
+    const onOpenChange = vi.fn()
+    const renderEditor = async (field: BaseFieldInfo) => {
+      await act(async () => {
+        root.render(
+          <BaseLookupEditor
+            field={field}
+            fields={[relationField, field]}
+            tables={[people]}
+            open
+            onOpenChange={onOpenChange}
+            onSave={onSave}
+          />
+        )
+      })
+    }
+
+    await renderEditor(lookupField)
+    await act(async () => {
+      submitLookup()
+      await Promise.resolve()
+    })
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
+      "Lookup file is read-only"
+    )
+    expect(onOpenChange).not.toHaveBeenCalled()
+
+    await renderEditor({
+      ...lookupField,
+      property: { ...lookupField.property, aggregate: "first" },
+    })
+    expect(
+      Array.from(document.body.querySelectorAll("button")).some(
+        (button) => button.textContent?.trim() === "Count"
+      )
+    ).toBe(true)
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
+      "Lookup file is read-only"
+    )
+
+    await act(async () => {
+      submitLookup()
+      await Promise.resolve()
+    })
+    expect(onSave).toHaveBeenCalledTimes(2)
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it("prevents duplicate lookup writes while one is pending", async () => {
+    let resolveSave: (() => void) | undefined
+    const onSave = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSave = resolve
+        })
+    )
+    const onOpenChange = vi.fn()
+    await act(async () => {
+      root.render(
+        <BaseLookupEditor
+          field={lookupField}
+          fields={[relationField, lookupField]}
+          tables={[people]}
+          open
+          onOpenChange={onOpenChange}
+          onSave={onSave}
+        />
+      )
+    })
+
+    await act(async () => {
+      submitLookup()
+      submitLookup()
+    })
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(
+      Array.from(document.body.querySelectorAll("button")).find(
+        (button) => button.textContent === "Cancel"
+      )?.disabled
+    ).toBe(true)
+
+    await act(async () => {
+      resolveSave?.()
+      await Promise.resolve()
+    })
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 })

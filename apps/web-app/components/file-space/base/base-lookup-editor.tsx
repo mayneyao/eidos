@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useRef, useState, type FormEvent } from "react"
 import type {
   BaseFieldInfo,
   BaseLookupAggregate,
@@ -40,14 +40,28 @@ export function BaseLookupEditor({
   onOpenChange: (open: boolean) => void
   onSave: (property: Record<string, unknown>) => Promise<void> | void
 }) {
+  const initializedSessionRef = useRef<string | null>(null)
+  const savingRef = useRef(false)
   const [relationField, setRelationField] = useState("")
   const [targetField, setTargetField] = useState("")
   const [aggregate, setAggregate] = useState<BaseLookupAggregate>("first")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const sessionKey = field
+    ? `${field.tableName}:${field.tableColumnName}`
+    : null
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      initializedSessionRef.current = null
+      savingRef.current = false
+      setSaving(false)
+      return
+    }
+    if (!field || !sessionKey || initializedSessionRef.current === sessionKey) {
+      return
+    }
+    initializedSessionRef.current = sessionKey
     setRelationField(
       typeof field?.property?.relationField === "string"
         ? field.property.relationField
@@ -65,7 +79,12 @@ export function BaseLookupEditor({
     )
     setSaving(false)
     setError(null)
-  }, [field, open])
+  }, [field, open, sessionKey])
+
+  const requestOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && savingRef.current) return
+    onOpenChange(nextOpen)
+  }
 
   const relations = fields.filter((candidate) => candidate.type === "link")
   const selectedRelation =
@@ -93,7 +112,7 @@ export function BaseLookupEditor({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    if (!selectedRelation || !selectedTarget) return
+    if (!selectedRelation || !selectedTarget || savingRef.current) return
     const numeric = new Set<BaseLookupAggregate>([
       "count",
       "sum",
@@ -101,6 +120,7 @@ export function BaseLookupEditor({
       "min",
       "max",
     ]).has(aggregate)
+    savingRef.current = true
     setSaving(true)
     setError(null)
     try {
@@ -110,18 +130,20 @@ export function BaseLookupEditor({
         aggregate,
         displayType: numeric ? "number" : "text",
       })
-      onOpenChange(false)
     } catch (saveError) {
       setError(
         saveError instanceof Error ? saveError.message : "Unable to save lookup"
       )
+      return
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
+    onOpenChange(false)
   }
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover open={open} onOpenChange={requestOpenChange}>
       <PopoverAnchor asChild>
         <span className="pointer-events-none absolute right-2 top-10 h-px w-px" />
       </PopoverAnchor>
@@ -138,6 +160,7 @@ export function BaseLookupEditor({
               Relation
               <Select
                 value={selectedRelation?.tableColumnName ?? ""}
+                disabled={saving}
                 onValueChange={(value) => {
                   setRelationField(value)
                   setTargetField("")
@@ -162,6 +185,7 @@ export function BaseLookupEditor({
               Target field
               <Select
                 value={selectedTarget?.tableColumnName ?? ""}
+                disabled={saving}
                 onValueChange={setTargetField}
               >
                 <SelectTrigger>
@@ -183,6 +207,7 @@ export function BaseLookupEditor({
               Calculate
               <Select
                 value={aggregate}
+                disabled={saving}
                 onValueChange={(value) =>
                   setAggregate(value as BaseLookupAggregate)
                 }
@@ -210,7 +235,7 @@ export function BaseLookupEditor({
               type="button"
               variant="ghost"
               disabled={saving}
-              onClick={() => onOpenChange(false)}
+              onClick={() => requestOpenChange(false)}
             >
               Cancel
             </Button>

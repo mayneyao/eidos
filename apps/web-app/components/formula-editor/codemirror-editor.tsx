@@ -8,7 +8,7 @@ import {
   syntaxHighlighting,
   syntaxTree,
 } from "@codemirror/language"
-import { EditorSelection } from "@codemirror/state"
+import { Compartment, EditorSelection, EditorState } from "@codemirror/state"
 import { keymap, placeholder } from "@codemirror/view"
 import { tags } from "@lezer/highlight"
 import { EditorView, basicSetup } from "codemirror"
@@ -59,6 +59,8 @@ const syntaxHighlightingTheme = HighlightStyle.define([
   },
 ])
 
+const editableCompartments = new WeakMap<EditorView, Compartment>()
+
 function getLanguageSupport(language: string): LanguageSupport {
   switch (language.toLowerCase()) {
     case "sql":
@@ -91,8 +93,10 @@ function createEditorView(
   onArrowDown?: () => void,
   onEnter?: () => void,
   placeholderText?: string,
-  disableAutocompletion?: boolean
+  disableAutocompletion?: boolean,
+  disabled: boolean = false
 ): EditorView {
+  const editableCompartment = new Compartment()
   const conditionExtensions = !disableAutocompletion
     ? [
         getLanguageSupport(language),
@@ -110,6 +114,10 @@ function createEditorView(
       basicSetup,
       EditorView.lineWrapping,
       syntaxHighlighting(syntaxHighlightingTheme),
+      editableCompartment.of([
+        EditorState.readOnly.of(disabled),
+        EditorView.editable.of(!disabled),
+      ]),
       placeholderText ? placeholder(placeholderText) : [],
       ...conditionExtensions,
       EditorView.updateListener.of((update) => {
@@ -195,6 +203,8 @@ function createEditorView(
     parent: element,
   })
 
+  editableCompartments.set(view, editableCompartment)
+
   return view
 }
 
@@ -216,6 +226,7 @@ export interface CodeMirrorFormulaEditorProps {
   disableAutocompletion?: boolean
   onAiPromptModeChange?: (isAiPromptMode: boolean) => void
   isGeneratingFormula?: boolean
+  disabled?: boolean
 }
 
 /**
@@ -250,6 +261,7 @@ export const CodeMirrorFormulaEditor = forwardRef<
       disableAutocompletion,
       onAiPromptModeChange,
       isGeneratingFormula = false,
+      disabled = false,
     },
     ref
   ) => {
@@ -359,7 +371,23 @@ export const CodeMirrorFormulaEditor = forwardRef<
       onAiComplete,
       placeholder,
       disableAutocompletion,
+      disabled,
     })
+
+    useEffect(() => {
+      const view = editorViewRef.current
+      const editableCompartment = view
+        ? editableCompartments.get(view)
+        : undefined
+      if (!view || !editableCompartment) return
+      view.dispatch({
+        effects: editableCompartment.reconfigure([
+          EditorState.readOnly.of(disabled),
+          EditorView.editable.of(!disabled),
+        ]),
+      })
+      view.dom.setAttribute("aria-disabled", String(disabled))
+    }, [disabled])
 
     useEffect(() => {
       if (onAiPromptModeChange) {
