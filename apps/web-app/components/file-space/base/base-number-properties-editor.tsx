@@ -30,6 +30,7 @@ export function BaseNumberPropertiesEditor({
   const [property, setProperty] = useState(sourceProperty)
   const propertyRef = useRef(sourceProperty)
   const [divideBy, setDivideBy] = useState(String(sourceProperty.divideBy))
+  const skipDivideByCommitRef = useRef(false)
   const divideById = useId()
 
   useEffect(() => {
@@ -58,6 +59,10 @@ export function BaseNumberPropertiesEditor({
   }
 
   const commitDivideBy = () => {
+    if (skipDivideByCommitRef.current) {
+      skipDivideByCommitRef.current = false
+      return
+    }
     const value = Number(divideBy)
     if (Number.isFinite(value) && value > 0 && value !== property.divideBy) {
       update({ divideBy: value })
@@ -124,6 +129,7 @@ export function BaseNumberPropertiesEditor({
               onKeyDown={(event) => {
                 if (event.key === "Enter") event.currentTarget.blur()
                 if (event.key === "Escape") {
+                  skipDivideByCommitRef.current = true
                   setDivideBy(String(property.divideBy))
                   event.currentTarget.blur()
                 }

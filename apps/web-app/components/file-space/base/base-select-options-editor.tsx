@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { BaseFieldInfo } from "@eidos.space/base"
 import {
   DndContext,
@@ -56,6 +56,7 @@ function OptionRow({
   const { resolvedTheme } = useTheme()
   const theme = resolvedTheme === "dark" ? "dark" : "light"
   const [name, setName] = useState(option.name)
+  const skipNameCommitRef = useRef(false)
   const {
     attributes,
     listeners,
@@ -68,6 +69,10 @@ function OptionRow({
   useEffect(() => setName(option.name), [option.name])
 
   const commitName = () => {
+    if (skipNameCommitRef.current) {
+      skipNameCommitRef.current = false
+      return
+    }
     const next = name.trim()
     if (next && next !== option.name && onRename(next)) return
     setName(option.name)
@@ -133,6 +138,7 @@ function OptionRow({
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur()
           if (event.key === "Escape") {
+            skipNameCommitRef.current = true
             setName(option.name)
             event.currentTarget.blur()
           }

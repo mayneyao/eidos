@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import type {
   BaseFieldInfo,
   MutableBaseFieldType,
@@ -67,22 +67,57 @@ export function BaseFieldPropertyPanel({
     null
   )
   const [applyingType, setApplyingType] = useState(false)
+  const [pendingUpdate, setPendingUpdate] = useState(false)
+  const pendingUpdateRef = useRef(false)
+  const skipNameCommitRef = useRef(false)
+  const [error, setError] = useState<string | null>(null)
   const nameId = useId()
   const numberProperty = useMemo(() => baseNumberProperty(field), [field])
   const mutable =
     field.valueKind === "source" &&
     MUTABLE_BASE_FIELD_TYPES.some((type) => type === field.type)
 
-  useEffect(() => setName(field.name), [field.name])
-  useEffect(() => setPendingType(null), [field.tableColumnName, field.type])
+  useEffect(
+    () => setName(field.name),
+    [field.name, field.tableColumnName, field.tableName]
+  )
+  useEffect(() => {
+    setPendingType(null)
+    setError(null)
+  }, [field.tableColumnName, field.tableName, field.type])
 
-  const update = (changes: UpdateBaseFieldInput) =>
-    Promise.resolve().then(() => onUpdate(field, changes))
+  const update = async (changes: UpdateBaseFieldInput) => {
+    if (pendingUpdateRef.current) {
+      throw new Error("A field update is already in progress")
+    }
+    pendingUpdateRef.current = true
+    setPendingUpdate(true)
+    setError(null)
+    try {
+      await onUpdate(field, changes)
+    } catch (updateError) {
+      setError(
+        updateError instanceof Error
+          ? updateError.message
+          : "Unable to update field"
+      )
+      throw updateError
+    } finally {
+      pendingUpdateRef.current = false
+      setPendingUpdate(false)
+    }
+  }
+  const busy = disabled || pendingUpdate
 
   const saveName = () => {
+    if (skipNameCommitRef.current) {
+      skipNameCommitRef.current = false
+      return
+    }
     const next = name.trim()
     if (!next) {
       setName(field.name)
+      setError(null)
       return
     }
     if (next !== field.name) {
@@ -100,7 +135,7 @@ export function BaseFieldPropertyPanel({
       await update({ type: pendingType })
       setPendingType(null)
     } catch {
-      // The parent presents the mutation error and refreshes the snapshot.
+      // The pending type and local error remain available for an in-place retry.
     } finally {
       setApplyingType(false)
     }
@@ -110,6 +145,7 @@ export function BaseFieldPropertyPanel({
     <aside
       className="flex h-full w-80 min-w-72 shrink-0 flex-col border-l bg-background"
       aria-label={`Field properties for ${field.name}`}
+      aria-busy={pendingUpdate ? "true" : undefined}
     >
       <header className="flex min-h-12 items-center gap-2 border-b px-3 py-2">
         <div className="min-w-0 flex-1">
@@ -118,7 +154,7 @@ export function BaseFieldPropertyPanel({
             {field.name}
           </p>
         </div>
-        {disabled ? (
+        {busy ? (
           <LoaderCircle className="h-3.5 w-3.5 animate-spin text-muted-foreground motion-reduce:animate-none" />
         ) : null}
         <Button
@@ -127,11 +163,22 @@ export function BaseFieldPropertyPanel({
           size="icon"
           className="h-7 w-7"
           aria-label="Close field properties"
-          onClick={onClose}
+          disabled={busy}
+          onClick={() => {
+            if (!pendingUpdateRef.current && !disabled) onClose()
+          }}
         >
           <X className="h-3.5 w-3.5" />
         </Button>
       </header>
+      {error ? (
+        <p
+          className="border-b bg-destructive/5 px-3 py-2 text-xs leading-4 text-destructive"
+          role="alert"
+        >
+          {error}
+        </p>
+      ) : null}
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 p-3">
           <label className="grid gap-1.5 text-xs" htmlFor={nameId}>
@@ -139,14 +186,16 @@ export function BaseFieldPropertyPanel({
             <Input
               id={nameId}
               value={name}
-              disabled={disabled}
+              disabled={busy}
               className="h-8 text-xs"
               onChange={(event) => setName(event.target.value)}
               onBlur={saveName}
               onKeyDown={(event) => {
                 if (event.key === "Enter") event.currentTarget.blur()
                 if (event.key === "Escape") {
+                  skipNameCommitRef.current = true
                   setName(field.name)
+                  setError(null)
                   event.currentTarget.blur()
                 }
               }}
@@ -157,10 +206,11 @@ export function BaseFieldPropertyPanel({
             {mutable ? (
               <Select
                 value={pendingType ?? field.type}
-                disabled={disabled || applyingType}
-                onValueChange={(type) =>
+                disabled={busy || applyingType}
+                onValueChange={(type) => {
+                  setError(null)
                   setPendingType(type as MutableBaseFieldType)
-                }
+                }}
               >
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue />
@@ -191,8 +241,11 @@ export function BaseFieldPropertyPanel({
                   variant="ghost"
                   size="sm"
                   className="h-7 text-xs"
-                  disabled={applyingType}
-                  onClick={() => setPendingType(null)}
+                  disabled={busy || applyingType}
+                  onClick={() => {
+                    setPendingType(null)
+                    setError(null)
+                  }}
                 >
                   Cancel
                 </Button>
@@ -200,7 +253,7 @@ export function BaseFieldPropertyPanel({
                   type="button"
                   size="sm"
                   className="h-7 text-xs"
-                  disabled={applyingType}
+                  disabled={busy || applyingType}
                   onClick={() => void applyType()}
                 >
                   {applyingType ? "Converting…" : "Apply type"}
@@ -220,14 +273,14 @@ export function BaseFieldPropertyPanel({
           {field.type === "select" || field.type === "multi-select" ? (
             <BaseSelectOptionsEditor
               field={field}
-              disabled={disabled}
+              disabled={busy}
               onChange={saveProperty}
             />
           ) : null}
           {field.type === "number" ? (
             <BaseNumberPropertiesEditor
               property={numberProperty}
-              disabled={disabled}
+              disabled={busy}
               onChange={saveProperty}
             />
           ) : null}
@@ -239,7 +292,7 @@ export function BaseFieldPropertyPanel({
                 variant="outline"
                 size="sm"
                 className="h-8 justify-start gap-2 text-xs"
-                disabled={disabled}
+                disabled={busy}
                 onClick={() => onEditFormula(field)}
               >
                 <Calculator className="h-3.5 w-3.5" />
@@ -255,7 +308,7 @@ export function BaseFieldPropertyPanel({
                 variant="outline"
                 size="sm"
                 className="h-8 justify-start gap-2 text-xs"
-                disabled={disabled}
+                disabled={busy}
                 onClick={() => onEditLookup(field)}
               >
                 <Waypoints className="h-3.5 w-3.5" />
@@ -281,7 +334,7 @@ export function BaseFieldPropertyPanel({
             variant="ghost"
             size="sm"
             className="h-8 w-full justify-start gap-2 text-xs text-destructive hover:text-destructive"
-            disabled={disabled}
+            disabled={busy}
             onClick={() => onDelete(field)}
           >
             <Trash2 className="h-3.5 w-3.5" />

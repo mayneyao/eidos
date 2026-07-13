@@ -1006,7 +1006,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           if (changes.type !== undefined || changes.property !== undefined) {
             setGridReloadToken((current) => current + 1)
           }
-        }
+        },
+        { errorMode: "local" }
       ).then(() => undefined)
     },
     [activeTable, applySnapshot, enqueueMutation, filePath, updateField]

@@ -401,7 +401,7 @@ vi.mock("./base-grid", () => ({
                   property: {
                     options: [{ id: "done", name: "Done", color: "default" }],
                   },
-                })
+                })?.catch(() => undefined)
               }
             >
               Save property
@@ -409,7 +409,9 @@ vi.mock("./base-grid", () => ({
             <button
               type="button"
               onClick={() =>
-                void onFieldUpdate?.(propertyField, { type: "text" })
+                void onFieldUpdate?.(propertyField, {
+                  type: "text",
+                })?.catch(() => undefined)
               }
             >
               Convert field
@@ -1194,6 +1196,30 @@ describe("SpaceBaseEditor", () => {
     expect(
       document.body.querySelector('[aria-label="Remove filter"]')
     ).not.toBeNull()
+    expect(
+      container.querySelector('[aria-label="Dismiss Base error"]')
+    ).toBeNull()
+  })
+
+  it("does not duplicate recoverable field property errors globally", async () => {
+    updateFieldMock.mockRejectedValueOnce(new Error("Field update failed"))
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit property")
+        ?.click()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Save property")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(getSnapshotMock).toHaveBeenCalledTimes(2)
+    expect(updateFieldMock).toHaveBeenCalledTimes(1)
     expect(
       container.querySelector('[aria-label="Dismiss Base error"]')
     ).toBeNull()

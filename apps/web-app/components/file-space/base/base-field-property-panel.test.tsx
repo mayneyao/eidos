@@ -90,6 +90,140 @@ describe("BaseFieldPropertyPanel", () => {
     })
   })
 
+  it("keeps a failed field name draft visible and retries it in place", async () => {
+    const onUpdate = vi
+      .fn<
+        (field: BaseFieldInfo, changes: UpdateBaseFieldInput) => Promise<void>
+      >()
+      .mockRejectedValueOnce(new Error("Unable to rename field"))
+      .mockResolvedValue(undefined)
+    await act(async () => {
+      root.render(
+        <BaseFieldPropertyPanel
+          field={field("select")}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    const nameInput = Array.from(container.querySelectorAll("input")).find(
+      (input) => input.value === "Status"
+    )
+    await act(async () => {
+      nameInput?.focus()
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(nameInput, "Priority")
+      nameInput?.dispatchEvent(new Event("input", { bubbles: true }))
+      nameInput?.blur()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "Unable to rename field"
+    )
+    expect(nameInput?.value).toBe("Priority")
+
+    await act(async () => {
+      nameInput?.focus()
+      nameInput?.blur()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onUpdate).toHaveBeenCalledTimes(2)
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    expect(nameInput?.value).toBe("Priority")
+  })
+
+  it("prevents closing the field workspace while a write is pending", async () => {
+    let finishUpdate: (() => void) | undefined
+    const onUpdate = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishUpdate = resolve
+        })
+    )
+    const onClose = vi.fn()
+    await act(async () => {
+      root.render(
+        <BaseFieldPropertyPanel
+          field={field("select")}
+          disabled={false}
+          onClose={onClose}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    const nameInput = Array.from(container.querySelectorAll("input")).find(
+      (input) => input.value === "Status"
+    )
+    await act(async () => {
+      nameInput?.focus()
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(nameInput, "Priority")
+      nameInput?.dispatchEvent(new Event("input", { bubbles: true }))
+      nameInput?.blur()
+      await Promise.resolve()
+    })
+
+    const close = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Close field properties"]'
+    )
+    expect(close?.disabled).toBe(true)
+    await act(async () => close?.click())
+    expect(onClose).not.toHaveBeenCalled()
+
+    await act(async () => {
+      finishUpdate?.()
+      await Promise.resolve()
+    })
+    expect(close?.disabled).toBe(false)
+  })
+
+  it("cancels an inline field rename with Escape without persisting it", async () => {
+    const onUpdate = vi.fn(() => Promise.resolve())
+    await act(async () => {
+      root.render(
+        <BaseFieldPropertyPanel
+          field={field("select")}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    const nameInput = Array.from(container.querySelectorAll("input")).find(
+      (input) => input.value === "Status"
+    )
+    await act(async () => {
+      nameInput?.focus()
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(nameInput, "Priority")
+      nameInput?.dispatchEvent(new Event("input", { bubbles: true }))
+      nameInput?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+      await Promise.resolve()
+    })
+
+    expect(onUpdate).not.toHaveBeenCalled()
+    expect(nameInput?.value).toBe("Status")
+  })
+
   it("persists option deletion from the embedded Select editor", async () => {
     const onUpdate = vi.fn(() => Promise.resolve())
     await act(async () => {
@@ -161,6 +295,42 @@ describe("BaseFieldPropertyPanel", () => {
     expect(done?.value).toBe("Done")
   })
 
+  it("cancels an inline Select option rename with Escape", async () => {
+    const onUpdate = vi.fn(() => Promise.resolve())
+    await act(async () => {
+      root.render(
+        <BaseFieldPropertyPanel
+          field={field("select", {
+            options: [{ id: "done", name: "Done", color: "green" }],
+          })}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    const optionInput = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Done option name"]'
+    )
+    await act(async () => {
+      optionInput?.focus()
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(optionInput, "Completed")
+      optionInput?.dispatchEvent(new Event("input", { bubbles: true }))
+      optionInput?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+      await Promise.resolve()
+    })
+
+    expect(onUpdate).not.toHaveBeenCalled()
+    expect(optionInput?.value).toBe("Done")
+  })
+
   it("restores Select options when the Base mutation fails", async () => {
     const onUpdate = vi.fn(() => Promise.reject(new Error("write failed")))
     await act(async () => {
@@ -190,6 +360,9 @@ describe("BaseFieldPropertyPanel", () => {
     expect(
       container.querySelector('input[aria-label="Done option name"]')
     ).toBeTruthy()
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "write failed"
+    )
   })
 
   it("requires an explicit apply step before converting stored values", async () => {
@@ -238,6 +411,64 @@ describe("BaseFieldPropertyPanel", () => {
     })
   })
 
+  it("preserves a failed type conversion for an in-place retry", async () => {
+    const onUpdate = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Unable to convert field"))
+      .mockResolvedValue(undefined)
+    await act(async () => {
+      root.render(
+        <BaseFieldPropertyPanel
+          field={field("select")}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    await act(async () => {
+      container
+        .querySelector<HTMLElement>('button[role="combobox"]')
+        ?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+        )
+      await Promise.resolve()
+    })
+    const numberOption = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent === "Number")
+    await act(async () => {
+      numberOption?.click()
+      await Promise.resolve()
+    })
+    const applyType = () =>
+      Array.from(container.querySelectorAll("button")).find(
+        (button) => button.textContent === "Apply type"
+      )
+    await act(async () => {
+      applyType()?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "Unable to convert field"
+    )
+    expect(applyType()).toBeTruthy()
+
+    await act(async () => {
+      applyType()?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onUpdate).toHaveBeenCalledTimes(2)
+    expect(applyType()).toBeUndefined()
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+  })
+
   it("persists the number bar presentation from the same side panel", async () => {
     const onUpdate = vi.fn(() => Promise.resolve())
     await act(async () => {
@@ -268,6 +499,46 @@ describe("BaseFieldPropertyPanel", () => {
         showNumber: true,
       },
     })
+  })
+
+  it("cancels an inline Number maximum edit with Escape", async () => {
+    const onUpdate = vi.fn(() => Promise.resolve())
+    await act(async () => {
+      root.render(
+        <BaseFieldPropertyPanel
+          field={field("number", {
+            format: "number",
+            showAs: "bar",
+            color: "purple",
+            divideBy: 100,
+            showNumber: true,
+          })}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    const maximumInput = container.querySelector<HTMLInputElement>(
+      'input[inputmode="decimal"]'
+    )
+    await act(async () => {
+      maximumInput?.focus()
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(maximumInput, "250")
+      maximumInput?.dispatchEvent(new Event("input", { bubbles: true }))
+      maximumInput?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+      await Promise.resolve()
+    })
+
+    expect(onUpdate).not.toHaveBeenCalled()
+    expect(maximumInput?.value).toBe("100")
   })
 
   it("restores Number display settings when the Base mutation fails", async () => {
