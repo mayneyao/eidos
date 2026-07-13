@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import type {
   BaseFieldInfo,
   BaseRow,
@@ -32,7 +39,10 @@ import SelectCell from "@/components/table/views/grid/cells/select-cell"
 import DatePickerCell from "@/components/table/views/grid/cells/date-picker-cell"
 import RatingCell from "@/components/table/views/grid/cells/rating-cell"
 import RangeCell from "@/components/table/views/grid/cells/range-cell"
-import { defaultConfig } from "@/components/table/views/grid/grid-default-config"
+import {
+  defaultConfig,
+  getScrollbarWidth,
+} from "@/components/table/views/grid/grid-default-config"
 import { useUndoRedo } from "@/components/table/views/grid/hooks/use-undo-redo"
 import { useDynamicTheme } from "@/components/table/views/grid/theme"
 import { Button } from "@/components/ui/button"
@@ -62,6 +72,7 @@ import {
 } from "./base-grid-menus"
 import { BaseRecordInspector } from "./base-record-inspector"
 import { baseRecordFieldText } from "./base-record-format"
+import { baseGridScrollbarConfig } from "./base-grid-scrollbar"
 import {
   baseViewFreezeColumns,
   contextRowRanges,
@@ -197,6 +208,7 @@ export function BaseGrid({
   const [widths, setWidths] = useState<Record<string, number>>(() =>
     viewWidths(view)
   )
+  const [hasHorizontalScroll, setHasHorizontalScroll] = useState(false)
   const freezeColumns = baseViewFreezeColumns(view, fields.length)
   const inspectedRow =
     inspectedRowIndex === null
@@ -288,6 +300,43 @@ export function BaseGrid({
       }),
     [fields, widths]
   )
+  const gridConfig = useMemo(
+    () => ({
+      ...defaultConfig,
+      ...baseGridScrollbarConfig(hasHorizontalScroll, getScrollbarWidth()),
+    }),
+    [hasHorizontalScroll]
+  )
+
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const measure = () => {
+      const scrollInner =
+        container.querySelector<HTMLElement>(".dvn-scroll-inner")
+      const next = Boolean(
+        scrollInner && scrollInner.scrollWidth > scrollInner.clientWidth
+      )
+      setHasHorizontalScroll((current) => (current === next ? current : next))
+    }
+    measure()
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure)
+    resizeObserver?.observe(container)
+
+    const mutationObserver =
+      typeof MutationObserver === "undefined"
+        ? null
+        : new MutationObserver(measure)
+    mutationObserver?.observe(container, { childList: true, subtree: true })
+
+    return () => {
+      resizeObserver?.disconnect()
+      mutationObserver?.disconnect()
+    }
+  }, [columns])
 
   const getCellContent = useCallback<
     NonNullable<DataEditorProps["getCellContent"]>
@@ -713,7 +762,7 @@ export function BaseGrid({
     >
       <div className="relative min-w-0 flex-1 overflow-hidden">
         <DataEditor
-          {...defaultConfig}
+          {...gridConfig}
           ref={gridRef}
           theme={theme}
           columns={columns}
