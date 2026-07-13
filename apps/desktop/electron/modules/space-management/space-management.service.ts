@@ -768,10 +768,12 @@ export class SpaceManagementService extends IpcServiceBase {
     return withFileSpaceOperationLock(spaceId, async () => {
       const base = await this._openBase(spaceId, relativePath, true)
       try {
+        const inserted = base.insertRow(tableId, row)
         return {
           tableId,
-          row: base.insertRow(tableId, row),
+          row: inserted,
           rowCount: base.countRows(tableId),
+          revision: base.info().updatedAt,
         }
       } finally {
         base.close()
@@ -878,10 +880,12 @@ export class SpaceManagementService extends IpcServiceBase {
     return withFileSpaceOperationLock(spaceId, async () => {
       const base = await this._openBase(spaceId, relativePath, true)
       try {
+        const updated = base.updateRow(tableId, rowId, changes)
         return {
           tableId,
-          row: base.updateRow(tableId, rowId, changes),
+          row: updated,
           rowCount: base.countRows(tableId),
+          revision: base.info().updatedAt,
         }
       } finally {
         base.close()
@@ -898,10 +902,12 @@ export class SpaceManagementService extends IpcServiceBase {
     return withFileSpaceOperationLock(spaceId, async () => {
       const base = await this._openBase(spaceId, relativePath, true)
       try {
+        const deletedCount = base.deleteRows(tableId, rowIds).length
         return {
           tableId,
-          deletedCount: base.deleteRows(tableId, rowIds).length,
+          deletedCount,
           rowCount: base.countRows(tableId),
+          revision: base.info().updatedAt,
         }
       } finally {
         base.close()
@@ -919,10 +925,12 @@ export class SpaceManagementService extends IpcServiceBase {
     return withFileSpaceOperationLock(spaceId, async () => {
       const base = await this._openBase(spaceId, relativePath, true)
       try {
+        const deletedCount = base.deleteRowRanges(tableId, ranges, query)
         return {
           tableId,
-          deletedCount: base.deleteRowRanges(tableId, ranges, query),
+          deletedCount,
           rowCount: base.countRows(tableId),
+          revision: base.info().updatedAt,
         }
       } finally {
         base.close()

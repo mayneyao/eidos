@@ -415,6 +415,8 @@ export interface BaseRowMutationResult {
   tableId: string
   row: BaseRow
   rowCount: number
+  /** Base metadata revision after the committed mutation. */
+  revision?: string
 }
 
 export interface BaseRowRange {
@@ -426,6 +428,8 @@ export interface BaseRowsDeleteResult {
   tableId: string
   deletedCount: number
   rowCount: number
+  /** Base metadata revision after the committed mutation. */
+  revision?: string
 }
 
 export interface BaseSnapshot {

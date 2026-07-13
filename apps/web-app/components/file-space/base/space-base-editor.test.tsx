@@ -32,6 +32,11 @@ const insertRowMock = vi.hoisted(() => vi.fn())
 const updateRowMock = vi.hoisted(() => vi.fn())
 const deleteRowsMock = vi.hoisted(() => vi.fn())
 const deleteRowRangesMock = vi.hoisted(() => vi.fn())
+const spaceFileChanges = vi.hoisted(() => ({
+  handler: undefined as
+    | ((event: { eventType: "change" | "rescan"; path: string }) => void)
+    | undefined,
+}))
 
 vi.mock("@/apps/web-app/hooks/use-current-space", () => ({
   useCurrentSpace: () => ({ currentSpace: { id: "space-a", mode: "file" } }),
@@ -242,7 +247,12 @@ vi.mock("./base-rename-dialog", () => ({
 }))
 
 vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
-  useSpaceFileChanges: () => undefined,
+  useSpaceFileChanges: (
+    _spaceId: string | undefined,
+    onChange: (event: { eventType: "change" | "rescan"; path: string }) => void
+  ) => {
+    spaceFileChanges.handler = onChange
+  },
   useSpaceFiles: () => ({
     reveal: revealFileMock,
     list: listFilesMock,
@@ -275,6 +285,8 @@ vi.mock("./base-grid", () => ({
     onEditLookup,
     searchResultIndex,
     onRowCountChange,
+    disabled,
+    reloadToken,
   }: {
     table: (typeof snapshot)["tables"][number]
     onCellEdit: (
@@ -307,13 +319,19 @@ vi.mock("./base-grid", () => ({
     ) => void
     searchResultIndex?: number | null
     onRowCountChange?: (rowCount: number | null) => void
+    disabled?: boolean
+    reloadToken?: number
   }) => {
     const row = { _id: "row_1", title: "Write RFC", status: "todo" }
     const title = table.fields.find(
       (field) => field.tableColumnName === "title"
     )
     return (
-      <div data-testid="base-grid">
+      <div
+        data-testid="base-grid"
+        data-disabled={String(Boolean(disabled))}
+        data-reload-token={String(reloadToken ?? 0)}
+      >
         {table.fields
           .filter((field) => !field.isHidden)
           .map((field) => (
@@ -658,6 +676,7 @@ describe("SpaceBaseEditor", () => {
     updateRowMock.mockReset()
     deleteRowsMock.mockReset()
     deleteRowRangesMock.mockReset()
+    spaceFileChanges.handler = undefined
     getSnapshotMock.mockResolvedValue(snapshot)
     getTablePageMock.mockResolvedValue({
       tableId: "tasks",
@@ -695,6 +714,7 @@ describe("SpaceBaseEditor", () => {
       tableId: "tasks",
       row: { _id: "row_2", title: "Untitled", status: null },
       rowCount: 2,
+      revision: "2026-07-13T01:00:00.000Z",
     })
     updateRowMock.mockResolvedValue({
       tableId: "tasks",
@@ -704,16 +724,19 @@ describe("SpaceBaseEditor", () => {
         status: "todo",
       },
       rowCount: 1,
+      revision: "2026-07-13T01:00:00.000Z",
     })
     deleteRowsMock.mockResolvedValue({
       tableId: "tasks",
       deletedCount: 1,
       rowCount: 0,
+      revision: "2026-07-13T01:00:00.000Z",
     })
     deleteRowRangesMock.mockResolvedValue({
       tableId: "tasks",
       deletedCount: 1,
       rowCount: 0,
+      revision: "2026-07-13T01:00:00.000Z",
     })
     container = document.createElement("div")
     document.body.appendChild(container)
@@ -781,6 +804,99 @@ describe("SpaceBaseEditor", () => {
       "row_1",
       { title: "Write implementation" }
     )
+  })
+
+  it("keeps the Grid mounted when its own delayed file-change echo arrives", async () => {
+    await renderEditor()
+    const grid = () =>
+      container.querySelector<HTMLElement>('[data-testid="base-grid"]')
+    expect(grid()?.dataset.reloadToken).toBe("1")
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit title")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(getSnapshotMock).toHaveBeenCalledTimes(1)
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      metadata: {
+        ...snapshot.metadata,
+        updatedAt: "2026-07-13T01:00:00.000Z",
+      },
+    })
+
+    await act(async () => {
+      spaceFileChanges.handler?.({
+        eventType: "change",
+        path: "projects/tasks.base",
+      })
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(getSnapshotMock).toHaveBeenCalledTimes(2)
+    expect(grid()?.dataset.reloadToken).toBe("1")
+
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      metadata: {
+        ...snapshot.metadata,
+        updatedAt: "2026-07-13T02:00:00.000Z",
+      },
+    })
+    await act(async () => {
+      spaceFileChanges.handler?.({
+        eventType: "change",
+        path: "projects/tasks.base",
+      })
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(getSnapshotMock).toHaveBeenCalledTimes(3)
+    expect(grid()?.dataset.reloadToken).toBe("2")
+  })
+
+  it("does not make the whole Grid read-only while an optimistic cell save is pending", async () => {
+    let resolveUpdate: ((value: unknown) => void) | undefined
+    updateRowMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveUpdate = resolve
+        })
+    )
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit title")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(
+      container.querySelector<HTMLElement>('[data-testid="base-grid"]')?.dataset
+        .disabled
+    ).toBe("false")
+    expect(container.textContent).toContain("Saving…")
+
+    await act(async () => {
+      resolveUpdate?.({
+        tableId: "tasks",
+        row: {
+          _id: "row_1",
+          title: "Write implementation",
+          status: "todo",
+        },
+        rowCount: 1,
+        revision: "2026-07-13T01:00:00.000Z",
+      })
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
   })
 
   it("adds tables and fields through the Base structure API", async () => {

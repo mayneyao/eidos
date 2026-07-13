@@ -85,6 +85,29 @@ type DeleteTarget =
 
 const SUPPORTED_BASE_VIEW_TYPES = new Set(["grid", "gallery", "kanban"])
 
+function baseMutationRevision(result: unknown): string | null {
+  if (!result || typeof result !== "object") return null
+  if (
+    "revision" in result &&
+    typeof (result as { revision?: unknown }).revision === "string"
+  ) {
+    return (result as { revision: string }).revision
+  }
+  if (
+    "metadata" in result &&
+    result.metadata &&
+    typeof result.metadata === "object" &&
+    "updatedAt" in result.metadata &&
+    typeof (result.metadata as { updatedAt?: unknown }).updatedAt === "string"
+  ) {
+    return (result.metadata as { updatedAt: string }).updatedAt
+  }
+  if ("snapshot" in result) {
+    return baseMutationRevision((result as { snapshot?: unknown }).snapshot)
+  }
+  return null
+}
+
 function combineBaseFilters(
   current: BaseFilterGroup | null | undefined,
   groupField: string,
@@ -144,10 +167,12 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const [activeViewIds, setActiveViewIds] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [pendingMutations, setPendingMutations] = useState(0)
+  const [blockingMutations, setBlockingMutations] = useState(0)
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
   const mutatingRef = useRef(false)
   const pendingMutationCountRef = useRef(0)
   const mutationQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const knownBaseRevisionRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [gridReloadToken, setGridReloadToken] = useState(0)
   const [search, setSearch] = useState("")
@@ -172,6 +197,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const [fieldInsertIndex, setFieldInsertIndex] = useState<number | null>(null)
 
   const applySnapshot = useCallback((next: BaseSnapshot) => {
+    knownBaseRevisionRef.current = next.metadata.updatedAt
     setSnapshot(next)
     setActiveTableId((current) => {
       if (current && next.tables.some(({ table }) => table.id === current)) {
@@ -196,6 +222,25 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     }
   }, [applySnapshot, filePath, getSnapshot])
 
+  const refreshFromFileChange = useCallback(async () => {
+    try {
+      const next = await getSnapshot(filePath)
+      if (next.metadata.updatedAt === knownBaseRevisionRef.current) {
+        setError(null)
+        return
+      }
+      applySnapshot(next)
+      setGridReloadToken((current) => current + 1)
+      setError(null)
+    } catch (refreshError) {
+      setError(
+        refreshError instanceof Error
+          ? refreshError.message
+          : "Unable to refresh Base"
+      )
+    }
+  }, [applySnapshot, filePath, getSnapshot])
+
   useEffect(() => {
     void load()
   }, [load])
@@ -208,9 +253,11 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           event.path === filePath ||
           (event.eventType === "rescan" &&
             isSameOrDescendant(filePath, event.path))
-        if (affectsOpenBase && !mutatingRef.current) void load()
+        if (affectsOpenBase && !mutatingRef.current) {
+          void refreshFromFileChange()
+        }
       },
-      [filePath, load]
+      [filePath, refreshFromFileChange]
     )
   )
 
@@ -329,11 +376,14 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const enqueueMutation = useCallback(
     <T,>(
       operation: () => Promise<T>,
-      onSuccess?: (result: T) => void
+      onSuccess?: (result: T) => void,
+      options: { blocking?: boolean } = {}
     ): Promise<T> => {
+      const blocking = options.blocking !== false
       pendingMutationCountRef.current += 1
       mutatingRef.current = true
       setPendingMutations((current) => current + 1)
+      if (blocking) setBlockingMutations((current) => current + 1)
 
       const run = mutationQueueRef.current
         .catch(() => undefined)
@@ -341,6 +391,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       const handled = run
         .then(
           (result) => {
+            const revision = baseMutationRevision(result)
+            if (revision) knownBaseRevisionRef.current = revision
             onSuccess?.(result)
             setError(null)
             setLastSavedAt(Date.now())
@@ -360,6 +412,9 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           pendingMutationCountRef.current -= 1
           mutatingRef.current = pendingMutationCountRef.current > 0
           setPendingMutations((current) => Math.max(0, current - 1))
+          if (blocking) {
+            setBlockingMutations((current) => Math.max(0, current - 1))
+          }
         })
       mutationQueueRef.current = handled.then(
         () => undefined,
@@ -523,7 +578,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         if (hasActiveQuery || activeView?.type !== "grid") {
           setGridReloadToken((current) => current + 1)
         }
-      }
+      },
+      { blocking: false }
     )
   }, [
     activeTable,
@@ -554,7 +610,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         (result) => {
           updateTableRowCount(tableId, result.rowCount)
           setGridReloadToken((current) => current + 1)
-        }
+        },
+        { blocking: false }
       )
     },
     [activeTable, enqueueMutation, filePath, insertRow, updateTableRowCount]
@@ -589,7 +646,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           if (hasActiveQuery) {
             setGridReloadToken((current) => current + 1)
           }
-        }
+        },
+        { blocking: false }
       )
     },
     [
@@ -986,7 +1044,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     fieldPropertyTarget && activeTable ? (
       <BaseFieldPropertyPanel
         field={fieldPropertyTarget}
-        disabled={pendingMutations > 0}
+        disabled={blockingMutations > 0}
         onClose={() => setFieldPropertyColumn(null)}
         onUpdate={updateFieldInBase}
         onDelete={(field) =>
@@ -1050,7 +1108,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             views={activeTable.views}
             fields={activeTable.fields}
             activeView={activeView}
-            disabled={pendingMutations > 0}
+            disabled={blockingMutations > 0}
             onSelect={selectActiveView}
             onCreate={createViewInBase}
             onRename={renameViewInBase}
@@ -1082,7 +1140,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
                 filter={activeView?.filter ?? null}
                 sorts={activeView?.sorts ?? []}
                 search={search}
-                disabled={pendingMutations > 0}
+                disabled={blockingMutations > 0}
                 focusSearchToken={focusSearchToken}
                 searchResultCount={searchResultCount}
                 searchResultIndex={activeSearchResultIndex}
@@ -1100,7 +1158,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
                       field.valueKind === "derived")
                 )}
                 hiddenFields={activeView?.hiddenFields ?? []}
-                disabled={pendingMutations > 0}
+                disabled={blockingMutations > 0}
                 onHiddenFieldsChange={(hiddenFields) =>
                   void updateActiveView({ hiddenFields })
                 }
@@ -1108,7 +1166,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               <BaseStructureMenu
                 table={activeTable.table}
                 fields={activeTable.fields}
-                disabled={pendingMutations > 0}
+                disabled={blockingMutations > 0}
                 onNewField={() => openFieldCreator()}
                 onRenameTable={() =>
                   setRenameTarget({
@@ -1224,7 +1282,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               key={`${activeTable.table.id}:${activeView.id}`}
               table={activeTable}
               view={activeView}
-              disabled={pendingMutations > 0}
+              disabled={blockingMutations > 0}
               reloadToken={gridReloadToken}
               searchResultIndex={activeSearchResultIndex}
               loadGroupPage={loadKanbanGroupPage}
@@ -1246,7 +1304,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
               table={activeTable}
               view={activeView}
-              disabled={pendingMutations > 0}
+              disabled={blockingMutations > 0}
               reloadToken={gridReloadToken}
               loadPage={loadActiveTablePage}
               onAddRow={createRow}
@@ -1345,7 +1403,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       <BaseSheetTabs
         tables={snapshot.tables.map((candidate) => candidate.table)}
         activeTableId={activeTableId}
-        disabled={loading || pendingMutations > 0}
+        disabled={loading || blockingMutations > 0}
         onSelect={setActiveTableId}
         onCreate={() => setStructureDialog("table")}
         status={
