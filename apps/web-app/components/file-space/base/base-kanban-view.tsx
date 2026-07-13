@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -64,6 +65,11 @@ interface BaseKanbanGroup {
   loadingMore: boolean
 }
 
+interface BaseKanbanMoveOption {
+  id: string
+  label: string
+}
+
 function groupKey(value: string | null): string {
   return `base-kanban:${value ?? EMPTY_GROUP_VALUE}`
 }
@@ -119,7 +125,7 @@ function estimatedKanbanCardHeight(
   return 64 + (hasCover ? 112 : 0) + visibleFieldCount * 32
 }
 
-function BaseKanbanColumn({
+const BaseKanbanColumn = memo(function BaseKanbanColumn({
   group,
   table,
   view,
@@ -131,7 +137,7 @@ function BaseKanbanColumn({
   onCreate,
   acquireCover,
   onDelete,
-  moveGroups,
+  moveOptions,
   onMove,
   focusedRowId,
   focusedRowIndex,
@@ -149,12 +155,12 @@ function BaseKanbanColumn({
   onCreate: (group: BaseKanbanGroup, title: string) => Promise<void>
   acquireCover?: (path: string) => Promise<BaseCoverLease>
   onDelete?: (row: BaseRow) => void
-  moveGroups: BaseKanbanGroup[]
-  onMove: (row: BaseRow, targetGroupKey: string) => void
+  moveOptions: BaseKanbanMoveOption[]
+  onMove: (rowId: string, targetGroupKey: string) => void
   focusedRowId?: string
   focusedRowIndex?: number
   collapsed: boolean
-  onCollapsedChange: (collapsed: boolean) => void
+  onCollapsedChange: (groupKey: string, collapsed: boolean) => void
 }) {
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState("")
@@ -178,6 +184,19 @@ function BaseKanbanColumn({
   const virtualItems = cardVirtualizer.getVirtualItems()
   const lastVirtualIndex = virtualItems.at(-1)?.index ?? -1
   const loadMore = useCallback(() => onLoadMore(group), [group, onLoadMore])
+  const cardMoveOptions = useMemo(
+    () =>
+      moveOptions.map((option) => ({
+        ...option,
+        disabled: option.id === group.key,
+      })),
+    [group.key, moveOptions]
+  )
+  const moveCard = useCallback(
+    (row: BaseRow, targetGroupKey: string) =>
+      onMove(String(row._id), targetGroupKey),
+    [onMove]
+  )
 
   useBaseVirtualLoadMore({
     enabled: group.loaded && hasMore && !group.loading && !group.loadingMore,
@@ -252,7 +271,7 @@ function BaseKanbanColumn({
               type="button"
               className="flex flex-1 items-center text-[11px] font-medium [writing-mode:vertical-rl]"
               aria-label={`Expand ${group.name}`}
-              onClick={() => onCollapsedChange(false)}
+              onClick={() => onCollapsedChange(group.key, false)}
             >
               {group.name} · {group.total}
             </button>
@@ -270,7 +289,7 @@ function BaseKanbanColumn({
                 size="icon"
                 className="h-6 w-6"
                 aria-label={`Collapse ${group.name}`}
-                onClick={() => onCollapsedChange(true)}
+                onClick={() => onCollapsedChange(group.key, true)}
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
@@ -333,12 +352,8 @@ function BaseKanbanColumn({
                             focused={focusedRowId === String(row._id)}
                             onOpen={onOpen}
                             onDelete={onDelete}
-                            moveOptions={moveGroups.map((candidate) => ({
-                              id: candidate.key,
-                              label: candidate.name,
-                              disabled: candidate.key === group.key,
-                            }))}
-                            onMove={onMove}
+                            moveOptions={cardMoveOptions}
+                            onMove={moveCard}
                           />
                         </KanbanCard>
                       ) : (
@@ -417,7 +432,7 @@ function BaseKanbanColumn({
       )}
     </KanbanBoard>
   )
-}
+})
 
 export function BaseKanbanView({
   table,
@@ -499,6 +514,8 @@ export function BaseKanbanView({
   const [groups, setGroups] = useState<BaseKanbanGroup[]>(() =>
     groupField ? groupSpecs(options) : []
   )
+  const groupsRef = useRef(groups)
+  groupsRef.current = groups
   const [countsLoaded, setCountsLoaded] = useState(false)
   const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<Set<string>>(
     new Set()
@@ -516,6 +533,16 @@ export function BaseKanbanView({
     !countsLoaded || groups.some((group) => group.loading || group.loadingMore)
   const collapsedGroupSignature = [...collapsedGroupKeys].sort().join("|")
   const columnWidth = cardWidth(view)
+  const moveOptions = useMemo<BaseKanbanMoveOption[]>(
+    () => [
+      ...options.map((option) => ({
+        id: groupKey(option.id),
+        label: option.name,
+      })),
+      { id: groupKey(null), label: "No status" },
+    ],
+    [options]
+  )
   const columnVirtualizer = useVirtualizer({
     count: groups.length,
     getScrollElement: () => scrollContainerRef.current,
@@ -879,107 +906,115 @@ export function BaseKanbanView({
     }
   }, [focusedGroup, focusedGroupIndex, loadMore, virtualColumnSignature])
 
-  const moveRecord = (rowId: string, targetKey: string) => {
-    if (!groupField || disabled) return false
-    const source = groups.find((group) =>
-      group.rows.some((row) => String(row._id) === rowId)
-    )
-    const target = groups.find((group) => group.key === targetKey)
-    const row = source?.rows.find(
-      (candidate) => String(candidate._id) === rowId
-    )
-    if (!source || !target || !row || source.key === target.key) return false
+  const moveRecord = useCallback(
+    (rowId: string, targetKey: string) => {
+      if (!groupField || disabled) return false
+      const currentGroups = groupsRef.current
+      const source = currentGroups.find((group) =>
+        group.rows.some((row) => String(row._id) === rowId)
+      )
+      const target = currentGroups.find((group) => group.key === targetKey)
+      const row = source?.rows.find(
+        (candidate) => String(candidate._id) === rowId
+      )
+      if (!source || !target || !row || source.key === target.key) return false
 
-    const optimistic = {
-      ...row,
-      [groupField.tableColumnName]: target.value,
-    }
-    setGroups((current) =>
-      current.map((group) => {
-        if (group.key === source.key) {
-          return {
-            ...group,
-            rows: group.rows.filter(
-              (candidate) => String(candidate._id) !== rowId
-            ),
-            total: Math.max(0, group.total - 1),
-            nextOffset: Math.max(0, group.nextOffset - 1),
+      const optimistic = {
+        ...row,
+        [groupField.tableColumnName]: target.value,
+      }
+      setGroups((current) =>
+        current.map((group) => {
+          if (group.key === source.key) {
+            return {
+              ...group,
+              rows: group.rows.filter(
+                (candidate) => String(candidate._id) !== rowId
+              ),
+              total: Math.max(0, group.total - 1),
+              nextOffset: Math.max(0, group.nextOffset - 1),
+            }
           }
-        }
-        if (group.key === target.key) {
-          return {
-            ...group,
-            rows: [optimistic, ...group.rows],
-            total: group.total + 1,
-            nextOffset: 0,
+          if (group.key === target.key) {
+            return {
+              ...group,
+              rows: [optimistic, ...group.rows],
+              total: group.total + 1,
+              nextOffset: 0,
+            }
           }
-        }
-        return group
-      })
-    )
-    const title = String(row.title ?? "Untitled")
-    setMoveAnnouncement(`${title} moved from ${source.name} to ${target.name}.`)
-    void onCellEdit(row, groupField, target.value)
-      .then((result) => {
-        setGroups((current) =>
-          current.map((group) =>
-            group.key === target.key
-              ? {
-                  ...group,
-                  rows: group.rows.map((candidate) =>
-                    String(candidate._id) === rowId ? result.row : candidate
-                  ),
-                }
-              : group
+          return group
+        })
+      )
+      const title = String(row.title ?? "Untitled")
+      setMoveAnnouncement(
+        `${title} moved from ${source.name} to ${target.name}.`
+      )
+      void onCellEdit(row, groupField, target.value)
+        .then((result) => {
+          setGroups((current) =>
+            current.map((group) =>
+              group.key === target.key
+                ? {
+                    ...group,
+                    rows: group.rows.map((candidate) =>
+                      String(candidate._id) === rowId ? result.row : candidate
+                    ),
+                  }
+                : group
+            )
           )
-        )
-      })
-      .catch((error) => {
-        const sourceIndex = source.rows.findIndex(
-          (candidate) => String(candidate._id) === rowId
-        )
-        setGroups((current) =>
-          current.map((group) => {
-            if (group.key === source.key) {
-              if (
-                group.rows.some((candidate) => String(candidate._id) === rowId)
-              ) {
-                return group
+        })
+        .catch((error) => {
+          const sourceIndex = source.rows.findIndex(
+            (candidate) => String(candidate._id) === rowId
+          )
+          setGroups((current) =>
+            current.map((group) => {
+              if (group.key === source.key) {
+                if (
+                  group.rows.some(
+                    (candidate) => String(candidate._id) === rowId
+                  )
+                ) {
+                  return group
+                }
+                const rows = [...group.rows]
+                rows.splice(Math.min(sourceIndex, rows.length), 0, row)
+                return {
+                  ...group,
+                  rows,
+                  total: group.total + 1,
+                  nextOffset: group.nextOffset + 1,
+                }
               }
-              const rows = [...group.rows]
-              rows.splice(Math.min(sourceIndex, rows.length), 0, row)
-              return {
-                ...group,
-                rows,
-                total: group.total + 1,
-                nextOffset: group.nextOffset + 1,
+              if (group.key === target.key) {
+                const containedOptimisticRow = group.rows.some(
+                  (candidate) => String(candidate._id) === rowId
+                )
+                return {
+                  ...group,
+                  rows: group.rows.filter(
+                    (candidate) => String(candidate._id) !== rowId
+                  ),
+                  total: containedOptimisticRow
+                    ? Math.max(0, group.total - 1)
+                    : group.total,
+                  nextOffset: 0,
+                }
               }
-            }
-            if (group.key === target.key) {
-              const containedOptimisticRow = group.rows.some(
-                (candidate) => String(candidate._id) === rowId
-              )
-              return {
-                ...group,
-                rows: group.rows.filter(
-                  (candidate) => String(candidate._id) !== rowId
-                ),
-                total: containedOptimisticRow
-                  ? Math.max(0, group.total - 1)
-                  : group.total,
-                nextOffset: 0,
-              }
-            }
-            return group
-          })
-        )
-        setMoveAnnouncement(
-          `${title} could not be moved to ${target.name}. The change was reverted.`
-        )
-        onError?.(error)
-      })
-    return true
-  }
+              return group
+            })
+          )
+          setMoveAnnouncement(
+            `${title} could not be moved to ${target.name}. The change was reverted.`
+          )
+          onError?.(error)
+        })
+      return true
+    },
+    [disabled, groupField, onCellEdit, onError]
+  )
 
   const dragEnd = (event: DragEndEvent) => {
     setDragging(false)
@@ -992,27 +1027,30 @@ export function BaseKanbanView({
     }
   }
 
-  const createInGroup = async (group: BaseKanbanGroup, title: string) => {
-    if (!groupField) return
-    try {
-      const result = await onAddRow(groupField, group.value, title)
-      setGroups((current) =>
-        current.map((candidate) =>
-          candidate.key === group.key
-            ? {
-                ...candidate,
-                rows: [result.row, ...candidate.rows],
-                total: candidate.total + 1,
-                nextOffset: 0,
-              }
-            : candidate
+  const createInGroup = useCallback(
+    async (group: BaseKanbanGroup, title: string) => {
+      if (!groupField) return
+      try {
+        const result = await onAddRow(groupField, group.value, title)
+        setGroups((current) =>
+          current.map((candidate) =>
+            candidate.key === group.key
+              ? {
+                  ...candidate,
+                  rows: [result.row, ...candidate.rows],
+                  total: candidate.total + 1,
+                  nextOffset: 0,
+                }
+              : candidate
+          )
         )
-      )
-    } catch (error) {
-      onError?.(error)
-      throw error
-    }
-  }
+      } catch (error) {
+        onError?.(error)
+        throw error
+      }
+    },
+    [groupField, onAddRow, onError]
+  )
 
   const copyRecordId = (id: string) => {
     if (!navigator.clipboard) {
@@ -1188,12 +1226,12 @@ export function BaseKanbanView({
                     acquireCover={acquireCover}
                     onOpen={setInspectedRow}
                     onDelete={onDeleteRow ? setDeleteRow : undefined}
-                    moveGroups={groups}
-                    onMove={(row, targetGroupKey) =>
-                      moveRecord(String(row._id), targetGroupKey)
-                    }
+                    moveOptions={moveOptions}
+                    onMove={moveRecord}
                     focusedRowId={
-                      focusedRow ? String(focusedRow._id) : undefined
+                      focusedGroup?.key === group.key && focusedRow
+                        ? String(focusedRow._id)
+                        : undefined
                     }
                     focusedRowIndex={
                       focusedGroup?.key === group.key && focusedGroupIndex >= 0
@@ -1201,10 +1239,8 @@ export function BaseKanbanView({
                         : undefined
                     }
                     collapsed={collapsedGroupKeys.has(group.key)}
-                    onCollapsedChange={(collapsed) =>
-                      setGroupCollapsed(group.key, collapsed)
-                    }
-                    onLoadMore={(candidate) => void loadMore(candidate)}
+                    onCollapsedChange={setGroupCollapsed}
+                    onLoadMore={loadMore}
                     onCreate={createInGroup}
                   />
                 </div>

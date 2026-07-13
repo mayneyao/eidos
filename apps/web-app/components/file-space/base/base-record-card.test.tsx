@@ -7,8 +7,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BaseRecordCard } from "./base-record-card"
 
+const themeMocks = vi.hoisted(() => ({
+  useTheme: vi.fn(() => ({ resolvedTheme: "light" })),
+}))
+
 vi.mock("@/components/theme-provider", () => ({
-  useTheme: () => ({ resolvedTheme: "light" }),
+  useTheme: themeMocks.useTheme,
 }))
 
 ;(
@@ -69,6 +73,7 @@ describe("BaseRecordCard", () => {
   let root: Root
 
   beforeEach(() => {
+    themeMocks.useTheme.mockClear()
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -180,5 +185,68 @@ describe("BaseRecordCard", () => {
     )
     expect(card?.getAttribute("aria-current")).toBe("true")
     expect(card?.className).toContain("ring-ring")
+  })
+
+  it("skips card work when a virtual parent rerenders with stable props", () => {
+    const statusField: BaseFieldInfo = {
+      name: "Status",
+      type: "select",
+      tableName: "tb_tasks",
+      tableColumnName: "status",
+      property: {
+        options: [{ id: "todo", name: "Todo", color: "blue" }],
+      },
+      storageCodec: "scalar",
+      valueKind: "source",
+      isHidden: false,
+      isDerived: false,
+      sourceTableColumnName: null,
+      dependsOn: null,
+    }
+    const cardFields = [...fields, statusField]
+    const row = {
+      _id: "row_1",
+      title: "Write RFC",
+      cover: null,
+      status: "todo",
+    }
+    const cardView = { ...view, properties: null }
+    const onOpen = vi.fn()
+
+    act(() => {
+      root.render(
+        <BaseRecordCard
+          row={row}
+          fields={cardFields}
+          view={cardView}
+          onOpen={onOpen}
+        />
+      )
+    })
+    expect(themeMocks.useTheme).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      root.render(
+        <BaseRecordCard
+          row={row}
+          fields={cardFields}
+          view={cardView}
+          onOpen={onOpen}
+        />
+      )
+    })
+    expect(themeMocks.useTheme).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      root.render(
+        <BaseRecordCard
+          row={{ ...row, title: "Publish RFC" }}
+          fields={cardFields}
+          view={cardView}
+          onOpen={onOpen}
+        />
+      )
+    })
+    expect(themeMocks.useTheme).toHaveBeenCalledTimes(2)
   })
 })

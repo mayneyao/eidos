@@ -15,6 +15,10 @@ const kanbanMocks = vi.hoisted(() => ({
   onDragEnd: undefined as ((event: unknown) => void) | undefined,
 }))
 
+const recordCardMocks = vi.hoisted(() => ({
+  renders: new Map<string, number>(),
+}))
+
 vi.mock("@/components/theme-provider", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
 }))
@@ -68,26 +72,30 @@ vi.mock("./base-record-card", () => ({
     moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
     onMove?: (row: { _id?: string; title?: string }, targetId: string) => void
     focused?: boolean
-  }) => (
-    <div
-      data-base-row-id={String(row._id)}
-      aria-current={focused ? "true" : undefined}
-    >
-      <button onClick={() => onOpen(row)}>{row.title}</button>
-      {onDelete ? (
-        <button type="button" onClick={() => onDelete(row)}>
-          Delete {row.title}
-        </button>
-      ) : null}
-      {moveOptions
-        ?.filter((option) => !option.disabled)
-        .map((option) => (
-          <button key={option.id} onClick={() => onMove?.(row, option.id)}>
-            Move {row.title} to {option.label}
+  }) => {
+    const rowId = String(row._id)
+    recordCardMocks.renders.set(
+      rowId,
+      (recordCardMocks.renders.get(rowId) ?? 0) + 1
+    )
+    return (
+      <div data-base-row-id={rowId} aria-current={focused ? "true" : undefined}>
+        <button onClick={() => onOpen(row)}>{row.title}</button>
+        {onDelete ? (
+          <button type="button" onClick={() => onDelete(row)}>
+            Delete {row.title}
           </button>
-        ))}
-    </div>
-  ),
+        ) : null}
+        {moveOptions
+          ?.filter((option) => !option.disabled)
+          .map((option) => (
+            <button key={option.id} onClick={() => onMove?.(row, option.id)}>
+              Move {row.title} to {option.label}
+            </button>
+          ))}
+      </div>
+    )
+  },
 }))
 
 vi.mock("./base-record-delete-dialog", () => ({
@@ -215,6 +223,7 @@ describe("BaseKanbanView", () => {
 
   beforeEach(() => {
     kanbanMocks.onDragEnd = undefined
+    recordCardMocks.renders.clear()
     scrollIntoView.mockReset()
     Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
       configurable: true,
@@ -830,6 +839,72 @@ describe("BaseKanbanView", () => {
     expect(
       todoColumn?.querySelectorAll("[data-base-row-id]").length
     ).toBeLessThan(50)
+  })
+
+  it("does not rerender unaffected columns when one group loads another page", async () => {
+    const todoRows = Array.from({ length: 50 }, (_, index) => ({
+      _id: `todo_${index}`,
+      title: `Todo ${index}`,
+      status: "todo",
+    }))
+    const doneRow = { _id: "done_0", title: "Done 0", status: "done" }
+    const loadGroupPage = vi.fn(
+      async (_field, value: string | null, offset: number, limit: number) => ({
+        tableId: "tasks",
+        offset,
+        limit,
+        total: value === "todo" ? 51 : value === "done" ? 1 : 0,
+        rows:
+          value === "todo"
+            ? offset === 0
+              ? todoRows
+              : [{ _id: "todo_50", title: "Todo 50", status: "todo" }]
+            : value === "done"
+              ? [doneRow]
+              : [],
+      })
+    )
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [
+            { value: "todo", total: 51 },
+            { value: "done", total: 1 },
+          ])}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const doneRendersBefore = recordCardMocks.renders.get("done_0")
+    expect(doneRendersBefore).toBeGreaterThan(0)
+    loadGroupPage.mockClear()
+
+    await act(async () => {
+      const scroller = container.querySelector<HTMLElement>(
+        '[data-base-kanban-column-scroll="base-kanban:todo"]'
+      )
+      if (!scroller) return
+      scroller.scrollTop = 100_000
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(loadGroupPage).toHaveBeenCalledWith(
+      expect.objectContaining({ tableColumnName: "status" }),
+      "todo",
+      50,
+      50
+    )
+    expect(recordCardMocks.renders.get("done_0")).toBe(doneRendersBefore)
   })
 
   it("only mounts the horizontal window for a large set of columns", async () => {

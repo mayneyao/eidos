@@ -1,4 +1,4 @@
-import { useEffect, useState, type AriaRole } from "react"
+import { memo, useEffect, useState, type AriaRole } from "react"
 import type { BaseFieldInfo, BaseRow, BaseViewInfo } from "@eidos.space/base"
 import { decodeBaseFilePaths } from "@eidos.space/base"
 import {
@@ -227,7 +227,7 @@ function CardFieldValue({
   )
 }
 
-export function BaseRecordCard({
+export const BaseRecordCard = memo(function BaseRecordCard({
   row,
   fields,
   view,
@@ -423,4 +423,4 @@ export function BaseRecordCard({
       </NativeContextMenuContent>
     </NativeContextMenu>
   )
-}
+})
