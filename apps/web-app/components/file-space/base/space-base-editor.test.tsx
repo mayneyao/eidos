@@ -281,6 +281,7 @@ vi.mock("./base-grid", () => ({
   BaseGrid: ({
     table,
     onCellEdit,
+    onInspectorCellEdit,
     onRowsEdit,
     onSelectedRowsChange,
     onImportFiles,
@@ -300,6 +301,11 @@ vi.mock("./base-grid", () => ({
   }: {
     table: (typeof snapshot)["tables"][number]
     onCellEdit: (
+      row: { _id: string; title: string; status: string },
+      field: (typeof snapshot)["tables"][number]["fields"][number],
+      value: string
+    ) => Promise<unknown>
+    onInspectorCellEdit?: (
       row: { _id: string; title: string; status: string },
       field: (typeof snapshot)["tables"][number]["fields"][number],
       value: string
@@ -372,6 +378,20 @@ vi.mock("./base-grid", () => ({
           }}
         >
           Edit title
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (row && title) {
+              void onInspectorCellEdit?.(
+                row,
+                title,
+                "Write inspected implementation"
+              ).catch(() => undefined)
+            }
+          }}
+        >
+          Edit inspected title
         </button>
         <button
           type="button"
@@ -1158,6 +1178,30 @@ describe("SpaceBaseEditor", () => {
         ?.click()
     })
     expect(container.querySelector('[role="alert"]')).toBeNull()
+  })
+
+  it("leaves Inspector save recovery inside the record workspace", async () => {
+    updateRowMock.mockRejectedValueOnce(new Error("Inspector save failed"))
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit inspected title")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(updateRowMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      "row_1",
+      { title: "Write inspected implementation" }
+    )
+    expect(getSnapshotMock).toHaveBeenCalledTimes(2)
+    expect(
+      container.querySelector('[aria-label="Dismiss Base error"]')
+    ).toBeNull()
   })
 
   it("leaves view mutation errors to the anchored view workspace", async () => {

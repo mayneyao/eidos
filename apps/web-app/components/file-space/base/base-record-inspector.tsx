@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type {
   BaseFieldInfo,
   BaseRow,
@@ -25,6 +25,21 @@ import { BaseRecordFieldEditor } from "./base-record-field-editor"
 import { BaseRecordFileEditor } from "./base-record-file-editor"
 import { BaseRecordRelationEditor } from "./base-record-relation-editor"
 import { baseRecordFieldText, baseRecordTitle } from "./base-record-format"
+
+interface FailedRecordEdit {
+  field: BaseFieldInfo
+  value: BaseSqlPrimitive
+  previousRow: BaseRow
+  message: string
+}
+
+function recordEditErrorMessage(error: unknown): string {
+  const message =
+    error instanceof Error ? error.message : "Unable to save record"
+  return message
+    .replace(/^Error invoking remote method '[^']+':\s*/i, "")
+    .replace(/^Error:\s*/i, "")
+}
 
 function FieldValue({
   field,
@@ -150,36 +165,106 @@ export function BaseRecordInspector({
 }) {
   const [currentRow, setCurrentRow] = useState(row)
   const [savingField, setSavingField] = useState<string | null>(null)
-  useEffect(() => setCurrentRow(row), [row])
+  const [failedEdit, setFailedEdit] = useState<FailedRecordEdit | null>(null)
+  const failedEditRef = useRef<FailedRecordEdit | null>(null)
+  const savingRef = useRef(false)
+  const rowId = String(row._id ?? "")
+  const sessionRowIdRef = useRef(rowId)
+  const latestRowRef = useRef(row)
+  latestRowRef.current = row
+
+  const updateFailedEdit = useCallback((next: FailedRecordEdit | null) => {
+    failedEditRef.current = next
+    setFailedEdit(next)
+  }, [])
+
+  useEffect(() => {
+    if (sessionRowIdRef.current !== rowId) {
+      sessionRowIdRef.current = rowId
+      savingRef.current = false
+      setSavingField(null)
+      updateFailedEdit(null)
+      setCurrentRow(row)
+      return
+    }
+    if (!savingRef.current && !failedEditRef.current) {
+      setCurrentRow(row)
+    }
+  }, [row, rowId, updateFailedEdit])
   const title = baseRecordTitle(currentRow)
-  const rowId =
+  const currentRowId =
     typeof currentRow._id === "string"
       ? currentRow._id
       : String(currentRow._id ?? "")
 
+  const persistFieldEdit = async (
+    previousRow: BaseRow,
+    field: BaseFieldInfo,
+    value: BaseSqlPrimitive,
+    retrying = false
+  ) => {
+    if (!onCellEdit || disabled || savingRef.current) return
+    const editRowId = String(previousRow._id ?? "")
+    savingRef.current = true
+    setSavingField(field.tableColumnName)
+    if (!retrying) updateFailedEdit(null)
+    try {
+      const result = await onCellEdit(previousRow, field, value)
+      if (String(latestRowRef.current._id ?? "") !== editRowId) return
+      setCurrentRow(result.row)
+      updateFailedEdit(null)
+    } catch (error) {
+      if (String(latestRowRef.current._id ?? "") !== editRowId) return
+      const optimisticRow = {
+        ...previousRow,
+        [field.tableColumnName]: value,
+      }
+      setCurrentRow(optimisticRow)
+      updateFailedEdit({
+        field,
+        value,
+        previousRow,
+        message: recordEditErrorMessage(error),
+      })
+    } finally {
+      if (String(latestRowRef.current._id ?? "") === editRowId) {
+        savingRef.current = false
+        setSavingField(null)
+      }
+    }
+  }
+
   const editField = async (field: BaseFieldInfo, value: BaseSqlPrimitive) => {
-    if (!onCellEdit || disabled || savingField) return
-    const previous = currentRow
+    if (!onCellEdit || disabled || savingRef.current || failedEditRef.current) {
+      return
+    }
+    const previousRow = currentRow
     setCurrentRow((current) => ({
       ...current,
       [field.tableColumnName]: value,
     }))
-    setSavingField(field.tableColumnName)
-    try {
-      const result = await onCellEdit(previous, field, value)
-      setCurrentRow(result.row)
-    } catch (error) {
-      setCurrentRow(previous)
-      onError?.(error)
-    } finally {
-      setSavingField(null)
-    }
+    await persistFieldEdit(previousRow, field, value)
   }
+
+  const retryFailedEdit = async () => {
+    const failed = failedEditRef.current
+    if (!failed) return
+    await persistFieldEdit(failed.previousRow, failed.field, failed.value, true)
+  }
+
+  const discardFailedEdit = () => {
+    if (savingRef.current) return
+    updateFailedEdit(null)
+    setCurrentRow(latestRowRef.current)
+  }
+
+  const editorDisabled = disabled || savingField !== null || failedEdit !== null
 
   return (
     <aside
       className="flex h-full w-80 min-w-72 shrink-0 flex-col border-l bg-background"
       aria-label={`Record details for ${title}`}
+      aria-busy={savingField !== null ? "true" : undefined}
     >
       <header className="flex min-h-12 items-start gap-2 border-b px-3 py-2.5">
         <div className="min-w-0 flex-1">
@@ -199,9 +284,9 @@ export function BaseRecordInspector({
           <button
             type="button"
             className="mt-0.5 flex max-w-full items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            onClick={() => onCopyRecordId(rowId)}
+            onClick={() => onCopyRecordId(currentRowId)}
           >
-            <span className="truncate">{rowId}</span>
+            <span className="truncate">{currentRowId}</span>
             <Copy className="h-3 w-3 shrink-0" />
           </button>
         </div>
@@ -211,11 +296,42 @@ export function BaseRecordInspector({
           size="icon"
           className="h-7 w-7 shrink-0"
           aria-label="Close record details"
+          disabled={savingField !== null}
           onClick={onClose}
         >
           <X className="h-3.5 w-3.5" />
         </Button>
       </header>
+      {failedEdit ? (
+        <div
+          className="border-b bg-destructive/5 px-3 py-2 text-xs text-destructive"
+          role="alert"
+        >
+          <p className="break-words leading-4">{failedEdit.message}</p>
+          <div className="mt-2 flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-xs"
+              disabled={savingField !== null}
+              onClick={() => void retryFailedEdit()}
+            >
+              {savingField ? "Retrying…" : "Retry"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2.5 text-xs text-muted-foreground"
+              disabled={savingField !== null}
+              onClick={discardFailedEdit}
+            >
+              Discard change
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <ScrollArea className="min-h-0 flex-1">
         <div className="divide-y">
           {fields.map((field) => (
@@ -226,7 +342,7 @@ export function BaseRecordInspector({
               {onCellEdit && field.type === "file" && onImportFiles ? (
                 <BaseRecordFileEditor
                   value={currentRow[field.tableColumnName]}
-                  disabled={disabled || savingField !== null}
+                  disabled={editorDisabled}
                   onChange={(value) => editField(field, value)}
                   onImportFiles={onImportFiles}
                   onImportDroppedFiles={onImportDroppedFiles}
@@ -238,7 +354,7 @@ export function BaseRecordInspector({
                 <BaseRecordRelationEditor
                   row={currentRow}
                   field={field}
-                  disabled={disabled || savingField !== null}
+                  disabled={editorDisabled}
                   onChange={(value) => editField(field, value)}
                   onSearch={onSearchRelation}
                   onError={onError}
@@ -250,7 +366,7 @@ export function BaseRecordInspector({
                 <BaseRecordFieldEditor
                   field={field}
                   row={currentRow}
-                  disabled={disabled || savingField !== null}
+                  disabled={editorDisabled}
                   onChange={(value) => editField(field, value)}
                 />
               ) : (

@@ -122,4 +122,78 @@ describe("BaseRecordInspector", () => {
     expect(container.textContent).toContain("2")
     expect(container.querySelectorAll("textarea")).toHaveLength(1)
   })
+
+  it("keeps a failed draft recoverable while persisted data refreshes", async () => {
+    const row = {
+      _id: "row_1",
+      title: "Write RFC",
+      done: 0,
+      formula: 2,
+    }
+    const savedRow = { ...row, title: "Ship Base" }
+    const onCellEdit = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Record is read-only"))
+      .mockResolvedValueOnce({
+        tableId: "tasks",
+        row: savedRow,
+        rowCount: 1,
+      })
+    const onError = vi.fn()
+    const render = (nextRow = row) =>
+      root.render(
+        <BaseRecordInspector
+          row={nextRow}
+          fields={fields}
+          onClose={vi.fn()}
+          onCopyRecordId={vi.fn()}
+          onCellEdit={onCellEdit}
+          onError={onError}
+        />
+      )
+
+    await act(async () => render())
+    const title = container.querySelector<HTMLTextAreaElement>("textarea")
+    await act(async () => {
+      if (!title) return
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )?.set
+      setter?.call(title, "Ship Base")
+      title.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () => {
+      title?.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(onCellEdit).toHaveBeenCalledOnce()
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Record is read-only"
+    )
+    expect(title?.value).toBe("Ship Base")
+    expect(onError).not.toHaveBeenCalled()
+
+    await act(async () => render({ ...row }))
+    expect(
+      container.querySelector<HTMLTextAreaElement>("textarea")?.value
+    ).toBe("Ship Base")
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Retry")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(onCellEdit).toHaveBeenCalledTimes(2)
+    expect(onCellEdit).toHaveBeenLastCalledWith(row, fields[0], "Ship Base")
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    expect(
+      container.querySelector<HTMLTextAreaElement>("textarea")?.value
+    ).toBe("Ship Base")
+  })
 })

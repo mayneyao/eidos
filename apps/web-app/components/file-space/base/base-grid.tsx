@@ -130,6 +130,11 @@ interface BaseGridProps {
     field: BaseFieldInfo,
     value: BaseSqlPrimitive
   ) => Promise<BaseRowMutationResult>
+  onInspectorCellEdit?: (
+    row: BaseRow,
+    field: BaseFieldInfo,
+    value: BaseSqlPrimitive
+  ) => Promise<BaseRowMutationResult>
   onRowsEdit?: (edits: BaseGridRowEdit[]) => Promise<BaseRowsMutationResult>
   onSelectedRowsChange?: (ranges: BaseRowRange[]) => void
   onRowCountChange?: (rowCount: number | null) => void
@@ -256,6 +261,7 @@ export function BaseGrid({
   loadColumnStats,
   onAddRow,
   onCellEdit,
+  onInspectorCellEdit,
   onRowsEdit,
   onSelectedRowsChange,
   onRowCountChange,
@@ -751,7 +757,11 @@ export function BaseGrid({
       })
       setCacheRevision((current) => current + 1)
       try {
-        const result = await onCellEdit(previous, field, value)
+        const result = await (onInspectorCellEdit ?? onCellEdit)(
+          previous,
+          field,
+          value
+        )
         rowsRef.current.set(inspectedRowIndex, result.row)
         setRowCount(result.rowCount)
         setCacheRevision((current) => current + 1)
@@ -763,7 +773,7 @@ export function BaseGrid({
         throw error
       }
     },
-    [inspectedRowIndex, onCellEdit, refreshColumnStats]
+    [inspectedRowIndex, onCellEdit, onInspectorCellEdit, refreshColumnStats]
   )
 
   const appendRow = useCallback(async () => {

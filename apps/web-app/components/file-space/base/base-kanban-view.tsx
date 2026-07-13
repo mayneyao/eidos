@@ -87,6 +87,14 @@ function groupKey(value: string | null): string {
   return `base-kanban:${value ?? EMPTY_GROUP_VALUE}`
 }
 
+function kanbanMutationErrorMessage(error: unknown): string {
+  const message =
+    error instanceof Error ? error.message : "Unable to create record"
+  return message
+    .replace(/^Error invoking remote method '[^']+':\s*/i, "")
+    .replace(/^Error:\s*/i, "")
+}
+
 function groupSpecs(options: BaseSelectOption[]): BaseKanbanGroup[] {
   return [
     ...options.map((option) => ({
@@ -257,6 +265,8 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState("")
   const [creating, setCreating] = useState(false)
+  const creatingRef = useRef(false)
+  const [createError, setCreateError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const groupWindow = {
     rows: group.rows,
@@ -320,13 +330,18 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
 
   const create = async () => {
     const next = title.trim()
-    if (!next || creating) return
+    if (!next || creatingRef.current) return
+    creatingRef.current = true
     setCreating(true)
+    setCreateError(null)
     try {
       await onCreate(group, next)
       setTitle("")
       setAdding(false)
+    } catch (error) {
+      setCreateError(kanbanMutationErrorMessage(error))
     } finally {
+      creatingRef.current = false
       setCreating(false)
     }
   }
@@ -518,15 +533,27 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                 placeholder="Record title"
                 aria-label={`Record title in ${group.name}`}
                 disabled={creating}
-                onChange={(event) => setTitle(event.target.value)}
+                onChange={(event) => {
+                  setTitle(event.target.value)
+                  if (createError) setCreateError(null)
+                }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") void create()
-                  if (event.key === "Escape") {
+                  if (event.key === "Escape" && !creatingRef.current) {
                     setAdding(false)
                     setTitle("")
+                    setCreateError(null)
                   }
                 }}
               />
+              {createError ? (
+                <p
+                  className="break-words text-[11px] leading-4 text-destructive"
+                  role="alert"
+                >
+                  {createError}
+                </p>
+              ) : null}
               <div className="flex justify-end gap-1">
                 <Button
                   type="button"
@@ -537,6 +564,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                   onClick={() => {
                     setAdding(false)
                     setTitle("")
+                    setCreateError(null)
                   }}
                 >
                   Cancel
@@ -559,7 +587,10 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
               size="sm"
               className="h-7 justify-start gap-1.5 text-[11px] text-muted-foreground"
               disabled={disabled || !group.loaded}
-              onClick={() => setAdding(true)}
+              onClick={() => {
+                setCreateError(null)
+                setAdding(true)
+              }}
             >
               <Plus className="h-3.5 w-3.5" />
               Add record
@@ -1177,7 +1208,7 @@ export function BaseKanbanView({
             )
           )
         })
-        .catch((error) => {
+        .catch(() => {
           const sourceIndex = source.rows.findIndex(
             (candidate) => String(candidate._id) === rowId
           )
@@ -1222,11 +1253,10 @@ export function BaseKanbanView({
           setMoveAnnouncement(
             `${title} could not be moved to ${target.name}. The change was reverted.`
           )
-          onError?.(error)
         })
       return true
     },
-    [disabled, groupField, onCellEdit, onError]
+    [disabled, groupField, onCellEdit]
   )
 
   const dragEnd = (event: DragEndEvent) => {
@@ -1243,35 +1273,30 @@ export function BaseKanbanView({
   const createInGroup = useCallback(
     async (group: BaseKanbanGroup, title: string) => {
       if (!groupField) return
-      try {
-        const result = await onAddRow(groupField, group.value, title)
-        setGroups((current) =>
-          current.map((candidate) =>
-            candidate.key === group.key
-              ? (() => {
-                  const retainedRows =
-                    candidate.startOffset === 0 ? candidate.rows : []
-                  return {
-                    ...candidate,
-                    rows: [result.row, ...retainedRows].slice(
-                      0,
-                      KANBAN_MAX_WINDOW_ROWS
-                    ),
-                    startOffset: 0,
-                    total: candidate.total + 1,
-                    loaded: true,
-                    needsReload: true,
-                  }
-                })()
-              : candidate
-          )
+      const result = await onAddRow(groupField, group.value, title)
+      setGroups((current) =>
+        current.map((candidate) =>
+          candidate.key === group.key
+            ? (() => {
+                const retainedRows =
+                  candidate.startOffset === 0 ? candidate.rows : []
+                return {
+                  ...candidate,
+                  rows: [result.row, ...retainedRows].slice(
+                    0,
+                    KANBAN_MAX_WINDOW_ROWS
+                  ),
+                  startOffset: 0,
+                  total: candidate.total + 1,
+                  loaded: true,
+                  needsReload: true,
+                }
+              })()
+            : candidate
         )
-      } catch (error) {
-        onError?.(error)
-        throw error
-      }
+      )
     },
-    [groupField, onAddRow, onError]
+    [groupField, onAddRow]
   )
 
   const copyRecordId = (id: string) => {

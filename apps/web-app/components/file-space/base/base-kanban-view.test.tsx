@@ -482,6 +482,88 @@ describe("BaseKanbanView", () => {
     expect(todoColumn?.textContent).toContain("Draft release")
   })
 
+  it("keeps failed inline creation recoverable without a global error", async () => {
+    const onAddRow = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Base is read-only"))
+      .mockResolvedValueOnce({
+        tableId: "tasks",
+        row: { _id: "row_new", title: "Draft release", status: "todo" },
+        rowCount: 1,
+      })
+    const onError = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [])}
+          loadGroupPage={vi.fn(async (_field, _value, offset, limit) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: 0,
+            rows: [],
+          }))}
+          onCellEdit={vi.fn()}
+          onAddRow={onAddRow}
+          onError={onError}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const todoColumn = container.querySelector<HTMLElement>(
+      '[data-board-id="base-kanban:todo"]'
+    )
+    await act(async () => {
+      Array.from(todoColumn?.querySelectorAll("button") ?? [])
+        .find((button) => button.textContent?.includes("Add record"))
+        ?.click()
+    })
+    const input = todoColumn?.querySelector<HTMLInputElement>("input")
+    await act(async () => {
+      if (!input) return
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set
+      setter?.call(input, "Draft release")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    const addButton = Array.from(
+      todoColumn?.querySelectorAll("button") ?? []
+    ).find((button) => button.textContent === "Add")
+    await act(async () => {
+      addButton?.click()
+      addButton?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(onAddRow).toHaveBeenCalledOnce()
+    expect(todoColumn?.querySelector('[role="alert"]')?.textContent).toContain(
+      "Base is read-only"
+    )
+    expect(todoColumn?.querySelector<HTMLInputElement>("input")?.value).toBe(
+      "Draft release"
+    )
+    expect(onError).not.toHaveBeenCalled()
+
+    await act(async () => {
+      Array.from(todoColumn?.querySelectorAll("button") ?? [])
+        .find((button) => button.textContent === "Add")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(onAddRow).toHaveBeenCalledTimes(2)
+    expect(todoColumn?.querySelector('[role="alert"]')).toBeNull()
+    expect(todoColumn?.textContent).toContain("Draft release")
+  })
+
   it("deletes a loaded card without requerying the board", async () => {
     const row = { _id: "row_1", title: "Write RFC", status: "todo" }
     const loadGroupCounts = vi.fn(async () => [{ value: "todo", total: 1 }])

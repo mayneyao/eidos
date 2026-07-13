@@ -739,7 +739,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             setGridReloadToken((current) => current + 1)
           }
         },
-        { blocking: false }
+        { blocking: false, errorMode: "local" }
       )
     },
     [
@@ -752,11 +752,12 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     ]
   )
 
-  const saveCell = useCallback(
+  const saveCellWithErrorMode = useCallback(
     (
       row: BaseRow,
       field: BaseFieldInfo,
-      value: BaseSqlPrimitive
+      value: BaseSqlPrimitive,
+      errorMode: "global" | "local"
     ): Promise<BaseRowMutationResult> => {
       if (
         !activeTable ||
@@ -782,7 +783,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             setGridReloadToken((current) => current + 1)
           }
         },
-        { blocking: false }
+        { blocking: false, errorMode }
       )
     },
     [
@@ -793,6 +794,18 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       updateRow,
       updateTableRowCount,
     ]
+  )
+
+  const saveCell = useCallback(
+    (row: BaseRow, field: BaseFieldInfo, value: BaseSqlPrimitive) =>
+      saveCellWithErrorMode(row, field, value, "global"),
+    [saveCellWithErrorMode]
+  )
+
+  const saveInspectorCell = useCallback(
+    (row: BaseRow, field: BaseFieldInfo, value: BaseSqlPrimitive) =>
+      saveCellWithErrorMode(row, field, value, "local"),
+    [saveCellWithErrorMode]
   )
 
   const saveRows = useCallback(
@@ -1491,7 +1504,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               searchResultIndex={activeSearchResultIndex}
               loadPage={loadActiveTablePage}
               readBinary={readBinary}
-              onCellEdit={saveCell}
+              onCellEdit={saveInspectorCell}
               onImportFiles={importBaseFiles}
               onImportDroppedFiles={importDroppedBaseFiles}
               onSearchRelation={searchRelationRecords}
@@ -1512,7 +1525,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               searchResultIndex={activeSearchResultIndex}
               loadGroupCounts={loadKanbanGroupCounts}
               loadGroupPage={loadKanbanGroupPage}
-              onCellEdit={saveCell}
+              onCellEdit={saveInspectorCell}
               onAddRow={createRowInGroup}
               onImportFiles={importBaseFiles}
               onImportDroppedFiles={importDroppedBaseFiles}
@@ -1536,6 +1549,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               loadColumnStats={loadActiveColumnStats}
               onAddRow={createRow}
               onCellEdit={saveCell}
+              onInspectorCellEdit={saveInspectorCell}
               onRowsEdit={saveRows}
               onSelectedRowsChange={setSelectedRowRanges}
               onRowCountChange={handleSearchResultCountChange}
