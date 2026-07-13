@@ -205,7 +205,14 @@ distant Kanban group page from roughly 4 ms to 2 ms on the same machine.
 Virtual row, card, and column measurements are batched through animation frames;
 their translated wrappers establish layout/style containment. This keeps Resize
 Observer work and layout invalidation inside the mounted overscan window while
-preserving variable-height measurement and automatic infinite scrolling.
+preserving variable-height measurement and automatic infinite scrolling. Row
+and card wrapper identity is bound to the absolute virtual position rather than
+switching from a placeholder key to a record ID after a distant page arrives.
+Hydration therefore updates the record subtree without unmounting the measured,
+translated wrapper; the record card itself remains keyed by stable row ID so
+drag and local component state cannot leak between records. Regression coverage
+asserts DOM-node identity across placeholder hydration for both Gallery and
+Kanban.
 Gallery can use a File field as a fitted or cropped card cover; the binary is
 read through the Space file boundary and exposed only as a temporary object
 URL. Gallery and Kanban share a view-scoped cover source reader, so cards that
