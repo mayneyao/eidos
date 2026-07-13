@@ -579,11 +579,18 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   }, [])
 
   const loadActiveTablePage = useCallback(
-    (offset: number, limit: number) => {
+    (offset: number, limit: number, totalHint?: number) => {
       if (!activeTableId) {
         return Promise.reject(new Error("No active Base table"))
       }
-      return getTablePage(filePath, activeTableId, offset, limit, activeQuery)
+      return getTablePage(
+        filePath,
+        activeTableId,
+        offset,
+        limit,
+        activeQuery,
+        totalHint
+      )
     },
     [activeQuery, activeTableId, filePath, getTablePage]
   )
@@ -593,19 +600,27 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       field: BaseFieldInfo,
       value: string | null,
       offset: number,
-      limit: number
+      limit: number,
+      totalHint: number
     ) => {
       if (!activeTableId) {
         return Promise.reject(new Error("No active Base table"))
       }
-      return getTablePage(filePath, activeTableId, offset, limit, {
-        ...activeQuery,
-        filter: combineBaseFilters(
-          activeQuery.filter,
-          field.tableColumnName,
-          value
-        ),
-      })
+      return getTablePage(
+        filePath,
+        activeTableId,
+        offset,
+        limit,
+        {
+          ...activeQuery,
+          filter: combineBaseFilters(
+            activeQuery.filter,
+            field.tableColumnName,
+            value
+          ),
+        },
+        totalHint
+      )
     },
     [activeQuery, activeTableId, filePath, getTablePage]
   )

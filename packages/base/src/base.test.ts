@@ -1233,6 +1233,9 @@ describe("Eidos Base files", () => {
     const base = openBaseFile(filePath)
 
     expect(base.countRows("records")).toBe(10_000)
+    const get = vi.spyOn(base.connection, "get")
+    const countQueryCalls = () =>
+      get.mock.calls.filter(([sql]) => sql.includes("COUNT(*) AS count"))
     const lastPage = base.getRowPage("records", 9_975, 50)
     expect(lastPage).toMatchObject({
       tableId: "records",
@@ -1245,6 +1248,15 @@ describe("Eidos Base files", () => {
       _id: "row_9975",
       title: "Row 9975",
     })
+    expect(countQueryCalls()).toHaveLength(1)
+
+    const hintedPage = base.getRowPage("records", 5_000, 50, {}, 10_000)
+    expect(hintedPage).toMatchObject({
+      offset: 5_000,
+      total: 10_000,
+    })
+    expect(hintedPage.rows).toHaveLength(50)
+    expect(countQueryCalls()).toHaveLength(1)
 
     expect(
       base.deleteRowRanges("records", [

@@ -76,7 +76,11 @@ export function BaseGalleryView({
   view: BaseViewInfo
   reloadToken?: number
   searchResultIndex?: number | null
-  loadPage: (offset: number, limit: number) => Promise<BaseRowPage>
+  loadPage: (
+    offset: number,
+    limit: number,
+    totalHint?: number
+  ) => Promise<BaseRowPage>
   readBinary?: (path: string) => Promise<SpaceBinaryFile>
   onCellEdit?: (
     row: BaseRow,
@@ -112,6 +116,7 @@ export function BaseGalleryView({
   const [failedRequest, setFailedRequest] = useState<{
     offset: number
     mode: BaseRowWindowMergeMode
+    totalHint?: number
   } | null>(null)
   const [inspectedRow, setInspectedRow] = useState<BaseRow | null>(null)
   const [deleteRow, setDeleteRow] = useState<BaseRow | null>(null)
@@ -119,7 +124,11 @@ export function BaseGalleryView({
   const { rows, total } = rowWindow
 
   const requestPage = useCallback(
-    async (offset: number, mode: BaseRowWindowMergeMode) => {
+    async (
+      offset: number,
+      mode: BaseRowWindowMergeMode,
+      totalHint?: number
+    ) => {
       const generation = generationRef.current
       if (
         requestRef.current?.generation === generation &&
@@ -131,7 +140,10 @@ export function BaseGalleryView({
       setFailedRequest(null)
       mode === "replace" ? setLoading(true) : setLoadingMore(true)
       try {
-        const page = await loadPage(offset, GALLERY_PAGE_SIZE)
+        const page =
+          totalHint === undefined
+            ? await loadPage(offset, GALLERY_PAGE_SIZE)
+            : await loadPage(offset, GALLERY_PAGE_SIZE, totalHint)
         if (generation !== generationRef.current) return
         setRowWindow((current) =>
           mergeRowWindowPage(current, page, mode, GALLERY_MAX_WINDOW_ROWS)
@@ -143,7 +155,7 @@ export function BaseGalleryView({
         )
       } catch {
         if (generation === generationRef.current) {
-          setFailedRequest({ offset, mode })
+          setFailedRequest({ offset, mode, totalHint })
         }
       } finally {
         if (generation === generationRef.current) {
@@ -234,7 +246,7 @@ export function BaseGalleryView({
     ) {
       return
     }
-    void requestPage(request.offset, request.mode)
+    void requestPage(request.offset, request.mode, rowWindow.total)
   }, [
     columnCount,
     failedRequest,
@@ -345,7 +357,11 @@ export function BaseGalleryView({
               size="sm"
               className="h-7 px-2.5 text-xs"
               onClick={() =>
-                void requestPage(failedRequest.offset, failedRequest.mode)
+                void requestPage(
+                  failedRequest.offset,
+                  failedRequest.mode,
+                  failedRequest.totalHint
+                )
               }
             >
               Retry
@@ -432,7 +448,11 @@ export function BaseGalleryView({
               size="sm"
               className="h-7 px-2 text-[11px]"
               onClick={() =>
-                void requestPage(failedRequest.offset, failedRequest.mode)
+                void requestPage(
+                  failedRequest.offset,
+                  failedRequest.mode,
+                  failedRequest.totalHint
+                )
               }
             >
               Retry

@@ -631,6 +631,12 @@ export class SpaceManagementService extends IpcServiceBase {
     if (!Number.isSafeInteger(options.limit) || options.limit < 1) {
       throw new Error("Base row page limit must be a positive integer")
     }
+    if (
+      options.totalHint !== undefined &&
+      (!Number.isSafeInteger(options.totalHint) || options.totalHint < 0)
+    ) {
+      throw new Error("Base row page total hint must be a non-negative integer")
+    }
     return withFileSpaceOperationLock(spaceId, async () => {
       const base = await this._openBase(spaceId, relativePath, true)
       try {
@@ -638,7 +644,8 @@ export class SpaceManagementService extends IpcServiceBase {
           tableId,
           options.offset,
           options.limit,
-          options.query
+          options.query,
+          options.totalHint
         )
       } finally {
         base.close()

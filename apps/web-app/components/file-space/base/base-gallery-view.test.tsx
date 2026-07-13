@@ -161,19 +161,21 @@ describe("BaseGalleryView", () => {
   })
 
   it("loads paged cards and opens the record inspector", async () => {
-    const loadPage = vi.fn(async (offset: number, limit: number) => ({
-      tableId: "tasks",
-      offset,
-      limit,
-      total: 3,
-      rows:
-        offset === 0
-          ? [
-              { _id: "row_1", title: "Write RFC", status: "todo" },
-              { _id: "row_2", title: "Ship Base", status: null },
-            ]
-          : [{ _id: "row_3", title: "Review UX", status: "todo" }],
-    }))
+    const loadPage = vi.fn(
+      async (offset: number, limit: number, _totalHint?: number) => ({
+        tableId: "tasks",
+        offset,
+        limit,
+        total: 3,
+        rows:
+          offset === 0
+            ? [
+                { _id: "row_1", title: "Write RFC", status: "todo" },
+                { _id: "row_2", title: "Ship Base", status: null },
+              ]
+            : [{ _id: "row_3", title: "Review UX", status: "todo" }],
+      })
+    )
 
     await act(async () => {
       root.render(
@@ -202,24 +204,26 @@ describe("BaseGalleryView", () => {
       container.querySelector('[data-testid="record-inspector"]')?.textContent
     ).toBe("Write RFC")
 
-    expect(loadPage).toHaveBeenLastCalledWith(2, 100)
+    expect(loadPage).toHaveBeenLastCalledWith(2, 100, 3)
     expect(container.textContent).toContain("Review UX")
   })
 
   it("loads and reveals a paged search result", async () => {
-    const loadPage = vi.fn(async (offset: number, limit: number) => ({
-      tableId: "tasks",
-      offset,
-      limit,
-      total: 3,
-      rows:
-        offset === 0
-          ? [
-              { _id: "row_1", title: "Write RFC", status: "todo" },
-              { _id: "row_2", title: "Ship Base", status: null },
-            ]
-          : [{ _id: "row_3", title: "Review UX", status: "todo" }],
-    }))
+    const loadPage = vi.fn(
+      async (offset: number, limit: number, _totalHint?: number) => ({
+        tableId: "tasks",
+        offset,
+        limit,
+        total: 3,
+        rows:
+          offset === 0
+            ? [
+                { _id: "row_1", title: "Write RFC", status: "todo" },
+                { _id: "row_2", title: "Ship Base", status: null },
+              ]
+            : [{ _id: "row_3", title: "Review UX", status: "todo" }],
+      })
+    )
     const onRowCountChange = vi.fn()
 
     await act(async () => {
@@ -237,7 +241,7 @@ describe("BaseGalleryView", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(loadPage).toHaveBeenLastCalledWith(2, 100)
+    expect(loadPage).toHaveBeenLastCalledWith(2, 100, 3)
     expect(onRowCountChange).toHaveBeenLastCalledWith(3)
     expect(
       container
@@ -328,13 +332,15 @@ describe("BaseGalleryView", () => {
       { _id: "row_1", title: "First", status: "todo" },
       { _id: "row_2", title: "Second", status: "todo" },
     ]
-    const loadPage = vi.fn(async (offset: number, limit: number) => ({
-      tableId: "tasks",
-      offset,
-      limit,
-      total: rows.length,
-      rows,
-    }))
+    const loadPage = vi.fn(
+      async (offset: number, limit: number, _totalHint?: number) => ({
+        tableId: "tasks",
+        offset,
+        limit,
+        total: rows.length,
+        rows,
+      })
+    )
     const onDeleteRow = vi.fn(async () => undefined)
     const onRowCountChange = vi.fn()
 
@@ -488,7 +494,7 @@ describe("BaseGalleryView", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(loadPage).toHaveBeenCalledWith(900, 100)
+    expect(loadPage).toHaveBeenCalledWith(900, 100, 1_000)
     expect(
       container
         .querySelector("[data-base-gallery-scroll]")
@@ -516,7 +522,7 @@ describe("BaseGalleryView", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(loadPage).toHaveBeenLastCalledWith(0, 100)
+    expect(loadPage).toHaveBeenLastCalledWith(0, 100, 1_000)
     expect(
       container
         .querySelector("[data-base-gallery-scroll]")
@@ -527,7 +533,13 @@ describe("BaseGalleryView", () => {
   it("stops automatic retries after the first page fails and recovers in place", async () => {
     const onError = vi.fn()
     const loadPage = vi
-      .fn<(offset: number, limit: number) => Promise<BaseRowPage>>()
+      .fn<
+        (
+          offset: number,
+          limit: number,
+          totalHint?: number
+        ) => Promise<BaseRowPage>
+      >()
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValueOnce({
         tableId: "tasks",
@@ -626,6 +638,6 @@ describe("BaseGalleryView", () => {
     })
 
     expect(loadPage).toHaveBeenCalledTimes(3)
-    expect(loadPage).toHaveBeenLastCalledWith(100, 100)
+    expect(loadPage).toHaveBeenLastCalledWith(100, 100, 101)
   })
 })

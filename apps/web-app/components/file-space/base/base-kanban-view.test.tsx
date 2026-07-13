@@ -723,13 +723,15 @@ describe("BaseKanbanView", () => {
       expect.objectContaining({ tableColumnName: "status" }),
       "todo",
       49,
+      50,
       50
     )
     expect(loadGroupPage).toHaveBeenCalledWith(
       expect.objectContaining({ tableColumnName: "status" }),
       "done",
       0,
-      50
+      50,
+      52
     )
   })
 
@@ -774,7 +776,8 @@ describe("BaseKanbanView", () => {
       expect.objectContaining({ tableColumnName: "status" }),
       "todo",
       50,
-      50
+      50,
+      51
     )
     expect(onRowCountChange).toHaveBeenLastCalledWith(51)
     expect(
@@ -839,7 +842,8 @@ describe("BaseKanbanView", () => {
       expect.objectContaining({ tableColumnName: "status" }),
       "todo",
       450,
-      50
+      50,
+      500
     )
     expect(
       todoColumn
@@ -872,7 +876,8 @@ describe("BaseKanbanView", () => {
       expect.objectContaining({ tableColumnName: "status" }),
       "todo",
       0,
-      50
+      50,
+      500
     )
     expect(
       todoColumn
@@ -942,7 +947,8 @@ describe("BaseKanbanView", () => {
       expect.objectContaining({ tableColumnName: "status" }),
       "todo",
       50,
-      50
+      50,
+      51
     )
     expect(recordCardMocks.renders.get("done_0")).toBe(doneRendersBefore)
   })
@@ -1071,7 +1077,8 @@ describe("BaseKanbanView", () => {
       expect.objectContaining({ tableColumnName: "status" }),
       "todo",
       50,
-      50
+      50,
+      51
     )
   })
 

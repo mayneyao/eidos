@@ -514,7 +514,8 @@ export function BaseKanbanView({
     field: BaseFieldInfo,
     value: string | null,
     offset: number,
-    limit: number
+    limit: number,
+    totalHint: number
   ) => Promise<BaseRowPage>
   onCellEdit: (
     row: BaseRow,
@@ -786,7 +787,8 @@ export function BaseKanbanView({
           groupField,
           group.value,
           request.offset,
-          KANBAN_PAGE_SIZE
+          KANBAN_PAGE_SIZE,
+          group.total
         )
         if (generation !== generationRef.current) return
         loadedGroupGenerationsRef.current.set(group.key, generation)

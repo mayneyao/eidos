@@ -380,6 +380,11 @@ export interface BaseRowPageOptions {
   offset: number
   limit: number
   query?: BaseRowQuery
+  /**
+   * Previously observed row count for the same query. When present, paging can
+   * reuse it instead of repeating an expensive COUNT query.
+   */
+  totalHint?: number
 }
 
 export interface BaseValidationIssue {

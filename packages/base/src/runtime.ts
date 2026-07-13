@@ -1723,15 +1723,22 @@ export class BaseRuntime {
     tableId: string,
     offset = 0,
     limit = 100,
-    query: BaseRowQuery = {}
+    query: BaseRowQuery = {},
+    totalHint?: number
   ): BaseRowPage {
     const safeOffset = Math.max(0, Math.trunc(offset))
     const safeLimit = Math.min(500, Math.max(1, Math.trunc(limit)))
+    const safeTotalHint =
+      typeof totalHint === "number" &&
+      Number.isSafeInteger(totalHint) &&
+      totalHint >= 0
+        ? totalHint
+        : null
     return {
       tableId,
       offset: safeOffset,
       limit: safeLimit,
-      total: this.countRows(tableId, query),
+      total: safeTotalHint ?? this.countRows(tableId, query),
       rows: this.listRows(tableId, safeLimit, safeOffset, query),
     }
   }
