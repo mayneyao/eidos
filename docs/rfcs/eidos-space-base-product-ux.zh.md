@@ -196,6 +196,14 @@ retry bar 恢复，而不是替换整个板或永久停在 loading。首屏、�
 alert live region，加载进度则保持 status region；辅助技术可以感知恢复入口，同时不会再生成一条
 重复的全局 Base alert。
 
+锚定式 Base 创建、重命名、view 设置、Filter/Sort 和字段 Property workspace 共同遵循可恢复的
+transaction 边界：保存期间不能关闭或重复提交，失败后保留当前草稿并只显示一条局部错误，父编辑器
+仍会加载持久化快照，但不会再追加第二条全局 Base alert。Formula 与 Lookup 编辑器也使用同一规则，
+并按稳定的 field identity 维持一次打开会话；恢复快照即使重新分配 field 对象，也不能覆盖仍打开的
+公式、relation/target/aggregation 草稿或局部错误。保存会同步拦截重复快捷键和提交，锁定所有可编辑
+控件与退出动作，只有成功才关闭，失败则原位保留可重试状态。没有自身恢复界面的 Grid 和 toolbar
+mutation 才继续使用全局 Base alert。
+
 CSV 导入的文件选择、分析和写入现在也保持锚定式、非模态工作流。原生 picker 返回后 mapping
 panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以原位取消。取消会终止隔离 worker、
 等待 SQLite transaction 回滚，再解除当前 Base 的 mutation lock，因此重试不会和仍在退出的

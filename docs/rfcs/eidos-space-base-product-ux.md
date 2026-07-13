@@ -310,7 +310,7 @@ second global error banner for an operation whose panel already provides the
 retry path. Filter and Sort Apply/Clear actions follow the same transaction
 boundary: their anchored workspace cannot be dismissed or submitted twice
 while persistence is pending, and a rejected write preserves the exact draft
-despite the parent recovery snapshot so the user can retry in place. Direct
+despite the parent recovery snapshot so the user can retry in place.
 The field-property side panel now uses that boundary for inline names, type
 conversion, Select options, and Number presentation: it locks dismissal and
 duplicate edits while saving, reports one local failure, preserves name/type
@@ -319,6 +319,13 @@ state without adding a global error. Escape is a real cancellation for field
 names, option names, and numeric display inputs; the blur caused by leaving the
 input cannot persist the canceled value. Direct grid and toolbar mutations
 without a local recovery surface continue to use the global Base alert.
+
+Formula and Lookup editors use the same recoverable transaction boundary. An
+open editor session is keyed by the stable field identity, so the parent
+recovery snapshot cannot overwrite its draft or local error with a newly
+allocated field object. Saving synchronously rejects duplicate shortcuts and
+submits, locks dismissal and all editable controls until the write settles,
+closes only after success, and leaves one inline retry path after failure.
 
 View configuration controls also expose explicit names and state for switch,
 select, layout, and card-size groups. Base progress indicators respect reduced
