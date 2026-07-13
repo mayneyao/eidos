@@ -45,6 +45,25 @@ when columns fit, the sticky trailing row no longer reserves an empty horizontal
 scrollbar band; when columns overflow, the native scrollbar keeps its full
 height.
 
+Cmd+P remains the Space-wide Quick Open instead of opening a Base-specific
+dialog. When the active tab is a `.base`, a `Tables in <file>.base` contextual
+group appears above normal file results and matches table names, raw table
+identifiers, and the Base path. The bottom sheet bar also supports cycling with
+Ctrl+PageUp/PageDown, adding a fast workbook path without changing the global
+search mental model.
+
+Base row mutations now return the committed metadata revision. The renderer
+uses it to recognize the delayed file-watcher echo of its own cell edit instead
+of treating that echo as an external replacement and reloading the entire Grid.
+Routine row/cell saves also no longer disable every layout while pending;
+external revisions still trigger a refresh.
+
+The Desktop shell now uses shared semantic heights: a 38px titlebar, 40px
+surface workbar, and 40px bottom statusbar. Files/Version section bars and the
+Base view workbar consume the same workbar token; the Space footer and Base
+sheet bar consume the same statusbar token. Components no longer hard-code
+different heights for horizontal boundaries shared across sidebar and content.
+
 File fields now use a Base-specific multi-attachment cell adapted from the
 existing table interaction. Users can import files into the visible Space
 `assets/` folder, drop files onto a cell, reorder or remove attachments, open

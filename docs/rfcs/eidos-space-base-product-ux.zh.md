@@ -36,6 +36,19 @@ views 占据顶部 tab strip，tables 则作为 Excel 风格 sheets 常驻底部
 补偿：列宽未溢出时，sticky trailing row 不再为不存在的横向滚动条保留空白带；列宽溢出时
 则完整保留原生横向滚动条高度。
 
+Cmd+P 继续使用 Space 统一 Quick Open，不引入 Base 专用弹层。当前 tab 为 `.base` 时，
+结果顶部会增加 `Tables in <file>.base` 上下文分组，可按 table 名、底层 table 标识或
+Base 路径过滤并直接切换；普通文件结果仍在同一面板中。底部 sheets 同时支持
+Ctrl+PageUp/PageDown 循环切换，保留高频键盘路径而不改变全局搜索的心智模型。
+
+Base row mutation 现在会返回提交后的 metadata revision。Renderer 用 revision 识别延迟到达的
+本地 file-watcher echo，不再把自己的 cell edit 当作外部文件替换并 reload 整个 Grid；普通
+row/cell 保存也不会把所有 layout 暂时设为 disabled。外部修改仍会按新 revision 刷新。
+
+Desktop shell 现在使用共享语义高度：titlebar 38px、surface workbar 40px、bottom statusbar
+40px。Files/Version 分区栏与 Base view workbar 使用同一 workbar token，Space footer 与 Base
+sheet bar 使用同一 statusbar token，跨 sidebar 和内容区共享的水平边界不再由组件各自写死。
+
 file 字段现在使用从原表格交互适配出的 Base 专用多附件 cell。用户可以把文件导入
 Space 可见的 `assets/` 目录、拖放到单元格、重排或移除附件、在 Eidos 中打开，或在
 文件管理器中定位。日常附件编辑保持在 Grid overlay 内，只有必要的原生文件选择器会
