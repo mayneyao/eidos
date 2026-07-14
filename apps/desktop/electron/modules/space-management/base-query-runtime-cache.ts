@@ -53,7 +53,7 @@ export class BaseQueryRuntimeCache {
   constructor(
     private readonly maxOpenBases = DEFAULT_MAX_OPEN_BASES,
     private readonly openRuntime: BaseQueryRuntimeOpener = (filePath) =>
-      openBaseFile(filePath, { migrate: true }),
+      openBaseFile(filePath, { readonly: true }),
     private readonly fingerprint: BaseQueryFingerprintReader = readFingerprint
   ) {
     if (!Number.isSafeInteger(maxOpenBases) || maxOpenBases < 1) {

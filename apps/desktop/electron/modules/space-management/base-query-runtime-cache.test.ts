@@ -1,5 +1,12 @@
 import type { BaseRuntime } from "@eidos.space/base"
-import { describe, expect, it, vi } from "vitest"
+import path from "node:path"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+const openBaseFileMock = vi.hoisted(() => vi.fn())
+
+vi.mock("@eidos.space/base/better-sqlite3", () => ({
+  openBaseFile: openBaseFileMock,
+}))
 
 import {
   BaseQueryRuntimeCache,
@@ -23,6 +30,22 @@ function runtime() {
 }
 
 describe("BaseQueryRuntimeCache", () => {
+  beforeEach(() => {
+    openBaseFileMock.mockReset()
+  })
+
+  it("opens cached query runtimes in read-only mode", () => {
+    const opened = runtime()
+    openBaseFileMock.mockReturnValue(opened)
+    const cache = new BaseQueryRuntimeCache(2, undefined, () => fingerprint(1))
+
+    expect(cache.get("/space/tasks.base")).toBe(opened)
+    expect(openBaseFileMock).toHaveBeenCalledWith(
+      path.resolve("/space/tasks.base"),
+      { readonly: true }
+    )
+  })
+
   it("reuses an unchanged Base runtime", () => {
     const opened = runtime()
     const open = vi.fn(() => opened)
@@ -48,7 +71,7 @@ describe("BaseQueryRuntimeCache", () => {
     expect(open).toHaveBeenCalledTimes(2)
   })
 
-  it("stores the fingerprint produced by opening and optimizing a Base", () => {
+  it("stores the fingerprint produced while opening a Base", () => {
     const opened = runtime()
     const open = vi.fn(() => opened)
     let version = 1

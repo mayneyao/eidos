@@ -17,6 +17,7 @@ import type {
 import { SpaceResourceLifecycle } from "./space-resource-lifecycle"
 
 const QUERY_TIMEOUT_MS = 30_000
+const MAX_QUERY_WORKERS_PER_SPACE = 2
 
 interface PendingBaseQuery {
   resolve: (response: BaseQueryWorkerResponse) => void
@@ -38,7 +39,7 @@ type BaseQueryRequestInput =
 
 @Injectable()
 export class BaseQueryWorkerRunner {
-  private readonly workers = new Map<string, BaseQueryWorkerHandle>()
+  private readonly workers = new Map<string, BaseQueryWorkerHandle[]>()
   private requestSequence = 0
 
   constructor(
@@ -114,8 +115,9 @@ export class BaseQueryWorkerRunner {
 
   async close(spacePath?: string): Promise<void> {
     const canonicalPath = spacePath ? path.resolve(spacePath) : undefined
-    const handles = [...this.workers.values()].filter(
-      (handle) => !canonicalPath || handle.spacePath === canonicalPath
+    const handles = [...this.workers.entries()].flatMap(
+      ([candidatePath, pool]) =>
+        !canonicalPath || candidatePath === canonicalPath ? pool : []
     )
     await Promise.all(
       handles.map(async (handle) => {
@@ -159,9 +161,27 @@ export class BaseQueryWorkerRunner {
   }
 
   private getHandle(spacePath: string): BaseQueryWorkerHandle {
-    const existing = this.workers.get(spacePath)
-    if (existing && !existing.closed) return existing
+    const pool = (this.workers.get(spacePath) ?? []).filter(
+      (handle) => !handle.closed
+    )
+    if (pool.length > 0) this.workers.set(spacePath, pool)
+    else this.workers.delete(spacePath)
 
+    const idle = pool.find((handle) => handle.pending.size === 0)
+    if (idle) return idle
+    if (pool.length >= MAX_QUERY_WORKERS_PER_SPACE) {
+      return pool.reduce((leastBusy, candidate) =>
+        candidate.pending.size < leastBusy.pending.size ? candidate : leastBusy
+      )
+    }
+
+    return this.createHandle(spacePath, pool)
+  }
+
+  private createHandle(
+    spacePath: string,
+    pool: BaseQueryWorkerHandle[]
+  ): BaseQueryWorkerHandle {
     const worker = new Worker(path.join(__dirname, "base-query-worker.js"))
     const handle: BaseQueryWorkerHandle = {
       spacePath,
@@ -169,7 +189,7 @@ export class BaseQueryWorkerRunner {
       pending: new Map(),
       closed: false,
     }
-    this.workers.set(spacePath, handle)
+    this.workers.set(spacePath, [...pool, handle])
     worker.on("message", (response: BaseQueryWorkerResponse) => {
       const pending = handle.pending.get(response.id)
       if (!pending) return
@@ -191,7 +211,11 @@ export class BaseQueryWorkerRunner {
   private rejectHandle(handle: BaseQueryWorkerHandle, error: Error): void {
     if (handle.closed) return
     handle.closed = true
-    if (this.workers.get(handle.spacePath) === handle) {
+    const pool = this.workers.get(handle.spacePath)
+    const remaining = pool?.filter((candidate) => candidate !== handle) ?? []
+    if (remaining.length > 0) {
+      this.workers.set(handle.spacePath, remaining)
+    } else {
       this.workers.delete(handle.spacePath)
     }
     for (const pending of handle.pending.values()) {

@@ -130,6 +130,44 @@ describe("BaseQueryWorkerRunner", () => {
     expect(harness.workers).toHaveLength(1)
   })
 
+  it("runs concurrent Space reads across a bounded worker pool", async () => {
+    const lifecycle = {
+      register: vi.fn(),
+    } as unknown as SpaceResourceLifecycle
+    const runner = new BaseQueryWorkerRunner(lifecycle)
+    const pages = Array.from({ length: 4 }, (_, offset) =>
+      runner.page("/space", "/space/tasks.base", "tasks", {
+        offset,
+        limit: 1,
+        totalHint: 4,
+      })
+    )
+
+    expect(harness.workers).toHaveLength(2)
+    expect(
+      harness.workers.map((worker) => worker.postMessage.mock.calls.length)
+    ).toEqual([2, 2])
+
+    for (const worker of harness.workers) {
+      for (const [request] of worker.postMessage.mock.calls) {
+        worker.emit("message", {
+          id: request.id,
+          ok: true,
+          operation: "page",
+          page: {
+            tableId: "tasks",
+            offset: request.options.offset,
+            limit: 1,
+            total: 4,
+            rows: [{ _id: String(request.options.offset) }],
+          },
+        })
+      }
+    }
+
+    await expect(Promise.all(pages)).resolves.toHaveLength(4)
+  })
+
   it("restores worker error names from query failures", async () => {
     const lifecycle = {
       register: vi.fn(),
@@ -155,23 +193,30 @@ describe("BaseQueryWorkerRunner", () => {
     })
   })
 
-  it("rejects pending queries when the Space lifecycle closes", async () => {
+  it("rejects every pooled query when the Space lifecycle closes", async () => {
     const lifecycle = {
       register: vi.fn(),
     } as unknown as SpaceResourceLifecycle
     const runner = new BaseQueryWorkerRunner(lifecycle)
-    const pagePromise = runner.page("/space", "/space/tasks.base", "tasks", {
-      offset: 0,
-      limit: 50,
-    })
+    const pagePromises = [0, 50].map((offset) =>
+      runner.page("/space", "/space/tasks.base", "tasks", {
+        offset,
+        limit: 50,
+      })
+    )
     const closeSpace = (
       lifecycle.register as unknown as ReturnType<typeof vi.fn>
     ).mock.calls[0][1] as (spacePath: string) => Promise<void>
 
     await closeSpace("/space")
-    await expect(pagePromise).rejects.toMatchObject({
-      name: "BaseQueryClosedError",
-    })
-    expect(harness.workers[0].terminate).toHaveBeenCalledOnce()
+    for (const pagePromise of pagePromises) {
+      await expect(pagePromise).rejects.toMatchObject({
+        name: "BaseQueryClosedError",
+      })
+    }
+    expect(harness.workers).toHaveLength(2)
+    for (const worker of harness.workers) {
+      expect(worker.terminate).toHaveBeenCalledOnce()
+    }
   })
 })
