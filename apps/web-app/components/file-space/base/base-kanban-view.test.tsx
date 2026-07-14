@@ -400,11 +400,7 @@ describe("BaseKanbanView", () => {
       "base-detail-layout"
     )
     expect(loadGroupCounts).toHaveBeenCalledTimes(1)
-    expect(loadGroupPage.mock.calls.map((call) => call[1])).toEqual([
-      "todo",
-      "done",
-      null,
-    ])
+    expect(loadGroupPage.mock.calls.map((call) => call[1])).toEqual(["todo"])
     expect(container.textContent).toContain("Write RFC")
     expect(
       container.querySelector('[role="region"][aria-label="Todo, 1 records"]')
@@ -2168,6 +2164,96 @@ describe("BaseKanbanView", () => {
     expect(container.querySelectorAll('[role="region"]')).toHaveLength(
       renderedColumnsAfterScroll
     )
+  })
+
+  it("skips page and render work for groups that counts prove are empty", async () => {
+    const manyOptions = Array.from({ length: 200 }, (_, index) => ({
+      id: `status_${index}`,
+      name: `Status ${index}`,
+      color: "blue",
+    }))
+    const manyColumnTable: BaseTableSnapshot = {
+      ...table,
+      fields: table.fields.map((field) =>
+        field.tableColumnName === "status"
+          ? { ...field, property: { options: manyOptions } }
+          : field
+      ),
+    }
+    const loadGroupPage = vi.fn(
+      async (_field, value: string | null, offset, limit) => ({
+        tableId: "tasks",
+        offset,
+        limit,
+        total: value === "status_0" ? 1 : 0,
+        rows:
+          value === "status_0"
+            ? [{ _id: "row_status_0", title: "Task 0", status: value }]
+            : [],
+      })
+    )
+    const loadGroupCounts = vi.fn(async () => [{ value: "status_0", total: 1 }])
+    const onCellEdit = vi.fn()
+    const onAddRow = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={manyColumnTable}
+          view={view}
+          loadGroupCounts={loadGroupCounts}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={onCellEdit}
+          onAddRow={onAddRow}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(loadGroupPage.mock.calls.map((call) => call[1])).toEqual([
+      "status_0",
+    ])
+    loadGroupPage.mockClear()
+
+    await act(async () => {
+      const scroller = container.querySelector<HTMLElement>(
+        "[data-base-kanban-scroll]"
+      )
+      if (!scroller) return
+      scroller.scrollLeft = 4_000
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(loadGroupPage).not.toHaveBeenCalled()
+
+    const virtualizer = vi.spyOn(baseVirtualScroll, "useBaseBoundedVirtualizer")
+    let emptyColumnVirtualizerCalls = 0
+    try {
+      await act(async () => {
+        root.render(
+          <BaseKanbanView
+            table={manyColumnTable}
+            view={view}
+            reloadToken={1}
+            loadGroupCounts={loadGroupCounts}
+            loadGroupPage={loadGroupPage}
+            onCellEdit={onCellEdit}
+            onAddRow={onAddRow}
+          />
+        )
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      emptyColumnVirtualizerCalls = virtualizer.mock.calls.filter(
+        ([options]) => options.count === 0
+      ).length
+    } finally {
+      virtualizer.mockRestore()
+    }
+
+    expect(emptyColumnVirtualizerCalls).toBe(0)
   })
 
   it("stops failed group paging until the user retries", async () => {

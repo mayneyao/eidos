@@ -130,6 +130,58 @@ function groupSpecs(options: BaseSelectOption[]): BaseKanbanGroup[] {
   ]
 }
 
+function reconcileKanbanGroupSpec(
+  existing: BaseKanbanGroup | undefined,
+  spec: BaseKanbanGroup
+): BaseKanbanGroup {
+  if (!existing) return spec
+  if (
+    existing.value === spec.value &&
+    existing.name === spec.name &&
+    existing.color === spec.color
+  ) {
+    return existing
+  }
+  return {
+    ...existing,
+    value: spec.value,
+    name: spec.name,
+    color: spec.color,
+  }
+}
+
+function reconcileEmptyKanbanGroup(
+  existing: BaseKanbanGroup | undefined,
+  spec: BaseKanbanGroup
+): BaseKanbanGroup {
+  const group = reconcileKanbanGroupSpec(existing, spec)
+  if (
+    group.rows.length === 0 &&
+    group.startOffset === 0 &&
+    group.total === 0 &&
+    group.nextCursor === undefined &&
+    group.loaded &&
+    group.loadFailure === null &&
+    !group.loading &&
+    !group.loadingMore &&
+    !group.needsReload
+  ) {
+    return group
+  }
+  return {
+    ...group,
+    rows: [],
+    startOffset: 0,
+    total: 0,
+    nextCursor: undefined,
+    loaded: true,
+    loadFailure: null,
+    loading: false,
+    loadingMore: false,
+    needsReload: false,
+  }
+}
+
 function cardWidth(view: BaseViewInfo): number {
   if (view.properties?.cardSize === "small") return 248
   if (view.properties?.cardSize === "large") return 336
@@ -975,17 +1027,12 @@ export const BaseKanbanView = memo(function BaseKanbanView({
     const specs = groupSpecs(options)
     setGroups((current) => {
       const currentByKey = new Map(current.map((group) => [group.key, group]))
-      return specs.map((spec) => {
-        const existing = currentByKey.get(spec.key)
-        return existing
-          ? {
-              ...existing,
-              value: spec.value,
-              name: spec.name,
-              color: spec.color,
-            }
-          : spec
-      })
+      const next = specs.map((spec) =>
+        reconcileKanbanGroupSpec(currentByKey.get(spec.key), spec)
+      )
+      return next.every((group, index) => group === current[index])
+        ? current
+        : next
     })
     setCountsLoaded(false)
     setCountsFailure(false)
@@ -1002,8 +1049,12 @@ export const BaseKanbanView = memo(function BaseKanbanView({
           const currentByKey = new Map(
             current.map((group) => [group.key, group])
           )
-          return specs.map((spec) => {
+          const next = specs.map((spec) => {
             const existing = currentByKey.get(spec.key)
+            const total = totals.get(spec.key) ?? 0
+            if (total === 0) {
+              return reconcileEmptyKanbanGroup(existing, spec)
+            }
             const refreshedForGeneration =
               loadedGroupGenerationsRef.current.get(spec.key) === generation ||
               loadingInitialGroupsRef.current.get(spec.key) === generation
@@ -1012,7 +1063,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
               value: spec.value,
               name: spec.name,
               color: spec.color,
-              total: totals.get(spec.key) ?? 0,
+              total,
               loaded: refreshedForGeneration
                 ? (existing?.loaded ?? false)
                 : false,
@@ -1025,6 +1076,9 @@ export const BaseKanbanView = memo(function BaseKanbanView({
               loadingMore: false,
             }
           })
+          return next.every((group, index) => group === current[index])
+            ? current
+            : next
         })
         setCountsLoaded(true)
         setCountsFailure(false)
