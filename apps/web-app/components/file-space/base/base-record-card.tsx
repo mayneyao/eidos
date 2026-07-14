@@ -343,18 +343,14 @@ export const BaseRecordCard = memo(function BaseRecordCard({
     <article
       className={cn(
         "group/card relative overflow-hidden rounded-lg border bg-card text-card-foreground shadow-xs outline-hidden transition-[box-shadow,border-color] hover:shadow-sm",
-        role === "listitem" &&
-          "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring/45 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        role === "listitem" && "cursor-pointer",
         focused &&
           "border-ring ring-2 ring-ring/45 ring-offset-2 ring-offset-background"
       )}
-      aria-label={title}
-      aria-description={role === "listitem" ? "Open record details" : undefined}
       aria-current={focused ? "true" : undefined}
       aria-posinset={role === "listitem" ? positionInSet : undefined}
       aria-setsize={role === "listitem" ? setSize : undefined}
       data-base-row-id={String(row._id)}
-      tabIndex={role === "listitem" ? 0 : -1}
       role={role}
       onClick={openFromCard}
       onPointerDown={trackPointerStart}
@@ -365,17 +361,6 @@ export const BaseRecordCard = memo(function BaseRecordCard({
       onPointerCancel={() => {
         pointerStartRef.current = null
         suppressPointerOpenRef.current = false
-      }}
-      onKeyDown={(event) => {
-        if (
-          event.target !== event.currentTarget ||
-          (event.key !== "Enter" && event.key !== " ")
-        ) {
-          return
-        }
-        event.preventDefault()
-        event.stopPropagation()
-        onOpen(row)
       }}
     >
       {layout.coverField ? (

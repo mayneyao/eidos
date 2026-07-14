@@ -24,6 +24,7 @@ export function BaseCsvOperationProgressBar({
   percent,
   size = "default",
 }: BaseCsvOperationProgressBarProps) {
+  const safePercent = Math.min(100, Math.max(0, percent))
   return (
     <div className="space-y-1">
       <div
@@ -41,12 +42,12 @@ export function BaseCsvOperationProgressBar({
         aria-label={label}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={percent}
+        aria-valuenow={safePercent}
         className={`${size === "compact" ? "h-1" : "h-1.5"} overflow-hidden rounded-full bg-muted`}
       >
         <div
-          className="h-full rounded-full bg-primary transition-[width] duration-150"
-          style={{ width: `${percent}%` }}
+          className="h-full w-full origin-left rounded-full bg-primary transition-transform duration-150 motion-reduce:transition-none"
+          style={{ transform: `scaleX(${safePercent / 100})` }}
         />
       </div>
     </div>

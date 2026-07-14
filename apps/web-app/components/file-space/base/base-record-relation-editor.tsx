@@ -9,7 +9,7 @@ import {
   decodeBaseRelationIds,
   encodeBaseRelationIds,
 } from "@eidos.space/base"
-import { Check, Link2, LoaderCircle, Search, Unlink } from "lucide-react"
+import { Link2, LoaderCircle, Search, Unlink } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,6 +18,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+
+import { useBaseRelationListbox } from "./base-relation-listbox"
+import { BaseRelationOptionList } from "./base-relation-option-list"
 
 function selectedRelations(row: BaseRow, field: BaseFieldInfo) {
   const ids = decodeBaseRelationIds(row[field.tableColumnName])
@@ -51,14 +54,18 @@ export function BaseRecordRelationEditor({
   const [options, setOptions] = useState<BaseRelationValue[]>([])
   const [loading, setLoading] = useState(false)
   const requestRef = useRef(0)
-  const values = selectedRelations(row, field)
+  const values = useMemo(() => selectedRelations(row, field), [field, row])
   const selectedIds = useMemo(
     () => new Set(values.map((value) => value.id)),
     [values]
   )
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      requestRef.current += 1
+      setLoading(false)
+      return
+    }
     const request = ++requestRef.current
     const timer = setTimeout(
       () => {
@@ -76,7 +83,10 @@ export function BaseRecordRelationEditor({
       },
       query ? 120 : 0
     )
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+      if (requestRef.current === request) requestRef.current += 1
+    }
   }, [field, onError, onSearch, open, query])
 
   const update = async (next: BaseRelationValue[]) => {
@@ -84,7 +94,33 @@ export function BaseRecordRelationEditor({
     if (field.property?.multiple === false) setOpen(false)
   }
 
-  const available = options.filter((option) => !selectedIds.has(option.id))
+  const available = useMemo(
+    () => options.filter((option) => !selectedIds.has(option.id)),
+    [options, selectedIds]
+  )
+  const choices = useMemo(() => [...values, ...available], [available, values])
+  const {
+    activeOption,
+    activeOptionId,
+    activeDescendantId,
+    listboxId,
+    moveActiveOption,
+    optionId,
+    setActiveOptionId,
+  } = useBaseRelationListbox(choices)
+
+  useEffect(() => {
+    setActiveOptionId(available[0]?.id ?? values[0]?.id ?? null)
+  }, [available, setActiveOptionId, values])
+
+  const toggle = (option: BaseRelationValue) => {
+    if (selectedIds.has(option.id)) {
+      return update(values.filter((value) => value.id !== option.id))
+    }
+    return update(
+      field.property?.multiple === false ? [option] : [...values, option]
+    )
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -95,6 +131,7 @@ export function BaseRecordRelationEditor({
           size="sm"
           className="h-auto min-h-8 w-full justify-start whitespace-normal px-2 py-1 text-left text-xs font-normal"
           aria-label={field.name}
+          aria-haspopup="listbox"
           disabled={disabled}
         >
           <Link2 className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -126,60 +163,60 @@ export function BaseRecordRelationEditor({
           <Input
             value={query}
             autoFocus
+            role="combobox"
+            aria-label={`Search records for ${field.name}`}
+            aria-autocomplete="list"
+            aria-expanded={open}
+            aria-controls={listboxId}
+            aria-activedescendant={activeDescendantId}
+            aria-busy={loading}
             className="h-8 pl-8 text-xs"
             placeholder="Search records"
             onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault()
+                event.stopPropagation()
+                moveActiveOption(event.key === "ArrowDown" ? 1 : -1)
+                return
+              }
+              if (event.key === "Home" || event.key === "End") {
+                event.preventDefault()
+                event.stopPropagation()
+                moveActiveOption(event.key === "Home" ? "first" : "last")
+                return
+              }
+              if (
+                event.key === "Enter" &&
+                !event.nativeEvent.isComposing &&
+                activeOption
+              ) {
+                event.preventDefault()
+                event.stopPropagation()
+                void toggle(activeOption)
+              }
+            }}
           />
         </div>
         <div className="max-h-72 overflow-y-auto p-1.5">
-          {values.length > 0 ? (
-            <div className="mb-1.5">
-              <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                Selected · {values.length}
-              </p>
-              {values.map((value) => (
-                <button
-                  key={value.id}
-                  type="button"
-                  className="flex h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-accent disabled:opacity-50"
-                  disabled={disabled}
-                  onClick={() =>
-                    void update(
-                      values.filter((candidate) => candidate.id !== value.id)
-                    )
-                  }
-                >
-                  <span className="flex h-4 w-4 items-center justify-center rounded-[3px] bg-foreground text-background">
-                    <Check className="h-3 w-3" />
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{value.title}</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-          <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            {query ? "Results" : "Records"}
-          </p>
-          {available.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              className="flex h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-accent disabled:opacity-50"
-              disabled={disabled}
-              onClick={() =>
-                void update(
-                  field.property?.multiple === false
-                    ? [option]
-                    : [...values, option]
-                )
-              }
-            >
-              <span className="h-4 w-4 rounded-[3px] border" />
-              <span className="min-w-0 flex-1 truncate">{option.title}</span>
-            </button>
-          ))}
+          <BaseRelationOptionList
+            accessibleName={`${field.name} relation records`}
+            activeOptionId={activeOptionId}
+            availableValues={available}
+            disabled={disabled}
+            listboxId={listboxId}
+            multiple={field.property?.multiple !== false}
+            optionId={optionId}
+            query={query}
+            selectedValues={values}
+            onActiveOptionChange={setActiveOptionId}
+            onToggle={(option) => void toggle(option)}
+          />
           {loading ? (
-            <div className="flex items-center justify-center gap-1.5 px-2 py-5 text-xs text-muted-foreground">
+            <div
+              className="flex items-center justify-center gap-1.5 px-2 py-5 text-xs text-muted-foreground"
+              role="status"
+            >
               <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
               Loading…
             </div>

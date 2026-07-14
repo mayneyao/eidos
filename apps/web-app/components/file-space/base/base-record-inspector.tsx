@@ -354,7 +354,7 @@ export function BaseRecordInspector({
       {loading ? (
         <div
           className="flex min-h-0 flex-1 items-center justify-center gap-2 text-xs text-muted-foreground"
-          role="status"
+          aria-hidden="true"
         >
           <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
           Loading record details…

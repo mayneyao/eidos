@@ -248,7 +248,7 @@ describe("BaseRecordCard", () => {
     expect(onOpen).not.toHaveBeenCalled()
   })
 
-  it("opens a Gallery record from the card surface and keyboard", () => {
+  it("uses one semantic primary action without turning the listitem into a button", () => {
     const onOpen = vi.fn()
     const row = { _id: "row_1", title: "Write RFC", cover: null }
 
@@ -267,7 +267,15 @@ describe("BaseRecordCard", () => {
     const card = container.querySelector<HTMLElement>(
       '[data-base-row-id="row_1"]'
     )
-    expect(card?.tabIndex).toBe(0)
+    const open = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Open Write RFC"]'
+    )
+    expect(card?.getAttribute("role")).toBe("listitem")
+    expect(card?.hasAttribute("tabindex")).toBe(false)
+    expect(open?.tabIndex).toBe(0)
+    expect(
+      container.querySelectorAll('[aria-label="Open Write RFC"]')
+    ).toHaveLength(1)
 
     act(() => {
       card
@@ -277,14 +285,11 @@ describe("BaseRecordCard", () => {
     expect(onOpen).toHaveBeenLastCalledWith(row)
 
     act(() => {
-      card?.dispatchEvent(
-        new KeyboardEvent("keydown", { bubbles: true, key: "Enter" })
-      )
-      card?.dispatchEvent(
-        new KeyboardEvent("keydown", { bubbles: true, key: " " })
-      )
+      open?.focus()
+      open?.click()
     })
-    expect(onOpen).toHaveBeenCalledTimes(3)
+    expect(document.activeElement).toBe(open)
+    expect(onOpen).toHaveBeenCalledTimes(2)
   })
 
   it("does not open a record from card actions or a drag gesture", () => {

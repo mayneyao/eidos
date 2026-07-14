@@ -228,6 +228,7 @@ describe("BaseRecordInspector", () => {
         ?.getAttribute("aria-busy")
     ).toBe("true")
     expect(container.textContent).toContain("Loading record details…")
+    expect(container.querySelectorAll('[role="status"]')).toHaveLength(1)
     expect(container.querySelector("textarea")).toBeNull()
 
     await act(async () => render(false, "Record no longer exists"))
@@ -242,5 +243,80 @@ describe("BaseRecordInspector", () => {
         ?.click()
     })
     expect(onRetryLoad).toHaveBeenCalledOnce()
+  })
+
+  it("exposes relation search as a keyboard-navigable combobox", async () => {
+    const ownersField: BaseFieldInfo = {
+      name: "Owners",
+      type: "link",
+      tableName: "tb_tasks",
+      tableColumnName: "owners",
+      property: {
+        targetTableId: "people",
+        targetField: "title",
+        multiple: true,
+      },
+      storageCodec: "json_array",
+      valueKind: "relation",
+      isHidden: false,
+      isDerived: false,
+      sourceTableColumnName: null,
+      dependsOn: null,
+    }
+    const row = { _id: "row_1", title: "Write RFC", owners: null }
+    const onCellEdit = vi.fn(async (current, field, value) => ({
+      tableId: "tasks",
+      row: { ...current, [field.tableColumnName]: value },
+      rowCount: 1,
+    }))
+    const onSearchRelation = vi.fn().mockResolvedValue([
+      { id: "row_ada", title: "Ada Lovelace" },
+      { id: "row_grace", title: "Grace Hopper" },
+    ])
+
+    await act(async () => {
+      root.render(
+        <BaseRecordInspector
+          row={row}
+          fields={[fields[0], ownersField]}
+          onClose={vi.fn()}
+          onCopyRecordId={vi.fn()}
+          onCellEdit={onCellEdit}
+          onSearchRelation={onSearchRelation}
+        />
+      )
+    })
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Owners"]')
+        ?.click()
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    const combobox = document.body.querySelector<HTMLInputElement>(
+      '[role="combobox"][aria-label="Search records for Owners"]'
+    )
+    const listbox = document.body.querySelector<HTMLElement>(
+      '[role="listbox"][aria-label="Owners relation records"]'
+    )
+    expect(combobox?.getAttribute("aria-controls")).toBe(listbox?.id)
+    expect(listbox?.querySelectorAll('[role="option"]')).toHaveLength(2)
+
+    act(() => {
+      combobox?.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "End" })
+      )
+    })
+    expect(combobox?.getAttribute("aria-activedescendant")).toBe(
+      listbox?.querySelectorAll<HTMLElement>('[role="option"]')[1]?.id
+    )
+    await act(async () => {
+      combobox?.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "Enter" })
+      )
+      await Promise.resolve()
+    })
+
+    expect(onCellEdit).toHaveBeenCalledWith(row, ownersField, '["row_grace"]')
   })
 })

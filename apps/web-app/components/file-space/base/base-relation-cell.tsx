@@ -7,11 +7,14 @@ import {
   type CustomRenderer,
   type ProvideEditorComponent,
 } from "@glideapps/glide-data-grid"
-import { Check, Link2, Search, Unlink } from "lucide-react"
+import { Link2, Search, Unlink } from "lucide-react"
 
 import { drawDrilldownCell } from "@/components/table/views/grid/cells/helper"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+
+import { useBaseRelationListbox } from "./base-relation-listbox"
+import { BaseRelationOptionList } from "./base-relation-option-list"
 
 interface BaseRelationCellData {
   readonly kind: "base-relation-cell"
@@ -58,14 +61,34 @@ export const BaseRelationCellEditor: ProvideEditorComponent<
       },
       query ? 120 : 0
     )
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+      if (requestRef.current === request) requestRef.current += 1
+    }
   }, [cell.data, query])
 
   const selectedIds = useMemo(
     () => new Set(values.map((value) => value.id)),
     [values]
   )
-  const available = options.filter((option) => !selectedIds.has(option.id))
+  const available = useMemo(
+    () => options.filter((option) => !selectedIds.has(option.id)),
+    [options, selectedIds]
+  )
+  const choices = useMemo(() => [...values, ...available], [available, values])
+  const {
+    activeOption,
+    activeOptionId,
+    activeDescendantId,
+    listboxId,
+    moveActiveOption,
+    optionId,
+    setActiveOptionId,
+  } = useBaseRelationListbox(choices)
+
+  useEffect(() => {
+    setActiveOptionId(available[0]?.id ?? values[0]?.id ?? null)
+  }, [available, setActiveOptionId, values])
 
   const update = (values: BaseRelationValue[]) => {
     setValues(values)
@@ -82,19 +105,27 @@ export const BaseRelationCellEditor: ProvideEditorComponent<
     }
     update(cell.data.multiple ? [...values, option] : [option])
   }
+  const finish = () =>
+    onFinishedEditing({
+      ...cell,
+      copyData: encodeBaseRelationIds(values.map((value) => value.id)) ?? "",
+      data: { ...cell.data, values },
+    })
 
   return (
     <div
       className="flex max-h-[390px] min-h-48 w-[340px] flex-col overflow-hidden border bg-popover shadow-lg"
       onKeyDown={(event) => {
-        if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+        if (
+          event.key === "Enter" &&
+          !event.nativeEvent.isComposing &&
+          !(
+            event.target instanceof Element &&
+            event.target.closest("button, input")
+          )
+        ) {
           event.preventDefault()
-          onFinishedEditing({
-            ...cell,
-            copyData:
-              encodeBaseRelationIds(values.map((value) => value.id)) ?? "",
-            data: { ...cell.data, values },
-          })
+          finish()
         }
       }}
     >
@@ -119,46 +150,54 @@ export const BaseRelationCellEditor: ProvideEditorComponent<
         <Input
           value={query}
           autoFocus
+          role="combobox"
+          aria-label="Search relation records"
+          aria-autocomplete="list"
+          aria-expanded="true"
+          aria-controls={listboxId}
+          aria-activedescendant={activeDescendantId}
+          aria-busy={loading}
           className="h-8 pl-8 text-xs"
           placeholder="Search records"
           onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault()
+              event.stopPropagation()
+              moveActiveOption(event.key === "ArrowDown" ? 1 : -1)
+              return
+            }
+            if (event.key === "Home" || event.key === "End") {
+              event.preventDefault()
+              event.stopPropagation()
+              moveActiveOption(event.key === "Home" ? "first" : "last")
+              return
+            }
+            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+              event.preventDefault()
+              event.stopPropagation()
+              if (event.metaKey || event.ctrlKey || !activeOption) {
+                finish()
+              } else {
+                toggle(activeOption)
+              }
+            }
+          }}
         />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
-        {values.length > 0 ? (
-          <div className="mb-1.5">
-            <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              Selected · {values.length}
-            </p>
-            {values.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                className="flex h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-accent"
-                onClick={() => toggle(option)}
-              >
-                <span className="flex h-4 w-4 items-center justify-center rounded-[3px] bg-foreground text-background">
-                  <Check className="h-3 w-3" />
-                </span>
-                <span className="min-w-0 flex-1 truncate">{option.title}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-        <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          {query ? "Results" : "Records"}
-        </p>
-        {available.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            className="flex h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-accent"
-            onClick={() => toggle(option)}
-          >
-            <span className="h-4 w-4 rounded-[3px] border" />
-            <span className="min-w-0 flex-1 truncate">{option.title}</span>
-          </button>
-        ))}
+        <BaseRelationOptionList
+          accessibleName="Relation records"
+          activeOptionId={activeOptionId}
+          availableValues={available}
+          listboxId={listboxId}
+          multiple={cell.data.multiple}
+          optionId={optionId}
+          query={query}
+          selectedValues={values}
+          onActiveOptionChange={setActiveOptionId}
+          onToggle={toggle}
+        />
         {!loading && !error && available.length === 0 ? (
           <p className="px-2 py-5 text-center text-xs text-muted-foreground">
             {values.length > 0 && !query
@@ -167,7 +206,10 @@ export const BaseRelationCellEditor: ProvideEditorComponent<
           </p>
         ) : null}
         {loading ? (
-          <p className="px-2 py-5 text-center text-xs text-muted-foreground">
+          <p
+            className="px-2 py-5 text-center text-xs text-muted-foreground"
+            role="status"
+          >
             Loading…
           </p>
         ) : null}
@@ -178,10 +220,16 @@ export const BaseRelationCellEditor: ProvideEditorComponent<
         ) : null}
       </div>
       <div className="flex h-8 shrink-0 items-center justify-between border-t px-2.5 text-[10px] text-muted-foreground">
-        <span>
-          {cell.data.multiple ? "Choose multiple records" : "Choose one record"}
-        </span>
-        <span>Enter to finish</span>
+        <span>Arrow keys navigate · Enter selects</span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-[10px]"
+          onClick={finish}
+        >
+          Done
+        </Button>
       </div>
     </div>
   )
