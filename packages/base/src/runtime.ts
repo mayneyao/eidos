@@ -859,6 +859,11 @@ export class BaseRuntime {
     if (!name) {
       throw new BaseError("invalid-identifier", "Base view name is required")
     }
+    const type =
+      changes.type === undefined ? existing.type : changes.type.trim()
+    if (!type) {
+      throw new BaseError("invalid-identifier", "Base view type is required")
+    }
     if (
       changes.position !== undefined &&
       changes.position !== null &&
@@ -885,12 +890,13 @@ export class BaseRuntime {
     this.connection.transaction(() => {
       this.connection.run(
         `UPDATE ${BASE_VIEWS_TABLE}
-            SET name = ?, position = ?, properties = ?, filter = ?,
+            SET name = ?, type = ?, position = ?, properties = ?, filter = ?,
                 order_map = ?, hidden_fields = ?,
                 updated_at = CURRENT_TIMESTAMP
           WHERE id = ?`,
         [
           name,
+          type,
           changes.position === undefined ? existing.position : changes.position,
           JSON.stringify(properties),
           JSON.stringify(

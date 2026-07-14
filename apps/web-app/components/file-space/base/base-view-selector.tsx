@@ -81,6 +81,54 @@ export function BaseViewTypeIcon({
   return <Table2 className={className} />
 }
 
+function BaseViewLayoutPicker({
+  value,
+  disabled,
+  hasSelectField,
+  onChange,
+}: {
+  value: BaseBuiltInViewType
+  disabled: boolean
+  hasSelectField: boolean
+  onChange: (type: BaseBuiltInViewType) => void
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <div
+        className="grid grid-cols-3 gap-1.5"
+        role="group"
+        aria-label="View layout"
+      >
+        {VIEW_TYPES.map((candidate) => {
+          const unavailable = candidate.type === "kanban" && !hasSelectField
+          return (
+            <button
+              key={candidate.type}
+              type="button"
+              className={cn(
+                "grid min-h-16 place-items-center content-center gap-1 rounded-md border px-1.5 text-center outline-hidden hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-45",
+                value === candidate.type && "border-foreground/30 bg-accent"
+              )}
+              disabled={disabled || unavailable}
+              aria-pressed={value === candidate.type}
+              title={candidate.description}
+              onClick={() => onChange(candidate.type)}
+            >
+              <BaseViewTypeIcon type={candidate.type} className="h-4 w-4" />
+              <span className="text-[11px]">{candidate.label}</span>
+            </button>
+          )
+        })}
+      </div>
+      {!hasSelectField ? (
+        <p className="text-[11px] leading-4 text-muted-foreground">
+          Add a Select field to enable Kanban.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 export function BaseViewSelector({
   views,
   fields,
@@ -196,6 +244,35 @@ export function BaseViewSelector({
     void run(() =>
       onUpdate(managedView.id, {
         properties: { ...(managedView.properties ?? {}), ...changes },
+      })
+    )
+  }
+  const changeManagedLayout = (type: BaseBuiltInViewType) => {
+    if (
+      !managedView ||
+      !isBaseBuiltInViewType(managedView.type) ||
+      managedView.type === type
+    ) {
+      return
+    }
+    if (type !== "kanban") {
+      void run(() => onUpdate(managedView.id, { type }))
+      return
+    }
+    const currentGroup = managedView.properties?.groupByField
+    const groupByField =
+      typeof currentGroup === "string" &&
+      selectFields.some((field) => field.tableColumnName === currentGroup)
+        ? currentGroup
+        : selectFields[0]?.tableColumnName
+    if (!groupByField) return
+    void run(() =>
+      onUpdate(managedView.id, {
+        type,
+        properties: {
+          ...(managedView.properties ?? {}),
+          groupByField,
+        },
       })
     )
   }
@@ -344,46 +421,17 @@ export function BaseViewSelector({
             />
             <div className="mt-3 grid gap-1.5">
               <p className="text-xs font-medium">Layout</p>
-              <div
-                className="grid grid-cols-3 gap-1.5"
-                role="group"
-                aria-label="View layout"
-              >
-                {VIEW_TYPES.map((candidate) => {
-                  const unavailable =
-                    candidate.type === "kanban" && selectFields.length === 0
-                  return (
-                    <button
-                      key={candidate.type}
-                      type="button"
-                      className={cn(
-                        "grid min-h-16 place-items-center content-center gap-1 rounded-md border px-1.5 text-center outline-hidden hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-45",
-                        createType === candidate.type &&
-                          "border-foreground/30 bg-accent"
-                      )}
-                      disabled={unavailable}
-                      aria-pressed={createType === candidate.type}
-                      title={
-                        unavailable
-                          ? "Add a Select field before creating a Kanban view"
-                          : candidate.description
-                      }
-                      onClick={() => {
-                        setCreateType(candidate.type)
-                        if (isDefaultName) {
-                          setName(defaultViewName(candidate.type, views))
-                        }
-                      }}
-                    >
-                      <BaseViewTypeIcon
-                        type={candidate.type}
-                        className="h-4 w-4"
-                      />
-                      <span className="text-[11px]">{candidate.label}</span>
-                    </button>
-                  )
-                })}
-              </div>
+              <BaseViewLayoutPicker
+                value={createType}
+                disabled={busy}
+                hasSelectField={selectFields.length > 0}
+                onChange={(type) => {
+                  setCreateType(type)
+                  if (isDefaultName) {
+                    setName(defaultViewName(type, views))
+                  }
+                }}
+              />
             </div>
             <div className="mt-3 flex justify-end gap-1.5">
               <Button
@@ -447,9 +495,21 @@ export function BaseViewSelector({
                 Save
               </Button>
             </div>
-            <p className="mt-1.5 text-[11px] capitalize text-muted-foreground">
-              {managedView.type} layout
-            </p>
+            {isBaseBuiltInViewType(managedView.type) ? (
+              <div className="mt-3 grid gap-1.5 border-t pt-3">
+                <p className="text-xs font-medium">Layout</p>
+                <BaseViewLayoutPicker
+                  value={managedView.type}
+                  disabled={busy}
+                  hasSelectField={selectFields.length > 0}
+                  onChange={changeManagedLayout}
+                />
+              </div>
+            ) : (
+              <p className="mt-1.5 text-[11px] capitalize text-muted-foreground">
+                {managedView.type} layout
+              </p>
+            )}
             {managedView.type === "kanban" ? (
               <div className="mt-3 grid gap-1.5 border-t pt-3">
                 <p className="text-xs font-medium">Group by</p>

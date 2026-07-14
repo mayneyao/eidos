@@ -90,6 +90,7 @@ export interface BaseViewInfo {
 
 export interface UpdateBaseViewInput {
   name?: string
+  type?: string
   position?: number | null
   properties?: Record<string, unknown> | null
   filter?: BaseFilterGroup | null

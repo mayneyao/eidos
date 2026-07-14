@@ -273,6 +273,70 @@ describe("BaseViewSelector", () => {
     expect(document.body.querySelector('[role="alertdialog"]')).toBeNull()
   })
 
+  it("switches an existing view layout in place and initializes Kanban grouping", async () => {
+    await act(async () => exactButton("All tasks")?.click())
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Manage By priority view"]'
+        )
+        ?.click()
+    )
+
+    const layout = document.body.querySelector<HTMLElement>(
+      '[role="group"][aria-label="View layout"]'
+    )
+    expect(layout).not.toBeNull()
+    await act(async () => {
+      Array.from(layout?.querySelectorAll("button") ?? [])
+        .find((button) => button.textContent?.trim() === "Kanban")
+        ?.click()
+    })
+
+    expect(onUpdate).toHaveBeenCalledWith("view_priority", {
+      type: "kanban",
+      properties: { groupByField: "status" },
+    })
+    expect(document.body.querySelector('[role="alertdialog"]')).toBeNull()
+  })
+
+  it("explains why Kanban layout is unavailable without a Select field", async () => {
+    await act(async () => {
+      root.render(
+        <BaseViewSelector
+          views={views}
+          fields={[fields[1]]}
+          activeView={views[0]}
+          onSelect={onSelect}
+          onCreate={onCreate}
+          onRename={onRename}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onReorder={onReorder}
+          onUpdate={onUpdate}
+        />
+      )
+    })
+    await act(async () => exactButton("All tasks")?.click())
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Manage By priority view"]'
+        )
+        ?.click()
+    )
+
+    const kanban = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>(
+        '[role="group"][aria-label="View layout"] button'
+      )
+    ).find((button) => button.textContent?.trim() === "Kanban")
+    expect(kanban?.disabled).toBe(true)
+    expect(document.body.textContent).toContain(
+      "Add a Select field to enable Kanban."
+    )
+  })
+
   it("confirms view deletion inside the anchored panel", async () => {
     await act(async () => exactButton("All tasks")?.click())
     await act(async () =>

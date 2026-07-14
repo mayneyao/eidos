@@ -683,9 +683,21 @@ describe("Eidos Base files", () => {
       sorts: [{ field: "priority", direction: "desc" }],
       orderMap: { priority: 0, title: 1 },
     })
-    expect(base.updateView(duplicate.id, { name: "Focus" })).toMatchObject({
+    expect(
+      base.updateView(duplicate.id, {
+        name: "Focus",
+        type: "gallery",
+        properties: { cardSize: "large" },
+      })
+    ).toMatchObject({
       name: "Focus",
+      type: "gallery",
+      properties: { cardSize: "large" },
     })
+    expectBaseError(
+      () => base.updateView(duplicate.id, { type: "  " }),
+      "invalid-identifier"
+    )
     expect(
       base.reorderViews("tasks", [duplicate.id, original.id, priority.id])
     ).toMatchObject([
@@ -700,6 +712,7 @@ describe("Eidos Base files", () => {
     expect(base.deleteView(priority.id)).toBe(true)
     expect(base.deleteView(duplicate.id)).toBe(true)
     expectBaseError(() => base.deleteView(original.id), "protected-view")
+    base.updateView(original.id, { type: "gallery" })
     base.close()
 
     const reopened = openBaseFile(filePath)
@@ -707,6 +720,7 @@ describe("Eidos Base files", () => {
       {
         id: original.id,
         name: "All tasks",
+        type: "gallery",
         properties: {
           fieldWidthMap: { title: 280 },
           visibleSystemFields: ["_created_time"],
