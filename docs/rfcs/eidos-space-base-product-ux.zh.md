@@ -299,6 +299,14 @@ transaction 边界：保存期间不能关闭或重复提交，失败后保留�
 控件与退出动作，只有成功才关闭，失败则原位保留可重试状态。只有没有自身恢复界面的 toolbar
 mutation 继续使用全局 Base alert。
 
+父编辑器现在还会把 table、field 或 view 等 blocking mutation 作为三种 layout 共用的临时只读边界。
+Grid、Gallery 和 Kanban 在结构写入排队后都不能再发起新的 row mutation，避免行写入在 schema 更新后
+针对已经删除或改变的字段执行；打开 card 和 Record Inspector 仍可用于浏览。Gallery/Kanban 会隐藏
+card 删除入口并禁用 Inspector 编辑，已经打开的删除确认也会立即变为不可提交。Kanban 已经打开的
+行内新增草稿会保留，Add 在结构写入完成前禁用，之后原位恢复。编辑器集成回归会让 Gallery 和 Kanban
+分别跨过一笔 pending schema mutation，证明只读状态能够进入并解除；删除确认和 card view 回归还会
+验证不能绕过组件 disabled 状态排队写入。
+
 Record Inspector 自动保存与 Kanban 行内新建也遵循同一套局部恢复边界。Inspector 写入失败后即使父层
 重新加载持久化 Base 快照，仍会保留并显示当前 optimistic 字段值；在用户解决冲突前锁定其他字段编辑，
 并提供明确的 Retry 与 Discard change。Retry 会重新提交保留值，Discard 则采用最新持久化 row。Kanban
