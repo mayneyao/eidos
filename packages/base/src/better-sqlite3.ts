@@ -11,30 +11,73 @@ import { initializeBaseSchema } from "./schema"
 import type { CreateBaseOptions } from "./types"
 import { validateBase } from "./validation"
 
+const DEFAULT_STATEMENT_CACHE_SIZE = 128
+
+export interface BetterSqlite3BaseConnectionOptions {
+  statementCacheSize?: number
+}
+
 export class BetterSqlite3BaseConnection implements BaseConnection {
-  constructor(readonly database: Database.Database) {}
+  private readonly statements = new Map<
+    string,
+    Database.Statement<unknown[], unknown>
+  >()
+  private readonly statementCacheSize: number
+
+  constructor(
+    readonly database: Database.Database,
+    options: BetterSqlite3BaseConnectionOptions = {}
+  ) {
+    const requestedSize = options.statementCacheSize
+    this.statementCacheSize =
+      typeof requestedSize === "number" && Number.isFinite(requestedSize)
+        ? Math.max(0, Math.trunc(requestedSize))
+        : DEFAULT_STATEMENT_CACHE_SIZE
+  }
+
+  private prepare(sql: string): Database.Statement<unknown[], unknown> {
+    const cached = this.statements.get(sql)
+    if (cached) {
+      this.statements.delete(sql)
+      this.statements.set(sql, cached)
+      return cached
+    }
+    const statement = this.database.prepare(sql)
+    if (this.statementCacheSize === 0) return statement
+    this.statements.set(sql, statement)
+    if (this.statements.size > this.statementCacheSize) {
+      const oldest = this.statements.keys().next().value
+      if (typeof oldest === "string") this.statements.delete(oldest)
+    }
+    return statement
+  }
+
+  private clearStatements(): void {
+    this.statements.clear()
+  }
 
   exec(sql: string): void {
+    this.clearStatements()
     this.database.exec(sql)
   }
 
   query<T extends object>(sql: string, params: BaseSqlParams = []): T[] {
-    return this.database.prepare(sql).all(...params) as T[]
+    return this.prepare(sql).all(...params) as T[]
   }
 
   get<T extends object>(
     sql: string,
     params: BaseSqlParams = []
   ): T | undefined {
-    return this.database.prepare(sql).get(...params) as T | undefined
+    return this.prepare(sql).get(...params) as T | undefined
   }
 
   run(sql: string, params: BaseSqlParams = []): BaseRunResult {
-    return this.database.prepare(sql).run(...params)
+    return this.prepare(sql).run(...params)
   }
 
   runMany(sql: string, parameterSets: readonly BaseSqlParams[]): void {
-    const statement = this.database.prepare(sql)
+    const statement = this.prepare(sql)
     for (const params of parameterSets) statement.run(...params)
   }
 
@@ -43,6 +86,7 @@ export class BetterSqlite3BaseConnection implements BaseConnection {
   }
 
   close(): void {
+    this.clearStatements()
     this.database.close()
   }
 }
