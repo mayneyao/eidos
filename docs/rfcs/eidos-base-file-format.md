@@ -1,11 +1,11 @@
 # RFC: Eidos Base File Format and Runtime
 
-Status: Draft, implementation in progress
+Status: Base v1 accepted
 Date: 2026-07-08
 Owner: Eidos
 Related: `eidos-space-base-storage.md`
 
-## Implementation Status (2026-07-13)
+## Implementation Status (2026-07-14)
 
 The standalone `@eidos.space/base` package now creates, opens, validates, and
 migrates real `.base` SQLite files without depending on Eidos core or
@@ -102,6 +102,16 @@ changes close the stale runtime and reopen and validate the current file. This
 also detects an atomic Graft restore or other file replacement before serving
 the next page. Query timeouts terminate the blocked worker, and Space lifecycle
 cleanup rejects outstanding requests and closes every cached connection.
+Gallery keeps at most 300 rows in its bidirectional window and Kanban keeps at
+most 150 rows per loaded group. Both render only bounded virtual windows;
+million-record and million-card geometry tests keep Chromium layout sizes and
+measurement counts bounded, while Gallery loads pages automatically as the
+viewport moves. Reused query runtimes now also cache table/field read metadata.
+Every read checks SQLite `data_version`, and all runtime writes invalidate the
+cache, so both same-runtime and cross-connection schema changes remain visible.
+On a 10,000-row, 80-field fixture, 100 contiguous natural-order card pages
+dropped from 4 reads per page to 2.02 and from a 1.79 ms median to 1.60 ms per
+page without changing cursor or sort semantics.
 The public runtime now also exposes a migration-oriented
 import boundary for advanced field metadata, views, references, materialized
 derived values, and historical system columns. The legacy migration package
@@ -577,9 +587,10 @@ Supported view types in v1:
 grid
 gallery
 kanban
-doc_list
-ext__*
 ```
+
+Unknown view metadata may be retained for forward compatibility, but v1 does
+not promise a renderer for `doc_list` or extension-defined view types.
 
 Rules:
 
@@ -785,14 +796,14 @@ Show `.base` path-level changes and table-level expansion in Changes UI.
 
 New file-based Eidos workspaces create tables in `.base` files instead of hidden `.eidos/db.sqlite3`.
 
-## Open Questions
+## Base v1 Decisions and Deferred Questions
 
-1. Should `eidos__tables` replace `eidos__tree` immediately inside Base, or should v1 keep a compatibility `eidos__tree`?
-2. Should Base-specific assets use sibling folders such as `tasks.assets/`, or normal Space assets such as `assets/`?
-3. Should FTS and embeddings live inside `.base`, sidecar `.eidos/indexes/`, or be rebuilt on demand?
-4. Should `.base` allow extension-defined view types by default?
-5. Should cross-Base links be represented as file-path plus row ID, or deferred entirely?
-6. Should `created_by`/`last_edited_by` be meaningful in local-only Bases, or treated as optional metadata?
+1. `eidos__tables` is the canonical Base table registry; v1 does not add a compatibility `eidos__tree`.
+2. File fields default to normal Space-relative `assets/` paths. Base-specific sibling asset folders remain optional future work.
+3. FTS, embeddings, and search caches are generated state and stay outside the canonical Base contract; implementations may rebuild them or use private sidecars.
+4. V1 guarantees Grid, Gallery, and Kanban renderers. Extension-defined views belong to the deferred file-based extensions RFC.
+5. Cross-Base links are deferred. V1 relations target rows in the same Base.
+6. `created_by` and `last_edited_by` remain optional local metadata and default to `unknown` when no identity is available.
 
 ## Recommended Vertical Slice
 

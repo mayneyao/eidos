@@ -1,11 +1,11 @@
 # RFC：Eidos Base 文件格式与运行时
 
-状态：草案，实施中
+状态：Base v1 已验收
 日期：2026-07-08
 负责人：Eidos
 相关文档：`eidos-space-base-storage.zh.md`
 
-## 实施状态（2026-07-13）
+## 实施状态（2026-07-14）
 
 独立的 `@eidos.space/base` package 已经可以创建、打开、校验并迁移真实 `.base`
 SQLite 文件，而且不依赖 Eidos core 或 `@libsql/client`。当前实现包含 v1 metadata、
@@ -65,7 +65,15 @@ Base snapshot 现在只携带 row count，Grid 按可见区域请求并缓存 10
 Electron 主线程同步打开并完整校验文件。每个 worker 最多保留 8 个 LRU Base runtimes；文件未变化时
 直接复用，device/inode、大小、mtime 或 ctime 改变时会关闭旧 runtime，并重新打开和校验当前文件。
 因此 Graft 原子回退或其他文件替换会在下一页返回前失效旧连接。查询超时会终止被阻塞的 worker，
-Space lifecycle 清理则会拒绝未完成请求并关闭全部缓存连接。公开 runtime 也已增加
+Space lifecycle 清理则会拒绝未完成请求并关闭全部缓存连接。
+Gallery 的双向窗口最多保留 300 行，Kanban 每个已加载分组最多保留 150 行；两者都只渲染
+有界虚拟窗口。百万记录/百万卡片的几何回归测试会约束 Chromium layout size 和 measurement
+数量，Gallery 在 viewport 移动时自动加载下一页，不需要手动点击。复用的 query runtime 现在
+还会缓存 table/field 只读 metadata；每次读取都会检查 SQLite `data_version`，所有 runtime 写入
+也会主动失效缓存，因此同 runtime 和其他连接产生的 schema 变化都能正确刷新。在包含 10,000
+行、80 个字段的 fixture 上，连续读取 100 个自然顺序 card pages 从每页 4 次读取降到 2.02 次，
+耗时中位数从 1.79ms/页降到 1.60ms/页，同时不改变 cursor 和 sort 语义。
+公开 runtime 也已增加
 migration-oriented import boundary，支持
 导入高级 field metadata、views、references、materialized derived values 和历史 system
 columns；legacy migration package 通过该边界生成经过校验的 multi-table `main.base`。
@@ -529,9 +537,10 @@ v1 支持的 view types：
 grid
 gallery
 kanban
-doc_list
-ext__*
 ```
+
+未知 view metadata 可以为前向兼容继续保留，但 v1 不承诺提供 `doc_list` 或
+extension-defined view types 的 renderer。
 
 规则：
 
@@ -737,14 +746,14 @@ Base export 不包含：
 
 新的 file-based Eidos workspace 将表格创建到 `.base` 文件中，而不是隐藏的 `.eidos/db.sqlite3`。
 
-## 开放问题
+## Base v1 决策与延后问题
 
-1. `eidos__tables` 是否应该立即替代 Base 内的 `eidos__tree`，还是 v1 保留兼容 `eidos__tree`？
-2. Base 专属 assets 应该使用 `tasks.assets/` 这类 sibling folders，还是普通 Space `assets/`？
-3. FTS 和 embeddings 应该存在 `.base` 内、sidecar `.eidos/indexes/`，还是按需重建？
-4. `.base` 是否默认允许 extension-defined view types？
-5. 跨 Base links 应该表示为 file path + row ID，还是完全推迟？
-6. `created_by` / `last_edited_by` 在 local-only Bases 中是否有实际语义，还是仅作为可选 metadata？
+1. `eidos__tables` 是 Base 的 canonical table registry；v1 不增加兼容 `eidos__tree`。
+2. file field 默认使用普通 Space 相对 `assets/` 路径；Base 专属 sibling assets folder 留待后续按需实现。
+3. FTS、embeddings 和 search caches 都属于 generated state，不进入 canonical Base contract；实现可以重建或使用私有 sidecar。
+4. v1 保证 Grid、Gallery 和 Kanban renderer；extension-defined views 归入延后的 file-based extensions RFC。
+5. 跨 Base links 延后；v1 relation 只指向同一 Base 内的 rows。
+6. `created_by` / `last_edited_by` 保持为可选本地 metadata；没有 identity 时默认使用 `unknown`。
 
 ## 推荐垂直切片
 
