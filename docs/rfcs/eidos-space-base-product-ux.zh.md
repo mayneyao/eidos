@@ -144,8 +144,10 @@ containment；Resize Observer 与布局失效因此被限制在已挂载 oversca
 key 切换为 record ID。数据 hydration 只更新 record 子树，不会卸载负责测量和 transform 的 wrapper；
 record card 自身仍按稳定 row ID 建立身份边界，拖拽或局部组件状态不会在记录间串用。Gallery 和 Kanban
 均有回归测试直接验证 placeholder hydration 前后保持同一个 DOM 节点。
-Gallery 可以选择 File 字段作为封面，并切换适应/裁切；文件二进制只通过 Space file boundary
-读取，并转换为临时 object URL。Gallery 与 Kanban 共用 view 级封面资源读取器；多个 card 引用同一文件，
+Gallery 和 Kanban 都可以在各自的锚定式 view 设置中选择 File 或 URL 字段作为封面，并配置
+适应/裁切和隐藏空字段；这些入口与共享 card renderer 已有能力保持一致。文件二进制只通过
+Space file boundary 读取，并转换为临时 object URL；HTTP(S) URL 字段则直接渲染，不触发
+binary read。Gallery 与 Kanban 共用 view 级封面资源读取器；多个 card 引用同一文件，
 或虚拟滚动让 card 卸载后再次挂载时，会同时复用正在进行或近期完成的二进制读取和已创建的 Blob URL，
 不再重复触发 Space IPC、磁盘 I/O、Blob 分配和图片源解码。引用计数租约会保证任一可见 card 使用期间
 资源不会被提前 revoke；没有活跃引用的资源再受 64 个条目、64 MiB LRU 上限和 60 秒过期约束。view 销毁
@@ -285,12 +287,13 @@ layout；恢复后的仓库状态为 clean。
 | 持久化 view lifecycle 与独立 query/layout  | 自动与原生重启/恢复均已验收                 | v1 暂无已知缺口                                                     |
 | Grid 列统计                                | view 级配置、worker 聚合并复用 trailing row | v1 暂无已知缺口                                                     |
 | Gallery 字段显隐、空字段隐藏、card size    | 二维虚拟无限滚动与结果导航已工作            | v1 暂无已知缺口                                                     |
-| Gallery cover                              | File 字段已工作                             | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
+| Gallery 与 Kanban cover                    | File/URL、适应/裁切和隐藏空字段均已工作     | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
 | Card actions                               | 可编辑 Inspector 与删除已工作               | file-based Base 的 full-page row document 模型尚未定义              |
 | Kanban Select 分组、计数、折叠、新增、拖动 | 横纵虚拟化、可见列懒加载和无障碍移动已工作  | v1 暂无已知缺口                                                     |
 | Base merge conflict 审阅                   | 原生 row 审阅已验收                         | schema/opaque conflict 按设计使用明确的 whole-file fallback         |
 
-这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。更多可移植 cover source 仍待完成。
+这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。可移植的 File 与 URL cover
+已经满足 v1 Base 边界；旧 document-content 与 extension-block cover 明确保留在独立 package 之外。
 Base 日常编辑和配置优先使用单元格内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留
 给破坏性确认或必须中断当前工作流的决策。新增交互应先参考并复用原表格已经验证过的编辑方式，
 不应仅为了实现方便把字段配置、记录编辑或 view 管理改成弹窗流程。

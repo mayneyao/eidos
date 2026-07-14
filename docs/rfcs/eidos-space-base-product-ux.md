@@ -217,10 +217,12 @@ translated wrapper; the record card itself remains keyed by stable row ID so
 drag and local component state cannot leak between records. Regression coverage
 asserts DOM-node identity across placeholder hydration for both Gallery and
 Kanban.
-Gallery can use either a File or URL field as a fitted or cropped card cover.
-File binaries are read through the Space file boundary and exposed only as a
-temporary object URL, while HTTP(S) URL fields are rendered directly without a
-binary read. Gallery and Kanban share a view-scoped cover source reader, so
+Gallery and Kanban can both use either a File or URL field as a fitted or
+cropped card cover. Their anchored view settings expose the same cover source,
+fit/crop, and empty-field controls that the shared card renderer already
+supports. File binaries are read through the Space file boundary and exposed
+only as a temporary object URL, while HTTP(S) URL fields are rendered directly
+without a binary read. Gallery and Kanban share a view-scoped cover source reader, so
 cards that refer to the same file and cards remounted by virtual scrolling
 reuse both the in-flight or recent binary read and the resulting Blob URL
 instead of repeating Space IPC, disk I/O, Blob allocation, and image source
@@ -485,7 +487,7 @@ Current parity with the original table views is explicit:
 | Persisted view lifecycle and per-view query/layout        | Automated and native restart/restore accepted                                           | No known v1 gap                                                                                              |
 | Grid column calculations                                  | View-owned, worker-backed aggregates in the existing trailing row                       | No known v1 gap                                                                                              |
 | Gallery field visibility, empty-field hiding, card sizing | Working with virtual infinite scroll and result navigation                              | No known v1 gap                                                                                              |
-| Gallery cover                                             | File and URL fields working                                                             | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
+| Gallery and Kanban covers                                 | File and URL fields, fit/crop, and empty-field controls working                         | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
 | Card actions                                              | Editable inspector and delete working                                                   | A full-page row-document model is not yet defined for file-based Base                                        |
 | Kanban Select grouping, counts, collapse, add, drag move  | Working with two-axis virtualization, visible-column lazy loading, and accessible moves | No known v1 gap                                                                                              |
 | Base merge conflict review                                | Native row review accepted                                                              | Schema/opaque conflicts intentionally use the explicit whole-file fallback                                   |
