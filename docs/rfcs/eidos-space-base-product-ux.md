@@ -423,6 +423,18 @@ roots are memoized. Host integration coverage asserts that each expensive view
 renders once while an existing-row save starts and completes; save status and
 last-saved bookkeeping therefore stay outside the heavy view trees.
 
+Existing-record query invalidation is now field-aware instead of treating any
+active Filter or Sort as a reason to refresh the complete layout. The standalone
+Base package identifies the fields read by search, nested filters, and sorts,
+then follows Formula/Lookup dependencies transitively. An edit to an unrelated
+field therefore stays inside the current Grid, Gallery, or Kanban row window;
+an edit to a directly or indirectly queried field still reloads to reconcile
+membership and ordering. Batch edits use the union of their changed columns,
+while record insertion remains conservatively query-aware because a new row may
+enter or leave the result. Editor integration coverage asserts that a filtered
+Gallery keeps its reload token for an unrelated title edit and advances it for
+an edit to the filtered Select field.
+
 Card render metadata is now computed once per view rather than once per visible
 record. Ordered fields, cover selection, field limits, and Select/Multi-select
 option indexes are shared by the Gallery or Kanban window. Closed action menus

@@ -253,6 +253,13 @@ Gallery 的虚拟行现在还会在 card 外形成第二层 memo 边界。分页
 不再重建已挂载 row wrapper；page merge 也只会重渲染可见 slot 真正新增或改变记录的 wrapper。
 失败无限分页的 Retry 回归中，替换 page 返回前的已挂载虚拟行重复构造从 3 行降为 0 行。
 
+现有记录的 query invalidation 现在会按字段判断，不再因为 view 存在任意 Filter 或 Sort 就刷新整个
+layout。独立 Base package 会收集搜索、嵌套筛选和排序实际读取的字段，并递归追踪 Formula/Lookup
+依赖。修改无关字段时只更新当前 Grid、Gallery 或 Kanban 的 row window；修改直接或间接参与 query
+的字段时仍会 reload，以重新校准成员关系和顺序。批量编辑会使用全部 changed columns 的并集；新建
+记录仍保持保守的 query-aware reload，因为新 row 可能进入或离开结果。编辑器集成回归会断言，带
+筛选的 Gallery 修改无关 title 时 reload token 不变，而修改筛选使用的 Select 字段时 token 前进。
+
 Card 渲染元数据现在按 view 计算一次，而不是让每个可见 record 重复计算。字段顺序、封面字段、字段
 数量限制和 Select/Multi-select option 索引会被 Gallery 或 Kanban 的可见窗口共享。未打开的操作菜单
 不会预先展开全部 Move-to options。Kanban 的所有可见列还会保留同一个 board 级 Move-to option 数组，
