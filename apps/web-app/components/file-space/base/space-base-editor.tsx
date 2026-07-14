@@ -98,6 +98,18 @@ type DeleteTarget =
 
 const SUPPORTED_BASE_VIEW_TYPES = new Set(["grid", "gallery", "kanban"])
 
+interface BaseMutationOptions {
+  statusKey: string
+  blocking?: boolean
+  errorMode?: "global" | "local"
+}
+
+function baseMutationStatusKey(
+  ...parts: Array<string | number | null | undefined>
+): string {
+  return parts.map((part) => encodeURIComponent(String(part ?? ""))).join(":")
+}
+
 function baseMutationRevision(result: unknown): string | null {
   if (!result || typeof result !== "object") return null
   if (
@@ -202,6 +214,9 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const [pendingMutations, setPendingMutations] = useState(0)
   const [blockingMutations, setBlockingMutations] = useState(0)
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
+  const [failedMutationKeys, setFailedMutationKeys] = useState<
+    ReadonlySet<string>
+  >(() => new Set())
   const mutatingRef = useRef(false)
   const pendingMutationCountRef = useRef(0)
   const mutationQueueRef = useRef<Promise<void>>(Promise.resolve())
@@ -485,14 +500,26 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       ),
     [selectedRowRanges]
   )
+  const setMutationKeyFailed = useCallback(
+    (statusKey: string, failed: boolean) => {
+      setFailedMutationKeys((current) => {
+        if (current.has(statusKey) === failed) return current
+        const next = new Set(current)
+        failed ? next.add(statusKey) : next.delete(statusKey)
+        return next
+      })
+    },
+    []
+  )
   const enqueueMutation = useCallback(
     <T,>(
       operation: () => Promise<T>,
-      onSuccess?: (result: T) => void,
-      options: { blocking?: boolean; errorMode?: "global" | "local" } = {}
+      onSuccess: ((result: T) => void) | undefined,
+      options: BaseMutationOptions
     ): Promise<T> => {
       const blocking = options.blocking !== false
       const errorMode = options.errorMode ?? "global"
+      const { statusKey } = options
       pendingMutationCountRef.current += 1
       mutatingRef.current = true
       setPendingMutations((current) => current + 1)
@@ -508,10 +535,12 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             if (revision) knownBaseRevisionRef.current = revision
             onSuccess?.(result)
             setError(null)
+            setMutationKeyFailed(statusKey, false)
             setLastSavedAt(Date.now())
             return result
           },
           async (mutationError) => {
+            setMutationKeyFailed(statusKey, true)
             if (errorMode === "global") {
               setError(
                 mutationError instanceof Error
@@ -537,7 +566,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       )
       return handled
     },
-    [load]
+    [load, setMutationKeyFailed]
   )
 
   const updateTableRowCount = useCallback(
@@ -743,7 +772,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           setGridReloadToken((current) => current + 1)
         }
       },
-      { blocking: false }
+      {
+        blocking: false,
+        statusKey: baseMutationStatusKey("insert-row", tableId, "grid"),
+      }
     )
   }, [
     activeTable,
@@ -777,7 +809,17 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             setGridReloadToken((current) => current + 1)
           }
         },
-        { blocking: false, errorMode: "local" }
+        {
+          blocking: false,
+          errorMode: "local",
+          statusKey: baseMutationStatusKey(
+            "insert-row",
+            tableId,
+            field.tableColumnName,
+            value,
+            title
+          ),
+        }
       )
     },
     [
@@ -821,7 +863,16 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             setGridReloadToken((current) => current + 1)
           }
         },
-        { blocking: false, errorMode }
+        {
+          blocking: false,
+          errorMode,
+          statusKey: baseMutationStatusKey(
+            "row",
+            tableId,
+            rowId,
+            field.tableColumnName
+          ),
+        }
       )
     },
     [
@@ -873,7 +924,19 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             setGridReloadToken((current) => current + 1)
           }
         },
-        { blocking: false, errorMode: "local" }
+        {
+          blocking: false,
+          errorMode: "local",
+          statusKey: baseMutationStatusKey(
+            "row-batch",
+            tableId,
+            [...changedColumns].sort().join(","),
+            edits
+              .map(({ row }) => String(row._id))
+              .sort()
+              .join(",")
+          ),
+        }
       )
     },
     [
@@ -898,6 +961,13 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         updateTableRowCount(tableId, result.rowCount)
         setSelectedRowRanges([])
         setGridReloadToken((current) => current + 1)
+      },
+      {
+        statusKey: baseMutationStatusKey(
+          "delete-row-ranges",
+          tableId,
+          JSON.stringify(ranges)
+        ),
       }
     )
   }, [
@@ -923,6 +993,13 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           if (activeView?.type === "grid") {
             setGridReloadToken((current) => current + 1)
           }
+        },
+        {
+          statusKey: baseMutationStatusKey(
+            "delete-row",
+            tableId,
+            String(row._id)
+          ),
         }
       ).then(() => undefined)
     },
@@ -950,7 +1027,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           )
           if (created) setActiveTableId(created.table.id)
         },
-        { errorMode: "local" }
+        {
+          errorMode: "local",
+          statusKey: baseMutationStatusKey("create-table", table.name),
+        }
       ).then(() => undefined)
     },
     [applySnapshot, createTable, enqueueMutation, filePath, snapshot?.tables]
@@ -968,6 +1048,9 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           applySnapshot(next)
           setActiveTableId(result.table.id)
           setGridReloadToken((current) => current + 1)
+        },
+        {
+          statusKey: baseMutationStatusKey("import-csv", filePath),
         }
       ).then(() => undefined),
     [applySnapshot, enqueueMutation, filePath, importCsv]
@@ -1017,7 +1100,14 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             ? addField(filePath, activeTable.table.id, field, placement)
             : addField(filePath, activeTable.table.id, field),
         applySnapshot,
-        { errorMode: "local" }
+        {
+          errorMode: "local",
+          statusKey: baseMutationStatusKey(
+            "create-field",
+            activeTable.table.id,
+            field.columnName
+          ),
+        }
       ).then(() => {
         setFieldInsertIndex(null)
       })
@@ -1044,7 +1134,13 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       return enqueueMutation(
         () => updateTable(filePath, renameTarget.tableId, { name }),
         applySnapshot,
-        { errorMode: "local" }
+        {
+          errorMode: "local",
+          statusKey: baseMutationStatusKey(
+            "rename-table",
+            renameTarget.tableId
+          ),
+        }
       ).then(() => undefined)
     },
     [applySnapshot, enqueueMutation, filePath, renameTarget, updateTable]
@@ -1056,7 +1152,13 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       deleteTarget.kind === "table"
         ? deleteTable(filePath, deleteTarget.tableId)
         : deleteField(filePath, deleteTarget.tableId, deleteTarget.columnName)
-    return enqueueMutation(operation, applySnapshot).then(() => {
+    return enqueueMutation(operation, applySnapshot, {
+      statusKey: baseMutationStatusKey(
+        deleteTarget.kind === "table" ? "delete-table" : "delete-field",
+        deleteTarget.tableId,
+        deleteTarget.kind === "field" ? deleteTarget.columnName : undefined
+      ),
+    }).then(() => {
       if (deleteTarget.kind === "field") {
         setFieldPropertyColumn((current) =>
           current === deleteTarget.columnName ? null : current
@@ -1092,7 +1194,14 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             setGridReloadToken((current) => current + 1)
           }
         },
-        { errorMode: "local" }
+        {
+          errorMode: "local",
+          statusKey: baseMutationStatusKey(
+            "field",
+            activeTable.table.id,
+            field.tableColumnName
+          ),
+        }
       ).then(() => undefined)
     },
     [activeTable, applySnapshot, enqueueMutation, filePath, updateField]
@@ -1113,7 +1222,14 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           applySnapshot(next)
           setGridReloadToken((current) => current + 1)
         },
-        { errorMode: "local" }
+        {
+          errorMode: "local",
+          statusKey: baseMutationStatusKey(
+            "field",
+            activeTable.table.id,
+            formulaTarget.tableColumnName
+          ),
+        }
       ).then(() => undefined)
     },
     [
@@ -1151,7 +1267,14 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           applySnapshot(next)
           setGridReloadToken((current) => current + 1)
         },
-        { errorMode: "local" }
+        {
+          errorMode: "local",
+          statusKey: baseMutationStatusKey(
+            "field",
+            activeTable.table.id,
+            lookupTarget.tableColumnName
+          ),
+        }
       ).then(() => undefined)
     },
     [
@@ -1210,7 +1333,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             }))
           }
         },
-        { errorMode: "local" }
+        {
+          errorMode: "local",
+          statusKey: baseMutationStatusKey("create-view", tableId, type, name),
+        }
       ).then(() => undefined)
     },
     [activeTable, applySnapshot, createView, enqueueMutation, filePath]
@@ -1221,7 +1347,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       enqueueMutation(
         () => updateView(filePath, viewId, { name }),
         applySnapshot,
-        { errorMode: "local" }
+        {
+          errorMode: "local",
+          statusKey: baseMutationStatusKey("view", viewId),
+        }
       ).then(() => undefined),
     [applySnapshot, enqueueMutation, filePath, updateView]
   )
@@ -1234,7 +1363,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       enqueueMutation(
         () => updateView(filePath, viewId, changes),
         applySnapshot,
-        { errorMode: "local" }
+        {
+          errorMode: "local",
+          statusKey: baseMutationStatusKey("view", viewId),
+        }
       ).then(() => undefined),
     [applySnapshot, enqueueMutation, filePath, updateView]
   )
@@ -1258,7 +1390,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             }))
           }
         },
-        { errorMode: "local" }
+        {
+          errorMode: "local",
+          statusKey: baseMutationStatusKey("duplicate-view", viewId),
+        }
       ).then(() => undefined)
     },
     [activeTable, applySnapshot, duplicateView, enqueueMutation, filePath]
@@ -1284,7 +1419,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             return updated
           })
         },
-        { errorMode: "local" }
+        {
+          errorMode: "local",
+          statusKey: baseMutationStatusKey("delete-view", viewId),
+        }
       ).then(() => undefined)
     },
     [activeTable, applySnapshot, deleteView, enqueueMutation, filePath]
@@ -1296,7 +1434,13 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       return enqueueMutation(
         () => reorderViews(filePath, activeTable.table.id, viewIds),
         applySnapshot,
-        { errorMode: "local" }
+        {
+          errorMode: "local",
+          statusKey: baseMutationStatusKey(
+            "reorder-views",
+            activeTable.table.id
+          ),
+        }
       ).then(() => undefined)
     },
     [activeTable, applySnapshot, enqueueMutation, filePath, reorderViews]
@@ -1311,7 +1455,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       return enqueueMutation(
         () => updateView(filePath, activeView.id, changes),
         applySnapshot,
-        { errorMode }
+        {
+          errorMode,
+          statusKey: baseMutationStatusKey("view", activeView.id),
+        }
       ).then(() => undefined)
     },
     [activeView, applySnapshot, enqueueMutation, filePath, updateView]
@@ -1765,7 +1912,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
               Saving…
             </span>
-          ) : lastSavedAt ? (
+          ) : failedMutationKeys.size === 0 && lastSavedAt ? (
             <span className="flex items-center gap-1">
               <Check className="h-3.5 w-3.5" />
               Saved

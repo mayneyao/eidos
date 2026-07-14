@@ -1598,6 +1598,62 @@ describe("SpaceBaseEditor", () => {
     ).toBeNull()
   })
 
+  it("does not report Saved until the failed resource is retried", async () => {
+    await renderEditor()
+    const clickButton = async (label: string) => {
+      await act(async () => {
+        Array.from(container.querySelectorAll("button"))
+          .find((button) => button.textContent === label)
+          ?.click()
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    }
+
+    await clickButton("Edit title")
+    expect(container.textContent).toContain("Saved")
+
+    updateRowMock.mockRejectedValueOnce(new Error("Base file is read-only"))
+    await clickButton("Edit title")
+    expect(container.textContent).not.toContain("Saved")
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Add Base table"]')
+        ?.click()
+    })
+    await clickButton("Confirm table")
+    expect(container.textContent).not.toContain("Saved")
+
+    await clickButton("Edit title")
+    expect(container.textContent).toContain("Saved")
+  })
+
+  it("keeps Saved suppressed until every failed resource is retried", async () => {
+    updateRowMock.mockRejectedValueOnce(new Error("Cell write failed"))
+    updateRowsMock.mockRejectedValueOnce(new Error("Batch write failed"))
+    await renderEditor()
+    const clickButton = async (label: string) => {
+      await act(async () => {
+        Array.from(container.querySelectorAll("button"))
+          .find((button) => button.textContent === label)
+          ?.click()
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    }
+
+    await clickButton("Edit title")
+    await clickButton("Paste row")
+    expect(container.textContent).not.toContain("Saved")
+
+    await clickButton("Edit title")
+    expect(container.textContent).not.toContain("Saved")
+
+    await clickButton("Paste row")
+    expect(container.textContent).toContain("Saved")
+  })
+
   it("leaves a failed pasted range to the anchored Grid recovery surface", async () => {
     updateRowsMock.mockRejectedValueOnce(new Error("Batch write failed"))
     await renderEditor()
