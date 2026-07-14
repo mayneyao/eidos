@@ -161,6 +161,13 @@ runtime。Runner 还会合并语义完全相同且仍在途的请求，因此 Re
 条目立即移除，不跨文件 mutation 缓存已完成结果。每个 worker 的 8 文件 LRU 上限避免文件描述符
 无界增长。文件 fingerprint 会在原地写入或
 原子替换后强制重开，打包后的 worker smoke 已覆盖深分页、分组总数以及替换失效。
+稳定 Base schema 的 Formula 编译计划现在也由上述长生命周期 runtime 按 table 缓存。Gallery 或
+Kanban 连续读取分页时只在首个需要派生字段的请求中解析 Formula AST；字段名称、类型、派生关系或
+公式内容改变后，schema signature 会让下一次查询重新编译。只按 source 字段筛选或分组的 count query
+还会裁剪未参与 predicate/group 的派生层，并完全跳过 Formula 编译；按派生字段筛选时则递归保留其
+依赖。相同的 200 次空页隔离基准中，10 个 Formula 从约 459.3 ms 降到五轮中位数 70.5 ms，25 个
+Formula 从约 1135.9 ms 降到 212.8 ms；0 Formula 基线为 18.7 ms。该优化消除的是重复 parser 成本，
+不会把 Formula 结果物化，也不会改变 SQLite 对实际 row expression 的执行语义。
 独立 Base runtime 还会为 Gallery 排序前缀和 Kanban 分组+排序前缀维护可丢弃的 SQLite 查询索引。
 索引跟随 view lifecycle，在被索引字段转换或删除后重建，并在旧文件以 migration 模式打开时一次性修复；
 它们只加速物理表，不进入 Base metadata 语义契约。可写 Base lifecycle 会先创建或修复索引，再由只读
