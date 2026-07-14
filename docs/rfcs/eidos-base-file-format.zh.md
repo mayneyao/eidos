@@ -87,6 +87,13 @@ operation 运行，锚定 mapping panel 会显示真实 bytes/rows 进度。取�
 SQLite transaction 回滚后才释放 Space operation lock，因此不会留下半张 table 或部分 rows；
 100,000-row cancellation smoke 已覆盖该不变量。CSV 不会被完整缓存在 Electron main process。
 
+CSV export 同样复用独立 package 的字段显示与 RFC 4180 record 编码，并由 Desktop worker 直接
+读取 Base runtime。导出请求携带当前 view 的结构化 query 与可见字段顺序；worker 在只读 transaction
+中按 500 行分页，优先使用 runtime cursor，无法使用 cursor 的派生排序则安全回退 offset。输出先写
+同目录唯一临时文件，包含 UTF-8 BOM、CRLF record delimiter、Select/Multi-select 显示名和 relation
+显示标题；只有全部行写完后才替换 save picker 的目标。renderer 与 Electron main 均不缓存完整 CSV。
+真实跨页测试覆盖 1,205 行源表、filter/sort、603 行结果、进度和最终文件内容。
+
 打开 Base 现在会把 metadata 视为不可信文件边界：runtime 在暴露数据前校验 registry 数量、
 枚举值、JSON shape、物理存储列、view references 以及 formula/lookup definitions。公式始终从
 canonical formula text 重新编译，不信任缓存的 SQL/dependencies；嵌套查询、过大的 AST 和未在

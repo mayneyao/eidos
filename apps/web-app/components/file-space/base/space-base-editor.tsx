@@ -58,7 +58,9 @@ import {
 import { BaseGrid } from "./base-grid"
 import { BaseGalleryView } from "./base-gallery-view"
 import { BaseCsvImportPopover } from "./base-csv-import-popover"
+import { BaseCsvExportPopover } from "./base-csv-export-popover"
 import {
+  baseFieldDisplayName,
   baseViewVisibleSystemFields,
   isOptionalBaseSystemField,
 } from "./base-field-visibility"
@@ -75,6 +77,7 @@ import { BaseStructureMenu } from "./base-structure-menu"
 import { BaseViewMenu } from "./base-view-menu"
 import { type BaseBuiltInViewType } from "./base-view-selector"
 import { BaseViewTabs } from "./base-view-tabs"
+import { orderedBaseFields } from "./base-view-layout"
 
 interface SpaceBaseEditorProps {
   filePath: string
@@ -136,6 +139,16 @@ function combineBaseFilters(
   }
 }
 
+function csvFileNameSegment(value: string): string {
+  return (
+    value
+      .trim()
+      .replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "-")
+      .replace(/\s+/g, " ")
+      .replace(/[. ]+$/g, "") || "view"
+  )
+}
+
 export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const tabContext = useOptionalTabContext()
@@ -160,6 +173,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     importCsv,
     getCsvOperation,
     cancelCsvOperation,
+    exportCsv,
     getTablePage,
     getTableGroupCounts,
     getTableColumnStats,
@@ -959,6 +973,37 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     [applySnapshot, enqueueMutation, filePath, importCsv]
   )
 
+  const exportActiveView = useCallback(
+    (operationId: string) => {
+      if (!activeTable || !activeView) {
+        return Promise.reject(new Error("No active Base view"))
+      }
+      const baseName = filePath
+        .split("/")
+        .at(-1)
+        ?.replace(/\.base$/i, "")
+      const columns = orderedBaseFields(activeTable.fields, activeView).map(
+        (field) => ({
+          columnName: field.tableColumnName,
+          name: baseFieldDisplayName(field),
+        })
+      )
+      const suggestedFileName = [
+        csvFileNameSegment(baseName || "base"),
+        csvFileNameSegment(activeTable.table.name),
+        csvFileNameSegment(activeView.name),
+      ].join(" - ")
+      return exportCsv(
+        filePath,
+        activeTable.table.id,
+        { query: activeQuery, columns },
+        `${suggestedFileName}.csv`,
+        operationId
+      )
+    },
+    [activeQuery, activeTable, activeView, exportCsv, filePath]
+  )
+
   const createFieldInBase = useCallback(
     (field: Parameters<typeof addField>[2]): Promise<void> => {
       if (!activeTable) return Promise.resolve()
@@ -1479,6 +1524,15 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
             onProgress={getCsvOperation}
             onCancel={cancelCsvOperation}
           />
+          {activeView ? (
+            <BaseCsvExportPopover
+              disabled={loading || pendingMutations > 0}
+              viewName={`${activeTable?.table.name ?? "Table"} · ${activeView.name}`}
+              onExport={exportActiveView}
+              onProgress={getCsvOperation}
+              onCancel={cancelCsvOperation}
+            />
+          ) : null}
           <Button
             type="button"
             variant="ghost"

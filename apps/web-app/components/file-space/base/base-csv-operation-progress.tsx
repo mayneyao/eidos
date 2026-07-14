@@ -1,8 +1,8 @@
 export interface BaseCsvOperationProgress {
   operationId: string
-  kind: "plan" | "import"
+  kind: "plan" | "import" | "export"
   status: "running" | "canceling" | "completed" | "canceled" | "failed"
-  phase: "analyzing" | "importing" | "finalizing"
+  phase: "analyzing" | "importing" | "exporting" | "finalizing"
   processedBytes: number
   totalBytes: number
   processedRows: number

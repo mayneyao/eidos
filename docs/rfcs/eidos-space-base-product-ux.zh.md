@@ -322,6 +322,13 @@ panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以�
 等待 SQLite transaction 回滚，再解除当前 Base 的 mutation lock，因此重试不会和仍在退出的
 worker 竞争，也不会留下部分 table 或 rows。
 
+CSV 导出使用同一条锚定式 operation UX，但导出的是当前 view，而不是 renderer 已加载的虚拟窗口：
+即时 search、持久 filter/sorts、可见系统字段和字段顺序都会传入隔离 worker。worker 在一致性只读
+transaction 中通过 cursor/offset 分页读取 `.base`，流式写入带 UTF-8 BOM 的临时 CSV，完成后再
+原子替换用户通过原生 save picker 选择的目标。进度按真实 rows 展示并可取消；失败或取消只会清理
+临时文件，不会留下看似成功的截断 CSV。真实 1,205 行跨页用例已验证筛选、排序、显示值和 603 行
+输出结果。
+
 真实文件 Base versioning smoke 现在会创建 Grid、Gallery 和 Kanban metadata，关闭并重开文件，
 编辑行，验证 Graft row diff，恢复初始 revision，再次重开并校验 records、派生值和三种 view
 layout；恢复后的仓库状态为 clean。
@@ -338,6 +345,7 @@ layout；恢复后的仓库状态为 clean。
 | 持久化 view lifecycle 与独立 query/layout  | 完整 lifecycle、原位 layout 切换及重启/恢复已验收 | v1 暂无已知缺口                                                     |
 | view 级字段显隐与只读系统字段              | 三种 layout 共用持久化显隐，系统字段可筛选排序    | v1 暂无已知缺口                                                     |
 | Grid 列统计                                | view 级配置、worker 聚合并复用 trailing row       | v1 暂无已知缺口                                                     |
+| CSV 导入/当前 view 导出                    | 流式 worker、进度/取消和原子输出已工作            | v1 暂无已知缺口                                                     |
 | Gallery 字段显隐、空字段隐藏、card size    | 二维虚拟无限滚动与结果导航已工作                  | v1 暂无已知缺口                                                     |
 | Gallery 与 Kanban cover                    | File/URL、适应/裁切和隐藏空字段均已工作           | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
 | Card actions                               | 可编辑 Inspector 与删除已工作                     | file-based Base 的 full-page row document 模型尚未定义              |
@@ -486,6 +494,7 @@ tasks.base
 - add table，
 - add field，
 - import CSV，
+- export current view as CSV，
 - properties/settings，
 - open file location。
 

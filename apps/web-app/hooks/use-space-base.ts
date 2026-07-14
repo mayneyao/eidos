@@ -15,6 +15,8 @@ import type {
   BaseCsvImportOptions,
   BaseCsvImportPlan,
   BaseCsvImportResult,
+  BaseCsvExportOptions,
+  BaseCsvExportResult,
   BaseFormulaPreview,
   BaseFormulaPreviewInput,
   BaseFieldPlacement,
@@ -98,6 +100,32 @@ export function useSpaceBase(spaceId: string | undefined) {
   const cancelCsvOperation = useCallback(
     (operationId: string) =>
       requireBaseApi().cancelBaseCsvOperation(requireSpaceId(), operationId),
+    [requireSpaceId]
+  )
+
+  const exportCsv = useCallback(
+    (
+      relativePath: string,
+      tableId: string,
+      options: BaseCsvExportOptions,
+      suggestedFileName: string,
+      operationId?: string
+    ): Promise<
+      | { canceled: true; fileName: null; result: null }
+      | {
+          canceled: false
+          fileName: string
+          result: BaseCsvExportResult
+        }
+    > =>
+      requireBaseApi().exportBaseCsv(
+        requireSpaceId(),
+        relativePath,
+        tableId,
+        options,
+        suggestedFileName,
+        operationId
+      ),
     [requireSpaceId]
   )
 
@@ -406,6 +434,7 @@ export function useSpaceBase(spaceId: string | undefined) {
     importCsv,
     getCsvOperation,
     cancelCsvOperation,
+    exportCsv,
     getSnapshot,
     getTablePage,
     getTableGroupCounts,

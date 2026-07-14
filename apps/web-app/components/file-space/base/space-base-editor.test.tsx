@@ -42,6 +42,9 @@ const updateRowMock = vi.hoisted(() => vi.fn())
 const updateRowsMock = vi.hoisted(() => vi.fn())
 const deleteRowsMock = vi.hoisted(() => vi.fn())
 const deleteRowRangesMock = vi.hoisted(() => vi.fn())
+const exportCsvMock = vi.hoisted(() => vi.fn())
+const getCsvOperationMock = vi.hoisted(() => vi.fn())
+const cancelCsvOperationMock = vi.hoisted(() => vi.fn())
 const spaceFileChanges = vi.hoisted(() => ({
   handler: undefined as
     | ((event: { eventType: "change" | "rescan"; path: string }) => void)
@@ -101,6 +104,9 @@ vi.mock("@/apps/web-app/hooks/use-space-base", () => ({
     updateRows: updateRowsMock,
     deleteRows: deleteRowsMock,
     deleteRowRanges: deleteRowRangesMock,
+    exportCsv: exportCsvMock,
+    getCsvOperation: getCsvOperationMock,
+    cancelCsvOperation: cancelCsvOperationMock,
   }),
 }))
 
@@ -941,6 +947,9 @@ describe("SpaceBaseEditor", () => {
     updateRowsMock.mockReset()
     deleteRowsMock.mockReset()
     deleteRowRangesMock.mockReset()
+    exportCsvMock.mockReset()
+    getCsvOperationMock.mockReset()
+    cancelCsvOperationMock.mockReset()
     baseViewHostProps.grid.length = 0
     baseViewHostProps.gallery.length = 0
     baseViewHostProps.kanban.length = 0
@@ -1019,6 +1028,13 @@ describe("SpaceBaseEditor", () => {
       rowCount: 0,
       revision: "2026-07-13T01:00:00.000Z",
     })
+    exportCsvMock.mockResolvedValue({
+      canceled: false,
+      fileName: "tasks.csv",
+      result: { exportedRowCount: 1 },
+    })
+    getCsvOperationMock.mockResolvedValue(null)
+    cancelCsvOperationMock.mockResolvedValue(true)
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -1072,6 +1088,33 @@ describe("SpaceBaseEditor", () => {
     expect(container.textContent).not.toContain("_id")
     expect(container.textContent).toContain("Write RFC")
     expect(container.textContent).toContain("todo")
+  })
+
+  it("exports the active view query and visible field order", async () => {
+    await renderEditor()
+
+    const exportButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("Export CSV")
+    )
+    await act(async () => {
+      exportButton?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(exportCsvMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      {
+        query: { filter: null, sorts: [] },
+        columns: [
+          { columnName: "title", name: "Title" },
+          { columnName: "status", name: "Status" },
+        ],
+      },
+      "tasks - Tasks - Grid.csv",
+      expect.any(String)
+    )
   })
 
   it("creates rows and saves a changed cell", async () => {
