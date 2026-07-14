@@ -182,6 +182,12 @@ mutation 会直接禁用 card 拖拽，取消或落回原列也不再显示成�
 Kanban 启动时使用一次 grouped-count query 获取所有列计数，只为横向窗口内、未折叠的列加载首批
 records；每列内部再按动态高度做纵向虚拟滚动并自动分页。大量 Select options 不再等价于同等数量
 的文件打开与首屏查询，大分组也不会把所有已加载 cards 同时挂载到 DOM。
+Gallery 与 Kanban 的纵向虚拟滚动还会把实际滚动面限制在 12,000,000px，避免 Electron/Chromium
+在 16,777,215px 附近截断 CSS layout 高度；物理滚动位置会映射到完整的逻辑记录范围。TanStack
+内部 measurement 窗口最多保留 20,000 条，并以 5,000 条为分段前移。跨段时会清理另一份按 record
+key 累积的动态高度缓存，再只重测当前挂载元素，因此长时间滚动不会为每个曾访问 record 永久保留
+高度。百万条回归会从真实物理滚动终点分别请求 Gallery 的 999,900 和 Kanban 的 999,950 offset，
+同时验证滚动高度、measurement 数量、DOM 和 row window 均保持有界。
 Kanban mutation 的分页状态现在只在受影响的列内协调：移出已加载记录会同步回退来源列已经消费的
 服务端游标；由于无法预知记录进入目标列后的服务端排序位置，目标列会从首批数据安全重扫，并按稳定
 row ID 去重。Inspector 修改分组字段也复用同一套跨列迁移。没有激活搜索、筛选或排序时，分组内新增

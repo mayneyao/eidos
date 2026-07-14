@@ -292,6 +292,10 @@ search focus, ARIA positions, and rendered item indexes remain global. Million-
 record regressions reach the final Gallery page at offset 999,900 and the final
 Kanban group page at offset 999,950 from the real physical scroll endpoint, and
 assert both the 12,000,000-pixel surface and 20,000-measurement bounds.
+Crossing a 5,000-item chunk also clears TanStack's separate dynamic-size cache
+and immediately remeasures only the currently mounted elements. Long-running
+scroll sessions therefore cannot retain one measured height for every record
+ever visited even though card heights remain dynamic.
 Each mounted virtual column remains one named record list whose items expose
 their absolute position and the group's complete server total. Collapsed-column
 expand controls retain a visible keyboard focus ring, so virtualization and the
