@@ -40,6 +40,10 @@ type BaseQueryRequestInput =
 @Injectable()
 export class BaseQueryWorkerRunner {
   private readonly workers = new Map<string, BaseQueryWorkerHandle[]>()
+  private readonly inFlight = new Map<
+    string,
+    Promise<BaseQueryWorkerResponse>
+  >()
   private requestSequence = 0
 
   constructor(
@@ -134,7 +138,25 @@ export class BaseQueryWorkerRunner {
     spacePath: string,
     request: BaseQueryRequestInput
   ): Promise<BaseQueryWorkerResponse> {
-    const handle = this.getHandle(path.resolve(spacePath))
+    const canonicalSpacePath = path.resolve(spacePath)
+    const requestKey = `${canonicalSpacePath}\u0000${JSON.stringify(request)}`
+    const existing = this.inFlight.get(requestKey)
+    if (existing) return existing
+
+    const operation = this.dispatch(canonicalSpacePath, request)
+    this.inFlight.set(requestKey, operation)
+    void operation.then(
+      () => this.clearInFlight(requestKey, operation),
+      () => this.clearInFlight(requestKey, operation)
+    )
+    return operation
+  }
+
+  private dispatch(
+    spacePath: string,
+    request: BaseQueryRequestInput
+  ): Promise<BaseQueryWorkerResponse> {
+    const handle = this.getHandle(spacePath)
     const id = `base-query-${++this.requestSequence}`
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -158,6 +180,15 @@ export class BaseQueryWorkerRunner {
         void handle.worker.terminate()
       }
     })
+  }
+
+  private clearInFlight(
+    requestKey: string,
+    operation: Promise<BaseQueryWorkerResponse>
+  ): void {
+    if (this.inFlight.get(requestKey) === operation) {
+      this.inFlight.delete(requestKey)
+    }
   }
 
   private getHandle(spacePath: string): BaseQueryWorkerHandle {

@@ -168,6 +168,57 @@ describe("BaseQueryWorkerRunner", () => {
     await expect(Promise.all(pages)).resolves.toHaveLength(4)
   })
 
+  it("coalesces identical concurrent reads into one worker request", async () => {
+    const lifecycle = {
+      register: vi.fn(),
+    } as unknown as SpaceResourceLifecycle
+    const runner = new BaseQueryWorkerRunner(lifecycle)
+    const options = {
+      offset: 0,
+      limit: 50,
+      query: { search: "release" },
+    }
+    const first = runner.page("/space", "/space/tasks.base", "tasks", options)
+    const second = runner.page("/space", "/space/tasks.base", "tasks", options)
+
+    expect(harness.workers).toHaveLength(1)
+    expect(harness.workers[0].postMessage).toHaveBeenCalledOnce()
+    const request = harness.workers[0].postMessage.mock.calls[0][0]
+    harness.workers[0].emit("message", {
+      id: request.id,
+      ok: true,
+      operation: "page",
+      page: {
+        tableId: "tasks",
+        offset: 0,
+        limit: 50,
+        total: 1,
+        rows: [{ _id: "1", title: "Release" }],
+      },
+    })
+
+    const [firstPage, secondPage] = await Promise.all([first, second])
+    expect(firstPage).toBe(secondPage)
+
+    const next = runner.page("/space", "/space/tasks.base", "tasks", options)
+    expect(harness.workers).toHaveLength(1)
+    expect(harness.workers[0].postMessage).toHaveBeenCalledTimes(2)
+    const nextRequest = harness.workers[0].postMessage.mock.calls[1][0]
+    harness.workers[0].emit("message", {
+      id: nextRequest.id,
+      ok: true,
+      operation: "page",
+      page: {
+        tableId: "tasks",
+        offset: 0,
+        limit: 50,
+        total: 1,
+        rows: [{ _id: "1", title: "Release" }],
+      },
+    })
+    await expect(next).resolves.toMatchObject({ total: 1 })
+  })
+
   it("restores worker error names from query failures", async () => {
     const lifecycle = {
       register: vi.fn(),
