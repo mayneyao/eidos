@@ -362,7 +362,11 @@ keeps the same boundary for Gallery paging: unchanged records do not repeat fiel
 formatting, menu construction, or cover-subtree rendering; real row or view
 changes still render normally. A card move scopes its pending disabled state to
 the source and target columns, so an unrelated visible card keeps the same render
-count while persistence starts and completes.
+count while persistence starts and completes. Each Kanban virtual-card wrapper
+now also compares only its indexed row and relevant interaction state. Paging,
+retry, and inline-create state therefore leave retained wrappers untouched; the
+failed-page retry regression reduces visible row resolution from 5 virtual items
+to the single failed placeholder.
 
 Gallery virtual rows now form a second memo boundary around those cards. Paging
 progress, retry, and other parent-only state no longer rebuild the mounted row

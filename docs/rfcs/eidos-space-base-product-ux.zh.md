@@ -222,7 +222,9 @@ loading 状态变化只重渲染该列，不会重算其他可见列。每个已
 稳定 props memo 边界，因此同列 loading、record creation 输入和 page append 不会重渲染保留中的
 cards。共享 record card 为 Gallery 分页保留相同边界：未变化记录不会重复执行字段格式化、菜单构造和
 cover 子树渲染；row 或 view 真正变化时仍会正常更新。Card 移动保存时的 disabled 状态只传播到源列和
-目标列，因此持久化开始与结束都不会增加无关可见 card 的渲染次数。
+目标列，因此持久化开始与结束都不会增加无关可见 card 的渲染次数。每个 Kanban 虚拟 card wrapper
+也只比较其索引对应的 row 与相关交互状态；分页、重试和行内新建状态不会再触碰保留中的 wrapper。
+失败分页 Retry 回归中的可见 row 解析从 5 个虚拟项收敛为唯一的失败占位项。
 
 Gallery 的虚拟行现在还会在 card 外形成第二层 memo 边界。分页进度、重试和其他只属于父组件的状态
 不再重建已挂载 row wrapper；page merge 也只会重渲染可见 slot 真正新增或改变记录的 wrapper。
