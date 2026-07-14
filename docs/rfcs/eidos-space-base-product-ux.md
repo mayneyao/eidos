@@ -375,6 +375,14 @@ the visible virtual-item list. The corresponding regression reduces virtualizer
 invocations per input update from 1 to 0 while preserving the existing create,
 cancel, and retry behavior.
 
+Grouped counts are also the authoritative empty-state result for Kanban. A
+group whose count is zero is cleared and marked loaded without issuing a page
+query, and an unchanged empty group retains its object identity across count
+refreshes. On a 200-option sparse board with one non-empty group, initial page
+requests fall from 6 to 1 and horizontally visiting empty columns issues no
+additional requests; the same refresh reduces empty-column virtualizer
+invocations from 16 to 0.
+
 Gallery virtual rows now form a second memo boundary around those cards. Paging
 progress, retry, and other parent-only state no longer rebuild the mounted row
 wrappers, while a page merge rerenders only wrappers whose visible slots gained
