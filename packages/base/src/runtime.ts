@@ -64,6 +64,7 @@ import type {
   BaseRow,
   BaseRowGroupCount,
   BaseRowPage,
+  BaseRowPageProjection,
   BaseRowQuery,
   BaseRowRange,
   BaseRowUpdate,
@@ -195,6 +196,10 @@ function assertKnownFieldColumnName(columnName: string): string {
   return SYSTEM_FIELD_COLUMNS.has(columnName)
     ? columnName
     : assertBaseColumnName(columnName)
+}
+
+function isEmptyProjectedFieldValue(value: BaseRow[string]): boolean {
+  return value === null || value === undefined || value === ""
 }
 
 function tableInfoFromRow(row: RegistryRow): BaseTableInfo {
@@ -1959,7 +1964,7 @@ export class BaseRuntime {
     offset: number,
     query: BaseRowQuery,
     cursor?: string,
-    projectedColumns?: readonly string[]
+    projection?: BaseRowPageProjection
   ): { rows: BaseRow[]; nextCursor?: string } {
     const fields = this.listFields(tableId)
     const fieldsByColumn = new Map(
@@ -1973,8 +1978,24 @@ export class BaseRuntime {
       sorts.length <= BASE_SORTED_CURSOR_MAX_FIELDS &&
       sorts.every((sort) => !sort.field.isDerived)
     const safeLimit = Math.max(0, limit)
-    const outputColumns = projectedColumns
-      ? new Set(["_id", "title", ...projectedColumns])
+    const candidateColumns = projection
+      ? Array.from(new Set(projection.columns))
+      : []
+    const preservedColumns = projection
+      ? Array.from(new Set(projection.preservedColumns ?? []))
+      : []
+    if (
+      projection?.fieldLimit !== undefined &&
+      (!Number.isSafeInteger(projection.fieldLimit) ||
+        projection.fieldLimit < 0)
+    ) {
+      throw new BaseError(
+        "invalid-query",
+        "Base row page projection field limit must be a non-negative integer"
+      )
+    }
+    const outputColumns = projection
+      ? new Set(["_id", "title", ...candidateColumns, ...preservedColumns])
       : null
     if (outputColumns) {
       for (const columnName of outputColumns) {
@@ -2075,8 +2096,37 @@ export class BaseRuntime {
         if (!outputColumns.has(columnName)) delete row[columnName]
       }
     })
-    const hydratedFields = outputColumns
-      ? fields.filter((field) => outputColumns.has(field.tableColumnName))
+    if (projection) {
+      const preserved = new Set(["_id", "title", ...preservedColumns])
+      const fieldLimit = projection.fieldLimit
+      rows = rows.map((row) => {
+        const projectedRow: BaseRow = {}
+        for (const columnName of preserved) {
+          if (Object.prototype.hasOwnProperty.call(row, columnName)) {
+            projectedRow[columnName] = row[columnName]
+          }
+        }
+        let fieldCount = 0
+        for (const columnName of candidateColumns) {
+          if (preserved.has(columnName)) continue
+          if (fieldLimit !== undefined && fieldCount >= fieldLimit) break
+          const value = row[columnName]
+          if (projection.omitEmptyFields && isEmptyProjectedFieldValue(value)) {
+            continue
+          }
+          projectedRow[columnName] = value
+          fieldCount += 1
+        }
+        return projectedRow
+      })
+    }
+    const projectedResultColumns = outputColumns
+      ? new Set(rows.flatMap((row) => Object.keys(row)))
+      : null
+    const hydratedFields = projectedResultColumns
+      ? fields.filter((field) =>
+          projectedResultColumns.has(field.tableColumnName)
+        )
       : fields
     return {
       rows: this.hydrateRelationRows(rows, hydratedFields),
@@ -2103,7 +2153,9 @@ export class BaseRuntime {
       const ids = Array.from(
         new Set(
           hydrated.flatMap((row) =>
-            decodeBaseRelationIds(row[field.tableColumnName])
+            Object.prototype.hasOwnProperty.call(row, field.tableColumnName)
+              ? decodeBaseRelationIds(row[field.tableColumnName])
+              : []
           )
         )
       )
@@ -2130,6 +2182,9 @@ export class BaseRuntime {
         }
       }
       for (const row of hydrated) {
+        if (!Object.prototype.hasOwnProperty.call(row, field.tableColumnName)) {
+          continue
+        }
         const values = decodeBaseRelationIds(row[field.tableColumnName]).map(
           (id) => ({ id, title: titles.get(id) ?? "Missing record" })
         )
@@ -2225,7 +2280,7 @@ export class BaseRuntime {
     query: BaseRowQuery = {},
     totalHint?: number,
     cursor?: string,
-    columns?: readonly string[]
+    projection?: BaseRowPageProjection
   ): BaseRowPage {
     const safeOffset = Math.max(0, Math.trunc(offset))
     const safeLimit = Math.min(500, Math.max(1, Math.trunc(limit)))
@@ -2241,7 +2296,7 @@ export class BaseRuntime {
       safeOffset,
       query,
       cursor,
-      columns
+      projection
     )
     return {
       tableId,

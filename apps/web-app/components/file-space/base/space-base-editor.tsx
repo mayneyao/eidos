@@ -70,7 +70,7 @@ import { baseOpenErrorPresentation } from "./base-open-error"
 import { BaseFormulaEditor } from "./base-formula-editor"
 import { BaseLookupEditor } from "./base-lookup-editor"
 import { BaseQueryToolbar } from "./base-query-toolbar"
-import { baseRecordCardProjectionColumns } from "./base-record-card-layout"
+import { baseRecordCardPageProjection } from "./base-record-card-layout"
 import { BaseRenameDialog } from "./base-rename-dialog"
 import { BaseSheetTabs } from "./base-sheet-tabs"
 import { BaseStructureDialog } from "./base-structure-dialog"
@@ -410,12 +410,12 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     }),
     [activeView?.filter, activeView?.sorts, search]
   )
-  const activeCardColumns = useMemo(
+  const activeCardProjection = useMemo(
     () =>
       activeTable &&
       activeView &&
       (activeView.type === "gallery" || activeView.type === "kanban")
-        ? baseRecordCardProjectionColumns(activeTable.fields, activeView)
+        ? baseRecordCardPageProjection(activeTable.fields, activeView)
         : undefined,
     [activeTable, activeView]
   )
@@ -689,10 +689,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         activeQuery,
         totalHint,
         cursor,
-        activeCardColumns
+        activeCardProjection
       )
     },
-    [activeCardColumns, activeQuery, activeTableId, filePath, getTablePage]
+    [activeCardProjection, activeQuery, activeTableId, filePath, getTablePage]
   )
 
   const loadActiveTableRow = useCallback(
@@ -742,10 +742,10 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         },
         totalHint,
         cursor,
-        activeCardColumns
+        activeCardProjection
       )
     },
-    [activeCardColumns, activeQuery, activeTableId, filePath, getTablePage]
+    [activeCardProjection, activeQuery, activeTableId, filePath, getTablePage]
   )
 
   const loadKanbanGroupCounts = useCallback(

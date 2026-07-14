@@ -70,9 +70,24 @@ describe("BaseQueryWorkerRunner", () => {
     const pagePromise = runner.page("/space", "/space/tasks.base", "tasks", {
       offset: 0,
       limit: 50,
+      projection: {
+        columns: ["status", "notes"],
+        fieldLimit: 1,
+        omitEmptyFields: true,
+      },
     })
     const worker = harness.workers[0]
     const pageRequest = worker.postMessage.mock.calls[0][0]
+    expect(pageRequest).toMatchObject({
+      operation: "page",
+      options: {
+        projection: {
+          columns: ["status", "notes"],
+          fieldLimit: 1,
+          omitEmptyFields: true,
+        },
+      },
+    })
 
     worker.emit("message", {
       id: pageRequest.id,

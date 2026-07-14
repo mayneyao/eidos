@@ -1,4 +1,9 @@
-import type { BaseFieldInfo, BaseRow, BaseViewInfo } from "@eidos.space/base"
+import type {
+  BaseFieldInfo,
+  BaseRow,
+  BaseRowPageProjection,
+  BaseViewInfo,
+} from "@eidos.space/base"
 
 import {
   baseSelectOptions,
@@ -87,18 +92,38 @@ export function createBaseRecordCardLayout(
   }
 }
 
-export function baseRecordCardProjectionColumns(
+export function baseRecordCardPageProjection(
   fields: BaseFieldInfo[],
   view: BaseViewInfo
-): string[] {
-  const layout = createBaseRecordCardLayout(fields, view)
-  const columns = new Set(["_id", "title"])
-  for (const { field } of layout.fields) {
-    columns.add(field.tableColumnName)
+): BaseRowPageProjection {
+  const layout = createBaseRecordCardLayout(
+    fields,
+    view,
+    view.type === "kanban"
+  )
+  const preservedColumns = new Set<string>()
+  if (layout.coverField) {
+    preservedColumns.add(layout.coverField.tableColumnName)
   }
-  if (layout.coverField) columns.add(layout.coverField.tableColumnName)
-  if (typeof view.properties?.groupByField === "string") {
-    columns.add(view.properties.groupByField)
+  if (view.type === "kanban") {
+    const groupField = fields.find(
+      (field) =>
+        field.tableColumnName === view.properties?.groupByField &&
+        field.type === "select"
+    )
+    if (groupField) preservedColumns.add(groupField.tableColumnName)
   }
-  return [...columns]
+  const candidateFields = layout.hideEmptyFields
+    ? layout.fields
+    : layout.fields.slice(0, layout.fieldLimit)
+  return {
+    columns: candidateFields
+      .map(({ field }) => field.tableColumnName)
+      .filter((columnName) => !preservedColumns.has(columnName)),
+    ...(preservedColumns.size > 0
+      ? { preservedColumns: [...preservedColumns] }
+      : {}),
+    fieldLimit: layout.fieldLimit,
+    omitEmptyFields: layout.hideEmptyFields,
+  }
 }

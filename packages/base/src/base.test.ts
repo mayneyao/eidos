@@ -1634,7 +1634,7 @@ describe("Eidos Base files", () => {
       { sorts: [{ field: "priority", direction: "desc" }] },
       1,
       undefined,
-      ["summary"]
+      { columns: ["summary"] }
     )
 
     expect(page.nextCursor).toMatch(/^sort:/)
@@ -1652,6 +1652,82 @@ describe("Eidos Base files", () => {
       notes: "Only load this in the inspector",
       priority: 3,
     })
+    base.close()
+  })
+
+  it("bounds sparse projected fields and relation hydration per row", () => {
+    const filePath = path.join(root, "bounded-projected-pages.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: {
+        id: "projects",
+        name: "Projects",
+        fields: [
+          { name: "Empty", columnName: "empty", type: "text" },
+          { name: "Points", columnName: "points", type: "number" },
+          { name: "Summary", columnName: "summary", type: "text" },
+          { name: "Notes", columnName: "notes", type: "text" },
+          { name: "Status", columnName: "status", type: "text" },
+        ],
+      },
+    })
+    base.createTable({ id: "people", name: "People" })
+    const ada = base.insertRow("people", { title: "Ada Lovelace" })
+    const grace = base.insertRow("people", { title: "Grace Hopper" })
+    for (const columnName of ["owners", "reviewers"]) {
+      base.addField("projects", {
+        name: columnName,
+        columnName,
+        type: "link",
+        property: {
+          targetTableId: "people",
+          targetField: "title",
+          multiple: true,
+        },
+      })
+    }
+    const first = base.insertRow("projects", {
+      title: "Compiler",
+      empty: "",
+      points: 0,
+      summary: "Visible summary",
+      notes: "Inspector only",
+      status: "active",
+      owners: String(ada._id),
+    })
+    const second = base.insertRow("projects", {
+      title: "Runtime",
+      status: "planned",
+      reviewers: String(grace._id),
+    })
+
+    const page = base.getRowPage("projects", 0, 10, {}, 2, undefined, {
+      columns: ["empty", "points", "summary", "notes", "owners", "reviewers"],
+      preservedColumns: ["status"],
+      fieldLimit: 3,
+      omitEmptyFields: true,
+    })
+
+    expect(page.rows).toEqual([
+      {
+        _id: first._id,
+        title: "Compiler",
+        status: "active",
+        points: 0,
+        summary: "Visible summary",
+        notes: "Inspector only",
+      },
+      {
+        _id: second._id,
+        title: "Runtime",
+        status: "planned",
+        reviewers: JSON.stringify([grace._id]),
+        reviewers__display: JSON.stringify([
+          { id: grace._id, title: "Grace Hopper" },
+        ]),
+      },
+    ])
+    expect(page.rows[0]).not.toHaveProperty("owners__display")
+    expect(page.rows[1]).not.toHaveProperty("owners__display")
     base.close()
   })
 

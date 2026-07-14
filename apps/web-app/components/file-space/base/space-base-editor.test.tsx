@@ -1268,7 +1268,7 @@ describe("SpaceBaseEditor", () => {
     expect(baseViewHostProps.gallery).toHaveLength(1)
   })
 
-  it("projects Gallery pages and loads a complete row only for inspection", async () => {
+  it("bounds Gallery pages and loads a complete row only for inspection", async () => {
     getSnapshotMock.mockResolvedValue({
       ...snapshot,
       tables: snapshot.tables.map((table) => ({
@@ -1295,7 +1295,11 @@ describe("SpaceBaseEditor", () => {
       { filter: null, sorts: [] },
       1,
       "next-page",
-      ["_id", "title", "status"]
+      {
+        columns: ["status"],
+        fieldLimit: 6,
+        omitEmptyFields: true,
+      }
     )
     expect(getTableRowMock).toHaveBeenCalledWith(
       "projects/tasks.base",
@@ -1401,7 +1405,7 @@ describe("SpaceBaseEditor", () => {
     expect(baseViewHostProps.kanban).toHaveLength(1)
   })
 
-  it("projects Kanban group pages while retaining the group field", async () => {
+  it("bounds Kanban group pages while retaining the group field", async () => {
     getSnapshotMock.mockResolvedValue({
       ...snapshot,
       tables: snapshot.tables.map((table) => ({
@@ -1444,7 +1448,12 @@ describe("SpaceBaseEditor", () => {
     expect(call?.slice(5)).toEqual([
       1,
       "next-group",
-      ["_id", "title", "status"],
+      {
+        columns: [],
+        preservedColumns: ["status"],
+        fieldLimit: 4,
+        omitEmptyFields: true,
+      },
     ])
   })
 

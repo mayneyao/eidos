@@ -7,6 +7,7 @@ import type {
   BaseRowMutationResult,
   BaseRowsMutationResult,
   BaseRowPage,
+  BaseRowPageProjection,
   BaseRowQuery,
   BaseRowRange,
   BaseRowUpdate,
@@ -138,7 +139,7 @@ export function useSpaceBase(spaceId: string | undefined) {
       query: BaseRowQuery = {},
       totalHint?: number,
       cursor?: string,
-      columns?: string[]
+      projection?: BaseRowPageProjection
     ): Promise<BaseRowPage> =>
       requireBaseApi().getBaseTablePage(
         requireSpaceId(),
@@ -150,7 +151,7 @@ export function useSpaceBase(spaceId: string | undefined) {
           query,
           totalHint,
           ...(cursor ? { cursor } : {}),
-          ...(columns ? { columns } : {}),
+          ...(projection ? { projection } : {}),
         }
       ),
     [requireSpaceId]

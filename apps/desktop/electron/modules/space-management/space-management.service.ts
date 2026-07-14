@@ -746,18 +746,36 @@ export class SpaceManagementService extends IpcServiceBase {
     ) {
       throw new Error("Base row page cursor is invalid")
     }
-    if (
-      options.columns !== undefined &&
-      (!Array.isArray(options.columns) ||
-        options.columns.length > 1_000 ||
-        options.columns.some(
+    if (options.projection !== undefined) {
+      if (
+        typeof options.projection !== "object" ||
+        options.projection === null ||
+        Array.isArray(options.projection)
+      ) {
+        throw new Error("Base row page projection is invalid")
+      }
+      const { columns, preservedColumns, fieldLimit, omitEmptyFields } =
+        options.projection
+      const validColumns = (value: unknown): value is string[] =>
+        Array.isArray(value) &&
+        value.length <= 2_000 &&
+        value.every(
           (columnName) =>
-            typeof columnName !== "string" ||
-            columnName.length === 0 ||
-            columnName.length > 255
-        ))
-    ) {
-      throw new Error("Base row page columns are invalid")
+            typeof columnName === "string" &&
+            columnName.length > 0 &&
+            columnName.length <= 255
+        )
+      if (
+        !validColumns(columns) ||
+        (preservedColumns !== undefined && !validColumns(preservedColumns)) ||
+        (fieldLimit !== undefined &&
+          (!Number.isSafeInteger(fieldLimit) ||
+            fieldLimit < 0 ||
+            fieldLimit > 2_000)) ||
+        (omitEmptyFields !== undefined && typeof omitEmptyFields !== "boolean")
+      ) {
+        throw new Error("Base row page projection is invalid")
+      }
     }
     return withFileSpaceReadLock(spaceId, async () => {
       const files = this._getFileSpace(spaceId)

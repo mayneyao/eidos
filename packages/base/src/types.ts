@@ -391,16 +391,27 @@ export interface BaseRowQuery {
   sorts?: BaseSort[]
 }
 
+export interface BaseRowPageProjection {
+  /** Ordered field candidates available to each projected row. */
+  columns: string[]
+  /** Fields returned for every row without consuming the per-row field limit. */
+  preservedColumns?: string[]
+  /** Maximum candidate fields returned for each row. */
+  fieldLimit?: number
+  /** Skip null, undefined, and empty-string candidates before applying the limit. */
+  omitEmptyFields?: boolean
+}
+
 export interface BaseRowPageOptions {
   offset: number
   limit: number
   query?: BaseRowQuery
   /**
-   * Field columns returned for each row. Record identity and title are always
-   * included. Query-only sort columns may be read internally for cursor
-   * generation but are not exposed in the returned rows.
+   * Optional per-row response projection. Record identity and title are always
+   * included. Query-only fields may be read internally for filtering, sorting,
+   * and cursor generation but are not exposed in the returned rows.
    */
-  columns?: string[]
+  projection?: BaseRowPageProjection
   /**
    * Previously observed row count for the same query. When present, paging can
    * reuse it instead of repeating an expensive COUNT query.

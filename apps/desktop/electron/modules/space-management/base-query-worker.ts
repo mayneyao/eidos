@@ -26,7 +26,7 @@ function run(request: BaseQueryWorkerRequest): BaseQueryWorkerResponse {
   try {
     const base = cache.get(request.filePath)
     if (request.operation === "page") {
-      const { offset, limit, query, totalHint, cursor, columns } =
+      const { offset, limit, query, totalHint, cursor, projection } =
         request.options
       return {
         id: request.id,
@@ -39,7 +39,7 @@ function run(request: BaseQueryWorkerRequest): BaseQueryWorkerResponse {
           query,
           totalHint,
           cursor,
-          columns
+          projection
         ),
       }
     }

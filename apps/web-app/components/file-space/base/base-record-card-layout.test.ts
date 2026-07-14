@@ -2,7 +2,7 @@ import type { BaseFieldInfo, BaseRow } from "@eidos.space/base"
 import { describe, expect, it } from "vitest"
 
 import {
-  baseRecordCardProjectionColumns,
+  baseRecordCardPageProjection,
   selectBaseRecordCardFields,
   type BaseRecordCardFieldLayout,
   type BaseRecordCardLayout,
@@ -115,7 +115,7 @@ describe("selectBaseRecordCardFields", () => {
   })
 })
 
-describe("baseRecordCardProjectionColumns", () => {
+describe("baseRecordCardPageProjection", () => {
   it("keeps visible card fields, cover, and Kanban grouping without hidden payload", () => {
     const title = recordField(0).field
     const visible = recordField(1).field
@@ -124,7 +124,7 @@ describe("baseRecordCardProjectionColumns", () => {
     const hidden = recordField(4).field
 
     expect(
-      baseRecordCardProjectionColumns(
+      baseRecordCardPageProjection(
         [
           { ...title, type: "title", tableColumnName: "title" },
           visible,
@@ -155,12 +155,69 @@ describe("baseRecordCardProjectionColumns", () => {
           updatedAt: "2026-07-14 00:00:00",
         }
       )
-    ).toEqual([
-      "_id",
-      "title",
-      visible.tableColumnName,
-      cover.tableColumnName,
-      group.tableColumnName,
-    ])
+    ).toEqual({
+      columns: [visible.tableColumnName],
+      preservedColumns: [cover.tableColumnName, group.tableColumnName],
+      fieldLimit: 4,
+      omitEmptyFields: true,
+    })
+  })
+
+  it("keeps wide Gallery payloads row-bounded and ignores stale grouping", () => {
+    const fields = Array.from(
+      { length: 1_000 },
+      (_, index) => recordField(index).field
+    )
+
+    expect(
+      baseRecordCardPageProjection(fields, {
+        id: "view_gallery",
+        name: "Gallery",
+        type: "gallery",
+        tableId: "tasks",
+        query: "SELECT * FROM tb_tasks",
+        properties: { groupByField: "deleted_status" },
+        filter: null,
+        sorts: [],
+        orderMap: null,
+        hiddenFields: [],
+        position: 1,
+        createdAt: "2026-07-14 00:00:00",
+        updatedAt: "2026-07-14 00:00:00",
+      })
+    ).toEqual({
+      columns: fields.map((field) => field.tableColumnName),
+      fieldLimit: 6,
+      omitEmptyFields: true,
+    })
+  })
+
+  it("limits the SQL projection when empty card fields remain visible", () => {
+    const fields = Array.from(
+      { length: 1_000 },
+      (_, index) => recordField(index).field
+    )
+
+    expect(
+      baseRecordCardPageProjection(fields, {
+        id: "view_gallery",
+        name: "Gallery",
+        type: "gallery",
+        tableId: "tasks",
+        query: "SELECT * FROM tb_tasks",
+        properties: { hideEmptyFields: false },
+        filter: null,
+        sorts: [],
+        orderMap: null,
+        hiddenFields: [],
+        position: 1,
+        createdAt: "2026-07-14 00:00:00",
+        updatedAt: "2026-07-14 00:00:00",
+      })
+    ).toEqual({
+      columns: fields.slice(0, 6).map((field) => field.tableColumnName),
+      fieldLimit: 6,
+      omitEmptyFields: false,
+    })
   })
 })
