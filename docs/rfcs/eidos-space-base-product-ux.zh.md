@@ -115,6 +115,9 @@ offset，不再从第一页逐页追赶，也不再显示手动 Load more。Rend
 滚动到对应 record。
 自动分页的进度与重试控件会通过零高度 sticky 层浮在 Gallery viewport 上，不会因为请求开始或结束而
 改变虚拟滚动高度、推动可见 cards。
+Gallery 会在浏览器绘制前的 layout 阶段读取 editor 容器真实宽度，因此首个可见帧直接使用最终的
+响应式列数，不再先按 virtualizer 的 1024px fallback 排列、随后跳变。Resize Observer 返回的宽度
+会先取整并去重再进入 React state，避免列断点附近的亚像素抖动造成无意义重渲染。
 只有 Gallery 首屏或查询刷新会重新统计筛选后的总数；后续虚拟窗口请求会携带经过校验的已知 total，
 因此滚动不会为每一页重复完整 `COUNT(*)`。Kanban 同样把 grouped-count query 的各分组 total 复用于
 可见列分页。显式刷新、搜索、筛选、排序以及过期空尾页仍会重新校准权威总数。

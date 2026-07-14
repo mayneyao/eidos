@@ -163,6 +163,11 @@ therefore requested before an unloaded placeholder enters the viewport.
 Automatic-page progress and retry controls float over the Gallery viewport in a
 zero-height sticky layer, so beginning or completing a request does not change
 the virtual scroll extent or shift the visible cards.
+Gallery reads its actual editor-container width in the pre-paint layout phase.
+The first visible frame therefore uses the same responsive column count as the
+settled viewport instead of briefly rendering against the 1024px virtualizer
+fallback. Resize Observer updates are rounded and de-duplicated before entering
+React state, avoiding subpixel resize churn around column breakpoints.
 Responsive column-count changes preserve the first visible record as the
 Gallery anchor. The renderer first restores its estimated row and then corrects
 to the measured row on the next frame, so resizing the window or opening a
