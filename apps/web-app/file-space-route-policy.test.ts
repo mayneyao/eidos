@@ -7,6 +7,7 @@ describe("file Space route policy", () => {
     "/",
     "/space-file#Notes%2FToday.md",
     "/space-file?heading=Intro#Notes%2FToday.md",
+    "/space-file?table=tasks&record=row_1#Tasks.base",
     "/version/history",
     "/version/diff?path=Notes%2FToday.md",
     "/version/conflicts?path=Tasks.base",

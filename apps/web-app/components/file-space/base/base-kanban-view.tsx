@@ -804,6 +804,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
   onSearchRelation,
   onOpenFile,
   onRevealFile,
+  onOpenRecordInTab,
   onRowCountChange,
   onError,
   sidePanel,
@@ -842,6 +843,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
   ) => Promise<BaseRelationValue[]>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => Promise<void> | void
+  onOpenRecordInTab?: (row: BaseRow) => void
   onRowCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
@@ -1767,6 +1769,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
             row={inspectedRow}
             fields={fields}
             onClose={closeInspectorRow}
+            onOpenInTab={onOpenRecordInTab}
             onCopyRecordId={copyRecordId}
             onCellEdit={editInspectedRecord}
             disabled={disabled}

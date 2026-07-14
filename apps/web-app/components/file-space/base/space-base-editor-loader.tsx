@@ -1,10 +1,12 @@
 import { type ComponentType, useCallback, useEffect, useState } from "react"
 import { AlertTriangle, RefreshCw } from "lucide-react"
 
+import type { SpaceBaseRecordTarget } from "@/apps/web-app/components/file-space/file-path"
 import { Button } from "@/components/ui/button"
 
 interface SpaceBaseEditorComponentProps {
   filePath: string
+  recordTarget?: SpaceBaseRecordTarget
 }
 
 export type SpaceBaseEditorComponent =
@@ -34,6 +36,7 @@ function loadErrorMessage(error: unknown): string {
 
 export function SpaceBaseEditorLoader({
   filePath,
+  recordTarget,
   loadEditor = preloadSpaceBaseEditor,
 }: SpaceBaseEditorComponentProps & {
   loadEditor?: SpaceBaseEditorModuleLoader
@@ -65,7 +68,17 @@ export function SpaceBaseEditorLoader({
     setAttempt((current) => current + 1)
   }, [])
 
-  if (Editor) return <Editor key={filePath} filePath={filePath} />
+  if (Editor) {
+    return (
+      <Editor
+        key={`${filePath}:${recordTarget?.tableId ?? ""}:${
+          recordTarget?.recordId ?? ""
+        }`}
+        filePath={filePath}
+        recordTarget={recordTarget}
+      />
+    )
+  }
 
   if (error) {
     return (

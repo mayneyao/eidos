@@ -21,6 +21,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { cn } from "@/lib/utils"
 
 import { BaseRecordFieldEditor } from "./base-record-field-editor"
 import { BaseRecordFileEditor } from "./base-record-file-editor"
@@ -131,26 +132,12 @@ function FieldValue({
   )
 }
 
-export function BaseRecordInspector({
-  row,
-  fields,
-  onClose,
-  onCopyRecordId,
-  onCellEdit,
-  disabled = false,
-  loading = false,
-  loadError,
-  onRetryLoad,
-  onError,
-  onImportFiles,
-  onImportDroppedFiles,
-  onSearchRelation,
-  onOpenFile,
-  onRevealFile,
-}: {
+export interface BaseRecordInspectorProps {
   row: BaseRow
   fields: BaseFieldInfo[]
-  onClose: () => void
+  variant?: "panel" | "page"
+  onClose?: () => void
+  onOpenInTab?: (row: BaseRow) => void
   onCopyRecordId: (id: string) => void
   onCellEdit?: (
     row: BaseRow,
@@ -170,7 +157,27 @@ export function BaseRecordInspector({
   ) => Promise<BaseRelationValue[]>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => void
-}) {
+}
+
+export function BaseRecordInspector({
+  row,
+  fields,
+  variant = "panel",
+  onClose,
+  onOpenInTab,
+  onCopyRecordId,
+  onCellEdit,
+  disabled = false,
+  loading = false,
+  loadError,
+  onRetryLoad,
+  onError,
+  onImportFiles,
+  onImportDroppedFiles,
+  onSearchRelation,
+  onOpenFile,
+  onRevealFile,
+}: BaseRecordInspectorProps) {
   const [currentRow, setCurrentRow] = useState(row)
   const [savingField, setSavingField] = useState<string | null>(null)
   const [failedEdit, setFailedEdit] = useState<FailedRecordEdit | null>(null)
@@ -268,18 +275,37 @@ export function BaseRecordInspector({
 
   const editorDisabled =
     disabled || loading || savingField !== null || failedEdit !== null
+  const Root = variant === "page" ? "section" : "aside"
 
   return (
-    <aside
-      className="base-detail-panel flex h-full flex-col border-l bg-background"
+    <Root
+      className={cn(
+        "flex h-full min-h-0 flex-col bg-background",
+        variant === "page"
+          ? "w-full max-w-[760px] border-x"
+          : "base-detail-panel border-l"
+      )}
       data-base-detail-panel="record"
+      data-base-record-layout={variant}
       aria-label={`Record details for ${title}`}
       aria-busy={loading || savingField !== null ? "true" : undefined}
     >
-      <header className="flex min-h-12 items-start gap-2 border-b px-3 py-2.5">
+      <header
+        className={cn(
+          "flex items-start gap-2 border-b",
+          variant === "page" ? "min-h-20 px-6 py-4" : "min-h-12 px-3 py-2.5"
+        )}
+      >
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
-            <h2 className="truncate text-sm font-medium">{title}</h2>
+            <h2
+              className={cn(
+                "truncate font-medium",
+                variant === "page" ? "text-lg" : "text-sm"
+              )}
+            >
+              {title}
+            </h2>
             {loading ? (
               <span
                 role="status"
@@ -309,17 +335,33 @@ export function BaseRecordInspector({
             <Copy className="h-3 w-3 shrink-0" />
           </button>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 shrink-0"
-          aria-label="Close record details"
-          disabled={savingField !== null}
-          onClick={onClose}
-        >
-          <X className="h-3.5 w-3.5" />
-        </Button>
+        {variant === "panel" && onOpenInTab ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            aria-label="Open record in tab"
+            title="Open in tab"
+            disabled={savingField !== null}
+            onClick={() => onOpenInTab(currentRow)}
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
+        {variant === "panel" && onClose ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            aria-label="Close record details"
+            disabled={savingField !== null}
+            onClick={onClose}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
       </header>
       {failedEdit ? (
         <div
@@ -383,9 +425,19 @@ export function BaseRecordInspector({
             {fields.map((field) => (
               <div
                 key={field.tableColumnName}
-                className="grid gap-1 px-3 py-2.5"
+                className={cn(
+                  "grid",
+                  variant === "page"
+                    ? "gap-3 px-6 py-4 sm:grid-cols-[minmax(140px,0.4fr)_minmax(0,1fr)] sm:items-start"
+                    : "gap-1 px-3 py-2.5"
+                )}
               >
-                <p className="text-[11px] font-medium text-muted-foreground">
+                <p
+                  className={cn(
+                    "font-medium text-muted-foreground",
+                    variant === "page" ? "pt-1 text-xs" : "text-[11px]"
+                  )}
+                >
                   {baseFieldDisplayName(field)}
                 </p>
                 {onCellEdit && field.type === "file" && onImportFiles ? (
@@ -431,6 +483,6 @@ export function BaseRecordInspector({
           </div>
         </ScrollArea>
       )}
-    </aside>
+    </Root>
   )
 }

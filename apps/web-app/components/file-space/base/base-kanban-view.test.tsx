@@ -175,6 +175,7 @@ vi.mock("./base-record-inspector", () => ({
     disabled,
     loading,
     loadError,
+    onOpenInTab,
   }: {
     row: {
       _id?: string
@@ -197,6 +198,13 @@ vi.mock("./base-record-inspector", () => ({
     disabled?: boolean
     loading?: boolean
     loadError?: string | null
+    onOpenInTab?: (row: {
+      _id?: string
+      title?: string
+      status?: string
+      priority?: string
+      notes?: string
+    }) => void
   }) => (
     <aside
       data-testid="record-inspector"
@@ -207,6 +215,9 @@ vi.mock("./base-record-inspector", () => ({
       <span data-testid="record-inspector-value">
         {row.title}:{row.notes ?? "preview"}
       </span>
+      <button type="button" onClick={() => onOpenInTab?.(row)}>
+        Open mocked record in tab
+      </button>
       <button
         type="button"
         disabled={disabled}
@@ -483,6 +494,7 @@ describe("BaseKanbanView", () => {
       notes: string
     }>()
     const loadRow = vi.fn(() => fullRow.promise)
+    const onOpenRecordInTab = vi.fn()
 
     await act(async () => {
       root.render(
@@ -503,6 +515,7 @@ describe("BaseKanbanView", () => {
           loadRow={loadRow}
           onCellEdit={vi.fn()}
           onAddRow={vi.fn()}
+          onOpenRecordInTab={onOpenRecordInTab}
         />
       )
       await Promise.resolve()
@@ -534,6 +547,14 @@ describe("BaseKanbanView", () => {
       container.querySelector('[data-testid="record-inspector-value"]')
         ?.textContent
     ).toBe("Write RFC:Loaded from the Base file")
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Open mocked record in tab")
+        ?.click()
+    })
+    expect(onOpenRecordInTab).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: "row_1", title: "Write RFC" })
+    )
   })
 
   it("passes persisted cover and empty-field settings into Kanban cards", async () => {

@@ -200,6 +200,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
   onDeleteRow,
   onOpenFile,
   onRevealFile,
+  onOpenRecordInTab,
   onRowCountChange,
   onError,
   sidePanel,
@@ -230,6 +231,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
   onDeleteRow?: (row: BaseRow) => Promise<void>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => Promise<void> | void
+  onOpenRecordInTab?: (row: BaseRow) => void
   onRowCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
@@ -733,6 +735,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
             row={inspectedRow}
             fields={fields}
             onClose={closeInspectorRow}
+            onOpenInTab={onOpenRecordInTab}
             onCopyRecordId={copyRecordId}
             onCellEdit={onCellEdit ? editRecord : undefined}
             disabled={disabled}

@@ -34,6 +34,23 @@ export function toSpaceFileUrl(relativePath: string, heading?: string): string {
   return `/space-file${search}#${encodeURIComponent(relativePath)}`
 }
 
+export interface SpaceBaseRecordTarget {
+  tableId: string
+  recordId: string
+}
+
+export function toSpaceBaseRecordUrl(
+  relativePath: string,
+  tableId: string,
+  recordId: string
+): string {
+  const search = new URLSearchParams({
+    table: tableId,
+    record: recordId,
+  })
+  return `/space-file?${search.toString()}#${encodeURIComponent(relativePath)}`
+}
+
 export function toSpaceAssetUrl(relativePath: string, revision = 0): string {
   const encodedPath = relativePath
     .split("/")
@@ -58,6 +75,21 @@ export function headingFromSpaceUrl(url: string): string | null {
     const parsed = new URL(url, "https://eidos.local")
     if (parsed.pathname !== "/space-file") return null
     return parsed.searchParams.get("heading")
+  } catch {
+    return null
+  }
+}
+
+export function baseRecordFromSpaceUrl(
+  url: string
+): SpaceBaseRecordTarget | null {
+  try {
+    const parsed = new URL(url, "https://eidos.local")
+    if (parsed.pathname !== "/space-file") return null
+    const tableId = parsed.searchParams.get("table")
+    const recordId = parsed.searchParams.get("record")
+    if (!tableId || !recordId) return null
+    return { tableId, recordId }
   } catch {
     return null
   }
@@ -95,7 +127,14 @@ export function moveSpaceFileUrl(
   if (!filePath || !isSameOrDescendant(filePath, sourcePath)) return null
   const suffix = filePath.slice(sourcePath.length)
   const heading = headingFromSpaceUrl(url) ?? undefined
-  return toSpaceFileUrl(`${destinationPath}${suffix}`, heading)
+  const baseRecord = baseRecordFromSpaceUrl(url)
+  return baseRecord
+    ? toSpaceBaseRecordUrl(
+        `${destinationPath}${suffix}`,
+        baseRecord.tableId,
+        baseRecord.recordId
+      )
+    : toSpaceFileUrl(`${destinationPath}${suffix}`, heading)
 }
 
 export function canMoveSpaceEntryTo(

@@ -5,6 +5,7 @@ import { AlertTriangle, FileQuestion, RefreshCw } from "lucide-react"
 import { useLocation } from "react-router-dom"
 
 import {
+  baseRecordFromSpaceUrl,
   headingFromSpaceUrl,
   isSameOrDescendant,
   joinSpacePath,
@@ -118,10 +119,10 @@ function editorLanguage(extension: string): string {
 
 export function SpaceFilePage() {
   const location = useLocation()
+  const locationUrl = location.pathname + location.search + location.hash
   const filePath = decodeFilePath(location.hash)
-  const heading =
-    headingFromSpaceUrl(location.pathname + location.search + location.hash) ??
-    undefined
+  const heading = headingFromSpaceUrl(locationUrl) ?? undefined
+  const baseRecordTarget = baseRecordFromSpaceUrl(locationUrl) ?? undefined
   const extension = extensionOf(filePath)
   const fileName = filenameOf(filePath)
   useTabTitle(fileName || "File")
@@ -130,7 +131,13 @@ export function SpaceFilePage() {
     return <FileState message="No file selected" />
   }
   if (extension === "base") {
-    return <SpaceBaseEditorLoader key={filePath} filePath={filePath} />
+    return (
+      <SpaceBaseEditorLoader
+        key={filePath}
+        filePath={filePath}
+        recordTarget={baseRecordTarget}
+      />
+    )
   }
   if (TEXT_EXTENSIONS.has(extension)) {
     return (

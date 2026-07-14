@@ -26,8 +26,19 @@ vi.mock("@monaco-editor/react", () => ({
 }))
 
 vi.mock("@/apps/web-app/components/file-space/base/space-base-editor", () => ({
-  SpaceBaseEditor: ({ filePath }: { filePath: string }) => (
-    <div data-testid="base-editor" data-path={filePath} />
+  SpaceBaseEditor: ({
+    filePath,
+    recordTarget,
+  }: {
+    filePath: string
+    recordTarget?: { tableId: string; recordId: string }
+  }) => (
+    <div
+      data-testid="base-editor"
+      data-path={filePath}
+      data-table={recordTarget?.tableId}
+      data-record={recordTarget?.recordId}
+    />
   ),
 }))
 
@@ -210,6 +221,28 @@ describe("SpaceFilePage editor selection", () => {
     expect(
       container.querySelector('[data-testid="lexical-markdown-editor"]')
     ).toBeNull()
+  })
+
+  it("passes Base record targets into the standalone editor", async () => {
+    await act(async () => {
+      root.render(
+        <MemoryRouter
+          initialEntries={[
+            "/space-file?table=tasks&record=row_1#projects%2Ftasks.base",
+          ]}
+        >
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+
+    const editor = container.querySelector<HTMLElement>(
+      '[data-testid="base-editor"]'
+    )
+    expect(editor?.dataset.path).toBe("projects/tasks.base")
+    expect(editor?.dataset.table).toBe("tasks")
+    expect(editor?.dataset.record).toBe("row_1")
   })
 
   it("previews an unknown UTF-8 file without mounting an editor", async () => {

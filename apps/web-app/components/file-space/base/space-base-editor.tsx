@@ -32,6 +32,8 @@ import { cn } from "@/lib/utils"
 import { useOptionalTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
 import {
   isSameOrDescendant,
+  type SpaceBaseRecordTarget,
+  toSpaceBaseRecordUrl,
   toSpaceFileUrl,
 } from "@/apps/web-app/components/file-space/file-path"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
@@ -77,6 +79,8 @@ import { BaseFormulaEditor } from "./base-formula-editor"
 import { BaseLookupEditor } from "./base-lookup-editor"
 import { BaseQueryToolbar } from "./base-query-toolbar"
 import { baseRecordCardPageProjection } from "./base-record-card-layout"
+import { BaseRecordPage, BaseRecordUnavailable } from "./base-record-page"
+import { baseRecordTitle } from "./base-record-format"
 import { BaseRenameDialog } from "./base-rename-dialog"
 import { BaseSheetTabs } from "./base-sheet-tabs"
 import { BaseStructureDialog } from "./base-structure-dialog"
@@ -85,9 +89,11 @@ import { BaseViewMenu } from "./base-view-menu"
 import { type BaseBuiltInViewType } from "./base-view-selector"
 import { BaseViewTabs } from "./base-view-tabs"
 import { orderedBaseFields } from "./base-view-layout"
+import { useBaseRecordInspectorRow } from "./use-base-record-inspector-row"
 
 interface SpaceBaseEditorProps {
   filePath: string
+  recordTarget?: SpaceBaseRecordTarget
 }
 
 type RenameTarget = { kind: "table"; tableId: string; name: string }
@@ -166,7 +172,13 @@ function csvFileNameSegment(value: string): string {
   )
 }
 
-export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
+export function SpaceBaseEditor({
+  filePath,
+  recordTarget,
+}: SpaceBaseEditorProps) {
+  const recordTableId = recordTarget?.tableId
+  const recordId = recordTarget?.recordId
+  const recordMode = Boolean(recordTableId && recordId)
   const editorRef = useRef<HTMLDivElement>(null)
   const tabContext = useOptionalTabContext()
   const registerQuickOpenSection = useQuickOpenStore(
@@ -236,6 +248,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
   const knownBaseRevisionRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [gridReloadToken, setGridReloadToken] = useState(0)
+  const [recordReloadToken, setRecordReloadToken] = useState(0)
   const [search, setSearch] = useState("")
   const [searchResultCount, setSearchResultCount] = useState<number | null>(
     null
@@ -264,16 +277,27 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     message: string
   } | null>(null)
 
-  const applySnapshot = useCallback((next: BaseSnapshot) => {
-    knownBaseRevisionRef.current = next.metadata.updatedAt
-    setSnapshot(next)
-    setActiveTableId((current) => {
-      if (current && next.tables.some(({ table }) => table.id === current)) {
-        return current
-      }
-      return next.metadata.defaultTableId ?? next.tables.at(0)?.table.id ?? null
-    })
-  }, [])
+  const applySnapshot = useCallback(
+    (next: BaseSnapshot) => {
+      knownBaseRevisionRef.current = next.metadata.updatedAt
+      setSnapshot(next)
+      setActiveTableId((current) => {
+        if (
+          recordTableId &&
+          next.tables.some(({ table }) => table.id === recordTableId)
+        ) {
+          return recordTableId
+        }
+        if (current && next.tables.some(({ table }) => table.id === current)) {
+          return current
+        }
+        return (
+          next.metadata.defaultTableId ?? next.tables.at(0)?.table.id ?? null
+        )
+      })
+    },
+    [recordTableId]
+  )
 
   const load = useCallback(
     async (options: { preserveError?: boolean } = {}) => {
@@ -281,6 +305,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       try {
         applySnapshot(await getSnapshot(filePath))
         setGridReloadToken((current) => current + 1)
+        setRecordReloadToken((current) => current + 1)
         if (!options.preserveError) setError(null)
       } catch (loadError) {
         setError(
@@ -302,6 +327,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       }
       applySnapshot(next)
       setGridReloadToken((current) => current + 1)
+      setRecordReloadToken((current) => current + 1)
       setError(null)
     } catch (refreshError) {
       setError(
@@ -337,9 +363,17 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       snapshot?.tables.find(({ table }) => table.id === activeTableId) ?? null,
     [activeTableId, snapshot?.tables]
   )
+  const requestedRecordTable = useMemo(
+    () =>
+      recordTableId
+        ? (snapshot?.tables.find(({ table }) => table.id === recordTableId) ??
+          null)
+        : null,
+    [recordTableId, snapshot?.tables]
+  )
 
   useEffect(() => {
-    if (!tabContext?.tabId || !snapshot) return
+    if (!tabContext?.tabId || !snapshot || recordMode) return
     const tabId = tabContext.tabId
     const baseName = filePath.split("/").at(-1) ?? filePath
     registerQuickOpenSection(tabId, {
@@ -367,6 +401,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     snapshot,
     tabContext?.tabId,
     unregisterQuickOpenSection,
+    recordMode,
   ])
 
   useEffect(() => {
@@ -380,6 +415,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         event.shiftKey ||
         (event.key !== "PageUp" && event.key !== "PageDown") ||
         !snapshot ||
+        recordMode ||
         snapshot.tables.length < 2 ||
         !host?.contains(event.target as Node)
       ) {
@@ -401,7 +437,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [snapshot])
+  }, [recordMode, snapshot])
   const fieldPropertyTarget = useMemo(
     () =>
       activeTable?.fields.find(
@@ -675,6 +711,84 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     (path: string) => reveal(path).then(() => undefined),
     [reveal]
   )
+
+  const loadRequestedRecord = useCallback(
+    (rowId: string) => {
+      if (!recordTableId) return Promise.resolve(null)
+      return getTableRow(filePath, recordTableId, rowId)
+    },
+    [filePath, getTableRow, recordTableId]
+  )
+  const {
+    inspectedRow: requestedRecordRow,
+    inspectorLoading: requestedRecordLoading,
+    inspectorLoadError: requestedRecordLoadError,
+    openInspectorRow: openRequestedRecord,
+    replaceInspectorRow: replaceRequestedRecord,
+    retryInspectorRow: retryRequestedRecord,
+  } = useBaseRecordInspectorRow(loadRequestedRecord)
+  const snapshotReady = snapshot !== null
+  const requestedRecordTableAvailable = requestedRecordTable !== null
+
+  useEffect(() => {
+    if (!recordId || !snapshotReady || !requestedRecordTableAvailable) {
+      return
+    }
+    openRequestedRecord({
+      _id: recordId,
+      title: "Loading…",
+    })
+  }, [
+    openRequestedRecord,
+    recordReloadToken,
+    recordId,
+    requestedRecordTableAvailable,
+    snapshotReady,
+  ])
+
+  useEffect(() => {
+    if (
+      !recordMode ||
+      !tabContext?.tabId ||
+      requestedRecordLoading ||
+      requestedRecordLoadError ||
+      !requestedRecordRow
+    ) {
+      return
+    }
+    useTabStore.getState().updateTab(tabContext.tabId, {
+      title: baseRecordTitle(requestedRecordRow),
+    })
+  }, [
+    recordMode,
+    requestedRecordLoadError,
+    requestedRecordLoading,
+    requestedRecordRow,
+    tabContext?.tabId,
+  ])
+
+  const openRecordInTab = useCallback(
+    (row: BaseRow) => {
+      if (!activeTable || row._id === null || row._id === undefined) return
+      const rowId = String(row._id)
+      useTabStore
+        .getState()
+        .openTab(
+          toSpaceBaseRecordUrl(filePath, activeTable.table.id, rowId),
+          baseRecordTitle(row)
+        )
+    },
+    [activeTable, filePath]
+  )
+
+  const openBaseFromRecord = useCallback(() => {
+    const baseName = filePath.split("/").at(-1) ?? filePath
+    useTabStore.getState().openTab(toSpaceFileUrl(filePath), baseName)
+  }, [filePath])
+
+  const copyRequestedRecordId = useCallback((recordId: string) => {
+    void navigator.clipboard?.writeText(recordId).catch(() => undefined)
+  }, [])
 
   const loadActiveTablePage = useCallback(
     (offset: number, limit: number, totalHint?: number, cursor?: string) => {
@@ -954,6 +1068,15 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     (row: BaseRow, field: BaseFieldInfo, value: BaseSqlPrimitive) =>
       saveCellWithErrorMode(row, field, value, "local"),
     [saveCellWithErrorMode]
+  )
+
+  const saveRequestedRecordCell = useCallback(
+    async (row: BaseRow, field: BaseFieldInfo, value: BaseSqlPrimitive) => {
+      const result = await saveInspectorCell(row, field, value)
+      replaceRequestedRecord(result.row)
+      return result
+    },
+    [replaceRequestedRecord, saveInspectorCell]
   )
 
   const saveRows = useCallback(
@@ -1637,6 +1760,51 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     )
   }
 
+  if (recordMode && recordId) {
+    const baseName = filePath.split("/").at(-1) ?? filePath
+    if (!requestedRecordTable) {
+      return (
+        <BaseRecordUnavailable
+          baseName={baseName}
+          message="This table no longer exists in the Base file. Return to the Base to choose another record."
+          onBack={openBaseFromRecord}
+        />
+      )
+    }
+    const rowMatchesTarget =
+      requestedRecordRow !== null &&
+      String(requestedRecordRow._id ?? "") === recordId
+    const row = rowMatchesTarget
+      ? requestedRecordRow
+      : { _id: recordId, title: "Loading…" }
+
+    return (
+      <BaseRecordPage
+        baseName={baseName}
+        tableName={requestedRecordTable.table.name}
+        row={row}
+        fields={orderedBaseFields(requestedRecordTable.fields)}
+        disabled={blockingMutations > 0}
+        loading={!rowMatchesTarget || requestedRecordLoading}
+        loadError={requestedRecordLoadError}
+        error={error}
+        onBack={openBaseFromRecord}
+        onDismissError={() => setError(null)}
+        onRetryLoad={retryRequestedRecord}
+        onCopyRecordId={copyRequestedRecordId}
+        onCellEdit={saveRequestedRecordCell}
+        onError={handleGridError}
+        onImportFiles={importBaseFiles}
+        onImportDroppedFiles={importDroppedBaseFiles}
+        onSearchRelation={searchRelationRecords}
+        onOpenFile={openBaseFileReference}
+        onRevealFile={(path) => {
+          void revealBaseFileReference(path).catch(handleGridError)
+        }}
+      />
+    )
+  }
+
   return (
     <div
       ref={editorRef}
@@ -1860,6 +2028,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               onImportDroppedFiles={importDroppedBaseFiles}
               onSearchRelation={searchRelationRecords}
               onDeleteRow={deleteSingleRow}
+              onOpenRecordInTab={openRecordInTab}
               onOpenFile={openBaseFileReference}
               onRevealFile={revealBaseFileReference}
               onRowCountChange={handleSearchResultCountChange}
@@ -1883,6 +2052,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               onImportDroppedFiles={importDroppedBaseFiles}
               onSearchRelation={searchRelationRecords}
               onDeleteRow={deleteSingleRow}
+              onOpenRecordInTab={openRecordInTab}
               onOpenFile={openBaseFileReference}
               onRevealFile={revealBaseFileReference}
               onRowCountChange={handleSearchResultCountChange}
@@ -1907,6 +2077,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               searchResultIndex={activeSearchResultIndex}
               onImportFiles={importBaseFiles}
               onImportDroppedFiles={importDroppedBaseFiles}
+              onOpenRecordInTab={openRecordInTab}
               onOpenFile={openBaseFileReference}
               onRevealFile={revealBaseFileReference}
               onSearchRelation={searchRelationRecords}

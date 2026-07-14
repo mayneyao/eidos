@@ -40,6 +40,7 @@ const createBinaryMock = vi.hoisted(() => vi.fn())
 const importFilesMock = vi.hoisted(() => vi.fn())
 const revealFileMock = vi.hoisted(() => vi.fn())
 const openTabMock = vi.hoisted(() => vi.fn())
+const updateTabTitleMock = vi.hoisted(() => vi.fn())
 const insertRowMock = vi.hoisted(() => vi.fn())
 const updateRowMock = vi.hoisted(() => vi.fn())
 const updateRowsMock = vi.hoisted(() => vi.fn())
@@ -56,6 +57,7 @@ const spaceFileChanges = vi.hoisted(() => ({
 const baseViewHostProps = vi.hoisted(() => ({
   grid: [] as Array<{
     table: object
+    onOpenRecordInTab?: (row: BaseRow) => void
     onRevealFile: unknown
     onPropertyFieldOpen: unknown
     onPropertyFieldClose: unknown
@@ -77,6 +79,7 @@ const baseViewHostProps = vi.hoisted(() => ({
       value: BaseSqlPrimitive
     ) => Promise<BaseRowMutationResult>
     onRevealFile: unknown
+    onOpenRecordInTab?: (row: BaseRow) => void
   }>,
   kanban: [] as Array<{
     table: object
@@ -95,6 +98,7 @@ const baseViewHostProps = vi.hoisted(() => ({
       value: BaseSqlPrimitive
     ) => Promise<BaseRowMutationResult>
     onRevealFile: unknown
+    onOpenRecordInTab?: (row: BaseRow) => void
   }>,
 }))
 
@@ -361,7 +365,10 @@ vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
 
 vi.mock("@/apps/web-app/store/tabs", () => ({
   useTabStore: {
-    getState: () => ({ openTab: openTabMock }),
+    getState: () => ({
+      openTab: openTabMock,
+      updateTab: updateTabTitleMock,
+    }),
   },
 }))
 
@@ -378,6 +385,7 @@ vi.mock("./base-grid", async () => {
       onImportDroppedFiles,
       onOpenFile,
       onRevealFile,
+      onOpenRecordInTab,
       onSearchRelation,
       propertyField,
       onPropertyFieldOpen,
@@ -417,6 +425,7 @@ vi.mock("./base-grid", async () => {
       onImportDroppedFiles?: (files: File[]) => Promise<string[]>
       onOpenFile?: (path: string) => void
       onRevealFile?: (path: string) => Promise<void> | void
+      onOpenRecordInTab?: (row: BaseRow) => void
       onSearchRelation?: (
         field: (typeof snapshot)["tables"][number]["fields"][number],
         query: string
@@ -452,6 +461,7 @@ vi.mock("./base-grid", async () => {
     }) {
       baseViewHostProps.grid.push({
         table,
+        onOpenRecordInTab,
         onRevealFile,
         onPropertyFieldOpen,
         onPropertyFieldClose,
@@ -580,6 +590,9 @@ vi.mock("./base-grid", async () => {
             onClick={() => onOpenFile?.("assets/report.pdf")}
           >
             Open attachment
+          </button>
+          <button type="button" onClick={() => onOpenRecordInTab?.(row)}>
+            Open record in tab
           </button>
           <button
             type="button"
@@ -733,6 +746,7 @@ vi.mock("./base-gallery-view", async () => {
       onCellEdit,
       onDeleteRow,
       onRevealFile,
+      onOpenRecordInTab,
       reloadToken,
     }: {
       table: (typeof snapshot)["tables"][number]
@@ -751,6 +765,7 @@ vi.mock("./base-gallery-view", async () => {
       ) => Promise<BaseRowMutationResult>
       onDeleteRow?: (row: { _id: string; title: string }) => Promise<void>
       onRevealFile?: (path: string) => Promise<void> | void
+      onOpenRecordInTab?: (row: BaseRow) => void
       reloadToken?: number
     }) {
       baseViewHostProps.gallery.push({
@@ -759,6 +774,7 @@ vi.mock("./base-gallery-view", async () => {
         loadRow,
         onCellEdit,
         onRevealFile,
+        onOpenRecordInTab,
       })
       const title = table.fields.find(
         (field) => field.tableColumnName === "title"
@@ -809,6 +825,7 @@ vi.mock("./base-kanban-view", async () => {
       onAddRow,
       onCellEdit,
       onRevealFile,
+      onOpenRecordInTab,
       reloadToken,
     }: {
       table: (typeof snapshot)["tables"][number]
@@ -833,6 +850,7 @@ vi.mock("./base-kanban-view", async () => {
         value: BaseSqlPrimitive
       ) => Promise<BaseRowMutationResult>
       onRevealFile?: (path: string) => Promise<void> | void
+      onOpenRecordInTab?: (row: BaseRow) => void
       reloadToken?: number
     }) {
       baseViewHostProps.kanban.push({
@@ -841,6 +859,7 @@ vi.mock("./base-kanban-view", async () => {
         loadRow,
         onCellEdit,
         onRevealFile,
+        onOpenRecordInTab,
       })
       const title = table.fields.find(
         (field) => field.tableColumnName === "title"
@@ -1001,6 +1020,7 @@ describe("SpaceBaseEditor", () => {
     importFilesMock.mockReset()
     revealFileMock.mockReset()
     openTabMock.mockReset()
+    updateTabTitleMock.mockReset()
     insertRowMock.mockReset()
     updateRowMock.mockReset()
     updateRowsMock.mockReset()
@@ -1129,6 +1149,29 @@ describe("SpaceBaseEditor", () => {
     })
   }
 
+  async function renderRecordEditor() {
+    await act(async () => {
+      root.render(
+        <TabProvider
+          value={{
+            tabId: "tab-record",
+            containerRef: null,
+            isActive: true,
+            isFocused: true,
+          }}
+        >
+          <SpaceBaseEditor
+            filePath="projects/tasks.base"
+            recordTarget={{ tableId: "tasks", recordId: "row_1" }}
+          />
+        </TabProvider>
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+  }
+
   it("opens the default table and exposes editable source fields", async () => {
     await renderEditor()
 
@@ -1153,6 +1196,115 @@ describe("SpaceBaseEditor", () => {
     expect(container.textContent).not.toContain("_id")
     expect(container.textContent).toContain("Write RFC")
     expect(container.textContent).toContain("todo")
+  })
+
+  it("opens a selected row in a stable record tab URL", async () => {
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Open record in tab")
+        ?.click()
+    })
+
+    expect(openTabMock).toHaveBeenCalledWith(
+      "/space-file?table=tasks&record=row_1#projects%2Ftasks.base",
+      "Write RFC"
+    )
+  })
+
+  it("loads and edits a record directly in its non-modal tab", async () => {
+    await renderRecordEditor()
+
+    expect(getTableRowMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      "row_1"
+    )
+    expect(container.querySelector("[data-base-record-page]")).not.toBeNull()
+    expect(container.querySelector('[data-testid="base-grid"]')).toBeNull()
+    expect(container.textContent).toContain("Write RFC")
+    expect(updateTabTitleMock).toHaveBeenCalledWith("tab-record", {
+      title: "Write RFC",
+    })
+
+    const title = container.querySelector<HTMLTextAreaElement>("textarea")
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )?.set
+      setter?.call(title, "Ship record tabs")
+      title?.dispatchEvent(new Event("input", { bubbles: true }))
+      title?.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(updateRowMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      "row_1",
+      { title: "Ship record tabs" }
+    )
+    expect(updateTabTitleMock).toHaveBeenLastCalledWith("tab-record", {
+      title: "Write implementation",
+    })
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent?.includes("Back to Base"))
+        ?.click()
+    })
+    expect(openTabMock).toHaveBeenCalledWith(
+      "/space-file#projects%2Ftasks.base",
+      "tasks.base"
+    )
+  })
+
+  it("refreshes an open record tab when its Base file changes externally", async () => {
+    getTableRowMock
+      .mockResolvedValueOnce({
+        _id: "row_1",
+        title: "Before external edit",
+        status: "todo",
+      })
+      .mockResolvedValueOnce({
+        _id: "row_1",
+        title: "After external edit",
+        status: "todo",
+      })
+
+    await renderRecordEditor()
+    expect(container.textContent).toContain("Before external edit")
+
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      metadata: {
+        ...snapshot.metadata,
+        updatedAt: "2026-07-13T03:00:00.000Z",
+      },
+    })
+    await act(async () => {
+      spaceFileChanges.handler?.({
+        eventType: "change",
+        path: "projects/tasks.base",
+      })
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(getTableRowMock).toHaveBeenLastCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      "row_1"
+    )
+    expect(container.textContent).toContain("After external edit")
+    expect(container.textContent).not.toContain("Before external edit")
+    expect(updateTabTitleMock).toHaveBeenLastCalledWith("tab-record", {
+      title: "After external edit",
+    })
   })
 
   it("exports the active view query and visible field order", async () => {

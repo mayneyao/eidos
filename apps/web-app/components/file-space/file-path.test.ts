@@ -2,6 +2,7 @@
 
 import {
   ancestorSpacePaths,
+  baseRecordFromSpaceUrl,
   canMoveSpaceEntryTo,
   filePathFromSpaceUrl,
   headingFromSpaceLink,
@@ -10,6 +11,7 @@ import {
   moveSpaceFileUrl,
   resolveSpaceLink,
   toSpaceAssetUrl,
+  toSpaceBaseRecordUrl,
   toSpaceFileUrl,
   uniqueSpaceEntryName,
   validateSpaceEntryName,
@@ -23,6 +25,16 @@ describe("file Space paths", () => {
     expect(filePathFromSpaceUrl(headingUrl)).toBe(path)
     expect(headingFromSpaceUrl(headingUrl)).toBe("下一步 & Review")
     expect(headingFromSpaceUrl(toSpaceFileUrl(path))).toBeNull()
+  })
+
+  it("round-trips Base record targets through stable tab URLs", () => {
+    const url = toSpaceBaseRecordUrl("项目/tasks.base", "table/任务", "row #1")
+    expect(filePathFromSpaceUrl(url)).toBe("项目/tasks.base")
+    expect(baseRecordFromSpaceUrl(url)).toEqual({
+      tableId: "table/任务",
+      recordId: "row #1",
+    })
+    expect(baseRecordFromSpaceUrl(toSpaceFileUrl("项目/tasks.base"))).toBeNull()
   })
 
   it("encodes Space asset paths without losing directory boundaries", () => {
@@ -71,6 +83,16 @@ describe("file Space paths", () => {
       )
     ).toBe(toSpaceFileUrl("archive/project.md", "Next step"))
     expect(moveSpaceFileUrl("/settings", "notes", "archive")).toBeNull()
+  })
+
+  it("moves Base record tab URLs without losing the record target", () => {
+    expect(
+      moveSpaceFileUrl(
+        toSpaceBaseRecordUrl("projects/tasks.base", "tasks", "row_1"),
+        "projects",
+        "archive"
+      )
+    ).toBe(toSpaceBaseRecordUrl("archive/tasks.base", "tasks", "row_1"))
   })
 
   it("allows moves across folders but not no-ops or recursive moves", () => {

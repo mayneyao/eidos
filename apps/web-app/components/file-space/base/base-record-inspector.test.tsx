@@ -245,6 +245,59 @@ describe("BaseRecordInspector", () => {
     expect(onRetryLoad).toHaveBeenCalledOnce()
   })
 
+  it("promotes the current record from the side panel into a tab", async () => {
+    const row = { _id: "row_1", title: "Write RFC", done: 0, formula: 2 }
+    const onOpenInTab = vi.fn()
+    await act(async () => {
+      root.render(
+        <BaseRecordInspector
+          row={row}
+          fields={fields}
+          onClose={vi.fn()}
+          onOpenInTab={onOpenInTab}
+          onCopyRecordId={vi.fn()}
+        />
+      )
+    })
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Open record in tab"]')
+        ?.click()
+    })
+
+    expect(onOpenInTab).toHaveBeenCalledWith(row)
+  })
+
+  it("uses a wider responsive field layout for a full record page", async () => {
+    await act(async () => {
+      root.render(
+        <BaseRecordInspector
+          variant="page"
+          row={{ _id: "row_1", title: "Write RFC", done: 0, formula: 2 }}
+          fields={fields}
+          onClose={vi.fn()}
+          onOpenInTab={vi.fn()}
+          onCopyRecordId={vi.fn()}
+        />
+      )
+    })
+
+    const page = container.querySelector<HTMLElement>(
+      '[data-base-record-layout="page"]'
+    )
+    expect(page?.className).toContain("max-w-[760px]")
+    expect(
+      container.querySelector('[aria-label="Open record in tab"]')
+    ).toBeNull()
+    expect(
+      container.querySelector('[aria-label="Close record details"]')
+    ).toBeNull()
+    expect(page?.querySelector<HTMLElement>(".grid")?.className).toContain(
+      "sm:grid-cols-"
+    )
+  })
+
   it("exposes relation search as a keyboard-navigable combobox", async () => {
     const ownersField: BaseFieldInfo = {
       name: "Owners",

@@ -146,6 +146,7 @@ interface BaseGridProps {
   onImportDroppedFiles?: (files: File[]) => Promise<string[]>
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => Promise<void> | void
+  onOpenRecordInTab?: (row: BaseRow) => void
   onSearchRelation?: (
     field: BaseFieldInfo,
     query: string
@@ -298,6 +299,7 @@ export const BaseGrid = memo(function BaseGrid({
   onImportDroppedFiles,
   onOpenFile,
   onRevealFile,
+  onOpenRecordInTab,
   onSearchRelation,
   propertyField,
   onPropertyFieldOpen,
@@ -1512,6 +1514,7 @@ export const BaseGrid = memo(function BaseGrid({
           row={inspectedRow}
           fields={fields}
           onClose={() => setInspectedRowIndex(null)}
+          onOpenInTab={onOpenRecordInTab}
           onCopyRecordId={copyText}
           onCellEdit={editInspectedRecord}
           disabled={gridWriteLocked}

@@ -26,11 +26,13 @@ vi.mock("./base-record-inspector", () => ({
     disabled,
     loading,
     loadError,
+    onOpenInTab,
   }: {
     row: { title?: string; notes?: string }
     disabled?: boolean
     loading?: boolean
     loadError?: string | null
+    onOpenInTab?: (row: { title?: string; notes?: string }) => void
   }) => (
     <aside
       data-testid="record-inspector"
@@ -39,6 +41,9 @@ vi.mock("./base-record-inspector", () => ({
       data-load-error={loadError ?? ""}
     >
       {row.title}:{row.notes ?? "preview"}
+      <button type="button" onClick={() => onOpenInTab?.(row)}>
+        Open mocked record in tab
+      </button>
     </aside>
   ),
 }))
@@ -185,6 +190,7 @@ describe("BaseGalleryView", () => {
   })
 
   it("loads paged cards and opens the record inspector", async () => {
+    const onOpenRecordInTab = vi.fn()
     const loadPage = vi.fn(
       async (offset: number, limit: number, _totalHint?: number) => ({
         tableId: "tasks",
@@ -203,7 +209,12 @@ describe("BaseGalleryView", () => {
 
     await act(async () => {
       root.render(
-        <BaseGalleryView table={table} view={view} loadPage={loadPage} />
+        <BaseGalleryView
+          table={table}
+          view={view}
+          loadPage={loadPage}
+          onOpenRecordInTab={onOpenRecordInTab}
+        />
       )
       await Promise.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -248,7 +259,15 @@ describe("BaseGalleryView", () => {
     })
     expect(
       container.querySelector('[data-testid="record-inspector"]')?.textContent
-    ).toBe("Write RFC:preview")
+    ).toContain("Write RFC:preview")
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Open mocked record in tab")
+        ?.click()
+    })
+    expect(onOpenRecordInTab).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: "row_1", title: "Write RFC" })
+    )
 
     expect(loadPage).toHaveBeenLastCalledWith(2, 100, 3)
     expect(container.textContent).toContain("Review UX")
@@ -308,7 +327,7 @@ describe("BaseGalleryView", () => {
     })
     expect(
       container.querySelector('[data-testid="record-inspector"]')?.textContent
-    ).toBe("Write RFC:Loaded from the Base file")
+    ).toContain("Write RFC:Loaded from the Base file")
   })
 
   it("uses the real viewport width before the first Gallery paint", async () => {

@@ -886,6 +886,7 @@ describe("BaseGrid", () => {
 
   it("opens record details and deletes the right-clicked record", async () => {
     const onRequestDeleteRows = vi.fn()
+    const onOpenRecordInTab = vi.fn()
     await act(async () => {
       root.render(
         <BaseGrid
@@ -895,6 +896,7 @@ describe("BaseGrid", () => {
           onAddRow={vi.fn()}
           onCellEdit={createCellEdit()}
           onRequestDeleteRows={onRequestDeleteRows}
+          onOpenRecordInTab={onOpenRecordInTab}
         />
       )
       await Promise.resolve()
@@ -920,6 +922,14 @@ describe("BaseGrid", () => {
     expect(
       container.querySelector('[aria-label="Record details for Write RFC"]')
     ).toBeTruthy()
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Open record in tab"]')
+        ?.click()
+    })
+    expect(onOpenRecordInTab).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: "row_0", title: "Write RFC" })
+    )
 
     openCellMenu()
     const deleteRecord = [...document.body.querySelectorAll("button")].find(
