@@ -365,7 +365,10 @@ last-saved bookkeeping therefore stay outside the heavy view trees.
 Card render metadata is now computed once per view rather than once per visible
 record. Ordered fields, cover selection, field limits, and Select/Multi-select
 option indexes are shared by the Gallery or Kanban window. Closed action menus
-do not eagerly expand every Move-to option. The Desktop native submenu retains
+do not eagerly expand every Move-to option. Kanban columns also retain the same
+board-level Move-to option array instead of copying every target per visible
+column; each card carries only its current disabled target and the board lock.
+The Desktop native submenu retains
 one shared batch descriptor and one click dispatcher per mounted card, then
 materializes its Electron menu items only when that card's context menu opens;
 it does not mount or retain one React node, effect, item object, and closure per
@@ -374,8 +377,10 @@ field. A non-group inspector edit replaces only the group that owns the row,
 preserving every unaffected column and card memo boundary; visible-column
 loading and horizontal fallback geometry likewise depend on the option/window
 signature instead of row-array churn. Regression coverage proves that a
-200-target native submenu reads zero option labels before opening, remains at
-constant DOM size, and still dispatches the selected target; it also asserts
+200-target board with six visible columns retains one option-array reference,
+and its native submenu reads zero option labels before opening, remains at
+constant DOM size, disables the current column, and still dispatches the
+selected target; coverage also asserts
 that editing a card in one column does not render a card in another column.
 
 Automatic paging now has an explicit recoverable failure state. A failed

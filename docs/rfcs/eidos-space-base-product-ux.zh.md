@@ -219,12 +219,14 @@ cover 子树渲染；row 或 view 真正变化时仍会正常更新。
 
 Card 渲染元数据现在按 view 计算一次，而不是让每个可见 record 重复计算。字段顺序、封面字段、字段
 数量限制和 Select/Multi-select option 索引会被 Gallery 或 Kanban 的可见窗口共享。未打开的操作菜单
-不会预先展开全部 Move-to options。Desktop 原生子菜单只为每张已挂载 card 保留一个共享批次描述和
+不会预先展开全部 Move-to options。Kanban 的所有可见列还会保留同一个 board 级 Move-to option 数组，
+不再为每列复制全部目标；每张 card 只携带当前禁用目标和 board lock。Desktop 原生子菜单只为每张已挂载 card 保留一个共享批次描述和
 一个点击分发器，只有真正打开该 card 的右键菜单时才物化 Electron menu items；它不会为每个 option
 挂载或常驻一个 React 节点、effect、菜单对象和闭包。主题状态也从每个可见字段一次订阅收敛为每张 card
 一次。Inspector 修改非分组字段时只替换记录所在 group，未受影响列和 card 的 memo 边界会保持原引用；
 可见列加载与横向 fallback geometry 也只依赖 option/window signature，不再随 rows 数组变化重复执行。
-回归测试会证明 200 个移动目标在菜单打开前读取 0 个 option label、DOM 保持常数级且点击仍能正确分发，
+回归测试会证明 200 个移动目标、6 个可见列只保留 1 个 option 数组引用；菜单打开前读取 0 个 option label、
+DOM 保持常数级，当前列保持禁用且点击仍能正确分发，
 并验证一列中的 card 修改不会触发另一列 card 渲染。
 
 自动分页现在也有明确且可恢复的失败状态。Gallery 或 Kanban 请求失败后会关闭虚拟尾部触发器，
