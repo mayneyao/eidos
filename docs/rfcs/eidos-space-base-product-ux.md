@@ -196,10 +196,15 @@ seconds with `OFFSET` and less than 0.01 seconds with the rowid cursor. For a
 compound indexed sort, 200 deep-page reads took about 0.78 seconds with
 `OFFSET`; a naive `OR` cursor regressed to 1.58 seconds, while ordered range
 branches completed in about 0.02 seconds.
-These page and grouped-count requests are executed by a persistent worker owned
-by the current Space. Repeated virtual-scroll reads reuse a validated Base
-runtime instead of blocking Electron's main thread with open/validation work;
-the eight-file LRU bound prevents descriptor growth. A file fingerprint forces
+These page and grouped-count requests are executed by a bounded pool of two
+persistent, read-only workers owned by the current Space. The Space operation
+gate uses fair read/write semantics: concurrent Gallery pages and visible
+Kanban-column pages may enter together, while a queued mutation or Graft restore
+remains exclusive and cannot be overtaken by later readers. Four concurrent
+column reads therefore move from one serialized execution lane to two bounded
+lanes without moving synchronous SQLite work onto Electron's main thread.
+Repeated virtual-scroll reads reuse a validated Base runtime; each worker's
+eight-file LRU bound prevents descriptor growth. A file fingerprint forces
 reopen after an in-place change or atomic replacement, and the packaged worker
 smoke covers deep paging, grouped totals, and replacement invalidation.
 The independent Base runtime also maintains disposable SQLite query indexes for
@@ -207,10 +212,11 @@ Gallery sort prefixes and Kanban group-plus-sort prefixes. Indexes follow the
 view lifecycle, are rebuilt after an indexed field conversion or deletion, and
 are repaired once when an older file is opened for migration. They accelerate
 the physical table without becoming part of the Base metadata contract. The
-query-worker cache records the post-migration fingerprint, so creating a missing
-index does not cause an immediate redundant reopen. On a 100,000-row delivery
-fixture, a distant sorted Gallery page drops from roughly 90 ms to 2 ms and a
-distant Kanban group page from roughly 4 ms to 2 ms on the same machine.
+writable Base lifecycle creates or repairs those indexes before read-only query
+workers consume them. The query-worker cache records the fingerprint after
+opening, so it does not immediately reopen an unchanged file. On a 100,000-row
+delivery fixture, a distant sorted Gallery page drops from roughly 90 ms to 2 ms
+and a distant Kanban group page from roughly 4 ms to 2 ms on the same machine.
 Virtual row, card, and column measurements are batched through animation frames;
 their translated wrappers establish layout/style containment. This keeps Resize
 Observer work and layout invalidation inside the mounted overscan window while

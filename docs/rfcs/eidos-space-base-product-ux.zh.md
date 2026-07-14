@@ -132,14 +132,17 @@ tie-break 语义。派生字段排序、超过 8 个排序字段、远距离滚�
 基线上，200 次带筛选的自然顺序深分页读取使用 `OFFSET` 约 1.62 秒，使用 rowid cursor 低于 0.01 秒。
 复合索引排序的 200 次深分页使用 `OFFSET` 约 0.78 秒；直接拼接的 `OR` cursor 反而退化到 1.58 秒，
 按顺序执行的范围分支约为 0.02 秒。
-这些分页和分组计数请求由当前 Space 持有的持久 worker 执行。重复虚拟滚动会复用已经校验的 Base
-runtime，不再让 Electron 主线程承担同步打开和校验；8 文件 LRU 上限避免文件描述符无界增长。
-文件 fingerprint 会在原地写入或原子替换后强制重开，打包后的 worker smoke 已覆盖深分页、分组总数
-以及替换失效。
+这些分页和分组计数请求由当前 Space 持有的两个持久只读 worker 有界并行执行。Space 操作门现在使用
+公平读写语义：Gallery 分页与多个可见 Kanban 列可以同时进入；排队中的 Base mutation、文件写入或
+Graft restore 仍保持独占，并且不会被后到的读取越过。4 个并发可见列读取因此从 1 条串行执行通道变为
+2 条有界通道，同时不会把同步 SQLite 工作搬回 Electron 主线程。重复虚拟滚动会复用已经校验的 Base
+runtime；每个 worker 的 8 文件 LRU 上限避免文件描述符无界增长。文件 fingerprint 会在原地写入或
+原子替换后强制重开，打包后的 worker smoke 已覆盖深分页、分组总数以及替换失效。
 独立 Base runtime 还会为 Gallery 排序前缀和 Kanban 分组+排序前缀维护可丢弃的 SQLite 查询索引。
 索引跟随 view lifecycle，在被索引字段转换或删除后重建，并在旧文件以 migration 模式打开时一次性修复；
-它们只加速物理表，不进入 Base metadata 语义契约。Query worker cache 会记录 migration/索引修复后的
-fingerprint，因此补齐索引不会让下一次请求立即无意义地重开文件。在同一台机器的 10 万行交付基线上，
+它们只加速物理表，不进入 Base metadata 语义契约。可写 Base lifecycle 会先创建或修复索引，再由只读
+query workers 使用；worker cache 记录打开后的 fingerprint，因此不会立刻无意义地重开未变化文件。
+在同一台机器的 10 万行交付基线上，
 远距离 Gallery 排序页从约 90 ms 降到 2 ms，Kanban 分组尾页从约 4 ms 降到 2 ms。
 虚拟 row、card 和 column 的动态测量会按 animation frame 批处理，位移 wrapper 建立 layout/style
 containment；Resize Observer 与布局失效因此被限制在已挂载 overscan 窗口内，同时保留可变高度与自动
