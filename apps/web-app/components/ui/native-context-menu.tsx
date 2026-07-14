@@ -855,6 +855,8 @@ const useSubmenuCollector = (onItemsChange?: () => void) => {
     Map<
       string,
       {
+        disabled?: boolean
+        disabledItemId?: string
         items: Array<{ id: string; label: string; disabled?: boolean }>
         onSelect: (id: string) => void
       }
@@ -926,10 +928,11 @@ const useSubmenuCollector = (onItemsChange?: () => void) => {
     (
       id: string,
       items: Array<{ id: string; label: string; disabled?: boolean }>,
-      onSelect: (id: string) => void
+      onSelect: (id: string) => void,
+      options: { disabled?: boolean; disabledItemId?: string } = {}
     ) => {
       removeById(id)
-      itemBatchesRef.current.set(id, { items, onSelect })
+      itemBatchesRef.current.set(id, { ...options, items, onSelect })
       batchClickHandlersRef.current.set(id, (itemId) => {
         const separatorIndex = itemId.lastIndexOf(NATIVE_MENU_BATCH_SEPARATOR)
         if (separatorIndex < 0) return
@@ -975,7 +978,10 @@ const useSubmenuCollector = (onItemsChange?: () => void) => {
             type: "text",
             label: item.label,
             id: `${id}${NATIVE_MENU_BATCH_SEPARATOR}${encodeURIComponent(item.id)}`,
-            enabled: !item.disabled,
+            enabled:
+              !batch.disabled &&
+              !item.disabled &&
+              item.id !== batch.disabledItemId,
           })
         })
         return
@@ -1198,12 +1204,16 @@ const NativeContextMenuSubContent = React.forwardRef<
 NativeContextMenuSubContent.displayName = "NativeContextMenuSubContent"
 
 interface NativeContextMenuSubItemsProps {
+  disabled?: boolean
+  disabledItemId?: string
   items: Array<{ id: string; label: string; disabled?: boolean }>
   onSelect: (id: string) => void
 }
 
 const NativeContextMenuSubItems = React.memo(
   function NativeContextMenuSubItems({
+    disabled,
+    disabledItemId,
     items,
     onSelect,
   }: NativeContextMenuSubItemsProps) {
@@ -1213,17 +1223,28 @@ const NativeContextMenuSubItems = React.memo(
 
     React.useEffect(() => {
       if (!useNative || !submenuContext || items.length === 0) return
-      submenuContext.registerItemBatch(itemBatchId, items, onSelect)
+      submenuContext.registerItemBatch(itemBatchId, items, onSelect, {
+        disabled,
+        disabledItemId,
+      })
       return () => {
         submenuContext.unregisterItemBatch(itemBatchId)
       }
-    }, [itemBatchId, items, onSelect, submenuContext, useNative])
+    }, [
+      disabled,
+      disabledItemId,
+      itemBatchId,
+      items,
+      onSelect,
+      submenuContext,
+      useNative,
+    ])
 
     if (useNative) return null
     return items.map((item) => (
       <RadixContextMenuItem
         key={item.id}
-        disabled={item.disabled}
+        disabled={disabled || item.disabled || item.id === disabledItemId}
         onSelect={() => onSelect(item.id)}
       >
         {item.label}

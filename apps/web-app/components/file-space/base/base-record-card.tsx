@@ -259,16 +259,22 @@ function CardFieldValue({
 const DropdownMoveItems = memo(function DropdownMoveItems({
   row,
   moveOptions,
+  disabledMoveOptionId,
+  moveDisabled,
   onMove,
 }: {
   row: BaseRow
   moveOptions: Array<{ id: string; label: string; disabled?: boolean }>
+  disabledMoveOptionId?: string
+  moveDisabled?: boolean
   onMove: (row: BaseRow, targetId: string) => void
 }) {
   return moveOptions.map((option) => (
     <DropdownMenuItem
       key={option.id}
-      disabled={option.disabled}
+      disabled={
+        moveDisabled || option.disabled || option.id === disabledMoveOptionId
+      }
       onSelect={() => onMove(row, option.id)}
     >
       {option.label}
@@ -286,6 +292,8 @@ export const BaseRecordCard = memo(function BaseRecordCard({
   onOpen,
   onDelete,
   moveOptions,
+  disabledMoveOptionId,
+  moveDisabled = false,
   onMove,
   role,
   positionInSet,
@@ -301,6 +309,8 @@ export const BaseRecordCard = memo(function BaseRecordCard({
   onOpen: (row: BaseRow) => void
   onDelete?: (row: BaseRow) => void
   moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
+  disabledMoveOptionId?: string
+  moveDisabled?: boolean
   onMove?: (row: BaseRow, targetId: string) => void
   role?: AriaRole
   positionInSet?: number
@@ -456,6 +466,8 @@ export const BaseRecordCard = memo(function BaseRecordCard({
                         <DropdownMoveItems
                           row={row}
                           moveOptions={moveOptions}
+                          disabledMoveOptionId={disabledMoveOptionId}
+                          moveDisabled={moveDisabled}
                           onMove={onMove}
                         />
                       </DropdownMenuSubContent>
@@ -519,6 +531,8 @@ export const BaseRecordCard = memo(function BaseRecordCard({
             <NativeContextMenuSubContent>
               <NativeContextMenuSubItems
                 items={moveOptions}
+                disabled={moveDisabled}
+                disabledItemId={disabledMoveOptionId}
                 onSelect={moveFromNativeMenu}
               />
             </NativeContextMenuSubContent>

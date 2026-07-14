@@ -21,6 +21,7 @@ const kanbanMocks = vi.hoisted(() => ({
 }))
 
 const recordCardMocks = vi.hoisted(() => ({
+  disabledMoveOptionIds: new Map<string, string | undefined>(),
   layouts: new Map<
     string,
     {
@@ -28,6 +29,9 @@ const recordCardMocks = vi.hoisted(() => ({
       fitContent: boolean
       hideEmptyFields: boolean
     }
+  >(),
+  moveOptionReferences: new Set<
+    Array<{ id: string; label: string; disabled?: boolean }>
   >(),
   renders: new Map<string, number>(),
 }))
@@ -86,6 +90,8 @@ vi.mock("./base-record-card", () => ({
     onDelete,
     moveOptions,
     onMove,
+    disabledMoveOptionId,
+    moveDisabled,
     focused,
     layout,
   }: {
@@ -94,6 +100,8 @@ vi.mock("./base-record-card", () => ({
     onDelete?: (row: { _id?: string; title?: string }) => void
     moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
     onMove?: (row: { _id?: string; title?: string }, targetId: string) => void
+    disabledMoveOptionId?: string
+    moveDisabled?: boolean
     focused?: boolean
     layout: {
       coverField: { tableColumnName: string; type: string } | null
@@ -103,6 +111,8 @@ vi.mock("./base-record-card", () => ({
   }) => {
     const rowId = String(row._id)
     recordCardMocks.layouts.set(rowId, layout)
+    if (moveOptions) recordCardMocks.moveOptionReferences.add(moveOptions)
+    recordCardMocks.disabledMoveOptionIds.set(rowId, disabledMoveOptionId)
     recordCardMocks.renders.set(
       rowId,
       (recordCardMocks.renders.get(rowId) ?? 0) + 1
@@ -116,7 +126,12 @@ vi.mock("./base-record-card", () => ({
           </button>
         ) : null}
         {moveOptions
-          ?.filter((option) => !option.disabled)
+          ?.filter(
+            (option) =>
+              !moveDisabled &&
+              !option.disabled &&
+              option.id !== disabledMoveOptionId
+          )
           .map((option) => (
             <button key={option.id} onClick={() => onMove?.(row, option.id)}>
               Move {row.title} to {option.label}
@@ -280,6 +295,8 @@ describe("BaseKanbanView", () => {
     kanbanMocks.onDragEnd = undefined
     kanbanMocks.onDragStart = undefined
     recordCardMocks.layouts.clear()
+    recordCardMocks.disabledMoveOptionIds.clear()
+    recordCardMocks.moveOptionReferences.clear()
     recordCardMocks.renders.clear()
     scrollIntoView.mockReset()
     Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
@@ -1849,6 +1866,10 @@ describe("BaseKanbanView", () => {
     const renderedColumns = container.querySelectorAll('[role="region"]')
     expect(renderedColumns.length).toBeGreaterThan(0)
     expect(renderedColumns.length).toBeLessThanOrEqual(8)
+    expect(recordCardMocks.moveOptionReferences.size).toBe(1)
+    expect(recordCardMocks.disabledMoveOptionIds.get("row_status_0")).toBe(
+      "base-kanban:status_0"
+    )
     expect(
       Number(
         container

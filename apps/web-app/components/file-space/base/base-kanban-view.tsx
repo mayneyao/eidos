@@ -213,6 +213,8 @@ const BaseKanbanCardItem = memo(function BaseKanbanCardItem({
         onOpen={onOpen}
         onDelete={onDelete}
         moveOptions={moveOptions}
+        disabledMoveOptionId={groupKey}
+        moveDisabled={disabled}
         onMove={onMove}
       />
     </KanbanCard>
@@ -298,14 +300,6 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
     overscan: 3,
     useAnimationFrameWithResizeObserver: true,
   })
-  const cardMoveOptions = useMemo(
-    () =>
-      moveOptions.map((option) => ({
-        ...option,
-        disabled: disabled || option.id === group.key,
-      })),
-    [disabled, group.key, moveOptions]
-  )
   const moveCard = useCallback(
     (row: BaseRow, targetGroupKey: string) =>
       onMove(String(row._id), targetGroupKey),
@@ -505,7 +499,7 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                           focused={focusedRowId === String(row._id)}
                           onOpen={onOpen}
                           onDelete={onDelete}
-                          moveOptions={cardMoveOptions}
+                          moveOptions={moveOptions}
                           onMove={moveCard}
                         />
                       ) : (

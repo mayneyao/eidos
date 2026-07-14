@@ -488,6 +488,7 @@ describe("BaseRecordCard", () => {
           fields={fields}
           view={{ ...view, properties: null }}
           moveOptions={moveOptions}
+          disabledMoveOptionId="status_0"
           onMove={onMove}
           onOpen={vi.fn()}
         />
@@ -513,13 +514,15 @@ describe("BaseRecordCard", () => {
     const menu = showNativeMenu.mock.calls[0]?.[0] as Array<{
       type: string
       label?: string
-      submenu?: Array<{ id?: string; label: string }>
+      submenu?: Array<{ enabled?: boolean; id?: string; label: string }>
     }>
     const moveSubmenu = menu.find(
       (item) => item.type === "submenu" && item.label === "Move to"
     )
     expect(moveSubmenu?.submenu).toHaveLength(200)
     expect(labelReads).toBe(200)
+    expect(moveSubmenu?.submenu?.[0]?.enabled).toBe(false)
+    expect(moveSubmenu?.submenu?.[1]?.enabled).toBe(true)
     const targetItem = moveSubmenu?.submenu?.[143]
     expect(targetItem?.label).toBe("Status 143")
 
