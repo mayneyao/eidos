@@ -38,6 +38,10 @@ legacy table 的实测 scrollbar
 补偿：列宽未溢出时，sticky trailing row 不再为不存在的横向滚动条保留空白带；列宽溢出时
 则完整保留原生横向滚动条高度。
 
+现有 Base actions overflow 现在也可以在系统文件管理器中显示当前 `.base` 文件，补齐 workbook
+的文件定位路径，同时不增加新的工具栏图标或弹窗。定位失败会留在 editor 的可恢复 alert 边界内，
+用户可以关闭提示并从同一个菜单重试。
+
 Cmd+P 继续使用 Space 统一 Quick Open，不引入 Base 专用弹层。当前 tab 为 `.base` 时，
 结果顶部会增加 `Tables in <file>.base` 上下文分组，可按 table 名、底层 table 标识或
 Base 路径过滤并直接切换；普通文件结果仍在同一面板中。底部 sheets 同时支持
@@ -659,13 +663,15 @@ Migration flow：
 
 不要 silent migration。
 
-## 开放问题
+## v1 已确定决策
 
-1. `.obsidian/` 是否显示在文件树中？
-2. Base tables 是在主文件树中挂在 `.base` 下，还是只在 Base workspace 内展示？
-3. Changes 是否默认显示 Base generated diagnostics？
-4. Commit selected paths 应该 v1 支持，还是放到后续？
-5. 产品文案中 graft terminology 应该多可见？
+1. `.obsidian/` 默认隐藏，可以在 Files settings 中显式开启。
+2. `.base` 在 Space tree 中保持为一个文件；tables 和 views 只在 Base workspace 与 Quick Open
+   上下文中展示。
+3. Changes 保持 path-first；选择 `.base` 会打开结构化 Diff tab，不在 sidebar tree 内展开生成式
+   diagnostics。
+4. v1 支持按文件和目录选择 stage，并明确区分 Staged 与 Changes 区域。
+5. 产品文案使用 Version/History/Changes；Graft 术语只保留在高级设置、诊断和实现文档中。
 
 ## 推荐 UX 切片
 

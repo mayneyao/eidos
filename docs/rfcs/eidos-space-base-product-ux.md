@@ -48,6 +48,12 @@ when columns fit, the sticky trailing row no longer reserves an empty horizontal
 scrollbar band; when columns overflow, the native scrollbar keeps its full
 height.
 
+The existing Base actions overflow now also reveals the current `.base` file in
+the platform file manager. This completes the workbook's file-location path
+without adding another toolbar icon or dialog. A failed reveal stays inside the
+editor's recoverable alert boundary, so the user can dismiss it and retry the
+same menu action.
+
 Cmd+P remains the Space-wide Quick Open instead of opening a Base-specific
 dialog. When the active tab is a `.base`, a `Tables in <file>.base` contextual
 group appears above normal file results and matches table names, raw table
@@ -907,13 +913,17 @@ Migration flow:
 
 No silent migration.
 
-## Open Questions
+## Resolved v1 Decisions
 
-1. Should `.obsidian/` be shown in the file tree?
-2. Should Base tables appear under the `.base` file in the main tree, or only inside the Base workspace?
-3. Should Changes show generated diagnostics for Base files by default?
-4. Should commit selected paths be in v1 or later?
-5. How visible should graft terminology be in product copy?
+1. `.obsidian/` stays hidden by default and can be enabled from Files settings.
+2. A `.base` remains one file in the Space tree; tables and views live in the
+   Base workspace and Quick Open context.
+3. Changes stays path-first. Selecting a `.base` opens its structured Diff tab
+   instead of expanding generated diagnostics inside the sidebar tree.
+4. Selected file and directory staging is part of v1, including explicit
+   Staged and Changes sections.
+5. Product copy uses Version/History/Changes. Graft terminology is reserved for
+   advanced settings, diagnostics, and implementation documentation.
 
 ## Recommended UX Slice
 
