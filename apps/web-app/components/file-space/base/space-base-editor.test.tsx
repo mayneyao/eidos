@@ -10,6 +10,7 @@ import type {
 } from "@eidos.space/base"
 
 import { TabProvider } from "@/apps/web-app/components/tab-manager/tab-context"
+import { useFileSpaceSettings } from "@/apps/web-app/store/file-space-settings"
 import { useQuickOpenStore } from "@/apps/web-app/store/quick-open-store"
 
 import { SpaceBaseEditor } from "./space-base-editor"
@@ -1011,6 +1012,7 @@ describe("SpaceBaseEditor", () => {
     baseViewHostProps.grid.length = 0
     baseViewHostProps.gallery.length = 0
     baseViewHostProps.kanban.length = 0
+    useFileSpaceSettings.setState({ bySpace: {} })
     useQuickOpenStore.setState({ sectionsByTab: {} })
     spaceFileChanges.handler = undefined
     getSnapshotMock.mockResolvedValue(snapshot)
@@ -2296,6 +2298,36 @@ describe("SpaceBaseEditor", () => {
       await Promise.resolve()
     })
     expect(revealFileMock).toHaveBeenCalledWith("assets/report.pdf")
+  })
+
+  it("imports attachments beside the Base when configured for this Space", async () => {
+    useFileSpaceSettings.setState({
+      bySpace: {
+        "space-a": {
+          showHiddenFiles: false,
+          showObsidianFolder: false,
+          defaultBaseTemplate: "blank",
+          baseAssetFolder: "base-folder-assets",
+        },
+      },
+    })
+    importFilesMock.mockResolvedValue({
+      canceled: false,
+      imported: [],
+      errors: [],
+    })
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Import attachments")
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(listFilesMock).toHaveBeenCalledWith("projects/assets")
+    expect(importFilesMock).toHaveBeenCalledWith("projects/assets")
   })
 
   it("searches relation candidates through the target Base table", async () => {

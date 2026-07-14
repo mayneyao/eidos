@@ -17,18 +17,20 @@ import {
 export function BaseCreatePopover({
   open,
   initialName,
+  initialTemplate = "blank",
   existingNames,
   onOpenChange,
   onCreate,
 }: {
   open: boolean
   initialName: string
+  initialTemplate?: BaseTemplateId
   existingNames: string[]
   onOpenChange: (open: boolean) => void
   onCreate: (name: string, options: CreateBaseOptions) => Promise<void> | void
 }) {
   const [name, setName] = useState(initialName)
-  const [template, setTemplate] = useState<BaseTemplateId>("blank")
+  const [template, setTemplate] = useState<BaseTemplateId>(initialTemplate)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const nameId = useId()
@@ -36,10 +38,10 @@ export function BaseCreatePopover({
   useEffect(() => {
     if (!open) return
     setName(initialName)
-    setTemplate("blank")
+    setTemplate(initialTemplate)
     setSubmitting(false)
     setError(null)
-  }, [initialName, open])
+  }, [initialName, initialTemplate, open])
 
   const normalizedName = useMemo(() => normalizeBaseFileName(name), [name])
   const submit = async (event: FormEvent) => {
@@ -104,7 +106,7 @@ export function BaseCreatePopover({
         align="end"
         side="bottom"
         sideOffset={4}
-        className="w-[380px] p-0"
+        className="w-[380px] max-w-[calc(100vw-24px)] p-0"
       >
         <form onSubmit={(event) => void submit(event)}>
           <div className="border-b px-4 py-3">

@@ -14,6 +14,7 @@ import {
   Paintbrush,
   Settings as SettingsIcon,
   LayoutTemplate,
+  Table2,
   User,
   Globe,
   Key,
@@ -50,6 +51,7 @@ interface SettingsSidebarProps {
 const FILE_SPACE_SECTIONS = new Set<SettingsSection>([
   "space-general",
   "space-files",
+  "space-base",
   "space-versioning",
   "space-indexes",
 ])
@@ -96,6 +98,13 @@ export function SettingsSidebar({
       id: "space-files",
       title: t("space.settings.fileSpace.files.title", "Files & Obsidian"),
       icon: Files,
+      category: "space",
+      availability: "file",
+    },
+    {
+      id: "space-base",
+      title: t("space.settings.fileSpace.base.title", "Base"),
+      icon: Table2,
       category: "space",
       availability: "file",
     },

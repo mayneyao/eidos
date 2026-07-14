@@ -237,6 +237,8 @@ describe("FileSpaceTree accessibility", () => {
         "test-space": {
           showHiddenFiles: true,
           showObsidianFolder: true,
+          defaultBaseTemplate: "blank",
+          baseAssetFolder: "space-assets",
         },
       },
     })
@@ -247,6 +249,47 @@ describe("FileSpaceTree accessibility", () => {
       includeHidden: true,
       includeObsidian: true,
     })
+  })
+
+  it("preselects the configured template when creating a Base", async () => {
+    useFileSpaceSettings.setState({
+      bySpace: {
+        "test-space": {
+          showHiddenFiles: false,
+          showObsidianFolder: false,
+          defaultBaseTemplate: "tasks",
+          baseAssetFolder: "space-assets",
+        },
+      },
+    })
+    await renderTree()
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="New Base"]')
+        ?.click()
+      await Promise.resolve()
+    })
+
+    const selectedTemplate = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>("button[aria-pressed]")
+    ).find((button) => button.getAttribute("aria-pressed") === "true")
+    expect(selectedTemplate?.textContent).toContain("Task tracker")
+
+    await act(async () => {
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent === "Create Base")
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(createBaseMock).toHaveBeenCalledWith(
+      "Untitled.base",
+      expect.objectContaining({
+        defaultTable: expect.objectContaining({ name: "Tasks" }),
+      })
+    )
   })
 
   it("exposes the selected item and a single roving tab stop", async () => {

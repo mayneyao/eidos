@@ -116,6 +116,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const viewSettings = useFileSpaceSettings((state) => state.bySpace[spaceId])
   const showHiddenFiles = viewSettings?.showHiddenFiles ?? false
   const showObsidianFolder = viewSettings?.showObsidianFolder ?? false
+  const defaultBaseTemplate = viewSettings?.defaultBaseTemplate ?? "blank"
 
   const blockMutationDuringRestore = useCallback(() => {
     if (!restoringVersion) return false
@@ -743,6 +744,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
       <BaseCreatePopover
         open={baseDialogOpen}
         initialName={baseInitialName}
+        initialTemplate={defaultBaseTemplate}
         existingNames={(entriesByDirectory.get(baseParentPath) ?? []).map(
           (entry) => entry.name
         )}

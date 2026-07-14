@@ -14,6 +14,7 @@ import { GlobalSyncSettings } from "./global/global-sync-settings"
 import { DocumentSettings } from "./space/document-settings"
 import { ExtensionSettings } from "./space/extension-settings"
 import { FileSpaceFilesSettings } from "./space/file-space-files-settings"
+import { FileSpaceBaseSettings } from "./space/file-space-base-settings"
 import { FileSpaceIndexesSettings } from "./space/file-space-indexes-settings"
 import { FileSpaceVersioningSettings } from "./space/file-space-versioning-settings"
 import { LegacySpaceMigrationSettings } from "./space/legacy-space-migration-settings"
@@ -30,6 +31,7 @@ import { SETTINGS_CONTENT_BODY_CLASS_NAME } from "./settings-surface"
 const FILE_SPACE_SECTIONS = new Set<SettingsSection>([
   "space-general",
   "space-files",
+  "space-base",
   "space-versioning",
   "space-indexes",
 ])
@@ -59,6 +61,8 @@ export function SettingsContent() {
         return t("space.settings.general")
       case "space-files":
         return t("space.settings.fileSpace.files.title", "Files & Obsidian")
+      case "space-base":
+        return t("space.settings.fileSpace.base.title", "Base")
       case "space-versioning":
         return t("space.settings.fileSpace.versioning.title", "Versioning")
       case "space-indexes":
@@ -106,6 +110,8 @@ export function SettingsContent() {
         return <GeneralSettings />
       case "space-files":
         return <FileSpaceFilesSettings />
+      case "space-base":
+        return <FileSpaceBaseSettings />
       case "space-versioning":
         return <FileSpaceVersioningSettings />
       case "space-indexes":

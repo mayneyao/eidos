@@ -43,6 +43,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useQuickOpenStore } from "@/apps/web-app/store/quick-open-store"
+import { useFileSpaceSettings } from "@/apps/web-app/store/file-space-settings"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -69,6 +70,7 @@ import {
   isOptionalBaseSystemField,
 } from "./base-field-visibility"
 import { BaseFieldPropertyPanel } from "./base-field-property-panel"
+import { baseAssetDirectory } from "./base-file-settings"
 import { BaseKanbanView } from "./base-kanban-view"
 import { baseOpenErrorPresentation } from "./base-open-error"
 import { BaseFormulaEditor } from "./base-formula-editor"
@@ -87,8 +89,6 @@ import { orderedBaseFields } from "./base-view-layout"
 interface SpaceBaseEditorProps {
   filePath: string
 }
-
-const BASE_ATTACHMENT_DIRECTORY = "assets"
 
 type RenameTarget = { kind: "table"; tableId: string; name: string }
 
@@ -176,6 +176,13 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     (state) => state.unregisterSection
   )
   const { currentSpace } = useCurrentSpace()
+  const baseAssetFolder = useFileSpaceSettings(
+    (state) =>
+      (currentSpace?.id
+        ? state.bySpace[currentSpace.id]?.baseAssetFolder
+        : undefined) ?? "space-assets"
+  )
+  const attachmentDirectory = baseAssetDirectory(filePath, baseAssetFolder)
   const {
     reveal,
     list: listFiles,
@@ -612,30 +619,30 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
 
   const ensureAttachmentDirectory = useCallback(async () => {
     try {
-      await listFiles(BASE_ATTACHMENT_DIRECTORY)
+      await listFiles(attachmentDirectory)
     } catch {
       try {
-        await createDirectory(BASE_ATTACHMENT_DIRECTORY)
+        await createDirectory(attachmentDirectory)
       } catch {
-        await listFiles(BASE_ATTACHMENT_DIRECTORY)
+        await listFiles(attachmentDirectory)
       }
     }
-  }, [createDirectory, listFiles])
+  }, [attachmentDirectory, createDirectory, listFiles])
 
   const importBaseFiles = useCallback(async (): Promise<string[]> => {
     await ensureAttachmentDirectory()
-    const result = await importFiles(BASE_ATTACHMENT_DIRECTORY)
+    const result = await importFiles(attachmentDirectory)
     if (result.errors.length > 0) {
       console.warn("Some Base attachments could not be imported", result.errors)
     }
     return result.imported.map((entry) => entry.path)
-  }, [ensureAttachmentDirectory, importFiles])
+  }, [attachmentDirectory, ensureAttachmentDirectory, importFiles])
 
   const importDroppedBaseFiles = useCallback(
     async (files: File[]): Promise<string[]> => {
       if (files.length === 0) return []
       await ensureAttachmentDirectory()
-      const existingNames = (await listFiles(BASE_ATTACHMENT_DIRECTORY)).map(
+      const existingNames = (await listFiles(attachmentDirectory)).map(
         (entry) => entry.name
       )
       const imported: string[] = []
@@ -645,13 +652,13 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           file.name || `attachment-${Date.now()}`
         )
         existingNames.push(name)
-        const path = `${BASE_ATTACHMENT_DIRECTORY}/${name}`
+        const path = `${attachmentDirectory}/${name}`
         await createBinary(path, new Uint8Array(await file.arrayBuffer()))
         imported.push(path)
       }
       return imported
     },
-    [createBinary, ensureAttachmentDirectory, listFiles]
+    [attachmentDirectory, createBinary, ensureAttachmentDirectory, listFiles]
   )
 
   const openBaseFileReference = useCallback((path: string) => {

@@ -1,6 +1,8 @@
 import type { CreateBaseOptions, CreateBaseTableInput } from "@eidos.space/base"
 
-export type BaseTemplateId = "blank" | "tasks"
+import type { FileSpaceBaseTemplate } from "@/apps/web-app/store/file-space-settings"
+
+export type BaseTemplateId = FileSpaceBaseTemplate
 
 const TASK_STATUS_OPTIONS = [
   { id: "not-started", name: "Not started", color: "gray" },
