@@ -7,8 +7,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
+  type SyntheticEvent as ReactSyntheticEvent,
 } from "react"
 import { createPortal } from "react-dom"
 import type {
@@ -51,6 +50,7 @@ interface SpaceFilesTreeProps {
   onExpandedPathsChange: (paths: Set<string>) => void
   onExpand: (path: string) => void
   onImport: (parentPath: string) => void
+  onIntent?: (entry: SpaceFileEntry) => void
   onMove: (entry: SpaceFileEntry, destinationParent: string) => void
   onOpen: (entry: SpaceFileEntry) => void
   onRename: (entry: SpaceFileEntry, destinationPath: string) => void
@@ -74,9 +74,7 @@ function getDirectoryHandle(
   return item?.isDirectory() ? (item as FileTreeDirectoryHandle) : null
 }
 
-function eventTreePath(
-  event: ReactMouseEvent<HTMLElement> | ReactKeyboardEvent<HTMLElement>
-): string | null {
+function eventTreePath(event: ReactSyntheticEvent<HTMLElement>): string | null {
   for (const target of event.nativeEvent.composedPath()) {
     if (!(target instanceof HTMLElement)) continue
     const path = target.dataset.itemPath
@@ -483,6 +481,12 @@ export const SpaceFilesTree = forwardRef<
     "--trees-selected-fg-override": "hsl(var(--sidebar-accent-foreground))",
   } as CSSProperties
 
+  const signalFileIntent = (path: string | null) => {
+    if (!path) return
+    const entry = entryByPathRef.current.get(fromTreePath(path))
+    if (entry?.kind === "file") propsRef.current.onIntent?.(entry)
+  }
+
   return (
     <FileTree
       model={model}
@@ -496,12 +500,18 @@ export const SpaceFilesTree = forwardRef<
         const entry = entryByPathRef.current.get(fromTreePath(path))
         if (entry?.kind === "file") propsRef.current.onOpen(entry)
       }}
+      onFocus={(event) => {
+        signalFileIntent(eventTreePath(event) ?? model.getFocusedPath())
+      }}
       onKeyDown={(event) => {
         if (event.key !== "Enter" && event.key !== " ") return
         const path = eventTreePath(event) ?? model.getFocusedPath()
         if (!path) return
         const entry = entryByPathRef.current.get(fromTreePath(path))
         if (entry?.kind === "file") propsRef.current.onOpen(entry)
+      }}
+      onPointerOver={(event) => {
+        signalFileIntent(eventTreePath(event))
       }}
       renderContextMenu={(item, context) => {
         const entry = entryByPathRef.current.get(fromTreePath(item.path))

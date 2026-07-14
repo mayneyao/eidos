@@ -17,6 +17,11 @@ const moveMock = vi.hoisted(() => vi.fn())
 const navigateMock = vi.hoisted(() => vi.fn())
 const setGlobalSearchOpenMock = vi.hoisted(() => vi.fn())
 const createBaseMock = vi.hoisted(() => vi.fn())
+const preloadSpaceBaseEditorMock = vi.hoisted(() => vi.fn())
+
+vi.mock("./base/space-base-editor-loader", () => ({
+  preloadSpaceBaseEditor: preloadSpaceBaseEditorMock,
+}))
 
 vi.mock("@/apps/web-app/hooks/use-space-base", () => ({
   useSpaceBase: () => ({ create: createBaseMock }),
@@ -149,6 +154,8 @@ describe("FileSpaceTree accessibility", () => {
     createDirectoryMock.mockReset()
     createTextMock.mockReset()
     createBaseMock.mockReset()
+    preloadSpaceBaseEditorMock.mockReset()
+    preloadSpaceBaseEditorMock.mockResolvedValue(() => null)
     moveMock.mockReset()
     createTextMock.mockImplementation(async (path: string) => {
       const created = entry(path, "file")
@@ -340,6 +347,46 @@ describe("FileSpaceTree accessibility", () => {
     act(() => item.focus())
     await press("Enter")
     expect(navigateMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("preloads the Base workspace on file intent only", async () => {
+    currentEntriesByDirectory[""] = [
+      ...currentEntriesByDirectory[""],
+      entry("tasks.base", "file"),
+    ]
+    await renderTree()
+
+    await act(async () => {
+      getTreeItem("root.md").dispatchEvent(
+        new MouseEvent("pointerover", { bubbles: true, composed: true })
+      )
+      await Promise.resolve()
+    })
+    expect(preloadSpaceBaseEditorMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      getTreeItem("tasks.base").dispatchEvent(
+        new MouseEvent("pointerover", { bubbles: true, composed: true })
+      )
+      await Promise.resolve()
+    })
+    expect(preloadSpaceBaseEditorMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("preloads the Base workspace for keyboard navigation", async () => {
+    currentEntriesByDirectory[""] = [
+      ...currentEntriesByDirectory[""],
+      entry("tasks.base", "file"),
+    ]
+    await renderTree()
+
+    await act(async () => {
+      getTreeItem("tasks.base").focus()
+      await Promise.resolve()
+    })
+
+    expect(preloadSpaceBaseEditorMock).toHaveBeenCalledTimes(1)
+    expect(navigateMock).not.toHaveBeenCalledWith("/space-file#tasks.base")
   })
 
   it("creates a note and hands its name to Trees inline renaming", async () => {

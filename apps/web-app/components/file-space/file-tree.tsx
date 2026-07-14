@@ -59,6 +59,7 @@ import {
 import { flushPendingFileWrites } from "./pending-writes"
 import { SpaceFilesTree, type SpaceFilesTreeHandle } from "./trees-file-tree"
 import { BaseCreatePopover } from "./base/base-create-dialog"
+import { preloadSpaceBaseEditor } from "./base/space-base-editor-loader"
 
 interface FileSpaceTreeProps {
   spaceId: string
@@ -723,6 +724,10 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
               }
             }}
             onImport={(parentPath) => void importInto(parentPath)}
+            onIntent={(entry) => {
+              if (!entry.path.toLowerCase().endsWith(".base")) return
+              void preloadSpaceBaseEditor().catch(() => undefined)
+            }}
             onMove={(entry, destinationParent) =>
               void moveInto(entry, destinationParent)
             }
