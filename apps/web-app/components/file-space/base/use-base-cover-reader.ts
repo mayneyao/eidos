@@ -74,15 +74,18 @@ export function createBaseCoverReader(
   const now = options.now ?? Date.now
   const ttlMs = Math.max(0, options.ttlMs ?? DEFAULT_COVER_TTL_MS)
   const entries = new Map<string, CachedCover>()
-  const pendingReads: PendingCoverRead[] = []
+  const pendingReads = new Map<string, PendingCoverRead>()
   let activeReads = 0
   let cachedBytes = 0
   let disposed = false
+  let drainScheduled = false
 
   const drainReads = () => {
-    while (activeReads < maxConcurrentReads && pendingReads.length > 0) {
-      const task = pendingReads.shift()
-      if (!task) return
+    while (activeReads < maxConcurrentReads && pendingReads.size > 0) {
+      const next = pendingReads.entries().next().value
+      if (!next) return
+      const [path, task] = next
+      pendingReads.delete(path)
       if (!task.isCurrent()) {
         task.reject(coverAbortError())
         continue
@@ -103,18 +106,35 @@ export function createBaseCoverReader(
     }
   }
 
+  const scheduleDrain = () => {
+    if (drainScheduled) return
+    drainScheduled = true
+    queueMicrotask(() => {
+      drainScheduled = false
+      drainReads()
+    })
+  }
+
   const readWithLimit = (
     path: string,
     isCurrent: () => boolean
   ): Promise<SpaceBinaryFile> =>
     new Promise((resolve, reject) => {
-      pendingReads.push({ isCurrent, path, reject, resolve })
-      queueMicrotask(drainReads)
+      pendingReads.set(path, { isCurrent, path, reject, resolve })
+      scheduleDrain()
     })
+
+  const cancelPendingRead = (path: string) => {
+    const task = pendingReads.get(path)
+    if (!task) return
+    pendingReads.delete(path)
+    task.reject(coverAbortError())
+  }
 
   const remove = (path: string, entry: CachedCover) => {
     if (entries.get(path) !== entry || entry.references > 0) return false
     entries.delete(path)
+    if (!entry.settled) cancelPendingRead(path)
     if (entry.settled) cachedBytes = Math.max(0, cachedBytes - entry.size)
     if (entry.source) URL.revokeObjectURL(entry.source)
     return true

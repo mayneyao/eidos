@@ -166,6 +166,49 @@ describe("createBaseCoverReader", () => {
     remaining.forEach((lease) => lease.release())
   })
 
+  it("coalesces queued-cover drain scheduling", async () => {
+    const scheduled: Array<() => void> = []
+    const schedule = vi.fn((callback: () => void) => {
+      scheduled.push(callback)
+    })
+    vi.stubGlobal("queueMicrotask", schedule)
+    try {
+      const readBinary = vi.fn(
+        () => new Promise<SpaceBinaryFile>(() => undefined)
+      )
+      const reader = createBaseCoverReader(readBinary, {
+        maxConcurrentReads: 1,
+      })
+      const activeController = new AbortController()
+      const active = reader
+        .acquire("assets/active.png", activeController.signal)
+        .catch(() => undefined)
+      expect(schedule).toHaveBeenCalledTimes(1)
+      scheduled.shift()?.()
+      expect(readBinary).toHaveBeenCalledTimes(1)
+
+      const queued = Array.from({ length: 1_000 }, (_, index) => {
+        const controller = new AbortController()
+        return {
+          controller,
+          acquisition: reader
+            .acquire(`assets/queued-${index}.png`, controller.signal)
+            .catch(() => undefined),
+        }
+      })
+      expect(schedule).toHaveBeenCalledTimes(2)
+
+      activeController.abort()
+      queued.forEach(({ controller }) => controller.abort())
+      await Promise.all([
+        active,
+        ...queued.map(({ acquisition }) => acquisition),
+      ])
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it("drops an aborted queued cover before starting its binary read", async () => {
     let resolveActive: ((file: SpaceBinaryFile) => void) | undefined
     const readBinary = vi.fn(
@@ -191,6 +234,75 @@ describe("createBaseCoverReader", () => {
     lease.release()
     await Promise.resolve()
     expect(readBinary).toHaveBeenCalledTimes(1)
+  })
+
+  it("reclaims a large canceled cover queue without starting stale reads", async () => {
+    let resolveActive: ((file: SpaceBinaryFile) => void) | undefined
+    const readBinary = vi.fn(
+      (path: string) =>
+        new Promise<SpaceBinaryFile>((resolve) => {
+          if (path === "assets/active.png") resolveActive = resolve
+        })
+    )
+    const reader = createBaseCoverReader(readBinary, {
+      maxConcurrentReads: 1,
+    })
+    const active = reader.acquire("assets/active.png")
+    await Promise.resolve()
+
+    const canceled = Array.from({ length: 20_000 }, (_, index) => {
+      const controller = new AbortController()
+      const acquisition = reader
+        .acquire(`assets/canceled-${index}.png`, controller.signal)
+        .catch((error: unknown) => error)
+      controller.abort()
+      return acquisition
+    })
+    await Promise.all(canceled)
+
+    const drainStartedAt = performance.now()
+    resolveActive?.(binary("assets/active.png"))
+    const lease = await active
+    lease.release()
+    await Promise.resolve()
+    const drainDuration = performance.now() - drainStartedAt
+
+    expect(readBinary).toHaveBeenCalledTimes(1)
+    expect(drainDuration).toBeLessThan(50)
+  })
+
+  it("can queue the same cover again immediately after cancellation", async () => {
+    const pending = new Map<string, (file: SpaceBinaryFile) => void>()
+    const readBinary = vi.fn(
+      (path: string) =>
+        new Promise<SpaceBinaryFile>((resolve) => {
+          pending.set(path, resolve)
+        })
+    )
+    const reader = createBaseCoverReader(readBinary, {
+      maxConcurrentReads: 1,
+    })
+    const active = reader.acquire("assets/active.png")
+    await Promise.resolve()
+
+    const controller = new AbortController()
+    const canceled = reader.acquire("assets/reused.png", controller.signal)
+    controller.abort()
+    await expect(canceled).rejects.toMatchObject({ name: "AbortError" })
+    const reused = reader.acquire("assets/reused.png")
+
+    pending.get("assets/active.png")?.(binary("assets/active.png"))
+    const activeLease = await active
+    activeLease.release()
+    await Promise.resolve()
+    expect(readBinary.mock.calls.map(([path]) => path)).toEqual([
+      "assets/active.png",
+      "assets/reused.png",
+    ])
+
+    pending.get("assets/reused.png")?.(binary("assets/reused.png"))
+    const reusedLease = await reused
+    reusedLease.release()
   })
 
   it("does not cache failed reads", async () => {
