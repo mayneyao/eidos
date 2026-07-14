@@ -140,6 +140,18 @@ The field type control is now a shared, searchable Basic/Advanced picker with
 icons, descriptions, keyword matching, and deterministic keyboard selection;
 Base no longer presents field capabilities as an undifferentiated dropdown.
 
+The anchored Fields menu now separates ordinary fields from optional system
+fields. Record ID, Created time, Last edited time, Created by, and Last edited
+by remain hidden by default and read-only when shown. Their visibility is
+stored per view in `properties.visibleSystemFields`, while ordinary field
+visibility continues to use `hiddenFields`; reopening or duplicating a view
+therefore preserves the exact combination without changing the table schema.
+The same visible set is used by Grid, Gallery, and Kanban. System fields are
+also available to Filter and Sort even while hidden, timestamp values use the
+shared localized date-time presentation, and the internal `_id` label is
+presented as Record ID. Runtime persistence tests cover the opaque view
+property and editor wiring tests cover the view update boundary.
+
 Gallery and Kanban now participate in the same persisted view lifecycle as
 Grid. Gallery uses paged server data, responsive card sizing, optional empty
 field suppression, and the shared record inspector. Kanban groups by a Select
@@ -540,6 +552,7 @@ Current parity with the original table views is explicit:
 | Capability                                                | Base status                                                                             | Remaining boundary                                                                                           |
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | Persisted view lifecycle and per-view query/layout        | Automated and native restart/restore accepted                                           | No known v1 gap                                                                                              |
+| Per-view field visibility and read-only system fields     | Grid, Gallery, and Kanban share persisted visibility; system fields filter and sort     | No known v1 gap                                                                                              |
 | Grid column calculations                                  | View-owned, worker-backed aggregates in the existing trailing row                       | No known v1 gap                                                                                              |
 | Gallery field visibility, empty-field hiding, card sizing | Working with virtual infinite scroll and result navigation                              | No known v1 gap                                                                                              |
 | Gallery and Kanban covers                                 | File and URL fields, fit/crop, and empty-field controls working                         | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |

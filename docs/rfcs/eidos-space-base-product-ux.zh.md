@@ -103,6 +103,13 @@ maximum、color 与 label 配置会直接作用到 Grid。删除 option 会在�
 字段类型入口已经替换为共享的 Basic/Advanced 分类 picker，包含图标、说明、关键词搜索和确定性的
 键盘选择；Base 不再把不同能力的字段压进一个无差别下拉列表。
 
+锚定式 Fields 菜单现在会把普通字段与可选系统字段分组。Record ID、Created time、Last edited
+time、Created by 和 Last edited by 默认隐藏，显示后保持只读。系统字段显隐按 view 写入
+`properties.visibleSystemFields`，普通字段继续使用 `hiddenFields`；重开或复制 view 会保留准确组合，
+不会修改 table schema。Grid、Gallery 和 Kanban 共用同一套可见字段；系统字段即使隐藏也可以参与
+Filter 与 Sort，时间戳使用共享的本地化日期时间展示，内部 `_id` 标签统一显示为 Record ID。
+runtime persistence 测试覆盖 opaque view property，editor wiring 测试覆盖 view update 边界。
+
 Gallery 和 Kanban 现在已经接入与 Grid 相同的持久化 view lifecycle。Gallery 使用服务端分页数据、
 响应式 card size、可选的空字段隐藏和共享 record inspector；Kanban 按 Select 字段分组，每组独立
 分页，跨列拖动会持久化为字段修改，也可以直接在目标分组内新增记录。两个 layout 都复用当前 view
@@ -313,15 +320,16 @@ layout；恢复后的仓库状态为 clean。
 
 与原表格 view 的当前能力对齐情况如下：
 
-| 能力                                       | Base 状态                                   | 剩余边界                                                            |
-| ------------------------------------------ | ------------------------------------------- | ------------------------------------------------------------------- |
-| 持久化 view lifecycle 与独立 query/layout  | 自动与原生重启/恢复均已验收                 | v1 暂无已知缺口                                                     |
-| Grid 列统计                                | view 级配置、worker 聚合并复用 trailing row | v1 暂无已知缺口                                                     |
-| Gallery 字段显隐、空字段隐藏、card size    | 二维虚拟无限滚动与结果导航已工作            | v1 暂无已知缺口                                                     |
-| Gallery 与 Kanban cover                    | File/URL、适应/裁切和隐藏空字段均已工作     | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
-| Card actions                               | 可编辑 Inspector 与删除已工作               | file-based Base 的 full-page row document 模型尚未定义              |
-| Kanban Select 分组、计数、折叠、新增、拖动 | 横纵虚拟化、可见列懒加载和无障碍移动已工作  | v1 暂无已知缺口                                                     |
-| Base merge conflict 审阅                   | 原生 row 审阅已验收                         | schema/opaque conflict 按设计使用明确的 whole-file fallback         |
+| 能力                                       | Base 状态                                      | 剩余边界                                                            |
+| ------------------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------- |
+| 持久化 view lifecycle 与独立 query/layout  | 自动与原生重启/恢复均已验收                    | v1 暂无已知缺口                                                     |
+| view 级字段显隐与只读系统字段              | 三种 layout 共用持久化显隐，系统字段可筛选排序 | v1 暂无已知缺口                                                     |
+| Grid 列统计                                | view 级配置、worker 聚合并复用 trailing row    | v1 暂无已知缺口                                                     |
+| Gallery 字段显隐、空字段隐藏、card size    | 二维虚拟无限滚动与结果导航已工作               | v1 暂无已知缺口                                                     |
+| Gallery 与 Kanban cover                    | File/URL、适应/裁切和隐藏空字段均已工作        | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
+| Card actions                               | 可编辑 Inspector 与删除已工作                  | file-based Base 的 full-page row document 模型尚未定义              |
+| Kanban Select 分组、计数、折叠、新增、拖动 | 横纵虚拟化、可见列懒加载和无障碍移动已工作     | v1 暂无已知缺口                                                     |
+| Base merge conflict 审阅                   | 原生 row 审阅已验收                            | schema/opaque conflict 按设计使用明确的 whole-file fallback         |
 
 这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。可移植的 File 与 URL cover
 已经满足 v1 Base 边界；旧 document-content 与 extension-block cover 明确保留在独立 package 之外。
