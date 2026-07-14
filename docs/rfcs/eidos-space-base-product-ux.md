@@ -576,6 +576,7 @@ Current parity with the original table views is explicit:
 | Persisted view lifecycle and per-view query/layout        | Full lifecycle, in-place layout switching, and restart/restore accepted                 | No known v1 gap                                                                                              |
 | Per-view field visibility and read-only system fields     | Grid, Gallery, and Kanban share persisted visibility; system fields filter and sort     | No known v1 gap                                                                                              |
 | Grid column calculations                                  | View-owned, worker-backed aggregates in the existing trailing row                       | No known v1 gap                                                                                              |
+| Base defaults and attachment directory                    | Per-Space template selection and portable relative file paths                           | No known v1 gap                                                                                              |
 | Gallery field visibility, empty-field hiding, card sizing | Working with virtual infinite scroll and result navigation                              | No known v1 gap                                                                                              |
 | Gallery and Kanban covers                                 | File and URL fields, fit/crop, and empty-field controls working                         | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
 | Card actions                                              | Editable inspector and delete working                                                   | A full-page row-document model is not yet defined for file-based Base                                        |
@@ -593,8 +594,13 @@ patterns from the original Eidos table; implementation convenience is not a
 reason to move field configuration, record editing, or view management into a
 modal.
 
-File-Space Settings separates General, Files/Obsidian, Versioning, and derived
-Indexes controls. Legacy-Space Settings also provides server-owned migration
+File-Space Settings separates General, Files/Obsidian, Base, Versioning, and
+derived Indexes controls. Base settings use the same single-layer, Codex-style
+rows to store the per-Space Blank/Task-tracker template preference and whether
+record attachments are copied to the Space-root `assets/` directory or an
+`assets/` directory beside the current Base. The anchored creation flow can
+still override the template, and stored attachment values remain portable
+Space-relative paths. Legacy-Space Settings also provides server-owned migration
 preview, progress, validation, reveal, and open-new-Space actions. Native Space
 Settings layout now uses explicit surface ownership: simple setting rows share
 one Codex-style bordered group, while Account, provider, channel, and other

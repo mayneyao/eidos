@@ -436,6 +436,7 @@ layout；恢复后的仓库状态为 clean。
 | Grid 列统计                                | view 级配置、worker 聚合并复用 trailing row       | v1 暂无已知缺口                                                     |
 | CSV 导入/当前 view 导出                    | 流式 worker、进度/取消和原子输出已工作            | v1 暂无已知缺口                                                     |
 | Base 首次使用                              | 空白表、Task tracker 与 CSV 三条路径均已接通      | v1 暂无已知缺口                                                     |
+| Base 默认设置与附件目录                    | 按 Space 预选模板并写入可移植相对文件路径         | v1 暂无已知缺口                                                     |
 | Base workspace 加载                        | 文件类型级 chunk、稳定 loading 与原位 Retry       | v1 暂无已知缺口                                                     |
 | Gallery 字段显隐、空字段隐藏、card size    | 二维虚拟无限滚动与结果导航已工作                  | v1 暂无已知缺口                                                     |
 | Gallery 与 Kanban cover                    | File/URL、适应/裁切和隐藏空字段均已工作           | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
@@ -449,7 +450,10 @@ Base 日常编辑和配置优先使用单元格内编辑、表头菜单、锚定
 给破坏性确认或必须中断当前工作流的决策。新增交互应先参考并复用原表格已经验证过的编辑方式，
 不应仅为了实现方便把字段配置、记录编辑或 view 管理改成弹窗流程。
 
-file Space Settings 已拆分为 General、Files/Obsidian、Versioning 和派生 Indexes；
+file Space Settings 已拆分为 General、Files/Obsidian、Base、Versioning 和派生 Indexes。
+Base 设置用与其他 Codex 风格设置一致的单层行分组，按 Space 保存新建文件时预选的 Blank/Task
+tracker 模板，以及记录附件复制到 Space 根 `assets/` 或 Base 同目录 `assets/` 的策略。模板仍可在
+锚定式创建流程中临时改选；附件值始终写为 Space 相对路径，因此文件保持可移动、可版本管理；
 legacy Space Settings 也已提供 server-owned migration preview、progress、validation、
 reveal 和 open-new-Space actions。Settings 布局现在使用显式的 surface ownership：
 简单设置行共享一层 Codex 风格分组边框，Account、provider、channel 等已有 Card/List
