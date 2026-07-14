@@ -1,0 +1,74 @@
+---
+title: GitHub 分发
+description: 发布可审查的扩展源码，并把 immutable snapshot 安装进 Space。
+sidebar:
+  order: 7
+  badge: Preview
+---
+
+GitHub 是 distribution source，不是 runtime dependency。Eidos 不会直接执行 mutable branch，
+也不会在正常 activation 期间从网络下载 module。
+
+## Repository 要求
+
+Repository root 包含：
+
+```text
+extension.json
+src/
+assets/           optional
+README.md
+LICENSE
+```
+
+支持第三方 dependency 后，runtime dependency 必须被 lock。Eidos 永远不会执行 install script
+或 package manager lifecycle hook。
+
+## 安装流程
+
+```text
+GitHub URL + requested ref
+          │ resolve immutable commit
+          ▼
+download into private staging directory
+          │ validate manifest, paths, compatibility, and files
+          ▼
+show identity + source + permissions + changed files
+          │ user confirms
+          ▼
+atomically vendor source into .eidos/extensions/<id>/
+          │ write extension.lock.json
+          ▼
+discover as installed, disabled, and untrusted
+```
+
+只有再完成 trust、permission 和 enable 流程，package 才能运行。
+
+## Lock file
+
+`extension.lock.json` 记录安装 provenance，不描述 package behavior：
+
+```json
+{
+  "source": "https://github.com/example/hello-eidos",
+  "requested": "v0.1.0",
+  "resolved": "0123456789abcdef",
+  "integrity": "sha256-..."
+}
+```
+
+Lock file 由 Eidos 管理，并且与 package source 一起进入版本管理。
+
+## 更新
+
+首个版本只提供手动更新。Eidos 会解析新源码、展示 source diff 和 permission diff，并且拒绝静默
+覆盖用户在本地修改的扩展文件。新 digest 得到 trust 后才能激活。
+
+## 卸载
+
+卸载会停止 active runtime，并且把 installed source 作为普通的、Graft 可见的删除处理。Build cache
+异步清理；local setting 和 secret reference 进入可恢复的 grace period，需要另一个明确操作才能永久删除。
+
+## 未来的社区目录
+
+社区目录可以是经过审查的 extension ID 与 GitHub repository 索引，不需要变成另一套 package hosting system。

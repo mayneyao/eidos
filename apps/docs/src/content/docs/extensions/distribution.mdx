@@ -1,0 +1,82 @@
+---
+title: GitHub distribution
+description: Publish reviewable extension source and install an immutable snapshot into a Space.
+sidebar:
+  order: 7
+  badge: Preview
+---
+
+GitHub is a distribution source, not a runtime dependency. Eidos never executes
+an extension directly from a mutable branch or downloads modules during normal
+activation.
+
+## Repository requirements
+
+The repository root contains:
+
+```text
+extension.json
+src/
+assets/           optional
+README.md
+LICENSE
+```
+
+Runtime dependencies must be pinned when third-party dependency support is
+introduced. Install scripts and package-manager lifecycle hooks are never run
+by Eidos.
+
+## Installation flow
+
+```text
+GitHub URL + requested ref
+          │ resolve immutable commit
+          ▼
+download into private staging directory
+          │ validate manifest, paths, compatibility, and files
+          ▼
+show identity + source + permissions + changed files
+          │ user confirms
+          ▼
+atomically vendor source into .eidos/extensions/<id>/
+          │ write extension.lock.json
+          ▼
+discover as installed, disabled, and untrusted
+```
+
+The package becomes runnable only after a separate trust, permission, and enable
+flow.
+
+## Lock file
+
+`extension.lock.json` records installation provenance rather than package
+behavior:
+
+```json
+{
+  "source": "https://github.com/example/hello-eidos",
+  "requested": "v0.1.0",
+  "resolved": "0123456789abcdef",
+  "integrity": "sha256-..."
+}
+```
+
+The lock file is managed by Eidos and versioned with package source.
+
+## Updates
+
+Updates are manual in the first release. Eidos resolves the new source, shows
+source and permission differences, and refuses to overwrite locally modified
+extension files silently. The new digest requires trust before it can activate.
+
+## Uninstall
+
+Uninstall stops active runtimes and removes installed source as a normal Graft-
+visible deletion. Build caches are cleaned asynchronously. Local settings and
+secret references enter a recovery grace period and require a separate action
+to remove permanently.
+
+## Future community directory
+
+A future directory can be a thin, reviewed index of extension IDs and GitHub
+repositories. It does not need to become a second package hosting system.

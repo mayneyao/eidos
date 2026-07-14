@@ -1,0 +1,70 @@
+---
+title: Lifecycle and activation
+description: Keep extension startup lazy, disposable, and tied to the current source digest.
+sidebar:
+  order: 5
+  badge: Preview
+---
+
+Eidos separates discovery, build, and activation. Reading a manifest does not
+execute code, and installing source does not make a package active.
+
+```text
+discovered
+    │ validate manifest + compatibility
+    ▼
+disabled / untrusted ── user trust + enable + grants ──┐
+                                                       ▼
+                                               ready to build
+                                                       │ trigger
+                                                       ▼
+                                                activating
+                                                  │       │
+                                               active   failed
+                                                  │
+                           source/grant/app change │
+                                                  ▼
+                                               stopped
+```
+
+## Derived activation
+
+Most activation events come from contributions:
+
+- Invoking a command activates its worker.
+- Opening a matching file editor activates its UI entrypoint.
+- Showing a Base view activates only that view.
+- Calling an agent tool activates its tool handler.
+
+Packages cannot request unconditional startup in the first delivery. Explicit
+background activation is a privileged capability reserved for a later design.
+
+## Activation contract
+
+```ts
+export function activate(context: ExtensionContext): void | Promise<void>
+export function deactivate(): void | Promise<void>
+```
+
+`context.subscriptions` owns commands, events, timers, and other disposable
+resources. The host disposes them even when activation throws or the worker is
+terminated.
+
+## Source changes
+
+Trust is keyed by canonical ID, source digest, and permission hash. When a
+runtime-relevant file changes, Eidos:
+
+1. terminates the active worker and closes its capability channel;
+2. marks the old build stale;
+3. computes a new digest;
+4. requires trust for that digest before rebuilding and activating.
+
+Rapid saves use generation tokens. Results from an older build generation are
+discarded and can never replace a newer source build.
+
+## Failure behavior
+
+Activation failures are attached to the package state and shown in the
+Extension Manager. A failed package does not disappear, retry forever, or keep
+executing a previous bundle silently.

@@ -1,0 +1,38 @@
+{
+  "$schema": "../../public/schemas/extension-manifest.schema.json",
+  "manifestVersion": 1,
+  "publisher": "example",
+  "name": "hello-eidos",
+  "displayName": "Hello Eidos",
+  "description": "A minimal command contribution for the Eidos extension quickstart.",
+  "version": "0.1.0",
+  "engines": {
+    "eidos": ">=0.34.0"
+  },
+  "entrypoints": {
+    "worker": "src/extension.ts"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "id": "example.hello-eidos.greet",
+        "title": "Greet from Eidos"
+      }
+    ],
+    "menus": {
+      "files/context": [
+        {
+          "command": "example.hello-eidos.greet",
+          "when": "resourceExtname == .md"
+        }
+      ]
+    }
+  },
+  "permissions": {
+    "files": {
+      "read": ["**/*.md"],
+      "write": []
+    },
+    "network": []
+  }
+}

@@ -1,0 +1,48 @@
+---
+title: Extension manifest
+description: Versioning and validation rules for extension.json.
+sidebar:
+  order: 2
+  badge: Preview
+---
+
+The canonical machine-readable contract is
+[`extension-manifest.schema.json`](/schemas/extension-manifest.schema.json).
+
+## Contract status
+
+| Property | Value |
+| --- | --- |
+| Manifest version | `1` |
+| Stability | Design preview |
+| Unknown fields | Rejected |
+| Identity | Derived from `publisher.name` |
+| Activation | Derived from contributions |
+| Permissions | Declared maximum; grants are local |
+
+The schema is intentionally strict. A future additive capability that cannot be
+represented safely will require a new manifest version rather than changing the
+meaning of an existing field silently.
+
+## Use in an editor
+
+Add `$schema` to the root object:
+
+```json
+{
+  "$schema": "https://docs.eidos.space/schemas/extension-manifest.schema.json",
+  "manifestVersion": 1
+}
+```
+
+## Validation order
+
+1. Parse JSON and reject duplicate keys.
+2. Validate against the manifest schema.
+3. Derive the canonical package ID.
+4. Validate contribution IDs and entrypoint paths.
+5. Check `engines.eidos` against the running host.
+6. Calculate source and permission digests.
+7. Detect package identity conflicts in the Space.
+
+Validation never executes package code or package-manager scripts.

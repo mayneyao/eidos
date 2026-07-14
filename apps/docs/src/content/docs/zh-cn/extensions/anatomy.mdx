@@ -1,0 +1,54 @@
+---
+title: Package 结构
+description: 理解 distribution source、installed source、build cache 和 local state。
+sidebar:
+  order: 3
+  badge: Preview
+---
+
+Eidos 会把用户可以审查和版本管理的文件，与宿主必须重新生成或在本地保护的文件分开。
+
+```text
+GitHub repository 或 local directory
+              │ resolve + validate
+              ▼
+.eidos/extensions/<publisher.name>/       tracked source
+              │ build for source digest
+              ▼
+.eidos/cache/extensions/<id>/<digest>/    ignored cache
+              │ activate with grants
+              ▼
+Worker + sandboxed iframe                 ephemeral runtime
+              │ settings and secrets
+              ▼
+.eidos/state/extensions.sqlite3           ignored local state
+```
+
+## Installed source
+
+扩展目录只包含可以审查的 package material：
+
+- `extension.json`
+- `extension.lock.json`
+- 源码
+- 静态资源
+- 支持第三方依赖后使用的 dependency metadata 和 lock file
+
+目录名称使用派生的 extension ID：`publisher.name`。Identity 来自 Manifest；GitHub owner、
+repository name 和 folder slug 只是 provenance，不能静默改变 identity。
+
+## Build cache
+
+Build 由 source digest 和 host runtime ABI 寻址。Cache 永远不是权威数据，删除后只会触发重建。
+应用升级可以让 ABI 失效，但不会改变同一份源码的 trust。
+
+## Local state
+
+Trust record、grant、enablement、crash information、device-scoped setting 和 secret reference
+保持在本地。即使这个数据库丢失，系统也只能把源码重新发现为 disabled 和 untrusted，不能因为
+缓存 bundle 仍然存在就自动执行。
+
+## 未来的 portable setting
+
+Manifest 为 `space`、`device` 和 `secret` 三种 configuration scope 预留契约。Space-scoped
+setting 会放在 package 源码之外，避免更新扩展时覆盖用户配置。

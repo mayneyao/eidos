@@ -1,0 +1,59 @@
+---
+title: Package anatomy
+description: Understand distribution source, installed source, build cache, and local state.
+sidebar:
+  order: 3
+  badge: Preview
+---
+
+Eidos separates the files a user can review and version from the files the host
+must regenerate or protect locally.
+
+```text
+GitHub repository or local directory
+              │ resolve + validate
+              ▼
+.eidos/extensions/<publisher.name>/       tracked source
+              │ build for source digest
+              ▼
+.eidos/cache/extensions/<id>/<digest>/    ignored cache
+              │ activate with grants
+              ▼
+Worker + sandboxed iframe                 ephemeral runtime
+              │ settings and secrets
+              ▼
+.eidos/state/extensions.sqlite3           ignored local state
+```
+
+## Installed source
+
+The extension directory contains only reviewable package material:
+
+- `extension.json`
+- `extension.lock.json`
+- source files
+- static assets
+- dependency metadata and lock files, when supported
+
+The folder name is the derived extension ID: `publisher.name`. Identity comes
+from the manifest; GitHub owner, repository name, and folder slug are provenance
+and must never silently change identity.
+
+## Build cache
+
+Builds are addressed by the source digest and host runtime ABI. A cache entry is
+never authoritative: deleting it only causes a rebuild. An app upgrade may
+invalidate the ABI without changing extension trust.
+
+## Local state
+
+Trust records, grants, enablement, crash information, device-scoped settings,
+and secret references remain local. Losing this database must rediscover source
+as disabled and untrusted—it must never auto-run an extension because a cached
+bundle still exists.
+
+## Future portable settings
+
+The manifest reserves configuration scopes for `space`, `device`, and `secret`.
+Space-scoped settings will be stored outside package source so updating an
+extension cannot overwrite user configuration.

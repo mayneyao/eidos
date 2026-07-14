@@ -1,0 +1,47 @@
+---
+title: 权限与信任
+description: 理解 source trust、capability grant 和 runtime isolation。
+sidebar:
+  order: 6
+  badge: Preview
+---
+
+扩展边界必须能够处理从 GitHub 下载的代码。Source review 可以提高信任，但它不是运行时安全边界。
+
+## 三个独立决定
+
+1. **信任 source digest。** 用户接受已经审查的、确切的 runtime-relevant 文件。
+2. **授予 capability。** 用户批准 Manifest 请求的 file pattern、network origin、setting scope
+   或其他宿主操作。
+3. **启用 package。** 用户决定这个 package 是否可以在当前安装中激活。
+
+修改源码或请求的权限都会让对应 trust decision 失效。通过 Graft 回滚到完全相同且曾被信任的 digest
+时，可以复用原来的 trust record。
+
+## Runtime isolation
+
+- 非视觉代码运行在每个 package 独立且按需创建的 Web Worker 中。
+- UI 运行在 sandboxed iframe surface 中。
+- 独立的 `MessagePort` 传递 capability request。
+- 宿主会为每次请求验证 package identity、当前 grant、path scope、参数和 runtime generation。
+- 扩展永远不会得到原始 `DataSpace`、SQL connection、Electron bridge、filesystem handle 或完整 secret collection。
+
+## 文件权限
+
+Pattern 相对于 Space root。`.eidos` 和 `.graft` 内部路径默认拒绝访问，除非专用 host capability
+明确处理。允许读取 `notes/**` 不代表允许写入，也不代表可以访问相邻目录。
+
+## 网络权限
+
+Network grant 使用显式 HTTPS origin，并且每次 redirect 都重新验证。扩展不会继承 Eidos renderer
+的 cookie、host authentication 或 local network access。
+
+## Secret
+
+扩展保存的是用户管理 secret 的引用。宿主只在具体操作需要时解析值；secret 不会被复制到 package
+源码、Graft 历史、日志或宽泛的初始化 payload 中。
+
+## 恢复
+
+Eidos 必须能够在禁用全部第三方 package 的状态下启动。扩展 crash 或 hang 时，宿主可以终止它，
+而不需要关闭 Space 或破坏其他扩展 runtime。

@@ -1,0 +1,44 @@
+---
+title: 扩展
+description: 在不绕过宿主权限的前提下，为 Space 增加命令、编辑器、视图和工具。
+sidebar:
+  order: 1
+  badge:
+    text: Preview
+    variant: caution
+banner:
+  content: "<strong>Design preview：</strong>file-based 扩展运行时仍在实现中。本模块定义目标开发契约，当前稳定版 Eidos 尚不能运行这些扩展。"
+---
+
+Eidos 扩展是安装在 Space 内的自包含 package。Manifest 会在任何扩展代码执行之前告诉 Eidos
+这个 package 提供哪些 contribution。运行时代码获得的是 capability-based SDK，而不是 Electron、
+Node.js、SQLite 或宿主文件系统的原始访问权限。
+
+## 扩展可以提供什么
+
+| Contribution | 用途 | 首期交付 |
+| --- | --- | --- |
+| `commands` | 可放入菜单和命令面板的具名操作 | 是 |
+| `menus` | 把 command 放入上下文菜单 | 是 |
+| `fileEditors` | 根据文件 pattern 或 media type 选择编辑器和预览器 | 是 |
+| `folderViews` | 面向文件夹的专用视图 | 后续 |
+| `baseViews` | Gallery、kanban、timeline 等 Base 视图 | 后续 |
+| `agentTools` | 可由 Agent 调用且经过权限检查的工具 | 后续 |
+| `configuration` | 由宿主渲染并具有明确存储 scope 的设置 | 后续 |
+
+旧版 `FileAction`、`DocAction` 和 `TableAction` 会被归一化为 command 与 menu placement，
+不再拥有单独的 package runtime。
+
+## 开发路径
+
+1. 完成[五分钟 Quickstart](/zh-cn/extensions/quickstart/)。
+2. 理解[package 结构](/zh-cn/extensions/anatomy/)。
+3. 在 [Manifest](/zh-cn/extensions/manifest/) 中声明 contribution。
+4. 正确处理[生命周期与激活](/zh-cn/extensions/lifecycle/)。
+5. 阅读[安全模型](/zh-cn/extensions/security/)。
+6. 准备通过 [GitHub 分发](/zh-cn/extensions/distribution/) package。
+
+## 核心不变量
+
+安装和执行是两个不同决定。Package 可以已经存在于 Space 中并且被 Graft 看到，但仍然可能因为
+untrusted、不兼容、缺少权限或者构建失败而保持禁用。

@@ -1,49 +1,36 @@
-# Eidos Documentation
+# Eidos Developer Documentation
 
-## 🚀 Project Structure
+This is the current documentation site for Eidos. It uses Astro and Starlight
+and is published at [docs.eidos.space](https://docs.eidos.space).
 
-Inside of your Astro + Starlight project, you'll see the following folders and files:
+The previous database-backed documentation is preserved in
+`apps/legacy-docs` and published separately at
+[legacy.docs.eidos.space](https://legacy.docs.eidos.space).
 
-```
-.
-├── public/
-├── src/
-│   ├── assets/
-│   ├── content/
-│   │   ├── docs/
-│   └── content.config.ts
-├── astro.config.mjs
-├── package.json
-└── tsconfig.json
-```
+## Content principles
 
-Starlight looks for `.md` or `.mdx` files in the `src/content/docs/` directory. Each file is exposed as a route based on its file name.
+- Document the file-based Eidos architecture, not the legacy database model.
+- Mark proposed or unavailable APIs as **Design preview**.
+- Keep examples small, complete, and backed by files under `examples/`.
+- Use stable headings and explicit links so developers and agents can navigate
+  the documentation reliably.
+- Update English and Simplified Chinese versions together for foundational and
+  extension documentation.
 
-Images can be added to `src/assets/` and embedded in Markdown with a relative link.
+## Commands
 
-Static assets, like favicons, can be placed in the `public/` directory.
+Run commands from the repository root:
 
-## 🧞 Commands
+| Command                  | Action                                       |
+| ------------------------ | -------------------------------------------- |
+| `pnpm dev:docs`          | Start the current documentation site         |
+| `pnpm build:docs`        | Validate examples and build the current site |
+| `pnpm dev:legacy-docs`   | Start the archived site                      |
+| `pnpm build:legacy-docs` | Build the archived site                      |
 
-All commands are run from the root of the project, from a terminal:
+## Agent entry points
 
-| Command                | Action                                           |
-| :--------------------- | :----------------------------------------------- |
-| `pnpm install`         | Installs dependencies                            |
-| `pnpm dev`             | Starts local dev server at `localhost:4321`      |
-| `pnpm build`           | Build your production site to `./dist/`          |
-| `pnpm preview`         | Preview your build locally, before deploying     |
-| `pnpm deploy`          | Deploy to production environment                 |
-| `pnpm deploy:preview`  | Deploy to preview environment                    |
-| `pnpm astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `pnpm astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Check out [Starlight's docs](https://starlight.astro.build/), read [the Astro documentation](https://docs.astro.build), or jump into the [Astro Discord server](https://astro.build/chat).
-
-## 📚 Contributing
-
-- [General Contributing Guide](https://github.com/mayneyao/eidos/blob/dev/.github/CONTRIBUTING.md)
-- [Main Project README](https://github.com/mayneyao/eidos/blob/dev/README.md)
-- [Eidos Documentation Site](https://docs.eidos.space)
+- `/llms.txt` contains the canonical navigation map.
+- `/llms-full.txt` contains the compact extension development contract.
+- `/schemas/extension-manifest.schema.json` contains the machine-readable
+  extension manifest schema.

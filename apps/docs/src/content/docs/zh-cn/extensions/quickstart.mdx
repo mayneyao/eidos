@@ -1,0 +1,108 @@
+---
+title: 五分钟 Quickstart
+description: 创建最小的 file-based Eidos extension package。
+sidebar:
+  order: 2
+  badge:
+    text: Preview
+    variant: caution
+banner:
+  content: "<strong>Design preview：</strong>当前可以审查扩展源码结构，但稳定版尚未提供安装命令和运行时。"
+---
+
+本指南创建一个可以出现在 Markdown 文件右键菜单中的 command。完整源码位于
+[`apps/docs/examples/hello-eidos`](https://github.com/mayneyao/eidos/tree/dev/apps/docs/examples/hello-eidos)。
+
+## 1. 创建 package
+
+```text
+hello-eidos/
+├── extension.json
+└── src/
+    └── extension.ts
+```
+
+`extension.json` 是唯一必需的元数据文件：
+
+```json
+{
+  "$schema": "https://docs.eidos.space/schemas/extension-manifest.schema.json",
+  "manifestVersion": 1,
+  "publisher": "example",
+  "name": "hello-eidos",
+  "displayName": "Hello Eidos",
+  "version": "0.1.0",
+  "engines": { "eidos": ">=0.34.0" },
+  "entrypoints": { "worker": "src/extension.ts" },
+  "contributes": {
+    "commands": [
+      {
+        "id": "example.hello-eidos.greet",
+        "title": "Greet from Eidos"
+      }
+    ],
+    "menus": {
+      "files/context": [
+        {
+          "command": "example.hello-eidos.greet",
+          "when": "resourceExtname == .md"
+        }
+      ]
+    }
+  },
+  "permissions": {
+    "files": { "read": ["**/*.md"], "write": [] },
+    "network": []
+  }
+}
+```
+
+## 2. 实现 activation
+
+```ts
+import type { ExtensionContext } from "@eidos.space/extension-sdk"
+
+export function activate(context: ExtensionContext) {
+  context.subscriptions.add(
+    context.commands.register("example.hello-eidos.greet", async (resource) => {
+      const text = await context.space.files.readText(resource.path)
+      context.window.showNotice(
+        `Hello from ${resource.path} (${text.length} characters)`,
+      )
+    }),
+  )
+}
+```
+
+Command discovery 由宿主负责。只有用户调用 command 时才会激活扩展；扩展停止时，注册过的资源
+会被统一 dispose。
+
+## 3. 安装前验证
+
+在 Design preview 阶段，可以验证仓库内示例：
+
+```bash
+pnpm --filter docs check:examples
+```
+
+未来的安装器会在把源码复制进 Space 前执行相同的 Manifest 和 entrypoint 检查。
+
+## 4. 目标安装布局
+
+用户确认后，package 会被 vendor 到：
+
+```text
+<space>/.eidos/extensions/example.hello-eidos/
+├── extension.json
+├── extension.lock.json
+└── src/extension.ts
+```
+
+Lock file 记录 GitHub URL、requested ref、resolved commit 和源码完整性摘要。Build output 和
+runtime state 不会写入这个目录。
+
+## 5. 下一步
+
+- [Package 结构](/zh-cn/extensions/anatomy/)解释 source、cache 和 state。
+- [Manifest](/zh-cn/extensions/manifest/)定义 identity 与 contribution。
+- [安全模型](/zh-cn/extensions/security/)解释为什么安装不会自动启用 package。

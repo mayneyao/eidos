@@ -1,17 +1,40 @@
 ---
-title: 欢迎来到 Eidos
-description: 在这里，我们揭开面纱，向您展示事物的真正工作原理。
+title: 使用 Eidos 构建
+description: 面向 file-based Eidos 平台的开发者文档。
 template: splash
 hero:
-  tagline: 把这想象成看汽车的引擎盖下面。我们不是在教您开车——那是用户手册的作用。我们在向您展示引擎是如何工作的，为什么我们做出了某些选择，以及您的数据是如何存储的。因为透明度不仅仅是锦上添花，当您将最重要的信息托付给某个系统时，透明度是必不可少的。
+  tagline: 基于 Space、文件、Base、版本历史和 capability-based 扩展运行时，构建 local-first 工具。
   image:
     file: ../../../assets/logo.png
   actions:
-    - text: 开始了解 Eidos
-      link: /zh-cn/concepts/what-is-eidos
+    - text: 构建第一个扩展
+      link: /zh-cn/extensions/quickstart/
       icon: right-arrow
-    - text: 返回 eidos.space
-      link: https://eidos.space
-      icon: external
+    - text: 理解平台
+      link: /zh-cn/concepts/
+      icon: open-book
       variant: minimal
 ---
+
+import { Card, CardGrid } from "@astrojs/starlight/components"
+
+<CardGrid>
+  <Card title="从 Space 开始" icon="rocket">
+    了解 Eidos 如何把一个目录作为文件、Base、版本历史和扩展源码的持久载体。
+  </Card>
+  <Card title="开发扩展" icon="puzzle">
+    从最小 package 开始，声明 contribution，并且只使用用户授予的能力。
+  </Card>
+  <Card title="自动化工作流" icon="random">
+    使用 CLI、Space API 和 agent tools，同时保持 file-based 数据模型的边界。
+  </Card>
+  <Card title="查阅稳定契约" icon="document">
+    在统一的参考文档中查询 Manifest Schema、SDK、兼容性规则和错误语义。
+  </Card>
+</CardGrid>
+
+:::note[架构迁移中]
+Eidos 正在从数据库驱动的应用模型转向 file-based Space。尚未完成实现的 API
+会明确标记为 **Design preview**，旧系统文档继续保留在
+[Legacy Docs](https://legacy.docs.eidos.space/zh-cn/) 中。
+:::

@@ -1,0 +1,110 @@
+---
+title: Five-minute quickstart
+description: Create the smallest file-based Eidos extension package.
+sidebar:
+  order: 2
+  badge:
+    text: Preview
+    variant: caution
+banner:
+  content: "<strong>Design preview:</strong> authoring files are stable enough to review, but installation and runtime commands are not available in stable builds yet."
+---
+
+This guide creates a command that can appear in the context menu for Markdown
+files. The complete source is stored in
+[`apps/docs/examples/hello-eidos`](https://github.com/mayneyao/eidos/tree/dev/apps/docs/examples/hello-eidos).
+
+## 1. Create the package
+
+```text
+hello-eidos/
+├── extension.json
+└── src/
+    └── extension.ts
+```
+
+`extension.json` is the only required metadata file:
+
+```json
+{
+  "$schema": "https://docs.eidos.space/schemas/extension-manifest.schema.json",
+  "manifestVersion": 1,
+  "publisher": "example",
+  "name": "hello-eidos",
+  "displayName": "Hello Eidos",
+  "version": "0.1.0",
+  "engines": { "eidos": ">=0.34.0" },
+  "entrypoints": { "worker": "src/extension.ts" },
+  "contributes": {
+    "commands": [
+      {
+        "id": "example.hello-eidos.greet",
+        "title": "Greet from Eidos"
+      }
+    ],
+    "menus": {
+      "files/context": [
+        {
+          "command": "example.hello-eidos.greet",
+          "when": "resourceExtname == .md"
+        }
+      ]
+    }
+  },
+  "permissions": {
+    "files": { "read": ["**/*.md"], "write": [] },
+    "network": []
+  }
+}
+```
+
+## 2. Implement activation
+
+```ts
+import type { ExtensionContext } from "@eidos.space/extension-sdk"
+
+export function activate(context: ExtensionContext) {
+  context.subscriptions.add(
+    context.commands.register("example.hello-eidos.greet", async (resource) => {
+      const text = await context.space.files.readText(resource.path)
+      context.window.showNotice(
+        `Hello from ${resource.path} (${text.length} characters)`,
+      )
+    }),
+  )
+}
+```
+
+The host owns command discovery. Activation runs only when the command is
+invoked, and every registered resource is disposed when the extension stops.
+
+## 3. Validate before installation
+
+During this design-preview phase, validate the example from the repository:
+
+```bash
+pnpm --filter docs check:examples
+```
+
+The future installer will perform the same manifest and entrypoint checks
+before copying source into the Space.
+
+## 4. Target installation layout
+
+After user confirmation, installation will vendor the package into:
+
+```text
+<space>/.eidos/extensions/example.hello-eidos/
+├── extension.json
+├── extension.lock.json
+└── src/extension.ts
+```
+
+The lock file records the GitHub URL, requested ref, resolved commit, and source
+integrity digest. Build output and runtime state do not live in this directory.
+
+## 5. What to read next
+
+- [Package anatomy](/extensions/anatomy/) explains source, cache, and state.
+- [Manifest](/extensions/manifest/) defines identity and contributions.
+- [Security](/extensions/security/) explains why installation does not enable a package.

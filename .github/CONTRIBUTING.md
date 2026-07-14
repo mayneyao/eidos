@@ -60,6 +60,7 @@ To contribute to the documentation website ([docs.eidos.space](https://docs.eido
 - The documentation project is located in `apps/docs/`
 - Built with Astro and Starlight
 - See the [documentation README](https://github.com/mayneyao/eidos/blob/dev/apps/docs/README.md) for setup instructions
+- The archived database-backed documentation is preserved in `apps/legacy-docs/`; do not add new platform documentation there
 
 ### Translations
 

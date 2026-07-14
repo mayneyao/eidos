@@ -1,0 +1,41 @@
+---
+title: Extension SDK
+description: 暴露给扩展 worker 和 UI 的 capability-oriented namespace。
+sidebar:
+  order: 3
+  badge: Preview
+---
+
+未来的 `@eidos.space/extension-sdk` package 是第三方 file-based extension 唯一支持的宿主边界，
+不会重新导出旧版 `DataSpace` object。
+
+## Worker context
+
+| Namespace | 用途 | Permission 示例 |
+| --- | --- | --- |
+| `context.commands` | 注册已经声明的 command handler | Command 必须存在于 Manifest |
+| `context.space.files` | 读取、写入、stat 和枚举 Space 文件 | `files.read`、`files.write` |
+| `context.window` | Notice、prompt 和宿主代理的 navigation | 破坏性 UI 需要 user gesture |
+| `context.storage` | Device-scoped 或 Space-scoped value | 声明的 configuration scope |
+| `context.secrets` | 解析具名 secret reference | 声明的 secret slot |
+| `context.network` | 发起宿主代理的 HTTPS request | 精确批准的 origin |
+| `context.subscriptions` | 拥有 disposable runtime resource | 无 |
+
+## UI context
+
+UI contribution 运行在 sandboxed frame 中，只获得 serializable view model、theme token、
+localization helper 和 capability channel。它不会共享宿主 React tree，也不能访问 surface 之外的 DOM。
+
+## Error contract
+
+Capability failure 使用结构化错误码：
+
+| Code | 含义 |
+| --- | --- |
+| `CAPABILITY_NOT_DECLARED` | Manifest 没有请求这个操作。 |
+| `CAPABILITY_NOT_GRANTED` | 用户尚未授予请求的 scope。 |
+| `PATH_OUT_OF_SCOPE` | 文件路径不在批准的 Space pattern 中。 |
+| `RUNTIME_STALE` | 请求执行期间源码或 grant 已经变化。 |
+| `EXTENSION_STOPPED` | Worker 或 UI runtime 已经终止。 |
+
+最终 package API 会与第一个真正可执行的 Quickstart 一起发布，文档不会宣称一个无法安装的 runtime 已经可用。

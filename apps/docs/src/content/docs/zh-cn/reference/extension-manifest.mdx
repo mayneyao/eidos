@@ -1,0 +1,47 @@
+---
+title: Extension Manifest
+description: "extension.json 的版本与验证规则。"
+sidebar:
+  order: 2
+  badge: Preview
+---
+
+规范的机器可读契约是
+[`extension-manifest.schema.json`](/schemas/extension-manifest.schema.json)。
+
+## Contract 状态
+
+| 属性 | 值 |
+| --- | --- |
+| Manifest version | `1` |
+| 稳定性 | Design preview |
+| 未知字段 | 拒绝 |
+| Identity | 从 `publisher.name` 派生 |
+| Activation | 从 contribution 派生 |
+| Permission | 声明最大范围；grant 保持在本地 |
+
+Schema 有意保持严格。未来无法安全表示的新增 capability 会要求新的 manifest version，而不是
+静默改变现有字段的含义。
+
+## 在编辑器中使用
+
+在 root object 中加入 `$schema`：
+
+```json
+{
+  "$schema": "https://docs.eidos.space/schemas/extension-manifest.schema.json",
+  "manifestVersion": 1
+}
+```
+
+## 验证顺序
+
+1. 解析 JSON，并拒绝重复 key。
+2. 根据 Manifest Schema 验证。
+3. 派生 canonical package ID。
+4. 验证 contribution ID 和 entrypoint path。
+5. 根据当前宿主检查 `engines.eidos`。
+6. 计算 source digest 和 permission digest。
+7. 检查 Space 中的 package identity conflict。
+
+验证过程不会执行 package code 或 package manager script。

@@ -1,0 +1,72 @@
+---
+title: Manifest
+description: 声明 identity、compatibility、entrypoint、contribution 和 permission。
+sidebar:
+  order: 4
+  badge: Preview
+---
+
+`extension.json` 是权威 package contract。Eidos 不需要执行扩展代码就能解析它，因此宿主可以
+安全地展示 command、选择 editor、审查 permission，并拒绝不兼容的 package。
+
+编辑器和验证工具应使用机器可读的
+[Extension Manifest Schema](/schemas/extension-manifest.schema.json)。
+
+## Identity
+
+| 字段 | 必需 | 含义 |
+| --- | --- | --- |
+| `manifestVersion` | 是 | Manifest 格式版本；版本 `1` 是 Design preview contract。 |
+| `publisher` | 是 | 稳定的小写 publisher namespace。 |
+| `name` | 是 | 稳定的小写 package name。 |
+| `displayName` | 是 | 可以修改的人类可读名称。 |
+| `version` | 是 | Package 的 semantic version。 |
+
+Canonical ID 是 `${publisher}.${name}`。Command 和其他全局具名 contribution 必须以这个 ID 开头。
+
+## Compatibility 与 entrypoint
+
+构建前会检查 `engines.eidos` semantic-version range。`entrypoints` 显式声明代码入口：
+
+- `worker`：command 和非视觉 runtime code。
+- `ui`：在 sandboxed UI surface 中创建的 component。
+
+Entrypoint 必须位于 package 目录内部。Path traversal、absolute path、Node built-in 和非 literal
+dynamic import 都会被拒绝。
+
+## Contribution
+
+Contribution 是声明式数据。宿主可以在不激活 worker 的情况下索引 command，也可以在不加载
+UI bundle 的情况下把 file editor 放入 **Reopen with**。
+
+Menu condition 使用宿主解析的表达式子集，例如：
+
+```text
+resourceExtname == .md && resourceScheme == space
+```
+
+Condition 是数据，宿主永远不会把它作为 JavaScript 执行。
+
+## Permission
+
+Permission 描述 package 最多可以请求哪些 capability，它本身不会授予访问权。
+
+```json
+{
+  "files": {
+    "read": ["notes/**/*.md"],
+    "write": ["notes/generated/**"]
+  },
+  "network": ["https://api.example.com"]
+}
+```
+
+即使 extension version 没有改变，新的 permission set 也会改变 permission hash，并要求用户重新审查。
+
+## 验证规则
+
+- Manifest version 1 会拒绝未知字段。
+- 重复的 command 或 editor ID 会让 package 无效。
+- 两个 package 使用同一个 canonical ID 时，两者都被阻止，直到冲突被解决。
+- 第三方 package 不能使用保留的 `eidos` publisher。
+- 无效或不支持的 Manifest 不会 fallback 到旧 bundle 继续运行。

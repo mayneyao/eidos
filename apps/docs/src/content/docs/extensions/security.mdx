@@ -1,0 +1,57 @@
+---
+title: Permissions and trust
+description: Understand source trust, capability grants, and runtime isolation.
+sidebar:
+  order: 6
+  badge: Preview
+---
+
+The extension boundary is designed for code downloaded from GitHub. Source
+review improves trust, but it is not the runtime security boundary.
+
+## Three independent decisions
+
+1. **Trust the source digest.** The user accepts the exact runtime-relevant
+   files that were reviewed.
+2. **Grant capabilities.** The user approves file patterns, network origins,
+   settings scopes, or other host operations requested by the manifest.
+3. **Enable the package.** The user chooses whether the package may activate in
+   this installation.
+
+Changing source or requested permissions invalidates the corresponding trust
+decision. Rolling back through Graft to an exactly trusted digest may reuse its
+existing trust record.
+
+## Runtime isolation
+
+- Non-visual code runs in a per-package lazy Web Worker.
+- UI runs in sandboxed iframe surfaces.
+- A dedicated `MessagePort` carries capability requests.
+- The host validates package identity, current grants, path scope, arguments,
+  and runtime generation for every request.
+- Extensions never receive a raw `DataSpace`, SQL connection, Electron bridge,
+  filesystem handle, or complete secret collection.
+
+## File permissions
+
+Patterns are relative to the Space root. Internal `.eidos` and `.graft` paths
+are denied unless a dedicated host capability explicitly handles them. A grant
+to read `notes/**` does not imply write access or access to sibling directories.
+
+## Network permissions
+
+Network grants use explicit HTTPS origins. Redirects are rechecked at every
+hop. Cookies, host authentication, and local network access are not inherited
+from the Eidos renderer.
+
+## Secrets
+
+Extensions store references to user-managed secrets. The host resolves a value
+only for the operation that needs it; secrets are never copied into package
+source, Graft history, logs, or broad initialization payloads.
+
+## Recovery
+
+Eidos must be able to start with all third-party packages disabled. A crashing
+or hanging extension can be terminated without closing the Space or corrupting
+other extension runtimes.

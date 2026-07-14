@@ -1,0 +1,47 @@
+---
+title: Core concepts
+description: The durable concepts behind file-based Eidos.
+sidebar:
+  order: 1
+---
+
+The platform is organized around a small set of durable concepts. UI features
+and extension APIs should build on these concepts instead of introducing a
+second data model.
+
+## Space
+
+A Space is the root directory the user opens. Paths exposed to extensions are
+always relative to this root. Private implementation directories such as
+`.eidos` and `.graft` are not ordinary user paths.
+
+## Files
+
+Files are the default interoperability boundary. Eidos chooses an editor by
+media type and registered file editor contributions. Text files without a
+specialized editor fall back to a simple text viewer; binary files require an
+explicit handler.
+
+## Bases
+
+A Base combines structured records, fields, sheets, and views. Grid, gallery,
+and kanban are views over the same underlying records—not separate copies of
+the data.
+
+## Version history
+
+Graft records changes and staged snapshots. Eidos presents these operations as
+Changes, Stage, Commit, Diff, and Discard while keeping Graft storage details
+outside extension APIs.
+
+## Extensions
+
+Extensions are Space-scoped packages. Their source can be versioned with the
+Space, while trust decisions, build caches, secrets, and runtime state remain
+local. Extensions do not receive raw Electron, Node.js, SQLite, or filesystem
+access.
+
+## Local-first is an invariant
+
+Installed source and Space data must keep working offline. Network access is a
+declared capability, not an implicit requirement for loading an extension.

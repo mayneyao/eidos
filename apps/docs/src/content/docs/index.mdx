@@ -1,17 +1,45 @@
 ---
-title: Welcome to Eidos
-description: This is where we pull back the curtain and show you how things actually work.
+title: Build with Eidos
+description: Developer documentation for the file-based Eidos platform.
 template: splash
 hero:
-  tagline: Think of this as looking under the hood of a car. We're not teaching you to drive—that's what the user manual is for. We're showing you how the engine works, why we made certain choices, and how your data is stored. Because transparency isn't just nice to have, it's essential when you're trusting something with your most important information.
+  tagline: Build local-first tools on top of Spaces, files, Bases, version history, and a capability-based extension runtime.
   image:
     file: ../../assets/logo.png
   actions:
-    - text: Start with Eidos
-      link: /concepts/what-is-eidos
+    - text: Build your first extension
+      link: /extensions/quickstart/
       icon: right-arrow
-    - text: Back to eidos.space
-      link: https://eidos.space
-      icon: external
+    - text: Understand the platform
+      link: /concepts/
+      icon: open-book
       variant: minimal
 ---
+
+import { Card, CardGrid } from "@astrojs/starlight/components"
+
+<CardGrid>
+  <Card title="Start with a Space" icon="rocket">
+    Learn how Eidos treats a directory as the durable home for files, Bases,
+    version history, and extension source code.
+  </Card>
+  <Card title="Build extensions" icon="puzzle">
+    Start from a minimal package, declare contributions, and use only the
+    capabilities the user grants.
+  </Card>
+  <Card title="Automate workflows" icon="random">
+    Use the CLI, Space APIs, and agent tools without bypassing the file-based
+    data model.
+  </Card>
+  <Card title="Use stable references" icon="document">
+    Find manifest schemas, SDK contracts, compatibility rules, and error
+    semantics in one place.
+  </Card>
+</CardGrid>
+
+:::note[Architecture transition]
+Eidos is moving from a database-backed application model to file-based Spaces.
+Pages describing APIs that are still being implemented are explicitly marked
+**Design preview**. The previous documentation remains available in the
+[Legacy Docs](https://legacy.docs.eidos.space).
+:::

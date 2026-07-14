@@ -1,0 +1,65 @@
+---
+title: 生命周期与激活
+description: 让扩展按需启动、统一释放，并且始终绑定当前 source digest。
+sidebar:
+  order: 5
+  badge: Preview
+---
+
+Eidos 会分开 discovery、build 和 activation。读取 Manifest 不会执行代码，安装源码也不会让
+package 自动进入 active 状态。
+
+```text
+discovered
+    │ validate manifest + compatibility
+    ▼
+disabled / untrusted ── user trust + enable + grants ──┐
+                                                       ▼
+                                               ready to build
+                                                       │ trigger
+                                                       ▼
+                                                activating
+                                                  │       │
+                                               active   failed
+                                                  │
+                           source/grant/app change │
+                                                  ▼
+                                               stopped
+```
+
+## 派生 activation
+
+大多数 activation event 由 contribution 派生：
+
+- 调用 command 时激活对应 worker。
+- 打开匹配的 file editor 时激活 UI entrypoint。
+- 展示 Base view 时只激活该视图。
+- 调用 agent tool 时激活对应 handler。
+
+首期不允许 package 请求无条件启动。显式 background activation 是后续单独设计的 privileged capability。
+
+## Activation contract
+
+```ts
+export function activate(context: ExtensionContext): void | Promise<void>
+export function deactivate(): void | Promise<void>
+```
+
+`context.subscriptions` 统一拥有 command、event、timer 和其他 disposable resource。即使 activation
+抛错或者 worker 被终止，宿主也会释放这些资源。
+
+## 源码变化
+
+Trust 由 canonical ID、source digest 和 permission hash 共同确定。Runtime-relevant 文件变化后，Eidos 会：
+
+1. 终止 active worker 并关闭 capability channel；
+2. 把旧 build 标记为 stale；
+3. 计算新 digest；
+4. 得到新 digest 的 trust 后才允许重新构建和激活。
+
+连续快速保存使用 generation token。旧 generation 的构建结果会被丢弃，不能覆盖更新的源码。
+
+## 失败行为
+
+Activation failure 会进入 package state，并显示在 Extension Manager。失败的 package 不会消失、
+无限自动重试，或者静默继续执行旧 bundle。

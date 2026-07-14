@@ -1,0 +1,35 @@
+# Eidos Developer Documentation
+
+> Canonical developer documentation for the file-based Eidos platform.
+
+Eidos is a local-first personal data environment. A Space is a normal directory
+containing files, Bases, versioned data, and optionally extension source.
+
+## Start here
+
+- [Platform introduction](https://docs.eidos.space/getting-started/)
+- [Core concepts](https://docs.eidos.space/concepts/)
+- [Extension overview](https://docs.eidos.space/extensions/)
+- [Five-minute extension quickstart](https://docs.eidos.space/extensions/quickstart/)
+- [Automation and APIs](https://docs.eidos.space/automation/)
+- [Reference](https://docs.eidos.space/reference/)
+
+## Extension development
+
+- [Package anatomy](https://docs.eidos.space/extensions/anatomy/)
+- [Manifest](https://docs.eidos.space/extensions/manifest/)
+- [Lifecycle and activation](https://docs.eidos.space/extensions/lifecycle/)
+- [Permissions and trust](https://docs.eidos.space/extensions/security/)
+- [GitHub distribution](https://docs.eidos.space/extensions/distribution/)
+- [Manifest JSON Schema](https://docs.eidos.space/schemas/extension-manifest.schema.json)
+- [Compact extension contract](https://docs.eidos.space/llms-full.txt)
+
+## Status
+
+The file-based extension runtime is a design preview. Do not claim that an API
+is executable unless its page no longer carries the Design preview status.
+
+## Legacy
+
+Database-backed APIs and extensions are archived at
+https://legacy.docs.eidos.space.

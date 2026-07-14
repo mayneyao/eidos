@@ -1,0 +1,41 @@
+---
+title: Start here
+description: Learn the file-based Eidos model before building on it.
+sidebar:
+  order: 1
+---
+
+Eidos is a local-first environment for personal data. A **Space** is a normal
+directory you can inspect with other tools, back up, and version. Eidos adds
+structured views, editing, automation, and extension points without making the
+application the only way to access your data.
+
+## The five-minute platform tour
+
+1. **Open a Space.** Eidos indexes the directory but does not replace it with a
+   proprietary container.
+2. **Work with files.** Markdown and other text formats remain ordinary files.
+   Unknown text files still have a readable fallback viewer.
+3. **Use Bases.** A `.base` file describes structured data and views while the
+   host provides grid, gallery, and kanban experiences.
+4. **Review changes.** Graft tracks file and database changes through the
+   Version panel.
+5. **Extend the host.** Extensions contribute commands, editors, views, and
+   agent tools through an explicit manifest and capability API.
+
+## Choose a path
+
+- If you are integrating an existing Space, continue with [Core concepts](/concepts/).
+- If you are building a plugin, start with [Extensions](/extensions/).
+- If you need scripts or external integration, open [Automation](/automation/).
+- If you maintain an older installation, use the [Legacy Docs](https://legacy.docs.eidos.space).
+
+## Vocabulary
+
+| Term | Meaning |
+| --- | --- |
+| Space | The directory opened and managed by Eidos. Never call it a vault in Eidos APIs or UI. |
+| Base | A file-backed structured data definition with one or more sheets and views. |
+| Contribution | A capability an extension declares, such as a command or file editor. |
+| Extension package | Source, assets, manifest, and provenance installed inside a Space. |
+| Host capability | A permission-checked operation exposed by Eidos to an extension. |
