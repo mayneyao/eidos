@@ -21,24 +21,38 @@ vi.mock("@/components/theme-provider", () => ({
 }))
 
 vi.mock("./base-record-inspector", () => ({
-  BaseRecordInspector: ({ row }: { row: { title?: string } }) => (
-    <aside data-testid="record-inspector">{row.title}</aside>
+  BaseRecordInspector: ({
+    row,
+    disabled,
+  }: {
+    row: { title?: string }
+    disabled?: boolean
+  }) => (
+    <aside
+      data-testid="record-inspector"
+      data-disabled={String(Boolean(disabled))}
+    >
+      {row.title}
+    </aside>
   ),
 }))
 
 vi.mock("./base-record-delete-dialog", () => ({
   BaseRecordDeleteDialog: ({
     row,
+    disabled,
     onDelete,
     onOpenChange,
   }: {
     row: { _id?: string; title?: string } | null
+    disabled?: boolean
     onDelete: (row: { _id?: string; title?: string }) => Promise<void>
     onOpenChange: (open: boolean) => void
   }) =>
     row ? (
       <button
         type="button"
+        disabled={disabled}
         onClick={() => void onDelete(row).then(() => onOpenChange(false))}
       >
         Confirm delete {row.title}
@@ -433,6 +447,59 @@ describe("BaseGalleryView", () => {
     expect(container.textContent).toContain("Second")
     expect(loadPage).toHaveBeenCalledTimes(1)
     expect(onRowCountChange).toHaveBeenLastCalledWith(1)
+  })
+
+  it("keeps record details viewable while blocking Gallery mutations", async () => {
+    const row = { _id: "row_1", title: "First", status: "todo" }
+    const onDeleteRow = vi.fn(async () => undefined)
+    const onCellEdit = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <BaseGalleryView
+          table={{ ...table, rowCount: 1 }}
+          view={view}
+          disabled
+          loadPage={vi.fn(async (offset, limit) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: 1,
+            rows: [row],
+          }))}
+          onCellEdit={onCellEdit}
+          onDeleteRow={onDeleteRow}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      container
+        .querySelector<HTMLElement>('[data-base-row-id="row_1"] h3')
+        ?.click()
+    })
+    expect(
+      container.querySelector<HTMLElement>('[data-testid="record-inspector"]')
+        ?.dataset.disabled
+    ).toBe("true")
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="More actions for First"]'
+        )
+        ?.dispatchEvent(
+          new MouseEvent("pointerdown", { bubbles: true, button: 0 })
+        )
+    })
+    expect(
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      ).some((item) => item.textContent?.includes("Delete record"))
+    ).toBe(false)
+    expect(onCellEdit).not.toHaveBeenCalled()
+    expect(onDeleteRow).not.toHaveBeenCalled()
   })
 
   it("keeps the virtual window mounted while a page refresh is pending", async () => {

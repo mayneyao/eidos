@@ -257,7 +257,7 @@ const BaseKanbanCardItem = memo(function BaseKanbanCardItem({
         compact
         focused={focused}
         onOpen={onOpen}
-        onDelete={onDelete}
+        onDelete={disabled ? undefined : onDelete}
         moveOptions={moveOptions}
         disabledMoveOptionId={groupKey}
         moveDisabled={disabled}
@@ -425,7 +425,7 @@ const BaseKanbanCreateRecord = memo(function BaseKanbanCreateRecord({
 
   const create = async () => {
     const next = title.trim()
-    if (!next || creatingRef.current) return
+    if (disabled || !next || creatingRef.current) return
     creatingRef.current = true
     setCreating(true)
     setCreateError(null)
@@ -491,7 +491,7 @@ const BaseKanbanCreateRecord = memo(function BaseKanbanCreateRecord({
           type="button"
           size="sm"
           className="h-6 px-2 text-[11px]"
-          disabled={creating || !title.trim()}
+          disabled={disabled || creating || !title.trim()}
           onClick={() => void create()}
         >
           Add
@@ -1489,6 +1489,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
 
   const createInGroup = useCallback(
     async (group: BaseKanbanGroup, title: string) => {
+      if (disabled) throw new Error("Base is temporarily read-only")
       if (!groupField) return
       const result = await onAddRow(groupField, group.value, title)
       setGroups((current) =>
@@ -1513,7 +1514,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
         )
       )
     },
-    [groupField, onAddRow]
+    [disabled, groupField, onAddRow]
   )
 
   const copyRecordId = (id: string) => {
@@ -1529,6 +1530,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
     field: BaseFieldInfo,
     value: BaseSqlPrimitive
   ) => {
+    if (disabled) throw new Error("Record editing is temporarily unavailable")
     if (!groupField) throw new Error("Kanban group field is unavailable")
     const result = await onCellEdit(row, field, value)
     const rowId = String(result.row._id)
@@ -1590,7 +1592,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
   }
 
   const deleteRecord = async (row: BaseRow) => {
-    if (!onDeleteRow) return
+    if (disabled || !onDeleteRow) return
     await onDeleteRow(row)
     const rowId = String(row._id)
     setGroups((current) =>
@@ -1777,6 +1779,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
       {onDeleteRow ? (
         <BaseRecordDeleteDialog
           row={deleteRow}
+          disabled={disabled}
           onOpenChange={(open) => {
             if (!open) setDeleteRow(null)
           }}

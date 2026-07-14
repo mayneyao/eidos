@@ -707,12 +707,14 @@ vi.mock("./base-gallery-view", async () => {
   return {
     BaseGalleryView: memo(function BaseGalleryView({
       table,
+      disabled,
       onCellEdit,
       onDeleteRow,
       onRevealFile,
       reloadToken,
     }: {
       table: (typeof snapshot)["tables"][number]
+      disabled?: boolean
       onCellEdit?: (
         row: BaseRow,
         field: BaseFieldInfo,
@@ -729,6 +731,7 @@ vi.mock("./base-gallery-view", async () => {
       return (
         <div
           data-testid="base-gallery-view"
+          data-disabled={String(Boolean(disabled))}
           data-reload-token={String(reloadToken ?? 0)}
         >
           Gallery
@@ -765,12 +768,14 @@ vi.mock("./base-kanban-view", async () => {
   return {
     BaseKanbanView: memo(function BaseKanbanView({
       table,
+      disabled,
       onAddRow,
       onCellEdit,
       onRevealFile,
       reloadToken,
     }: {
       table: (typeof snapshot)["tables"][number]
+      disabled?: boolean
       onAddRow: (
         field: (typeof snapshot)["tables"][number]["fields"][number],
         value: string,
@@ -794,6 +799,7 @@ vi.mock("./base-kanban-view", async () => {
       return (
         <div
           data-testid="base-kanban-view"
+          data-disabled={String(Boolean(disabled))}
           data-reload-token={String(reloadToken ?? 0)}
         >
           Kanban
@@ -1516,6 +1522,63 @@ describe("SpaceBaseEditor", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
   })
+
+  it.each(["gallery", "kanban"] as const)(
+    "makes the %s view read-only while a schema mutation is pending",
+    async (type) => {
+      const cardSnapshot: BaseSnapshot = {
+        ...snapshot,
+        tables: snapshot.tables.map((table) => ({
+          ...table,
+          views: table.views.map((view) => ({
+            ...view,
+            name: type === "gallery" ? "Cards" : "Board",
+            type,
+            properties:
+              type === "gallery"
+                ? { cardSize: "medium" }
+                : { cardSize: "medium", groupByField: "status" },
+          })),
+        })),
+      }
+      let resolveCreate: ((value: BaseSnapshot) => void) | undefined
+      getSnapshotMock.mockResolvedValue(cardSnapshot)
+      createTableMock.mockImplementationOnce(
+        () =>
+          new Promise<BaseSnapshot>((resolve) => {
+            resolveCreate = resolve
+          })
+      )
+      await renderEditor()
+
+      const cardView = () =>
+        container.querySelector<HTMLElement>(
+          `[data-testid="base-${type}-view"]`
+        )
+      expect(cardView()?.dataset.disabled).toBe("false")
+
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>('[aria-label="Add Base table"]')
+          ?.click()
+      })
+      await act(async () => {
+        Array.from(container.querySelectorAll("button"))
+          .find((button) => button.textContent === "Confirm table")
+          ?.click()
+        await Promise.resolve()
+      })
+
+      expect(cardView()?.dataset.disabled).toBe("true")
+
+      await act(async () => {
+        resolveCreate?.(cardSnapshot)
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(cardView()?.dataset.disabled).toBe("false")
+    }
+  )
 
   it("leaves a failed Grid save to the anchored Grid recovery surface", async () => {
     updateRowMock.mockRejectedValueOnce(new Error("Base file is read-only"))

@@ -187,6 +187,7 @@ const BaseGalleryVirtualRow = memo(function BaseGalleryVirtualRow({
 export const BaseGalleryView = memo(function BaseGalleryView({
   table,
   view,
+  disabled = false,
   reloadToken = 0,
   searchResultIndex = null,
   loadPage,
@@ -203,6 +204,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
 }: {
   table: BaseTableSnapshot
   view: BaseViewInfo
+  disabled?: boolean
   reloadToken?: number
   searchResultIndex?: number | null
   loadPage: (
@@ -553,6 +555,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
     field: BaseFieldInfo,
     value: BaseSqlPrimitive
   ) => {
+    if (disabled) throw new Error("Record editing is temporarily unavailable")
     if (!onCellEdit) throw new Error("Record editing is unavailable")
     const result = await onCellEdit(row, field, value)
     setRowWindow((current) => ({
@@ -568,7 +571,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
   }
 
   const deleteRecord = async (row: BaseRow) => {
-    if (!onDeleteRow) return
+    if (disabled || !onDeleteRow) return
     await onDeleteRow(row)
     const rowId = String(row._id)
     setRowWindow((current) => ({
@@ -656,7 +659,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
                   view={view}
                   layout={cardLayout}
                   focusedRowId={focusedRowId}
-                  canDelete={onDeleteRow !== undefined}
+                  canDelete={!disabled && onDeleteRow !== undefined}
                   measureElement={rowVirtualizer.measureElement}
                   onOpen={setInspectedRow}
                   onDelete={setDeleteRow}
@@ -716,6 +719,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
             onClose={() => setInspectedRow(null)}
             onCopyRecordId={copyRecordId}
             onCellEdit={onCellEdit ? editRecord : undefined}
+            disabled={disabled}
             onError={onError}
             onImportFiles={onImportFiles}
             onImportDroppedFiles={onImportDroppedFiles}
@@ -735,6 +739,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
       {onDeleteRow ? (
         <BaseRecordDeleteDialog
           row={deleteRow}
+          disabled={disabled}
           onOpenChange={(open) => {
             if (!open) setDeleteRow(null)
           }}

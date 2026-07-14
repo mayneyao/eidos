@@ -1610,6 +1610,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               key={`${activeTable.table.id}:${activeView.id}`}
               table={activeTable}
               view={activeView}
+              disabled={blockingMutations > 0}
               reloadToken={gridReloadToken}
               searchResultIndex={activeSearchResultIndex}
               loadPage={loadActiveTablePage}

@@ -50,4 +50,50 @@ describe("BaseRecordDeleteDialog", () => {
     expect(onDelete).toHaveBeenCalledWith(row)
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
+
+  it("keeps an open confirmation non-destructive while mutations are blocked", async () => {
+    const row = { _id: "row_1", title: "Write RFC" }
+    const onDelete = vi.fn(async () => undefined)
+    const onOpenChange = vi.fn()
+    await act(async () => {
+      root.render(
+        <BaseRecordDeleteDialog
+          row={row}
+          disabled
+          onOpenChange={onOpenChange}
+          onDelete={onDelete}
+        />
+      )
+    })
+
+    const deleteButton = Array.from(
+      document.body.querySelectorAll("button")
+    ).find((button) => button.textContent === "Delete record")
+    expect((deleteButton as HTMLButtonElement | undefined)?.disabled).toBe(true)
+    await act(async () => {
+      deleteButton?.click()
+      await Promise.resolve()
+    })
+    expect(onDelete).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+    await act(async () => {
+      root.render(
+        <BaseRecordDeleteDialog
+          row={row}
+          onOpenChange={onOpenChange}
+          onDelete={onDelete}
+        />
+      )
+    })
+    await act(async () => {
+      Array.from(document.body.querySelectorAll("button"))
+        .find((button) => button.textContent === "Delete record")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(onDelete).toHaveBeenCalledOnce()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
 })

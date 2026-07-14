@@ -147,16 +147,19 @@ vi.mock("./base-record-card", () => ({
 vi.mock("./base-record-delete-dialog", () => ({
   BaseRecordDeleteDialog: ({
     row,
+    disabled,
     onDelete,
     onOpenChange,
   }: {
     row: { _id?: string; title?: string } | null
+    disabled?: boolean
     onDelete: (row: { _id?: string; title?: string }) => Promise<void>
     onOpenChange: (open: boolean) => void
   }) =>
     row ? (
       <button
         type="button"
+        disabled={disabled}
         onClick={() => void onDelete(row).then(() => onOpenChange(false))}
       >
         Confirm delete {row.title}
@@ -169,6 +172,7 @@ vi.mock("./base-record-inspector", () => ({
     row,
     fields,
     onCellEdit,
+    disabled,
   }: {
     row: { _id?: string; title?: string; status?: string; priority?: string }
     fields: Array<{ tableColumnName: string }>
@@ -182,10 +186,15 @@ vi.mock("./base-record-inspector", () => ({
       field: { tableColumnName: string },
       value: string
     ) => Promise<unknown>
+    disabled?: boolean
   }) => (
-    <aside data-testid="record-inspector">
+    <aside
+      data-testid="record-inspector"
+      data-disabled={String(Boolean(disabled))}
+    >
       <button
         type="button"
+        disabled={disabled}
         onClick={() => {
           const status = fields.find(
             (field) => field.tableColumnName === "status"
@@ -197,6 +206,7 @@ vi.mock("./base-record-inspector", () => ({
       </button>
       <button
         type="button"
+        disabled={disabled}
         onClick={() => {
           const priority = fields.find(
             (field) => field.tableColumnName === "priority"
@@ -868,6 +878,74 @@ describe("BaseKanbanView", () => {
     expect(virtualizerCalls).toBe(0)
   })
 
+  it("preserves an open new-record draft while board mutations are blocked", async () => {
+    const loadGroupCounts = vi.fn(async () => [])
+    const loadGroupPage = vi.fn(async (_field, _value, offset, limit) => ({
+      tableId: "tasks",
+      offset,
+      limit,
+      total: 0,
+      rows: [],
+    }))
+    const onCellEdit = vi.fn()
+    const onAddRow = vi.fn()
+    const renderBoard = async (disabled: boolean) => {
+      await act(async () => {
+        root.render(
+          <BaseKanbanView
+            table={table}
+            view={view}
+            disabled={disabled}
+            loadGroupCounts={loadGroupCounts}
+            loadGroupPage={loadGroupPage}
+            onCellEdit={onCellEdit}
+            onAddRow={onAddRow}
+          />
+        )
+        await Promise.resolve()
+      })
+    }
+
+    await renderBoard(false)
+    const todoColumn = container.querySelector<HTMLElement>(
+      '[data-board-id="base-kanban:todo"]'
+    )
+    await act(async () => {
+      Array.from(todoColumn?.querySelectorAll("button") ?? [])
+        .find((button) => button.textContent?.includes("Add record"))
+        ?.click()
+    })
+    const input = todoColumn?.querySelector<HTMLInputElement>("input")
+    await act(async () => {
+      if (!input) return
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set
+      setter?.call(input, "Draft release")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+
+    await renderBoard(true)
+    const addButton = Array.from(
+      todoColumn?.querySelectorAll<HTMLButtonElement>("button") ?? []
+    ).find((button) => button.textContent === "Add")
+    expect(input?.value).toBe("Draft release")
+    expect(addButton?.disabled).toBe(true)
+    await act(async () => {
+      addButton?.click()
+      input?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+      await Promise.resolve()
+    })
+    expect(onAddRow).not.toHaveBeenCalled()
+
+    await renderBoard(false)
+    expect(addButton?.disabled).toBe(false)
+    expect(input?.value).toBe("Draft release")
+  })
+
   it("keeps failed inline creation recoverable without a global error", async () => {
     const onAddRow = vi
       .fn()
@@ -999,6 +1077,57 @@ describe("BaseKanbanView", () => {
     expect(loadGroupCounts).toHaveBeenCalledTimes(1)
     expect(loadGroupPage).toHaveBeenCalledTimes(pageCalls)
     expect(onRowCountChange).toHaveBeenLastCalledWith(0)
+  })
+
+  it("keeps record details viewable while blocking Kanban mutations", async () => {
+    const row = { _id: "row_1", title: "Write RFC", status: "todo" }
+    const onCellEdit = vi.fn()
+    const onAddRow = vi.fn()
+    const onDeleteRow = vi.fn(async () => undefined)
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          disabled
+          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 1 }])}
+          loadGroupPage={vi.fn(async (_field, value, offset, limit) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: value === "todo" ? 1 : 0,
+            rows: value === "todo" ? [row] : [],
+          }))}
+          onCellEdit={onCellEdit}
+          onAddRow={onAddRow}
+          onDeleteRow={onDeleteRow}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(
+      container
+        .querySelector('[data-base-row-id="row_1"]')
+        ?.parentElement?.getAttribute("data-kanban-card-disabled")
+    ).toBe("true")
+    expect(container.textContent).not.toContain("Delete Write RFC")
+    expect(container.textContent).not.toContain("Move Write RFC to Done")
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Write RFC")
+        ?.click()
+    })
+    expect(
+      container.querySelector<HTMLElement>('[data-testid="record-inspector"]')
+        ?.dataset.disabled
+    ).toBe("true")
+    expect(onCellEdit).not.toHaveBeenCalled()
+    expect(onAddRow).not.toHaveBeenCalled()
+    expect(onDeleteRow).not.toHaveBeenCalled()
   })
 
   it("keeps cards mounted while grouped counts and visible pages refresh", async () => {

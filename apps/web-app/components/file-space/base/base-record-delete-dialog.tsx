@@ -16,11 +16,13 @@ import { baseRecordTitle } from "./base-record-format"
 
 export function BaseRecordDeleteDialog({
   row,
+  disabled = false,
   onOpenChange,
   onDelete,
   onError,
 }: {
   row: BaseRow | null
+  disabled?: boolean
   onOpenChange: (open: boolean) => void
   onDelete: (row: BaseRow) => Promise<void>
   onError?: (error: unknown) => void
@@ -32,7 +34,7 @@ export function BaseRecordDeleteDialog({
   }, [row])
 
   const confirm = async () => {
-    if (!row || deleting) return
+    if (!row || disabled || deleting) return
     setDeleting(true)
     try {
       await onDelete(row)
@@ -59,7 +61,7 @@ export function BaseRecordDeleteDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            disabled={deleting}
+            disabled={disabled || deleting}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={(event) => {
               event.preventDefault()
