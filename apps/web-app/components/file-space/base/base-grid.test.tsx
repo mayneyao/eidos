@@ -662,6 +662,66 @@ describe("BaseGrid", () => {
     expect(onPropertyFieldOpen).toHaveBeenCalledWith(table.fields[0])
   })
 
+  it("keeps visible system fields read-only in the field menu", async () => {
+    const systemTable: BaseTableSnapshot = {
+      ...table,
+      fields: [
+        ...table.fields,
+        {
+          name: "Created time",
+          type: "created-time",
+          tableName: "tb_tasks",
+          tableColumnName: "_created_time",
+          property: null,
+          storageCodec: "scalar",
+          valueKind: "system",
+          isHidden: true,
+          isDerived: false,
+          sourceTableColumnName: null,
+          dependsOn: null,
+        },
+      ],
+      views: [
+        {
+          ...table.views[0],
+          properties: { visibleSystemFields: ["_created_time"] },
+        },
+      ],
+    }
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={systemTable}
+          view={systemTable.views[0]}
+          loadPage={createLoadPage()}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+          onPropertyFieldOpen={vi.fn()}
+          onDeleteField={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(mocks.props?.columns[2]?.title).toBe("Created time")
+    act(() => {
+      mocks.props?.onHeaderClicked?.(2, {
+        bounds: { x: 400, y: 20, width: 180, height: 36 },
+        preventDefault: vi.fn(),
+      } as never)
+    })
+    const menuButtons = [...document.body.querySelectorAll("button")]
+    expect(
+      menuButtons.find((button) =>
+        button.textContent?.includes("Edit property")
+      )?.disabled
+    ).toBe(true)
+    expect(
+      menuButtons.find((button) => button.textContent?.includes("Delete field"))
+        ?.disabled
+    ).toBe(true)
+  })
+
   it("persists sort, insertion, and freeze commands from the field menu", async () => {
     const onViewUpdate = vi.fn()
     const onAddField = vi.fn()

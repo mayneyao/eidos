@@ -57,6 +57,10 @@ import {
 import { BaseGrid } from "./base-grid"
 import { BaseGalleryView } from "./base-gallery-view"
 import { BaseCsvImportPopover } from "./base-csv-import-popover"
+import {
+  baseViewVisibleSystemFields,
+  isOptionalBaseSystemField,
+} from "./base-field-visibility"
 import { BaseFieldPropertyPanel } from "./base-field-property-panel"
 import { BaseKanbanView } from "./base-kanban-view"
 import { baseOpenErrorPresentation } from "./base-open-error"
@@ -1400,15 +1404,23 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               <BaseViewMenu
                 fields={activeTable.fields.filter(
                   (field) =>
-                    !field.isHidden &&
-                    (field.valueKind === "source" ||
-                      field.valueKind === "relation" ||
-                      field.valueKind === "derived")
+                    isOptionalBaseSystemField(field) ||
+                    (!field.isHidden &&
+                      (field.valueKind === "source" ||
+                        field.valueKind === "relation" ||
+                        field.valueKind === "derived"))
                 )}
                 hiddenFields={activeView?.hiddenFields ?? []}
+                visibleSystemFields={baseViewVisibleSystemFields(activeView)}
                 disabled={blockingMutations > 0}
-                onHiddenFieldsChange={(hiddenFields) =>
-                  void updateActiveView({ hiddenFields })
+                onVisibilityChange={({ hiddenFields, visibleSystemFields }) =>
+                  void updateActiveView({
+                    hiddenFields,
+                    properties: {
+                      ...(activeView?.properties ?? {}),
+                      visibleSystemFields,
+                    },
+                  })
                 }
               />
               <BaseStructureMenu

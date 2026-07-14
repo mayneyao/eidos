@@ -35,6 +35,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+import {
+  baseFieldDisplayName,
+  isOptionalBaseSystemField,
+} from "./base-field-visibility"
+
 const operatorLabels: Record<BaseFilterOperator, string> = {
   equals: "is",
   "not-equals": "is not",
@@ -57,15 +62,26 @@ const emptyOperators = new Set<BaseFilterOperator>(["is-empty", "is-not-empty"])
 function filterableFields(fields: BaseFieldInfo[]) {
   return fields.filter(
     (field) =>
-      !field.isHidden &&
-      (field.tableColumnName === "title" ||
-        field.valueKind === "source" ||
-        field.valueKind === "materialized" ||
-        field.valueKind === "derived")
+      isOptionalBaseSystemField(field) ||
+      (!field.isHidden &&
+        (field.tableColumnName === "title" ||
+          field.valueKind === "source" ||
+          field.valueKind === "materialized" ||
+          field.valueKind === "derived"))
   )
 }
 
 function fieldDisplayType(field: BaseFieldInfo) {
+  if (field.type === "created-time" || field.type === "last-edited-time") {
+    return "datetime"
+  }
+  if (
+    field.type === "row-id" ||
+    field.type === "created-by" ||
+    field.type === "last-edited-by"
+  ) {
+    return "text"
+  }
   if (
     (field.type === "formula" || field.type === "lookup") &&
     typeof field.property?.displayType === "string"
@@ -300,7 +316,7 @@ function BaseFilterRuleEditor({
               key={candidate.tableColumnName}
               value={candidate.tableColumnName}
             >
-              {candidate.name}
+              {baseFieldDisplayName(candidate)}
             </SelectItem>
           ))}
         </SelectContent>
@@ -782,7 +798,7 @@ function BaseSortPopover({
                             candidate.field === field.tableColumnName
                         )}
                       >
-                        {field.name}
+                        {baseFieldDisplayName(field)}
                       </SelectItem>
                     ))}
                   </SelectContent>

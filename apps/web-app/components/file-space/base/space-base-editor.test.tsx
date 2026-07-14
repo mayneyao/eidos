@@ -179,6 +179,29 @@ vi.mock("./base-structure-menu", () => ({
   },
 }))
 
+vi.mock("./base-view-menu", () => ({
+  BaseViewMenu: ({
+    onVisibilityChange,
+  }: {
+    onVisibilityChange: (visibility: {
+      hiddenFields: string[]
+      visibleSystemFields: string[]
+    }) => void
+  }) => (
+    <button
+      type="button"
+      onClick={() =>
+        onVisibilityChange({
+          hiddenFields: [],
+          visibleSystemFields: ["_created_time"],
+        })
+      }
+    >
+      Show created time
+    </button>
+  ),
+}))
+
 vi.mock("./base-formula-editor", () => ({
   BaseFormulaEditor: ({
     open,
@@ -1674,6 +1697,50 @@ describe("SpaceBaseEditor", () => {
       "projects/tasks.base",
       "tasks",
       ["view_tasks"]
+    )
+  })
+
+  it("persists system field visibility in the active view", async () => {
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      tables: snapshot.tables.map((table) => ({
+        ...table,
+        fields: [
+          ...table.fields,
+          {
+            name: "Created time",
+            type: "created-time" as const,
+            tableName: table.table.rawTableName,
+            tableColumnName: "_created_time",
+            property: null,
+            storageCodec: "scalar" as const,
+            valueKind: "system" as const,
+            isHidden: true,
+            isDerived: false,
+            sourceTableColumnName: null,
+            dependsOn: null,
+          },
+        ],
+      })),
+    })
+    await renderEditor()
+
+    const showCreatedTime = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button")
+    ).find((button) => button.textContent === "Show created time")
+    expect(showCreatedTime).toBeDefined()
+    await act(async () => {
+      showCreatedTime?.click()
+      await Promise.resolve()
+    })
+
+    expect(updateViewMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "view_tasks",
+      {
+        hiddenFields: [],
+        properties: { visibleSystemFields: ["_created_time"] },
+      }
     )
   })
 

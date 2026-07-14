@@ -663,7 +663,10 @@ describe("Eidos Base files", () => {
     const original = base.listViews("tasks")[0]
     base.updateView(original.id, {
       name: "All tasks",
-      properties: { fieldWidthMap: { title: 280 } },
+      properties: {
+        fieldWidthMap: { title: 280 },
+        visibleSystemFields: ["_created_time"],
+      },
       hiddenFields: ["priority"],
     })
     const priority = base.createView("tasks", {
@@ -704,7 +707,10 @@ describe("Eidos Base files", () => {
       {
         id: original.id,
         name: "All tasks",
-        properties: { fieldWidthMap: { title: 280 } },
+        properties: {
+          fieldWidthMap: { title: 280 },
+          visibleSystemFields: ["_created_time"],
+        },
         hiddenFields: ["priority"],
       },
     ])

@@ -48,6 +48,19 @@ const fields: BaseFieldInfo[] = [
     sourceTableColumnName: null,
     dependsOn: ["priority"],
   },
+  {
+    name: "Created time",
+    type: "created-time",
+    tableName: "tb_tasks",
+    tableColumnName: "_created_time",
+    property: null,
+    storageCodec: "scalar",
+    valueKind: "system",
+    isHidden: true,
+    isDerived: false,
+    sourceTableColumnName: null,
+    dependsOn: null,
+  },
 ]
 
 function button(label: string) {
@@ -219,6 +232,33 @@ describe("BaseQueryToolbar", () => {
     expect(
       Array.from(document.body.querySelectorAll('[role="option"]')).some(
         (option) => option.textContent?.trim() === "Total"
+      )
+    ).toBe(true)
+  })
+
+  it("offers system timestamps to filter and sort controls", async () => {
+    await act(async () => button("Filter")?.click())
+    await act(async () => button("Add filter")?.click())
+    await act(async () => button("Add condition")?.click())
+    const filterField =
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[1]
+    await act(async () => filterField?.click())
+    expect(
+      Array.from(document.body.querySelectorAll('[role="option"]')).some(
+        (option) => option.textContent?.trim() === "Created time"
+      )
+    ).toBe(true)
+
+    await act(async () => button("Cancel")?.click())
+    await act(async () => button("Sort")?.click())
+    await act(async () => button("Add sort")?.click())
+    const sortFields = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')
+    )
+    await act(async () => sortFields.at(-2)?.click())
+    expect(
+      Array.from(document.body.querySelectorAll('[role="option"]')).some(
+        (option) => option.textContent?.trim() === "Created time"
       )
     ).toBe(true)
   })

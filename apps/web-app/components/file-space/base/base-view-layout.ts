@@ -7,13 +7,20 @@ import type {
 } from "@eidos.space/base"
 import type { GridSelection } from "@glideapps/glide-data-grid"
 
-import { visibleBaseFields } from "./base-grid-adapter"
+import {
+  baseViewVisibleSystemFields,
+  visibleBaseFields,
+} from "./base-field-visibility"
 
 export function orderedBaseFields(
   fields: BaseFieldInfo[],
   view?: BaseViewInfo
 ): BaseFieldInfo[] {
-  return visibleBaseFields(fields, view?.hiddenFields).sort((left, right) => {
+  return visibleBaseFields(
+    fields,
+    view?.hiddenFields,
+    baseViewVisibleSystemFields(view)
+  ).sort((left, right) => {
     const leftOrder = view?.orderMap?.[left.tableColumnName]
     const rightOrder = view?.orderMap?.[right.tableColumnName]
     return (

@@ -20,8 +20,11 @@ import {
 import type { RangeCell } from "@/components/table/views/grid/cells/range-cell"
 
 import { baseNumberProperty } from "./base-field-properties"
+import { baseFieldDisplayName } from "./base-field-visibility"
 import { baseFileDisplayData, type BaseFileCell } from "./base-file-cell"
 import type { BaseRelationCell } from "./base-relation-cell"
+
+export { visibleBaseFields } from "./base-field-visibility"
 
 interface BaseSelectOption {
   id: string
@@ -74,26 +77,10 @@ function formatBaseNumber(value: number, format: string): string {
   }).format(value)
 }
 
-export function visibleBaseFields(
-  fields: BaseFieldInfo[],
-  hiddenFields: readonly string[] = []
-): BaseFieldInfo[] {
-  const hidden = new Set(hiddenFields)
-  return fields.filter(
-    (field) =>
-      !field.isHidden &&
-      !hidden.has(field.tableColumnName) &&
-      (field.tableColumnName === "title" ||
-        field.valueKind === "source" ||
-        field.valueKind === "relation" ||
-        field.valueKind === "derived")
-  )
-}
-
 export function baseGridColumn(field: BaseFieldInfo): GridColumn {
   return {
     id: field.tableColumnName,
-    title: field.name,
+    title: baseFieldDisplayName(field),
     width: field.type === "title" ? 280 : 180,
     icon: field.type,
     hasMenu: true,
@@ -254,22 +241,28 @@ export function baseValueToGridCell(
       data: { kind: "rating-cell", rating: normalized },
     }
   }
-  if (field.type === "date" || field.type === "datetime") {
+  if (
+    field.type === "date" ||
+    field.type === "datetime" ||
+    field.type === "created-time" ||
+    field.type === "last-edited-time"
+  ) {
     const date = dateValue(value)
+    const dateOnly = field.type === "date"
     return {
       kind: GridCellKind.Custom,
       allowOverlay: true,
-      readonly,
+      readonly: readonly || field.valueKind === "system",
       copyData: typeof value === "string" ? value : "",
       data: {
         kind: "date-picker-cell",
         date,
         displayDate: date
-          ? field.type === "date"
+          ? dateOnly
             ? date.toLocaleDateString()
             : date.toLocaleString()
           : "",
-        format: field.type === "date" ? "date" : "datetime-local",
+        format: dateOnly ? "date" : "datetime-local",
       },
     }
   }
@@ -317,7 +310,7 @@ export function baseValueToGridCell(
   return {
     kind: GridCellKind.Text,
     allowOverlay: true,
-    readonly,
+    readonly: readonly || field.valueKind === "system",
     data: text,
     displayData: text,
   }

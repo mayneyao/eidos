@@ -24,6 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { BaseRecordFieldEditor } from "./base-record-field-editor"
 import { BaseRecordFileEditor } from "./base-record-file-editor"
 import { BaseRecordRelationEditor } from "./base-record-relation-editor"
+import { baseFieldDisplayName } from "./base-field-visibility"
 import { baseRecordFieldText, baseRecordTitle } from "./base-record-format"
 
 interface FailedRecordEdit {
@@ -338,7 +339,7 @@ export function BaseRecordInspector({
           {fields.map((field) => (
             <div key={field.tableColumnName} className="grid gap-1 px-3 py-2.5">
               <p className="text-[11px] font-medium text-muted-foreground">
-                {field.name}
+                {baseFieldDisplayName(field)}
               </p>
               {onCellEdit && field.type === "file" && onImportFiles ? (
                 <BaseRecordFileEditor

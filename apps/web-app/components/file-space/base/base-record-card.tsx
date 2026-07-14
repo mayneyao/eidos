@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/native-context-menu"
 
 import { baseOptionColor } from "./base-field-properties"
+import { baseFieldDisplayName } from "./base-field-visibility"
 import {
   createBaseRecordCardLayout,
   type BaseRecordCardFieldLayout,
@@ -472,7 +473,7 @@ export const BaseRecordCard = memo(function BaseRecordCard({
                 className="grid min-w-0 grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-2 text-xs"
               >
                 <span className="truncate text-[11px] text-muted-foreground">
-                  {fieldLayout.field.name}
+                  {baseFieldDisplayName(fieldLayout.field)}
                 </span>
                 <span className="min-w-0">
                   <CardFieldValue

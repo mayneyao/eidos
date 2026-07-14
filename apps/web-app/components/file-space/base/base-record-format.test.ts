@@ -50,4 +50,16 @@ describe("baseRecordFieldText", () => {
       "assets/spec.pdf"
     )
   })
+
+  it("formats system timestamps as local date-time values", () => {
+    const created = {
+      ...field("created-time", "_created_time"),
+      valueKind: "system" as const,
+      isHidden: true,
+    }
+    const value = "2026-07-14T08:30:00.000Z"
+    expect(baseRecordFieldText({ ...row, _created_time: value }, created)).toBe(
+      new Date(value).toLocaleString()
+    )
+  })
 })

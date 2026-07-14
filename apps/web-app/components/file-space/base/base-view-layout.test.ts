@@ -25,6 +25,20 @@ const fields = ["title", "status", "owner"].map(
   })
 )
 
+const createdTimeField: BaseFieldInfo = {
+  name: "Created time",
+  type: "created-time",
+  tableName: "tb_tasks",
+  tableColumnName: "_created_time",
+  property: null,
+  storageCodec: "scalar",
+  valueKind: "system",
+  isHidden: true,
+  isDerived: false,
+  sourceTableColumnName: null,
+  dependsOn: null,
+}
+
 const view: BaseViewInfo = {
   id: "view_tasks",
   name: "Grid",
@@ -71,6 +85,23 @@ describe("Base view layout commands", () => {
       { field: "status", direction: "asc" },
       { field: "owner", direction: "asc" },
     ])
+  })
+
+  it("keeps system fields hidden by default and persists visibility per view", () => {
+    expect(
+      orderedBaseFields([...fields, createdTimeField], view).map(
+        (field) => field.tableColumnName
+      )
+    ).toEqual(["owner", "title", "status"])
+    expect(
+      orderedBaseFields([...fields, createdTimeField], {
+        ...view,
+        properties: {
+          ...view.properties,
+          visibleSystemFields: ["_created_time", "_created_time", 42],
+        },
+      }).map((field) => field.tableColumnName)
+    ).toEqual(["owner", "title", "status", "_created_time"])
   })
 
   it("uses the clicked row unless it is already part of the selection", () => {

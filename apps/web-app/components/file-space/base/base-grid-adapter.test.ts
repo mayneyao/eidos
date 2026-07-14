@@ -238,4 +238,36 @@ describe("Base Grid adapter", () => {
       )
     ).toEqual(["text"])
   })
+
+  it("shows selected system fields as readonly rich cells", () => {
+    const createdTime = {
+      ...field("created-time"),
+      tableColumnName: "_created_time",
+      valueKind: "system" as const,
+      isHidden: true,
+    }
+    expect(visibleBaseFields([createdTime])).toEqual([])
+    expect(visibleBaseFields([createdTime], [], ["_created_time"])).toEqual([
+      createdTime,
+    ])
+    expect(
+      baseValueToGridCell(createdTime, "2026-07-14 08:30:00")
+    ).toMatchObject({
+      kind: GridCellKind.Custom,
+      readonly: true,
+      data: { kind: "date-picker-cell", format: "datetime-local" },
+    })
+
+    const recordId = {
+      ...field("row-id"),
+      tableColumnName: "_id",
+      valueKind: "system" as const,
+      isHidden: true,
+    }
+    expect(baseValueToGridCell(recordId, "row_1")).toMatchObject({
+      kind: GridCellKind.Text,
+      readonly: true,
+      data: "row_1",
+    })
+  })
 })

@@ -34,6 +34,11 @@ import {
 import { cn } from "@/lib/utils"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 
+import {
+  baseFieldDisplayName,
+  isOptionalBaseSystemField,
+} from "./base-field-visibility"
+
 export interface BaseFieldMenuState {
   bounds: Rectangle
   field: BaseFieldInfo
@@ -152,13 +157,19 @@ export function BaseFieldMenu({
         sideOffset={2}
         className="w-56 p-1"
         role="menu"
-        aria-label={state ? `Actions for ${state.field.name}` : "Field actions"}
+        aria-label={
+          state
+            ? `Actions for ${baseFieldDisplayName(state.field)}`
+            : "Field actions"
+        }
         onKeyDown={menuKeyDown}
       >
         {state ? (
           <>
             <div className="px-2 py-1.5">
-              <p className="truncate text-xs font-medium">{state.field.name}</p>
+              <p className="truncate text-xs font-medium">
+                {baseFieldDisplayName(state.field)}
+              </p>
               <p className="text-[11px] capitalize text-muted-foreground">
                 {state.field.type.replace("-", " ")}
               </p>
@@ -166,7 +177,9 @@ export function BaseFieldMenu({
             <div className="my-1 h-px bg-border" role="separator" />
             {onEditProperty ? (
               <MenuItem
-                disabled={!canEditStructure}
+                disabled={
+                  !canEditStructure || isOptionalBaseSystemField(state.field)
+                }
                 onClick={() => run(() => onEditProperty(state.field))}
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -250,9 +263,7 @@ export function BaseFieldMenu({
             <div className="my-1 h-px bg-border" role="separator" />
             <MenuItem
               destructive
-              disabled={
-                !canEditStructure || state.field.tableColumnName === "title"
-              }
+              disabled={!canEditStructure || state.field.valueKind === "system"}
               onClick={() => run(() => onDelete(state.field))}
             >
               <Trash2 className="h-3.5 w-3.5" />

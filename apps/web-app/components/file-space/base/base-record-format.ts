@@ -12,6 +12,13 @@ function scalarText(value: BaseRowValue | undefined): string {
   return String(value)
 }
 
+function dateText(value: BaseRowValue | undefined, dateOnly: boolean): string {
+  if (typeof value !== "string" || value.length === 0) return "Empty"
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return dateOnly ? parsed.toLocaleDateString() : parsed.toLocaleString()
+}
+
 function multiSelectIds(value: BaseRowValue | undefined): string[] {
   if (typeof value !== "string" || value.length === 0) return []
   if (value.startsWith("[")) {
@@ -64,6 +71,14 @@ export function baseRecordFieldText(
   if (field.type === "file") {
     const files = decodeBaseFilePaths(value)
     return files.length > 0 ? files.join(", ") : "Empty"
+  }
+  if (field.type === "date") return dateText(value, true)
+  if (
+    field.type === "datetime" ||
+    field.type === "created-time" ||
+    field.type === "last-edited-time"
+  ) {
+    return dateText(value, false)
   }
   return scalarText(value)
 }
