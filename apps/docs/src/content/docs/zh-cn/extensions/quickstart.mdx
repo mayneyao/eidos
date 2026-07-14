@@ -1,50 +1,106 @@
 ---
-title: 五分钟 Quickstart
-description: 创建最小的 file-based Eidos extension package。
+title: 开发 Markdown 任务计数器
+description: 从使用场景开始，完整开发、安装并使用一个文件右键菜单扩展。
 sidebar:
   order: 2
   badge:
     text: Preview
     variant: caution
 banner:
-  content: "<strong>Design preview：</strong>当前可以审查扩展源码结构，但稳定版尚未提供安装命令和运行时。"
+  content: "<strong>Design preview：</strong>仓库中的 package 和验证步骤已经可以使用，但安装和执行仍依赖正在实现的 file-based extension runtime。"
 ---
 
-本指南创建一个可以出现在 Markdown 文件右键菜单中的 command。完整源码位于
-[`apps/docs/examples/hello-eidos`](https://github.com/mayneyao/eidos/tree/dev/apps/docs/examples/hello-eidos)。
+本指南开发 **Markdown Task Counter**。它解决的是一个具体问题：用户在 Markdown 笔记中管理任务，
+希望不打开其他面板就能知道当前文件还有多少任务未完成。
 
-## 1. 创建 package
+## 用户使用场景
+
+假设 `projects/website.md` 包含：
+
+```md
+# Website launch
+
+- [x] Choose a domain
+- [ ] Finish the landing page
+- [ ] Invite beta users
+```
+
+安装扩展后，用户可以：
+
+1. 在 Files sidebar 找到 `website.md`；
+2. 右键点击文件；
+3. 选择 **Count Markdown tasks**；
+4. 在 Eidos notice 中看到 `projects/website.md: 2 open, 1 completed`。
+
+扩展不会修改文档，也不访问网络，只请求读取 Markdown 文件。
+
+## Command 执行时发生什么
 
 ```text
-hello-eidos/
+用户右键点击 website.md
+          │
+          ▼
+Eidos 匹配 `resourceExtname == .md`
+          │
+          ▼
+用户选择 “Count Markdown tasks”
+          │ lazy activation
+          ▼
+Extension worker 通过 context.space.files 读取这个文件
+          │
+          ▼
+扩展统计 `[ ]` 和 `[x]` task-list item
+          │
+          ▼
+Eidos 通过宿主 notice 显示结果
+```
+
+这个流程展示了 command extension 必需的三部分：
+
+- **Manifest contribution**：让 Eidos 在不执行代码时发现 command；
+- **Activation handler**：实现实际行为；
+- **Permission declaration**：覆盖代码需要的宿主操作。
+
+## 第一步：创建 package
+
+开发时应在生产 Space 之外创建：
+
+```text
+markdown-task-counter/
 ├── extension.json
 └── src/
     └── extension.ts
 ```
 
-`extension.json` 是唯一必需的元数据文件：
+文档使用的完整版本位于
+[`apps/docs/examples/markdown-task-counter`](https://github.com/mayneyao/eidos/tree/dev/apps/docs/examples/markdown-task-counter)。
+
+## 第二步：描述扩展
+
+创建 `extension.json`：
 
 ```json
 {
   "$schema": "https://docs.eidos.space/schemas/extension-manifest.schema.json",
   "manifestVersion": 1,
   "publisher": "example",
-  "name": "hello-eidos",
-  "displayName": "Hello Eidos",
+  "name": "markdown-task-counter",
+  "displayName": "Markdown Task Counter",
+  "description": "Count open and completed tasks in a Markdown file.",
   "version": "0.1.0",
   "engines": { "eidos": ">=0.34.0" },
   "entrypoints": { "worker": "src/extension.ts" },
   "contributes": {
     "commands": [
       {
-        "id": "example.hello-eidos.greet",
-        "title": "Greet from Eidos"
+        "id": "example.markdown-task-counter.countTasks",
+        "title": "Count Markdown tasks"
       }
     ],
     "menus": {
       "files/context": [
         {
-          "command": "example.hello-eidos.greet",
+          "command": "example.markdown-task-counter.countTasks",
           "when": "resourceExtname == .md"
         }
       ]
@@ -57,52 +113,120 @@ hello-eidos/
 }
 ```
 
-## 2. 实现 activation
+关键字段的作用：
+
+| Manifest value | 作用 |
+| --- | --- |
+| `publisher` + `name` | 派生稳定 package ID：`example.markdown-task-counter`。 |
+| `commands` | 让宿主无需运行扩展代码就能搜索 command。 |
+| `files/context` | 把 command 放进 Files sidebar 的右键菜单。 |
+| `when` | 在 folder、image、`.base` 和其他非 Markdown 文件上隐藏它。 |
+| `files.read` | 让宿主准确解释并限制 worker 可以读取什么。 |
+| 空的 `write` 与 `network` | 明确扩展不需要这些 capability。 |
+
+## 第三步：实现 command
+
+创建 `src/extension.ts`：
 
 ```ts
 import type { ExtensionContext } from "@eidos.space/extension-sdk"
 
 export function activate(context: ExtensionContext) {
   context.subscriptions.add(
-    context.commands.register("example.hello-eidos.greet", async (resource) => {
-      const text = await context.space.files.readText(resource.path)
-      context.window.showNotice(
-        `Hello from ${resource.path} (${text.length} characters)`,
-      )
-    }),
+    context.commands.register(
+      "example.markdown-task-counter.countTasks",
+      async (resource) => {
+        const text = await context.space.files.readText(resource.path)
+        const open = text.match(/^\s*[-*]\s+\[ \]/gim)?.length ?? 0
+        const completed = text.match(/^\s*[-*]\s+\[[xX]\]/gim)?.length ?? 0
+
+        context.window.showNotice(
+          `${resource.path}: ${open} open, ${completed} completed`,
+        )
+      },
+    ),
   )
 }
 ```
 
-Command discovery 由宿主负责。只有用户调用 command 时才会激活扩展；扩展停止时，注册过的资源
-会被统一 dispose。
+Eidos 启动时不会执行 `activate()`。用户第一次调用 command 时才创建这个 package 的 worker。
+`context.subscriptions` 保证扩展被禁用、更新或停止后，command handler 会被统一释放。
 
-## 3. 安装前验证
+正则只统计位于行首的 Markdown task-list item。``Use `[ ]` as a marker`` 这样的普通文本不会被统计。
 
-在 Design preview 阶段，可以验证仓库内示例：
+## 第四步：验证 package
+
+在 Eidos repository checkout 中运行：
 
 ```bash
 pnpm --filter docs check:examples
 ```
 
-未来的安装器会在把源码复制进 Space 前执行相同的 Manifest 和 entrypoint 检查。
-
-## 4. 目标安装布局
-
-用户确认后，package 会被 vendor 到：
+预期输出：
 
 ```text
-<space>/.eidos/extensions/example.hello-eidos/
-├── extension.json
-├── extension.lock.json
-└── src/extension.ts
+Validated example.markdown-task-counter
 ```
 
-Lock file 记录 GitHub URL、requested ref、resolved commit 和源码完整性摘要。Build output 和
-runtime state 不会写入这个目录。
+当前检查会验证：
 
-## 5. 下一步
+- Manifest 包含 publisher 和 name；
+- command ID 属于当前 package；
+- menu item 引用的是已经声明的 command；
+- entrypoint 是存在于 package 内部的相对路径。
 
-- [Package 结构](/zh-cn/extensions/anatomy/)解释 source、cache 和 state。
-- [Manifest](/zh-cn/extensions/manifest/)定义 identity 与 contribution。
-- [安全模型](/zh-cn/extensions/security/)解释为什么安装不会自动启用 package。
+未来安装器会在任何源码被信任或执行之前完成这些检查。
+
+## 第五步：安装和批准
+
+目标 runtime 的操作流程是：
+
+1. 打开 **Settings → Extensions**。
+2. 开发阶段选择 **Install from local folder**；发布后也可以粘贴 GitHub repository URL。
+3. 审查 resolved source、package ID、changed files 和请求的权限：
+   **Read Markdown files in this Space**。
+4. 选择 **Install**。Eidos 把 immutable source snapshot 复制到
+   `.eidos/extensions/example.markdown-task-counter/`。
+5. 选择 **Trust and enable**。仅仅安装 package 永远不会执行它。
+
+稳定版目前还没有这些 UI。这里把操作写完整，是为了让后续实现和 acceptance test 有明确目标。
+
+## 第六步：实际使用
+
+Runtime 可用且扩展启用后：
+
+1. 创建或打开一个包含 `- [ ]`、`- [x]` 的 Markdown 文件。
+2. 在 **Files** sidebar 右键点击这个文件。
+3. 确认菜单中出现 **Count Markdown tasks**。在 folder、image、`.base` 或其他非 Markdown
+   文件上不应该出现。
+4. 点击 command。
+5. 确认 notice 中的 open 和 completed 数量正确。
+
+可以用下面的边界情况测试：
+
+| 文件内容 | 预期结果 |
+| --- | --- |
+| 没有 task-list item | `0 open, 0 completed` |
+| `* [ ] Task` | 计入 open |
+| `- [X] Task` | 计入 completed |
+| 普通文本 ``Use `[ ]` as a marker`` | 不计入 |
+
+## 第七步：修改与调试
+
+本地开发时，修改 runtime file 会产生新的 source digest。Eidos 会终止旧 worker，并要求用户信任
+新 digest 后才能 reload。Extension Manager 应把 Manifest、build、activation 和 permission error
+显示在当前 package 上，而不是静默继续运行旧 bundle。
+
+| 现象 | 检查项 |
+| --- | --- |
+| 菜单中没有 command | 确认文件以 `.md` 结尾，并且 menu command ID 与 `commands` 一致。 |
+| Permission error | 确认 `files.read` 覆盖选中文件的相对路径。 |
+| Activation error | 打开 package diagnostics，并检查 `src/extension.ts`。 |
+| 数量不正确 | 修改 parser 前，先把失败的 Markdown 行加入测试。 |
+
+## 下一步
+
+- [Manifest](/zh-cn/extensions/manifest/)解释每项 package declaration。
+- [生命周期](/zh-cn/extensions/lifecycle/)介绍 activation、源码变化和失败处理。
+- [安全模型](/zh-cn/extensions/security/)介绍 trust 和 capability enforcement。
+- [GitHub 分发](/zh-cn/extensions/distribution/)介绍发布与更新。
