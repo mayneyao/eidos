@@ -136,7 +136,10 @@ tie-break 语义。派生字段排序、超过 8 个排序字段、远距离滚�
 公平读写语义：Gallery 分页与多个可见 Kanban 列可以同时进入；排队中的 Base mutation、文件写入或
 Graft restore 仍保持独占，并且不会被后到的读取越过。4 个并发可见列读取因此从 1 条串行执行通道变为
 2 条有界通道，同时不会把同步 SQLite 工作搬回 Electron 主线程。重复虚拟滚动会复用已经校验的 Base
-runtime；每个 worker 的 8 文件 LRU 上限避免文件描述符无界增长。文件 fingerprint 会在原地写入或
+runtime。Runner 还会合并语义完全相同且仍在途的请求，因此 React StrictMode remount 或重叠 consumer
+只发送 1 条 worker message，不会让两条通道重复执行同一页、grouped count 或 aggregate。请求完成后
+条目立即移除，不跨文件 mutation 缓存已完成结果。每个 worker 的 8 文件 LRU 上限避免文件描述符
+无界增长。文件 fingerprint 会在原地写入或
 原子替换后强制重开，打包后的 worker smoke 已覆盖深分页、分组总数以及替换失效。
 独立 Base runtime 还会为 Gallery 排序前缀和 Kanban 分组+排序前缀维护可丢弃的 SQLite 查询索引。
 索引跟随 view lifecycle，在被索引字段转换或删除后重建，并在旧文件以 migration 模式打开时一次性修复；

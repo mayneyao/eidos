@@ -203,6 +203,11 @@ Kanban-column pages may enter together, while a queued mutation or Graft restore
 remains exclusive and cannot be overtaken by later readers. Four concurrent
 column reads therefore move from one serialized execution lane to two bounded
 lanes without moving synchronous SQLite work onto Electron's main thread.
+The runner also coalesces exact duplicate requests while they are in flight, so
+React StrictMode remounts and overlapping consumers share one worker message
+instead of spending both lanes on the same page, grouped count, or aggregate.
+The entry is removed as soon as the operation settles; completed query results
+are not cached across file mutations.
 Repeated virtual-scroll reads reuse a validated Base runtime; each worker's
 eight-file LRU bound prevents descriptor growth. A file fingerprint forces
 reopen after an in-place change or atomic replacement, and the packaged worker
