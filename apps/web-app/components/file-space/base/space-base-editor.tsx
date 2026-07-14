@@ -1428,6 +1428,15 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
                 fields={activeTable.fields}
                 disabled={blockingMutations > 0}
                 onNewField={() => openFieldCreator()}
+                onRevealBase={() =>
+                  void reveal(filePath).catch((revealError) =>
+                    setError(
+                      revealError instanceof Error
+                        ? revealError.message
+                        : "Unable to show Base in file manager"
+                    )
+                  )
+                }
                 onRenameTable={() =>
                   setRenameTarget({
                     kind: "table",

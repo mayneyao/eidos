@@ -130,6 +130,7 @@ vi.mock("./base-structure-menu", () => ({
     onNewField,
     onRenameTable,
     onDeleteTable,
+    onRevealBase,
     onEditField,
     onDeleteField,
   }: {
@@ -137,6 +138,7 @@ vi.mock("./base-structure-menu", () => ({
     onNewField: () => void
     onRenameTable: () => void
     onDeleteTable: () => void
+    onRevealBase: () => void
     onEditField: (
       field: (typeof snapshot)["tables"][number]["fields"][number]
     ) => void
@@ -157,6 +159,9 @@ vi.mock("./base-structure-menu", () => ({
         </button>
         <button type="button" onClick={onDeleteTable}>
           Delete table
+        </button>
+        <button type="button" onClick={onRevealBase}>
+          Show Base in file manager
         </button>
         <button
           type="button"
@@ -1697,6 +1702,35 @@ describe("SpaceBaseEditor", () => {
       "projects/tasks.base",
       "tasks",
       ["view_tasks"]
+    )
+  })
+
+  it("reveals the current Base file from its overflow actions", async () => {
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Show Base in file manager")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(revealFileMock).toHaveBeenCalledWith("projects/tasks.base")
+  })
+
+  it("keeps a failed Base reveal recoverable in the editor", async () => {
+    revealFileMock.mockRejectedValueOnce(new Error("File manager unavailable"))
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Show Base in file manager")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "File manager unavailable"
     )
   })
 

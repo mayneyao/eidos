@@ -1,6 +1,7 @@
 import type { BaseFieldInfo, BaseTableInfo } from "@eidos.space/base"
 import {
   Columns3,
+  FolderOpen,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -28,6 +29,7 @@ interface BaseStructureMenuProps {
   onNewField: () => void
   onRenameTable: () => void
   onDeleteTable: () => void
+  onRevealBase: () => void
   onEditField: (field: BaseFieldInfo) => void
   onDeleteField: (field: BaseFieldInfo) => void
 }
@@ -39,6 +41,7 @@ export function BaseStructureMenu({
   onNewField,
   onRenameTable,
   onDeleteTable,
+  onRevealBase,
   onEditField,
   onDeleteField,
 }: BaseStructureMenuProps) {
@@ -52,8 +55,8 @@ export function BaseStructureMenu({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          aria-label={`Manage ${table.name}`}
-          title="Table and fields"
+          aria-label={`Base actions for ${table.name}`}
+          title="Base actions"
           disabled={disabled}
         >
           <MoreHorizontal className="h-3.5 w-3.5" />
@@ -109,6 +112,11 @@ export function BaseStructureMenu({
             })}
           </>
         ) : null}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={onRevealBase}>
+          <FolderOpen className="mr-2 h-3.5 w-3.5" />
+          Show Base in file manager
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
