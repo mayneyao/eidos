@@ -390,6 +390,12 @@ panel 保持在 flex 布局中；低于由此得到的 760px 内容断点后，�
 同时受当前可用 viewport 高度约束并在内部滚动，因此 Desktop 窗口缩小时，editor、preview、references
 和保存动作仍然可达。
 
+空 Base 的首次使用状态现在直接提供三条真实路径：一键创建与新建空白 Base 相同的默认 table、用同一
+套 schema 创建 Task tracker，或从当前空状态启动流式 CSV 导入。CSV 入口不再只藏在空工具栏中，
+两个模板也不复制另一份字段定义；创建失败会把错误和 Retry 留在空状态，不会追加一条全局 Base
+alert。整个流程作用于当前 `.base` 文件，不创建教学副本，也不增加居中弹窗；需要自定义名称时，
+底部 sheet `+` 仍提供完整的锚定式创建流程。
+
 CSV 导入的文件选择、分析和写入现在也保持锚定式、非模态工作流。原生 picker 返回后 mapping
 panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以原位取消。取消会终止隔离 worker、
 等待 SQLite transaction 回滚，再解除当前 Base 的 mutation lock，因此重试不会和仍在退出的
@@ -420,6 +426,7 @@ layout；恢复后的仓库状态为 clean。
 | view 级字段显隐与只读系统字段              | 三种 layout 共用持久化显隐，系统字段可筛选排序    | v1 暂无已知缺口                                                     |
 | Grid 列统计                                | view 级配置、worker 聚合并复用 trailing row       | v1 暂无已知缺口                                                     |
 | CSV 导入/当前 view 导出                    | 流式 worker、进度/取消和原子输出已工作            | v1 暂无已知缺口                                                     |
+| Base 首次使用                              | 空白表、Task tracker 与 CSV 三条路径均已接通      | v1 暂无已知缺口                                                     |
 | Gallery 字段显隐、空字段隐藏、card size    | 二维虚拟无限滚动与结果导航已工作                  | v1 暂无已知缺口                                                     |
 | Gallery 与 Kanban cover                    | File/URL、适应/裁切和隐藏空字段均已工作           | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
 | Card actions                               | 可编辑 Inspector 与删除已工作                     | file-based Base 的 full-page row document 模型尚未定义              |
