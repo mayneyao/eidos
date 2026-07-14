@@ -224,6 +224,10 @@ cards。共享 record card 为 Gallery 分页保留相同边界：未变化记�
 cover 子树渲染；row 或 view 真正变化时仍会正常更新。Card 移动保存时的 disabled 状态只传播到源列和
 目标列，因此持久化开始与结束都不会增加无关可见 card 的渲染次数。
 
+Gallery 的虚拟行现在还会在 card 外形成第二层 memo 边界。分页进度、重试和其他只属于父组件的状态
+不再重建已挂载 row wrapper；page merge 也只会重渲染可见 slot 真正新增或改变记录的 wrapper。
+失败无限分页的 Retry 回归中，替换 page 返回前的已挂载虚拟行重复构造从 3 行降为 0 行。
+
 Card 渲染元数据现在按 view 计算一次，而不是让每个可见 record 重复计算。字段顺序、封面字段、字段
 数量限制和 Select/Multi-select option 索引会被 Gallery 或 Kanban 的可见窗口共享。未打开的操作菜单
 不会预先展开全部 Move-to options。Kanban 的所有可见列还会保留同一个 board 级 Move-to option 数组，

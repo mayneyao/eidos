@@ -364,6 +364,13 @@ changes still render normally. A card move scopes its pending disabled state to
 the source and target columns, so an unrelated visible card keeps the same render
 count while persistence starts and completes.
 
+Gallery virtual rows now form a second memo boundary around those cards. Paging
+progress, retry, and other parent-only state no longer rebuild the mounted row
+wrappers, while a page merge rerenders only wrappers whose visible slots gained
+or changed a record. The retry regression for a failed infinite page reduces
+mounted virtual-row reconstruction from 3 rows to 0 before the replacement page
+arrives.
+
 The Base editor host now preserves those render boundaries during ordinary row
 saves. Updating an existing record treats an unchanged row count as a no-op, so
 the active table, view, and field references remain stable instead of rebuilding
