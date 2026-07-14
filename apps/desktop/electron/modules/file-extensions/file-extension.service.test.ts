@@ -2,7 +2,14 @@
 
 import "reflect-metadata"
 
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -121,5 +128,120 @@ describe("FileExtensionService", () => {
     await expect(service.discover("legacy")).rejects.toThrow(
       "only available in file Spaces"
     )
+  })
+
+  it("creates a local template as real package files without overwriting", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "eidos-file-extension-"))
+    roots.push(root)
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const windowProvider = {
+      getWindow: () => undefined,
+    } as unknown as MainWindowProvider
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(registry, windowProvider)
+
+    await expect(
+      service.createTemplate("space-a", "hello-tools")
+    ).resolves.toEqual({
+      canonicalId: "local.hello-tools",
+      root: ".eidos/extensions/local.hello-tools",
+      files: ["extension.json", "src/extension.ts", "README.md"],
+    })
+    const packageRoot = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "local.hello-tools"
+    )
+    expect(
+      JSON.parse(
+        await readFile(path.join(packageRoot, "extension.json"), "utf8")
+      )
+    ).toMatchObject({
+      publisher: "local",
+      name: "hello-tools",
+      engines: { eidos: ">=0.33.0" },
+    })
+    expect(
+      await readFile(path.join(packageRoot, "src", "extension.ts"), "utf8")
+    ).toContain("local.hello-tools.hello")
+    await expect(service.discover("space-a")).resolves.toMatchObject({
+      packages: [
+        {
+          canonicalId: "local.hello-tools",
+          status: "ready",
+        },
+      ],
+    })
+    await expect(
+      service.createTemplate("space-a", "hello-tools")
+    ).rejects.toThrow("already exists")
+    await expect(service.createTemplate("space-a", "Bad Name")).rejects.toThrow(
+      "Extension name"
+    )
+  })
+
+  it("serializes concurrent creation of the same package", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "eidos-file-extension-"))
+    roots.push(root)
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const windowProvider = {
+      getWindow: () => undefined,
+    } as unknown as MainWindowProvider
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(registry, windowProvider)
+
+    const results = await Promise.allSettled([
+      service.createTemplate("space-a", "same-name"),
+      service.createTemplate("space-a", "same-name"),
+    ])
+    expect(results.map((result) => result.status).sort()).toEqual([
+      "fulfilled",
+      "rejected",
+    ])
+  })
+
+  it("rejects an extensions path that escapes through .eidos", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "eidos-file-extension-"))
+    const outside = await mkdtemp(path.join(tmpdir(), "eidos-file-extension-"))
+    roots.push(root, outside)
+    await mkdir(path.join(outside, "extensions"))
+    await symlink(outside, path.join(root, ".eidos"), "dir")
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const windowProvider = {
+      getWindow: () => undefined,
+    } as unknown as MainWindowProvider
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(registry, windowProvider)
+
+    await expect(service.discover("space-a")).rejects.toThrow("symbolic link")
+    await expect(service.startWatching("space-a")).resolves.toMatchObject({
+      watching: false,
+      reason: "invalid-root",
+    })
+    await expect(
+      service.createTemplate("space-a", "hello-tools")
+    ).rejects.toThrow("symbolic link")
   })
 })

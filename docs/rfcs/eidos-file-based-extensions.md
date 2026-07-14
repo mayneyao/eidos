@@ -14,10 +14,16 @@ Related:
 ## Implementation Status (2026-07-15)
 
 The storage, manifest, trust, and delivery boundaries in this RFC are frozen for
-the non-executing foundation slice. Runtime execution has not started. Existing
-bundled and database-backed extensions remain compatibility paths; no stable
-Eidos release should execute third-party file-based extensions until the worker
-capability boundary is implemented and verified.
+the non-executing foundation slice. The development tree now implements strict
+package inspection, bounded change watching, symlink-safe host discovery,
+Extension Manager diagnostics, and inline creation of real local package files.
+Structurally valid packages are shown as `Untrusted`, not `Ready`; disabled and
+ready states become reachable only after P2 adds local trust and enablement.
+Created source is visible through the existing Version Changes boundary while
+private cache staging remains ignored. Runtime execution has not started.
+Existing bundled and database-backed extensions remain compatibility paths; no
+stable Eidos release should execute third-party file-based extensions until the
+worker capability boundary is implemented and verified.
 
 ## Summary
 

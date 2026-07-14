@@ -180,10 +180,19 @@ The current check verifies that:
 
 The installer will perform these checks before any source is trusted or run.
 
-### Inspect it in the current Desktop development build
+### Create or inspect it in the current Desktop development build
 
 The non-executing foundation is available in the current development tree. To
-exercise it before the installer exists:
+create a local package without a dialog:
+
+1. Open a file Space in Eidos Desktop.
+2. Open **Settings → Extensions** and select **New extension**.
+3. Enter a package name such as `task-counter` and select **Create**.
+4. Eidos writes `extension.json`, `src/extension.ts`, and `README.md` under
+   `.eidos/extensions/local.task-counter/`.
+5. Open **Version** to review the three new source files as ordinary Changes.
+
+To inspect the complete Task Counter example instead:
 
 1. Copy the example directory to
    `<your-space>/.eidos/extensions/example.markdown-task-counter/`.
@@ -191,14 +200,15 @@ exercise it before the installer exists:
 3. Open **Settings → Extensions** and select **Refresh**.
 4. Inspect the package status and diagnostics.
 
-`Ready` currently means that the manifest, compatibility range, entrypoints,
-imports, permissions, and package digest passed inspection. The host does not
-compile or execute the worker. Editing a package file triggers a new bounded
-scan; stale scans cannot replace a newer result.
+`Untrusted` currently means that the manifest, compatibility range,
+entrypoints, imports, permissions, and package digest passed inspection but no
+local trust decision exists. The host does not compile or execute the worker.
+Editing a package file triggers a new bounded scan; stale scans cannot replace
+a newer result.
 
 The checked-in example targets Eidos 0.34. A 0.33 development build therefore
 reports it as `Incompatible` by design; change only `engines.eidos` to
-`>=0.33.0` when you specifically want to exercise the `Ready` state locally.
+`>=0.33.0` when you specifically want to exercise the `Untrusted` state locally.
 
 ## Step 5: Install and approve it
 

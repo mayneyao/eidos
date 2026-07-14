@@ -8,6 +8,7 @@ import { FileExtensionSettings } from "./file-extension-settings"
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 const discoverMock = vi.hoisted(() => vi.fn())
+const createTemplateMock = vi.hoisted(() => vi.fn())
 const startWatchingMock = vi.hoisted(() => vi.fn())
 const stopWatchingMock = vi.hoisted(() => vi.fn())
 const onMock = vi.hoisted(() => vi.fn())
@@ -48,6 +49,11 @@ describe("FileExtensionSettings", () => {
 
   beforeEach(() => {
     discoverMock.mockReset()
+    createTemplateMock.mockReset().mockResolvedValue({
+      canonicalId: "local.hello-tools",
+      root: ".eidos/extensions/local.hello-tools",
+      files: ["extension.json", "src/extension.ts", "README.md"],
+    })
     startWatchingMock.mockReset().mockResolvedValue({
       watching: true,
       generation: 0,
@@ -108,6 +114,7 @@ describe("FileExtensionSettings", () => {
         off: offMock,
         fileExtensions: {
           discover: discoverMock,
+          createTemplate: createTemplateMock,
           startWatching: startWatchingMock,
           stopWatching: stopWatchingMock,
         },
@@ -134,13 +141,13 @@ describe("FileExtensionSettings", () => {
     expect(startWatchingMock).toHaveBeenCalledWith("file-space")
     expect(container.textContent).toContain("Inspection only")
     expect(container.textContent).toContain("Task Counter")
-    expect(container.textContent).toContain("Ready")
+    expect(container.textContent).toContain("Untrusted")
     expect(container.textContent).toContain("2 files · 1 contributions")
     expect(
       [...container.querySelectorAll("button")].map((button) =>
         button.textContent?.trim()
       )
-    ).toEqual(["Refresh"])
+    ).toEqual(["New extension", "Refresh"])
 
     const listener = onMock.mock.calls[0]?.[1]
     await act(async () => {
@@ -153,6 +160,45 @@ describe("FileExtensionSettings", () => {
       listener?.({}, { spaceId: "file-space", generation: 1 })
       await Promise.resolve()
     })
+    expect(discoverMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("creates a real local template through the inline form", async () => {
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const newExtension = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "New extension"
+    )!
+    act(() => newExtension.click())
+
+    const input = container.querySelector<HTMLInputElement>(
+      "#local-extension-name"
+    )!
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )!.set!
+    act(() => {
+      valueSetter.call(input, "hello-tools")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+
+    const create = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Create"
+    )!
+    await act(async () => {
+      create.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(createTemplateMock).toHaveBeenCalledWith("file-space", "hello-tools")
+    expect(container.textContent).toContain(
+      "Created .eidos/extensions/local.hello-tools"
+    )
     expect(discoverMock).toHaveBeenCalledTimes(2)
   })
 })

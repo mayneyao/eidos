@@ -177,9 +177,18 @@ Validated example.markdown-task-counter
 
 未来安装器会在任何源码被信任或执行之前完成这些检查。
 
-### 在当前 Desktop 开发版本中检查
+### 在当前 Desktop 开发版本中创建或检查
 
-当前开发分支已经具备不会执行代码的基础检查能力。安装器完成前，可以这样验证：
+当前开发分支已经具备不会执行代码的基础能力。可以不经过弹窗，直接创建一个本地扩展包：
+
+1. 用 Eidos Desktop 打开一个 file Space；
+2. 打开 **Settings → Extensions**，点击 **新建扩展**；
+3. 输入 `task-counter` 这样的 package name，点击 **创建**；
+4. Eidos 会在 `.eidos/extensions/local.task-counter/` 下写入
+   `extension.json`、`src/extension.ts` 和 `README.md`；
+5. 打开 **Version**，可以把这三个源码文件作为普通 Changes 审查。
+
+如果希望检查完整的 Task Counter 示例：
 
 1. 把示例目录复制到
    `<你的-space>/.eidos/extensions/example.markdown-task-counter/`；
@@ -187,12 +196,12 @@ Validated example.markdown-task-counter
 3. 打开 **Settings → Extensions**，点击 **刷新**；
 4. 查看扩展包状态与诊断信息。
 
-当前的“就绪”只表示 Manifest、兼容范围、entrypoint、import、permission 和 package digest
-通过检查。宿主不会编译或执行 worker。修改扩展包文件会触发一次有资源上限的新扫描，旧扫描结果
-不能覆盖更新的结果。
+当前的“未信任”表示 Manifest、兼容范围、entrypoint、import、permission 和 package digest
+已经通过检查，但还不存在本地 trust decision。宿主不会编译或执行 worker。修改扩展包文件会触发
+一次有资源上限的新扫描，旧扫描结果不能覆盖更新的结果。
 
 仓库内的示例面向 Eidos 0.34，因此 0.33 开发版本会按设计显示为“不兼容”。如果只是希望在
-本地验证“就绪”状态，只修改示例中的 `engines.eidos` 为 `>=0.33.0` 即可。
+本地验证“未信任”状态，只修改示例中的 `engines.eidos` 为 `>=0.33.0` 即可。
 
 ## 第五步：安装和批准
 

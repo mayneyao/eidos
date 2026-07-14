@@ -17,6 +17,7 @@ export {
   RESERVED_EXTENSION_PUBLISHERS,
 } from "./manifest"
 export { parseExtensionLock } from "./lock"
+export { createExtensionCommandTemplate } from "./template"
 export type {
   AnalyzeExtensionManifestOptions,
   DiscoverExtensionPackagesOptions,
@@ -38,3 +39,8 @@ export type {
   InspectExtensionPackageOptions,
   NormalizedExtensionPermissions,
 } from "./types"
+export type {
+  ExtensionCommandTemplateOptions,
+  ExtensionTemplate,
+  ExtensionTemplateFile,
+} from "./template"

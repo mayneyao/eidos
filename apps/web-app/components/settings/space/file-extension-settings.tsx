@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   AlertCircle,
-  CheckCircle2,
   FolderCog,
   LoaderCircle,
   Package,
+  Plus,
   RefreshCw,
   ShieldCheck,
 } from "lucide-react"
@@ -15,6 +15,7 @@ import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
 type FileExtensionDiscovery = Awaited<
@@ -39,6 +40,11 @@ export function FileExtensionSettings() {
   )
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showCreator, setShowCreator] = useState(false)
+  const [templateName, setTemplateName] = useState("")
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [createdPath, setCreatedPath] = useState<string | null>(null)
   const requestGeneration = useRef(0)
   const lastEventGeneration = useRef(0)
 
@@ -83,6 +89,36 @@ export function FileExtensionSettings() {
     }
   }, [currentSpace?.mode, spaceId, t])
 
+  const createTemplate = useCallback(async () => {
+    if (!spaceId || creating) return
+    const name = templateName.trim()
+    if (!name) return
+    setCreating(true)
+    setCreateError(null)
+    setCreatedPath(null)
+    try {
+      const result = await window.eidos.fileExtensions.createTemplate(
+        spaceId,
+        name
+      )
+      setCreatedPath(result.root)
+      setTemplateName("")
+      setShowCreator(false)
+      await load()
+    } catch (createTemplateError) {
+      setCreateError(
+        createTemplateError instanceof Error
+          ? createTemplateError.message
+          : t(
+              "space.settings.fileExtensions.createFailed",
+              "Unable to create the extension template."
+            )
+      )
+    } finally {
+      setCreating(false)
+    }
+  }, [creating, load, spaceId, t, templateName])
+
   useEffect(() => {
     setDiscovery(null)
     void load()
@@ -122,9 +158,10 @@ export function FileExtensionSettings() {
   }, [load, spaceId])
 
   const counts = useMemo(() => {
-    const result = { ready: 0, incompatible: 0, invalid: 0 }
+    const result = { valid: 0, incompatible: 0, invalid: 0 }
     for (const extension of discovery?.packages ?? []) {
-      result[extension.status] += 1
+      if (extension.status === "ready") result.valid += 1
+      else result[extension.status] += 1
     }
     return result
   }, [discovery])
@@ -134,7 +171,7 @@ export function FileExtensionSettings() {
   const statusLabel = (status: FileExtensionPackage["status"]): string => {
     switch (status) {
       case "ready":
-        return t("space.settings.fileExtensions.ready", "Ready")
+        return t("space.settings.fileExtensions.untrusted", "Untrusted")
       case "incompatible":
         return t("space.settings.fileExtensions.incompatible", "Incompatible")
       case "invalid":
@@ -149,23 +186,110 @@ export function FileExtensionSettings() {
           <h3>
             {t("space.settings.fileExtensions.packages", "Extension packages")}
           </h3>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={loading}
-            onClick={() => void load()}
-          >
-            {loading ? (
-              <LoaderCircle className="animate-spin" />
-            ) : (
-              <RefreshCw />
-            )}
-            {t("space.settings.fileExtensions.refresh", "Refresh")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={creating}
+              onClick={() => {
+                setCreateError(null)
+                setCreatedPath(null)
+                setShowCreator((visible) => !visible)
+              }}
+            >
+              <Plus />
+              {t("space.settings.fileExtensions.newExtension", "New extension")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={loading}
+              onClick={() => void load()}
+            >
+              {loading ? (
+                <LoaderCircle className="animate-spin" />
+              ) : (
+                <RefreshCw />
+              )}
+              {t("space.settings.fileExtensions.refresh", "Refresh")}
+            </Button>
+          </div>
         </div>
         <hr />
         <div className="divide-y divide-border/70">
+          {showCreator && (
+            <div className="py-4">
+              <div className="flex items-end gap-3">
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <Label htmlFor="local-extension-name">
+                    {t(
+                      "space.settings.fileExtensions.extensionId",
+                      "Local extension ID"
+                    )}
+                  </Label>
+                  <div className="flex items-center rounded-md border bg-background focus-within:ring-1 focus-within:ring-ring">
+                    <span className="pl-3 text-sm text-muted-foreground">
+                      local.
+                    </span>
+                    <Input
+                      id="local-extension-name"
+                      value={templateName}
+                      autoFocus
+                      placeholder="task-counter"
+                      className="border-0 pl-0 shadow-none focus-visible:ring-0"
+                      disabled={creating}
+                      onChange={(event) => {
+                        setTemplateName(event.target.value)
+                        setCreateError(null)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault()
+                          void createTemplate()
+                        }
+                        if (event.key === "Escape") {
+                          setShowCreator(false)
+                          setCreateError(null)
+                        }
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {t(
+                      "space.settings.fileExtensions.extensionIdDescription",
+                      "Use lowercase letters, numbers, and hyphens. Eidos creates real source files that appear in Version changes."
+                    )}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!templateName.trim() || creating}
+                  onClick={() => void createTemplate()}
+                >
+                  {creating && <LoaderCircle className="animate-spin" />}
+                  {t("space.settings.fileExtensions.create", "Create")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={creating}
+                  onClick={() => {
+                    setShowCreator(false)
+                    setCreateError(null)
+                  }}
+                >
+                  {t("space.settings.fileExtensions.cancel", "Cancel")}
+                </Button>
+              </div>
+              {createError && (
+                <p className="mt-2 text-sm text-destructive">{createError}</p>
+              )}
+            </div>
+          )}
           <div className="flex min-h-[76px] items-center justify-between gap-6 py-4">
             <div className="flex min-w-0 items-start gap-3">
               <FolderCog className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -214,6 +338,15 @@ export function FileExtensionSettings() {
             </Badge>
           </div>
         </div>
+        {createdPath && (
+          <p className="mt-3 text-sm text-muted-foreground">
+            {t(
+              "space.settings.fileExtensions.created",
+              "Created {{path}}. Edit these real files with your preferred editor; Version will show their changes.",
+              { path: createdPath }
+            )}
+          </p>
+        )}
       </section>
 
       <section>
@@ -226,10 +359,10 @@ export function FileExtensionSettings() {
               <p className="mt-1 text-xs text-muted-foreground">
                 {t(
                   "space.settings.fileExtensions.hostVersion",
-                  "Host {{version}} · {{ready}} ready · {{incompatible}} incompatible · {{invalid}} invalid",
+                  "Host {{version}} · {{valid}} valid but untrusted · {{incompatible}} incompatible · {{invalid}} invalid",
                   {
                     version: discovery.hostVersion,
-                    ready: counts.ready,
+                    valid: counts.valid,
                     incompatible: counts.incompatible,
                     invalid: counts.invalid,
                   }
@@ -284,7 +417,7 @@ export function FileExtensionSettings() {
                 >
                   <div className="flex min-w-0 flex-1 items-start gap-3">
                     {extension.status === "ready" ? (
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                     ) : (
                       <AlertCircle
                         className={cn(
@@ -344,7 +477,7 @@ export function FileExtensionSettings() {
                     className={cn(
                       "shrink-0 font-normal",
                       extension.status === "ready" &&
-                        "border-emerald-500/40 text-emerald-700 dark:text-emerald-400",
+                        "border-amber-500/40 text-amber-700 dark:text-amber-400",
                       extension.status === "incompatible" &&
                         "border-amber-500/40 text-amber-700 dark:text-amber-400",
                       extension.status === "invalid" &&

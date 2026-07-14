@@ -31,6 +31,12 @@ export interface FileExtensionWatchResult {
   reason?: "missing-root" | "invalid-root" | "watch-error"
 }
 
+export interface FileExtensionTemplateResult {
+  canonicalId: string
+  root: `.eidos/extensions/${string}`
+  files: string[]
+}
+
 export interface FileExtensionChangedEvent {
   spaceId: string
   generation: number

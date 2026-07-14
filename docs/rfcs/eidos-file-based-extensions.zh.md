@@ -14,8 +14,12 @@
 ## 实施状态（2026-07-15）
 
 本 RFC 的存储、Manifest、trust 与交付边界已经冻结，可以开始不可执行的基础层切片。
-扩展执行运行时尚未实施。现有 bundled 和 database-backed extensions 继续作为兼容路径；
-在 worker capability boundary 完成并验证前，稳定版 Eidos 不应执行第三方 file-based extension。
+当前开发分支已经实现严格 package inspection、有资源上限的变更监听、拒绝符号链接逃逸的宿主发现、
+Extension Manager 诊断，以及通过内联交互创建真实本地扩展源码。结构合法的扩展显示为“未信任”，
+而不是“就绪”；“禁用”和“就绪”要等 P2 加入本地 trust 与 enablement 后才会出现。创建的源码会通过
+现有 Version Changes 边界展示，私有 cache staging 仍被忽略。扩展执行运行时尚未实施。现有 bundled
+和 database-backed extensions 继续作为兼容路径；在 worker capability boundary 完成并验证前，
+稳定版 Eidos 不应执行第三方 file-based extension。
 
 ## 摘要
 
