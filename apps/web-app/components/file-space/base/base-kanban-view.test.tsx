@@ -604,6 +604,95 @@ describe("BaseKanbanView", () => {
     )
   })
 
+  it("does not rerender cards outside the source and target columns while a move saves", async () => {
+    const tableWithBlockedStatus: BaseTableSnapshot = {
+      ...table,
+      fields: table.fields.map((field) =>
+        field.tableColumnName === "status"
+          ? {
+              ...field,
+              property: {
+                options: [
+                  { id: "todo", name: "Todo", color: "blue" },
+                  { id: "done", name: "Done", color: "green" },
+                  { id: "blocked", name: "Blocked", color: "red" },
+                ],
+              },
+            }
+          : field
+      ),
+    }
+    const todoRow = {
+      _id: "todo_0",
+      title: "Write RFC",
+      status: "todo",
+    }
+    const blockedRow = {
+      _id: "blocked_0",
+      title: "Waiting on review",
+      status: "blocked",
+    }
+    const move = deferred<{
+      tableId: string
+      row: typeof todoRow
+      rowCount: number
+    }>()
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={tableWithBlockedStatus}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [
+            { value: "todo", total: 1 },
+            { value: "blocked", total: 1 },
+          ])}
+          loadGroupPage={vi.fn(async (_field, value, offset, limit) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: value === "todo" || value === "blocked" ? 1 : 0,
+            rows:
+              value === "todo"
+                ? [todoRow]
+                : value === "blocked"
+                  ? [blockedRow]
+                  : [],
+          }))}
+          onCellEdit={vi.fn(() => move.promise)}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const blockedRendersBefore = recordCardMocks.renders.get("blocked_0")
+    expect(blockedRendersBefore).toBeGreaterThan(0)
+
+    await act(async () => {
+      kanbanMocks.onDragEnd?.({
+        active: { id: "todo_0" },
+        over: { id: "base-kanban:done" },
+      })
+      await Promise.resolve()
+    })
+
+    expect(recordCardMocks.renders.get("blocked_0")).toBe(blockedRendersBefore)
+
+    await act(async () => {
+      move.resolve({
+        tableId: "tasks",
+        row: { ...todoRow, status: "done" },
+        rowCount: 2,
+      })
+      await move.promise
+      await Promise.resolve()
+    })
+
+    expect(recordCardMocks.renders.get("blocked_0")).toBe(blockedRendersBefore)
+  })
+
   it("recovers an initial grouped-count failure inside the board", async () => {
     const row = { _id: "row_1", title: "Recovered record", status: "todo" }
     const onError = vi.fn()

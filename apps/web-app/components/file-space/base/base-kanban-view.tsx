@@ -724,7 +724,9 @@ export const BaseKanbanView = memo(function BaseKanbanView({
     new Set()
   )
   const [dragging, setDragging] = useState(false)
-  const [moveInFlight, setMoveInFlight] = useState(false)
+  const [movingGroupKeys, setMovingGroupKeys] =
+    useState<ReadonlySet<string> | null>(null)
+  const moveInFlight = movingGroupKeys !== null
   const moveInFlightRef = useRef(false)
   const [moveAnnouncement, setMoveAnnouncement] = useState("")
   const [inspectedRow, setInspectedRow] = useState<BaseRow | null>(null)
@@ -1207,7 +1209,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
         [groupField.tableColumnName]: target.value,
       }
       moveInFlightRef.current = true
-      setMoveInFlight(true)
+      setMovingGroupKeys(new Set([source.key, target.key]))
       setGroups((current) =>
         current.map((group) => {
           if (group.key === source.key) {
@@ -1310,7 +1312,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
         })
         .finally(() => {
           moveInFlightRef.current = false
-          setMoveInFlight(false)
+          setMovingGroupKeys(null)
         })
       return true
     },
@@ -1556,7 +1558,9 @@ export const BaseKanbanView = memo(function BaseKanbanView({
                         table={table}
                         view={view}
                         cardLayout={cardLayout}
-                        disabled={disabled || moveInFlight}
+                        disabled={
+                          disabled || movingGroupKeys?.has(group.key) === true
+                        }
                         width={columnWidth}
                         color={baseOptionColor(group.color, theme)}
                         acquireCover={acquireCover}
