@@ -12,7 +12,7 @@ import {
   toSpaceAssetUrl,
 } from "@/apps/web-app/components/file-space/file-path"
 import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-space/pending-writes"
-import { SpaceBaseEditor } from "@/apps/web-app/components/file-space/base/space-base-editor"
+import { SpaceBaseEditorLoader } from "@/apps/web-app/components/file-space/base/space-base-editor-loader"
 import { SpaceFileFallbackPreview } from "@/apps/web-app/components/file-space/space-file-fallback-preview"
 import { SpaceMarkdownEditor } from "@/apps/web-app/components/file-space/space-markdown-editor"
 import {
@@ -130,7 +130,7 @@ export function SpaceFilePage() {
     return <FileState message="No file selected" />
   }
   if (extension === "base") {
-    return <SpaceBaseEditor key={filePath} filePath={filePath} />
+    return <SpaceBaseEditorLoader key={filePath} filePath={filePath} />
   }
   if (TEXT_EXTENSIONS.has(extension)) {
     return (
