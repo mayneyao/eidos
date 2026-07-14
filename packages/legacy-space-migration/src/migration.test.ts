@@ -481,6 +481,130 @@ describe("legacy Space migration planning", () => {
     base.close()
   })
 
+  it("promotes compatible legacy formulas and lookups to live Base fields", async () => {
+    const fixture = createLegacyFixture()
+    roots.push(fixture.sourceRoot)
+    const database = new Database(fixture.databasePath)
+    database.exec(`
+      ALTER TABLE tb_tasks ADD COLUMN owner TEXT;
+      ALTER TABLE tb_tasks ADD COLUMN owner_name TEXT;
+      ALTER TABLE tb_tasks ADD COLUMN upper_title TEXT
+        GENERATED ALWAYS AS (upper(title)) VIRTUAL;
+      CREATE TABLE tb_people (
+        _id TEXT PRIMARY KEY,
+        title TEXT
+      );
+    `)
+    database
+      .prepare(
+        `INSERT INTO eidos__tree
+          (id, name, type, parent_id, position, icon, is_deleted, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run("people", "People", "table", null, 5, null, 0, null, null)
+    const insertField = database.prepare(
+      `INSERT INTO eidos__columns
+        (name, type, table_name, table_column_name, property)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    insertField.run(
+      "Owner",
+      "link",
+      "tb_tasks",
+      "owner",
+      JSON.stringify({ linkTableName: "tb_people", linkColumnName: "title" })
+    )
+    insertField.run(
+      "Owner name",
+      "lookup",
+      "tb_tasks",
+      "owner_name",
+      JSON.stringify({ linkFieldId: "owner", lookupTargetFieldId: "title" })
+    )
+    insertField.run(
+      "Upper title",
+      "formula",
+      "tb_tasks",
+      "upper_title",
+      JSON.stringify({ formula: "upper(title)", displayType: "text" })
+    )
+    database
+      .prepare("INSERT INTO tb_people (_id, title) VALUES (?, ?)")
+      .run("person-1", "Alice")
+    database
+      .prepare("UPDATE tb_tasks SET owner = ?, owner_name = ? WHERE _id = ?")
+      .run("person-1", "Alice", "row-1")
+    database
+      .prepare(
+        `INSERT INTO eidos__references
+          (self_table_name, self_table_column_name,
+           ref_table_name, ref_table_column_name,
+           link_table_name, link_table_column_name)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run("tb_tasks", "owner_name", "tb_people", "title", "tb_tasks", "owner")
+    database.close()
+
+    const targetParent = mkdtempSync(
+      path.join(tmpdir(), "eidos-derived-target-")
+    )
+    roots.push(targetParent)
+    const targetRoot = path.join(targetParent, "export")
+    const plan = planLegacySpaceMigration(
+      inspectLegacySpace(fixture.sourceRoot),
+      { targetRoot }
+    )
+    expect(
+      plan.issues.filter((issue) => issue.code === "derived-field-materialized")
+    ).toEqual([])
+
+    await exportLegacySpace(plan, { migrationId: "derived-export" })
+    const filePath = path.join(targetRoot, "main.base")
+    const base = openBaseFile(filePath)
+    expect(base.listFields("tasks")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tableColumnName: "upper_title",
+          valueKind: "derived",
+          isDerived: true,
+          dependsOn: ["title"],
+        }),
+        expect.objectContaining({
+          tableColumnName: "owner_name",
+          valueKind: "derived",
+          property: expect.objectContaining({
+            relationField: "owner",
+            targetField: "title",
+            aggregate: "values",
+          }),
+        }),
+      ])
+    )
+    expect(
+      base.connection
+        .query<{ name: string }>('PRAGMA table_xinfo("tb_tasks")')
+        .map((column) => column.name)
+    ).not.toEqual(expect.arrayContaining(["upper_title", "owner_name"]))
+    expect(base.listRows("tasks")[0]).toMatchObject({
+      title: "Ship",
+      upper_title: "SHIP",
+      owner_name: "Alice",
+    })
+    expect(base.updateRow("tasks", "row-1", { title: "Launch" })).toMatchObject(
+      { upper_title: "LAUNCH" }
+    )
+    base.updateRow("people", "person-1", { title: "Bob" })
+    expect(base.listRows("tasks")[0].owner_name).toBe("Bob")
+    base.close()
+
+    const reopened = openBaseFile(filePath, { readonly: true })
+    expect(reopened.listRows("tasks")[0]).toMatchObject({
+      upper_title: "LAUNCH",
+      owner_name: "Bob",
+    })
+    reopened.close()
+  })
+
   it("reports an invalid legacy schema instead of guessing", () => {
     const sourceRoot = mkdtempSync(path.join(tmpdir(), "eidos-invalid-source-"))
     roots.push(sourceRoot)

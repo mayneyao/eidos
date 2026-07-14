@@ -10,7 +10,7 @@
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-graft-space-versioning.zh.md`
 
-## 实施状态（2026-07-12）
+## 实施状态（2026-07-14）
 
 独立的 `@eidos.space/legacy-space-migration` package 已经实现 export-mode 垂直切片，
 并且不依赖 Eidos core。纯 planning API 会生成确定性的 Markdown、Base、asset 映射和
@@ -36,6 +36,14 @@ reference 会保留在 plan/report 中并跳过安装，避免破坏 Base foreig
 保留 source type metadata，并按 text 保存当前值。依赖旧 SQLite UDF 的 virtual generated
 column 会保留 formula metadata，但不会伪造 materialized value。
 
+迁移现在会在 planning 与 export 使用同一套 derived-field compatibility strategy。
+可以由 Base 安全编译的 Formula 会迁移成没有物理列的 query-time derived field；旧 Lookup
+会按原有 `GROUP_CONCAT` 语义转换为 `values` aggregate，并通过标准 Base relation/lookup
+metadata 实时读取目标字段。源字段或目标记录修改后会立即重算，关闭并重新打开 `.base`
+后行为保持一致。缺少依赖、循环依赖、旧 UDF、无法解析的 relation 和以派生字段为目标的
+Lookup 会在 plan/report 给出逐字段 warning，并继续保留旧 materialized value，避免为了
+“看起来迁移成功”而丢失数据。
+
 只读审计覆盖 42 个注册 legacy entries：29 个仍存在 source database 的 Space 全部可以生成
 无阻塞 plan；另外 13 个注册项的 source path 已不存在。三个有代表性的真实导出全部通过
 document、Base、row、field、view、reference 和 asset 校验：
@@ -47,8 +55,8 @@ document、Base、row、field、view、reference 和 asset 校验：
 | 大型     | 29        | 18     | 1,110,847 | 9      | 15.08 s     |
 
 大型导出使用 rowid cursor 读取和 prepared batch insert，在验收机器上约为每秒 73,700 行。
-v1 剩余增强是更丰富的实时 formula/lookup recomputation，以及可选的 Graft 初始化。第一版
-仍不规划 silent migration 或 in-place migration。
+v1 剩余可选增强是导出后初始化 Graft。第一版仍不规划 silent migration 或 in-place
+migration。
 
 ## 摘要
 

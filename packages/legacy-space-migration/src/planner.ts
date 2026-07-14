@@ -11,6 +11,10 @@ import type {
   PlannedDocument,
   PlannedTable,
 } from "./types"
+import {
+  buildLegacyFieldImportStrategies,
+  legacyFieldStrategyKey,
+} from "./field-migration"
 
 const WINDOWS_RESERVED_NAMES = new Set([
   "con",
@@ -509,14 +513,6 @@ export function planLegacySpaceMigration(
             sourceId: table.id,
           })
         }
-        if (field.type === "formula" || field.type === "lookup") {
-          issues.push({
-            severity: "warning",
-            code: "derived-field-materialized",
-            message: `Field ${table.name}.${field.name} will preserve current values and metadata but needs Base recomputation support`,
-            sourceId: table.id,
-          })
-        }
       }
       mappings.push({ kind: "table", sourceId: table.id, targetPath: basePath })
       return {
@@ -531,6 +527,23 @@ export function planLegacySpaceMigration(
         references,
       }
     })
+
+  const fieldStrategies = buildLegacyFieldImportStrategies(snapshot, tables)
+  for (const table of snapshot.tables) {
+    for (const field of table.fields) {
+      if (field.type !== "formula" && field.type !== "lookup") continue
+      const strategy = fieldStrategies.get(
+        legacyFieldStrategyKey(table.id, field.columnName)
+      )
+      if (!strategy?.fallbackReason) continue
+      issues.push({
+        severity: "warning",
+        code: "derived-field-materialized",
+        message: `Field ${table.name}.${field.name} will preserve its current values because ${strategy.fallbackReason}`,
+        sourceId: table.id,
+      })
+    }
+  }
 
   for (const table of snapshot.tables) {
     for (const reference of table.references) {
