@@ -11,12 +11,12 @@ import {
 // Chromium currently clamps layout dimensions at roughly 2^24 CSS pixels.
 // Keep enough headroom for borders, padding, and platform rounding.
 export const BASE_VIRTUAL_SCROLL_MAX_SIZE = 12_000_000
-// TanStack precomputes one measurement per item in the active window. Keep the
-// window large enough to preserve measured card heights around the viewport,
-// but small enough that several visible Kanban columns do not each allocate a
-// 20k-entry measurement cache for million-record groups.
-export const BASE_VIRTUAL_SCROLL_MAX_ITEMS = 4_096
-const BASE_VIRTUAL_SCROLL_CHUNK_ITEMS = 1_024
+// TanStack precomputes one measurement per item in the active window. Two
+// thousand items still preserve hundreds of viewports of measured card heights
+// while halving the cache allocated by each visible million-record Kanban
+// column. Moving the window by one quarter retains 75% of those measurements.
+export const BASE_VIRTUAL_SCROLL_MAX_ITEMS = 2_048
+const BASE_VIRTUAL_SCROLL_CHUNK_ITEMS = 512
 const BASE_VIRTUAL_INDEX_ATTRIBUTE = "data-base-virtual-index"
 
 export interface BaseVirtualWindow {
