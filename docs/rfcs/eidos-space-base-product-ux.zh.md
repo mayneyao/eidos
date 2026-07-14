@@ -162,9 +162,11 @@ binary read。Gallery 与 Kanban 共用 view 级封面资源读取器；多个 c
 资源不会被提前 revoke；没有活跃引用的资源再受 64 个条目、64 MiB LRU 上限和 60 秒过期约束。view 销毁
 或缓存淘汰会 revoke 共享 URL，失败读取不会进入缓存；封面图片使用 lazy asynchronous decoding。
 二进制读取现在统一进入最多 6 个并发任务的调度队列。每个虚拟 card 持有可取消租约：滚动导致 card
-在排队读取开始前卸载时，该请求会直接退出且不会越过 Space IPC boundary；已经开始但随后失效的读取
-完成后也只会 revoke object URL，不会写入缓存。回归基线验证了并发上限为 2 时第三个请求必须等待，
-以及已取消的排队请求不会触发任何二进制读取。
+在排队读取开始前卸载时，该请求会以常数时间直接退出且不会越过 Space IPC boundary；已经开始但随后
+失效的读取完成后也只会 revoke object URL，不会写入缓存。队列 drain 会合并为一个 microtask，
+不再为每个可见 card 各自留下空调度。20,000 次取消的压力回归保证 stale read 为 0 且最终 drain
+低于 50 ms；在交付机器上，10,000 个请求使用数组和 `shift()` 时约需 69 ms，改造后低于 1 ms。
+回归基线还验证了并发上限为 2 时第三个请求必须等待，以及已取消的排队请求不会触发任何二进制读取。
 Gallery 与 Kanban 的 card 共用悬浮菜单和原生右键菜单，可以打开
 record details，并按稳定 row ID 进行确认删除。同一个右侧 record inspector 现在可以在 Grid、Gallery
 和 Kanban 中编辑：primitive source fields 会就地自动保存，Formula/Lookup 等派生值保持只读，保存

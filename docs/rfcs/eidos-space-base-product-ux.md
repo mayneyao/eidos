@@ -249,10 +249,15 @@ eviction revoke the shared URL, while failed reads are never cached. Cover image
 also use lazy asynchronous decoding. Binary reads are now scheduled through a
 six-request concurrency bound. Every virtual card owns an abortable lease: when
 scrolling unmounts a card before its queued read starts, the request is removed
-without crossing the Space IPC boundary; if an already active read becomes
-stale, its eventual object URL is revoked instead of entering the cache. The
-regression baseline proves that a third request waits behind a two-reader limit
-and that an aborted queued request performs no binary read. Gallery and Kanban
+in constant time without crossing the Space IPC boundary; if an already active
+read becomes stale, its eventual object URL is revoked instead of entering the
+cache. Queue draining is coalesced into one microtask rather than one callback
+per visible card. A 20,000-cancellation stress regression keeps stale reads at
+zero and the final drain below 50 ms; the measured 10,000-request drain on the
+delivery machine dropped from roughly 69 ms with an array/`shift()` queue to
+below 1 ms. The regression baseline also proves that a third request waits
+behind a two-reader limit and that an aborted queued request performs no binary
+read. Gallery and Kanban
 cards share hover and native context actions for opening record details and
 confirmed deletion by stable row ID. The same right-side record inspector is
 now editable across Grid, Gallery, and Kanban: primitive source fields autosave
