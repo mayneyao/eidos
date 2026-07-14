@@ -168,6 +168,11 @@ Kanban 连续读取分页时只在首个需要派生字段的请求中解析 For
 依赖。相同的 200 次空页隔离基准中，10 个 Formula 从约 459.3 ms 降到五轮中位数 70.5 ms，25 个
 Formula 从约 1135.9 ms 降到 212.8 ms；0 Formula 基线为 18.7 ms。该优化消除的是重复 parser 成本，
 不会把 Formula 结果物化，也不会改变 SQLite 对实际 row expression 的执行语义。
+Desktop BetterSqlite3 connection 还会按 SQL 文本复用 128 条 prepared statements，并以 LRU 淘汰远离
+当前窗口的动态查询。DDL 执行前会清空缓存，关闭 runtime 时也会释放全部 statement，因此字段或 table
+结构变化不会继续使用旧 schema。相同的 200 次分页基准在 Formula plan cache 基础上继续从 0/10/25 个
+Formula 的 18.7/70.5/212.8 ms 降到五轮中位数 11.6/40.5/116.7 ms；有界 statement 复用因此减少约
+38%–45% 的持续分页时间，同时不会把查询结果跨 mutation 缓存。
 独立 Base runtime 还会为 Gallery 排序前缀和 Kanban 分组+排序前缀维护可丢弃的 SQLite 查询索引。
 索引跟随 view lifecycle，在被索引字段转换或删除后重建，并在旧文件以 migration 模式打开时一次性修复；
 它们只加速物理表，不进入 Base metadata 语义契约。可写 Base lifecycle 会先创建或修复索引，再由只读
