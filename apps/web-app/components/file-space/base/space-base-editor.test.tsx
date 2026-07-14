@@ -1650,7 +1650,11 @@ describe("SpaceBaseEditor", () => {
       {
         name: "Board",
         type: "kanban",
-        properties: { cardSize: "medium", groupByField: "status" },
+        properties: {
+          cardSize: "medium",
+          groupByField: "status",
+          hideEmptyFields: true,
+        },
       }
     )
     expect(updateViewMock).toHaveBeenCalledWith(

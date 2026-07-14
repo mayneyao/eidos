@@ -21,6 +21,14 @@ const kanbanMocks = vi.hoisted(() => ({
 }))
 
 const recordCardMocks = vi.hoisted(() => ({
+  layouts: new Map<
+    string,
+    {
+      coverField: { tableColumnName: string; type: string } | null
+      fitContent: boolean
+      hideEmptyFields: boolean
+    }
+  >(),
   renders: new Map<string, number>(),
 }))
 
@@ -79,6 +87,7 @@ vi.mock("./base-record-card", () => ({
     moveOptions,
     onMove,
     focused,
+    layout,
   }: {
     row: { _id?: string; title?: string }
     onOpen: (row: { _id?: string; title?: string }) => void
@@ -86,8 +95,14 @@ vi.mock("./base-record-card", () => ({
     moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
     onMove?: (row: { _id?: string; title?: string }, targetId: string) => void
     focused?: boolean
+    layout: {
+      coverField: { tableColumnName: string; type: string } | null
+      fitContent: boolean
+      hideEmptyFields: boolean
+    }
   }) => {
     const rowId = String(row._id)
+    recordCardMocks.layouts.set(rowId, layout)
     recordCardMocks.renders.set(
       rowId,
       (recordCardMocks.renders.get(rowId) ?? 0) + 1
@@ -264,6 +279,7 @@ describe("BaseKanbanView", () => {
   beforeEach(() => {
     kanbanMocks.onDragEnd = undefined
     kanbanMocks.onDragStart = undefined
+    recordCardMocks.layouts.clear()
     recordCardMocks.renders.clear()
     scrollIntoView.mockReset()
     Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
@@ -406,6 +422,74 @@ describe("BaseKanbanView", () => {
       expect.objectContaining({ tableColumnName: "status" }),
       "todo"
     )
+  })
+
+  it("passes persisted cover and empty-field settings into Kanban cards", async () => {
+    const coverTable: BaseTableSnapshot = {
+      ...table,
+      fields: [
+        ...table.fields,
+        {
+          name: "Image URL",
+          type: "url",
+          tableName: "tb_tasks",
+          tableColumnName: "image_url",
+          property: null,
+          storageCodec: "scalar",
+          valueKind: "source",
+          isHidden: false,
+          isDerived: false,
+          sourceTableColumnName: null,
+          dependsOn: null,
+        },
+      ],
+    }
+    const coverView: BaseViewInfo = {
+      ...view,
+      properties: {
+        ...view.properties,
+        coverPreview: "image_url",
+        fitContent: false,
+        hideEmptyFields: false,
+      },
+    }
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={coverTable}
+          view={coverView}
+          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 1 }])}
+          loadGroupPage={vi.fn(async (_field, value, offset, limit) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: value === "todo" ? 1 : 0,
+            rows:
+              value === "todo"
+                ? [
+                    {
+                      _id: "row_cover",
+                      title: "Cover card",
+                      status: "todo",
+                      image_url: "https://images.example.test/cover.png",
+                    },
+                  ]
+                : [],
+          }))}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(recordCardMocks.layouts.get("row_cover")).toMatchObject({
+      coverField: { tableColumnName: "image_url", type: "url" },
+      fitContent: false,
+      hideEmptyFields: false,
+    })
   })
 
   it("serializes card moves so a failed save cannot duplicate a record", async () => {

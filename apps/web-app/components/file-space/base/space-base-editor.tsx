@@ -1124,6 +1124,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         type === "kanban"
           ? {
               cardSize: "medium",
+              hideEmptyFields: true,
               ...(firstSelectField
                 ? { groupByField: firstSelectField.tableColumnName }
                 : {}),

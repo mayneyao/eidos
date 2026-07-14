@@ -488,7 +488,7 @@ export function BaseViewSelector({
                 ) : null}
               </div>
             ) : null}
-            {managedView.type === "gallery" ? (
+            {managedView.type === "gallery" || managedView.type === "kanban" ? (
               <div className="mt-3 grid gap-3 border-t pt-3">
                 <div className="grid gap-1.5">
                   <p className="text-xs font-medium">Card cover</p>
@@ -508,7 +508,7 @@ export function BaseViewSelector({
                   >
                     <SelectTrigger
                       className="h-8 text-xs"
-                      aria-label="Gallery card cover"
+                      aria-label={`${managedView.type === "kanban" ? "Kanban" : "Gallery"} card cover`}
                     >
                       <SelectValue placeholder="No cover" />
                     </SelectTrigger>
@@ -580,7 +580,7 @@ export function BaseViewSelector({
                 </div>
               </div>
             ) : null}
-            {managedView.type === "gallery" ? (
+            {managedView.type === "gallery" || managedView.type === "kanban" ? (
               <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
                 <label htmlFor={hideEmptyFieldsId}>
                   <p className="text-xs font-medium">Hide empty fields</p>

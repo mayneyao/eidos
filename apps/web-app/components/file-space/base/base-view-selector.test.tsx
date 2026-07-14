@@ -92,6 +92,20 @@ const galleryView: BaseViewInfo = {
   properties: { cardSize: "medium", hideEmptyFields: true },
 }
 
+const kanbanView: BaseViewInfo = {
+  ...views[0],
+  id: "view_kanban",
+  name: "Task board",
+  type: "kanban",
+  properties: {
+    cardSize: "medium",
+    coverPreview: "cover",
+    fitContent: true,
+    groupByField: "status",
+    hideEmptyFields: true,
+  },
+}
+
 function exactButton(label: string) {
   return Array.from(document.body.querySelectorAll("button"))
     .filter((button) => button.textContent?.trim() === label)
@@ -370,6 +384,61 @@ describe("BaseViewSelector", () => {
         cardSize: "medium",
         hideEmptyFields: true,
         coverPreview: "image_url",
+      },
+    })
+  })
+
+  it("exposes the supported cover and field controls for Kanban cards", async () => {
+    await act(async () => {
+      root.render(
+        <BaseViewSelector
+          views={[kanbanView]}
+          fields={[...fields, urlField]}
+          activeView={kanbanView}
+          onSelect={onSelect}
+          onCreate={onCreate}
+          onRename={onRename}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onReorder={onReorder}
+          onUpdate={onUpdate}
+        />
+      )
+    })
+    await act(async () => exactButton("Task board")?.click())
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Manage Task board view"]'
+        )
+        ?.click()
+    )
+
+    expect(
+      document.body.querySelector('[aria-label="Kanban card cover"]')
+    ).not.toBeNull()
+    expect(
+      document.body.querySelector('[aria-label="Fit image"]')
+    ).not.toBeNull()
+    expect(
+      document.body.querySelector('[aria-label="Hide empty fields"]')
+    ).not.toBeNull()
+
+    await act(async () => exactButton("Cover")?.click())
+    await act(async () => {
+      const option = Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="option"]')
+      ).find((candidate) => candidate.textContent?.trim() === "Image URL")
+      option?.click()
+    })
+
+    expect(onUpdate).toHaveBeenCalledWith("view_kanban", {
+      properties: {
+        cardSize: "medium",
+        coverPreview: "image_url",
+        fitContent: true,
+        groupByField: "status",
+        hideEmptyFields: true,
       },
     })
   })
