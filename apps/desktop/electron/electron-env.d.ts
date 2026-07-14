@@ -203,6 +203,9 @@ interface Window {
     spaceVersioning: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./modules/space-versioning/space-versioning.service").SpaceVersioningService
     >
+    fileExtensions: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./modules/file-extensions/file-extension.service").FileExtensionService
+    >
     terminal: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./modules/terminal/terminal.service").TerminalService
     > & {

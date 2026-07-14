@@ -54,6 +54,7 @@ const FILE_SPACE_SECTIONS = new Set<SettingsSection>([
   "space-base",
   "space-versioning",
   "space-indexes",
+  "space-extensions",
 ])
 
 export function SettingsSidebar({
@@ -135,7 +136,7 @@ export function SettingsSidebar({
       title: "Extensions",
       icon: Package,
       category: "space",
-      availability: "database",
+      availability: "all",
     },
     {
       id: "space-tabs",

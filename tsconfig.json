@@ -57,6 +57,12 @@
       "@eidos.space/rawdata/*": ["./packages/rawdata/src/*"],
       "@eidos.space/electron-ipc": ["./packages/electron-ipc/src/index.ts"],
       "@eidos.space/electron-ipc/*": ["./packages/electron-ipc/src/*"],
+      "@eidos.space/extension-manifest": [
+        "./packages/extension-manifest/src/index.ts"
+      ],
+      "@eidos.space/extension-manifest/*": [
+        "./packages/extension-manifest/src/*"
+      ],
       "@/locales/*": ["./packages/locales/*"],
       "@/worker/*": ["./packages/worker/*"],
       "@/lib/*": ["./packages/lib/*"],

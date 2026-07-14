@@ -27,6 +27,7 @@ import { UpdaterModule } from "./modules/updater/updater.module"
 import { ExampleModule } from "./modules/example/example.module"
 import { MarketModule } from "./modules/market/market.module"
 import { AgentChannelModule } from "./modules/agent-channel/agent-channel.module"
+import { FileExtensionModule } from "./modules/file-extensions/file-extension.module"
 
 /**
  * App Module - Root module
@@ -72,6 +73,7 @@ import { AgentChannelModule } from "./modules/agent-channel/agent-channel.module
     ExampleModule,
     MarketModule,
     AgentChannelModule,
+    FileExtensionModule,
   ],
   providers: [],
   exports: [],

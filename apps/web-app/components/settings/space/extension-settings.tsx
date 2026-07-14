@@ -19,9 +19,11 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useExtensionSettings } from "@/apps/web-app/hooks/use-extension-settings"
 import { useEjectExtension } from "@/apps/web-app/hooks/use-eject-extension"
+import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { builtInExtensions } from "@/extensions/builtin"
 
 import { ExtensionPreview } from "./extension-preview"
+import { FileExtensionSettings } from "./file-extension-settings"
 
 const EXTENSIONS = builtInExtensions
   .map((ext) => {
@@ -64,6 +66,15 @@ const EXTENSIONS = builtInExtensions
 }[]
 
 export function ExtensionSettings() {
+  const { currentSpace } = useCurrentSpace()
+  return currentSpace?.mode === "file" ? (
+    <FileExtensionSettings />
+  ) : (
+    <LegacyExtensionSettings />
+  )
+}
+
+function LegacyExtensionSettings() {
   const { t } = useTranslation()
   const { isExtensionEnabled, toggleExtension } = useExtensionSettings()
   const { eject, isEjecting, canEject } = useEjectExtension()

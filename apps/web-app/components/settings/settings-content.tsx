@@ -34,6 +34,7 @@ const FILE_SPACE_SECTIONS = new Set<SettingsSection>([
   "space-base",
   "space-versioning",
   "space-indexes",
+  "space-extensions",
 ])
 
 export function SettingsContent() {

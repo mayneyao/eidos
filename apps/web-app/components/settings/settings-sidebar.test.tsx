@@ -142,6 +142,7 @@ describe("SettingsSidebar", () => {
     expect(container.textContent).toContain("Base")
     expect(container.textContent).toContain("Versioning")
     expect(container.textContent).toContain("Indexes")
+    expect(container.textContent).toContain("Extensions")
     expect(container.textContent).not.toContain("Document")
     expect(container.textContent).not.toContain("Migration")
     expect(

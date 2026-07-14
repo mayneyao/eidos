@@ -4,14 +4,27 @@ import { fileURLToPath } from "node:url"
 import Ajv2020 from "ajv/dist/2020.js"
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+const repositoryRoot = resolve(root, "../..")
 const examplesRoot = join(root, "examples")
 const exampleNames = await readdir(examplesRoot)
-const schema = JSON.parse(
-  await readFile(
-    join(root, "public/schemas/extension-manifest.schema.json"),
-    "utf8"
-  )
+const packageSchemaPath = join(
+  repositoryRoot,
+  "packages/extension-manifest/schema/extension-manifest.schema.json"
 )
+const publicSchemaPath = join(
+  root,
+  "public/schemas/extension-manifest.schema.json"
+)
+const [packageSchemaText, publicSchemaText] = await Promise.all([
+  readFile(packageSchemaPath, "utf8"),
+  readFile(publicSchemaPath, "utf8"),
+])
+if (packageSchemaText !== publicSchemaText) {
+  throw new Error(
+    "Public extension manifest schema is out of sync with @eidos.space/extension-manifest"
+  )
+}
+const schema = JSON.parse(packageSchemaText)
 const validateManifest = new Ajv2020({
   allErrors: true,
   formats: {

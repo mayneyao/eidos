@@ -1,0 +1,55 @@
+{
+  "name": "@eidos.space/extension-manifest",
+  "version": "0.1.0",
+  "description": "Strict manifest validation and package inspection for Eidos file-based extensions",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./node": {
+      "types": "./dist/node.d.mts",
+      "import": "./dist/node.mjs",
+      "default": "./dist/node.mjs"
+    },
+    "./schema.json": "./schema/extension-manifest.schema.json"
+  },
+  "files": [
+    "dist",
+    "schema",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "eidos.space",
+    "extensions",
+    "manifest",
+    "security"
+  ],
+  "author": "mayneyao",
+  "license": "MIT",
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "jsonc-parser": "^3.3.1",
+    "oxc-parser": "^0.74.0",
+    "semver": "^7.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.1",
+    "@types/semver": "^7.7.1",
+    "tsdown": "^0.21.7",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
