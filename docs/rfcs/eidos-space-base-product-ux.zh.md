@@ -396,6 +396,13 @@ panel 保持在 flex 布局中；低于由此得到的 760px 内容断点后，�
 alert。整个流程作用于当前 `.base` 文件，不创建教学副本，也不增加居中弹窗；需要自定义名称时，
 底部 sheet `+` 仍提供完整的锚定式创建流程。
 
+Space file route 现在按文件类型异步加载 Base workspace。Markdown、普通文本、图片和未知文件不再静态
+下载并解析 Grid、Gallery、Kanban 与 Formula composer；第一次打开 `.base` 时显示占满 editor surface
+的稳定 loading 状态，模块加载失败会留在当前 tab 并支持原位 Retry，成功后的模块 Promise 会在多个
+Base tabs 之间复用。Desktop production renderer 的初始入口由 16,593,781 bytes 降至 16,061,366
+bytes，同时生成 412,145-byte 的 `space-base-editor` chunk 和独立 CodeMirror dependency chunk；入口
+gzip 由约 3.43 MB 降至约 3.31 MB。
+
 CSV 导入的文件选择、分析和写入现在也保持锚定式、非模态工作流。原生 picker 返回后 mapping
 panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以原位取消。取消会终止隔离 worker、
 等待 SQLite transaction 回滚，再解除当前 Base 的 mutation lock，因此重试不会和仍在退出的
@@ -427,6 +434,7 @@ layout；恢复后的仓库状态为 clean。
 | Grid 列统计                                | view 级配置、worker 聚合并复用 trailing row       | v1 暂无已知缺口                                                     |
 | CSV 导入/当前 view 导出                    | 流式 worker、进度/取消和原子输出已工作            | v1 暂无已知缺口                                                     |
 | Base 首次使用                              | 空白表、Task tracker 与 CSV 三条路径均已接通      | v1 暂无已知缺口                                                     |
+| Base workspace 加载                        | 文件类型级 chunk、稳定 loading 与原位 Retry       | v1 暂无已知缺口                                                     |
 | Gallery 字段显隐、空字段隐藏、card size    | 二维虚拟无限滚动与结果导航已工作                  | v1 暂无已知缺口                                                     |
 | Gallery 与 Kanban cover                    | File/URL、适应/裁切和隐藏空字段均已工作           | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
 | Card actions                               | 可编辑 Inspector 与删除已工作                     | file-based Base 的 full-page row document 模型尚未定义              |
