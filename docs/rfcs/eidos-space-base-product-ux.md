@@ -355,7 +355,9 @@ stable-props memo boundary, so loading state, record creation input, and a page
 append in that column do not rerender retained cards. The shared record card
 keeps the same boundary for Gallery paging: unchanged records do not repeat field
 formatting, menu construction, or cover-subtree rendering; real row or view
-changes still render normally.
+changes still render normally. A card move scopes its pending disabled state to
+the source and target columns, so an unrelated visible card keeps the same render
+count while persistence starts and completes.
 
 The Base editor host now preserves those render boundaries during ordinary row
 saves. Updating an existing record treats an unchanged row count as a no-op, so
@@ -371,7 +373,8 @@ record. Ordered fields, cover selection, field limits, and Select/Multi-select
 option indexes are shared by the Gallery or Kanban window. Closed action menus
 do not eagerly expand every Move-to option. Kanban columns also retain the same
 board-level Move-to option array instead of copying every target per visible
-column; each card carries only its current disabled target and the board lock.
+column; each card carries only its current disabled target, while an active
+move lock is exposed only to its source and target columns.
 The Desktop native submenu retains
 one shared batch descriptor and one click dispatcher per mounted card, then
 materializes its Electron menu items only when that card's context menu opens;
@@ -439,12 +442,13 @@ form in the target column, rejects duplicate clicks synchronously, and exposes
 an inline Retry through the same Add action without creating a global Base
 alert. Failed card moves continue to roll back only the affected columns and
 announce the local revert. Card moves are now serialized at the board boundary:
-while one optimistic move is being persisted, drag and Move-to actions are
-disabled, the board exposes `aria-busy`, and a synchronous guard rejects events
-that arrive before React can repaint the disabled state. Success is announced
-only after persistence; failure restores one authoritative copy of the row and
-unlocks the board. This prevents a failed first move and queued second move from
-leaving the same row in two columns.
+while one optimistic move is being persisted, its source and target column
+actions are disabled, the board exposes `aria-busy`, and a synchronous guard
+rejects every other move event, including one that arrives before React can
+repaint the disabled state. Success is announced only after persistence;
+failure restores one authoritative copy of the row and unlocks the affected
+columns. This prevents a failed first move and queued second move from leaving
+the same row in two columns without invalidating every visible card.
 
 Direct and pasted Grid writes now own an anchored recovery surface as well.
 Optimistic values remain visible when persistence fails, the parent recovery

@@ -217,12 +217,13 @@ move/collapse/load/create callbacks 和只随 Select options 变化的移动目�
 loading 状态变化只重渲染该列，不会重算其他可见列。每个已挂载 Kanban draggable/card pair 也有独立的
 稳定 props memo 边界，因此同列 loading、record creation 输入和 page append 不会重渲染保留中的
 cards。共享 record card 为 Gallery 分页保留相同边界：未变化记录不会重复执行字段格式化、菜单构造和
-cover 子树渲染；row 或 view 真正变化时仍会正常更新。
+cover 子树渲染；row 或 view 真正变化时仍会正常更新。Card 移动保存时的 disabled 状态只传播到源列和
+目标列，因此持久化开始与结束都不会增加无关可见 card 的渲染次数。
 
 Card 渲染元数据现在按 view 计算一次，而不是让每个可见 record 重复计算。字段顺序、封面字段、字段
 数量限制和 Select/Multi-select option 索引会被 Gallery 或 Kanban 的可见窗口共享。未打开的操作菜单
 不会预先展开全部 Move-to options。Kanban 的所有可见列还会保留同一个 board 级 Move-to option 数组，
-不再为每列复制全部目标；每张 card 只携带当前禁用目标和 board lock。Desktop 原生子菜单只为每张已挂载 card 保留一个共享批次描述和
+不再为每列复制全部目标；每张 card 只携带当前禁用目标，活跃 move lock 只暴露给其源列和目标列。Desktop 原生子菜单只为每张已挂载 card 保留一个共享批次描述和
 一个点击分发器，只有真正打开该 card 的右键菜单时才物化 Electron menu items；它不会为每个 option
 挂载或常驻一个 React 节点、effect、菜单对象和闭包。主题状态也从每个可见字段一次订阅收敛为每张 card
 一次。Inspector 修改非分组字段时只替换记录所在 group，未受影响列和 card 的 memo 边界会保持原引用；
@@ -254,9 +255,10 @@ Record Inspector 自动保存与 Kanban 行内新建也遵循同一套局部恢�
 并提供明确的 Retry 与 Discard change。Retry 会重新提交保留值，Discard 则采用最新持久化 row。Kanban
 会在目标列保留失败的新建表单与 title，同步拦截连续点击，并通过同一个 Add 动作原位重试，不再生成
 全局 Base alert。Card 移动失败仍只回滚受影响的列并在局部播报恢复。Board 边界现在会串行化 card
-移动：一笔 optimistic move 持久化期间，drag 与 Move-to 入口都会禁用，board 暴露 `aria-busy`，并用
-同步 guard 拦截 React 来不及重绘 disabled 状态前到达的事件。只有持久化成功后才播报完成；失败会恢复
-唯一一份权威 row 并解锁 board，避免第一笔 move 失败、第二笔 move 已排队时同一 row 同时残留在两列。
+移动：一笔 optimistic move 持久化期间，其源列和目标列入口会禁用，board 暴露 `aria-busy`，同步
+guard 会拦截所有其他移动事件，包括 React 来不及重绘 disabled 状态前到达的事件。只有持久化成功后才
+播报完成；失败会恢复唯一一份权威 row 并解锁受影响列，既避免第一笔 move 失败、第二笔 move 已排队时
+同一 row 同时残留在两列，也不会让每个可见 card 都失效并重渲染。
 
 Grid 的单格写入和批量粘贴现在也拥有锚定式恢复界面。持久化失败后 optimistic 值会继续显示，父层恢复
 快照不会再追加第二条全局错误，Grid 会原位提供 Retry 与 Discard，不引入 modal。连续快速编辑仍立即
