@@ -27,7 +27,7 @@ on:
       - "apps/desktop/package.json"
 
 env:
-  GRAFT_RELEASE_VERSION: v0.5.0
+  GRAFT_RELEASE_VERSION: v0.5.5
 
 jobs:
   windows-versioning-smoke:
