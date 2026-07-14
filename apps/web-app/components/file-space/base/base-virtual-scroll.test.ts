@@ -83,9 +83,11 @@ describe("base virtual scroll geometry", () => {
   })
 
   it("bounds TanStack measurements while retaining global positions", () => {
-    expect(baseVirtualWindowForOffset(10_000, 220, 1_000_000)).toEqual({
+    expect(BASE_VIRTUAL_SCROLL_MAX_ITEMS).toBeLessThanOrEqual(4_096)
+
+    expect(baseVirtualWindowForOffset(4_000, 220, 440_000)).toEqual({
       start: 0,
-      count: 10_000,
+      count: 4_000,
     })
 
     const middle = baseVirtualWindowForOffset(1_000_000, 220, 110_000_000)
@@ -98,6 +100,17 @@ describe("base virtual scroll geometry", () => {
       start: 1_000_000 - BASE_VIRTUAL_SCROLL_MAX_ITEMS,
       count: BASE_VIRTUAL_SCROLL_MAX_ITEMS,
     })
+  })
+
+  it("retains most measurements when the bounded window advances", () => {
+    const before = baseVirtualWindowForOffset(1_000_000, 220, 2_047 * 220)
+    const after = baseVirtualWindowForOffset(1_000_000, 220, 2_048 * 220)
+    const overlap =
+      Math.min(before.start + before.count, after.start + after.count) -
+      Math.max(before.start, after.start)
+
+    expect(after.start).toBeGreaterThan(before.start)
+    expect(overlap).toBeGreaterThanOrEqual(BASE_VIRTUAL_SCROLL_MAX_ITEMS * 0.75)
   })
 
   it("clears old dynamic sizes and remeasures only the mounted window", () => {
