@@ -18,7 +18,6 @@ import type {
   BaseTableSnapshot,
   BaseViewInfo,
 } from "@eidos.space/base"
-import type { SpaceBinaryFile } from "@eidos.space/file-space"
 import { LoaderCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -39,10 +38,6 @@ import {
 } from "./base-row-window"
 import { useBaseBoundedVirtualizer } from "./base-virtual-scroll"
 import { orderedBaseFields } from "./base-view-layout"
-import {
-  useBaseCoverReader,
-  type BaseCoverAcquire,
-} from "./use-base-cover-reader"
 
 const GALLERY_PAGE_SIZE = 100
 const GALLERY_MAX_WINDOW_ROWS = 300
@@ -77,7 +72,6 @@ interface BaseGalleryVirtualRowProps {
   fields: BaseFieldInfo[]
   view: BaseViewInfo
   layout: BaseRecordCardLayout
-  acquireCover?: BaseCoverAcquire
   focusedRowId: string | null
   canDelete: boolean
   measureElement: (node: HTMLDivElement | null | undefined) => void
@@ -98,7 +92,6 @@ function galleryVirtualRowPropsEqual(
     previous.fields !== next.fields ||
     previous.view !== next.view ||
     previous.layout !== next.layout ||
-    previous.acquireCover !== next.acquireCover ||
     previous.canDelete !== next.canDelete ||
     previous.measureElement !== next.measureElement ||
     previous.onOpen !== next.onOpen ||
@@ -139,7 +132,6 @@ const BaseGalleryVirtualRow = memo(function BaseGalleryVirtualRow({
   fields,
   view,
   layout,
-  acquireCover,
   focusedRowId,
   canDelete,
   measureElement,
@@ -171,7 +163,6 @@ const BaseGalleryVirtualRow = memo(function BaseGalleryVirtualRow({
               fields={fields}
               view={view}
               layout={layout}
-              acquireCover={acquireCover}
               role="listitem"
               positionInSet={absoluteIndex + 1}
               setSize={total}
@@ -199,7 +190,6 @@ export const BaseGalleryView = memo(function BaseGalleryView({
   reloadToken = 0,
   searchResultIndex = null,
   loadPage,
-  readBinary,
   onCellEdit,
   onImportFiles,
   onImportDroppedFiles,
@@ -221,7 +211,6 @@ export const BaseGalleryView = memo(function BaseGalleryView({
     totalHint?: number,
     cursor?: string
   ) => Promise<BaseRowPage>
-  readBinary?: (path: string) => Promise<SpaceBinaryFile>
   onCellEdit?: (
     row: BaseRow,
     field: BaseFieldInfo,
@@ -240,7 +229,6 @@ export const BaseGalleryView = memo(function BaseGalleryView({
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
 }) {
-  const acquireCover = useBaseCoverReader(readBinary)
   const generationRef = useRef(0)
   const scopeRef = useRef("")
   const requestRef = useRef<{ generation: number; offset: number } | null>(null)
@@ -667,7 +655,6 @@ export const BaseGalleryView = memo(function BaseGalleryView({
                   fields={table.fields}
                   view={view}
                   layout={cardLayout}
-                  acquireCover={acquireCover}
                   focusedRowId={focusedRowId}
                   canDelete={onDeleteRow !== undefined}
                   measureElement={rowVirtualizer.measureElement}

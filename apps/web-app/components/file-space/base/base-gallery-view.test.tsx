@@ -114,16 +114,10 @@ const view: BaseViewInfo = {
 describe("BaseGalleryView", () => {
   let container: HTMLDivElement
   let root: Root
-  let originalCreateObjectUrl: typeof URL.createObjectURL
-  let originalRevokeObjectUrl: typeof URL.revokeObjectURL
   const scrollIntoView = vi.fn()
   const scrollTo = vi.fn()
 
   beforeEach(() => {
-    originalCreateObjectUrl = URL.createObjectURL
-    originalRevokeObjectUrl = URL.revokeObjectURL
-    URL.createObjectURL = vi.fn(() => "blob:base-cover")
-    URL.revokeObjectURL = vi.fn()
     scrollIntoView.mockReset()
     scrollTo.mockReset()
     Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
@@ -167,8 +161,6 @@ describe("BaseGalleryView", () => {
     act(() => root.unmount())
     container.remove()
     await new Promise((resolve) => setTimeout(resolve, 200))
-    URL.createObjectURL = originalCreateObjectUrl
-    URL.revokeObjectURL = originalRevokeObjectUrl
     vi.unstubAllGlobals()
   })
 
@@ -317,7 +309,7 @@ describe("BaseGalleryView", () => {
     ).toBe("true")
   })
 
-  it("deduplicates repeated cover reads across virtual cards", async () => {
+  it("streams repeated local covers without renderer binary copies", async () => {
     const coverTable: BaseTableSnapshot = {
       ...table,
       fields: [
@@ -345,13 +337,6 @@ describe("BaseGalleryView", () => {
         coverPreview: "cover",
       },
     }
-    const readBinary = vi.fn(async (path: string) => ({
-      path,
-      content: new Uint8Array([1, 2, 3]),
-      size: 3,
-      mtimeMs: 1,
-    }))
-
     await act(async () => {
       root.render(
         <BaseGalleryView
@@ -375,18 +360,14 @@ describe("BaseGalleryView", () => {
               },
             ],
           }))}
-          readBinary={readBinary}
         />
       )
       await Promise.resolve()
       await Promise.resolve()
     })
 
-    expect(readBinary).toHaveBeenCalledTimes(1)
-    expect(readBinary).toHaveBeenCalledWith("assets/shared.png")
-    expect(URL.createObjectURL).toHaveBeenCalledTimes(1)
     expect(
-      container.querySelectorAll('img[src="blob:base-cover"]')
+      container.querySelectorAll('img[src="/~\/assets\/shared.png"]')
     ).toHaveLength(2)
     expect(container.querySelector("img")?.getAttribute("loading")).toBe("lazy")
     expect(container.querySelector("img")?.getAttribute("decoding")).toBe(

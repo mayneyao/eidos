@@ -22,6 +22,7 @@ import {
 } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 
+import { toSpaceAssetUrl } from "@/apps/web-app/components/file-space/file-path"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -53,7 +54,6 @@ import {
   type BaseRecordCardLayout,
 } from "./base-record-card-layout"
 import { baseRecordFieldText, baseRecordTitle } from "./base-record-format"
-import type { BaseCoverAcquire, BaseCoverLease } from "./use-base-cover-reader"
 
 const CARD_INTERACTIVE_TARGET =
   'button, a, input, select, textarea, summary, [role="button"], [role="menuitem"], [contenteditable="true"]'
@@ -91,13 +91,11 @@ function BaseRecordCover({
   field,
   compact,
   fitContent,
-  acquireCover,
 }: {
   row: BaseRow
   field: BaseFieldInfo
   compact: boolean
   fitContent: boolean
-  acquireCover?: BaseCoverAcquire
 }) {
   const value = row[field.tableColumnName]
   const reference =
@@ -106,37 +104,14 @@ function BaseRecordCover({
         ? value.trim()
         : undefined
       : decodeBaseFilePaths(value).at(0)
-  const [source, setSource] = useState<string | null>(null)
-
-  useEffect(() => {
-    let lease: BaseCoverLease | null = null
-    let active = true
-    setSource(null)
-    if (!reference) return
-    if (/^https?:\/\//i.test(reference)) {
-      setSource(reference)
-      return
-    }
-    if (!acquireCover) return
-    const controller = new AbortController()
-    void acquireCover(reference, controller.signal)
-      .then((nextLease) => {
-        if (!active) {
-          nextLease.release()
-          return
-        }
-        lease = nextLease
-        setSource(nextLease.source)
-      })
-      .catch(() => {
-        if (active) setSource(null)
-      })
-    return () => {
-      active = false
-      controller.abort()
-      lease?.release()
-    }
-  }, [acquireCover, reference])
+  const source = reference
+    ? /^https?:\/\//i.test(reference)
+      ? reference
+      : toSpaceAssetUrl(reference)
+    : null
+  const [failedSource, setFailedSource] = useState<string | null>(null)
+  useEffect(() => setFailedSource(null), [source])
+  const visibleSource = source === failedSource ? null : source
 
   return (
     <div
@@ -145,13 +120,13 @@ function BaseRecordCover({
         compact ? "h-28" : "h-36"
       )}
     >
-      {source ? (
+      {visibleSource ? (
         <img
-          src={source}
+          src={visibleSource}
           alt=""
           decoding="async"
           loading="lazy"
-          onError={() => setSource(null)}
+          onError={() => setFailedSource(visibleSource)}
           className={cn(
             "h-full w-full",
             fitContent ? "object-contain" : "object-cover"
@@ -288,7 +263,6 @@ export const BaseRecordCard = memo(function BaseRecordCard({
   view,
   layout: providedLayout,
   compact = false,
-  acquireCover,
   onOpen,
   onDelete,
   moveOptions,
@@ -305,7 +279,6 @@ export const BaseRecordCard = memo(function BaseRecordCard({
   view: BaseViewInfo
   layout?: BaseRecordCardLayout
   compact?: boolean
-  acquireCover?: BaseCoverAcquire
   onOpen: (row: BaseRow) => void
   onDelete?: (row: BaseRow) => void
   moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
@@ -418,7 +391,6 @@ export const BaseRecordCard = memo(function BaseRecordCard({
           field={layout.coverField}
           compact={compact}
           fitContent={layout.fitContent}
-          acquireCover={acquireCover}
         />
       ) : null}
       <div className={cn("grid gap-3", compact ? "p-3" : "p-4")}>

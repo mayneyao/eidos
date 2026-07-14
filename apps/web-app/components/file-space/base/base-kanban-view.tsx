@@ -18,7 +18,6 @@ import type {
   BaseTableSnapshot,
   BaseViewInfo,
 } from "@eidos.space/base"
-import type { SpaceBinaryFile } from "@eidos.space/file-space"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { ChevronLeft, ChevronRight, LoaderCircle, Plus } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
@@ -54,8 +53,6 @@ import {
 } from "./base-row-window"
 import { useBaseBoundedVirtualizer } from "./base-virtual-scroll"
 import { orderedBaseFields } from "./base-view-layout"
-import { useBaseCoverReader } from "./use-base-cover-reader"
-import type { BaseCoverAcquire } from "./use-base-cover-reader"
 
 const KANBAN_PAGE_SIZE = 50
 const KANBAN_MAX_WINDOW_ROWS = 150
@@ -220,7 +217,6 @@ const BaseKanbanCardItem = memo(function BaseKanbanCardItem({
   table,
   view,
   cardLayout,
-  acquireCover,
   focused,
   onOpen,
   onDelete,
@@ -234,7 +230,6 @@ const BaseKanbanCardItem = memo(function BaseKanbanCardItem({
   table: BaseTableSnapshot
   view: BaseViewInfo
   cardLayout: BaseRecordCardLayout
-  acquireCover?: BaseCoverAcquire
   focused: boolean
   onOpen: (row: BaseRow) => void
   onDelete?: (row: BaseRow) => void
@@ -260,7 +255,6 @@ const BaseKanbanCardItem = memo(function BaseKanbanCardItem({
         view={view}
         layout={cardLayout}
         compact
-        acquireCover={acquireCover}
         focused={focused}
         onOpen={onOpen}
         onDelete={onDelete}
@@ -282,7 +276,6 @@ interface BaseKanbanVirtualCardProps {
   table: BaseTableSnapshot
   view: BaseViewInfo
   cardLayout: BaseRecordCardLayout
-  acquireCover?: BaseCoverAcquire
   focusedRowId?: string
   onOpen: (row: BaseRow) => void
   onDelete?: (row: BaseRow) => void
@@ -314,7 +307,6 @@ function kanbanVirtualCardPropsEqual(
     previous.table !== next.table ||
     previous.view !== next.view ||
     previous.cardLayout !== next.cardLayout ||
-    previous.acquireCover !== next.acquireCover ||
     previous.onOpen !== next.onOpen ||
     previous.onDelete !== next.onDelete ||
     previous.moveOptions !== next.moveOptions ||
@@ -342,7 +334,6 @@ const BaseKanbanVirtualCard = memo(function BaseKanbanVirtualCard({
   table,
   view,
   cardLayout,
-  acquireCover,
   focusedRowId,
   onOpen,
   onDelete,
@@ -379,7 +370,6 @@ const BaseKanbanVirtualCard = memo(function BaseKanbanVirtualCard({
           table={table}
           view={view}
           cardLayout={cardLayout}
-          acquireCover={acquireCover}
           focused={focusedRowId === String(row._id)}
           onOpen={onOpen}
           onDelete={onDelete}
@@ -538,7 +528,6 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   onRequestRange,
   onRetry,
   onCreate,
-  acquireCover,
   onDelete,
   moveOptions,
   onMove,
@@ -562,7 +551,6 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   ) => void
   onRetry: (group: BaseKanbanGroup) => void
   onCreate: (group: BaseKanbanGroup, title: string) => Promise<void>
-  acquireCover?: BaseCoverAcquire
   onDelete?: (row: BaseRow) => void
   moveOptions: BaseKanbanMoveOption[]
   onMove: (rowId: string, targetGroupKey: string) => void
@@ -756,7 +744,6 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                       table={table}
                       view={view}
                       cardLayout={cardLayout}
-                      acquireCover={acquireCover}
                       focusedRowId={focusedRowId}
                       onOpen={onOpen}
                       onDelete={onDelete}
@@ -809,7 +796,6 @@ export const BaseKanbanView = memo(function BaseKanbanView({
   loadGroupPage,
   onCellEdit,
   onAddRow,
-  readBinary,
   onDeleteRow,
   onImportFiles,
   onImportDroppedFiles,
@@ -844,7 +830,6 @@ export const BaseKanbanView = memo(function BaseKanbanView({
     value: string | null,
     title: string
   ) => Promise<BaseRowMutationResult>
-  readBinary?: (path: string) => Promise<SpaceBinaryFile>
   onDeleteRow?: (row: BaseRow) => Promise<void>
   onImportFiles?: () => Promise<string[]>
   onImportDroppedFiles?: (files: File[]) => Promise<string[]>
@@ -858,7 +843,6 @@ export const BaseKanbanView = memo(function BaseKanbanView({
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
 }) {
-  const acquireCover = useBaseCoverReader(readBinary)
   const { resolvedTheme } = useTheme()
   const theme = resolvedTheme === "dark" ? "dark" : "light"
   const generationRef = useRef(0)
@@ -1736,7 +1720,6 @@ export const BaseKanbanView = memo(function BaseKanbanView({
                         }
                         width={columnWidth}
                         color={baseOptionColor(group.color, theme)}
-                        acquireCover={acquireCover}
                         onOpen={setInspectedRow}
                         onDelete={onDeleteRow ? setDeleteRow : undefined}
                         moveOptions={moveOptions}

@@ -146,7 +146,6 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     list: listFiles,
     createDirectory,
     createBinary,
-    readBinary,
     importFiles,
   } = useSpaceFiles(currentSpace?.id)
   const {
@@ -1524,7 +1523,6 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               reloadToken={gridReloadToken}
               searchResultIndex={activeSearchResultIndex}
               loadPage={loadActiveTablePage}
-              readBinary={readBinary}
               onCellEdit={saveInspectorCell}
               onImportFiles={importBaseFiles}
               onImportDroppedFiles={importDroppedBaseFiles}
@@ -1551,7 +1549,6 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               onImportFiles={importBaseFiles}
               onImportDroppedFiles={importDroppedBaseFiles}
               onSearchRelation={searchRelationRecords}
-              readBinary={readBinary}
               onDeleteRow={deleteSingleRow}
               onOpenFile={openBaseFileReference}
               onRevealFile={revealBaseFileReference}

@@ -99,13 +99,7 @@ describe("BaseRecordCard", () => {
     }
   })
 
-  it("leases a local File field as the card cover and releases it", async () => {
-    const release = vi.fn()
-    const acquireCover = vi.fn(async () => ({
-      source: "blob:base-cover",
-      release,
-    }))
-
+  it("streams a local File field through the Space asset route", async () => {
     await act(async () => {
       root.render(
         <BaseRecordCard
@@ -116,19 +110,14 @@ describe("BaseRecordCard", () => {
           }}
           fields={fields}
           view={view}
-          acquireCover={acquireCover}
           onOpen={vi.fn()}
         />
       )
       await Promise.resolve()
     })
 
-    expect(acquireCover).toHaveBeenCalledWith(
-      "assets/cover.png",
-      expect.any(AbortSignal)
-    )
     expect(container.querySelector("img")?.getAttribute("src")).toBe(
-      "blob:base-cover"
+      "/~/assets/cover.png"
     )
     expect(container.querySelector("img")?.className).toContain(
       "object-contain"
@@ -140,17 +129,14 @@ describe("BaseRecordCard", () => {
           row={{ _id: "row_1", title: "Write RFC", cover: null }}
           fields={fields}
           view={view}
-          acquireCover={acquireCover}
           onOpen={vi.fn()}
         />
       )
     })
-    expect(release).toHaveBeenCalledTimes(1)
+    expect(container.querySelector("img")).toBeNull()
   })
 
-  it("uses a URL field as a portable card cover without a binary read", async () => {
-    const acquireCover = vi.fn()
-
+  it("uses a URL field as a portable card cover", async () => {
     await act(async () => {
       root.render(
         <BaseRecordCard
@@ -164,7 +150,6 @@ describe("BaseRecordCard", () => {
             ...view,
             properties: { ...view.properties, coverPreview: "image_url" },
           }}
-          acquireCover={acquireCover}
           onOpen={vi.fn()}
         />
       )
@@ -174,45 +159,56 @@ describe("BaseRecordCard", () => {
     expect(container.querySelector("img")?.getAttribute("src")).toBe(
       "https://images.example.test/cover.png"
     )
-    expect(acquireCover).not.toHaveBeenCalled()
   })
 
-  it("cancels a queued local cover when the virtual card unmounts", async () => {
-    let signal: AbortSignal | undefined
-    const acquireCover = vi.fn((_path: string, nextSignal?: AbortSignal) => {
-      signal = nextSignal
-      return new Promise<never>(() => undefined)
-    })
-
+  it("encodes nested local cover paths for the Space route", async () => {
     await act(async () => {
       root.render(
         <BaseRecordCard
           row={{
             _id: "row_1",
             title: "Write RFC",
-            cover: JSON.stringify(["assets/queued-cover.png"]),
+            cover: JSON.stringify(["Media/hello world#1.png"]),
           }}
           fields={fields}
           view={view}
-          acquireCover={acquireCover}
           onOpen={vi.fn()}
         />
       )
     })
 
-    expect(signal?.aborted).toBe(false)
-    await act(async () => {
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+      "/~/Media/hello%20world%231.png"
+    )
+  })
+
+  it("recovers from a failed cover when the record source changes", async () => {
+    const renderCover = (path: string) =>
       root.render(
         <BaseRecordCard
-          row={{ _id: "row_1", title: "Write RFC", cover: null }}
+          row={{
+            _id: "row_1",
+            title: "Write RFC",
+            cover: JSON.stringify([path]),
+          }}
           fields={fields}
           view={view}
-          acquireCover={acquireCover}
           onOpen={vi.fn()}
         />
       )
+
+    await act(async () => renderCover("assets/missing.png"))
+    await act(async () => {
+      container
+        .querySelector("img")
+        ?.dispatchEvent(new Event("error", { bubbles: true }))
     })
-    expect(signal?.aborted).toBe(true)
+    expect(container.querySelector("img")).toBeNull()
+
+    await act(async () => renderCover("assets/replacement.png"))
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+      "/~/assets/replacement.png"
+    )
   })
 
   it("exposes record actions from the card menu", async () => {
