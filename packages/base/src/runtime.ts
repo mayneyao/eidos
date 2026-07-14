@@ -29,7 +29,11 @@ import {
   planBaseFieldConversion,
 } from "./field-conversion"
 import { decodeBaseFilePaths, encodeBaseFilePaths } from "./file-values"
-import { compileBaseFormula, compileBaseFormulaFields } from "./formula"
+import {
+  compileBaseFormula,
+  compileBaseFormulaFields,
+  type CompiledBaseFormula,
+} from "./formula"
 import { decodeBaseRelationIds, encodeBaseRelationIds } from "./relation-values"
 import {
   assertBaseColumnName,
@@ -40,6 +44,7 @@ import {
 } from "./identifiers"
 import { setBaseMetadata } from "./schema"
 import {
+  baseRowQueryPredicateColumns,
   compileBaseRowQuery,
   normalizeBaseFilter,
   normalizeBaseRowQuery,
@@ -248,13 +253,40 @@ function writableFieldValue(
 }
 
 export class BaseRuntime {
+  private readonly formulaCompilationCache = new Map<
+    string,
+    { signature: string; formulas: CompiledBaseFormula[] }
+  >()
+
   constructor(
     readonly connection: BaseConnection,
     private readonly closeConnection = false
   ) {}
 
   close(): void {
+    this.formulaCompilationCache.clear()
     if (this.closeConnection) this.connection.close?.()
+  }
+
+  private compiledFormulaFields(
+    tableId: string,
+    fields: BaseFieldInfo[]
+  ): CompiledBaseFormula[] {
+    const signature = JSON.stringify(
+      fields.map((field) => [
+        field.name,
+        field.tableColumnName,
+        field.type,
+        field.valueKind,
+        field.isDerived,
+        field.type === "formula" ? field.property?.formula : null,
+      ])
+    )
+    const cached = this.formulaCompilationCache.get(tableId)
+    if (cached?.signature === signature) return cached.formulas
+    const formulas = compileBaseFormulaFields(fields)
+    this.formulaCompilationCache.set(tableId, { signature, formulas })
+    return formulas
   }
 
   private relationTarget(
@@ -280,8 +312,18 @@ export class BaseRuntime {
     return table ? { tableId: table.id, columnName: legacyColumnName } : null
   }
 
-  private rowSourceSql(tableId: string, fields: BaseFieldInfo[]): string {
+  private rowSourceSql(
+    tableId: string,
+    fields: BaseFieldInfo[],
+    requestedDerivedColumns?: ReadonlySet<string>
+  ): string {
     const table = this.getTable(tableId)
+    const requiredDerivedColumns = requestedDerivedColumns
+      ? this.requiredDerivedColumns(fields, requestedDerivedColumns)
+      : null
+    const includesDerivedColumn = (field: BaseFieldInfo) =>
+      requiredDerivedColumns === null ||
+      requiredDerivedColumns.has(field.tableColumnName)
     let alias = "base_rows"
     let source = `(SELECT rowid AS "__base_rowid", *
                      FROM ${quoteIdentifier(table.rawTableName)}) AS ${quoteIdentifier(alias)}`
@@ -290,7 +332,8 @@ export class BaseRuntime {
         (field) =>
           field.type === "lookup" &&
           field.valueKind === "derived" &&
-          field.isDerived
+          field.isDerived &&
+          includesDerivedColumn(field)
       )
       .forEach((field, index) => {
         const expression = this.lookupExpression(tableId, field, fields, alias)
@@ -299,13 +342,56 @@ export class BaseRuntime {
                      FROM ${source}) AS ${quoteIdentifier(nextAlias)}`
         alias = nextAlias
       })
-    compileBaseFormulaFields(fields).forEach((formula, index) => {
-      const nextAlias = `formula_layer_${index + 1}`
-      source = `(SELECT *, (${formula.expression}) AS ${quoteIdentifier(formula.field.tableColumnName)}
-                   FROM ${source}) AS ${quoteIdentifier(nextAlias)}`
-      alias = nextAlias
-    })
+    const compiledFormulas =
+      requiredDerivedColumns?.size === 0
+        ? []
+        : this.compiledFormulaFields(tableId, fields)
+    compiledFormulas
+      .filter((formula) => includesDerivedColumn(formula.field))
+      .forEach((formula, index) => {
+        const nextAlias = `formula_layer_${index + 1}`
+        source = `(SELECT *, (${formula.expression}) AS ${quoteIdentifier(formula.field.tableColumnName)}
+                     FROM ${source}) AS ${quoteIdentifier(nextAlias)}`
+        alias = nextAlias
+      })
     return source
+  }
+
+  private requiredDerivedColumns(
+    fields: BaseFieldInfo[],
+    requestedColumns: ReadonlySet<string>
+  ): Set<string> {
+    const fieldsByColumn = new Map(
+      fields.map((field) => [field.tableColumnName, field])
+    )
+    const required = new Set<string>()
+    const visit = (columnName: string) => {
+      const field = fieldsByColumn.get(columnName)
+      if (!field?.isDerived || required.has(columnName)) return
+      required.add(columnName)
+      if (typeof field.sourceTableColumnName === "string") {
+        visit(field.sourceTableColumnName)
+      }
+      if (!Array.isArray(field.dependsOn)) return
+      for (const dependency of field.dependsOn) {
+        if (typeof dependency === "string") visit(dependency)
+      }
+    }
+    requestedColumns.forEach(visit)
+    return required
+  }
+
+  private countRowSourceSql(
+    tableId: string,
+    fields: BaseFieldInfo[],
+    query: BaseRowQuery,
+    projectedColumns: Iterable<string> = []
+  ): string {
+    const requestedColumns = baseRowQueryPredicateColumns(fields, query)
+    for (const columnName of projectedColumns) {
+      requestedColumns.add(columnName)
+    }
+    return this.rowSourceSql(tableId, fields, requestedColumns)
   }
 
   private viewQueryIndexSql(view: BaseViewInfo): string | null {
@@ -1997,7 +2083,7 @@ export class BaseRuntime {
     const compiled = compileBaseRowQuery(fields, query)
     return (
       this.connection.get<{ count: number }>(
-        `SELECT COUNT(*) AS count FROM ${this.rowSourceSql(tableId, fields)}
+        `SELECT COUNT(*) AS count FROM ${this.countRowSourceSql(tableId, fields, query)}
           ${compiled.whereSql}`,
         compiled.params
       )?.count ?? 0
@@ -2016,7 +2102,7 @@ export class BaseRuntime {
     return this.connection
       .query<{ value: BaseSqlPrimitive; total: number }>(
         `SELECT ${column} AS value, COUNT(*) AS total
-           FROM ${this.rowSourceSql(tableId, fields)}
+           FROM ${this.countRowSourceSql(tableId, fields, query, [field.tableColumnName])}
            ${compiled.whereSql}
           GROUP BY ${column}`,
         compiled.params

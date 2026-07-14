@@ -170,6 +170,27 @@ function collectFilterFields(
 }
 
 /**
+ * Returns the columns whose values can affect whether a row matches a query.
+ * Sort-only fields are intentionally excluded because counts do not depend on
+ * row order. Consumers can add projected/grouped columns before building a
+ * pruned derived-field source.
+ */
+export function baseRowQueryPredicateColumns(
+  fields: BaseFieldInfo[],
+  query: BaseRowQuery
+): Set<string> {
+  const normalized = normalizeBaseRowQuery(query)
+  const columns = new Set<string>()
+  if (normalized.search?.trim()) {
+    for (const field of searchableFields(fields)) {
+      columns.add(field.tableColumnName)
+    }
+  }
+  collectFilterFields(normalized.filter, columns)
+  return columns
+}
+
+/**
  * Returns whether changing the supplied columns can alter the rows or ordering
  * produced by a query. Derived-field dependencies are followed transitively so
  * renderers do not need to duplicate Base query semantics.
@@ -183,13 +204,7 @@ export function baseRowQueryAffectedByFieldChanges(
   if (changed.size === 0) return false
 
   const normalized = normalizeBaseRowQuery(query)
-  const queriedColumns = new Set<string>()
-  if (normalized.search?.trim()) {
-    for (const field of searchableFields(fields)) {
-      queriedColumns.add(field.tableColumnName)
-    }
-  }
-  collectFilterFields(normalized.filter, queriedColumns)
+  const queriedColumns = baseRowQueryPredicateColumns(fields, normalized)
   for (const sort of normalized.sorts ?? []) queriedColumns.add(sort.field)
   if (queriedColumns.size === 0) return false
 

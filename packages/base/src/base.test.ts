@@ -18,6 +18,7 @@ import {
   BASE_VIEWS_TABLE,
 } from "./constants"
 import { BaseError } from "./errors"
+import * as formulaCompiler from "./formula"
 
 function expectBaseError(
   operation: () => unknown,
@@ -515,6 +516,152 @@ describe("Eidos Base files", () => {
     expect(base.deleteField("orders", "total")).toBe(true)
     expect(base.deleteField("orders", "unit_price")).toBe(true)
     base.close()
+  })
+
+  it("only evaluates derived fields required by count predicates and groups", () => {
+    const filePath = path.join(root, "count-source.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: {
+        id: "records",
+        name: "Records",
+        fields: [
+          { name: "Status", columnName: "status", type: "select" },
+          { name: "Points", columnName: "points", type: "number" },
+        ],
+      },
+    })
+    base.addField("records", {
+      name: "Total",
+      columnName: "total",
+      type: "formula",
+      property: { formula: "points * 2", displayType: "number" },
+    })
+    base.addField("records", {
+      name: "Score",
+      columnName: "score",
+      type: "formula",
+      property: { formula: "total + 1", displayType: "number" },
+    })
+    base.insertRow("records", { title: "First", status: "todo", points: 2 })
+    base.insertRow("records", { title: "Second", status: "done", points: 4 })
+
+    const get = vi.spyOn(base.connection, "get")
+    const query = vi.spyOn(base.connection, "query")
+    expect(base.countRows("records")).toBe(2)
+    expect(get.mock.calls.at(-1)?.[0]).not.toContain("formula_layer")
+
+    expect(
+      base.countRows("records", {
+        filter: {
+          type: "group",
+          conjunction: "and",
+          children: [
+            {
+              type: "rule",
+              field: "status",
+              operator: "equals",
+              value: "todo",
+            },
+          ],
+        },
+      })
+    ).toBe(1)
+    expect(get.mock.calls.at(-1)?.[0]).not.toContain("formula_layer")
+
+    expect(base.countRowsByField("records", "status")).toEqual(
+      expect.arrayContaining([
+        { value: "todo", total: 1 },
+        { value: "done", total: 1 },
+      ])
+    )
+    expect(query.mock.calls.at(-1)?.[0]).not.toContain("formula_layer")
+
+    expect(
+      base.countRows("records", {
+        filter: {
+          type: "group",
+          conjunction: "and",
+          children: [
+            {
+              type: "rule",
+              field: "total",
+              operator: "greater-than",
+              value: 3,
+            },
+          ],
+        },
+      })
+    ).toBe(2)
+    const totalCountSql = String(get.mock.calls.at(-1)?.[0])
+    expect(totalCountSql).toContain('AS "total"')
+    expect(totalCountSql).not.toContain('AS "score"')
+
+    expect(
+      base.countRows("records", {
+        filter: {
+          type: "group",
+          conjunction: "and",
+          children: [
+            {
+              type: "rule",
+              field: "score",
+              operator: "greater-than",
+              value: 4,
+            },
+          ],
+        },
+      })
+    ).toBe(2)
+    const scoreCountSql = String(get.mock.calls.at(-1)?.[0])
+    expect(scoreCountSql).toContain('AS "total"')
+    expect(scoreCountSql).toContain('AS "score"')
+    base.close()
+  })
+
+  it("reuses compiled formulas until the table schema changes", () => {
+    const filePath = path.join(root, "formula-cache.base")
+    const created = createBaseFile(filePath, {
+      defaultTable: {
+        id: "records",
+        name: "Records",
+        fields: [{ name: "Points", columnName: "points", type: "number" }],
+      },
+    })
+    created.addField("records", {
+      name: "Total",
+      columnName: "total",
+      type: "formula",
+      property: { formula: "points * 2", displayType: "number" },
+    })
+    created.insertRow("records", { title: "First", points: 2 })
+    created.close()
+
+    const base = openBaseFile(filePath)
+    const compile = vi.spyOn(formulaCompiler, "compileBaseFormulaFields")
+    try {
+      expect(base.getRowPage("records", 0, 100).rows[0]).toMatchObject({
+        total: 4,
+      })
+      expect(base.getRowPage("records", 0, 100).rows[0]).toMatchObject({
+        total: 4,
+      })
+      expect(compile).toHaveBeenCalledTimes(1)
+
+      base.updateField("records", "total", {
+        property: { formula: "points * 3", displayType: "number" },
+      })
+      compile.mockClear()
+      expect(base.getRowPage("records", 0, 100).rows[0]).toMatchObject({
+        total: 6,
+      })
+      expect(base.getRowPage("records", 0, 100).rows[0]).toMatchObject({
+        total: 6,
+      })
+      expect(compile).toHaveBeenCalledTimes(1)
+    } finally {
+      base.close()
+      compile.mockRestore()
+    }
   })
 
   it("derives lookup and rollup values through relations without materializing them", () => {

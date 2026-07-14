@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { BaseFieldInfo, BaseRowQuery } from "./types"
 import {
   baseRowQueryAffectedByFieldChanges,
+  baseRowQueryPredicateColumns,
   compileBaseRowQuery,
   normalizeBaseFilter,
   normalizeBaseRowQuery,
@@ -236,6 +237,33 @@ describe("Base row query", () => {
     expect(
       baseRowQueryAffectedByFieldChanges(fields, query, ["priority"])
     ).toBe(true)
+  })
+
+  it("collects only predicate columns for count-source planning", () => {
+    expect([
+      ...baseRowQueryPredicateColumns(fields, {
+        filter: {
+          type: "group",
+          conjunction: "and",
+          children: [
+            {
+              type: "rule",
+              field: "status",
+              operator: "equals",
+              value: "doing",
+            },
+          ],
+        },
+        sorts: [{ field: "priority", direction: "desc" }],
+      }),
+    ]).toEqual(["status"])
+
+    const hidden = { ...field("internal_note"), isHidden: true }
+    expect(
+      baseRowQueryPredicateColumns([...fields, hidden], {
+        search: "release",
+      })
+    ).toEqual(new Set(["title", "priority", "status", "labels"]))
   })
 
   it("follows transitive derived-field dependencies when invalidating a query", () => {
