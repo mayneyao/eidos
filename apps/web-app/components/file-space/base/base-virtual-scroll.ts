@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react"
+import { useCallback, useLayoutEffect, useRef } from "react"
 import {
   observeElementOffset,
   useVirtualizer,
@@ -13,6 +13,7 @@ import {
 export const BASE_VIRTUAL_SCROLL_MAX_SIZE = 12_000_000
 export const BASE_VIRTUAL_SCROLL_MAX_ITEMS = 20_000
 const BASE_VIRTUAL_SCROLL_CHUNK_ITEMS = 5_000
+const BASE_VIRTUAL_INDEX_ATTRIBUTE = "data-base-virtual-index"
 
 export interface BaseVirtualWindow {
   start: number
@@ -187,6 +188,19 @@ export interface BaseBoundedVirtualizerResult<
   scrollToIndex: (globalIndex: number, options?: ScrollToOptions) => void
 }
 
+export function resetBaseVirtualizerMeasurements<
+  TScrollElement extends HTMLElement,
+  TItemElement extends Element,
+>(virtualizer: Virtualizer<TScrollElement, TItemElement>): void {
+  const measuredElements = virtualizer.scrollElement?.querySelectorAll(
+    `[${BASE_VIRTUAL_INDEX_ATTRIBUTE}]`
+  )
+  virtualizer.measure()
+  measuredElements?.forEach((element) => {
+    virtualizer.measureElement(element as TItemElement)
+  })
+}
+
 export function useBaseBoundedVirtualizer<
   TScrollElement extends HTMLElement,
   TItemElement extends Element,
@@ -334,10 +348,16 @@ export function useBaseBoundedVirtualizer<
     initialRect,
     overscan,
     useAnimationFrameWithResizeObserver,
-    indexAttribute: "data-base-virtual-index",
+    indexAttribute: BASE_VIRTUAL_INDEX_ATTRIBUTE,
     observeElementOffset: observeOffset,
     scrollToFn: scrollToOffset,
   })
+  const measuredWindowStartRef = useRef(virtualWindow.start)
+  useLayoutEffect(() => {
+    if (measuredWindowStartRef.current === virtualWindow.start) return
+    measuredWindowStartRef.current = virtualWindow.start
+    resetBaseVirtualizerMeasurements(virtualizer)
+  }, [virtualWindow.start, virtualizer])
   const virtualItems = virtualizer.getVirtualItems()
   const localLogicalSize = virtualizer.getTotalSize()
   const logicalSize =

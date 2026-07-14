@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest"
+import type { Virtualizer } from "@tanstack/react-virtual"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   BASE_VIRTUAL_SCROLL_MAX_SIZE,
@@ -8,6 +9,7 @@ import {
   baseVirtualPhysicalOffset,
   baseVirtualPhysicalSize,
   baseVirtualWindowForOffset,
+  resetBaseVirtualizerMeasurements,
 } from "./base-virtual-scroll"
 
 describe("base virtual scroll geometry", () => {
@@ -96,5 +98,30 @@ describe("base virtual scroll geometry", () => {
       start: 1_000_000 - BASE_VIRTUAL_SCROLL_MAX_ITEMS,
       count: BASE_VIRTUAL_SCROLL_MAX_ITEMS,
     })
+  })
+
+  it("clears old dynamic sizes and remeasures only the mounted window", () => {
+    const scrollElement = document.createElement("div")
+    const first = document.createElement("div")
+    const second = document.createElement("div")
+    const unrelated = document.createElement("div")
+    first.dataset.baseVirtualIndex = "3"
+    second.dataset.baseVirtualIndex = "4"
+    scrollElement.append(first, unrelated, second)
+    const measure = vi.fn()
+    const measureElement = vi.fn()
+    const virtualizer = {
+      measure,
+      measureElement,
+      scrollElement,
+    } as unknown as Virtualizer<HTMLDivElement, HTMLDivElement>
+
+    resetBaseVirtualizerMeasurements(virtualizer)
+
+    expect(measure).toHaveBeenCalledOnce()
+    expect(measureElement.mock.calls).toEqual([[first], [second]])
+    expect(measure.mock.invocationCallOrder[0]).toBeLessThan(
+      measureElement.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+    )
   })
 })
