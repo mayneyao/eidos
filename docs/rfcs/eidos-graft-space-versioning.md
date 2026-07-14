@@ -10,7 +10,22 @@ Related:
 - `eidos-space-markdown-runtime.md`
 - `eidos-file-based-extensions.md`
 
-## Implementation Status (2026-07-13)
+## Implementation Status (2026-07-14)
+
+Graft v0.5.5 is now the Desktop dependency baseline. It upgrades Fjall/lsm-tree
+to a release containing the relocation metadata fix and adds a read-only
+compatibility boundary for 4 KiB pages. A legacy page that was recorded as
+uncompressed but still contains LZ4 data is recovered only when it expands to
+exactly 4 KiB. Values that cannot become a valid page still fail, and historical
+store files are not rewritten in place. Status, log, and diff now read the real
+`new-base-v2` Space repository successfully.
+
+An Electron process can load the Graft extension repeatedly for multiple SQLite
+connections. Graft v0.5.5 makes extension tracing initialization idempotent: the
+first global subscriber remains installed and later loads no longer panic while
+setting the global default. The full Desktop smoke now covers multiple
+repositories in one process together with commit, diff, restore, conflicts, and
+remote synchronization.
 
 The local workflow is implemented with a repository-scoped SQLite/Graft PRAGMA
 executor for normal operations; only repository initialization remains a

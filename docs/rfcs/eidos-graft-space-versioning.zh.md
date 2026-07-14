@@ -10,7 +10,18 @@
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-file-based-extensions.zh.md`
 
-## 实施状态（2026-07-13）
+## 实施状态（2026-07-14）
+
+Graft v0.5.5 已纳入 Desktop 依赖基线。该版本将 Fjall/lsm-tree 升级到包含 relocation
+metadata 修复的版本，并在 4 KiB page 解码边界加入只读兼容路径：旧仓库中被错误标记为
+未压缩、实际仍是 LZ4 数据的 page 会按严格 4 KiB 目标恢复；无法恢复成合法 page 的值仍然
+报错，不会静默接受损坏数据，也不会原地改写历史 store。真实 Space
+`new-base-v2` 的 status、log 与 diff 已在原仓库上通过兼容读取。
+
+同一 Electron 进程可能为多个 SQLite connection 重复加载 Graft extension。v0.5.5 将
+extension tracing 初始化改为幂等：首次加载保留全局 subscriber，后续加载不再因重复设置
+global default 而 panic。完整 Desktop smoke 已覆盖连续打开多个 repository、提交、diff、
+回退、冲突和远端同步。
 
 本地链路已经实现。普通操作通过 repository-scoped SQLite/Graft PRAGMA executor
 执行，只有 repository initialization 仍是一次性 CLI。由于 Graft 注册的 VFS 和
