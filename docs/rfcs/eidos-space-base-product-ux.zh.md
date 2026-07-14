@@ -64,6 +64,13 @@ mutation revision 还会阻止旧响应覆盖较新的 optimistic 值。组件�
 undo 各只触发一次 batch call，真实 SQLite runtime 测试会断言后续 row 失败时前面修改也会
 回滚。
 
+Grid 的客户端分页缓存也与 Gallery/Kanban 一样建立了明确的内存边界。普通分页使用 8 个
+100-row pages 的 LRU；离开窗口且最久未访问的 page 会释放，重新滚回时恢复为 Loading cell
+并按需读取，而不是永久保留每个访问过的 row。当前可见与 overscan pages、打开的 Record
+Inspector、正在提交或等待失败恢复的 mutation，以及仍在 50-batch undo/redo history 中的
+编辑 pages 会在语义需要期间保持固定。百万行组件回归会跨多个远距离窗口验证旧 page 确实
+被淘汰和重新读取，同时验证可撤销编辑不会因为缓存回收而失去原值。
+
 Grid 列统计现在使用和可见记录相同的 view query。列头的 `Calculate` 子菜单会为每列持久化一个
 兼容的聚合，并把结果直接显示在已有 trailing row，不增加工具栏或弹窗。当前 view 配置的所有列
 会由独立 Base runtime 在持久 query worker 中通过一次参数化聚合查询完成；Renderer 不扫描已加载
