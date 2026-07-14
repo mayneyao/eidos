@@ -49,6 +49,13 @@ Cmd+P 继续使用 Space 统一 Quick Open，不引入 Base 专用弹层。当�
 Base 路径过滤并直接切换；普通文件结果仍在同一面板中。底部 sheets 同时支持
 Ctrl+PageUp/PageDown 循环切换，保留高频键盘路径而不改变全局搜索的心智模型。
 
+Grid、Gallery 与 Kanban 的 Record Inspector 现在都提供 `Open record in tab`。这个非模态
+tab 使用稳定的 `.base` 路径、table ID 与 record ID URL，因此可以固定、分屏、恢复，并在
+Base 文件移动后继续保持目标。全页布局直接复用 Inspector 字段编辑器、附件与 relation adapter、
+optimistic mutation queue 和独立 Base runtime，不引入第二条记录存储链路，也不依赖旧 document
+block。tab title 会跟随已加载记录；file watcher revision 会在原位刷新记录；table 或记录不存在时，
+页面仍保留返回 Base workbook 的可恢复路径。
+
 Desktop 全局快捷键现在会在监听器挂载到已聚焦主窗口时立即注册，因此 Cmd+P 和其余
 shell shortcuts 首次启动即可使用，不再要求先失焦再重新聚焦。初始聚焦、后台启动、
 renderer 分发以及 blur 后重新注册均已有 lifecycle tests 覆盖。
@@ -429,23 +436,24 @@ layout；恢复后的仓库状态为 clean。
 
 与原表格 view 的当前能力对齐情况如下：
 
-| 能力                                       | Base 状态                                         | 剩余边界                                                            |
-| ------------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------- |
-| 持久化 view lifecycle 与独立 query/layout  | 完整 lifecycle、原位 layout 切换及重启/恢复已验收 | v1 暂无已知缺口                                                     |
-| view 级字段显隐与只读系统字段              | 三种 layout 共用持久化显隐，系统字段可筛选排序    | v1 暂无已知缺口                                                     |
-| Grid 列统计                                | view 级配置、worker 聚合并复用 trailing row       | v1 暂无已知缺口                                                     |
-| CSV 导入/当前 view 导出                    | 流式 worker、进度/取消和原子输出已工作            | v1 暂无已知缺口                                                     |
-| Base 首次使用                              | 空白表、Task tracker 与 CSV 三条路径均已接通      | v1 暂无已知缺口                                                     |
-| Base 默认设置与附件目录                    | 按 Space 预选模板并写入可移植相对文件路径         | v1 暂无已知缺口                                                     |
-| Base workspace 加载                        | 文件类型级 chunk、稳定 loading 与原位 Retry       | v1 暂无已知缺口                                                     |
-| Gallery 字段显隐、空字段隐藏、card size    | 二维虚拟无限滚动与结果导航已工作                  | v1 暂无已知缺口                                                     |
-| Gallery 与 Kanban cover                    | File/URL、适应/裁切和隐藏空字段均已工作           | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
-| Card actions                               | 可编辑 Inspector 与删除已工作                     | file-based Base 的 full-page row document 模型尚未定义              |
-| Kanban Select 分组、计数、折叠、新增、拖动 | 横纵虚拟化、可见列懒加载和无障碍移动已工作        | v1 暂无已知缺口                                                     |
-| Base merge conflict 审阅                   | 原生 row 审阅已验收                               | schema/opaque conflict 按设计使用明确的 whole-file fallback         |
+| 能力                                       | Base 状态                                           | 剩余边界                                                            |
+| ------------------------------------------ | --------------------------------------------------- | ------------------------------------------------------------------- |
+| 持久化 view lifecycle 与独立 query/layout  | 完整 lifecycle、原位 layout 切换及重启/恢复已验收   | v1 暂无已知缺口                                                     |
+| view 级字段显隐与只读系统字段              | 三种 layout 共用持久化显隐，系统字段可筛选排序      | v1 暂无已知缺口                                                     |
+| Grid 列统计                                | view 级配置、worker 聚合并复用 trailing row         | v1 暂无已知缺口                                                     |
+| CSV 导入/当前 view 导出                    | 流式 worker、进度/取消和原子输出已工作              | v1 暂无已知缺口                                                     |
+| Base 首次使用                              | 空白表、Task tracker 与 CSV 三条路径均已接通        | v1 暂无已知缺口                                                     |
+| Base 默认设置与附件目录                    | 按 Space 预选模板并写入可移植相对文件路径           | v1 暂无已知缺口                                                     |
+| Base workspace 加载                        | 文件类型级 chunk、稳定 loading 与原位 Retry         | v1 暂无已知缺口                                                     |
+| Gallery 字段显隐、空字段隐藏、card size    | 二维虚拟无限滚动与结果导航已工作                    | v1 暂无已知缺口                                                     |
+| Gallery 与 Kanban cover                    | File/URL、适应/裁切和隐藏空字段均已工作             | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
+| Card actions                               | 可编辑 Inspector、删除与稳定的非模态记录 tab 已工作 | v1 暂无已知缺口                                                     |
+| Kanban Select 分组、计数、折叠、新增、拖动 | 横纵虚拟化、可见列懒加载和无障碍移动已工作          | v1 暂无已知缺口                                                     |
+| Base merge conflict 审阅                   | 原生 row 审阅已验收                                 | schema/opaque conflict 按设计使用明确的 whole-file fallback         |
 
-这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。可移植的 File 与 URL cover
-已经满足 v1 Base 边界；旧 document-content 与 extension-block cover 明确保留在独立 package 之外。
+这是 v1 Base table-view 的交付候选，并不试图把旧 document 或 extension 耦合复制进独立 package。
+可移植的 File 与 URL cover 已经满足 v1 Base 边界；旧 document-content 与 extension-block cover
+明确保留在独立 package 之外。
 Base 日常编辑和配置优先使用单元格内编辑、表头菜单、锚定 Popover 和渐进披露；居中弹窗只保留
 给破坏性确认或必须中断当前工作流的决策。新增交互应先参考并复用原表格已经验证过的编辑方式，
 不应仅为了实现方便把字段配置、记录编辑或 view 管理改成弹窗流程。

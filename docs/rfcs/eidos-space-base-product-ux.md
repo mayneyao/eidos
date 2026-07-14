@@ -64,6 +64,16 @@ identifiers, and the Base path. The bottom sheet bar also supports cycling with
 Ctrl+PageUp/PageDown, adding a fast workbook path without changing the global
 search mental model.
 
+Grid, Gallery, and Kanban record inspectors now expose `Open record in tab`.
+The resulting non-modal tab uses a stable `.base` + table ID + record ID URL,
+so it can be pinned, split, restored, and preserved when the Base file moves.
+The full-page layout reuses the Inspector field editors, attachment and
+relation adapters, optimistic mutation queue, and standalone Base runtime;
+there is no second record storage path or legacy document-block dependency.
+The tab title follows the loaded record, file-watcher revisions reload the
+open record in place, and missing tables or records keep a recoverable route
+back to the Base workbook.
+
 Desktop global shortcuts are registered immediately when their listeners are
 attached to an already focused main window. Cmd+P and the rest of the shell
 shortcut set therefore work on first launch without requiring a blur/refocus
@@ -579,14 +589,15 @@ Current parity with the original table views is explicit:
 | Base defaults and attachment directory                    | Per-Space template selection and portable relative file paths                           | No known v1 gap                                                                                              |
 | Gallery field visibility, empty-field hiding, card sizing | Working with virtual infinite scroll and result navigation                              | No known v1 gap                                                                                              |
 | Gallery and Kanban covers                                 | File and URL fields, fit/crop, and empty-field controls working                         | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
-| Card actions                                              | Editable inspector and delete working                                                   | A full-page row-document model is not yet defined for file-based Base                                        |
+| Card actions                                              | Editable Inspector, delete, and stable non-modal record tabs working                    | No known v1 gap                                                                                              |
 | Kanban Select grouping, counts, collapse, add, drag move  | Working with two-axis virtualization, visible-column lazy loading, and accessible moves | No known v1 gap                                                                                              |
 | Base merge conflict review                                | Native row review accepted                                                              | Schema/opaque conflicts intentionally use the explicit whole-file fallback                                   |
 
-This is the first working delivery slice, not yet full parity with the original
-table views. Portable File and URL covers satisfy the v1 Base boundary; legacy
-document-content and extension-block covers remain intentionally outside the
-standalone package. Routine Base
+This is the v1 Base table-view delivery candidate, not an attempt to reproduce
+legacy document or extension coupling inside the standalone package. Portable
+File and URL covers satisfy the v1 Base boundary; legacy document-content and
+extension-block covers remain intentionally outside the standalone package.
+Routine Base
 configuration uses inline controls, header menus, and anchored popovers. Modal
 dialogs are reserved for destructive confirmation or other decisions that must
 interrupt the workflow. New interactions should first adapt the proven editing
