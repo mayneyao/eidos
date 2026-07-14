@@ -2,6 +2,17 @@ import { nanoid } from "nanoid"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
+import {
+  normalizePersistedTabState,
+  TAB_STORAGE_VERSION,
+} from "./tabs-persistence"
+
+export {
+  normalizePersistedTabState,
+  TAB_STORAGE_VERSION,
+} from "./tabs-persistence"
+export type { PersistedTabState } from "./tabs-persistence"
+
 export interface TabHistoryEntry {
   key: string
   url: string
@@ -36,6 +47,35 @@ export type SplitDirection = "right" | "down"
 
 // Maximum number of panels allowed
 const MAX_PANELS = 4
+
+function omitTabOwnedState<T>(
+  state: Record<string, T>,
+  removedTabIds: ReadonlySet<string>
+): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(state).filter(([tabId]) => !removedTabIds.has(tabId))
+  )
+}
+
+function tabsToClosedStack(
+  tabIds: readonly string[],
+  tabs: readonly Tab[],
+  history: Record<string, { entries: TabHistoryEntry[]; index: number }>
+): ClosedTab[] {
+  return tabIds.flatMap((tabId) => {
+    const tab = tabs.find((candidate) => candidate.id === tabId)
+    return tab
+      ? [
+          {
+            url: tab.url,
+            title: tab.title,
+            icon: tab.icon,
+            historyState: history[tabId],
+          },
+        ]
+      : []
+  })
+}
 
 interface TabState {
   tabs: Tab[]
@@ -97,19 +137,6 @@ interface TabState {
 }
 
 const storageName = "eidos-tabs-storage"
-
-// Helper to ensure at least one panel exists
-function ensureDefaultPanel(state: Partial<TabState>): Panel[] {
-  if (!state.panels || state.panels.length === 0) {
-    const defaultPanel: Panel = {
-      id: nanoid(),
-      tabIds: state.tabs?.map((t) => t.id) || [],
-      activeTabId: state.tabs?.[0]?.id || null,
-    }
-    return [defaultPanel]
-  }
-  return state.panels
-}
 
 export const useTabStore = create<TabState>()(
   persist(
@@ -314,7 +341,14 @@ export const useTabStore = create<TabState>()(
       },
 
       closeOtherTabs: (id) => {
-        const { tabs, panels, activePanelId } = get()
+        const {
+          tabs,
+          panels,
+          history,
+          tabNavigators,
+          nextNavigationOptions,
+          closedTabsStack,
+        } = get()
         const tabToKeep = tabs.find((t) => t.id === id)
         if (!tabToKeep) return
 
@@ -322,22 +356,36 @@ export const useTabStore = create<TabState>()(
         const panel = panels.find((p) => p.tabIds.includes(id))
         if (!panel) return
 
-        // Keep only this tab in the panel, remove other panels
+        const removedTabIds = panel.tabIds.filter((tabId) => tabId !== id)
+        const removedTabIdSet = new Set(removedTabIds)
+        const closedTabs = tabsToClosedStack(removedTabIds, tabs, history)
+
         set({
-          tabs: [tabToKeep],
-          panels: [
-            {
-              ...panel,
-              tabIds: [id],
-              activeTabId: id,
-            },
-          ],
-          activePanelId: panel.id,
+          tabs: tabs.filter((tab) => !removedTabIdSet.has(tab.id)),
+          panels: panels.map((candidate) =>
+            candidate.id === panel.id
+              ? { ...candidate, tabIds: [id], activeTabId: id }
+              : candidate
+          ),
+          history: omitTabOwnedState(history, removedTabIdSet),
+          tabNavigators: omitTabOwnedState(tabNavigators, removedTabIdSet),
+          nextNavigationOptions: omitTabOwnedState(
+            nextNavigationOptions,
+            removedTabIdSet
+          ),
+          closedTabsStack: [...closedTabsStack, ...closedTabs].slice(-10),
         })
       },
 
       closeTabsToRight: (id) => {
-        const { tabs, panels, activePanelId } = get()
+        const {
+          tabs,
+          panels,
+          history,
+          tabNavigators,
+          nextNavigationOptions,
+          closedTabsStack,
+        } = get()
 
         // Find which panel contains this tab
         const panel = panels.find((p) => p.tabIds.includes(id))
@@ -346,6 +394,8 @@ export const useTabStore = create<TabState>()(
         const index = panel.tabIds.indexOf(id)
         const newTabIds = panel.tabIds.slice(0, index + 1)
         const removedTabIds = panel.tabIds.slice(index + 1)
+        const removedTabIdSet = new Set(removedTabIds)
+        const closedTabs = tabsToClosedStack(removedTabIds, tabs, history)
 
         // Update panel
         const newPanels = panels.map((p) =>
@@ -361,19 +411,46 @@ export const useTabStore = create<TabState>()(
         )
 
         // Remove tabs that were closed
-        const newTabs = tabs.filter((t) => !removedTabIds.includes(t.id))
+        const newTabs = tabs.filter((t) => !removedTabIdSet.has(t.id))
 
         set({
           tabs: newTabs,
           panels: newPanels,
+          history: omitTabOwnedState(history, removedTabIdSet),
+          tabNavigators: omitTabOwnedState(tabNavigators, removedTabIdSet),
+          nextNavigationOptions: omitTabOwnedState(
+            nextNavigationOptions,
+            removedTabIdSet
+          ),
+          closedTabsStack: [...closedTabsStack, ...closedTabs].slice(-10),
         })
       },
 
       closeAllTabs: () => {
+        const {
+          tabs,
+          history,
+          tabNavigators,
+          nextNavigationOptions,
+          closedTabsStack,
+        } = get()
+        const removedTabIds = new Set(tabs.map((tab) => tab.id))
+        const closedTabs = tabsToClosedStack(
+          tabs.map((tab) => tab.id),
+          tabs,
+          history
+        )
         set({
           tabs: [],
           panels: [],
           activePanelId: null,
+          history: omitTabOwnedState(history, removedTabIds),
+          tabNavigators: omitTabOwnedState(tabNavigators, removedTabIds),
+          nextNavigationOptions: omitTabOwnedState(
+            nextNavigationOptions,
+            removedTabIds
+          ),
+          closedTabsStack: [...closedTabsStack, ...closedTabs].slice(-10),
         })
       },
 
@@ -512,7 +589,7 @@ export const useTabStore = create<TabState>()(
       },
 
       reopenLastClosedTab: () => {
-        const { closedTabsStack, tabs, panels, activePanelId } = get()
+        const { closedTabsStack, tabs, panels, activePanelId, history } = get()
         if (closedTabsStack.length === 0) return
 
         const lastClosed = closedTabsStack[closedTabsStack.length - 1]
@@ -541,6 +618,9 @@ export const useTabStore = create<TabState>()(
             tabs: [...tabs, newTab],
             panels: [newPanel],
             activePanelId: newPanel.id,
+            history: lastClosed.historyState
+              ? { ...history, [newTab.id]: lastClosed.historyState }
+              : history,
           })
           return
         }
@@ -558,6 +638,9 @@ export const useTabStore = create<TabState>()(
               : p
           ),
           activePanelId: targetPanelId,
+          history: lastClosed.historyState
+            ? { ...history, [newTab.id]: lastClosed.historyState }
+            : history,
         })
       },
 
@@ -700,30 +783,28 @@ export const useTabStore = create<TabState>()(
       },
 
       closePanel: (panelId) => {
-        const { panels, tabs, activePanelId, closedTabsStack, history } = get()
+        const {
+          panels,
+          tabs,
+          activePanelId,
+          closedTabsStack,
+          history,
+          tabNavigators,
+          nextNavigationOptions,
+        } = get()
 
         const panel = panels.find((p) => p.id === panelId)
         if (!panel) return
 
         // Save tabs to closed stack
-        const closedTabs = panel.tabIds
-          .map((id) => {
-            const tab = tabs.find((t) => t.id === id)
-            if (!tab) return null
-            return {
-              url: tab.url,
-              title: tab.title,
-              icon: tab.icon,
-              historyState: history[id],
-            } as ClosedTab
-          })
-          .filter((t): t is ClosedTab => t !== null)
+        const closedTabs = tabsToClosedStack(panel.tabIds, tabs, history)
 
         const newStack = [...closedTabsStack, ...closedTabs].slice(-10)
 
         // Remove panel and its tabs
         const newPanels = panels.filter((p) => p.id !== panelId)
         const newTabs = tabs.filter((t) => !panel.tabIds.includes(t.id))
+        const removedTabIds = new Set(panel.tabIds)
 
         // Update active panel
         let newActivePanelId = activePanelId
@@ -736,6 +817,12 @@ export const useTabStore = create<TabState>()(
           tabs: newTabs,
           activePanelId: newActivePanelId,
           closedTabsStack: newStack,
+          history: omitTabOwnedState(history, removedTabIds),
+          tabNavigators: omitTabOwnedState(tabNavigators, removedTabIds),
+          nextNavigationOptions: omitTabOwnedState(
+            nextNavigationOptions,
+            removedTabIds
+          ),
         })
       },
 
@@ -775,15 +862,12 @@ export const useTabStore = create<TabState>()(
         closedTabsStack: state.closedTabsStack,
         splitDirection: state.splitDirection,
       }),
-      // Migration: ensure panels exist when loading old state
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          state.panels = ensureDefaultPanel(state)
-          if (!state.activePanelId && state.panels.length > 0) {
-            state.activePanelId = state.panels[0].id
-          }
-        }
-      },
+      version: TAB_STORAGE_VERSION,
+      migrate: (persistedState) => normalizePersistedTabState(persistedState),
+      merge: (persistedState, currentState) => ({
+        ...currentState,
+        ...normalizePersistedTabState(persistedState),
+      }),
     }
   )
 )
