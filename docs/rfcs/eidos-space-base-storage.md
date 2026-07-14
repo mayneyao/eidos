@@ -1,10 +1,10 @@
 # RFC: Eidos Space/Base Storage Model
 
-Status: Draft, implementation in progress
+Status: Draft, Base v1 Desktop accepted
 Date: 2026-07-08
 Owner: Eidos
 
-## Implementation Status (2026-07-12)
+## Implementation Status (2026-07-14)
 
 The project is implementing this RFC through a Markdown-first vertical slice.
 File-based Spaces, direct file operations, derived Markdown indexing,
@@ -19,14 +19,15 @@ Spaces. Read-only audits can plan every one of the 29 registered legacy Spaces
 whose source database still exists, and representative small, medium, and
 1.1-million-row exports pass end-to-end validation. Persistent Graft remote
 sync/conflict also passes isolated and native Desktop two-Space acceptance. The
-native Base create/edit/restart/version/restore lifecycle is accepted; remaining
-Base product refinements and file-based extensions remain.
+native Base create/edit/restart/version/restore lifecycle and stable record-tab
+open/edit/watch/split/restart flow are accepted. File-based extensions remain a
+separate, currently deferred RFC.
 
 The phase order in this document is therefore descriptive rather than the
 current execution order. The completed sequence is Markdown Space, local Graft,
 standalone Base runtime, migration, then native remote Graft acceptance.
-Base delivery closure is next: finish the remaining table-view refinements
-before file-based extensions.
+The Base v1 delivery gate is closed. File-based extensions do not block that
+release and remain deferred until their RFC is resumed.
 
 ## Summary
 
@@ -562,5 +563,6 @@ visible-region paging, keyboard workflows, selection, copy/paste, undo/redo,
 persisted column layout, structured search/filter/sort, and query-correct batch
 deletion and column aggregates are implemented without moving file-format
 responsibilities back into `@eidos.space/core`. The native
-create/edit/restart/version/restore acceptance lifecycle is complete; the
-remaining gate is the final set of high-value field/view parity refinements.
+create/edit/restart/version/restore lifecycle and native record-tab acceptance
+are complete. Base v1 has no remaining delivery gate in this RFC; file-based
+extensions remain separate and deferred.

@@ -1,10 +1,10 @@
 # RFC：Eidos Space/Base 存储模型
 
-状态：草案，实施中
+状态：草案，Base v1 Desktop 验收通过
 日期：2026-07-08
 负责人：Eidos
 
-## 实施状态（2026-07-12）
+## 实施状态（2026-07-14）
 
 项目正在通过 Markdown-first 垂直切片实施本 RFC。file-based Space、真实文件操作、
 Markdown 派生索引、Space-root 本地 Graft 版本管理和独立 `.base` 格式/runtime
@@ -14,12 +14,12 @@ runtime 已经可以规划并原子生成经过校验的 Markdown + `main.base` 
 Desktop Settings 也已接入 legacy Space 的 plan/export/validation flow。只读审计覆盖的
 29 个仍存在源数据库的注册旧 Space 已全部可以规划，小型、中型和 111 万行真实导出均通过
 端到端校验。持久 Graft remote sync/conflict 也已通过隔离与原生 Desktop 双 Space
-验收；原生 Base 创建/编辑/重启/版本/恢复生命周期同样已经验收。仍需剩余 Base 产品细化
-与文件化扩展。
+验收；原生 Base 创建/编辑/重启/版本/恢复生命周期，以及稳定 record tab 的打开、编辑、
+外部刷新、分屏与重启恢复同样已经验收。文件化扩展作为独立 RFC 当前暂缓。
 
 因此本文的 phase 顺序只描述能力依赖，不再代表当前执行顺序。已经完成的顺序是 Markdown
-Space、本地 Graft、独立 Base runtime、migration 和原生 remote Graft 验收。下一步是
-完成剩余 table-view 细化，随后进入文件化扩展。
+Space、本地 Graft、独立 Base runtime、migration 和原生 remote Graft 验收。Base v1
+交付 gate 现已关闭；文件化扩展不再阻塞本次交付，等其 RFC 恢复后再继续。
 
 ## 摘要
 
@@ -551,5 +551,5 @@ sample-space/
 紧凑的 Base 编辑面已经替换为现有 production Grid 交互层的 adapter。多 table/field
 authoring、可见区域分页、键盘操作、selection、copy/paste、undo/redo、持久化列布局、
 结构化 search/filter/sort、查询语义正确的批量删除以及列聚合都已经实现，同时没有把
-文件格式职责放回 `@eidos.space/core`。原生 create/edit/restart/version/restore 验收链路
-已经完成；剩余 gate 是最后一组高价值 field/view 对齐细化。
+文件格式职责放回 `@eidos.space/core`。原生 create/edit/restart/version/restore 与 record tab
+验收链路已经完成。本 RFC 中 Base v1 已无剩余交付 gate；文件化扩展保持独立并暂缓。

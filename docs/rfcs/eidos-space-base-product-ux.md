@@ -1,6 +1,6 @@
 # RFC: Product UX for Spaces, Bases, and Changes
 
-Status: Draft, implementation in progress
+Status: Draft, Desktop delivery accepted
 Date: 2026-07-08
 Owner: Eidos
 Related:
@@ -578,6 +578,14 @@ that file, create a version, fully restart Electron, reopen and verify the row,
 make a dirty edit, and restore the file from History without moving HEAD. The
 open Base refreshes immediately after Graft replaces the file and the worktree
 returns to clean when restoring the current version.
+
+Native record-tab acceptance uses an isolated HOME, Desktop profile, and Space.
+Grid, Gallery, and Kanban all open the same record through the shared Inspector
+and promote it into one stable tab rather than creating duplicates. Editing the
+record updates the tab title, Back to Base preserves the mounted tab, and an
+external `.base` write refreshes the open record in place. The native tab menu
+can split the record to the right of the workbook, and a complete Electron
+restart restores both panels, the active views, and the record title.
 
 Current parity with the original table views is explicit:
 

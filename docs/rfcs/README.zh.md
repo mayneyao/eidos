@@ -10,10 +10,10 @@
 
 | RFC               | 状态             | 当前实现边界                                                                                                                                                               |
 | ----------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Space/Base 存储   | 实施中           | file-based 垂直切片、独立 Base runtime、Base-aware diff、真实 legacy export 和原生 remote 验收已跑通；仍需文件化扩展与剩余 Base 细化。                                     |
+| Space/Base 存储   | Base v1 验收通过 | file-based 垂直切片、独立 Base runtime、Base-aware diff、真实 legacy export、原生 remote 与 record tab 验收已跑通；文件化扩展保持独立。                                    |
 | Markdown runtime  | Desktop 验收通过 | 真实文件树、直接编辑、安全保存、外部冲突草稿恢复、watcher、持久派生索引、quick open、wiki-link completion、outline、backlinks、附件、IME、图片粘贴和长文档均已跑通。       |
 | Graft 版本管理    | Desktop 验收通过 | 已验收 repository-scoped 子进程、受限的持久 fetch/pull/push、分叉文本 diff、path-first resolution、双 parent continuation 与最终 push。                                    |
-| 产品 UX           | 交付收尾中       | Files/Version、Diff/History、Settings、迁移、原生 Base 生命周期与双 Space row-conflict 审阅均已验收；剩余工作是完整 table-view 对齐。                                      |
+| 产品 UX           | Desktop 验收通过 | Files/Version、Diff/History、Settings、迁移、原生 Base 生命周期、双 Space row-conflict 审阅、table-view 对齐及 record tab 恢复/分屏均已验收。                              |
 | Base 格式/runtime | 交付收尾中       | 独立 package 已支持结构化查询与列聚合、多 layout views、丰富字段、强化校验、原子 range edit/undo、有界百万行视图缓存、批量删除，以及流式 CSV 导入和当前 view 导出。        |
 | 文件化扩展        | 未开始           | RFC 仍是目标设计。                                                                                                                                                         |
 | Legacy migration  | 真实导出通过     | 独立 planning、原子 export、Desktop Settings、schema recovery 和 111 万行真实 Space 验收已完成；兼容 Formula/Lookup 会迁移为实时派生字段，不兼容定义保留物化值并明确告警。 |
@@ -25,7 +25,7 @@
 3. 构建独立 Base package 和垂直切片，
 4. 实现并验收 legacy migration exports。
 
-下一顺序是完成剩余高价值 table-view 对齐，随后进入文件化扩展。
+Base v1 交付 gate 现已关闭。文件化扩展是独立且当前暂缓的 RFC，不再阻塞 Base 交付。
 
 推荐阅读顺序：
 

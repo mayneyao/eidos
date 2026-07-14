@@ -1,6 +1,6 @@
 # RFC：Space、Base 与 Changes 的产品交互
 
-状态：草案，实施中
+状态：草案，Desktop 交付验收通过
 日期：2026-07-08
 负责人：Eidos
 相关文档：
@@ -433,6 +433,12 @@ layout；恢复后的仓库状态为 clean。
 和 Select cell，只 stage 该文件并创建版本，完整重启 Electron 后重开并校验记录，再制造 dirty edit，
 最后从 History 恢复文件且不移动 HEAD。Graft 替换文件后，已打开的 Base 会立即刷新；恢复当前
 版本时 worktree 会重新变为 clean。
+
+原生 record tab 验收使用隔离的 HOME、Desktop profile 与 Space。Grid、Gallery 和 Kanban 都会
+通过共享 Inspector 打开同一条记录，并提升为同一个稳定 tab，而不会重复创建。编辑记录会同步更新
+tab 标题，Back to Base 会保留已经挂载的记录页，外部写入 `.base` 也会让打开的记录原位刷新。
+原生 tab 菜单可以把记录分屏到工作簿右侧；完整重启 Electron 后，两侧 panel、当前 views 与记录标题
+都会恢复。
 
 与原表格 view 的当前能力对齐情况如下：
 
