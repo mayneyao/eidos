@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { act } from "react"
+import { flushSync } from "react-dom"
 import { createRoot, type Root } from "react-dom/client"
 import type {
   BaseRowPage,
@@ -133,6 +134,10 @@ describe("BaseGalleryView", () => {
       configurable: true,
       get: () => 640,
     })
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 1024,
+    })
     Object.defineProperty(HTMLElement.prototype, "scrollTo", {
       configurable: true,
       value(this: HTMLElement, options: ScrollToOptions) {
@@ -235,6 +240,39 @@ describe("BaseGalleryView", () => {
 
     expect(loadPage).toHaveBeenLastCalledWith(2, 100, 3)
     expect(container.textContent).toContain("Review UX")
+  })
+
+  it("uses the real viewport width before the first Gallery paint", async () => {
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 620,
+    })
+
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = false
+    try {
+      flushSync(() => {
+        root.render(
+          <BaseGalleryView
+            table={table}
+            view={view}
+            loadPage={vi.fn(() => new Promise<BaseRowPage>(() => undefined))}
+          />
+        )
+      })
+
+      expect(
+        container
+          .querySelector("[data-base-gallery-scroll]")
+          ?.getAttribute("data-base-column-count")
+      ).toBe("2")
+    } finally {
+      ;(
+        globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+      ).IS_REACT_ACT_ENVIRONMENT = true
+    }
+    await act(async () => Promise.resolve())
   })
 
   it("loads and reveals a paged search result", async () => {

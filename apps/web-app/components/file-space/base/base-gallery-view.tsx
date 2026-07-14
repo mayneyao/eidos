@@ -218,11 +218,15 @@ export const BaseGalleryView = memo(function BaseGalleryView({
     }
   }, [onRowCountChange, reloadToken, requestPage, table.table.id, view.id])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = scrollContainerRef.current
     if (!container) return
     const updateWidth = (width: number) => {
-      if (width > 0) setContainerWidth(width)
+      if (width <= 0) return
+      const nextWidth = Math.round(width)
+      setContainerWidth((current) =>
+        current === nextWidth ? current : nextWidth
+      )
     }
     updateWidth(container.clientWidth)
     if (typeof ResizeObserver === "undefined") return
@@ -466,6 +470,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
       <div
         ref={scrollContainerRef}
         data-base-gallery-scroll
+        data-base-column-count={columnCount}
         data-base-window-size={rows.length}
         data-base-window-start={rowWindow.startOffset}
         aria-busy={loading || loadingMore}
