@@ -2,7 +2,10 @@
 
 import { describe, expect, it } from "vitest"
 
-import { withFileSpaceOperationLock } from "./file-space-operation-lock"
+import {
+  withFileSpaceOperationLock,
+  withFileSpaceReadLock,
+} from "./file-space-operation-lock"
 
 function deferred() {
   let resolve!: () => void
@@ -50,5 +53,57 @@ describe("withFileSpaceOperationLock", () => {
     expect(secondFinished).toBe(true)
     releaseFirst.resolve()
     await first
+  })
+
+  it("runs read-only operations for the same Space concurrently", async () => {
+    const releaseReads = deferred()
+    const started: string[] = []
+    const first = withFileSpaceReadLock("space-read-test-1", async () => {
+      started.push("first")
+      await releaseReads.promise
+    })
+    const second = withFileSpaceReadLock("space-read-test-1", async () => {
+      started.push("second")
+      await releaseReads.promise
+    })
+
+    await Promise.resolve()
+    expect(started).toEqual(["first", "second"])
+    releaseReads.resolve()
+    await Promise.all([first, second])
+  })
+
+  it("keeps writes exclusive from active and later reads", async () => {
+    const releaseFirstRead = deferred()
+    const releaseWrite = deferred()
+    const order: string[] = []
+    const firstRead = withFileSpaceReadLock("space-read-test-2", async () => {
+      order.push("read:first:start")
+      await releaseFirstRead.promise
+      order.push("read:first:end")
+    })
+    const write = withFileSpaceOperationLock("space-read-test-2", async () => {
+      order.push("write:start")
+      await releaseWrite.promise
+      order.push("write:end")
+    })
+    const laterRead = withFileSpaceReadLock("space-read-test-2", async () => {
+      order.push("read:later")
+    })
+
+    await Promise.resolve()
+    expect(order).toEqual(["read:first:start"])
+    releaseFirstRead.resolve()
+    await firstRead
+    expect(order).toEqual(["read:first:start", "read:first:end", "write:start"])
+    releaseWrite.resolve()
+    await Promise.all([write, laterRead])
+    expect(order).toEqual([
+      "read:first:start",
+      "read:first:end",
+      "write:start",
+      "write:end",
+      "read:later",
+    ])
   })
 })

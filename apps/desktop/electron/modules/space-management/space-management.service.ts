@@ -65,7 +65,10 @@ import { getCredentialsManager } from "../sync/sync.module"
 import { getConfigManager } from "../config/config-manager"
 import { PORT } from "../../main"
 import { BrowserService } from "../browser/browser.service"
-import { withFileSpaceOperationLock } from "./file-space-operation-lock"
+import {
+  withFileSpaceOperationLock,
+  withFileSpaceReadLock,
+} from "./file-space-operation-lock"
 import { createBaseFileAtomically } from "./atomic-base-file"
 import { SpaceResourceLifecycle } from "./space-resource-lifecycle"
 import {
@@ -648,7 +651,7 @@ export class SpaceManagementService extends IpcServiceBase {
     ) {
       throw new Error("Base row page cursor is invalid")
     }
-    return withFileSpaceOperationLock(spaceId, async () => {
+    return withFileSpaceReadLock(spaceId, async () => {
       const files = this._getFileSpace(spaceId)
       const systemPath = await files.getSystemPath(relativePath)
       return this.baseQueryWorker.page(files.root, systemPath, tableId, options)
@@ -662,7 +665,7 @@ export class SpaceManagementService extends IpcServiceBase {
     columnName: string,
     query: BaseRowQuery = {}
   ): Promise<BaseRowGroupCount[]> {
-    return withFileSpaceOperationLock(spaceId, async () => {
+    return withFileSpaceReadLock(spaceId, async () => {
       const files = this._getFileSpace(spaceId)
       const systemPath = await files.getSystemPath(relativePath)
       return this.baseQueryWorker.groupCounts(
@@ -682,7 +685,7 @@ export class SpaceManagementService extends IpcServiceBase {
     configs: BaseColumnStatConfig[],
     query: BaseRowQuery = {}
   ): Promise<BaseColumnStatResult[]> {
-    return withFileSpaceOperationLock(spaceId, async () => {
+    return withFileSpaceReadLock(spaceId, async () => {
       const files = this._getFileSpace(spaceId)
       const systemPath = await files.getSystemPath(relativePath)
       return this.baseQueryWorker.columnStats(
