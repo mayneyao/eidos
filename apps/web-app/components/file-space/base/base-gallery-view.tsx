@@ -22,6 +22,7 @@ import { LoaderCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 
+import { baseErrorMessage } from "./base-error-message"
 import { BaseRecordCard } from "./base-record-card"
 import {
   createBaseRecordCardLayout,
@@ -262,6 +263,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
     mode: BaseRowWindowMergeMode
     totalHint?: number
     cursor?: string
+    message: string
   } | null>(null)
   const [deleteRow, setDeleteRow] = useState<BaseRow | null>(null)
   const {
@@ -315,9 +317,18 @@ export const BaseGalleryView = memo(function BaseGalleryView({
             ? Math.min(page.total, page.offset)
             : page.total
         )
-      } catch {
+      } catch (error) {
         if (generation === generationRef.current) {
-          setFailedRequest({ offset, mode, totalHint, cursor })
+          setFailedRequest({
+            offset,
+            mode,
+            totalHint,
+            cursor,
+            message: baseErrorMessage(
+              error,
+              "The Base service did not return an error message"
+            ),
+          })
         }
       } finally {
         if (generation === generationRef.current) {
@@ -629,6 +640,9 @@ export const BaseGalleryView = memo(function BaseGalleryView({
             role="alert"
           >
             <span>Could not load gallery records.</span>
+            <span className="max-w-md break-words text-center text-destructive">
+              {failedRequest.message}
+            </span>
             <Button
               type="button"
               variant="outline"
@@ -703,11 +717,12 @@ export const BaseGalleryView = memo(function BaseGalleryView({
             className="sticky inset-x-0 bottom-2 z-10 flex h-0 items-center justify-center text-[11px] text-muted-foreground"
             role="alert"
           >
-            <span className="flex h-8 items-center gap-2 rounded-full border bg-background/95 pl-3 pr-1 shadow-sm backdrop-blur-sm">
-              <span>
+            <span className="flex h-8 max-w-[calc(100%_-_1rem)] items-center gap-2 rounded-full border bg-background/95 pl-3 pr-1 shadow-sm backdrop-blur-sm">
+              <span className="min-w-0 truncate" title={failedRequest.message}>
                 {failedRequest.mode !== "replace"
                   ? "Could not load more records."
-                  : "Could not refresh records."}
+                  : "Could not refresh records."}{" "}
+                {failedRequest.message}
               </span>
               <Button
                 type="button"

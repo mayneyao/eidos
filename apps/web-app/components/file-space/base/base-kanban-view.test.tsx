@@ -633,6 +633,7 @@ describe("BaseKanbanView", () => {
       rowCount: number
     }>()
     const onCellEdit = vi.fn(() => firstMove.promise)
+    const onError = vi.fn()
 
     await act(async () => {
       root.render(
@@ -649,6 +650,7 @@ describe("BaseKanbanView", () => {
           }))}
           onCellEdit={onCellEdit}
           onAddRow={vi.fn()}
+          onError={onError}
         />
       )
       await Promise.resolve()
@@ -718,6 +720,11 @@ describe("BaseKanbanView", () => {
     expect(container.querySelector('[role="status"]')?.textContent).toContain(
       "The change was reverted."
     )
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      "disk is read-only"
+    )
+    expect(onError).toHaveBeenCalledOnce()
+    expect(onError).toHaveBeenCalledWith(expect.any(Error))
   })
 
   it("does not rerender cards outside the source and target columns while a move saves", async () => {
@@ -842,6 +849,7 @@ describe("BaseKanbanView", () => {
     expect(loadGroupCounts).toHaveBeenCalledTimes(1)
     expect(onError).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Could not load Kanban records")
+    expect(container.textContent).toContain("counts failed")
     expect(
       container
         .querySelector("[data-base-kanban-scroll]")
@@ -1397,6 +1405,7 @@ describe("BaseKanbanView", () => {
 
     expect(container.textContent).toContain("Stable record")
     expect(container.textContent).toContain("Could not refresh Kanban records")
+    expect(container.textContent).toContain("refresh failed")
     expect(onError).not.toHaveBeenCalled()
     expect(
       container
@@ -2539,6 +2548,7 @@ describe("BaseKanbanView", () => {
     expect(todoRequests).toBe(2)
     expect(onError).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Retry loading records")
+    expect(container.textContent).toContain("page failed")
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "Retry loading records"
     )
@@ -2683,6 +2693,7 @@ describe("BaseKanbanView", () => {
     expect(todoRequests).toBe(1)
     expect(onError).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Could not load records")
+    expect(container.textContent).toContain("initial page failed")
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "Could not load records"
     )

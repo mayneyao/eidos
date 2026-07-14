@@ -1025,6 +1025,7 @@ describe("BaseGalleryView", () => {
     expect(loadPage).toHaveBeenCalledTimes(1)
     expect(onError).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Could not load gallery records")
+    expect(container.textContent).toContain("offline")
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "Could not load gallery records"
     )
@@ -1092,6 +1093,7 @@ describe("BaseGalleryView", () => {
     expect(loadPage).toHaveBeenCalledTimes(2)
     expect(onError).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Could not load more records")
+    expect(container.textContent).toContain("page failed")
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "Could not load more records"
     )

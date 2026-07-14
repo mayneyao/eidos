@@ -33,6 +33,7 @@ import {
   type DragEndEvent,
 } from "@/components/ui/kibo-ui/kanban"
 
+import { baseErrorMessage } from "./base-error-message"
 import {
   baseOptionColor,
   baseSelectOptions,
@@ -62,6 +63,10 @@ const KANBAN_COLUMN_CACHE_MARGIN = 2
 const KANBAN_PREFETCH_ROWS = Math.floor(KANBAN_PAGE_SIZE / 2)
 const EMPTY_GROUP_VALUE = "__eidos_empty_group__"
 
+interface BaseKanbanLoadFailure extends BaseRowWindowRequest {
+  message: string
+}
+
 interface BaseKanbanGroup {
   key: string
   value: string | null
@@ -71,7 +76,7 @@ interface BaseKanbanGroup {
   startOffset: number
   total: number
   loaded: boolean
-  loadFailure: BaseRowWindowRequest | null
+  loadFailure: BaseKanbanLoadFailure | null
   loading: boolean
   loadingMore: boolean
   needsReload: boolean
@@ -88,11 +93,7 @@ function groupKey(value: string | null): string {
 }
 
 function kanbanMutationErrorMessage(error: unknown): string {
-  const message =
-    error instanceof Error ? error.message : "Unable to create record"
-  return message
-    .replace(/^Error invoking remote method '[^']+':\s*/i, "")
-    .replace(/^Error:\s*/i, "")
+  return baseErrorMessage(error, "Unable to create record")
 }
 
 function groupSpecs(options: BaseSelectOption[]): BaseKanbanGroup[] {
@@ -389,15 +390,23 @@ const BaseKanbanVirtualCard = memo(function BaseKanbanVirtualCard({
           }
         >
           {group.loadFailure !== null ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-[11px]"
-              onClick={() => onRetry(group)}
-            >
-              Retry loading records
-            </Button>
+            <div className="flex w-full min-w-0 items-center justify-center gap-1 px-1">
+              <span
+                className="min-w-0 truncate text-[11px] text-destructive"
+                title={group.loadFailure.message}
+              >
+                {group.loadFailure.message}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 shrink-0 px-2 text-[11px]"
+                onClick={() => onRetry(group)}
+              >
+                Retry<span className="sr-only"> loading records</span>
+              </Button>
+            </div>
           ) : group.loadingMore ? (
             <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
           ) : null}
@@ -705,7 +714,13 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                 className="flex h-20 flex-col items-center justify-center gap-1 text-[11px] text-destructive"
                 role="alert"
               >
-                <span>Could not load records</span>
+                <span>Could not load records.</span>
+                <span
+                  className="max-w-full truncate px-2 text-muted-foreground"
+                  title={group.loadFailure.message}
+                >
+                  {group.loadFailure.message}
+                </span>
                 <Button
                   type="button"
                   variant="ghost"
@@ -763,7 +778,12 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
               className="flex h-8 shrink-0 items-center justify-center gap-1 text-[11px] text-destructive"
               role="alert"
             >
-              <span>Could not refresh records.</span>
+              <span
+                className="min-w-0 truncate"
+                title={group.loadFailure.message}
+              >
+                Could not refresh records. {group.loadFailure.message}
+              </span>
               <Button
                 type="button"
                 variant="ghost"
@@ -878,7 +898,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
   const groupsRef = useRef(groups)
   groupsRef.current = groups
   const [countsLoaded, setCountsLoaded] = useState(false)
-  const [countsFailure, setCountsFailure] = useState(false)
+  const [countsError, setCountsError] = useState<string | null>(null)
   const [countsRetryToken, setCountsRetryToken] = useState(0)
   const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<Set<string>>(
     new Set()
@@ -920,12 +940,12 @@ export const BaseKanbanView = memo(function BaseKanbanView({
         if (group.loaded) hasUsableBoard = true
       }
       return {
-        boardBusy: (!countsLoaded && !countsFailure) || hasBusyGroup,
+        boardBusy: (!countsLoaded && countsError === null) || hasBusyGroup,
         cachedGroupWindowCount,
         groupedRowCount,
         hasUsableBoard,
       }
-    }, [countsFailure, countsLoaded, groups])
+    }, [countsError, countsLoaded, groups])
   const collapsedGroupSignature = useMemo(
     () => [...collapsedGroupKeys].sort().join("|"),
     [collapsedGroupKeys]
@@ -1018,7 +1038,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
     if (!groupField) {
       setGroups([])
       setCountsLoaded(false)
-      setCountsFailure(false)
+      setCountsError(null)
       return
     }
     const specs = groupSpecs(options)
@@ -1032,7 +1052,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
         : next
     })
     setCountsLoaded(false)
-    setCountsFailure(false)
+    setCountsError(null)
     void loadGroupCounts(groupField)
       .then((counts) => {
         if (generation !== generationRef.current) return
@@ -1078,12 +1098,17 @@ export const BaseKanbanView = memo(function BaseKanbanView({
             : next
         })
         setCountsLoaded(true)
-        setCountsFailure(false)
+        setCountsError(null)
       })
-      .catch(() => {
+      .catch((error) => {
         if (generation !== generationRef.current) return
         setCountsLoaded(false)
-        setCountsFailure(true)
+        setCountsError(
+          baseErrorMessage(
+            error,
+            "The Base service did not return an error message"
+          )
+        )
       })
     return () => {
       generationRef.current += 1
@@ -1188,7 +1213,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
             }
           })
         )
-      } catch {
+      } catch (error) {
         if (generation !== generationRef.current) return
         loadedGroupGenerationsRef.current.set(group.key, generation)
         setGroups((current) =>
@@ -1197,7 +1222,13 @@ export const BaseKanbanView = memo(function BaseKanbanView({
               ? {
                   ...candidate,
                   loaded: true,
-                  loadFailure: request,
+                  loadFailure: {
+                    ...request,
+                    message: baseErrorMessage(
+                      error,
+                      "The Base service did not return an error message"
+                    ),
+                  },
                   loading: false,
                   loadingMore: false,
                 }
@@ -1435,7 +1466,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
             `${title} moved from ${source.name} to ${target.name}.`
           )
         })
-        .catch(() => {
+        .catch((error) => {
           const sourceIndex = source.rows.findIndex(
             (candidate) => String(candidate._id) === rowId
           )
@@ -1478,8 +1509,9 @@ export const BaseKanbanView = memo(function BaseKanbanView({
             })
           )
           setMoveAnnouncement(
-            `${title} could not be moved to ${target.name}. The change was reverted.`
+            `${title} could not be moved to ${target.name}: ${baseErrorMessage(error, "Unable to save the move")}. The change was reverted.`
           )
+          onError?.(error)
         })
         .finally(() => {
           moveInFlightRef.current = false
@@ -1487,7 +1519,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
         })
       return true
     },
-    [disabled, groupField, onCellEdit]
+    [disabled, groupField, onCellEdit, onError]
   )
 
   const dragEnd = (event: DragEndEvent) => {
@@ -1652,12 +1684,14 @@ export const BaseKanbanView = memo(function BaseKanbanView({
         {moveAnnouncement}
       </span>
       <div className="relative min-w-0 flex-1">
-        {countsFailure && hasUsableBoard ? (
+        {countsError !== null && hasUsableBoard ? (
           <div
             className="absolute inset-x-3 top-3 z-20 flex h-8 items-center justify-center gap-2 border bg-background px-3 text-[11px] text-muted-foreground shadow-sm"
             role="alert"
           >
-            <span>Could not refresh Kanban records.</span>
+            <span className="min-w-0 truncate" title={countsError}>
+              Could not refresh Kanban records. {countsError}
+            </span>
             <Button
               type="button"
               variant="ghost"
@@ -1676,12 +1710,15 @@ export const BaseKanbanView = memo(function BaseKanbanView({
           aria-busy={boardBusy || moveInFlight}
           className="h-full min-w-0 overflow-x-auto overflow-y-hidden p-3"
         >
-          {countsFailure && !hasUsableBoard ? (
+          {countsError !== null && !hasUsableBoard ? (
             <div
               className="flex h-full min-h-40 flex-col items-center justify-center gap-2 text-xs text-muted-foreground"
               role="alert"
             >
               <span>Could not load Kanban records.</span>
+              <span className="max-w-md break-words text-center text-destructive">
+                {countsError}
+              </span>
               <Button
                 type="button"
                 variant="outline"

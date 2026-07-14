@@ -66,6 +66,7 @@ import {
   type BaseTemplateId,
 } from "./base-create-options"
 import { BaseEmptyState } from "./base-empty-state"
+import { baseErrorMessage } from "./base-error-message"
 import {
   baseFieldDisplayName,
   baseViewVisibleSystemFields,
@@ -607,11 +608,7 @@ export function SpaceBaseEditor({
           async (mutationError) => {
             setMutationKeyFailed(statusKey, true)
             if (errorMode === "global") {
-              setError(
-                mutationError instanceof Error
-                  ? mutationError.message
-                  : "Unable to update Base"
-              )
+              setError(baseErrorMessage(mutationError, "Unable to update Base"))
             }
             await load({ preserveError: errorMode === "global" })
             throw mutationError
@@ -1678,9 +1675,7 @@ export function SpaceBaseEditor({
   )
 
   const handleGridError = useCallback((gridError: unknown) => {
-    setError(
-      gridError instanceof Error ? gridError.message : "Unable to update Base"
-    )
+    setError(baseErrorMessage(gridError, "Unable to update Base"))
   }, [])
 
   const openFieldProperty = useCallback((field: BaseFieldInfo) => {
