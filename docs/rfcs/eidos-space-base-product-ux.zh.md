@@ -10,7 +10,7 @@
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-graft-space-versioning.zh.md`
 
-## 实施状态（2026-07-13）
+## 实施状态（2026-07-14）
 
 已经实现的 UX 包括：打开文件夹作为 Space、基于 Pierre Trees 的文件树、Files/Version
 sidebar modes、独立 Notion 风格 Markdown editor、VS Code 风格 staged Changes、
@@ -25,10 +25,12 @@ AND/OR 编辑模型，并支持派生 Formula/Lookup 字段。筛选/排序分�
 结构化查询模型，因此删除的始终是 Grid 当前展示并选中的记录。Base 创建支持命名、
 模板和原子发布。working Changes 与 History 也已提供 Base-aware table/row inspector。
 
-每个 table 现在可以拥有多个彼此独立的 Grid views。紧凑的锚定 view switcher 支持
-创建、重命名、复制、重排和删除，不打开居中弹窗；每个 view 分别保存 query、字段
-显隐、列顺序和列宽。迁移导入的非 Grid view metadata 会继续保留并显示类型，但在
-相应 renderer 完成前不会伪装成可工作的布局。
+每个 table 现在可以拥有多个彼此独立的 Grid、Gallery 和 Kanban views。紧凑的锚定
+view switcher 支持创建、重命名、复制、重排、删除以及在三种内置 layout 之间原位切换，
+不打开居中弹窗；每个 view 分别保存 query、字段显隐、列顺序、列宽与 card/group 配置。
+切换到 Kanban 时会保留有效的 Select 分组字段，否则自动选择第一个 Select；没有 Select
+字段时入口会原位禁用并解释原因。迁移导入的其他 view metadata 会继续保留并显示类型，
+但在相应 renderer 完成前不会伪装成可工作的布局。
 
 Base 导航现在按 workbook 层级组织，不再把 table 和 view 混在同一工具栏：当前 table 的
 views 占据顶部 tab strip，tables 则作为 Excel 风格 sheets 常驻底部切换；view 新建与管理
@@ -331,16 +333,16 @@ layout；恢复后的仓库状态为 clean。
 
 与原表格 view 的当前能力对齐情况如下：
 
-| 能力                                       | Base 状态                                      | 剩余边界                                                            |
-| ------------------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------- |
-| 持久化 view lifecycle 与独立 query/layout  | 自动与原生重启/恢复均已验收                    | v1 暂无已知缺口                                                     |
-| view 级字段显隐与只读系统字段              | 三种 layout 共用持久化显隐，系统字段可筛选排序 | v1 暂无已知缺口                                                     |
-| Grid 列统计                                | view 级配置、worker 聚合并复用 trailing row    | v1 暂无已知缺口                                                     |
-| Gallery 字段显隐、空字段隐藏、card size    | 二维虚拟无限滚动与结果导航已工作               | v1 暂无已知缺口                                                     |
-| Gallery 与 Kanban cover                    | File/URL、适应/裁切和隐藏空字段均已工作        | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
-| Card actions                               | 可编辑 Inspector 与删除已工作                  | file-based Base 的 full-page row document 模型尚未定义              |
-| Kanban Select 分组、计数、折叠、新增、拖动 | 横纵虚拟化、可见列懒加载和无障碍移动已工作     | v1 暂无已知缺口                                                     |
-| Base merge conflict 审阅                   | 原生 row 审阅已验收                            | schema/opaque conflict 按设计使用明确的 whole-file fallback         |
+| 能力                                       | Base 状态                                         | 剩余边界                                                            |
+| ------------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------- |
+| 持久化 view lifecycle 与独立 query/layout  | 完整 lifecycle、原位 layout 切换及重启/恢复已验收 | v1 暂无已知缺口                                                     |
+| view 级字段显隐与只读系统字段              | 三种 layout 共用持久化显隐，系统字段可筛选排序    | v1 暂无已知缺口                                                     |
+| Grid 列统计                                | view 级配置、worker 聚合并复用 trailing row       | v1 暂无已知缺口                                                     |
+| Gallery 字段显隐、空字段隐藏、card size    | 二维虚拟无限滚动与结果导航已工作                  | v1 暂无已知缺口                                                     |
+| Gallery 与 Kanban cover                    | File/URL、适应/裁切和隐藏空字段均已工作           | 旧 document-content 与 extension-block cover 不应耦合进独立 package |
+| Card actions                               | 可编辑 Inspector 与删除已工作                     | file-based Base 的 full-page row document 模型尚未定义              |
+| Kanban Select 分组、计数、折叠、新增、拖动 | 横纵虚拟化、可见列懒加载和无障碍移动已工作        | v1 暂无已知缺口                                                     |
+| Base merge conflict 审阅                   | 原生 row 审阅已验收                               | schema/opaque conflict 按设计使用明确的 whole-file fallback         |
 
 这仍是第一版可工作交付切片，并未达到原表格 view 的完整能力。可移植的 File 与 URL cover
 已经满足 v1 Base 边界；旧 document-content 与 extension-block cover 明确保留在独立 package 之外。

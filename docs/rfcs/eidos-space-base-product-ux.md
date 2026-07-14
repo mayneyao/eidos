@@ -10,7 +10,7 @@ Related:
 - `eidos-space-markdown-runtime.md`
 - `eidos-graft-space-versioning.md`
 
-## Implementation Status (2026-07-13)
+## Implementation Status (2026-07-14)
 
 Implemented UX includes opening folders as Spaces, a Pierre Trees-based file
 tree, Files/Version sidebar modes, a standalone Notion-style Markdown editor,
@@ -30,11 +30,14 @@ rows shown in the Grid. Base creation is named, template-aware, and publishes
 the SQLite file atomically. Working Changes and History provide a Base-aware
 table/row inspector.
 
-Tables now support multiple independent Grid views. The compact anchored view
-switcher creates, renames, duplicates, reorders, and deletes views without
-opening a centered dialog; each view owns its query, field visibility, column
-order, and width state. Imported non-Grid view metadata remains visible but is
-not presented as a working layout until that renderer exists.
+Tables now support multiple independent Grid, Gallery, and Kanban views. The
+compact anchored view switcher creates, renames, duplicates, reorders, deletes,
+and switches existing views between the three built-in layouts without opening
+a centered dialog; each view owns its query, field visibility, column order,
+width, and card/group state. Switching to Kanban preserves a valid Select group
+field or chooses the first Select field; without one, the option is disabled
+in place with an explanation. Other imported view metadata remains visible but
+is not presented as a working layout until that renderer exists.
 
 Base navigation now follows a workbook hierarchy instead of mixing tables and
 views in one toolbar. The active table's views occupy the top tab strip, while
@@ -570,7 +573,7 @@ Current parity with the original table views is explicit:
 
 | Capability                                                | Base status                                                                             | Remaining boundary                                                                                           |
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Persisted view lifecycle and per-view query/layout        | Automated and native restart/restore accepted                                           | No known v1 gap                                                                                              |
+| Persisted view lifecycle and per-view query/layout        | Full lifecycle, in-place layout switching, and restart/restore accepted                 | No known v1 gap                                                                                              |
 | Per-view field visibility and read-only system fields     | Grid, Gallery, and Kanban share persisted visibility; system fields filter and sort     | No known v1 gap                                                                                              |
 | Grid column calculations                                  | View-owned, worker-backed aggregates in the existing trailing row                       | No known v1 gap                                                                                              |
 | Gallery field visibility, empty-field hiding, card sizing | Working with virtual infinite scroll and result navigation                              | No known v1 gap                                                                                              |
