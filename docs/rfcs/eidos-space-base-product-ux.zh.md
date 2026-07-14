@@ -399,9 +399,11 @@ alert。整个流程作用于当前 `.base` 文件，不创建教学副本，也
 Space file route 现在按文件类型异步加载 Base workspace。Markdown、普通文本、图片和未知文件不再静态
 下载并解析 Grid、Gallery、Kanban 与 Formula composer；第一次打开 `.base` 时显示占满 editor surface
 的稳定 loading 状态，模块加载失败会留在当前 tab 并支持原位 Retry，成功后的模块 Promise 会在多个
-Base tabs 之间复用。Desktop production renderer 的初始入口由 16,593,781 bytes 降至 16,061,366
-bytes，同时生成 412,145-byte 的 `space-base-editor` chunk 和独立 CodeMirror dependency chunk；入口
-gzip 由约 3.43 MB 降至约 3.31 MB。
+Base tabs 之间复用。Files tree 会在用户悬停或用键盘聚焦 `.base` 文件时复用同一个 Promise 进行意图
+预加载，普通文件不会触发；推测性加载失败会静默清除缓存，让真正打开文件时仍显示可恢复错误并支持
+原位 Retry。Desktop production renderer 的初始入口由 16,593,781 bytes 降至 16,061,864 bytes，
+同时生成 412,145-byte 的 `space-base-editor` chunk 和独立 CodeMirror dependency chunk；入口 gzip
+由约 3.43 MB 降至约 3.31 MB。
 
 CSV 导入的文件选择、分析和写入现在也保持锚定式、非模态工作流。原生 picker 返回后 mapping
 panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以原位取消。取消会终止隔离 worker、
