@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BaseKanbanView } from "./base-kanban-view"
 import * as baseRowWindow from "./base-row-window"
+import * as baseVirtualScroll from "./base-virtual-scroll"
 import {
   BASE_VIRTUAL_SCROLL_MAX_ITEMS,
   BASE_VIRTUAL_SCROLL_MAX_SIZE,
@@ -815,6 +816,60 @@ describe("BaseKanbanView", () => {
       "Draft release"
     )
     expect(todoColumn?.textContent).toContain("Draft release")
+  })
+
+  it("does not rerun the column virtualizer while typing a new record", async () => {
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 1 }])}
+          loadGroupPage={vi.fn(async (_field, value, offset, limit) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: value === "todo" ? 1 : 0,
+            rows:
+              value === "todo"
+                ? [{ _id: "todo_0", title: "Todo 0", status: "todo" }]
+                : [],
+          }))}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const todoColumn = container.querySelector<HTMLElement>(
+      '[data-board-id="base-kanban:todo"]'
+    )
+    await act(async () => {
+      ;[...(todoColumn?.querySelectorAll("button") ?? [])]
+        .find((button) => button.textContent?.includes("Add record"))
+        ?.click()
+    })
+    const input = todoColumn?.querySelector<HTMLInputElement>("input")
+    const virtualizer = vi.spyOn(baseVirtualScroll, "useBaseBoundedVirtualizer")
+    let virtualizerCalls = 0
+    try {
+      await act(async () => {
+        if (!input) return
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )?.set
+        setter?.call(input, "Draft")
+        input.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+      virtualizerCalls = virtualizer.mock.calls.length
+    } finally {
+      virtualizer.mockRestore()
+    }
+
+    expect(input?.value).toBe("Draft")
+    expect(virtualizerCalls).toBe(0)
   })
 
   it("keeps failed inline creation recoverable without a global error", async () => {

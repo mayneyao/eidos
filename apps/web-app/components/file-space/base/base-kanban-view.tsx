@@ -364,6 +364,116 @@ const BaseKanbanVirtualCard = memo(function BaseKanbanVirtualCard({
   )
 }, kanbanVirtualCardPropsEqual)
 
+const BaseKanbanCreateRecord = memo(function BaseKanbanCreateRecord({
+  group,
+  disabled,
+  visible,
+  onCreate,
+}: {
+  group: BaseKanbanGroup
+  disabled: boolean
+  visible: boolean
+  onCreate: (group: BaseKanbanGroup, title: string) => Promise<void>
+}) {
+  const [adding, setAdding] = useState(false)
+  const [title, setTitle] = useState("")
+  const [creating, setCreating] = useState(false)
+  const creatingRef = useRef(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  const create = async () => {
+    const next = title.trim()
+    if (!next || creatingRef.current) return
+    creatingRef.current = true
+    setCreating(true)
+    setCreateError(null)
+    try {
+      await onCreate(group, next)
+      setTitle("")
+      setAdding(false)
+    } catch (error) {
+      setCreateError(kanbanMutationErrorMessage(error))
+    } finally {
+      creatingRef.current = false
+      setCreating(false)
+    }
+  }
+
+  if (!visible) return null
+  return adding ? (
+    <div className="grid gap-1.5 rounded-md border bg-background p-2 shadow-sm">
+      <Input
+        autoFocus
+        value={title}
+        className="h-7 text-xs"
+        placeholder="Record title"
+        aria-label={`Record title in ${group.name}`}
+        disabled={creating}
+        onChange={(event) => {
+          setTitle(event.target.value)
+          if (createError) setCreateError(null)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") void create()
+          if (event.key === "Escape" && !creatingRef.current) {
+            setAdding(false)
+            setTitle("")
+            setCreateError(null)
+          }
+        }}
+      />
+      {createError ? (
+        <p
+          className="break-words text-[11px] leading-4 text-destructive"
+          role="alert"
+        >
+          {createError}
+        </p>
+      ) : null}
+      <div className="flex justify-end gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-[11px]"
+          disabled={creating}
+          onClick={() => {
+            setAdding(false)
+            setTitle("")
+            setCreateError(null)
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          className="h-6 px-2 text-[11px]"
+          disabled={creating || !title.trim()}
+          onClick={() => void create()}
+        >
+          Add
+        </Button>
+      </div>
+    </div>
+  ) : (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="h-7 justify-start gap-1.5 text-[11px] text-muted-foreground"
+      disabled={disabled || !group.loaded}
+      onClick={() => {
+        setCreateError(null)
+        setAdding(true)
+      }}
+    >
+      <Plus className="h-3.5 w-3.5" />
+      Add record
+    </Button>
+  )
+})
+
 const BaseKanbanColumn = memo(function BaseKanbanColumn({
   group,
   table,
@@ -409,11 +519,6 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   collapsed: boolean
   onCollapsedChange: (groupKey: string, collapsed: boolean) => void
 }) {
-  const [adding, setAdding] = useState(false)
-  const [title, setTitle] = useState("")
-  const [creating, setCreating] = useState(false)
-  const creatingRef = useRef(false)
-  const [createError, setCreateError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const getVirtualCardKey = useCallback(
     (index: number) => `${group.key}:${index}`,
@@ -477,24 +582,6 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
   useEffect(() => {
     cardVirtualizer.measure()
   }, [cardVirtualizer, table.fields, view.properties])
-
-  const create = async () => {
-    const next = title.trim()
-    if (!next || creatingRef.current) return
-    creatingRef.current = true
-    setCreating(true)
-    setCreateError(null)
-    try {
-      await onCreate(group, next)
-      setTitle("")
-      setAdding(false)
-    } catch (error) {
-      setCreateError(kanbanMutationErrorMessage(error))
-    } finally {
-      creatingRef.current = false
-      setCreating(false)
-    }
-  }
 
   return (
     <KanbanBoard
@@ -648,80 +735,14 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
               </Button>
             </div>
           ) : null}
-          {adding ? (
-            <div className="grid gap-1.5 rounded-md border bg-background p-2 shadow-sm">
-              <Input
-                autoFocus
-                value={title}
-                className="h-7 text-xs"
-                placeholder="Record title"
-                aria-label={`Record title in ${group.name}`}
-                disabled={creating}
-                onChange={(event) => {
-                  setTitle(event.target.value)
-                  if (createError) setCreateError(null)
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") void create()
-                  if (event.key === "Escape" && !creatingRef.current) {
-                    setAdding(false)
-                    setTitle("")
-                    setCreateError(null)
-                  }
-                }}
-              />
-              {createError ? (
-                <p
-                  className="break-words text-[11px] leading-4 text-destructive"
-                  role="alert"
-                >
-                  {createError}
-                </p>
-              ) : null}
-              <div className="flex justify-end gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-[11px]"
-                  disabled={creating}
-                  onClick={() => {
-                    setAdding(false)
-                    setTitle("")
-                    setCreateError(null)
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-6 px-2 text-[11px]"
-                  disabled={creating || !title.trim()}
-                  onClick={() => void create()}
-                >
-                  Add
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 justify-start gap-1.5 text-[11px] text-muted-foreground"
-              disabled={disabled || !group.loaded}
-              onClick={() => {
-                setCreateError(null)
-                setAdding(true)
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add record
-            </Button>
-          )}
         </>
       )}
+      <BaseKanbanCreateRecord
+        group={group}
+        disabled={disabled}
+        visible={!collapsed}
+        onCreate={onCreate}
+      />
     </KanbanBoard>
   )
 })
