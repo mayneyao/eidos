@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  baseDefaultTableForTemplate,
   baseOptionsForTemplate,
   normalizeBaseFileName,
 } from "./base-create-options"
@@ -22,5 +23,22 @@ describe("Base creation", () => {
       "date",
       "checkbox",
     ])
+    expect(options.defaultTable).toEqual(baseDefaultTableForTemplate("tasks"))
+  })
+
+  it("reuses the blank table definition outside file creation", () => {
+    expect(baseDefaultTableForTemplate("blank")).toEqual({ name: "Table" })
+  })
+
+  it("returns isolated template definitions for each creation", () => {
+    const first = baseDefaultTableForTemplate("tasks")
+    const second = baseDefaultTableForTemplate("tasks")
+    expect(first).not.toBe(second)
+    expect(first.fields?.at(0)?.property).not.toBe(
+      second.fields?.at(0)?.property
+    )
+    expect(first.fields?.at(0)?.property?.options).not.toBe(
+      second.fields?.at(0)?.property?.options
+    )
   })
 })

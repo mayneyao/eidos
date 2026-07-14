@@ -24,7 +24,6 @@ import {
   LoaderCircle,
   Plus,
   RefreshCw,
-  Table2,
   Trash2,
   X,
 } from "lucide-react"
@@ -59,6 +58,11 @@ import { BaseGrid } from "./base-grid"
 import { BaseGalleryView } from "./base-gallery-view"
 import { BaseCsvImportPopover } from "./base-csv-import-popover"
 import { BaseCsvExportPopover } from "./base-csv-export-popover"
+import {
+  baseDefaultTableForTemplate,
+  type BaseTemplateId,
+} from "./base-create-options"
+import { BaseEmptyState } from "./base-empty-state"
 import {
   baseFieldDisplayName,
   baseViewVisibleSystemFields,
@@ -245,6 +249,13 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     "table" | "field" | null
   >(null)
   const [fieldInsertIndex, setFieldInsertIndex] = useState<number | null>(null)
+  const [creatingFirstTemplate, setCreatingFirstTemplate] =
+    useState<BaseTemplateId | null>(null)
+  const creatingFirstTemplateRef = useRef(false)
+  const [firstTemplateError, setFirstTemplateError] = useState<{
+    template: BaseTemplateId
+    message: string
+  } | null>(null)
 
   const applySnapshot = useCallback((next: BaseSnapshot) => {
     knownBaseRevisionRef.current = next.metadata.updatedAt
@@ -1077,6 +1088,37 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     [applySnapshot, createTable, enqueueMutation, filePath, snapshot?.tables]
   )
 
+  const createFirstTable = useCallback(
+    async (template: BaseTemplateId) => {
+      if (
+        creatingFirstTemplateRef.current ||
+        pendingMutationCountRef.current > 0
+      ) {
+        return
+      }
+      creatingFirstTemplateRef.current = true
+      setCreatingFirstTemplate(template)
+      setFirstTemplateError(null)
+      try {
+        await createTableInBase(baseDefaultTableForTemplate(template))
+      } catch (templateError) {
+        setFirstTemplateError({
+          template,
+          message:
+            templateError instanceof Error
+              ? templateError.message
+              : template === "tasks"
+                ? "Unable to create the task tracker"
+                : "Unable to create the blank table",
+        })
+      } finally {
+        creatingFirstTemplateRef.current = false
+        setCreatingFirstTemplate(null)
+      }
+    },
+    [createTableInBase]
+  )
+
   const importCsvIntoBase = useCallback(
     (
       token: string,
@@ -1704,14 +1746,16 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               />
             </>
           ) : null}
-          <BaseCsvImportPopover
-            disabled={loading || pendingMutations > 0}
-            onSelect={selectCsv}
-            onPreview={previewCsvImport}
-            onImport={importCsvIntoBase}
-            onProgress={getCsvOperation}
-            onCancel={cancelCsvOperation}
-          />
+          {activeTable ? (
+            <BaseCsvImportPopover
+              disabled={loading || pendingMutations > 0}
+              onSelect={selectCsv}
+              onPreview={previewCsvImport}
+              onImport={importCsvIntoBase}
+              onProgress={getCsvOperation}
+              onCancel={cancelCsvOperation}
+            />
+          ) : null}
           {activeView ? (
             <BaseCsvExportPopover
               disabled={loading || pendingMutations > 0}
@@ -1775,22 +1819,23 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       ) : null}
 
       {!activeTable ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-8 text-center">
-          <Table2 className="mb-3 h-5 w-5 text-muted-foreground" />
-          <h2 className="text-sm font-medium">Create the first table</h2>
-          <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
-            Tables keep related records and fields together inside this Base.
-          </p>
-          <Button
-            type="button"
-            size="sm"
-            className="mt-4"
-            onClick={() => setStructureDialog("table")}
-          >
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            New table
-          </Button>
-        </div>
+        <BaseEmptyState
+          disabled={loading || pendingMutations > 0}
+          creatingTemplate={creatingFirstTemplate}
+          templateError={firstTemplateError}
+          onCreateTemplate={(template) => void createFirstTable(template)}
+          importAction={
+            <BaseCsvImportPopover
+              triggerVariant="empty-state"
+              disabled={loading || pendingMutations > 0}
+              onSelect={selectCsv}
+              onPreview={previewCsvImport}
+              onImport={importCsvIntoBase}
+              onProgress={getCsvOperation}
+              onCancel={cancelCsvOperation}
+            />
+          }
+        />
       ) : (
         <div className="relative min-h-0 flex-1">
           {activeView?.type === "gallery" ? (

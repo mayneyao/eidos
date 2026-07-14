@@ -55,6 +55,29 @@ describe("BaseCsvImportPopover", () => {
     vi.useRealTimers()
   })
 
+  it("renders a full-label trigger for an empty Base", async () => {
+    await act(async () => {
+      root.render(
+        <BaseCsvImportPopover
+          triggerVariant="empty-state"
+          onSelect={() =>
+            Promise.resolve({ canceled: true, token: null, fileName: null })
+          }
+          onPreview={() => Promise.resolve(plan)}
+          onImport={() => Promise.resolve()}
+          onProgress={() => Promise.resolve(null)}
+          onCancel={() => Promise.resolve(true)}
+        />
+      )
+    })
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Import CSV into Base"]'
+    )
+    expect(trigger?.textContent).toContain("Import CSV")
+    expect(trigger?.className).not.toContain("base-workbar-action")
+  })
+
   it("previews mapping in an anchored panel and imports a new table", async () => {
     const onSelect = vi.fn().mockResolvedValue({
       canceled: false,

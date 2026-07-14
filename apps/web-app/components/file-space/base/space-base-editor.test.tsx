@@ -1747,6 +1747,78 @@ describe("SpaceBaseEditor", () => {
     ).toBeNull()
   })
 
+  it("offers all first-table paths and creates the shared task template", async () => {
+    const emptySnapshot: BaseSnapshot = {
+      ...snapshot,
+      metadata: {
+        ...snapshot.metadata,
+        defaultTableId: undefined,
+      },
+      tables: [],
+    }
+    getSnapshotMock.mockResolvedValue(emptySnapshot)
+    createTableMock.mockResolvedValue(snapshot)
+
+    await renderEditor()
+
+    expect(container.textContent).toContain("Start this Base")
+    expect(container.textContent).toContain("Blank table")
+    expect(container.textContent).toContain("Task tracker")
+    expect(container.textContent).toContain("Import CSV")
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Task tracker")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(createTableMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      expect.objectContaining({
+        name: "Tasks",
+        fields: expect.arrayContaining([
+          expect.objectContaining({ name: "Status", type: "select" }),
+          expect.objectContaining({ name: "Priority", type: "select" }),
+          expect.objectContaining({ name: "Due", type: "date" }),
+          expect.objectContaining({ name: "Done", type: "checkbox" }),
+        ]),
+      })
+    )
+  })
+
+  it("keeps a failed first template recoverable in the empty state", async () => {
+    const emptySnapshot: BaseSnapshot = {
+      ...snapshot,
+      metadata: {
+        ...snapshot.metadata,
+        defaultTableId: undefined,
+      },
+      tables: [],
+    }
+    getSnapshotMock.mockResolvedValue(emptySnapshot)
+    createTableMock.mockRejectedValueOnce(
+      new Error("The task tracker could not be created")
+    )
+
+    await renderEditor()
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Task tracker")
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "task tracker could not be created"
+    )
+    expect(container.textContent).toContain("Retry task tracker")
+    expect(
+      container.querySelector('[aria-label="Dismiss Base error"]')
+    ).toBeNull()
+  })
+
   it("does not report Saved until the failed resource is retried", async () => {
     await renderEditor()
     const clickButton = async (label: string) => {

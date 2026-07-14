@@ -29,6 +29,7 @@ type CsvSelection =
 
 interface BaseCsvImportPopoverProps {
   disabled?: boolean
+  triggerVariant?: "workbar" | "empty-state"
   onSelect: () => Promise<CsvSelection>
   onPreview: (
     token: string,
@@ -93,6 +94,7 @@ function draftsFromPlan(plan: BaseCsvImportPlan): CsvColumnDraft[] {
 
 export function BaseCsvImportPopover({
   disabled = false,
+  triggerVariant = "workbar",
   onSelect,
   onPreview,
   onImport,
@@ -387,9 +389,14 @@ export function BaseCsvImportPopover({
       <PopoverAnchor asChild>
         <Button
           type="button"
-          variant="ghost"
+          variant={triggerVariant === "empty-state" ? "outline" : "ghost"}
           size="sm"
-          className="base-workbar-action h-7 gap-1.5 px-2 text-xs"
+          className={cn(
+            "gap-1.5 text-xs",
+            triggerVariant === "empty-state"
+              ? "h-8 px-3"
+              : "base-workbar-action h-7 px-2"
+          )}
           aria-label="Import CSV into Base"
           title="Import CSV"
           disabled={disabled || selecting}
@@ -400,11 +407,17 @@ export function BaseCsvImportPopover({
           ) : (
             <FileUp className="h-3.5 w-3.5" />
           )}
-          <span className="base-workbar-action-label">Import CSV</span>
+          <span
+            className={cn(
+              triggerVariant === "workbar" && "base-workbar-action-label"
+            )}
+          >
+            Import CSV
+          </span>
         </Button>
       </PopoverAnchor>
       <PopoverContent
-        align="end"
+        align={triggerVariant === "empty-state" ? "center" : "end"}
         side="bottom"
         sideOffset={5}
         className="w-[min(760px,calc(100vw-24px))] p-0"

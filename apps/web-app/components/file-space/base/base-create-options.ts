@@ -1,4 +1,4 @@
-import type { CreateBaseOptions } from "@eidos.space/base"
+import type { CreateBaseOptions, CreateBaseTableInput } from "@eidos.space/base"
 
 export type BaseTemplateId = "blank" | "tasks"
 
@@ -8,41 +8,46 @@ const TASK_STATUS_OPTIONS = [
   { id: "done", name: "Done", color: "green" },
 ]
 
+export function baseDefaultTableForTemplate(
+  template: BaseTemplateId
+): CreateBaseTableInput {
+  if (template === "tasks") {
+    return {
+      name: "Tasks",
+      fields: [
+        {
+          name: "Status",
+          columnName: "status",
+          type: "select",
+          property: {
+            options: TASK_STATUS_OPTIONS.map((option) => ({ ...option })),
+          },
+        },
+        {
+          name: "Priority",
+          columnName: "priority",
+          type: "select",
+          property: {
+            options: [
+              { id: "low", name: "Low", color: "gray" },
+              { id: "medium", name: "Medium", color: "yellow" },
+              { id: "high", name: "High", color: "red" },
+            ],
+          },
+        },
+        { name: "Due", columnName: "due", type: "date" },
+        { name: "Done", columnName: "done", type: "checkbox" },
+      ],
+    }
+  }
+  return { name: "Table" }
+}
+
 export function baseOptionsForTemplate(
   title: string,
   template: BaseTemplateId
 ): CreateBaseOptions {
-  if (template === "tasks") {
-    return {
-      title,
-      defaultTable: {
-        name: "Tasks",
-        fields: [
-          {
-            name: "Status",
-            columnName: "status",
-            type: "select",
-            property: { options: TASK_STATUS_OPTIONS },
-          },
-          {
-            name: "Priority",
-            columnName: "priority",
-            type: "select",
-            property: {
-              options: [
-                { id: "low", name: "Low", color: "gray" },
-                { id: "medium", name: "Medium", color: "yellow" },
-                { id: "high", name: "High", color: "red" },
-              ],
-            },
-          },
-          { name: "Due", columnName: "due", type: "date" },
-          { name: "Done", columnName: "done", type: "checkbox" },
-        ],
-      },
-    }
-  }
-  return { title, defaultTable: { name: "Table" } }
+  return { title, defaultTable: baseDefaultTableForTemplate(template) }
 }
 
 export function normalizeBaseFileName(value: string): string {
