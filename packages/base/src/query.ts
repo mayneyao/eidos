@@ -155,6 +155,78 @@ function searchableFields(fields: BaseFieldInfo[]): BaseFieldInfo[] {
   )
 }
 
+function collectFilterFields(
+  filter: BaseFilterGroup | null | undefined,
+  target: Set<string>
+): void {
+  if (!filter) return
+  for (const child of filter.children) {
+    if (child.type === "group") {
+      collectFilterFields(child, target)
+    } else {
+      target.add(child.field)
+    }
+  }
+}
+
+/**
+ * Returns whether changing the supplied columns can alter the rows or ordering
+ * produced by a query. Derived-field dependencies are followed transitively so
+ * renderers do not need to duplicate Base query semantics.
+ */
+export function baseRowQueryAffectedByFieldChanges(
+  fields: BaseFieldInfo[],
+  query: BaseRowQuery,
+  changedColumns: Iterable<string>
+): boolean {
+  const changed = new Set(changedColumns)
+  if (changed.size === 0) return false
+
+  const normalized = normalizeBaseRowQuery(query)
+  const queriedColumns = new Set<string>()
+  if (normalized.search?.trim()) {
+    for (const field of searchableFields(fields)) {
+      queriedColumns.add(field.tableColumnName)
+    }
+  }
+  collectFilterFields(normalized.filter, queriedColumns)
+  for (const sort of normalized.sorts ?? []) queriedColumns.add(sort.field)
+  if (queriedColumns.size === 0) return false
+
+  const fieldsByColumn = new Map(
+    fields.map((field) => [field.tableColumnName, field])
+  )
+  const affected = (columnName: string, visiting: Set<string>): boolean => {
+    if (changed.has(columnName)) return true
+    if (visiting.has(columnName)) return false
+    const field = fieldsByColumn.get(columnName)
+    if (!field) return false
+
+    const dependencies = new Set<string>()
+    if (typeof field.sourceTableColumnName === "string") {
+      dependencies.add(field.sourceTableColumnName)
+    }
+    if (Array.isArray(field.dependsOn)) {
+      for (const dependency of field.dependsOn) {
+        if (typeof dependency === "string") dependencies.add(dependency)
+      }
+    }
+    if (dependencies.size === 0) return false
+
+    const nextVisiting = new Set(visiting)
+    nextVisiting.add(columnName)
+    for (const dependency of dependencies) {
+      if (affected(dependency, nextVisiting)) return true
+    }
+    return false
+  }
+
+  for (const columnName of queriedColumns) {
+    if (affected(columnName, new Set())) return true
+  }
+  return false
+}
+
 function requireField(
   fields: Map<string, BaseFieldInfo>,
   columnName: string

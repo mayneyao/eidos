@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { BaseFieldInfo, BaseRowQuery } from "./types"
 import {
+  baseRowQueryAffectedByFieldChanges,
   compileBaseRowQuery,
   normalizeBaseFilter,
   normalizeBaseRowQuery,
@@ -207,5 +208,98 @@ describe("Base row query", () => {
       "row_grace",
       "%,row\\_grace,%",
     ])
+  })
+
+  it("only invalidates a filtered or sorted query for relevant field changes", () => {
+    const query: BaseRowQuery = {
+      filter: {
+        type: "group",
+        conjunction: "and",
+        children: [
+          {
+            type: "rule",
+            field: "status",
+            operator: "equals",
+            value: "doing",
+          },
+        ],
+      },
+      sorts: [{ field: "priority", direction: "desc" }],
+    }
+
+    expect(baseRowQueryAffectedByFieldChanges(fields, query, ["title"])).toBe(
+      false
+    )
+    expect(baseRowQueryAffectedByFieldChanges(fields, query, ["status"])).toBe(
+      true
+    )
+    expect(
+      baseRowQueryAffectedByFieldChanges(fields, query, ["priority"])
+    ).toBe(true)
+  })
+
+  it("follows transitive derived-field dependencies when invalidating a query", () => {
+    const subtotal: BaseFieldInfo = {
+      ...field("subtotal", "formula"),
+      valueKind: "derived",
+      isDerived: true,
+      dependsOn: ["priority"],
+    }
+    const score: BaseFieldInfo = {
+      ...field("score", "formula"),
+      valueKind: "derived",
+      isDerived: true,
+      dependsOn: ["subtotal"],
+    }
+
+    expect(
+      baseRowQueryAffectedByFieldChanges(
+        [...fields, subtotal, score],
+        { sorts: [{ field: "score", direction: "desc" }] },
+        ["priority"]
+      )
+    ).toBe(true)
+    expect(
+      baseRowQueryAffectedByFieldChanges(
+        [...fields, subtotal, score],
+        { sorts: [{ field: "score", direction: "desc" }] },
+        ["status"]
+      )
+    ).toBe(false)
+  })
+
+  it("invalidates search only for searchable fields or their dependencies", () => {
+    const hiddenSource: BaseFieldInfo = {
+      ...field("internal_note"),
+      isHidden: true,
+    }
+    const visibleSummary: BaseFieldInfo = {
+      ...field("summary", "formula"),
+      valueKind: "derived",
+      isDerived: true,
+      dependsOn: ["internal_note"],
+    }
+    const systemField: BaseFieldInfo = {
+      ...field("created_at", "created-time"),
+      valueKind: "system",
+      isHidden: true,
+    }
+    const searchFields = [...fields, hiddenSource, visibleSummary, systemField]
+
+    expect(
+      baseRowQueryAffectedByFieldChanges(searchFields, { search: "release" }, [
+        "title",
+      ])
+    ).toBe(true)
+    expect(
+      baseRowQueryAffectedByFieldChanges(searchFields, { search: "release" }, [
+        "internal_note",
+      ])
+    ).toBe(true)
+    expect(
+      baseRowQueryAffectedByFieldChanges(searchFields, { search: "release" }, [
+        "created_at",
+      ])
+    ).toBe(false)
   })
 })

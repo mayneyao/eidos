@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { baseRowQueryAffectedByFieldChanges } from "@eidos.space/base"
 import type {
   BaseColumnStatConfig,
   BaseFieldInfo,
@@ -377,6 +378,17 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       sorts: activeView?.sorts ?? [],
     }),
     [activeView?.filter, activeView?.sorts, search]
+  )
+  const activeQueryAffectedByFieldChanges = useCallback(
+    (changedColumns: Iterable<string>) =>
+      activeTable
+        ? baseRowQueryAffectedByFieldChanges(
+            activeTable.fields,
+            activeQuery,
+            changedColumns
+          )
+        : false,
+    [activeQuery, activeTable]
   )
   const hasActiveQuery = Boolean(
     search || activeView?.filter || activeView?.sorts.length
@@ -791,7 +803,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           }),
         (result) => {
           updateTableRowCount(tableId, result.rowCount)
-          if (hasActiveQuery) {
+          if (activeQueryAffectedByFieldChanges([field.tableColumnName])) {
             setGridReloadToken((current) => current + 1)
           }
         },
@@ -800,9 +812,9 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     },
     [
       activeTable,
+      activeQueryAffectedByFieldChanges,
       enqueueMutation,
       filePath,
-      hasActiveQuery,
       updateRow,
       updateTableRowCount,
     ]
@@ -828,6 +840,9 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
         return Promise.reject(new Error("No Base rows to update"))
       }
       const tableId = activeTable.table.id
+      const changedColumns = new Set(
+        edits.flatMap(({ changes }) => Object.keys(changes))
+      )
       return enqueueMutation(
         () =>
           updateRows(
@@ -840,7 +855,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           ),
         (result) => {
           updateTableRowCount(tableId, result.rowCount)
-          if (hasActiveQuery) {
+          if (activeQueryAffectedByFieldChanges(changedColumns)) {
             setGridReloadToken((current) => current + 1)
           }
         },
@@ -849,9 +864,9 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     },
     [
       activeTable,
+      activeQueryAffectedByFieldChanges,
       enqueueMutation,
       filePath,
-      hasActiveQuery,
       updateRows,
       updateTableRowCount,
     ]

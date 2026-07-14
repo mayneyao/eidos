@@ -1,6 +1,12 @@
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type { BaseSnapshot } from "@eidos.space/base"
+import type {
+  BaseFieldInfo,
+  BaseRow,
+  BaseRowMutationResult,
+  BaseSnapshot,
+  BaseSqlPrimitive,
+} from "@eidos.space/base"
 
 import { TabProvider } from "@/apps/web-app/components/tab-manager/tab-context"
 import { useQuickOpenStore } from "@/apps/web-app/store/quick-open-store"
@@ -52,12 +58,20 @@ const baseViewHostProps = vi.hoisted(() => ({
   }>,
   gallery: [] as Array<{
     table: object
-    onCellEdit: unknown
+    onCellEdit?: (
+      row: BaseRow,
+      field: BaseFieldInfo,
+      value: BaseSqlPrimitive
+    ) => Promise<BaseRowMutationResult>
     onRevealFile: unknown
   }>,
   kanban: [] as Array<{
     table: object
-    onCellEdit: unknown
+    onCellEdit: (
+      row: BaseRow,
+      field: BaseFieldInfo,
+      value: BaseSqlPrimitive
+    ) => Promise<BaseRowMutationResult>
     onRevealFile: unknown
   }>,
 }))
@@ -694,10 +708,10 @@ vi.mock("./base-gallery-view", async () => {
     }: {
       table: (typeof snapshot)["tables"][number]
       onCellEdit?: (
-        row: { _id: string; title: string; status: string },
-        field: (typeof snapshot)["tables"][number]["fields"][number],
-        value: string
-      ) => Promise<unknown>
+        row: BaseRow,
+        field: BaseFieldInfo,
+        value: BaseSqlPrimitive
+      ) => Promise<BaseRowMutationResult>
       onDeleteRow?: (row: { _id: string; title: string }) => Promise<void>
       onRevealFile?: (path: string) => Promise<void> | void
       reloadToken?: number
@@ -757,10 +771,10 @@ vi.mock("./base-kanban-view", async () => {
         title: string
       ) => Promise<unknown>
       onCellEdit: (
-        row: { _id: string; title: string; status: string },
-        field: (typeof snapshot)["tables"][number]["fields"][number],
-        value: string
-      ) => Promise<unknown>
+        row: BaseRow,
+        field: BaseFieldInfo,
+        value: BaseSqlPrimitive
+      ) => Promise<BaseRowMutationResult>
       onRevealFile?: (path: string) => Promise<void> | void
       reloadToken?: number
     }) {
@@ -1146,6 +1160,71 @@ describe("SpaceBaseEditor", () => {
       { title: "Write Gallery implementation" }
     )
     expect(baseViewHostProps.gallery).toHaveLength(1)
+  })
+
+  it("only refreshes a filtered Gallery when the edited field affects its query", async () => {
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      tables: snapshot.tables.map((table) => ({
+        ...table,
+        views: table.views.map((view) => ({
+          ...view,
+          name: "Cards",
+          type: "gallery" as const,
+          properties: { cardSize: "medium" },
+          filter: {
+            type: "group" as const,
+            conjunction: "and" as const,
+            children: [
+              {
+                type: "rule" as const,
+                field: "status",
+                operator: "equals" as const,
+                value: "todo",
+              },
+            ],
+          },
+        })),
+      })),
+    })
+    await renderEditor()
+
+    const gallery = () =>
+      container.querySelector<HTMLElement>('[data-testid="base-gallery-view"]')
+    const hostProps = baseViewHostProps.gallery.at(-1)
+    const title = snapshot.tables[0].fields.find(
+      (field) => field.tableColumnName === "title"
+    )
+    const status = snapshot.tables[0].fields.find(
+      (field) => field.tableColumnName === "status"
+    )
+    expect(hostProps?.onCellEdit).toBeTypeOf("function")
+    expect(title).toBeDefined()
+    expect(status).toBeDefined()
+    expect(gallery()?.dataset.reloadToken).toBe("1")
+
+    await act(async () => {
+      if (title) {
+        await hostProps?.onCellEdit?.(
+          { _id: "row_1", title: "Write RFC", status: "todo" },
+          title,
+          "Write implementation"
+        )
+      }
+    })
+    expect(gallery()?.dataset.reloadToken).toBe("1")
+    expect(baseViewHostProps.gallery).toHaveLength(1)
+
+    await act(async () => {
+      if (status) {
+        await hostProps?.onCellEdit?.(
+          { _id: "row_1", title: "Write implementation", status: "todo" },
+          status,
+          "done"
+        )
+      }
+    })
+    expect(gallery()?.dataset.reloadToken).toBe("2")
   })
 
   it("does not rerender the Kanban host while saving an existing row", async () => {
