@@ -715,6 +715,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
   const [groups, setGroups] = useState<BaseKanbanGroup[]>(() =>
     groupField ? groupSpecs(options) : []
   )
+  const groupCount = groups.length
   const groupsRef = useRef(groups)
   groupsRef.current = groups
   const [countsLoaded, setCountsLoaded] = useState(false)
@@ -1094,13 +1095,13 @@ export const BaseKanbanView = memo(function BaseKanbanView({
   )
 
   useEffect(() => {
-    if (!countsLoaded || dragging || groups.length === 0) return
+    if (!countsLoaded || dragging || groupCount === 0) return
     const keepStart = Math.max(
       0,
       firstRenderedColumnIndex - KANBAN_COLUMN_CACHE_MARGIN
     )
     const keepEnd = Math.min(
-      groups.length - 1,
+      groupCount - 1,
       lastRenderedColumnIndex + KANBAN_COLUMN_CACHE_MARGIN
     )
 
@@ -1132,7 +1133,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
     countsLoaded,
     dragging,
     firstRenderedColumnIndex,
-    groups,
+    groupCount,
     lastRenderedColumnIndex,
   ])
 

@@ -286,6 +286,17 @@ function deferred<T>() {
   return { promise, reject, resolve }
 }
 
+function isLargeKanbanGroupArray(value: unknown): value is unknown[] {
+  if (!Array.isArray(value) || value.length !== 201) return false
+  const first = value[0]
+  return (
+    typeof first === "object" &&
+    first !== null &&
+    "key" in first &&
+    String(first.key).startsWith("base-kanban:")
+  )
+}
+
 describe("BaseKanbanView", () => {
   let container: HTMLDivElement
   let root: Root
@@ -1805,6 +1816,108 @@ describe("BaseKanbanView", () => {
       51
     )
     expect(recordCardMocks.renders.get("done_0")).toBe(doneRendersBefore)
+  })
+
+  it("does not sweep every Kanban group when one large column starts paging", async () => {
+    const manyOptions = Array.from({ length: 200 }, (_, index) => ({
+      id: `status_${index}`,
+      name: `Status ${index}`,
+      color: "blue",
+    }))
+    const manyColumnTable: BaseTableSnapshot = {
+      ...table,
+      fields: table.fields.map((field) =>
+        field.tableColumnName === "status"
+          ? { ...field, property: { options: manyOptions } }
+          : field
+      ),
+    }
+    let resolveNextPage: ((page: BaseRowPage) => void) | undefined
+    const loadGroupPage = vi.fn(
+      (_field, value: string | null, offset: number, limit: number) => {
+        if (value === "status_0" && offset === 50) {
+          return new Promise<BaseRowPage>((resolve) => {
+            resolveNextPage = resolve
+          })
+        }
+        return Promise.resolve({
+          tableId: "tasks",
+          offset,
+          limit,
+          total: value === "status_0" ? 51 : 0,
+          rows:
+            value === "status_0"
+              ? Array.from({ length: 50 }, (_, index) => ({
+                  _id: `status_0_${index}`,
+                  title: `Task ${index}`,
+                  status: "status_0",
+                }))
+              : [],
+        })
+      }
+    )
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={manyColumnTable}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [
+            { value: "status_0", total: 51 },
+          ])}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    loadGroupPage.mockClear()
+    const mapSpy = vi.spyOn(Array.prototype, "map")
+    let mapContexts: unknown[] = []
+    try {
+      await act(async () => {
+        const scroller = container.querySelector<HTMLElement>(
+          '[data-base-kanban-column-scroll="base-kanban:status_0"]'
+        )
+        if (!scroller) return
+        scroller.scrollTop = 100_000
+        scroller.dispatchEvent(new Event("scroll"))
+        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    } finally {
+      mapContexts = [...mapSpy.mock.contexts]
+      mapSpy.mockRestore()
+    }
+
+    expect(loadGroupPage).toHaveBeenCalledWith(
+      expect.objectContaining({ tableColumnName: "status" }),
+      "status_0",
+      50,
+      50,
+      51
+    )
+    expect(mapContexts.filter(isLargeKanbanGroupArray)).toHaveLength(1)
+
+    await act(async () => {
+      resolveNextPage?.({
+        tableId: "tasks",
+        offset: 50,
+        limit: 50,
+        total: 51,
+        rows: [
+          {
+            _id: "status_0_50",
+            title: "Task 50",
+            status: "status_0",
+          },
+        ],
+      })
+      await Promise.resolve()
+    })
   })
 
   it("does not rerender unaffected columns when an inspected field changes", async () => {
