@@ -39,7 +39,10 @@ import {
 } from "./base-row-window"
 import { useBaseBoundedVirtualizer } from "./base-virtual-scroll"
 import { orderedBaseFields } from "./base-view-layout"
-import { useBaseCoverReader } from "./use-base-cover-reader"
+import {
+  useBaseCoverReader,
+  type BaseCoverAcquire,
+} from "./use-base-cover-reader"
 
 const GALLERY_PAGE_SIZE = 100
 const GALLERY_MAX_WINDOW_ROWS = 300
@@ -63,6 +66,132 @@ function estimatedGalleryCardHeight(layout: BaseRecordCardLayout): number {
   const visibleFieldCount = Math.min(layout.fields.length, layout.fieldLimit)
   return 72 + (layout.coverField ? 144 : 0) + visibleFieldCount * 32
 }
+
+interface BaseGalleryVirtualRowProps {
+  rowWindow: BaseRowWindow
+  globalRowIndex: number
+  virtualIndex: number
+  offset: number
+  columnCount: number
+  total: number
+  fields: BaseFieldInfo[]
+  view: BaseViewInfo
+  layout: BaseRecordCardLayout
+  acquireCover?: BaseCoverAcquire
+  focusedRowId: string | null
+  canDelete: boolean
+  measureElement: (node: HTMLDivElement | null | undefined) => void
+  onOpen: (row: BaseRow) => void
+  onDelete: (row: BaseRow) => void
+}
+
+function galleryVirtualRowPropsEqual(
+  previous: BaseGalleryVirtualRowProps,
+  next: BaseGalleryVirtualRowProps
+): boolean {
+  if (
+    previous.globalRowIndex !== next.globalRowIndex ||
+    previous.virtualIndex !== next.virtualIndex ||
+    previous.offset !== next.offset ||
+    previous.columnCount !== next.columnCount ||
+    previous.total !== next.total ||
+    previous.fields !== next.fields ||
+    previous.view !== next.view ||
+    previous.layout !== next.layout ||
+    previous.acquireCover !== next.acquireCover ||
+    previous.canDelete !== next.canDelete ||
+    previous.measureElement !== next.measureElement ||
+    previous.onOpen !== next.onOpen ||
+    previous.onDelete !== next.onDelete
+  ) {
+    return false
+  }
+  if (
+    previous.rowWindow === next.rowWindow &&
+    previous.focusedRowId === next.focusedRowId
+  ) {
+    return true
+  }
+
+  const start = next.globalRowIndex * next.columnCount
+  const slotCount = Math.min(next.columnCount, next.total - start)
+  for (let columnIndex = 0; columnIndex < slotCount; columnIndex += 1) {
+    const absoluteIndex = start + columnIndex
+    const previousRow = rowFromWindow(previous.rowWindow, absoluteIndex)
+    const nextRow = rowFromWindow(next.rowWindow, absoluteIndex)
+    if (previousRow !== nextRow) return false
+    if (!nextRow) continue
+    const rowId = String(nextRow._id)
+    if ((previous.focusedRowId === rowId) !== (next.focusedRowId === rowId)) {
+      return false
+    }
+  }
+  return true
+}
+
+const BaseGalleryVirtualRow = memo(function BaseGalleryVirtualRow({
+  rowWindow,
+  globalRowIndex,
+  virtualIndex,
+  offset,
+  columnCount,
+  total,
+  fields,
+  view,
+  layout,
+  acquireCover,
+  focusedRowId,
+  canDelete,
+  measureElement,
+  onOpen,
+  onDelete,
+}: BaseGalleryVirtualRowProps) {
+  const start = globalRowIndex * columnCount
+  return (
+    <div
+      ref={measureElement}
+      role="presentation"
+      className="absolute left-0 top-0 grid w-full items-start gap-3 [contain:layout_style]"
+      data-index={globalRowIndex}
+      data-base-virtual-index={virtualIndex}
+      style={{
+        gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+        transform: `translate3d(0, ${offset}px, 0)`,
+      }}
+    >
+      {Array.from(
+        { length: Math.min(columnCount, total - start) },
+        (_, columnIndex) => {
+          const absoluteIndex = start + columnIndex
+          const row = rowFromWindow(rowWindow, absoluteIndex)
+          return row ? (
+            <BaseRecordCard
+              key={String(row._id)}
+              row={row}
+              fields={fields}
+              view={view}
+              layout={layout}
+              acquireCover={acquireCover}
+              role="listitem"
+              positionInSet={absoluteIndex + 1}
+              setSize={total}
+              focused={focusedRowId === String(row._id)}
+              onOpen={onOpen}
+              onDelete={canDelete ? onDelete : undefined}
+            />
+          ) : (
+            <div
+              key={`gallery-placeholder-${absoluteIndex}`}
+              data-base-gallery-placeholder
+              className="min-h-24 rounded-lg border bg-muted/20"
+              aria-hidden="true"
+            />
+          )
+        }
+      )}
+    </div>
+  )
+}, galleryVirtualRowPropsEqual)
 
 export const BaseGalleryView = memo(function BaseGalleryView({
   table,
@@ -399,6 +528,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
     searchResultIndex !== null
       ? rowFromWindow(rowWindow, searchResultIndex)
       : undefined
+  const focusedRowId = focusedRow === undefined ? null : String(focusedRow._id)
 
   useEffect(() => {
     if (searchResultIndex === null || searchResultIndex < 0) return
@@ -525,54 +655,25 @@ export const BaseGalleryView = memo(function BaseGalleryView({
           >
             {virtualRows.map((virtualRow) => {
               const globalRowIndex = globalVirtualRowIndex(virtualRow.index)
-              const start = globalRowIndex * columnCount
               return (
-                <div
+                <BaseGalleryVirtualRow
                   key={virtualRow.key}
-                  ref={rowVirtualizer.measureElement}
-                  role="presentation"
-                  className="absolute left-0 top-0 grid w-full items-start gap-3 [contain:layout_style]"
-                  data-index={globalRowIndex}
-                  data-base-virtual-index={virtualRow.index}
-                  style={{
-                    gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
-                    transform: `translate3d(0, ${virtualRowOffset(virtualRow)}px, 0)`,
-                  }}
-                >
-                  {Array.from(
-                    { length: Math.min(columnCount, total - start) },
-                    (_, columnIndex) => {
-                      const absoluteIndex = start + columnIndex
-                      const row = rowFromWindow(rowWindow, absoluteIndex)
-                      return row ? (
-                        <BaseRecordCard
-                          key={String(row._id)}
-                          row={row}
-                          fields={table.fields}
-                          view={view}
-                          layout={cardLayout}
-                          acquireCover={acquireCover}
-                          role="listitem"
-                          positionInSet={absoluteIndex + 1}
-                          setSize={total}
-                          focused={
-                            focusedRow !== undefined &&
-                            String(focusedRow._id) === String(row._id)
-                          }
-                          onOpen={setInspectedRow}
-                          onDelete={onDeleteRow ? setDeleteRow : undefined}
-                        />
-                      ) : (
-                        <div
-                          key={`gallery-placeholder-${absoluteIndex}`}
-                          data-base-gallery-placeholder
-                          className="min-h-24 rounded-lg border bg-muted/20"
-                          aria-hidden="true"
-                        />
-                      )
-                    }
-                  )}
-                </div>
+                  rowWindow={rowWindow}
+                  globalRowIndex={globalRowIndex}
+                  virtualIndex={virtualRow.index}
+                  offset={virtualRowOffset(virtualRow)}
+                  columnCount={columnCount}
+                  total={total}
+                  fields={table.fields}
+                  view={view}
+                  layout={cardLayout}
+                  acquireCover={acquireCover}
+                  focusedRowId={focusedRowId}
+                  canDelete={onDeleteRow !== undefined}
+                  measureElement={rowVirtualizer.measureElement}
+                  onOpen={setInspectedRow}
+                  onDelete={setDeleteRow}
+                />
               )
             })}
           </div>

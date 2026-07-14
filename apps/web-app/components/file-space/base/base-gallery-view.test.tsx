@@ -976,4 +976,82 @@ describe("BaseGalleryView", () => {
     expect(loadPage).toHaveBeenCalledTimes(3)
     expect(loadPage).toHaveBeenLastCalledWith(100, 100, 101)
   })
+
+  it("does not rebuild mounted virtual rows while retrying an infinite page", async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      _id: `row_${index}`,
+      title: `Task ${index}`,
+      status: "todo",
+    }))
+    let resolveRetry: ((page: BaseRowPage) => void) | undefined
+    const retryPage = new Promise<BaseRowPage>((resolve) => {
+      resolveRetry = resolve
+    })
+    const loadPage = vi
+      .fn<(offset: number, limit: number) => Promise<BaseRowPage>>()
+      .mockResolvedValueOnce({
+        tableId: "tasks",
+        offset: 0,
+        limit: 100,
+        total: 101,
+        rows: firstPage,
+      })
+      .mockRejectedValueOnce(new Error("page failed"))
+      .mockImplementationOnce(() => retryPage)
+
+    await act(async () => {
+      root.render(
+        <BaseGalleryView table={table} view={view} loadPage={loadPage} />
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      const scroller = container.querySelector<HTMLElement>(
+        "[data-base-gallery-scroll]"
+      )
+      if (!scroller) return
+      scroller.scrollTop = 100_000
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(container.textContent).toContain("Could not load more records")
+    const columnCount = Number(
+      container
+        .querySelector("[data-base-gallery-scroll]")
+        ?.getAttribute("data-base-column-count")
+    )
+    const arrayFrom = vi.spyOn(Array, "from")
+
+    await act(async () => {
+      ;[...container.querySelectorAll("button")]
+        .find((button) => button.textContent === "Retry")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    const mountedRowBuilds = arrayFrom.mock.calls.filter(([source]) => {
+      if (!source || Array.isArray(source) || typeof source !== "object") {
+        return false
+      }
+      return (source as { length?: number }).length === columnCount
+    })
+    expect(loadPage).toHaveBeenCalledTimes(3)
+    expect(container.textContent).toContain("Loading more records")
+    expect(mountedRowBuilds).toHaveLength(0)
+    arrayFrom.mockRestore()
+
+    await act(async () => {
+      resolveRetry?.({
+        tableId: "tasks",
+        offset: 100,
+        limit: 100,
+        total: 101,
+        rows: [{ _id: "row_100", title: "Last task", status: "todo" }],
+      })
+      await Promise.resolve()
+    })
+  })
 })
