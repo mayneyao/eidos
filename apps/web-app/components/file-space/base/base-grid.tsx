@@ -99,6 +99,8 @@ import "@glideapps/glide-data-grid/dist/index.css"
 
 const PAGE_SIZE = 100
 const PAGE_OVERSCAN = 1
+const MAX_CACHED_PAGES = 8
+const MAX_UNDO_HISTORY_BATCHES = 50
 
 function themeColorWithAlpha(color: string, alpha: number): string {
   const normalized = color.trim()
@@ -321,6 +323,10 @@ export const BaseGrid = memo(function BaseGrid({
   const rowMutationRevisionRef = useRef(new Map<number, number>())
   const loadedPagesRef = useRef(new Set<number>())
   const loadingPagesRef = useRef(new Map<number, number>())
+  const pageAccessRef = useRef(new Map<number, number>())
+  const pageAccessClockRef = useRef(0)
+  const visiblePagesRef = useRef(new Set<number>())
+  const historyRowsRef = useRef<ReadonlySet<number>>(new Set())
   const generationRef = useRef(0)
   const [cacheRevision, setCacheRevision] = useState(0)
   const [rowCount, setRowCount] = useState(table.rowCount)
@@ -331,6 +337,8 @@ export const BaseGrid = memo(function BaseGrid({
   const [inspectedRowIndex, setInspectedRowIndex] = useState<number | null>(
     null
   )
+  const inspectedRowIndexRef = useRef<number | null>(null)
+  inspectedRowIndexRef.current = inspectedRowIndex
   const availableFields = useMemo(
     () => orderedBaseFields(table.fields, view),
     [table.fields, view?.hiddenFields, view?.orderMap]
@@ -368,13 +376,60 @@ export const BaseGrid = memo(function BaseGrid({
       ? undefined
       : rowsRef.current.get(inspectedRowIndex)
 
+  const touchPage = useCallback((pageIndex: number) => {
+    pageAccessClockRef.current += 1
+    pageAccessRef.current.set(pageIndex, pageAccessClockRef.current)
+  }, [])
+
+  const prunePageCache = useCallback((): boolean => {
+    if (
+      mutationInFlightRef.current ||
+      failedMutationRef.current ||
+      queuedMutationsRef.current.length > 0
+    ) {
+      return false
+    }
+
+    const protectedPages = new Set(visiblePagesRef.current)
+    const inspectedIndex = inspectedRowIndexRef.current
+    if (inspectedIndex !== null) {
+      protectedPages.add(Math.floor(inspectedIndex / PAGE_SIZE))
+    }
+    for (const rowIndex of historyRowsRef.current) {
+      protectedPages.add(Math.floor(rowIndex / PAGE_SIZE))
+    }
+
+    const candidates = [...loadedPagesRef.current]
+      .filter((pageIndex) => !protectedPages.has(pageIndex))
+      .sort(
+        (left, right) =>
+          (pageAccessRef.current.get(left) ?? 0) -
+          (pageAccessRef.current.get(right) ?? 0)
+      )
+    let changed = false
+    while (
+      loadedPagesRef.current.size > MAX_CACHED_PAGES &&
+      candidates.length > 0
+    ) {
+      const pageIndex = candidates.shift()
+      if (pageIndex === undefined) break
+      loadedPagesRef.current.delete(pageIndex)
+      pageAccessRef.current.delete(pageIndex)
+      const start = pageIndex * PAGE_SIZE
+      for (let rowIndex = start; rowIndex < start + PAGE_SIZE; rowIndex += 1) {
+        rowsRef.current.delete(rowIndex)
+        rowMutationRevisionRef.current.delete(rowIndex)
+      }
+      changed = true
+    }
+    return changed
+  }, [])
+
   const loadPageIndex = useCallback(
     async (pageIndex: number) => {
-      if (
-        pageIndex < 0 ||
-        loadedPagesRef.current.has(pageIndex) ||
-        loadingPagesRef.current.has(pageIndex)
-      ) {
+      if (pageIndex < 0 || loadingPagesRef.current.has(pageIndex)) return
+      if (loadedPagesRef.current.has(pageIndex)) {
+        touchPage(pageIndex)
         return
       }
       const generation = generationRef.current
@@ -386,6 +441,8 @@ export const BaseGrid = memo(function BaseGrid({
           rowsRef.current.set(page.offset + index, row)
         })
         loadedPagesRef.current.add(pageIndex)
+        touchPage(pageIndex)
+        prunePageCache()
         setRowCount(page.total)
         onRowCountChange?.(page.total)
         setCacheRevision((current) => current + 1)
@@ -397,7 +454,7 @@ export const BaseGrid = memo(function BaseGrid({
         }
       }
     },
-    [loadPage, onError, onRowCountChange]
+    [loadPage, onError, onRowCountChange, prunePageCache, touchPage]
   )
 
   useEffect(() => {
@@ -406,6 +463,10 @@ export const BaseGrid = memo(function BaseGrid({
     rowMutationRevisionRef.current.clear()
     loadedPagesRef.current.clear()
     loadingPagesRef.current.clear()
+    pageAccessRef.current.clear()
+    pageAccessClockRef.current = 0
+    visiblePagesRef.current.clear()
+    historyRowsRef.current = new Set()
     mutationInFlightRef.current = false
     queuedMutationsRef.current = []
     setMutationInFlight(false)
@@ -616,11 +677,18 @@ export const BaseGrid = memo(function BaseGrid({
         Math.floor((range.y + Math.max(0, range.height - 1)) / PAGE_SIZE) +
           PAGE_OVERSCAN
       )
+      const visiblePages = new Set<number>()
+      visiblePagesRef.current = visiblePages
       for (let page = firstPage; page <= lastPage; page += 1) {
+        visiblePages.add(page)
+        touchPage(page)
         void loadPageIndex(page)
       }
+      if (prunePageCache()) {
+        setCacheRevision((current) => current + 1)
+      }
     },
-    [loadPageIndex, rowCount]
+    [loadPageIndex, prunePageCache, rowCount, touchPage]
   )
 
   const onVisibleRegionChanged = useCallback<
@@ -787,12 +855,16 @@ export const BaseGrid = memo(function BaseGrid({
             const next = queuedMutationsRef.current.shift()
             if (next) void runGridMutationRef.current(next)
           }
+          if (prunePageCache()) {
+            setCacheRevision((revision) => revision + 1)
+          }
         }
       }
     },
     [
       mergeGridMutations,
       persistRowEdits,
+      prunePageCache,
       refreshColumnStats,
       updateFailedMutation,
     ]
@@ -932,8 +1004,20 @@ export const BaseGrid = memo(function BaseGrid({
     commitCell,
     handleGridSelectionChange,
     isGridActive,
-    commitCells
+    commitCells,
+    MAX_UNDO_HISTORY_BATCHES
   )
+  historyRowsRef.current = history.historyRows
+
+  useEffect(() => {
+    history.reset()
+  }, [history.reset, reloadToken, table.table.id, view?.id])
+
+  useEffect(() => {
+    if (prunePageCache()) {
+      setCacheRevision((current) => current + 1)
+    }
+  }, [history.historyRows, inspectedRowIndex, prunePageCache])
 
   const retryFailedMutation = useCallback(() => {
     const failed = failedMutationRef.current
@@ -956,8 +1040,9 @@ export const BaseGrid = memo(function BaseGrid({
     }
     updateFailedMutation(null)
     history.reset()
-    if (changed) setCacheRevision((revision) => revision + 1)
-  }, [history.reset, updateFailedMutation])
+    const pruned = prunePageCache()
+    if (changed || pruned) setCacheRevision((revision) => revision + 1)
+  }, [history.reset, prunePageCache, updateFailedMutation])
 
   const [fileDropHighlights, setFileDropHighlights] = useState<
     NonNullable<DataEditorProps["highlightRegions"]>

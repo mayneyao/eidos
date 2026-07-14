@@ -56,10 +56,22 @@ interface UndoRedoAction {
 interface EditAction {
   type: "edit"
   batch: Batch
+  maxBatches: number
 }
 
 interface ResetAction {
   type: "reset"
+}
+
+function appendHistoryBatch(
+  history: Batch[],
+  batch: Batch,
+  maxBatches: number
+): Batch[] {
+  const next = [...history, batch]
+  if (!Number.isFinite(maxBatches)) return next
+  const limit = Math.max(0, Math.floor(maxBatches))
+  return limit === 0 ? [] : next.slice(-limit)
 }
 
 function reducer(state: ReducerState, action: Action) {
@@ -104,21 +116,32 @@ function reducer(state: ReducerState, action: Action) {
 
     case "edit":
       if (!state.isApplyingRedo && !state.isApplyingUndo) {
-        // general case
-        newState.undoHistory = [...state.undoHistory, action.batch]
+        newState.undoHistory = appendHistoryBatch(
+          state.undoHistory,
+          action.batch,
+          action.maxBatches
+        )
         newState.redoHistory = []
-        newState.canUndo = true
+        newState.canUndo = newState.undoHistory.length > 0
         newState.canRedo = false
       }
 
       if (state.isApplyingUndo) {
-        newState.redoHistory = [...state.redoHistory, action.batch]
-        newState.canRedo = true
+        newState.redoHistory = appendHistoryBatch(
+          state.redoHistory,
+          action.batch,
+          action.maxBatches
+        )
+        newState.canRedo = newState.redoHistory.length > 0
       }
 
       if (state.isApplyingRedo) {
-        newState.undoHistory = [...state.undoHistory, action.batch]
-        newState.canUndo = true
+        newState.undoHistory = appendHistoryBatch(
+          state.undoHistory,
+          action.batch,
+          action.maxBatches
+        )
+        newState.canUndo = newState.undoHistory.length > 0
       }
 
       return newState
@@ -134,7 +157,8 @@ export function useUndoRedo(
   onCellEdited: (cell: Item, newValue: EditableGridCell) => void,
   onGridSelectionChange?: (newVal: GridSelection) => void,
   isActive?: () => boolean,
-  onCellsEdited?: (edits: readonly UndoRedoEdit[]) => void
+  onCellsEdited?: (edits: readonly UndoRedoEdit[]) => void,
+  maxHistoryBatches = Number.POSITIVE_INFINITY
 ) {
   const [state, dispatch] = useReducer(reducer, initialState)
 
@@ -183,6 +207,7 @@ export function useUndoRedo(
             dispatch({
               type: "edit",
               batch: currentBatch.current,
+              maxBatches: maxHistoryBatches,
             })
             currentBatch.current = null
           }
@@ -193,7 +218,7 @@ export function useUndoRedo(
       // Continue with the edit
       onCellEdited(cell, newValue)
     },
-    [onCellEdited, getCellContent]
+    [getCellContent, maxHistoryBatches, onCellEdited]
   )
 
   const wrappedOnCellsEdited = useCallback(
@@ -206,7 +231,11 @@ export function useUndoRedo(
         if (timeout.current) clearTimeout(timeout.current)
         timeout.current = null
         if (currentBatch.current) {
-          dispatch({ type: "edit", batch: currentBatch.current })
+          dispatch({
+            type: "edit",
+            batch: currentBatch.current,
+            maxBatches: maxHistoryBatches,
+          })
           currentBatch.current = null
         }
         dispatch({
@@ -218,6 +247,7 @@ export function useUndoRedo(
             })),
             selection: gridSelectionRef.current,
           },
+          maxBatches: maxHistoryBatches,
         })
       }
 
@@ -227,7 +257,7 @@ export function useUndoRedo(
         for (const edit of edits) onCellEdited(edit.cell, edit.newValue)
       }
     },
-    [getCellContent, onCellEdited, onCellsEdited]
+    [getCellContent, maxHistoryBatches, onCellEdited, onCellsEdited]
   )
 
   const undo = useCallback(() => {
@@ -281,6 +311,7 @@ export function useUndoRedo(
       dispatch({
         type: "edit",
         batch: previousState,
+        maxBatches: maxHistoryBatches,
       })
 
       dispatch({
@@ -294,7 +325,21 @@ export function useUndoRedo(
     onCellsEdited,
     setGridSelection,
     getCellContent,
+    maxHistoryBatches,
   ])
+
+  const historyRows = useMemo(() => {
+    const rows = new Set<number>()
+    const batches = [
+      ...state.undoHistory,
+      ...state.redoHistory,
+      ...(state.operation ? [state.operation] : []),
+    ]
+    for (const batch of batches) {
+      for (const edit of batch.edits) rows.add(edit.cell[1])
+    }
+    return rows
+  }, [state.operation, state.redoHistory, state.undoHistory])
 
   // Attach the keyboard shortcuts. CMD+Z and CMD+SHIFT+Z on mac, CTRL+Z and CTRL+Y on windows.
   useEffect(() => {
@@ -331,6 +376,7 @@ export function useUndoRedo(
       onCellsEdited: wrappedOnCellsEdited,
       onGridSelectionChange: onGridSelectionChangedEdited,
       gridSelection,
+      historyRows,
     }
   }, [
     undo,
@@ -342,5 +388,6 @@ export function useUndoRedo(
     state.canRedo,
     onGridSelectionChangedEdited,
     gridSelection,
+    historyRows,
   ])
 }

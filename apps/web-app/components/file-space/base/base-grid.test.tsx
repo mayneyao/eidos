@@ -125,24 +125,24 @@ function rowAt(index: number) {
   }
 }
 
-function createLoadPage() {
+function createLoadPage(snapshot: BaseTableSnapshot = table) {
   return vi.fn(async (offset: number, limit: number) => ({
-    tableId: "tasks",
+    tableId: snapshot.table.id,
     offset,
     limit,
-    total: table.rowCount,
+    total: snapshot.rowCount,
     rows: Array.from(
-      { length: Math.min(limit, Math.max(0, table.rowCount - offset)) },
+      { length: Math.min(limit, Math.max(0, snapshot.rowCount - offset)) },
       (_, index) => rowAt(offset + index)
     ),
   }))
 }
 
-function createCellEdit() {
+function createCellEdit(snapshot: BaseTableSnapshot = table) {
   return vi.fn(async (row, field, value) => ({
-    tableId: "tasks",
+    tableId: snapshot.table.id,
     row: { ...row, [field.tableColumnName]: value },
-    rowCount: table.rowCount,
+    rowCount: snapshot.rowCount,
   }))
 }
 
@@ -1011,6 +1011,180 @@ describe("BaseGrid", () => {
     expect(mocks.props?.getCellContent([0, 180])).toMatchObject({
       kind: GridCellKind.Text,
       data: "Row 180",
+    })
+  })
+
+  it("bounds a million-row Grid cache and reloads an evicted page", async () => {
+    const largeTable = { ...table, rowCount: 1_000_000 }
+    const loadPage = createLoadPage(largeTable)
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={largeTable}
+          loadPage={loadPage}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit(largeTable)}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    for (const y of [200, 400, 600, 800, 1_000]) {
+      await act(async () => {
+        mocks.props?.onVisibleRegionChanged?.(
+          { x: 0, y, width: 2, height: 20 },
+          0,
+          0,
+          {}
+        )
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+    }
+
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      kind: GridCellKind.Loading,
+    })
+
+    await act(async () => {
+      mocks.props?.onVisibleRegionChanged?.(
+        { x: 0, y: 0, width: 2, height: 20 },
+        0,
+        0,
+        {}
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(loadPage.mock.calls.filter(([offset]) => offset === 0)).toHaveLength(
+      2
+    )
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      kind: GridCellKind.Text,
+      data: "Write RFC",
+    })
+  })
+
+  it("keeps an edited page cached while the edit remains undoable", async () => {
+    const largeTable = { ...table, rowCount: 1_000_000 }
+    const onCellEdit = createCellEdit(largeTable)
+    await act(async () => {
+      root.render(
+        <BaseGrid
+          table={largeTable}
+          loadPage={createLoadPage(largeTable)}
+          onAddRow={vi.fn()}
+          onCellEdit={onCellEdit}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: undefined,
+      })
+    })
+    await act(async () => {
+      mocks.props?.onCellEdited?.([0, 0], {
+        kind: GridCellKind.Text,
+        allowOverlay: true,
+        data: "Write implementation",
+        displayData: "Write implementation",
+      })
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    for (const y of [200, 400, 600, 800, 1_000]) {
+      await act(async () => {
+        mocks.props?.onVisibleRegionChanged?.(
+          { x: 0, y, width: 2, height: 20 },
+          0,
+          0,
+          {}
+        )
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+    }
+
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      kind: GridCellKind.Text,
+      data: "Write implementation",
+    })
+
+    container.querySelector<HTMLElement>('[data-testid="glide-grid"]')?.focus()
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "z", metaKey: true })
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onCellEdit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ title: "Write implementation" }),
+      table.fields[0],
+      "Write RFC"
+    )
+  })
+
+  it("clears undo history when the Grid query reloads", async () => {
+    const onCellEdit = createCellEdit()
+    const loadPage = createLoadPage()
+    const renderGrid = (reloadToken: number) => (
+      <BaseGrid
+        table={table}
+        reloadToken={reloadToken}
+        loadPage={loadPage}
+        onAddRow={vi.fn()}
+        onCellEdit={onCellEdit}
+      />
+    )
+    await act(async () => {
+      root.render(renderGrid(0))
+      await Promise.resolve()
+    })
+
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: undefined,
+      })
+    })
+    await act(async () => {
+      mocks.props?.onCellEdited?.([0, 0], {
+        kind: GridCellKind.Text,
+        allowOverlay: true,
+        data: "Write implementation",
+        displayData: "Write implementation",
+      })
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    await act(async () => {
+      root.render(renderGrid(1))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    container.querySelector<HTMLElement>('[data-testid="glide-grid"]')?.focus()
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "z", metaKey: true })
+      )
+      await Promise.resolve()
+    })
+
+    expect(onCellEdit).toHaveBeenCalledOnce()
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      kind: GridCellKind.Text,
+      data: "Write RFC",
     })
   })
 
