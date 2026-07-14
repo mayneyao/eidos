@@ -323,6 +323,11 @@ Grid 的单格写入和批量粘贴现在也拥有锚定式恢复界面。持久
 不会基于缺失的前置状态继续落盘。用户 Retry 保留的整组修改或 Discard 回持久化 row 之前，Grid 会暂停
 新的写入；Discard 同时重置局部 undo history，避免已经放弃的草稿又被意外重放。
 
+底部 sheet bar 的全局保存状态现在按稳定 resource key 聚合未解决的写入失败。任意 mutation 排队时仍显示
+`Saving…`；只有不存在失败 key 且至少一次写入成功时才显示 `Saved`。其他 table、view 或 row 的成功写入
+不能覆盖仍在局部恢复界面中的失败，只有对应资源重试成功才移除自己的失败 key；多个失败也必须分别解决，
+从而避免局部仍显示 Retry/Discard 时底部却错误宣称全部已保存。
+
 Base 的次级工作区现在根据 active editor 的实际可用空间响应，而不是使用整个应用窗口宽度。Grid、
 Gallery 和 Kanban 在主 view 至少还能保留 440px 时，将 320px Record Inspector 或 Field Property
 panel 保持在 flex 布局中；低于由此得到的 760px 内容断点后，同一个 panel 会成为不透明的右侧覆盖层，
