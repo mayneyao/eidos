@@ -301,12 +301,15 @@ row，而不是先过滤完整字段列表再截断。稀疏记录仍会继续�
 不会因为虚拟窗口外不可见的字段继续线性增长。
 
 Card 分页的数据边界也与渲染边界对齐。Gallery 和 Kanban 不再为每个 100/50-record page 执行并跨
-worker/IPC 传输 `SELECT *`；请求只投影 row identity、title、当前 view 的可见 card fields，以及即使
-隐藏也仍被 cover 或 Kanban group 使用的字段。Filter/Search 字段只参与 SQL predicate，Sort 字段只在
-runtime 内部参与排序和 opaque cursor 生成，二者都不会因为查询需要而泄露到返回 row；未投影的 relation
-字段也不会触发 display hydration。用户打开 Record Inspector 时，再按稳定 row ID 单独读取包含 Formula、
-Lookup 和 relation display 的完整记录。Inspector 会立即保留 card preview 作为上下文，同时显示明确的
-loading 状态；读取失败留在 panel 内并可 Retry，快速切换/关闭记录时旧请求不能覆盖新会话。
+worker/IPC 传输 `SELECT *`；请求只让 SQLite 读取 row identity、title、当前 view 的候选 card fields，
+以及即使隐藏也仍被 cover 或 Kanban group 使用的字段。隐藏空字段时，runtime 会按 view 顺序检查候选值，
+但在离开 worker 前把每条 row 收敛到 Gallery 的前 6 个或 Kanban 的前 4 个非空字段；cover/group 作为
+保留字段不会消耗该额度。关闭隐藏空字段后，SQL projection 本身也只包含固定展示额度。Filter/Search
+字段只参与 SQL predicate，Sort 字段只在 runtime 内部参与排序和 opaque cursor 生成，二者都不会因为
+查询需要而泄露到返回 row；被逐行裁掉的 relation 字段也不会触发 display hydration。用户打开 Record
+Inspector 时，再按稳定 row ID 单独读取包含 Formula、Lookup 和 relation display 的完整记录。Inspector
+会立即保留 card preview 作为上下文，同时显示明确的 loading 状态；读取失败留在 panel 内并可 Retry，
+快速切换/关闭记录时旧请求不能覆盖新会话。
 
 隔离基准使用 100 条记录、40 个 4,096-byte Text 字段，card 投影其中 4 个字段。优化前完整 page 的
 JSON payload 为 16,455,668 bytes，五轮中位查询为 11.5295 ms；投影后分别为 1,650,178 bytes 和
@@ -314,6 +317,14 @@ JSON payload 为 16,455,668 bytes，五轮中位查询为 11.5295 ms；投影后
 五轮中位读取 0.1933 ms，且只有用户打开记录时才支付该成本。核心、worker、editor、Gallery 和 Kanban
 回归共同锁定投影列、隐藏 cover/group 保留、sort cursor 语义和按需完整读取，避免重新退化为 page-wide
 `SELECT *`。
+
+在此基础上，逐行有界投影还处理了“view 本身包含极多可见字段”的退化。100 条记录、500 个 Text
+候选字段、每条仅前 4 个字段写入 4,096-byte 文本的隔离基准中，原来的 view-wide page 每条 row 携带
+502 个 properties，JSON 为 2,483,077 bytes；逐行收敛后只携带 6 个 properties，JSON 为
+1,650,077 bytes，分别减少 98.80% 和 33.55%。同一进程用 `structuredClone` 模拟 worker 消息复制，
+21 轮中位数从 3.9008 ms 降到 0.3887 ms，约快 10.04 倍。这个优化不宣称消除 SQLite 对稀疏候选字段
+的扫描；当最后几个非空值位于宽表尾部时，为了保持 card 语义仍必须检查这些字段。它明确约束的是
+worker/IPC、renderer state 和虚拟窗口中的 row shape，而不是用错误的提前截断换取表面上的查询速度。
 
 自动分页现在也有明确且可恢复的失败状态。Gallery 或 Kanban 请求失败后会关闭虚拟尾部触发器，
 不会因为 loading 状态再次变化而连续重发相同请求；已经加载的 cards 会继续挂载，首屏/刷新失败和
