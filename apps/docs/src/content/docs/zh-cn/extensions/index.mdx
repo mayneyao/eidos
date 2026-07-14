@@ -16,15 +16,15 @@ Node.js、SQLite 或宿主文件系统的原始访问权限。
 
 ## 扩展可以提供什么
 
-| Contribution | 用途 | 首期交付 |
-| --- | --- | --- |
-| `commands` | 可放入菜单和命令面板的具名操作 | 是 |
-| `menus` | 把 command 放入上下文菜单 | 是 |
-| `fileEditors` | 根据文件 pattern 或 media type 选择编辑器和预览器 | 是 |
-| `folderViews` | 面向文件夹的专用视图 | 后续 |
-| `baseViews` | Gallery、kanban、timeline 等 Base 视图 | 后续 |
-| `agentTools` | 可由 Agent 调用且经过权限检查的工具 | 后续 |
-| `configuration` | 由宿主渲染并具有明确存储 scope 的设置 | 后续 |
+| Contribution    | 用途                                              | 首期交付                |
+| --------------- | ------------------------------------------------- | ----------------------- |
+| `commands`      | 可放入菜单和命令面板的具名操作                    | 是                      |
+| `menus`         | 把 command 放入上下文菜单                         | 是                      |
+| `fileEditors`   | 根据文件 pattern 或 media type 选择编辑器和预览器 | TextDocument 契约完成后 |
+| `folderViews`   | 面向文件夹的专用视图                              | 后续                    |
+| `baseViews`     | Gallery、kanban、timeline 等 Base 视图            | 后续                    |
+| `agentTools`    | 可由 Agent 调用且经过权限检查的工具               | 后续                    |
+| `configuration` | 由宿主渲染并具有明确存储 scope 的设置             | 后续                    |
 
 旧版 `FileAction`、`DocAction` 和 `TableAction` 会被归一化为 command 与 menu placement，
 不再拥有单独的 package runtime。
@@ -37,6 +37,8 @@ Node.js、SQLite 或宿主文件系统的原始访问权限。
 4. 正确处理[生命周期与激活](/zh-cn/extensions/lifecycle/)。
 5. 阅读[安全模型](/zh-cn/extensions/security/)。
 6. 准备通过 [GitHub 分发](/zh-cn/extensions/distribution/) package。
+
+开发自定义界面前，请先阅读 [UI 扩展架构](/zh-cn/extensions/architecture/)。
 
 ## 核心不变量
 

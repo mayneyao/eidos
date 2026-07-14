@@ -1,6 +1,6 @@
 ---
 title: 权限与信任
-description: 理解 source trust、capability grant 和 runtime isolation。
+description: 理解 content trust、capability grant 和 runtime isolation。
 sidebar:
   order: 6
   badge: Preview
@@ -10,13 +10,14 @@ sidebar:
 
 ## 三个独立决定
 
-1. **信任 source digest。** 用户接受已经审查的、确切的 runtime-relevant 文件。
+1. **信任 content digest。** 用户接受已经审查的、完整 installed package tree。
 2. **授予 capability。** 用户批准 Manifest 请求的 file pattern、network origin、setting scope
    或其他宿主操作。
 3. **启用 package。** 用户决定这个 package 是否可以在当前安装中激活。
 
-修改源码或请求的权限都会让对应 trust decision 失效。通过 Graft 回滚到完全相同且曾被信任的 digest
-时，可以复用原来的 trust record。
+修改除宿主管理的 `extension.lock.json` 外的任何已安装 package 文件，或修改请求的权限，都会让
+对应 trust decision 失效。通过 Graft 回滚到完全相同且曾被信任的 digest 时，可以复用原来的
+trust record。
 
 ## Runtime isolation
 

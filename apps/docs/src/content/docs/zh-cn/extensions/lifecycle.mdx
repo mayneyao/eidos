@@ -1,6 +1,6 @@
 ---
 title: 生命周期与激活
-description: 让扩展按需启动、统一释放，并且始终绑定当前 source digest。
+description: 让扩展按需启动、统一释放，并且始终绑定当前 content digest。
 sidebar:
   order: 5
   badge: Preview
@@ -22,7 +22,7 @@ disabled / untrusted ── user trust + enable + grants ──┐
                                                   │       │
                                                active   failed
                                                   │
-                           source/grant/app change │
+                          content/grant/app change │
                                                   ▼
                                                stopped
 ```
@@ -48,9 +48,10 @@ export function deactivate(): void | Promise<void>
 `context.subscriptions` 统一拥有 command、event、timer 和其他 disposable resource。即使 activation
 抛错或者 worker 被终止，宿主也会释放这些资源。
 
-## 源码变化
+## Package 内容变化
 
-Trust 由 canonical ID、source digest 和 permission hash 共同确定。Runtime-relevant 文件变化后，Eidos 会：
+Trust 由 canonical ID、content digest 和 permission hash 共同确定。已安装 package 中除宿主管理的
+`extension.lock.json` 外，任何文件变化后，Eidos 会：
 
 1. 终止 active worker 并关闭 capability channel；
 2. 把旧 build 标记为 stale；

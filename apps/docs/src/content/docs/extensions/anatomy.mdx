@@ -13,8 +13,8 @@ must regenerate or protect locally.
 GitHub repository or local directory
               │ resolve + validate
               ▼
-.eidos/extensions/<publisher.name>/       tracked source
-              │ build for source digest
+.eidos/extensions/<publisher.name>/       tracked package
+              │ build for content digest
               ▼
 .eidos/cache/extensions/<id>/<digest>/    ignored cache
               │ activate with grants
@@ -33,17 +33,26 @@ The extension directory contains only reviewable package material:
 - `extension.lock.json`
 - source files
 - static assets
-- dependency metadata and lock files, when supported
+- vendored reviewable modules imported through relative paths
 
 The folder name is the derived extension ID: `publisher.name`. Identity comes
 from the manifest; GitHub owner, repository name, and folder slug are provenance
 and must never silently change identity.
 
+Version 1 does not run a package manager. Runtime code may import relative files
+inside the package and `@eidos.space/extension-sdk`; bare package imports, Node
+built-ins, install scripts, and runtime CDN modules are rejected.
+
 ## Build cache
 
-Builds are addressed by the source digest and host runtime ABI. A cache entry is
+Builds are addressed by the content digest and host runtime ABI. A cache entry is
 never authoritative: deleting it only causes a rebuild. An app upgrade may
 invalidate the ABI without changing extension trust.
+
+The version 1 content digest covers the normalized path and bytes of every
+installed package file except the host-owned `extension.lock.json`. This
+conservative rule may require review after a README-only edit, but it prevents
+an executable asset from falling outside the trust boundary.
 
 ## Local state
 

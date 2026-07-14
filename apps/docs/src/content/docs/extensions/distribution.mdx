@@ -22,9 +22,9 @@ README.md
 LICENSE
 ```
 
-Runtime dependencies must be pinned when third-party dependency support is
-introduced. Install scripts and package-manager lifecycle hooks are never run
-by Eidos.
+Version 1 packages use relative modules or vendored reviewable source. Eidos
+does not install arbitrary npm dependencies and never runs install scripts or
+package-manager lifecycle hooks.
 
 ## Installation flow
 
@@ -54,14 +54,24 @@ behavior:
 
 ```json
 {
-  "source": "https://github.com/example/hello-eidos",
-  "requested": "v0.1.0",
-  "resolved": "0123456789abcdef",
-  "integrity": "sha256-..."
+  "lockVersion": 1,
+  "source": {
+    "kind": "github",
+    "repository": "https://github.com/example/hello-eidos",
+    "requested": "refs/tags/v0.1.0",
+    "commit": "0123456789abcdef0123456789abcdef01234567"
+  },
+  "contentDigest": "sha256:..."
 }
 ```
 
 The lock file is managed by Eidos and versioned with package source.
+Each installed package owns its lock file; version 1 has no Space-wide extension
+lock that would make unrelated package updates conflict.
+`contentDigest` is the baseline copied from that commit. Local edits make the
+package appear modified but do not invalidate it. Updates compare the current
+digest to this baseline and never overwrite a mismatch silently; runtime trust
+uses the digest recomputed from current content.
 
 ## Updates
 

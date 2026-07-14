@@ -93,14 +93,14 @@ markdown-task-counter/
   "contributes": {
     "commands": [
       {
-        "id": "example.markdown-task-counter.countTasks",
+        "id": "example.markdown-task-counter.count-tasks",
         "title": "Count Markdown tasks"
       }
     ],
     "menus": {
       "files/context": [
         {
-          "command": "example.markdown-task-counter.countTasks",
+          "command": "example.markdown-task-counter.count-tasks",
           "when": "resourceExtname == .md"
         }
       ]
@@ -115,14 +115,14 @@ markdown-task-counter/
 
 关键字段的作用：
 
-| Manifest value | 作用 |
-| --- | --- |
-| `publisher` + `name` | 派生稳定 package ID：`example.markdown-task-counter`。 |
-| `commands` | 让宿主无需运行扩展代码就能搜索 command。 |
-| `files/context` | 把 command 放进 Files sidebar 的右键菜单。 |
-| `when` | 在 folder、image、`.base` 和其他非 Markdown 文件上隐藏它。 |
-| `files.read` | 让宿主准确解释并限制 worker 可以读取什么。 |
-| 空的 `write` 与 `network` | 明确扩展不需要这些 capability。 |
+| Manifest value            | 作用                                                       |
+| ------------------------- | ---------------------------------------------------------- |
+| `publisher` + `name`      | 派生稳定 package ID：`example.markdown-task-counter`。     |
+| `commands`                | 让宿主无需运行扩展代码就能搜索 command。                   |
+| `files/context`           | 把 command 放进 Files sidebar 的右键菜单。                 |
+| `when`                    | 在 folder、image、`.base` 和其他非 Markdown 文件上隐藏它。 |
+| `files.read`              | 让宿主准确解释并限制 worker 可以读取什么。                 |
+| 空的 `write` 与 `network` | 明确扩展不需要这些 capability。                            |
 
 ## 第三步：实现 command
 
@@ -134,17 +134,17 @@ import type { ExtensionContext } from "@eidos.space/extension-sdk"
 export function activate(context: ExtensionContext) {
   context.subscriptions.add(
     context.commands.register(
-      "example.markdown-task-counter.countTasks",
+      "example.markdown-task-counter.count-tasks",
       async (resource) => {
         const text = await context.space.files.readText(resource.path)
         const open = text.match(/^\s*[-*]\s+\[ \]/gim)?.length ?? 0
         const completed = text.match(/^\s*[-*]\s+\[[xX]\]/gim)?.length ?? 0
 
         context.window.showNotice(
-          `${resource.path}: ${open} open, ${completed} completed`,
+          `${resource.path}: ${open} open, ${completed} completed`
         )
-      },
-    ),
+      }
+    )
   )
 }
 ```
@@ -170,7 +170,7 @@ Validated example.markdown-task-counter
 
 当前检查会验证：
 
-- Manifest 包含 publisher 和 name；
+- 完整 Manifest 符合公开的 version 1 JSON Schema；
 - command ID 属于当前 package；
 - menu item 引用的是已经声明的 command；
 - entrypoint 是存在于 package 内部的相对路径。
@@ -204,29 +204,30 @@ Runtime 可用且扩展启用后：
 
 可以用下面的边界情况测试：
 
-| 文件内容 | 预期结果 |
-| --- | --- |
-| 没有 task-list item | `0 open, 0 completed` |
-| `* [ ] Task` | 计入 open |
-| `- [X] Task` | 计入 completed |
-| 普通文本 ``Use `[ ]` as a marker`` | 不计入 |
+| 文件内容                           | 预期结果              |
+| ---------------------------------- | --------------------- |
+| 没有 task-list item                | `0 open, 0 completed` |
+| `* [ ] Task`                       | 计入 open             |
+| `- [X] Task`                       | 计入 completed        |
+| 普通文本 ``Use `[ ]` as a marker`` | 不计入                |
 
 ## 第七步：修改与调试
 
-本地开发时，修改 runtime file 会产生新的 source digest。Eidos 会终止旧 worker，并要求用户信任
-新 digest 后才能 reload。Extension Manager 应把 Manifest、build、activation 和 permission error
-显示在当前 package 上，而不是静默继续运行旧 bundle。
+本地开发时，修改除宿主管理的 `extension.lock.json` 外的任何已安装 package 文件，都会产生新的
+content digest。Eidos 会终止旧 worker，并要求用户信任新 digest 后才能 reload。Extension Manager
+应把 Manifest、build、activation 和 permission error 显示在当前 package 上，而不是静默继续运行旧 bundle。
 
-| 现象 | 检查项 |
-| --- | --- |
+| 现象               | 检查项                                                           |
+| ------------------ | ---------------------------------------------------------------- |
 | 菜单中没有 command | 确认文件以 `.md` 结尾，并且 menu command ID 与 `commands` 一致。 |
-| Permission error | 确认 `files.read` 覆盖选中文件的相对路径。 |
-| Activation error | 打开 package diagnostics，并检查 `src/extension.ts`。 |
-| 数量不正确 | 修改 parser 前，先把失败的 Markdown 行加入测试。 |
+| Permission error   | 确认 `files.read` 覆盖选中文件的相对路径。                       |
+| Activation error   | 打开 package diagnostics，并检查 `src/extension.ts`。            |
+| 数量不正确         | 修改 parser 前，先把失败的 Markdown 行加入测试。                 |
 
 ## 下一步
 
 - [Manifest](/zh-cn/extensions/manifest/)解释每项 package declaration。
+- [架构与 UI 模型](/zh-cn/extensions/architecture/)解释宿主 UI、语义 UI 和自定义 UI 的边界。
 - [生命周期](/zh-cn/extensions/lifecycle/)介绍 activation、源码变化和失败处理。
 - [安全模型](/zh-cn/extensions/security/)介绍 trust 和 capability enforcement。
 - [GitHub 分发](/zh-cn/extensions/distribution/)介绍发布与更新。

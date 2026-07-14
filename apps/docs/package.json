@@ -24,6 +24,7 @@
     "starlight-theme-flexoki": "^0.1.0"
   },
   "devDependencies": {
+    "ajv": "^8.20.0",
     "wrangler": ">=4.14.1"
   }
 }

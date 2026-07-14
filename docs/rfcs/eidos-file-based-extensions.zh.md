@@ -1,7 +1,8 @@
 # RFC：Eidos Space 的文件化扩展机制
 
-状态：草案，尚未开始实施
+状态：草案，v1 契约已冻结，可进入基础层实施
 日期：2026-07-09
+最后更新：2026-07-15
 负责人：Eidos
 相关文档：
 
@@ -10,10 +11,11 @@
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-graft-space-versioning.zh.md`
 
-## 实施状态（2026-07-11）
+## 实施状态（2026-07-15）
 
-尚未开始实施。本工作排在独立 Base 垂直切片之后。现有 bundled 和 database-backed
-extensions 继续作为兼容路径；新的 file-based Space 暂时不应依赖本 RFC。
+本 RFC 的存储、Manifest、trust 与交付边界已经冻结，可以开始不可执行的基础层切片。
+扩展执行运行时尚未实施。现有 bundled 和 database-backed extensions 继续作为兼容路径；
+在 worker capability boundary 完成并验证前，稳定版 Eidos 不应执行第三方 file-based extension。
 
 ## 摘要
 
@@ -25,9 +27,11 @@ File-based workspace 中，Eidos 扩展应该逐步转向 file-based source mode
 my-space/
   .eidos/
     extensions/
-      kanban-view/
+      example.kanban-view/
         extension.json
-        index.tsx
+        src/
+          extension.ts
+          view.tsx
         assets/
 
     cache/
@@ -127,8 +131,8 @@ Virtual file system 会把这张表映射成：
 目标模型应该反过来：
 
 ```txt
-.eidos/extensions/<slug>/index.tsx       canonical source
-.eidos/extensions/<slug>/extension.json  canonical manifest
+.eidos/extensions/<publisher.name>/src/**         canonical source
+.eidos/extensions/<publisher.name>/extension.json canonical manifest
 .eidos/cache/extensions/**               generated build output
 .eidos/state/extensions.sqlite3          local/private runtime state
 ```
@@ -141,15 +145,15 @@ Virtual file system 会把这张表映射成：
 my-space/
   .eidos/
     extensions/
-      todo-actions/
+      example.todo-actions/
         extension.json
-        index.ts
+        src/
+          extension.ts
 
-      kanban-view/
+      example.markdown-task-counter/
         extension.json
-        index.tsx
-        assets/
-          icon.svg
+        src/
+          extension.ts
 
     cache/
       extensions/
@@ -160,38 +164,82 @@ my-space/
     secrets.sqlite3
 ```
 
-未来可以支持 flat files，但 folder-based extensions 更适合作为默认，因为它能容纳 assets、tests、README 和多个模块。
+Version 1 固定使用 `.eidos/extensions/<publisher.name>/`。暂不支持可配置 root 和 flat-file
+package，因为稳定 package root 是 discovery、identity conflict、content digest、Graft diff 和
+GitHub 安装的共同前提。
 
 ## Extension Manifest
 
-每个扩展文件夹应该包含 manifest：
+每个扩展目录都包含 `extension.json`。唯一的机器可读契约是
+`apps/docs/public/schemas/extension-manifest.schema.json`；本 RFC 不再维护另一套 legacy-shaped
+Manifest。
 
 ```json
 {
-  "id": "kanban-view",
-  "name": "Kanban View",
+  "$schema": "https://docs.eidos.space/schemas/extension-manifest.schema.json",
+  "manifestVersion": 1,
+  "publisher": "example",
+  "name": "markdown-task-counter",
+  "displayName": "Markdown Task Counter",
   "version": "0.1.0",
-  "type": "block",
-  "entry": "index.tsx",
-  "meta": {
-    "type": "tableView",
-    "componentName": "KanbanView",
-    "tableView": {
-      "title": "Kanban",
-      "type": "kanban",
-      "description": "Render a table as a Kanban board"
-    }
+  "engines": { "eidos": ">=0.34.0" },
+  "entrypoints": { "worker": "src/extension.ts" },
+  "contributes": {
+    "commands": [
+      {
+        "id": "example.markdown-task-counter.count-tasks",
+        "title": "Count Markdown tasks"
+      }
+    ]
   },
   "permissions": {
-    "files": "read",
-    "network": false
+    "files": { "read": ["**/*.md"], "write": [] },
+    "network": []
   }
 }
 ```
 
-Manifest 是可移植 source state，可以被 graft 追踪。
+Canonical package ID 是 `${publisher}.${name}`，所有 contribution ID 都属于这个 namespace。
+Manifest v1 会拒绝未知字段，未来新增 capability 必须显式升级契约，不能静默改变已安装源码的含义。
+
+Manifest 是可移植 source state，会被 Graft 追踪。
 
 编译产物不是可移植 source state，应该重建到 `.eidos/cache/extensions/**`。
+
+### Version 1 dependency policy
+
+Version 1 只允许 package 内的 relative import 和 Eidos extension SDK。Bare third-party package、
+Node.js/Electron built-in、非 literal dynamic import、package-manager lifecycle script 和 runtime
+CDN import 都会被拒绝。Publisher 可以把可审查源码 vendoring 到 package root，再使用 relative
+import。
+
+Eidos 永远不会为扩展运行 `npm install`。更广泛的 dependency resolution 需要未来 Manifest
+版本定义 lock、integrity、license 和 reproducible build 语义。
+
+### Canonical digests
+
+Version 1 有意采用保守 content digest：对除宿主管理的 `extension.lock.json` 之外，每个 installed
+package file 的规范化相对路径和内容字节做 hash。因此只修改 README 也需要重新 review。这个规则
+比仅 hash dependency graph 更严格，但边界显式，不会漏掉可执行 asset。
+
+Canonical algorithm 有意保持可在 Eidos 之外实现：
+
+1. 只接受 regular file 与 directory；复制或 hash 前拒绝 symbolic link 和 special file。
+2. 把相对 package root 的每个 file path 转为 UTF-8 NFC，并统一使用 `/` separator；拒绝空 segment、
+   `.`、`..`、NUL、NFC collision 和 case-folding collision。
+3. 只排除 root-level、由宿主管理的 `extension.lock.json`；空 directory 不参与。
+4. 按 unsigned UTF-8 byte order 排序 path。
+5. 每个文件向 SHA-256 输入一条 record：
+   `[u32be pathLength][pathBytes][u64be contentLength][contentBytes]`。
+6. 结果编码为 `sha256:<lowercase hex>`。
+
+Installer 只 hash 已复制的 staging snapshot，不 hash 正在变化的 source directory。Live Space scan
+如果检测到 scan 期间 file metadata 改变，就重新执行。
+
+Permission hash 独立根据规范化的 requested permission 计算：先排序 file-pattern 和 origin array，
+再用 RFC 8785 JSON Canonicalization Scheme 序列化 normalized object，最后把 UTF-8 bytes hash 为
+`sha256:<lowercase hex>`。Trust 由 package ID、content digest 和 permission hash 共同决定。Build
+cache key 还会包含 host runtime ABI。
 
 ## 状态分层
 
@@ -200,12 +248,11 @@ Manifest 是可移植 source state，可以被 graft 追踪。
 这些文件属于 Space，应该被追踪：
 
 ```txt
-.eidos/extensions/<slug>/extension.json
-.eidos/extensions/<slug>/index.ts
-.eidos/extensions/<slug>/index.tsx
-.eidos/extensions/<slug>/src/**
-.eidos/extensions/<slug>/assets/**
-.eidos/extensions/<slug>/README.md
+.eidos/extensions/<publisher.name>/extension.json
+.eidos/extensions/<publisher.name>/extension.lock.json
+.eidos/extensions/<publisher.name>/src/**
+.eidos/extensions/<publisher.name>/assets/**
+.eidos/extensions/<publisher.name>/README.md
 ```
 
 它们回答的是：
@@ -262,7 +309,8 @@ blocked
 - Trust 是本地用户状态。
 - Enabled/disabled 默认是本地状态。
 - Permission grants 默认是本地状态。
-- 扩展源码变化可以使 trust 失效，并要求重新 review。
+- 除宿主管理的 lock file 外，installed package 内任何文件变化都会改变 version 1 content digest，
+  并使该 digest 的 trust 失效。
 - Marketplace-installed extensions 应该通过 ID/version 或 lock metadata 固定。
 
 这也是为什么不应该把执行状态全部放进被追踪文件。
@@ -272,9 +320,9 @@ blocked
 在默认宽追踪规则下，扩展源码表现为普通 path changes：
 
 ```txt
-.eidos/extensions/kanban-view/extension.json
-.eidos/extensions/kanban-view/index.tsx
-.eidos/extensions/kanban-view/assets/icon.svg
+.eidos/extensions/example.kanban-view/extension.json
+.eidos/extensions/example.kanban-view/src/view.tsx
+.eidos/extensions/example.kanban-view/assets/icon.svg
 ```
 
 Changes UI 应该先把它们展示成文件变更。v1 不需要 extension-specific diff 语义。
@@ -301,7 +349,7 @@ Extension manager 应该把同一批扩展呈现为产品对象：
 ```txt
 Extensions
   Kanban View
-    Source: .eidos/extensions/kanban-view/index.tsx
+    Source: .eidos/extensions/example.kanban-view/
     Status: trusted, enabled
     Permissions: files read, network denied
 ```
@@ -311,8 +359,8 @@ Extension editor 应该编辑真实源码文件，而不是 database virtual pro
 创建新扩展应该创建真实文件：
 
 ```txt
-.eidos/extensions/<slug>/extension.json
-.eidos/extensions/<slug>/index.tsx
+.eidos/extensions/<publisher.name>/extension.json
+.eidos/extensions/<publisher.name>/src/extension.ts
 ```
 
 禁用扩展应该更新本地运行时状态，不一定修改 manifest。
@@ -326,11 +374,11 @@ Base 文件可以允许 extension-defined view types、actions 或 renderers。B
 ```txt
 tasks.base
   eidos__views.view_type = "kanban"
-  eidos__views.extension_id = "kanban-view"
+  eidos__views.extension_id = "example.kanban-view"
 
-.eidos/extensions/kanban-view/
+.eidos/extensions/example.kanban-view/
   extension.json
-  index.tsx
+  src/view.tsx
 ```
 
 这让 Base 数据保持可移植，同时允许 UI runtime 在扩展存在且可信时解析更丰富的行为。
@@ -357,7 +405,7 @@ app bundle / built-in registry
 如果用户 eject 或自定义 built-in extension，Eidos 可以把它复制到 Space：
 
 ```txt
-.eidos/extensions/ejected/<slug>/
+.eidos/extensions/local.<name>/
 ```
 
 Eject 之后，这份 copy 就变成用户源码状态，应该被追踪。
@@ -370,33 +418,33 @@ Marketplace extensions 是混合模型：
 - 下载代码和 build output 不应该意外变成用户状态，
 - trust 和 permissions 应该保持显式。
 
-推荐被追踪的 metadata：
+每个 installed package 都把 provenance 放在源码旁边：
 
 ```txt
-.eidos/extensions.lock.json
+.eidos/extensions/<publisher.name>/extension.lock.json
 ```
 
-或者：
-
-```txt
-.eidos/extensions/<slug>/extension.json
-```
-
-并带上 marketplace identity fields：
+Manifest 描述 package behavior；由宿主管理的 lock file 描述 installed snapshot 的来源：
 
 ```json
 {
-  "id": "vendor.kanban-view",
-  "version": "1.2.3",
+  "lockVersion": 1,
   "source": {
-    "type": "marketplace",
-    "package": "vendor/kanban-view",
-    "integrity": "sha256-..."
-  }
+    "kind": "github",
+    "repository": "https://github.com/vendor/kanban-view",
+    "requested": "refs/tags/v1.2.3",
+    "commit": "0123456789abcdef0123456789abcdef01234567"
+  },
+  "contentDigest": "sha256:..."
 }
 ```
 
 下载包和编译结果应该放在 `.eidos/cache/extensions/**`。
+Version 1 不使用 central lock file；per-package lock 可以避免无关扩展更新发生 merge conflict，
+也让复制后的 installed source 仍然自描述。
+`contentDigest` 记录 installed baseline。如果当前 content 不匹配，package 不会因此无效，而是被标记为
+locally modified，并阻止 update 静默覆盖它。Runtime trust 始终使用根据当前 package content
+重新计算的 digest。
 
 ## 迁移
 
@@ -407,14 +455,14 @@ Marketplace extensions 是混合模型：
 新增 export command：
 
 ```txt
-eidos extension export <slug> .eidos/extensions/<slug>/
+eidos extension export <slug> --publisher <publisher>
 ```
 
 它写出：
 
 ```txt
 extension.json
-index.ts or index.tsx
+src/extension.ts or src/view.tsx
 assets/
 ```
 
@@ -425,7 +473,9 @@ Eidos 可以同时读取：
 - legacy `eidos__extensions`，
 - file-based `.eidos/extensions/**`。
 
-File-based spaces 中，如果 slug 冲突，file-based extensions 应该优先。
+Dual read 期间，legacy row 与 file-based package 保持不同 identity。Export 会在本地 migration
+state 中记录 legacy-to-canonical mapping。如果 canonical package ID 冲突，两个候选都被阻止，
+直到用户解决冲突；Eidos 永远不会根据 slug match 自动选择要执行的代码。
 
 ### Phase 3：File-Based Create/Edit
 
@@ -445,28 +495,63 @@ Legacy spaces 可以继续使用旧模型，直到迁移完成。
 
 ## 关键决策
 
-1. 用户/空间扩展源码放在 `.eidos/extensions/**`。
+1. 用户/空间扩展源码放在固定的 `.eidos/extensions/<publisher.name>/` root。
 2. `.eidos/extensions/**` 默认被 graft 追踪。
 3. `.eidos/cache/**`、`.eidos/state/**`、`.eidos/sessions/**` 和 `.eidos/indexes/**` 是私有运行时状态，默认被 graft 忽略。
 4. Built-in extensions 可以继续随 app bundle 分发。
 5. Trust、enabled state、permissions 和 secret bindings 默认是本地私有状态。
 6. 当前虚拟 `~/.eidos/__EXTENSIONS__` 模型是兼容层，不是目标 source of truth。
+7. Manifest v1 使用 `publisher`、`name`、显式 `entrypoints`、声明式 `contributes` 和
+   capability-oriented `permissions`。
+8. Version 1 只支持 relative package module 与 Eidos SDK，Eidos 永不执行 package-manager script。
+9. GitHub provenance 存放在被追踪的 per-package `extension.lock.json`。
+10. 除宿主管理的 lock file 外，installed package 内任何文件变化都会产生新的 version 1 content
+    digest；trust 由 ID、content digest 和 permission hash 共同决定。
 
-## 开放问题
+## 延后问题
 
-1. 默认源码目录是否就叫 `.eidos/extensions/`，还是应该允许 Eidos 配置？
-2. Enabled/disabled 是否存在团队共享状态，还是永远作为本地状态？
-3. Marketplace extension locks 应该放在 `.eidos/extensions.lock.json`、每个 extension manifest，还是两者都支持？
-4. 在默认启用 file-based extensions 前，最小 sandbox 是什么？
-5. 扩展源码变化是否总是使 trust 失效，还是只在 entry files 和 manifests 变化时失效？
-6. 扩展源码是否支持 dependencies，还是 v1 要求 single-file/bundled extensions？
+以下问题不阻塞 version 1 foundation，明确延后：
 
-## 推荐垂直切片
+1. 团队共享的 enablement 与 permission policy。
+2. 任意 npm dependency 与 package-manager compatibility。
+3. Community marketplace 或自动更新服务。
+4. 没有用户可见 contribution trigger 的 background activation。
+5. Binary custom-document 编辑，以及 mobile/web extension runtime。
 
-1. 支持发现 `.eidos/extensions/*/extension.json`。
-2. 将 `entry` 编译到 `.eidos/cache/extensions/build/<id>/`。
-3. 在 `.eidos/state/extensions.sqlite3` 存储 trust/enabled state。
-4. 在 extension manager 中显示 discovered extensions。
-5. 首次运行前显示 trust prompt。
-6. 新建扩展时在 `.eidos/extensions/<slug>/` 下创建真实文件。
-7. 在 graft Changes UI 中展示扩展文件变更。
+## 交付计划
+
+### P0：契约统一
+
+- 让 Manifest Schema 成为唯一 v1 source of truth。
+- 发布固定目录、digest、dependency、lock 和 local-state 规则。
+- 在有 runtime evidence 之前，文档和可执行示例继续标记为 preview。
+
+### P1：不可执行基础层
+
+- 通过 host-internal project file boundary 发现 `.eidos/extensions/*/extension.json`；该边界
+  不能访问 `.graft` 或无关 private state。
+- 只 parse、validate、diagnose 和 hash package，不执行也不编译代码。
+- 使用 generation token 监听 package 变化，旧 scan 结果不能覆盖新状态。
+- Extension Manager 展示 invalid、incompatible、untrusted、disabled 或 ready 状态。
+- 创建扩展模板时生成真实文件，并通过现有 Graft Changes UI 显示变更。
+
+### P2：最小可执行 Worker
+
+- 增加 per-package lazy worker 与 capability gateway。
+- 支持声明式 command/menu、read-only file access，以及宿主渲染的 notice、select、confirm UI。
+- 补齐 trust、grant、enablement、timeout、termination、crash recovery，以及禁用所有第三方 package
+  仍可安全启动的能力。
+- 用 Markdown Task Counter 证明完整运行链路。
+
+### P3：UI Surface
+
+- 先定义 text-document contract：versioned snapshot、minimal edit、dirty state、undo/redo、autosave、
+  external-change conflict 和多个同步 view。
+- 再通过独立 `MessagePort` capability channel 在 sandboxed iframe surface 中激活 `fileEditors`。
+- 使用可编辑 Markdown Task Board 验证，而不是只读 demo。
+
+### P4：GitHub 安装
+
+- 解析 immutable Git commit，在 staging tree 中验证，展示 source/permission changes，atomic vendor，
+  并写入 per-package lock file。
+- 首个版本只做手动更新，永不静默覆盖本地修改过的 source。

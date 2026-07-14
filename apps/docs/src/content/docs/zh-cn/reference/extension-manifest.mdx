@@ -11,14 +11,15 @@ sidebar:
 
 ## Contract 状态
 
-| 属性 | 值 |
-| --- | --- |
-| Manifest version | `1` |
-| 稳定性 | Design preview |
-| 未知字段 | 拒绝 |
-| Identity | 从 `publisher.name` 派生 |
-| Activation | 从 contribution 派生 |
-| Permission | 声明最大范围；grant 保持在本地 |
+| 属性             | 值                                          |
+| ---------------- | ------------------------------------------- |
+| Manifest version | `1`                                         |
+| 稳定性           | 已为 foundation work 冻结；runtime 尚不可用 |
+| 未知字段         | 拒绝                                        |
+| Identity         | 从 `publisher.name` 派生                    |
+| Package root     | `.eidos/extensions/<publisher.name>/`       |
+| Activation       | 从 contribution 派生                        |
+| Permission       | 声明最大范围；grant 保持在本地              |
 
 Schema 有意保持严格。未来无法安全表示的新增 capability 会要求新的 manifest version，而不是
 静默改变现有字段的含义。
@@ -39,9 +40,28 @@ Schema 有意保持严格。未来无法安全表示的新增 capability 会要�
 1. 解析 JSON，并拒绝重复 key。
 2. 根据 Manifest Schema 验证。
 3. 派生 canonical package ID。
-4. 验证 contribution ID 和 entrypoint path。
+4. 要求目录名与 canonical ID 一致，再验证 contribution ID 和 entrypoint path。
 5. 根据当前宿主检查 `engines.eidos`。
-6. 计算 source digest 和 permission digest。
-7. 检查 Space 中的 package identity conflict。
+6. 拒绝不支持的 import 和 package-manager 行为。
+7. 计算 content digest 和 permission hash。
+8. 验证宿主管理的 per-package `extension.lock.json` provenance。
+9. 检查 Space 中的 package identity conflict。
 
 验证过程不会执行 package code 或 package manager script。
+
+## Dependency 与 provenance policy
+
+Manifest v1 只接受 package 内的 relative import 和 `@eidos.space/extension-sdk`。Bare third-party
+import、Node.js/Electron built-in、非 literal dynamic import、runtime CDN import 和 lifecycle
+script 都会被拒绝。Eidos 永远不会为扩展运行 `npm install`。
+
+GitHub provenance 由宿主写入每个 installed package 的
+`.eidos/extensions/<publisher.name>/extension.lock.json`，不存在 Space-wide extension lockfile。
+Version 1 content digest 会 hash 除该 lockfile 外所有 package 文件的规范化 path 和内容字节。
+Trust 由 canonical ID、content digest 和 permission hash 共同决定。
+
+Package tree 只能包含 regular file 和 directory；symbolic link 与 special file 会被拒绝。Path 使用
+UTF-8 NFC 和 `/`，检查 NFC/case-folding collision，再按 unsigned UTF-8 byte order 排序。SHA-256
+为每个文件输入一条 record：
+`[u32be pathLength][pathBytes][u64be contentLength][contentBytes]`。Digest 编码为
+`sha256:<lowercase hex>`。Permission array 排序后通过 RFC 8785 canonical JSON 使用相同编码 hash。

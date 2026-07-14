@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://docs.eidos.space/schemas/extension-manifest.schema.json",
-  "$comment": "Design preview for the file-based Eidos extension runtime.",
+  "$comment": "Version 1 contract frozen for foundation work; third-party runtime execution is not available yet.",
   "title": "Eidos Extension Manifest",
   "type": "object",
   "additionalProperties": false,
@@ -169,7 +169,7 @@
     "fileEditor": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "displayName", "selector", "priority", "component"],
+      "required": ["id", "displayName", "selector", "priority"],
       "properties": {
         "id": { "$ref": "#/$defs/identifier" },
         "displayName": {
@@ -192,8 +192,7 @@
         },
         "priority": {
           "enum": ["default", "option"]
-        },
-        "component": { "$ref": "#/$defs/identifier" }
+        }
       }
     },
     "identifier": {

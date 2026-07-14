@@ -17,15 +17,15 @@ Electron, Node.js, SQLite, or the host filesystem.
 
 ## What extensions can contribute
 
-| Contribution | Purpose | Initial delivery |
-| --- | --- | --- |
-| `commands` | Named operations available to menus and the command palette | Yes |
-| `menus` | Contextual placement of commands | Yes |
-| `fileEditors` | Editors or previews selected by file pattern or media type | Yes |
-| `folderViews` | Purpose-built views for folders | Later |
-| `baseViews` | Grid alternatives such as gallery, kanban, or timeline | Later |
-| `agentTools` | Permission-aware tools callable by an agent | Later |
-| `configuration` | Host-rendered settings with explicit storage scope | Later |
+| Contribution    | Purpose                                                     | Initial delivery                 |
+| --------------- | ----------------------------------------------------------- | -------------------------------- |
+| `commands`      | Named operations available to menus and the command palette | Yes                              |
+| `menus`         | Contextual placement of commands                            | Yes                              |
+| `fileEditors`   | Editors or previews selected by file pattern or media type  | After the text-document contract |
+| `folderViews`   | Purpose-built views for folders                             | Later                            |
+| `baseViews`     | Grid alternatives such as gallery, kanban, or timeline      | Later                            |
+| `agentTools`    | Permission-aware tools callable by an agent                 | Later                            |
+| `configuration` | Host-rendered settings with explicit storage scope          | Later                            |
 
 Legacy `FileAction`, `DocAction`, and `TableAction` records are normalized into
 commands plus menu placements. They are not separate package runtimes.
@@ -38,6 +38,9 @@ commands plus menu placements. They are not separate package runtimes.
 4. Use [lifecycle and activation](/extensions/lifecycle/) correctly.
 5. Review the [security model](/extensions/security/).
 6. Prepare the package for [GitHub distribution](/extensions/distribution/).
+
+Before building a custom interface, read
+[UI extension architecture](/extensions/architecture/).
 
 ## Core invariant
 

@@ -12,8 +12,8 @@ Eidos 会把用户可以审查和版本管理的文件，与宿主必须重新�
 GitHub repository 或 local directory
               │ resolve + validate
               ▼
-.eidos/extensions/<publisher.name>/       tracked source
-              │ build for source digest
+.eidos/extensions/<publisher.name>/       tracked package
+              │ build for content digest
               ▼
 .eidos/cache/extensions/<id>/<digest>/    ignored cache
               │ activate with grants
@@ -32,15 +32,23 @@ Worker + sandboxed iframe                 ephemeral runtime
 - `extension.lock.json`
 - 源码
 - 静态资源
-- 支持第三方依赖后使用的 dependency metadata 和 lock file
+- 通过 relative path 引入、可审查的 vendored module
 
 目录名称使用派生的 extension ID：`publisher.name`。Identity 来自 Manifest；GitHub owner、
 repository name 和 folder slug 只是 provenance，不能静默改变 identity。
 
+Version 1 不运行 package manager。Runtime code 只能 import package 内 relative file 和
+`@eidos.space/extension-sdk`；bare package、Node built-in、install script 与 runtime CDN module
+都会被拒绝。
+
 ## Build cache
 
-Build 由 source digest 和 host runtime ABI 寻址。Cache 永远不是权威数据，删除后只会触发重建。
+Build 由 content digest 和 host runtime ABI 寻址。Cache 永远不是权威数据，删除后只会触发重建。
 应用升级可以让 ABI 失效，但不会改变同一份源码的 trust。
+
+Version 1 content digest 覆盖除宿主管理的 `extension.lock.json` 外，每个 installed package file
+的规范化 path 和内容字节。README-only change 也可能要求 review，但这个保守规则能避免 executable
+asset 落在 trust boundary 外。
 
 ## Local state
 

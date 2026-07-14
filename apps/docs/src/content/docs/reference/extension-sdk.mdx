@@ -10,17 +10,22 @@ The future `@eidos.space/extension-sdk` package is the only supported host
 boundary for third-party file-based extensions. It does not re-export the
 legacy `DataSpace` object.
 
+The first executable SDK slice exposes commands, menus, read-only file access,
+notices, and disposal. Write access, network, secrets, storage, and custom UI
+remain reserved contracts until their host-side lifecycle and enforcement are
+covered by integration tests.
+
 ## Worker context
 
-| Namespace | Purpose | Permission examples |
-| --- | --- | --- |
-| `context.commands` | Register declared command handlers | Command must exist in the manifest |
-| `context.space.files` | Read, write, stat, and enumerate Space files | `files.read`, `files.write` |
-| `context.window` | Notices, prompts, and host-mediated navigation | User gesture for disruptive UI |
-| `context.storage` | Device- or Space-scoped extension values | Declared configuration scope |
-| `context.secrets` | Resolve a named secret reference | Declared secret slot |
-| `context.network` | Make host-mediated HTTPS requests | Exact approved origin |
-| `context.subscriptions` | Own disposable runtime resources | None |
+| Namespace               | Purpose                                        | Permission examples                |
+| ----------------------- | ---------------------------------------------- | ---------------------------------- |
+| `context.commands`      | Register declared command handlers             | Command must exist in the manifest |
+| `context.space.files`   | Read, write, stat, and enumerate Space files   | `files.read`, `files.write`        |
+| `context.window`        | Notices, prompts, and host-mediated navigation | User gesture for disruptive UI     |
+| `context.storage`       | Device- or Space-scoped extension values       | Declared configuration scope       |
+| `context.secrets`       | Resolve a named secret reference               | Declared secret slot               |
+| `context.network`       | Make host-mediated HTTPS requests              | Exact approved origin              |
+| `context.subscriptions` | Own disposable runtime resources               | None                               |
 
 ## UI context
 
@@ -28,17 +33,23 @@ UI contributions run in sandboxed frames and receive serializable view models,
 theme tokens, localization helpers, and a capability channel. They do not share
 the host React tree or receive direct DOM access outside their surface.
 
+Custom file editors are intentionally not part of the first executable slice.
+Before that API ships, Eidos must own a versioned `TextDocument` contract,
+minimal edits, dirty state, undo/redo, autosave, external-change conflicts, and
+multi-view synchronization. An editor surface cannot bypass that contract with
+direct `writeFile()` calls.
+
 ## Error contract
 
 Capability failures use structured error codes:
 
-| Code | Meaning |
-| --- | --- |
-| `CAPABILITY_NOT_DECLARED` | The manifest did not request this operation. |
-| `CAPABILITY_NOT_GRANTED` | The user has not granted the requested scope. |
-| `PATH_OUT_OF_SCOPE` | A file path is outside the approved Space patterns. |
-| `RUNTIME_STALE` | Source or grants changed while the request was in flight. |
-| `EXTENSION_STOPPED` | The worker or UI runtime has been terminated. |
+| Code                      | Meaning                                                            |
+| ------------------------- | ------------------------------------------------------------------ |
+| `CAPABILITY_NOT_DECLARED` | The manifest did not request this operation.                       |
+| `CAPABILITY_NOT_GRANTED`  | The user has not granted the requested scope.                      |
+| `PATH_OUT_OF_SCOPE`       | A file path is outside the approved Space patterns.                |
+| `RUNTIME_STALE`           | Package content or grants changed while the request was in flight. |
+| `EXTENSION_STOPPED`       | The worker or UI runtime has been terminated.                      |
 
 The final package API will be published together with the first executable
 Quickstart so documentation never claims a runtime that cannot be installed.

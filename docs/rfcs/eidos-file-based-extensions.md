@@ -1,7 +1,8 @@
 # RFC: File-Based Extensions for Eidos Spaces
 
-Status: Draft, implementation not started
+Status: Draft, v1 contract frozen for foundation work
 Date: 2026-07-09
+Last updated: 2026-07-15
 Owner: Eidos
 Related:
 
@@ -10,11 +11,13 @@ Related:
 - `eidos-space-markdown-runtime.md`
 - `eidos-graft-space-versioning.md`
 
-## Implementation Status (2026-07-11)
+## Implementation Status (2026-07-15)
 
-Implementation has not started. This work follows the standalone Base vertical
-slice. Existing bundled and database-backed extensions remain compatibility
-paths; no new file-based Space should depend on this RFC yet.
+The storage, manifest, trust, and delivery boundaries in this RFC are frozen for
+the non-executing foundation slice. Runtime execution has not started. Existing
+bundled and database-backed extensions remain compatibility paths; no stable
+Eidos release should execute third-party file-based extensions until the worker
+capability boundary is implemented and verified.
 
 ## Summary
 
@@ -26,9 +29,11 @@ The canonical source for user/space extensions should live in the Space as ordin
 my-space/
   .eidos/
     extensions/
-      kanban-view/
+      example.kanban-view/
         extension.json
-        index.tsx
+        src/
+          extension.ts
+          view.tsx
         assets/
 
     cache/
@@ -128,8 +133,8 @@ This gives the UI a file tree, but the source of truth is still the database row
 The target model should invert that:
 
 ```txt
-.eidos/extensions/<slug>/index.tsx       canonical source
-.eidos/extensions/<slug>/extension.json  canonical manifest
+.eidos/extensions/<publisher.name>/src/**         canonical source
+.eidos/extensions/<publisher.name>/extension.json canonical manifest
 .eidos/cache/extensions/**               generated build output
 .eidos/state/extensions.sqlite3          local/private runtime state
 ```
@@ -142,15 +147,15 @@ Recommended default layout:
 my-space/
   .eidos/
     extensions/
-      todo-actions/
+      example.todo-actions/
         extension.json
-        index.ts
+        src/
+          extension.ts
 
-      kanban-view/
+      example.markdown-task-counter/
         extension.json
-        index.tsx
-        assets/
-          icon.svg
+        src/
+          extension.ts
 
     cache/
       extensions/
@@ -161,38 +166,95 @@ my-space/
     secrets.sqlite3
 ```
 
-Flat files may be supported later, but folder-based extensions are the better default because they leave room for assets, tests, README files, and multiple modules.
+Version 1 uses the fixed directory `.eidos/extensions/<publisher.name>/`.
+Configurable roots and flat-file packages are deliberately unsupported because a
+stable package root is required for discovery, identity conflicts, content
+digests, Graft diffs, and GitHub installation.
 
 ## Extension Manifest
 
-Each extension folder should include a manifest:
+Each extension folder includes an `extension.json` manifest. The canonical
+machine-readable contract is
+`apps/docs/public/schemas/extension-manifest.schema.json`; this RFC does not
+define a second legacy-shaped manifest.
 
 ```json
 {
-  "id": "kanban-view",
-  "name": "Kanban View",
+  "$schema": "https://docs.eidos.space/schemas/extension-manifest.schema.json",
+  "manifestVersion": 1,
+  "publisher": "example",
+  "name": "markdown-task-counter",
+  "displayName": "Markdown Task Counter",
   "version": "0.1.0",
-  "type": "block",
-  "entry": "index.tsx",
-  "meta": {
-    "type": "tableView",
-    "componentName": "KanbanView",
-    "tableView": {
-      "title": "Kanban",
-      "type": "kanban",
-      "description": "Render a table as a Kanban board"
-    }
+  "engines": { "eidos": ">=0.34.0" },
+  "entrypoints": { "worker": "src/extension.ts" },
+  "contributes": {
+    "commands": [
+      {
+        "id": "example.markdown-task-counter.count-tasks",
+        "title": "Count Markdown tasks"
+      }
+    ]
   },
   "permissions": {
-    "files": "read",
-    "network": false
+    "files": { "read": ["**/*.md"], "write": [] },
+    "network": []
   }
 }
 ```
 
-The manifest is portable source state. It may be tracked by graft.
+The canonical package ID is `${publisher}.${name}`. Contribution IDs belong to
+that namespace. Manifest version 1 rejects unknown fields so future additive
+capabilities require an explicit contract revision instead of silently changing
+the meaning of installed source.
+
+The manifest is portable source state and is tracked by Graft.
 
 The compiled output is not portable source state. It should be rebuilt into `.eidos/cache/extensions/**`.
+
+### Version 1 dependency policy
+
+Version 1 accepts relative imports within the package and imports from the Eidos
+extension SDK. Bare third-party package imports, Node.js and Electron built-ins,
+non-literal dynamic imports, package-manager lifecycle scripts, and runtime CDN
+imports are rejected. A publisher may vendor reviewable source under the package
+root and import it relatively.
+
+Eidos never runs `npm install` for an extension. Broader dependency resolution
+requires a later manifest version with lock, integrity, license, and build
+reproducibility semantics.
+
+### Canonical digests
+
+Version 1 intentionally uses a conservative content digest. It hashes the
+normalized relative path and bytes of every installed package file except the
+host-managed `extension.lock.json`. Changing a README therefore changes the
+content digest and requires review. This is noisier than dependency-graph-only
+hashing, but it is explicit and avoids an executable asset being omitted from
+the trust boundary.
+
+The canonical algorithm is deliberately implementable outside Eidos:
+
+1. Accept regular files and directories only. Reject symbolic links and special
+   files before copying or hashing.
+2. Convert each file path relative to the package root to UTF-8 NFC with `/`
+   separators. Reject empty, `.`, `..`, NUL, NFC-colliding, and case-folding-
+   colliding paths.
+3. Exclude exactly the root-level, host-managed `extension.lock.json`. Empty
+   directories do not participate.
+4. Sort paths by unsigned UTF-8 byte order.
+5. Feed SHA-256 one record per file:
+   `[u32be pathLength][pathBytes][u64be contentLength][contentBytes]`.
+6. Encode the result as `sha256:<lowercase hex>`.
+
+Installers hash the copied staging snapshot, never a changing source directory.
+A live Space scan retries when file metadata changes during the scan.
+
+The permission hash is calculated separately from normalized requested
+permissions: file-pattern and origin arrays are sorted, the normalized object is
+serialized with RFC 8785 JSON Canonicalization Scheme, and the UTF-8 bytes are
+hashed as `sha256:<lowercase hex>`. Trust is keyed by package ID, content digest,
+and permission hash. Build cache keys additionally include the host runtime ABI.
 
 ## State Split
 
@@ -201,12 +263,11 @@ The compiled output is not portable source state. It should be rebuilt into `.ei
 These files are part of the Space and should be tracked:
 
 ```txt
-.eidos/extensions/<slug>/extension.json
-.eidos/extensions/<slug>/index.ts
-.eidos/extensions/<slug>/index.tsx
-.eidos/extensions/<slug>/src/**
-.eidos/extensions/<slug>/assets/**
-.eidos/extensions/<slug>/README.md
+.eidos/extensions/<publisher.name>/extension.json
+.eidos/extensions/<publisher.name>/extension.lock.json
+.eidos/extensions/<publisher.name>/src/**
+.eidos/extensions/<publisher.name>/assets/**
+.eidos/extensions/<publisher.name>/README.md
 ```
 
 They answer:
@@ -263,7 +324,8 @@ Rules:
 - Trust is local user state.
 - Enabled/disabled is local by default.
 - Permission grants are local by default.
-- Extension source changes can invalidate trust and require review.
+- Any installed package-file change except the host-managed lock file changes
+  the version 1 content digest and invalidates trust for that digest.
 - Marketplace-installed extensions should be pinned by ID/version or lock metadata.
 
 This is the main reason not to store execution state purely in tracked files.
@@ -273,9 +335,9 @@ This is the main reason not to store execution state purely in tracked files.
 With the default broad Space tracking rule, extension source appears as normal path changes:
 
 ```txt
-.eidos/extensions/kanban-view/extension.json
-.eidos/extensions/kanban-view/index.tsx
-.eidos/extensions/kanban-view/assets/icon.svg
+.eidos/extensions/example.kanban-view/extension.json
+.eidos/extensions/example.kanban-view/src/view.tsx
+.eidos/extensions/example.kanban-view/assets/icon.svg
 ```
 
 The Changes UI should show them as file changes first. It does not need extension-specific diff semantics in v1.
@@ -302,7 +364,7 @@ The extension manager should present the same extensions as product objects:
 ```txt
 Extensions
   Kanban View
-    Source: .eidos/extensions/kanban-view/index.tsx
+    Source: .eidos/extensions/example.kanban-view/
     Status: trusted, enabled
     Permissions: files read, network denied
 ```
@@ -312,8 +374,8 @@ The extension editor should edit the real source file, not a virtual database pr
 Creating a new extension should create files:
 
 ```txt
-.eidos/extensions/<slug>/extension.json
-.eidos/extensions/<slug>/index.tsx
+.eidos/extensions/<publisher.name>/extension.json
+.eidos/extensions/<publisher.name>/src/extension.ts
 ```
 
 Disabling an extension should update local runtime state, not necessarily edit the manifest.
@@ -327,11 +389,11 @@ Example:
 ```txt
 tasks.base
   eidos__views.view_type = "kanban"
-  eidos__views.extension_id = "kanban-view"
+  eidos__views.extension_id = "example.kanban-view"
 
-.eidos/extensions/kanban-view/
+.eidos/extensions/example.kanban-view/
   extension.json
-  index.tsx
+  src/view.tsx
 ```
 
 This keeps Base data portable while allowing the UI runtime to resolve richer behavior when the extension is present and trusted.
@@ -358,7 +420,7 @@ Only user-authored or space-specific extensions should be created under `.eidos/
 If a user ejects or customizes a built-in extension, Eidos can write a copy into the Space:
 
 ```txt
-.eidos/extensions/ejected/<slug>/
+.eidos/extensions/local.<name>/
 ```
 
 After ejection, that copy becomes user source state and should be tracked.
@@ -371,33 +433,35 @@ Marketplace extensions are a hybrid:
 - downloaded code and build output should not become accidental user state,
 - trust and permissions should remain explicit.
 
-Recommended tracked metadata:
+Each installed package stores provenance beside its source:
 
 ```txt
-.eidos/extensions.lock.json
+.eidos/extensions/<publisher.name>/extension.lock.json
 ```
 
-or:
-
-```txt
-.eidos/extensions/<slug>/extension.json
-```
-
-with marketplace identity fields:
+The manifest describes package behavior. The host-managed lock file describes
+where the installed snapshot came from:
 
 ```json
 {
-  "id": "vendor.kanban-view",
-  "version": "1.2.3",
+  "lockVersion": 1,
   "source": {
-    "type": "marketplace",
-    "package": "vendor/kanban-view",
-    "integrity": "sha256-..."
-  }
+    "kind": "github",
+    "repository": "https://github.com/vendor/kanban-view",
+    "requested": "refs/tags/v1.2.3",
+    "commit": "0123456789abcdef0123456789abcdef01234567"
+  },
+  "contentDigest": "sha256:..."
 }
 ```
 
 Downloaded packages and compiled builds should live under `.eidos/cache/extensions/**`.
+There is no central lock file in version 1; per-package locks avoid unrelated
+merge conflicts and keep copied installed source self-describing.
+`contentDigest` records the installed baseline. A mismatch does not make a
+locally edited package invalid; it marks the package as modified and prevents an
+update from overwriting it silently. Runtime trust always uses the digest
+recomputed from current package content.
 
 ## Migration
 
@@ -408,14 +472,14 @@ Migration from the current database-backed extension model should be incremental
 Add an export command:
 
 ```txt
-eidos extension export <slug> .eidos/extensions/<slug>/
+eidos extension export <slug> --publisher <publisher>
 ```
 
 It writes:
 
 ```txt
 extension.json
-index.ts or index.tsx
+src/extension.ts or src/view.tsx
 assets/
 ```
 
@@ -426,7 +490,10 @@ Eidos can read both:
 - legacy `eidos__extensions`,
 - file-based `.eidos/extensions/**`.
 
-File-based extensions should win on slug conflicts in file-based spaces.
+Legacy rows and file-based packages keep distinct identities during dual read.
+Export records the legacy-to-canonical mapping in local migration state. If a
+canonical package ID conflicts, both candidates are blocked until the user
+resolves the conflict; Eidos never chooses executable code from a slug match.
 
 ### Phase 3: File-Based Create/Edit
 
@@ -446,28 +513,78 @@ Legacy spaces can keep using the old model until migrated.
 
 ## Key Decisions
 
-1. User/space extension source lives under `.eidos/extensions/**`.
+1. User/space extension source lives under the fixed
+   `.eidos/extensions/<publisher.name>/` root.
 2. `.eidos/extensions/**` is tracked by graft by default.
 3. `.eidos/cache/**`, `.eidos/state/**`, `.eidos/sessions/**`, and `.eidos/indexes/**` are private runtime state and ignored by graft.
 4. Built-in extensions can remain bundled with the app.
 5. Trust, enabled state, permissions, and secret bindings are local/private by default.
 6. The current virtual `~/.eidos/__EXTENSIONS__` model is a compatibility layer, not the target source of truth.
+7. Manifest version 1 uses `publisher`, `name`, explicit `entrypoints`,
+   declarative `contributes`, and capability-oriented `permissions`.
+8. Version 1 supports relative package modules plus the Eidos SDK only. Eidos
+   never executes package-manager scripts.
+9. GitHub provenance is stored in a tracked per-package
+   `extension.lock.json`.
+10. Any installed package-file change except the host-managed lock file
+    produces a new version 1 content digest; trust remains keyed by ID, content
+    digest, and permission hash.
 
-## Open Questions
+## Deferred Questions
 
-1. Should the default source folder be exactly `.eidos/extensions/`, or should Eidos support a configurable path?
-2. Should enabled/disabled ever be shareable team state, or always local state?
-3. Should marketplace extension locks live in `.eidos/extensions.lock.json`, per-extension manifests, or both?
-4. What is the minimal sandbox needed before enabling file-based extensions by default?
-5. Should extension source changes always invalidate trust, or only when entry files and manifests change?
-6. Should extension source support dependencies, or should v1 require single-file/bundled extensions?
+The following do not block the version 1 foundation and are explicitly deferred:
 
-## Recommended Vertical Slice
+1. Shareable team enablement and permission policy.
+2. Arbitrary npm dependencies and package-manager compatibility.
+3. A community marketplace or automatic update service.
+4. Background activation without a user-visible contribution trigger.
+5. Binary custom-document editing and mobile/web extension runtimes.
 
-1. Support discovering `.eidos/extensions/*/extension.json`.
-2. Compile `entry` into `.eidos/cache/extensions/build/<id>/`.
-3. Store trust/enabled state in `.eidos/state/extensions.sqlite3`.
-4. Show discovered extensions in the extension manager.
-5. Add a trust prompt before first run.
-6. Create new extensions as real files under `.eidos/extensions/<slug>/`.
-7. Show extension file changes in graft Changes UI.
+## Delivery Plan
+
+### P0: Contract convergence
+
+- Make the manifest schema the single v1 source of truth.
+- Publish the fixed directory, digest, dependency, lock, and local-state rules.
+- Keep docs and executable examples marked as preview until runtime evidence
+  exists.
+
+### P1: Non-executing foundation
+
+- Discover `.eidos/extensions/*/extension.json` through a host-internal project
+  file boundary that cannot access `.graft` or unrelated private state.
+- Parse, validate, diagnose, and hash packages without executing or compiling
+  code.
+- Watch extension package changes with generation tokens so stale scans cannot
+  replace newer state.
+- Show discovered packages in the Extension Manager as invalid, incompatible,
+  untrusted, disabled, or ready.
+- Create extension templates as real files and show those changes through the
+  existing Graft Changes UI.
+
+### P2: Minimal executable worker
+
+- Add a per-package lazy worker and capability gateway.
+- Support declared commands and menus with read-only file access plus
+  host-rendered notice, select, and confirm UI.
+- Add trust, grants, enablement, timeout, termination, crash recovery, and safe
+  startup with all third-party packages disabled.
+- Prove the runtime with the Markdown Task Counter example.
+
+### P3: UI surfaces
+
+- Define the text-document contract first: versioned snapshots, minimal edits,
+  dirty state, undo/redo, autosave, external-change conflict handling, and
+  multiple synchronized views.
+- Then activate `fileEditors` in sandboxed iframe surfaces through a dedicated
+  `MessagePort` capability channel.
+- Prove the surface with an editable Markdown Task Board rather than a
+  read-only demo.
+
+### P4: GitHub installation
+
+- Resolve an immutable Git commit, validate an extracted staging tree, show
+  source and permission changes, vendor atomically, and write the per-package
+  lock file.
+- Keep updates manual in the first release and never overwrite locally modified
+  source silently.

@@ -11,16 +11,17 @@ review improves trust, but it is not the runtime security boundary.
 
 ## Three independent decisions
 
-1. **Trust the source digest.** The user accepts the exact runtime-relevant
-   files that were reviewed.
+1. **Trust the content digest.** The user accepts the exact installed package
+   tree that was reviewed.
 2. **Grant capabilities.** The user approves file patterns, network origins,
    settings scopes, or other host operations requested by the manifest.
 3. **Enable the package.** The user chooses whether the package may activate in
    this installation.
 
-Changing source or requested permissions invalidates the corresponding trust
-decision. Rolling back through Graft to an exactly trusted digest may reuse its
-existing trust record.
+Changing any installed package file other than the host-managed
+`extension.lock.json`, or changing a requested permission, invalidates the
+corresponding trust decision. Rolling back through Graft to an exactly trusted
+digest may reuse its existing trust record.
 
 ## Runtime isolation
 

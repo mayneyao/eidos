@@ -1,6 +1,6 @@
 ---
 title: Lifecycle and activation
-description: Keep extension startup lazy, disposable, and tied to the current source digest.
+description: Keep extension startup lazy, disposable, and tied to the current content digest.
 sidebar:
   order: 5
   badge: Preview
@@ -22,7 +22,7 @@ disabled / untrusted ── user trust + enable + grants ──┐
                                                   │       │
                                                active   failed
                                                   │
-                           source/grant/app change │
+                          content/grant/app change │
                                                   ▼
                                                stopped
 ```
@@ -50,10 +50,11 @@ export function deactivate(): void | Promise<void>
 resources. The host disposes them even when activation throws or the worker is
 terminated.
 
-## Source changes
+## Package content changes
 
-Trust is keyed by canonical ID, source digest, and permission hash. When a
-runtime-relevant file changes, Eidos:
+Trust is keyed by canonical ID, content digest, and permission hash. When an
+installed package file other than the host-managed `extension.lock.json`
+changes, Eidos:
 
 1. terminates the active worker and closes its capability channel;
 2. marks the old build stale;

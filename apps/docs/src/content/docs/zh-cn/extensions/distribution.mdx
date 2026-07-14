@@ -21,8 +21,8 @@ README.md
 LICENSE
 ```
 
-支持第三方 dependency 后，runtime dependency 必须被 lock。Eidos 永远不会执行 install script
-或 package manager lifecycle hook。
+Version 1 package 使用 relative module 或可审查的 vendored source。Eidos 不安装任意 npm
+dependency，也永远不会执行 install script 或 package-manager lifecycle hook。
 
 ## 安装流程
 
@@ -50,14 +50,23 @@ discover as installed, disabled, and untrusted
 
 ```json
 {
-  "source": "https://github.com/example/hello-eidos",
-  "requested": "v0.1.0",
-  "resolved": "0123456789abcdef",
-  "integrity": "sha256-..."
+  "lockVersion": 1,
+  "source": {
+    "kind": "github",
+    "repository": "https://github.com/example/hello-eidos",
+    "requested": "refs/tags/v0.1.0",
+    "commit": "0123456789abcdef0123456789abcdef01234567"
+  },
+  "contentDigest": "sha256:..."
 }
 ```
 
 Lock file 由 Eidos 管理，并且与 package source 一起进入版本管理。
+每个 installed package 拥有自己的 lock file；version 1 不使用会让无关 package update 相互冲突的
+Space-wide extension lock。
+`contentDigest` 是从该 commit 复制时的 baseline。Local edit 会把 package 标记为 modified，
+但不会让它无效。Update 会比较当前 digest 与 baseline，绝不静默覆盖 mismatch；runtime trust
+使用根据当前 content 重新计算的 digest。
 
 ## 更新
 

@@ -1,5 +1,5 @@
 {
-  "$schema": "../../public/schemas/extension-manifest.schema.json",
+  "$schema": "https://docs.eidos.space/schemas/extension-manifest.schema.json",
   "manifestVersion": 1,
   "publisher": "example",
   "name": "markdown-task-counter",
@@ -15,14 +15,14 @@
   "contributes": {
     "commands": [
       {
-        "id": "example.markdown-task-counter.countTasks",
+        "id": "example.markdown-task-counter.count-tasks",
         "title": "Count Markdown tasks"
       }
     ],
     "menus": {
       "files/context": [
         {
-          "command": "example.markdown-task-counter.countTasks",
+          "command": "example.markdown-task-counter.count-tasks",
           "when": "resourceExtname == .md"
         }
       ]

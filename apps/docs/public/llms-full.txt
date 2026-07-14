@@ -1,6 +1,7 @@
 # Eidos file-based extension contract
 
-Status: Design preview. The runtime is not available in stable builds yet.
+Status: Manifest version 1 is frozen for foundation work. Third-party runtime
+execution is not available in stable builds yet.
 
 ## Mental model
 
@@ -19,14 +20,21 @@ src/extension.ts
 contributions, and maximum permissions. The canonical ID is
 `publisher.name`. Unknown fields are rejected in manifest version 1.
 
-## Initial contributions
+## Contributions and delivery order
 
 - `commands`: named operations.
 - `menus`: contextual placement of commands.
-- `fileEditors`: editors selected by file pattern or media type.
+- `fileEditors`: reserved editors selected by file pattern or media type; they
+  activate only after the versioned TextDocument contract ships.
 
 Activation is derived from contributions. A command activates its worker when
-invoked; a file editor activates its UI only when opened.
+invoked. The first executable slice is commands, menus, read-only file access,
+notices, and disposal.
+
+Version 1 imports are limited to relative vendored modules and
+`@eidos.space/extension-sdk`. Bare dependencies, Node.js or Electron built-ins,
+runtime CDN modules, install scripts, and `npm install` are rejected. Symbolic
+links and special files are rejected from package trees.
 
 ## Runtime boundary
 
@@ -37,10 +45,12 @@ filesystem, DataSpace, or complete secret access.
 
 ## Trust and permissions
 
-Trust is keyed by extension ID, source digest, and permission hash. Installing,
-trusting, granting, and enabling are separate steps. Source or permission
-changes stop the runtime and require review. A Graft rollback to an exactly
-trusted digest may reuse that trust record.
+Trust is keyed by extension ID, content digest, and permission hash. The content
+digest covers every installed package file except the host-owned per-package
+`extension.lock.json`. Installing, trusting, granting, and enabling are
+separate steps. Package-content or permission changes stop the runtime and
+require review. A Graft rollback to an exactly trusted digest may reuse that
+trust record.
 
 ## Lifecycle
 
@@ -50,17 +60,19 @@ export function deactivate(): void | Promise<void>
 ```
 
 All registrations belong in `context.subscriptions` so the host can dispose
-them on disable, update, crash, source change, or Space close.
+them on disable, update, crash, package-content change, or Space close.
 
 ## Distribution
 
 Installation resolves a GitHub ref to an immutable commit, validates into a
 private staging directory, previews identity/files/permissions, then atomically
-vendors source and writes `extension.lock.json`. No package lifecycle scripts
+vendors source and writes the per-package `extension.lock.json`. There is no
+Space-wide extension lockfile. No package lifecycle scripts
 are executed. Updates are manual and never overwrite local edits silently.
 
 ## Canonical resources
 
 - https://docs.eidos.space/extensions/quickstart/
+- https://docs.eidos.space/extensions/architecture/
 - https://docs.eidos.space/reference/extension-sdk/
 - https://docs.eidos.space/schemas/extension-manifest.schema.json

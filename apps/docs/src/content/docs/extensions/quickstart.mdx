@@ -94,14 +94,14 @@ Create `extension.json`:
   "contributes": {
     "commands": [
       {
-        "id": "example.markdown-task-counter.countTasks",
+        "id": "example.markdown-task-counter.count-tasks",
         "title": "Count Markdown tasks"
       }
     ],
     "menus": {
       "files/context": [
         {
-          "command": "example.markdown-task-counter.countTasks",
+          "command": "example.markdown-task-counter.count-tasks",
           "when": "resourceExtname == .md"
         }
       ]
@@ -116,14 +116,14 @@ Create `extension.json`:
 
 The important lines are:
 
-| Manifest value | Why it exists |
-| --- | --- |
-| `publisher` + `name` | Derives the stable package ID `example.markdown-task-counter`. |
-| `commands` | Makes the command searchable without running extension code. |
-| `files/context` | Places the command in the Files sidebar context menu. |
-| `when` | Hides the command for folders, images, and non-Markdown files. |
-| `files.read` | Lets the host explain and enforce exactly what the worker may read. |
-| empty `write` and `network` | Proves the extension does not need these capabilities. |
+| Manifest value              | Why it exists                                                       |
+| --------------------------- | ------------------------------------------------------------------- |
+| `publisher` + `name`        | Derives the stable package ID `example.markdown-task-counter`.      |
+| `commands`                  | Makes the command searchable without running extension code.        |
+| `files/context`             | Places the command in the Files sidebar context menu.               |
+| `when`                      | Hides the command for folders, images, and non-Markdown files.      |
+| `files.read`                | Lets the host explain and enforce exactly what the worker may read. |
+| empty `write` and `network` | Proves the extension does not need these capabilities.              |
 
 ## Step 3: Implement the command
 
@@ -135,17 +135,17 @@ import type { ExtensionContext } from "@eidos.space/extension-sdk"
 export function activate(context: ExtensionContext) {
   context.subscriptions.add(
     context.commands.register(
-      "example.markdown-task-counter.countTasks",
+      "example.markdown-task-counter.count-tasks",
       async (resource) => {
         const text = await context.space.files.readText(resource.path)
         const open = text.match(/^\s*[-*]\s+\[ \]/gim)?.length ?? 0
         const completed = text.match(/^\s*[-*]\s+\[[xX]\]/gim)?.length ?? 0
 
         context.window.showNotice(
-          `${resource.path}: ${open} open, ${completed} completed`,
+          `${resource.path}: ${open} open, ${completed} completed`
         )
-      },
-    ),
+      }
+    )
   )
 }
 ```
@@ -173,7 +173,7 @@ Validated example.markdown-task-counter
 
 The current check verifies that:
 
-- the manifest has a publisher and name;
+- the complete manifest matches the published version 1 JSON Schema;
 - command IDs belong to the package;
 - menu items refer to declared commands;
 - entrypoints are relative paths that exist inside the package.
@@ -209,26 +209,27 @@ Once the runtime is available and the extension is enabled:
 
 Try these edge cases:
 
-| File content | Expected result |
-| --- | --- |
-| No task-list items | `0 open, 0 completed` |
-| `* [ ] Task` | Counted as open |
-| `- [X] Task` | Counted as completed |
-| ``Text containing `[ ]` `` | Not counted |
+| File content               | Expected result       |
+| -------------------------- | --------------------- |
+| No task-list items         | `0 open, 0 completed` |
+| `* [ ] Task`               | Counted as open       |
+| `- [X] Task`               | Counted as completed  |
+| ``Text containing `[ ]` `` | Not counted           |
 
 ## Step 7: Change and debug it
 
-During local development, changing a runtime file creates a new source digest.
-Eidos stops the old worker and requires trust for the new digest before reload.
+During local development, changing any installed package file other than the
+host-managed `extension.lock.json` creates a new content digest. Eidos stops the
+old worker and requires trust for the new digest before reload.
 The Extension Manager should show manifest, build, activation, and permission
 errors against this package instead of silently retaining the previous bundle.
 
-| Symptom | Check |
-| --- | --- |
+| Symptom            | Check                                                                      |
+| ------------------ | -------------------------------------------------------------------------- |
 | Command is missing | Confirm the file ends in `.md` and the menu command ID matches `commands`. |
-| Permission error | Confirm `files.read` includes the selected relative path. |
-| Activation error | Open the package diagnostics and inspect `src/extension.ts`. |
-| Counts are wrong | Add the failing Markdown line to a test before changing the parser. |
+| Permission error   | Confirm `files.read` includes the selected relative path.                  |
+| Activation error   | Open the package diagnostics and inspect `src/extension.ts`.               |
+| Counts are wrong   | Add the failing Markdown line to a test before changing the parser.        |
 
 ## Next steps
 

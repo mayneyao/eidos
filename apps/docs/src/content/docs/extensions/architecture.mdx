@@ -1,0 +1,156 @@
+---
+title: UI extension architecture
+description: Choose host-rendered contributions, semantic UI, or sandboxed custom surfaces without bypassing document state.
+sidebar:
+  order: 3
+  badge: Preview
+---
+
+Eidos combines proven ideas from three extension platforms instead of copying
+one of them:
+
+- [Pi extensions](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md):
+  single-module authoring, project-local packages, a reload loop, and semantic
+  user interaction;
+- [VS Code custom editors](https://code.visualstudio.com/api/extension-guides/custom-editors):
+  declarative contributions, lazy provider activation, webview-based custom UI,
+  and document/view separation;
+- [Obsidian plugins](https://docs.obsidian.md/Plugins/Getting%20started/Build%20a%20plugin)
+  and [custom Bases views](https://docs.obsidian.md/plugins/guides/bases-view):
+  lightweight view ergonomics, theme tokens, and data-driven custom views.
+
+The installation experience may be as direct as Pi, but the runtime does not
+inherit Pi or Obsidian's full-process trust model. Code downloaded from GitHub
+always crosses an Eidos capability boundary.
+
+## Three UI tiers
+
+```text
+Manifest contribution
+        │
+        ├── host-rendered contribution
+        │     commands, menus, settings, actions
+        │
+        ├── semantic UI request
+        │     notice, select, confirm, progress
+        │
+        └── custom UI surface
+              file editor, Base view, side panel
+                     │
+                     ▼
+              sandboxed iframe
+                     │ MessagePort
+                     ▼
+              capability gateway
+```
+
+### Host-rendered contributions
+
+Prefer declarative data when the host already owns the interaction. Eidos
+renders menus, command-palette entries, settings controls, toolbar actions, and
+standard lists. The extension supplies labels, state, and command handlers, not
+replacement chrome.
+
+This keeps keyboard navigation, accessibility, theming, placement, and context
+menus consistent across extensions.
+
+### Semantic UI
+
+Worker code can request a host interaction without choosing its pixels:
+
+```ts
+const accepted = await context.window.confirm({
+  title: "Complete task",
+  message: "Mark this task as completed?",
+})
+```
+
+The same intent can be rendered by Desktop today and another Eidos host later.
+Semantic UI remains usable from non-visual command extensions and does not
+require a UI entrypoint.
+
+### Custom UI surfaces
+
+Use a custom surface only when native contributions cannot express the product:
+a visual file editor, an interactive Base view, or a domain-specific panel. The
+UI entrypoint runs in a sandboxed iframe and receives serializable view state,
+theme tokens, localization helpers, and a dedicated capability port. It never
+receives the host React tree, Electron bridge, SQLite connection, filesystem
+handle, or unrestricted network access.
+
+## A UI entrypoint is not a worker requirement
+
+A package may contain only `entrypoints.ui` when all behavior belongs to a
+surface. A worker entrypoint is required only for commands, agent tools, or
+other non-visual handlers. Discovery and **Reopen with** work from the manifest
+without activating either entrypoint.
+
+For a custom editor, its manifest contribution `id` is also the registration
+key consumed by the UI entrypoint. This follows the VS Code provider model and
+avoids a second, ambiguous component identifier.
+
+## Text file editors
+
+Text editors use a host-owned document model:
+
+```text
+Space file
+   │ open
+   ▼
+TextDocument { uri, version, text, dirty }
+   │                         ▲
+   │ snapshot/change        │ applyTextEdits(expectedVersion)
+   ▼                         │
+one or more sandboxed editor surfaces
+```
+
+The surface never saves a whole file directly. It submits minimal edits against
+an expected version. Eidos owns dirty state, undo/redo, autosave, external-file
+conflicts, Graft-visible writes, and synchronization between split views.
+
+Opening a Markdown Task Board therefore follows this flow:
+
+1. `fileEditors` makes **Task Board** available through **Reopen with**.
+2. Eidos opens one `TextDocument` and sends its snapshot to the UI surface.
+3. The extension parses task-list items and renders progress, filters, and
+   grouped tasks.
+4. Toggling a task submits one versioned text edit for the checkbox marker.
+5. Eidos applies the edit, records undo state, autosaves, and broadcasts the
+   new version to every view.
+
+Binary editable formats require a later custom-document contract. Read-only
+binary previews can arrive earlier because they do not own save or undo state.
+
+## Base views
+
+A Base view receives a host-produced, serializable query result and view
+configuration. The extension renders and emits typed row/view actions; it does
+not receive a raw SQLite handle. Eidos persists view configuration and notifies
+the surface when data or configuration changes.
+
+Large-result views must support incremental updates and virtualized rendering.
+The host may suspend a hidden surface and recreate it from serialized state.
+
+## Lifecycle
+
+Every surface is disposable and tied to a package runtime generation. Closing
+the tab, disabling the package, changing package content or grants, or replacing
+a stale build closes its capability port and disposes the surface. A late
+message from an older generation fails with `RUNTIME_STALE` instead of mutating
+current data.
+
+## First delivery boundary
+
+The first executable slice implements commands, menus, read-only file
+capabilities, and host-rendered semantic UI. Custom `fileEditors` activate only
+after the text-document contract and its save, undo, conflict, and multi-view
+tests exist. This ordering keeps the public manifest extensible without using a
+direct `writeFile()` shortcut that would become permanent API debt.
+
+## Primary references
+
+- [Pi extension API and project-local discovery](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md)
+- [VS Code Custom Editor API](https://code.visualstudio.com/api/extension-guides/custom-editors)
+- [VS Code webview UX guidance](https://code.visualstudio.com/api/ux-guidelines/webviews)
+- [Obsidian custom Bases views](https://docs.obsidian.md/plugins/guides/bases-view)
+- [Obsidian CSS variables for plugin UI](https://docs.obsidian.md/Reference/CSS%20variables/About%20styling)
