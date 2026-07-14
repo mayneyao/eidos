@@ -1,4 +1,6 @@
 import type {
+  BaseCsvExportOptions,
+  BaseCsvExportResult,
   BaseCsvImportOptions,
   BaseCsvImportPlan,
   BaseCsvImportResult,
@@ -18,6 +20,7 @@ import { SpaceResourceLifecycle } from "./space-resource-lifecycle"
 
 const PLAN_TIMEOUT_MS = 2 * 60_000
 const IMPORT_TIMEOUT_MS = 10 * 60_000
+const EXPORT_TIMEOUT_MS = 30 * 60_000
 
 export interface BaseCsvWorkerOperation {
   id: string
@@ -95,6 +98,33 @@ export class BaseCsvWorkerRunner {
     )
     if (!response.ok) throw this.error(response.name, response.message)
     if (response.operation !== "import") {
+      throw new Error("Base CSV worker returned an unexpected response")
+    }
+    return response.result
+  }
+
+  async export(
+    spacePath: string,
+    sourcePath: string,
+    targetPath: string,
+    tableId: string,
+    options: BaseCsvExportOptions,
+    operation?: BaseCsvWorkerOperation
+  ): Promise<BaseCsvExportResult> {
+    const response = await this.run(
+      {
+        operation: "export",
+        sourcePath,
+        targetPath,
+        tableId,
+        options,
+      },
+      EXPORT_TIMEOUT_MS,
+      spacePath,
+      operation
+    )
+    if (!response.ok) throw this.error(response.name, response.message)
+    if (response.operation !== "export") {
       throw new Error("Base CSV worker returned an unexpected response")
     }
     return response.result

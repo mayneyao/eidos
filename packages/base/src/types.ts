@@ -164,6 +164,20 @@ export interface BaseCsvImportResult {
   skippedRowCount: number
 }
 
+export interface BaseCsvExportColumn {
+  columnName: string
+  name: string
+}
+
+export interface BaseCsvExportOptions {
+  query?: BaseRowQuery
+  columns: BaseCsvExportColumn[]
+}
+
+export interface BaseCsvExportResult {
+  exportedRowCount: number
+}
+
 export interface UpdateBaseTableInput {
   name?: string
   icon?: string | null

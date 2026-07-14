@@ -4,7 +4,13 @@ import path from "node:path"
 
 import { createBaseFile } from "./better-sqlite3"
 import { BaseError } from "./errors"
-import { importBaseCsv, parseBaseCsvRows, planBaseCsvImport } from "./csv"
+import {
+  baseCsvExportHeader,
+  createBaseCsvRowEncoder,
+  importBaseCsv,
+  parseBaseCsvRows,
+  planBaseCsvImport,
+} from "./csv"
 
 describe("Base CSV import", () => {
   let root: string
@@ -141,5 +147,66 @@ describe("Base CSV import", () => {
 
     connection.runMany = originalRunMany
     base.close()
+  })
+
+  it("serializes visible field names and displayed values as RFC 4180 rows", () => {
+    const fields = [
+      {
+        name: "Task",
+        type: "title" as const,
+        tableName: "tasks",
+        tableColumnName: "title",
+        property: null,
+        storageCodec: "scalar" as const,
+        valueKind: "source" as const,
+        isHidden: false,
+        isDerived: false,
+        sourceTableColumnName: null,
+        dependsOn: null,
+      },
+      {
+        name: "Done",
+        type: "checkbox" as const,
+        tableName: "tasks",
+        tableColumnName: "done",
+        property: null,
+        storageCodec: "scalar" as const,
+        valueKind: "source" as const,
+        isHidden: false,
+        isDerived: false,
+        sourceTableColumnName: null,
+        dependsOn: null,
+      },
+      {
+        name: "Owners",
+        type: "link" as const,
+        tableName: "tasks",
+        tableColumnName: "owners",
+        property: null,
+        storageCodec: "relation" as const,
+        valueKind: "relation" as const,
+        isHidden: false,
+        isDerived: false,
+        sourceTableColumnName: null,
+        dependsOn: null,
+      },
+    ]
+    const columns = [
+      { columnName: "title", name: "Task name" },
+      { columnName: "done", name: "Done" },
+      { columnName: "owners", name: "Owners" },
+    ]
+
+    expect(baseCsvExportHeader(columns)).toBe("Task name,Done,Owners\r\n")
+    const encodeRow = createBaseCsvRowEncoder(fields, columns)
+    expect(
+      encodeRow({
+        title: 'Review "Q3", plan',
+        done: 1,
+        owners: '["ada","grace"]',
+        owners__display:
+          '[{"id":"ada","title":"Ada"},{"id":"grace","title":"Grace"}]',
+      })
+    ).toBe('"Review ""Q3"", plan",true,"Ada, Grace"\r\n')
   })
 })

@@ -24,6 +24,7 @@ import type {
   BaseCsvWorkerProgress,
   BaseCsvWorkerResponse,
 } from "./base-csv-worker-protocol"
+import { exportBaseCsvToFile } from "./base-csv-export"
 
 const MAX_CSV_BYTES = 512 * 1024 * 1024
 const MAX_CSV_ROWS = 1_000_000
@@ -344,10 +345,33 @@ async function importCsv(
   }
 }
 
+async function exportCsv(
+  request: BaseCsvWorkerRequest & { operation: "export" }
+) {
+  return exportBaseCsvToFile({
+    sourcePath: request.sourcePath,
+    targetPath: request.targetPath,
+    tableId: request.tableId,
+    options: request.options,
+    onProgress: (progress) =>
+      reportProgress({
+        ...progress,
+        totalBytes: 0,
+      }),
+  })
+}
+
 async function run(
   request: BaseCsvWorkerRequest
 ): Promise<BaseCsvWorkerResponse> {
   try {
+    if (request.operation === "export") {
+      return {
+        ok: true,
+        operation: "export",
+        result: await exportCsv(request),
+      }
+    }
     await requireUnchangedFile(request.sourcePath, request.fingerprint)
     if (request.operation === "plan") {
       const plan = await planCsv(

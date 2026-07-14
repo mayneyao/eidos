@@ -6,6 +6,8 @@ import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import type {
   BaseColumnStatConfig,
   BaseColumnStatResult,
+  BaseCsvExportOptions,
+  BaseCsvExportResult,
   BaseRow,
   BaseRowGroupCount,
   BaseRowMutationResult,
@@ -54,6 +56,7 @@ import {
 } from "@eidos.space/file-space"
 import { openFileSpaceIndexStorage } from "@eidos.space/file-space/better-sqlite3"
 import type { SpaceMode } from "@eidos.space/space-manager"
+import { randomUUID } from "node:crypto"
 import fs from "fs"
 import path from "path"
 import { dialog, shell, type OpenDialogOptions } from "electron"
@@ -87,9 +90,9 @@ export type BaseCsvOperationStatus =
 
 export interface BaseCsvOperationProgress {
   operationId: string
-  kind: "plan" | "import"
+  kind: "plan" | "import" | "export"
   status: BaseCsvOperationStatus
-  phase: "analyzing" | "importing" | "finalizing"
+  phase: "analyzing" | "importing" | "exporting" | "finalizing"
   processedBytes: number
   totalBytes: number
   processedRows: number
@@ -547,7 +550,7 @@ export class SpaceManagementService extends IpcServiceBase {
       spaceId,
       operationId,
       "plan",
-      source.fingerprint,
+      source.fingerprint.size,
       (operation) =>
         this.baseCsvWorker.plan(
           this._getFileSpace(spaceId).root,
@@ -573,7 +576,7 @@ export class SpaceManagementService extends IpcServiceBase {
         spaceId,
         operationId,
         "import",
-        source.fingerprint,
+        source.fingerprint.size,
         async (operation) => {
           const targetPath =
             await this._getFileSpace(spaceId).getSystemPath(relativePath)
@@ -595,6 +598,98 @@ export class SpaceManagementService extends IpcServiceBase {
         }
       )
     })
+  }
+
+  async exportBaseCsv(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    options: BaseCsvExportOptions,
+    suggestedFileName?: string,
+    operationId?: string
+  ): Promise<
+    | { canceled: true; fileName: null; result: null }
+    | {
+        canceled: false
+        fileName: string
+        result: BaseCsvExportResult
+      }
+  > {
+    const files = this._getFileSpace(spaceId)
+    if (
+      !options ||
+      !Array.isArray(options.columns) ||
+      options.columns.length === 0 ||
+      options.columns.length > 500 ||
+      options.columns.some(
+        (column) =>
+          !column ||
+          typeof column.columnName !== "string" ||
+          column.columnName.length === 0 ||
+          column.columnName.length > 256 ||
+          typeof column.name !== "string" ||
+          column.name.length === 0 ||
+          column.name.length > 1_024
+      )
+    ) {
+      throw new Error("Base CSV export columns are invalid")
+    }
+    const requestedName = path.basename(
+      suggestedFileName?.trim() ||
+        `${path.basename(relativePath, path.extname(relativePath))}.csv`
+    )
+    const defaultName = requestedName.toLowerCase().endsWith(".csv")
+      ? requestedName
+      : `${requestedName}.csv`
+    const owner = this.windowProvider.getWindow()
+    const dialogOptions = {
+      defaultPath: defaultName,
+      filters: [{ name: "CSV", extensions: ["csv"] }],
+    }
+    const selection = owner
+      ? await dialog.showSaveDialog(owner, dialogOptions)
+      : await dialog.showSaveDialog(dialogOptions)
+    if (selection.canceled || !selection.filePath) {
+      return { canceled: true, fileName: null, result: null }
+    }
+
+    const destinationPath = selection.filePath
+    const temporaryPath = path.join(
+      path.dirname(destinationPath),
+      `.${path.basename(destinationPath)}.eidos-${process.pid}-${randomUUID()}.tmp`
+    )
+    try {
+      const result = await withFileSpaceReadLock(spaceId, async () => {
+        const sourcePath = await files.getSystemPath(relativePath)
+        return this._runBaseCsvOperation(
+          spaceId,
+          operationId,
+          "export",
+          0,
+          async (operation) => {
+            const result = await this.baseCsvWorker.export(
+              files.root,
+              sourcePath,
+              temporaryPath,
+              tableId,
+              options,
+              operation
+            )
+            await fs.promises.rename(temporaryPath, destinationPath)
+            return result
+          }
+        )
+      })
+      return {
+        canceled: false,
+        fileName: path.basename(destinationPath),
+        result,
+      }
+    } finally {
+      await fs.promises
+        .rm(temporaryPath, { force: true })
+        .catch(() => undefined)
+    }
   }
 
   getBaseCsvOperation(
@@ -1208,7 +1303,7 @@ export class SpaceManagementService extends IpcServiceBase {
     spaceId: string,
     operationId: string | undefined,
     kind: BaseCsvOperationProgress["kind"],
-    fingerprint: BaseCsvFileFingerprint,
+    totalBytes: number,
     run: (operation?: BaseCsvWorkerOperation) => Promise<T>
   ): Promise<T> {
     if (!operationId) return run()
@@ -1225,9 +1320,9 @@ export class SpaceManagementService extends IpcServiceBase {
       spaceId,
       kind,
       status: "running",
-      phase: "analyzing",
+      phase: kind === "export" ? "exporting" : "analyzing",
       processedBytes: 0,
-      totalBytes: fingerprint.size,
+      totalBytes,
       processedRows: 0,
       totalRows: null,
       updatedAt: Date.now(),
@@ -1242,7 +1337,9 @@ export class SpaceManagementService extends IpcServiceBase {
         },
       })
       operation.status = "completed"
-      operation.processedBytes = operation.totalBytes
+      if (operation.totalBytes > 0) {
+        operation.processedBytes = operation.totalBytes
+      }
       operation.updatedAt = Date.now()
       return result
     } catch (error) {

@@ -1,4 +1,6 @@
 import type {
+  BaseCsvExportOptions,
+  BaseCsvExportResult,
   BaseCsvImportOptions,
   BaseCsvImportPlan,
   BaseCsvImportResult,
@@ -9,29 +11,39 @@ export interface BaseCsvFileFingerprint {
   mtimeMs: number
 }
 
-interface BaseCsvWorkerRequestBase {
+interface BaseCsvImportWorkerRequestBase {
   sourcePath: string
   fileName: string
   fingerprint: BaseCsvFileFingerprint
   options: BaseCsvImportOptions
 }
 
-export interface BaseCsvPlanWorkerRequest extends BaseCsvWorkerRequestBase {
+export interface BaseCsvPlanWorkerRequest extends BaseCsvImportWorkerRequestBase {
   operation: "plan"
 }
 
-export interface BaseCsvImportWorkerRequest extends BaseCsvWorkerRequestBase {
+export interface BaseCsvImportWorkerRequest extends BaseCsvImportWorkerRequestBase {
   operation: "import"
   targetPath: string
+}
+
+export interface BaseCsvExportWorkerRequest {
+  operation: "export"
+  sourcePath: string
+  targetPath: string
+  tableId: string
+  options: BaseCsvExportOptions
 }
 
 export type BaseCsvWorkerRequest =
   | BaseCsvPlanWorkerRequest
   | BaseCsvImportWorkerRequest
+  | BaseCsvExportWorkerRequest
 
 export type BaseCsvWorkerSuccess =
   | { ok: true; operation: "plan"; plan: BaseCsvImportPlan }
   | { ok: true; operation: "import"; result: BaseCsvImportResult }
+  | { ok: true; operation: "export"; result: BaseCsvExportResult }
 
 export interface BaseCsvWorkerFailure {
   ok: false
@@ -41,7 +53,11 @@ export interface BaseCsvWorkerFailure {
 
 export type BaseCsvWorkerResponse = BaseCsvWorkerSuccess | BaseCsvWorkerFailure
 
-export type BaseCsvWorkerPhase = "analyzing" | "importing" | "finalizing"
+export type BaseCsvWorkerPhase =
+  | "analyzing"
+  | "importing"
+  | "exporting"
+  | "finalizing"
 
 export interface BaseCsvWorkerProgress {
   type: "progress"

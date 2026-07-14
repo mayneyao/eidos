@@ -1,8 +1,15 @@
 import { parse } from "csv-parse/sync"
 
 import { BaseError } from "./errors"
+import { baseFieldDisplayValues } from "./field-conversion"
+import {
+  decodeBaseRelationDisplay,
+  decodeBaseRelationIds,
+} from "./relation-values"
 import type { BaseRuntime } from "./runtime"
 import type {
+  BaseCsvExportColumn,
+  BaseFieldInfo,
   BaseCsvFieldType,
   BaseCsvImportColumn,
   BaseCsvImportIssue,
@@ -14,6 +21,59 @@ import type {
 
 export const BASE_CSV_PREVIEW_ROW_COUNT = 5
 export const BASE_CSV_INFERENCE_ROW_COUNT = 1_000
+
+function encodeCsvCell(value: string): string {
+  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+}
+
+export function encodeBaseCsvRecord(values: readonly string[]): string {
+  return `${values.map(encodeCsvCell).join(",")}\r\n`
+}
+
+export function baseCsvExportHeader(
+  columns: readonly BaseCsvExportColumn[]
+): string {
+  return encodeBaseCsvRecord(columns.map((column) => column.name))
+}
+
+export function createBaseCsvRowEncoder(
+  fields: readonly BaseFieldInfo[],
+  columns: readonly BaseCsvExportColumn[]
+): (row: BaseRow) => string {
+  const fieldsByColumn = new Map(
+    fields.map((field) => [field.tableColumnName, field])
+  )
+  const resolvedFields = columns.map((column) => {
+    const field = fieldsByColumn.get(column.columnName)
+    if (!field) {
+      throw new BaseError(
+        "field-not-found",
+        `Base field not found: ${column.columnName}`
+      )
+    }
+    return field
+  })
+
+  return (row) =>
+    encodeBaseCsvRecord(
+      resolvedFields.map((field) => {
+        if (field.type === "link") {
+          const display = decodeBaseRelationDisplay(
+            row[`${field.tableColumnName}__display`]
+          )
+          return (
+            display.length > 0
+              ? display.map((entry) => entry.title)
+              : decodeBaseRelationIds(row[field.tableColumnName])
+          ).join(", ")
+        }
+        return baseFieldDisplayValues(
+          field,
+          row[field.tableColumnName] ?? null
+        ).join(", ")
+      })
+    )
+}
 
 interface ParsedCsv {
   header: string[]

@@ -103,28 +103,30 @@ export function encodeBaseMultiSelectIds(ids: string[]): string | null {
   return ids.length > 0 ? ids.join(",") : null
 }
 
-function displayValues(
+export function baseFieldDisplayValues(
   field: BaseFieldInfo,
-  value: BaseSqlPrimitive
+  value: BaseSqlPrimitive | boolean
 ): string[] {
   if (value === null) return []
-  if (field.type === "file") return decodeBaseFilePaths(value)
+  const primitiveValue: BaseSqlPrimitive =
+    typeof value === "boolean" ? (value ? 1 : 0) : value
+  if (field.type === "file") return decodeBaseFilePaths(primitiveValue)
   const options = selectOptions(field)
   const nameById = new Map(options.map((option) => [option.id, option.name]))
   if (field.type === "select") {
-    const id = String(value)
+    const id = String(primitiveValue)
     return [nameById.get(id) ?? id].filter(Boolean)
   }
   if (field.type === "multi-select") {
-    return decodeBaseMultiSelectIds(value)
+    return decodeBaseMultiSelectIds(primitiveValue)
       .map((id) => nameById.get(id) ?? id)
       .filter(Boolean)
   }
   if (field.type === "checkbox") {
-    return [value === 1 || value === "1" ? "true" : "false"]
+    return [value === true || value === 1 || value === "1" ? "true" : "false"]
   }
-  if (value instanceof Uint8Array) return []
-  const text = String(value).trim()
+  if (primitiveValue instanceof Uint8Array) return []
+  const text = String(primitiveValue).trim()
   return text ? [text] : []
 }
 
@@ -136,7 +138,7 @@ function optionPlan(
     selectOptions(field).map((option) => [option.name, option])
   )
   const names = Array.from(
-    new Set(rows.flatMap((row) => displayValues(field, row.value)))
+    new Set(rows.flatMap((row) => baseFieldDisplayValues(field, row.value)))
   )
   return names.map(
     (name, index) =>
@@ -235,7 +237,7 @@ export function planBaseFieldConversion(
     property: defaultProperty(targetType, options),
     storageCodec: storageCodec(targetType),
     values: rows.map((row) => {
-      const values = displayValues(field, row.value)
+      const values = baseFieldDisplayValues(field, row.value)
       return {
         id: row.id,
         value: convertedValue(targetType, row.value, values, optionIdByName),

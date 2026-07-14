@@ -4,6 +4,7 @@ const harness = vi.hoisted(() => ({
   workers: [] as Array<{
     emit: (event: string, ...args: unknown[]) => boolean
     terminate: ReturnType<typeof vi.fn>
+    workerData: unknown
   }>,
 }))
 
@@ -14,8 +15,10 @@ vi.mock("node:worker_threads", () => {
       Array<{ listener: (...args: unknown[]) => void; once: boolean }>
     >()
     terminate = vi.fn().mockResolvedValue(1)
+    workerData: unknown
 
-    constructor() {
+    constructor(_filename: string, options?: { workerData?: unknown }) {
+      this.workerData = options?.workerData
       harness.workers.push(this)
     }
 
@@ -106,5 +109,56 @@ describe("BaseCsvWorkerRunner", () => {
     })
     expect(worker.terminate).toHaveBeenCalledOnce()
     expect(runner.cancel("csv-operation-1")).toBe(false)
+  })
+
+  it("runs a current-view export in the CSV worker", async () => {
+    const lifecycle = {
+      register: vi.fn(),
+    } as unknown as SpaceResourceLifecycle
+    const runner = new BaseCsvWorkerRunner(lifecycle)
+    const onProgress = vi.fn()
+    const operation = runner.export(
+      "/space",
+      "/space/tasks.base",
+      "/tmp/tasks.csv",
+      "tasks",
+      {
+        query: { search: "open" },
+        columns: [{ columnName: "title", name: "Task" }],
+      },
+      { id: "csv-export-1", onProgress }
+    )
+    const worker = harness.workers[0]
+
+    expect(worker.workerData).toMatchObject({
+      operation: "export",
+      sourcePath: "/space/tasks.base",
+      targetPath: "/tmp/tasks.csv",
+      tableId: "tasks",
+      options: {
+        query: { search: "open" },
+        columns: [{ columnName: "title", name: "Task" }],
+      },
+    })
+    worker.emit("message", {
+      type: "progress",
+      progress: {
+        phase: "exporting",
+        processedBytes: 128,
+        totalBytes: 0,
+        processedRows: 50,
+        totalRows: 100,
+      },
+    })
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: "exporting", processedRows: 50 })
+    )
+    worker.emit("message", {
+      ok: true,
+      operation: "export",
+      result: { exportedRowCount: 100 },
+    })
+
+    await expect(operation).resolves.toEqual({ exportedRowCount: 100 })
   })
 })
