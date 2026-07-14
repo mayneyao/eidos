@@ -1,0 +1,89 @@
+---
+title: Customize Workspace Theme
+description: Learn how to create and apply custom themes to your Eidos workspace.
+sidebar:
+  order: 3
+---
+
+import { Steps } from "@astrojs/starlight/components"
+
+Eidos allows you to fully customize your workspace appearance by defining custom CSS variables. Themes are managed per-space, allowing you to have different looks for different projects.
+
+## Theme Structure
+
+A theme consists of a folder containing a `theme.css` file. It must define CSS variables for both light and dark modes.
+
+### Required CSS Blocks
+
+Your `theme.css` must follow this structure to be correctly parsed by Eidos:
+
+```css
+:root {
+  /* Light mode variables */
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(224 71.4% 4.1%);
+  --primary: hsl(262 83% 58%);
+  --radius: 0.5rem;
+  /* ... other variables */
+}
+
+.dark {
+  /* Dark mode variables */
+  --background: hsl(224 71.4% 4.1%);
+  --foreground: hsl(0 0% 100%);
+  --primary: hsl(263 70% 50%);
+  /* ... other variables */
+}
+```
+
+## Creating a Custom Theme
+
+<Steps>
+
+1.  **Open Space Storage**
+
+    On Eidos Desktop, you can access your space's root directory via your system's file explorer.
+
+2.  **Create Theme Directory**
+
+    Navigate to the hidden `.eidos` folder in your space root, then to the `themes` directory. Create a new folder with your theme's name:
+
+    `~/.eidos/themes/my-custom-theme/`
+
+3.  **Add theme.css**
+
+    Create a `theme.css` file inside that folder and add your custom styles. You can refer to the [Common Variables](#common-variables) section for key values.
+
+4.  **Apply Your Theme**
+
+    Open **Settings** (`Cmd/Ctrl + ,`) → **Space Settings** → **Appearance**. Your custom theme should appear in the "Installed" or "Local" list. Click **Apply Theme** to see the changes.
+
+</Steps>
+
+## Common Variables
+
+The following variables are the most commonly used to style the Eidos interface:
+
+| Variable | Description |
+| :--- | :--- |
+| `--background` | Main background color of the workspace |
+| `--foreground` | Main text color |
+| `--primary` | Primary action color (buttons, active states) |
+| `--primary-foreground` | Text color when placed on primary background |
+| `--muted` | Secondary background (tabs, sidebar, etc.) |
+| `--muted-foreground` | Secondary text color |
+| `--accent` | Hover and highlight background |
+| `--border` | Border color for components |
+| `--radius` | Corner roundness (e.g., `0.5rem` or `0px`) |
+
+:::tip
+You can customize additional variables like `--font-sans`, `--font-serif`, and `--font-mono` to change the fonts used in your workspace.
+:::
+
+## Sharing Your Theme
+
+If you'd like to share your theme with other Eidos users, you can contribute it to the [Official Theme Registry](https://github.com/eidos-space/registry).
+
+1. Create a public GitHub repository for your theme.
+2. Ensure `theme.css` and a `screenshot.png` are in the root directory.
+3. Submit a Pull Request to the registry repo adding your theme's metadata. 

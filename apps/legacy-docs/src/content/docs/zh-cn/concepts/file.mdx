@@ -1,0 +1,144 @@
+---
+title: 文件
+description: Eidos 中的文件管理
+sidebar:
+  order: 4
+---
+
+import { FileTree } from "@astrojs/starlight/components"
+
+在 Eidos 中，动态数据（如表格、文档）存储在 SQLite 数据库中，而静态资源（如图片、音频等多媒体文件）的处理则更为灵活。本文将从**文件存储与路径**、**文件扩展支持**两个维度来介绍 Eidos 的文件管理机制。
+
+## 文件存储与路径
+
+Eidos 通过不同的路径前缀（如 `/files/`, `/@/`, `/~/`）来区分不同来源的文件。
+
+这些路径有着广泛的用途：
+
+- **引用与展示**：你可以在文档中插入这些路径来引用图片、音频等资源，或者在表格的“文件”类型字段中使用它们。
+- **扩展环境访问**：在 Block 等扩展环境中，这些路径可以直接作为各种 Web 标签（如 `<img />`, `<video />`）的 `src` 属性进行原生访问。
+- **API 读写**：对于需要更底层控制的场景，可以通过 `eidos.space.fs` API 使用这些路径来读取或保存文件内容。
+
+在 Eidos 的文件浏览器中，你可以看到这些位置的统一视图：
+
+<FileTree>
+
+- my-awesome-space/ (项目根目录 `/~/`)
+  - .eidos/
+    - db.sqlite3
+    - files/ (内部文件 `/files/`)
+      - screenshot.png
+  - src/
+    - main.js
+  - .gitignore
+  - docs/
+    - api.md
+  - readme.md
+- @audio/ (挂载目录)
+  - song.mp3
+- @books/ (挂载目录)
+  - programming-guide.pdf
+  - design-principles.pdf
+  - api-reference.pdf
+
+</FileTree>
+
+### 1. 默认存储（内部文件）
+
+<FileTree>
+
+- my-project/
+  - .eidos/
+    - db.sqlite3 ← 动态数据存储
+    - files/ ← /files/ 路径访问内部文件
+      - screenshot.png
+
+</FileTree>
+
+默认情况下，当你在 Eidos 中加载本地文件或粘贴截图时，系统会自动将这些静态资源从剪贴板或磁盘位置复制到 `.eidos/files/` 目录下。
+
+你可以通过 `/files/` 路径访问这些内部文件，这与通过项目路径访问 `/~/.eidos/files/` 是等价的。
+
+目前 Eidos 已经支持基本的文件存储和管理功能，未来版本将支持更多优化处理，如 OCR 文字识别和语义化搜索功能。所有文件都统一存储在内部，便于管理和同步。
+
+### 2. 挂载文件夹（外部文件 `/@/`）
+
+<FileTree>
+
+- /Users/eidos/Music/ ← 挂载为 /@/audio/
+  - song.mp3
+- /Users/eidos/Documents/Books/ ← 挂载为 /@/books/
+  - programming-guide.pdf
+  - design-principles.pdf
+  - api-reference.pdf
+
+</FileTree>
+
+考虑到 `.eidos` 目录下的数据会进行同步，一些大文件（如音频库、电子书库）可能不适合放入其中，但你仍需要在 Eidos 中引用它们。这时就可以使用挂载文件夹功能。
+
+挂载后，你就可以在 Eidos 的文件选择器中看到挂载的项目，并可以通过 `/@/<挂载名>/文件名` 的方式引用外部目录下的文件。
+
+- **命令行**：使用 `eidos mount <挂载名> <实际目录路径>`
+- **UI 操作**：在“空间设置” -> “挂载”选项卡中，点击“添加挂载”，选择本地目录并设置名称即可。
+
+**示例：**
+
+```bash
+# 挂载本地音乐
+eidos mount audio /Users/eidos/Music
+# 然后可以通过 /@/audio/song.mp3 访问
+
+# 挂载电子书
+eidos mount books /Users/eidos/Documents/Books
+# 然后可以通过 /@/books/design.pdf 访问
+```
+
+### 3. 项目文件夹（上下文路径 `/~/`）
+
+<FileTree>
+
+- my-code-project/
+  - .eidos/
+    - db.sqlite3
+    - files/
+  - src/
+    - main.js ← /~/src/main.js
+  - .gitignore ← /~/.gitignore
+  - docs/
+    - api.md ← /~/docs/api.md
+  - readme.md ← /~/readme.md
+
+</FileTree>
+
+项目文件夹是一个特殊的文件夹概念。每个 Space 会在一个特定目录下创建一个 `.eidos` 目录，该目录所在的文件夹就被称为**项目文件夹**。这可以是代码项目、设计项目或其他任何工作目录。
+
+你无需通过挂载即可访问项目文件夹。Eidos 提供了简化的访问语法：`/~/` 直接指向项目文件夹根目录。这在引用当前工作项目中的文档、配置文件或多媒体资源时非常方便：
+
+```
+/~/src/main.js
+/~/.gitignore
+/~/docs/api.md
+```
+
+---
+
+## 扩展与交互支持
+
+除了基础的查看和引用，Eidos 允许你利用 Web 技术栈自定义对不同文件格式的交互方式。
+
+### 文件处理器 (File Handler)
+
+利用 [Block 扩展](/zh-cn/extensions/block/#43-文件处理器扩展)，你可以使用 React, CSS, HTML 等标准 Web 技术定义文件的交互界面。
+
+这类似于操作系统的“打开方式”。你可以为特定后缀（如 `.excalidraw`, `.md`）注册专门的处理器。在目录树中点击文件时，系统会自动启动关联的 Block。扩展可以通过 `eidos.space.fs` API 直接对文件系统中的原始文件进行读取和写入操作。
+
+### 文件动作 (File Action)
+
+通过 [脚本扩展](/zh-cn/extensions/script/#24-文件动作脚本) 为文件定义无需 UI 的后台任务。
+
+文件动作集成在右键菜单中，用于执行“压缩图片”、“转换格式”或“生成 PDF”等一键操作。脚本在后台执行，完成后通过系统通知反馈结果，适合批处理或无需人工干预的任务。
+
+更多细节请参考：
+
+- [Block 扩展开发文档](/zh-cn/extensions/block/)
+- [脚本扩展开发文档](/zh-cn/extensions/script/)

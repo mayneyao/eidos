@@ -1,0 +1,170 @@
+---
+title: Save Telegram Messages to Eidos
+description: Collect ideas, links, and notes from Telegram directly into your Eidos space
+sidebar:
+  order: 5
+---
+
+import { Steps } from "@astrojs/starlight/components"
+import { Aside } from "@astrojs/starlight/components"
+
+Want to quickly save messages, ideas, or links from Telegram into Eidos? This guide shows you how to set up a simple inbox that automatically collects your Telegram messages.
+
+## What You'll Build
+
+A simple workflow: send a message to a Telegram bot → it appears in your Eidos table automatically.
+
+```
+Telegram ──▶ Eidos Cloud ──▶ Eidos Desktop ──▶ Your Table
+```
+
+## What You Need
+
+- Eidos Desktop app installed
+- A Telegram account
+- An [eidos.space](https://eidos.space) account
+
+---
+
+## Step 1: Get Your API Key
+
+First, create an API key that allows Telegram to send messages to your Eidos.
+
+<Steps>
+
+1. Go to [eidos.space/account](https://eidos.space/account?tab=api-keys)
+
+2. Click **"Create Key"**
+
+3. Enter a name (like `telegram-inbox`)
+
+4. Check **Read** and **Write** under the Relay section
+
+5. Click **Create Key**
+
+6. **Copy and save the key** — you won't see it again!
+
+</Steps>
+
+---
+
+## Step 2: Connect the Telegram Bot
+
+Eidos provides an official Telegram bot ([@eidos_relay_bot](https://t.me/eidos_relay_bot)) — no setup required!
+
+<Steps>
+
+1. Open Telegram and search for **@eidos_relay_bot**
+
+2. Tap **Start**
+
+3. Send this message to configure it:
+
+   ```
+   /config my-inbox YOUR_API_KEY
+   ```
+
+   Replace `YOUR_API_KEY` with the key you copied in Step 1.
+
+4. Send a test message. If you see a 👌 reaction, it's working!
+
+</Steps>
+
+<Aside type="tip">
+  You can pick any name for your inbox (we used `my-inbox`). Just remember it
+  for the next step.
+</Aside>
+
+---
+
+## Step 3: Set Up Eidos to Receive Messages
+
+Now tell Eidos what to do when messages arrive.
+
+<Steps>
+
+1. **Create a table** in Eidos called `messages`
+
+   Add these columns:
+   - `content` (Text) — the message text
+   - `sender` (Text) — who sent it
+   - `created_at` (Date) — when it was sent
+
+2. **Get the table ID**:
+
+   In the left sidebar file tree, right-click on the `messages` table you just created and select **"Copy ID"** to copy the table's unique identifier (format like `019cd7c9e4577af3a70423780008dcc9`).
+
+3. **Create a script** to process incoming messages:
+
+   Go to **Extensions → Scripts → Create Script**, and paste this code. Replace `YOUR_TABLE_ID` with the table ID you copied in the previous step:
+
+   ```typescript
+   export const meta = {
+     type: "relayHandler",
+     funcName: "saveTelegramMessages",
+     relayHandler: {
+       name: "Save Telegram Messages",
+     },
+   }
+
+   export async function saveTelegramMessages(batch) {
+     for (const msg of batch.messages) {
+       const { text, from } = msg.body.message
+
+       // Replace "YOUR_TABLE_ID" with the table ID you copied
+       await eidos.currentSpace.table("YOUR_TABLE_ID").create({
+         data: {
+           content: text,
+           sender: from.username || from.first_name,
+           created_at: new Date().toISOString(),
+         },
+       })
+     }
+   }
+   ```
+
+4. **Connect your inbox** to the script:
+
+   Go to **Settings → Relay**, enter `my-inbox` (the name you chose), and select your "Save Telegram Messages" script.
+
+</Steps>
+
+---
+
+## Step 5: Try It Out
+
+<Steps>
+
+1. Make sure Eidos Desktop is open
+
+2. Send any message to [@eidos_relay_bot](https://t.me/eidos_relay_bot) on Telegram
+
+3. Check your `messages` table — it should appear within seconds!
+
+</Steps>
+
+---
+
+## Common Questions
+
+**Can I use multiple inboxes?**
+
+Yes! Create different names like `work-notes`, `personal-ideas`, `reading-list`. Each can go to a different table with its own script.
+
+**What if messages aren't appearing?**
+
+- Check that Eidos Desktop is running
+- Make sure the inbox name in **Settings → Relay** matches what you used in `/config`
+- Try reconfiguring: send `/clear` to the bot, then `/config` again
+
+**Is there a message limit?**
+
+Your messages are queued in the cloud for up to 14 days. As long as you open Eidos Desktop within that time, they'll be delivered.
+
+---
+
+## What's Next?
+
+- Learn more about [Relay](/services/relay/) and how it works
+- Explore [Scripting](/extensions/script/) to customize how messages are processed
+- Try connecting other apps using the [Relay API](/api-reference/relay/)

@@ -1,0 +1,51 @@
+---
+title: Extension
+description: Extension is one of Eidos's core capabilities, allowing users to implement custom functionality through extensions.
+sidebar:
+  order: 5
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+
+## The Software Dilemma
+
+Software typically traps users in two modes, each with its own predicament.
+
+The first is completely preset software. You can only follow the designer's script—features are fixed, interfaces are fixed, and workflows are fixed. Some software may offer various configurations for you to adjust as needed, but these configurations are just the result of enumerating various factor combinations. They only give you some trivial configuration options; you cannot break out of this framework. When you want a small change or discover that some detail doesn't match your usage habits, you can only accept the status quo or search for another "close enough" alternative. This mode turns users into passive recipients.
+
+The second is extensible software, like VSCode or browsers. They allow you to customize functionality through extensions, but extension development is dauntingly complex. Platform software divides people into developers and users: developers rack their brains to write plugins, while users passively install them. This division seems reasonable but artificially creates a barrier. When you want to implement a feature, you first need to transform into a "developer": learn APIs, set up environments, write code, package, and publish. This path is long and painful, with most good ideas dying before they take shape.
+
+## Problems with Traditional Extensions
+
+Even if you decide to take the extension development path, you'll still encounter numerous obstacles. Most Web-based extensions provide packaged, user-invisible JavaScript code. Even if extensions are open source, the path from familiarizing yourself with the source code, understanding the architecture, making improvements, to repackaging, testing, and deployment, and finally turning it into usable extension functionality—this path is still too long. What you need is not a complete development toolchain, but a creative environment that responds immediately.
+
+This leads to an awkward reality: the vast majority of existing extensions, due to the above reasons, are difficult to redevelop, let alone personalize. You find that an extension is almost perfect, just missing a small feature, or some detail doesn't match your usage habits. Theoretically, you can fork it and modify it, but in practice, the cost is prohibitively high. Eventually, you can only compromise, accept the "close enough" status quo, or simply abandon this extension and search for the next "close enough" alternative.
+
+Another problem lies with the data itself. Apps can be seen as extensions of the operating system, because most people don't have the ability to extend functionality, so they have to use apps developed by others. Different apps will have different data solutions, which causes your data to be fragmented and trapped behind different apps and SaaS services.
+
+Division of labor is reasonable to some extent—professional tools do professional things. But the problem is lack of control: in the long run, SaaS tools rarely survive for long, and apps will gradually stop development. The services you depend on may suddenly shut down, the tools you use may no longer be updated, and your data may be trapped somewhere inaccessible. If these tools were all open-source local tools, there would be no such worry. Going further, if all tools could run locally and be open source, why not merge them together to reduce the friction of context switching? This way, you can maintain the advantages of professional tools while avoiding the risks of data fragmentation and lack of control.
+
+## Malleable Software
+
+The ideal experience should be like writing formulas in Excel: you type `=SUM(A1:A10)`, and the result immediately appears in the cell. No build process, no packaging steps, no waiting time. Code is functionality, what you see is what you get. This instant feedback makes iteration natural, makes experimentation easy, and allows ideas to land quickly.
+
+This is the core idea of **Malleable Software**: software should be like clay, able to be shaped and transformed by users at any time, without going through complex processes and long waits. In malleable software, users are both users and creators. They don't need to switch identities between "using" and "developing," but can seamlessly adjust and customize tools during use, making software truly adapt to their needs.
+
+## Eidos's Implementation
+
+Eidos aggregates tools together, solving the problems of data fragmentation and context switching. It provides common capabilities for all tools, such as universal documents and tables focused on structured data (which are actually databases) as the foundation of the framework. This way, your data is no longer trapped behind different apps and SaaS services, but is stored and managed uniformly, can be queried, linked, and calculated uniformly. At the same time, all tools are in the same environment, reducing the friction of context switching.
+
+What's merged are the foundational capabilities; what's separated are extension needs. Eidos unifies foundational capabilities like data storage, querying, linking, and calculation, but different extension needs can be implemented through extensions. This way, you can maintain the advantages of professional tools while avoiding the risks of data fragmentation and lack of control.
+
+On this basis, Eidos provides a what-you-see-is-what-you-get extension development experience. Extensions are no longer add-ons but part of the software's DNA. You can write code directly inside and see effects in real time. No build process, no packaging steps, no waiting time. This instant feedback makes iteration natural, makes experimentation easy, and allows ideas to land quickly.
+
+AI makes all this even simpler. The threshold for creating tools has never been so low. When you want to implement a feature, AI can help you generate code, explain logic, and optimize implementation. This collaboration makes the concept of malleable software truly come to life, allowing everyone to become the creator of their own tools.
+
+## Extension Types
+
+Eidos has two types of extensions: Script handles data logic, and Block handles interface interactions.
+
+<CardGrid>
+  <LinkCard title="Script" href="/extensions/script"></LinkCard>
+  <LinkCard title="Block" href="/extensions/block"></LinkCard>
+</CardGrid>

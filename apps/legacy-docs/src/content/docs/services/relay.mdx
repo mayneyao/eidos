@@ -1,0 +1,138 @@
+---
+title: Relay
+description: Send data to Eidos from anywhere, even when your computer is off
+tableOfContents:
+  maxHeadingLevel: 4
+sidebar:
+  order: 7
+  badge: New
+---
+
+import { FileTree } from "@astrojs/starlight/components"
+
+Eidos is a local-first app—your data lives on your machine, and everything runs locally. This is great for privacy and ownership, but it creates a problem: what happens when an external service tries to send data to Eidos while your computer is off?
+
+Think of it like a parcel locker in your building lobby. When you're not home, delivery couriers can still drop off packages. The locker holds them until you get back. Relay works the same way—it's a secure cloud buffer that accepts incoming data on your behalf, and delivers everything the moment you open Eidos.
+
+:::tip[Standalone Service & Integration]
+Relay is a **standalone data service** provided by eidos.space. While you can use it independently via API calls, Eidos Desktop integrates it to simplify the authentication and synchronization workflow. Combined with [scripts](/extensions/script/#26-relay-handler-scripts), you can define custom logic to process and transform the relayed data exactly how you want.
+:::
+
+## How It Works: Producer and Consumer Model
+
+Relay is designed around the classic **Message Queue** pattern, featuring three core components: **Producer**, **Broker & Queue**, and **Consumer**.
+
+```text
+      [ Producer ]
+      ├── Telegram Bot
+      ├── Webhook / API
+      └── Browser Extensions
+              │
+              ▼
+      [ Cloud Broker ]
+      eidos.space / relay
+   (Secure Cloud Buffer)
+              │
+              ▼
+       [ Local Queue ]
+     Eidos Desktop inbox.sqlite3
+              │
+              ▼
+      [ Consumer ]
+     ├── Relay A ─▶ Script (Append text to today's log)
+     ├── Relay B ─▶ Script (Extract data to specific table)
+     └── Relay C ─▶ Script (Save attachments to specific file)
+```
+
+The overall data flow works like this:
+
+1. **Produce**: External services (like Zapier, iOS Shortcuts, or browser extensions) act as producers, sending data to your Relay endpoint via the Push API.
+2. **Buffer & Queue**: The data is first securely buffered in the cloud Relay broker, acting like a parcel locker waiting for pickup. When you open Eidos Desktop, it automatically pulls down all pending messages, storing them in your local queue buffer, while permanently deleting the cloud copies.
+3. **Consume**: You can set up multiple local Relay channels to route your data streams, each bound to a dedicated Script acting as a consumer. Once data is queued, the bound consumer scripts will automatically map and run asynchronously, processing and distributing the data as needed (e.g., using different scripts to **append text to today's log**, **write structured data to a specific table**, or **save collected links and attachments to a specific file**).
+
+## 1. Producing Messages (Producer)
+
+To produce data and send it to Relay, you'll need a **Relay API Token**. Generate one from your [Eidos.space Dashboard](https://eidos.space/account?tab=api-keys). This acts as your write authorization—only services holding a valid token can send you messages.
+
+```bash
+curl -X POST https://api.eidos.space/v1/relay/channels/{channelId}/messages \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": { "event": "order.created", "orderId": "123" }
+  }'
+```
+
+The body can be any valid JSON. For example:
+
+```json
+{
+  "title": "Quick idea",
+  "content": "Relay makes automation so much easier"
+}
+```
+
+## 2. Message Queue Staging (Queue)
+
+When Eidos picks up messages from the cloud broker, they don't go directly into your main database. Instead, they arrive in a separate local file: `inbox.sqlite3`, which acts as your **message staging queue**.
+
+<FileTree>
+- my-space/
+  - .eidos/
+    - db.sqlite3 (Your main database)
+    - inbox.sqlite3 (Message queue staging area)
+</FileTree>
+
+The reason for the separation is straightforward. Eidos tracks every change to `db.sqlite3`—it's under version control. Dropping thousands of raw webhook payloads directly into it would cause your history to balloon. The `inbox.sqlite3` file is intentionally untracked, giving you a clean staging area waiting for consumer pickup.
+
+From there, you write a [script](/extensions/script/#26-relay-handler-scripts) acting as a consumer to process the data: extract the fields you care about, transform the structure, and write clean records into your main database. You decide what's worth keeping and how it should be stored.
+
+## 3. Consuming Messages (Consumer)
+
+To start consuming messages from the queue, you can define a **Relay Handler** in your scripts as a consumer. This mimics the Cloudflare Workers Queue pattern, receiving a batch of messages to process asynchronously in the background.
+
+```ts
+export const meta = {
+  type: "relayHandler",
+  funcName: "handleWebhooks",
+  relayHandler: {
+    name: "My Message Consumer",
+    description: "Consumes and processes incoming relay messages",
+  },
+}
+
+export async function handleWebhooks(batch) {
+  for (const message of batch.messages) {
+    console.log("Processing message:", message.body)
+    // Add your business logic here to parse data and save to main database
+  }
+}
+```
+
+Check the [Script Documentation](/extensions/script/#26-relay-handler-scripts) for the full API specification.
+
+## Limits
+
+:::note[Add-on Service & Quotas]
+Relay is an **Add-on** service that consumes cloud computation and storage resources. Currently, it is **free to trial for all users**. However, as the product ecosystem matures, this feature will transition into an official **paid subscription** service.
+
+The table below outlines the initial trial quotas provided during this free exploration phase, separately for **Free (Basic)** and **Spark License (Lifetime)** users:
+:::
+
+| <div style={{ minWidth: "120px" }}>Limit Scope</div> | <div style={{ minWidth: "90px" }}>Free</div> | <div style={{ minWidth: "90px" }}>Spark</div> | Description                                                                                                                |
+| :--------------------------------------------------- | :------------------------------------------- | :-------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------- |
+| **API Rate Limit**                                   | 1000 reqs/hr                                 | 1000 reqs/hr                                  | Maximum requests allowed per API Key.                                                                                      |
+| **Channel Count**                                    | 5                                            | 100                                           | Channels act as routing categories.                                                                                        |
+| **Max Message Size**                                 | 128 KB                                       | 128 KB                                        | Maximum payload size for a single JSON message sent to Relay.                                                              |
+| **Cloud Storage**                                    | 10 MB                                        | 100 MB                                        | Maximum staging queue capacity. Roughly equivalent to ~5,000 Telegram/Discord messages (Free) or ~50,000 messages (Spark). |
+| **Retention Period**                                 | 3 Days                                       | 14 Days                                       | Maximum time messages are kept in the cloud if not consumed by a desktop client.                                           |
+
+:::caution[About Spark License Quotas]
+Spark users receive free quotas for Add-on services (shown as initial baseline above). These quotas operate on a shared pool model and may adjust based on service capacity. Early supporters permanently retain higher base quota proportions within the Spark community.
+
+See [Spark License Benefits](/services/spark-license/) for details.
+:::
+
+## Next Steps
+
+- **[Save Telegram Messages to Eidos](/how-to/build-a-telegram-inbox/)** — A complete step-by-step guide to build your first Relay inbox

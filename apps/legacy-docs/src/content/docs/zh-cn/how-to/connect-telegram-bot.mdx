@@ -1,0 +1,73 @@
+---
+title: 连接 AI Agent 到 Telegram
+description: 直接从 Telegram 等通讯平台与你的 AI Agent 对话
+sidebar:
+  order: 6
+---
+
+import { Steps } from "@astrojs/starlight/components"
+import { Aside } from "@astrojs/starlight/components"
+
+Eidos 允许你将 AI Agent 直接连接到外部通讯平台。这提供了一种双向的互动体验：你可以直接在通讯软件中与 Agent 聊天、询问关于你数据的问题，甚至触发各种工具。
+
+:::note[仅限桌面端]
+Agent 渠道在 Eidos Desktop 内部运行一个本地机器人客户端。只有当你的电脑开启并运行 Eidos Desktop 时，该服务才会处于激活状态。
+:::
+
+## Telegram 渠道
+
+Telegram 渠道允许你通过私有的 Telegram 机器人与 Agent 交互。
+
+### 1. 创建机器人
+首先，你需要在 Telegram 上创建一个自己的机器人来获取 API Token。
+
+<Steps>
+1. 打开 Telegram 并搜索 [@BotFather](https://t.me/BotFather)。
+2. 发送 `/newbot` 并按照提示为机器人设置名称和用户名。
+3. 创建完成后，**复制 HTTP API token**。它看起来像 `123456789:ABCDefgh...`。
+</Steps>
+
+### 2. 在 Eidos 中配置
+现在，将机器人连接到你的 Eidos。
+
+<Steps>
+1. 打开 Eidos Desktop，进入 **设置 -> AI**。
+2. 向下滚动到 **渠道 (Channels)** 区域。
+3. 在 **Telegram** 卡片中，将 **启用** 开关切换为开启。
+4. 在输入框中粘贴你的 **机器人 Token**。
+5. 选择机器人默认使用的 **空间 (Space)**。
+6. 选择机器人响应时使用的 **默认模型**。
+7. **重启 Eidos Desktop** 以启动机器人服务。
+</Steps>
+
+### 3. 开始对话
+在 Telegram 中打开你的新机器人并点击 **Start**。现在你可以：
+- **直接对话**：向 Agent 提问或分配任务。
+- **切换空间**：使用 `/space` 命令在你的 Eidos 空间之间切换。
+- **会话管理**：每个 Telegram 聊天都会在 Eidos 中创建一个持久的会话。
+
+## 工作原理
+启用 Telegram 渠道后，Eidos Desktop 会启动一个“长轮询 (Long Polling)”进程。它会持续检查机器人是否有新消息。当消息到达时：
+1. Eidos 识别聊天并检索对应的会话状态。
+2. 它使用你选定的空间和模型构建 AI 上下文。
+3. Agent 处理消息（以及任何工具调用）并将响应发回 Telegram。
+
+所有这些过程都发生在你的本地设备上——Eidos 不使用任何中间服务器来处理聊天逻辑，确保你的数据上下文保持私有。
+
+## 安全性建议（强烈推荐）
+
+默认情况下，任何知道你机器人用户名的用户都可以与之对话并访问你的数据。为了防止未经授权的访问，你应该启用 Telegram 原生的机器人访问控制。
+
+### 开启“限制机器人使用 (Restrict Bot Usage)”
+Telegram 允许你直接在应用设置中限制谁可以与你的机器人互动。
+
+<Steps>
+1. 打开 Telegram 应用并找到你的机器人。
+2. 点击机器人的名称以打开 **机器人资料 (Bot Info)**。
+3. 点击 **编辑 (Edit)**（或根据你的客户端进入 **设置** / **隐私**）。
+4. 找到名为 **权限 (Access)** 或 **隐私 (Privacy)** 的部分。
+5. 将 **限制机器人使用 (Restrict bot usage)** 切换为 **开启 (ON)**。
+6. 确保你自己的账号在 **允许的用户 (Allowed users)** 列表中。
+</Steps>
+
+开启此功能后，只有你本人和选定的用户可以与机器人互动。这确保了即使其他人发现了你的机器人，你的 Eidos 数据上下文依然保持私密。

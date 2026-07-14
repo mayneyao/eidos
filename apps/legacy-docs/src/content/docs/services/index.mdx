@@ -1,0 +1,31 @@
+---
+title: Services
+description: Optional cloud services that extend Eidos beyond the limits of local-first
+sidebar:
+  order: 0
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+
+Eidos is a **Local-First** application—your data lives entirely on your device, and everything works without any cloud connection. This gives you complete privacy and ownership over your data.
+
+But local-first comes with inherent trade-offs:
+
+- **Your computer needs to be on** for external services to send data to Eidos
+- **Your data lives on one device**, making it hard to work across multiple machines
+- **Your content is private by default**, with no easy way to share it with others
+
+**Eidos Services** are a set of optional, cloud-powered features designed to address exactly these limitations. They follow the same philosophy as Eidos itself: you never _need_ them to use Eidos fully, but when you do, they integrate seamlessly.
+
+<CardGrid>
+  <LinkCard
+    title="Sync"
+    description="Keep your Space synced, backed up, and restorable across devices with official hosting or your own S3 storage"
+    href="/services/sync/"
+  />
+  <LinkCard
+    title="Relay"
+    description="Receive data pushed from external services at any time, even when your computer is off"
+    href="/services/relay/"
+  />
+</CardGrid>

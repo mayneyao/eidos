@@ -1,0 +1,15 @@
+{
+  "name": "legacy-docs-eidos-space",
+  "compatibility_date": "2025-04-01",
+  "assets": {
+    "directory": "./dist",
+  },
+  "env": {
+    "preview": {
+      "name": "legacy-docs-eidos-space-preview",
+      "assets": {
+        "directory": "./dist",
+      },
+    },
+  },
+}

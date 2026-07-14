@@ -1,0 +1,76 @@
+---
+title: Customize New Tab Page
+description: Replace the default new tab page with a custom Block
+sidebar:
+  order: 2
+---
+
+import { Steps } from "@astrojs/starlight/components"
+
+By default, the new tab page shows a welcome screen. You can replace it with a custom Block using the `"use newtab"` directive.
+
+## Steps
+
+<Steps>
+
+1. **Create a Block**
+
+   Go to **Extensions** → **Blocks** → **Create**.
+
+2. **Add the Directive**
+
+   Add `"use newtab"` at the first line of your code:
+
+   ```tsx
+   "use newtab"
+
+   export function MyDashboard() {
+     return (
+       <div className="flex h-full items-center justify-center">
+         <h1 className="text-2xl font-bold">Hello, Eidos!</h1>
+       </div>
+     )
+   }
+   ```
+
+3. **Enable in Settings**
+
+   Press `Cmd/Ctrl + ,` to open Settings, then go to **Space Settings** → **New Tab** and select your Block.
+
+</Steps>
+
+## Example: Jump to Today's Journal
+
+```tsx
+"use newtab"
+
+import React from "react"
+import { useEidos } from "@eidos.space/react"
+
+export function TodayView() {
+  const eidos = useEidos()
+  const today = new Date().toLocaleDateString("en-CA")
+
+  const openToday = () => {
+    eidos.currentSpace.navigate(`/journals/${today}`)
+  }
+
+  return (
+    <div className="h-full flex flex-col items-center justify-center gap-4">
+      <div className="text-4xl font-mono">{today}</div>
+      <button
+        onClick={openToday}
+        className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:opacity-90"
+      >
+        Open Today's Journal
+      </button>
+    </div>
+  )
+}
+```
+
+## See Also
+
+- [`use newtab` Directive](/extensions/block/#52-use-newtab-directive)
+- [Extension API](/api-reference/extension/) - React hooks for building extensions
+- [Space API](/api-reference/space/) - Navigation and data access APIs

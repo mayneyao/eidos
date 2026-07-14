@@ -1,0 +1,243 @@
+---
+title: Dataviews
+description: When you need to ask your data questions
+sidebar:
+  order: 3
+---
+
+Often, we find ourselves struggling with how to organize content: Should it go in a folder, or be classified by category? Should we manage it with tags, or build bi-directional links? Does this piece of information belong in a freeform document or a structured table?
+
+These dilemmas usually arise because software "outsources" the responsibility of organizing information to the user. We are forced to decide the final destination of information at the very moment we record it, trying to predict future retrieval needs with limited classification rules.
+
+**Dataviews** are designed to solve this problem. They shift the focus from "pre-classification" to "dynamic retrieval." Since Eidos stores all data in a powerful SQLite database, you don't have to agonize over the physical location of information. Instead, you can use powerful retrieval mechanisms to aggregate scattered information whenever you need it.
+
+## Why traditional approaches don't work
+
+Let me tell you a real story. I have a friend who's extremely organized, and his way of saving interesting links impressed me—not because it was good, but because it was so chaotic.
+
+His bookmarks were everywhere:
+
+- Sometimes he'd see a good article and paste it directly into that day's journal with a one-line comment
+- Sometimes he'd properly organize it into a "Reading List" table
+- Sometimes he'd mention useful resources in project documents
+- Sometimes he'd use automation tools to save directly to a database
+
+Each approach made sense in its context. Recording in the journal because he was already writing his journal; organizing in a table because he wanted systematic management; mentioning in documents because it was project-related; automated saving because he was too lazy to do it manually.
+
+The problem came three months later when he wanted to find a specific link—he had to search through four different places. It's like putting your keys in four different drawers and then having to check all the drawers every time you need your keys.
+
+## The dataview breakthrough
+
+Dataviews solve this fundamental problem. Instead of requiring you to change your behavior, they make your data queryable.
+
+The key insight here is: in Eidos, everything is stored in a database. Your documents aren't text files—they're rows in database tables. Your structured data lives in appropriate tables. This means you can write SQL queries that span all your content.
+
+Back to my friend's bookmark problem. With dataviews, he doesn't need to change any habits. He can create a query that:
+
+- Searches all documents for URLs
+- Extracts bookmarks from dedicated tables
+- Merges everything into one view
+- Shows when and in what context he saved each link
+
+The result looks like a table, but it's actually a live view of data from multiple sources. When he adds a new bookmark anywhere in the system, it automatically appears in this view. It's like having an invisible assistant organizing things for you, but never interrupting your workflow.
+
+## Real application: Finding all todos
+
+Let's look at a concrete example. Suppose you want to find all the todos in your system. What's the traditional approach? Open each document and check one by one. Or force yourself to only record tasks in one dedicated "Todo" table.
+
+But reality is, todos appear everywhere: action items in meeting notes, ideas that come up while reading, checklists in project documents. Forcing yourself to only record tasks in one place is like forcing yourself to only think in your bedroom—unrealistic and unnecessary.
+
+With dataviews, you can query like this:
+
+```sql
+WITH
+  valid_docs AS (
+    SELECT
+      id,
+      content,
+      created_at
+    FROM
+      eidos__docs
+    WHERE
+      json_valid(content) = 1
+  )
+SELECT
+  json_extract(j.value, '$.children[0].text') as title,
+  json_extract(j.value, '$.checked') as checked,
+  d.created_at as created_at,
+FROM
+  valid_docs d,
+  json_tree(d.content, '$.root.children') AS parent,
+  json_tree(parent.value, '$.children') AS j
+WHERE
+  parent.type = 'object'
+  AND json_extract(parent.value, '$.type') = 'list'
+  AND json_extract(parent.value, '$.listType') = 'check'
+  AND j.type = 'object'
+  AND json_extract(j.value, '$.type') = 'listitem'
+```
+
+This query will find all todos in all documents. You get a view called `vw_<node_id>` that contains all todos in your system, regardless of which document they originally lived in.
+
+I know this looks somewhat complex because we need to extract todos from rich text format. But don't worry, Eidos has many built-in templates to help you quickly implement this functionality. With AI assistance, you can easily create a view to query all todos. In fact, we can completely provide a simple markdown-related extension function to implement this type of functionality, such as:
+
+```sql
+-- Using table-valued function to get all todos from documents
+SELECT
+  doc_id,
+  doc_title,
+  todo_text,
+  is_checked,
+  created_at
+FROM md_extract_checkboxes(
+  (SELECT id, title, markdown, created_at FROM eidos__docs)
+)
+ORDER BY created_at DESC, doc_title
+```
+
+But for data transparency, portability, and vendor independence, using generic JSON functions is the safest approach. This way, the dataview can be viewed in any SQLite client.
+
+## Going further: Aggregating different types of data
+
+Now suppose you also have a dedicated project task table for tracking bugs:
+
+| title            | description      | done | priority | created_at | updated_at |
+| ---------------- | ---------------- | ---- | -------- | ---------- | ---------- |
+| Fix login issue  | Fix login issue  | 1    | High     | 2025-01-01 | 2025-01-01 |
+| Fix signup issue | Fix signup issue | 0    | Medium   | 2025-01-01 | 2025-01-01 |
+
+You can merge todos from documents with this table:
+
+```sql
+SELECT title, done as checked, created_at FROM tb_<node_id>
+UNION ALL
+SELECT * FROM vw_<node_id>
+```
+
+Now you have a unified view of all todos—both scattered temporary tasks from various documents and formal project tasks from tables.
+
+Want to see todos from the past week? Build another view based on the existing one:
+
+```sql
+SELECT * FROM vw_<node_id> WHERE created_at >= date('now', '-7 days')
+```
+
+## Column type annotations
+
+When creating dataviews, you can specify column types using SQL comments. This helps Eidos understand how to display and interact with your data.
+
+### Example: Document navigation
+
+Here's a practical example that creates a document navigation dataview:
+
+```sql
+
+SELECT
+  t.name as title,
+  '/' || t.id AS pathname, -- [pathname:url]
+  d.*
+FROM
+  eidos__tree t
+  JOIN eidos__docs d ON t.id = d.id
+```
+
+This example demonstrates how to:
+
+- **Create clickable links**: The `pathname` field uses `'/' || t.id` to generate clickable URLs that navigate to specific documents
+- **Join multiple tables**: Combines the tree structure (`eidos__tree`) with document content (`eidos__docs`)
+- **Cleaner paths**: The new architecture provides cleaner paths without workspace names in URLs
+- **Build document navigation**: Perfect for creating a searchable, sortable list of all your documents
+
+The resulting dataview will show document titles in one column and clickable pathname links in another column that take you directly to each document when clicked.
+
+### Comment format
+
+You can add column type annotations directly in your SQL queries using this format:
+
+```sql
+-- [column_name:field_type]
+```
+
+### Field types reference
+
+- **text** - For words and sentences
+- **number** - For quantities and calculations
+- **checkbox** - For yes/no decisions
+- **date** - For dates (YYYY-MM-DD format)
+- **datetime** - For timestamps
+- **select** - For choosing from a predefined list
+- **multi-select** - For tags and categories
+- **file** - For attachments and media
+- **url** - For web links
+- **rating** - For star ratings (1-5)
+
+## Searchable fields
+
+By default, dataviews cannot be searched using Ctrl+F because they are virtual views without a physical table to build a full-text search index. However, you can specify which fields should be searchable using the `@search` comment.
+
+### Enabling search
+
+Add a `-- @search` comment to your SQL query to mark specific fields as searchable:
+
+```sql
+-- @search {title, description}
+
+SELECT 
+  json_extract(j.value, '$.title') as title,
+  json_extract(j.value, '$.description') as description,
+  json_extract(j.value, '$.url') as url
+FROM eidos__docs d,
+  json_tree(d.content, '$.root.children') AS j
+WHERE json_extract(j.value, '$.type') = 'bookmark'
+```
+
+With this comment, pressing Ctrl+F in the dataview will search within the `title` and `description` columns using SQL `LIKE` queries.
+
+### How it works
+
+- When you add `-- @search {field1, field2}`, those fields become searchable
+- The search uses case-insensitive substring matching (`LIKE '%query%'`)
+- Multiple `@search` comments can be added; fields will be merged
+- Field names are case-insensitive and must exist in your SELECT results
+- Search results are highlighted in the view (Grid, Gallery, Kanban)
+
+### Example: Searchable bookmarks
+
+```sql
+-- [title:text]
+-- [url:url]
+-- @search {title, description}
+
+SELECT 
+  json_extract(j.value, '$.title') as title,
+  json_extract(j.value, '$.description') as description,
+  json_extract(j.value, '$.url') as url,
+  d.created_at
+FROM eidos__docs d,
+  json_tree(d.content, '$.root.children') AS j
+WHERE json_extract(j.value, '$.type') = 'bookmark'
+ORDER BY d.created_at DESC
+```
+
+Now you can:
+1. View all bookmarks in one place
+2. Press Ctrl+F to search by title or description
+3. Navigate between matches with Enter / Shift+Enter
+
+### Tips
+
+- Only text-based fields work well for search (text, url, etc.)
+- For best performance, limit searchable fields to 2-3 columns
+- If no `@search` comment is present, the search box will show a hint to configure searchable fields
+
+## Why this matters
+
+Dataviews change your relationship with information. You no longer need to decide where information will ultimately belong when you're recording it. You can record in the most natural way, and then organize and reorganize through queries.
+
+It's like shifting from "pre-organization" to "post-organization." In reality, we often only know the most useful way to organize information at the moment we actually need it.
+
+Dataviews let you dynamically organize data in the most meaningful way for the specific question at hand. They no longer force content to be locked into rigid categories but instead reconnect information that was originally scattered across documents, tables, or even different extensions, based on your current needs.
+
+This is a more human-intuitive approach: we think through associations rather than rigid classifications. Dataviews let the tool truly serve your flow of thought, rather than forcing you to interrupt your thinking to adapt to the tool.
+
+This isn't just a technical feature—it's a new way of thinking about information organization.

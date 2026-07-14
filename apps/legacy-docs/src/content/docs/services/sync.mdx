@@ -1,0 +1,155 @@
+---
+title: Sync
+description: Sync, back up, and restore your spaces across devices with Eidos
+tableOfContents:
+  maxHeadingLevel: 4
+sidebar:
+  order: 6
+---
+
+import { FileTree } from "@astrojs/starlight/components"
+
+Eidos follows the **Local-First** principle. Your data is stored on your local device by default, and sync is treated as an optional layer for cross-device continuity, remote backup, and recovery.
+
+## Evolution of Sync Solutions
+
+Eidos offers a progressive sync strategy, allowing you to choose the most suitable method based on your needs:
+
+### 1. Manual Copy
+
+The most straightforward way is to **directly copy the `.eidos` directory** and paste it into the same location on another device. Since all Eidos content (database and files) is fully contained within this directory, manual copying achieves a primitive form of "sync."
+
+### 2. Third-party Sync Tools (e.g., Git)
+
+Placing your Space's physical directory in a Git repository or on a cloud drive (e.g., iCloud, Dropbox) is an acceptable transitional solution, but it is not optimal:
+
+- **Lack of Version Control**: SQLite is a binary file, not text, so tools like Git cannot perform fine-grained version comparisons or merges.
+- **Repository Size Explosion**: Every change to the SQLite file results in Git creating a full historical record of the binary, causing the repository size to explode over time.
+- **Low Sync Efficiency**: Each sync involves transferring the entire large file. As the database grows, sync speeds will continuously decline.
+
+### 3. Eidos Native Sync (Graft)
+
+To overcome these limitations, Eidos employs a native sync solution based on [Graft](https://graft.rs/). It transforms the single `db.sqlite3` file into an objectified storage format, enabling more efficient incremental synchronization and remote backup.
+
+## What Sync Is Good At Today
+
+Today, Eidos Sync is best understood as a **single-user, multi-device sync and backup service**.
+
+It is especially useful for:
+
+- Moving a Space safely between your laptop, desktop, and other personal devices
+- Keeping a remote backup of your `.eidos` data in S3-compatible storage
+- Restoring a Space onto a new machine by cloning from remote storage
+- Preserving history so sync failures are less likely to become silent data loss
+
+It is **not** yet positioned as a real-time collaborative editing system for multiple people editing the same content concurrently.
+
+## Architecture Overview
+
+Eidos synchronizes data across devices using a centralized S3-compatible bucket as a relay. The core of synchronization is the `.eidos` folder within the space's physical directory, which contains the complete database version history (`.graft`) and all static asset files (`files`).
+
+This design ensures that the directory structure you see on any device is consistent, with the remote bucket serving as a complete cloud mirror of your local physical directory.
+
+```
+                ┌────────────────────────┐
+                │    Remote S3 Bucket    │
+                │  s3://bucket/my-space/ │
+                │ └── .eidos/            │
+                │     ├── .graft/        │
+                │     └── files/         │
+                └──────────┬─────────────┘
+                           │
+           ┌───────────────┴────────────────┐
+           │              Sync              │
+ ┌──────────┴─────────────┐      ┌───────────┴────────────┐
+ │         macOS          │      │        Windows         │
+ │ /Users/mayne/my-space/ │      │ D:\Eidos\my-space\     │
+ │ └── .eidos/            │      │ └── .eidos\            │
+ │     ├── .graft/        │      │     ├── .graft\        │
+ │     └── files/         │      │     └── files\         │
+ └────────────────────────┘      └────────────────────────┘
+```
+
+## Storage Structure Changes
+
+The physical storage structure of a Space differs depending on whether sync is enabled. When enabled, Eidos converts the single-file `db.sqlite3` into an objectified storage format (stored in the `.graft` directory) to achieve:
+
+- **Streaming Sync**: Only changed data blocks are synchronized, avoiding the need to upload the entire database file.
+- **Version Management**: Maintains historical snapshots locally, facilitating merging, rollbacks, and conflict detection across devices.
+
+#### Sync Disabled
+
+<FileTree>
+- my-space/
+  - .eidos/
+    - db.sqlite3 (Database file)
+    - files/ (Static assets)
+</FileTree>
+
+#### Sync Enabled
+
+<FileTree>
+- my-space/
+  - .eidos/
+    - .graft/ (VFS storage directory)
+    - files/ (Static assets)
+</FileTree>
+
+## Conflict Handling
+
+Eidos's synchronization mechanism is based on [Graft](https://graft.rs/), and its workflow is very similar to **Git**. The sync solution is primarily designed for single-user, multi-device switching scenarios and does not have the automatic conflict resolution capabilities of real-time collaborative systems like CRDT.
+
+To reduce conflicts, it is recommended to follow the **Pull → Edit → Push** pattern when switching devices:
+
+```
+      Device A                 Cloud                  Device B
+       (Work)                  (S3)                   (Idle)
+        │                       │                       │
+     [ Edit ]                   │                       │
+        │         Push          │                       │
+        └──────────────────────▶│                       │
+                                │         Pull          │
+        │                       │──────────────────────▶│
+        │                       │                    [ Edit ]
+        │                       │         Push          │
+        │                       │◀──────────────────────┘
+```
+
+- **Pull → Edit**: Before starting work, ensure you have pulled the latest changes from other devices.
+- **Edit → Push**: After finishing work, promptly push your changes to the cloud.
+- **Conflict Avoidance First**: Eidos works best when one device is actively editing a Space at a time.
+- **Remote Backup Always Matters**: Even when sync is not perfectly automatic, the remote copy still acts as an off-device backup and recovery source.
+- **Manual Conflict Resolution**: If multiple devices modify the same data simultaneously, Graft will identify the conflict and prompt you for manual arbitration.
+
+:::caution[Current Limitation]
+Currently, Eidos does not have a diff mechanism. When a conflict occurs, local updates may be discarded in favor of the remote state. We recommend following the **Pull → Edit → Push** workflow strictly and treating sync as a backup-aware handoff between devices rather than real-time co-editing.
+
+In future updates, we will provide diff and automatic merge capabilities to better handle conflicts.
+:::
+
+## Backup and Restore
+
+Sync is also the foundation of Eidos backup:
+
+- **Off-device backup**: Your Space data can be stored in a remote S3-compatible bucket instead of existing only on one machine.
+- **Space recovery**: If you lose a device or set up a new one, you can clone the synced Space again from the remote provider.
+- **History-aware storage**: Graft keeps versioned data locally and remotely, which provides a stronger recovery story than copying a single SQLite file around.
+
+If your primary goal is disaster recovery rather than frequent device switching, Eidos Sync is still valuable because it gives you a structured remote backup for the entire `.eidos` directory.
+
+## Sync Providers
+
+Eidos supports multiple sync providers:
+
+- **eidos.space (Official Managed)**: Zero configuration, just log in to your account. Data is stored in an encrypted S3 bucket provided officially for sync, backup, and restore.
+- **Custom S3-Compatible Service**: Use your own S3 storage (AWS S3, Cloudflare R2, MinIO, etc.) for full data control.
+
+:::note[Spark License Benefit]
+**Custom sync providers** are a premium feature available to **Spark License** holders. Free users can only use the official eidos.space sync.
+
+Learn how to [setup a custom sync provider](/how-to/setup-custom-sync-provider/).
+:::
+
+## Next Steps
+
+- Learn how to build a [Publish Service](/services/publish) based on synchronized data.

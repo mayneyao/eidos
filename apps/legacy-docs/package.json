@@ -1,0 +1,27 @@
+{
+  "name": "legacy-docs",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "deploy": "wrangler deploy",
+    "deploy:preview": "wrangler deploy --env preview",
+    "astro": "astro",
+    "typecheck": "astro sync && tsc --noEmit",
+    "typecheck:tsgo": "echo 'skip'"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.4.1",
+    "@astrojs/starlight": "0.37.7",
+    "astro": "^5.15.9",
+    "sharp": "^0.34.2",
+    "starlight-sidebar-topics": "^0.6.2",
+    "starlight-theme-flexoki": "^0.1.0"
+  },
+  "devDependencies": {
+    "wrangler": ">=4.14.1"
+  }
+}

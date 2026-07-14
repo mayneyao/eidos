@@ -300,6 +300,31 @@ importers:
         specifier: ^4.20.3
         version: 4.22.0(@cloudflare/workers-types@4.20250620.0)(bufferutil@4.0.9)(utf-8-validate@6.0.5)
 
+  apps/legacy-docs:
+    dependencies:
+      '@astrojs/sitemap':
+        specifier: ^3.4.1
+        version: 3.7.2
+      '@astrojs/starlight':
+        specifier: 0.37.7
+        version: 0.37.7(astro@5.18.1(@types/node@25.4.0)(aws4fetch@1.0.20)(idb-keyval@6.2.2)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.60.1)(terser@5.47.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0))
+      astro:
+        specifier: ^5.15.9
+        version: 5.18.1(@types/node@25.4.0)(aws4fetch@1.0.20)(idb-keyval@6.2.2)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.60.1)(terser@5.47.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0)
+      sharp:
+        specifier: ^0.34.2
+        version: 0.34.2
+      starlight-sidebar-topics:
+        specifier: ^0.6.2
+        version: 0.6.2(@astrojs/starlight@0.37.7(astro@5.18.1(@types/node@25.4.0)(aws4fetch@1.0.20)(idb-keyval@6.2.2)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.60.1)(terser@5.47.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0)))
+      starlight-theme-flexoki:
+        specifier: ^0.1.0
+        version: 0.1.0(@astrojs/starlight@0.37.7(astro@5.18.1(@types/node@25.4.0)(aws4fetch@1.0.20)(idb-keyval@6.2.2)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.60.1)(terser@5.47.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0)))
+    devDependencies:
+      wrangler:
+        specifier: '>=4.14.1'
+        version: 4.22.0(@cloudflare/workers-types@4.20250620.0)(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+
   apps/web-app:
     dependencies:
       '@ahooksjs/use-url-state':

@@ -1,0 +1,39 @@
+---
+title: Space
+description: Data isolation mechanism in Eidos
+sidebar:
+  order: 2
+---
+
+import { FileTree } from "@astrojs/starlight/components"
+
+Space is the data isolation unit in Eidos. Each space is a completely independent data environment containing its own database and file storage.
+
+Just like Git repositories, you can initialize an Eidos space in any directory. The difference is that Eidos provides a container and UI for any type of data—not just code, but also documents, tables, images, and various other content.
+
+## Storage Structure
+
+Each space exists on disk as an independent `.eidos` directory:
+
+<FileTree>
+
+- my-project/
+  - .eidos/
+    - db.sqlite3
+    - files/
+      - document.pdf
+      - image.png
+- work-project/
+  - .eidos/
+    - db.sqlite3
+    - files/
+      - report.xlsx
+- personal-notes/
+  - .eidos/
+    - db.sqlite3
+    - files/
+      - photo.jpg
+
+</FileTree>
+
+The key is simplicity: each space has its own database, with no complex permissions or shared mechanisms. Clean separation when you need it, everything together when you don't.
