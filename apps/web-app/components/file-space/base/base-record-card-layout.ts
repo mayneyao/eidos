@@ -1,4 +1,4 @@
-import type { BaseFieldInfo, BaseViewInfo } from "@eidos.space/base"
+import type { BaseFieldInfo, BaseRow, BaseViewInfo } from "@eidos.space/base"
 
 import {
   baseSelectOptions,
@@ -21,6 +21,30 @@ export interface BaseRecordCardLayout {
 
 export function isBaseRecordCoverField(field: BaseFieldInfo): boolean {
   return field.type === "file" || field.type === "url"
+}
+
+function isEmptyBaseRecordCardValue(value: BaseRow[string]): boolean {
+  return value === null || value === undefined || value === ""
+}
+
+export function selectBaseRecordCardFields(
+  layout: BaseRecordCardLayout,
+  row: BaseRow
+): BaseRecordCardFieldLayout[] {
+  if (layout.fieldLimit <= 0) return []
+  if (!layout.hideEmptyFields) {
+    return layout.fields.slice(0, layout.fieldLimit)
+  }
+
+  const visibleFields: BaseRecordCardFieldLayout[] = []
+  for (const fieldLayout of layout.fields) {
+    if (isEmptyBaseRecordCardValue(row[fieldLayout.field.tableColumnName])) {
+      continue
+    }
+    visibleFields.push(fieldLayout)
+    if (visibleFields.length === layout.fieldLimit) break
+  }
+  return visibleFields
 }
 
 export function createBaseRecordCardLayout(

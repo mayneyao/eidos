@@ -51,6 +51,7 @@ import { baseOptionColor } from "./base-field-properties"
 import { baseFieldDisplayName } from "./base-field-visibility"
 import {
   createBaseRecordCardLayout,
+  selectBaseRecordCardFields,
   type BaseRecordCardFieldLayout,
   type BaseRecordCardLayout,
 } from "./base-record-card-layout"
@@ -81,10 +82,6 @@ function multiSelectIds(value: BaseRow[string]): string[] {
     }
   }
   return value.split(",").filter(Boolean)
-}
-
-function isEmptyValue(value: BaseRow[string]): boolean {
-  return value === null || value === undefined || value === ""
 }
 
 function BaseRecordCover({
@@ -295,12 +292,7 @@ export const BaseRecordCard = memo(function BaseRecordCard({
     providedLayout ?? createBaseRecordCardLayout(fields, view, compact)
   const { resolvedTheme } = useTheme()
   const theme = resolvedTheme === "dark" ? "dark" : "light"
-  const visibleFields = layout.fields
-    .filter(
-      ({ field }) =>
-        !layout.hideEmptyFields || !isEmptyValue(row[field.tableColumnName])
-    )
-    .slice(0, layout.fieldLimit)
+  const visibleFields = selectBaseRecordCardFields(layout, row)
   const title = baseRecordTitle(row)
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
   const suppressPointerOpenRef = useRef(false)
