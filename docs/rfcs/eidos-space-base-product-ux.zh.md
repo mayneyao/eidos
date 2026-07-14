@@ -96,7 +96,13 @@ Space 可见的 `assets/` 目录、拖放到单元格、重排或移除附件、
 中断工作流。
 
 relation 字段现在沿用原表格交互：单元格显示关联记录标题，打开可搜索、多选的 Grid
-overlay，并且只保存稳定 row IDs。formula 字段实时计算，按配置的 display type 只读
+overlay，并且只保存稳定 row IDs。Grid overlay 与 Record Inspector 共用同一个语义化 option list；
+搜索输入使用 `combobox`、结果使用 `listbox/option`，并通过 `aria-activedescendant` 保持输入焦点。
+方向键与 Home/End 移动候选，Enter 选择，Grid 中 Ctrl/Cmd+Enter 或明确的 Done 动作结束编辑；
+active option 会自动滚回可见区域，鼠标进入与点击也会同步当前候选。搜索 query 改变、popover 关闭或
+overlay 卸载都会使在途请求失效，旧结果不能覆盖新会话；整个流程不再形成只能点击、辅助技术无法理解
+的伪列表。formula 字段
+实时计算，按配置的 display type 只读
 呈现；新建和编辑共用同一个锚定 CodeMirror composer，恢复 SQL/field completion、可搜索
 reference browser、即时依赖/错误反馈和保存前的真实 Base row sample preview。两个流程都
 不打开居中弹窗。
@@ -199,10 +205,12 @@ record details，并按稳定 row ID 进行确认删除。同一个右侧 record
 和 Kanban 中编辑：primitive source fields 会就地自动保存，Formula/Lookup 等派生值保持只读，保存
 成功后会更新当前 layout，并且不会关闭 inspector。File 字段支持从 Space 导入、拖放、移除、打开和
 定位；Relation 字段复用目标表搜索边界，并按稳定 row ID 保存单选或多选结果。
-完整 card 表面也可以直接打开 inspector，不再要求用户先发现 hover icon。Gallery card 会进入键盘
-焦点顺序，并支持 Enter 或 Space；虚拟 row wrapper 会从 accessibility tree 中移除，使 records 保持
-正确的 list 语义。Button 和 menu action 仍独立处理事件，pointer 移动超过 6px 则抑制 card 打开，
-因此 Kanban drag 不会意外弹出 record details。
+完整 card 表面仍可通过指针直接打开 inspector，不要求用户精确命中 hover icon；键盘路径则只暴露
+一个原生 Open button。Gallery 的 `listitem` 不再伪装成可聚焦 button，也不再与内部 Open action 形成
+两个重复焦点目标；Enter/Space 由原生 button 语义处理。虚拟 row wrapper 会从 accessibility tree
+中移除，使 records 保持正确的 list 语义。Button 和 menu action 仍独立处理事件，pointer 移动超过
+6px 则抑制 card 打开，因此 Kanban drag 不会意外弹出 record details。Record Inspector 加载完整 row
+时只保留 header 中一个 polite status，主体 spinner 仅作为视觉反馈，不会重复播报同一次 loading。
 
 就地 row search 现在会显示过滤后记录的位置与总数；Enter 和 Shift+Enter 可以在保持输入框焦点的
 同时向前或向后循环。Grid 会滚动并高亮目标行；Gallery 和 Kanban 会滚动到目标 card，并在目标尚未
@@ -385,7 +393,8 @@ panel 保持在 flex 布局中；低于由此得到的 760px 内容断点后，�
 CSV 导入的文件选择、分析和写入现在也保持锚定式、非模态工作流。原生 picker 返回后 mapping
 panel 会立即打开；分析与导入显示真实 byte/row 进度，并可以原位取消。取消会终止隔离 worker、
 等待 SQLite transaction 回滚，再解除当前 Base 的 mutation lock，因此重试不会和仍在退出的
-worker 竞争，也不会留下部分 table 或 rows。
+worker 竞争，也不会留下部分 table 或 rows。进度值会收敛到 0–100，视觉 indicator 使用
+`transform: scaleX()` 与 reduced-motion fallback，不再持续触发布局相关的 width transition。
 
 CSV 导出使用同一条锚定式 operation UX，但导出的是当前 view，而不是 renderer 已加载的虚拟窗口：
 即时 search、持久 filter/sorts、可见系统字段和字段顺序都会传入隔离 worker。worker 在一致性只读
