@@ -368,6 +368,13 @@ retry, and inline-create state therefore leave retained wrappers untouched; the
 failed-page retry regression reduces visible row resolution from 5 virtual items
 to the single failed placeholder.
 
+Kanban's inline record composer owns its draft, submission, and recoverable
+error state below the column render boundary. Typing in the composer therefore
+updates only the form instead of rerunning the column virtualizer and rebuilding
+the visible virtual-item list. The corresponding regression reduces virtualizer
+invocations per input update from 1 to 0 while preserving the existing create,
+cancel, and retry behavior.
+
 Gallery virtual rows now form a second memo boundary around those cards. Paging
 progress, retry, and other parent-only state no longer rebuild the mounted row
 wrappers, while a page merge rerenders only wrappers whose visible slots gained
