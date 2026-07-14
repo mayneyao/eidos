@@ -300,6 +300,21 @@ row，而不是先过滤完整字段列表再截断。稀疏记录仍会继续�
 后直接截取共享 layout，不读取 row values。这个边界让大字段 Base 的卡片渲染成本取决于实际展示上限，
 不会因为虚拟窗口外不可见的字段继续线性增长。
 
+Card 分页的数据边界也与渲染边界对齐。Gallery 和 Kanban 不再为每个 100/50-record page 执行并跨
+worker/IPC 传输 `SELECT *`；请求只投影 row identity、title、当前 view 的可见 card fields，以及即使
+隐藏也仍被 cover 或 Kanban group 使用的字段。Filter/Search 字段只参与 SQL predicate，Sort 字段只在
+runtime 内部参与排序和 opaque cursor 生成，二者都不会因为查询需要而泄露到返回 row；未投影的 relation
+字段也不会触发 display hydration。用户打开 Record Inspector 时，再按稳定 row ID 单独读取包含 Formula、
+Lookup 和 relation display 的完整记录。Inspector 会立即保留 card preview 作为上下文，同时显示明确的
+loading 状态；读取失败留在 panel 内并可 Retry，快速切换/关闭记录时旧请求不能覆盖新会话。
+
+隔离基准使用 100 条记录、40 个 4,096-byte Text 字段，card 投影其中 4 个字段。优化前完整 page 的
+JSON payload 为 16,455,668 bytes，五轮中位查询为 11.5295 ms；投影后分别为 1,650,178 bytes 和
+0.8367 ms，即 payload 减少 89.97%、查询快 13.78 倍。单条完整 Inspector row 为 164,585 bytes，
+五轮中位读取 0.1933 ms，且只有用户打开记录时才支付该成本。核心、worker、editor、Gallery 和 Kanban
+回归共同锁定投影列、隐藏 cover/group 保留、sort cursor 语义和按需完整读取，避免重新退化为 page-wide
+`SELECT *`。
+
 自动分页现在也有明确且可恢复的失败状态。Gallery 或 Kanban 请求失败后会关闭虚拟尾部触发器，
 不会因为 loading 状态再次变化而连续重发相同请求；已经加载的 cards 会继续挂载，首屏/刷新失败和
 下一页失败保持区分，原位 Retry 会按正确请求模式和当前游标恢复。因此单页暂时不可用不会形成
