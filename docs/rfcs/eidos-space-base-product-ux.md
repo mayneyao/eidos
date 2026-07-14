@@ -293,16 +293,20 @@ longer exposes the complete logical height as one spacer. It caps the physical
 scroll surface at 12,000,000 pixels, maps that scrollbar range onto the complete
 logical record range, and rebases mounted items while preserving their measured
 local spacing. TanStack's internal virtualizer is independently capped at a
-20,000-item window that advances in 5,000-item chunks; this prevents its
+4,096-item window that advances in 1,024-item chunks; this prevents its
 measurement cache from scaling to the complete record count while paging,
 search focus, ARIA positions, and rendered item indexes remain global. Million-
 record regressions reach the final Gallery page at offset 999,900 and the final
 Kanban group page at offset 999,950 from the real physical scroll endpoint, and
-assert both the 12,000,000-pixel surface and 20,000-measurement bounds.
-Crossing a 5,000-item chunk also clears TanStack's separate dynamic-size cache
-and immediately remeasures only the currently mounted elements. Long-running
-scroll sessions therefore cannot retain one measured height for every record
-ever visited even though card heights remain dynamic.
+assert both the 12,000,000-pixel surface and 4,096-measurement bounds. The
+smaller window removes 79.5% of TanStack's per-list measurement entries; on the
+acceptance machine, three focused million-record runs reduced average test time
+from 617 ms to 582 ms and average whole-process peak RSS from 212 MiB to 207 MiB.
+Crossing a 1,024-item chunk retains at least 75% of the adjacent window, clears
+TanStack's separate dynamic-size cache, and immediately remeasures only the
+currently mounted elements. Long-running scroll sessions therefore cannot
+retain one measured height for every record ever visited even though card
+heights remain dynamic.
 Each mounted virtual column remains one named record list whose items expose
 their absolute position and the group's complete server total. Collapsed-column
 expand controls retain a visible keyboard focus ring, so virtualization and the
