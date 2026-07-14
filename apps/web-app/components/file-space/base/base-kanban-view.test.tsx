@@ -10,6 +10,7 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BaseKanbanView } from "./base-kanban-view"
+import * as baseRowWindow from "./base-row-window"
 import {
   BASE_VIRTUAL_SCROLL_MAX_ITEMS,
   BASE_VIRTUAL_SCROLL_MAX_SIZE,
@@ -2190,6 +2191,90 @@ describe("BaseKanbanView", () => {
       50,
       51
     )
+  })
+
+  it("only rebuilds the failed virtual item when a group page retries", async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({
+      _id: `todo_${index}`,
+      title: `Todo ${index}`,
+      status: "todo",
+    }))
+    let todoRequests = 0
+    let resolveRetry: ((page: BaseRowPage) => void) | undefined
+    const retryPage = new Promise<BaseRowPage>((resolve) => {
+      resolveRetry = resolve
+    })
+    const loadGroupPage = vi.fn(
+      async (_field, value: string | null, offset: number, limit: number) => {
+        if (value !== "todo") {
+          return { tableId: "tasks", offset, limit, total: 0, rows: [] }
+        }
+        todoRequests += 1
+        if (todoRequests === 2) throw new Error("page failed")
+        if (todoRequests === 3) return retryPage
+        return {
+          tableId: "tasks",
+          offset,
+          limit,
+          total: 51,
+          rows: firstPage,
+        }
+      }
+    )
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 51 }])}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      const scroller = container.querySelector<HTMLElement>(
+        '[data-base-kanban-column-scroll="base-kanban:todo"]'
+      )
+      if (!scroller) return
+      scroller.scrollTop = 100_000
+      scroller.dispatchEvent(new Event("scroll"))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(container.textContent).toContain("Retry loading records")
+    const rowLookup = vi.spyOn(baseRowWindow, "rowFromWindow")
+    let rowLookupCount = 0
+    try {
+      await act(async () => {
+        ;[...container.querySelectorAll("button")]
+          .find((button) => button.textContent === "Retry loading records")
+          ?.click()
+        await Promise.resolve()
+      })
+      rowLookupCount = rowLookup.mock.calls.length
+    } finally {
+      rowLookup.mockRestore()
+    }
+
+    expect(todoRequests).toBe(3)
+    expect(rowLookupCount).toBe(1)
+
+    await act(async () => {
+      resolveRetry?.({
+        tableId: "tasks",
+        offset: 50,
+        limit: 50,
+        total: 51,
+        rows: [{ _id: "todo_50", title: "Todo 50", status: "todo" }],
+      })
+      await Promise.resolve()
+    })
   })
 
   it("recovers an initial group failure without reloading the board", async () => {

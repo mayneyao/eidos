@@ -221,6 +221,149 @@ const BaseKanbanCardItem = memo(function BaseKanbanCardItem({
   )
 })
 
+interface BaseKanbanVirtualCardProps {
+  group: BaseKanbanGroup
+  globalCardIndex: number
+  virtualIndex: number
+  offset: number
+  disabled: boolean
+  table: BaseTableSnapshot
+  view: BaseViewInfo
+  cardLayout: BaseRecordCardLayout
+  acquireCover?: BaseCoverAcquire
+  focusedRowId?: string
+  onOpen: (row: BaseRow) => void
+  onDelete?: (row: BaseRow) => void
+  moveOptions: BaseKanbanMoveOption[]
+  onMove: (row: BaseRow, targetGroupKey: string) => void
+  onRetry: (group: BaseKanbanGroup) => void
+  measureElement: (node: HTMLDivElement | null | undefined) => void
+}
+
+function kanbanGroupRow(
+  group: BaseKanbanGroup,
+  globalCardIndex: number
+): BaseRow | undefined {
+  const localIndex = globalCardIndex - group.startOffset
+  return localIndex >= 0 ? group.rows[localIndex] : undefined
+}
+
+function kanbanVirtualCardPropsEqual(
+  previous: BaseKanbanVirtualCardProps,
+  next: BaseKanbanVirtualCardProps
+): boolean {
+  if (
+    previous.globalCardIndex !== next.globalCardIndex ||
+    previous.virtualIndex !== next.virtualIndex ||
+    previous.offset !== next.offset ||
+    previous.disabled !== next.disabled ||
+    previous.group.key !== next.group.key ||
+    previous.group.total !== next.group.total ||
+    previous.table !== next.table ||
+    previous.view !== next.view ||
+    previous.cardLayout !== next.cardLayout ||
+    previous.acquireCover !== next.acquireCover ||
+    previous.onOpen !== next.onOpen ||
+    previous.onDelete !== next.onDelete ||
+    previous.moveOptions !== next.moveOptions ||
+    previous.onMove !== next.onMove ||
+    previous.onRetry !== next.onRetry ||
+    previous.measureElement !== next.measureElement
+  ) {
+    return false
+  }
+
+  const previousRow = kanbanGroupRow(previous.group, previous.globalCardIndex)
+  const nextRow = kanbanGroupRow(next.group, next.globalCardIndex)
+  if (previousRow !== nextRow) return false
+  if (!nextRow) return previous.group === next.group
+  const rowId = String(nextRow._id)
+  return (previous.focusedRowId === rowId) === (next.focusedRowId === rowId)
+}
+
+const BaseKanbanVirtualCard = memo(function BaseKanbanVirtualCard({
+  group,
+  globalCardIndex,
+  virtualIndex,
+  offset,
+  disabled,
+  table,
+  view,
+  cardLayout,
+  acquireCover,
+  focusedRowId,
+  onOpen,
+  onDelete,
+  moveOptions,
+  onMove,
+  onRetry,
+  measureElement,
+}: BaseKanbanVirtualCardProps) {
+  const row = rowFromWindow(
+    {
+      rows: group.rows,
+      startOffset: group.startOffset,
+      total: group.total,
+    },
+    globalCardIndex
+  )
+  return (
+    <div
+      ref={measureElement}
+      className="absolute left-0 top-0 w-full [contain:layout_style]"
+      data-index={globalCardIndex}
+      data-base-virtual-index={virtualIndex}
+      role={row ? "listitem" : "presentation"}
+      aria-posinset={row ? globalCardIndex + 1 : undefined}
+      aria-setsize={row ? group.total : undefined}
+      style={{ transform: `translate3d(0, ${offset}px, 0)` }}
+    >
+      {row ? (
+        <BaseKanbanCardItem
+          row={row}
+          index={globalCardIndex}
+          groupKey={group.key}
+          disabled={disabled}
+          table={table}
+          view={view}
+          cardLayout={cardLayout}
+          acquireCover={acquireCover}
+          focused={focusedRowId === String(row._id)}
+          onOpen={onOpen}
+          onDelete={onDelete}
+          moveOptions={moveOptions}
+          onMove={onMove}
+        />
+      ) : (
+        <div
+          data-base-kanban-placeholder
+          className="flex h-9 items-center justify-center text-muted-foreground"
+          role={group.loadFailure !== null ? "alert" : "status"}
+          aria-label={
+            group.loadFailure !== null
+              ? `Could not load more ${group.name} records`
+              : `Loading more ${group.name} records`
+          }
+        >
+          {group.loadFailure !== null ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => onRetry(group)}
+            >
+              Retry loading records
+            </Button>
+          ) : group.loadingMore ? (
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+          ) : null}
+        </div>
+      )}
+    </div>
+  )
+}, kanbanVirtualCardPropsEqual)
+
 const BaseKanbanColumn = memo(function BaseKanbanColumn({
   group,
   table,
@@ -276,11 +419,6 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
     (index: number) => `${group.key}:${index}`,
     [group.key]
   )
-  const groupWindow = {
-    rows: group.rows,
-    startOffset: group.startOffset,
-    total: group.total,
-  }
   const {
     virtualizer: cardVirtualizer,
     virtualItems,
@@ -468,67 +606,26 @@ const BaseKanbanColumn = memo(function BaseKanbanColumn({
                   const globalCardIndex = globalVirtualCardIndex(
                     virtualItem.index
                   )
-                  const row = rowFromWindow(groupWindow, globalCardIndex)
                   return (
-                    <div
+                    <BaseKanbanVirtualCard
                       key={virtualItem.key}
-                      ref={cardVirtualizer.measureElement}
-                      className="absolute left-0 top-0 w-full [contain:layout_style]"
-                      data-index={globalCardIndex}
-                      data-base-virtual-index={virtualItem.index}
-                      role={row ? "listitem" : "presentation"}
-                      aria-posinset={row ? globalCardIndex + 1 : undefined}
-                      aria-setsize={row ? group.total : undefined}
-                      style={{
-                        transform: `translate3d(0, ${virtualCardOffset(
-                          virtualItem
-                        )}px, 0)`,
-                      }}
-                    >
-                      {row ? (
-                        <BaseKanbanCardItem
-                          key={String(row._id)}
-                          row={row}
-                          index={globalCardIndex}
-                          groupKey={group.key}
-                          disabled={disabled}
-                          table={table}
-                          view={view}
-                          cardLayout={cardLayout}
-                          acquireCover={acquireCover}
-                          focused={focusedRowId === String(row._id)}
-                          onOpen={onOpen}
-                          onDelete={onDelete}
-                          moveOptions={moveOptions}
-                          onMove={moveCard}
-                        />
-                      ) : (
-                        <div
-                          data-base-kanban-placeholder
-                          className="flex h-9 items-center justify-center text-muted-foreground"
-                          role={group.loadFailure !== null ? "alert" : "status"}
-                          aria-label={
-                            group.loadFailure !== null
-                              ? `Could not load more ${group.name} records`
-                              : `Loading more ${group.name} records`
-                          }
-                        >
-                          {group.loadFailure !== null ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-2 text-[11px]"
-                              onClick={() => onRetry(group)}
-                            >
-                              Retry loading records
-                            </Button>
-                          ) : group.loadingMore ? (
-                            <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
-                          ) : null}
-                        </div>
-                      )}
-                    </div>
+                      group={group}
+                      globalCardIndex={globalCardIndex}
+                      virtualIndex={virtualItem.index}
+                      offset={virtualCardOffset(virtualItem)}
+                      disabled={disabled}
+                      table={table}
+                      view={view}
+                      cardLayout={cardLayout}
+                      acquireCover={acquireCover}
+                      focusedRowId={focusedRowId}
+                      onOpen={onOpen}
+                      onDelete={onDelete}
+                      moveOptions={moveOptions}
+                      onMove={moveCard}
+                      onRetry={onRetry}
+                      measureElement={cardVirtualizer.measureElement}
+                    />
                   )
                 })}
               </div>
