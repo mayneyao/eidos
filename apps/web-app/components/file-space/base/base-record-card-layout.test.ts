@@ -2,6 +2,7 @@ import type { BaseFieldInfo, BaseRow } from "@eidos.space/base"
 import { describe, expect, it } from "vitest"
 
 import {
+  baseRecordCardProjectionColumns,
   selectBaseRecordCardFields,
   type BaseRecordCardFieldLayout,
   type BaseRecordCardLayout,
@@ -111,5 +112,55 @@ describe("selectBaseRecordCardFields", () => {
 
     expect(selected).toEqual(fields.slice(0, 6))
     expect(rowReads).toBe(0)
+  })
+})
+
+describe("baseRecordCardProjectionColumns", () => {
+  it("keeps visible card fields, cover, and Kanban grouping without hidden payload", () => {
+    const title = recordField(0).field
+    const visible = recordField(1).field
+    const cover = { ...recordField(2).field, type: "file" as const }
+    const group = { ...recordField(3).field, type: "select" as const }
+    const hidden = recordField(4).field
+
+    expect(
+      baseRecordCardProjectionColumns(
+        [
+          { ...title, type: "title", tableColumnName: "title" },
+          visible,
+          cover,
+          group,
+          hidden,
+        ],
+        {
+          id: "view_board",
+          name: "Board",
+          type: "kanban",
+          tableId: "tasks",
+          query: "SELECT * FROM tb_tasks",
+          properties: {
+            coverPreview: cover.tableColumnName,
+            groupByField: group.tableColumnName,
+          },
+          filter: null,
+          sorts: [],
+          orderMap: null,
+          hiddenFields: [
+            cover.tableColumnName,
+            group.tableColumnName,
+            hidden.tableColumnName,
+          ],
+          position: 1,
+          createdAt: "2026-07-14 00:00:00",
+          updatedAt: "2026-07-14 00:00:00",
+        }
+      )
+    ).toEqual([
+      "_id",
+      "title",
+      visible.tableColumnName,
+      cover.tableColumnName,
+      group.tableColumnName,
+    ])
   })
 })

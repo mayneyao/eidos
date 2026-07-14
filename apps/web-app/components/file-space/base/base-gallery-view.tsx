@@ -38,6 +38,7 @@ import {
 } from "./base-row-window"
 import { useBaseBoundedVirtualizer } from "./base-virtual-scroll"
 import { orderedBaseFields } from "./base-view-layout"
+import { useBaseRecordInspectorRow } from "./use-base-record-inspector-row"
 
 const GALLERY_PAGE_SIZE = 100
 const GALLERY_MAX_WINDOW_ROWS = 300
@@ -191,6 +192,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
   reloadToken = 0,
   searchResultIndex = null,
   loadPage,
+  loadRow,
   onCellEdit,
   onImportFiles,
   onImportDroppedFiles,
@@ -213,6 +215,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
     totalHint?: number,
     cursor?: string
   ) => Promise<BaseRowPage>
+  loadRow?: (rowId: string) => Promise<BaseRow | null>
   onCellEdit?: (
     row: BaseRow,
     field: BaseFieldInfo,
@@ -258,8 +261,16 @@ export const BaseGalleryView = memo(function BaseGalleryView({
     totalHint?: number
     cursor?: string
   } | null>(null)
-  const [inspectedRow, setInspectedRow] = useState<BaseRow | null>(null)
   const [deleteRow, setDeleteRow] = useState<BaseRow | null>(null)
+  const {
+    inspectedRow,
+    inspectorLoading,
+    inspectorLoadError,
+    openInspectorRow,
+    closeInspectorRow,
+    replaceInspectorRow,
+    retryInspectorRow,
+  } = useBaseRecordInspectorRow(loadRow)
   const fields = useMemo(
     () => orderedBaseFields(table.fields, view),
     [table.fields, view]
@@ -329,13 +340,20 @@ export const BaseGalleryView = memo(function BaseGalleryView({
         ? current
         : { rows: [], startOffset: 0, total: table.rowCount }
     )
-    setInspectedRow(null)
+    closeInspectorRow()
     onRowCountChange?.(null)
     void requestPage(0, "replace")
     return () => {
       generationRef.current += 1
     }
-  }, [onRowCountChange, reloadToken, requestPage, table.table.id, view.id])
+  }, [
+    closeInspectorRow,
+    onRowCountChange,
+    reloadToken,
+    requestPage,
+    table.table.id,
+    view.id,
+  ])
 
   useLayoutEffect(() => {
     const container = scrollContainerRef.current
@@ -566,7 +584,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
           : candidate
       ),
     }))
-    setInspectedRow(result.row)
+    replaceInspectorRow(result.row)
     return result
   }
 
@@ -581,9 +599,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
     }))
     const nextTotal = Math.max(0, total - 1)
     onRowCountChange?.(nextTotal)
-    setInspectedRow((current) =>
-      current && String(current._id) === rowId ? null : current
-    )
+    if (inspectedRow && String(inspectedRow._id) === rowId) closeInspectorRow()
   }
 
   return (
@@ -661,7 +677,7 @@ export const BaseGalleryView = memo(function BaseGalleryView({
                   focusedRowId={focusedRowId}
                   canDelete={!disabled && onDeleteRow !== undefined}
                   measureElement={rowVirtualizer.measureElement}
-                  onOpen={setInspectedRow}
+                  onOpen={openInspectorRow}
                   onDelete={setDeleteRow}
                 />
               )
@@ -716,10 +732,13 @@ export const BaseGalleryView = memo(function BaseGalleryView({
           <BaseRecordInspector
             row={inspectedRow}
             fields={fields}
-            onClose={() => setInspectedRow(null)}
+            onClose={closeInspectorRow}
             onCopyRecordId={copyRecordId}
             onCellEdit={onCellEdit ? editRecord : undefined}
             disabled={disabled}
+            loading={inspectorLoading}
+            loadError={inspectorLoadError}
+            onRetryLoad={retryInspectorRow}
             onError={onError}
             onImportFiles={onImportFiles}
             onImportDroppedFiles={onImportDroppedFiles}

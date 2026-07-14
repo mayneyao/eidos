@@ -1607,6 +1607,54 @@ describe("Eidos Base files", () => {
     base.close()
   })
 
+  it("projects card pages while preserving sorted cursors and full row reads", () => {
+    const filePath = path.join(root, "projected-pages.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: {
+        id: "records",
+        name: "Records",
+        fields: [
+          { name: "Summary", columnName: "summary", type: "text" },
+          { name: "Private notes", columnName: "notes", type: "text" },
+          { name: "Priority", columnName: "priority", type: "number" },
+        ],
+      },
+    })
+    const inserted = base.insertRow("records", {
+      title: "Release Base",
+      summary: "Visible on the card",
+      notes: "Only load this in the inspector",
+      priority: 3,
+    })
+
+    const page = base.getRowPage(
+      "records",
+      0,
+      10,
+      { sorts: [{ field: "priority", direction: "desc" }] },
+      1,
+      undefined,
+      ["summary"]
+    )
+
+    expect(page.nextCursor).toMatch(/^sort:/)
+    expect(page.rows).toEqual([
+      {
+        _id: inserted._id,
+        title: "Release Base",
+        summary: "Visible on the card",
+      },
+    ])
+    expect(base.getRow("records", String(inserted._id))).toMatchObject({
+      _id: inserted._id,
+      title: "Release Base",
+      summary: "Visible on the card",
+      notes: "Only load this in the inspector",
+      priority: 3,
+    })
+    base.close()
+  })
+
   it("maintains query indexes for Gallery sorts and Kanban groups", () => {
     const filePath = path.join(root, "indexed-views.base")
     const base = createBaseFile(filePath, {

@@ -53,6 +53,7 @@ import {
 } from "./base-row-window"
 import { useBaseBoundedVirtualizer } from "./base-virtual-scroll"
 import { orderedBaseFields } from "./base-view-layout"
+import { useBaseRecordInspectorRow } from "./use-base-record-inspector-row"
 
 const KANBAN_PAGE_SIZE = 50
 const KANBAN_MAX_WINDOW_ROWS = 150
@@ -794,6 +795,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
   searchResultIndex = null,
   loadGroupCounts,
   loadGroupPage,
+  loadRow,
   onCellEdit,
   onAddRow,
   onDeleteRow,
@@ -820,6 +822,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
     totalHint: number,
     cursor?: string
   ) => Promise<BaseRowPage>
+  loadRow?: (rowId: string) => Promise<BaseRow | null>
   onCellEdit: (
     row: BaseRow,
     field: BaseFieldInfo,
@@ -884,8 +887,16 @@ export const BaseKanbanView = memo(function BaseKanbanView({
   const moveInFlight = movingGroupKeys !== null
   const moveInFlightRef = useRef(false)
   const [moveAnnouncement, setMoveAnnouncement] = useState("")
-  const [inspectedRow, setInspectedRow] = useState<BaseRow | null>(null)
   const [deleteRow, setDeleteRow] = useState<BaseRow | null>(null)
+  const {
+    inspectedRow,
+    inspectorLoading,
+    inspectorLoadError,
+    openInspectorRow,
+    closeInspectorRow,
+    replaceInspectorRow,
+    retryInspectorRow,
+  } = useBaseRecordInspectorRow(loadRow)
   const fields = useMemo(
     () => orderedBaseFields(table.fields, view),
     [table.fields, view]
@@ -1000,7 +1011,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
     loadingInitialGroupsRef.current.clear()
     loadingMoreGroupsRef.current.clear()
     const generation = generationRef.current
-    setInspectedRow(null)
+    closeInspectorRow()
     onRowCountChange?.(null)
     if (!groupField) {
       setGroups([])
@@ -1077,6 +1088,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
     }
   }, [
     groupField,
+    closeInspectorRow,
     loadGroupCounts,
     optionSignature,
     countsRetryToken,
@@ -1587,7 +1599,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
         return group
       })
     })
-    setInspectedRow(result.row)
+    replaceInspectorRow(result.row)
     return result
   }
 
@@ -1610,9 +1622,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
         }
       })
     )
-    setInspectedRow((current) =>
-      current && String(current._id) === rowId ? null : current
-    )
+    if (inspectedRow && String(inspectedRow._id) === rowId) closeInspectorRow()
   }
 
   if (!groupField) {
@@ -1722,7 +1732,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
                         }
                         width={columnWidth}
                         color={baseOptionColor(group.color, theme)}
-                        onOpen={setInspectedRow}
+                        onOpen={openInspectorRow}
                         onDelete={onDeleteRow ? setDeleteRow : undefined}
                         moveOptions={moveOptions}
                         onMove={moveRecord}
@@ -1756,10 +1766,13 @@ export const BaseKanbanView = memo(function BaseKanbanView({
           <BaseRecordInspector
             row={inspectedRow}
             fields={fields}
-            onClose={() => setInspectedRow(null)}
+            onClose={closeInspectorRow}
             onCopyRecordId={copyRecordId}
             onCellEdit={editInspectedRecord}
             disabled={disabled}
+            loading={inspectorLoading}
+            loadError={inspectorLoadError}
+            onRetryLoad={retryInspectorRow}
             onError={onError}
             onImportFiles={onImportFiles}
             onImportDroppedFiles={onImportDroppedFiles}

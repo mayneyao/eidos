@@ -173,8 +173,16 @@ vi.mock("./base-record-inspector", () => ({
     fields,
     onCellEdit,
     disabled,
+    loading,
+    loadError,
   }: {
-    row: { _id?: string; title?: string; status?: string; priority?: string }
+    row: {
+      _id?: string
+      title?: string
+      status?: string
+      priority?: string
+      notes?: string
+    }
     fields: Array<{ tableColumnName: string }>
     onCellEdit: (
       row: {
@@ -187,11 +195,18 @@ vi.mock("./base-record-inspector", () => ({
       value: string
     ) => Promise<unknown>
     disabled?: boolean
+    loading?: boolean
+    loadError?: string | null
   }) => (
     <aside
       data-testid="record-inspector"
       data-disabled={String(Boolean(disabled))}
+      data-loading={String(Boolean(loading))}
+      data-load-error={loadError ?? ""}
     >
+      <span data-testid="record-inspector-value">
+        {row.title}:{row.notes ?? "preview"}
+      </span>
       <button
         type="button"
         disabled={disabled}
@@ -458,6 +473,67 @@ describe("BaseKanbanView", () => {
       expect.objectContaining({ tableColumnName: "status" }),
       "todo"
     )
+  })
+
+  it("loads the complete Kanban record only when its inspector opens", async () => {
+    const fullRow = deferred<{
+      _id: string
+      title: string
+      status: string
+      notes: string
+    }>()
+    const loadRow = vi.fn(() => fullRow.promise)
+
+    await act(async () => {
+      root.render(
+        <BaseKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 1 }])}
+          loadGroupPage={vi.fn(async (_field, value, offset, limit) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: value === "todo" ? 1 : 0,
+            rows:
+              value === "todo"
+                ? [{ _id: "row_1", title: "Write RFC", status: "todo" }]
+                : [],
+          }))}
+          loadRow={loadRow}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Write RFC")
+        ?.click()
+    })
+    expect(loadRow).toHaveBeenCalledWith("row_1")
+    expect(
+      container
+        .querySelector('[data-testid="record-inspector"]')
+        ?.getAttribute("data-loading")
+    ).toBe("true")
+
+    await act(async () => {
+      fullRow.resolve({
+        _id: "row_1",
+        title: "Write RFC",
+        status: "todo",
+        notes: "Loaded from the Base file",
+      })
+      await Promise.resolve()
+    })
+    expect(
+      container.querySelector('[data-testid="record-inspector-value"]')
+        ?.textContent
+    ).toBe("Write RFC:Loaded from the Base file")
   })
 
   it("passes persisted cover and empty-field settings into Kanban cards", async () => {

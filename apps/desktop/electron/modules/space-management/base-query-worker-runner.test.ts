@@ -88,6 +88,17 @@ describe("BaseQueryWorkerRunner", () => {
     })
     await expect(pagePromise).resolves.toMatchObject({ total: 1 })
 
+    const rowPromise = runner.row("/space", "/space/tasks.base", "tasks", "1")
+    const rowRequest = worker.postMessage.mock.calls[1][0]
+    expect(rowRequest).toMatchObject({ operation: "row", rowId: "1" })
+    worker.emit("message", {
+      id: rowRequest.id,
+      ok: true,
+      operation: "row",
+      row: { _id: "1", title: "Task", notes: "Full record" },
+    })
+    await expect(rowPromise).resolves.toMatchObject({ notes: "Full record" })
+
     const countsPromise = runner.groupCounts(
       "/space",
       "/space/tasks.base",
@@ -95,7 +106,7 @@ describe("BaseQueryWorkerRunner", () => {
       "status",
       {}
     )
-    const countsRequest = worker.postMessage.mock.calls[1][0]
+    const countsRequest = worker.postMessage.mock.calls[2][0]
     worker.emit("message", {
       id: countsRequest.id,
       ok: true,
@@ -112,7 +123,7 @@ describe("BaseQueryWorkerRunner", () => {
       [{ columnName: "points", type: "sum" }],
       { search: "release" }
     )
-    const statsRequest = worker.postMessage.mock.calls[2][0]
+    const statsRequest = worker.postMessage.mock.calls[3][0]
     expect(statsRequest).toMatchObject({
       operation: "column-stats",
       configs: [{ columnName: "points", type: "sum" }],

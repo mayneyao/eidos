@@ -199,4 +199,48 @@ describe("BaseRecordInspector", () => {
       container.querySelector<HTMLTextAreaElement>("textarea")?.value
     ).toBe("Ship Base")
   })
+
+  it("announces full-record loading and offers a recoverable load error", async () => {
+    const row = {
+      _id: "row_1",
+      title: "Write RFC",
+    }
+    const onRetryLoad = vi.fn()
+    const render = (loading: boolean, loadError: string | null = null) =>
+      root.render(
+        <BaseRecordInspector
+          row={row}
+          fields={fields}
+          loading={loading}
+          loadError={loadError}
+          onRetryLoad={onRetryLoad}
+          onClose={vi.fn()}
+          onCopyRecordId={vi.fn()}
+          onCellEdit={vi.fn()}
+        />
+      )
+
+    await act(async () => render(true))
+
+    expect(
+      container
+        .querySelector('[data-base-detail-panel="record"]')
+        ?.getAttribute("aria-busy")
+    ).toBe("true")
+    expect(container.textContent).toContain("Loading record details…")
+    expect(container.querySelector("textarea")).toBeNull()
+
+    await act(async () => render(false, "Record no longer exists"))
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Record no longer exists"
+    )
+    expect(container.querySelector("textarea")).toBeNull()
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Retry")
+        ?.click()
+    })
+    expect(onRetryLoad).toHaveBeenCalledOnce()
+  })
 })

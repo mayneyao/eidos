@@ -4,6 +4,7 @@ import type {
   BaseFieldInfo,
   BaseRow,
   BaseRowMutationResult,
+  BaseRowPage,
   BaseSnapshot,
   BaseSqlPrimitive,
 } from "@eidos.space/base"
@@ -19,6 +20,7 @@ import { SpaceBaseEditor } from "./space-base-editor"
 
 const getSnapshotMock = vi.hoisted(() => vi.fn())
 const getTablePageMock = vi.hoisted(() => vi.fn())
+const getTableRowMock = vi.hoisted(() => vi.fn())
 const createTableMock = vi.hoisted(() => vi.fn())
 const updateTableMock = vi.hoisted(() => vi.fn())
 const deleteTableMock = vi.hoisted(() => vi.fn())
@@ -61,6 +63,13 @@ const baseViewHostProps = vi.hoisted(() => ({
   }>,
   gallery: [] as Array<{
     table: object
+    loadPage: (
+      offset: number,
+      limit: number,
+      totalHint?: number,
+      cursor?: string
+    ) => Promise<BaseRowPage>
+    loadRow?: (rowId: string) => Promise<BaseRow | null>
     onCellEdit?: (
       row: BaseRow,
       field: BaseFieldInfo,
@@ -70,6 +79,15 @@ const baseViewHostProps = vi.hoisted(() => ({
   }>,
   kanban: [] as Array<{
     table: object
+    loadGroupPage: (
+      field: BaseFieldInfo,
+      value: string | null,
+      offset: number,
+      limit: number,
+      totalHint: number,
+      cursor?: string
+    ) => Promise<BaseRowPage>
+    loadRow?: (rowId: string) => Promise<BaseRow | null>
     onCellEdit: (
       row: BaseRow,
       field: BaseFieldInfo,
@@ -87,6 +105,7 @@ vi.mock("@/apps/web-app/hooks/use-space-base", () => ({
   useSpaceBase: () => ({
     getSnapshot: getSnapshotMock,
     getTablePage: getTablePageMock,
+    getTableRow: getTableRowMock,
     createTable: createTableMock,
     updateTable: updateTableMock,
     deleteTable: deleteTableMock,
@@ -708,6 +727,8 @@ vi.mock("./base-gallery-view", async () => {
     BaseGalleryView: memo(function BaseGalleryView({
       table,
       disabled,
+      loadPage,
+      loadRow,
       onCellEdit,
       onDeleteRow,
       onRevealFile,
@@ -715,6 +736,13 @@ vi.mock("./base-gallery-view", async () => {
     }: {
       table: (typeof snapshot)["tables"][number]
       disabled?: boolean
+      loadPage: (
+        offset: number,
+        limit: number,
+        totalHint?: number,
+        cursor?: string
+      ) => Promise<BaseRowPage>
+      loadRow?: (rowId: string) => Promise<BaseRow | null>
       onCellEdit?: (
         row: BaseRow,
         field: BaseFieldInfo,
@@ -724,7 +752,13 @@ vi.mock("./base-gallery-view", async () => {
       onRevealFile?: (path: string) => Promise<void> | void
       reloadToken?: number
     }) {
-      baseViewHostProps.gallery.push({ table, onCellEdit, onRevealFile })
+      baseViewHostProps.gallery.push({
+        table,
+        loadPage,
+        loadRow,
+        onCellEdit,
+        onRevealFile,
+      })
       const title = table.fields.find(
         (field) => field.tableColumnName === "title"
       )
@@ -769,6 +803,8 @@ vi.mock("./base-kanban-view", async () => {
     BaseKanbanView: memo(function BaseKanbanView({
       table,
       disabled,
+      loadGroupPage,
+      loadRow,
       onAddRow,
       onCellEdit,
       onRevealFile,
@@ -776,6 +812,15 @@ vi.mock("./base-kanban-view", async () => {
     }: {
       table: (typeof snapshot)["tables"][number]
       disabled?: boolean
+      loadGroupPage: (
+        field: BaseFieldInfo,
+        value: string | null,
+        offset: number,
+        limit: number,
+        totalHint: number,
+        cursor?: string
+      ) => Promise<BaseRowPage>
+      loadRow?: (rowId: string) => Promise<BaseRow | null>
       onAddRow: (
         field: (typeof snapshot)["tables"][number]["fields"][number],
         value: string,
@@ -789,7 +834,13 @@ vi.mock("./base-kanban-view", async () => {
       onRevealFile?: (path: string) => Promise<void> | void
       reloadToken?: number
     }) {
-      baseViewHostProps.kanban.push({ table, onCellEdit, onRevealFile })
+      baseViewHostProps.kanban.push({
+        table,
+        loadGroupPage,
+        loadRow,
+        onCellEdit,
+        onRevealFile,
+      })
       const title = table.fields.find(
         (field) => field.tableColumnName === "title"
       )
@@ -930,6 +981,7 @@ describe("SpaceBaseEditor", () => {
   beforeEach(() => {
     getSnapshotMock.mockReset()
     getTablePageMock.mockReset()
+    getTableRowMock.mockReset()
     createTableMock.mockReset()
     updateTableMock.mockReset()
     deleteTableMock.mockReset()
@@ -968,6 +1020,11 @@ describe("SpaceBaseEditor", () => {
       limit: 100,
       total: 1,
       rows: [{ _id: "row_1", title: "Write RFC", status: "todo" }],
+    })
+    getTableRowMock.mockResolvedValue({
+      _id: "row_1",
+      title: "Write RFC",
+      status: "todo",
     })
     createTableMock.mockResolvedValue(snapshot)
     updateTableMock.mockResolvedValue(snapshot)
@@ -1211,6 +1268,42 @@ describe("SpaceBaseEditor", () => {
     expect(baseViewHostProps.gallery).toHaveLength(1)
   })
 
+  it("projects Gallery pages and loads a complete row only for inspection", async () => {
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      tables: snapshot.tables.map((table) => ({
+        ...table,
+        views: table.views.map((view) => ({
+          ...view,
+          name: "Cards",
+          type: "gallery" as const,
+          properties: { cardSize: "medium" },
+        })),
+      })),
+    })
+    await renderEditor()
+
+    const hostProps = baseViewHostProps.gallery.at(-1)
+    await hostProps?.loadPage(0, 100, 1, "next-page")
+    await hostProps?.loadRow?.("row_1")
+
+    expect(getTablePageMock).toHaveBeenLastCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      0,
+      100,
+      { filter: null, sorts: [] },
+      1,
+      "next-page",
+      ["_id", "title", "status"]
+    )
+    expect(getTableRowMock).toHaveBeenCalledWith(
+      "projects/tasks.base",
+      "tasks",
+      "row_1"
+    )
+  })
+
   it("only refreshes a filtered Gallery when the edited field affects its query", async () => {
     getSnapshotMock.mockResolvedValue({
       ...snapshot,
@@ -1306,6 +1399,53 @@ describe("SpaceBaseEditor", () => {
       { title: "Write Kanban implementation" }
     )
     expect(baseViewHostProps.kanban).toHaveLength(1)
+  })
+
+  it("projects Kanban group pages while retaining the group field", async () => {
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      tables: snapshot.tables.map((table) => ({
+        ...table,
+        views: table.views.map((view) => ({
+          ...view,
+          name: "Board",
+          type: "kanban" as const,
+          properties: { cardSize: "medium", groupByField: "status" },
+        })),
+      })),
+    })
+    await renderEditor()
+
+    const status = snapshot.tables[0].fields.find(
+      (field) => field.tableColumnName === "status"
+    )
+    const hostProps = baseViewHostProps.kanban.at(-1)
+    expect(status).toBeDefined()
+    if (!status) return
+
+    await hostProps?.loadGroupPage(status, "todo", 0, 50, 1, "next-group")
+    const call = getTablePageMock.mock.calls.at(-1)
+
+    expect(call?.slice(0, 4)).toEqual(["projects/tasks.base", "tasks", 0, 50])
+    expect(call?.[4]).toMatchObject({
+      filter: {
+        type: "group",
+        children: expect.arrayContaining([
+          {
+            type: "rule",
+            field: "status",
+            operator: "equals",
+            value: "todo",
+          },
+        ]),
+      },
+      sorts: [],
+    })
+    expect(call?.slice(5)).toEqual([
+      1,
+      "next-group",
+      ["_id", "title", "status"],
+    ])
   })
 
   it("persists a multi-cell Grid edit as one Base batch", async () => {

@@ -746,10 +746,39 @@ export class SpaceManagementService extends IpcServiceBase {
     ) {
       throw new Error("Base row page cursor is invalid")
     }
+    if (
+      options.columns !== undefined &&
+      (!Array.isArray(options.columns) ||
+        options.columns.length > 1_000 ||
+        options.columns.some(
+          (columnName) =>
+            typeof columnName !== "string" ||
+            columnName.length === 0 ||
+            columnName.length > 255
+        ))
+    ) {
+      throw new Error("Base row page columns are invalid")
+    }
     return withFileSpaceReadLock(spaceId, async () => {
       const files = this._getFileSpace(spaceId)
       const systemPath = await files.getSystemPath(relativePath)
       return this.baseQueryWorker.page(files.root, systemPath, tableId, options)
+    })
+  }
+
+  async getBaseTableRow(
+    spaceId: string,
+    relativePath: string,
+    tableId: string,
+    rowId: string
+  ): Promise<BaseRow | null> {
+    if (typeof rowId !== "string" || rowId.length === 0 || rowId.length > 255) {
+      throw new Error("Base row ID is invalid")
+    }
+    return withFileSpaceReadLock(spaceId, async () => {
+      const files = this._getFileSpace(spaceId)
+      const systemPath = await files.getSystemPath(relativePath)
+      return this.baseQueryWorker.row(files.root, systemPath, tableId, rowId)
     })
   }
 

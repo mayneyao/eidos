@@ -86,3 +86,19 @@ export function createBaseRecordCardLayout(
     hideEmptyFields: view.properties?.hideEmptyFields !== false,
   }
 }
+
+export function baseRecordCardProjectionColumns(
+  fields: BaseFieldInfo[],
+  view: BaseViewInfo
+): string[] {
+  const layout = createBaseRecordCardLayout(fields, view)
+  const columns = new Set(["_id", "title"])
+  for (const { field } of layout.fields) {
+    columns.add(field.tableColumnName)
+  }
+  if (layout.coverField) columns.add(layout.coverField.tableColumnName)
+  if (typeof view.properties?.groupByField === "string") {
+    columns.add(view.properties.groupByField)
+  }
+  return [...columns]
+}

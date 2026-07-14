@@ -70,6 +70,7 @@ import { baseOpenErrorPresentation } from "./base-open-error"
 import { BaseFormulaEditor } from "./base-formula-editor"
 import { BaseLookupEditor } from "./base-lookup-editor"
 import { BaseQueryToolbar } from "./base-query-toolbar"
+import { baseRecordCardProjectionColumns } from "./base-record-card-layout"
 import { BaseRenameDialog } from "./base-rename-dialog"
 import { BaseSheetTabs } from "./base-sheet-tabs"
 import { BaseStructureDialog } from "./base-structure-dialog"
@@ -187,6 +188,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     cancelCsvOperation,
     exportCsv,
     getTablePage,
+    getTableRow,
     getTableGroupCounts,
     getTableColumnStats,
     createTable,
@@ -407,6 +409,15 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
       sorts: activeView?.sorts ?? [],
     }),
     [activeView?.filter, activeView?.sorts, search]
+  )
+  const activeCardColumns = useMemo(
+    () =>
+      activeTable &&
+      activeView &&
+      (activeView.type === "gallery" || activeView.type === "kanban")
+        ? baseRecordCardProjectionColumns(activeTable.fields, activeView)
+        : undefined,
+    [activeTable, activeView]
   )
   const activeQueryAffectedByFieldChanges = useCallback(
     (changedColumns: Iterable<string>) =>
@@ -665,6 +676,35 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
     [activeQuery, activeTableId, filePath, getTablePage]
   )
 
+  const loadActiveCardPage = useCallback(
+    (offset: number, limit: number, totalHint?: number, cursor?: string) => {
+      if (!activeTableId) {
+        return Promise.reject(new Error("No active Base table"))
+      }
+      return getTablePage(
+        filePath,
+        activeTableId,
+        offset,
+        limit,
+        activeQuery,
+        totalHint,
+        cursor,
+        activeCardColumns
+      )
+    },
+    [activeCardColumns, activeQuery, activeTableId, filePath, getTablePage]
+  )
+
+  const loadActiveTableRow = useCallback(
+    (rowId: string) => {
+      if (!activeTableId) {
+        return Promise.reject(new Error("No active Base table"))
+      }
+      return getTableRow(filePath, activeTableId, rowId)
+    },
+    [activeTableId, filePath, getTableRow]
+  )
+
   const loadActiveColumnStats = useCallback(
     (configs: BaseColumnStatConfig[]) => {
       if (!activeTableId) {
@@ -701,10 +741,11 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
           ),
         },
         totalHint,
-        cursor
+        cursor,
+        activeCardColumns
       )
     },
-    [activeQuery, activeTableId, filePath, getTablePage]
+    [activeCardColumns, activeQuery, activeTableId, filePath, getTablePage]
   )
 
   const loadKanbanGroupCounts = useCallback(
@@ -1760,7 +1801,8 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               disabled={blockingMutations > 0}
               reloadToken={gridReloadToken}
               searchResultIndex={activeSearchResultIndex}
-              loadPage={loadActiveTablePage}
+              loadPage={loadActiveCardPage}
+              loadRow={loadActiveTableRow}
               onCellEdit={saveInspectorCell}
               onImportFiles={importBaseFiles}
               onImportDroppedFiles={importDroppedBaseFiles}
@@ -1782,6 +1824,7 @@ export function SpaceBaseEditor({ filePath }: SpaceBaseEditorProps) {
               searchResultIndex={activeSearchResultIndex}
               loadGroupCounts={loadKanbanGroupCounts}
               loadGroupPage={loadKanbanGroupPage}
+              loadRow={loadActiveTableRow}
               onCellEdit={saveInspectorCell}
               onAddRow={createRowInGroup}
               onImportFiles={importBaseFiles}

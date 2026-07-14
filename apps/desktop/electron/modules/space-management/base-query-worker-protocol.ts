@@ -1,6 +1,7 @@
 import type {
   BaseColumnStatConfig,
   BaseColumnStatResult,
+  BaseRow,
   BaseRowGroupCount,
   BaseRowPage,
   BaseRowPageOptions,
@@ -18,6 +19,11 @@ export interface BasePageWorkerRequest extends BaseQueryWorkerRequestBase {
   options: BaseRowPageOptions
 }
 
+export interface BaseRowWorkerRequest extends BaseQueryWorkerRequestBase {
+  operation: "row"
+  rowId: string
+}
+
 export interface BaseGroupCountsWorkerRequest extends BaseQueryWorkerRequestBase {
   operation: "group-counts"
   columnName: string
@@ -32,6 +38,7 @@ export interface BaseColumnStatsWorkerRequest extends BaseQueryWorkerRequestBase
 
 export type BaseQueryWorkerRequest =
   | BasePageWorkerRequest
+  | BaseRowWorkerRequest
   | BaseGroupCountsWorkerRequest
   | BaseColumnStatsWorkerRequest
 
@@ -41,6 +48,12 @@ export type BaseQueryWorkerSuccess =
       ok: true
       operation: "page"
       page: BaseRowPage
+    }
+  | {
+      id: string
+      ok: true
+      operation: "row"
+      row: BaseRow | null
     }
   | {
       id: string

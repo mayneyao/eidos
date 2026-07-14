@@ -396,6 +396,12 @@ export interface BaseRowPageOptions {
   limit: number
   query?: BaseRowQuery
   /**
+   * Field columns returned for each row. Record identity and title are always
+   * included. Query-only sort columns may be read internally for cursor
+   * generation but are not exposed in the returned rows.
+   */
+  columns?: string[]
+  /**
    * Previously observed row count for the same query. When present, paging can
    * reuse it instead of repeating an expensive COUNT query.
    */

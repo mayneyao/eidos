@@ -1,6 +1,7 @@
 import type {
   BaseColumnStatConfig,
   BaseColumnStatResult,
+  BaseRow,
   BaseRowGroupCount,
   BaseRowPage,
   BaseRowPageOptions,
@@ -34,6 +35,7 @@ interface BaseQueryWorkerHandle {
 
 type BaseQueryRequestInput =
   | Omit<Extract<BaseQueryWorkerRequest, { operation: "page" }>, "id">
+  | Omit<Extract<BaseQueryWorkerRequest, { operation: "row" }>, "id">
   | Omit<Extract<BaseQueryWorkerRequest, { operation: "group-counts" }>, "id">
   | Omit<Extract<BaseQueryWorkerRequest, { operation: "column-stats" }>, "id">
 
@@ -73,6 +75,25 @@ export class BaseQueryWorkerRunner {
       throw new Error("Base query worker returned an unexpected response")
     }
     return response.page
+  }
+
+  async row(
+    spacePath: string,
+    filePath: string,
+    tableId: string,
+    rowId: string
+  ): Promise<BaseRow | null> {
+    const response = await this.run(spacePath, {
+      operation: "row",
+      filePath,
+      tableId,
+      rowId,
+    })
+    if (!response.ok) throw this.error(response.name, response.message)
+    if (response.operation !== "row") {
+      throw new Error("Base query worker returned an unexpected response")
+    }
+    return response.row
   }
 
   async groupCounts(

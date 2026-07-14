@@ -24,15 +24,21 @@ vi.mock("./base-record-inspector", () => ({
   BaseRecordInspector: ({
     row,
     disabled,
+    loading,
+    loadError,
   }: {
-    row: { title?: string }
+    row: { title?: string; notes?: string }
     disabled?: boolean
+    loading?: boolean
+    loadError?: string | null
   }) => (
     <aside
       data-testid="record-inspector"
       data-disabled={String(Boolean(disabled))}
+      data-loading={String(Boolean(loading))}
+      data-load-error={loadError ?? ""}
     >
-      {row.title}
+      {row.title}:{row.notes ?? "preview"}
     </aside>
   ),
 }))
@@ -242,10 +248,67 @@ describe("BaseGalleryView", () => {
     })
     expect(
       container.querySelector('[data-testid="record-inspector"]')?.textContent
-    ).toBe("Write RFC")
+    ).toBe("Write RFC:preview")
 
     expect(loadPage).toHaveBeenLastCalledWith(2, 100, 3)
     expect(container.textContent).toContain("Review UX")
+  })
+
+  it("loads the complete Gallery record only when its inspector opens", async () => {
+    let resolveRow:
+      | ((row: { _id: string; title: string; notes: string }) => void)
+      | undefined
+    const loadRow = vi.fn(
+      () =>
+        new Promise<{ _id: string; title: string; notes: string }>(
+          (resolve) => {
+            resolveRow = resolve
+          }
+        )
+    )
+
+    await act(async () => {
+      root.render(
+        <BaseGalleryView
+          table={table}
+          view={view}
+          loadPage={vi.fn(async (offset, limit) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: 1,
+            rows: [{ _id: "row_1", title: "Write RFC", status: "todo" }],
+          }))}
+          loadRow={loadRow}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    await act(async () => {
+      container
+        .querySelector<HTMLElement>('[data-base-row-id="row_1"] h3')
+        ?.click()
+    })
+    expect(loadRow).toHaveBeenCalledWith("row_1")
+    expect(
+      container
+        .querySelector('[data-testid="record-inspector"]')
+        ?.getAttribute("data-loading")
+    ).toBe("true")
+
+    await act(async () => {
+      resolveRow?.({
+        _id: "row_1",
+        title: "Write RFC",
+        notes: "Loaded from the Base file",
+      })
+      await Promise.resolve()
+    })
+    expect(
+      container.querySelector('[data-testid="record-inspector"]')?.textContent
+    ).toBe("Write RFC:Loaded from the Base file")
   })
 
   it("uses the real viewport width before the first Gallery paint", async () => {

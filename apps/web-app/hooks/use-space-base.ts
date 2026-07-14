@@ -137,7 +137,8 @@ export function useSpaceBase(spaceId: string | undefined) {
       limit: number,
       query: BaseRowQuery = {},
       totalHint?: number,
-      cursor?: string
+      cursor?: string,
+      columns?: string[]
     ): Promise<BaseRowPage> =>
       requireBaseApi().getBaseTablePage(
         requireSpaceId(),
@@ -149,7 +150,23 @@ export function useSpaceBase(spaceId: string | undefined) {
           query,
           totalHint,
           ...(cursor ? { cursor } : {}),
+          ...(columns ? { columns } : {}),
         }
+      ),
+    [requireSpaceId]
+  )
+
+  const getTableRow = useCallback(
+    (
+      relativePath: string,
+      tableId: string,
+      rowId: string
+    ): Promise<BaseRow | null> =>
+      requireBaseApi().getBaseTableRow(
+        requireSpaceId(),
+        relativePath,
+        tableId,
+        rowId
       ),
     [requireSpaceId]
   )
@@ -437,6 +454,7 @@ export function useSpaceBase(spaceId: string | undefined) {
     exportCsv,
     getSnapshot,
     getTablePage,
+    getTableRow,
     getTableGroupCounts,
     getTableColumnStats,
     createTable,

@@ -1946,14 +1946,25 @@ export class BaseRuntime {
     return this.listRowPage(tableId, limit, offset, query).rows
   }
 
+  getRow(tableId: string, rowId: string): BaseRow | null {
+    const fields = this.listFields(tableId)
+    const row = this.getComputedRow(tableId, rowId, fields)
+    if (!row) return null
+    return this.hydrateRelationRows([row], fields)[0] ?? null
+  }
+
   private listRowPage(
     tableId: string,
     limit: number,
     offset: number,
     query: BaseRowQuery,
-    cursor?: string
+    cursor?: string,
+    projectedColumns?: readonly string[]
   ): { rows: BaseRow[]; nextCursor?: string } {
     const fields = this.listFields(tableId)
+    const fieldsByColumn = new Map(
+      fields.map((field) => [field.tableColumnName, field])
+    )
     const normalizedQuery = normalizeBaseRowQuery(query)
     const compiled = compileBaseRowQuery(fields, normalizedQuery)
     const sorts = baseCursorSorts(fields, normalizedQuery)
@@ -1962,7 +1973,47 @@ export class BaseRuntime {
       sorts.length <= BASE_SORTED_CURSOR_MAX_FIELDS &&
       sorts.every((sort) => !sort.field.isDerived)
     const safeLimit = Math.max(0, limit)
-    const rowSource = this.rowSourceSql(tableId, fields)
+    const outputColumns = projectedColumns
+      ? new Set(["_id", "title", ...projectedColumns])
+      : null
+    if (outputColumns) {
+      for (const columnName of outputColumns) {
+        const safeColumnName = assertKnownFieldColumnName(columnName)
+        if (!fieldsByColumn.has(safeColumnName)) {
+          throw new BaseError(
+            "field-not-found",
+            `Base field not found: ${safeColumnName}`
+          )
+        }
+      }
+    }
+    const queryColumns = outputColumns
+      ? baseRowQueryPredicateColumns(fields, normalizedQuery)
+      : null
+    if (queryColumns) {
+      for (const columnName of outputColumns ?? []) {
+        queryColumns.add(columnName)
+      }
+      for (const sort of sorts) {
+        queryColumns.add(sort.field.tableColumnName)
+      }
+    }
+    const rowSource = this.rowSourceSql(
+      tableId,
+      fields,
+      queryColumns ?? undefined
+    )
+    const selectedColumns = outputColumns
+      ? Array.from(
+          new Set([
+            "__base_rowid",
+            ...outputColumns,
+            ...sorts.map((sort) => sort.field.tableColumnName),
+          ])
+        )
+          .map(quoteIdentifier)
+          .join(", ")
+      : "*"
     let rows: BaseRow[]
 
     if (cursor && sorts.length === 0) {
@@ -1972,7 +2023,7 @@ export class BaseRuntime {
         '"__base_rowid" > ?'
       )
       rows = this.connection.query<BaseRow>(
-        `SELECT * FROM ${rowSource}
+        `SELECT ${selectedColumns} FROM ${rowSource}
           ${cursorWhere} ${compiled.orderSql} LIMIT ?`,
         [...compiled.params, afterRowId, safeLimit]
       )
@@ -1990,7 +2041,7 @@ export class BaseRuntime {
         const cursorWhere = appendBaseCursorWhere(compiled.whereSql, branch.sql)
         rows.push(
           ...this.connection.query<BaseRow>(
-            `SELECT * FROM ${rowSource}
+            `SELECT ${selectedColumns} FROM ${rowSource}
               ${cursorWhere} ${compiled.orderSql} LIMIT ?`,
             [...compiled.params, ...branch.params, remaining]
           )
@@ -2000,7 +2051,7 @@ export class BaseRuntime {
       throw new BaseError("invalid-query", "Invalid Base row page cursor")
     } else {
       rows = this.connection.query<BaseRow>(
-        `SELECT * FROM ${rowSource}
+        `SELECT ${selectedColumns} FROM ${rowSource}
           ${compiled.whereSql} ${compiled.orderSql} LIMIT ? OFFSET ?`,
         [...compiled.params, safeLimit, Math.max(0, offset)]
       )
@@ -2016,9 +2067,19 @@ export class BaseRuntime {
               baseCursorQuerySignature(normalizedQuery)
             )
           : undefined
-    rows.forEach((row) => delete row.__base_rowid)
+    rows.forEach((row) => {
+      delete row.__base_rowid
+      if (!outputColumns) return
+      for (const sort of sorts) {
+        const columnName = sort.field.tableColumnName
+        if (!outputColumns.has(columnName)) delete row[columnName]
+      }
+    })
+    const hydratedFields = outputColumns
+      ? fields.filter((field) => outputColumns.has(field.tableColumnName))
+      : fields
     return {
-      rows: this.hydrateRelationRows(rows, fields),
+      rows: this.hydrateRelationRows(rows, hydratedFields),
       ...(nextCursor ? { nextCursor } : {}),
     }
   }
@@ -2163,7 +2224,8 @@ export class BaseRuntime {
     limit = 100,
     query: BaseRowQuery = {},
     totalHint?: number,
-    cursor?: string
+    cursor?: string,
+    columns?: readonly string[]
   ): BaseRowPage {
     const safeOffset = Math.max(0, Math.trunc(offset))
     const safeLimit = Math.min(500, Math.max(1, Math.trunc(limit)))
@@ -2173,7 +2235,14 @@ export class BaseRuntime {
       totalHint >= 0
         ? totalHint
         : null
-    const page = this.listRowPage(tableId, safeLimit, safeOffset, query, cursor)
+    const page = this.listRowPage(
+      tableId,
+      safeLimit,
+      safeOffset,
+      query,
+      cursor,
+      columns
+    )
     return {
       tableId,
       offset: safeOffset,

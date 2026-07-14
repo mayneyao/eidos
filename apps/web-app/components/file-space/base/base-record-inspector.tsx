@@ -13,6 +13,7 @@ import {
   ExternalLink,
   FileText,
   FolderOpen,
+  LoaderCircle,
   Minus,
   Save,
   X,
@@ -137,6 +138,9 @@ export function BaseRecordInspector({
   onCopyRecordId,
   onCellEdit,
   disabled = false,
+  loading = false,
+  loadError,
+  onRetryLoad,
   onError,
   onImportFiles,
   onImportDroppedFiles,
@@ -154,6 +158,9 @@ export function BaseRecordInspector({
     value: BaseSqlPrimitive
   ) => Promise<BaseRowMutationResult>
   disabled?: boolean
+  loading?: boolean
+  loadError?: string | null
+  onRetryLoad?: () => void
   onError?: (error: unknown) => void
   onImportFiles?: () => Promise<string[]>
   onImportDroppedFiles?: (files: File[]) => Promise<string[]>
@@ -259,20 +266,30 @@ export function BaseRecordInspector({
     setCurrentRow(latestRowRef.current)
   }
 
-  const editorDisabled = disabled || savingField !== null || failedEdit !== null
+  const editorDisabled =
+    disabled || loading || savingField !== null || failedEdit !== null
 
   return (
     <aside
       className="base-detail-panel flex h-full flex-col border-l bg-background"
       data-base-detail-panel="record"
       aria-label={`Record details for ${title}`}
-      aria-busy={savingField !== null ? "true" : undefined}
+      aria-busy={loading || savingField !== null ? "true" : undefined}
     >
       <header className="flex min-h-12 items-start gap-2 border-b px-3 py-2.5">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
             <h2 className="truncate text-sm font-medium">{title}</h2>
-            {savingField ? (
+            {loading ? (
+              <span
+                role="status"
+                aria-live="polite"
+                className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground"
+              >
+                <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+                Loading…
+              </span>
+            ) : savingField ? (
               <span
                 role="status"
                 aria-live="polite"
@@ -334,55 +351,86 @@ export function BaseRecordInspector({
           </div>
         </div>
       ) : null}
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="divide-y">
-          {fields.map((field) => (
-            <div key={field.tableColumnName} className="grid gap-1 px-3 py-2.5">
-              <p className="text-[11px] font-medium text-muted-foreground">
-                {baseFieldDisplayName(field)}
-              </p>
-              {onCellEdit && field.type === "file" && onImportFiles ? (
-                <BaseRecordFileEditor
-                  value={currentRow[field.tableColumnName]}
-                  disabled={editorDisabled}
-                  onChange={(value) => editField(field, value)}
-                  onImportFiles={onImportFiles}
-                  onImportDroppedFiles={onImportDroppedFiles}
-                  onOpenFile={onOpenFile}
-                  onRevealFile={onRevealFile}
-                  onError={onError}
-                />
-              ) : onCellEdit && field.type === "link" && onSearchRelation ? (
-                <BaseRecordRelationEditor
-                  row={currentRow}
-                  field={field}
-                  disabled={editorDisabled}
-                  onChange={(value) => editField(field, value)}
-                  onSearch={onSearchRelation}
-                  onError={onError}
-                />
-              ) : onCellEdit &&
-                (field.valueKind === "source" || field.type === "title") &&
-                field.type !== "file" &&
-                field.type !== "link" ? (
-                <BaseRecordFieldEditor
-                  field={field}
-                  row={currentRow}
-                  disabled={editorDisabled}
-                  onChange={(value) => editField(field, value)}
-                />
-              ) : (
-                <FieldValue
-                  field={field}
-                  row={currentRow}
-                  onOpenFile={onOpenFile}
-                  onRevealFile={onRevealFile}
-                />
-              )}
-            </div>
-          ))}
+      {loading ? (
+        <div
+          className="flex min-h-0 flex-1 items-center justify-center gap-2 text-xs text-muted-foreground"
+          role="status"
+        >
+          <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+          Loading record details…
         </div>
-      </ScrollArea>
+      ) : loadError ? (
+        <div
+          className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-5 text-center text-xs text-muted-foreground"
+          role="alert"
+        >
+          <p className="max-w-64 break-words">{loadError}</p>
+          {onRetryLoad ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-xs"
+              onClick={onRetryLoad}
+            >
+              Retry
+            </Button>
+          ) : null}
+        </div>
+      ) : (
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="divide-y">
+            {fields.map((field) => (
+              <div
+                key={field.tableColumnName}
+                className="grid gap-1 px-3 py-2.5"
+              >
+                <p className="text-[11px] font-medium text-muted-foreground">
+                  {baseFieldDisplayName(field)}
+                </p>
+                {onCellEdit && field.type === "file" && onImportFiles ? (
+                  <BaseRecordFileEditor
+                    value={currentRow[field.tableColumnName]}
+                    disabled={editorDisabled}
+                    onChange={(value) => editField(field, value)}
+                    onImportFiles={onImportFiles}
+                    onImportDroppedFiles={onImportDroppedFiles}
+                    onOpenFile={onOpenFile}
+                    onRevealFile={onRevealFile}
+                    onError={onError}
+                  />
+                ) : onCellEdit && field.type === "link" && onSearchRelation ? (
+                  <BaseRecordRelationEditor
+                    row={currentRow}
+                    field={field}
+                    disabled={editorDisabled}
+                    onChange={(value) => editField(field, value)}
+                    onSearch={onSearchRelation}
+                    onError={onError}
+                  />
+                ) : onCellEdit &&
+                  (field.valueKind === "source" || field.type === "title") &&
+                  field.type !== "file" &&
+                  field.type !== "link" ? (
+                  <BaseRecordFieldEditor
+                    field={field}
+                    row={currentRow}
+                    disabled={editorDisabled}
+                    onChange={(value) => editField(field, value)}
+                  />
+                ) : (
+                  <FieldValue
+                    field={field}
+                    row={currentRow}
+                    onOpenFile={onOpenFile}
+                    onRevealFile={onRevealFile}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      )}
     </aside>
   )
 }
