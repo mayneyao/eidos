@@ -154,6 +154,11 @@ interface ViewRow {
   updated_at: string
 }
 
+interface BaseRowReadSchema {
+  table: BaseTableInfo
+  fields: BaseFieldInfo[]
+}
+
 const SYSTEM_FIELDS: Array<{
   name: string
   type: BaseFieldType
@@ -262,6 +267,8 @@ export class BaseRuntime {
     string,
     { signature: string; formulas: CompiledBaseFormula[] }
   >()
+  private readonly rowReadSchemaCache = new Map<string, BaseRowReadSchema>()
+  private rowReadDataVersion: number | null = null
 
   constructor(
     readonly connection: BaseConnection,
@@ -270,7 +277,44 @@ export class BaseRuntime {
 
   close(): void {
     this.formulaCompilationCache.clear()
+    this.rowReadSchemaCache.clear()
     if (this.closeConnection) this.connection.close?.()
+  }
+
+  private invalidateRowReadSchema(): void {
+    this.rowReadSchemaCache.clear()
+    this.rowReadDataVersion = null
+  }
+
+  private touchMetadata(entries: Record<string, string | undefined>): void {
+    setBaseMetadata(this.connection, entries)
+    this.invalidateRowReadSchema()
+  }
+
+  private rowReadSchema(tableId: string): BaseRowReadSchema {
+    const observed = this.connection.get<{ data_version: number | bigint }>(
+      "PRAGMA data_version"
+    )?.data_version
+    const dataVersion =
+      (typeof observed === "number" || typeof observed === "bigint") &&
+      Number.isSafeInteger(Number(observed))
+        ? Number(observed)
+        : null
+    if (
+      this.rowReadDataVersion !== null &&
+      dataVersion !== null &&
+      dataVersion !== this.rowReadDataVersion
+    ) {
+      this.rowReadSchemaCache.clear()
+    }
+    this.rowReadDataVersion = dataVersion
+
+    const cached = this.rowReadSchemaCache.get(tableId)
+    if (cached) return cached
+    const table = this.getTable(tableId)
+    const schema = { table, fields: this.queryFields(table) }
+    this.rowReadSchemaCache.set(tableId, schema)
+    return schema
   }
 
   private compiledFormulaFields(
@@ -320,9 +364,9 @@ export class BaseRuntime {
   private rowSourceSql(
     tableId: string,
     fields: BaseFieldInfo[],
-    requestedDerivedColumns?: ReadonlySet<string>
+    requestedDerivedColumns?: ReadonlySet<string>,
+    table = this.getTable(tableId)
   ): string {
-    const table = this.getTable(tableId)
     const requiredDerivedColumns = requestedDerivedColumns
       ? this.requiredDerivedColumns(fields, requestedDerivedColumns)
       : null
@@ -390,13 +434,14 @@ export class BaseRuntime {
     tableId: string,
     fields: BaseFieldInfo[],
     query: BaseRowQuery,
-    projectedColumns: Iterable<string> = []
+    projectedColumns: Iterable<string> = [],
+    table = this.getTable(tableId)
   ): string {
     const requestedColumns = baseRowQueryPredicateColumns(fields, query)
     for (const columnName of projectedColumns) {
       requestedColumns.add(columnName)
     }
-    return this.rowSourceSql(tableId, fields, requestedColumns)
+    return this.rowSourceSql(tableId, fields, requestedColumns, table)
   }
 
   private viewQueryIndexSql(view: BaseViewInfo): string | null {
@@ -584,10 +629,11 @@ export class BaseRuntime {
   private getComputedRow(
     tableId: string,
     rowId: BaseSqlParams[number],
-    fields: BaseFieldInfo[]
+    fields: BaseFieldInfo[],
+    table = this.getTable(tableId)
   ): BaseRow | undefined {
     const row = this.connection.get<BaseRow>(
-      `SELECT * FROM ${this.rowSourceSql(tableId, fields)} WHERE _id = ?`,
+      `SELECT * FROM ${this.rowSourceSql(tableId, fields, undefined, table)} WHERE _id = ?`,
       [rowId]
     )
     if (row) delete row.__base_rowid
@@ -782,7 +828,7 @@ export class BaseRuntime {
         `SELECT value FROM ${BASE_META_TABLE} WHERE key = 'default_table_id'`
       )
       if (!currentDefault) {
-        setBaseMetadata(this.connection, { default_table_id: tableId })
+        this.touchMetadata({ default_table_id: tableId })
       }
     })
     return this.getTable(tableId)
@@ -809,7 +855,7 @@ export class BaseRuntime {
           tableId,
         ]
       )
-      setBaseMetadata(this.connection, {})
+      this.touchMetadata({})
     })
     return this.getTable(tableId)
   }
@@ -867,13 +913,12 @@ export class BaseRuntime {
           )
         }
       }
-      setBaseMetadata(this.connection, {})
+      this.touchMetadata({})
       return true
     })
   }
 
-  listFields(tableId: string): BaseFieldInfo[] {
-    const table = this.getTable(tableId)
+  private queryFields(table: BaseTableInfo): BaseFieldInfo[] {
     return this.connection
       .query<FieldRow>(
         `SELECT name, type, table_name, table_column_name, property,
@@ -897,6 +942,10 @@ export class BaseRuntime {
         sourceTableColumnName: field.source_table_column_name,
         dependsOn: parseJson(field.depends_on),
       }))
+  }
+
+  listFields(tableId: string): BaseFieldInfo[] {
+    return this.queryFields(this.getTable(tableId))
   }
 
   listViews(tableId: string): BaseViewInfo[] {
@@ -1015,7 +1064,7 @@ export class BaseRuntime {
         throw new BaseError("view-not-found", `Base view not found: ${viewId}`)
       }
       this.syncViewQueryIndex(updated)
-      setBaseMetadata(this.connection, {})
+      this.touchMetadata({})
     })
     const updated = this.listViews(existing.table_id).find(
       (view) => view.id === viewId
@@ -1091,7 +1140,7 @@ export class BaseRuntime {
         )
       }
       this.syncViewQueryIndex(created)
-      setBaseMetadata(this.connection, {})
+      this.touchMetadata({})
     })
     const created = this.listViews(tableId).find((view) => view.id === viewId)
     if (!created) {
@@ -1159,7 +1208,7 @@ export class BaseRuntime {
         `DELETE FROM ${BASE_VIEWS_TABLE} WHERE id = ?`,
         [viewId]
       )
-      if (result.changes > 0) setBaseMetadata(this.connection, {})
+      if (result.changes > 0) this.touchMetadata({})
       return result.changes > 0
     })
   }
@@ -1186,7 +1235,7 @@ export class BaseRuntime {
           [index + 1, viewId, tableId]
         )
       })
-      setBaseMetadata(this.connection, {})
+      this.touchMetadata({})
     })
     return this.listViews(tableId)
   }
@@ -1361,7 +1410,7 @@ export class BaseRuntime {
           ]
         )
       }
-      setBaseMetadata(this.connection, {})
+      this.touchMetadata({})
     })
     const created = this.listFields(tableId).find(
       (candidate) => candidate.tableColumnName === columnName
@@ -1463,7 +1512,7 @@ export class BaseRuntime {
           ]
         )
       }
-      setBaseMetadata(this.connection, {})
+      this.touchMetadata({})
     })
     return this.getField(tableId, columnName)
   }
@@ -1490,7 +1539,7 @@ export class BaseRuntime {
         linkField.tableColumnName,
       ]
     )
-    setBaseMetadata(this.connection, {})
+    this.touchMetadata({})
   }
 
   private removeUnsupportedColumnStats(
@@ -1630,7 +1679,7 @@ export class BaseRuntime {
         }
         this.removeUnsupportedColumnStats(tableId, convertedField)
         this.optimizeViewQueries(tableId)
-        setBaseMetadata(this.connection, {})
+        this.touchMetadata({})
       })
       return this.getField(tableId, field.tableColumnName)
     }
@@ -1763,7 +1812,7 @@ export class BaseRuntime {
         property,
         dependsOn,
       })
-      setBaseMetadata(this.connection, {})
+      this.touchMetadata({})
     })
     return this.getField(tableId, field.tableColumnName)
   }
@@ -1923,7 +1972,7 @@ export class BaseRuntime {
         )
       }
       this.optimizeViewQueries(tableId)
-      setBaseMetadata(this.connection, {})
+      this.touchMetadata({})
       return true
     })
   }
@@ -1952,8 +2001,8 @@ export class BaseRuntime {
   }
 
   getRow(tableId: string, rowId: string): BaseRow | null {
-    const fields = this.listFields(tableId)
-    const row = this.getComputedRow(tableId, rowId, fields)
+    const { table, fields } = this.rowReadSchema(tableId)
+    const row = this.getComputedRow(tableId, rowId, fields, table)
     if (!row) return null
     return this.hydrateRelationRows([row], fields)[0] ?? null
   }
@@ -1966,7 +2015,7 @@ export class BaseRuntime {
     cursor?: string,
     projection?: BaseRowPageProjection
   ): { rows: BaseRow[]; nextCursor?: string } {
-    const fields = this.listFields(tableId)
+    const { table, fields } = this.rowReadSchema(tableId)
     const fieldsByColumn = new Map(
       fields.map((field) => [field.tableColumnName, field])
     )
@@ -2022,7 +2071,8 @@ export class BaseRuntime {
     const rowSource = this.rowSourceSql(
       tableId,
       fields,
-      queryColumns ?? undefined
+      queryColumns ?? undefined,
+      table
     )
     const selectedColumns = outputColumns
       ? Array.from(
@@ -2195,11 +2245,11 @@ export class BaseRuntime {
   }
 
   countRows(tableId: string, query: BaseRowQuery = {}): number {
-    const fields = this.listFields(tableId)
+    const { table, fields } = this.rowReadSchema(tableId)
     const compiled = compileBaseRowQuery(fields, query)
     return (
       this.connection.get<{ count: number }>(
-        `SELECT COUNT(*) AS count FROM ${this.countRowSourceSql(tableId, fields, query)}
+        `SELECT COUNT(*) AS count FROM ${this.countRowSourceSql(tableId, fields, query, [], table)}
           ${compiled.whereSql}`,
         compiled.params
       )?.count ?? 0
@@ -2211,14 +2261,23 @@ export class BaseRuntime {
     columnName: string,
     query: BaseRowQuery = {}
   ): BaseRowGroupCount[] {
-    const fields = this.listFields(tableId)
-    const field = this.getField(tableId, columnName)
+    const { table, fields } = this.rowReadSchema(tableId)
+    const safeColumnName = assertKnownFieldColumnName(columnName)
+    const field = fields.find(
+      (candidate) => candidate.tableColumnName === safeColumnName
+    )
+    if (!field) {
+      throw new BaseError(
+        "field-not-found",
+        `Base field not found: ${safeColumnName}`
+      )
+    }
     const compiled = compileBaseRowQuery(fields, query)
     const column = quoteIdentifier(field.tableColumnName)
     return this.connection
       .query<{ value: BaseSqlPrimitive; total: number }>(
         `SELECT ${column} AS value, COUNT(*) AS total
-           FROM ${this.countRowSourceSql(tableId, fields, query, [field.tableColumnName])}
+           FROM ${this.countRowSourceSql(tableId, fields, query, [field.tableColumnName], table)}
            ${compiled.whereSql}
           GROUP BY ${column}`,
         compiled.params
@@ -2234,7 +2293,7 @@ export class BaseRuntime {
     configs: BaseColumnStatConfig[],
     query: BaseRowQuery = {}
   ): BaseColumnStatResult[] {
-    const fields = this.listFields(tableId)
+    const { table, fields } = this.rowReadSchema(tableId)
     const normalized = normalizeBaseColumnStatConfigs(configs, fields)
     if (normalized.length === 0) return []
     const byColumn = new Map(
@@ -2254,7 +2313,7 @@ export class BaseRuntime {
     })
     const result = this.connection.get<Record<string, BaseSqlPrimitive>>(
       `SELECT ${select.join(", ")}
-         FROM ${this.rowSourceSql(tableId, fields)}
+         FROM ${this.rowSourceSql(tableId, fields, undefined, table)}
          ${compiled.whereSql}`,
       compiled.params
     )
@@ -2349,7 +2408,7 @@ export class BaseRuntime {
         (${columns.map(quoteIdentifier).join(", ")}) VALUES (${placeholders})`,
       columns.map((column) => sqliteParameter(record[column]))
     )
-    setBaseMetadata(this.connection, {})
+    this.touchMetadata({})
     const inserted = this.getComputedRow(
       tableId,
       sqliteParameter(record._id),
@@ -2420,7 +2479,7 @@ export class BaseRuntime {
         }
       }
     })
-    setBaseMetadata(this.connection, {})
+    this.touchMetadata({})
     return records
   }
 
@@ -2487,7 +2546,7 @@ export class BaseRuntime {
           mutated = true
         }
       }
-      if (mutated) setBaseMetadata(this.connection, {})
+      if (mutated) this.touchMetadata({})
 
       return prepared.map(({ rowId }) => {
         const updated = this.getComputedRow(tableId, rowId, fields)
@@ -2536,7 +2595,7 @@ export class BaseRuntime {
         )
         deletedCount += result.changes
       }
-      if (deletedCount > 0) setBaseMetadata(this.connection, {})
+      if (deletedCount > 0) this.touchMetadata({})
       return deletedCount
     })
   }
@@ -2582,7 +2641,7 @@ export class BaseRuntime {
       )
       if (result.changes > 0) deleted.push(rowId)
     }
-    if (deleted.length > 0) setBaseMetadata(this.connection, {})
+    if (deleted.length > 0) this.touchMetadata({})
     return deleted
   }
 }
