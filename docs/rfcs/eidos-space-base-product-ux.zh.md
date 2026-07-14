@@ -154,19 +154,14 @@ key 切换为 record ID。数据 hydration 只更新 record 子树，不会卸�
 record card 自身仍按稳定 row ID 建立身份边界，拖拽或局部组件状态不会在记录间串用。Gallery 和 Kanban
 均有回归测试直接验证 placeholder hydration 前后保持同一个 DOM 节点。
 Gallery 和 Kanban 都可以在各自的锚定式 view 设置中选择 File 或 URL 字段作为封面，并配置
-适应/裁切和隐藏空字段；这些入口与共享 card renderer 已有能力保持一致。文件二进制只通过
-Space file boundary 读取，并转换为临时 object URL；HTTP(S) URL 字段则直接渲染，不触发
-binary read。Gallery 与 Kanban 共用 view 级封面资源读取器；多个 card 引用同一文件，
-或虚拟滚动让 card 卸载后再次挂载时，会同时复用正在进行或近期完成的二进制读取和已创建的 Blob URL，
-不再重复触发 Space IPC、磁盘 I/O、Blob 分配和图片源解码。引用计数租约会保证任一可见 card 使用期间
-资源不会被提前 revoke；没有活跃引用的资源再受 64 个条目、64 MiB LRU 上限和 60 秒过期约束。view 销毁
-或缓存淘汰会 revoke 共享 URL，失败读取不会进入缓存；封面图片使用 lazy asynchronous decoding。
-二进制读取现在统一进入最多 6 个并发任务的调度队列。每个虚拟 card 持有可取消租约：滚动导致 card
-在排队读取开始前卸载时，该请求会以常数时间直接退出且不会越过 Space IPC boundary；已经开始但随后
-失效的读取完成后也只会 revoke object URL，不会写入缓存。队列 drain 会合并为一个 microtask，
-不再为每个可见 card 各自留下空调度。20,000 次取消的压力回归保证 stale read 为 0 且最终 drain
-低于 50 ms；在交付机器上，10,000 个请求使用数组和 `shift()` 时约需 69 ms，改造后低于 1 ms。
-回归基线还验证了并发上限为 2 时第三个请求必须等待，以及已取消的排队请求不会触发任何二进制读取。
+适应/裁切和隐藏空字段；这些入口与共享 card renderer 已有能力保持一致。本地 File value 现在通过
+Grid file cell 已在使用的编码 `/~/...` Space asset URL 读取；HTTP(S) URL 字段则直接渲染。
+现有 asset route 会校验请求所属 Space，将 real path 限制在已注册的 Space root 内，拒绝路径穿越和
+symlink escape，并通过正确 MIME、Content-Length、range 与 `no-store` 语义流式返回文件。因此请求取消、
+流式读取和图片解码都交给浏览器；card virtualization 不再通过 Electron IPC 搬运完整二进制，也不再在
+renderer 创建 `Uint8Array` 与 Blob URL 副本。封面图片继续使用 lazy asynchronous decoding。
+回归测试会把重复本地封面渲染为同一个编码 Space URL；Gallery/Kanban 也不再接收 binary-read capability，
+因此本地封面的 renderer binary payload 与 Blob 分配保持为 0。
 Gallery 与 Kanban 的 card 共用悬浮菜单和原生右键菜单，可以打开
 record details，并按稳定 row ID 进行确认删除。同一个右侧 record inspector 现在可以在 Grid、Gallery
 和 Kanban 中编辑：primitive source fields 会就地自动保存，Formula/Lookup 等派生值保持只读，保存

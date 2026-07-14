@@ -236,28 +236,18 @@ Kanban.
 Gallery and Kanban can both use either a File or URL field as a fitted or
 cropped card cover. Their anchored view settings expose the same cover source,
 fit/crop, and empty-field controls that the shared card renderer already
-supports. File binaries are read through the Space file boundary and exposed
-only as a temporary object URL, while HTTP(S) URL fields are rendered directly
-without a binary read. Gallery and Kanban share a view-scoped cover source reader, so
-cards that refer to the same file and cards remounted by virtual scrolling
-reuse both the in-flight or recent binary read and the resulting Blob URL
-instead of repeating Space IPC, disk I/O, Blob allocation, and image source
-decoding. Reference-counted
-leases keep a source valid while any visible card uses it; inactive sources are
-then governed by a 64-entry/64-MiB LRU bound and 60-second expiry. Disposal and
-eviction revoke the shared URL, while failed reads are never cached. Cover images
-also use lazy asynchronous decoding. Binary reads are now scheduled through a
-six-request concurrency bound. Every virtual card owns an abortable lease: when
-scrolling unmounts a card before its queued read starts, the request is removed
-in constant time without crossing the Space IPC boundary; if an already active
-read becomes stale, its eventual object URL is revoked instead of entering the
-cache. Queue draining is coalesced into one microtask rather than one callback
-per visible card. A 20,000-cancellation stress regression keeps stale reads at
-zero and the final drain below 50 ms; the measured 10,000-request drain on the
-delivery machine dropped from roughly 69 ms with an array/`shift()` queue to
-below 1 ms. The regression baseline also proves that a third request waits
-behind a two-reader limit and that an aborted queued request performs no binary
-read. Gallery and Kanban
+supports. Local File values now use the same encoded `/~/...` Space asset URL
+as Grid file cells, while HTTP(S) URL fields are rendered directly. The
+existing asset route authorizes the requesting Space, resolves real paths
+inside the registered Space root, rejects traversal and symlink escapes, and
+streams the file with its MIME type, length, range support, and `no-store`
+semantics. The browser therefore owns request cancellation, streaming, and
+image decoding; card virtualization no longer transports complete binaries
+through Electron IPC or creates renderer-side `Uint8Array` and Blob URL copies.
+Cover images retain lazy asynchronous decoding. Regression coverage renders
+repeated local covers as the same encoded Space URL, and Gallery/Kanban no
+longer receive a binary-read capability, so renderer binary payload and Blob
+allocations for local covers remain zero. Gallery and Kanban
 cards share hover and native context actions for opening record details and
 confirmed deletion by stable row ID. The same right-side record inspector is
 now editable across Grid, Gallery, and Kanban: primitive source fields autosave
