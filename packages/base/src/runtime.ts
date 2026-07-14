@@ -1292,12 +1292,19 @@ export class BaseRuntime {
     const columnName = existing
       ? existing.tableColumnName
       : assertBaseColumnName(field.columnName)
+    const importAsLiveDerived =
+      !existing &&
+      (field.type === "formula" || field.type === "lookup") &&
+      field.valueKind === "derived" &&
+      field.isDerived === true
     this.connection.transaction(() => {
       if (!existing) {
-        this.connection.exec(
-          `ALTER TABLE ${quoteIdentifier(table.rawTableName)}
-             ADD COLUMN ${quoteIdentifier(columnName)} ${sqlTypeForField(field.type)} NULL`
-        )
+        if (!importAsLiveDerived) {
+          this.connection.exec(
+            `ALTER TABLE ${quoteIdentifier(table.rawTableName)}
+               ADD COLUMN ${quoteIdentifier(columnName)} ${sqlTypeForField(field.type)} NULL`
+          )
+        }
         this.connection.run(
           `INSERT INTO ${BASE_COLUMNS_TABLE}
             (name, type, table_name, table_column_name, property,

@@ -1090,6 +1090,50 @@ describe("Eidos Base files", () => {
     expect(inspectBaseFile(filePath)).toMatchObject({ valid: true, errors: [] })
   })
 
+  it("imports live derived fields without creating writable physical columns", () => {
+    const filePath = path.join(root, "imported-derived.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: { id: "tasks", name: "Tasks" },
+    })
+    base.importField("tasks", {
+      name: "Upper title",
+      columnName: "upper_title",
+      type: "formula",
+      property: {
+        formula: "upper(title)",
+        expression: 'upper("title")',
+        displayType: "text",
+      },
+      storageCodec: "scalar",
+      valueKind: "derived",
+      isDerived: true,
+      dependsOn: ["title"],
+    })
+    base.insertImportedRow("tasks", { _id: "task-1", title: "Ship" })
+
+    expect(
+      base.connection
+        .query<{ name: string }>('PRAGMA table_xinfo("tb_tasks")')
+        .map((column) => column.name)
+    ).not.toContain("upper_title")
+    expect(base.listRows("tasks")[0]).toMatchObject({
+      title: "Ship",
+      upper_title: "SHIP",
+    })
+    base.close()
+
+    const reopened = openBaseFile(filePath)
+    expect(
+      reopened.updateRow("tasks", "task-1", { title: "Released" })
+    ).toMatchObject({
+      title: "Released",
+      upper_title: "RELEASED",
+    })
+    expect(reopened.listRows("tasks")[0].upper_title).toBe("RELEASED")
+    reopened.close()
+    expect(inspectBaseFile(filePath)).toMatchObject({ valid: true, errors: [] })
+  })
+
   it("migrates compatible pre-v1 field metadata without core", () => {
     const filePath = path.join(root, "legacy.base")
     createBaseFile(filePath).close()
