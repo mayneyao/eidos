@@ -44,25 +44,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const fetchUser = useCallback(async () => {
+  const fetchUser = useCallback(async (): Promise<boolean> => {
     if (!isDesktopMode) {
-      setIsLoading(false)
-      return
+      setUser(null)
+      return false
     }
 
     try {
       const res = await fetch(`${AUTH_API_BASE}/api/auth/user`)
       if (res.ok) {
         const data = await res.json()
-        setUser(data.user)
+        setUser(data.user ?? null)
+        return data.authenticated === true
       } else {
         setUser(null)
       }
     } catch {
       setUser(null)
-    } finally {
-      setIsLoading(false)
     }
+    return false
   }, [])
 
   const fetchAccessToken = useCallback(async (): Promise<string | null> => {
@@ -84,12 +84,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return null
   }, [])
 
+  const syncAuth = useCallback(async () => {
+    const authenticated = await fetchUser()
+    if (!authenticated) {
+      setAccessToken(null)
+      return
+    }
+    await fetchAccessToken()
+  }, [fetchUser, fetchAccessToken])
+
   const refreshAuth = useCallback(async () => {
     setIsLoading(true)
-    await fetchUser()
-    await fetchAccessToken()
-    setIsLoading(false)
-  }, [fetchUser, fetchAccessToken])
+    try {
+      await syncAuth()
+    } finally {
+      setIsLoading(false)
+    }
+  }, [syncAuth])
 
   const login = useCallback(async () => {
     if (!isDesktopMode) return
@@ -135,19 +146,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Initial fetch
   useEffect(() => {
-    fetchUser()
-    fetchAccessToken()
+    void refreshAuth()
 
-    // Poll for auth status (check both user and token)
+    // Poll for auth status. Only authenticated sessions need a token refresh.
     // Check every 2 minutes to ensure token refresh happens before expiration
     // Backend refreshes tokens 5 minutes before they expire
-    const interval = setInterval(
-      async () => {
-        await fetchUser()
-        await fetchAccessToken()
-      },
-      2 * 60 * 1000
-    ) // 2 minutes
+    const interval = setInterval(() => void syncAuth(), 2 * 60 * 1000) // 2 minutes
 
     // Listen for auth state changes from main process (OAuth callback / logout)
     let unsubscribe: (() => void) | undefined
@@ -178,7 +182,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       clearInterval(interval)
       unsubscribe?.()
     }
-  }, [fetchUser, fetchAccessToken])
+  }, [fetchAccessToken, refreshAuth, syncAuth])
 
   const value = useMemo<AuthContextValue>(
     () => ({

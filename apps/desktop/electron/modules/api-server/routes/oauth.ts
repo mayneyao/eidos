@@ -154,7 +154,11 @@ export function setupOAuthRoutes(app: Hono, ctx: ServerContext) {
       const accessToken = await ctx.credentialsManager.getAccessToken()
       if (!accessToken) {
         ctx.broadcastAuthStateChange(false, null)
-        return c.json({ authenticated: false }, 401)
+        return c.json({
+          authenticated: false,
+          user: null,
+          hasValidTokens: false,
+        })
       }
 
       const user = await ctx.credentialsManager.getUserInfo()
