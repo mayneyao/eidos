@@ -317,7 +317,12 @@ two neighboring columns on each side and releases older row windows. Returning
 to an evicted column reloads its first page from the already-known group total.
 Eviction pauses during drag so the source row remains available while edge
 scrolling across columns. This prevents memory from growing with every visited
-Select option while preserving a small back-navigation cache.
+Select option while preserving a small back-navigation cache. The eviction
+effect depends on the horizontal window, column count, and drag state rather
+than the complete group-state array, so a row/loading update inside one column
+does not scan every Select option again. A 200-option paging regression records
+one 201-group update pass when a column starts loading its next page, down from
+two before this dependency was narrowed.
 Kanban mutations keep paging state local to the affected columns. Moving a
 loaded record decrements the source's consumed server cursor, while the target
 column safely rescans from its first page because the moved record's server sort
