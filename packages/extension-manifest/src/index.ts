@@ -3,8 +3,10 @@ export {
   calculateExtensionPermissionHash,
   canonicalExtensionPackagePath,
   canonicalExtensionPermissionsJson,
+  EXTENSION_IGNORED_ROOT_PATHS,
   EXTENSION_LOCK_FILENAME,
   extensionPackagePathCollisionKey,
+  isIgnoredExtensionPackagePath,
   type ExtensionPackageContentRecord,
 } from "./digest"
 export {

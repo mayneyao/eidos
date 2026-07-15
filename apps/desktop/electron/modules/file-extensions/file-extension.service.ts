@@ -10,6 +10,7 @@ import {
 import {
   canonicalExtensionPackagePath,
   createExtensionCommandTemplate,
+  isIgnoredExtensionPackagePath,
   type ExtensionFileEditorSelector,
   type ExtensionPackageInspection,
   type NormalizedExtensionPermissions,
@@ -1083,6 +1084,7 @@ export class FileExtensionService extends IpcServiceBase {
     const state = this.watchers.get(spaceId)
     if (!state) return
     const packageId = this.packageIdForWatchEvent(spaceId, filename)
+    if (packageId === null) return
     if (packageId) {
       const firstChange = !state.pendingPackageIds.has(packageId)
       state.pendingPackageIds.add(packageId)
@@ -1345,14 +1347,28 @@ export class FileExtensionService extends IpcServiceBase {
   private packageIdForWatchEvent(
     spaceId: string,
     filename: string | Buffer | null
-  ): string | undefined {
+  ): string | null | undefined {
     if (filename === null) return undefined
     const relativePath = Buffer.isBuffer(filename)
       ? filename.toString("utf8")
       : filename
-    const directoryName = relativePath.split(/[\\/]/, 1)[0]
+    const segments = relativePath.split(/[\\/]/)
+    const directoryName = segments[0]
     if (!directoryName || directoryName === "." || directoryName === "..") {
       return undefined
+    }
+    if (segments.length > 1) {
+      try {
+        if (
+          isIgnoredExtensionPackagePath(
+            canonicalExtensionPackagePath(segments.slice(1).join("/"))
+          )
+        ) {
+          return null
+        }
+      } catch {
+        return undefined
+      }
     }
     return (
       this.packageDirectories.get(spaceId)?.get(directoryName) ??

@@ -5,6 +5,7 @@ import {
   createExtensionTextEditorTemplate,
   type ExtensionDiagnosticSeverity,
   type ExtensionTemplate,
+  type ExtensionTemplateFile,
 } from "@eidos.space/extension-manifest"
 import { inspectExtensionPackageSnapshot } from "@eidos.space/extension-manifest/node"
 import {
@@ -13,6 +14,7 @@ import {
 } from "@eidos.space/extension-runtime/compiler"
 
 import { typecheckExtensionSnapshot } from "./typecheck"
+import packageMetadata from "../package.json" with { type: "json" }
 
 export type ExtensionProjectTemplate = "command" | "text-editor"
 
@@ -97,6 +99,85 @@ function buildTemplate(
     : createExtensionCommandTemplate(common)
 }
 
+function developerProjectFiles(
+  template: ExtensionTemplate
+): ExtensionTemplateFile[] {
+  const versionRange = `^${packageMetadata.version}`
+  const files = template.files.map((file) =>
+    file.path === "README.md"
+      ? {
+          ...file,
+          content: [
+            file.content.trimEnd(),
+            "",
+            "## Development",
+            "",
+            "Install the local developer tools, then run the same validation used by Eidos Desktop:",
+            "",
+            "```sh",
+            "npm install",
+            "npm run check",
+            "```",
+            "",
+          ].join("\n"),
+        }
+      : file
+  )
+  return [
+    ...files,
+    {
+      path: "package.json",
+      content: `${JSON.stringify(
+        {
+          name: template.canonicalId,
+          version: template.manifest.version,
+          private: true,
+          type: "module",
+          scripts: { check: "eidos-extension check ." },
+          devDependencies: {
+            "@eidos.space/extension-cli": versionRange,
+            "@eidos.space/extension-sdk": versionRange,
+          },
+        },
+        null,
+        2
+      )}\n`,
+    },
+    {
+      path: "tsconfig.json",
+      content: `${JSON.stringify(
+        {
+          compilerOptions: {
+            target: "ES2022",
+            lib: ["ES2022", "DOM", "DOM.Iterable"],
+            module: "ESNext",
+            moduleResolution: "Bundler",
+            allowArbitraryExtensions: true,
+            noEmit: true,
+            skipLibCheck: true,
+            strict: true,
+            types: [],
+          },
+          include: ["src/**/*.ts", "src/**/*.tsx"],
+        },
+        null,
+        2
+      )}\n`,
+    },
+    {
+      path: ".gitignore",
+      content: [
+        "node_modules/",
+        "dist/",
+        "coverage/",
+        "*.tsbuildinfo",
+        ".DS_Store",
+        "",
+      ].join("\n"),
+    },
+  ]
+}
+
 function isNodeError(error: unknown, code: string): boolean {
   return (
     error instanceof Error &&
@@ -109,6 +190,7 @@ export async function createExtensionProject(
   options: CreateExtensionProjectOptions
 ): Promise<CreatedExtensionProject> {
   const template = buildTemplate(options)
+  const projectFiles = developerProjectFiles(template)
   const parent = path.resolve(options.outDir ?? ".")
   const packageRoot = path.join(parent, template.canonicalId)
   await mkdir(parent, { recursive: true })
@@ -124,7 +206,7 @@ export async function createExtensionProject(
   }
 
   try {
-    for (const file of template.files) {
+    for (const file of projectFiles) {
       const filename = path.join(packageRoot, ...file.path.split("/"))
       await mkdir(path.dirname(filename), { recursive: true })
       await writeFile(filename, file.content, { encoding: "utf8", flag: "wx" })
@@ -137,7 +219,7 @@ export async function createExtensionProject(
   return {
     canonicalId: template.canonicalId,
     packageRoot,
-    files: template.files.map((file) => file.path),
+    files: projectFiles.map((file) => file.path),
   }
 }
 

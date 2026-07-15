@@ -165,7 +165,9 @@ export async function runExtensionCli(
       })
       io.stdout(`✓ Created ${created.canonicalId}`)
       io.stdout(`  ${created.packageRoot}`)
-      io.stdout("  Next: eidos-extension check " + created.packageRoot)
+      io.stdout(
+        "  Next: install dependencies in the project, then run npm run check"
+      )
       return 0
     }
 

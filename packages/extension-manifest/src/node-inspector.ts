@@ -5,6 +5,7 @@ import {
   calculateExtensionContentDigest,
   calculateExtensionPermissionHash,
   canonicalExtensionPackagePath,
+  isIgnoredExtensionPackagePath,
   EXTENSION_LOCK_FILENAME,
   extensionPackagePathCollisionKey,
   type ExtensionPackageContentRecord,
@@ -303,6 +304,7 @@ async function scanPackageTree(
         )
         continue
       }
+      if (isIgnoredExtensionPackagePath(relativePath)) continue
       const collisionKey = extensionPackagePathCollisionKey(relativePath)
       const collidingPath = collisionPaths.get(collisionKey)
       if (collidingPath && collidingPath !== relativePath) {

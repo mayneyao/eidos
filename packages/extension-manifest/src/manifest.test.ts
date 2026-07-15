@@ -3,6 +3,7 @@ import {
   analyzeExtensionManifest,
   calculateExtensionContentDigest,
   calculateExtensionPermissionHash,
+  isIgnoredExtensionPackagePath,
   parseExtensionLock,
   type ExtensionManifestV1,
   type NormalizedExtensionPermissions,
@@ -205,6 +206,36 @@ describe("trust digests", () => {
         { path: "Re\u0301sume\u0301.md", content: Buffer.from("two") },
       ])
     ).toThrow(/path collision/i)
+  })
+
+  it("excludes only canonical local development artifacts", () => {
+    const source = [
+      { path: "extension.json", content: Buffer.from("{}\n") },
+      { path: "package.json", content: Buffer.from('{"private":true}\n') },
+      { path: "src/extension.ts", content: Buffer.from("export {}\n") },
+    ]
+    const withArtifacts = [
+      ...source,
+      { path: ".git/config", content: Buffer.from("local git metadata") },
+      {
+        path: "node_modules/dependency/index.js",
+        content: Buffer.from("generated dependency"),
+      },
+      { path: "dist/extension.js", content: Buffer.from("generated bundle") },
+      { path: "coverage/index.html", content: Buffer.from("test output") },
+    ]
+
+    expect(calculateExtensionContentDigest(withArtifacts)).toBe(
+      calculateExtensionContentDigest(source)
+    )
+    expect(isIgnoredExtensionPackagePath("node_modules/pkg/index.js")).toBe(
+      true
+    )
+    expect(isIgnoredExtensionPackagePath("src/node_modules/source.ts")).toBe(
+      false
+    )
+    expect(isIgnoredExtensionPackagePath("package.json")).toBe(false)
+    expect(isIgnoredExtensionPackagePath("pnpm-lock.yaml")).toBe(false)
   })
 
   it("hashes normalized permissions independently of declaration order", () => {

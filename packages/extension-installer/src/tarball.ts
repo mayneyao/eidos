@@ -2,6 +2,7 @@ import {
   canonicalExtensionPackagePath,
   EXTENSION_LOCK_FILENAME,
   extensionPackagePathCollisionKey,
+  isIgnoredExtensionPackagePath,
 } from "@eidos.space/extension-manifest"
 import { Parser, type ReadEntry } from "tar"
 import type { ExtensionInstallFile } from "./types"
@@ -145,6 +146,58 @@ export async function parseGitHubTarball(
         abort(new Error(`GitHub archive path exceeds ${maxPathDepth} segments`))
         return
       }
+
+      let relativePath: string
+      try {
+        relativePath = canonicalExtensionPackagePath(segments.join("/"))
+      } catch (error) {
+        entry.resume()
+        abort(error instanceof Error ? error : new Error(String(error)))
+        return
+      }
+
+      if (isIgnoredExtensionPackagePath(relativePath)) {
+        if (!isRegularFile(entry)) {
+          entry.resume()
+          return
+        }
+        if (entry.size > maxFileBytes) {
+          entry.resume()
+          abort(
+            new Error(
+              `GitHub archive file exceeds ${maxFileBytes} bytes: ${entry.path}`
+            )
+          )
+          return
+        }
+        let ignoredSize = 0
+        entry.on("data", (chunk: Buffer) => {
+          if (failed) return
+          ignoredSize += chunk.byteLength
+          totalBytes += chunk.byteLength
+          if (ignoredSize > maxFileBytes || totalBytes > maxTotalBytes) {
+            abort(
+              new Error(
+                totalBytes > maxTotalBytes
+                  ? `GitHub archive expands beyond ${maxTotalBytes} bytes`
+                  : `GitHub archive file expands beyond ${maxFileBytes} bytes: ${entry.path}`
+              )
+            )
+          }
+        })
+        entry.on("end", () => {
+          if (!failed && ignoredSize !== entry.size) {
+            abort(
+              new Error(
+                `GitHub archive file size changed while reading: ${entry.path}`
+              )
+            )
+          }
+        })
+        entry.resume()
+        return
+      }
+
       if (entry.type === "Directory") {
         entry.resume()
         return
@@ -171,9 +224,7 @@ export async function parseGitHubTarball(
         return
       }
 
-      let relativePath: string
       try {
-        relativePath = canonicalExtensionPackagePath(segments.join("/"))
         if (relativePath === EXTENSION_LOCK_FILENAME) {
           throw new Error(
             "GitHub extension source cannot provide host-managed extension.lock.json"

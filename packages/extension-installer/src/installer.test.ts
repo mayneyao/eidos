@@ -80,7 +80,7 @@ function githubFetch(archive: Uint8Array): typeof fetch {
       })
     }
     if (url.endsWith(`/tarball/${COMMIT}`)) {
-      return new Response(archive, {
+      return new Response(Uint8Array.from(archive), {
         status: 200,
         headers: { "content-type": "application/gzip" },
       })
@@ -267,6 +267,50 @@ describe("GitHub tarball validation", () => {
     await expect(parseGitHubTarball(archive, { maxFiles: 1 })).rejects.toThrow(
       "more than 1 files"
     )
+  })
+
+  it("omits local development artifacts from an install snapshot", async () => {
+    const root = await temporaryRoot()
+    const archive = await createArchive(
+      root,
+      {
+        "extension.json": manifest(),
+        "package.json": '{"private":true}\n',
+        "src/extension.ts": "export const activate = () => undefined\n",
+        "node_modules/dependency/index.js": "generated dependency\n",
+        "dist/extension.js": "generated bundle\n",
+        "coverage/index.html": "test output\n",
+      },
+      async (repositoryRoot) => {
+        await symlink(
+          "index.js",
+          path.join(repositoryRoot, "node_modules", "dependency", "linked.js")
+        )
+      }
+    )
+
+    const files = await parseGitHubTarball(archive)
+
+    expect(files.map(({ path: filePath }) => filePath)).toEqual([
+      "extension.json",
+      "package.json",
+      "src/extension.ts",
+    ])
+  })
+
+  it("counts ignored archive bytes against the expansion limit", async () => {
+    const root = await temporaryRoot()
+    const archive = await createArchive(root, {
+      "extension.json": "{}",
+      "node_modules/dependency/blob.bin": "1234567890",
+    })
+
+    await expect(
+      parseGitHubTarball(archive, {
+        maxFileBytes: 64,
+        maxTotalBytes: 8,
+      })
+    ).rejects.toThrow("expands beyond")
   })
 
   it("reports a missing monorepo package path", async () => {

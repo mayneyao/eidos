@@ -3,6 +3,8 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 
+import packageMetadata from "../package.json" with { type: "json" }
+
 import { runExtensionCli } from "./command"
 import { checkExtensionPackage, createExtensionProject } from "./index"
 
@@ -61,6 +63,49 @@ describe("extension developer workflow", () => {
       expect(result.entrypoints.map((item) => item.kind)).toEqual([
         template === "command" ? "worker" : "ui",
       ])
+
+      expect(created.files).toEqual(
+        expect.arrayContaining([
+          ".gitignore",
+          "package.json",
+          "tsconfig.json",
+          "extension.json",
+          "README.md",
+        ])
+      )
+      const projectManifest = JSON.parse(
+        await readFile(path.join(created.packageRoot, "package.json"), "utf8")
+      )
+      expect(projectManifest).toEqual({
+        name: `example.${template}`,
+        version: "0.1.0",
+        private: true,
+        type: "module",
+        scripts: { check: "eidos-extension check ." },
+        devDependencies: {
+          "@eidos.space/extension-cli": `^${packageMetadata.version}`,
+          "@eidos.space/extension-sdk": `^${packageMetadata.version}`,
+        },
+      })
+      expect(
+        JSON.parse(
+          await readFile(
+            path.join(created.packageRoot, "tsconfig.json"),
+            "utf8"
+          )
+        )
+      ).toMatchObject({
+        compilerOptions: {
+          moduleResolution: "Bundler",
+          noEmit: true,
+          strict: true,
+          types: [],
+        },
+        include: ["src/**/*.ts", "src/**/*.tsx"],
+      })
+      expect(
+        await readFile(path.join(created.packageRoot, ".gitignore"), "utf8")
+      ).toContain("node_modules/")
     }
   )
 

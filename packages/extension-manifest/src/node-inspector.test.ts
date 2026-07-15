@@ -151,6 +151,45 @@ describe("inspectExtensionPackage", () => {
     ).toBe("export const helper = () => 1\n")
   })
 
+  it("ignores root development artifacts without traversing their contents", async () => {
+    const { packageRoot } = await createPackage()
+    const initial = await inspectExtensionPackage(packageRoot)
+    const dependencyRoot = path.join(packageRoot, "node_modules", "dependency")
+    await mkdir(dependencyRoot, { recursive: true })
+    await writeFile(path.join(dependencyRoot, "index.js"), "generated\n")
+    await symlink(
+      path.join(packageRoot, "src", "helper.ts"),
+      path.join(dependencyRoot, "linked.js")
+    )
+    await mkdir(path.join(packageRoot, "dist"), { recursive: true })
+    await writeFile(
+      path.join(packageRoot, "dist", "bundle.js"),
+      "x".repeat(2048)
+    )
+    await mkdir(path.join(packageRoot, "coverage"), { recursive: true })
+    await writeFile(
+      path.join(packageRoot, "coverage", "index.html"),
+      "report\n"
+    )
+    await writeFile(path.join(packageRoot, ".git"), "gitdir: ../../metadata\n")
+
+    const inspected = await inspectExtensionPackage(packageRoot, {
+      maxFiles: 3,
+      maxFileBytes: 1024,
+    })
+
+    expect(inspected).toMatchObject({
+      status: "ready",
+      contentDigest: initial.contentDigest,
+      diagnostics: [],
+    })
+    expect(inspected.files.map(({ path: filePath }) => filePath)).toEqual([
+      "extension.json",
+      "src/extension.ts",
+      "src/helper.ts",
+    ])
+  })
+
   it("excludes the lock from content identity and reports local changes", async () => {
     const { packageRoot } = await createPackage()
     const initial = await inspectExtensionPackage(packageRoot)

@@ -249,12 +249,60 @@ try {
       ],
       { cwd: consumerRoot }
     )
+    const projectRoot = path.join(consumerRoot, project.id)
+    const projectManifest = JSON.parse(
+      await readFile(path.join(projectRoot, "package.json"), "utf8")
+    )
+    const toolingVersion = packages.find(
+      ({ name }) => name === "@eidos.space/extension-cli"
+    ).version
+    assert.deepEqual(projectManifest, {
+      name: project.id,
+      version: "0.1.0",
+      private: true,
+      type: "module",
+      scripts: { check: "eidos-extension check ." },
+      devDependencies: {
+        "@eidos.space/extension-cli": `^${toolingVersion}`,
+        "@eidos.space/extension-sdk": `^${toolingVersion}`,
+      },
+    })
+    assert.match(
+      await readFile(path.join(projectRoot, ".gitignore"), "utf8"),
+      /^node_modules\//mu
+    )
+    assert.deepEqual(
+      JSON.parse(
+        await readFile(path.join(projectRoot, "tsconfig.json"), "utf8")
+      ).include,
+      ["src/**/*.ts", "src/**/*.tsx"]
+    )
+
+    await mkdir(path.join(projectRoot, "node_modules", "broken"), {
+      recursive: true,
+    })
+    await writeFile(
+      path.join(projectRoot, "node_modules", "broken", "index.ts"),
+      "this is deliberately not valid TypeScript }\n",
+      "utf8"
+    )
+    await mkdir(path.join(projectRoot, "dist"), { recursive: true })
+    await writeFile(
+      path.join(projectRoot, "dist", "generated.ts"),
+      "this is also deliberately invalid }\n",
+      "utf8"
+    )
+    await pnpm(["run", "check"], { cwd: projectRoot })
+    await pnpm(["exec", "tsc", "--noEmit", "-p", projectRoot], {
+      cwd: consumerRoot,
+    })
+
     const incompatibleOutput = await pnpmFailure(
       [
         "exec",
         "eidos-extension",
         "check",
-        project.id,
+        projectRoot,
         "--host-version",
         "0.32.0",
         "--json",
@@ -282,7 +330,7 @@ try {
         "exec",
         "eidos-extension",
         "check",
-        project.id,
+        projectRoot,
         "--host-version",
         "0.33.0",
         "--json",

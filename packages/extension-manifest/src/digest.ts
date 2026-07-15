@@ -2,6 +2,14 @@ import { createHash } from "node:crypto"
 import type { NormalizedExtensionPermissions } from "./types"
 
 export const EXTENSION_LOCK_FILENAME = "extension.lock.json"
+export const EXTENSION_IGNORED_ROOT_PATHS = [
+  ".git",
+  "coverage",
+  "dist",
+  "node_modules",
+] as const
+
+const IGNORED_ROOT_PATHS = new Set<string>(EXTENSION_IGNORED_ROOT_PATHS)
 
 export interface ExtensionPackageContentRecord {
   path: string
@@ -33,6 +41,18 @@ export function canonicalExtensionPackagePath(value: string): string {
   return segments.map((segment) => segment.normalize("NFC")).join("/")
 }
 
+/**
+ * Returns whether a canonical package-relative path belongs to a root-level
+ * local development artifact. These paths are neither installed nor part of
+ * the trusted package digest. Source metadata such as package.json,
+ * tsconfig.json, and package-manager lock files remains part of the package.
+ */
+export function isIgnoredExtensionPackagePath(value: string): boolean {
+  const canonical = canonicalExtensionPackagePath(value)
+  const root = canonical.split("/", 1)[0]
+  return root !== undefined && IGNORED_ROOT_PATHS.has(root)
+}
+
 export function extensionPackagePathCollisionKey(value: string): string {
   return canonicalExtensionPackagePath(value).toLowerCase()
 }
@@ -57,7 +77,11 @@ export function calculateExtensionContentDigest(
       path: canonicalExtensionPackagePath(record.path),
       content: record.content,
     }))
-    .filter((record) => record.path !== EXTENSION_LOCK_FILENAME)
+    .filter(
+      (record) =>
+        record.path !== EXTENSION_LOCK_FILENAME &&
+        !isIgnoredExtensionPackagePath(record.path)
+    )
     .sort((left, right) => compareUtf8(left.path, right.path))
 
   const collisionKeys = new Set<string>()

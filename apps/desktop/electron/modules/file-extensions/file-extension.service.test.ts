@@ -901,6 +901,20 @@ describe("FileExtensionService", () => {
     vi.mocked(runtimeManager.disposePackage).mockClear()
     vi.mocked(runtimeManager.disposeSpace).mockClear()
 
+    const ignoredRoot = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "example.task-counter",
+      "node_modules",
+      "dependency"
+    )
+    await mkdir(ignoredRoot, { recursive: true })
+    await writeFile(path.join(ignoredRoot, "index.js"), "generated\n")
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(runtimeManager.disposePackage).not.toHaveBeenCalled()
+    expect(runtimeManager.disposeSpace).not.toHaveBeenCalled()
+
     await writeFile(
       path.join(
         root,
