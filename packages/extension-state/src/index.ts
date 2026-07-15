@@ -2,7 +2,33 @@ const PACKAGE_ID_PATTERN = /^[a-z][a-z0-9-]{1,62}\.[a-z][a-z0-9-]{1,62}$/
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/
 const UTF8_ENCODER = new TextEncoder()
 
-export const EXTENSION_STATE_FORMAT_VERSION = 1 as const
+export const EXTENSION_STATE_FORMAT_VERSION = 2 as const
+
+export type LegacyExtensionCandidateContribution = "command" | "file-editor"
+
+export interface LegacyExtensionMappingInput {
+  legacyExtensionId: string
+  legacySlug?: string
+  canonicalPackageId: string
+  archiveDigest: string
+  candidateContribution: LegacyExtensionCandidateContribution
+}
+
+export type LegacyExtensionMappingConflict =
+  | "none"
+  | "legacy-source"
+  | "canonical-package"
+  | "legacy-source-and-canonical-package"
+
+export interface LegacyExtensionMapping extends LegacyExtensionMappingInput {
+  active: boolean
+  conflict: LegacyExtensionMappingConflict
+  conflictingLegacyExtensionIds: string[]
+  conflictingCanonicalPackageIds: string[]
+  createdAt: number
+  updatedAt: number
+  retiredAt?: number
+}
 
 export type ExtensionPermissionGrantKind =
   | "files.read"
@@ -59,6 +85,68 @@ export interface ExtensionStateStore {
   close(): void
 }
 
+export interface ExtensionMigrationStateStore {
+  recordLegacyExtensionMapping(
+    mapping: LegacyExtensionMappingInput,
+    now?: number
+  ): LegacyExtensionMapping
+  listLegacyExtensionMappings(options?: {
+    includeRetired?: boolean
+  }): LegacyExtensionMapping[]
+  setLegacyExtensionMappingActive(
+    legacyExtensionId: string,
+    canonicalPackageId: string,
+    active: boolean,
+    now?: number
+  ): LegacyExtensionMapping
+}
+
+export function assertExtensionPackageId(
+  packageId: unknown
+): asserts packageId is string {
+  if (typeof packageId !== "string" || !PACKAGE_ID_PATTERN.test(packageId)) {
+    throw new Error("Extension has an invalid package ID")
+  }
+}
+
+export function assertLegacyExtensionMappingInput(
+  mapping: unknown
+): asserts mapping is LegacyExtensionMappingInput {
+  if (!mapping || typeof mapping !== "object") {
+    throw new Error("Legacy extension mapping is required")
+  }
+  const candidate = mapping as Partial<LegacyExtensionMappingInput>
+  if (
+    typeof candidate.legacyExtensionId !== "string" ||
+    !candidate.legacyExtensionId ||
+    candidate.legacyExtensionId.length > 256 ||
+    candidate.legacyExtensionId.includes("\0")
+  ) {
+    throw new Error("Legacy extension mapping has an invalid source ID")
+  }
+  if (
+    candidate.legacySlug !== undefined &&
+    (typeof candidate.legacySlug !== "string" ||
+      candidate.legacySlug.length > 256 ||
+      candidate.legacySlug.includes("\0"))
+  ) {
+    throw new Error("Legacy extension mapping has an invalid source slug")
+  }
+  assertExtensionPackageId(candidate.canonicalPackageId)
+  if (
+    typeof candidate.archiveDigest !== "string" ||
+    !SHA256_PATTERN.test(candidate.archiveDigest)
+  ) {
+    throw new Error("Legacy extension mapping has an invalid archive digest")
+  }
+  if (
+    candidate.candidateContribution !== "command" &&
+    candidate.candidateContribution !== "file-editor"
+  ) {
+    throw new Error("Legacy extension mapping has an invalid v1 contribution")
+  }
+}
+
 export function assertExtensionSnapshotIdentity(
   snapshot: unknown
 ): asserts snapshot is ExtensionSnapshotIdentity {
@@ -66,10 +154,9 @@ export function assertExtensionSnapshotIdentity(
     throw new Error("Extension snapshot identity is required")
   }
   const candidate = snapshot as Partial<ExtensionSnapshotIdentity>
-  if (
-    typeof candidate.packageId !== "string" ||
-    !PACKAGE_ID_PATTERN.test(candidate.packageId)
-  ) {
+  try {
+    assertExtensionPackageId(candidate.packageId)
+  } catch {
     throw new Error("Extension snapshot has an invalid package ID")
   }
   if (

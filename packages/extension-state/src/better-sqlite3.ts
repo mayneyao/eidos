@@ -4,16 +4,22 @@ import path from "node:path"
 import Database from "better-sqlite3"
 
 import {
+  assertLegacyExtensionMappingInput,
   assertExtensionPermissionGrant,
   assertExtensionSnapshotIdentity,
   EXTENSION_STATE_FORMAT_VERSION,
   extensionPermissionGrantKey,
   normalizeExtensionPermissionGrants,
   type ExtensionLocalState,
+  type ExtensionMigrationStateStore,
   type ExtensionPermissionGrant,
   type ExtensionPermissionGrantKind,
   type ExtensionSnapshotIdentity,
   type ExtensionStateStore,
+  type LegacyExtensionCandidateContribution,
+  type LegacyExtensionMapping,
+  type LegacyExtensionMappingConflict,
+  type LegacyExtensionMappingInput,
 } from "./index"
 
 const APPLICATION_ID = 0x45455854 // EEXT
@@ -33,10 +39,20 @@ interface GrantRow {
   value: string
 }
 
-function schemaSql(): string {
+interface LegacyMappingRow {
+  legacy_extension_id: string
+  legacy_slug: string | null
+  canonical_package_id: string
+  archive_digest: string
+  candidate_contribution: LegacyExtensionCandidateContribution
+  active: number
+  created_at: number
+  updated_at: number
+  retired_at: number | null
+}
+
+function snapshotSchemaSql(): string {
   return `
-    PRAGMA application_id = ${APPLICATION_ID};
-    PRAGMA user_version = ${EXTENSION_STATE_FORMAT_VERSION};
     CREATE TABLE IF NOT EXISTS trusted_snapshots (
       package_id TEXT NOT NULL,
       content_digest TEXT NOT NULL,
@@ -68,6 +84,32 @@ function schemaSql(): string {
         REFERENCES trusted_snapshots(package_id, content_digest, permission_hash)
         ON DELETE CASCADE
     ) WITHOUT ROWID;
+  `
+}
+
+function migrationSchemaSql(): string {
+  return `
+    CREATE TABLE IF NOT EXISTS legacy_extension_mappings (
+      legacy_extension_id TEXT NOT NULL,
+      legacy_slug TEXT,
+      canonical_package_id TEXT NOT NULL,
+      archive_digest TEXT NOT NULL,
+      candidate_contribution TEXT NOT NULL
+        CHECK (candidate_contribution IN ('command', 'file-editor')),
+      active INTEGER NOT NULL CHECK (active IN (0, 1)),
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      retired_at INTEGER,
+      CHECK (
+        (active = 1 AND retired_at IS NULL) OR
+        (active = 0 AND retired_at IS NOT NULL)
+      ),
+      PRIMARY KEY (legacy_extension_id, canonical_package_id)
+    ) WITHOUT ROWID;
+    CREATE INDEX IF NOT EXISTS legacy_extension_mappings_by_source
+      ON legacy_extension_mappings (legacy_extension_id, active);
+    CREATE INDEX IF NOT EXISTS legacy_extension_mappings_by_package
+      ON legacy_extension_mappings (canonical_package_id, active);
   `
 }
 
@@ -121,7 +163,9 @@ function ensurePrivateDatabaseFile(filePath: string): void {
   chmodSync(filePath, 0o600)
 }
 
-export class BetterSqlite3ExtensionStateStore implements ExtensionStateStore {
+export class BetterSqlite3ExtensionStateStore
+  implements ExtensionStateStore, ExtensionMigrationStateStore
+{
   private readonly database: Database.Database
 
   constructor(readonly filePath: string) {
@@ -153,6 +197,7 @@ export class BetterSqlite3ExtensionStateStore implements ExtensionStateStore {
       }
       if (
         applicationId === APPLICATION_ID &&
+        userVersion !== 1 &&
         userVersion !== EXTENSION_STATE_FORMAT_VERSION
       ) {
         throw new Error(
@@ -161,7 +206,12 @@ export class BetterSqlite3ExtensionStateStore implements ExtensionStateStore {
       }
       this.database.pragma("journal_mode = DELETE")
       this.database.pragma("synchronous = FULL")
-      this.database.exec(schemaSql())
+      this.database.transaction(() => {
+        this.database.exec(snapshotSchemaSql())
+        this.database.exec(migrationSchemaSql())
+        this.database.pragma(`application_id = ${APPLICATION_ID}`)
+        this.database.pragma(`user_version = ${EXTENSION_STATE_FORMAT_VERSION}`)
+      })()
     } catch (error) {
       this.database.close()
       throw error
@@ -327,6 +377,103 @@ export class BetterSqlite3ExtensionStateStore implements ExtensionStateStore {
     return this.get(snapshot)
   }
 
+  recordLegacyExtensionMapping(
+    mapping: LegacyExtensionMappingInput,
+    now = Date.now()
+  ): LegacyExtensionMapping {
+    assertLegacyExtensionMappingInput(mapping)
+    if (!Number.isSafeInteger(now) || now < 0) {
+      throw new Error("Legacy extension mapping time is invalid")
+    }
+    this.database
+      .prepare(
+        `INSERT INTO legacy_extension_mappings (
+           legacy_extension_id, legacy_slug, canonical_package_id,
+           archive_digest, candidate_contribution, active,
+           created_at, updated_at, retired_at
+         ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, NULL)
+         ON CONFLICT(legacy_extension_id, canonical_package_id) DO UPDATE SET
+           legacy_slug = excluded.legacy_slug,
+           archive_digest = excluded.archive_digest,
+           candidate_contribution = excluded.candidate_contribution,
+           updated_at = excluded.updated_at`
+      )
+      .run(
+        mapping.legacyExtensionId,
+        mapping.legacySlug ?? null,
+        mapping.canonicalPackageId,
+        mapping.archiveDigest,
+        mapping.candidateContribution,
+        now,
+        now
+      )
+    return this.requireLegacyExtensionMapping(
+      mapping.legacyExtensionId,
+      mapping.canonicalPackageId
+    )
+  }
+
+  listLegacyExtensionMappings(
+    options: { includeRetired?: boolean } = {}
+  ): LegacyExtensionMapping[] {
+    const rows = this.database
+      .prepare(
+        `SELECT legacy_extension_id, legacy_slug, canonical_package_id,
+                archive_digest, candidate_contribution, active,
+                created_at, updated_at, retired_at
+         FROM legacy_extension_mappings
+         ${options.includeRetired ? "" : "WHERE active = 1"}
+         ORDER BY canonical_package_id, legacy_extension_id`
+      )
+      .all() as LegacyMappingRow[]
+    const activeRows = this.database
+      .prepare(
+        `SELECT legacy_extension_id, legacy_slug, canonical_package_id,
+                archive_digest, candidate_contribution, active,
+                created_at, updated_at, retired_at
+         FROM legacy_extension_mappings
+         WHERE active = 1`
+      )
+      .all() as LegacyMappingRow[]
+    return rows.map((row) => this.toLegacyExtensionMapping(row, activeRows))
+  }
+
+  setLegacyExtensionMappingActive(
+    legacyExtensionId: string,
+    canonicalPackageId: string,
+    active: boolean,
+    now = Date.now()
+  ): LegacyExtensionMapping {
+    if (typeof active !== "boolean") {
+      throw new Error("Legacy extension mapping active state must be boolean")
+    }
+    const current = this.requireLegacyExtensionMapping(
+      legacyExtensionId,
+      canonicalPackageId
+    )
+    assertLegacyExtensionMappingInput(current)
+    if (!Number.isSafeInteger(now) || now < 0) {
+      throw new Error("Legacy extension mapping time is invalid")
+    }
+    this.database
+      .prepare(
+        `UPDATE legacy_extension_mappings
+         SET active = ?, updated_at = ?, retired_at = ?
+         WHERE legacy_extension_id = ? AND canonical_package_id = ?`
+      )
+      .run(
+        active ? 1 : 0,
+        now,
+        active ? null : now,
+        legacyExtensionId,
+        canonicalPackageId
+      )
+    return this.requireLegacyExtensionMapping(
+      legacyExtensionId,
+      canonicalPackageId
+    )
+  }
+
   close(): void {
     this.database.close()
   }
@@ -338,6 +485,90 @@ export class BetterSqlite3ExtensionStateStore implements ExtensionStateStore {
       enabled: false,
       requestedGrants: [],
       granted: [],
+    }
+  }
+
+  private requireLegacyExtensionMapping(
+    legacyExtensionId: string,
+    canonicalPackageId: string
+  ): LegacyExtensionMapping {
+    const row = this.database
+      .prepare(
+        `SELECT legacy_extension_id, legacy_slug, canonical_package_id,
+                archive_digest, candidate_contribution, active,
+                created_at, updated_at, retired_at
+         FROM legacy_extension_mappings
+         WHERE legacy_extension_id = ? AND canonical_package_id = ?`
+      )
+      .get(legacyExtensionId, canonicalPackageId) as
+      | LegacyMappingRow
+      | undefined
+    if (!row) throw new Error("Legacy extension mapping does not exist")
+    const activeRows = this.database
+      .prepare(
+        `SELECT legacy_extension_id, legacy_slug, canonical_package_id,
+                archive_digest, candidate_contribution, active,
+                created_at, updated_at, retired_at
+         FROM legacy_extension_mappings
+         WHERE active = 1`
+      )
+      .all() as LegacyMappingRow[]
+    return this.toLegacyExtensionMapping(row, activeRows)
+  }
+
+  private toLegacyExtensionMapping(
+    row: LegacyMappingRow,
+    activeRows: readonly LegacyMappingRow[]
+  ): LegacyExtensionMapping {
+    const conflictingCanonicalPackageIds = row.active
+      ? [
+          ...new Set(
+            activeRows
+              .filter(
+                (candidate) =>
+                  candidate.legacy_extension_id === row.legacy_extension_id &&
+                  candidate.canonical_package_id !== row.canonical_package_id
+              )
+              .map((candidate) => candidate.canonical_package_id)
+          ),
+        ].sort()
+      : []
+    const conflictingLegacyExtensionIds = row.active
+      ? [
+          ...new Set(
+            activeRows
+              .filter(
+                (candidate) =>
+                  candidate.canonical_package_id === row.canonical_package_id &&
+                  candidate.legacy_extension_id !== row.legacy_extension_id
+              )
+              .map((candidate) => candidate.legacy_extension_id)
+          ),
+        ].sort()
+      : []
+    const sourceConflict = conflictingCanonicalPackageIds.length > 0
+    const packageConflict = conflictingLegacyExtensionIds.length > 0
+    const conflict: LegacyExtensionMappingConflict =
+      sourceConflict && packageConflict
+        ? "legacy-source-and-canonical-package"
+        : sourceConflict
+          ? "legacy-source"
+          : packageConflict
+            ? "canonical-package"
+            : "none"
+    return {
+      legacyExtensionId: row.legacy_extension_id,
+      legacySlug: row.legacy_slug ?? undefined,
+      canonicalPackageId: row.canonical_package_id,
+      archiveDigest: row.archive_digest,
+      candidateContribution: row.candidate_contribution,
+      active: row.active === 1,
+      conflict,
+      conflictingLegacyExtensionIds,
+      conflictingCanonicalPackageIds,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      retiredAt: row.retired_at ?? undefined,
     }
   }
 
