@@ -22,7 +22,6 @@ const externalNodeModules = [
   "oxc-parser",
   "oxc-transform",
   "rollup",
-  "minimatch",
   "@vscode/ripgrep",
   "node-pty",
   "@eidos.space/bashkit",

@@ -30,7 +30,6 @@
     "**/node_modules/@oxc-transform/binding-*/**/*",
     "**/node_modules/rollup/**/*",
     "**/node_modules/@rollup/rollup-*/**/*",
-    "**/node_modules/minimatch/**/*",
     "**/node_modules/node-pty/**/*"
   ],
   "extraResources": [
