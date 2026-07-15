@@ -120,6 +120,55 @@ This is a delivery gate, not an API-stability promise. During the preview,
 extensions must declare `engines.eidos`, pin immutable releases, and expect
 documented capability and surface contracts to evolve before a stable v1.
 
+## Publish the developer packages
+
+The five developer packages share one version and release together in
+dependency order:
+
+1. `@eidos.space/extension-manifest`
+2. `@eidos.space/extension-surface-protocol`
+3. `@eidos.space/extension-sdk`
+4. `@eidos.space/extension-runtime`
+5. `@eidos.space/extension-cli`
+
+Maintainers can inspect a release locally without credentials or registry
+writes. The output directory must be empty:
+
+```bash
+pnpm release:extension-packages \
+  --mode plan \
+  --version 0.1.0 \
+  --output-dir /tmp/eidos-extension-release
+```
+
+The planner requires one exact version across all five packages, rejects
+unshipped workspace dependencies and dependency cycles, replaces internal
+`workspace:*` ranges with that exact version, and queries npm before choosing
+`publish`, `stage`, or `skip`. It writes the tarballs plus their byte counts,
+SHA-1, SHA-512 integrity, source commit, and intended action to
+`release-plan.json`. It cannot publish from a developer machine.
+
+Actual registry changes use the manual **Extension Package Release** workflow
+from the exact tag `extension-tooling-v<version>`. The workflow first runs the
+full Extension Delivery gate, builds a review artifact, and pauses at the
+protected `npm` environment. The publishing job downloads and revalidates the
+reviewed tarballs instead of rebuilding them.
+
+The first release is a one-time bootstrap because npm staged publishing cannot
+create a new package. Configure the protected GitHub `npm` environment with
+required reviewers and a short-lived `NPM_TOKEN`, select `bootstrap`, and remove
+the token after all five packages exist. Then configure an npm trusted
+publisher for each package with repository `mayneyao/eidos`, workflow
+`extension-package-release.yml`, environment `npm`, and staged publishing only.
+
+Later releases use `stage`: bump all five package versions together, create the
+matching immutable tag, dispatch the workflow from that tag, review the staged
+packages in npm, and approve them with 2FA. Do not rerun a successful staged
+release; inspect the npm staged-packages page first. See npm's official
+[trusted publishing](https://docs.npmjs.com/trusted-publishers/) and
+[staged publishing](https://docs.npmjs.com/staged-publishing/) documentation for
+the registry-side setup.
+
 ## Development loop
 
 1. Scaffold outside your primary Space.

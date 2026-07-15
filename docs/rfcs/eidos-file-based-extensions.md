@@ -720,3 +720,16 @@ release builds depend on this workflow. This closes the developer-kit delivery
 loop without claiming a stable v1 API: extensions must still declare
 `engines.eidos`, use immutable release provenance, and migrate when preview
 contracts change.
+
+The public-package release path is now dry-run first. A single package catalog
+drives metadata checks, consumer smoke tests, and release planning. The planner
+requires one exact version, derives dependency order, rejects leaked workspace
+protocols and immutable-version mismatches, queries npm, and emits deterministic
+tarballs with SHA-1 and SHA-512 evidence. The manual release workflow accepts
+registry writes only from the exact `extension-tooling-v<version>` tag and a
+protected `npm` environment. Its publishing job verifies and consumes the
+artifact produced by the reviewed planning job instead of rebuilding bytes.
+First publication remains an explicit bootstrap because npm staged publishing
+cannot create packages; later versions use OIDC trusted publishing and npm's
+staged approval flow. No package has been published merely by implementing this
+gate.

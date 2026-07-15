@@ -106,6 +106,45 @@ macOS 和 Windows；Desktop release build 必须等待该 workflow，因此损�
 这是一道交付门禁，不代表 API 已经稳定。Preview 阶段的扩展必须声明 `engines.eidos`、固定 immutable
 release，并预期已记录的 capability 与 surface contract 在稳定 v1 前仍可能演进。
 
+## 发布开发者 package
+
+五个开发者 package 共用同一个版本，并按依赖顺序一起发布：
+
+1. `@eidos.space/extension-manifest`
+2. `@eidos.space/extension-surface-protocol`
+3. `@eidos.space/extension-sdk`
+4. `@eidos.space/extension-runtime`
+5. `@eidos.space/extension-cli`
+
+维护者可以在不使用凭证、也不写入 registry 的情况下本地检查发布计划。输出目录必须为空：
+
+```bash
+pnpm release:extension-packages \
+  --mode plan \
+  --version 0.1.0 \
+  --output-dir /tmp/eidos-extension-release
+```
+
+Planner 要求五个 package 使用同一个精确版本，拒绝未发布的 workspace dependency 与依赖环，把内部
+`workspace:*` 范围替换为该精确版本，并在选择 `publish`、`stage` 或 `skip` 前查询 npm。它会把
+tarball、字节数、SHA-1、SHA-512 integrity、源码 commit 与预期动作写入 `release-plan.json`，但不能
+从开发者机器真正发布。
+
+真正的 registry 变更必须从精确 tag `extension-tooling-v<version>` 手动运行 **Extension Package
+Release** workflow。Workflow 会先运行完整 Extension Delivery 门禁，生成可审阅 artifact，然后在受保护
+的 `npm` environment 暂停。发布 job 会下载并重新验证已经审阅的 tarball，不会再次构建另一份产物。
+
+首次发布需要一次 bootstrap，因为 npm staged publishing 不能创建新 package。先为 GitHub `npm`
+environment 配置 required reviewer 和短期 `NPM_TOKEN`，选择 `bootstrap`；五个 package 全部存在后立刻
+移除 token。然后分别为每个 npm package 配置 trusted publisher：repository 使用 `mayneyao/eidos`，
+workflow 使用 `extension-package-release.yml`，environment 使用 `npm`，并只允许 staged publishing。
+
+后续发布使用 `stage`：同步提升五个 package 的版本，创建匹配的 immutable tag，从该 tag 运行 workflow，
+在 npm 中审阅 staged package，并使用 2FA 批准。成功 stage 后不要直接重跑；应先检查 npm staged
+packages 页面。Registry 端配置参见 npm 官方的
+[trusted publishing](https://docs.npmjs.com/trusted-publishers/) 和
+[staged publishing](https://docs.npmjs.com/staged-publishing/) 文档。
+
 ## 开发循环
 
 1. 在主要 Space 之外创建 starter。

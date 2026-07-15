@@ -646,3 +646,11 @@ Node 22 下重复 metadata、类型检查、测试、packed-consumer、示例和
 检查覆盖 Linux、macOS 和 Windows，Desktop release build 必须依赖该 workflow。这补齐了开发工具的
 交付闭环，但不代表 v1 API 已稳定：扩展仍须声明 `engines.eidos`、使用 immutable release provenance，
 并在 preview contract 变化时迁移。
+
+公开 package 的发布路径现在采用 dry-run first。统一 package catalog 同时驱动 metadata check、消费端
+smoke test 与 release plan。Planner 要求一个精确版本、推导依赖顺序、拒绝泄漏的 workspace protocol
+和 immutable-version mismatch、查询 npm，并生成带 SHA-1 与 SHA-512 证据的确定性 tarball。手动发布
+workflow 只允许精确 `extension-tooling-v<version>` tag 与受保护 `npm` environment 产生 registry 写入；
+发布 job 会验证并直接使用 planning job 生成的已审阅 artifact，而不是重新构建另一组 bytes。由于 npm
+staged publishing 不能创建 package，首次发布仍需要显式 bootstrap；后续版本使用 OIDC trusted
+publishing 与 npm staged approval。实现这道门禁本身不会发布任何 package。
